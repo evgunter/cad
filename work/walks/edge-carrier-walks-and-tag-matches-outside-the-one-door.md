@@ -84,3 +84,11 @@ was measured rather than assumed. A unit closing it takes the walks
 first (mechanical, one `From`-shaped rename per site, rows unchanged)
 and leaves the tag comparisons to the units already editing those
 files.
+
+**2026-10-04.** `DanglingRef` and `readback::vertex_point_ref` are
+deleted. `readback::edge_carrier_ref`'s `CarrierAbsence::Dangling`
+now carries the caller's stale `EdgeKey` only; a curve key a live edge
+names that does not resolve panics naming the edge
+(`Body::edge_curve_linked`). The `From` delegation sketched above is
+gone with them; a site that reads an edge key out of the body maps
+`Dangling` to `unreachable!` rather than to a refusal of its own.

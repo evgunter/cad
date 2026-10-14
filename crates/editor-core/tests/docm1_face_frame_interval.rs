@@ -7,20 +7,22 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::corpus;
 use crate::docm1_face_frame::lofted_on_face_frame;
 use crate::fixture::{self, Recorder, ang, len, scl};
 
+use editor_core::PoseValue;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions,
-    Evaluation, Expr, Node, NodeError, NodeErrorKind, NodeResult, ParamName, ProfileDoc,
-    ProfileLift, RecipeNodeId, RoleSeg, UnitSym, ValuePayload, evaluate,
+    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
+    FreeVar, Node, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg, UnitSym, ValuePayload, VarName,
+    evaluate,
 };
 use geom_core::{Bounds, Interval, Tol, UnitVec3};
-use topo::{DatumValue, validate_closed};
+use topo::validate_closed;
 
 fn run(
     doc: &ProfileDoc,
@@ -47,7 +49,7 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
     let boss = cd.result.expect("the boss");
     let frame = cd
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
@@ -59,8 +61,7 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
             "{lift:?}: {:?}",
             corpus::failures(&ev)
         );
-        let ValuePayload::Datum(DatumValue::Frame(f)) =
-            &ev.value(frame).expect("the frame").payload
+        let ValuePayload::Datum(PoseValue::Frame(f)) = &ev.value(frame).expect("the frame").payload
         else {
             panic!("a frame value");
         };
@@ -87,40 +88,38 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
     }
 }
 
-/// **A loft section on a derived frame refuses typed off f64**, naming
-/// the profile and the frame (the f64 half of the row evaluates, in
-/// the f64 suite).
+/// **A loft whose section is drawn on a derived frame refuses typed at
+/// `Interval`, never placing it on a point of the frame's bracket.**
+/// The section is its profile's value at this scalar, on the frame's
+/// landed value, and a derived frame's landed placement at `Interval`
+/// is an enclosure, wider than a point. The loft encloses the `f64`
+/// skin of its sections' value channel, which such a placement does not
+/// have, so it refuses `PlacementNotAPoint` naming the section, under
+/// both lifts. Lofting it waits on the enclosure skin
+/// (`work/inlane/the-skin-at-interval-encloses-the-nominal-skin.md`);
+/// the profile itself evaluates.
 #[test]
-fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
+fn a_section_on_a_derived_frame_refuses_a_wide_placement_at_interval() {
     let (doc, loft) = lofted_on_face_frame();
-    let ev = run(&doc, None, &EvalOptions::default());
-    let frame = doc
-        .order()
-        .iter()
-        .copied()
-        .find(|id| matches!(doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
-        .expect("the derived frame");
     let Some(Node::Loft { profiles, .. }) = doc.node(loft) else {
         panic!("the loft");
     };
-    let section = profiles[0];
-    match ev.nodes.get(&loft) {
-        Some(NodeResult::Failed(NodeError {
-            kind:
-                NodeErrorKind::DerivedFrameSection {
-                    profile,
-                    frame: named,
-                },
-            ..
-        })) => {
-            assert_eq!(*profile, section);
-            assert_eq!(*named, frame);
+    let section = doc
+        .operation_of(profiles[0])
+        .expect("the section read is live");
+    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+        let ev = run(&doc, None, &lifted(lift));
+        match ev.node_error(loft).map(|e| &e.kind) {
+            Some(editor_core::NodeErrorKind::Loft(sweep::LoftError::PlacementNotAPoint {
+                section: 0,
+            })) => {}
+            other => panic!("{lift:?}: the loft must refuse its wide placement, got {other:?}"),
         }
-        other => panic!("the loft must refuse typed, got {other:?}"),
+        assert!(
+            ev.node_error(section).is_none(),
+            "{lift:?}: the profile evaluates"
+        );
     }
-    // The profile itself is fine: it is the SECTION use that has no
-    // f64 placement, not the profile.
-    assert!(matches!(ev.nodes.get(&section), Some(NodeResult::Ok(_))));
 }
 
 /// An exact unit box LIFTED by a document parameter `lift` (a rigid
@@ -139,9 +138,9 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
 /// `m10_3_driver_interval.rs` documents).
 fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new("lift"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("lift"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -149,7 +148,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
                 lo: -width,
                 hi: width,
             }),
-        },
+        }),
     });
     let (plane, profile) = r.profile_keeping(
         [0.0, 0.0, 0.0],
@@ -159,24 +158,29 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     );
     let _ = plane;
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
-    let lifted = r.insert(Node::Transform {
-        input: cube,
-        translation: [
-            len(0.0),
-            len(0.0),
-            Expr::param(ParamName::new("lift"), Dimension::Length),
-        ],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let lifted = r.insert(Node::transform(
+        cube,
+        editor_core::Step::Rigid {
+            translation: [
+                len(0.0),
+                len(0.0),
+                Formula::named(VarName::from_static("lift"), Dimension::Length),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     // A rigid transform keeps its input's name table verbatim, so the
     // cap is still named by the extrude that minted it.
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: lifted,
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            lifted,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     // The document ends at the boss PROFILE: the row below measures the
@@ -194,7 +198,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
 /// **The memo recomputes a profile on a derived frame through the
 /// UPSTREAM KEY**: widening the parameter the frame's body reads
 /// re-keys the body, hence the frame, hence the profile
-/// (`Node::inputs` of a profile names its frame, and a profile's
+/// (a profile reads its frame's output, and a profile's
 /// content key folds every input's key in), so the widened placement
 /// cannot be served from the nominal memo entry. No placement feed of
 /// its own is needed for that, and none exists.
@@ -249,9 +253,9 @@ fn an_interval_extrude_of_a_widened_height() {
     let e = Tol::witness().eps();
     let at = |width: f64| -> bool {
         let mut r = Recorder::new();
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new("hh"),
-            value: DocParam::Continuous {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static("hh"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -263,7 +267,7 @@ fn an_interval_extrude_of_a_widened_height() {
                 } else {
                     None
                 },
-            },
+            }),
         });
         let profile = r.profile(
             [0.0, 0.0, 0.0],
@@ -272,8 +276,9 @@ fn an_interval_extrude_of_a_widened_height() {
             vec![fixture::square(0.0, 0.0, 1.0)],
         );
         r.insert(Node::Extrude {
-            profile,
-            distance: Expr::param(ParamName::new("hh"), Dimension::Length),
+            profile: profile.into(),
+            distance: Formula::named(VarName::from_static("hh"), Dimension::Length),
+            side: ExtrudeSide::Along,
         });
         let doc = r.doc;
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
@@ -316,9 +321,9 @@ fn an_interval_extrude_of_a_widened_height() {
 fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     let width = Tol::witness().eps() / 10.0;
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new("h"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("h"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 1.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -326,7 +331,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
                 lo: -width,
                 hi: width,
             }),
-        },
+        }),
     });
     let profile = r.profile(
         [0.0, 0.0, 0.0],
@@ -335,12 +340,15 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
         vec![fixture::square(0.0, 0.0, 1.0)],
     );
     let cube = r.insert(Node::Extrude {
-        profile,
-        distance: Expr::param(ParamName::new("h"), Dimension::Length),
+        profile: profile.into(),
+        distance: Formula::named(VarName::from_static("h"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube,
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            cube,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     let boss_p = r.insert(Node::Profile(fixture::desc(
@@ -376,15 +384,4 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     );
     assert_eq!(widened.reused, 2, "the two parameter-free leaves");
     assert_eq!(widened.recomputed, doc.len() - 2);
-}
-
-/// **`SectionScalar` answers by type**: `f64` hands its value across,
-/// an interval and a dual answer `None` — decided by the impl, no
-/// number inspected (an exact interval is still an interval).
-#[test]
-fn section_scalar_is_decided_by_the_type() {
-    use editor_core::SectionScalar;
-    assert_eq!(1.5_f64.pinned_f64(), Some(1.5));
-    assert_eq!(Interval::from_bounds(1.0, 1.0).pinned_f64(), None);
-    assert_eq!(geom_core::Dual64::constant(1.0).pinned_f64(), None);
 }

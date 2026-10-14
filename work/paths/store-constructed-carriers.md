@@ -2,12 +2,12 @@
 id: store-constructed-carriers
 kind: unit
 title: Store the carriers circle, Center and fillet arcs are built from; delete the hand copies of bulge→carrier and the bulge accessor
-status: parked
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: D
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-blocked_on: [circle-lowers-to-one-segment]
+closed: 2026-10-06
 ---
 
 
@@ -58,3 +58,151 @@ From #3231's review:
 - `RawLoop::new` adds a carrier→bulge copy, `(sweep/4).tan()`, which
   joins `sugar.rs::bulge_from_center`'s tail and `path/verbs.rs`. All
   three go when the kept bulge retires.
+
+**From `geom-brep-sketch-segment-full-turn` (2026-09-25; corrected in
+its fix pass).** The net count of bulge→carrier copies is **six**, not
+seven minus two.
+- **Two are gone.** `SketchSegment::eval` reads the segment's stored
+  centre and sweep. `skin::segment_curve` reads the stored centre,
+  radius and sweep. Both are still `seg::arc_carrier`'s derivation,
+  carried across the boundary.
+- **One was added.** `geom-brep/tests/shared/arc.rs::lowered_arc`
+  restates `seg::arc_carrier` plus `Δθ = 4·atan b` at `Interval`. The
+  arc-evaluation anchor rows need a carrier derived from a wide chord,
+  and `geom-brep` sits below `profile` in the layering, so it cannot
+  call the lowering.
+- **Beside that copy, not counted.** The same two suites
+  (`arc_eval_anchor.rs::short_arc` and
+  `review_arceval_r1_probes.rs::short_sub_arc`) re-spell the retired
+  restriction's sub-arc bulge `tan(atan b·Δs)` to build a short arc
+  whose centre is derived from its own chord.
+- **Routed through the lowering, not copies.**
+  `sweep::test_support::bulge_arc` forwards to `bulge_loop`. The tour's
+  sweep path authors `arc_to(Bulge)` and reads the canonical segment back.
+
+`ValidatedSegment::bulge` has no reader left in `geom-brep`, `topo` or
+`sweep`. Its readers are the lift (profile), `anchor`, the `stackup`
+digest and `viewer::flatten`.
+
+**The sweep boundary is in this unit's check (from #3254's review).**
+`geom_brep::SketchSegment::Arc` carries `a, b, centre, radius, sweep`.
+`eval` reads `a`, `centre` and `sweep`; `sweep::skin::segment_curve`
+(public through `sweep` and `pncad`) also trusts `radius`; nothing
+checks their consistency at the type's door, so an inconsistent
+`radius` converts through `segment_curve` while certification, which
+reads `eval`, passes. The validate-time endpoint-on-carrier check owed
+here must cover the segment as it crosses into `geom-brep`, not only the
+profile's stored segment. Taking `segment_curve`'s radius from
+`|a − centre|` was tried and moves the elbow's STEP golden, sidecars and
+mesh digests, so it was left for this unit.
+
+## Ruling (Ev, #3453, 2026-09-30)
+
+The design is in D1's Profile-format clause as merged:
+- **The program is the stored authored form; the loop is its cache.**
+  Each arc mode's lowering is that mode's one conversion.
+- **Validate's consistency checks, three per stored arc, as
+  ε-decisions:** the start lies on the circle, the rotated start lands
+  on the end, and 0 < |Δθ| ≤ 2π (a one-segment loop is a full turn).
+- **Lifts:** pinned lifts and `reversed` copy the stored fields; the
+  guided lift replays the program.
+- **Foldable spelling.** Each lowering spells its output in the shape's
+  own algebra: the radius as authored, and Δθ as one `4·atan(X)` with X
+  algebraic, never `atan2`.
+- **Registrations** only for what the algebra cannot close: the
+  construction registers, and the sweep registers rigidity.
+- **The writer** emits `Center`.
+- **One shared `geom-core` arc type**, with `radius` kept.
+
+Order: 5a, then the shared type, then 5b. The register-equal allowlist
+gains the shared type's site; it was named on the PR and approved with
+it.
+
+## After 5a (#3527, merged 2026-10-02)
+
+**Done by 5a; not this unit's any more:**
+- the stored bulge (`ProfileLoop.bulges`, `ValidatedSegment.bulge`) and
+  the bulge accessor are gone; the loop stores (vertex, `Segment`) pairs
+  through `ProfileLoop::from_chain`;
+- `map_scalar`, `reversed`, `ValidatedSegment::lift` and `lift_onto` copy
+  the stored fields; `lift::chain_form` writes `ArcTo(Center)`;
+- `build_seg`'s readers (margin, sagitta, apex), `anchor::derive_naming`,
+  `signed_area`, the `stackup` digest and `viewer::flatten` read the
+  stored carrier;
+- the validate-time consistency checks (`arc_start_on_carrier`,
+  `arc_landing`, `arc_sweep_range`, with the scene-resolution refusal),
+  decided for tables and held by construction for a `ConstructedLoop`;
+- `Arc2::register_endpoints` (called by `lower_arc`) and the sweep's
+  rigidity-only registrations.
+
+**What remains:**
+1. The emission layer still lowers every arc through a bulge: each arc
+   mode computes a bulge and `Core::finish` re-derives the carrier from
+   the chord (`lower_chain`). Each construction stores the `Arc2` it
+   builds instead, spelled per D1: the radius as authored, Δθ as one
+   `4·atan(X)` with X algebraic, never `atan2`. A `Center` arc stores the
+   authored centre. Each construction registers only the endpoint facts
+   its algebra proves.
+2. The bulge→carrier hand copies left after 5a: `path.rs::arc_carrier`
+   (and `family.rs::bulge_carrier` through it), the tangent arc's
+   `atan2` delta, `sugar::bulge_from_center` / `bulge_from_via` as
+   lowering steps, `verbs.rs`'s `(signed/4).tan()`, and
+   `geom-brep/tests/shared/arc.rs::lowered_arc`.
+3. The `geom-brep` boundary: `sweep::skin::segment_curve` trusts
+   `arc.radius` and reads the start angle by endpoint `atan2`.
+4. Re-check `FilletArcFlattenedInStorage` and
+   `profile-fillet-radius-off-at-eps-1e-6`, and whether 3 resolves
+   `sketch-segment-eval-could-be-exact-at-both-ends`.
+
+## 5b on #3774 (2026-10-02)
+
+The emission core keeps (vertex, built arc) pairs, and each arc mode's
+lowering is its one conversion, registering only what its algebra
+proves (`crate::Facts`):
+- `Center` stores the authored centre, with radius `‖a − c‖` and sweep
+  `4·atan(σh/(r + σp))`; nothing is registered.
+- `Via` lowers from the chord with X = `(d₁ × d₂)/(|d₁||d₂| + d₁·d₂)`.
+- The tangent arc stores its own circle: centre `a + n̂·ρ`, radius
+  `|ρ|`, and X = `across/(|d| + along)`.
+- Fillet arcs store the resolution's centre (turn side from the decided
+  corner turn) and the authored radius, and register the incoming
+  tangency.
+- Arc-side runs store the side's own circle.
+- `circle` and `circle_split` store the authored carrier.
+- Authored radii are stored as `|r|`.
+- `Sweep` and `ArcLen` refuse a full turn
+  (`sweep-arclen-legs-fold-an-over-full-angle`, closed).
+
+`Arc2::from_chord` is now the one chord lowering, and `segment_curve`
+reads what `eval` reads.
+
+Orchestrator rulings on the three forks (2026-10-02): keep the offset
+fillet centre and register what it proves; keep the algebraic
+tangent-arc X; bring the over-full refusal in. The costs that stand
+are on the PR:
+- `r2_link`'s ceiling falls from 4.930e2·ε to 3.029e2·ε, and two of its
+  predicates move against rule G's side (`carrier_on_surface_2` and
+  `carrier_matches_mapped_source`; `arc_span` moved too until the
+  2026-10-06 merge). The half-turn's `2w/|2w|` is a sign the tier does not
+  hold, so no registration on the built values reaches it.
+- 8 `dihedral_wedge` decisions on `r2_filleted_bracket` that are theorems
+  on main (DECIDE-9, #3807) are registered here instead. The fillet's
+  tangency is the registration `centre ≡ t1 + σ·r·n̂₁`, not an identity of
+  the offset centre's algebra. The bracket's document still gains, on the
+  tree merged 2026-10-06: `[1259, 45, 154, 1087]` → `[1401, 45, 49, 1050]`.
+  It now certifies whole at M10-9's scale, and that closed
+  `pcert/fillet-meridian-radius-term-is-registered-only`.
+
+## 5b's fix pass (2026-10-06)
+
+- A fillet registers only what its construction proves. The offset
+  intersection says which branch it took (`sugar::OffsetCentres`): a
+  crossing proves its centres, a decided tangency does not. With the
+  exact fit (the arc springs off the chain head, or ends on the entry
+  vertex), the fillet is `Facts::Decided` (`path::fillet_facts`).
+- Arc-side runs store the authored `|r|` where the mode authors one.
+- `FirstSeg` comes from the verb's kind again.
+- The fillet's and the `Center` arc's X share one spelling,
+  `sugar::quarter_tan_about`, with no `copysign`.
+- The full-turn refusal is `ArcSweepNotShortOfFullTurn`.
+

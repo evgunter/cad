@@ -49,8 +49,9 @@ are one unit: a table asserting an answer where the question was not
 asked, at three sites of `blend/mod.rs`. `annulus-rim-phase-…` and
 `cap-rim-smooth-arm-…` are small and independent.
 
-`S90-impl` waits on SCALAR's LANE-4 (PR #3194, `PcurveFittedLane`
-folds into a `FittedLane` door value), which is the lane-trait split
+`S90-impl` waits on SCALAR's LANE-4 (PR #3194, the fitted lane
+folds into a `FittedLane` door value, which `AtRestPolicy::fitted_lane()`
+answers), which is the lane-trait split
 the row says the tightening turns on; it is re-read against the tree
 when that lands, not before.
 
@@ -60,3 +61,7 @@ Per unit, by the review tiers in `memories/orchestration-model.md`;
 the model A/B the opening text inherited is suspended, so there is no
 triage question left to answer. Each dispatch names its tier in the
 log.
+
+## Note from SCALAR (2026-09-29)
+
+LANE-4 (PR #3194) merged on 2026-09-29, so the wait above is over and `S90-impl` is due its re-read against the tree.

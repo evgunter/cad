@@ -58,7 +58,7 @@ fn main() {
         .filter(|(_, e)| {
             ball.get_curve_geom(e.curve)
                 .and_then(topo::CurveGeom::certified)
-                .is_some_and(|c| matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)))
+                .is_some_and(|c| c.description().is_scaffold())
         })
         .count();
 
@@ -109,6 +109,6 @@ fn main() {
             );
         }
         Err(e) => println!("[M2] refused through another door: {e:?}"),
-        Ok(()) => println!("[M2] the offset SUCCEEDED — the declared arm did not fire"),
+        Ok(_) => println!("[M2] the offset SUCCEEDED — the declared arm did not fire"),
     }
 }

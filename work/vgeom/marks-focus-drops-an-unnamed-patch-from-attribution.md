@@ -41,3 +41,16 @@ seam refuses) should take this site with it.
 ## Fence
 
 `crates/viewer/src/marks.rs` (CHROME, VGEOM).
+
+## Left here by AUTH-14 (2026-09-30)
+
+AUTH-14 made the EDGE refusal a value (`PickIndex::edge_names_in`,
+`EdgeNamesRefused`) and badged it for the blend tool's held mark
+(`frame::held_edges_badge`). It did not take this site: `focus` is not
+on the per-frame mark path that badge reads. It runs in
+`ViewerApp::sync_scene` (`crates/viewer/src/app.rs`) and feeds
+`PickIndex::scene_focused`, a scene rebuild cached on `scene_focus`, so
+its refusal needs a surface on that seam, not the viewport's per-frame
+read. The door is also the flat patch lookup (`name_of`), not the
+edge window. Its selection-mark sibling is filed beside it:
+`a-selected-edge-whose-drawn-edge-lost-its-name-marks-as-vanished`.

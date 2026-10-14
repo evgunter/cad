@@ -191,25 +191,28 @@ pub(crate) fn torus_chord_bound(a: f64, b: f64, c: f64, du: f64, dv: f64) -> f64
 /// holds an odd multiple of π (every interior extremum of
 /// `R + r·cos φ` is one of those, and `|·|` peaks at an extremum or
 /// an endpoint).
+///
+/// "Holds" is [`geom::periodic_window_may_hold`]'s: an extremum is
+/// left out only where the interval certainly misses it.
 fn abs_radial_max(major: f64, minor: f64, v0: f64, v1: f64) -> f64 {
     use core::f64::consts::{PI, TAU};
     let mut m = (major + minor * v0.cos())
         .abs()
         .max((major + minor * v1.cos()).abs());
-    if (v1 / TAU).floor() >= (v0 / TAU).ceil() {
+    if geom::periodic_window_may_hold((0.0, 0.0), (v0, v1), TAU) {
         m = m.max(major + minor);
     }
-    if ((v1 - PI) / TAU).floor() >= ((v0 - PI) / TAU).ceil() {
+    if geom::periodic_window_may_hold((PI, PI), (v0, v1), TAU) {
         m = m.max((major - minor).abs());
     }
     m
 }
 
 /// `max |sin φ|` over `[v0, v1]`: 1 if the interval holds an odd
-/// multiple of π/2, else at an endpoint.
+/// multiple of π/2 (π/2 at period π), else at an endpoint.
 fn abs_sin_max(v0: f64, v1: f64) -> f64 {
     use core::f64::consts::{FRAC_PI_2, PI};
-    if ((v1 - FRAC_PI_2) / PI).floor() >= ((v0 - FRAC_PI_2) / PI).ceil() {
+    if geom::periodic_window_may_hold((FRAC_PI_2, FRAC_PI_2), (v0, v1), PI) {
         1.0
     } else {
         v0.sin().abs().max(v1.sin().abs())

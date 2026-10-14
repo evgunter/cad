@@ -63,7 +63,7 @@ gate and the header's call site is unchanged. The id-only arm's doc in
 
 Pinned by `app::properties_pane_tests`'
 `a_stale_faces_delete_is_disabled_with_the_refusal_it_would_get` and
-`a_held_faces_delete_is_live_and_says_nothing`, which drive the whole
+`a_held_faces_delete_is_live_and_says_only_its_cost`, which drive the whole
 app over an inline session whose re-evaluation was canceled.
 
 The sweep's one new member, the *"carries no parameters"* line under

@@ -427,7 +427,7 @@ fn a_planted_refusal_stops_the_fold_with_the_right_arm() {
 fn the_enclosed_volume_error_is_bounded_by_delta_at_random_deltas() {
     let mut rng = fuzz::start("gui0-r2 volume bound sweep");
     let tol = Tol::witness();
-    let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
+    let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     let plate = [0.060, 0.040, 0.008];
     let hole_r = 0.012;
     let nominal =
@@ -492,7 +492,7 @@ fn the_enclosed_volume_error_is_bounded_by_delta_at_random_deltas() {
 #[test]
 fn the_scene_bounds_are_the_documents_own_dimensions() {
     let tol = Tol::witness();
-    let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
+    let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     let mesh = scene::scene_of(
         &doc,
         DisplayTolerance::new(1.0e-4).expect("a positive tolerance"),

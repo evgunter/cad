@@ -1,32 +1,32 @@
 //! Corpus document **part_select** — DOCM-2's register payoff: ONE
 //! body out of a multi-body value, spelled the way a user spells it.
 //!
-//! A box split by a plane at mid-height; BOTH halves selected by two
-//! `Node::Part`s and unioned back together (a declared rest contact
-//! across the two section faces, which is what a union of two
-//! resting bodies is); a three-instance linear pattern of the box with
-//! its MIDDLE instance selected by a third `Part` and placed by a
-//! transform. Each selector is consumed downstream, so the census
-//! counts both sub-kinds and every standard row — evaluation at every
-//! CI ε row and under `interval`, persistence round-trip (D6.1), the
-//! latency table — runs the projection end to end.
+//! A box split by a plane at mid-height; BOTH halves read by port and
+//! unioned back together (a rest contact across the two section faces,
+//! which is what a union of two resting bodies is); a three-instance
+//! linear pattern of the box with its MIDDLE instance selected by a
+//! `Part` and placed by a transform. Every standard row — evaluation at
+//! every CI ε row and under `interval`, persistence round-trip (D6.1),
+//! the latency table — runs both end to end.
 //!
 //! The box's height is a document parameter (`h`) that the split's
 //! target reads, so the Interval-lane rows (`docm2_part_interval`)
-//! can widen it and read each Part's body against the half read off
-//! the split's own value at that lane.
+//! can widen it and read the Part's body against the instance read
+//! off the pattern's own value at that lane.
 //!
 //! Dyadic mass pin: the two halves unioned are the 2 × 2 × 1 box
 //! again — volume 4, area 2·4 + 4·2 = 16. The union of the halves
-//! being the box is the document's own statement that a Part IS the
-//! half: nothing was moved, re-stamped or lost on the way through.
+//! being the box is the document's own statement that a read of a port
+//! IS the half: nothing was moved, re-stamped or lost on the way
+//! through.
 //!
 //! D2 bump: the tool plane's height (mid-DAG — its cone is the plane,
-//! the split, both halves and the union; the pattern chain is reused).
+//! the split and the union; the pattern chain is reused).
 
+use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, DocParam, EntityKind, Expr, Node, ParamName, PartSelect,
-    PatternKind, RecipeNodeId, RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym,
+    Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind, RecipeNodeId,
+    RoleSeg, SlotId, SplitHalf, StableName, UnitSym, VarName,
 };
 
 use crate::fixture::{ang, desc, len, scl, xy_frame};
@@ -50,7 +50,7 @@ const LIFT: f64 = 2.0;
 pub const H: &str = "h";
 
 /// The split's section face bounding `side`, in the naming
-/// vocabulary — the name a Part hands through verbatim.
+/// vocabulary — the name a read of that half carries verbatim.
 pub fn section_face(split: RecipeNodeId, side: SplitHalf) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -62,14 +62,14 @@ pub fn section_face(split: RecipeNodeId, side: SplitHalf) -> StableName {
 /// The part-select corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new(H),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static(H),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: BOX_H,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: None,
-        },
+        }),
     });
 
     // ---- the box, [-1, 1]² × [0, h] ----
@@ -84,8 +84,9 @@ pub fn document() -> CorpusDoc {
         ]],
     )));
     let cube = r.insert(Node::Extrude {
-        profile: box_p,
-        distance: Expr::param(ParamName::new(H), Dimension::Length),
+        profile: box_p.into(),
+        distance: Formula::named(VarName::from_static(H), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
 
     // ---- the cut at mid-height, and its two halves as bodies ----
@@ -93,53 +94,50 @@ pub fn document() -> CorpusDoc {
         origin: [len(0.0), len(0.0), len(CUT_Z)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let split = r.insert(Node::Split { target: cube, tool });
-    let above = r.insert(Node::Part {
-        of: split,
-        select: PartSelect::SplitHalf(SplitHalf::Above),
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
     });
-    let below = r.insert(Node::Part {
-        of: split,
-        select: PartSelect::SplitHalf(SplitHalf::Below),
-    });
-    // The two halves rest on each other across the section — a
-    // declared contact, named through the split's own vocabulary
-    // because each Part carries the split's names verbatim.
-    let rest = r.insert(Node::declare_rest(vec![(
-        SitedRef::new(above, section_face(split, SplitHalf::Above)),
-        SitedRef::new(below, section_face(split, SplitHalf::Below)),
-    )]));
-    let whole = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: above,
-        b: below,
-        declare: Some(rest),
+    let half = |r: &Recorder, side: SplitHalf| {
+        r.doc
+            .output(split, side.port())
+            .expect("a split defines a port per half")
+    };
+    // The two halves rest on each other across the section.
+    let whole = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            half(&r, SplitHalf::Above).into(),
+            half(&r, SplitHalf::Below).into(),
+        ]),
     });
 
     // ---- three boxes along x, and the middle one lifted ----
     let pattern = r.insert(Node::Pattern {
-        input: cube,
-        count: Expr::count(COUNT),
+        input: cube.into(),
+        count: Formula::count(COUNT),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(PITCH),
         },
     });
     let middle = r.insert(Node::Part {
-        of: pattern,
-        select: PartSelect::Instance(Expr::count(1)),
+        of: pattern.into(),
+        select: PartSelect::Instance(Formula::count(1)),
     });
-    let lifted = r.insert(Node::Transform {
-        input: middle,
-        translation: [len(0.0), len(0.0), len(LIFT)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
-    let _ = lifted;
+    let lifted = r.insert(Node::transform(
+        middle,
+        editor_core::Step::Rigid {
+            translation: [len(0.0), len(0.0), len(LIFT)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
+    r.place(whole);
+    r.place(lifted);
 
     CorpusDoc {
         name: "part_select",
-        about: "DOCM-2: a split's two halves and a pattern's middle instance as bodies (Node::Part)",
+        about: "DOCM-2: a split's two halves read by port, and a pattern's middle instance (Node::Part)",
         edits: r.edits,
         doc: r.doc,
         result: Some(whole),
@@ -150,7 +148,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: tool,
             slot: SlotId::Origin(editor_core::Axis3::Z),
-            expr: len(0.25),
+            value: len(0.25).into(),
+            fresh: Vec::new(),
         },
         bump_root: tool,
     }

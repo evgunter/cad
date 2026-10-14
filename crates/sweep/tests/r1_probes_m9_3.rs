@@ -1,7 +1,7 @@
 //! M9-3 unit review R1 — adversarial probes (blinded lane).
 //!
-//! Attacks: the C8 boundary under novel undeclared/mis-declared
-//! configurations, the two-peg oracle re-derived and perturbed, the
+//! Attacks: the C8 boundary under novel configurations, the two-peg
+//! oracle re-derived and perturbed, the
 //! zip's ring bookkeeping under nested/mismatched rings, partial
 //! engagement, and the tube-chain additivity bound measured.
 
@@ -9,96 +9,39 @@
 
 use crate::common::operands::{plate6, plate6_cyl};
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::{
-    Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FacePairDeclaration,
-    mass_properties,
-};
+use topo::{AtRestBody, BooleanError, BooleanResult, mass_properties};
 
-fn body_of(r: BooleanResult<f64>) -> Body<f64> {
+fn body_of(r: BooleanResult<f64>) -> AtRestBody<f64> {
     match r {
         BooleanResult::Body(b) => b.body,
         BooleanResult::Empty => panic!("operand cannot be empty"),
     }
 }
 
-fn plate_with_pegs(cx1: f64, cx2: f64, r: f64) -> Body<f64> {
-    let p0 = plate6(0.0);
-    let p1 = body_of(topo::union(&p0, &plate6_cyl(cx1, 0.4, 1.6, r), Tol::witness()).unwrap());
-    body_of(topo::union(&p1, &plate6_cyl(cx2, 0.4, 1.6, r), Tol::witness()).unwrap())
+/// [`plate6`], finished.
+fn plate(z0: f64) -> AtRestBody<f64> {
+    finished("the plate", plate6(z0), Tol::witness())
 }
 
-fn plate_with_bores() -> Body<f64> {
-    let q0 = plate6(1.0);
-    let q1 = body_of(topo::subtract(&q0, &plate6_cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap());
-    body_of(topo::subtract(&q1, &plate6_cyl(4.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
+/// [`plate6_cyl`], finished.
+fn cyl(cx: f64, z0: f64, h: f64, r: f64) -> AtRestBody<f64> {
+    finished("the cylinder", plate6_cyl(cx, z0, h, r), Tol::witness())
 }
 
-fn walls_at(body: &Body<f64>, cx: f64) -> Vec<topo::FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { origin, .. }) if (origin.x - cx).abs() < 0.5
-            )
-        })
-        .map(|(k, _)| k)
-        .collect()
+fn plate_with_pegs(cx1: f64, cx2: f64, r: f64) -> AtRestBody<f64> {
+    let p0 = plate(0.0);
+    let p1 = body_of(topo::union(&p0, &cyl(cx1, 0.4, 1.6, r), Tol::witness()).unwrap());
+    body_of(topo::union(&p1, &cyl(cx2, 0.4, 1.6, r), Tol::witness()).unwrap())
 }
 
-fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
-    let hits: Vec<_> = body
-        .faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => {
-                (origin.z - z).abs() < 1e-9 && (normal.z > 0.5) == up
-            }
-            _ => false,
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let [f] = hits[..] else {
-        panic!(
-            "expected exactly one z = {z} face (up = {up}), got {}",
-            hits.len()
-        );
-    };
-    f
-}
-
-/// Full two-peg declarations, optionally dropping peg 2's wall group
-/// or redirecting peg 1's walls to bore 2 (the wrong-pair probe).
-fn declarations(
-    p: &Body<f64>,
-    q: &Body<f64>,
-    skip_second: bool,
-    cross_wire: bool,
-) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(p, 1.0, true),
-        plane_face(q, 1.0, false),
-        ContactClass::Rest,
-    ));
-    let groups: Vec<(f64, f64)> = if cross_wire {
-        vec![(2.0, 4.0), (4.0, 2.0)] // peg-1 walls declared against bore-2
-    } else if skip_second {
-        vec![(2.0, 2.0)]
-    } else {
-        vec![(2.0, 2.0), (4.0, 4.0)]
-    };
-    for (pcx, qcx) in groups {
-        for &fa in &walls_at(p, pcx) {
-            for &fb in &walls_at(q, qcx) {
-                decls
-                    .coincident_faces
-                    .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-            }
-        }
-    }
-    decls
+fn plate_with_bores() -> AtRestBody<f64> {
+    let q0 = plate(1.0);
+    let q1 = body_of(topo::subtract(&q0, &cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap());
+    body_of(topo::subtract(&q1, &cyl(4.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
 }
 
 /// Oracle re-derivation: the plate pair is 6·4·1 each = 24+24 = 48 and
@@ -111,8 +54,7 @@ fn probe_two_peg_oracle_rederivation() {
     let q = plate_with_bores();
     let vp = mass_properties(&p, Tol::witness()).unwrap().volume;
     let vq = mass_properties(&q, Tol::witness()).unwrap().volume;
-    let decls = declarations(&p, &q, false, false);
-    let body = body_of(topo::union_with(&p, &q, &decls, Tol::witness()).unwrap());
+    let body = body_of(topo::union(&p, &q, Tol::witness()).unwrap());
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
     eprintln!(
         "vp = {vp:.17e}, vq = {vq:.17e}, vp+vq = {:.17e}, v = {v:.17e}",
@@ -122,31 +64,8 @@ fn probe_two_peg_oracle_rederivation() {
     assert_eq!(v, 48.0, "the closed form is exactly 48 (PR claim)");
 }
 
-/// Perturbation: peg 2 offset so the carriers differ by a DEFINITE
-/// margin (100× the run's escalation threshold, derived from the
-/// band so the row stays definite at EVERY ε) — the declaration must
-/// be contradicted, never silently zipped.
-#[test]
-fn probe_peg_offset_definite_contradicts() {
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let off = 100.0 * band.escalate();
-    assert!(off < 0.25, "the offset stays a small perturbation");
-    let p = plate_with_pegs(2.0, 4.0 + off, 0.5);
-    let q = plate_with_bores();
-    let decls = declarations(&p, &q, false, false);
-    let err = topo::union_with(&p, &q, &decls, Tol::witness())
-        .expect_err("a definitely-offset peg declared Rest must not union");
-    assert!(
-        matches!(
-            err,
-            BooleanError::ContactContradicted { .. } | BooleanError::Escalated { .. }
-        ),
-        "typed, at the door: {err:?}"
-    );
-}
-
 /// Perturbation: peg 2 offset by ~2 ulp of 4.0 (in the zero band).
-/// C4 bridges in-band residues under a verified declaration — the
+/// C4 bridges in-band residues under a verified pair — the
 /// probe records which arm actually fires and that nothing SILENTLY
 /// wrong emerges (either a typed refusal, or a union whose volume is
 /// still additive to dust).
@@ -157,8 +76,7 @@ fn probe_peg_offset_one_ulp_characterized() {
     let q = plate_with_bores();
     let vp = mass_properties(&p, Tol::witness()).unwrap().volume;
     let vq = mass_properties(&q, Tol::witness()).unwrap().volume;
-    let decls = declarations(&p, &q, false, false);
-    match topo::union_with(&p, &q, &decls, Tol::witness()) {
+    match topo::union(&p, &q, Tol::witness()) {
         Ok(out) => {
             let body = body_of(out);
             let v = mass_properties(&body, Tol::witness()).unwrap().volume;
@@ -182,8 +100,6 @@ fn probe_peg_offset_one_ulp_characterized() {
                     err,
                     BooleanError::Escalated { .. }
                         | BooleanError::ContactContradicted { .. }
-                        | BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::JoinDesync { .. }
                         | BooleanError::CurvedPierceUnsupported { .. }
                 ),
                 "typed only: {err:?}"
@@ -192,95 +108,23 @@ fn probe_peg_offset_one_ulp_characterized() {
     }
 }
 
-/// Missing declaration group: peg 2's walls undeclared — the second
-/// incidence must keep the typed frontier refusal (C8), never ride
-/// peg 1's declarations.
-#[test]
-fn probe_missing_declared_group_refuses_typed() {
-    let p = plate_with_pegs(2.0, 4.0, 0.5);
-    let q = plate_with_bores();
-    let decls = declarations(&p, &q, true, false);
-    let err = topo::union_with(&p, &q, &decls, Tol::witness())
-        .expect_err("an undeclared second peg must refuse");
-    assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "the undeclared incidence keeps the frontier door: {err:?}"
-    );
-}
-
-/// Wrong-pair declaration: peg 1's walls declared against BORE 2's
-/// walls (distinct carriers two units apart). The declaration must be
-/// contradicted at the door — it must not act as cover for either
-/// real incidence.
-#[test]
-fn probe_cross_wired_declaration_contradicts() {
-    let p = plate_with_pegs(2.0, 4.0, 0.5);
-    let q = plate_with_bores();
-    let decls = declarations(&p, &q, false, true);
-    let err = topo::union_with(&p, &q, &decls, Tol::witness())
-        .expect_err("cross-wired wall declarations must not union");
-    assert!(
-        matches!(err, BooleanError::ContactContradicted { .. }),
-        "typed contradiction at the door: {err:?}"
-    );
-}
-
-/// Wrong class on a conformal pair: the two-peg walls declared
-/// Tangent must contradict (the conformal screen), not act as cover.
-#[test]
-fn probe_tangent_on_conformal_walls_contradicts() {
-    let p = plate_with_pegs(2.0, 4.0, 0.5);
-    let q = plate_with_bores();
-    let mut decls = BooleanDeclarations::none();
-    for cx in [2.0, 4.0] {
-        for &fa in &walls_at(&p, cx) {
-            for &fb in &walls_at(&q, cx) {
-                decls.coincident_faces.push(FacePairDeclaration::new(
-                    fa,
-                    fb,
-                    ContactClass::Tangent,
-                ));
-            }
-        }
-    }
-    let err = topo::union_with(&p, &q, &decls, Tol::witness())
-        .expect_err("a conformal pair declared Tangent must contradict");
-    assert!(
-        matches!(err, BooleanError::ContactContradicted { .. }),
-        "{err:?}"
-    );
-}
-
 /// Partial engagement: a peg reaching only halfway up its through-bore
-/// (the bore is NOT fully engaged). Declared Rest on the walls + the
-/// mate: whatever happens must be a typed refusal or an exactly-
+/// (the bore is NOT fully engaged), resting on the walls and the mate:
+/// whatever happens must be a typed refusal or an exactly-
 /// additive union — never a silently wrong body.
 #[test]
 fn probe_partial_engagement_never_silent() {
     let p = {
-        let p0 = plate6(0.0);
-        body_of(topo::union(&p0, &plate6_cyl(2.0, 0.4, 1.1, 0.5), Tol::witness()).unwrap())
+        let p0 = plate(0.0);
+        body_of(topo::union(&p0, &cyl(2.0, 0.4, 1.1, 0.5), Tol::witness()).unwrap())
     };
     let q = {
-        let q0 = plate6(1.0);
-        body_of(topo::subtract(&q0, &plate6_cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
+        let q0 = plate(1.0);
+        body_of(topo::subtract(&q0, &cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
     };
     let vp = mass_properties(&p, Tol::witness()).unwrap().volume;
     let vq = mass_properties(&q, Tol::witness()).unwrap().volume;
-    let mut decls = BooleanDeclarations::none();
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(&p, 1.0, true),
-        plane_face(&q, 1.0, false),
-        ContactClass::Rest,
-    ));
-    for &fa in &walls_at(&p, 2.0) {
-        for &fb in &walls_at(&q, 2.0) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    match topo::union_with(&p, &q, &decls, Tol::witness()) {
+    match topo::union(&p, &q, Tol::witness()) {
         Ok(out) => {
             let body = body_of(out);
             let v = mass_properties(&body, Tol::witness()).unwrap().volume;
@@ -292,8 +136,7 @@ fn probe_partial_engagement_never_silent() {
             // suites use (`mate2_common::assert_additive`): the π terms
             // of the peg and the bore do not cancel, so a bitwise pin
             // is not available here. This branch first RAN when the
-            // merge door stopped refusing the cylindrical declared
-            // pair; first measured 0.672 ULP (the sibling scenes
+            // merge door stopped refusing the cylindrical glued pair; first measured 0.672 ULP (the sibling scenes
             // measure ~1.5 ULP).
             crate::mate2_common::assert_additive(v, vp, vq);
             if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
@@ -302,21 +145,10 @@ fn probe_partial_engagement_never_silent() {
         }
         Err(err) => {
             eprintln!("partial engagement refused: {err:?}");
-            // `JoinDesync { "minted-edge description failed
-            // certification" }` is the F7 output stage's edge
-            // re-description refusing a `Line` chord the declared-REST
-            // zip minted on a bore wall where a cap rim cuts it
-            // (`work/curved/rest-zip-seam-chord-on-cylinder-wall`);
-            // the merge door's own arm for a cylindrical declared pair
-            // records, and that is what exposed it. Typed and loud,
-            // which is all this probe asserts — where the frontier
-            // SITS is not a baseline this row defends.
             assert!(
                 matches!(
                     err,
-                    BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::JoinDesync { .. }
-                        | BooleanError::Join(_)
+                    BooleanError::Join(_)
                         | BooleanError::CurvedPierceUnsupported { .. }
                         | BooleanError::CurvedBooleanUnsupported { .. }
                 ),
@@ -329,16 +161,24 @@ fn probe_partial_engagement_never_silent() {
 /// A plate with `holes` square through-holes (two-ring patches when
 /// stacked): the ring-capable glue must handle TWO rings per patch
 /// face, and the volume must be exactly additive.
-fn holed_plate(z0: f64, z1: f64, holes: &[(f64, f64)]) -> Body<f64> {
-    let mut b = brick((0.0, 6.0), (0.0, 3.0), (z0, z1), Tol::witness());
+fn holed_plate(z0: f64, z1: f64, holes: &[(f64, f64)]) -> AtRestBody<f64> {
+    let mut b = finished(
+        "the plate",
+        brick((0.0, 6.0), (0.0, 3.0), (z0, z1), Tol::witness()),
+        Tol::witness(),
+    );
     for &(hx, hy) in holes {
         b = body_of(
             topo::subtract(
                 &b,
-                &brick(
-                    (hx, hx + 1.0),
-                    (hy, hy + 1.0),
-                    (z0 - 0.5, z1 + 0.5),
+                &finished(
+                    "the hole's brick",
+                    brick(
+                        (hx, hx + 1.0),
+                        (hy, hy + 1.0),
+                        (z0 - 0.5, z1 + 0.5),
+                        Tol::witness(),
+                    ),
                     Tol::witness(),
                 ),
                 Tol::witness(),
@@ -347,16 +187,6 @@ fn holed_plate(z0: f64, z1: f64, holes: &[(f64, f64)]) -> Body<f64> {
         );
     }
     b
-}
-
-fn flush_rest_decls(bot: &Body<f64>, top: &Body<f64>, z: f64) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(bot, z, true),
-        plane_face(top, z, false),
-        ContactClass::Rest,
-    ));
-    decls
 }
 
 /// Two stacked plates each with TWO square through-holes: the contact
@@ -368,13 +198,7 @@ fn probe_two_ring_patch_unions_exactly() {
     let top = holed_plate(1.0, 2.0, &holes);
     let vb = mass_properties(&bot, Tol::witness()).unwrap().volume;
     let vt = mass_properties(&top, Tol::witness()).unwrap().volume;
-    let out = topo::union_with(
-        &bot,
-        &top,
-        &flush_rest_decls(&bot, &top, 1.0),
-        Tol::witness(),
-    )
-    .expect("the two-ring patch union runs");
+    let out = topo::union(&bot, &top, Tol::witness()).expect("the two-ring patch union runs");
     let body = body_of(out);
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
     assert_eq!(v, vb + vt, "exactly additive with two rings per patch");
@@ -392,12 +216,7 @@ fn probe_ring_count_mismatch_never_silent() {
     let top = holed_plate(1.0, 2.0, &[(1.0, 1.0)]);
     let vb = mass_properties(&bot, Tol::witness()).unwrap().volume;
     let vt = mass_properties(&top, Tol::witness()).unwrap().volume;
-    match topo::union_with(
-        &bot,
-        &top,
-        &flush_rest_decls(&bot, &top, 1.0),
-        Tol::witness(),
-    ) {
+    match topo::union(&bot, &top, Tol::witness()) {
         Ok(out) => {
             // A legitimate union of this mate exists (the top caps one
             // hole); if the kernel produces it, it must be exact.
@@ -414,10 +233,7 @@ fn probe_ring_count_mismatch_never_silent() {
             assert!(
                 matches!(
                     err,
-                    BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::Join(_)
-                        | BooleanError::JoinDesync { .. }
-                        | BooleanError::ZipCorrespondence { .. }
+                    BooleanError::Join(_) | BooleanError::ZipCorrespondence { .. }
                 ),
                 "typed only: {err:?}"
             );
@@ -434,60 +250,42 @@ fn lying_plane() -> SketchPlane<f64> {
     ))
 }
 
-fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> Body<f64> {
-    let profile = Profile::new(
-        lying_plane(),
-        vec![bulge_loop(vertices).with_tangent_joints(tangent_joints)],
+fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
+    let profile = Profile::new(lying_plane(), vec![bulge_loop(vertices)])
+        .validate(Tol::witness())
+        .unwrap();
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
     )
-    .validate(Tol::witness())
-    .unwrap();
-    extrude(&profile, Extrusion::Distance(4.0), Tol::witness())
-        .unwrap()
-        .body
+    .unwrap()
+    .body;
+    finished("the lying extrusion", body, Tol::witness())
 }
 
-fn quarter_round_below() -> Body<f64> {
+fn quarter_round_below() -> AtRestBody<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
-    lying_extrude(
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(1.0, 0.0), 0.0),
-            (Point2::new(1.0, 2.0), b90),
-            (Point2::new(0.0, 3.0), 0.0),
-        ],
-        vec![2],
-    )
+    lying_extrude(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 2.0), b90),
+        (Point2::new(0.0, 3.0), 0.0),
+    ])
 }
 
-fn quarter_round_above() -> Body<f64> {
+fn quarter_round_above() -> AtRestBody<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
-    lying_extrude(
-        vec![
-            (Point2::new(1.0, 0.5), 0.0),
-            (Point2::new(1.0, 2.0), -b90),
-            (Point2::new(2.0, 3.0), 0.0),
-            (Point2::new(3.0, 3.0), 0.0),
-            (Point2::new(3.0, 0.5), 0.0),
-        ],
-        vec![1, 2],
-    )
-}
-
-fn one_cyl_face(body: &Body<f64>) -> topo::FaceKey {
-    let hits: Vec<_> = body
-        .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let [f] = hits[..] else {
-        panic!("expected exactly one wall face");
-    };
-    f
+    lying_extrude(vec![
+        (Point2::new(1.0, 0.5), 0.0),
+        (Point2::new(1.0, 2.0), -b90),
+        (Point2::new(2.0, 3.0), 0.0),
+        (Point2::new(3.0, 3.0), 0.0),
+        (Point2::new(3.0, 0.5), 0.0),
+    ])
 }
 
 /// Measure the actual additivity error on the rim fixture — is the
@@ -498,76 +296,11 @@ fn probe_tube_chain_additivity_error_measured() {
     let b = quarter_round_above();
     let va = mass_properties(&a, Tol::witness()).unwrap().volume;
     let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
-    let mut decls = BooleanDeclarations::none();
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(&a, 1.0, true),
-        plane_face(&b, 1.0, false),
-        ContactClass::Rest,
-    ));
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        one_cyl_face(&a),
-        one_cyl_face(&b),
-        ContactClass::Tangent,
-    ));
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(&a, 1.0, true),
-        one_cyl_face(&b),
-        ContactClass::Tangent,
-    ));
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        one_cyl_face(&a),
-        plane_face(&b, 1.0, false),
-        ContactClass::Tangent,
-    ));
-    let body = body_of(topo::union_with(&a, &b, &decls, Tol::witness()).unwrap());
+    let body = body_of(topo::union(&a, &b, Tol::witness()).unwrap());
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
     eprintln!(
         "tube-chain: va = {va:.17e}, vb = {vb:.17e}, v = {v:.17e}, err = {:.3e}",
         (v - (va + vb)).abs()
     );
     assert!((v - (va + vb)).abs() < 1e-12);
-}
-
-/// Declared on one side only: drop the wall×wall Tangent declaration
-/// (keep the plane Rest + the two plane×wall Tangents). The wall pair
-/// incidence is then UNDECLARED and must keep a typed refusal.
-#[test]
-fn probe_rim_wall_pair_undeclared_refuses_typed() {
-    let a = quarter_round_below();
-    let b = quarter_round_above();
-    let mut decls = BooleanDeclarations::none();
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(&a, 1.0, true),
-        plane_face(&b, 1.0, false),
-        ContactClass::Rest,
-    ));
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(&a, 1.0, true),
-        one_cyl_face(&b),
-        ContactClass::Tangent,
-    ));
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        one_cyl_face(&a),
-        plane_face(&b, 1.0, false),
-        ContactClass::Tangent,
-    ));
-    match topo::union_with(&a, &b, &decls, Tol::witness()) {
-        Ok(out) => {
-            // If it unions anyway the result must still be exact and
-            // valid — but record it: the wall-pair incidence rode
-            // other declarations.
-            let body = body_of(out);
-            let v = mass_properties(&body, Tol::witness()).unwrap().volume;
-            let va = mass_properties(&a, Tol::witness()).unwrap().volume;
-            let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
-            eprintln!(
-                "UNDECLARED WALL PAIR UNIONED: v = {v:.17e} vs {:.17e}",
-                va + vb
-            );
-            panic!("the undeclared wall-pair incidence must keep a typed refusal (C8)");
-        }
-        Err(err) => {
-            eprintln!("undeclared wall pair refused: {err:?}");
-        }
-    }
 }

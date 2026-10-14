@@ -13,11 +13,13 @@
 //! unaffected — it is about the sequence being the same for the same
 //! corner CLASS, not about its length.
 //!
-//! **CI EXECUTES THIS SUITE.** It is rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
-//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
-//! by `--check-executed`, so every assertion below is a gate and a red here
-//! fails the merge. By hand:
+//! **The nightly executes this suite; the PR gate only builds it.** It is
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! under the DEFAULT selection by `scripts/k_probe_sweep.sh` in the
+//! nightly's dev-probe row, whose tally is floored by `--check-executed`,
+//! so a red here reds the nightly. The PR gate compiles it (`clippy
+//! --all-features`) and runs none of it, so a PR can merge green over a red
+//! here. By hand:
 //! `cargo test -p profile --features probe --test all -- review_s2_probe::`.
 
 #![cfg(feature = "probe")]
@@ -92,8 +94,15 @@ fn gate_sequence_is_data_independent_within_a_class() {
     let c = seq_arc_arc(0.5);
     let d = seq_arc_arc(0.3);
     assert_eq!(c, d, "arc-by-arc gate sequence varies with data");
-    // The last derived corner's per-candidate block: reach, reach,
-    // fit, fit — all four, both candidates, no short-circuit.
+    // The fused verb's authored arrival arc is claimed as its run out
+    // at its emission, so no carrier reading follows the resolution:
+    // the sequence ends with the last derived corner's per-candidate
+    // block.
+    assert_ne!(
+        c.last().copied(),
+        Some("path_run_out_carrier"),
+        "full sequence: {c:?}"
+    );
     let tail: Vec<_> = c.iter().rev().take(8).rev().copied().collect();
     assert_eq!(
         tail,

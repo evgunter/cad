@@ -4,7 +4,7 @@ use core::fmt;
 
 use geom_core::Real;
 use sweep::{Revolution, RevolveAxis};
-use topo::{BooleanDeclarations, BooleanOp, EdgeKey, FaceKey, SplitPlane};
+use topo::{BooleanInputs, BooleanOp, EdgeKey, FaceKey, SplitPlane};
 
 /// **One kernel operation, with its parameters as data.**
 ///
@@ -64,15 +64,17 @@ pub enum Verb<T: Real> {
     /// Extrudes the operand profile along its sketch normal.
     ///
     /// The payload is the door's parameter list minus the operand:
-    /// the signed distance alone. The door's second extrusion form —
+    /// the depth and the side it goes toward. The door's second extrusion form —
     /// an explicit world VECTOR — is deliberately absent: no recipe
     /// spells one, so a variant for it would be an arm every
     /// commitment on this vocabulary (content tag, wire spelling,
     /// Python constructor, viewer label) had to name and no document
     /// could ever reach.
     Extrude {
-        /// The signed distance along the profile plane's normal.
+        /// The depth, a size (`sweep::Extrusion::Distance`).
         distance: T,
+        /// Which side of the profile plane the depth goes toward.
+        side: sweep::ExtrudeSide,
     },
     /// Revolves the operand profile about an axis written in its own
     /// sketch plane.
@@ -82,7 +84,7 @@ pub enum Verb<T: Real> {
     /// is the exact full turn or a partial one is a decided predicate
     /// at the document layer's own funnel site, and its escalation is
     /// a document-layer refusal — so what reaches the payload is the
-    /// classified value, exactly as the boolean's `declare` reaches it
+    /// classified value, exactly as the boolean's inputs reach it
     /// already resolved to arena keys.
     Revolve {
         /// The axis of revolution, in sketch-plane coordinates.
@@ -94,24 +96,25 @@ pub enum Verb<T: Real> {
     ///
     /// The payload is the boolean door's own parameter list with the
     /// operands and the run witnesses removed: which regularized op,
-    /// and the declared coincidence intents in the kernel's lowered
-    /// form — arena keys into the two operands, resolved by whoever
-    /// built the value (the recipe layer's name resolution never
-    /// enters this crate). The candidate-sweep strategy is NOT here:
+    /// and its inputs ([`BooleanInputs`]) — arena keys into the two
+    /// operands, resolved by whoever built the value (the recipe
+    /// layer's name resolution never enters this crate). The candidate-sweep strategy is NOT here:
     /// it is a property of the run, not of the operation (both
     /// strategies produce bit-identical results), so it comes in at
     /// [`Verb::run_pair`] beside the tolerance witness.
     Boolean {
         /// The regularized set operation.
         op: BooleanOp,
-        /// Declared coincidence intents, in operand arena keys.
-        declare: BooleanDeclarations,
+        /// The operands' carried records and any given verdicts, in
+        /// operand arena keys, boxed so the verb stays one small value
+        /// whatever they hold.
+        inputs: Box<BooleanInputs>,
     },
     /// Parts the operand body by a plane into its two sides.
     ///
     /// The plane is a kernel VALUE in the payload — a point and a unit
-    /// normal — exactly as the boolean carries its declarations
-    /// already resolved: whatever document object the plane was read
+    /// normal — exactly as the boolean carries its inputs already
+    /// resolved: whatever document object the plane was read
     /// off (a datum node, upstairs) is the recipe layer's business, and
     /// what reaches this crate is the split door's own `SplitPlane`.
     /// The body is the one operand and stays out of the payload like
@@ -348,7 +351,16 @@ impl VerbKind {
 /// the verb and names a door that does not exist.
 impl fmt::Display for VerbKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
+        f.write_str(self.noun())
+    }
+}
+
+impl VerbKind {
+    /// The verb's word, the one its `Display` writes, for a sentence
+    /// that says it as a node's kind (`Subtract 1669`).
+    #[must_use]
+    pub const fn noun(self) -> &'static str {
+        match self {
             Self::Fillet => "Fillet",
             Self::Chamfer => "Chamfer",
             Self::Extrude => "Extrude",
@@ -358,7 +370,7 @@ impl fmt::Display for VerbKind {
             Self::Boolean(BooleanOp::Subtract) => "Subtract",
             Self::Split => "Split",
             Self::Shell => "Shell",
-        })
+        }
     }
 }
 

@@ -11,36 +11,47 @@ import unittest
 
 import pncad
 from pncad import (
-    BooleanOp,
     Cmp,
     Distribution,
     Doc,
     DocEdit,
-    DocParam,
-    DocParamValue,
+    FreeVar,
+    FreeValue,
     EditError,
     EntityKind,
     EvaluationError,
-    Expr,
+    Formula,
+    ExtrudeSide,
     Frame,
     GeomPred,
     Length,
-    MeasureExpr,
-    MeasurePrimitive,
     NamePat,
     Node,
     Open,
-    ParamName,
+    VarName,
     PatternKind,
+    Piece,
+    Role,
     Selector,
     SketchPlane,
     Start,
+    StepHandleError,
+    StepId,
+    circle_split,
     evaluate,
     import_step,
     load,
     m,
     rad,
 )
+from spoken import tag
+
+
+def strands(doc):
+    """The last edit's maintenance without the anonymous variables it
+    retired: a rewrite retires the variables its old values were
+    written in (VR7), which a row about names does not ask about."""
+    return [row for row in doc.last_maintenance if row.variant != "anonymous_var_removed"]
 
 
 def unit_box(doc, width, depth, height):
@@ -56,15 +67,15 @@ def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.literal(x0), Expr.literal(y0)),
-                (Expr.literal(x1), Expr.literal(y0)),
-                (Expr.literal(x1), Expr.literal(y1)),
-                (Expr.literal(x0), Expr.literal(y1)),
+                (Formula.literal(x0), Formula.literal(y0)),
+                (Formula.literal(x1), Formula.literal(y0)),
+                (Formula.literal(x1), Formula.literal(y1)),
+                (Formula.literal(x0), Formula.literal(y1)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
+            plane=doc.sketch_frame(elevation=Formula.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
+    return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
 
 
 class TestDocumentEditing(unittest.TestCase):
@@ -88,9 +99,9 @@ class TestDocumentEditing(unittest.TestCase):
             DocEdit.insert_node(
                 Node.polygon(
                     [
-                        (Expr.length_in(0, m), Expr.length_in(0, m)),
-                        (Expr.length_in(1, m), Expr.length_in(0, m)),
-                        (Expr.length_in(1, m), Expr.length_in(1, m)),
+                        (Formula.length_in(0, m), Formula.length_in(0, m)),
+                        (Formula.length_in(1, m), Formula.length_in(0, m)),
+                        (Formula.length_in(1, m), Formula.length_in(1, m)),
                     ], plane=frame
                 )
             )
@@ -103,10 +114,10 @@ class TestDocumentEditing(unittest.TestCase):
         box = unit_box(doc, 1 * m, 1 * m, 1 * m)
         before = doc.node_count
         with self.assertRaises(pncad.EditError) as caught:
-            # Deleting a node another node depends on must dangle.
-            doc.apply(DocEdit.delete_node(doc.order()[0]))
+            # An extrude reads a profile, not a body.
+            doc.insert(Node.extrude(box, Formula.length_in(1, m)))
         # The refusal carries a stable tag, not prose (§L4).
-        self.assertEqual(caught.exception.variant, "delete_would_dangle")
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
         self.assertEqual(doc.node_count, before)
         self.assertTrue(evaluate(doc).succeeded(box))
 
@@ -144,44 +155,44 @@ class TestNodeKindReadDoor(unittest.TestCase):
         profile = doc.insert(
             Node.polygon(
                 [
-                    (Expr.length_in(0, m), Expr.length_in(0, m)),
-                    (Expr.length_in(1, m), Expr.length_in(0, m)),
-                    (Expr.length_in(1, m), Expr.length_in(1, m)),
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(1, m)),
                 ], plane=frame
             )
         )
-        solid = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
+        solid = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         self.assertEqual(doc.node_kind(frame), "datum")
         self.assertEqual(doc.node_kind(profile), "profile")
         self.assertEqual(doc.node_kind(solid), "extrude")
 
-    def test_a_boolean_answers_a_word_per_operation(self):
+    def test_each_boolean_node_answers_its_own_word(self):
         doc = Doc()
         a = unit_box(doc, 2 * m, 2 * m, 2 * m)
         b = slab(doc, (1 * m, 3 * m), (1 * m, 3 * m), (1 * m, 3 * m))
-        # One payload shape, three kernel operations, three words —
-        # which is what lets a caller say "this recipe spends no
-        # subtract" without reading the saved text.
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, a, b))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b))
-        common = doc.insert(Node.boolean(BooleanOp.Intersect, a, b))
-        self.assertEqual(doc.node_kind(cut), "boolean_subtract")
-        self.assertEqual(doc.node_kind(fused), "boolean_union")
-        self.assertEqual(doc.node_kind(common), "boolean_intersect")
+        # Three nodes, three words — which is what lets a caller say
+        # "this recipe spends no subtract" without reading the saved
+        # text.
+        cut = doc.insert(Node.subtract(a, b))
+        fused = doc.insert(Node.union([a, b]))
+        common = doc.insert(Node.intersect([a, b]))
+        self.assertEqual(doc.node_kind(cut), "subtract")
+        self.assertEqual(doc.node_kind(fused), "union")
+        self.assertEqual(doc.node_kind(common), "intersect")
 
     def test_it_is_the_nodes_kind_and_not_its_values(self):
         doc = Doc()
         solid = unit_box(doc, 2 * m, 2 * m, 2 * m)
         moved = doc.insert(
             Node.transform(solid, (
-                Expr.length_in(1, m),
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
+                Formula.length_in(1, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(1.0),
-            ), Expr.angle_in(0, rad))
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(1.0),
+            ), Formula.angle_in(0, rad))
         )
         ev = evaluate(doc)
         # Two different recipes, one value kind: `Value.kind` is the
@@ -209,6 +220,11 @@ class TestNodeKindReadDoor(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.node_kind(stray[-1])
         self.assertEqual(caught.exception.variant, "unknown_node")
+        # The recourse is this read's own: no edit was made, so the
+        # edit door's "aim the edit" would be a recourse for nobody.
+        message = str(caught.exception)
+        self.assertIn("Recourse: ask for the kind of a node this document holds", message)
+        self.assertNotIn("aim the edit", message)
 
 
 class TestEvaluation(unittest.TestCase):
@@ -241,16 +257,87 @@ class TestEvaluation(unittest.TestCase):
             evaluate(doc).value(profile_node).body()
         self.assertEqual(caught.exception.reason, "wrong_kind")
 
+    def test_an_extrude_goes_to_its_side_and_a_depth_is_a_size(self):
+        # A depth is a size; which way it goes is `side`, which an
+        # edit moves and no sign does.
+        doc = Doc()
+        profile = doc.insert(
+            Node.polygon(
+                [
+                    (Formula.literal(0 * m), Formula.literal(0 * m)),
+                    (Formula.literal(1 * m), Formula.literal(0 * m)),
+                    (Formula.literal(1 * m), Formula.literal(1 * m)),
+                    (Formula.literal(0 * m), Formula.literal(1 * m)),
+                ],
+                plane=doc.sketch_frame(elevation=Formula.literal(0 * m)),
+            )
+        )
+        block = doc.insert(Node.extrude(profile, Formula.literal(2 * m), ExtrudeSide.Against))
+
+        def heights():
+            body = evaluate(doc).value(block).body()
+            return {p[2].meters for p in body.tessellate(1 * m).positions}
+
+        self.assertEqual(heights(), {-2.0, 0.0}, "against the normal, below the plane")
+        doc.apply(DocEdit.set_extrude_side(block, ExtrudeSide.Along))
+        self.assertEqual(heights(), {0.0, 2.0}, "along it, above")
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_extrude_side(profile, ExtrudeSide.Along))
+        self.assertEqual(caught.exception.variant, "set_extrude_side_on_non_extrude")
+
+        doc.apply(DocEdit.set_param(block, "distance", Formula.literal(-2 * m)))
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(block)
+        self.assertEqual(caught.exception.kind, "extrude")
+        self.assertEqual(caught.exception.inner_kind, "negative_depth")
+        self.assertIn(
+            "set the side to against the sketch normal", str(caught.exception)
+        )
+
+    def test_a_side_flip_is_not_served_from_the_memo(self):
+        # The side is not a slot, so it reaches the memo's content key
+        # as its own word: a warm evaluation after the flip recomputes
+        # the extrude (and nothing upstream), and its body is the
+        # flipped one, as a cold run's is. Flipping back — an undo —
+        # recomputes it again and restores the first body.
+        doc = Doc()
+        profile = doc.insert(
+            Node.polygon(
+                [
+                    (Formula.literal(0 * m), Formula.literal(0 * m)),
+                    (Formula.literal(1 * m), Formula.literal(0 * m)),
+                    (Formula.literal(1 * m), Formula.literal(1 * m)),
+                    (Formula.literal(0 * m), Formula.literal(1 * m)),
+                ],
+                plane=doc.sketch_frame(elevation=Formula.literal(0 * m)),
+            )
+        )
+        block = doc.insert(Node.extrude(profile, Formula.literal(2 * m), ExtrudeSide.Against))
+
+        def heights(ev):
+            body = ev.value(block).body()
+            return {p[2].meters for p in body.tessellate(1 * m).positions}
+
+        first = evaluate(doc)
+        self.assertEqual(heights(first), {-2.0, 0.0})
+        doc.apply(DocEdit.set_extrude_side(block, ExtrudeSide.Along))
+        warm = evaluate(doc, prior=first)
+        self.assertEqual(warm.recomputed, 1, "the extrude alone")
+        self.assertEqual(heights(warm), {0.0, 2.0})
+        self.assertEqual(heights(warm), heights(evaluate(doc)), "warm against cold")
+        doc.apply(DocEdit.set_extrude_side(block, ExtrudeSide.Against))
+        undone = evaluate(doc, prior=warm)
+        self.assertEqual(undone.recomputed, 1)
+        self.assertEqual(heights(undone), {-2.0, 0.0})
+
     def test_boolean_union_through_the_document(self):
         # The post is strictly interior in x and y and pokes out of the
         # base's top, so the solids genuinely INTERPENETRATE and no two
-        # faces are coincident. That matters: the kernel never infers
-        # coincidence from values, so boxes merely touching on a shared
-        # plane are refused until the author declares the contact.
+        # faces are coincident: this is the union with nothing to glue.
         doc = Doc()
         base = slab(doc, (0 * m, 3 * m), (0 * m, 2 * m), (0 * m, 1 * m))  # 6.0
         post = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 2 * m))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, base, post))
+        fused = doc.insert(Node.union([base, post]))
 
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(fused), "the union evaluated")
@@ -260,51 +347,56 @@ class TestEvaluation(unittest.TestCase):
         # 6.0 base + 1.5 post - 0.5 shared = 7.0
         self.assertEqual(body.mass_properties().volume, 7.0)
 
-    def test_a_coincident_boolean_carries_its_typed_refusal(self):
-        # Fail-loud, visible from Python: two boxes sharing the z=0
-        # plane are NOT silently fused — and the refusal now arrives
-        # WITH its typed cause (LIB-DOORS F3; U9S's `no_value`
-        # placeholder is gone).
+    def test_a_coincident_boolean_glues_and_records(self):
+        # Two boxes sharing the x=0, y=0 and z=0 planes: the margins
+        # decide each pair one plane, so the subtract glues them (D10)
+        # and records each decision.
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
         inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        cut = doc.insert(Node.subtract(outer, inner))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(cut))
+        body = ev.value(cut).body()
+        body.validate()
+        self.assertEqual(body.mass_properties().volume, 7.0)
+        rows = ev.coincidences(cut)
+        self.assertEqual(len(rows), 3, "one row per shared plane")
+        self.assertTrue(all(row.relation == "same_oriented" for row in rows))
+
+    def a_sliver(self, doc):
+        """Two boxes whose bottoms stand 2 nm apart, inside the
+        tolerance's ambiguity band: a subtract that refuses."""
+        outer = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 2 * m))
+        inner = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (2e-9 * m, 1 * m))
+        return doc.insert(Node.subtract(outer, inner)), outer
+
+    def test_a_sliver_carries_its_typed_refusal(self):
+        # Fail-loud, visible from Python: a sliver is NOT silently
+        # fused or parted — the refusal arrives WITH its typed cause.
+        doc = Doc()
+        cut, _ = self.a_sliver(doc)
         ev = evaluate(doc)
         self.assertFalse(ev.succeeded(cut))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(cut)
         self.assertEqual(caught.exception.reason, "node_failed")
         self.assertEqual(caught.exception.node, cut)
-        # Since register R3 (LIB-PYG5) the undeclared-contact refusal
-        # is the typed MENU: its own stable tag, and the candidate
-        # declaration attached as a `FlushFinding` value.
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertEqual(caught.exception.kind, "boolean")
+        self.assertEqual(caught.exception.inner_kind, "escalated")
         self.assertIsNone(caught.exception.through)
-        finding = caught.exception.finding
-        self.assertIsInstance(finding, pncad.FlushFinding)
-        # Both boxes rise from z=0: the shared bottom planes face the
-        # same way — the flush-wall (merge-stage) flavor.
-        self.assertEqual(finding.relation, pncad.PlaneRelation.SameOriented)
-        self.assertEqual(finding.class_, pncad.ContactClass.Rest)
-        self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
-        # The pair's names speak the one opaque alphabet: each side is
-        # a FACE name of its own operand's evaluation.
-        self.assertIn(finding.a, ev.all_faces(outer))
-        self.assertIn(finding.b, ev.all_faces(inner))
-        # F6 (reopened on review): the MESSAGE is prose stating the
-        # problem and the two-armed recourse, not Debug guts.
+        # F6: the MESSAGE is prose stating the problem and its
+        # recourse, not Debug guts.
         message = str(caught.exception)
-        self.assertIn("Boolean refused an undeclared contact", message)
-        self.assertIn("declare the candidate pair", message)
-        for guts in ("UndeclaredCoincidence", "UndeclaredContact", "{", "NodeError"):
+        self.assertIn("ambiguity band", message)
+        for guts in ("Escalated", "{", "NodeError"):
             self.assertNotIn(guts, message)
 
     def test_a_poisoned_node_names_its_failed_ancestor(self):
         doc = Doc()
-        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
-        downstream = doc.insert(Node.boolean(BooleanOp.Union, cut, outer))
+        cut, outer = self.a_sliver(doc)
+        downstream = doc.insert(Node.union([cut, outer]))
+        doc.apply(DocEdit.set_label(cut, "pocket"))
         ev = evaluate(doc)
         with self.assertRaises(EvaluationError) as caught:
             ev.value(downstream)
@@ -312,20 +404,19 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(caught.exception.node, downstream)
         self.assertEqual(caught.exception.through, cut)
         # The root cause's tag rides along: the ancestor's refusal.
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
-        # The menu payload does NOT ride a poisoning — the recourse
-        # belongs to the node that refused; here it is None (attributes
-        # never go missing, LIB-DOORS F3).
-        self.assertIsNone(caught.exception.finding)
-        self.assertIn("poisoned by failed ancestor", str(caught.exception))
+        self.assertEqual(caught.exception.kind, "boolean")
+        # The standing speaks each node as the evaluated document holds
+        # it: kind, label and tag.
+        self.assertIn(
+            f'Union {tag(downstream)} is poisoned by the failure at Subtract "pocket" '
+            f"({tag(cut)})",
+            str(caught.exception),
+        )
 
 
-class TestDetectDeclareDoors(unittest.TestCase):
-    """LIB-PYG5 (G5): the detect/declare doors' own contracts —
-    positive paths through every spelling, adversarial args refused
-    typed. The scene-level flips live in `test_north_star.py`
-    (`TestTable`, `TestCrosslapGlued`); the guide's executed block is
-    the end-to-end menu recourse."""
+class TestTheUnionGluesItsContacts(unittest.TestCase):
+    """A union glues every resting contact its margins decide (D10):
+    no argument names the contact, and the coincidence is recorded."""
 
     def stacked(self):
         doc = Doc()
@@ -335,114 +426,32 @@ class TestDetectDeclareDoors(unittest.TestCase):
         )
         return doc, lower, upper
 
-    def test_every_declare_spelling_feeds_the_boolean(self):
-        # One resting contact; three spellings of the declare arm,
-        # each wired into the SAME union, each at the exact volume
-        # 1 + 0.5^2 * 0.5 = 1.125 (dyadic).
-        for spelling in ("doc_declare", "doc_declare_all", "node_declare"):
-            with self.subTest(spelling=spelling):
-                doc, lower, upper = self.stacked()
-                ev = evaluate(doc)
-                findings = ev.find_flush_candidates(lower, upper)
-                self.assertEqual(len(findings), 1)
-                self.assertEqual(
-                    findings[0].relation, pncad.PlaneRelation.SameOpposite
-                )
-                if spelling == "doc_declare":
-                    decl = doc.declare(findings[0])
-                elif spelling == "doc_declare_all":
-                    decl = doc.declare_all(findings)
-                else:
-                    decl = doc.insert(Node.declare(findings))
-                glued = doc.insert(
-                    Node.boolean(BooleanOp.Union, lower, upper, declare=decl)
-                )
-                ev = evaluate(doc)
-                body = ev.value(glued).body()
-                body.validate()
-                self.assertEqual(body.mass_properties().volume, 1.125)
-
-    def test_deleting_the_consumer_reports_the_declaration_it_orphaned(self):
-        """The delete door's third row, beside DM7's strands, over
-        the doors this surface has: a `Declare` whose last consumer a
-        delete removed rides the accepted edit as `orphaned_declare`,
-        whose `node` is the declaration that survived and whose
-        `name` is None — nothing dangles, and no node consumes the
-        declaration any more.
-
-        The rule is a transition, so the same document reports
-        nothing when an unrelated node goes, and nothing at the
-        declare door itself, where the declaration is consumerless
-        and waiting for the union that is about to consume it."""
+    def test_a_union_glues_its_resting_contact(self):
+        """One resting contact, at the exact volume
+        1 + 0.5^2 * 0.5 = 1.125 (dyadic)."""
         doc, lower, upper = self.stacked()
-        spare = slab(doc, (4 * m, 5 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        findings = evaluate(doc).find_flush_candidates(lower, upper)
-        decl = doc.declare_all(findings)
-        # The authoring window: the declaration has no consumer yet
-        # and the door that inserted it says nothing about that.
-        self.assertEqual(doc.last_maintenance, [])
-        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper, declare=decl))
-        self.assertEqual(doc.last_maintenance, [])
-        # Nor does a delete elsewhere in the document.
-        doc.apply(DocEdit.delete_node(spare))
-        self.assertEqual(doc.last_maintenance, [])
-        # The delete that TAKES the consumer is the one that says it.
-        doc.apply(DocEdit.delete_node(glued))
-        (row,) = doc.last_maintenance
-        self.assertEqual(row.variant, "orphaned_declare")
-        self.assertEqual(row.node, decl)
-        self.assertIsNone(row.name)
-        # The report never repairs: the declaration is still there.
-        self.assertIn(decl, doc.order())
-
-    def test_declaring_nothing_refuses_typed_at_every_door(self):
-        # An empty Declare records no intent — refused, never inserted
-        # (`no_findings`), at the sugar AND at the node constructor.
-        doc = Doc()
-        with self.assertRaises(EditError) as caught:
-            doc.declare_all([])
-        self.assertEqual(caught.exception.variant, "no_findings")
-        # The human message is the declare door's own prose, not a
-        # mangled literal (review MINOR-1: a doubled-space run shipped
-        # once because nothing pinned the text) and not a struct dump.
-        message = str(caught.exception)
-        self.assertIn("declare", message)
-        self.assertIn("records no intent", message)
-        self.assertIn("pass the findings", message)
-        self.assertNotIn("  ", message)
-        self.assertNotIn("{", message)
-        self.assertNotIn("NoFindings", message)
-        self.assertEqual(len(doc), 0, "a refused declare inserts nothing")
-        with self.assertRaises(EditError) as caught:
-            Node.declare([])
-        self.assertEqual(caught.exception.variant, "no_findings")
-        self.assertNotIn("  ", str(caught.exception))
-
-    def test_detection_answers_empty_for_separated_and_unevaluated(self):
-        # Separated in EVERY plane family: a pair sharing any plane —
-        # even with disjoint faces (two boxes side by side on one
-        # floor) — is honestly a finding, so "no findings" needs no
-        # shared carrier at all.
-        doc = Doc()
-        a = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        b = slab(doc, (3 * m, 4 * m), (5 * m, 6 * m), (2 * m, 3 * m))
+        fused = doc.insert(Node.union([lower, upper]))
         ev = evaluate(doc)
-        self.assertEqual(ev.find_flush_candidates(a, b), [])
-        # A node the evaluation does not know: empty, like `select`.
-        c = slab(doc, (6 * m, 7 * m), (8 * m, 9 * m), (4 * m, 5 * m))
-        self.assertEqual(ev.find_flush_candidates(a, c), [])
+        body = ev.value(fused).body()
+        body.validate()
+        self.assertEqual(body.mass_properties().volume, 1.125)
+        relations = [row.relation for row in ev.coincidences(fused)]
+        self.assertEqual(relations, ["same_opposite"])
 
-    def test_findings_are_values_with_opaque_names(self):
-        doc, lower, upper = self.stacked()
+    def test_a_stepped_pyramid_glues(self):
+        """Three slabs stacked as a stepped pyramid meet in two resting
+        contacts, and the union glues both."""
+        doc = Doc()
+        low = slab(doc, (0 * m, 3 * m), (0 * m, 3 * m), (0 * m, 1 * m))
+        mid = slab(doc, (0.5 * m, 2.5 * m), (0.5 * m, 2.5 * m), (1 * m, 2 * m))
+        top = slab(doc, (1 * m, 2 * m), (1 * m, 2 * m), (2 * m, 3 * m))
+        fused = doc.insert(Node.union([low, mid, top]))
         ev = evaluate(doc)
-        finding = ev.find_flush_candidates(lower, upper)[0]
-        # The names are the same alphabet the materializers speak.
-        self.assertIn(finding.a, ev.all_faces(lower))
-        self.assertIn(finding.b, ev.all_faces(upper))
-        self.assertEqual(finding.class_, pncad.ContactClass.Rest)
-        self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
-        # Value semantics: re-detection answers an equal value.
-        self.assertEqual(finding, ev.find_flush_candidates(lower, upper)[0])
+        body = ev.value(fused).body()
+        body.validate()
+        self.assertEqual(body.mass_properties().volume, 9 + 4 + 1)
+        relations = [row.relation for row in ev.coincidences(fused)]
+        self.assertEqual(relations, ["same_opposite", "same_opposite"])
 
 
 class TestLiteralRefusals(unittest.TestCase):
@@ -454,7 +463,7 @@ class TestLiteralRefusals(unittest.TestCase):
         box = unit_box(doc, 1 * m, 1 * m, 1 * m)
         profile_node = doc.order()[0]
         with self.assertRaises(pncad.LiteralError) as caught:
-            doc.insert(Node.extrude(profile_node, Expr.length_in(float("nan"), m)))
+            doc.insert(Node.extrude(profile_node, Formula.length_in(float("nan"), m)))
         self.assertEqual(caught.exception.kind, "non_finite")
         self.assertNotEqual(
             caught.exception.value, caught.exception.value
@@ -498,7 +507,7 @@ class TestD9BitReplaySeed(unittest.TestCase):
             # the SAME part on purpose — the labelled constructor is
             # what says that. `Doc()` mints a fresh id and would (and
             # should) compare unequal.
-            doc = Doc(label="replay-of-the-same-recipe")
+            doc = Doc(seed="replay-of-the-same-recipe")
             box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
             return doc, evaluate(doc).value(box).body().mass_properties()
 
@@ -557,9 +566,9 @@ class TestDocumentIdentity(unittest.TestCase):
         self.assertEqual(doc.id, before, "an edit does not change which part")
 
     def test_a_labelled_document_is_the_same_part_every_time(self):
-        self.assertEqual(Doc(label="plate-param").id, Doc(label="plate-param").id)
-        self.assertEqual(Doc("plate-param").id, Doc(label="plate-param").id)
-        self.assertNotEqual(Doc(label="plate-param").id, Doc(label="bracket").id)
+        self.assertEqual(Doc(seed="plate-param").id, Doc(seed="plate-param").id)
+        self.assertEqual(Doc("plate-param").id, Doc(seed="plate-param").id)
+        self.assertNotEqual(Doc(seed="plate-param").id, Doc(seed="bracket").id)
 
     def test_a_loaded_document_keeps_the_id_it_was_saved_under(self):
         doc = Doc()
@@ -634,16 +643,17 @@ class TestPersistence(unittest.TestCase):
         `ParseError.kind` uses — rather than a sentence a caller would
         have to parse.
         """
-        length = {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}}
-        angle = {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}}
+        # A stored expression holds no float: its leaves read variables
+        # by id (whose ids the rebuild reads after the dimensions) or
+        # are exact constants.
+        length = {"Var": {"var": "1:0000000000000001", "dim": "Length"}}
+        angle = {"Var": {"var": "1:0000000000000001", "dim": "Angle"}}
         cases = {
             "mismatch": {"Add": [length, angle]},
             "mul_needs_scalar": {"Mul": [length, length]},
             "div_needs_scalar_divisor": {"Div": [length, length]},
             "trig_needs_angle": {"Sin": length},
-            "unknown_display_unit": {
-                "Literal": {"value": 1.0, "dim": "Length", "unit": "furlong"}
-            },
+            "ratio_not_reduced": {"Ratio": {"num": 2, "den": 4}},
         }
         for inner, wire in cases.items():
             with self.subTest(refusal=inner):
@@ -667,8 +677,8 @@ class TestPersistence(unittest.TestCase):
         bad = self._save_with_distance(
             {
                 "Add": [
-                    {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}},
-                    {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}},
+                    {"Var": {"var": "1:0000000000000001", "dim": "Length"}},
+                    {"Var": {"var": "1:0000000000000001", "dim": "Angle"}},
                 ]
             }
         )
@@ -682,23 +692,48 @@ class TestPersistence(unittest.TestCase):
         """A unit box's save text with the extrude's distance expression
         replaced by `wire`.
 
+        A slot holds a variable's id, so a saved expression lives in a
+        definition: the distance is written as a formula, which the edit
+        door lowers to an anonymous defined variable, and that
+        variable's definition is what is swapped.
+
         Structural rather than a string substitution: an expression's
         spelling carries whatever fields the wire form has today, so a
         needle written out in full would stop matching without failing,
         and an assertion nothing reaches asserts nothing. This one fails
-        the test if the slot it aims at is gone.
+        the test if the definition it aims at is gone.
         """
         doc = Doc()
-        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        doc.apply(DocEdit.set_param(box, "distance", doc.parse_formula("0.5 m + 0.5 m")))
+        var = doc.slot(box, "distance")
         header, body_text = doc.save().split("\n", 1)
         body = json.loads(body_text)
-        swapped = 0
-        for node in body["snapshot"]["nodes"].values():
-            if "Extrude" in node:
-                node["Extrude"]["distance"] = wire
-                swapped += 1
-        self.assertEqual(swapped, 1, "the fixture has one extrude to tamper")
+        held = body["snapshot"]["vars"][var.hex]
+        self.assertIn("Defined", held["def"], "the distance is a defined variable to tamper")
+        held["def"]["Defined"] = wire
         return header + "\n" + json.dumps(body)
+
+    def test_an_operation_defines_its_output_variable(self):
+        """An inserted operation defines one variable per port of its
+        signature, saved in the variable table as an output of its node:
+        an extrude defines one, at port 0, and no port 1."""
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        body = doc.output(box)
+        self.assertIsNotNone(body)
+        self.assertEqual(doc.output(box, 0), body)
+        self.assertEqual(body.kind, "body")
+        self.assertEqual(doc.slot(box, "distance").kind, "length")
+        with self.assertRaises(ValueError) as caught:
+            doc.output(box, 1)
+        self.assertIn("no port 1", str(caught.exception))
+        _, body_text = doc.save().split("\n", 1)
+        snapshot = json.loads(body_text)["snapshot"]
+        held = snapshot["vars"][body.hex]
+        self.assertEqual(held["kind"], "Body")
+        self.assertEqual(held["def"]["Output"]["port"], 0)
+        self.assertIn("Extrude", snapshot["nodes"][held["def"]["Output"]["node"]])
 
     def test_a_header_that_disagrees_with_the_snapshot_names_both_ids(self):
         """A tampered or hand-assembled file: the save door writes the
@@ -722,14 +757,18 @@ class TestPersistence(unittest.TestCase):
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
         text = doc.save()
-        # Wind the mint counter back behind ids the document holds.
-        tampered = text.replace('"next_id": 3', '"next_id": 1')
-        self.assertNotEqual(tampered, text, "the tamper found its slot")
+        # Log a node the document holds as a step's instead, so the log
+        # still counts up from one and holds no node entry for it.
+        header, body = text.split("\n", 1)
+        wire = json.loads(body)
+        log = wire["snapshot"]["mint"]["log"]
+        held = [entry for entry in log if "node" in entry][-1]
+        held["step"] = held.pop("node")
         with self.assertRaises(pncad.PersistError) as caught:
-            load(tampered)
+            load(f"{header}\n{json.dumps(wire)}")
         refusal = caught.exception
         self.assertEqual(refusal.variant, "snapshot")
-        self.assertEqual(refusal.inner_variant, "id_beyond_counter")
+        self.assertEqual(refusal.inner_variant, "node_not_minted")
         # The snapshot refusal's own node ids are the snapshot door's
         # surface, not this one's: the word crosses, the payload does
         # not.
@@ -824,23 +863,25 @@ class TestStepExport(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "not_a_body")
         self.assertEqual(caught.exception.kind, "profile")
 
-    def test_the_export_refusal_names_the_node_as_a_bare_id(self):
-        """A node reaches prose as its number, not as a Rust wrapper.
+    def test_the_export_refusal_speaks_the_node_as_the_document_holds_it(self):
+        """A node reaches prose as its kind, label and tag, never as a
+        Rust wrapper.
 
         The one part of an export refusal a caller can act on is which
         node it is about. `RecipeNodeId`'s `Debug` spelling puts a Rust
-        type name in front of that number — a token with no meaning on
+        type name in front of its number — a token with no meaning on
         this side of the boundary.
         """
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
-        profile_node = doc.order()[0]
+        frame = doc.order()[0]
+        doc.apply(DocEdit.set_label(frame, "base sketch"))
         ev = evaluate(doc)
         with self.assertRaises(pncad.ExportError) as caught:
-            ev.step_string(profile_node)
+            ev.step_string(frame)
         message = str(caught.exception)
         self.assertNotIn("RecipeNodeId", message)
-        self.assertRegex(message, r"node \d+ ")
+        self.assertIn(f'export: Datum frame "base sketch" ({tag(frame)}) evaluates', message)
 
     def test_every_step_option_reaches_the_written_file(self):
         """The whole `StepOptions` record is the door's keywords.
@@ -893,8 +934,9 @@ class TestStepExport(unittest.TestCase):
     def test_export_of_a_failed_node_is_a_typed_refusal(self):
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        # The pocket's floor 2 nm off the block's: in band, so it refuses.
+        inner = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (2e-9 * m, 1 * m))
+        cut = doc.insert(Node.subtract(outer, inner))
         ev = evaluate(doc)
         with self.assertRaises(pncad.ExportError) as caught:
             ev.step_string(cut)
@@ -977,29 +1019,29 @@ if __name__ == "__main__":
 
 
 class TestDocParamEquality(unittest.TestCase):
-    """LIB-PYBUNDLE rider (a): `DocParam` mirrors Rust's `PartialEq`.
+    """LIB-PYBUNDLE rider (a): `FreeVar` mirrors Rust's `PartialEq`.
 
     Which is IEEE comparison of the stored value, NOT the bit
-    comparison `DocParam::bit_eq` makes — so the two spellings of zero
+    comparison `FreeVar::bit_eq` makes — so the two spellings of zero
     are the SAME parameter here and different ones to `bit_eq`,
     exactly as in Rust. The hash follows the equality it mirrors."""
 
     def test_equality_is_value_and_dimension(self):
-        self.assertEqual(DocParam.length(2 * m), DocParam.length(2 * m))
-        self.assertNotEqual(DocParam.length(2 * m), DocParam.length(3 * m))
-        self.assertNotEqual(DocParam.length(1 * m), DocParam.scalar(1.0))
-        self.assertNotEqual(DocParam.count(1), DocParam.scalar(1.0))
-        self.assertEqual(DocParam.count(4), DocParam.count(4))
+        self.assertEqual(FreeVar.length(2 * m), FreeVar.length(2 * m))
+        self.assertNotEqual(FreeVar.length(2 * m), FreeVar.length(3 * m))
+        self.assertNotEqual(FreeVar.length(1 * m), FreeVar.scalar(1.0))
+        self.assertNotEqual(FreeVar.count(1), FreeVar.scalar(1.0))
+        self.assertEqual(FreeVar.count(4), FreeVar.count(4))
 
     def test_the_two_zeros_are_one_parameter_and_hash_alike(self):
-        plus, minus = DocParam.length(0.0 * m), DocParam.length(-0.0 * m)
+        plus, minus = FreeVar.length(0.0 * m), FreeVar.length(-0.0 * m)
         self.assertEqual(plus, minus)
         self.assertEqual(hash(plus), hash(minus))
 
     def test_equal_parameters_are_interchangeable_dict_keys(self):
-        table = {DocParam.length(2 * m): "thickness", DocParam.count(3): "ribs"}
-        self.assertEqual(table[DocParam.length(2 * m)], "thickness")
-        self.assertEqual(table[DocParam.count(3)], "ribs")
+        table = {FreeVar.length(2 * m): "thickness", FreeVar.count(3): "ribs"}
+        self.assertEqual(table[FreeVar.length(2 * m)], "thickness")
+        self.assertEqual(table[FreeVar.count(3)], "ribs")
 
 
 class TestSketchPlaneFrame(unittest.TestCase):
@@ -1044,48 +1086,34 @@ class TestSketchPlaneFrame(unittest.TestCase):
 
 
 class TestDatumReadback(unittest.TestCase):
-    """What a datum's numbers cross AS. A position carries `Length`
-    whichever frame it is written in; a direction is dimensionless and
-    crosses bare. `Datum.in_plane` is the field that holds both, so it
-    is where the rule is visible in one value."""
+    """What a datum's numbers cross AS. A position carries `Length`; a
+    direction is dimensionless and crosses bare. An axis holds both, so
+    it is where the rule is visible in one value."""
 
     def axis(self, x, y):
         doc = Doc()
-        frame = doc.sketch_frame()
-        node = doc.insert(Node.datum_axis_in_plane(frame, (
-            Expr.literal(x),
-            Expr.literal(y),
+        node = doc.insert(Node.datum_axis((
+            Formula.literal(x),
+            Formula.literal(y),
+            Formula.length_in(0, m),
         ), (
-            Expr.literal(0.0),
-            Expr.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
+            Formula.literal(0.0),
         )))
         return evaluate(doc).value(node).datum()
 
-    def test_the_in_plane_origin_reads_back_as_the_length_pair_it_was_written_as(self):
-        """The write door takes `tuple[Length, Length]`; the read door
-        answers the same. A frame-local coordinate changes the datum a
-        position is measured from, not its dimension — so what goes in
-        comes back out, equal and still typed."""
+    def test_the_origin_reads_back_as_the_lengths_it_was_written_as(self):
+        """The write door takes `Length`s; the read door answers the
+        same — so what goes in comes back out, equal and still typed."""
         datum = self.axis(0.25 * m, 0.5 * m)
-        origin, direction = datum.in_plane
-        self.assertIsInstance(origin[0], Length)
-        self.assertIsInstance(origin[1], Length)
-        self.assertEqual(origin, (0.25 * m, 0.5 * m))
-        # The second pair is a DIRECTION: dimensionless, and bare.
-        self.assertEqual(direction, (0.0, 1.0))
-        self.assertNotIsInstance(direction[0], Length)
-
-    def test_the_world_origin_of_the_same_axis_is_dimensioned_too(self):
-        """The sibling field, so the class is read as one convention
-        rather than two: both origins are positions and both carry
-        `Length`."""
-        datum = self.axis(0.25 * m, 0.5 * m)
-        self.assertEqual(datum.kind, "axis_in_plane")
+        self.assertEqual(datum.kind, "axis")
         for coordinate in datum.origin:
             self.assertIsInstance(coordinate, Length)
-        # The sketch frame is the world xy plane, so the two spellings
-        # of the same point agree coordinate for coordinate.
         self.assertEqual(datum.origin, (0.25 * m, 0.5 * m, 0 * m))
+        # The second triple is a DIRECTION: dimensionless, and bare.
+        self.assertEqual(datum.direction, (0.0, 1.0, 0.0))
+        self.assertNotIsInstance(datum.direction[0], Length)
 
 
 class TestDatumPointAndFrame(unittest.TestCase):
@@ -1098,9 +1126,9 @@ class TestDatumPointAndFrame(unittest.TestCase):
     def test_a_point_reads_back_as_its_position_and_faces_no_way(self):
         doc = Doc()
         point = doc.insert(Node.datum_point((
-            Expr.length_in(1, m),
-            Expr.length_in(2, m),
-            Expr.length_in(3, m),
+            Formula.length_in(1, m),
+            Formula.length_in(2, m),
+            Formula.length_in(3, m),
         )))
         datum = evaluate(doc).value(point).datum()
         self.assertEqual(datum.kind, "point")
@@ -1111,7 +1139,6 @@ class TestDatumPointAndFrame(unittest.TestCase):
         # standing in for a direction a point does not have.
         self.assertIsNone(datum.direction)
         self.assertIsNone(datum.axes)
-        self.assertIsNone(datum.in_plane)
 
     def test_a_selection_measures_its_distance_to_a_point(self):
         """The downstream door: `GeomPred.datum_distance` is UNSIGNED
@@ -1121,14 +1148,14 @@ class TestDatumPointAndFrame(unittest.TestCase):
         cube = unit_box(doc, 1 * m, 1 * m, 1 * m)
         # On the bottom cap's centroid, a metre under the top cap's.
         here = doc.insert(Node.datum_point((
-            Expr.length_in(0.5, m),
-            Expr.length_in(0.5, m),
-            Expr.length_in(0, m),
+            Formula.length_in(0.5, m),
+            Formula.length_in(0.5, m),
+            Formula.length_in(0, m),
         )))
         ev = evaluate(doc)
         faces = Selector.of(NamePat.of_kind(EntityKind.Face))
-        on_it = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Approx, Expr.length_in(0, m))])
-        far = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Greater, Expr.length_in(0.9, m))])
+        on_it = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Approx, Formula.length_in(0, m))])
+        far = ev.select_where(cube, faces, [GeomPred.datum_distance(here, Cmp.Greater, Formula.length_in(0.9, m))])
         self.assertEqual(len(on_it), 1)
         self.assertEqual(len(far), 1)
         self.assertNotEqual(on_it, far)
@@ -1140,23 +1167,22 @@ class TestDatumPointAndFrame(unittest.TestCase):
         doc = Doc()
         frame = doc.insert(
             Node.datum_frame((
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
-                Expr.length_in(1, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(1, m),
             ), (
-                Expr.literal(1.0),
-                Expr.literal(0.0),
-                Expr.literal(0.0),
+                Formula.literal(1.0),
+                Formula.literal(0.0),
+                Formula.literal(0.0),
             ), (
-                Expr.literal(1.0),
-                Expr.literal(2.0),
-                Expr.literal(0.0),
+                Formula.literal(1.0),
+                Formula.literal(2.0),
+                Formula.literal(0.0),
             ))
         )
         datum = evaluate(doc).value(frame).datum()
         self.assertEqual(datum.kind, "frame")
         self.assertEqual(datum.origin, (0 * m, 0 * m, 1 * m))
-        self.assertIsNone(datum.in_plane)
         u, v = datum.axes
         # An axis is a DIRECTION: dimensionless, and bare.
         self.assertNotIsInstance(u[0], Length)
@@ -1173,31 +1199,31 @@ class TestDatumPointAndFrame(unittest.TestCase):
         body: the same square extruded on a frame leaning 45 degrees
         puts material above the metre the world-xy version tops out
         at."""
-        zero = Expr.length_in(0, m)
-        one = Expr.length_in(1, m)
+        zero = Formula.length_in(0, m)
+        one = Formula.length_in(1, m)
         ground = (zero, zero, zero)
         corners = [(zero, zero), (one, zero), (one, one), (zero, one)]
 
         def prism(plane_node, doc):
             square = doc.insert(Node.polygon(corners, plane=plane_node))
-            return doc.insert(Node.extrude(square, Expr.length_in(1, m)))
+            return doc.insert(Node.extrude(square, Formula.length_in(1, m)))
 
         doc = Doc()
         tilted = doc.insert(Node.datum_frame(ground, (
-            Expr.literal(1.0),
-            Expr.literal(0.0),
-            Expr.literal(0.0),
+            Formula.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(0.0),
         ), (
-            Expr.literal(0.0),
-            Expr.literal(1.0),
-            Expr.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
+            Formula.literal(1.0),
         )))
         leaning = prism(tilted, doc)
         upright = prism(doc.sketch_frame(), doc)
         floor = doc.insert(Node.datum_plane(ground, (
-            Expr.literal(0.0),
-            Expr.literal(0.0),
-            Expr.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
         )))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(leaning))
@@ -1207,7 +1233,7 @@ class TestDatumPointAndFrame(unittest.TestCase):
             ev.value(leaning).body().mass_properties().volume, 1.0, delta=1e-9
         )
         faces = Selector.of(NamePat.of_kind(EntityKind.Face))
-        above = [GeomPred.datum_distance(floor, Cmp.Greater, Expr.length_in(1, m))]
+        above = [GeomPred.datum_distance(floor, Cmp.Greater, Formula.length_in(1, m))]
         self.assertEqual(ev.select_where(upright, faces, above), [])
         self.assertNotEqual(ev.select_where(leaning, faces, above), [])
 
@@ -1215,7 +1241,7 @@ class TestDatumPointAndFrame(unittest.TestCase):
         """Gram-Schmidt states "these two span no plane" as a LENGTH,
         so the refusal is the direction one every datum raises, naming
         which axis went."""
-        scl = Expr.literal
+        scl = Formula.literal
         for u, v, axis in (
             ((scl(0.0), scl(0.0), scl(0.0)), (scl(0.0), scl(1.0), scl(0.0)), "x"),
             ((scl(1.0), scl(0.0), scl(0.0)), (scl(2.0), scl(0.0), scl(0.0)), "y"),
@@ -1223,9 +1249,9 @@ class TestDatumPointAndFrame(unittest.TestCase):
             with self.subTest(axis=axis):
                 doc = Doc()
                 bad = doc.insert(Node.datum_frame((
-                    Expr.length_in(0, m),
-                    Expr.length_in(0, m),
-                    Expr.length_in(0, m),
+                    Formula.length_in(0, m),
+                    Formula.length_in(0, m),
+                    Formula.length_in(0, m),
                 ), u, v))
                 with self.assertRaises(EvaluationError) as caught:
                     evaluate(doc).value(bad)
@@ -1238,59 +1264,28 @@ class TestDatumPointAndFrame(unittest.TestCase):
         offending number."""
         with self.assertRaises(pncad.LiteralError) as caught:
             Node.datum_point((
-                Expr.length_in(float("nan"), m),
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
+                Formula.length_in(float("nan"), m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
             ))
         self.assertEqual(caught.exception.kind, "non_finite")
         with self.assertRaises(pncad.LiteralError) as caught:
             Node.datum_frame(
                 (
-                    Expr.length_in(0, m),
-                    Expr.length_in(0, m),
-                    Expr.length_in(0, m),
+                    Formula.length_in(0, m),
+                    Formula.length_in(0, m),
+                    Formula.length_in(0, m),
                 ), (
-                    Expr.literal(float("inf")),
-                    Expr.literal(0.0),
-                    Expr.literal(0.0),
+                    Formula.literal(float("inf")),
+                    Formula.literal(0.0),
+                    Formula.literal(0.0),
                 ), (
-                    Expr.literal(0.0),
-                    Expr.literal(1.0),
-                    Expr.literal(0.0),
+                    Formula.literal(0.0),
+                    Formula.literal(1.0),
+                    Formula.literal(0.0),
                 )
             )
         self.assertEqual(caught.exception.value, float("inf"))
-
-
-class TestBooleanDeclareArgument(unittest.TestCase):
-    """LIB-PYBUNDLE rider (c): `Node.boolean` grew `declare=`, the
-    DATA door for a declared contact. The protocol that BUILDS a
-    declaration is still unbound, so the only thing the argument can
-    be handed today is another node — and the EDIT door refuses one
-    that is not a `Declare`, typed, rather than ignoring it or letting
-    a document carry the mis-wire to its evaluation."""
-
-    def test_the_default_is_the_undeclared_lane(self):
-        doc = Doc()
-        a = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        b = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b))
-        self.assertTrue(evaluate(doc).succeeded(fused))
-
-    def test_a_non_declaration_input_is_refused_not_ignored(self):
-        doc = Doc()
-        a = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        b = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m))
-        # The declare edge names a THIRD node, not one of the operands:
-        # a node's inputs are pairwise distinct (DM5), so pointing it at
-        # `a` is refused at the edit door and never reaches the
-        # evaluation this row is about. Any live non-`Declare` node
-        # makes the same point.
-        c = slab(doc, (5 * m, 6 * m), (5 * m, 6 * m), (5 * m, 6 * m))
-        with self.assertRaises(EditError) as caught:
-            doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=c))
-        self.assertEqual(caught.exception.variant, "declare_input_not_declare")
-        self.assertIn("is not a declaration", str(caught.exception))
 
 
 class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
@@ -1322,16 +1317,12 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         doc = Doc()
         frame = doc.sketch_frame()
         profile = self.square(doc, frame, x0)
-        axis = doc.insert(
-            Node.datum_axis_in_plane(frame, (
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
-            ), (
-                Expr.literal(0.0),
-                Expr.literal(1.0),
-            ))
-        )
-        node = doc.insert(Node.revolve(profile, axis, Expr.literal(angle)))
+        node = doc.insert(Node.revolve(
+            profile,
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.literal(angle),
+        ))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(node)
         return caught.exception
@@ -1355,7 +1346,7 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
     def test_a_second_op_speaks_its_own_arms(self):
         doc = Doc()
         frame = doc.sketch_frame()
-        flat = doc.insert(Node.extrude(self.square(doc, frame), Expr.length_in(0, m)))
+        flat = doc.insert(Node.extrude(self.square(doc, frame), Formula.length_in(0, m)))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(flat)
         self.assertEqual(
@@ -1363,36 +1354,22 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
             ("extrude", "degenerate_extrusion"),
         )
 
-    def test_an_arm_with_no_inner_refusal_says_none(self):
-        # The undeclared-contact refusal is the document layer's own
-        # arm: its payload is the candidate declaration, which crosses
-        # whole as `finding`, and there is no inner enum to name.
-        doc = Doc()
-        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(cut)
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
-        self.assertIsNone(caught.exception.inner_kind)
-        self.assertIsNotNone(caught.exception.finding)
-
     def test_a_poisoned_node_carries_both_of_its_ancestors_words(self):
         # The poisoning path reports the ROOT cause, so it reports both
         # of the root cause's words or neither.
         doc = Doc()
         frame = doc.sketch_frame()
-        flat = doc.insert(Node.extrude(self.square(doc, frame), Expr.length_in(0, m)))
+        flat = doc.insert(Node.extrude(self.square(doc, frame), Formula.length_in(0, m)))
         moved = doc.insert(
             Node.transform(flat, (
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
-                Expr.length_in(1, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(1, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(1.0),
-            ), Expr.angle_in(0, rad))
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(1.0),
+            ), Formula.angle_in(0, rad))
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(moved)
@@ -1430,10 +1407,10 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         doc = Doc()
         frame = doc.sketch_frame()
         profile = self.square(doc, frame)
-        doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
+        body = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.delete_node(profile))
-        self.assertEqual(caught.exception.variant, "delete_would_dangle")
+            doc.insert(Node.extrude(body, Formula.length_in(1, m)))
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
         self.assertIsNone(caught.exception.inner_variant)
 
     def test_the_edit_arms_that_hold_a_refusal_are_pre_checked_elsewhere(self):
@@ -1454,12 +1431,6 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         # constructor, so `invalid_distribution` cannot be inserted.
         with self.assertRaises(pncad.DistributionFault):
             Distribution.normal(0 * m)
-        # A measured expression's reference indices are checked by
-        # `Node.measure`, so `measure_malformed` cannot be inserted.
-        with self.assertRaises(pncad.MeasureNodeFault):
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 5)), []
-            )
         # A profile program's geometry is checked by the PATHS chain,
         # so `profile_program_refused` cannot be inserted.
         with self.assertRaises(pncad.PathError):
@@ -1472,9 +1443,8 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
                 .to((0 * m, 1 * m))
                 .line_to(Start)
             )
-        # `dimension` rides the expression-path edit and `roots` reads
-        # its word off the fault already — neither has a Python door
-        # that could carry a second one.
+        # `dimension` rides the expression-path edit, which has no
+        # Python door that could carry a second word.
         self.assertFalse(hasattr(DocEdit, "set_expr_at"))
         self.assertEqual(len(doc.order()), 0)
 
@@ -1487,7 +1457,6 @@ EDIT_ATTRS = (
     "inner_variant",
     "node",
     "input",
-    "referenced_by",
     "slot",
     "param",
     "name",
@@ -1503,6 +1472,7 @@ EDIT_ATTRS = (
     "value",
     "offered",
     "determinant",
+    "index",
     "path",
     "value_path",
     "pin",
@@ -1512,41 +1482,49 @@ EDIT_ATTRS = (
 
 class TestTheWholeProgramEdit(unittest.TestCase):
     """`DocEdit.set_program` — a live profile's program replaced whole.
-    Each step carries the id the document minted for it
-    (`Doc.step_ids`); the edit states, per new step, the id it keeps or
-    `None` for a new step, and a name follows the steps it spells."""
+    Each step carries the id the document minted for it (`Doc.step`
+    binds the handle its verb returned to it); the edit keeps an old
+    step by mapping the handle of a step of the NEW program to the old
+    id, a step it does not name is new, and a name follows the steps it
+    spells."""
 
     @staticmethod
     def chain(points):
+        """A closed polygon through `points`, and the handle of each of
+        its steps as its verb returned it."""
         path = Open.at((points[0][0] * m, points[0][1] * m))
+        steps = [path.step]
         for x, y in points[1:]:
             path = path.line_to((x * m, y * m))
-        return path.line_to(Start)
+            steps.append(path.step)
+        closed = path.line_to(Start)
+        steps.append(closed.step)
+        return closed, steps
 
     def filleted_box(self):
-        """A square prism with a fillet on the rim edge its wall 2
-        shares with the end cap; `(doc, profile, box, rim)`."""
+        """A square prism with a fillet on the rim edge the top wall
+        (drawn by step 3's leg) shares with the end cap;
+        `(doc, profile, box, rim, ids)`, `ids` the old steps' ids."""
         doc = Doc()
         frame = doc.sketch_frame()
-        profile = doc.insert(
-            Node.profile(self.chain([(0, 0), (2, 0), (2, 2), (0, 2)]), plane=frame)
-        )
-        box = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
-        piece = doc.pieces(profile)[0][2]
+        square, steps = self.chain([(0, 0), (2, 0), (2, 2), (0, 2)])
+        profile = doc.insert(Node.profile(square, plane=frame))
+        box = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
+        piece = str(doc.piece(profile, 0, steps[3].leg))
         rim = [
             name
             for name in evaluate(doc).all_edges(box)
             if "RimEdge" in name and piece in name and '"End"' in name
         ]
         self.assertEqual(len(rim), 1, rim)
-        doc.insert(Node.fillet(box, Expr.length_in(0.1, m), rim))
-        return doc, profile, box, rim[0]
+        doc.insert(Node.fillet(box, Formula.length_in(0.1, m), rim))
+        ids = [doc.step(profile, 0, h) for h in steps]
+        return doc, profile, box, rim[0], ids
 
     def test_the_insert_door_mints_one_id_per_authored_step(self):
-        doc, profile, _box, _rim = self.filleted_box()
-        (ids,) = doc.step_ids(profile)
-        self.assertEqual(len(ids), 5, "the start, four legs")
-        self.assertEqual(len(set(ids)), 5, "each step its own id")
+        doc, profile, _box, _rim, ids = self.filleted_box()
+        self.assertEqual(len(set(ids)), 5, "the start, four legs, each its own id")
+        self.assertEqual(doc.step_ids(profile), [ids], "the positional reading agrees")
 
     def test_a_reshaped_program_keeping_the_step_keeps_the_fillets_name(self):
         """A leg inserted before the filleted wall's step moves the
@@ -1554,12 +1532,16 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         kept, so the fillet's name still denotes it and the accepted
         edit reports nothing. The document round-trips through the
         persisted form."""
-        doc, profile, _box, rim = self.filleted_box()
-        (s,) = doc.step_ids(profile)
-        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
-        doc.apply(DocEdit.set_program(profile, reshaped, [[s[0], s[1], None, s[2], s[3], s[4]]]))
-        self.assertEqual(doc.last_maintenance, [])
+        doc, profile, _box, rim, s = self.filleted_box()
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[4]: s[3], new[5]: s[4]}
+        doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
+        # The reshaped program's values are variables of its own: the
+        # old ones' retirement is all the edit reports.
+        self.assertEqual(strands(doc), [])
         self.assertEqual(evaluate(doc).resolve(rim).status, "resolved")
+        self.assertEqual(doc.step(profile, 0, new[4]), s[3], "the kept step keeps its id")
+        self.assertNotIn(doc.step(profile, 0, new[2]), s, "the new leg mints fresh")
         # `Doc.save` writes the document as a SNAPSHOT with no log
         # (the binding holds a value, not a history), so the reshaped
         # program crosses in the snapshot and the loaded document
@@ -1570,35 +1552,120 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         self.assertEqual(loaded.doc.save(), text)
 
     def test_a_step_the_edit_drops_strands_the_fillets_name(self):
-        """The same program with the wall's step stated as new: the
-        fillet's name keeps its spelling and is reported as a `strand`
-        on the fillet node. Pushed back through `Evaluation.resolve`,
-        it is a typed `vanished` failure — the new step's leg is under
-        an id never minted before, so the name never comes to denote
-        it."""
-        doc, profile, _box, rim = self.filleted_box()
+        """The same program with the wall's step left out of `keep`:
+        the fillet's name keeps its spelling and is reported as a
+        `stranded_selection` read by the fillet node. Pushed back through
+        `Evaluation.resolve`, it is a typed `vanished` failure — the new
+        step's leg is under an id never minted before, so the name
+        never comes to denote it."""
+        doc, profile, _box, rim, s = self.filleted_box()
         fillet = doc.order()[-1]
-        (s,) = doc.step_ids(profile)
-        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
-        doc.apply(DocEdit.set_program(profile, reshaped, [[s[0], s[1], None, s[2], None, s[4]]]))
-        (row,) = doc.last_maintenance
-        self.assertEqual(row.variant, "strand")
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[5]: s[4]}
+        doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
+        (row,) = strands(doc)
+        self.assertEqual(row.variant, "stranded_selection")
         self.assertEqual(row.node, fillet)
         self.assertEqual(row.name, rim)
         verdict = evaluate(doc).resolve(row.name)
         self.assertEqual(verdict.status, "failed")
         self.assertEqual(verdict.variant, "vanished")
 
-    def test_ids_of_the_wrong_shape_refuse_before_the_program_is_read(self):
-        doc, profile, _box, _rim = self.filleted_box()
-        (s,) = doc.step_ids(profile)
-        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+    def test_a_handle_off_the_new_program_refuses_before_the_edit(self):
+        """The old square's closer is a `line_to(Start)` at index 4; in
+        the reshaped program index 4 is a `line_to` a point, so the
+        handle is off it and `set_program` refuses to build the edit."""
+        _doc, profile, _box, _rim, s = self.filleted_box()
+        _square, old = self.chain([(0, 0), (2, 0), (2, 2), (0, 2)])
+        reshaped, _new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(StepHandleError) as caught:
+            DocEdit.set_program(profile, reshaped, [{old[4]: s[4]}])
+        self.assertEqual(caught.exception.variant, "handle_off_program")
+        self.assertEqual((caught.exception.loop_, caught.exception.index), (0, 4))
+
+    def test_an_old_id_kept_twice_refuses_before_the_program_is_read(self):
+        doc, profile, _box, _rim, s = self.filleted_box()
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_program(profile, reshaped, [s]))
+            doc.apply(DocEdit.set_program(profile, reshaped, [{new[1]: s[1], new[2]: s[1]}]))
         self.assertEqual(caught.exception.variant, "step_ids_refused")
-        self.assertEqual(caught.exception.inner_variant, "shape")
+        self.assertEqual(caught.exception.inner_variant, "repeated")
         self.assertEqual(caught.exception.node, profile)
         self.assertEqual(doc.last_maintenance, [])
+
+    def test_keep_is_stated_and_an_empty_dict_keeps_nothing(self):
+        doc, profile, _box, _rim, s = self.filleted_box()
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(TypeError):
+            DocEdit.set_program(profile, reshaped)
+        doc.apply(DocEdit.set_program(profile, reshaped, [{}]))
+        fresh = [doc.step(profile, 0, h) for h in new]
+        self.assertEqual(set(fresh) & set(s), set(), "every step minted fresh")
+
+    def test_a_keep_list_short_of_the_outline_refuses(self):
+        doc, profile, _box, _rim, _ids = self.filleted_box()
+        reshaped, _new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_program(profile, reshaped, []))
+        self.assertEqual(caught.exception.inner_variant, "loop_count")
+
+
+class TestAuthoredStepHandles(unittest.TestCase):
+    """A chain state's `.step` is the address of the step its verb
+    recorded; `Doc.step` binds it to the id the placement minted, in the
+    loop the author states, and its role accessors are the verb's role
+    list."""
+
+    def setUp(self):
+        start = Open.at((0 * m, 0 * m)).toward(1, 0)
+        self.bind = start.step
+        opened = start.fillet(0.5 * m)
+        self.fillet = opened.step
+        top = opened.toward(0, 1).to((2 * m, 2 * m)).line_to((0 * m, 2 * m))
+        self.top = top.step
+        self.loop = top.line_to(Start)
+        self.doc = Doc()
+        frame = self.doc.sketch_frame()
+        self.a = self.doc.insert(Node.profile(self.loop, plane=frame))
+        self.b = self.doc.insert(Node.profile(self.loop, plane=frame))
+
+    def test_one_loop_placed_twice_binds_one_handle_to_two_ids(self):
+        a = self.doc.step(self.a, 0, self.top)
+        self.assertIsInstance(a, StepId)
+        self.assertNotEqual(a, self.doc.step(self.b, 0, self.top))
+        self.assertEqual(self.doc.step_ids(self.a)[0][self.top.index], a)
+
+    def test_the_right_wall_is_the_fillets_run_out(self):
+        wall = self.doc.piece(self.a, 0, self.fillet.run_out)
+        self.assertEqual(wall, Piece(self.doc.step(self.a, 0, self.fillet), Role.RunOut))
+        self.assertIn(wall, self.doc.pieces(self.a)[0])
+
+    def test_the_accessors_are_the_verbs_role_list(self):
+        self.assertEqual(self.top.leg.role, Role.Leg)
+        self.assertEqual(
+            [self.fillet.run_in.role, self.fillet.arc.role, self.fillet.run_out.role],
+            [Role.RunIn, Role.Arc, Role.RunOut],
+        )
+        for handle, role in ((self.top, "arc"), (self.fillet, "leg"), (self.bind, "leg")):
+            with self.assertRaises(AttributeError, msg=f"{handle!r}.{role}"):
+                getattr(handle, role)
+        ring = circle_split((0 * m, 0 * m), 1 * m, 3, 0 * rad)
+        self.assertEqual(ring.step.piece(2).role, Role.piece(2))
+        with self.assertRaises(StepHandleError) as caught:
+            ring.step.piece(3)
+        self.assertEqual(caught.exception.variant, "role_not_drawn")
+        self.assertEqual(caught.exception.role, Role.piece(3))
+
+    def test_a_loop_the_profile_does_not_have_refuses(self):
+        with self.assertRaises(StepHandleError) as caught:
+            self.doc.step(self.a, 1, self.top)
+        self.assertEqual(caught.exception.variant, "handle_off_program")
+        self.assertEqual((caught.exception.loop_, caught.exception.index), (1, 5))
+
+    def test_a_piece_prints_the_kernels_text(self):
+        wall = self.doc.piece(self.a, 0, self.top.leg)
+        self.assertIn('"Leg"', str(wall))
+        self.assertNotEqual(str(wall), str(self.doc.piece(self.b, 0, self.top.leg)))
 
 
 class TestTheEditDoorsPayload(unittest.TestCase):
@@ -1624,15 +1691,15 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         profile = doc.insert(
             Node.polygon(
                 [
-                    (Expr.literal(x0), Expr.literal(y0)),
-                    (Expr.literal(x1), Expr.literal(y0)),
-                    (Expr.literal(x1), Expr.literal(y1)),
-                    (Expr.literal(x0), Expr.literal(y1)),
+                    (Formula.literal(x0), Formula.literal(y0)),
+                    (Formula.literal(x1), Formula.literal(y0)),
+                    (Formula.literal(x1), Formula.literal(y1)),
+                    (Formula.literal(x0), Formula.literal(y1)),
                 ],
-                plane=doc.sketch_frame(elevation=Expr.literal(z0)),
+                plane=doc.sketch_frame(elevation=Formula.literal(z0)),
             )
         )
-        return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
+        return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
 
     def set_of(self, refusal):
         """The attributes this refusal CARRIES, with the rest asserted
@@ -1644,22 +1711,22 @@ class TestTheEditDoorsPayload(unittest.TestCase):
             )
         return {a for a in EDIT_ATTRS if getattr(refusal, a) is not None}
 
-    def test_the_two_node_roles_answer_with_the_ids_that_were_used(self):
-        # A delete that would dangle names BOTH ends: the node asked
-        # for, and the live node still reading it. They are different
-        # roles, so folding them into one attribute would lose which
-        # is which — and the pair is what a caller needs to build the
-        # cascade.
+    def test_an_operand_refusal_names_the_slot_and_both_kinds(self):
+        # A read of the wrong kind names the operand it was written at
+        # and the two kinds — the one found and the one the slot
+        # admits — as words, so a caller can branch on them.
         doc = Doc()
         box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        profile = doc.order()[1]
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.delete_node(profile))
+            doc.insert(Node.extrude(box, Formula.length_in(1, m)))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "delete_would_dangle")
-        self.assertEqual(refusal.node, profile)
-        self.assertEqual(refusal.referenced_by, box)
-        self.assertEqual(self.set_of(refusal), {"variant", "node", "referenced_by"})
+        self.assertEqual(refusal.variant, "slot_var_kind")
+        self.assertEqual(
+            (refusal.slot, refusal.found, refusal.expected), ("profile", "body", "profile")
+        )
+        self.assertEqual(
+            self.set_of(refusal), {"variant", "node", "slot", "found", "expected"}
+        )
 
     def test_a_foreign_id_arrives_under_the_role_the_door_read_it_in(self):
         # The SAME id, refused at two doors, lands under two different
@@ -1681,7 +1748,7 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         self.assertEqual(self.set_of(read.exception), {"variant", "node"})
 
         with self.assertRaises(EditError) as written:
-            doc.insert(Node.extrude(stray, Expr.length_in(1, m)))
+            doc.insert(Node.extrude(stray, Formula.length_in(1, m)))
         self.assertEqual(written.exception.variant, "unresolved_input")
         self.assertEqual(written.exception.input, stray)
         self.assertIsNone(written.exception.node)
@@ -1693,15 +1760,15 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         doc = Doc()
         box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         pattern = doc.insert(
-            Node.pattern(box, Expr.count(3), PatternKind.linear((
-                Expr.literal(1.0),
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-            ), Expr.length_in(2, m)))
+            Node.pattern(box, Formula.count(3), PatternKind.linear((
+                Formula.literal(1.0),
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+            ), Formula.length_in(2, m)))
         )
         with self.assertRaises(EditError) as unknown:
-            doc.apply(DocEdit.bind_count_param(pattern, ParamName("n")))
-        self.assertEqual(unknown.exception.variant, "slot_unknown_doc_param")
+            doc.apply(DocEdit.bind_count_param(pattern, VarName("n")))
+        self.assertEqual(unknown.exception.variant, "slot_unknown_var_name")
         self.assertEqual(unknown.exception.node, pattern)
         self.assertEqual(unknown.exception.slot, "count")
         self.assertEqual(unknown.exception.param, "n")
@@ -1712,31 +1779,34 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         # A node with no count slot at all refuses at the same door and
         # names the slot it lacks.
         with self.assertRaises(EditError) as absent:
-            doc.apply(DocEdit.bind_count_param(box, ParamName("n")))
+            doc.apply(DocEdit.bind_count_param(box, VarName("n")))
         self.assertEqual(absent.exception.variant, "unknown_slot")
         self.assertEqual(absent.exception.slot, "count")
         self.assertEqual(self.set_of(absent.exception), {"variant", "node", "slot"})
 
     def test_the_dimension_pair_crosses_as_words_not_prose(self):
         # `expected` and `found` are the dimension the door required
-        # and the one it was offered, in the alphabet `Expr.dimension`
+        # and the one it was offered, in the alphabet `Formula.dimension`
         # answers in — one pair however the kernel's arm spells it.
         doc = Doc()
         box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         pattern = doc.insert(
-            Node.pattern(box, Expr.count(3), PatternKind.linear((
-                Expr.literal(1.0),
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-            ), Expr.length_in(2, m)))
+            Node.pattern(box, Formula.count(3), PatternKind.linear((
+                Formula.literal(1.0),
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+            ), Formula.length_in(2, m)))
         )
-        doc.apply(DocEdit.set_doc_param(ParamName("len"), DocParam.length(1 * m)))
+        doc.apply(DocEdit.declare_var(VarName("len"), FreeVar.length(1 * m)))
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.bind_count_param(pattern, ParamName("len")))
+            doc.apply(DocEdit.bind_count_param(pattern, VarName("len")))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "slot_doc_param_dimension")
-        self.assertEqual(refusal.expected, "length")
-        self.assertEqual(refusal.found, "count")
+        # The slot's kind refusal is one arm at every slot: `found`
+        # is the kind of the variable read, `expected` what the slot
+        # takes.
+        self.assertEqual(refusal.variant, "slot_var_kind")
+        self.assertEqual(refusal.expected, "count")
+        self.assertEqual(refusal.found, "length")
         self.assertEqual(
             self.set_of(refusal),
             {"variant", "node", "slot", "param", "expected", "found"},
@@ -1748,9 +1818,9 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         # fabrication this surface refuses elsewhere.
         with self.assertRaises(EditError) as offered:
             doc.apply(
-                DocEdit.set_doc_param_value(ParamName("len"), DocParamValue.count(3))
+                DocEdit.set_var_value(VarName("len"), FreeValue.count(3))
             )
-        self.assertEqual(offered.exception.variant, "doc_param_value_kind_mismatch")
+        self.assertEqual(offered.exception.variant, "var_value_kind_mismatch")
         self.assertEqual(offered.exception.expected, "length")
         self.assertEqual(offered.exception.offered, 3)
         self.assertIsInstance(offered.exception.offered, int)
@@ -1758,35 +1828,14 @@ class TestTheEditDoorsPayload(unittest.TestCase):
             self.set_of(offered.exception), {"variant", "param", "expected", "offered"}
         )
 
-    def test_a_refused_scalar_and_a_root_pair_cross_as_themselves(self):
+    def test_a_refused_scalar_crosses_as_itself(self):
         doc = Doc()
-        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         with self.assertRaises(EditError) as eps:
             doc.apply(DocEdit.set_tolerance(-1.0))
         self.assertEqual(eps.exception.variant, "invalid_tolerance")
         self.assertEqual(eps.exception.value, -1.0)
         self.assertEqual(self.set_of(eps.exception), {"variant", "value"})
-
-        # A root that is an ancestor of another root reads the same
-        # two node roles a dangling delete does: the offender, and the
-        # node downstream that references it. `variant` is the FAULT's
-        # word already, so `inner_variant` stays `None`.
-        pattern = doc.insert(
-            Node.pattern(box, Expr.count(3), PatternKind.linear((
-                Expr.literal(1.0),
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-            ), Expr.length_in(2, m)))
-        )
-        with self.assertRaises(EditError) as roots:
-            doc.apply(DocEdit.set_roots([box, pattern]))
-        self.assertEqual(roots.exception.variant, "root_ancestor")
-        self.assertEqual(roots.exception.node, box)
-        self.assertEqual(roots.exception.referenced_by, pattern)
-        self.assertIsNone(roots.exception.inner_variant)
-        self.assertEqual(
-            self.set_of(roots.exception), {"variant", "node", "referenced_by"}
-        )
 
     def test_an_arm_with_no_payload_answers_none_all_the_way_down(self):
         # The placement axis refuses with an inner word and NOTHING
@@ -1802,25 +1851,126 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         self.assertEqual(refusal.inner_variant, "degenerate_direction")
         self.assertEqual(self.set_of(refusal), {"variant", "inner_variant"})
 
-    def test_the_declare_sugars_own_arms_carry_the_shape_and_no_payload(self):
-        # `DeclareError` is a second raise site of this class, and its
-        # own two arms hold no document-layer payload — so they answer
-        # `None` for all of it rather than dropping the attributes a
-        # caller reads without branching.
-        doc = Doc()
-        with self.assertRaises(EditError) as caught:
-            doc.declare_all([])
-        self.assertEqual(caught.exception.variant, "no_findings")
-        self.assertEqual(self.set_of(caught.exception), {"variant"})
-
     def test_a_refusal_the_boundary_builds_has_the_same_shape(self):
         # `Node.placed_union` refuses BEFORE the document layer sees
         # the edit — the boundary decides it — and the exception is
         # still one shape: every attribute present, `None` where this
-        # refusal carries nothing.
+        # refusal carries nothing, and the two words the document
+        # layer's own refusal of the same rule publishes.
         doc = Doc()
         box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         with self.assertRaises(EditError) as caught:
-            Node.placed_union(box, Expr.count(3), PatternKind.explicit([]))
+            Node.placed_union(box, Formula.count(3), PatternKind.explicit([]))
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
-        self.assertEqual(self.set_of(caught.exception), {"variant"})
+        self.assertEqual(caught.exception.inner_variant, "listed_with_count")
+        self.assertEqual(
+            self.set_of(caught.exception), {"variant", "inner_variant"}
+        )
+
+
+class TestNodeLabels(unittest.TestCase):
+    """A node's label is document data beside the node: set by
+    `DocEdit.set_label` or `label=` at insert, read by `Doc.label`,
+    not unique, dropped with its node, saved, and said by the kernel's
+    sentences as kind, quoted label and tag."""
+
+    def test_insert_labels_in_one_call_and_set_label_renames_and_clears(self):
+        doc = Doc()
+        frame = doc.sketch_frame(label="floor plane")
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        self.assertEqual(doc.label(frame), "floor plane")
+        self.assertIsNone(doc.label(box))
+        doc.apply(DocEdit.set_label(box, "base plate"))
+        self.assertEqual(doc.label(box), "base plate")
+        doc.apply(DocEdit.set_label(box, "plinth"))
+        self.assertEqual(doc.label(box), "plinth")
+        doc.apply(DocEdit.set_label(box, None))
+        self.assertIsNone(doc.label(box))
+
+    def test_two_nodes_may_share_a_label(self):
+        doc = Doc()
+        a = doc.sketch_frame(label="Bolt")
+        b = doc.sketch_frame(label="Bolt")
+        self.assertNotEqual(a, b)
+        self.assertEqual((doc.label(a), doc.label(b)), ("Bolt", "Bolt"))
+
+    def test_a_text_that_is_not_a_label_refuses_before_anything_is_applied(self):
+        doc = Doc()
+        frame = doc.sketch_frame()
+        cases = [
+            ("", "label_blank"),
+            ("  ", "label_blank"),
+            ("two\nlines", "label_line_break"),
+            ("tab\there", "label_control_character"),
+            ("\u200b", "label_blank"),
+            ("lid\u202e", "label_direction_control"),
+        ]
+        for text, variant in cases:
+            with self.subTest(text=text):
+                with self.assertRaises(EditError) as caught:
+                    DocEdit.set_label(frame, text)
+                self.assertEqual(caught.exception.variant, variant)
+                count = doc.node_count
+                with self.assertRaises(EditError) as caught:
+                    doc.sketch_frame(label=text)
+                self.assertEqual(caught.exception.variant, variant)
+                self.assertEqual(doc.node_count, count, "nothing was inserted")
+
+    def test_the_edit_door_refuses_a_dead_node_and_a_no_op(self):
+        doc = Doc()
+        frame = doc.sketch_frame(label="datum")
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_label(frame, "datum"))
+        self.assertEqual(caught.exception.variant, "label_unchanged")
+        self.assertEqual(caught.exception.node, frame)
+        doc.apply(DocEdit.delete_node(frame))
+        for door in (
+            lambda: doc.apply(DocEdit.set_label(frame, "back")),
+            lambda: doc.label(frame),
+        ):
+            with self.assertRaises(EditError) as caught:
+                door()
+            self.assertEqual(caught.exception.variant, "unknown_node")
+
+    def test_a_label_round_trips_through_save_and_load(self):
+        doc = Doc("node-labels-save")
+        frame = doc.sketch_frame(label="floor plane")
+        loaded = load(doc.save()).doc
+        self.assertEqual(loaded.label(frame), "floor plane")
+
+    def test_a_sentence_names_a_labelled_node_by_kind_label_and_tag(self):
+        doc = Doc()
+        frame = doc.sketch_frame(label="floor plane")
+        with self.assertRaises(ValueError) as caught:
+            doc.step_ids(frame)
+        self.assertIn(
+            f'Datum frame "floor plane" ({tag(frame)}) is not a profile',
+            str(caught.exception),
+        )
+
+
+class TestParamNameAdmissibility(unittest.TestCase):
+    """`VarName(text)` is the boundary that turns text into a name,
+    and the document layer's one rule for a name — one identifier an
+    expression reads back — is held by the constructor there. Python
+    holds the text until this call, so the binding calls the
+    constructor here and publishes its refusal under the boundary's own
+    word: a blank or a spaced name never reaches a document, and no
+    door downstream has a second copy of the rule to drift."""
+
+    def test_a_text_the_parser_cannot_read_back_refuses_at_the_constructor(self):
+        for text in ["", "   ", "1 2", "a+b", " width ", "hole#", "sin("]:
+            with self.subTest(text=text):
+                with self.assertRaises(EditError) as caught:
+                    VarName(text)
+                err = caught.exception
+                self.assertEqual(err.variant, "param_name_not_an_identifier")
+                # The sentence quotes the bytes offered, as the parse
+                # door does for text it read.
+                self.assertIn(f'parameter name "{text}"', str(err))
+
+    def test_an_identifier_is_a_name_and_the_grammar_reserves_no_words(self):
+        self.assertEqual(VarName("hole_r").name, "hole_r")
+        # A bare function word is looked up as a parameter — `sin` is
+        # a call only when `(` follows it — so it is admissible.
+        self.assertEqual(VarName("sin").name, "sin")

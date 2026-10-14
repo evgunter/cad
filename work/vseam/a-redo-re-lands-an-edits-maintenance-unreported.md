@@ -13,7 +13,8 @@ cost: D
 moves the history pointer and reports only the display prune
 (`OpOutcome::from_prune`), so `OpOutcome::maintenance` is empty on every
 redo. The commit that first landed the action carried its net DM7 rows
-(`record_action`, through `editor_core::MaintenanceNet`) and the chrome worded them
+(`record_action`, through `editor_core::MaintenanceNet`; #3446 folded
+`record_action` into `DocSession::commit_run`, which nets the same way) and the chrome worded them
 (`frame::outcome_notices`); redoing the same action after an undo
 re-lands the same stranded or rewritten names and says nothing.
 

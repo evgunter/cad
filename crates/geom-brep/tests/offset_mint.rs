@@ -31,7 +31,8 @@ use core::f64::consts::{FRAC_PI_6, PI};
 
 use crate::shared::tol::band;
 use geom::Surface;
-use geom_brep::{OffsetError, SurfaceKind, offset_surface};
+use geom::SurfaceKind;
+use geom_brep::{OffsetDistanceError, OffsetError, offset_distance, offset_surface};
 use geom_core::{Point3, Tol, Vec3};
 
 // ---------------------------------------------------------------------
@@ -580,16 +581,16 @@ fn torus_ring_refuses_spindle_crossing() {
     assert_eq!(minor_radius.to_bits(), 1.5f64.to_bits());
 }
 
-/// NURBS is not closed under offset: typed refusal naming the
-/// approximating-surface route as the coming door.
+/// NURBS is not closed under offset: a typed refusal that names the
+/// fitted offset it has none of, and says there is no way through yet.
 #[test]
 fn nurbs_refuses_typed_naming_the_approximating_route() {
     let err = offset_surface(&Surface::<f64>::nurbs_placeholder(), 0.1, band()).unwrap_err();
     assert!(matches!(err, OffsetError::NotClosedUnderOffset));
     let msg = err.to_string();
     assert!(
-        msg.contains("approximating-surface") && msg.contains("not closed under offset"),
-        "the refusal must name the coming route: {msg}"
+        msg.contains("fitted offset") && msg.ends_with(geom_core::NOT_YET_ENDING),
+        "the refusal names the fitted route and says it is not built: {msg}"
     );
 }
 
@@ -772,4 +773,76 @@ mod interval {
             _ => panic!("only the sampled kinds have interval spellings here"),
         }
     }
+}
+
+/// **`offset_distance` inverts the mint, kind by kind**: for every
+/// analytic kind and a distance either way, the distance read back off
+/// the minted surface is the one it was minted at — to a few ulps of
+/// the field the mint changed (the cone's apex slide is a division and
+/// a product, undone in the other order). A pair of different kinds is
+/// refused as no offset pair.
+#[test]
+fn offset_distance_reads_back_the_minted_distance() {
+    let (o, z, x) = (
+        Point3::new(0.3, -0.2, 0.7),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let kinds = [
+        Surface::Plane {
+            origin: o,
+            normal: Vec3::new(0.6, 0.0, 0.8),
+            u_ref: Vec3::new(0.8, 0.0, -0.6),
+        },
+        Surface::Cylinder {
+            origin: o,
+            axis: z,
+            radius: 1.5,
+            u_ref: x,
+        },
+        Surface::Sphere {
+            center: o,
+            radius: 1.5,
+            axis: z,
+            u_ref: x,
+        },
+        Surface::Torus {
+            center: o,
+            axis: z,
+            major_radius: 3.0,
+            minor_radius: 1.0,
+            u_ref: x,
+        },
+        Surface::Cone {
+            apex: o,
+            axis: z,
+            half_angle: FRAC_PI_6,
+            u_ref: x,
+        },
+    ];
+    for surface in &kinds {
+        for d in [0.25, -0.4] {
+            let minted = offset_surface(surface, d, band()).expect("the mint");
+            let back = offset_distance(surface, &minted).expect("the inverse");
+            assert!(
+                (back - d).abs() <= 1e-14,
+                "{:?} at {d}: read back {back}",
+                surface.kind()
+            );
+        }
+    }
+    // A NURBS has no offset mint at any distance, so none to invert.
+    assert!(matches!(
+        offset_distance(&Surface::<f64>::nurbs_placeholder(), &kinds[1]),
+        Err(OffsetDistanceError::Offset(
+            OffsetError::NotClosedUnderOffset
+        ))
+    ));
+    assert!(matches!(
+        offset_distance(&kinds[1], &kinds[2]),
+        Err(OffsetDistanceError::KindsDiffer {
+            from: SurfaceKind::Cylinder,
+            onto: SurfaceKind::Sphere
+        })
+    ));
 }

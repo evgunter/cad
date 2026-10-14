@@ -52,6 +52,26 @@
 //! volume the old one did, and `loft_prism`'s midpoint now lands on
 //! the exact 9e9 rather than 8e-6 mm³ off it. The censuses and the
 //! closed-form fixtures' volumes are unchanged.
+//!
+//! **Re-pinned at `cut_cylinder` when check 4 of the pcurve certificate
+//! became incidence plus fidelity** (PCERT, PR 3812). The quadrature's
+//! map-residual honesty pad reads each edge's certificate envelope,
+//! and on the cut cylinder's wall the restated envelope is smaller, so
+//! its pad falls `1186.3602675058853 → 1186.360263657112` mm³ (by
+//! 3.2e-9 of itself) and the midpoint moves `1.3e-6` mm³ with it,
+//! inside both pads. The other sixteen fixtures, and every census, are
+//! unchanged.
+//!
+//! **Re-pinned at `loft_prism`, `nonuniform_loft` and `swept_elbow`
+//! when `props::quad`'s `de_boor` began evaluating a node inside its
+//! span as the window's blossom** (every level
+//! `Certification::between`, the monotone corner met with its convex
+//! form and its sources' hull, where the affine step had carried each
+//! level's width forward). The pads fall by 1.93x, 1.73x and 3.95x;
+//! `nonuniform_loft`'s midpoint moves by two ulps and `swept_elbow`'s by
+//! one, and each new enclosure is a subset of the one it replaced.
+//! `loft_prism`'s midpoint stays on the exact 9e9. The censuses and the
+//! closed-form fixtures' volumes are unchanged.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;

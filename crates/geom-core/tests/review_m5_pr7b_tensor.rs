@@ -12,16 +12,17 @@
 //!   two-sided pinch on a non-removable adversarial rational fixture.
 //! - B/C. Falsification battery: ≥1e5-sample dense scans across
 //!   constructed adversarial geometries. A finite `bound < truth` is an
-//!   automatic MAJOR; a poisoned (NaN) bound is a sound refusal and is
+//!   automatic MAJOR; a NaN bound is a sound refusal and is
 //!   recorded as such.
 //! - G. Degree-budget boundary: (9,8)×cubic = 54 exactly completes
-//!   finite and sound; (9,9)×cubic = 57 poisons.
+//!   finite and sound; (9,9)×cubic = 57 is refused.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Interval;
-use geom_core::spline::compose::CurveRingData;
-use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
+use geom_core::interval::certification::Certification;
+use geom_core::spline::compose::CurveCertData;
+use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
 use geom_core::spline::{KnotVector, basis};
 
 type Surf = (KnotVector, KnotVector, Vec<f64>, Vec<Vec<f64>>);
@@ -30,7 +31,7 @@ type Curve = (KnotVector, Vec<f64>, Vec<Vec<f64>>);
 // ---- independent f64 oracles (kernel basis functions only) ----------
 
 fn curve_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f64> {
-    let span = kv.span_at(t);
+    let span = kv.span_at(t).expect("a numeric parameter");
     let n = basis::basis_funs(span, t);
     let mut den = 0.0;
     let mut num = vec![0.0; coords.len()];
@@ -48,7 +49,9 @@ fn curve_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f6
 fn surf_eval(s: &Surf, u: f64, v: f64) -> [f64; 3] {
     let (ku, kv, w, coords) = s;
     let nv = kv.control_count();
-    let (su, sv) = (ku.span_at(u), kv.span_at(v));
+    let (Some(su), Some(sv)) = (ku.span_at(u), kv.span_at(v)) else {
+        panic!("a numeric parameter pair");
+    };
     let nu_b = basis::basis_funs(su, u);
     let nv_b = basis::basis_funs(sv, v);
     let mut den = 0.0;
@@ -77,9 +80,9 @@ fn lift(coords: &[Vec<f64>]) -> Vec<Vec<Interval>> {
 
 fn sup_of(s: &Surf, p: &Curve, c: &Curve, extra: &[f64]) -> f64 {
     let (sx, px, cx) = (lift(&s.3), lift(&p.2), lift(&c.2));
-    let sd = SurfaceRingData::new(&s.0, &s.1, &s.2, &sx).unwrap();
-    let pd = CurveRingData::new(&p.0, &p.1, &px).unwrap();
-    let cd = CurveRingData::new(&c.0, &c.1, &cx).unwrap();
+    let sd = SurfaceCertData::new(&s.0, &s.1, &s.2, &sx).unwrap();
+    let pd = CurveCertData::new(&p.0, &p.1, &px).unwrap();
+    let cd = CurveCertData::new(&c.0, &c.1, &cx).unwrap();
     surface_curve_residual(&sd, &pd, &cd, extra)
         .unwrap()
         .sup_bound()
@@ -121,7 +124,7 @@ fn scan_max(s: &Surf, p: &Curve, c: &Curve, samples: usize) -> f64 {
 }
 
 /// The falsification verdict for one fixture: a FINITE bound below the
-/// scanned truth is the automatic MAJOR; poison is a sound refusal,
+/// scanned truth is the automatic MAJOR; a NaN bound is a sound refusal,
 /// recorded and returned as `None`.
 fn falsify(
     name: &str,
@@ -134,7 +137,7 @@ fn falsify(
     let sup = sup_of(s, p, c, extra);
     let max = scan_max(s, p, c, samples);
     if sup.is_nan() {
-        eprintln!("[review] {name}: POISON refusal (truth {max:.3e}) — sound, recorded");
+        eprintln!("[review] {name}: REFUSED (truth {max:.3e}) — sound, recorded");
         return None;
     }
     assert!(
@@ -361,7 +364,7 @@ fn falsification_battery_no_finite_bound_undercuts_truth() {
     );
 
     // (b) oscillating pcurve whipping across the mult-2 knot line of
-    // the gnarl surface — raw (expected poison or loose) and refined.
+    // the gnarl surface — raw (expected refused or loose) and refined.
     let s2 = gnarl();
     let kp = KnotVector::clamped(
         vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0, 1.0],
@@ -407,7 +410,7 @@ fn falsification_battery_no_finite_bound_undercuts_truth() {
 
     // (c) out-of-domain excursion on the removable fixture: pcurve u
     // sweeps [−0.05, 1.05]; truth is the kernel's own clamped-span
-    // polynomial extension (find_span clamps identically).
+    // polynomial extension (span_at clamps identically).
     let (s3, _, c3) = iso_u();
     let kl = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let pex = (
@@ -456,7 +459,7 @@ fn falsification_battery_no_finite_bound_undercuts_truth() {
 // ---- G. the degree-budget boundary ------------------------------------
 
 #[test]
-fn the_budget_boundary_54_completes_and_57_poisons() {
+fn the_budget_boundary_54_completes_and_57_is_refused() {
     let patch = |du: usize, dv: usize| -> Surf {
         let clamp = |d: usize| {
             let mut k = vec![0.0; d + 1];
@@ -487,10 +490,10 @@ fn the_budget_boundary_54_completes_and_57_poisons() {
         sup.is_finite() && sup >= max,
         "the 54-exact case must serve soundly: sup {sup:e}, truth {max:e}"
     );
-    // 3·(9+9+1) = 57: beyond — poison, not a panic, not a rounded weight.
+    // 3·(9+9+1) = 57: beyond — refused, not a panic, not a rounded weight.
     let s57 = patch(9, 9);
     let sup57 = sup_of(&s57, &p, &c, &[]);
-    assert!(sup57.is_nan(), "expected the budget poison, got {sup57:e}");
+    assert!(sup57.is_nan(), "expected the budget refusal, got {sup57:e}");
 }
 
 #[test]
@@ -504,7 +507,7 @@ fn the_missing_center_shift_costs_bound_quality_far_from_origin() {
     // at the translation's own representation floor (the +1e6 rounds
     // each control coordinate by up to ulp(1e6)/2 ≈ 5.8e-11, so the
     // translated identity is genuinely ~1e-10 loose — measured
-    // 1.225e-9 shifted, three orders under the unshifted failure).
+    // 2.273e-10 shifted, four orders under the unshifted failure).
     let (mut s, p, mut c) = iso_u();
     let sup_near = sup_of(&s, &p, &c, &[]);
     for ch in 0..2 {

@@ -28,6 +28,7 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, FaceSurface, MefSite, MevSite};
 
@@ -118,13 +119,22 @@ fn tilted_halves() -> (Body<f64>, Body<f64>) {
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&disc, Extrusion::Distance(2.5), Tol::witness())
-        .unwrap()
-        .body;
-    let plane = topo::splitting::SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.25),
-        normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
-    };
+    let cylinder = extrude(
+        &disc,
+        Extrusion::Distance {
+            depth: 2.5,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let cylinder = topo::test_support::finished("the cylinder", cylinder, Tol::witness());
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 1.25),
+        Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
+        geom_core::Tol::witness(),
+    );
     let r = topo::splitting::split(&cylinder, &plane, Tol::witness()).unwrap();
     let (topo::splitting::SplitPart::Body(a), topo::splitting::SplitPart::Body(b)) =
         (&r.above, &r.below)
@@ -193,15 +203,18 @@ fn wobbled_sliver(metres: f64) -> Option<Body<f64>> {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: rr,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: rr,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let arc = EdgeCurveSpec::arc_of_circle(rim, 0.0, theta)?;
@@ -318,9 +331,15 @@ fn pole_crossing_half_cap() -> Body<f64> {
     }
     let t_end = g.param_near(a, 0.0).unwrap();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(sphere))
-        .unwrap();
+    let seed = body.mvfs(a, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: sphere,
+            sense: true,
+        },
+    )
+    .unwrap();
     let e_rim = body
         .mev(
             MevSite::Lone {

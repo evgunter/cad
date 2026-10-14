@@ -21,16 +21,15 @@
 //! **E8**, the identity a refused description owes.
 //!
 //! E7 is cut on an EXTRUDED scallop rather than the spec's
-//! negative-angle revolve, and E6 and E8 record a skip rather than an
-//! assertion, for one measured reason: no revolve on this tree replays
-//! at the interval scalar over an ε-scaled box, so a revolved band
-//! refuses at the SELECTION door and never reaches `window_of`.
+//! negative-angle revolve.
 //!
 //! The basename carries `interval` because the suite's subject is the
 //! certified scalar.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -41,8 +40,8 @@ use editor_core::clearance::{
     ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection, clearance,
 };
 use editor_core::{
-    CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
+    CapEnd, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, VarName,
 };
 use geom_core::Tol;
 
@@ -66,14 +65,14 @@ fn k_eps() -> f64 {
     Tol::witness().k() * eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
-fn box_of(axis: &str) -> ParamBox {
+fn box_of(doc: &ProfileDoc, axis: &'static str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
-        name(axis),
+        doc.var_named(axis).expect("the fixture declares the axis"),
         BoxAxis::Varying {
             lo: -half(),
             hi: half(),
@@ -82,10 +81,10 @@ fn box_of(axis: &str) -> ParamBox {
     ParamBox::from_axes(axes)
 }
 
-fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
-    r.push(DocEdit::SetDocParam {
+fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
+    r.push(DocEdit::DeclareVar {
         name: name(axis),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -93,18 +92,20 @@ fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
                 lo: -half(),
                 hi: half(),
             }),
-        },
+        }),
     });
 }
 
-fn translated(input: RecipeNodeId, d: [Expr; 3]) -> Node<ProfileProgram> {
+fn translated(input: RecipeNodeId, d: [Formula; 3]) -> AuthoredNode {
     let [dx, dy, dz] = d;
-    Node::Transform {
+    Node::transform(
         input,
-        translation: [dx, dy, dz],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    }
+        editor_core::Step::Rigid {
+            translation: [dx, dy, dz],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    )
 }
 
 fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
@@ -114,13 +115,14 @@ fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
     let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(depth),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -138,6 +140,7 @@ fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
+        resolver: None,
     }
 }
 
@@ -189,7 +192,7 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let placed = r.insert(translated(
         probe,
         [
-            Expr::param(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
             len(0.0),
             len(-0.05),
         ],
@@ -236,7 +239,7 @@ fn a_planted_approach_to_the_notch_wall_is_still_violated() {
     let block = Selection::body_of(block_node);
     let report = editor_core::clearance::clearance_with(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &cap,
         &block,
         &at_least(0.3, cfg(65_536, 40)),
@@ -324,13 +327,14 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     ]);
     let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // The probe: x ∈ [0.9, 1.1], y ∈ [0.62, 0.8] — 0.12 above the
     // scallop's lowest point (1, 0.5) — placed along z by the
@@ -345,7 +349,7 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         [
             len(0.0),
             len(0.0),
-            Expr::param(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
         ],
     ));
     (r.doc, solid, placed)
@@ -379,7 +383,7 @@ fn a_cylinder_band_answers_through_a_cut_root() {
         vec![fixture::fname(solid, fixture::wall(&doc, solid, 3))],
     );
     let sp = Selection::body_of(probe);
-    let report = clearance(&doc, &box_of("place"), &ss, &sp, 1.0, Tol::witness());
+    let report = clearance(&doc, &box_of(&doc, "place"), &ss, &sp, 1.0, Tol::witness());
     println!(
         "[E7] scalloped block vs the probe in the scallop at c = 1.0: windows {:?}, {}",
         report.windows(),
@@ -407,12 +411,11 @@ fn a_cylinder_band_answers_through_a_cut_root() {
         (0.12 - k_eps()..1.0).contains(&d),
         "the reported approach is the built 0.12: {d}"
     );
-    assert!(
-        v.geometry.a_chart_axis.is_none(),
-        "the first side is the cylinder, so its witness carries no planar re-chart and its \
-         `u` is an azimuth: {:?}",
-        v.geometry.a_chart_axis
-    );
+    // The row asserted `a_chart_axis.is_none()` here — "the first side
+    // is the cylinder, so its witness carries no planar re-chart".
+    // PROPS's sign-hull unit retired the planar re-chart outright, so
+    // NO witness carries one and the field itself is gone; the claim
+    // that is left is the one below about `u` being an azimuth.
     println!(
         "[E7] witness uv = {:?} {:?} -> {:?} d = {d}",
         v.geometry.a_uv, v.geometry.a_point, v.geometry.b_point
@@ -437,7 +440,7 @@ fn a_cylinder_band_answers_through_a_cut_root() {
 fn split_peg(r: &mut Recorder, n: u32, phase: f64) -> RecipeNodeId {
     let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::CircleSplit {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
@@ -447,8 +450,9 @@ fn split_peg(r: &mut Recorder, n: u32, phase: f64) -> RecipeNodeId {
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -471,7 +475,8 @@ fn block_at_azimuth(r: &mut Recorder, theta: f64, gap: f64) -> RecipeNodeId {
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(0.3), Expr::param(name("place"), Dimension::Length)).expect("a length"),
+            Formula::add(len(0.3), Formula::named(name("place"), Dimension::Length))
+                .expect("a length"),
         ],
     ))
 }
@@ -517,7 +522,7 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
     );
     let report = clearance(
         &r.doc,
-        &box_of("place"),
+        &box_of(&r.doc, "place"),
         &wall,
         &Selection::body_of(block),
         0.3,
@@ -551,11 +556,9 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
         (0.1 - k_eps()..0.3).contains(&d),
         "the reported approach is the built 0.1, found on the wall's own lattice: {d}"
     );
-    assert!(
-        v.geometry.a_chart_axis.is_none(),
-        "the first side is the cylinder, so its `u` is an azimuth: {:?}",
-        v.geometry.a_chart_axis
-    );
+    // `a_chart_axis.is_none()` stood here, for the same reason as
+    // above: with the planar re-chart retired the field names nothing
+    // and the azimuth claim below carries the row.
     assert!(
         v.geometry.a_uv.0 < 0.0,
         "and the azimuth is on the walk's own branch, the wrong side of zero — a root \
@@ -580,14 +583,12 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
 /// row does not certify that, and the honest thing is to say what it
 /// does certify instead.
 ///
-/// **Measured**: the revolve does not replay at the interval scalar
-/// over an ε-scaled box, so this query refuses at the SELECTION door
-/// (`node did not build in this leaf's replay`) and
-/// `ClearanceReport::refused` mints `windows = (0, 0)` and a default
-/// receipt **before `window_of` runs**. Both numbers below are that
-/// constant. They pin something real — a refusal at the door reports
-/// no windows, which is what a reader of `windows()` must be able to
-/// rely on — and they are not the identity claim.
+/// **Measured**: the quarter annulus builds at the interval scalar over
+/// the ε-scaled box, and every window it reaches is tightened. The row
+/// once read a refusal at the SELECTION door here; that refusal was the
+/// fixture's revolve reading a world axis datum its door refused, not a
+/// replay that failed, and with its axis written in the profile's plane
+/// the band reaches `window_of`.
 ///
 /// **The identity claim is unexercised**, and cannot be exercised on
 /// this tree: no fixture reaches `chart_boundary`'s `Err` arm from
@@ -596,13 +597,12 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
 /// carriers `chart_arms` declines before the walk is called) and a
 /// `General` carrier (which `EdgeCurve::certify` refuses at build
 /// time). Filed as
-/// `work/trim/a-refused-chart-boundary-has-no-reachable-window.md`;
-/// `work/trim/revolved-bands-reach-no-clearance-row.md` is why this
-/// fixture in particular stops at the door. A mutant that turns the
-/// `Err` arm into a `ClearanceRefusal::Unsupported` survives the whole
-/// suite, and no row in this file claims otherwise.
+/// `work/trim/a-refused-chart-boundary-has-no-reachable-window.md`.
+/// A mutant that turns the `Err` arm into a
+/// `ClearanceRefusal::Unsupported` survives the whole suite, and no row
+/// in this file claims otherwise.
 #[test]
-fn a_selection_door_refusal_reports_no_windows_at_all() {
+fn a_revolved_quarter_band_is_windowed_and_holds() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     let plane = insert_xy_frame(&mut r);
@@ -610,15 +610,14 @@ fn a_selection_door_refusal_reports_no_windows_at_all() {
         plane,
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     )));
-    let axis = r.insert(Node::Datum(Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
-    let quarter = r.insert(Node::Revolve {
+    // The axis line, in the profile's own coordinates: its v is the
+    // world axis the quarter turns about.
+    let quarter = r.insert(fixture::revolve_about(
         profile,
-        axis,
-        angle: ang(core::f64::consts::FRAC_PI_2),
-    });
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(core::f64::consts::FRAC_PI_2),
+    ));
     let block = extruded(
         &mut r,
         &[(-2.5, 0.0), (-2.1, 0.0), (-2.1, 1.0), (-2.5, 1.0)],
@@ -629,11 +628,19 @@ fn a_selection_door_refusal_reports_no_windows_at_all() {
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(-0.2), Expr::param(name("place"), Dimension::Length)).expect("a length"),
+            Formula::add(len(-0.2), Formula::named(name("place"), Dimension::Length))
+                .expect("a length"),
         ],
     ));
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
-    let report = clearance(&r.doc, &box_of("place"), &sq, &sb, 1.0, Tol::witness());
+    let report = clearance(
+        &r.doc,
+        &box_of(&r.doc, "place"),
+        &sq,
+        &sb,
+        1.0,
+        Tol::witness(),
+    );
     println!(
         "[E8] y-axis quarter annulus, verdict {} windows {:?}: {}",
         report.verdict().label(),
@@ -641,25 +648,16 @@ fn a_selection_door_refusal_reports_no_windows_at_all() {
         report.serialize()
     );
     assert!(report.receipt().holds(), "{:?}", report.receipt());
-    let ClearanceVerdict::Refused(ClearanceRefusal::Selection(_)) = report.verdict() else {
-        panic!(
-            "this row's subject is the SELECTION door's refusal; if the revolve has started \
-             replaying at the interval scalar this fixture now reaches `window_of` and the \
-             row must be rewritten to say what it finds there: {}",
-            report.serialize()
-        );
-    };
     assert_eq!(
-        report.windows(),
-        (0, 0),
-        "a refusal at the door reports no windows in either column — it did not look at \
-         one: {}",
+        report.verdict(),
+        &ClearanceVerdict::Holds,
+        "the block clears the quarter annulus by more than the window comes within: {}",
         report.serialize()
     );
-    assert_eq!(
-        report.receipt(),
-        editor_core::clearance::CellReceipt::default(),
-        "and nothing was classified: {}",
+    let (tightened, loose) = report.windows();
+    assert!(
+        tightened > 0 && loose == 0,
+        "every window of the revolved band is cut to its chart: {}",
         report.serialize()
     );
 }

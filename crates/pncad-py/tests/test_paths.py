@@ -28,11 +28,10 @@ import pncad
 from pncad import (
     ArcSide,
     ArcSweep,
-    BooleanOp,
     Bulge,
     Center,
     Doc,
-    Expr,
+    Formula,
     Node,
     Open,
     Radius,
@@ -104,24 +103,18 @@ class TestTheLatticeWalks(unittest.TestCase):
         self.assertEqual(loop.vertex_count, 3)
 
     def test_the_cusp_verb_authors_the_reverse_tangent_joint(self):
-        """Evaluating clean is the assertion that the DECLARATION
-        crossed, not merely that a loop lowered.
-
-        The Rust twin (`declared_tangency.rs`) carries an explicit red
-        half — the same loop with the declaration stripped refuses
-        `UndeclaredTangency` — and this test rides that rather than
-        repeating it. What licenses the inference here is that the
-        same figure with `turn(180 * deg)` where `cusp()` stands
-        refuses `junction_cusp` at the call: the geometry is identical
-        and only the declaration differs, so a `cusp()` that failed to
-        declare would land on that refusal instead of evaluating.
+        """Evaluating clean, with nothing decided from values, is the
+        assertion that the CONSTRUCTION crossed, not merely that a loop
+        lowered: the same table no constructor built is decided tangent
+        and recorded (the Rust twin, `tangent_joints.rs`). The same
+        figure with `turn(180 * deg)` where `cusp()` stands refuses
+        `junction_cusp` at the call: the geometry is identical and only
+        the construction differs.
         """
         # The lune between two internally tangent circles, cut on the
         # y axis — the wedge-0/2π figure. `cusp()` is `tangent()`'s
         # mirror: it departs along the NEGATED incoming ray, so the
-        # kiss is exact by construction and DECLARED, which is what
-        # the profile gate wants and what no authored value can
-        # supply.
+        # kiss is exact by construction.
         lune = (
             Open.at((0 * m, 4 * m))
             .angle(-90 * deg)
@@ -134,7 +127,9 @@ class TestTheLatticeWalks(unittest.TestCase):
         self.assertEqual(lune.vertex_count, 3)
         doc = Doc()
         node = doc.insert(Node.profile(lune, plane=doc.sketch_frame()))
-        self.assertTrue(evaluate(doc).succeeded(node))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(node))
+        self.assertEqual(ev.coincidences(node), [])
 
     def test_the_three_arc_binding_modes(self):
         # One leg verb, three spec MODES: the mode is the binding, and
@@ -154,9 +149,9 @@ class TestTheLatticeWalks(unittest.TestCase):
             with self.subTest(mode=name):
                 self.assertEqual(loop.vertex_count, 2)
 
-    def test_two_arcs_on_one_carrier_meet_at_a_declared_tangent_joint(self):
+    def test_two_arcs_on_one_carrier_meet_at_a_constructed_tangent_joint(self):
         # The half-disc equator's shape at the +y pole: the second arc
-        # leaves along the first's tangent (a DECLARED tangent joint —
+        # leaves along the first's tangent (a CONSTRUCTED tangent joint —
         # the sixth round's spelling for adjacent same-carrier arcs)
         # and is derived from that tangent and its target. The verb
         # `arc_continue` this shape used to need is removed (BOOL-10).
@@ -319,7 +314,7 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
 
     def test_the_collinear_tangent_arc_close_refuses(self):
         # Carrier identity is no longer the reason (ruled 2026-09-02:
-        # every zero-turn joint is a declared tangent joint). What
+        # every zero-turn joint is a tangent joint). What
         # refuses is the geometry: Start is collinear with the declared
         # departure and BEHIND it, so the tangent-chord angle is pi and
         # no arc spans the chord.
@@ -505,7 +500,7 @@ class TestTheProfileNode(unittest.TestCase):
 
     def test_an_arc_bearing_profile_evaluates(self):
         doc = Doc()
-        solid = doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Expr.length_in(1, m)))
+        solid = doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Formula.length_in(1, m)))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(solid))
         body = ev.value(solid).body()
@@ -517,7 +512,7 @@ class TestTheProfileNode(unittest.TestCase):
     def test_the_carrier_form_lands_as_its_own_program_arm(self):
         doc = Doc()
         solid = doc.insert(
-            Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 0.5 * m), plane=doc.sketch_frame())), Expr.length_in(2, m))
+            Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 0.5 * m), plane=doc.sketch_frame())), Formula.length_in(2, m))
         )
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(solid))
@@ -539,17 +534,17 @@ class TestTheProfileNode(unittest.TestCase):
 
         doc = Doc()
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile(rect(0, 2, 0, 2), plane=doc.sketch_frame())), Expr.length_in(1, m))
+            Node.extrude(doc.insert(Node.profile(rect(0, 2, 0, 2), plane=doc.sketch_frame())), Formula.length_in(1, m))
         )
         boss = doc.insert(
             Node.extrude(
                 doc.insert(
-                    Node.profile(rect(0.5, 1.5, 0.5, 1.5), plane=doc.sketch_frame(elevation=Expr.length_in(0.5, m)))
+                    Node.profile(rect(0.5, 1.5, 0.5, 1.5), plane=doc.sketch_frame(elevation=Formula.length_in(0.5, m)))
                 ),
-                Expr.length_in(1, m),
+                Formula.length_in(1, m),
             )
         )
-        fused = doc.insert(Node.boolean(BooleanOp.Union, plate, boss))
+        fused = doc.insert(Node.union([plate, boss]))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(fused))
         volume = ev.value(fused).body().mass_properties().volume
@@ -557,7 +552,7 @@ class TestTheProfileNode(unittest.TestCase):
 
     def test_the_program_survives_persistence_bit_for_bit(self):
         doc = Doc()
-        doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Expr.length_in(1, m)))
+        doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Formula.length_in(1, m)))
         replayed = load(doc.save()).doc
         self.assertTrue(doc.bit_eq(replayed), "replay is bit-identical, not merely close")
 

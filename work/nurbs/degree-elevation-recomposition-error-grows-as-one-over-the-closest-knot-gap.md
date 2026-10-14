@@ -4,7 +4,7 @@ kind: issue
 title: degree elevation's recomposition removals amplify rounding by about one over the closest distinct-knot gap, so evaluation invariance is conditioned, not absolute
 status: open
 priority: P4
-cost: D
+cost: M
 opened: 2026-09-24
 ---
 

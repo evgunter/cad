@@ -6,7 +6,7 @@
 //! because three consumers must speak the same words and no two of
 //! them can depend on each other:
 //!
-//! - the boolean's `UndeclaredContact`/`ContactContradicted` refusals
+//! - the boolean's `UnrecordedContact`/`ContactContradicted` refusals
 //!   carry the class the detector produced (SELECT-DESIGN §3d, "one
 //!   vocabulary end-to-end") and `topo` cannot depend on `editor-core`;
 //! - the recipe layer's flush detector mints findings in it;
@@ -99,6 +99,102 @@ impl ContactClass {
     }
 }
 
+/// **What a boolean glues a cross-operand face pair as** (C4's
+/// continuation clause and its claim-free `Tangent`): the class its
+/// decided relation makes it ([`crate::Relation::glued_class`]).
+/// Public as what a refusal's read of a glued pair names
+/// ([`crate::DeclarationRead`]); nothing takes it as an input.
+///
+/// - [`Rest`](Self::Rest) — the pair lies on ONE carrier with its senses
+///   OPPOSED: a conformal contact.
+/// - [`Continuation`](Self::Continuation) — the pair lies on ONE
+///   carrier with its senses ALIGNED: one surface carried on, whether
+///   the two abut along a boundary curve or overlap on a patch; a union
+///   merges it.
+/// - [`Tangent`](Self::Tangent) — the pair lies on DISTINCT carriers
+///   tangent along a locus the witness lane certifies. It says nothing
+///   of the materials: whether the pair is a contact, an overlap, a seam
+///   or a nested touch is read where it is consumed (C7).
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung under [`crate::BooleanError`]; the disposition table
+/// cites this paragraph as its home). It reaches a caller only inside
+/// a refusal's [`crate::DeclarationRead`], which says which glue a
+/// spent or read pair held; a Rust caller can already name and match
+/// it, since `pncad` re-exports `topo` whole. Carrying it would owe the
+/// CUR3 property row `carried_refusal_payloads_are_matchable_through_the_prelude`
+/// a new payload and the Python binding a word, and nothing a caller
+/// can do differs by the class: the recourse is the geometry's.
+///
+/// **The falsifier is a caller who must branch on the glue class a
+/// refusal names.** When one exists, the façade carries the class,
+/// and this paragraph and the disposition row go with it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum GlueClass {
+    /// One carrier, senses opposed.
+    Rest,
+    /// One carrier, senses aligned.
+    Continuation,
+    /// Distinct carriers tangent along a certified locus.
+    Tangent,
+}
+
+impl GlueClass {
+    /// Every class.
+    #[cfg(test)]
+    pub(crate) const ALL: &'static [GlueClass] = &[Self::Rest, Self::Continuation, Self::Tangent];
+
+    /// The class's name, for messages.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Rest => "Rest",
+            Self::Continuation => "Continuation",
+            Self::Tangent => "Tangent",
+        }
+    }
+
+    /// Whether the class is ONE carrier (`Rest` or a continuation) —
+    /// what the classification stages' same-carrier treatment and the
+    /// merge stage consume. A `Tangent` pair's carriers are distinct.
+    pub fn is_one_carrier(self) -> bool {
+        matches!(self, Self::Rest | Self::Continuation)
+    }
+
+    /// The relation that glues a face pair under this class: the
+    /// inverse of [`crate::Relation::glued_class`] on the relations
+    /// that glue.
+    #[must_use]
+    pub const fn relation(self) -> crate::Relation {
+        match self {
+            Self::Rest => crate::Relation::SameOpposite,
+            Self::Continuation => crate::Relation::SameOriented,
+            Self::Tangent => crate::Relation::SurfaceTangent,
+        }
+    }
+
+    /// **The one-carrier class two faces' senses make them**, the one
+    /// place a sense is read as a class: opposed senses are a `Rest`
+    /// contact, aligned senses a continuation (C4). Two distinct
+    /// carriers are neither, and name no class.
+    pub(crate) fn of_senses(relation: crate::boolean::CarrierRelation) -> Option<Self> {
+        match relation {
+            crate::boolean::CarrierRelation::SameOriented => Some(Self::Continuation),
+            crate::boolean::CarrierRelation::SameOpposite => Some(Self::Rest),
+            crate::boolean::CarrierRelation::Distinct => None,
+        }
+    }
+}
+
+impl From<ContactClass> for GlueClass {
+    fn from(class: ContactClass) -> Self {
+        match class {
+            ContactClass::Rest => Self::Rest,
+            ContactClass::Tangent => Self::Tangent,
+        }
+    }
+}
+
 /// **The two-arm recourse menu** for a contact refusal (SELECT-DESIGN
 /// §3d, ratified; C4's failure table verbatim): declare the named
 /// class, or move the geometry.
@@ -143,9 +239,11 @@ pub const FIT_DEFERRAL_FOR_USERS: &str = "a designed gap between the faces canno
 pub const CONTRADICTION_RECOURSE: &str =
     "Recourse: correct or remove the declaration, or move the geometry so it holds";
 
-/// A contradiction's reason, as the message states it. One sentence
-/// for every contradiction site, because it is the one that is true at
-/// all of them: the sites carry different margins (a definite relation
+/// A contradiction's reason, as the message states it where the site
+/// carries no fact of its own (a site that does, the Boolean's `Rest`
+/// verification, states its `boolean::Contradiction`). One sentence for
+/// every such site, because it is the one that is true at all of them:
+/// the sites carry different margins (a definite relation
 /// at the carrier and tangent tables, an in-band coincidence margin at
 /// the Boolean's conformal screen), and the same carrier predicate
 /// means "apart" at one and "one surface" at another, so no reading of
@@ -327,6 +425,14 @@ pub struct ContactFinding {
 mod tests {
     use super::*;
 
+    /// Each class's relation glues back as that class.
+    #[test]
+    fn a_glue_class_is_its_relations_class() {
+        for &class in GlueClass::ALL {
+            assert_eq!(class.relation().glued_class(), Some(class), "{class:?}");
+        }
+    }
+
     /// The two-arm menu is exactly two arms: §3d's ratified shape.
     /// The three-arm coincidence sentence must not leak in — its
     /// "lower the tolerance" arm cannot supply missing intent.
@@ -360,5 +466,8 @@ mod tests {
     fn class_names_are_the_declaration_spelling() {
         assert_eq!(ContactClass::Rest.name(), "Rest");
         assert_eq!(ContactClass::Tangent.name(), "Tangent");
+        assert_eq!(GlueClass::Continuation.name(), "Continuation");
+        assert_eq!(GlueClass::Rest.name(), "Rest");
+        assert_eq!(GlueClass::Tangent.name(), "Tangent");
     }
 }

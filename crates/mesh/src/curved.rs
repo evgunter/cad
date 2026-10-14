@@ -16,8 +16,7 @@
 //!    Asked BEFORE the walk, on rim structure, through the predicate's
 //!    own door `geom_brep::props::require_iso_rectangle` (the S58
 //!    single home of `props_rim_level`, which also requires every rim
-//!    to encode the SAME material side — the sense-free half of the
-//!    flux lane's interior-side premise, `props_rim_side`), refusing
+//!    to encode the SAME material side, `props_rim_side`), refusing
 //!    [`TessellateError::UnsupportedCurvedShape`] — this lane cites
 //!    the predicate itself rather than leaning on the boolean's or
 //!    tier 3's inability to answer ([`require_iso_rectangle_face`]).
@@ -299,7 +298,18 @@ pub(crate) fn tessellate_curved(
         if h.index() == meta.len() {
             meta.push((u, v, id, pole));
         }
-        Ok(h)
+        // Two mesh ids at one point (two vertices, or two coincident
+        // edges' chord points) would share this handle's one id. A walk
+        // that is its own UV box (`require_swept_rectangle`) passes no
+        // point twice but at a pole, where one id repeats; the pinch read
+        // is `planar::Pinches`, and this lane refuses rather than mesh
+        // the second id's triangles under the first.
+        match (meta[h.index()].2, id) {
+            (PatchVertex::Shared(was), PatchVertex::Shared(now)) if was != now => {
+                Err(TessellateError::PinchWedge { face: fk })
+            }
+            _ => Ok(h),
+        }
     };
     let mut handles = Vec::with_capacity(polygon.len());
     for e in &polygon {
@@ -495,10 +505,9 @@ pub(crate) fn tessellate_curved(
 /// comparand and no margin of `mesh`'s.
 ///
 /// **A rimless sphere band passes**: it is a chart rectangle, and the
-/// door says so at its definition — which lunes the flux lane measures
-/// (`Δu = π` for one great circle, the meridian pair's azimuth for two)
-/// is that lane's premise, not the shape's, so a partial sphere wedge
-/// meshes here on the door's answer alone.
+/// door says so at its definition, so a partial sphere wedge meshes
+/// here on the door's answer alone (the flux lane measures it by
+/// Gauss–Bonnet, as it does any circle-bounded sphere face).
 ///
 /// An empty loop is reported by this lane's own name for that state
 /// ([`TessellateError::EmptyLoop`]) before the flatten runs, which
@@ -730,8 +739,10 @@ fn entries_off_bbox(
 /// general rigid placement with a multiply-carried iso side). The
 /// notched domains that used to be kept out of this lane only by other
 /// modules' limits — the boolean's `CurvedPierceUnsupported`, tier 3's
-/// `VolumeUncomputable { NotIsoRectangle }` — now refuse at the shape
-/// door in this crate; when either of those limits moves, the line
+/// `VolumeUncomputable { NotIsoRectangle }`, which tier 3 no longer
+/// raises on a cylinder, cone or sphere, whose closed forms read any
+/// boundary of their kind — now refuse at the shape door in this
+/// crate; when either of those limits moves, the line
 /// that has to change is [`require_iso_rectangle_face`]'s call in
 /// [`tessellate_curved`], and it is in `mesh`.
 ///
@@ -1129,6 +1140,7 @@ mod tests {
     use profile::{
         Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
     };
+    use sweep::ExtrudeSide;
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
     fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
@@ -1217,10 +1229,10 @@ mod tests {
         let eps = Eps::at(Tol::witness());
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
-        for (vk, v) in body.vertices() {
+        for (vk, p) in body.vertex_points() {
             #[allow(clippy::cast_possible_truncation)]
             vids.insert(vk, positions.len() as u32);
-            positions.push(*body.get_point(v.point).unwrap());
+            positions.push(p);
         }
         let chords = crate::chords::compute_chords(
             body,
@@ -1396,7 +1408,7 @@ mod tests {
         let b = core::f64::consts::FRAC_PI_8.tan();
         let r = 0.5;
         let v = |pos: Point2<f64>, bulge: f64| (pos, bulge);
-        let mut lp = bulge_loop(vec![
+        let lp = bulge_loop(vec![
             v(Point2::new(r, 0.0), 0.0),
             v(Point2::new(2.0 - r, 0.0), b),
             v(Point2::new(2.0, r), 0.0),
@@ -1406,11 +1418,12 @@ mod tests {
             v(Point2::new(0.0, 2.0 - r), 0.0),
             v(Point2::new(0.0, r), b),
         ]);
-        let n = lp.vertices().len();
-        lp = lp.with_tangent_joints((0..n).collect());
         extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -1430,7 +1443,10 @@ mod tests {
         ]);
         let slab = extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -1449,16 +1465,14 @@ mod tests {
         .body;
         let ball = topo::transform_rigid(
             &ball,
-            &Affine3::translation(Vec3::new(2.0, 2.0, 1.2)),
+            &geom_core::RigidMotion::translation(Vec3::new(2.0, 2.0, 1.2)).unwrap(),
             Tol::witness(),
         )
         .unwrap();
-        topo::boolean::subtract(&slab, &ball, Tol::witness())
-            .expect("the die pip cuts")
-            .body()
-            .expect("a pip is a dent, not a void")
-            .body
-            .clone()
+        let slab = topo::test_support::finished("the die slab", slab, Tol::witness());
+        let ball = topo::test_support::finished("the die ball", ball, Tol::witness());
+        let cut = topo::boolean::subtract(&slab, &ball, Tol::witness()).expect("the die pip cuts");
+        (*cut.body().expect("a pip is a dent, not a void").body).clone()
     }
 
     fn fixtures() -> Vec<(&'static str, Body<f64>)> {
@@ -1537,7 +1551,11 @@ mod tests {
                 skipped.push(why);
                 continue;
             }
-            match topo::transform_rigid(&b, &placement, Tol::witness()) {
+            match topo::transform_rigid(
+                &b,
+                &geom_core::test_support::rigid(&placement, Tol::witness()),
+                Tol::witness(),
+            ) {
                 Ok(placed) => out.push((i, placed)),
                 Err(e) => skipped.push(format!("edge {i}: transform_rigid {e:?}")),
             }
@@ -1731,7 +1749,7 @@ mod tests {
     /// The #653 row's totals, measured. They are asserted so that a
     /// change in the fixture list is VISIBLE rather than silent — the
     /// row's actual guarantee is its per-fixture floor, not these.
-    const TOTAL_MESHED: usize = 254;
+    const TOTAL_MESHED: usize = 246;
     /// Typed refusals in the same sweep: four `CertificateExceeded` on
     /// the mirror nappe, whose split geometry exceeds the chord
     /// certificate at δ = 0.1. The donut contributes none — a split
@@ -2176,7 +2194,12 @@ mod tests {
             Affine3::rotation_about_axis(Point3::origin(), irr, 1.0 / 3.0).linear,
             Vec3::new(0.117, -0.339_1, 5.001_7),
         );
-        topo::transform_rigid(&body, &placement, Tol::witness()).unwrap()
+        topo::transform_rigid(
+            &body,
+            &geom_core::test_support::rigid(&placement, Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
     }
 
     /// **THE REGRESSION ROW (issue #653).** This body meshed
@@ -2607,7 +2630,7 @@ mod tests {
             lens.as_ref().map(|_| ()),
             Err(&TessellateError::MeridianFreeCurvedFace {
                 face,
-                surface: geom_brep::SurfaceKind::Sphere,
+                surface: geom::SurfaceKind::Sphere,
             }),
             "two Rim-classified oblique arcs and nothing else"
         );

@@ -4,24 +4,21 @@
 //! visible. Geometry is the `issue86_double_subtract` crossing-slots
 //! class promoted to real joint proportions.
 //!
-//! M5 S1 status: the declared mated union BUILDS through the join-stage
-//! declared-REST zip — the contact patches (notch floor/ceiling and
-//! the four flush walls) are removed as interior and the seam is
-//! fused, volume exactly 2·(BEAM_VOL − NOTCH_VOL). The stop ships the
-//! GLUED union (watertight STL + STEP exported by the tour like every
-//! stop body). UNDECLARED, the mate still refuses at the coincidence
-//! door (rung (b) — value equality never classifies; the ladder is
-//! law) — that refusal stays narrated: it is the declared/undeclared
-//! contrast the joint exists to demonstrate.
+//! The mated union BUILDS through the join — it decides the contacts
+//! one carrier by margin (D10), the contact patches (notch
+//! floor/ceiling and the four flush walls) are removed as interior and
+//! the seam is fused, volume exactly 2·(BEAM_VOL − NOTCH_VOL). The stop
+//! ships the GLUED union (watertight STL + STEP exported by the tour
+//! like every stop body).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::v3;
-use pncad::geom_core::Affine3;
+use pncad::geom_core::RigidMotion;
 use pncad::topo::BooleanBody;
 
 use crate::bool_bodies::slab;
-use crate::booleans::{check, describe, expect_seamed, try_subtract, try_union};
+use crate::booleans::{check, expect_seamed, try_subtract, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
@@ -35,7 +32,7 @@ const BEAM_VOL: f64 = 4.0 * 0.5 * 0.5;
 
 /// Beam A runs along x, notched from the TOP at the crossing.
 fn beam_a<S: Scalar>(tol: Tol) -> BooleanBody<S> {
-    let beam: pncad::topo::Body<S> = slab((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), tol);
+    let beam: pncad::topo::AtRestBody<S> = slab((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), tol);
     let cutter = slab((1.75, 2.25), (1.5, 2.5), (0.25, 0.75), tol);
     expect_seamed(
         "beam A notch subtract",
@@ -47,7 +44,7 @@ fn beam_a<S: Scalar>(tol: Tol) -> BooleanBody<S> {
 /// Beam B runs along y, notched from the BOTTOM — the two half-depth
 /// notches interlock.
 fn beam_b<S: Scalar>(tol: Tol) -> BooleanBody<S> {
-    let beam: pncad::topo::Body<S> = slab((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), tol);
+    let beam: pncad::topo::AtRestBody<S> = slab((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), tol);
     let cutter = slab((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), tol);
     expect_seamed(
         "beam B notch subtract",
@@ -57,10 +54,8 @@ fn beam_b<S: Scalar>(tol: Tol) -> BooleanBody<S> {
 }
 
 /// The joint's boolean work, generic (the Probe sweep runs the same
-/// ops): both notched beams, the naive-union refusal pin, the DECLARED
-/// glued union (M5 S1 — the REST zip), and the lifted exploded copy.
-/// Returns the undeclared refusal's narration string for the f64 stop
-/// captions.
+/// ops): both notched beams, the glued union, and the lifted exploded
+/// copy.
 pub(crate) fn build<S: Scalar>(
     tol: Tol,
 ) -> (
@@ -68,56 +63,38 @@ pub(crate) fn build<S: Scalar>(
     BooleanBody<S>,
     BooleanBody<S>,
     pncad::topo::Body<S>,
-    String,
 ) {
     let a = beam_a::<S>(tol);
     let b = beam_b::<S>(tol);
 
-    // The UNDECLARED union refuses at the coincidence door (rung (b);
-    // post-PR 5 value equality never even classifies).
     let expected = 2.0 * (BEAM_VOL - NOTCH_VOL);
-    let naive = check(try_union(&a.body, &b.body, tol), expected, tol);
-    let refusal = describe(&naive, expected);
-    if !matches!(naive, crate::booleans::Verdict::Refused(_)) {
-        panic!(
-            "the UNDECLARED mated union no longer refuses ({refusal}) — \
-             value-equality must never glue (ladder rung (b)); regression"
-        );
-    }
-    println!("   mated-union WITHOUT declarations: {refusal}");
-    // DECLARED, the union BUILDS (M5 S1): the join-stage REST zip
-    // removes the coincident contact patches and fuses the seam —
-    // exact dyadic volume additivity (interiors disjoint).
+    // The union BUILDS through the join, which leaves the coincident
+    // contact patches out and fuses the seam — exact dyadic volume
+    // additivity (interiors disjoint).
     let glued = expect_seamed(
-        "declared mated union (M5 S1 REST zip)",
-        check(
-            crate::booleans::try_union_declared(&a.body, &b.body, tol),
-            expected,
-            tol,
-        ),
+        "mated union (the join)",
+        check(try_union(&a.body, &b.body, tol), expected, tol),
         expected,
     );
     println!(
-        "   mated-union WITH the mate declared: GLUED (volume {expected} exactly) — \
-         the M5 S1 declared-REST zip; the former join-stage refusal is retired \
-         (crosslap_rest.rs pins both doors)"
+        "   mated-union: GLUED on the decided zero (D10), volume {expected} exactly — \
+         through the join"
     );
 
     // Exploded: beam B lifted by a rigid transform (#84 — every moved
     // edge witness is re-minted, and the moved body revalidates).
-    let lift = Affine3::translation(v3(0.0, 0.0, 1.25));
+    let lift = RigidMotion::translation(v3(0.0, 0.0, 1.25)).expect("a finite lift");
     let b_lifted = pncad::topo::transform_rigid(&b.body, &lift, tol).expect("lift beam B");
-    (a, b, glued, b_lifted, refusal)
+    (a, b, glued, b_lifted)
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let (a, _b, glued, b_lifted, refusal) = build::<f64>(tol);
+    let (a, _b, glued, b_lifted) = build::<f64>(tol);
     let note = format!(
         "each beam is a boolean RESULT (notch subtract, volume {} — observed \
-         bit-exact, gated 1e-9); undeclared the mate refuses at the coincidence \
-         door ({refusal}); DECLARED, the M5 S1 REST zip GLUES the joint — one \
-         watertight body, volume {} exactly (2·(beam − notch); interiors \
-         disjoint, nothing discarded)",
+         bit-exact, gated 1e-9); the join GLUES the joint on the contacts' \
+         decided zero (D10) — one watertight body, volume {} exactly \
+         (2·(beam − notch); interiors disjoint, nothing discarded)",
         BEAM_VOL - NOTCH_VOL,
         2.0 * (BEAM_VOL - NOTCH_VOL)
     );
@@ -126,16 +103,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             name: "crosslap",
             caption: "cross-lap (glued)".to_string(),
             // Off the sheet: `twopeg` shows this cell's whole claim —
-            // a glued union across a declared coincident PLANAR
+            // a glued union across a coincident PLANAR
             // contact — and adds two CYLINDRICAL contacts on a shape
             // that is more part-like. The cross-lap keeps its
             // standalone render, its narration, and every non-sheet
             // role (corpus, latency, exports).
             montage: false,
             story: "cross-lap joint, glued: two half-depth-notched beams interlocked and \
-                    UNIONED into one body through the declared-REST zip (M5 S1) — the \
+                    UNIONED into one body through the join — the \
                     contact patches are interior now; only the seam edges remain",
-            ops: "2 x (extrude beam, extrude cutter -> subtract); declared mate -> union",
+            ops: "2 x (extrude beam, extrude cutter -> subtract); mate -> union",
             delta: 1e-2,
             note: Some(note.clone()),
             view: View {
@@ -146,7 +123,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bodies: vec![SceneBody::seamed(
                 "crosslap_glued",
                 [0.72, 0.53, 0.30],
-                glued.body.clone(),
+                glued.body.into_body(),
                 glued.contacts.clone(),
             )],
         },
@@ -168,7 +145,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 up: 'z',
             },
             bodies: vec![
-                SceneBody::seamed("crosslap_exp_a", [0.72, 0.53, 0.30], a.body, a.contacts),
+                SceneBody::seamed(
+                    "crosslap_exp_a",
+                    [0.72, 0.53, 0.30],
+                    a.body.into_body(),
+                    a.contacts,
+                ),
                 // The lifted copy is a TRANSFORM result, not a boolean
                 // result — its contacts don't survive the move; it
                 // validates through the plain tier-3 gate.

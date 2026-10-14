@@ -60,10 +60,11 @@ use super::tests::{RoundtripTally, run_properties};
 /// exactly that (`seqgen`'s taxonomy: 28 mirror skips before, 97 skips
 /// after, over the pinned streams). For `Kev` the admission is now
 /// per-SITE — the strut and segment kills MUST execute — so the bar
-/// moves with a widening of that arm. The other three arms
-/// (`Kef`, `KfmrhFuse`, `Movefac`) are still per-kind and still blind
-/// in the same way; a widening inside one of them would go unreported
-/// here.
+/// moves with a widening of that arm, and the same holds for
+/// `Movefac`, admitted only where its re-make site search fails. The
+/// other two arms (`Kef`, `KfmrhFuse`) are still per-kind and still
+/// blind in the same way; a widening inside one of them would go
+/// unreported here.
 ///
 /// The totals below are two different things, and the difference
 /// matters more than either:
@@ -84,8 +85,9 @@ use super::tests::{RoundtripTally, run_properties};
 ///
 /// No numeric threshold is asserted, because there is no number to
 /// assert: proptest seeds its RNG from entropy, so every run draws a
-/// fresh sample. Four consecutive runs gave 339/335/4/47,
-/// 331/325/6/43, 333/328/5/51 and 351/345/6/47 for
+/// fresh sample. Four consecutive runs at `CAD_FUZZ_EFFORT=1`, with
+/// `Movefac` admitted per site, gave 256/247/9/19, 274/259/15/23,
+/// 307/289/18/27 and 307/301/6/16 for
 /// selected/executed/skipped/skippable — a threshold would have
 /// pinned that spread, not a property.
 ///

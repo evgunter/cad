@@ -23,13 +23,17 @@ mod certified {
     use geom_core::Tol;
 
     use crate::common::operands::m5_boss;
-    use crate::common::sphere_recut::{RECUT_MAPPED_ENCLOSURE_HI, plate, recut_ball};
+    use crate::common::sphere_recut::{
+        RECUT_DECIDES_FROM, RECUT_HI_PER_EPS, RECUT_MAPPED_ENCLOSURE_HI, RECUT_PIN_EPS, plate,
+        recut_ball,
+    };
     use geom::Surface;
-    use geom_core::{Bounds, Interval, OrthoFrame};
+    use geom_core::{Bounds, Interval, RigidMotion};
     use profile::{
         Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
     };
-    use sweep::{Extrusion, extrude};
+    use sweep::test_support::finished;
+    use sweep::{ExtrudeSide, Extrusion, extrude};
     use topo::{Body, mass_properties};
 
     use crate::common::interval::{iv, p2, p3};
@@ -57,7 +61,10 @@ mod certified {
         ]);
         extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(iv(1.0)),
+            Extrusion::Distance {
+                depth: iv(1.0),
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -85,14 +92,10 @@ mod certified {
     fn interval_curved_revert_is_bitwise() {
         for body in [m5_boss(3, 0.0, 1.0), notched()] {
             let original = format!("{body:?}");
-            let rev = body.revert().unwrap();
+            let rev = body.revert();
+            assert_eq!(format!("{:?}", rev.revert()), original, "involution");
             assert_eq!(
-                format!("{:?}", rev.revert().unwrap()),
-                original,
-                "involution"
-            );
-            assert_eq!(
-                format!("{:?}", body.revert().unwrap()),
+                format!("{:?}", body.revert()),
                 format!("{rev:?}"),
                 "determinism"
             );
@@ -115,8 +118,8 @@ mod certified {
     /// scalar, with volume enclosures containing the closed forms.
     #[test]
     fn interval_curved_subtract_and_intersect_decide_definitely() {
-        let a = plate();
-        let b = m5_boss(3, 0.3, 1.0);
+        let a = finished("the plate", plate(), Tol::witness());
+        let b = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());
         let cut =
             topo::subtract(&a, &b, Tol::witness()).expect("curved subtract decides at Interval");
         let cut = &cut.body().expect("a body").body;
@@ -143,20 +146,28 @@ mod certified {
     /// enclosure still contains the exact closed form.
     #[test]
     fn interval_split_of_a_reversed_wall_inherits_the_bit() {
-        let a = notched();
+        let a = finished("the notched plate", notched(), Tol::witness());
         let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
             p2(2.0, 0.5),
             p2(4.0, 0.5),
             p2(4.0, 2.5),
             p2(2.0, 2.5),
         ]);
-        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.3)));
+        let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, 0.3)));
         let vp = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();
-        let b = extrude(&vp, Extrusion::Distance(iv(0.4)), Tol::witness())
-            .unwrap()
-            .body;
+        let b = extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: iv(0.4),
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body;
+        let b = finished("the block", b, Tol::witness());
 
         let notch = PI * 0.25 / 2.0;
         let out = topo::intersect(&a, &b, Tol::witness()).expect("the split decides at Interval");
@@ -187,7 +198,7 @@ mod certified {
     /// re-certifies, and the re-entered pipeline's plane×sphere germs
     /// mint arcs whose volume enclosure contains the closed form.
     ///
-    /// **Scoped to ε ≥ [`RECUT_MAPPED_ENCLOSURE_HI`]** (#921). Below it
+    /// **Scoped to ε ≥ [`RECUT_DECIDES_FROM`]** (#921). Below it
     /// the chain escalates on `carrier_matches_mapped_source`, and that
     /// escalation is honest rather than a defect, so the row asserts it
     /// instead of asserting a decision the scalar cannot make. The
@@ -205,10 +216,11 @@ mod certified {
     /// is a designed outcome, not a red.
     #[test]
     fn interval_sphere_subtract_decides_definitely_after_the_recut() {
-        let ball = recut_ball();
+        let ball = finished("the recut ball", recut_ball(), Tol::witness());
+        let plate = finished("the plate", plate(), Tol::witness());
 
-        let cut = topo::subtract(&plate(), &ball, Tol::witness());
-        if Tol::witness().eps() < RECUT_MAPPED_ENCLOSURE_HI {
+        let cut = topo::subtract(&plate, &ball, Tol::witness());
+        if Tol::witness().eps() < RECUT_DECIDES_FROM {
             let Err(topo::BooleanError::CrossingInsertion { source, .. }) = cut else {
                 panic!(
                     "below the enclosure width the chain must escalate on the mapped-source \
@@ -223,7 +235,9 @@ mod certified {
             };
             assert_eq!(check, geom_brep::CertCheck::MappedSource);
             assert_eq!(cause.predicate, Some("carrier_matches_mapped_source"));
-            let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+            let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!(
                     "the escalation must carry an enclosure, got {:?}",
                     cause.margin
@@ -238,18 +252,29 @@ mod certified {
                 hi > cause.band.zero(),
                 "the enclosure must exceed the coincidence threshold, else it would classify"
             );
-            // Pinned bit-exactly, both directions (D9: same build, same
-            // inputs, same bits). A ceiling alone would admit the very
-            // width this unit retired, and would let a partial
-            // tightening leave the constant stale in silence.
-            assert!(
-                hi == RECUT_MAPPED_ENCLOSURE_HI,
-                "the mapped-source enclosure is {hi:e}, not its measured value \
-                 {RECUT_MAPPED_ENCLOSURE_HI:e} — the arc chain moved; re-measure and re-state"
-            );
+            // Pinned bit-exactly, both directions, at the ε it was
+            // measured at (D9: same build, same inputs, same bits); held
+            // within its measured tracking of ε elsewhere in the arm. A
+            // ceiling alone at the pin would admit a partial tightening
+            // in silence.
+            let eps = Tol::witness().eps();
+            if eps == RECUT_PIN_EPS {
+                assert!(
+                    hi == RECUT_MAPPED_ENCLOSURE_HI,
+                    "the mapped-source enclosure is {hi:e}, not its measured value \
+                     {RECUT_MAPPED_ENCLOSURE_HI:e} — the arc chain moved; re-measure and re-state"
+                );
+            } else {
+                assert!(
+                    hi <= RECUT_HI_PER_EPS * eps,
+                    "the mapped-source enclosure {hi:e} is over {RECUT_HI_PER_EPS}·ε at ε = \
+                     {eps:e} — the arc chain widened"
+                );
+            }
             // The cylinder class is unaffected by the arc-chain width
             // and still decides at this scalar.
-            assert!(topo::subtract(&plate(), &m5_boss(3, 0.3, 1.0), Tol::witness()).is_ok());
+            let boss = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());
+            assert!(topo::subtract(&plate, &boss, Tol::witness()).is_ok());
             return;
         }
         let cut = cut.expect("S13: the sphere class decides");
@@ -274,6 +299,7 @@ mod certified {
         );
         // And the cylinder class still decides at this scalar (S13
         // opens a class, it does not trade one away).
-        assert!(topo::subtract(&plate(), &m5_boss(3, 0.3, 1.0), Tol::witness()).is_ok());
+        let boss = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());
+        assert!(topo::subtract(&plate, &boss, Tol::witness()).is_ok());
     }
 }

@@ -6,9 +6,9 @@
 //! is never a gate).
 //!
 //! What schedules it instead is the standing claim underneath the
-//! comparison: the error family carries a `BlendKind` verb, one shared
-//! `resolve_selection` ladder serves both nodes, and the fillet's
-//! three selection texts must stay EXACTLY what they were (the op
+//! comparison: one shared selection evaluation (`eval::wire::select`)
+//! serves both nodes and speaks through the node that reads it, so the
+//! fillet's selection texts must stay EXACTLY what they are (the op
 //! row's kernel tail is prefix-pinned instead) while the chamfer's
 //! say "chamfer". A `write!` that loses the verb, or a well-meant
 //! reword of the shared ladder, moves a user-visible string that
@@ -22,10 +22,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
-use editor_core::{
-    CancelToken, EvalOptions, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, evaluate,
-};
+use editor_core::{CancelToken, EvalOptions, Node, NodeResult, ProfileDoc, RecipeNodeId, evaluate};
 use geom_core::Tol;
 
 fn cube_doc() -> (ProfileDoc, RecipeNodeId) {
@@ -40,8 +40,9 @@ fn cube_doc() -> (ProfileDoc, RecipeNodeId) {
     let (doc, cube) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, cube)
@@ -56,7 +57,7 @@ fn msg_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
         Tol::witness(),
     );
     match ev.nodes.get(&node) {
-        Some(NodeResult::Failed(e)) => e.kind.to_string(),
+        Some(NodeResult::Failed(e)) => e.kind_spoken(doc),
         other => panic!("expected a refusal, got {other:?}"),
     }
 }
@@ -69,11 +70,7 @@ fn msg_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
 /// (implementer-discipline §8). Every assertion carries its own
 /// label so a red names the refusal without the test name helping.
 fn messages(
-    blend: fn(
-        RecipeNodeId,
-        editor_core::Expr,
-        Vec<editor_core::StableName>,
-    ) -> Node<ProfileProgram>,
+    blend: fn(RecipeNodeId, editor_core::Formula, Vec<editor_core::StableName>) -> AuthoredNode,
 ) -> Vec<(&'static str, String)> {
     let size = fixture::len(0.1);
     let mut out = Vec::new();
@@ -99,7 +96,9 @@ fn messages(
     let ghost = editor_core::StableName {
         kind: editor_core::EntityKind::Edge,
         node: cube,
-        path: vec![editor_core::RoleSeg::Lateral(fixture::no_piece())],
+        path: vec![editor_core::RoleSeg::Lateral(
+            fixture::no_piece_of(&doc).into(),
+        )],
     };
     let (d, n) = fixture::insert(doc, blend(cube, size, vec![ghost]));
     out.push(("resolve", msg_of(&d, n)));
@@ -132,18 +131,22 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
         ),
         (
             "kind",
-            "the fillet selection name minted by node 2 denotes a face, not an edge",
+            "this fillet's edge 0 names the side wall over loop 0 step 1 of Extrude {cube}, \
+             which is a face, not an edge",
         ),
         (
             "resolve",
-            "a fillet selection name failed to resolve: the edge name minted by node 2 no \
-             longer resolves in this evaluation: the recorded reference disagrees with the \
-             recipe as it stands on the derivation path (node 2's payload differs)",
+            "this fillet's edge 0 no longer resolves in this evaluation: the recorded reference \
+             disagrees with the recipe as it stands on the derivation path (Extrude {cube}'s \
+             payload differs)",
         ),
     ];
+    let (_, cube) = cube_doc();
+    let cube = test_utils::refusal::tag(cube.0.digest());
     for ((label, actual), (wl, expected)) in got.iter().zip(want.iter()) {
         assert_eq!(label, wl);
-        assert_eq!(actual, expected, "the fillet's {label} refusal text moved");
+        let expected = expected.replace("{cube}", &cube);
+        assert_eq!(actual, &expected, "the fillet's {label} refusal text moved");
     }
     // The op row is pinned by PREFIX, not whole. Its tail is the
     // kernel's own `BlendError` message, which quotes an arena key

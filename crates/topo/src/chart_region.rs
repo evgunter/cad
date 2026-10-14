@@ -1,5 +1,5 @@
 //! **Chart-region overlap** — the trim-region intersection predicate a
-//! `PatchContact` certifies through (CONTACT-DESIGN C3): two faces on
+//! face–face record certifies through (CONTACT-DESIGN C3): two faces on
 //! ONE chart, their trim loops read in `(u, v)`, the overlap answered
 //! as *definitely-positive area* / *empty* / *typed refusal or
 //! escalation* — never a guess (M9-2 PR-1; the census consumer is
@@ -8,15 +8,15 @@
 //! # The certified lane is same-chart BY CONSTRUCTION
 //!
 //! "Overlap in the shared chart" presumes a shared chart. The lane
-//! admits exactly the pairs whose chart identity is structural:
+//! admits exactly the pairs whose chart identity is exact:
 //!
-//! - **at rest, one body**: the two faces carry the same `SurfaceKey`
-//!   — one description, one chart, trivially;
-//! - **cross-body, rung 2**: both surfaces carry the same
-//!   [`crate::GeomSource`] — the N6 retirement theorem gives
-//!   bit-identical descriptions, hence the identical chart.
+//! - **one key**: the two faces carry the same `SurfaceKey` — one
+//!   description, one chart, trivially;
+//! - **one description**: the two surfaces read bit-identical through
+//!   the bracketed exact comparator ([`surface_bits_equal`]) — the
+//!   identical chart, whichever arena holds each.
 //!
-//! **Rung-3 (declared) pairs have exactly TWO further authorities**
+//! **Declared pairs have exactly TWO further authorities**
 //! ([`declared_pair_overlap`]):
 //!
 //! - the shared WORLD CARRIER of a PLANAR pair (ratified as U-R2 with
@@ -39,10 +39,11 @@
 //!   agree within ε everywhere the pair's trims reach (bounded from
 //!   the descriptions with the radius-pricing `hyp` lever, then
 //!   MEASURED at the trims), and folds the angular coordinate by ONE
-//!   whole period pinned per pair through
-//!   [`geom_core::Real::periodic_branch`] (CERT-4's repaired fold;
-//!   the [`ChartRegionError::PeriodFold`] decline is that primitive's
-//!   documented half-period-tie remainder).
+//!   whole number of periods decided per pair as structure
+//!   ([`geom_brep::whole_periods`]). A gap astride a half-period mark
+//!   is answered on both branches and kept where they agree; the
+//!   [`ChartRegionError::PeriodFold`] decline is two branches that
+//!   disagree, or a gap past the branch reach.
 //!
 //! For both arms the claim earned is *certified everywhere within ε*,
 //! never *exact*: `decide`'s `Ok(Zero)` means `|m| ≤ zero`, not
@@ -142,12 +143,13 @@
 //! escalates typed.
 
 use geom::Surface;
+use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::{Band, Bounds, CertifiedBounds, Decide, Indeterminate, Margin, Point2, Sign, Vec2};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::null::CurveGeom;
-use crate::ray_parity::{self, ParityRows};
+use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::validate::decide;
 
 /// The certified overlap answer (both outcomes are *definite*; every
@@ -155,7 +157,7 @@ use crate::validate::decide;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChartOverlap {
     /// The trim regions' intersection has **definitely-positive
-    /// model-space area** — the `PatchContact` blessing direction.
+    /// model-space area** — the patch record's blessing direction.
     ///
     /// # Exactly what the margin behind this says, and about what
     ///
@@ -193,7 +195,7 @@ pub enum ChartOverlap {
     /// on the contracted copy that bounds the model's only after the
     /// `ρ/√T` factor.
     PositiveArea,
-    /// The trim regions are definitely disjoint — a `PatchContact`
+    /// The trim regions are definitely disjoint — a patch record
     /// claiming this pair is stale.
     Empty,
 }
@@ -216,13 +218,13 @@ pub enum ChartOverlap {
     strum_discriminants(name(ChartRegionErrorKind), vis(pub(crate)), derive(strum::EnumIter))
 )]
 pub enum ChartRegionError {
-    /// The pair has no structural chart identity (rung 3 or below):
-    /// C2's caveat — two descriptions of one locus may differ as
-    /// charts — makes a chart-space test unachievable; recourse is a
-    /// structural identity (shared key / same `GeomSource`), not a
-    /// numeric chart comparison.
+    /// The pair has no exact chart identity: C2's caveat — two
+    /// descriptions of one locus may differ as charts — makes a
+    /// chart-space test unachievable; recourse is one description
+    /// (a shared key, or bit-identical data), not a numeric chart
+    /// comparison.
     ChartDivergence {
-        /// What was missing (same-key, same-source, …).
+        /// What was missing (same key, bit-identical data, …).
         detail: &'static str,
     },
     /// A loop's chart image is outside the planar trim inventory
@@ -261,21 +263,17 @@ pub enum ChartRegionError {
     /// exists (module docs).
     SeamBranch,
     /// The whole-period fold that carries one cylinder description's
-    /// chart window onto the other's could not be PINNED to a single
-    /// integer at this scalar. The fold runs through
-    /// [`geom_core::Real::periodic_branch`] (issue 1191's widening
-    /// class was repaired by CERT-4/#1303); what this variant carries
-    /// is that primitive's DOCUMENTED honest remainder — the two
-    /// windows sit a genuine half-period tie apart, the enclosure
-    /// spans two integers, and no branch may be picked. Conservative
-    /// BY DIRECTION: the tie declines toward escalation, never toward
-    /// certifying a false overlap.
+    /// chart window onto the other's names no branch: the two windows'
+    /// midpoints sit ON a half-period mark and the pair's answers on the
+    /// two branches astride it disagree, or they sit more than
+    /// [`geom_brep::MAX_BRANCH_PERIODS`] periods apart. The tie
+    /// declines, never certifying a false overlap.
     PeriodFold,
     /// A declared pair's two carrier DESCRIPTIONS are definitely apart
-    /// somewhere over the pair's OWN extent. Door 1 certified the
-    /// carriers at its pinned 1 m arm; at this pair's actual size they
-    /// do not agree, so neither description can stand as the pair's
-    /// representative chart. Emitters, each metering its own quantity:
+    /// somewhere over the pair's OWN extent. Door 1 bounds the tilt
+    /// over a ball enclosing both faces; measured at the trims here,
+    /// the descriptions do not agree, so neither can stand as the
+    /// pair's representative chart. Emitters, each metering its own quantity:
     /// the planar arm's `chart_region_carrier_tilt` (the carriers'
     /// separation at the trims' own vertices) and the cylinder arm's
     /// `chart_region_cyl_radius` / `chart_region_cyl_tilt` /
@@ -300,28 +298,43 @@ pub enum ChartRegionError {
     /// A margin landed in the sliver band (in-band overlap, in-band
     /// crossing, in-band area) — the genuine escalation.
     Escalated(Indeterminate),
-    /// Every ray of the fixed 2-D schedule grazed — an
-    /// ill-conditioned containment query at this ε.
+    /// Every ray of the fixed 2-D schedule grazed the polygon
+    /// ([`crate::ray_walk::NoRaySettled`]).
     RayExhausted,
-    /// The interior-witness schedule was cut off by its BUDGET before
-    /// it could finish ([`WITNESS_BUDGET`]): the pair's arrangement is
-    /// larger than the work this rung spends, so no candidate was
-    /// certified and none was ruled out either.
+    /// The interior-witness schedule did not run: the pair carries
+    /// more boundary segments than [`WITNESS_SEGMENT_CAP`], so the
+    /// arrangement was never built and no cell was probed. No
+    /// candidate was certified and none was ruled out either.
     ///
     /// Distinct from [`Self::TouchingBoundary`] because it is a
     /// distinct fact. `TouchingBoundary` says the overlap is not
-    /// decidable at this ε; this says the search stopped. A fat,
-    /// perfectly decidable overlap reaches it — the segment cap
-    /// declines before a single probe is issued — and a caller that
-    /// read the two as one refusal would take a bound on the work for
-    /// a statement about the geometry.
-    WitnessBudgetExhausted {
-        /// The pair's boundary-segment count, against
-        /// [`WITNESS_BUDGET`]'s segment cap.
+    /// decidable at this ε; this says the search was not made. A fat,
+    /// perfectly decidable overlap reaches it, and a caller that read
+    /// the two as one refusal would take a bound on the work for a
+    /// statement about the geometry.
+    WitnessSegmentCapExceeded {
+        /// The pair's boundary-segment count, over
+        /// [`WITNESS_SEGMENT_CAP`].
         segments: usize,
-        /// Cell centres probed before the cell cap stopped the
-        /// search. Zero when the segment cap declined first, which is
-        /// the whole of that arm: nothing was looked at.
+    },
+    /// The interior-witness schedule stopped at its cell cap: it
+    /// probed [`WITNESS_CELL_CAP`] cell centres without certifying one,
+    /// and the arrangement had more. The pair was within
+    /// [`WITNESS_SEGMENT_CAP`], so the arrangement was built; the
+    /// cells past the cap were never offered, so nothing was ruled
+    /// out.
+    ///
+    /// Distinct from [`Self::TouchingBoundary`] because a probe that
+    /// fails to certify measures nothing against the overlap: this
+    /// says the search stopped, on a pair whose overlap may be fat and
+    /// decidable in a cell the walk did not reach. Distinct from
+    /// [`Self::WitnessSegmentCapExceeded`] because its lever is the
+    /// other cap, and the work was partly done.
+    WitnessCellCapExceeded {
+        /// The pair's boundary-segment count, within
+        /// [`WITNESS_SEGMENT_CAP`].
+        segments: usize,
+        /// Cell centres probed before the walk stopped: the cap.
         cells: usize,
     },
     /// The topology could not be walked, or the crossing walk
@@ -329,17 +342,20 @@ pub enum ChartRegionError {
     Corrupt,
 }
 
+/// What [`ChartRegionError::Escalated`] leaves undecided.
+const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
+
 impl core::fmt::Display for ChartRegionError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::ChartDivergence { detail } => write!(
                 f,
-                "chart-region: no structural chart identity ({detail}) — a declared \
-                 (rung-3) pair escalates: two descriptions of one locus may differ \
-                 as charts, so no chart-space overlap test exists for it. Give the \
-                 pair a structural identity — one shared surface key, or two \
-                 descriptions off the same `GeomSource` — since no numeric \
-                 comparison of two charts stands in for one"
+                "chart-region: no exact chart identity ({detail}) — the pair \
+                 escalates: two descriptions of one locus may differ as charts, so \
+                 no chart-space overlap test exists for it. Give the pair one \
+                 description — one shared surface key, or two bit-identical \
+                 descriptions — since no numeric comparison of two charts stands \
+                 in for one"
             ),
             Self::NonPlanarTrim {
                 face,
@@ -379,9 +395,10 @@ impl core::fmt::Display for ChartRegionError {
             Self::PeriodFold => write!(
                 f,
                 "chart-region: the cross-description angular fold could not be \
-                 pinned to one whole period at this scalar — the two windows sit \
-                 a genuine half-period tie apart (periodic_branch's documented \
-                 remainder); the tie declines, it never certifies. Move one \
+                 pinned to one whole period — the two windows sit a genuine \
+                 half-period tie apart and the pair reads differently on the two \
+                 branches, or they sit more periods apart than the branch reach; \
+                 the tie declines, it never certifies. Move one \
                  description's window off the half-period tie, or re-describe the \
                  pair on one cylinder rather than two"
             ),
@@ -410,22 +427,35 @@ impl core::fmt::Display for ChartRegionError {
                  chart image encloses area — collapsed or collinear runs are the \
                  usual cause — or re-mint its pcurves"
             ),
-            Self::Escalated(diag) => write!(f, "chart-region: escalated: {diag}"),
-            Self::RayExhausted => write!(
+            // A poisoned margin is reached by no declaration or move.
+            Self::Escalated(diag) if diag.margin.is_invalid() => write!(
                 f,
-                "chart-region: every schedule ray grazed — ill-conditioned \
-                 containment query at this ε. Every direction the schedule offers \
-                 lands in the band, so move the point off the boundary it grazes, \
-                 or read the pair at a tighter ε; a longer schedule does not \
-                 decide a query whose margins are all in-band"
+                "chart-region: {}",
+                diag.undecided(
+                    OVERLAP_SUBJECT,
+                    geom_brep::recourse::defect_ending(geom_brep::recourse::Reading::Build),
+                )
             ),
-            Self::WitnessBudgetExhausted { segments, cells } => write!(
+            Self::Escalated(diag) => write!(
                 f,
-                "chart-region: the interior-witness schedule ran out of budget on a \
-                 {segments}-segment trim pair after {cells} cell probe(s) — the \
-                 search stopped, so the overlap is neither certified nor ruled \
-                 out; simplify the pair's trims, or read it on a chart whose \
-                 boundaries meet in fewer places"
+                "chart-region: a decision about {OVERLAP_SUBJECT} is too close to call: {diag}"
+            ),
+            Self::RayExhausted => write!(f, "chart-region: {}", ray_walk::NoRaySettled),
+            Self::WitnessSegmentCapExceeded { segments } => write!(
+                f,
+                "chart-region: the interior-witness schedule did not run on a \
+                 {segments}-segment trim pair, over its segment cap of \
+                 {WITNESS_SEGMENT_CAP} — no cell was probed, so the overlap is \
+                 neither certified nor ruled out; simplify the pair's trims"
+            ),
+            Self::WitnessCellCapExceeded { segments, cells } => write!(
+                f,
+                "chart-region: the interior-witness schedule stopped at its cell \
+                 cap of {WITNESS_CELL_CAP} on a {segments}-segment trim pair, after \
+                 {cells} cell probe(s) certified nothing — the search stopped, so \
+                 the overlap is neither certified nor ruled out; simplify the \
+                 pair's trims, or read it on a chart whose boundaries meet in fewer \
+                 places"
             ),
             Self::Corrupt => write!(
                 f,
@@ -469,7 +499,7 @@ impl std::error::Error for ChartRegionError {}
 /// satisfy, so the predicate is uninstantiable at one however it is
 /// reached — including from outside the crate, where no census is
 /// running. That matches the other lane doors (`topo::QuadLane::certified`,
-/// the fitted-pcurve lane's), all of which carry
+/// `geom_brep::FittedLane::certified`), all of which carry
 /// [`geom_core::CertifiedEnclosure`]. See the M9-2 entry in
 /// `geom-core/src/real.rs`'s `Bounds` scope rule.
 ///
@@ -530,6 +560,18 @@ impl<T: Decide + CertifiedBounds> RegionLane<T> {
             declared_overlap: declared_pair_overlap::<T>,
         }
     }
+
+    /// Whether both doors are the certified ones ([`Self::certified`]).
+    #[cfg(test)]
+    pub(crate) fn is_certified(&self) -> bool {
+        std::ptr::fn_addr_eq(
+            self.chart_overlap,
+            chart_region_overlap::<T> as fn(_, _, _, _, _) -> _,
+        ) && std::ptr::fn_addr_eq(
+            self.declared_overlap,
+            declared_pair_overlap::<T> as fn(_, _, _, _, _, _) -> _,
+        )
+    }
 }
 
 impl<T: Decide> RegionLane<T> {
@@ -572,14 +614,10 @@ impl<T: Decide> RegionLane<T> {
 /// **The door's WIRING** — the rows that say which free functions
 /// [`RegionLane::certified`] holds, rather than what they answered.
 ///
-/// A row that compares outputs cannot see a door re-pointed at a
-/// predicate that agrees on the fixture in front of it; these rows
-/// compare the stored function pointers instead, so a re-point is a
-/// failure no matter what it computes. Function-pointer identity is
-/// what `std::ptr::fn_addr_eq` compares and is not a language guarantee
-/// (identical bodies may be merged), which costs nothing here: a false
-/// PASS would need the re-pointed routine to be instruction-identical
-/// to the door it replaced. `certified_enclosure_impl_census` counts
+/// Why a wiring row compares pointers rather than outputs:
+/// `certified_enclosure_impl_census`'s module doc.
+///
+/// `certified_enclosure_impl_census` counts
 /// the scalars instantiated here against the `CertifiedEnclosure`
 /// impls in the tree, both directions, and counts the tree's door
 /// values against its roster of helpers.
@@ -649,7 +687,7 @@ mod wiring_rows {
 
 /// The diagnostic for a DEFINITE margin whose outcome is nevertheless
 /// uncertifiable (the conservative-deduction escalations): the margin
-/// was validly posed and classified — `MarginDiag::Invalid` would
+/// was validly posed and classified — `MarginKind::Invalid` would
 /// claim otherwise — so the diag echoes the classified value itself
 /// (its conservative bracket end), named to its row.
 fn definite_diag<T: Bounds>(
@@ -658,9 +696,10 @@ fn definite_diag<T: Bounds>(
     margin: Margin<T>,
 ) -> Indeterminate {
     Indeterminate {
-        margin: geom_core::MarginDiag::Value(margin.value().lo()),
+        margin: geom_core::MarginDiag::value(margin.value().lo()),
         band,
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }
 
@@ -668,10 +707,10 @@ fn definite_diag<T: Bounds>(
 /// of two faces on one STRUCTURALLY-identified chart. Pass the same
 /// `&Body` twice for the at-rest (one-body) site.
 ///
-/// This is the structural door and it stays structural: a pair with no
-/// shared `SurfaceKey` and no shared `GeomSource` gets
+/// This is the exact door and it stays exact: a pair with no shared
+/// `SurfaceKey` and no bit-identical description gets
 /// [`ChartRegionError::ChartDivergence`] here however coincident its
-/// geometry looks, because value equality never glues (F6). A pair
+/// geometry looks, since two charts of one locus are not one chart. A pair
 /// whose chart authority is a VERIFIED DECLARATION is a different
 /// question, asked at [`declared_pair_overlap`] — which asks this one
 /// first.
@@ -715,7 +754,7 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 ) -> Result<ChartOverlap, ChartRegionError> {
     // 1. Chart identity (fixed gate order, D9: identity → inventory →
     //    arms → seam → machinery).
-    let surface = same_chart(body_a, face_a, body_b, face_b)?;
+    let surface = declared_chart(body_a, face_a, body_b, face_b)?;
     overlap_on(
         body_a,
         face_a,
@@ -727,14 +766,14 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
     )
 }
 
-/// **The declared pair's overlap door** — what a `PatchContact` whose
+/// **The declared pair's overlap door** — what a face–face record whose
 /// chart authority may be a VERIFIED DECLARATION (rung 3) certifies
 /// through, in the fixed order structural-identity-first.
 ///
 /// Three authorities answer the same question, in fixed order:
 ///
-/// - [`same_chart`] — the descriptions are structurally ONE chart
-///   (shared key / same `GeomSource`), so the trims are read in it
+/// - [`declared_chart`] — the descriptions are ONE chart (a shared
+///   key, or bit-identical data), so the trims are read in it
 ///   directly. Strictly stronger, so it is asked first.
 /// - the **shared world carrier**, PLANAR pairs
 ///   ([`world_carrier`]): a representative frame, legitimate exactly
@@ -747,7 +786,7 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 ///   relation onto the other's, gated by that arm's own carrier
 ///   agreement at the pair's own extent.
 ///
-/// A pair with none of the three keeps [`same_chart`]'s typed
+/// A pair with none of the three keeps [`declared_chart`]'s typed
 /// divergence, per kind:
 ///
 /// - **sphere** — residue: the enclosure needs the fold on BOTH chart
@@ -790,7 +829,7 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     door_one: crate::contact::ContactVerdict,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
-    let divergence = match same_chart(body_a, face_a, body_b, face_b) {
+    let divergence = match declared_chart(body_a, face_a, body_b, face_b) {
         Ok(surface) => {
             return overlap_on(
                 body_a,
@@ -836,8 +875,11 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
             // the work, not about the geometry, so it does NOT leave
             // the carried refusal standing under a name that says the
             // overlap is undecidably thin.
-            WitnessOutcome::BudgetExhausted { segments, cells } => {
-                Err(ChartRegionError::WitnessBudgetExhausted { segments, cells })
+            WitnessOutcome::SegmentCapExceeded { segments } => {
+                Err(ChartRegionError::WitnessSegmentCapExceeded { segments })
+            }
+            WitnessOutcome::CellCapExceeded { segments, cells } => {
+                Err(ChartRegionError::WitnessCellCapExceeded { segments, cells })
             }
             WitnessOutcome::Declined => Err(ChartRegionError::TouchingBoundary),
         },
@@ -967,7 +1009,7 @@ fn overlap_of_uv<T: Decide + Bounds>(
 /// # What the lemma does NOT claim (stated because it matters)
 ///
 /// The CERTIFIED answers are invariant. The REFUSAL boundary is not
-/// exactly: [`crate::ray_parity`]'s schedule is a fixed table of
+/// exactly: [`crate::ray_walk`]'s schedule is a fixed table of
 /// directions in CHART coordinates, so which ray fires — and whether a
 /// near-grazing configuration escalates or decides — rotates with the
 /// frame; and `ψ` is not exactly representable in `f64`, so a margin
@@ -1077,15 +1119,14 @@ fn face_boundary_points<T: Decide>(
 /// attained at a vertex: `m` is EXACT over the region, not a
 /// small-angle bound.
 ///
-/// **The lever is not a constant.** Door 1 meters the same
-/// disagreement as an angle at a PINNED 1 m arm (`bool_plane_parallel`
-/// via `carrier_pair_verdict`'s `T::one()`), which prices a peg and a
-/// table identically. Here the tilt's contribution to each term is
-/// `r·sin θ` with `r` that vertex's own distance from the carrier
-/// origin — so the pair's own extent IS the lever, per vertex, and the
-/// offset term rides in the same length. A tilt a peg absorbs and a
-/// tilt that opens a millimetre across a table get different answers,
-/// which is the whole point.
+/// **The lever is the pair's own extent, per vertex.** Door 1 reads
+/// the same disagreement as one displacement over a ball enclosing both
+/// faces, the tilt levered to the ball's far reach and summed with the
+/// offset (`bool_plane_reach` via `carrier_eq::declared_reading`).
+/// Here the tilt's contribution to each term is `r·sin θ` with `r` that
+/// vertex's own distance from the carrier origin, and the offset term
+/// rides in the same length. A tilt a peg absorbs and a tilt that opens
+/// a millimetre across a table get different answers.
 ///
 /// **The margin is symmetric BY CONSTRUCTION** (the argument-order
 /// obligation): the vertex set is a UNION and both plane-distance
@@ -1108,9 +1149,8 @@ fn face_boundary_points<T: Decide>(
 ///   simply too big for it.
 /// - in-band — [`ChartRegionError::Escalated`], the genuine residue.
 ///
-/// A definitely-NEGATIVE margin is unreachable (a max of absolute
-/// values), so it is poisoned input and escalates as `Invalid` — the
-/// `bool_plane_parallel` precedent.
+/// The margin is a max of absolute values from zero: a magnitude
+/// ([`geom_core::k_stats::decide_magnitude`]), with no negative sign.
 ///
 /// # Errors
 ///
@@ -1133,14 +1173,9 @@ fn carrier_agreement<T: Decide + Bounds>(
                 .max((p - o_b).dot(n_b).abs());
         }
     }
-    match decide("chart_region_carrier_tilt", Margin::of(worst), band) {
-        Ok(Sign::Zero) => Ok(()),
-        Ok(Sign::Positive) => Err(ChartRegionError::CarrierTilt),
-        Ok(Sign::Negative) => Err(ChartRegionError::Escalated(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
-            band,
-            predicate: Some("chart_region_carrier_tilt"),
-        })),
+    match decide_magnitude("chart_region_carrier_tilt", Margin::of(worst), band) {
+        Ok(Magnitude::Zero) => Ok(()),
+        Ok(Magnitude::Positive) => Err(ChartRegionError::CarrierTilt),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }
 }
@@ -1209,12 +1244,13 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 ///
 /// # The carrier gates (the cylinder `carrier_agreement`)
 ///
-/// Door 1's ladder decided the same data at its pinned 1 m arm
-/// (`carrier_cyl_axis_parallel`·1 m, `carrier_cyl_axis_offset`,
-/// `carrier_cyl_radius`); as with the planar arm, that prices a peg
-/// and a table identically, so the enclosure re-decides at the PAIR'S
-/// OWN EXTENT (fixed order, D9). The quantity the gates must bound is
-/// the TRANSFER ERROR `E(p) = φ_A(T(u, v)) − p` — not merely the
+/// Door 1's ladder read the same data as one displacement over a ball
+/// enclosing both faces (`carrier_cyl_reach` via
+/// `carrier_eq::declared_reading`: the axis offset at a pivot, the tilt
+/// levered from it, the radius difference, summed); the enclosure
+/// re-decides at the PAIR'S OWN
+/// TRIMS (fixed order, D9). The quantity the gates must bound is the
+/// TRANSFER ERROR `E(p) = φ_A(T(u, v)) − p` — not merely the
 /// carriers' radial separation — and to first order it decomposes as
 /// `|E| ≤ |Δr| + g⊥ + sin θ · ‖p − o_b‖`, where the last term is the
 /// displacement of `p` under the rigid rotation aligning the two
@@ -1243,10 +1279,9 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// All three `Zero` bound `E` everywhere on the trims — vertices AND
 /// interiors, because each term is a description-level bound, not a
 /// sample. A definite nonzero refuses
-/// [`ChartRegionError::CarrierTilt`]; a definite Negative on an
-/// unsigned (norm) margin is poisoned input and escalates `Invalid`
-/// (the `chart_region_carrier_tilt` precedent); in-band escalates
-/// named.
+/// [`ChartRegionError::CarrierTilt`]; the unsigned (norm) margins are
+/// magnitudes ([`geom_core::k_stats::decide_magnitude`]), with no
+/// negative sign; in-band escalates named.
 ///
 /// # The measured discharge (`chart_region_cyl_transfer`)
 ///
@@ -1279,20 +1314,22 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// Door-1 refusal is `ContactRefusal`, a different type), so consuming
 /// the verdict admits no refused pair either way.
 ///
-/// # The fold (CERT-4's repaired primitive; the tie remainder)
+/// # The fold
 ///
 /// `δ` is a principal-value angle and each polygon rides its own
 /// pinned branch, so the transferred window may sit whole periods
-/// away from A's. ONE integer `k` — `(mid_A − mid_B̃).periodic_branch(τ)`
-/// — is pinned per pair and applied to every transferred vertex.
-/// Issue 1191's floor-widening class was REPAIRED by CERT-4 (#1303),
-/// and this arm consumes the repaired primitive; what remains is that
-/// primitive's DOCUMENTED honest remainder — at the interval scalar
-/// the enclosure spans two integers exactly when the windows sit a
-/// genuine half-period tie apart — and there the integer cannot be
-/// pinned and the arm declines [`ChartRegionError::PeriodFold`]. The
-/// widening runs toward decline only, never toward a false
-/// certification.
+/// away from A's. ONE integer `k` is decided per pair, from the gap
+/// `mid_A − mid_B̃` between the two windows' azimuth midpoints, and
+/// applied to every transferred vertex. It is decided as structure
+/// ([`geom_brep::whole_periods`], `chart_region_period_fold`): sign
+/// decisions at the half-period marks, levered by the radius, so the
+/// shift is `k·τ` with `k` a literal at every scalar. A gap on or in
+/// the band of a mark (the windows a half-period tie apart) is a tie
+/// between the two branches astride it, each of which sees the mirror
+/// image of the other's overlap: the pair is answered on both and the
+/// answer kept where they agree. Two that disagree decline
+/// [`ChartRegionError::PeriodFold`] on a mark and escalate in band; a
+/// gap past the branch reach declines [`ChartRegionError::PeriodFold`].
 ///
 /// # Decline posture (issue 1435's disclosure obligation)
 ///
@@ -1450,18 +1487,12 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
     };
-    // A gate over an UNSIGNED margin (a norm): a definite Negative is
-    // unreachable, so it is poisoned input and escalates `Invalid` —
-    // the `chart_region_carrier_tilt` precedent.
+    // A gate over an UNSIGNED margin (a norm, or a max of norms from
+    // zero): a magnitude, with no negative sign.
     let norm_gate = |name: &'static str, margin: Margin<T>| -> Result<(), ChartRegionError> {
-        match decide(name, margin, gate_band) {
-            Ok(Sign::Zero) => Ok(()),
-            Ok(Sign::Positive) => Err(ChartRegionError::CarrierTilt),
-            Ok(Sign::Negative) => Err(ChartRegionError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
-                band: gate_band,
-                predicate: Some(name),
-            })),
+        match decide_magnitude(name, margin, gate_band) {
+            Ok(Magnitude::Zero) => Ok(()),
+            Ok(Magnitude::Positive) => Err(ChartRegionError::CarrierTilt),
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
     };
@@ -1491,9 +1522,10 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         // dot of near-parallel units is near ±1): poisoned input.
         Ok(Sign::Zero) => {
             return Err(ChartRegionError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("chart_region_cyl_axis_sense"),
+                terminal_sliver: false,
             }));
         }
         Err(diag) => return Err(ChartRegionError::Escalated(diag)),
@@ -1508,7 +1540,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     let uv_a = extract_face_uv(body_a, face_a, &surface_a, ChartRead::Minted, band)?;
     let uv_b_own = extract_face_uv(body_b, face_b, &surface_b, ChartRead::Minted, band)?;
     let map = |p: &Point2<T>| Point2::new(delta + sigma * p.x, c + sigma * p.y);
-    let mut uv_b = FaceUv {
+    let uv_b = FaceUv {
         outer: uv_b_own.outer.iter().map(map).collect(),
         rings: uv_b_own
             .rings
@@ -1542,32 +1574,79 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         return band_overlap(&uv_a, &uv_b, band_a, band_b, a.radius, band);
     }
 
-    // --- The fold: one whole period, pinned per pair through
-    //     `Real::periodic_branch` (issue 1191's widening class was
-    //     repaired by CERT-4/#1303; what remains is that primitive's
-    //     DOCUMENTED honest remainder — a genuine half-period tie,
-    //     where the enclosure spans two integers and the arm declines
-    //     typed rather than picking a branch).
-    let k = (window_mid(&uv_a) - window_mid(&uv_b)).periodic_branch(T::tau());
-    if !(k.lo() == k.hi() && k.lo().is_finite()) {
-        return Err(ChartRegionError::PeriodFold);
-    }
-    let shift = k * T::tau();
-    let fold = |p: &Point2<T>| Point2::new(p.x + shift, p.y);
-    uv_b = FaceUv {
-        outer: uv_b.outer.iter().map(fold).collect(),
-        rings: uv_b
-            .rings
-            .iter()
-            .map(|r| r.iter().map(fold).collect())
-            .collect(),
+    // --- The fold: one whole period, pinned per pair as structure
+    //     (doc above); a gap astride a half-period mark is answered on
+    //     both branches and kept only where the two agree.
+    let overlap_at = |shift: T| {
+        let fold = |p: &Point2<T>| Point2::new(p.x + shift, p.y);
+        let folded = FaceUv {
+            outer: uv_b.outer.iter().map(fold).collect(),
+            rings: uv_b
+                .rings
+                .iter()
+                .map(|r| r.iter().map(fold).collect())
+                .collect(),
+        };
+        // The shared pipeline, in A's chart (arms (r_a, 1); the seam
+        // gate is the window-fit decline the doc names).
+        overlap_of_uv(
+            body_a, face_a, body_b, face_b, &surface_a, &uv_a, &folded, band,
+        )
     };
+    match period_fold(window_mid(&uv_a) - window_mid(&uv_b), a.radius, band)? {
+        Fold::One(shift) => overlap_at(shift),
+        Fold::Astride([lo, hi], decline) => {
+            let (below, above) = (overlap_at(lo), overlap_at(hi));
+            let agree = match (&below, &above) {
+                (Ok(x), Ok(y)) => x == y,
+                (Err(x), Err(y)) => core::mem::discriminant(x) == core::mem::discriminant(y),
+                _ => false,
+            };
+            if agree { below } else { Err(decline) }
+        }
+    }
+}
 
-    // --- The shared pipeline, in A's chart (arms (r_a, 1); the seam
-    //     gate is the window-fit decline the doc names).
-    overlap_of_uv(
-        body_a, face_a, body_b, face_b, &surface_a, &uv_a, &uv_b, band,
-    )
+/// The fold [`period_fold`] decides.
+enum Fold<T> {
+    /// The one shift `k·τ`.
+    One(T),
+    /// The gap sits on or near a half-period mark: the shifts of the two
+    /// branches astride it, and the refusal owed where the pair's answer
+    /// on them differs.
+    Astride([T; 2], ChartRegionError),
+}
+
+/// The fold for windows whose azimuth midpoints are `gap` apart, on a
+/// cylinder of `radius`: the shift `k·τ`, with `k` decided by the
+/// half-period marks ([`geom_brep::whole_periods`]) levered at the
+/// radius, so it is a literal at every scalar. Where a mark misses, the
+/// two branches astride it (`pcurves::branches_astride`), each a literal.
+///
+/// # Errors
+///
+/// [`ChartRegionError::PeriodFold`] past the branch reach, or on a mark
+/// whose astride branches are not decided;
+/// [`ChartRegionError::Escalated`] in band, likewise.
+fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, ChartRegionError> {
+    let tau = T::tau();
+    let name = "chart_region_period_fold";
+    let meter = |g| Margin::levered(g, radius);
+    let shift = |k: i32| T::from_f64(f64::from(k)) * tau;
+    match geom_brep::whole_period_count(name, gap, tau, meter, band) {
+        Ok(k) => Ok(Fold::One(shift(k))),
+        Err(geom_brep::BranchMiss::OutOfReach) => Err(ChartRegionError::PeriodFold),
+        Err(miss) => {
+            let decline = match miss {
+                geom_brep::BranchMiss::Undecided(diag) => ChartRegionError::Escalated(diag),
+                _ => ChartRegionError::PeriodFold,
+            };
+            match crate::pcurves::branches_astride(name, gap, tau, meter, band) {
+                Ok([lo, hi]) => Ok(Fold::Astride([shift(lo), shift(hi)], decline)),
+                Err(_) => Err(decline),
+            }
+        }
+    }
 }
 
 /// The largest world-metre distance between a face's transferred chart
@@ -1623,9 +1702,8 @@ fn window_mid<T: Decide + Bounds>(uv: &FaceUv<T>) -> T {
     };
     visit(&uv.outer);
     uv.rings.iter().for_each(&mut visit);
-    let half = T::one() / (T::one() + T::one());
     match (lo, hi) {
-        (Some(l), Some(h)) => (l + h) * half,
+        (Some(l), Some(h)) => geom::mid_param(l, h),
         // A `FaceUv` exists only past extraction, which refuses every
         // loop under three vertices — an empty window is a kernel
         // invariant violation (D2 row 4), and a poison return here
@@ -1671,20 +1749,28 @@ fn wrap_band<T: Decide + Bounds>(
             return Ok(None);
         }
     }
-    let (mut ul, mut uh, mut vl, mut vh) = (pts[0].0, pts[0].0, pts[0].1, pts[0].1);
-    for p in &pts {
-        ul = ul.min(p.0);
-        uh = uh.max(p.0);
-        vl = vl.min(p.1);
-        vh = vh.max(p.1);
-    }
-    let span = T::from_f64(uh) - T::from_f64(ul);
+    // The extremes are chosen by the exact reads and then read from
+    // `outer` itself, so the span and the band are the corners' own
+    // values (their expressions at `Sym`), never their bits re-entered.
+    let extreme = |key: fn(&(f64, f64)) -> f64, pick_hi: bool| -> usize {
+        (1..4).fold(0, |best, i| {
+            let (k, b) = (key(&pts[i]), key(&pts[best]));
+            if (pick_hi && k > b) || (!pick_hi && k < b) {
+                i
+            } else {
+                best
+            }
+        })
+    };
+    let (ul, uh) = (extreme(|p| p.0, false), extreme(|p| p.0, true));
+    let (vl, vh) = (extreme(|p| p.1, false), extreme(|p| p.1, true));
+    let span = outer[uh].x - outer[ul].x;
     match decide(
         "chart_region_cyl_wrap",
         Margin::levered(span - T::tau(), radius),
         band,
     ) {
-        Ok(Sign::Zero) => Ok(Some((T::from_f64(vl), T::from_f64(vh)))),
+        Ok(Sign::Zero) => Ok(Some((outer[vl].y, outer[vh].y))),
         Ok(_) => Ok(None),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }
@@ -1776,8 +1862,8 @@ fn band_overlap<T: Decide + Bounds>(
 /// on `Bridged` it declines and the region walk's typed refusal
 /// stands. Three-outcome honest, and the three are TYPED
 /// ([`WitnessOutcome`]): a proof, a decline that leaves the carried
-/// refusal standing, and a schedule that ran out of budget — which is
-/// a fact about the work and gets a refusal of its own.
+/// refusal standing, and a schedule that hit one of its two caps —
+/// which is a fact about the work and gets a refusal per cap.
 ///
 /// # The schedule, and why it is two stages
 ///
@@ -1864,11 +1950,14 @@ fn interior_witness<T: Decide + Bounds>(
     let Ok((_, normal_b)) = plane_frame(body_b, face_b) else {
         return WitnessOutcome::Declined;
     };
-    let inside = |body: &Body<T>, face: FaceKey, n, q| {
-        matches!(
-            crate::boolean::contfp(body, face, n, q, band),
-            Ok(crate::boolean::FaceContainment::In)
-        )
+    let inside = |body: &Body<T>, face: FaceKey, n, q| match crate::boolean::contfp(
+        body, face, n, q, band,
+    ) {
+        Ok(at) => at == crate::boolean::FaceContainment::In,
+        Err(crate::boolean::ContainError::StaleFace(face)) => {
+            crate::boolean::driver_face_stale(face)
+        }
+        Err(_) => false,
     };
     let strictly_inside_both = |x: T, y: T| -> bool {
         let q = origin + u_ref * x + v_ref * y;
@@ -1885,21 +1974,22 @@ fn interior_witness<T: Decide + Bounds>(
     }
     // Stage 2: the pair's own arrangement.
     decomposition_witness(uv_a, uv_b, |x, y| {
-        strictly_inside_both(T::from_f64(x), T::from_f64(y))
+        strictly_inside_both(T::from_computed(x), T::from_computed(y))
     })
 }
 
 /// **What the interior-witness rung answers** — a proof, a decline, or
 /// the schedule stopping short.
 ///
-/// INVARIANT: three outcomes, not two. A decline says the schedule ran
-/// and found nothing, which the caller spells as the region walk's own
-/// [`ChartRegionError::TouchingBoundary`]; an exhaustion says the
-/// schedule did not finish, which is a bound on the work and not a
-/// statement about the geometry, and gets its own refusal
-/// ([`ChartRegionError::WitnessBudgetExhausted`]). Collapsing the two
-/// into one `bool` makes a fat, decidable overlap that overran the
-/// budget indistinguishable from an overlap too thin to certify.
+/// INVARIANT: a decline is not an exhaustion. A decline says the
+/// schedule ran and found nothing, which the caller spells as the
+/// region walk's own [`ChartRegionError::TouchingBoundary`]; an
+/// exhaustion says the schedule did not finish, which is a bound on
+/// the work and not a statement about the geometry, and gets its own
+/// refusal per cap ([`ChartRegionError::WitnessSegmentCapExceeded`],
+/// [`ChartRegionError::WitnessCellCapExceeded`]). Collapsing the two
+/// into one `bool` makes a fat, decidable overlap that hit a cap
+/// indistinguishable from an overlap too thin to certify.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum WitnessOutcome {
     /// A point was certified strictly interior to both trims: the
@@ -1907,71 +1997,73 @@ enum WitnessOutcome {
     Certified,
     /// The schedule ran to its end and certified nothing.
     Declined,
-    /// [`WITNESS_BUDGET`] cut the schedule off.
-    BudgetExhausted {
+    /// [`WITNESS_SEGMENT_CAP`] refused the pair before the
+    /// arrangement was built.
+    SegmentCapExceeded {
         /// The pair's boundary-segment count.
         segments: usize,
-        /// Cell centres probed before the cut-off; zero when the
-        /// segment cap declined before the arrangement was walked.
+    },
+    /// [`WITNESS_CELL_CAP`] stopped the walk with cells left.
+    CellCapExceeded {
+        /// The pair's boundary-segment count.
+        segments: usize,
+        /// Cell centres probed before the walk stopped: the cap.
         cells: usize,
     },
 }
 
-/// The most cell centres [`decomposition_witness`] probes before it
-/// declines, and the most boundary segments it will decompose.
+/// The most boundary segments [`decomposition_witness`] will
+/// decompose. A trim pair with more is refused before the arrangement
+/// is built, rather than half-searched, because the decomposition is
+/// quadratic in that count.
 ///
-/// Both are the honest half of "complete or honest": inside them the
-/// schedule is complete in the sense argued at
-/// [`decomposition_witness`], and outside them it declines and the
-/// region walk's own typed refusal stands. A trim pair with more than
-/// `segments` boundary segments is refused rather than half-searched
-/// because the decomposition is quadratic in that count.
+/// This and [`WITNESS_CELL_CAP`] are the honest half of "complete or
+/// honest": within them the schedule is complete in the sense argued
+/// at [`decomposition_witness`], and past either it stops and says
+/// which. Each is public because its refusal is: a caller resolving
+/// one reads the cap it ran into, and a fixture asserting it DERIVES
+/// its over-cap value from here rather than restating a literal that
+/// drifts the day the cap moves.
 ///
 /// # What these limits cost, stated rather than implied
 ///
-/// **Neither is out of reach, and `cells` is reachable INSIDE
-/// `segments`.** A comb of 56 stacked horizontal runs against one
-/// tilted crosser carries 118 boundary segments — comfortably under
-/// the segment cap — and overruns 4096 cells, so "large enough never
-/// to bind" is not a claim this constant makes. What it is is a bound
-/// on the work, chosen so that the trim pairs this rung is actually
-/// reached with (the seats in the suite carry twelve segments) search
-/// exhaustively.
+/// **Neither is out of reach, and the cell cap is reachable WITHIN
+/// the segment cap.** A comb of 56 stacked horizontal runs against
+/// one tilted crosser carries 118 boundary segments — comfortably
+/// under this cap — and its arrangement has more than 4096 cells, so
+/// "large enough never to bind" is not a claim these constants make.
+/// What they are is a bound on the work, chosen so that the trim
+/// pairs this rung is actually reached with (the seats in the suite
+/// carry twelve segments) search exhaustively.
 ///
-/// The row `r2p7_cell_budget_is_reachable_inside_the_segment_cap`
+/// The row `r2p7_cell_cap_is_reachable_inside_the_segment_cap`
 /// builds that pair, and the number it READS is the segment count:
-/// the cell figure is structurally forced, because the walk returns
-/// the instant `spent > cells`, so every pair that reaches the cap
-/// reports exactly `cells + 1`. What the row pins is that 118
-/// segments suffice — and it is a TIGHT witness, not a comfortable
-/// one: one tooth fewer walks its arrangement to the end.
+/// the cell figure is structurally forced, because the walk stops
+/// once it has probed [`WITNESS_CELL_CAP`] cells and meets another,
+/// so every pair that reaches the cap reports exactly the cap. What
+/// the row pins is that 118 segments suffice — and it is a TIGHT
+/// witness, not a comfortable one: one tooth fewer walks its
+/// arrangement to the end.
 ///
-/// **An exhausted budget is its own refusal.** Both caps answer
-/// [`WitnessOutcome::BudgetExhausted`], which the caller spells
-/// [`ChartRegionError::WitnessBudgetExhausted`] carrying the segment
-/// count and the probes spent — never the carried
+/// **An exhausted cap is its own refusal, one per cap.** This cap
+/// answers [`ChartRegionError::WitnessSegmentCapExceeded`] with the
+/// segment count and nothing else, because nothing was probed; the
+/// cell cap answers [`ChartRegionError::WitnessCellCapExceeded`] with
+/// the segment count and the probes made. Neither is the carried
 /// [`ChartRegionError::TouchingBoundary`], which says the overlap is
 /// undecidably thin and would be a statement about the geometry that
-/// nothing measured. A fat, decidable overlap over the segment cap is
-/// the case that separates them: it declines with zero probes issued.
-pub const WITNESS_BUDGET: WitnessBudget = WitnessBudget {
-    segments: 128,
-    cells: 4096,
-};
+/// nothing measured. A fat, decidable overlap over this cap is the
+/// case that separates them: it is refused with zero probes issued.
+pub const WITNESS_SEGMENT_CAP: usize = 128;
 
-/// The interior-witness schedule's two caps, public because
-/// [`ChartRegionError::WitnessBudgetExhausted`] is: a caller resolving
-/// that refusal wants the cap its `segments` count ran into, and a
-/// fixture asserting the refusal has to DERIVE its over-cap value
-/// from here rather than restate a literal that drifts the day the cap
-/// moves.
-pub struct WitnessBudget {
-    /// The boundary-segment cap: the arrangement is not built at all
-    /// beyond it.
-    pub segments: usize,
-    /// The cell-probe cap: the walk returns the instant `spent > cells`.
-    pub cells: usize,
-}
+/// The most cell centres [`decomposition_witness`] probes. Within
+/// [`WITNESS_SEGMENT_CAP`] an arrangement can still have more cells
+/// than the rung should pay for — each probe is a pair of
+/// point-in-region reads — so the walk stops once it has probed this
+/// many and meets another cell, and refuses
+/// [`ChartRegionError::WitnessCellCapExceeded`]. It is reachable inside
+/// the segment cap ([`WITNESS_SEGMENT_CAP`]'s doc has the witness).
+pub const WITNESS_CELL_CAP: usize = 4096;
 
 /// **The completion of the witness schedule**: the cell centres of the
 /// two trims' vertical decomposition, in fixed order, each offered to
@@ -2042,23 +2134,22 @@ fn decomposition_witness<T: Decide + Bounds>(
     };
     // Decline cause 2: no arrangement to build. One segment bounds no
     // cell, and the rung's own extraction refuses loops under three
-    // vertices, so this is the empty-trim guard rather than a budget.
+    // vertices, so this is the empty-trim guard rather than a cap.
     if segments.len() < 2 {
         return WitnessOutcome::Declined;
     }
-    // Cause 3 is the segment budget, and it is an EXHAUSTION rather
+    // Cause 3 is the segment cap, and it is an EXHAUSTION rather
     // than a decline: the arrangement is never walked, so nothing was
     // looked at and no probe was issued.
-    if segments.len() > WITNESS_BUDGET.segments {
-        return WitnessOutcome::BudgetExhausted {
+    if segments.len() > WITNESS_SEGMENT_CAP {
+        return WitnessOutcome::SegmentCapExceeded {
             segments: segments.len(),
-            cells: 0,
         };
     }
     let mut spent = 0usize;
     let abscissae = event_abscissae(&segments);
     for slab in abscissae.windows(2) {
-        let x = midpoint(slab[0], slab[1]);
+        let x = geom::mid_param(slab[0], slab[1]);
         // An adjacent-float slab has no interior to sample.
         if !(x > slab[0] && x < slab[1]) {
             continue;
@@ -2066,17 +2157,17 @@ fn decomposition_witness<T: Decide + Bounds>(
         let mut ys: Vec<f64> = segments.iter().filter_map(|s| s.at_abscissa(x)).collect();
         ys.sort_by(f64::total_cmp);
         for cell in ys.windows(2) {
-            let y = midpoint(cell[0], cell[1]);
+            let y = geom::mid_param(cell[0], cell[1]);
             if !(y > cell[0] && y < cell[1]) {
                 continue;
             }
-            spent += 1;
-            if spent > WITNESS_BUDGET.cells {
-                return WitnessOutcome::BudgetExhausted {
+            if spent == WITNESS_CELL_CAP {
+                return WitnessOutcome::CellCapExceeded {
                     segments: segments.len(),
                     cells: spent,
                 };
             }
+            spent += 1;
             if probe(x, y) {
                 return WitnessOutcome::Certified;
             }
@@ -2178,7 +2269,10 @@ fn boundary_segments<T: Decide + Bounds>(
                 continue;
             }
             let nominal = |p: &Point2<T>| {
-                let c = [midpoint(p.x.lo(), p.x.hi()), midpoint(p.y.lo(), p.y.hi())];
+                let c = [
+                    geom::mid_param(p.x.lo(), p.x.hi()),
+                    geom::mid_param(p.y.lo(), p.y.hi()),
+                ];
                 (c[0].is_finite() && c[1].is_finite()).then_some(c)
             };
             for i in 0..poly.len() {
@@ -2213,41 +2307,6 @@ fn event_abscissae(segments: &[NominalSeg]) -> Vec<f64> {
     xs
 }
 
-/// A point between two `f64`s — `a + (b − a)/2` rather than
-/// `(a + b)/2`.
-///
-/// # What it guarantees, which is less than "the midpoint"
-///
-/// It is NOT exact: `midpoint(1.0, 1e16)` is an ulp off the true middle,
-/// because `b − a` rounds. It does not remove overflow either, it trades
-/// one family for another: `(a + b)/2` overflows on two same-sign
-/// halves of the range, this form overflows on OPPOSITE ends —
-/// `midpoint(-1e308, 1e308)` is `inf`. What it does guarantee is what
-/// both callers need and nothing more: for finite `a < b` the result is
-/// finite-or-`inf` and lies in `[a, b]`, never outside the bracket.
-///
-/// Which is why **both call sites re-test the result** rather than
-/// trusting it. [`decomposition_witness`] takes a slab or cell centre
-/// only when it is STRICTLY between the two ends, so an ulp of drift or
-/// a collapse onto an endpoint drops that cell instead of proposing a
-/// point outside it; and a non-finite coordinate is rejected at
-/// [`boundary_segments`]. The rounding therefore reaches the answer only
-/// as a missed candidate, never as a bad one.
-///
-/// # Siblings, not one utility
-///
-/// Two other bracket-midpoint spellings exist — `geom_brep`'s
-/// `props/quad.rs` `mid` and `topo`'s `props.rs` `mid_pad` — and this is
-/// deliberately not unified with either. They compute different
-/// quantities for different jobs (`mid_pad` pads, quad's `mid` is a
-/// quadrature abscissa on a certified path); this one is an uncertified
-/// hint that its own callers re-validate. Merging three formulas whose
-/// only shared property is the word "midpoint" would give one of them
-/// the wrong rounding contract.
-fn midpoint(a: f64, b: f64) -> f64 {
-    a + 0.5 * (b - a)
-}
-
 /// The witness schedule of one trim polygon (fixed order, D9): its
 /// vertex centroid, then each ear midpoint in cycle order.
 fn candidate_points<T: Decide>(poly: &[Point2<T>]) -> Vec<Point2<T>> {
@@ -2273,11 +2332,12 @@ fn candidate_points<T: Decide>(poly: &[Point2<T>]) -> Vec<Point2<T>> {
     out
 }
 
-/// The structural chart-identity gate (module docs): shared
-/// `SurfaceKey` on one body, or the same [`crate::GeomSource`] across
-/// bodies (N6: bit-identical descriptions ⇒ the identical chart).
-/// Anything weaker escalates typed.
-fn same_chart<T: Decide + Bounds>(
+/// **The chart two faces share** (module docs' chart-identity gate):
+/// one surface key, or two descriptions that read bit-identical through
+/// [`surface_bits_equal`], the bracketed exact comparator — one chart,
+/// not two charts that decide one carrier. Anything weaker escalates
+/// typed rather than certify overlap in an arbitrarily chosen chart.
+fn declared_chart<T: Decide + Bounds>(
     body_a: &Body<T>,
     face_a: FaceKey,
     body_b: &Body<T>,
@@ -2291,50 +2351,17 @@ fn same_chart<T: Decide + Bounds>(
         .get_face(face_b)
         .ok_or(ChartRegionError::Corrupt)?
         .surface;
-    // Arena keys are meaningful only within one arena: the key rung
-    // exists only for the one-body site.
-    let same_body = core::ptr::eq(body_a, body_b);
-    if same_body && key_a == key_b {
-        return body_a
-            .get_surface(key_a)
-            .cloned()
-            .ok_or(ChartRegionError::Corrupt);
+    let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
+    if std::ptr::eq(body_a, body_b) && key_a == key_b {
+        return Ok(s_a.clone());
     }
-    match (body_a.surface_source(key_a), body_b.surface_source(key_b)) {
-        // Full `GeomSource` equality, orientation included: N6's
-        // theorem is about the WHOLE recipe identity — a same-base
-        // reverted pair describes the mirrored chart and diverges.
-        //
-        // The theorem's conclusion is VERIFIED, not assumed (union
-        // fix U1): `set_surface_source` is a pub door, so "same
-        // source" is a claim any caller can attach — and PR-2's
-        // import-side declaration channel is where a wrong attachment
-        // first becomes plausible. Bit-identical descriptions are
-        // re-checked through the module's own exact-bracket
-        // comparator; a same-source pair whose descriptions differ by
-        // one bit refuses typed instead of certifying overlap in an
-        // arbitrarily chosen chart.
-        (Some(sa), Some(sb)) if sa == sb => {
-            let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
-            let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
-            if surface_bits_equal(s_a, s_b) {
-                Ok(s_a.clone())
-            } else {
-                Err(ChartRegionError::ChartDivergence {
-                    detail: "same GeomSource with non-bit-identical descriptions — \
-                             the same-source theorem violated (forged or corrupted source attachment)",
-                })
-            }
-        }
-        (Some(sa), Some(sb)) if sa.same_base(sb) => Err(ChartRegionError::ChartDivergence {
-            detail: "same source base with flipped orientation — the charts mirror",
-        }),
-        (Some(_), Some(_)) => Err(ChartRegionError::ChartDivergence {
-            detail: "distinct GeomSources — equal-but-independent descriptions do not glue",
-        }),
-        _ => Err(ChartRegionError::ChartDivergence {
-            detail: "no shared SurfaceKey and no GeomSource on both faces",
-        }),
+    let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
+    if surface_bits_equal(s_a, s_b) {
+        Ok(s_a.clone())
+    } else {
+        Err(ChartRegionError::ChartDivergence {
+            detail: "two descriptions that do not read bit-identical — no one chart holds both",
+        })
     }
 }
 
@@ -2346,106 +2373,22 @@ fn exact_pair<T: Bounds>(a: T, b: T) -> bool {
     a.lo() == a.hi() && b.lo() == b.hi() && a.lo() == b.lo() && a.lo().is_finite()
 }
 
-/// Bit-identity of two surface DESCRIPTIONS, read structurally (union
-/// fix U1; the rung-2 verification). Analytic kinds compare every
-/// scalar field; `Nurbs` payloads verify only through pointer
-/// identity today (one shared description object) — an independent
-/// cross-body NURBS pair conservatively fails and takes the typed
-/// divergence, which costs nothing the arm gate would not refuse
-/// anyway; net-level verification extends with the census/inf-bounds
-/// work. Different kinds are never identical.
-fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface<T>) -> bool {
-    let v3 = |p: geom_core::Vec3<T>, q: geom_core::Vec3<T>| {
-        exact_pair(p.x, q.x) && exact_pair(p.y, q.y) && exact_pair(p.z, q.z)
-    };
-    let p3 = |p: geom_core::Point3<T>, q: geom_core::Point3<T>| {
-        exact_pair(p.x, q.x) && exact_pair(p.y, q.y) && exact_pair(p.z, q.z)
-    };
-    match (a, b) {
-        (
-            Surface::Plane {
-                origin: o1,
-                normal: n1,
-                u_ref: u1,
-            },
-            Surface::Plane {
-                origin: o2,
-                normal: n2,
-                u_ref: u2,
-            },
-        ) => p3(*o1, *o2) && v3(*n1, *n2) && v3(*u1, *u2),
-        (
-            Surface::Cylinder {
-                origin: o1,
-                axis: a1,
-                radius: r1,
-                u_ref: u1,
-            },
-            Surface::Cylinder {
-                origin: o2,
-                axis: a2,
-                radius: r2,
-                u_ref: u2,
-            },
-        ) => p3(*o1, *o2) && v3(*a1, *a2) && exact_pair(*r1, *r2) && v3(*u1, *u2),
-        (
-            Surface::Cone {
-                apex: p1,
-                axis: a1,
-                half_angle: h1,
-                u_ref: u1,
-            },
-            Surface::Cone {
-                apex: p2,
-                axis: a2,
-                half_angle: h2,
-                u_ref: u2,
-            },
-        ) => p3(*p1, *p2) && v3(*a1, *a2) && exact_pair(*h1, *h2) && v3(*u1, *u2),
-        (
-            Surface::Sphere {
-                center: c1,
-                radius: r1,
-                axis: a1,
-                u_ref: u1,
-            },
-            Surface::Sphere {
-                center: c2,
-                radius: r2,
-                axis: a2,
-                u_ref: u2,
-            },
-        ) => p3(*c1, *c2) && exact_pair(*r1, *r2) && v3(*a1, *a2) && v3(*u1, *u2),
-        (
-            Surface::Torus {
-                center: c1,
-                axis: a1,
-                major_radius: j1,
-                minor_radius: m1,
-                u_ref: u1,
-            },
-            Surface::Torus {
-                center: c2,
-                axis: a2,
-                major_radius: j2,
-                minor_radius: m2,
-                u_ref: u2,
-            },
-        ) => {
-            p3(*c1, *c2)
-                && v3(*a1, *a2)
-                && exact_pair(*j1, *j2)
-                && exact_pair(*m1, *m2)
-                && v3(*u1, *u2)
-        }
-        (Surface::Nurbs(x), Surface::Nurbs(y)) => std::sync::Arc::ptr_eq(x, y),
-        // Shared-payload identity, exactly as the `Nurbs` arm: two
-        // faces carrying the same `Arc` carry the same chart. Distinct
-        // payloads answer `false` even when structurally equal —
-        // conservative in the direction this predicate needs.
-        (Surface::Approx(x), Surface::Approx(y)) => std::sync::Arc::ptr_eq(x, y),
-        // Mismatched kinds are never the same chart.
-        _ => false,
+/// Bit-identity of two surface DESCRIPTIONS, read structurally: the
+/// analytic kinds through [`geom::Surface::paired_with`]'s one walk of
+/// their data, every scalar through [`exact_pair`]. Spline payloads
+/// verify only through pointer identity (one shared description
+/// object) — an independent cross-body pair conservatively fails and
+/// takes the typed divergence, which costs nothing the arm gate would
+/// not refuse anyway. Different kinds are never identical.
+pub(crate) fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface<T>) -> bool {
+    use geom::SurfacePairing as P;
+    match a.paired_with(b) {
+        P::KindsDiffer => false,
+        P::Analytic(data) => data
+            .pairs()
+            .all(|(_, x, y)| x.scalars().zip(y.scalars()).all(|(p, q)| exact_pair(p, q))),
+        P::Nurbs(x, y) => std::sync::Arc::ptr_eq(x, y),
+        P::Approx(x, y) => std::sync::Arc::ptr_eq(x, y),
     }
 }
 
@@ -2511,6 +2454,19 @@ fn pcurve_entry<T: Decide + Bounds>(
         // fitted arm, and separate because the inventory names the
         // class it refuses.
         Pcurve::General(_) => Err("General curve-in-UV image is not a straight segment"),
+        // A spiric's chart image is a genuine curve on both of the
+        // charts it lives on — `p0 + pm·f(t) + pa·sin t` on the cap,
+        // and the `atan2(f, d)` azimuth on the wall — so it is in no
+        // clause of the straight-segment inventory. The planar trim
+        // limb owes a curved-boundary polygon before a spiric-bounded
+        // cap can enter it, which is the props/tessellation frontier,
+        // not a missing arm here.
+        Pcurve::Spiric { .. } => Err("Spiric image is not a straight segment"),
+        // A focal section's image is a genuine chart curve (its azimuth
+        // a Kepler anomaly) — the cone's and torus's twin of the
+        // cylinder's tilted-cut sinusoid above.
+        Pcurve::FocalSection(_) => Err("FocalSection image is not a straight segment"),
+        Pcurve::Projected(_) => Err("Projected image is not a straight segment"),
     }
 }
 
@@ -2531,7 +2487,15 @@ fn loop_uv_polygon<T: Decide + Bounds>(
         return Err(ChartRegionError::Corrupt); // an empty loop bounds no region
     };
     let mut poly = Vec::new();
-    for he in body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)? {
+    let cycle = body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)?;
+    // The minted rows as the loop's lift places them
+    // ([`crate::Body::loop_lift`]); a loop with no lift reads as rowless
+    // here, and each half refuses or derives below.
+    let lifted = match read {
+        ChartRead::Minted => crate::pcurves::lifted_images(body, &cycle),
+        ChartRead::WorldCarrier => vec![None; cycle.len()],
+    };
+    for (he, image) in cycle.into_iter().zip(lifted) {
         let he_data = body.get_half_edge(he).ok_or(ChartRegionError::Corrupt)?;
         let edge = body
             .get_edge(he_data.edge)
@@ -2542,12 +2506,10 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             half_edge: he,
             what,
         };
-        let cache = (read == ChartRead::Minted)
-            .then(|| body.pcurve(he))
-            .flatten();
-        let entry = if let Some(cache) = cache {
+        let cache = body.pcurve(he).zip(image);
+        let entry = if let Some((cache, image)) = cache {
             let (t0, t1) = cache.params();
-            pcurve_entry(cache.pcurve(), t0, t1, forward).map_err(refuse)?
+            pcurve_entry(&image, t0, t1, forward).map_err(refuse)?
         } else if matches!(surface, Surface::Plane { .. }) {
             // Derive-on-demand affine image (C4's standing plane
             // status). A plane chart has no branches, so the
@@ -2931,7 +2893,7 @@ fn bit_equal_cyclic<T: Decide + Bounds>(a: &[Point2<T>], b: &[Point2<T>]) -> boo
     (0..n).any(|shift| (0..n).all(|i| ea[i] == eb[(i + shift) % n]))
 }
 
-/// The trilean 2-D point-in-polygon verdict — [`crate::ray_parity`]'s
+/// The trilean 2-D point-in-polygon verdict — [`crate::ray_walk`]'s
 /// walk in chart space, with its own direction schedule and its own
 /// K rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2979,9 +2941,9 @@ pub(crate) const SCHEDULE_2D: [Vec2<f64>; 16] = [
     Vec2::new(1.0, -0.75),
 ];
 
-/// This consumer's K rows for the shared walk ([`crate::ray_parity`]),
+/// This consumer's K rows for the shared walk ([`crate::ray_walk`]),
 /// and the greppable roster entry for all four (see
-/// [`crate::ray_parity::ParityRows`]).
+/// [`crate::ray_walk::ParityRows`]).
 /// Chart-space margins are metered separately from the 3-D loop's —
 /// the polygon is metred by the exact arms, but it is a different
 /// population — so the names stay distinct even though the walk is one.
@@ -2994,8 +2956,8 @@ const ROWS: ParityRows = ParityRows {
 
 /// Ray-parity containment of `q` in the (CCW, metred) `poly`.
 ///
-/// The walk is [`crate::ray_parity`]'s, shared with the 3-D
-/// `point_in_loop`; what this function owns is the 2-D frame, which
+/// The walk is [`crate::ray_walk`]'s, shared with the 3-D
+/// `point_in_vertex_polygon`; what this function owns is the 2-D frame, which
 /// needs no arm gate (see [`SCHEDULE_2D`]).
 ///
 /// # Rows (margins re-derived for chart space; all metres because the
@@ -3014,6 +2976,9 @@ const ROWS: ParityRows = ParityRows {
 ///   `over_lever(x_i·y_j − x_j·y_i, y_j − y_i)` — a 2×2 determinant
 ///   (m²) over its straddle height (m); Zero would contradict the
 ///   boundary pre-pass ⇒ next ray.
+///
+/// The last two are facts about one ray: an in-band reading on either
+/// sets the ray aside ([`ray_walk::walk`]).
 fn point_in_polygon<T: Decide>(
     poly: &[Point2<T>],
     q: Point2<T>,
@@ -3021,25 +2986,26 @@ fn point_in_polygon<T: Decide>(
 ) -> Result<PolyContainment, ChartRegionError> {
     let escalate = ChartRegionError::Escalated;
 
-    if ray_parity::on_boundary(poly, q, &ROWS, band).map_err(escalate)? {
+    if ray_walk::on_boundary(poly, q, &ROWS, band).map_err(escalate)? {
         return Ok(PolyContainment::OnBoundary);
     }
-
-    // Ray parity with the fixed schedule.
-    for r in &SCHEDULE_2D {
-        let d = r.map(T::from_f64).normalize();
-        let side_axis = Vec2::new(T::zero() - d.y, d.x); // in-plane ⟂, unit
-        if let Some(inside) =
-            ray_parity::ray_verdict(poly, q, d, side_axis, &ROWS, band).map_err(escalate)?
-        {
-            return Ok(if inside {
-                PolyContainment::In
-            } else {
-                PolyContainment::Out
-            });
-        }
-    }
-    Err(ChartRegionError::RayExhausted)
+    let inside = ray_walk::walk(
+        &SCHEDULE_2D,
+        |r| {
+            let d = r.map(T::from_f64).normalize();
+            let side_axis = Vec2::new(T::zero() - d.y, d.x); // in-plane ⟂, unit
+            RayFault::of(
+                ray_walk::ray_verdict(poly, q, d, side_axis, &ROWS, band),
+                escalate,
+            )
+        },
+        || ChartRegionError::RayExhausted,
+    )?;
+    Ok(if inside {
+        PolyContainment::In
+    } else {
+        PolyContainment::Out
+    })
 }
 
 /// A proper (transverse, segment-interior) boundary crossing between
@@ -3119,7 +3085,7 @@ struct Crossing<T: Decide> {
 ///   one it would protect.
 ///
 /// What is NOT claimed, and is the module's standing posture: the ray
-/// schedule in [`crate::ray_parity`] is fixed in CHART coordinates, so
+/// schedule in [`crate::ray_walk`] is fixed in CHART coordinates, so
 /// which configurations refuse rather than decide still rotates with
 /// the frame.
 fn proper_crossings<T: Decide>(
@@ -3560,7 +3526,7 @@ fn overlap_of_regions<T: Decide + Bounds>(
     match decide("chart_region_area", area_margin, band) {
         Ok(Sign::Positive) => Ok(ChartOverlap::PositiveArea),
         // A definite Zero/Negative here is NOT an invalid question
-        // (union fix U5: `MarginDiag::Invalid` means never-posed —
+        // (union fix U5: `MarginKind::Invalid` means never-posed —
         // NaN/poison — which this is not): the margin was posed and
         // answered; the conservative ring deduction just leaves no
         // certifiable direction. Echo the classified margin itself.
@@ -3607,6 +3573,64 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// **A poisoned overlap decision ends in the build's defect ending**
+    /// (D4 ¶1 (i)): no declaration or move makes an unreadable margin
+    /// readable. A margin that was read keeps the coincidence menu.
+    #[test]
+    fn a_poisoned_overlap_escalation_ends_in_the_defect_ending() {
+        let diag = |margin| Indeterminate {
+            margin,
+            band: band(),
+            predicate: Some("chart_region_cyl_axis_sense"),
+            terminal_sliver: false,
+        };
+        let poisoned = ChartRegionError::Escalated(diag(geom_core::MarginDiag::INVALID));
+        let text = poisoned.to_string();
+        assert!(
+            text.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
+            "{text}"
+        );
+        assert!(!text.contains("declare"), "{text}");
+        let in_band = ChartRegionError::Escalated(diag(geom_core::MarginDiag::value(5e-9)));
+        assert!(
+            in_band
+                .to_string()
+                .contains(geom_core::COINCIDENCE_RECOURSE),
+            "{in_band}"
+        );
+    }
+
+    /// **A ray read in band is set aside, and a later ray answers**
+    /// (`work/chart/chart-region-polygon-walk-refuses-on-a-ray-level-margin`).
+    /// The square's right side carries a vertex `3e-9` off the `+x` ray
+    /// line from its centre — in the band of the first schedule member's
+    /// `chart_region_side` row — and `+y` reads the centre inside.
+    #[test]
+    fn a_ray_read_in_band_is_set_aside_and_a_later_ray_answers() {
+        let poly = [
+            Point2::new(0.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 1.0 + 3e-9),
+            Point2::new(2.0, 2.0),
+            Point2::new(0.0, 2.0),
+        ];
+        let q = Point2::new(1.0, 1.0);
+        let first = ray_walk::ray_verdict(
+            &poly,
+            q,
+            Vec2::new(1.0, 0.0),
+            Vec2::new(0.0, 1.0),
+            &ROWS,
+            band(),
+        );
+        assert!(first.is_err(), "the first ray reads in band: {first:?}");
+        assert_eq!(point_in_polygon(&poly, q, band()), Ok(PolyContainment::In));
+        assert_eq!(
+            point_in_polygon(&poly, Point2::new(3.0, 1.0), band()),
+            Ok(PolyContainment::Out)
+        );
+    }
+
     /// **`ChartRegionError`'s header claim, made enforceable.** The
     /// enum's doc says *"every arm names its recourse"*, and NINE of
     /// the thirteen did not — they stated a condition and stopped.
@@ -3647,9 +3671,10 @@ mod tests {
             "declare",
         ];
         let diag = Indeterminate {
-            margin: geom_core::MarginDiag::Value(5e-9),
+            margin: geom_core::MarginDiag::value(5e-9),
             band: band(),
             predicate: Some("chart_region_area"),
+            terminal_sliver: false,
         };
         // Every arm, constructed. The list is exhaustive by
         // inspection and the compiler cannot check that for a Vec, so
@@ -3676,13 +3701,16 @@ mod tests {
             },
             ChartRegionError::Escalated(diag),
             ChartRegionError::RayExhausted,
-            ChartRegionError::WitnessBudgetExhausted {
-                segments: WITNESS_BUDGET.segments + 1,
-                cells: 0,
+            ChartRegionError::WitnessSegmentCapExceeded {
+                segments: WITNESS_SEGMENT_CAP + 1,
+            },
+            ChartRegionError::WitnessCellCapExceeded {
+                segments: WITNESS_SEGMENT_CAP,
+                cells: WITNESS_CELL_CAP,
             },
             ChartRegionError::Corrupt,
         ];
-        assert_eq!(arms.len(), 13, "an arm was added without a row here");
+        assert_eq!(arms.len(), 14, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             // `Escalated` delegates to `Indeterminate`, whose Display
@@ -3698,6 +3726,32 @@ mod tests {
                 "no recourse in: {msg}"
             );
         }
+    }
+
+    /// Each witness-cap face's text names its own cap. The variants
+    /// and payloads are the walk's, pinned where the walk reaches them
+    /// (`r2p5_segment_cap_exhausts_on_a_fat_decidable_overlap`,
+    /// `r2p7_cell_cap_is_reachable_inside_the_segment_cap`); this row
+    /// checks only that the two texts do not trade levers.
+    #[test]
+    fn each_witness_cap_refusal_names_its_own_cap() {
+        let segment = ChartRegionError::WitnessSegmentCapExceeded {
+            segments: WITNESS_SEGMENT_CAP + 1,
+        }
+        .to_string();
+        let cell = ChartRegionError::WitnessCellCapExceeded {
+            segments: WITNESS_SEGMENT_CAP,
+            cells: WITNESS_CELL_CAP,
+        }
+        .to_string();
+        let names = |msg: &str, cap: &str, n: usize| msg.contains(&format!("{cap} cap of {n}"));
+        assert!(
+            names(&segment, "segment", WITNESS_SEGMENT_CAP)
+                && !segment.contains("cell cap")
+                && names(&cell, "cell", WITNESS_CELL_CAP)
+                && !cell.contains("segment cap"),
+            "segment face: {segment}\ncell face: {cell}"
+        );
     }
 
     /// Exact coordinate equality (Point2 carries no PartialEq).
@@ -3749,6 +3803,48 @@ mod tests {
     /// A full-period chart rectangle: seam at `u0`, span exactly τ.
     fn wrap_rect(u0: f64, v0: f64, v1: f64) -> Vec<Point2<f64>> {
         rect(u0, v0, u0 + core::f64::consts::TAU, v1)
+    }
+
+    /// The band is the corners' own values, never their bits re-entered
+    /// as constants: built at `Sym<f64>` with the seam and the band's
+    /// ends as parameters, the returned `v` ends re-value with the
+    /// parameters, and the full-period span discharges as a theorem.
+    #[test]
+    fn the_wrap_band_keeps_its_corners_in_t() {
+        use geom_core::sym::revalue::revalue;
+        use geom_core::sym::with_session;
+        use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+        type S = Sym<f64>;
+        let (seam, lo, hi) = (
+            ParamSymbol::new(1),
+            ParamSymbol::new(2),
+            ParamSymbol::new(3),
+        );
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let (revalued, counts) = with_session(budget, || {
+            let u0 = S::from_f64(0.3) + S::param(seam, 0.0);
+            let u1 = u0 + S::tau();
+            let v0 = S::param(lo, 0.0);
+            let v1 = S::from_f64(1.0) + S::param(hi, 0.0);
+            let corners = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)].map(|(u, v)| Point2::new(u, v));
+            let (b0, b1) = wrap_band(&corners, S::from_f64(2.0), band())
+                .unwrap()
+                .expect("a full-period rectangle is a band");
+            let at = |s: ParamSymbol| Some(if s == hi { 0.125 } else { 0.0625 });
+            (revalue(b0.node(), &at), revalue(b1.node(), &at))
+        });
+        assert_eq!(
+            revalued,
+            (Some(0.0625), Some(1.125)),
+            "the band's ends are the corners' expressions, re-valued at the moved parameters"
+        );
+        assert_eq!(
+            counts.symbolic, 1,
+            "the span (u0 + τ) − u0 − τ is the zero polynomial in the seam parameter"
+        );
     }
 
     #[test]
@@ -4180,7 +4276,6 @@ mod tests {
     // ------------------------------------------------------------------
 
     use crate::euler::{FaceSurface, MefSite, MevSite};
-    use crate::source::GeomSource;
     use crate::test_support_fixtures::unit_cyl_sheet;
     use geom::Curve3;
     use geom_brep::EdgeCurveSpec;
@@ -4230,7 +4325,7 @@ mod tests {
     ) -> FaceKey {
         let c = |x: f64, y: f64| Point3::new(x, y, 0.0);
         let (a, b, cc, d) = (c(x0, y0), c(x1, y0), c(x1, y1), c(x0, y1));
-        let seed = body.mvfs(a).unwrap();
+        let seed = body.mvfs(a, true).unwrap();
         let e_ab = body
             .mev_line(
                 MevSite::Lone {
@@ -4281,15 +4376,39 @@ mod tests {
         // One body, two coplanar rectangle faces on ONE SurfaceKey —
         // the at-rest site. The plane chart is derive-on-demand (C4).
         let mut body = Body::<f64>::new();
-        let f1 = sheet(&mut body, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+        let f1 = sheet(
+            &mut body,
+            0.0,
+            0.0,
+            2.0,
+            2.0,
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
+        );
         let key = body.get_face(f1).unwrap().surface;
-        let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::Shared(key));
+        let f2 = sheet(
+            &mut body,
+            1.0,
+            1.0,
+            3.0,
+            3.0,
+            FaceSurface::Shared { key, sense: true },
+        );
         assert_eq!(
             chart_region_overlap(&body, f1, &body, f2, band()).unwrap(),
             ChartOverlap::PositiveArea
         );
         // Disjoint regions answer EMPTY — stale at the consumer.
-        let f3 = sheet(&mut body, 5.0, 5.0, 6.0, 6.0, FaceSurface::Shared(key));
+        let f3 = sheet(
+            &mut body,
+            5.0,
+            5.0,
+            6.0,
+            6.0,
+            FaceSurface::Shared { key, sense: true },
+        );
         assert_eq!(
             chart_region_overlap(&body, f1, &body, f3, band()).unwrap(),
             ChartOverlap::Empty
@@ -4302,7 +4421,7 @@ mod tests {
     }
 
     #[test]
-    fn rung2_shared_source_certifies_and_rung3_escalates() {
+    fn bit_identical_charts_certify_and_divergent_ones_escalate() {
         let mut body_a = Body::<f64>::new();
         let fa = sheet(
             &mut body_a,
@@ -4310,9 +4429,11 @@ mod tests {
             0.0,
             2.0,
             2.0,
-            FaceSurface::New(xy_plane()),
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
         );
-        let ka = body_a.get_face(fa).unwrap().surface;
         let mut body_b = Body::<f64>::new();
         let fb = sheet(
             &mut body_b,
@@ -4320,45 +4441,34 @@ mod tests {
             1.0,
             3.0,
             3.0,
-            FaceSurface::New(xy_plane()),
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
         );
-        let kb = body_b.get_face(fb).unwrap().surface;
 
-        // No sources: value-equal descriptions do NOT glue (C2).
-        match chart_region_overlap(&body_a, fa, &body_b, fb, band()) {
-            Err(ChartRegionError::ChartDivergence { .. }) => {}
-            other => panic!("sourceless cross-body pair must escalate, got {other:?}"),
-        }
-
-        // Rung 2: the same GeomSource ⇒ bit-identical descriptions ⇒
-        // the identical chart (N6) — the pair certifies.
-        body_a
-            .set_surface_source(ka, GeomSource::minted(7, 0))
-            .unwrap();
-        body_b
-            .set_surface_source(kb, GeomSource::minted(7, 0))
-            .unwrap();
+        // Two bit-identical descriptions in two arenas are one chart.
         assert_eq!(
             chart_region_overlap(&body_a, fa, &body_b, fb, band()).unwrap(),
             ChartOverlap::PositiveArea
         );
 
-        // Rung 3 (independent recipes): typed chart divergence.
-        body_b
-            .set_surface_source(kb, GeomSource::minted(8, 0))
-            .unwrap();
-        match chart_region_overlap(&body_a, fa, &body_b, fb, band()) {
+        // The same locus on a rotated chart frame: typed divergence.
+        let mut body_c = Body::<f64>::new();
+        let fc = sheet(
+            &mut body_c,
+            1.0,
+            1.0,
+            3.0,
+            3.0,
+            FaceSurface::New {
+                surface: xy_plane_rotated(),
+                sense: true,
+            },
+        );
+        match chart_region_overlap(&body_a, fa, &body_c, fc, band()) {
             Err(ChartRegionError::ChartDivergence { .. }) => {}
-            other => panic!("distinct sources must escalate, got {other:?}"),
-        }
-
-        // Same base, flipped orientation: the mirrored chart diverges.
-        body_b
-            .set_surface_source(kb, GeomSource::minted(7, 0).reverted())
-            .unwrap();
-        match chart_region_overlap(&body_a, fa, &body_b, fb, band()) {
-            Err(ChartRegionError::ChartDivergence { .. }) => {}
-            other => panic!("reverted source must escalate, got {other:?}"),
+            other => panic!("divergent charts must escalate, got {other:?}"),
         }
     }
 
@@ -4451,13 +4561,11 @@ mod tests {
             "the tilted section's v channel is a live cosine — the class the gate excludes"
         );
         let (t0, t1) = (0.2, 1.6);
-        let window = pcurve.chart_box(t0, t1);
-        let cache =
-            geom_brep::PcurveCache::certify(pcurve, t0, t1, &ellipse, &surface, window, band())
-                .expect(
-                    "the sinusoid image itself certifies (C5 row) — the exclusion is the \
+        let cache = geom_brep::PcurveCache::certify(pcurve, t0, t1, &ellipse, &surface, band())
+            .expect(
+                "the sinusoid image itself certifies (C5 row) — the exclusion is the \
                          REGION machinery's, not the cache's",
-                );
+            );
         // Plant it on the wall's bottom rim: the region query must
         // refuse typed at the inventory gate.
         let bottom_he = {
@@ -4556,31 +4664,58 @@ mod tests {
             assert_pt(pcurve_entry(&h, 0.5, 1.0, true).unwrap(), 0.75, 1.5);
         }
 
-        // ---- Claim 2: the same-chart lane is airtight (and its trust
-        // boundary is source attachment, not surface values).
+        // ---- Claim 2: the same-chart lane is airtight, its boundary
+        // the descriptions' bits.
         #[test]
-        fn r1_value_equal_but_distinct_keys_on_one_body_escalate() {
+        fn r1_bit_equal_distinct_keys_on_one_body_share_a_chart() {
             let mut body = Body::<f64>::new();
-            let f1 = sheet(&mut body, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
-            let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::New(xy_plane()));
-            match chart_region_overlap(&body, f1, &body, f2, band()) {
-                Err(ChartRegionError::ChartDivergence { .. }) => {}
-                other => panic!("value-equal distinct keys must escalate, got {other:?}"),
-            }
+            let f1 = sheet(
+                &mut body,
+                0.0,
+                0.0,
+                2.0,
+                2.0,
+                FaceSurface::New {
+                    surface: xy_plane(),
+                    sense: true,
+                },
+            );
+            let f2 = sheet(
+                &mut body,
+                1.0,
+                1.0,
+                3.0,
+                3.0,
+                FaceSurface::New {
+                    surface: xy_plane(),
+                    sense: true,
+                },
+            );
+            assert_eq!(
+                chart_region_overlap(&body, f1, &body, f2, band()).unwrap(),
+                ChartOverlap::PositiveArea,
+                "bit-equal descriptions under distinct keys are one chart"
+            );
         }
 
         #[test]
-        fn r1_the_lane_trusts_source_attachment_not_surface_values() {
-            // The SAME minted source attached to value-DIFFERENT plane
-            // descriptions (u_ref x̂ vs ŷ). As reviewed, the lane
-            // admitted on recipe identity alone (this probe recorded
-            // PositiveArea); the union fix (U1) VERIFIES N6's
-            // bit-identity conclusion through the module's own
-            // exact-bracket comparator, so the forged pair now refuses
-            // typed — the rung-2 premise is checked, never assumed.
+        fn r1_the_lane_reads_surface_bits() {
+            // Value-DIFFERENT plane descriptions of one locus (u_ref x̂
+            // vs ŷ) across two arenas: the lane reads the descriptions'
+            // bits through the module's exact-bracket comparator, so
+            // the pair refuses typed.
             let mut a = Body::<f64>::new();
-            let fa = sheet(&mut a, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
-            let ka = a.get_face(fa).unwrap().surface;
+            let fa = sheet(
+                &mut a,
+                0.0,
+                0.0,
+                2.0,
+                2.0,
+                FaceSurface::New {
+                    surface: xy_plane(),
+                    sense: true,
+                },
+            );
             let mut b = Body::<f64>::new();
             let fb = sheet(
                 &mut b,
@@ -4588,14 +4723,14 @@ mod tests {
                 1.0,
                 3.0,
                 3.0,
-                FaceSurface::New(xy_plane_rotated()),
+                FaceSurface::New {
+                    surface: xy_plane_rotated(),
+                    sense: true,
+                },
             );
-            let kb = b.get_face(fb).unwrap().surface;
-            a.set_surface_source(ka, GeomSource::minted(3, 0)).unwrap();
-            b.set_surface_source(kb, GeomSource::minted(3, 0)).unwrap();
             match chart_region_overlap(&a, fa, &b, fb, band()) {
                 Err(ChartRegionError::ChartDivergence { .. }) => {}
-                other => panic!("forged same-source pair must diverge, got {other:?}"),
+                other => panic!("value-different charts must diverge, got {other:?}"),
             }
         }
 
@@ -4862,7 +4997,7 @@ mod inf_arms {
     /// `[0, su] × [0, sv]`: `|S_u| = su`, `|S_v| = sv`, `S_u·S_v = 0`.
     /// At any scalar, the corners lifted componentwise from `f64`, so
     /// `inf_arms_interval` reads the same chart at `Interval`.
-    pub(super) fn flat_chart<T: geom_core::Real>(su: f64, sv: f64) -> Surface<T> {
+    pub(super) fn flat_chart<T: geom_core::spline::SpanLocate>(su: f64, sv: f64) -> Surface<T> {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let f = T::from_f64;
         let control = vec![
@@ -4872,7 +5007,13 @@ mod inf_arms {
             Point3::new(f(su), f(sv), f(0.0)),
         ];
         Surface::Nurbs(Arc::new(
-            NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+            NurbsSurface::new(
+                geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                vec![geom_core::Real::one(); 4],
+            )
+            .unwrap(),
         ))
     }
 
@@ -4893,7 +5034,13 @@ mod inf_arms {
             Point3::new(0.0, 1.0, 0.0),
         ];
         Surface::Nurbs(Arc::new(
-            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+            NurbsSurface::new(
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                vec![geom_core::Real::one(); 6],
+            )
+            .unwrap(),
         ))
     }
 
@@ -5013,7 +5160,13 @@ mod inf_arms {
             Point3::new(4.25, 1.0, 0.0),
         ];
         let s: Surface<f64> = Surface::Nurbs(Arc::new(
-            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+            NurbsSurface::new(
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                vec![geom_core::Real::one(); 6],
+            )
+            .unwrap(),
         ));
         let inf_u = geom_brep::chart_stretch_inf(&s).inf_u;
         let sup_u = geom_brep::chart_stretch_sup(&s).unwrap().0.get();
@@ -5087,7 +5240,13 @@ mod inf_arms {
             control.push(Point3::new(x, 1.0, 0.0));
         }
         let s: Surface<f64> = Surface::Nurbs(Arc::new(
-            NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap(),
+            NurbsSurface::new(
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                vec![geom_core::Real::one(); 8],
+            )
+            .unwrap(),
         ));
         let inf = geom_brep::chart_stretch_inf(&s);
         // The u stretch spans three orders on ONE chart: the middle
@@ -5133,9 +5292,29 @@ mod inf_arms {
         // its refusals name, so the cheapest well-formed sheet serves:
         // the CHART under test is `s`, passed alongside.
         let mut ba = Body::<f64>::new();
-        let fa = sheet(&mut ba, 0.0, 0.0, 1.0, 1.0, FaceSurface::New(xy_plane()));
+        let fa = sheet(
+            &mut ba,
+            0.0,
+            0.0,
+            1.0,
+            1.0,
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
+        );
         let mut bb = Body::<f64>::new();
-        let fb = sheet(&mut bb, 0.0, 0.0, 1.0, 1.0, FaceSurface::New(xy_plane()));
+        let fb = sheet(
+            &mut bb,
+            0.0,
+            0.0,
+            1.0,
+            1.0,
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
+        );
         let s = sphere(2.0);
         // u spans π/2 (1.5708); v stays inside |v| ≤ 0.3.
         let uv_a = uv(rect(1.40, -0.30, 1.60, -0.10), vec![]);
@@ -5178,7 +5357,7 @@ mod inf_arms {
 }
 
 /// **The inf-arm rows under the INTERVAL scalar** (review item 4:
-/// nothing in the original diff ran `net_inf`, `chart_stretch_inf` or
+/// nothing in the original diff ran `chart_stretch_inf` or
 /// `certified_arms` under anything but `f64`, and both reviewers had
 /// to write their own probes to find out whether they work at all).
 ///
@@ -5256,7 +5435,13 @@ mod inf_arms_interval {
             p(0.0, 1.0),
         ];
         let s: Surface<Interval> = Surface::Nurbs(Arc::new(
-            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+            NurbsSurface::new(
+                geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                vec![geom_core::Real::one(); 6],
+            )
+            .unwrap(),
         ));
         // The interval quotient divides by a bracket straddling zero,
         // so the floor is 0 and the bracket is wide — the honest
@@ -5304,7 +5489,7 @@ mod inf_arms_interval {
 mod r2_mate8_probes {
     //! Blinded-review probes (lane R2, PR #1472): adversarial edge
     //! cases for `decomposition_witness`'s completeness argument and
-    //! its budget guard. Probe-branch only; not part of the unit.
+    //! its cap guards. Probe-branch only; not part of the unit.
     use super::tests::{rect, uv};
     use super::*;
 
@@ -5438,14 +5623,14 @@ mod r2_mate8_probes {
         );
     }
 
-    /// P5 — the SEGMENT budget: two 70-gon "discs" in fat, decidable
+    /// P5 — the SEGMENT cap: two 70-gon "discs" in fat, decidable
     /// overlap carry 140 > 128 segments, and the schedule stops
-    /// WITHOUT PROBING AT ALL. The outcome is an EXHAUSTION carrying
-    /// both counts, not a decline: the overlap here is not thin, and
+    /// WITHOUT PROBING AT ALL. The outcome is the segment cap's
+    /// exhaustion, carrying the segment count, not a decline: the overlap here is not thin, and
     /// the caller must not spell this as the `TouchingBoundary` that
     /// says it is.
     #[test]
-    fn r2p5_segment_budget_exhausts_on_a_fat_decidable_overlap() {
+    fn r2p5_segment_cap_exhausts_on_a_fat_decidable_overlap() {
         let ngon = |cx: f64, n: usize| -> Vec<Point2<f64>> {
             (0..n)
                 .map(|i| {
@@ -5463,15 +5648,12 @@ mod r2_mate8_probes {
         });
         assert_eq!(
             found,
-            WitnessOutcome::BudgetExhausted {
-                segments: 140,
-                cells: 0
-            },
-            "over-budget: the schedule says so, and says how far it got"
+            WitnessOutcome::SegmentCapExceeded { segments: 140 },
+            "over the segment cap: the schedule says so, and names that cap"
         );
         assert_eq!(calls, 0, "and it stops before offering anything");
         // The same pair one segment under the cap certifies fine —
-        // the exhaustion above is the budget's, not the geometry's.
+        // the exhaustion above is the cap's, not the geometry's.
         let a64 = uv(ngon(0.0, 64), vec![]);
         let b64 = uv(ngon(1.0, 64), vec![]);
         assert_eq!(
@@ -5482,11 +5664,11 @@ mod r2_mate8_probes {
         );
     }
 
-    /// P6 — the CELL budget is a hard cap on probe calls (structural
+    /// P6 — the CELL cap is a hard cap on probe calls (structural
     /// companion to P5): an always-false probe on a busy pair is
-    /// called at most `WITNESS_BUDGET.cells` times.
+    /// called at most [`WITNESS_CELL_CAP`] times.
     #[test]
-    fn r2p6_cell_budget_caps_probe_calls() {
+    fn r2p6_cell_cap_caps_probe_calls() {
         let ngon = |cx: f64, n: usize| -> Vec<Point2<f64>> {
             (0..n)
                 .map(|i| {
@@ -5503,20 +5685,21 @@ mod r2_mate8_probes {
             false
         });
         assert_ne!(found, WitnessOutcome::Certified);
-        assert!(calls <= WITNESS_BUDGET.cells, "{calls} probes");
+        assert!(calls <= WITNESS_CELL_CAP, "{calls} probes");
         assert!(calls > 0, "the pair is busy enough to probe at all");
     }
 
     /// P7 — **the cell cap is reachable INSIDE the segment cap**, which
-    /// is the claim [`WITNESS_BUDGET`]'s own doc makes and the reason
+    /// is the claim [`WITNESS_SEGMENT_CAP`]'s own doc makes and the reason
     /// it cannot say "large enough never to bind". A comb of 28 teeth
     /// (56 stacked horizontal runs, 114 segments) against one thin
     /// tilted crosser (4 segments) is 118 segments — under the
-    /// 128-segment cap — and its arrangement overruns 4096 cells.
+    /// 128-segment cap — and its arrangement has more than 4096 cells.
     ///
     /// The load-bearing number is the SEGMENT count. The cell figure
-    /// is forced: the walk returns the instant `spent > cells`, so any
-    /// pair reaching the cap reports exactly `cells + 1` and that
+    /// is forced: the walk stops once it has probed
+    /// [`WITNESS_CELL_CAP`] cells and meets another, so any pair
+    /// reaching the cap reports exactly the cap and that
     /// assertion says nothing about this fixture. What is specific to
     /// the fixture is 118 and its tightness — 27 teeth carries 114
     /// segments, spends 3970 cells and walks its arrangement to the
@@ -5535,7 +5718,7 @@ mod r2_mate8_probes {
     /// two spanning sides whatever its shape — which is why the factor
     /// is structural rather than a property of this fixture.
     #[test]
-    fn r2p7_cell_budget_is_reachable_inside_the_segment_cap() {
+    fn r2p7_cell_cap_is_reachable_inside_the_segment_cap() {
         // A comb, walked as a simple polygon: up the spine, out along
         // each tooth's underside, back along its top.
         let teeth = 28usize;
@@ -5556,7 +5739,7 @@ mod r2_mate8_probes {
         ];
         let segments = comb.len() + crosser.len();
         assert!(
-            segments <= WITNESS_BUDGET.segments,
+            segments <= WITNESS_SEGMENT_CAP,
             "{segments} segments must be under the segment cap for this row to \
              say anything"
         );
@@ -5569,9 +5752,9 @@ mod r2_mate8_probes {
         });
         assert_eq!(
             found,
-            WitnessOutcome::BudgetExhausted {
+            WitnessOutcome::CellCapExceeded {
                 segments,
-                cells: WITNESS_BUDGET.cells + 1
+                cells: WITNESS_CELL_CAP
             },
             "{segments} segments, {calls} probes"
         );
@@ -5592,5 +5775,120 @@ mod r2_mate8_probes {
         });
         assert_eq!(found, WitnessOutcome::Declined);
         assert!(calls > 0, "the arrangement was actually walked");
+    }
+}
+
+#[cfg(test)]
+mod from_computed_rows {
+    #![allow(clippy::unwrap_used)]
+    use geom_core::{Band, Point3, Real, Tol};
+
+    use super::{ChartOverlap, declared_pair_overlap};
+    use crate::Body;
+    use crate::contact::ContactVerdict;
+    use crate::revalue_pin::{Revalued, S, revalued};
+    use crate::test_support_fixtures::{FaceGeometry, prism_ops};
+
+    /// The interior witness enters as computed values: the thin
+    /// overhang seat (`mate8_witness_schedule.rs`) at `Sym<f64>`, every
+    /// coordinate scaled by the parameter, its region walk refusing on
+    /// the touching boundary and the witness rung certifying a point its
+    /// `f64` decomposition chose. The scale is a power of two, so both
+    /// builds decompose alike, and no decision re-values to the point
+    /// `p0` chose.
+    #[test]
+    fn the_interior_witness_enters_as_computed() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let cap = [
+            (0.20, 0.20),
+            (0.40, 0.30),
+            (0.60, 0.42),
+            (0.70, 0.30),
+            (0.80, 0.42),
+            (0.85, 0.50),
+            (0.15, 0.50),
+            (0.25, 0.30),
+        ];
+        let shelf = [(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)];
+        let found = revalued([1.0, 2.0], |_, s| {
+            let at = |x: f64, y: f64, z: f64| Point3::new(x, y, z).map(|c| S::from_f64(c) * s);
+            let (mut post, mut over) = (Body::<S>::new(), Body::<S>::new());
+            let top = prism_ops(
+                &mut post,
+                &cap,
+                (0.0, 0.5),
+                at,
+                FaceGeometry::Certified,
+                tol,
+            )
+            .seed
+            .face;
+            let under = prism_ops(
+                &mut over,
+                &shelf,
+                (0.5, 0.54),
+                at,
+                FaceGeometry::Certified,
+                tol,
+            )
+            .bottom
+            .face;
+            let got =
+                declared_pair_overlap(&post, top, &over, under, ContactVerdict::Definite, band);
+            assert_eq!(
+                got,
+                Ok(ChartOverlap::PositiveArea),
+                "the witness rung certifies the seat"
+            );
+            Vec::new()
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 1189,
+                opaque: 186,
+                laundered: 0,
+            },
+            "the decisions at the witness are opaque, and the rest re-value with the scale"
+        );
+    }
+}
+
+/// **The cross-description fold is a literal number of periods.** Over
+/// a box, windows `k` periods apart as polynomials that are not
+/// constants, at `k` either side of zero: the fold's shift less `k`
+/// periods is the zero polynomial.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod period_fold_rows {
+    use super::*;
+    use geom_core::{Real, Sym};
+
+    #[test]
+    fn the_fold_is_its_whole_periods_as_a_theorem_over_a_box() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        for k in [-1.0, 0.0, 1.0, 2.0] {
+            let (out, counts) =
+                crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
+                    let Fold::One(shift) = period_fold(a - b, Sym::from_f64(2.0), band).unwrap()
+                    else {
+                        panic!("k = {k}: a gap of whole periods sits on no mark");
+                    };
+                    crate::validate::decide(
+                        "period_fold_row",
+                        Margin::of(shift - Sym::from_f64(k) * Sym::tau()),
+                        band,
+                    )
+                });
+            assert!(
+                matches!(out, Ok(Sign::Zero)),
+                "k = {k}: the fold is {k} periods: {out:?}"
+            );
+            assert_eq!(
+                counts.symbolic, 1,
+                "k = {k}: the shift less kτ is the zero polynomial"
+            );
+        }
     }
 }

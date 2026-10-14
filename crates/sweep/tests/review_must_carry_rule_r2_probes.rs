@@ -9,10 +9,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::{MustCarryVerdict, SurfaceKind, must_carry_over_edge, tangent_certificate_lane};
+use geom_brep::{
+    MustCarryEscalation, MustCarryVerdict, must_carry_over_edge, tangent_certificate_lane,
+};
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
@@ -45,12 +49,19 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
         (Point2::new(q, 1.0), b),
         (Point2::new(0.0, 1.0 - q), 0.0),
         (Point2::new(0.0, q), b),
-    ])
-    .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the filleted block is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness()).map(|e| e.body)
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body)
 }
 
 /// A ring whose bore cylinder of radius `r_bore` meets a torus of
@@ -70,8 +81,7 @@ fn bored_ring(r_bore: f64) -> Result<Body<f64>, sweep::RevolveError> {
         (Point2::new(outer, -h), 0.0),
         (shoulder, bulge),
         (Point2::new(r_bore, 0.0), 0.0),
-    ])
-    .with_tangent_joints(vec![3]);
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the bored ring is a valid profile");
@@ -120,8 +130,8 @@ fn check_payload(source: &geom_core::Indeterminate, margin: f64) {
         "the refusal names the rule's one metered predicate"
     );
     let b = band();
-    match source.margin {
-        geom_core::MarginDiag::Value(m) => assert!(
+    match source.margin.diagnostic_f64_for_error_text() {
+        geom_core::ErrorTextReading::Value(m) => assert!(
             m.abs() > b.zero() && m.abs() < b.escalate(),
             "the reported margin is inside the band at the rung asking for {margin:e}: \
              {m:e} against ({:e}, {:e})",
@@ -257,21 +267,21 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
     ];
     for a in &reps {
         for b in &reps {
-            let (a_line, a_circle) = expected(SurfaceKind::of(a));
-            let (b_line, b_circle) = expected(SurfaceKind::of(b));
+            let (a_line, a_circle) = expected(a.kind());
+            let (b_line, b_circle) = expected(b.kind());
             assert_eq!(
                 tangent_certificate_lane(&line, a, b),
                 a_line && b_line,
                 "the Line lane on {:?}/{:?}",
-                SurfaceKind::of(a),
-                SurfaceKind::of(b)
+                a.kind(),
+                b.kind()
             );
             assert_eq!(
                 tangent_certificate_lane(&circle, a, b),
                 a_circle && b_circle,
                 "the Circle lane on {:?}/{:?}",
-                SurfaceKind::of(a),
-                SurfaceKind::of(b)
+                a.kind(),
+                b.kind()
             );
         }
     }
@@ -315,7 +325,7 @@ fn a_pair_whose_kappa_rel_varies_along_the_carrier_decides_at_a_later_station() 
     );
     let deciding = stations
         .iter()
-        .position(|s| !matches!(s.verdict, Ok(Sign::Positive)))
+        .position(|s| !matches!(s.verdict.map(|d| d.sign), Ok(Sign::Positive)))
         .expect("the arm is derived so that a later station is not definitely positive");
     assert!(
         deciding > 0,
@@ -334,8 +344,12 @@ fn a_pair_whose_kappa_rel_varies_along_the_carrier_decides_at_a_later_station() 
     // caller reporting it as the cause would report a margin that
     // passed: {kappas:?} is the spread that makes that concrete.
     if let MustCarryVerdict::InBand(source) = answer {
+        assert!(
+            matches!(source, MustCarryEscalation::SecondOrder(_)),
+            "the deciding station's escalation is the second-order reading's: {source:?}"
+        );
         assert_eq!(
-            source.predicate,
+            source.diag().predicate,
             Some("tangent_second_order"),
             "the payload names the deciding station's predicate"
         );

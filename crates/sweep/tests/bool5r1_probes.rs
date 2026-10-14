@@ -1,15 +1,13 @@
-//! Review probe for the rim-free wedge arm (issue 542): the coplanar
-//! arm's coincident pair — meridian half-planes a hair apart decide
-//! `props_band_coplanar` Zero — reached through `revolve`. The revolve
-//! door's angle headroom is levered at the profile's radial extent
-//! `r_max`; the coplanar decide at the sphere radius `R`. A cylinder
-//! with a spherical dimple (`r_max ≫ R`) opens a window
-//! `10ε/r_max ≤ δ < ε/R` where a `Partial(2π − δ)` revolve is admitted
-//! and the dimple's lune reaches the coplanar branch. Adopted by the
-//! unit with the window's row inverted: the branch refuses the pair
-//! typed (`props_band_opposite`, the loop reversing at the poles) where
-//! it measured it at `π`; the ambiguity band escalates; past it the
-//! wedge arm reads `2π − δ`.
+//! Review probe for the rim-free wedge (issue 542): the coincident
+//! pair — meridian half-planes a hair apart — reached through
+//! `revolve`. The revolve door's angle headroom is levered at the
+//! profile's radial extent `r_max`; the sphere arm's cusp decide at the
+//! sphere radius `R`. A cylinder with a spherical dimple (`r_max ≫ R`)
+//! opens a window `10ε/r_max ≤ δ < ε/R` where a `Partial(2π − δ)`
+//! revolve is admitted and the dimple's lune turns back on itself at
+//! the poles within the band: the arm refuses the pair typed
+//! (`props_sphere_loop_cusp`); the ambiguity band escalates; past it the
+//! arm reads `2π − δ`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
@@ -82,9 +80,11 @@ fn is_slit_refusal(got: &Result<f64, topo::MassPropsError>) -> bool {
     matches!(
         got,
         Err(topo::MassPropsError::Face {
-            source: geom_brep::PropsError::NotIsoRectangle { what },
+            source: geom_brep::PropsError::SphereLoop {
+                what: "props_sphere_loop_cusp"
+            },
             ..
-        }) if what.starts_with("a rimless sphere face whose coplanar meridians share one half-plane")
+        })
     )
 }
 
@@ -100,21 +100,21 @@ fn probe_the_dimple_lune_through_revolve_across_the_slit_window() {
         (control - exact).abs() / exact < 1e-12,
         "control {control:.15e} vs {exact:.15e}"
     );
-    // Inside the window: admitted by the door (δ·r_max ≥ 10ε), coincident
-    // at the coplanar decide (δ·R < ε) — and refused there, typed.
+    // Inside the window: admitted by the door (δ·r_max ≥ 10ε), a cusp at
+    // the sphere's lever (δ·R < ε) — and refused there, typed.
     let lo = 10.0 * eps / w;
     let hi = eps / r;
     let window = report("slit in the blind window", r, w, TAU - 0.5 * (lo + hi))
         .expect("the window's angle is definite at the revolve door");
     assert!(
         is_slit_refusal(&window),
-        "the hairline slit refuses typed at the coplanar branch, got {window:?}"
+        "the hairline slit refuses typed as a cusp, got {window:?}"
     );
-    // The coplanar ambiguity band, ε ≤ δ·R < 10ε: an escalation, at
-    // whichever door meets the hairline first — `revolve`'s own pcurve
+    // The ambiguity band, ε ≤ δ·R < 10ε: an escalation, at whichever
+    // door meets the hairline first — `revolve`'s own pcurve
     // certification (the near-coincident caps' trim containment sits
-    // in the same band) or, if the body builds, the coplanar decide.
-    match report("slit in the coplanar band", r, w, TAU - 3.0 * eps / r) {
+    // in the same band) or, if the body builds, the cusp decide.
+    match report("slit in the band", r, w, TAU - 3.0 * eps / r) {
         None => {}
         Some(banded) => assert!(
             matches!(
@@ -124,14 +124,14 @@ fn probe_the_dimple_lune_through_revolve_across_the_slit_window() {
                     ..
                 })
             ),
-            "the coplanar band escalates, got {banded:?}"
+            "the band escalates, got {banded:?}"
         ),
     }
-    // Past the band: the wedge arm reads 2π − δ.
+    // Past the band: the arm reads 2π − δ.
     let angle = TAU - 50.0 * eps / r;
     let past = report("slit past the band", r, w, angle)
         .expect("the angle is definite at the revolve door")
-        .expect("the wedge arm measures");
+        .expect("the arm measures");
     let exact = dimple_exact(r, w, angle);
     assert!(
         (past - exact).abs() / exact < 1e-9,

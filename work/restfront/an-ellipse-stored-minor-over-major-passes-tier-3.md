@@ -55,3 +55,47 @@ assume `major ≥ minor` is owed either way.
 
 Track P. `crates/topo/src/validate.rs` (check 1); `crates/geom/src/curves.rs`
 is `props` ground.
+
+## Consumer sweep (REACH, PR 3805)
+
+The readers that took a stored semi-axis as ordered or signed now read
+magnitudes (`min(|major|, |minor|)` for a floor, `max` for a reach),
+which is `minor`/`major` exactly for a frame in the ordinary order:
+
+- `geom_brep::certify::edge_extent` (the second reader above) — fixed;
+- `geom_brep::certify`'s ellipse span meter (`InfSpeed::new(minor)`) and
+  `geom_brep::pcurve_cache::param_rate` — fixed;
+- `editor_core::eval::measure::curve_reach` (`from(center) + major`) —
+  fixed, with a row over every stored order and sign;
+- `topo::replace_face::pose_reach` and `geom_brep::implicit`'s harmonics
+  and bounds (`Conic::speed_lo`/`speed_hi`) — fixed earlier in the PR.
+
+The ordering itself is still decided only by the constructor; this
+item's question (whether tier 3 should decide it) is unchanged.
+
+### More readers (REACH, PR 3805 fix pass 4)
+
+- `topo::split` (the split's interiority meter) and
+  `topo::splitting::classify::conic_plane_crossing_roots` (the crossing
+  root's end meter) took `InfSpeed::new(minor)`: with `minor > major`
+  stored that OVER-states the speed floor, so a root 5e-10 m of arc from
+  an end read 5e-7 m and was certified interior
+  (`a_crossing_at_an_end_is_metered_at_the_smaller_semi_axis`, red on
+  the old read). Both now read `min(|major|, |minor|)`.
+- `mesh::sizing::ellipse_step` assumed `major > minor`: swapped, its
+  `R_eff` was far below the true bound (7776× for semi-axes 3 and 0.5,
+  a step √7776 ≈ 88× too long before the angular cap), and a negative
+  `major` gave `NaN` (taken as the angular cap). It now orders the magnitudes
+  (`the_ellipse_step_reads_its_semi_axes_in_any_stored_frame`).
+- **The certify gate is not widened.** Before PR 3805 its span meter was
+  `InfSpeed::new(minor)`, so an ellipse stored with a negative `minor`
+  was refused `IntervalNotForward` (incidentally), while a negative
+  `major` with its `u_ref` flipped certified (`tier3_tests` mints one so
+  check 1 refuses it on value). Reading `min(|major|, |minor|)` admitted
+  the negative `minor` too (measured: the plane ∩ leaning cylinder
+  ellipse with `minor = −1` certified). Ruled in review: the meter is
+  now `min(|major|, minor)` — either order meters at its smaller
+  magnitude, a non-positive `minor` is refused as before, a negative
+  `major` certifies as before (`ellipse_signed_semi_axis_gate`). Whether
+  a swapped or signed frame should be normalised at the mint stays this
+  item's question.

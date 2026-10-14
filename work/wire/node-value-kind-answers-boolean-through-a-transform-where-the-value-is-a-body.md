@@ -21,9 +21,8 @@ operand is a transform over a boolean, the derivation road refuses
 `WrongOperand { expected: "datum axis", found: "boolean" }` at the
 pattern and the evaluation refuses `WrongOperand { expected: "datum
 axis", found: "body" }` at the same pattern: one seat, two words. The
-same holds for any consumer that reads such a transform through
-`node_operand`, though none can reach it today (the section door's
-reference is an input the schedule evaluated first).
+wire's `node_operand`, which could not reach it either, left in
+PR 4741 with the loft section read that was its one consumer.
 
 MSOLVE-7 made the walk refuse a non-placeable source at the transform
 (`wire::placeable_family`) and left the family a placeable source

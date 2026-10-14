@@ -13,11 +13,12 @@ use crate::common::approx::band;
 use geom_core::Tol;
 use geom_core::{Point2, Sign, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::battery::{
     BlendRequest, chain_g1, convexity_at, corner_config, face_clearance, run_battery,
     spine_regularity,
 };
-use sweep::blend::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
+use sweep::blend::{BlendDecision, BlendError, BlendSite, CornerConfig, RunOutPolicy};
 use sweep::test_support::cube;
 use sweep::test_support::disc_of_arcs;
 use sweep::{Extrusion, extrude};
@@ -209,7 +210,7 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(margin.sign, Sign::Zero);
             assert_eq!(
-                margin.value(),
+                margin.reading.diagnostic_f64_for_error_text().value(),
                 Some(0.0),
                 "a smooth split has an exactly-zero wedge"
             );
@@ -218,22 +219,20 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
     }
 }
 
-/// `CornerConfig::Indeterminate` on a real body: a plane–plane chain
-/// that TERMINATES at a vertex whose third incident edge is
-/// plane–cylinder. The chain's own links resolve; the corner does
-/// not — and the refusal lands at the CORNER rather than blaming the
-/// neighbouring edge, which is the reporting rule under test.
+/// A plane–plane chain that TERMINATES at a vertex whose third face is
+/// curved: on a partial spool, a cap edge between two planes ending
+/// where the TORUS wall's meridian arrives. Its end face is that wall,
+/// and the end face's SHAPE is read before the neighbours are resolved
+/// as links, so the refusal is the run-out the end owes — a curved end
+/// face — and not `CornerConfig::Indeterminate` for the neighbour no
+/// arm resolves, which this body used to witness (work item
+/// `corner-config-indeterminate-has-no-real-body-witness`).
 #[test]
-fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
-    // A PARTIAL revolve of the spool: its sweep-end caps are planar, and
-    // a planar chain on one of them terminates where the TORUS wall's
-    // meridian arrives — an edge no analytic arm resolves, which makes
-    // the CORNER unclassifiable rather than that edge's own refusal.
+fn a_planar_chain_ending_at_a_curved_neighbour_refuses_its_curved_end_face() {
     let body = sweep::test_support::spool(sweep::Revolution::Partial(1.0), tol());
-    // A cap edge whose two supports are both planes.
-    let planar = body
+    let planar: Vec<_> = body
         .edges()
-        .find(|(_, e)| {
+        .filter(|(_, e)| {
             [e.he_plus, e.he_minus].iter().all(|he| {
                 body.get_half_edge(*he)
                     .and_then(|h| body.get_loop(h.parent_loop))
@@ -242,28 +241,22 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
                     .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
             })
         })
-        .map(|(k, _)| k);
-    let mut saw = false;
-    for (k, _) in body.edges() {
+        .map(|(k, _)| k)
+        .collect();
+    assert!(!planar.is_empty(), "the partial spool has planar cap edges");
+    for k in planar {
         let req = BlendRequest {
             body: &body,
             edges: vec![k],
             size: 0.05,
         };
-        if let Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::Indeterminate,
-            policy,
-            ..
-        }) = run_battery(&req, band())
-        {
-            assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex));
-            saw = true;
+        match run_battery(&req, band()) {
+            Err(BlendError::UnsupportedRunOut { detail, .. }) => {
+                assert_eq!(detail, sweep::blend::battery::END_FACE_CURVED);
+            }
+            other => panic!("a planar cap edge ends at the torus wall, got {other:?}"),
         }
     }
-    assert!(
-        planar.is_some() && saw,
-        "the partial spool has a planar chain terminating at a torus neighbour"
-    );
 }
 
 /// The canal-surface lane's front door: a plane–TORUS support pair is
@@ -360,9 +353,14 @@ fn trio_hostless_annulus_ring_containment() {
     let refuse = |d: f64| -> BlendError {
         let body = sweep::test_support::bored_cylinder(0.16, d, phi, tol());
         let arcs = sweep::test_support::z_rim(&body, 1.0, 1.0, false);
-        sweep::blend::build::fillet_edges(&body, &arcs, 0.1, tol())
-            .expect_err("a ring the trim circle does not contain refuses")
-            .error
+        sweep::blend::build::fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.1,
+            tol(),
+        )
+        .expect_err("a ring the trim circle does not contain refuses")
+        .error
     };
     // Definitely negative: the bore reaches 0.91, `0.01` past the trim.
     let definite = refuse(0.75);
@@ -370,7 +368,7 @@ fn trio_hostless_annulus_ring_containment() {
         matches!(&definite, BlendError::RingClearance { margin, .. }
             if margin.predicate == "fillet3_ring_clearance"
                 && margin.sign == Sign::Negative
-                && margin.value().is_some_and(|m| (m - -0.01).abs() < 1e-12)),
+                && margin.reading.diagnostic_f64_for_error_text().value().is_some_and(|m| (m - -0.01).abs() < 1e-12)),
         "the definite arm classifies at the exact containment margin: {definite}"
     );
     // Exactly on: the bore reaches the trim circle - a refusal, not a
@@ -411,16 +409,21 @@ fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
         body.merge_coplanar_faces(tol())
             .expect("the pole-split caps repair");
         let arcs = sweep::test_support::rim_arcs_at(&body, 1.0, 1.0);
-        sweep::blend::build::fillet_edges(&body, &arcs, 0.1, tol())
-            .expect_err("a ring the trim circle does not contain refuses")
-            .error
+        sweep::blend::build::fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.1,
+            tol(),
+        )
+        .expect_err("a ring the trim circle does not contain refuses")
+        .error
     };
     let definite = refuse(0.92);
     assert!(
         matches!(&definite, BlendError::FaceClearanceUncertified { margin, .. }
             if margin.sign == Sign::Negative
                 && margin
-                    .value()
+                    .reading.diagnostic_f64_for_error_text().value()
                     .is_some_and(|m| m.to_bits() == ((1.0 - 0.1) - 0.92f64).to_bits())),
         "the screen answers first, at the derived containment double: {definite}"
     );
@@ -434,7 +437,7 @@ fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
     assert_same_recourse(
         &definite,
         &escalated,
-        "enlarge the support face whose clearance is uncertified",
+        "enlarge the support face it sets back on",
     );
 }
 
@@ -465,22 +468,23 @@ fn trio_chain_g1() {
     // In band: a kink whose sin θ · arm sits inside the band.
     let tiny = in_band();
     let escalated = chain_g1(x, Vec3::new(1.0, tiny, 0.0), 1.0, v, b).unwrap_err();
-    assert_same_recourse(&definite, &escalated, "tangent-continuous chain");
-    // The collapsed-arm gate: an arm at zero is not a question.
+    assert_same_recourse(&definite, &escalated, "tangent-continuous wherever");
+    // The arm gate: an angle at an arm decided zero is not a question.
     let collapsed = chain_g1(x, y, 0.0, v, b).unwrap_err();
     match &collapsed {
         BlendError::Escalated {
             site: BlendSite::Joint { .. },
+            decision: BlendDecision::ChainArm,
             source,
         } => assert_eq!(source.predicate, Some("fillet3_chain_arm")),
-        other => panic!("a collapsed arm must escalate Invalid, got {other:?}"),
+        other => panic!("an arm decided zero must refuse as the arm gate, got {other:?}"),
     }
-    // `fillet3_chain_arm` never refuses definitely — it is the gate on
-    // the junction question, so it only ever escalates — and it
-    // carries the sentence its gated predicate's definite refusal
-    // carries: a caller whose junction arm collapsed and a caller
-    // whose junction kinked both need a chain the door can take.
-    assert_same_recourse(&definite, &collapsed, "tangent-continuous chain");
+    // `fillet3_chain_arm` refuses through `Escalated` on every arm, the
+    // decided-zero one carrying the arm it read, and its lever is the
+    // one its gated predicate's definite refusal carries: a caller
+    // whose junction arm collapsed and a caller whose junction kinked
+    // both need a chain the door can take.
+    assert_same_recourse(&definite, &collapsed, "tangent-continuous wherever");
 }
 
 #[test]
@@ -502,7 +506,10 @@ fn trio_convexity_sign() {
     assert_eq!(m.predicate, "fillet3_convexity_sign");
     assert_eq!(m.sign, Sign::Positive);
     assert!(
-        m.value().is_some_and(|v| (v - 1.0).abs() < 1e-12),
+        m.reading
+            .diagnostic_f64_for_error_text()
+            .value()
+            .is_some_and(|v| (v - 1.0).abs() < 1e-12),
         "the 90° box edge margin is the arm"
     );
     let (concave, _) = convexity_at(
@@ -608,7 +615,7 @@ fn trio_corner_independence() {
         }
         other => panic!("an in-band determinant must escalate, got {other:?}"),
     }
-    assert_same_recourse(&exact, &escalated, "FULLY REQUESTED trivalent vertices");
+    assert_same_recourse(&exact, &escalated, "clearly not all parallel to one line");
 }
 
 /// A cylinder whose top cap sits on a plane tilted off the rim
@@ -648,9 +655,16 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    let mut body = extrude(&profile, Extrusion::Distance(1.0), tol())
-        .unwrap()
-        .body;
+    let mut body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body;
     // The raised rim: every arc whose stored carrier circle is the
     // raised one. Its lever arm is that circle's own radius.
     let raised: Vec<(EdgeKey, f64)> = body
@@ -701,8 +715,15 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
         normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
         u_ref,
     };
-    body.set_face_surface(cap, FaceSurface::New(tilted))
-        .expect("a plane for a planar cap");
+    // Lifts RechartStrandsDescriptions: the tilted cap plane is the coaxiality fixture.
+    body.set_face_surface_unvouched_for_tests(
+        cap,
+        FaceSurface::New {
+            surface: tilted,
+            sense: true,
+        },
+    )
+    .expect("a plane for a planar cap");
     (body, arcs)
 }
 
@@ -739,6 +760,7 @@ fn trio_support_coaxiality() {
     match &escalated {
         BlendError::Escalated {
             site: BlendSite::Chain,
+            decision: BlendDecision::SupportCoaxiality,
             source,
         } => assert_eq!(source.predicate, Some("fillet3_support_coaxiality")),
         other => panic!("an in-band departure must escalate at the chain, got {other:?}"),

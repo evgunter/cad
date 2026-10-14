@@ -11,11 +11,13 @@
 //! other 19 tests of the review artifact stay ungated in
 //! `review_m2_pr2.rs`; only this file carries the whole-file gate.
 //!
-//! **CI EXECUTES THIS SUITE.** It is rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
-//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
-//! by `--check-executed`, so every assertion below is a gate and a red here
-//! fails the merge. By hand:
+//! **The nightly executes this suite; the PR gate only builds it.** It is
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! under the DEFAULT selection by `scripts/k_probe_sweep.sh` in the
+//! nightly's dev-probe row, whose tally is floored by `--check-executed`,
+//! so a red here reds the nightly. The PR gate compiles it (`clippy
+//! --all-features`) and runs none of it, so a PR can merge green over a red
+//! here. By hand:
 //! `cargo test -p profile --features probe --test all -- review_m2_pr2_probe::`.
 
 #![cfg(feature = "probe")]
@@ -27,6 +29,7 @@
 )]
 
 use crate::common;
+use geom_core::Arc2;
 
 use common::{lift, profile, tol};
 use geom_core::k_stats::{self, Probe};
@@ -46,17 +49,17 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
     for p in fixtures {
         let f = p.validate(tol()).expect("f64 validates");
         let q = lift::<Probe>(&p).validate(tol()).expect("probe validates");
-        let fb: Vec<(u64, u64, u64)> = f
+        let fb: Vec<(u64, u64)> = f
             .loops()
             .iter()
-            .flat_map(|l| l.vertices().iter().zip(l.segments()))
-            .map(|(v, s)| (v.x.to_bits(), v.y.to_bits(), s.bulge.to_bits()))
+            .flat_map(|l| l.vertices())
+            .map(|v| (v.x.to_bits(), v.y.to_bits()))
             .collect();
-        let qb: Vec<(u64, u64, u64)> = q
+        let qb: Vec<(u64, u64)> = q
             .loops()
             .iter()
-            .flat_map(|l| l.vertices().iter().zip(l.segments()))
-            .map(|(v, s)| (v.x.0.to_bits(), v.y.0.to_bits(), s.bulge.0.to_bits()))
+            .flat_map(|l| l.vertices())
+            .map(|v| (v.x.0.to_bits(), v.y.0.to_bits()))
             .collect();
         assert_eq!(fb, qb);
         // And identical arc geometry down to carrier bits.
@@ -65,16 +68,22 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
                 match (&sf.kind, &sq.kind) {
                     (
                         SegmentKind::Arc {
-                            center: cf,
-                            radius: rf,
+                            arc:
+                                Arc2 {
+                                    centre: cf,
+                                    radius: rf,
+                                    sweep: wf,
+                                },
                             turn: tf,
-                            sweep: wf,
                         },
                         SegmentKind::Arc {
-                            center: cq,
-                            radius: rq,
+                            arc:
+                                Arc2 {
+                                    centre: cq,
+                                    radius: rq,
+                                    sweep: wq,
+                                },
                             turn: tq,
-                            sweep: wq,
                         },
                     ) => {
                         assert_eq!(cf.x.to_bits(), cq.x.0.to_bits());

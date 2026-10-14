@@ -32,14 +32,13 @@ fn a_summarised_presence_renders_as_an_elision_naming_what_is_there() {
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     assert_eq!(session.pump(), vec![Landing::Landed]);
-    // The plate's distance is driven by the `thickness` parameter, so
-    // the gesture that moves it is the parameter's.
-    let begun = session.perform(SessionOp::BeginParamGesture {
-        name: common::thickness_param(),
-    });
+    // The plate's distance is driven by the `thickness` variable, so
+    // the gesture that moves it is the variable's.
+    let thickness = common::thickness_var(session.committed_doc());
+    let begun = session.perform(SessionOp::BeginVariableGesture { var: thickness });
     assert!(begun.refusal.is_none(), "{:?}", begun.refusal);
-    let previewed = session.perform(SessionOp::PreviewParamGesture {
-        name: common::thickness_param(),
+    let previewed = session.perform(SessionOp::PreviewVariableGesture {
+        var: thickness,
         value: 0.02,
     });
     assert!(previewed.refusal.is_none(), "{:?}", previewed.refusal);

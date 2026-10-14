@@ -2,10 +2,12 @@
 id: a-lofts-names-follow-only-its-first-sections-reshaping
 kind: issue
 title: A loft's names follow only its first section's reshaping: SetProgram on a later section moves none of them
-status: open
+status: closed
 opened: 2026-09-24
 priority: P3
-cost: D
+cost: M
+branch: emit/runout-carrier
+closed: 2026-09-29
 ---
 
 
@@ -38,3 +40,19 @@ What a fix has to decide:
 
 Not trivial: it is a DM7 question about which edit moves a multi-profile
 node's names, so it is left open rather than fixed in #3147.
+
+## Closed — resolved by PR 3223, pinned in PR 3266
+
+PR 3223 deleted `Node::anchoring_profile` and the door's anchored
+filter. `SetProgram` now strands names by dropped step id across the
+whole document (`edit::stranded_steps`), so a loft's first section has
+no special standing.
+
+The row
+`edit_set_program::a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step`
+pins the behaviour. It reshapes only the upper section:
+
+- with every step kept, there is no maintenance and all 12 names stay
+  live;
+- with one step dropped, exactly wall, seam and rim 1 are reported
+  DM7, and only those three stop resolving.

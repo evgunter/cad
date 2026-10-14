@@ -13,7 +13,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource};
 use geom_core::{Point2, Point3, Real, Tol, Vec3};
 
 use super::SweptSeg;
@@ -27,7 +27,7 @@ pub(super) fn wall_surface<T: Real>(
     frame: &AxisFrame<T>,
 ) -> Surface<T> {
     match *kind {
-        WallKind::Plane => Surface::Plane {
+        WallKind::Plane { .. } => Surface::Plane {
             origin: frame.world(seg.a),
             normal: frame.a3,
             u_ref: frame.u3,
@@ -68,7 +68,7 @@ pub(super) fn wall_surface<T: Real>(
 }
 
 /// A latitude strut/rim spec: the sketch point's trajectory under the
-/// rotation family (`MappedCurve::RevolvedPoint`), carrier the
+/// rotation family (`MappedSource::RevolvedPoint`), carrier the
 /// latitude circle. `axis_c` is the θ-signed carrier axis (forward
 /// interval `(0, |θ|]`; `u_ref` points at the start point `q` — the
 /// carrier-frame convention, distinct from the surfaces' shared `u₃`).
@@ -88,9 +88,8 @@ pub(super) fn revolved_strut_spec<T: Real>(
 ) -> EdgeCurveSpec<T> {
     let center = frame.foot3(point);
     let rim = q - center;
-    // **The revolve's rim identity**, the same theorem at the same
-    // guarantee as the swept arc's (`swept::register_rim_identity`
-    // carries the argument): `center` is the FOOT of the perpendicular
+    // **The revolve's rim identity** (`swept::register_rim_identity`
+    // carries why it is registered): `center` is the FOOT of the perpendicular
     // from the sketch point to the axis and `radius` is that point's
     // radial extent from the same axis, both placed by the same rigid
     // `frame.place`, so `‖q − center‖ = radius` at every parameter
@@ -99,13 +98,15 @@ pub(super) fn revolved_strut_spec<T: Real>(
     // `q_to` — see `work/blend/revolve-carriers-state-only-the-rim`.
     crate::swept::register_rim_identity(rim, radius, tol);
     EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
-            point,
-            place: frame.place,
-            axis_origin: frame.o3,
-            axis_dir: frame.a3,
-            angle: theta,
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::RevolvedPoint {
+                point,
+                place: frame.place,
+                axis_origin: frame.o3,
+                axis_dir: frame.a3,
+                angle: theta,
+            },
+        )),
         carrier: Curve3::Circle {
             center,
             axis: axis_c,

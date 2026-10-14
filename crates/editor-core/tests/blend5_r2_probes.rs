@@ -31,7 +31,7 @@ use editor_core::{
     CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg,
     evaluate,
 };
-use fixture::{ang, axis_in_plane, edge_of, insert, len, on_frame_keeping, table};
+use fixture::{ang, edge_of, insert, len, on_frame, revolve_about, table};
 use geom::Surface;
 use geom_core::Tol;
 use topo::{Body, EdgeKey};
@@ -50,27 +50,16 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// stay one-line diffs against the reviewed fixture.
 fn lantern_with(profile_pts: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blend5_r2_probes", Tol::witness());
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![profile_pts],
     );
-    let (doc, axis) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
     let (doc, revolve) = insert(
         doc,
-        Node::Revolve {
-            profile,
-            axis,
-            angle: ang(std::f64::consts::TAU),
-        },
+        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     (doc, revolve)
 }
@@ -93,9 +82,11 @@ fn filleted(profile_pts: Vec<(f64, f64)>, v: u32) -> (ProfileDoc, RecipeNodeId) 
     insert(
         doc,
         Node::Fillet {
-            target: revolve,
             radius: len(0.05),
-            selection: vec![rim],
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                vec![rim],
+            ),
         },
     )
 }
@@ -161,8 +152,16 @@ fn the_corpus_band_trim_census_is_the_recorded_one() {
                 .iter()
                 .filter_map(|id| ev.value(*id))
                 .flat_map(|v| v.name_table.iter())
-                .filter(|(n, _)| n.path.iter().any(|s| matches!(s, RoleSeg::BandTrim { .. })))
-                .count();
+                // A joined edge's members included (the blend's closing
+                // join names two trimlines it made one by both names).
+                .map(|(n, _)| match n.path.first() {
+                    Some(RoleSeg::Merged(cs)) => cs
+                        .iter()
+                        .filter(|c| matches!(c.path.first(), Some(RoleSeg::BandTrim { .. })))
+                        .count(),
+                    _ => usize::from(n.path.iter().any(|s| matches!(s, RoleSeg::BandTrim { .. }))),
+                })
+                .sum::<usize>();
             (d.name.to_owned(), n)
         })
         .collect();

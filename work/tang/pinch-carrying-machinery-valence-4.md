@@ -7,7 +7,8 @@ opened: 2026-08-31
 github: 1377
 refs: [1353, 1372]
 priority: P1
-cost: D
+cost: H
+design: true
 ---
 
 ## From GitHub issue 1377
@@ -64,3 +65,11 @@ because lint refuses a row parked on a fired trigger; CURVED schedules
 it. Note for the pinch design: the channel carries stored SCALAR
 fields only — axis-flavoured declarations are
 `work/issues/axis-flavoured-declarations-have-no-channel.md`.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the equal-radius family is recognised by ParamSource tokens and RadiusEvidence::Declared; stage 4 replaces that with canonical-form identity at the door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E retires the prerequisite's channel. Equal radii are decided by their margin, and `RadiusEvidence` and `ParamSource` are deleted, so the family is recognised without a declaration. The pinch machinery itself is unbuilt: the intersecting equal-radius pair still refuses `GermFrameCylinderPinch` (`crates/topo/src/boolean/join.rs:2088`). The design and its sequencing stand, less item 1.

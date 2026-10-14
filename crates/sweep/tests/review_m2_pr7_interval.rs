@@ -9,6 +9,7 @@
 
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};
 use profile::RawLoop;
+use sweep::ExtrudeSide;
 
 use crate::common::interval::{p2, v2};
 use geom_core::Tol;
@@ -126,7 +127,10 @@ fn major_arc_prism_interval_encloses_reviewer_forms() {
     let lp = bulge_loop(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, -1.0, 0.0)]);
     let t = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(Interval::from_f64(1.0)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -140,7 +144,10 @@ fn two_hole_plate_interval_encloses_reviewer_forms() {
     let square = ProfileLoop::polygon([p2(0.5, -1.0), p2(2.5, -1.0), p2(2.5, 1.0), p2(0.5, 1.0)]);
     let t = extrude(
         &validated(vec![outer, round, square]),
-        Extrusion::Distance(Interval::from_f64(1.0)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();

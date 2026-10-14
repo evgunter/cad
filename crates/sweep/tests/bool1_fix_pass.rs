@@ -16,20 +16,18 @@
 //!    reproduction's carriers are axis-aligned lines, where a rebuild
 //!    is bit-identical and mutation-invisible).
 //! 3. **The band posture, pinned per band** — the near-flush ladder's
-//!    four regimes at band-relative displacements, asserted (not
-//!    printed) at whatever ε the run committed, both signs: flush
-//!    enough certifies, in the residual band the split REFUSES typed
-//!    through certification's escalation lane (`ChartResidual` /
-//!    `pcurve_map_residual` — the refusal reachable on this branch and
-//!    not on main), in the vertex band it refuses `SliverVertex` as
-//!    ever, and definitely-off runs the generic split.
+//!    regimes at band-relative displacements, asserted (not printed) at
+//!    whatever ε the run committed, both signs: a floor the split reads
+//!    ON certifies all the way to ε, in the vertex band it refuses
+//!    `SliverVertex`, and definitely-off runs the generic split.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, FaceKey, SplitError, SplitFinishError, SplitReduceError};
+use topo::{Body, FaceKey, SplitError, SplitReduceError};
 
 use crate::common;
 
@@ -37,9 +35,16 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     let prof = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
         .expect("a valid profile");
-    extrude(&prof, Extrusion::Distance(h), Tol::witness())
-        .expect("the profile extrudes")
-        .body
+    extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the profile extrudes")
+    .body
 }
 
 /// The issue-1152 notched block with the notch floor at `1 + dy`.
@@ -61,10 +66,11 @@ fn notched(dy: f64) -> ProfileLoop<f64> {
 }
 
 fn plane_y1() -> topo::SplitPlane<f64> {
-    topo::SplitPlane {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-    }
+    topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// The edge's two faces, ordered by arena key.
@@ -84,6 +90,7 @@ fn faces_of(body: &Body<f64>, e: topo::EdgeKey) -> (FaceKey, FaceKey) {
 #[test]
 fn tip_edge_keeps_the_first_visits_section_chart() {
     let body = extruded(vec![notched(0.0)], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
     let below = result.below.body().expect("below has material");
     // The tip edge: the vertical at (4, 1, ·).
@@ -157,6 +164,7 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
     )
     .expect("the boss-on-plate revolves")
     .body;
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     // The operand's circle carriers at the boss joint (r = 1, y = 1),
     // as bit-printed (carrier, interval) records.
     let joint_circles = |b: &Body<f64>| -> Vec<String> {
@@ -234,31 +242,28 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
     }
 }
 
-/// Row 3: the near-flush ladder's four regimes, asserted per band at
-/// band-relative displacements (both signs). The `ChartResidual`
-/// regime is the refusal this branch makes reachable out of `split`;
-/// its pin is what keeps the band posture honest at every ε the
-/// matrix draws.
+/// Row 3: the near-flush ladder's regimes, asserted per band at
+/// band-relative displacements (both signs). A floor displaced by `dy`
+/// has vertex margin `dy`, and its section-boundary edges lie `dy` from
+/// the section chart, which is in the plane: a floor read ON certifies
+/// up to ε, with no regime between ON and the vertex band.
 #[test]
 fn near_flush_regimes_pin_per_band() {
     let t = Tol::witness().get();
     let (eps, k) = (t.eps, t.k);
-    // The section-boundary containment residual of a floor displaced
-    // by dy meters is 8·dy (the notch floor's own lever); the vertex
-    // margin is dy. Regime boundaries follow from band zero = ε,
-    // escalate = K·ε.
-    let dy_flush = eps / 16.0; // vertex ON, residual ε/2: certifies
-    let dy_resid = eps * (0.125 + 1.0_f64.min(k / 8.0)) / 2.0; // vertex ON, residual in band
+    let dy_flush = eps / 16.0; // vertex ON, far inside ε
+    let dy_near = eps * 0.9; // vertex ON, near ε
     let dy_sliver = common::band_midpoint(Tol::witness()); // vertex in the escalation band
     let dy_clear = eps * k * 8.0; // definitely off: the generic split
     for sign in [1.0, -1.0] {
         for (dy, want) in [
             (sign * dy_flush, "ok"),
-            (sign * dy_resid, "chart-residual"),
+            (sign * dy_near, "ok"),
             (sign * dy_sliver, "sliver-vertex"),
             (sign * dy_clear, "ok"),
         ] {
             let body = extruded(vec![notched(dy)], 1.0);
+            let body = sweep::test_support::finished("the body", body, Tol::witness());
             let got = topo::split(&body, &plane_y1(), Tol::witness());
             match (want, got) {
                 ("ok", Ok(r)) => {
@@ -271,18 +276,6 @@ fn near_flush_regimes_pin_per_band() {
                         );
                     }
                 }
-                (
-                    "chart-residual",
-                    Err(SplitError::Finish(SplitFinishError::Euler(
-                        topo::EulerOpError::Certification {
-                            error:
-                                geom_brep::CertifyError::Escalated {
-                                    check: geom_brep::CertCheck::ChartResidual,
-                                    ..
-                                },
-                        },
-                    ))),
-                ) => {}
                 (
                     "sliver-vertex",
                     Err(SplitError::Reduce(SplitReduceError::SliverVertex { .. })),

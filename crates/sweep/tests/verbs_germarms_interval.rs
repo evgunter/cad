@@ -1,82 +1,90 @@
 //! The curved pierce RING lane at the CERTIFIED scalar — the two-arm pattern for the lane's new decide sites.
 //!
 //! Three predicates are new or newly reached here and all three are
-//! metered as LENGTHS (the root-span gaps and the chart certificate;
-//! the discriminant is the flagged dimensionless one it has always
-//! been, and is not re-metered here), so the lane's honesty depends on
-//! the enclosures being tight rather than lucky: `bool_pierce_normal_on_chart` (the
+//! metered as LENGTHS (the root-span gaps, the chart certificate, and
+//! the discriminant's half-chord depth), so the lane's honesty depends
+//! on the enclosures being tight rather than lucky: `bool_pierce_normal_on_chart` (the
 //! point-on-chart certificate behind the per-point outward normal),
 //! `bool_wall_root_in_span` (a root's two gaps to the span's ends), and
 //! `bool_ray_cylinder_disc` reached from an EDGE rather than a ray for
 //! the first time.
 //!
-//! Both arms are pinned: the pierce arm must reach the same door it
-//! reaches at `f64` (the lane BUILDS at the certified scalar rather
-//! than escalating out of it), and the clearance arm must still answer
-//! with a volume — asserted with an explicit WIDTH bound, because an
+//! Both arms are pinned: the pierce arm must build as it does at `f64`
+//! (the lane BUILDS at the certified scalar rather than escalating out
+//! of it), and both arms must answer with a volume — asserted with an
+//! explicit WIDTH bound, because an
 //! enclosure that contains the truth and spans a metre would pass a
 //! containment check while saying nothing.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::interval::{iv, p2, v3};
 use geom_core::{Affine3, Bounds, Interval, Tol};
 use profile::{Profile, SketchPlane};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError};
+use topo::{AtRestBody, BooleanError};
 
 /// The `f64` suite's pipe at the certified scalar: radius 1 about `z`,
 /// `z ∈ [−2, 2]`, built through the same public doors so the two
 /// lanes differ in the SCALAR and in nothing else. Every coordinate is
 /// dyadic, so the operands' enclosures are points and the margins below
 /// are the lane's own width rather than the fixture's.
-fn pipe() -> Body<Interval> {
+fn pipe() -> AtRestBody<Interval> {
     let tol = Tol::witness();
     let lp = profile::circle(p2(0.0, 0.0), iv(1.0), tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, -2.0)));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&vp, Extrusion::Distance(iv(4.0)), tol)
-        .unwrap()
-        .body
+    let pipe = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(4.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
+    finished("the pipe", pipe, tol)
 }
 
 /// **The build arm.** The bar's crossings are found at the certified
-/// scalar too, so the union walks past the crossing layer and refuses
-/// at the ring's absent JOIN arm (#1291) — the same door the `f64` lane
-/// reaches. An escalation here would mean the enclosures, not the
-/// geometry, decided the lane.
+/// scalar too, the pierce rings join, and the union builds as the `f64`
+/// lane's does: its volume enclosure holds the closed form — the pipe
+/// and the bar less the bar's height times the strip `|y| ≤ ¼` of the
+/// unit disc — and is narrow enough to be a claim. An escalation here
+/// would mean the enclosures, not the geometry, decided the lane.
 ///
-/// The bar is short for the same reason its `f64` twin is: a pierce
-/// vertex's sector arms are the split edge's fragments, and a fragment
-/// past the wall's radius makes the sector-side curvature charge
-/// refuse (`boolean::sectors::side_code`). Every coordinate here is
-/// dyadic — `±1.125` and `±0.25` exactly — so the enclosures stay
+/// Every coordinate here is dyadic — `±1.125` and `±0.25` exactly — so the enclosures stay
 /// points and this row measures the LANE rather than the fixture.
 #[test]
 fn the_ring_lane_builds_at_the_certified_scalar() {
-    let err = topo::union(
+    let tol = Tol::witness();
+    let out = topo::union(
         &pipe(),
-        &brick(
-            (-1.125, 1.125),
-            (-0.25, 0.25),
-            (-0.25, 0.25),
-            Tol::witness(),
+        &finished(
+            "the bar",
+            brick((-1.125, 1.125), (-0.25, 0.25), (-0.25, 0.25), tol),
+            tol,
         ),
-        Tol::witness(),
+        tol,
     )
-    .expect_err("no join arm for a pierce ring");
+    .unwrap_or_else(|e: BooleanError| panic!("the ring lane refused: {e:?}"));
+    let body = &out.body().expect("a body").body;
+    let v = topo::mass_properties(body, tol).unwrap().volume;
+    let strip = |y: f64| y * (1.0 - y * y).sqrt() + y.asin();
+    let truth = PI * 4.0 + 2.25 * 0.5 * 0.5 - 0.5 * (strip(0.25) - strip(-0.25));
     assert!(
-        matches!(
-            err,
-            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                case: topo::ArcWindowCase::NoChartedRun,
-                ..
-            })
-        ),
-        "{err:?}"
+        v.lo() <= truth && truth <= v.hi(),
+        "the enclosure must contain the truth: {v:?} vs {truth}"
+    );
+    assert!(
+        v.hi() - v.lo() < 1e-6,
+        "the enclosure must be a claim, not a shrug: width {}",
+        v.hi() - v.lo()
     );
 }
 
@@ -89,7 +97,11 @@ fn a_clear_bar_still_answers_and_the_enclosure_is_narrow() {
     let tol = Tol::witness();
     let topo::BooleanResult::Body(out) = topo::union(
         &pipe(),
-        &brick((1.5, 2.5), (-0.25, 0.25), (-0.25, 0.25), tol),
+        &finished(
+            "the bar",
+            brick((1.5, 2.5), (-0.25, 0.25), (-0.25, 0.25), tol),
+            tol,
+        ),
         tol,
     )
     .expect("no crossing to route") else {

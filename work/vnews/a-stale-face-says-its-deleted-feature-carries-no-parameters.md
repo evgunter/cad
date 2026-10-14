@@ -18,7 +18,7 @@ rather than a control, so it was left to its own row.
 ## What happens
 
 `ViewerBehavior`'s properties pane (`crates/viewer/src/pane/properties.rs`,
-the `Selection::Face(_) | Selection::Edge(_)` arm, ~:62) draws *"this
+the `Selection::Face(_) | Selection::Edge(_)` arm, ~:70) draws *"this
 feature carries no parameters"* when `groups.is_empty() &&
 standing.live()`. For a face or edge, `standing.live()` is resolution
 against the last LANDED run (`DocSession::standing` →

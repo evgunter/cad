@@ -5,6 +5,7 @@
 //! so the flip is legible against the original.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
 use editor_core::{LoopProgram, ProgramStep, ProgramTarget};
 use geom_core::{Point2, Tol};
 use profile::{Open, Start};
@@ -43,7 +44,7 @@ fn r1_lifting_door_lifts_continue_to() {
     let LoopProgram::Chain(steps) = &prog else {
         panic!("a chain program: {prog:?}")
     };
-    let arms: Vec<&ProgramStep> = steps
+    let arms: Vec<&ProgramStep<Formula>> = steps
         .iter()
         .filter(|s| matches!(s, ProgramStep::ContinueTo(_)))
         .collect();

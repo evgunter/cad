@@ -1,7 +1,7 @@
 ---
 id: three-spellings-say-a-parameter-is-not-declared
 kind: issue
-title: Three spellings say a parameter is not declared, and one of them is Refusal::NoSuchParam's own
+title: Three spellings say a parameter is not declared, and one of them is Refusal::NoSuchVariable's own
 status: closed
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
@@ -23,11 +23,11 @@ a sentence.*
 
 ## The refusal, and its one home
 
-`crates/viewer/src/session/refuse.rs`'s `Refusal::NoSuchParam` renders:
+`crates/viewer/src/session/refuse.rs`'s `Refusal::NoSuchVariable` renders:
 
 > no document parameter named {name} — declare it first
 
-Two doors raise it: `Session::begin_param_gesture`
+Two doors raise it: `Session::begin_variable_gesture`
 (`crates/viewer/src/session.rs`, the `ok_or_else` in the `start`
 closure) and `crates/viewer/src/session/probe.rs`'s parameter probe.
 The first is the one that matters here — it is the door a drag on a
@@ -38,13 +38,13 @@ parameter's number field reaches.
 `crates/viewer/src/pane/properties.rs`, both in the `else` of a branch
 whose other arm draws the control:
 
-1. `Panel::standing_ui`'s `Standing::Param { present: false }` arm
+1. `Panel::standing_ui`'s `Standing::Variable { present: false }` arm
    (the `colored_label` at `:297`) draws
    `format!("parameter {} is no longer declared", name.0)` where the
    present arm draws the parameter's row.
 2. The parameter panel's own `else` (`:119`) draws
    `"that parameter is gone"` where the `Some` arm draws the draggable
-   value field and `Panel::param_bounds_ui`.
+   value field and `Panel::variable_bounds_ui`.
 
 So a reader who lost a parameter out from under a selection is told the
 fact in the chrome's words, and a reader who drags before the frame
@@ -55,7 +55,7 @@ in `refuse.rs`, called by the panel.
 
 ## What a fix has to decide
 
-`NoSuchParam`'s wording ends *"— declare it first"*, which is a status
+`NoSuchVariable`'s wording ends *"— declare it first"*, which is a status
 line's instruction and is the wrong half for a panel that is describing
 a selection rather than answering an attempt. This is the same fork
 `the-new-document-button-states-its-refusal-twice` hit and
@@ -82,24 +82,41 @@ spellings are left — the header's `"parameter {name} is no longer
 declared"` and the session refusal's — and which words they share is
 still this row's question.
 
+## Evidence 2026-09-24 (`chrome/subset-policy`, PR 3140)
+
+There is a fourth reading of the same fact, and it disagrees with the
+wording. `frame::creation_offer` is now exhaustive over `Refusal`
+(through `Refusal::parse_error`). Written out, it shows that
+`Refusal::NoSuchVariable` gets **no** creation offer: only the parse door's
+`ParseError::UnknownParam` prefills the add-parameter affordance. Yet
+`NoSuchVariable`'s sentence ends *"— declare it first"*. So a drag or a
+range probe on an undeclared parameter tells the reader to declare it,
+and the chrome does not offer the door to do so. That PR left the
+answer unchanged, since the answer is behaviour, and whoever settles the
+wording here also settles whether the offer follows it.
+
 ## Closed (2026-09-28)
 
 The fact has one composition, `Refusal::undeclared_wording`
-(`crates/viewer/src/session/refuse.rs`): *parameter {name} is not
-declared*. `Refusal::NoSuchParam`'s `Display` renders it and then the
-recourse, `editor_core::edit::UNDECLARED_PARAM_RECOURSE`; the
-properties pane's `standing_verdict` (`Standing::Param { present:
-false }`) draws it bare. So the recourse — an instruction to an
-attempt — stays on the refusal's half, and the fact reads the same on
-both surfaces. The pane's *no longer* went with the pane's literal:
-*not declared* is true at both doors, including a probe or a drag
-naming a parameter that was never declared, which *no longer* is not.
+(`crates/viewer/src/session/refuse.rs`): *variable {var} is not in
+this document*. `Refusal::NoSuchVariable`'s `Display` renders it and
+then the recourse, `editor_core::edit::UNKNOWN_VAR_RECOURSE` (*pick a
+variable the document holds*); the properties pane's `standing_verdict`
+(`Standing::Variable { present: false }`) draws it bare. So the
+recourse — an instruction to an attempt — stays on the refusal's half,
+and the fact reads the same on both surfaces. The pane's *no longer*
+went with the pane's literal: *not in this document* is true at both
+doors, including a probe or a drag naming a variable that was never
+declared, which *no longer* is not.
 
-The premise had moved since filing in one respect: the recourse had
-already been given a home in editor-core, beside the edit door's
-`EditError::DocParamNotDeclared` sentence, so the words chosen for the
-fact match that door's opening too. That door's opening is still its
-own literal — filed on EDIT's slate as
+The evidence above is answered by the variables rework on main: the
+recourse is no longer *declare it first* but *pick a variable the
+document holds*, so the sentence no longer promises an offer the chrome
+does not make.
+
+The edit door's own sentence (`EditError::UnknownVar`, *{var} is not a
+variable of this document*) is still its own literal — filed on
+DOCTAIL's slate as
 `the-not-declared-fact-is-composed-on-both-sides-of-the-crate-edge`.
 The node-shaped sibling (the pane's *deleted* against `NoSuchSlot` for
 a drag on a deleted node's slot) is filed as

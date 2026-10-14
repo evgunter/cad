@@ -17,7 +17,7 @@ Found by `a-refused-typed-value-reaches-no-word`'s sweep for a
 `crates/viewer/src/pane/properties.rs`, the add-parameter form in
 `ViewerBehavior::properties_ui`'s parameter section (the
 `create.clicked() && … && let Ok(value) = SlotValue::of(dimension,
-self.drafts.new_param_value)` chain). The draft field is a
+self.drafts.new_variable_value)` chain). The draft field is a
 `widgets::number_field`, whose parser reads `inf` and `NaN` as numbers
 (`props::field_edit`), so a `Count` draft can be handed a value the
 dimension cannot carry (whether `egui`'s `DragValue` stores it

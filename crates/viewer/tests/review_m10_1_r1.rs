@@ -1,11 +1,11 @@
 //! **R1 review probes for M10-1, GUI half**: the carry-forward class.
 //!
-//! `DocEdit::SetDocParam` is create-or-replace, so every GUI door that
-//! rebuilds a `DocParam` from parts is a door that can silently DELETE
-//! an existing distribution. The PR fixed `props::param_edit` and
+//! `DocEdit::DefineVar` replaces a whole definition, so every GUI door that
+//! rebuilds a `FreeVar` from parts is a door that can silently DELETE
+//! an existing distribution. The PR fixed `props::variable_edit` and
 //! reported the fix in prose; nothing in the tree pinned it. These
-//! rows pin BOTH value-edit doors — the panel (`SetParam`) and the
-//! drag gesture (`BeginParamGesture` → preview → commit) — against
+//! rows pin BOTH value-edit doors — the panel (`SetVariable`) and the
+//! drag gesture (`BeginVariableGesture` → preview → commit) — against
 //! that deletion, and the create door against dropping an annotation
 //! it was handed.
 
@@ -14,31 +14,30 @@
 
 use crate::common;
 
-use pncad::document::{Dimension, Distribution, DocParam, ParamName};
+use pncad::document::{Dimension, Distribution, FreeVar, VarName};
 use pncad::geom_core::Tol;
 use viewer::props::SlotValue;
 use viewer::session::{DocSession, SessionOp};
 
-fn annotated_session() -> (DocSession, ParamName, Distribution) {
+fn annotated_session() -> (DocSession, VarName, Distribution) {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let name = ParamName::new("bore_r");
+    let name = VarName::from_static("bore_r");
     let dist = Distribution::Normal { sigma: 5e-6 };
-    let outcome = session.perform(SessionOp::CreateParam {
+    let outcome = session.perform(SessionOp::DeclareVar {
         name: name.clone(),
-        value: DocParam::continuous_with(Dimension::Length, 0.004, dist),
+        value: FreeVar::continuous_with(Dimension::Length, 0.004, dist),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     (session, name, dist)
 }
 
-fn distribution_of(session: &DocSession, name: &ParamName) -> Option<Distribution> {
+fn distribution_of(session: &DocSession, name: &VarName) -> Option<Distribution> {
     session
         .committed_doc()
-        .params()
-        .get(name)
-        .expect("the parameter exists")
+        .free_named(name.as_str())
+        .expect("the variable exists")
         .distribution()
         .copied()
 }
@@ -52,22 +51,21 @@ fn create_param_carries_an_annotation() {
 }
 
 /// **The reported defect, pinned**: a panel VALUE edit on an annotated
-/// parameter changes the value and keeps the distribution.
+/// variable changes the value and keeps the distribution.
 #[test]
 fn a_panel_value_edit_keeps_the_distribution() {
     let (mut session, name, dist) = annotated_session();
-    let outcome = session.perform(SessionOp::SetParam {
-        name: name.clone(),
+    let outcome = session.perform(SessionOp::SetVariable {
+        var: common::var_of(session.committed_doc(), name.as_str()),
         value: SlotValue::Continuous(0.005),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let param = session
         .committed_doc()
-        .params()
-        .get(&name)
+        .free_named(name.as_str())
         .expect("still declared");
     match *param {
-        DocParam::Continuous {
+        FreeVar::Continuous {
             value,
             distribution,
             ..
@@ -76,34 +74,37 @@ fn a_panel_value_edit_keeps_the_distribution() {
             let got = distribution.expect("the annotation SURVIVED the value edit");
             assert!(got.bit_eq(&dist), "and survived bit for bit");
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
 }
 
 /// The same class through the OTHER value door: a drag gesture
-/// (preview + commit) on an annotated parameter keeps the
+/// (preview + commit) on an annotated variable keeps the
 /// distribution.
 #[test]
 fn a_param_drag_gesture_keeps_the_distribution() {
     let (mut session, name, dist) = annotated_session();
-    let outcome = session.perform(SessionOp::BeginParamGesture { name: name.clone() });
+    let outcome = session.perform(SessionOp::BeginVariableGesture {
+        var: common::var_of(session.committed_doc(), name.as_str()),
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let outcome = session.perform(SessionOp::PreviewParamGesture {
-        name: name.clone(),
+    let outcome = session.perform(SessionOp::PreviewVariableGesture {
+        var: common::var_of(session.committed_doc(), name.as_str()),
         value: 0.006,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let outcome = session.perform(SessionOp::CommitParamGesture { name: name.clone() });
+    let outcome = session.perform(SessionOp::CommitVariableGesture {
+        var: common::var_of(session.committed_doc(), name.as_str()),
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let got = distribution_of(&session, &name).expect("the annotation survived the gesture");
     assert!(got.bit_eq(&dist));
     match *session
         .committed_doc()
-        .params()
-        .get(&name)
+        .free_named(name.as_str())
         .expect("declared")
     {
-        DocParam::Continuous { value, .. } => assert_eq!(value, 0.006, "the drag landed"),
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Continuous { value, .. } => assert_eq!(value, 0.006, "the drag landed"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
 }

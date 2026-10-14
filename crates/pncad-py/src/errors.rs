@@ -99,6 +99,63 @@ pub const fn dimension_tag(dim: Dimension) -> &'static str {
     }
 }
 
+/// The lowercase tag a variable's kind is exposed to Python under: a
+/// scalar's is its dimension's ([`dimension_tag`]), and a pose's or a
+/// shape's is its own word.
+///
+/// Total over the kinds: adding one stops this function compiling.
+pub const fn var_kind_tag(kind: pncad::document::VarKind) -> &'static str {
+    use pncad::document::VarKind;
+    match kind {
+        VarKind::Length => dimension_tag(Dimension::Length),
+        VarKind::Angle => dimension_tag(Dimension::Angle),
+        VarKind::Scalar => dimension_tag(Dimension::Scalar),
+        VarKind::Count => dimension_tag(Dimension::Count),
+        VarKind::Point => "point",
+        VarKind::Direction => "direction",
+        VarKind::Axis => "axis",
+        VarKind::Plane => "plane",
+        VarKind::Frame => "frame",
+        VarKind::Body => "body",
+        VarKind::Bodies => "bodies",
+        VarKind::Profile => "profile",
+        VarKind::Face => "face",
+        VarKind::Edge => "edge",
+        VarKind::Vertex => "vertex",
+        VarKind::Faces => "faces",
+        VarKind::Edges => "edges",
+    }
+}
+
+/// The stable tag for what an operand slot admits: a kind's own word
+/// ([`var_kind_tag`]), `placeable` (a body or a list of bodies),
+/// `measured` (what a measure's reference reads: a body, a face, an
+/// edge or a vertex), or the word of what a pose definition's read
+/// admits ([`pose_admits_tag`]).
+pub const fn slot_kind_tag(kind: pncad::document::SlotKind) -> &'static str {
+    use pncad::document::SlotKind as K;
+    match kind {
+        K::Is(kind) => var_kind_tag(kind),
+        K::Placeable => "placeable",
+        K::Measured(_) => "measured",
+        K::Pose(admits) => pose_admits_tag(admits),
+    }
+}
+
+/// The stable tag for what a pose definition's read admits:
+/// `carrier` (a face or an edge, an axis is read off), `centre` (a
+/// face, an edge or a vertex, a point is read off), `sensed` (a pose
+/// with a sense) or `projected` (a pose with a coarser projection).
+pub const fn pose_admits_tag(admits: pncad::document::pose::PoseAdmits) -> &'static str {
+    use pncad::document::pose::PoseAdmits as A;
+    match admits {
+        A::Carrier => "carrier",
+        A::Centre => "centre",
+        A::Sensed => "sensed",
+        A::Projected => "projected",
+    }
+}
+
 /// The **capitalized** spelling of a [`Dimension`], which is what
 /// `Measurement.dimension` answers.
 ///
@@ -180,7 +237,7 @@ impl fmt::Display for QuantityOpMismatch {
 
 impl core::error::Error for QuantityOpMismatch {}
 
-// The binding carries no literal pre-check of its own: `Expr::literal`'s
+// The binding carries no literal pre-check of its own: `Formula::literal`'s
 // own error type (`pncad::document::DimensionError`) is curated, so the
 // binding matches the kernel's refusal instead of predicting it; the tag
 // mapping is `crate::tags::expr_dimension_error_tag`.
@@ -264,21 +321,16 @@ pub enum ErrorClass {
     /// sublanguage's arithmetic constructors do, arriving on THIS
     /// class with the mismatch's own tag as `kind` — they are the same
     /// kernel type refusing at the same layer, because that language
-    /// asks `Expr`'s own constructors for its dimensions rather than
+    /// asks `Formula`'s own constructors for its dimensions rather than
     /// restating the F1 table. The full roster is on
-    /// [`DIMENSION_DOORS`] — SIX doors under four class names, each
+    /// [`DIMENSION_DOORS`] — FIVE doors under four class names, each
     /// naming the DOOR — and every one of them carries the failing
     /// check's own tag beside it, from one map
     /// (`crate::tags::expr_dimension_error_tag`). Nothing anywhere is
     /// routed to [`ErrorClass::QuantityOp`], which is the quantity
     /// boundary's own check and a different type.
-    ///
-    /// So `value` is the offending number where the refusing door had
-    /// one in hand and `None` where it did not: a measurement
-    /// constructor refuses over two operands' DIMENSIONS, and there is
-    /// no single float to name.
     Literal,
-    /// The expression TEXT door refused: `parse_expr` could not read
+    /// The expression TEXT door refused: `parse_formula` could not read
     /// the source as an expression. The Python class keeps the Rust
     /// type's own name, `ParseError`.
     ///
@@ -399,11 +451,12 @@ pub enum ErrorClass {
     /// different stages of one story: this one means there is nothing
     /// to pick AGAINST, that one means the pick itself could not
     /// answer. The standing ladder is shared, and arrives here under
-    /// the hit-test door's own tags rather than a wrapper's.
+    /// the same tags the hit-test door answers with rather than a
+    /// wrapper's.
     NodePick,
-    /// The advisory-check registry could not RUN: a root without a
-    /// value, a tolerance that forms no band, roots that gather into
-    /// no product. The Python class is `ChecksError`.
+    /// The advisory-check registry could not RUN: a placement without
+    /// a value, a tolerance that forms no band, placements that gather
+    /// into no product. The Python class is `ChecksError`.
     ///
     /// Not a finding. A check that ran and disagreed is a value in the
     /// report; this class means nothing was checked, which is the
@@ -444,23 +497,6 @@ pub enum ErrorClass {
     /// it to uniform, so the door that would have to guess raises
     /// instead, naming the parameter.
     Measure,
-    /// A [`Node::Measure`](pncad::document::Node)'s expression reads a
-    /// reference the node does not carry, refused at the Python
-    /// construction door. The Python class keeps the Rust type's own
-    /// name,
-    /// [`MeasureNodeFault`](pncad::document::MeasureNodeFault).
-    ///
-    /// The second class in this taxonomy raised by a VALUE
-    /// constructor rather than by a door that touches a document, and
-    /// for [`Self::Distribution`]'s reason: `Node::measure` is the
-    /// kernel's ONE construction door and it runs the same check the
-    /// edit door and the load door's re-check run, so the binding
-    /// calls it rather than restating it. What the timing buys is
-    /// that an index past the end of the reference list refuses where
-    /// it is written, not at the `Doc.apply` after it — where the
-    /// same fault arrives as `EditError` with `variant ==
-    /// "measure_malformed"`.
-    MeasureNode,
     /// A measure whose value is an ENCLOSURE, read at a build whose
     /// scalar is a point (E3/E7, M10-6). The Python class keeps the
     /// Rust type's own name,
@@ -505,9 +541,15 @@ pub enum ErrorClass {
     /// so a caller who branches on `band_has_no_measure` reads the
     /// same word from either door.
     Mc,
+    /// An authored step handle that does not bind in the profile it was
+    /// read against: its address is off that loop's program, or the
+    /// role asked of it is one its verb never draws. The Python class
+    /// is `StepHandleError`, after the Rust type
+    /// [`StepHandleRefusal`](pncad::document::StepHandleRefusal).
+    StepHandle,
 }
 
-/// **Six doors, four classes.** The document layer's `DimensionError`
+/// **Five doors, four classes.** The document layer's `DimensionError`
 /// is not a one-door refusal, and the roster is mechanical — it is the
 /// set of sites that mint [`crate::tags::expr_dimension_error_tag`]'s
 /// word into a Python attribute, directly or through the two helpers
@@ -516,9 +558,8 @@ pub enum ErrorClass {
 /// | door | class | attribute |
 /// |---|---|---|
 /// | literal construction | `LiteralError` | `kind` |
-/// | measurement arithmetic | `LiteralError` | `kind` |
 /// | the recorded-program lift | `LiteralError` | `variant` |
-/// | `Doc.parse_expr` | `ParseError` | `kind` |
+/// | `Doc.parse_formula` | `ParseError` | `kind` |
 /// | `Doc.apply` | `EditError` | `inner_variant` |
 /// | `load` | `PersistError` | `inner_variant` |
 ///
@@ -572,10 +613,10 @@ impl ErrorClass {
             Self::Enforce => "CheckRefusal",
             Self::Distribution => "DistributionFault",
             Self::Measure => "MeasureUnavailable",
-            Self::MeasureNode => "MeasureNodeFault",
             Self::MeasureUnavailableAt => "MeasureUnavailableAt",
             Self::AnalysisPolicy => "AnalysisPolicyError",
             Self::Mc => "McRefusal",
+            Self::StepHandle => "StepHandleError",
         }
     }
 }
@@ -622,25 +663,14 @@ impl ErrorClass {
 /// arrangement for the same reason.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EvalReason {
-    /// The document holds no node under that id.
-    UnknownNode,
     /// The node evaluated to a value of a kind this door cannot read.
     WrongKind,
     /// A Boolean that succeeded and produced nothing to hand back.
     EmptyBoolean,
-    /// The run was canceled before it reached the node, so this
-    /// evaluation holds the completed prefix only. The same rung the
-    /// read-back and picking doors speak
-    /// ([`crate::tags::hit_test_error_tag`],
-    /// [`crate::tags::interrogate_error_tag`]), spelled identically on
-    /// purpose and pinned against both by
-    /// `tests::the_evaluation_door_speaks_the_standing_ladder`.
-    NodeNotEvaluated,
-    /// The node ITSELF failed; `kind` carries the refusal's own tag.
-    NodeFailed,
-    /// An ancestor failed, so the node never ran; `through` names the
-    /// nearest failed one.
-    Poisoned,
+    /// The node has no value, and its standing says why. A failed
+    /// node's `kind` carries its refusal's own tag; a poisoned one's
+    /// `through` names the nearest failed ancestor.
+    Standing(pncad::document::NodeStanding),
 }
 
 impl EvalReason {
@@ -774,17 +804,19 @@ impl ValidationRefusal {
 /// the document layer.
 ///
 /// Taken by `crate::py::doc`'s boundary raise instead of a
-/// `&'static str`, so the three refusals this crate decides for itself
-/// are a closed set: a fourth is a variant here, an arm in
+/// `&'static str`, so the refusals this crate decides for itself are a
+/// closed set: another is a variant here, an arm in
 /// `crate::tags::boundary_edit_tag`, and a word the tag inventory sees.
 ///
-/// Two of the three carry the KERNEL VALUE whose word they publish
-/// rather than a word of their own, and that is the rule
-/// `crate::py::doc`'s boundary raise states: where a kernel enum arm
-/// stands behind the refusal, the word is that enum's to spell, so the
-/// two refusals a caller can reach through either door stay one word.
-/// Only [`Self::NameSerialize`] mints, because a `serde_json` failure
-/// has no arm anywhere.
+/// Every variant but [`Self::NameSerialize`] carries the KERNEL VALUE
+/// behind it, and that is the rule `crate::py::doc`'s boundary raise
+/// states: where the value is a kernel enum ([`Self::PlacementRule`],
+/// [`Self::Label`]), the word is that enum's own map's, so a refusal a
+/// caller can reach through either door stays one word. The other three
+/// are one word each, minted in `crate::tags`: [`Self::NameSerialize`]
+/// because a `serde_json` failure has no arm anywhere, and
+/// [`Self::MateHead`] and [`Self::ParamName`] because each is one
+/// constructor's one refusal, with no enum arm to spell it.
 #[derive(Debug, Clone, Copy)]
 pub enum BoundaryEdit<'a> {
     /// A stable name that would not serialize. The one arm with no
@@ -792,10 +824,6 @@ pub enum BoundaryEdit<'a> {
     /// serialization and the document layer never refuses a name for
     /// failing to produce it.
     NameSerialize,
-    /// An insert that minted no node id, worded by the declare
-    /// sugar's own map — the same refusal reaches Python through
-    /// `Doc.declare`, and it is the same word there.
-    Declare(&'a pncad::select::DeclareError),
     /// A placement rule spelled through the wrong constructor, worded
     /// by the document layer's own fault map.
     PlacementRule(&'a pncad::document::PlacementRuleFault),
@@ -807,6 +835,18 @@ pub enum BoundaryEdit<'a> {
     /// the binding holds it here and answers with the constructor's
     /// own refusal.
     MateHead(&'a pncad::document::NotAFaceName),
+    /// A text that is not a parameter name. `ParamName(text)` is the
+    /// boundary that turns text into a name, and the document layer's
+    /// one rule for one — an identifier an expression reads back — is
+    /// held by the constructor there, so the binding answers with the
+    /// constructor's own refusal at the call that offered the text.
+    ParamName(&'a pncad::document::VarNameFault),
+    /// A text that is not a label. A label crosses as text, and the
+    /// document layer's rule for one — one line, free of controls and
+    /// direction formatting, with a visible character — is held by
+    /// `Label::new`, so the binding answers with
+    /// that constructor's refusal at the call that offered the text.
+    Label(&'a pncad::document::LabelFault),
 }
 
 /// Which `#[non_exhaustive]` kernel enum at the SELECTION boundary has
@@ -825,7 +865,7 @@ pub enum UnmirroredSelect {
     /// mirror, reached through the query door.
     Refusal,
     /// A `pncad::select::ContactClass` this binding does not mirror,
-    /// reached through a flush finding's `class_`.
+    /// reached through a mate's or a crossing's `class_`.
     ContactClass,
 }
 
@@ -892,7 +932,7 @@ pub enum StlRefusal<'a> {
 /// carry, and no cheaper discriminator was available — but it is a
 /// trade, not a free check.
 ///
-/// One arm disagrees with it on purpose: `crate::py::flush`'s
+/// One arm disagrees with it on purpose: `crate::py::contact`'s
 /// unknown-`ContactClass` refusal renders the unknown variant through
 /// `Debug`, having nothing else to render it with. Today that is a
 /// fieldless name mid-sentence, which passes. A future STRUCT variant

@@ -48,14 +48,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::io::Write;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, KProbe, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram, UnitSym,
+    Dimension, Distribution, DocEdit, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    UnitSym, VarName,
 };
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, SampleOutcome};
@@ -68,9 +69,9 @@ use fixture::{Recorder, xy_frame};
 /// the certification population are the same population.
 fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new("depth"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("depth"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             value: nominal,
@@ -78,11 +79,11 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0,
+        frame: xy_frame_0.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite square corners"),
@@ -90,8 +91,9 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
-        distance: editor_core::Expr::param(ParamName::new("depth"), Dimension::Length),
+        profile: p.into(),
+        distance: editor_core::Formula::named(VarName::from_static("depth"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -110,13 +112,11 @@ fn documents() -> Vec<(&'static str, ProfileDoc)> {
         // leaf whose certified-midpoint replay exercises the symbolic
         // tier on the holes' cylindrical carriers — the population
         // wants the arc family present, not a split. The slabs above
-        // contribute `symbolic_zero` samples
-        // too (their straight-walled identities discharge through the
-        // plain form); what only this fixture contributes is the ARC
-        // family's — the constant fold A0's, rule D's and the per-node
-        // A/B discharges (`symbolic_zero`), the door's (`registered`),
-        // and `sign_gated` rows the day rule C is switched on. The
-        // scale is epsilon-RELATIVE like the slabs': written as the
+        // contribute `symbolic` samples too (their straight-walled
+        // identities discharge through the plain form); what only this
+        // fixture contributes is the ARC family's — the constant fold
+        // A0's, rule D's, the per-node A/B discharges and the door's,
+        // all `symbolic` rows. The scale is epsilon-RELATIVE like the slabs': written as the
         // constant `1e-6` it was 1280x the ceiling at `eps = 1e-12`,
         // where the driver certified nothing and the fixture fell out
         // of the linted population on that row. Cost: ~40 s per

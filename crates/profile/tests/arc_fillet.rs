@@ -24,13 +24,13 @@
 
 use crate::common;
 
-use common::{profile, tol};
-use geom_core::Point2;
+use common::{profile, segment_bits, tol};
 use geom_core::Tol;
+use geom_core::{Arc2, Point2};
 use profile::path::{CornerReason, CornerWindow, PathNoCornerReason};
 use profile::{
-    ArcSweep, Center, FILLET_NO_CORNER_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason, Open,
-    PathError, Profile, ProfileLoop, Start,
+    ArcSweep, Center, ConstructedLoop, ConstructedProfile, FILLET_NO_CORNER_RECOURSE, FilletLeg,
+    FilletLegCarrier, NoCornerReason, Open, PathError, Profile, ProfileLoop, SketchPlane, Start,
 };
 
 /// √3 — the y coordinate of the crossing points of the unit-spaced
@@ -48,21 +48,20 @@ fn escalated_predicate(err: &PathError<f64>) -> &'static str {
     }
 }
 
-/// Every declared joint of `lp` must survive validation (the #101
-/// discipline: declared tangency is verified, never trusted). The
-/// algebra's declarations are asserted in the *authoring* indexing;
-/// validation re-indexes into canonical order, so only the count
-/// survives the comparison there — what matters is that both
-/// declarations verify (a contradicted one is a hard refusal).
-fn validates_with_declared_joints(lp: ProfileLoop<f64>, expected: &[usize]) -> Profile<f64> {
-    assert_eq!(lp.tangent_joints(), expected, "declared joints");
-    let p = profile(vec![lp]);
-    let vp = p
-        .clone()
+/// Every constructed joint of `lp` must survive validation (a
+/// construction is verified, never trusted). The algebra's joints are
+/// asserted in the *authoring* indexing; validation re-indexes into
+/// canonical order, so only the count survives the comparison there —
+/// what matters is that both verify (a contradicted one is a hard
+/// refusal) and that validation decides no other joint tangent.
+fn validates_with_constructed_joints(lp: ConstructedLoop<f64>, expected: &[usize]) -> Profile<f64> {
+    assert_eq!(lp.constructed_joints(), expected, "constructed joints");
+    let vp = ConstructedProfile::new(SketchPlane::xy(), vec![lp.clone()])
         .validate(tol())
         .expect("the fillet-authored loop must validate");
     assert_eq!(vp.loops()[0].tangent_joints().len(), expected.len());
-    p
+    assert!(vp.loops()[0].decided_joints().is_empty(), "nothing decided");
+    profile(vec![lp.into_loop()])
 }
 
 // ------------------------------------------- fixtures, per corner class
@@ -77,7 +76,7 @@ fn validates_with_declared_joints(lp: ProfileLoop<f64>, expected: &[usize]) -> P
 /// and the fillet CLOSES along the circle about the origin — the
 /// derived corner is (2, 0), where that ray meets that circle.
 /// Vertex chain: (0,2) → (0,0) → T1 → T2 ⤾.
-fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn line_arc_internal(radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.at(Point2::new(0.0, 2.0))
         .line_to(Point2::new(0.0, 0.0), Tol::witness())?
         .toward(2.0, 0.0, Tol::witness())?
@@ -98,7 +97,7 @@ fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// circle centered at (3, 0), so the fillet's offset carrier is the
 /// radius R + r circle. Rotated the same way as its internal twin.
 /// Vertex chain: (3,-1) → (3,-2) → (0,-2) → (0,0) → T1 → T2 ⤾.
-fn line_arc_external(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn line_arc_external(radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.at(Point2::new(3.0, -1.0))
         .line_to(Point2::new(3.0, -2.0), Tol::witness())?
         .line_to(Point2::new(0.0, -2.0), Tol::witness())?
@@ -122,7 +121,7 @@ fn line_arc_external(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// and the ordinary far-end anchor ends the straight side at (4, 0).
 /// The derived corner is (2, 0). Vertex chain:
 /// (0,2) → T1 → T2 → (4,0) → (4,3) → (-1,3) ⤾.
-fn arc_line(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn arc_line(radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.arc_fillet(
         Center {
             c: Point2::new(0.0, 0.0),
@@ -149,7 +148,7 @@ fn arc_line(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// counterclockwise, so σ·τ = +1 on both and both offset carriers are
 /// R − r circles. Authored coordinates are the raw-builder fixture's,
 /// verbatim.
-fn arc_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn arc_arc_internal(radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
             c: Point2::new(-1.0, 0.0),
@@ -171,7 +170,7 @@ fn arc_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// **arc×arc, one internal + one external**: the same crossing circles,
 /// but the outgoing leg winds the other way, so the fillet is external
 /// to the first carrier (R + r) and internal to the second (R − r).
-fn arc_arc_mixed(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn arc_arc_mixed(radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
             c: Point2::new(-1.0, 0.0),
@@ -193,12 +192,12 @@ fn arc_arc_mixed(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// The line×arc corner at the radius that consumes BOTH sides exactly
 /// (r = 1): no lead-in piece, no lead-out piece, no declarations — the
 /// fillet arc alone, closed straight. A half disc.
-fn exact_fit_line_arc() -> ProfileLoop<f64> {
+fn exact_fit_line_arc() -> ConstructedLoop<f64> {
     line_arc_internal(1.0).expect("the exact-fit radius constructs")
 }
 
 #[test]
-fn line_arc_internal_validates_with_declared_tangency() {
+fn line_arc_internal_validates_with_constructed_tangency() {
     let lp = line_arc_internal(0.5).expect("the fillet fits");
     // (0,2) → (0,0) → T1 on y = 0 → fillet arc → T2 on the circle ⤾.
     assert_eq!(lp.vertices().len(), 4);
@@ -218,21 +217,69 @@ fn line_arc_internal_validates_with_declared_tangency() {
         "T2 off the carrier by {:e}",
         (t2.x.hypot(t2.y) - 2.0).abs()
     );
-    validates_with_declared_joints(lp, &[2, 3]);
+    validates_with_constructed_joints(lp, &[2, 3]);
+}
+
+/// **A short run out on the arrival circle is the fillet's run out**:
+/// the line×arc internal corner with its entry moved `turn` radians
+/// past T2 along the radius-2 arrival circle, so the closing arc — the
+/// fused verb's run out — spans a chord of about `2·turn` meters. However
+/// short, that arc lies on the arrival circle, so it builds and is named
+/// the fillet step's `RunOut`; the fused `fillet_arc` has no `Leg` to
+/// name it instead. Below a turn of about ε/2 the corner refuses as a
+/// tangent seam, and inside the band it escalates on
+/// `path_junction_turn`, so each turn is floored at Kε.
+#[test]
+fn a_short_closing_run_out_on_the_arrival_circle_is_named_the_run_out() {
+    use profile::{Piece, PieceRole};
+    let t2 = line_arc_internal(0.5).expect("the fillet fits").vertices()[3];
+    let past_t2 = t2.y.atan2(t2.x);
+    let floor = tol().k() * tol().eps();
+    let mut turns = [1e-7_f64, 3e-8, 1e-8].map(|t| t.max(floor)).to_vec();
+    turns.dedup();
+    for turn in turns {
+        let entry = Point2::new(2.0 * (past_t2 + turn).cos(), 2.0 * (past_t2 + turn).sin());
+        let closed = Open
+            .at(entry)
+            .line_to(Point2::new(0.0, 0.0), Tol::witness())
+            .and_then(|o| o.toward(2.0, 0.0, Tol::witness()))
+            .and_then(|o| {
+                o.fillet_arc(
+                    0.5,
+                    Center {
+                        c: Point2::new(0.0, 0.0),
+                        winding: ArcSweep::Ccw,
+                        p: Start,
+                    },
+                    Tol::witness(),
+                )
+            })
+            .unwrap_or_else(|e| panic!("entry {turn:e} rad past T2: {e:?}"));
+        let pieces = &closed.structure.pieces;
+        assert_eq!(
+            pieces.last().copied(),
+            Some(Piece {
+                step: 3,
+                role: PieceRole::RunOut,
+            }),
+            "entry {turn:e} rad past T2: {pieces:?}"
+        );
+        common::pinned(closed);
+    }
 }
 
 #[test]
-fn line_arc_external_validates_with_declared_tangency() {
+fn line_arc_external_validates_with_constructed_tangency() {
     let lp = line_arc_external(0.5).expect("the fillet fits");
     assert_eq!(lp.vertices().len(), 6);
     let t2 = lp.vertices()[5];
     // On the arrival side's carrier (center (3,0), R = 1).
     assert!(((t2.x - 3.0).powi(2) + t2.y.powi(2) - 1.0).abs() < 1e-15);
-    validates_with_declared_joints(lp, &[4, 5]);
+    validates_with_constructed_joints(lp, &[4, 5]);
 }
 
 #[test]
-fn arc_line_validates_with_declared_tangency() {
+fn arc_line_validates_with_constructed_tangency() {
     let lp = arc_line(0.5).expect("the fillet fits");
     assert_eq!(lp.vertices().len(), 6);
     let t1 = lp.vertices()[1];
@@ -240,27 +287,27 @@ fn arc_line_validates_with_declared_tangency() {
     assert!((t1.x.powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-15);
     // T2 on the straight arrival side y = 0.
     assert!(lp.vertices()[2].y.abs() < 1e-15);
-    validates_with_declared_joints(lp, &[1, 2]);
+    validates_with_constructed_joints(lp, &[1, 2]);
 }
 
 #[test]
-fn arc_arc_internal_validates_with_declared_tangency() {
+fn arc_arc_internal_validates_with_constructed_tangency() {
     let lp = arc_arc_internal(0.5).expect("the fillet fits");
     let t1 = lp.vertices()[1];
     let t2 = lp.vertices()[2];
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
-    validates_with_declared_joints(lp, &[1, 2]);
+    validates_with_constructed_joints(lp, &[1, 2]);
 }
 
 #[test]
-fn arc_arc_mixed_validates_with_declared_tangency() {
+fn arc_arc_mixed_validates_with_constructed_tangency() {
     let lp = arc_arc_mixed(0.5).expect("the fillet fits");
     let t1 = lp.vertices()[1];
     let t2 = lp.vertices()[2];
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
-    validates_with_declared_joints(lp, &[1, 2]);
+    validates_with_constructed_joints(lp, &[1, 2]);
 }
 
 // ------------------------------------- the #100 bracket regression anchor
@@ -308,7 +355,7 @@ fn bracket_with_an_arc_leg_validates_and_declares() {
     // T1 sits on the incoming side's carrier.
     let t1 = lp.vertices()[1];
     assert!(((t1.x - 2.0).powi(2) + (t1.y + 2.0).powi(2) - 10.0).abs() < 1e-14);
-    validates_with_declared_joints(lp, &[1, 2]);
+    validates_with_constructed_joints(lp, &[1, 2]);
 }
 
 // ------------------------------------------------- the refusal taxonomy
@@ -422,7 +469,7 @@ fn radius_too_large_for_the_corner_has_no_tangent_circle() {
 #[test]
 fn a_negative_radius_is_refused_by_the_sign_gate_at_the_verb() {
     // r = 0 degenerates the arc and r < 0 mirrors the tangent points
-    // past the corner: either way the declared-tangent construction the
+    // past the corner: either way the constructed-tangent construction the
     // fillet promises does not exist, so the radius is classified
     // through the funnel at the fillet verb itself, before an arrival
     // can be authored against it.
@@ -557,16 +604,17 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
 /// recovered through validation's segment classification: the one
 /// radius-`r` arc. Returns (center, radius) and asserts both declared
 /// joints verified on the way.
-fn picked_fillet_circle(lp: ProfileLoop<f64>, r: f64) -> (Point2<f64>, f64) {
-    let p = validates_with_declared_joints(lp, &[1, 2]);
+fn picked_fillet_circle(lp: ConstructedLoop<f64>, r: f64) -> (Point2<f64>, f64) {
+    let p = validates_with_constructed_joints(lp, &[1, 2]);
     let vp = p.validate(tol()).expect("validates");
     vp.loops()[0]
         .segments()
         .iter()
         .find_map(|s| match s.kind {
-            profile::SegmentKind::Arc { center, radius, .. } if (radius - r).abs() < 1e-12 => {
-                Some((center, radius))
-            }
+            profile::SegmentKind::Arc {
+                arc: Arc2 { centre, radius, .. },
+                ..
+            } if (radius - r).abs() < 1e-12 => Some((centre, radius)),
             _ => None,
         })
         .expect("the fillet arc classifies at its authored radius")
@@ -584,7 +632,7 @@ fn vesica_lens(
     centre_in: Point2<f64>,
     w: ArcSweep,
     r: f64,
-) -> ProfileLoop<f64> {
+) -> ConstructedLoop<f64> {
     Open.arc_fillet_arc(
         Center {
             c: centre_in,
@@ -684,14 +732,14 @@ fn symmetric_lens_pick_is_bit_deterministic_across_runs() {
     };
     let a = build();
     let b = build();
-    assert_eq!(a.tangent_joints(), b.tangent_joints());
+    assert_eq!(a.constructed_joints(), b.constructed_joints());
     assert_eq!(a.vertices().len(), b.vertices().len());
     for (va, vb) in a.vertices().iter().zip(b.vertices()) {
         assert_eq!(va.x.to_bits(), vb.x.to_bits());
         assert_eq!(va.y.to_bits(), vb.y.to_bits());
     }
-    for (ba, bb) in a.bulges().iter().zip(b.bulges()) {
-        assert_eq!(ba.to_bits(), bb.to_bits());
+    for (sa, sb) in a.segments().iter().zip(b.segments()) {
+        assert_eq!(segment_bits(sa), segment_bits(sb));
     }
 }
 
@@ -723,14 +771,14 @@ fn ulp_perturbed_lens_pick_is_deterministic_within_the_lane() {
     };
     let a = build();
     let b = build();
-    assert_eq!(a.tangent_joints(), b.tangent_joints());
+    assert_eq!(a.constructed_joints(), b.constructed_joints());
     assert_eq!(a.vertices().len(), b.vertices().len());
     for (va, vb) in a.vertices().iter().zip(b.vertices()) {
         assert_eq!(va.x.to_bits(), vb.x.to_bits());
         assert_eq!(va.y.to_bits(), vb.y.to_bits());
     }
-    for (ba, bb) in a.bulges().iter().zip(b.bulges()) {
-        assert_eq!(ba.to_bits(), bb.to_bits());
+    for (sa, sb) in a.segments().iter().zip(b.segments()) {
+        assert_eq!(segment_bits(sa), segment_bits(sb));
     }
     // One pocket was definitely committed to (which one is the lane's
     // own business).
@@ -738,7 +786,7 @@ fn ulp_perturbed_lens_pick_is_deterministic_within_the_lane() {
 }
 
 #[test]
-fn an_already_tangent_corner_asks_for_the_declaration_instead() {
+fn an_already_tangent_corner_asks_for_the_tangent_construction_instead() {
     // The line y = 0 is tangent to the circle about (2,2) at (2,0):
     // the carriers touch, so there is no corner to cut. One refusal for
     // the whole tangent/anti-tangent class — a doubled-back contact is
@@ -1063,7 +1111,7 @@ fn fillet_offset_line_circle_trio() {
     // over both (a half disc).
     let lp = exact_fit_line_arc();
     assert_eq!(lp.vertices().len(), 2, "no lead-in, no lead-out: {lp:?}");
-    profile(vec![lp])
+    profile(vec![lp.into_loop()])
         .validate(tol())
         .expect("the exact-offset fillet validates");
     // in-band: (2 − r) − r = 5ε.
@@ -1088,7 +1136,7 @@ fn fillet_offset_circles_external_trio() {
     // tangent — one candidate, exact fit on both legs.
     let lp = arc_arc_internal(1.0).expect("the tangent-offset case constructs");
     assert_eq!(lp.vertices().len(), 2, "no lead-in, no lead-out: {lp:?}");
-    profile(vec![lp])
+    profile(vec![lp.into_loop()])
         .validate(tol())
         .expect("the exact-offset arc×arc fillet validates");
     // in-band.
@@ -1104,7 +1152,7 @@ fn fillet_offset_circles_internal_trio() {
     assert!(arc_arc_mixed(0.5).is_ok());
     let lp = arc_arc_mixed(1.0).expect("the tangent-offset case constructs");
     assert_eq!(lp.vertices().len(), 2, "no lead-in, no lead-out: {lp:?}");
-    profile(vec![lp])
+    profile(vec![lp.into_loop()])
         .validate(tol())
         .expect("the internally-tangent-offset fillet validates");
     let err = arc_arc_mixed(0.5f64.mul_add(-in_band(), 1.0))
@@ -1122,7 +1170,11 @@ fn fillet_leg_fit_trio_definite_and_exact() {
     // straight-side resolution documents).
     let lp = exact_fit_line_arc();
     assert_eq!(lp.vertices().len(), 2);
-    assert!(lp.tangent_joints().is_empty(), "{:?}", lp.tangent_joints());
+    assert!(
+        lp.constructed_joints().is_empty(),
+        "{:?}",
+        lp.constructed_joints()
+    );
     // The entry anchor and the ray's origin survive verbatim; the fillet
     // arc springs off the origin and closes on the entry.
     assert!((lp.vertices()[0].y - 2.0).abs() < 1e-15);
@@ -1182,21 +1234,33 @@ fn a_zero_radius_fillet_is_refused_at_the_verb() {
 /// 1.2e-2 off its own carrier and a fillet radius 4.1e-3 wrong, and now
 /// emits 2.2e-16 and 1.2e-9. Re-pinning a handful of ulps to remove that
 /// is the trade; re-pinning for any smaller reason is not.
-/// A vertex's `(x, y, bulge)` raw f64 bits — the channel the pin below
-/// compares on, because "bit-identical" is the actual claim.
+///
+/// Two sweeps moved since, `arc_arc_internal`'s arrival run by one ulp
+/// and `arc_arc_mixed`'s by three, when the run began storing the side's
+/// own carrier and reading its sweep off the chord about that centre
+/// instead of re-lowering a bulge from the chord; no vertex moved.
+/// A vertex's `(x, y, sweep)` raw f64 bits, the sweep its leaving
+/// segment stores (`0` for a line, which stores none) — the channel the
+/// pin below compares on, because "bit-identical" is the actual claim.
 type VertexBits = (u64, u64, u64);
 
 /// One pinned corner class: its name, the loop it builds, and the bits
 /// the pre-extraction build produced.
-type PinnedCase<'a> = (&'a str, ProfileLoop<f64>, &'a [VertexBits]);
+type PinnedCase<'a> = (&'a str, ConstructedLoop<f64>, &'a [VertexBits]);
 
 #[test]
 fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
     let dump = |lp: &ProfileLoop<f64>| -> Vec<VertexBits> {
         lp.vertices()
             .iter()
-            .zip(lp.bulges())
-            .map(|(v, b)| (v.x.to_bits(), v.y.to_bits(), b.to_bits()))
+            .zip(lp.segments())
+            .map(|(v, s)| {
+                let sweep = match s {
+                    profile::Segment::Line => 0,
+                    profile::Segment::Arc(arc) => arc.sweep.to_bits(),
+                };
+                (v.x.to_bits(), v.y.to_bits(), sweep)
+            })
             .collect()
     };
     let cases: [PinnedCase; 5] = [
@@ -1206,11 +1270,11 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             &[
                 (0, 4611686018427387904, 0),
                 (0, 0, 0),
-                (4609047870845172685, 0, 4602837688965596815),
+                (4609047870845172685, 0, 4611283546303459675),
                 (
                     4611170888069347941,
                     4604180019048437076,
-                    4599397266714018680,
+                    4608222567545891028,
                 ),
             ],
         ),
@@ -1222,11 +1286,11 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
                 (4613937818241073152, 13835058055282163712, 0),
                 (0, 13835058055282163712, 0),
                 (0, 0, 0),
-                (4609820566382232627, 0, 13822769303568794489),
+                (4609820566382232627, 0, 13831594604400666837),
                 (
                     4611814801016897895,
                     13823048456275842388,
-                    4599397266714018680,
+                    4608222567545891028,
                 ),
             ],
         ),
@@ -1234,11 +1298,11 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             "arc_line",
             arc_line(0.5).expect("fits"),
             &[
-                (0, 4611686018427387904, 13823463879570942096),
+                (0, 4611686018427387904, 13832218258322411728),
                 (
                     4611504036046923850,
                     4600877379321698714,
-                    4600091842716166289,
+                    4608846221467635921,
                 ),
                 (4612698179346440494, 0, 0),
                 (4616189618054758400, 0, 0),
@@ -1250,16 +1314,16 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             "arc_arc_internal",
             arc_arc_internal(0.25).expect("fits"),
             &[
-                (4607182418800017408, 0, 4598009223490746920),
+                (4607182418800017408, 0, 4606845105924273753),
                 (
                     4594314991293244560,
                     4610070593513891235,
-                    4599325607115144255,
+                    4608157408297706455,
                 ),
                 (
                     13817687028148020368,
                     4610070593513891235,
-                    4598009223490746919,
+                    4606845105924273753,
                 ),
                 (13830554455654793216, 0, 0),
             ],
@@ -1268,16 +1332,16 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             "arc_arc_mixed",
             arc_arc_mixed(0.25).expect("fits"),
             &[
-                (4607182418800017408, 0, 4596857349751359594),
+                (4607182418800017408, 0, 4605750892648001873),
                 (
                     4599676419421066584,
                     4609392389112809011,
-                    13826831122041030757,
+                    13835333029979180127,
                 ),
                 (
                     4601392076421969630,
                     4611310551952855327,
-                    13826067637668438915,
+                    13834430019434068510,
                 ),
                 (4613937818241073152, 0, 0),
             ],

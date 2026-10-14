@@ -15,22 +15,28 @@
 )]
 
 use crate::common::three_arc;
-use geom_core::{Point2, Tol};
+use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::test_support::{extruded, sketch_at};
-use topo::{
-    Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
-};
+use sweep::{Revolution, RevolveAxis, revolve};
+use topo::{Body, BooleanResult, FaceKey, mass_properties};
 
-/// The collar: an annulus (outer r = 1.5, bore r = 0.5), z ∈ [1, 2],
-/// both rims three 120° arcs starting at `deg0` — bore wall is 3 faces.
-pub fn collar_at(deg0: f64) -> Body<f64> {
+/// An annulus of bore `r` and outer radius `outer`, `z ∈ [z0, z0 + len]`,
+/// both rims three 120° arcs starting at `deg0` — the bore wall is 3
+/// faces.
+pub fn collar_of(r: f64, outer: f64, deg0: f64, z0: f64, len: f64) -> Body<f64> {
     let o = Point2::new(0.0, 0.0);
     extruded(
-        sketch_at(1.0),
-        vec![three_arc(o, 1.5, deg0), three_arc(o, 0.5, deg0)],
-        1.0,
+        sketch_at(z0),
+        vec![three_arc(o, outer, deg0), three_arc(o, r, deg0)],
+        len,
         Tol::witness(),
     )
+}
+
+/// The collar: [`collar_of`] with bore 0.5, outer 1.5, `z ∈ [1, 2]`.
+pub fn collar_at(deg0: f64) -> Body<f64> {
+    collar_of(0.5, 1.5, deg0, 1.0, 1.0)
 }
 
 pub fn collar() -> Body<f64> {
@@ -42,12 +48,57 @@ pub fn collar() -> Body<f64> {
 /// **Argument order is `(deg0, z0, h)`** — the azimuth first, then the
 /// span. The two suites that grew their own copy disagreed about this.
 pub fn peg_at(deg0: f64, z0: f64, h: f64) -> Body<f64> {
+    peg_of(0.5, deg0, z0, h)
+}
+
+/// A three-arc peg of radius `r` split at `deg0`, `z ∈ [z0, z0 + h]`.
+pub fn peg_of(r: f64, deg0: f64, z0: f64, h: f64) -> Body<f64> {
     extruded(
         sketch_at(z0),
-        vec![three_arc(Point2::new(0.0, 0.0), 0.5, deg0)],
+        vec![three_arc(Point2::new(0.0, 0.0), r, deg0)],
         h,
         Tol::witness(),
     )
+}
+
+/// The rectangle `ρ ∈ [bore, outer]`, `y ∈ [y0, y1]` revolved a full
+/// turn about `y`: its bore is ONE face with a self-mated seam ruling at
+/// azimuth 0 (from `+x`).
+pub fn full_turn_collar(bore: f64, outer: f64, (y0, y1): (f64, f64)) -> Body<f64> {
+    let lp = ProfileLoop::polygon([
+        Point2::new(bore, y0),
+        Point2::new(outer, y0),
+        Point2::new(outer, y1),
+        Point2::new(bore, y1),
+    ]);
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body
+}
+
+/// `body` turned a quarter about `x`, taking its `z` axis to `y` and a
+/// sketch azimuth `θ` (from `+x` toward `+y`) to the azimuth `θ` from
+/// `+x` toward `−z`, which is the revolve's own sense about `+y`: a peg
+/// set on [`full_turn_collar`]'s axis.
+pub fn onto_y(body: &Body<f64>) -> Body<f64> {
+    let up = Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        -core::f64::consts::FRAC_PI_2,
+    );
+    topo::transform_rigid(
+        body,
+        &geom_core::test_support::rigid(&up, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 pub fn peg(z0: f64, h: f64) -> Body<f64> {
@@ -55,12 +106,25 @@ pub fn peg(z0: f64, h: f64) -> Body<f64> {
 }
 
 /// The cylinder faces of `body` at radius ≈ `r`.
-pub fn walls_at(body: &Body<f64>, r: f64) -> Vec<topo::FaceKey> {
+pub fn walls_at(body: &Body<f64>, r: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(_, f)| {
             matches!(
                 body.get_surface(f.surface),
                 Some(geom::Surface::Cylinder { radius, .. }) if (radius - r).abs() < 1e-9
+            )
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// The sphere faces of `body` at radius ≈ `r`.
+pub fn spheres_at(body: &Body<f64>, r: f64) -> Vec<FaceKey> {
+    body.faces()
+        .filter(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Sphere { radius, .. }) if (radius - r).abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
@@ -85,20 +149,6 @@ pub fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
     f
 }
 
-/// Every (bore wall × peg wall) pair declared `Rest` — the mate's only
-/// contact unless a caller adds one.
-pub fn wall_decls(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &walls_at(a, 0.5) {
-        for &fb in &walls_at(b, 0.5) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    decls
-}
-
 pub fn volume(b: &Body<f64>) -> f64 {
     mass_properties(b, Tol::witness()).unwrap().volume
 }
@@ -111,7 +161,7 @@ pub fn boolean_body(r: BooleanResult<f64>) -> topo::BooleanBody<f64> {
 }
 
 pub fn body_of(r: BooleanResult<f64>) -> Body<f64> {
-    boolean_body(r).body
+    boolean_body(r).body.into_body()
 }
 
 /// The additivity distance in ULPs of the sum — the raw number both

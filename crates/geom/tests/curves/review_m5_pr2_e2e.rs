@@ -33,6 +33,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use geom::NurbsCurve3;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, Point3, Vec3};
 
@@ -46,7 +47,7 @@ const EPS: f64 = 1e-9;
 const PLANT: f64 = 2e-9;
 
 fn plane_normal() -> Vec3<f64> {
-    Vec3::new(N[0], N[1], N[2])
+    Vec3::from_array(N)
 }
 
 /// A dyadic point exactly on the plane: pick `x`, `y` on the `1/16`
@@ -132,7 +133,7 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
         .with_rational_coeffs(&clean, weights)
         .expect("the residual is the curve's length")
         .sup_norm_bound_rational();
-    assert!(bound.is_finite() && bound_rat.is_finite(), "poisoned bound");
+    assert!(bound.is_finite() && bound_rat.is_finite(), "refused bound");
     assert!(
         bound <= EPS,
         "clean fit must certify at eps={EPS:e}, bound was {bound:e}"

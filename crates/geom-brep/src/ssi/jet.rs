@@ -383,7 +383,7 @@ mod tests {
             assert!(
                 (j.value() - f).abs() <= 1e-15 * (1.0 + f.abs()),
                 "{:?}: series {} vs residual {f}",
-                crate::SurfaceKind::of(&s),
+                s.kind(),
                 j.value()
             );
         }
@@ -422,7 +422,7 @@ mod tests {
                     / (16.0 * h * h * h);
                 (4.0 * a - b) / 3.0
             };
-            let kind = crate::SurfaceKind::of(&s);
+            let kind = s.kind();
             assert!(
                 (j.d1() - d1n).abs() < 1e-8,
                 "{kind:?} h′: {} vs {d1n}",

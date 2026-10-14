@@ -61,11 +61,13 @@ fn cert4r1_my_fused_tangency_is_input_width_at_interval() {
     let f = try_replay_at::<f64>(&prog).unwrap();
     let mut widest = 0.0f64;
     for (k, (a, b)) in iv.vertices().iter().zip(f.vertices()).enumerate() {
-        for (what, enc, exact) in [
-            ("x", a.x, b.x),
-            ("y", a.y, b.y),
-            ("bulge", iv.bulges()[k], f.bulges()[k]),
-        ] {
+        let mut channels = vec![("x", a.x, b.x), ("y", a.y, b.y)];
+        if let (profile::Segment::Arc(i), profile::Segment::Arc(e)) =
+            (iv.segments()[k], f.segments()[k])
+        {
+            channels.push(("sweep", i.sweep, e.sweep));
+        }
+        for (what, enc, exact) in channels {
             let w = enc.hi() - enc.lo();
             widest = widest.max(w);
             assert!(
@@ -121,8 +123,12 @@ fn cert4r1_the_enclosure_width_scales_with_the_profile() {
         match try_replay_at::<Interval>(&prog) {
             Ok(iv) => {
                 let mut widest = 0.0f64;
-                for (v, &b) in iv.vertices().iter().zip(iv.bulges()) {
-                    for enc in [v.x, v.y, b] {
+                for (v, s) in iv.vertices().iter().zip(iv.segments()) {
+                    let sweep = match s {
+                        profile::Segment::Arc(arc) => arc.sweep,
+                        profile::Segment::Line => v.x,
+                    };
+                    for enc in [v.x, v.y, sweep] {
                         widest = widest.max(enc.hi() - enc.lo());
                     }
                 }

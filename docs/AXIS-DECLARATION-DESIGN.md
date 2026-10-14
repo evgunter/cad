@@ -1,5 +1,11 @@
 # Axis-flavoured declarations — a design question
 
+**D10 retired this channel** (Booleans glue on Zero; `docs/DESIGN.md`):
+coaxiality is one `Axis` read twice, or a margin decided Zero and
+recorded, and its proof is the `unproven-coincidence` lint's rung over
+`PoseForm` (`docs/INTENT-STAGE4-SPEC.md` §1). The text below is the
+conversation that ratified the channel, kept for its reasoning.
+
 **STATUS: RATIFIED (Ev, 2026-09-12, PR 2404).** Opened by WIRE the same
 day. The ruling is in §"Round 3" at the foot; the rounds above are the
 conversation that produced it and are kept because the reasoning is the
@@ -64,7 +70,7 @@ Ev's objection (2026-09-12) is what settles it:
 > rotated."*
 
 It is right, and the failure is **live rather than hypothetical**:
-`Node::Declare`'s pairs name entities by `StableName` and are re-resolved
+A boolean's declared pairs name entities by `StableName` and are re-resolved
 at every evaluation, so after one operand is rotated the declaration
 re-resolves to the same faces and is asserted again. Nothing about the
 edit invalidates it. Today only `verify_declared_contacts`

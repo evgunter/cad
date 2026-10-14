@@ -116,7 +116,7 @@ fn p1_project_plus_reject_ulp_adversarial() {
         let sum_new = v.project_onto(onto) + v.reject_from(onto);
         let sum_old = v.project_onto(onto) + retired_rejection(v, onto);
         // The doc's own metric: ulps OF THE LARGEST COMPONENT.
-        let biggest = v.x.abs().max(v.y.abs()).max(v.z.abs());
+        let biggest = v.norm_inf();
         let ulp_big = (f64::from_bits(biggest.to_bits() + 1) - biggest).abs();
         for (a, b, c) in [
             (sum_new.x, sum_old.x, v.x),
@@ -276,7 +276,7 @@ fn negative_axis_normal_at_origin_flips_a_zero_sign() {
         let t = mirror_across_plane(Point3::origin(), normal, Tol::witness())
             .unwrap()
             .translation;
-        let comps = [t.x, t.y, t.z];
+        let comps = t.to_array();
         assert!(
             comps[j].is_sign_negative() && comps[j] == 0.0,
             "expected −0.0 in slot {j}, got {comps:?}"
@@ -374,7 +374,7 @@ mod geometric_containment {
                 2 => [1.0, 1.0e-13 * rng.sym(), 1.0e-13 * rng.sym()],
                 _ => [0.0, 0.0, 1.0],
             };
-            let n0 = Vec3::new(nrow[0], nrow[1], nrow[2]);
+            let n0 = Vec3::from_array(nrow);
             if n0.norm() < 1.0e-12 {
                 continue;
             }
@@ -614,7 +614,7 @@ mod random_containment {
         encloses(outer.x, inner.x) && encloses(outer.y, inner.y) && encloses(outer.z, inner.z)
     }
     fn finite3(v: Vec3<Interval>) -> bool {
-        [v.x, v.y, v.z]
+        v.to_array()
             .iter()
             .all(|e| e.lo().is_finite() && e.hi().is_finite())
     }

@@ -21,6 +21,7 @@ use super::common::pcurve_rows::print_rows;
 use super::common::shell_operands::{tube, vessel};
 use super::shell7_common::tol;
 use super::shell8_common::cap;
+use sweep::test_support::finished;
 
 /// The top cap of a single-shell body revolved about `y`.
 fn top(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
@@ -29,7 +30,13 @@ fn top(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
 }
 
 fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[topo::FaceKey]) {
-    let out = topo::shell_open(body, t, open, tol()).unwrap_or_else(|e| panic!("{label}: {e}"));
+    let out = topo::shell_open(
+        &finished("the operand", body.clone(), tol()),
+        t,
+        open,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{label}: {e}"));
     print_rows(label, &out.body);
 }
 
@@ -45,6 +52,8 @@ fn shell9_rows_verbs_shell_corpus() {
     let u = tube(0.6, 1.0, 2.0);
     shelled("tube sealed", &u, 0.1, &[]);
     shelled("tube opened top", &u, 0.1, &top(&u, 2.0));
-    let hollow = topo::shell(&v, 0.2, tol()).expect("hollows").body;
+    let hollow = topo::shell(&finished("the operand", v.clone(), tol()), 0.2, tol())
+        .expect("hollows")
+        .body;
     shelled("hollow vessel shelled again", &hollow, 0.05, &[]);
 }

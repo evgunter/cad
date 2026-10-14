@@ -101,33 +101,27 @@ fn the_apex_crossing_bowtie_refuses_at_the_shape_door() {
     }
 }
 
-/// **The props-side finding is closed by the INTERIOR-SIDE premise,
-/// not by this door** (issue 1598). `mass_properties` still does not
-/// cite the branch predicate — citing it there would retract CERT-1,
-/// whose three rows measure pole-crossing arcs exactly — and the
-/// half-cap A still measures, exactly as before. What changed is the
-/// complement: its rim sits at the extent's `lo` while its traversal
-/// says the face's interior lies BELOW that rim, all the way to the
-/// south pole, so the chart rectangle the levels fold is not its
-/// domain and the closed form refuses `props_rim_interior_side` by
-/// name. The body answered `0.0` for a closed unit sphere — two faces
-/// bounded by the same two edges traversed opposite ways, one parse,
-/// equal and opposite fluxes — and now it answers the refusal, naming
-/// the face it came from.
+/// **The props-side finding is closed by the side reader, not by this
+/// door** (issue 1598). `mass_properties` still does not cite the
+/// branch predicate — citing it there would retract CERT-1, whose rows
+/// measure pole-crossing arcs exactly — and the half-cap A still
+/// measures, exactly as before. What changed is the complement: the
+/// north pole lies on its loop and the south pole inside it, and a
+/// chart pole inside a face is a vertex of it, so the face's bit
+/// contradicts the side its loop encodes and the closed form refuses
+/// `SenseContradicted`. The body answered `0.0` for a closed unit
+/// sphere — two faces bounded by the same two edges traversed opposite
+/// ways, equal and opposite fluxes — and now it answers the refusal,
+/// naming the face it came from.
 #[test]
-fn mass_properties_reports_the_interior_side_refusal_on_the_half_cap() {
+fn mass_properties_reports_the_side_refusal_on_the_half_cap() {
     let (body, cap, rest) = pole_crossing_half_cap();
     let got = topo::mass_properties(&body, Tol::witness());
     let Err(topo::MassPropsError::Face { face, source }) = got else {
         panic!("issue 1598: the closed sphere must refuse, not measure; got {got:?}");
     };
     assert_eq!(face, rest, "the L-shaped complement is the refusing face");
-    assert_eq!(
-        source,
-        PropsError::NotIsoRectangle {
-            what: "props_rim_interior_side"
-        }
-    );
+    assert_eq!(source, PropsError::SenseContradicted);
     // Face A is untouched: the half-cap's own closed form measures it
     // exactly, which is what kept this defect out of reach of a branch
     // door (CERT-1's rows admit the pole-crossing arc on purpose).

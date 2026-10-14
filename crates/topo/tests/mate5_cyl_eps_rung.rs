@@ -8,7 +8,7 @@
 //! [`topo::declared_pair_overlap`] directly with Door 1's verdict in
 //! hand, on pairs of independently authored cylinder-wall sheets whose
 //! descriptions genuinely diverge — different `u_ref`, different
-//! origin station, opposed axis directions — so `same_chart` refuses
+//! origin station, opposed axis directions — so `declared_chart` refuses
 //! and the cylinder enclosure arm is the only authority in play.
 //!
 //! **ε posture.** As the #1063 suite (`census_g2_carrier.rs`): the
@@ -39,7 +39,7 @@ fn band() -> Band {
 /// The A-side sheet of the seat: an arc wall in the canonical frame,
 /// world azimuth `[t0, t1]`, world height `[z0, z1]`.
 fn sheet_a(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
-    wall_sheet(CylFrame::canonical(1.0), 7001, t0, t1, z0, z1)
+    wall_sheet(CylFrame::canonical(1.0), t0, t1, z0, z1)
 }
 
 /// The B-side sheet: the SAME world region authored in `frame_b`. The
@@ -49,7 +49,6 @@ fn sheet_a(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 fn sheet_b(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     wall_sheet(
         CylFrame::opposed(0.7),
-        7002,
         0.7 - t1,
         0.7 - t0,
         0.25 - z1,
@@ -62,21 +61,13 @@ fn sheet_b(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 /// which is what the rows calling this are about. The window is
 /// `sheet_b(0.5, 1.3, 0.3, 0.7)`'s, written through the same chart
 /// transfer so there is one spelling of it in this file.
-///
-/// **`src` stays per-call.** Nothing in the tree asserts that two
-/// sheets carry distinct `GeomSource`s — that is
-/// `work/tint/topo-cylinder-sheet-geomsources-are-asserted-by-nothing`
-/// — so collapsing two ids here would quietly erase the thing that row
-/// exists to measure. The bodies these callers built before this
-/// helper are the bodies they build now, bit for bit.
-fn sheet_b_at_radius(r: f64, src: u64) -> (Body<f64>, FaceKey) {
+fn sheet_b_at_radius(r: f64) -> (Body<f64>, FaceKey) {
     let (t0, t1, z0, z1) = (0.5, 1.3, 0.3, 0.7);
     wall_sheet(
         CylFrame {
             radius: r,
             ..CylFrame::opposed(0.7)
         },
-        src,
         0.7 - t1,
         0.7 - t0,
         0.25 - z1,
@@ -120,19 +111,10 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
 // Red-first: the class's own shape (issue 943's cylinder residue)
 // ---------------------------------------------------------------------
 
-/// INVARIANT (red-first, the MATE-5 closure): a declared
-/// cylinder×cylinder pair whose two descriptions genuinely diverge —
-/// distinct `GeomSource`s, different `u_ref`/origin/axis sign —
-/// certifies its overlapping seat through the certified-ε enclosure
-/// once Door 1 has verified the carrier.
-///
-/// On main (pre-MATE-5) this exact call refuses
-/// `ChartDivergence { detail: "distinct GeomSources —
-/// equal-but-independent descriptions do not glue" }` — six rows of
-/// this suite were red there with that same fingerprint, quoted in
-/// the PR body as the measured refusal chain (→
-/// `CensusUnsupported{FacePair}` → `Declined` → `Uncertified` at the
-/// census, per the spec's situation paragraph).
+/// INVARIANT: a declared cylinder×cylinder pair whose two
+/// descriptions genuinely diverge — distinct surface keys, different
+/// `u_ref`/origin/axis sign — certifies its overlapping seat through
+/// the certified-ε enclosure once Door 1 has verified the carrier.
 #[test]
 fn a_declared_cylinder_pair_with_divergent_descriptions_certifies() {
     // Overlapping arc seat: A holds azimuth [0.2, 1.6] × z [0.0, 1.0],
@@ -249,11 +231,10 @@ fn one_axis_tilt_two_levers_two_answers() {
     let eps = Tol::witness().eps();
     let tilt = 40.0 * Tol::witness().k() * eps;
     let tilted = |r: f64, u0: f64, u1: f64, z0: f64, z1: f64| {
-        wall_sheet(CylFrame::tilted(r, tilt), 7003, u0, u1, z0, z1)
+        wall_sheet(CylFrame::tilted(r, tilt), u0, u1, z0, z1)
     };
-    let small = |u0: f64, u1: f64, z0: f64, z1: f64| {
-        wall_sheet(CylFrame::canonical(1e-3), 7005, u0, u1, z0, z1)
-    };
+    let small =
+        |u0: f64, u1: f64, z0: f64, z1: f64| wall_sheet(CylFrame::canonical(1e-3), u0, u1, z0, z1);
     // The PEG: radius 1 mm, wall 1 mm — hyp ≈ 1.4 mm, so the tilt's
     // displacement anywhere on the pair is ≤ ~6e-10 m, inside the
     // band. B's window strictly inside A's, so the geometry DECIDES:
@@ -294,12 +275,12 @@ fn one_axis_tilt_two_levers_two_answers() {
 fn radius_disagreement_is_three_outcome_honest() {
     let eps = Tol::witness().eps();
     let (a, fa) = sheet_a(0.2, 1.6, 0.0, 1.0);
-    let (b_far, fb_far) = sheet_b_at_radius(1.0 + 1e-3, 7004);
+    let (b_far, fb_far) = sheet_b_at_radius(1.0 + 1e-3);
     match declared_pair_overlap(&a, fa, &b_far, fb_far, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::CarrierTilt) => {}
         other => panic!("a definite radius disagreement refuses typed: {other:?}"),
     }
-    let (b_sliver, fb_sliver) = sheet_b_at_radius(1.0 + 3.0 * eps, 7004);
+    let (b_sliver, fb_sliver) = sheet_b_at_radius(1.0 + 3.0 * eps);
     match declared_pair_overlap(
         &a,
         fa,
@@ -375,7 +356,7 @@ fn a_bridged_verdict_tightens_the_premise_budget() {
     // The edge case: |Δr| = 0.7·ε — Zero at the run band, in-band at
     // the halved budget.
     let (a, fa) = sheet_a(0.2, 1.6, 0.0, 1.0);
-    let (b, fb) = sheet_b_at_radius(1.0 + 0.7 * eps, 7006);
+    let (b, fb) = sheet_b_at_radius(1.0 + 0.7 * eps);
     assert_eq!(
         declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()).unwrap(),
         ChartOverlap::PositiveArea,
@@ -413,6 +394,51 @@ fn a_bridged_verdict_tightens_the_premise_budget() {
 // ---------------------------------------------------------------------
 // Per-kind honesty: what stays refused, restated per kind
 // ---------------------------------------------------------------------
+
+/// `s` charted from another reference direction: the same locus, a
+/// description that does not read bit-identical, so no one chart holds
+/// both (`chart_region::declared_chart`).
+fn recharted(s: &Surface<f64>) -> Surface<f64> {
+    let y = geom_core::Vec3::unit_y();
+    match s.clone() {
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        } => Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref: y,
+        },
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref: y,
+        },
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref: y,
+        },
+        other => other,
+    }
+}
 
 /// INVARIANT (kind honesty, the spec's deliverable 6): cross-instance
 /// declared SPHERE, CONE and TORUS pairs stay refused exactly as
@@ -453,8 +479,9 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
     ];
     for (kind, surface) in kinds {
         // Two independently authored prisms whose interface faces are
-        // re-described as the SAME curved surface — the
-        // census_g2_carrier fixture shape, per kind.
+        // re-described as one curved locus on two charts — the
+        // census_g2_carrier fixture shape, per kind. (One description
+        // in both would be one chart by its bits.)
         let a: common::Prism<f64> = common::prism_z(
             &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
             0.0,
@@ -468,11 +495,25 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
             Tol::witness(),
         );
         let (mut a_body, mut b_body) = (a.body, b.body);
+        // Lifts RechartStrandsDescriptions: two independently authored curved descriptions are the declared pair.
         a_body
-            .set_face_surface(a.top_face, FaceSurface::New(surface.clone()))
+            .set_face_surface_unvouched_for_tests(
+                a.top_face,
+                FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
             .unwrap();
+        // Lifts RechartStrandsDescriptions: two independently authored curved descriptions are the declared pair.
         b_body
-            .set_face_surface(b.bottom_face, FaceSurface::New(surface.clone()))
+            .set_face_surface_unvouched_for_tests(
+                b.bottom_face,
+                FaceSurface::New {
+                    surface: recharted(&surface),
+                    sense: true,
+                },
+            )
             .unwrap();
         match declared_pair_overlap(
             &a_body,
@@ -489,54 +530,77 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
 }
 
 // ---------------------------------------------------------------------
-// The interval lane: the fold's honest remainder, constructed
+// The fold at a half-period tie
 // ---------------------------------------------------------------------
 
-/// The fix-pass coverage obligation: `PeriodFold` was previously
-/// constructed by no test at any scalar. Here it is constructed at the
-/// scalar it exists FOR — `Body<Interval>` — on the exact
-/// configuration `periodic_branch` documents as its honest remainder:
-/// two windows a genuine HALF-PERIOD apart, where the two nearest
-/// branches are equidistant, the fold integer's enclosure spans two
-/// integers, and the arm declines typed instead of picking a branch.
-mod interval_lane {
-    use super::{ChartRegionError, ContactVerdict, CylFrame, band, cyl_wall_sheet};
-    use geom_core::Tol;
-    use geom_core::interval::Interval;
-    use topo::{Body, declared_pair_overlap};
+/// Two descriptions of one unit cylinder: A's wall over `a` in azimuth
+/// at heights `[0, 1]`, and B's over `b`, stored with its origin half
+/// way up the axis (its window moved down to match) so the two do not
+/// read bit-identical and the pair takes the enclosure arm.
+fn tie_pair<T: geom_core::Decide + topo::AtRestPolicy + geom_core::real::CertifiedBounds>(
+    a: (f64, f64),
+    b: (f64, f64),
+) -> Result<ChartOverlap, ChartRegionError> {
+    let mut body_a = Body::<T>::new();
+    let fa = cyl_wall_sheet(
+        &mut body_a,
+        CylFrame::canonical(1.0),
+        a,
+        (0.0, 1.0),
+        Tol::witness(),
+    );
+    let mut body_b = Body::<T>::new();
+    let fb = cyl_wall_sheet(
+        &mut body_b,
+        CylFrame {
+            origin: Point3::new(0.0, 0.0, 0.5),
+            ..CylFrame::canonical(1.0)
+        },
+        b,
+        (-0.3, 0.3),
+        Tol::witness(),
+    );
+    declared_pair_overlap(&body_a, fa, &body_b, fb, ContactVerdict::Definite, band())
+}
 
-    /// INVARIANT (the fold's remainder, constructed): two identical
-    /// descriptions of one cylinder whose trims sit an exact
-    /// HALF-PERIOD apart in azimuth. The fold argument's true value
-    /// lands on `periodic_branch`'s documented tie; interval
-    /// arithmetic's outward rounding gives the enclosure positive
-    /// width across it, the branch index spans two integers, and the
-    /// arm declines `PeriodFold` — the variant's first constructing
-    /// row at any scalar.
-    #[test]
-    fn a_half_period_tie_declines_period_fold() {
-        let pi = core::f64::consts::PI;
-        let mut a = Body::<Interval>::new();
-        let fa = cyl_wall_sheet(
-            &mut a,
-            CylFrame::canonical(1.0),
-            Some(7201),
+/// **A fold astride a half-period mark answers on both branches.** Two
+/// windows whose midpoints sit a half period apart (or within the band
+/// of it) are a tie between two folds; each fold sees the mirror image
+/// of the other's overlap, so the pair is answered on both and the
+/// answer kept where they agree, at `f64` and at `Interval` alike: the
+/// two half-cylinders touch along their meridians, and windows a half
+/// period apart are disjoint. A window clear of the tie is answered on
+/// its one branch, and reads the same.
+#[test]
+fn a_half_period_tie_answers_on_both_branches() {
+    let pi = core::f64::consts::PI;
+    let rows = [
+        (
+            (0.0, pi),
+            (pi, 2.0 * pi),
+            Err(ChartRegionError::TouchingBoundary),
+        ),
+        ((0.0, 0.4), (pi, pi + 0.4), Ok(ChartOverlap::Empty)),
+        (
             (0.0, 0.4),
-            (0.0, 1.0),
-            Tol::witness(),
+            (pi + 1e-12, pi + 0.4 + 1e-12),
+            Ok(ChartOverlap::Empty),
+        ),
+        (
+            (0.0, 0.4),
+            (pi + 1e-6, pi + 0.4 + 1e-6),
+            Ok(ChartOverlap::Empty),
+        ),
+        ((0.0, 0.4), (pi - 0.3, pi + 0.1), Ok(ChartOverlap::Empty)),
+    ];
+    for (a, b, want) in rows {
+        let at_f64 = tie_pair::<f64>(a, b);
+        assert_eq!(at_f64, want, "f64: A {a:?} against B {b:?}");
+        let at_interval = tie_pair::<geom_core::Interval>(a, b);
+        assert_eq!(
+            at_interval.as_ref().map_err(core::mem::discriminant),
+            want.as_ref().map_err(core::mem::discriminant),
+            "Interval: A {a:?} against B {b:?}: {at_interval:?}"
         );
-        let mut b = Body::<Interval>::new();
-        let fb = cyl_wall_sheet(
-            &mut b,
-            CylFrame::canonical(1.0),
-            Some(7202),
-            (pi, pi + 0.4),
-            (0.2, 0.8),
-            Tol::witness(),
-        );
-        match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()) {
-            Err(ChartRegionError::PeriodFold) => {}
-            other => panic!("the half-period tie declines PeriodFold: {other:?}"),
-        }
     }
 }

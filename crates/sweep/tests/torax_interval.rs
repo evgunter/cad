@@ -45,7 +45,7 @@
 
 use geom::Surface;
 use geom_core::tolerance::DEFAULT_EPS;
-use geom_core::{Bounds, Interval, MarginDiag, Real, Tol};
+use geom_core::{Bounds, ErrorTextReading, Interval, Real, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::vacuity::stood_down;
@@ -53,6 +53,8 @@ use topo::{Body, ShellError, ValidationError};
 
 use crate::common::charts::hollow_moves;
 use crate::common::interval::{iv, p2, v2};
+use crate::common::torus_walls::disc_cut_volume;
+use sweep::test_support::finished;
 
 /// The tour's own wall thickness, the one `torax_axial` hollows by.
 const T: f64 = 1.0 / 128.0;
@@ -137,7 +139,7 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
         "the barrel's wall is a torus at this scalar too"
     );
 
-    let hollow = match topo::shell(&body, iv(T), tol) {
+    let hollow = match topo::shell(&finished("the operand", body.clone(), tol), iv(T), tol) {
         Ok(hollow) => hollow.body,
         Err(ShellError::NotValid { errors }) if tol.eps() < DEFAULT_EPS => {
             let [ValidationError::SliverDihedral { edge, check, cause }] = errors.as_slice() else {
@@ -162,7 +164,9 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
                 tol.eps(),
                 "the band is the run's own ε, not a number the fixture carries"
             );
-            let MarginDiag::Enclosure { lo, hi } = cause.margin else {
+            let ErrorTextReading::Enclosure { lo, hi } =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!(
                     "the sliver margin at {edge:?} is not an enclosure: {:?}",
                     cause.margin
@@ -208,8 +212,7 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
 /// would be a bound on a different quantity at each corner.
 fn encloses_corner(body: &Body<Interval>, rho: f64, h: f64, what: &str) {
     let mut best: Option<(f64, f64, f64, f64, f64)> = None;
-    for (_, vtx) in body.vertices() {
-        let p = *body.get_point(vtx.point).expect("a vertex carries a point");
+    for (_, p) in body.vertex_points() {
         let r = (p.x * p.x + p.z * p.z).sqrt();
         let (rlo, rhi, hlo, hhi) = (r.lo(), r.hi(), p.y.lo(), p.y.hi());
         if rlo <= rho && rho <= rhi && hlo <= h && h <= hhi {
@@ -289,8 +292,29 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
     let mut cavity = body.clone();
     let band = geom_core::Band::linear(tol).expect("band");
     match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
-        Ok(()) => {}
-        Err(topo::ReplaceFaceError::Escalated { source }) if tol.eps() < DEFAULT_EPS => {
+        Ok(_) => {}
+        // The closing mint certifies the lens face's general-circle
+        // rims too, and at a tight band a fitted rim row's own map
+        // residual escalates the same way — an enclosure as wide as the
+        // offset's widened data, straddling the band
+        // (`work/pcert/fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar.md`).
+        Err(
+            source @ topo::ReplaceFaceError::Pcurve {
+                source:
+                    topo::pcurves::PcurveMintError::Certify {
+                        error:
+                            geom_brep::PcurveCertifyError::Escalated {
+                                cause:
+                                    geom_core::Indeterminate {
+                                        predicate: Some("pcurve_map_residual"),
+                                        ..
+                                    },
+                                ..
+                            },
+                        ..
+                    },
+            },
+        ) if tol.eps() < DEFAULT_EPS => {
             stood_down(
                 &format!("the sphere lune's interval rim, eps = {:e}", tol.eps()),
                 &format!(
@@ -310,17 +334,22 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
 }
 
 /// **The klein elbow at `T = Interval`**: the carried-datum arm, the
-/// kind-changing spiric mint (its six `decide` sites) and both
-/// endpoint meters execute at the certified scalar on the way to the
-/// same door f64 measures — the equator seams' re-author, which
-/// refuses a `RevolvedPoint` corner displaced off its sketch plane
-/// (`torax_axial`). The old door, verbatim: `TogetherAxialEdge { what:
-/// "a circular edge between two charts whose centre is off the axis"
-/// }`, the latitude mint's `offset_axial_centre`. An escalation at a
-/// strict band is the certified scalar's honest answer and is pinned
-/// as such.
+/// kind-changing spiric mint (its six `decide` sites), both endpoint
+/// meters, the rim window's forward read (`offset_axial_edge_window`)
+/// and the equator seams' re-author — each end's out-of-plane decide
+/// and the turned start's verification — execute at the certified
+/// scalar, and the hollow passes tier 3 there: check 7 measures the
+/// spiric caps and walls by the spiric quadrature lane, and the volume
+/// enclosure holds the cut-revolve oracle (`disc_cut_volume`). The old
+/// doors, verbatim: check 7's `VolumeUncomputable` at a spiric-bounded
+/// cap (`Unimplemented`); before it `Face { error: Op { edge: None,
+/// error: RechartFalsifies { edge: EdgeKey(2v1), error:
+/// IntervalNotForward { margin: Enclosure [−0.7068583470577047,
+/// −0.7068583470577025] } } } }`, a rim window read backwards on
+/// `atan2`'s branch cut. An escalation at a strict band is the
+/// certified scalar's honest answer and is pinned as such.
 #[test]
-fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
+fn interval_the_klein_elbow_hollows_to_its_measured_volume() {
     let tol = Tol::witness();
     let r = 0.275_f64;
     let profile = Profile::new(
@@ -343,25 +372,75 @@ fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     )
     .expect("the elbow revolves")
     .body;
-    let e = topo::shell(&body, iv(0.05), tol)
-        .expect_err("the elbow's equator seams cannot be re-authored off their plane");
-    match e {
-        ShellError::Face { ref error, .. }
-            if matches!(
-                **error,
-                topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
-                    if what == "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
-            ) => {}
-        ShellError::Face { ref error, .. }
-            if tol.eps() < DEFAULT_EPS
-                && matches!(**error, topo::ReplaceFaceError::Escalated { .. }) =>
-        {
-            stood_down(
-                &format!("the klein elbow's interval rim, eps = {:e}", tol.eps()),
-                "the certified scalar escalated before the seam re-author's refusal was \
-                 reachable, so THIS RUN ASSERTS ONLY the door's own typed escalation",
+    match topo::shell(&finished("the operand", body.clone(), tol), iv(0.05), tol) {
+        Ok(hollow) => {
+            let props = topo::mass_properties(&hollow.body, tol)
+                .unwrap_or_else(|e| panic!("the interval hollow measures, got {e:?}"));
+            let theta = core::f64::consts::FRAC_PI_2;
+            let want = disc_cut_volume(theta, 0.05, 0.0, 1.2, r)
+                - disc_cut_volume(theta, 0.05, 2.0, 1.2, r - 0.05);
+            let slack = props.volume_pad + 1e-10 * want;
+            println!(
+                "[measured] the interval elbow: volume [{}, {}] ± {}, oracle {want}",
+                props.volume.lo(),
+                props.volume.hi(),
+                props.volume_pad
+            );
+            assert!(
+                props.volume.lo() - slack <= want && want <= props.volume.hi() + slack,
+                "the interval elbow's volume [{}, {}] ± {} misses the oracle {want}",
+                props.volume.lo(),
+                props.volume.hi(),
+                props.volume_pad
             );
         }
-        other => panic!("expected the seam re-author's out-of-plane refusal, got {other:?}"),
+        // At a strict band the certified scalar may escalate first: at
+        // the door's own decides, or (measured at ε = 1e-12) at the
+        // pcurve envelope of a spiric RIM, whose enclosure is wider than
+        // the band. Only a rim's: a re-authored seam's escalation is not
+        // absorbed here.
+        Err(ShellError::Face { ref error, .. })
+            if tol.eps() < DEFAULT_EPS
+                && (matches!(**error, topo::ReplaceFaceError::Escalated { .. })
+                    || rim_envelope_escalation(&body, error)) =>
+        {
+            stood_down(
+                &format!("the klein elbow's interval hollow, eps = {:e}", tol.eps()),
+                "the certified scalar escalated before the hollow assembled, so THIS RUN \
+                 ASSERTS ONLY a typed escalation",
+            );
+        }
+        Err(other) => panic!("expected the elbow to hollow and measure, got {other:?}"),
     }
+}
+
+/// Whether `error` is the pcurve mint's envelope escalating on a
+/// half-edge of a DERIVED edge of `body` — a spiric rim, not a
+/// re-authored (declared) seam.
+fn rim_envelope_escalation(
+    body: &Body<Interval>,
+    error: &topo::ReplaceFaceError<Interval>,
+) -> bool {
+    let topo::ReplaceFaceError::Pcurve {
+        source:
+            topo::PcurveMintError::Certify {
+                half_edge,
+                error:
+                    geom_brep::PcurveCertifyError::Escalated {
+                        check: geom_brep::PcurveCheck::Envelope,
+                        cause,
+                        ..
+                    },
+            },
+    } = error
+    else {
+        return false;
+    };
+    cause.predicate == Some("pcurve_envelope")
+        && body
+            .get_half_edge(*half_edge)
+            .and_then(|h| body.get_edge(h.edge))
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(|c| c.certified())
+            .is_some_and(|c| matches!(c.authority(), geom_brep::EdgeAuthority::Derived))
 }

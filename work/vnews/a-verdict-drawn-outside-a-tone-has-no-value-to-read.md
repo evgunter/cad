@@ -67,12 +67,13 @@ beside the seated and mate panels' lines, which since PR 3281 draw
 through `message_toned(…, Tone::Advisory)` (`seats_row`,
 `mate_picks_row`):
 
-- the blend panel's held-picks line, `ViewerBehavior::blend_tool_ui`
-  (near line 1498): `ui.weak(match target { … "{count} edges picked on
-  {target}" … "no edges picked yet" })`;
+- the blend panel's held-picks line, `ViewerBehavior::blend_tool_ui`:
+  `ui.weak(match (target, landed) { … "{count} edges picked on {}"
+  (the target said from the landed document) … "no edges picked yet" })`;
 - the face-frame datum form's face line,
   `ViewerBehavior::datum_face_frame_rows` (near lines 858-859):
-  `ui.weak(BlendTarget::of_face(face).to_string())` and
+  `ui.weak(…)` of `BlendTarget::of_face(face)` said from the landed
+  document, and
   `ui.weak("none picked")`.
 
 This sits against the row's own "Not members" paragraph, which files

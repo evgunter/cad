@@ -23,13 +23,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::tol::{band, eps};
-use geom::Surface;
-use geom_brep::intersect::{
-    PlaneConeSection, SectionError, SurfaceKind, plane_cone_section, route, route_pose,
-};
+use geom::{Surface, SurfaceKind};
+use geom_brep::Reach;
+use geom_brep::intersect::{PlaneConeSection, SectionError, plane_cone_section, route, route_pose};
 use geom_core::{Point3, Vec3};
 
 const PI_6: f64 = core::f64::consts::FRAC_PI_6;
+const PI_2: f64 = core::f64::consts::FRAC_PI_2;
 
 fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
     let normal = normal.normalize();
@@ -42,6 +42,15 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
         origin,
         normal,
         u_ref: (seed - normal * seed.dot(normal)).normalize(),
+    }
+}
+
+/// A reach of `lever` about [`cone_z`]'s apex: the scalar extent these
+/// rows read a pose at before `route_pose` took a [`Reach`].
+fn at_apex(lever: f64) -> Reach<f64> {
+    Reach::Measured {
+        at: Point3::new(0.0, 0.0, 1.0),
+        lever,
     }
 }
 
@@ -93,10 +102,10 @@ fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
 /// `route_pose` in both argument orders: the table is symmetric and so
 /// must its pose reading be.
 fn served(a: &Surface<f64>, b: &Surface<f64>) -> bool {
-    let ab = route_pose(a, b, 4.0, band()).expect("the pose decides");
-    let ba = route_pose(b, a, 4.0, band()).expect("the pose decides");
+    let ab = route_pose(a, b, &at_apex(4.0), band()).expect("the pose decides");
+    let ba = route_pose(b, a, &at_apex(4.0), band()).expect("the pose decides");
     assert_eq!(ab.implemented, ba.implemented, "asymmetric: {a:?} / {b:?}");
-    assert_eq!(ab.rung, route(SurfaceKind::of(a), SurfaceKind::of(b)).rung);
+    assert_eq!(ab.rung, route(a.kind(), b.kind()).rung);
     ab.implemented
 }
 
@@ -133,6 +142,15 @@ fn each_scoped_arm_serves_its_own_poses_and_refuses_the_rest() {
             "tilted plane off the apex (an ellipse)",
             plane(Point3::new(0.0, 0.0, 3.0), Vec3::new(0.3, 0.0, 1.0)),
             &cone,
+            true,
+        ),
+        (
+            "plane parallel to a generator (a parabola)",
+            plane(
+                Point3::new(0.0, 0.0, 3.0),
+                Vec3::new((PI_2 - PI_6).sin(), 0.0, (PI_2 - PI_6).cos()),
+            ),
+            &cone,
             false,
         ),
         // plane × torus
@@ -149,8 +167,14 @@ fn each_scoped_arm_serves_its_own_poses_and_refuses_the_rest() {
             true,
         ),
         (
-            "axis-parallel plane off the axis (a spiric)",
+            "axis-parallel plane off the axis (a spiric's two ovals)",
             plane(Point3::new(0.05, 0.0, 0.0), Vec3::unit_x()),
+            &tor,
+            true,
+        ),
+        (
+            "axis-parallel plane past the inner equator (one folded loop)",
+            plane(Point3::new(1.8, 0.0, 0.0), Vec3::unit_x()),
             &tor,
             false,
         ),
@@ -191,12 +215,12 @@ fn each_scoped_arm_serves_its_own_poses_and_refuses_the_rest() {
 fn a_refused_pose_carries_the_arms_own_grounds() {
     let cone = cone_z(PI_6);
     let hyperbola = plane(Point3::new(0.05, 0.0, 0.0), Vec3::unit_x());
-    let posed = route_pose(&hyperbola, &cone, 4.0, band()).unwrap();
+    let posed = route_pose(&hyperbola, &cone, &at_apex(4.0), band()).unwrap();
     let kind = route(SurfaceKind::Plane, SurfaceKind::Cone);
     assert!(!posed.implemented);
     assert_ne!(posed.note, kind.note);
     let Err(SectionError::RoutesToGeneralRung { why, .. }) =
-        plane_cone_section(&hyperbola, &cone, 4.0, band())
+        plane_cone_section(&hyperbola, &cone, &at_apex(4.0), band())
     else {
         panic!("the arm refuses this pose");
     };
@@ -256,7 +280,7 @@ fn unscoped_pairs_answer_the_kind_table() {
 fn an_in_band_pose_escalates() {
     let cone = cone_z(PI_6);
     let near = plane(Point3::new(3.0 * eps(), 0.0, 0.0), Vec3::unit_x());
-    let err = route_pose(&near, &cone, 4.0, band()).expect_err("in band");
+    let err = route_pose(&near, &cone, &at_apex(4.0), band()).expect_err("in band");
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
 }
 
@@ -268,14 +292,15 @@ fn an_in_band_pose_escalates() {
 fn a_right_angled_cone_refuses_the_axis_normal_division() {
     let cone = cone_z(core::f64::consts::FRAC_PI_2);
     let cut = plane(Point3::new(0.0, 0.0, 3.0), Vec3::unit_z());
-    let got = plane_cone_section(&cut, &cone, 1.0, band());
+    let got = plane_cone_section(&cut, &cone, &at_apex(1.0), band());
     assert!(
         matches!(got, Err(SectionError::DegenerateOperand { .. })),
         "the cos alpha division must be decided first, got {got:?}"
     );
     // The in-band twin escalates on the guard's own name.
     let cone = cone_z((3.0 * eps()).acos());
-    let Err(SectionError::Escalated(diag)) = plane_cone_section(&cut, &cone, 1.0, band()) else {
+    let Err(SectionError::Escalated(diag)) = plane_cone_section(&cut, &cone, &at_apex(1.0), band())
+    else {
         panic!("the in-band aperture must escalate");
     };
     assert_eq!(diag.predicate, Some("pn_aperture_cos"));
@@ -289,20 +314,21 @@ fn a_right_angled_cone_refuses_the_axis_normal_division() {
 fn a_closed_cone_refuses_the_apex_lane_division() {
     let cone = cone_z(1e-300);
     let through = plane(Point3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 1e-17));
-    let got = plane_cone_section(&through, &cone, 1.0, band());
+    let got = plane_cone_section(&through, &cone, &at_apex(1.0), band());
     assert!(
         matches!(got, Err(SectionError::DegenerateOperand { .. })),
         "the sin alpha division must be decided first, got {got:?}"
     );
     let cone = cone_z((3.0 * eps()).asin());
-    let Err(SectionError::Escalated(diag)) = plane_cone_section(&through, &cone, 1.0, band())
+    let Err(SectionError::Escalated(diag)) =
+        plane_cone_section(&through, &cone, &at_apex(1.0), band())
     else {
         panic!("the in-band aperture must escalate");
     };
     assert_eq!(diag.predicate, Some("pn_aperture_sin"));
     // A cone well inside its convention keeps its lanes.
     assert!(matches!(
-        plane_cone_section(&through, &cone_z(PI_6), 1.0, band()),
+        plane_cone_section(&through, &cone_z(PI_6), &at_apex(1.0), band()),
         Ok(PlaneConeSection::ApexLinePair { .. })
     ));
 }
@@ -318,29 +344,25 @@ fn the_pose_is_read_over_the_callers_reach() {
     let cone = cone_z(PI_6);
     let tilt = 0.1 * eps();
     let c = cyl(Point3::new(0.0, 0.0, 1.0), Vec3::new(tilt, 0.0, 1.0), 0.5);
-    let near = route_pose(&cone, &c, 1.0, band()).expect("decides at a unit reach");
-    let far = route_pose(&cone, &c, 1e3, band()).expect("decides at a long reach");
+    let near = route_pose(&cone, &c, &at_apex(1.0), band()).expect("decides at a unit reach");
+    let far = route_pose(&cone, &c, &at_apex(1e3), band()).expect("decides at a long reach");
     assert!(near.implemented, "within the band over a unit reach");
     assert!(!far.implemented, "definitely tilted over a long reach");
 }
 
 /// **A pose the arm cannot classify is not served.** The aperture
 /// guards run ahead of plane×cone's pose trileans, so a cone whose
-/// `cos α` is inside the band refuses before the tilt is ever read. A
-/// gate that read that refusal as "served" would admit the tilted plane
-/// — which the same arm refuses at any classifiable aperture — only
-/// because the operand is degenerate.
+/// `cos α` is inside the band refuses before the tilt is ever read. The
+/// same tilted plane against a classifiable cone is the served ellipse,
+/// so the guard is the only thing refusing here.
 #[test]
 fn an_unclassified_pose_is_not_served() {
     let cone = cone_z((0.2 * eps()).acos());
     let tilted = plane(Point3::new(0.0, 0.0, 3.0), Vec3::new(0.3, 0.0, 1.0));
-    let p = route_pose(&tilted, &cone, 1.0, band()).unwrap();
+    let p = route_pose(&tilted, &cone, &at_apex(1.0), band()).unwrap();
     assert!(!p.implemented, "an operand guard classified no pose");
-    let control = route_pose(&tilted, &cone_z(0.5), 1.0, band()).unwrap();
-    assert!(
-        !control.implemented,
-        "and the classifiable twin is refused too"
-    );
+    let control = route_pose(&tilted, &cone_z(0.5), &at_apex(1.0), band()).unwrap();
+    assert!(control.implemented, "the classifiable twin is the ellipse");
 }
 
 /// **The aperture guard is levered by the arm's extent.** `sin α = 20ε`
@@ -350,9 +372,9 @@ fn an_unclassified_pose_is_not_served() {
 fn the_aperture_guard_is_levered_by_extent() {
     let cone = cone_z(20.0 * eps());
     let through = plane(Point3::new(0.0, 0.0, 1.0), Vec3::unit_x());
-    assert!(plane_cone_section(&through, &cone, 1.0, band()).is_ok());
+    assert!(plane_cone_section(&through, &cone, &at_apex(1.0), band()).is_ok());
     assert!(matches!(
-        plane_cone_section(&through, &cone, 0.01, band()),
+        plane_cone_section(&through, &cone, &at_apex(0.01), band()),
         Err(SectionError::DegenerateOperand { .. })
     ));
 }

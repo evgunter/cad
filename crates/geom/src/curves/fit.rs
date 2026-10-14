@@ -64,10 +64,13 @@
 //! bound** — the Book's own "both can fail to converge and this
 //! eventuality must be dealt with" honesty, as a type.
 
+use core::num::NonZeroUsize;
 use geom_core::linalg::lsq::{self, LsqError};
 use geom_core::spline::{KnotAlgebraError, KnotVector, KnotVectorIssue, SplineError, basis};
+use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{Point2, Point3, Readable};
 
+use crate::curves::banded::{self, BandedLu};
 use crate::curves::{NurbsCurve2, NurbsCurve3};
 
 /// Fixed cap on `remove_knot` attempts across the whole Type-2 loop
@@ -193,9 +196,9 @@ impl core::fmt::Display for FitError {
             ),
             FitError::BudgetExhausted { budget, achieved } => write!(
                 f,
-                "the fit's removal budget {budget} ran out (achieved bound {achieved:e}); \
-                 the budget is sized for inputs of a few hundred samples. Recourse: fit the \
-                 data in pieces, or raise FIT_REMOVAL_BUDGET for a genuinely larger fit"
+                "the fit's removal budget {budget}, sized for a few hundred samples, ran out \
+                 at bound {achieved:e}. Recourse: fit the data in pieces, or raise \
+                 FIT_REMOVAL_BUDGET for a genuinely larger fit"
             ),
         }
     }
@@ -244,9 +247,12 @@ pub struct FitOutcome<C> {
 /// The rational basis row at `t`: `(first, values)` with
 /// `values[j] = N_j(t)·w_{first+j} / Σ_j N_j(t)·w_{first+j}` — the
 /// `p + 1` nonzero rational basis functions, denominator accumulated
-/// ascending `j` (D9).
+/// ascending `j` (D9). A NaN `t` has no span, and its row is the
+/// evaluator's poison: `p + 1` NaN values, which no solve certifies.
 fn rational_row(kv: &KnotVector, weights: &[f64], t: f64) -> (usize, Vec<f64>) {
-    let span = kv.span_at(t);
+    let Some(span) = kv.span_at(t) else {
+        return (0, vec![f64::NAN; kv.degree() + 1]);
+    };
     let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let mut den = 0.0f64;
@@ -294,18 +300,45 @@ fn averaged_knots(params: &[f64], degree: usize) -> Result<KnotVector, FitError>
 /// [`FitError::Structure`] if the resulting vector is not a valid
 /// clamped knot vector.
 pub fn averaged_knot_vector(params: &[f64], degree: usize) -> Result<KnotVector, FitError> {
+    check_degree(params.len(), degree)?;
+    averaged_knots(params, degree)
+}
+
+/// The fit's degree rule, its one home: a positive degree, and at least
+/// `degree + 1` samples (the knot vector's `p + 1` clamped ends need
+/// them).
+fn check_degree(n: usize, degree: usize) -> Result<(), FitError> {
     if degree == 0 {
         return Err(FitError::Structure(SplineError::KnotVectorInvalid {
             reason: KnotVectorIssue::DegreeZero,
         }));
     }
-    if params.len() < degree + 1 {
+    if n < degree + 1 {
         return Err(FitError::TooFewPoints {
-            have: params.len(),
+            have: n,
             need: degree + 1,
         });
     }
-    averaged_knots(params, degree)
+    Ok(())
+}
+
+/// The fit's parameterization rule, its one home: clamped `0 → 1` and
+/// strictly ascending, which is what makes the averaged knot vector
+/// valid and the collocation matrix nonsingular (Schoenberg–Whitney).
+/// `!(a < b)` is NaN-catching, so a NaN parameter refuses.
+fn check_ordered(params: &[f64]) -> Result<(), FitError> {
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+    let ordered = params.first() == Some(&0.0)
+        && params.last() == Some(&1.0)
+        && params.windows(2).all(|w| w[0] < w[1]);
+    if ordered {
+        Ok(())
+    } else {
+        Err(FitError::ParamCountMismatch {
+            params: params.len(),
+            points: params.len(),
+        })
+    }
 }
 
 /// Global B-spline interpolation of many scalar COLUMNS through one
@@ -318,8 +351,8 @@ pub fn averaged_knot_vector(params: &[f64], degree: usize) -> Result<KnotVector,
 /// unrelated curves. Returns the averaged knot vector and the control
 /// rows (`rows.len()` of them, same width).
 ///
-/// The solve is the exact square collocation solve
-/// (`geom_core::linalg::lsq::solve_square`, fixed-order LU, D9) with
+/// The solve is the exact square collocation solve ([`Collocation`],
+/// a fixed-order banded LU, D9) with
 /// **all columns as simultaneous right-hand sides** — one
 /// factorization, so the columns cannot drift relative to each other
 /// even in float. Structure selection is deterministic bit-for-bit.
@@ -363,33 +396,190 @@ pub fn interpolate_columns(
             return Err(FitError::NonFinitePoint { index });
         }
     }
-    // The same clamped `0 → 1` parameterization rule the curve entries
-    // enforce (`check_params`): one parameter per row, strictly
-    // ascending, finite, pinned at the ends by the averaged-knot
-    // construction. `!(a < b)` is NaN-catching.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    let ordered = params.first() == Some(&0.0)
-        && params.last() == Some(&1.0)
-        && params.windows(2).all(|w| w[0] < w[1]);
-    if !ordered {
+    let collocation = Collocation::new(params, degree)?;
+    let control = collocation.solve(rows)?;
+    Ok((collocation.knots, control))
+}
+
+/// [`interpolate_columns`] in the scalar `T`: the parameters, the
+/// averaged knots (Book Eq. 9.8), the collocation rows and the banded
+/// solve are all formed in `T`, so a parameter or a datum that is a
+/// function of the variables gives knots and control rows that are
+/// functions of them too. The structure is read off the value channel
+/// ([`SpanLocate::point_value`]): the refusals are
+/// [`interpolate_columns`]', decided there, the span each parameter
+/// lies in is located there, and the banded solve refuses on it
+/// (`curves/banded.rs`). The arithmetic is [`interpolate_columns`]'s
+/// operation for operation (a unit weight's product `n · 1` is `n`,
+/// bit for bit), so at `f64` the two answer the same bits.
+///
+/// Interior averages that round onto one value merge into one run, as
+/// [`interpolate_columns`]' vector holds them (`averaged_knots_in`).
+///
+/// # Errors
+///
+/// [`interpolate_columns`]'.
+pub fn interpolate_columns_in<T: SpanLocate>(
+    params: &[T],
+    degree: usize,
+    rows: &[Vec<T>],
+) -> Result<(Knots<T>, Vec<Vec<T>>), FitError> {
+    let n = params.len();
+    if rows.len() != n {
         return Err(FitError::ParamCountMismatch {
             params: n,
             points: rows.len(),
         });
     }
-    let kv = averaged_knot_vector(params, degree)?;
-    // A clamped averaged knot vector over `n` parameters has exactly
-    // `n` control points, so the collocation matrix is square.
-    let unit = vec![1.0f64; n];
-    let mut matrix = vec![vec![0.0f64; n]; n];
-    for (k, u) in params.iter().enumerate() {
-        let (first, vals) = rational_row(&kv, &unit, *u);
-        for (j, v) in vals.iter().enumerate() {
-            matrix[k][first + j] = *v;
+    let width = rows.first().map_or(0, Vec::len);
+    for (index, row) in rows.iter().enumerate() {
+        if row.len() != width {
+            return Err(FitError::RaggedRows {
+                row: index,
+                width,
+                found: row.len(),
+            });
+        }
+        if row
+            .iter()
+            .any(|v| !v.point_value().is_some_and(f64::is_finite))
+        {
+            return Err(FitError::NonFinitePoint { index });
         }
     }
-    let control = lsq::solve_square(&matrix, rows).map_err(FitError::Lsq)?;
-    Ok((kv, control))
+    let channel: Vec<f64> = params.iter().map(|u| u.value_channel()).collect();
+    check_ordered(&channel)?;
+    check_degree(n, degree)?;
+    let knots = averaged_knots_in(params, degree)?;
+    let (first, basis): (Vec<usize>, Vec<Vec<T>>) =
+        params.iter().map(|u| unit_row_in(&knots, *u)).unzip();
+    let lu = banded::factor(&first, &basis).map_err(FitError::Lsq)?;
+    let control = lu.solve(rows).map_err(FitError::Lsq)?;
+    Ok((knots, control))
+}
+
+/// [`averaged_knots`] in `T`: the same sums, ascending, divided by the
+/// degree, with the clamped ends the constants `0` and `1`.
+///
+/// Averages that round onto one value on the value channel are one
+/// breakpoint repeated, as [`averaged_knots`]' vector holds them: one
+/// run, whose multiplicity is their count and whose held value is the
+/// first of them. The others' values are dropped there, a held-value
+/// equality decided on the value channel
+/// (`work/inlane/held-value-equalities-decided-on-the-value-channel.md`).
+fn averaged_knots_in<T: SpanLocate>(params: &[T], degree: usize) -> Result<Knots<T>, FitError> {
+    let n = params.len();
+    let end = NonZeroUsize::new(degree + 1).unwrap_or(NonZeroUsize::MIN);
+    let mut runs = vec![(T::zero(), end)];
+    #[allow(clippy::cast_precision_loss)]
+    let p = T::from_f64(degree as f64);
+    for j in 1..(n - degree) {
+        let mut s = T::zero();
+        for u in &params[j..j + degree] {
+            s = s + *u;
+        }
+        let knot = s / p;
+        match runs.last_mut() {
+            Some((held, m)) if held.value_channel() == knot.value_channel() => {
+                *m = m.saturating_add(1);
+            }
+            _ => runs.push((knot, NonZeroUsize::MIN)),
+        }
+    }
+    match runs.last_mut() {
+        Some((held, m)) if held.value_channel() == 1.0 => *m = m.saturating_add(degree + 1),
+        _ => runs.push((T::one(), end)),
+    }
+    Knots::new(runs, degree).map_err(FitError::Structure)
+}
+
+/// [`rational_row`] at unit weights, in `T`: the basis values alive at
+/// `t` over the held knots, each divided by their sum.
+fn unit_row_in<T: SpanLocate>(knots: &Knots<T>, t: T) -> (usize, Vec<T>) {
+    let Some((span, _)) = knots.locate(t) else {
+        return (0, vec![T::from_f64(f64::NAN); knots.degree() + 1]);
+    };
+    let n = basis::basis_funs_in(span, t);
+    let first = span.span().first_control();
+    let mut den = T::zero();
+    for nj in &n {
+        den = den + *nj;
+    }
+    (first, n.iter().map(|nj| *nj / den).collect())
+}
+
+/// The factored collocation system of one parameterization at one
+/// degree: the averaged knot vector (Book Eq. 9.8) and the banded LU of
+/// the matrix `N_{k,j} = N_j(ū_k)` (`curves/banded.rs` says why the
+/// band, why no pivoting, and why the bits are the dense
+/// `geom_core::linalg::lsq::solve_square`'s).
+///
+/// **Factor once, interpolate many**: every curve fitted on the same
+/// parameters solves against the one factorisation —
+/// `NurbsCurve3::interpolate_on` and `NurbsCurve2::interpolate_on` —
+/// and each gets the bits [`NurbsCurve3::interpolate_with_params`]
+/// gives it, which is that same factor-and-solve.
+#[derive(Clone, Debug)]
+pub struct Collocation {
+    params: Vec<f64>,
+    knots: KnotVector,
+    lu: BandedLu,
+}
+
+impl Collocation {
+    /// Factor the collocation matrix of the clamped `0 → 1` strictly
+    /// ascending `params` at `degree`.
+    ///
+    /// # Errors
+    ///
+    /// [`FitError::ParamCountMismatch`] for parameters that are not a
+    /// clamped ascending parameterization, [`FitError::TooFewPoints`]
+    /// below `degree + 1` parameters, [`FitError::Structure`]
+    /// for degree zero or a knot vector that does not validate, and
+    /// [`FitError::Lsq`] for a degenerate collocation system.
+    pub fn new(params: &[f64], degree: usize) -> Result<Self, FitError> {
+        check_ordered(params)?;
+        check_degree(params.len(), degree)?;
+        Self::on_knots(params, averaged_knots(params, degree)?)
+    }
+
+    /// Factor the collocation matrix of `params` on `knots`. A clamped
+    /// averaged knot vector over `n` parameters has exactly `n` control
+    /// points, so the matrix is square; each row is the `degree + 1`
+    /// basis values alive at its parameter, from its span's first
+    /// control index.
+    fn on_knots(params: &[f64], knots: KnotVector) -> Result<Self, FitError> {
+        let unit = vec![1.0f64; params.len()];
+        let (first, rows): (Vec<usize>, Vec<Vec<f64>>) = params
+            .iter()
+            .map(|u| rational_row(&knots, &unit, *u))
+            .unzip();
+        let lu = banded::factor(&first, &rows).map_err(FitError::Lsq)?;
+        Ok(Self {
+            params: params.to_vec(),
+            knots,
+            lu,
+        })
+    }
+
+    /// The parameters the system was built on.
+    pub fn params(&self) -> &[f64] {
+        &self.params
+    }
+
+    /// The averaged knot vector every curve fitted on this system has.
+    pub fn knots(&self) -> &KnotVector {
+        &self.knots
+    }
+
+    /// The degree the system was built at.
+    pub fn degree(&self) -> usize {
+        self.knots.degree()
+    }
+
+    fn solve(&self, rows: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, FitError> {
+        self.lu.solve(rows).map_err(FitError::Lsq)
+    }
 }
 
 macro_rules! nurbs_fit {
@@ -455,7 +645,6 @@ macro_rules! nurbs_fit {
 
             /// Validate explicit fitting parameters (module docs on
             /// [`Self::chord_parameters`]).
-            #[allow(clippy::neg_cmp_op_on_partial_ord)]
             fn check_params(points: &[$Point<f64>], params: &[f64]) -> Result<(), FitError> {
                 if params.len() != points.len() {
                     return Err(FitError::ParamCountMismatch {
@@ -463,23 +652,7 @@ macro_rules! nurbs_fit {
                         points: points.len(),
                     });
                 }
-                // `!(a < b)` is NaN-catching: a NaN parameter refuses.
-                let ends_ok = params.first() == Some(&0.0) && params.last() == Some(&1.0);
-                if !ends_ok {
-                    return Err(FitError::ParamCountMismatch {
-                        params: params.len(),
-                        points: points.len(),
-                    });
-                }
-                for w in params.windows(2) {
-                    if !(w[0] < w[1]) {
-                        return Err(FitError::ParamCountMismatch {
-                            params: params.len(),
-                            points: points.len(),
-                        });
-                    }
-                }
-                Ok(())
+                check_ordered(params)
             }
 
             /// [`Self::interpolate`] on **explicit** parameters — the
@@ -497,13 +670,13 @@ macro_rules! nurbs_fit {
                 params: &[f64],
             ) -> Result<Self, FitError> {
                 Self::check_params(points, params)?;
-                Self::interpolate_core(points, degree, params)
+                Self::solve_on(points, &Collocation::new(params, degree)?)
             }
 
             /// Global chord-length interpolation (the A9.1 shape): the
             /// curve of `degree` through every point, on the averaged
             /// knot vector, via the exact square collocation solve
-            /// (`geom_core::linalg::lsq::solve_square`, fixed-order LU).
+            /// ([`Collocation`], a fixed-order banded LU).
             /// All weights are exactly 1 (fitting produces integral
             /// B-splines; rational data is not a fitting output).
             ///
@@ -516,53 +689,49 @@ macro_rules! nurbs_fit {
             /// non-finite input, a zero-length chord, a degenerate
             /// collocation system, or structure refusals.
             pub fn interpolate(points: &[$Point<f64>], degree: usize) -> Result<Self, FitError> {
-                if degree == 0 {
-                    return Err(FitError::Structure(SplineError::KnotVectorInvalid {
-                        reason: KnotVectorIssue::DegreeZero,
-                    }));
-                }
-                let n = points.len();
-                if n < degree + 1 || n < 2 {
-                    return Err(FitError::TooFewPoints {
-                        have: n,
-                        need: (degree + 1).max(2),
-                    });
-                }
+                check_degree(points.len(), degree)?;
                 let params = Self::chord_params(points)?;
                 Self::interpolate_core(points, degree, &params)
             }
 
-            /// The shared body of [`Self::interpolate`] and
-            /// [`Self::interpolate_with_params`] — one implementation,
-            /// so the two can never drift (D9).
+            /// Interpolation on chord parameters, whose degree the
+            /// caller has checked. They are not re-checked for strict
+            /// ascent: a chord too short for its share to register
+            /// leaves two parameters equal, and that system goes to the
+            /// solve, which refuses it if it is singular.
             fn interpolate_core(
                 points: &[$Point<f64>],
                 degree: usize,
                 params: &[f64],
             ) -> Result<Self, FitError> {
-                if degree == 0 {
-                    return Err(FitError::Structure(SplineError::KnotVectorInvalid {
-                        reason: KnotVectorIssue::DegreeZero,
-                    }));
-                }
-                let n = points.len();
-                if n < degree + 1 || n < 2 {
-                    return Err(FitError::TooFewPoints {
-                        have: n,
-                        need: (degree + 1).max(2),
-                    });
-                }
-                let kv = averaged_knots(params, degree)?;
-                let weights = vec![1.0f64; n];
-                let mut matrix = vec![vec![0.0f64; n]; n];
-                for (k, u) in params.iter().enumerate() {
-                    let (first, vals) = rational_row(&kv, &weights, *u);
-                    for (j, v) in vals.iter().enumerate() {
-                        matrix[k][first + j] = *v;
-                    }
-                }
+                let knots = averaged_knots(params, degree)?;
+                Self::solve_on(points, &Collocation::on_knots(params, knots)?)
+            }
+
+            /// [`Self::interpolate_with_params`] against a collocation
+            /// system already factored on the same parameters — the
+            /// door for fitting several curves on one parameterization
+            /// with one factorisation. Same bits as
+            /// [`Self::interpolate_with_params`] on
+            /// `collocation.params()` at `collocation.degree()`.
+            ///
+            /// # Errors
+            ///
+            /// [`FitError::ParamCountMismatch`] when `points` and the
+            /// system's parameters differ in count.
+            pub fn interpolate_on(
+                points: &[$Point<f64>],
+                collocation: &Collocation,
+            ) -> Result<Self, FitError> {
+                Self::check_params(points, collocation.params())?;
+                Self::solve_on(points, collocation)
+            }
+
+            fn solve_on(points: &[$Point<f64>], collocation: &Collocation) -> Result<Self, FitError> {
                 let rhs: Vec<Vec<f64>> = points.iter().map(|q| vec![$(q.$c),+]).collect();
-                let sol = lsq::solve_square(&matrix, &rhs).map_err(FitError::Lsq)?;
+                let sol = collocation.solve(&rhs)?;
+                let weights = vec![1.0f64; points.len()];
+                let kv = collocation.knots.clone();
                 let control: Vec<$Point<f64>> = sol
                     .iter()
                     .map(|row| {
@@ -654,6 +823,7 @@ macro_rules! nurbs_fit {
                     Some(p) => p.to_vec(),
                     None => Self::chord_params(points)?,
                 };
+                check_degree(points.len(), 1)?;
                 let interp = Self::interpolate_core(points, 1, &params)?;
                 let mut cur = interp.clone();
                 // The reference at the current rung's degree: the
@@ -830,6 +1000,168 @@ nurbs_fit!(NurbsCurve3, Point3, x, y, z);
 mod tests {
     use super::*;
 
+    /// The reference the band reproduces: the same rows as a dense
+    /// matrix, through the dense LU.
+    fn dense_fit(params: &[f64], degree: usize, rhs: &[Vec<f64>]) -> Vec<Vec<f64>> {
+        let kv = averaged_knots(params, degree).unwrap();
+        let n = params.len();
+        let unit = vec![1.0f64; n];
+        let mut matrix = vec![vec![0.0f64; n]; n];
+        for (k, u) in params.iter().enumerate() {
+            let (first, vals) = rational_row(&kv, &unit, *u);
+            matrix[k][first..first + vals.len()].copy_from_slice(&vals);
+        }
+        lsq::solve_square(&matrix, rhs).unwrap()
+    }
+
+    /// A loop in the `z = 0` plane, its zeros of both signs, its
+    /// samples unevenly spaced.
+    fn planar_loop(n: usize) -> Vec<Point3<f64>> {
+        (0..n)
+            .map(|k| {
+                #[allow(clippy::cast_precision_loss)]
+                let s = k as f64 / (n - 1) as f64;
+                let a = 5.0 * (s + 0.05 * (6.0 * s).sin() / 6.0);
+                let z = if k % 3 == 0 { -0.0 } else { 0.0 };
+                Point3::new(
+                    0.45 * a.cos(),
+                    0.25 * a.sin() - 0.25 * (k % 4 == 1) as u8 as f64,
+                    z,
+                )
+            })
+            .collect()
+    }
+
+    fn bits(a: &[Vec<f64>]) -> Vec<u64> {
+        a.iter().flatten().map(|v| v.to_bits()).collect()
+    }
+
+    /// The banded fit reproduces the dense solve bit for bit: on the
+    /// curve doors (chord parameters, cubic and quintic, with signed
+    /// zeros in the data), on the factor-once door, and on the column
+    /// door with homogeneous `(w·x, w·y, w·z, w)` rows, which is how a
+    /// rational fit reaches it.
+    #[test]
+    fn the_banded_fit_reproduces_the_dense_solve_bit_for_bit() {
+        for n in [4usize, 9, 64, 257] {
+            let pts = planar_loop(n);
+            let params = NurbsCurve3::<f64>::chord_parameters(&pts).unwrap();
+            let rhs: Vec<Vec<f64>> = pts.iter().map(|q| vec![q.x, q.y, q.z]).collect();
+            for degree in [3usize, 5] {
+                if n <= degree {
+                    continue;
+                }
+                let dense = dense_fit(&params, degree, &rhs);
+                let curve = NurbsCurve3::interpolate_with_params(&pts, degree, &params).unwrap();
+                let got: Vec<Vec<f64>> = curve
+                    .control()
+                    .iter()
+                    .map(|q| vec![q.x, q.y, q.z])
+                    .collect();
+                assert_eq!(
+                    bits(&got),
+                    bits(&dense),
+                    "curve door, n = {n}, p = {degree}"
+                );
+                let chord = NurbsCurve3::interpolate(&pts, degree).unwrap();
+                let chord_bits: Vec<Vec<f64>> = chord
+                    .control()
+                    .iter()
+                    .map(|q| vec![q.x, q.y, q.z])
+                    .collect();
+                assert_eq!(bits(&chord_bits), bits(&dense), "chord door, n = {n}");
+
+                let collocation = Collocation::new(&params, degree).unwrap();
+                let on = NurbsCurve3::interpolate_on(&pts, &collocation).unwrap();
+                assert_eq!(on.knots(), curve.knots(), "factor-once knots, n = {n}");
+                let on_bits: Vec<Vec<f64>> =
+                    on.control().iter().map(|q| vec![q.x, q.y, q.z]).collect();
+                assert_eq!(bits(&on_bits), bits(&dense), "factor-once door, n = {n}");
+                let uv: Vec<Point2<f64>> = pts.iter().map(|q| Point2::new(q.y, q.z)).collect();
+                let pc = NurbsCurve2::interpolate_on(&uv, &collocation).unwrap();
+                let pc_dense = dense_fit(
+                    &params,
+                    degree,
+                    &uv.iter().map(|q| vec![q.x, q.y]).collect::<Vec<_>>(),
+                );
+                let pc_bits: Vec<Vec<f64>> = pc.control().iter().map(|q| vec![q.x, q.y]).collect();
+                assert_eq!(
+                    bits(&pc_bits),
+                    bits(&pc_dense),
+                    "2-D factor-once door, n = {n}"
+                );
+
+                let homogeneous: Vec<Vec<f64>> = pts
+                    .iter()
+                    .enumerate()
+                    .map(|(k, q)| {
+                        #[allow(clippy::cast_precision_loss)]
+                        let w = 1.0 + 0.5 * (k as f64).sin().abs();
+                        vec![w * q.x, w * q.y, w * q.z, w]
+                    })
+                    .collect();
+                let (_, columns) = interpolate_columns(&params, degree, &homogeneous).unwrap();
+                assert_eq!(
+                    bits(&columns),
+                    bits(&dense_fit(&params, degree, &homogeneous)),
+                    "column door, homogeneous rows, n = {n}"
+                );
+            }
+        }
+    }
+
+    /// Identity at the scale the march fits: a 4000-sample planar loop
+    /// with signed zeros, carrier and pcurve-shaped columns, against the
+    /// dense Doolittle (`banded::dense_reference`, pinned to
+    /// `solve_square`; the plain `solve_square` is O(n³) with strided
+    /// reads, too slow at this n in a debug build). Slow set.
+    #[test]
+    fn the_banded_fit_reproduces_the_dense_solve_at_four_thousand_samples() {
+        let n = 4000;
+        let pts = planar_loop(n);
+        let params = NurbsCurve3::<f64>::chord_parameters(&pts).unwrap();
+        let kv = averaged_knots(&params, 3).unwrap();
+        let unit = vec![1.0f64; n];
+        let (first, rows): (Vec<usize>, Vec<Vec<f64>>) =
+            params.iter().map(|u| rational_row(&kv, &unit, *u)).unzip();
+        let rhs: Vec<Vec<f64>> = pts.iter().map(|q| vec![q.x, q.y, q.z, q.y * q.x]).collect();
+        let dense = crate::curves::banded::dense_reference(&first, &rows, &rhs).unwrap();
+        let (_, banded) = interpolate_columns(&params, 3, &rhs).unwrap();
+        assert_eq!(
+            bits(&banded),
+            bits(&dense),
+            "n = {n}: the banded fit lost identity"
+        );
+    }
+
+    #[test]
+    fn interpolate_on_refuses_points_the_system_was_not_built_for() {
+        let pts = planar_loop(12);
+        let params = NurbsCurve3::<f64>::chord_parameters(&pts).unwrap();
+        let collocation = Collocation::new(&params, 3).unwrap();
+        assert_eq!(
+            NurbsCurve3::interpolate_on(&pts[..11], &collocation).unwrap_err(),
+            FitError::ParamCountMismatch {
+                params: 12,
+                points: 11
+            }
+        );
+        assert_eq!(
+            Collocation::new(&params[..3], 3).unwrap_err(),
+            FitError::ParamCountMismatch {
+                params: 3,
+                points: 3
+            },
+            "a parameterization that does not end at 1"
+        );
+        let mut short = params[..3].to_vec();
+        short[2] = 1.0;
+        assert_eq!(
+            Collocation::new(&short, 3).unwrap_err(),
+            FitError::TooFewPoints { have: 3, need: 4 }
+        );
+    }
+
     fn quarter_arc_samples(n: usize) -> Vec<Point3<f64>> {
         (0..n)
             .map(|k| {
@@ -902,10 +1234,16 @@ mod tests {
     /// adds that the carrier is rendered whole and that its clause
     /// survives into the message a caller reads.
     ///
-    /// `Lsq` and `KnotAlgebra` are asserted as DELEGATIONS only. Their
-    /// carriers have no enforcement row yet, so a recourse assertion
-    /// over them would be a claim about whichever payload this test
-    /// happened to build.
+    /// `Lsq` and `KnotAlgebra` are asserted TRANSITIVELY too, as of
+    /// their carriers' own enforcement rows
+    /// (`geom_core::linalg::lsq`'s `every_lsq_error_arm_names_a_recourse`
+    /// and `geom_core::spline::algebra`'s
+    /// `every_knot_algebra_error_arm_names_a_recourse`): each arm of
+    /// each carrier names one labelled repair, so a payload this test
+    /// builds stands for all of them. This row adds that the carrier is
+    /// rendered whole and that its repair survives into the message a
+    /// caller of the public fit door reads — the five characters
+    /// `"fit: "` add no second one.
     #[test]
     fn every_fit_error_arm_names_a_recourse() {
         // A vocabulary, not a part-of-speech test: an arm that names
@@ -958,6 +1296,14 @@ mod tests {
             };
             if let Some(carrier) = carrier {
                 assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
+                // The carrier's own repair is the one the reader sees,
+                // and this arm adds none: its enforcement row above
+                // makes that a statement about every payload.
+                assert_eq!(
+                    test_utils::refusal::recourse_markers(&msg),
+                    1,
+                    "not exactly one labelled repair: {msg}"
+                );
                 continue;
             }
             if let FitError::Structure(e) = arm {
@@ -979,5 +1325,40 @@ mod tests {
                 "no recourse in: {msg}"
             );
         }
+    }
+
+    /// The columns' solve in `T` is [`interpolate_columns`] at `f64`,
+    /// bit for bit: knots, and every control entry with its sign, on
+    /// uneven parameters, at degrees 1 to 3, over data holding zeros of
+    /// both signs.
+    #[test]
+    fn the_columns_solve_in_t_is_the_f64_solve_at_f64() {
+        let params = [0.0, 0.13, 0.31, 0.5, 0.77, 0.9, 1.0];
+        let rows: Vec<Vec<f64>> = params
+            .iter()
+            .enumerate()
+            .map(|(k, u)| {
+                let k = k as f64;
+                vec![u * 3.0 - 1.0, (k * 0.7).sin(), -0.0, 0.0, 1.0 / (1.0 + k)]
+            })
+            .collect();
+        let bits = |rows: &[Vec<f64>]| -> Vec<u64> {
+            rows.iter().flatten().map(|x| x.to_bits()).collect()
+        };
+        for degree in 1..=3 {
+            let (kv, plain) = interpolate_columns(&params, degree, &rows).unwrap();
+            let (held, in_t) = interpolate_columns_in(&params, degree, &rows).unwrap();
+            assert_eq!(held.structure().knots(), kv.knots(), "degree {degree}");
+            assert_eq!(bits(&in_t), bits(&plain), "degree {degree}");
+        }
+        // Averages that round onto one value: one run, repeated, as the
+        // f64 vector holds them.
+        let d = f64::EPSILON / 2.0;
+        let params = [0.0, 0.5 + d, 0.5 + 2.0 * d, 0.5 + 3.0 * d, 1.0];
+        let rows: Vec<Vec<f64>> = params.iter().map(|u| vec![*u, 1.0 - u]).collect();
+        let (kv, plain) = interpolate_columns(&params, 2, &rows).unwrap();
+        let (held, in_t) = interpolate_columns_in(&params, 2, &rows).unwrap();
+        assert_eq!(held.structure().knots(), kv.knots(), "a repeated average");
+        assert_eq!(bits(&in_t), bits(&plain), "a repeated average");
     }
 }

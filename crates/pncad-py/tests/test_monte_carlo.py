@@ -31,21 +31,20 @@ import unittest
 
 import pncad
 from pncad import (
-    AssertionDir,
+    AssertionRelation,
     DEFAULT_SAMPLES,
     DEFAULT_SEED,
     Distribution,
     Doc,
     DocEdit,
-    DocParam,
-    Expr,
+    FreeVar,
+    Formula,
     McAssertion,
     McConfig,
     McMeasure,
-    MeasureExpr,
     MeasurePrimitive,
     Node,
-    ParamName,
+    VarName,
     analyzed_box,
     deg,
     evaluate,
@@ -56,10 +55,10 @@ from pncad import (
 )
 
 SQUARE = [
-    (Expr.length_in(0, m), Expr.length_in(0, m)),
-    (Expr.length_in(1, m), Expr.length_in(0, m)),
-    (Expr.length_in(1, m), Expr.length_in(1, m)),
-    (Expr.length_in(0, m), Expr.length_in(1, m)),
+    (Formula.length_in(0, m), Formula.length_in(0, m)),
+    (Formula.length_in(1, m), Formula.length_in(0, m)),
+    (Formula.length_in(1, m), Formula.length_in(1, m)),
+    (Formula.length_in(0, m), Formula.length_in(1, m)),
 ]
 
 #: The declared height of the slab every scene below extrudes, in
@@ -91,13 +90,13 @@ def slab(doc, distribution=None, nominal=NOMINAL):
     the parameter, by construction and not by coincidence.
     """
     doc.apply(
-        DocEdit.set_doc_param(
-            ParamName("h"), DocParam.length(nominal * m, distribution)
+        DocEdit.declare_var(
+            VarName("h"), FreeVar.length(nominal * m, distribution)
         )
     )
     outline = doc.insert(Node.polygon(SQUARE, plane=doc.sketch_frame()))
-    prism = doc.insert(Node.extrude(outline, Expr.length_in(nominal, m)))
-    doc.apply(DocEdit.set_param(prism, "distance", doc.parse_expr("h")))
+    prism = doc.insert(Node.extrude(outline, Formula.length_in(nominal, m)))
+    doc.apply(DocEdit.set_param(prism, "distance", doc.parse_formula("h")))
     return prism
 
 
@@ -106,13 +105,7 @@ def height_measure(doc, prism, nominal=NOMINAL):
     caps — the height, in the document's own vocabulary."""
     ev = evaluate(doc)
     return doc.insert(
-        Node.measure(
-            MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-            [
-                (prism, face_at_height(ev, prism, 0.0)),
-                (prism, face_at_height(ev, prism, nominal)),
-            ],
-        )
+        Node.measure(MeasurePrimitive.distance((prism, face_at_height(ev, prism, 0.0)), (prism, face_at_height(ev, prism, nominal))))
     )
 
 
@@ -125,7 +118,7 @@ def scene(distribution=None, bound=None):
     assertion = None
     if bound is not None:
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_expr(bound))
+            Node.assertion(doc.output(measure), AssertionRelation.AtLeast, doc.parse_formula(bound))
         )
     return doc, analyzed_box(doc), measure, assertion
 
@@ -158,14 +151,20 @@ class TestTheDialsAreRecorded(unittest.TestCase):
         self.assertEqual(monte_carlo(doc, box).seed, DEFAULT_SEED)
 
     def test_the_rendering_labels_every_line_it_puts_a_number_on(self):
-        doc, box, _measure, _a = scene(Distribution.normal(SIGMA * m))
+        doc, box, measure, _a = scene(Distribution.normal(SIGMA * m))
+        doc.apply(DocEdit.set_label(measure, "height"))
         config = McConfig(samples=32)
-        text = monte_carlo(doc, box, config).render()
+        report = monte_carlo(doc, box, config)
+        # A rename after the run does not reach the report: it speaks
+        # from the document the run was drawn from.
+        doc.apply(DocEdit.set_label(measure, "renamed"))
+        text = report.render()
         numbered = [line for line in text.splitlines() if "mean" in line]
         self.assertTrue(numbered, "the report rendered no estimate at all")
         for line in numbered:
             self.assertIn("ADVISORY", line)
             self.assertIn("32 samples", line)
+            self.assertIn('Measure "height" (', line)
         self.assertIn("ADVISORY", repr(monte_carlo(doc, box, config)))
 
 
@@ -194,6 +193,29 @@ class TestTheEstimateIsTheAuthoring(unittest.TestCase):
         self.assertLessEqual(row.min, row.mean)
         self.assertLessEqual(row.mean, row.max)
 
+    def test_an_asserted_formula_has_its_own_population(self):
+        """The value an assertion reads is summarized whatever it is: a
+        formula over the measure's output (the height less a millimetre)
+        has a row of its own, each sample the measured row's less the
+        millimetre."""
+        doc, _box, measure, _a = scene(Distribution.normal(SIGMA * m))
+        doc.apply(DocEdit.rename_var(doc.output(measure), VarName("height")))
+        doc.insert(
+            Node.assertion(
+                doc.parse_formula("height - 1 mm"),
+                AssertionRelation.AtLeast,
+                doc.parse_formula("0 m"),
+            )
+        )
+        report = monte_carlo(doc, analyzed_box(doc), McConfig(samples=64))
+        self.assertEqual(len(report.values), 1)
+        value = report.values[0]
+        height = report.measures[0]
+        self.assertEqual((value.measured, value.unmeasured), (64, 0))
+        self.assertAlmostEqual(value.mean, height.mean - 0.001, places=12)
+        self.assertAlmostEqual(value.min, height.min - 0.001, places=12)
+        self.assertAlmostEqual(value.max, height.max - 0.001, places=12)
+
     def test_a_fixed_document_has_no_spread_at_all(self):
         """An unannotated parameter is FIXED, so every draw is the
         nominal and the estimator says so exactly."""
@@ -213,7 +235,7 @@ class TestTheEstimateIsTheAuthoring(unittest.TestCase):
         empirical twin of what `tail_mass` computes exactly."""
         doc, box, _measure, _a = scene(Distribution.normal(SIGMA * m))
         report = monte_carlo(doc, box, McConfig(samples=512))
-        exact = box.tail_mass(ParamName("h"))
+        exact = box.tail_mass(VarName("h"))
         self.assertLess(abs(report.outside_box - exact), 0.02)
         self.assertGreater(report.outside_box, 0.0)
 
@@ -254,16 +276,10 @@ class TestTheAssertionRowsAreEmpirical(unittest.TestCase):
         prism = slab(doc, Distribution.normal(SIGMA * m))
         ev = evaluate(doc)
         clearance = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.min_clearance(0, 1)),
-                [
-                    (prism, face_at_height(ev, prism, 0.0)),
-                    (prism, face_at_height(ev, prism, NOMINAL)),
-                ],
-            )
+            Node.measure(MeasurePrimitive.min_clearance((prism, face_at_height(ev, prism, 0.0)), (prism, face_at_height(ev, prism, NOMINAL))))
         )
         assertion = doc.insert(
-            Node.assertion(clearance, AssertionDir.AtLeast, doc.parse_expr("1 mm"))
+            Node.assertion(doc.output(clearance), AssertionRelation.AtLeast, doc.parse_formula("1 mm"))
         )
         report = monte_carlo(doc, analyzed_box(doc), McConfig(samples=8))
         row = next(r for r in report.assertions if r.node == assertion)
@@ -334,7 +350,7 @@ class TestTheThreeRefusals(unittest.TestCase):
         # same band refuses the same way one rung up, at any question
         # whose answer would depend on the shape it withholds.
         with self.assertRaises(pncad.MeasureUnavailable) as priced:
-            box.box_mass(ParamName("h"), 0 * mm, 1 * mm)
+            box.box_mass(VarName("h"), 0 * mm, 1 * mm)
         self.assertEqual(priced.exception.variant, refusal.variant)
         self.assertEqual(priced.exception.param, refusal.param)
 
@@ -355,12 +371,16 @@ class TestTheThreeRefusals(unittest.TestCase):
         error."""
         doc = Doc()
         prism = slab(doc, Distribution.normal(SIGMA * m), nominal=0.0)
+        doc.apply(DocEdit.set_label(prism, "plinth"))
         with self.assertRaises(pncad.McRefusal) as caught:
             monte_carlo(doc, analyzed_box(doc), McConfig(samples=4))
         refusal = caught.exception
         self.assert_shape(refusal)
         self.assertEqual(refusal.variant, "nominal_does_not_build")
         self.assertEqual(refusal.node, prism)
+        # The message speaks the node with its label; the payload keeps
+        # the full id.
+        self.assertIn('(Extrude "plinth" ', str(refusal))
         self.assertIsNone(refusal.param)
         self.assertTrue(refusal.cause)
         # The same refusal an ordinary evaluation of that document
@@ -375,7 +395,7 @@ class TestTheSingleDraw(unittest.TestCase):
     value, and it answers an OFFSET in the parameter's own dimension."""
 
     def test_the_offset_carries_the_distributions_dimension(self):
-        name = ParamName("h")
+        name = VarName("h")
         length = sample_offset(name, Distribution.normal(SIGMA * m), 0.5)
         self.assertIsInstance(length, pncad.Length)
         self.assertAlmostEqual(length.meters, 0.0, places=12)
@@ -389,7 +409,7 @@ class TestTheSingleDraw(unittest.TestCase):
     def test_a_uniform_law_is_its_own_linear_interpolation(self):
         """The oracle is the definition: the quantile of a uniform on
         `[lo, hi]` is `lo + (hi - lo) * u`."""
-        name = ParamName("h")
+        name = VarName("h")
         law = Distribution.uniform(-2 * mm, 6 * mm)
         for u, expected_mm in ((0.0, -2.0), (0.25, 0.0), (0.5, 2.0), (0.75, 4.0)):
             with self.subTest(u=u):
@@ -400,12 +420,12 @@ class TestTheSingleDraw(unittest.TestCase):
         """The tail the analyzed box excludes is exactly the region
         the certified answer does not cover, so a draw past ±3σ is the
         point of this lane rather than an escape from it."""
-        far = sample_offset(ParamName("h"), Distribution.normal(SIGMA * m), 0.9999)
+        far = sample_offset(VarName("h"), Distribution.normal(SIGMA * m), 0.9999)
         self.assertGreater(far.meters, 3 * SIGMA)
 
     def test_a_band_refuses_typed_and_names_the_parameter(self):
         with self.assertRaises(pncad.MeasureUnavailable) as caught:
-            sample_offset(ParamName("bore_r"), Distribution.band(-1 * mm, 1 * mm), 0.5)
+            sample_offset(VarName("bore_r"), Distribution.band(-1 * mm, 1 * mm), 0.5)
         self.assertEqual(caught.exception.variant, "band_has_no_measure")
         self.assertEqual(caught.exception.param, "bore_r")
 
