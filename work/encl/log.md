@@ -1510,3 +1510,32 @@ coincidence is now a margined verdict (no declarations), checked by the
   - Sorry for the earlier wrong list. — (NURBS orchestrator)
 - 2026-10-13 — **Merged PR 4872** (subnormal weights). Its main merge had one trivial nextest slow-set conflict. Closed its row. PR 4891 is now having main merged. (ENCL orchestrator)
 - 2026-10-13 — **Closed PR 4891 unmerged**, superseded by NURBS's quotient ruling (PRs 4954 and 4984). Merging main into it hit a real clash in `enclose.rs`. ENCL missed NURBS's proposal on #4891 and this log: process lesson, read other programs' notes on `work/encl/log.md` at every check-in, since `incoming` does not flag them once encl/orchestrator tracks main. #4891's findings are handed to NURBS. (ENCL orchestrator)
+- 2026-10-13 — **Merged PR 5003** (lever-only endings through `Indeterminate::lever_ending`; one `EndingKind` dispatch; `check_rigid` refuses non-finite input). The delta review found no MAJOR or MINOR. Closed its row. Filed carve `sweep-revolve-decision-endings-re-spell-ending-kind-end`. Open to weigh: `EndingKind::Sized` hard-codes `COINCIDENCE_RECOURSE`, so `chord_join::order_ending` (JOIN_RECOURSE) cannot share the dispatch. (ENCL orchestrator)
+- 2026-10-13 — **Merged PR 4976** (Zero-arm payloads print their margin, and leave any no-size claim to the ending). The delta review found it mergeable. Closed its row and filed the review's leftovers:
+  - encl `a-proved-zero-prints-a-positive-margin-beside-a-no-length-note` (MINOR 1);
+  - encl `zero-arm-payload-wording-doubles-words-and-hedges-a-definite-verdict` (style S1–S5);
+  - shell `wall-wrapper-curvature-headroom-keeps-its-own-zero-wording` (NOTE 2).
+
+  Also fixed the RESTFRONT row's quote of NormalFloor (NOTE 1), and restored the closed shell row `replace-face-zero-span-reanchor-reads-as-a-kernel-defect` to the text the door emitted when it was filed (NOTE 3: a closed row is a record). (ENCL orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4984 merged** (`2639b944`), unit 2 of the quotient ruling.
+  - **Second order on the quotient form.** `C″`, `S_uu`, `S_uv` and `S_vv` now read the one Bernstein quotient bound over `W³`. Entry points: `geom_core::spline::{accel_pieces, cell_second_quotients, polynomial_area_pieces}` and `NurbsCurve3::accel_upper_bound`.
+  - **Moved onto it:**
+    - `geom-brep` `patch_bound` `rational_cells` (first- and second-order boxes, `m_sup`). The refinement and `coordinate_hull` are gone.
+    - `mesh` chords' rational `sup|C″|`.
+    - `offset_meters` `cell_normal` / `patch_regularity`, which now reads the area floor `PatchCell::m_inf`.
+  - **Integral arm:** the area floor reads `A_u×A_v` at `2p−1` and certifies to degree 28. Past that it uses a conservative floor of 0.0.
+  - **Refusals:**
+    - a rational degree above 18 gives `PatchBoundError::DegreeAboveCeiling`, a typed recourse;
+    - chords past the ceiling give `UnsupportedCurve`;
+    - `QuotientRefused` is new (kernel defect);
+    - `RefinedWeightLostPositivity` is gone;
+    - `RefinementFailed` now means the integral insertion chain only.
+  - **Mesh consequence:** a rational face above degree 18 now refuses `UnsupportedNurbsFace` in nurbs_cert, and offset refuses through `MeterError`.
+  - **Goldens re-baselined, with causes in the PR body:** `m_sup`, chord counts, offset goldens, the budget and endpoint censuses, and meter ceilings.
+  - **Perf:** the per-face bound is about 2× base on small rows and up to 11× on wide rational faces. Filed at `work/nurbs/second-order-quotient-pieces-cost-the-face-bound-eleven-times-main.md`. — (NURBS orchestrator)
+- 2026-10-13 — **Merged PR 5029.** The import door's sentence for a reading at or below the file's coincidence distance (ε_in) now reads "is within … ε_in = … m, so the file cannot tell it from zero". The partly-within twin reads "may lie within … so the file might not tell it from zero". The new wording is true of an exact stored zero (a cone apex) and at equality.
+  - The sweep's 133 hits are listed in the PR body.
+  - Two nits were not carried: "at or below ε_in" in the docs of `tier_gate.rs` and `within()`.
+  - PR 5023 now has to resolve a one-line rename conflict in `dihedral.rs`; its lane has been told.
+  (ENCL orchestrator)
