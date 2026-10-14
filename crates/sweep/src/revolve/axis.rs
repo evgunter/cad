@@ -19,6 +19,10 @@ use super::{ClearanceDecision, RevolveAxis, RevolveError, SweptSeg};
 use crate::swept::{arc_span, decide};
 use profile::SegmentKind;
 
+/// The K funnel name of the sketch axis's length: the revolve axis's
+/// direction decided in the sketch plane.
+pub(super) const REVOLVE_AXIS_DIRECTION: &str = "revolve_axis_direction";
+
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
 /// azimuthal frame** every revolution surface of this call uses
@@ -113,7 +117,7 @@ impl<T: Decide> AxisFrame<T> {
     /// [`Self::build`]'s).
     fn sketch_direction(axis: &RevolveAxis<T>, band: Band) -> Result<UnitVec3<T>, RevolveError> {
         let in_plane = Vec3::new(axis.dir.x, axis.dir.y, T::zero());
-        UnitVec3::new(in_plane, "revolve_axis_direction", band).map_err(|e| match e {
+        UnitVec3::new(in_plane, REVOLVE_AXIS_DIRECTION, band).map_err(|e| match e {
             UnitVec3Error::NonFiniteLength => RevolveError::NonFiniteAxis,
             UnitVec3Error::UnderflowedLength => RevolveError::UnderflowedAxis,
             UnitVec3Error::Degenerate => RevolveError::DegenerateAxis,

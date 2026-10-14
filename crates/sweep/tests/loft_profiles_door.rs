@@ -203,7 +203,9 @@ fn at_interval_a_wide_plane_refuses_as_placement_not_a_point() {
 #[test]
 fn a_dual_forms_value_channel_is_its_f64_form() {
     let c = Dual64::constant;
-    let dual = validated(Dual64::variable(1.2), c(0.2), c(1.0)).value_channel();
+    let dual = validated(Dual64::variable(1.2), c(0.2), c(1.0))
+        .value_channel()
+        .expect("a dual form's plane has one f64 point");
     let nominal = validated(1.2, 0.2, 1.0);
     assert_eq!(format!("{dual:?}"), format!("{nominal:?}"));
 }

@@ -822,14 +822,11 @@ impl std::error::Error for CapPlaneError {}
 ///
 /// `forward` is `cap_points` of the swept chain at this cap's station.
 ///
-/// **Precondition: `place` is a rigid, right-handed frame**
-/// (`c2 = c0 × c1`, unit and orthogonal), so that "counterclockwise in
-/// the sketch" means "counterclockwise about `c2`". Nothing enforces it
-/// at the public doors yet — `profile::SketchPlane::new` and the loft's
-/// placements admit a reflected or skewed map, which reaches the
-/// orientation decision's refusals with a kernel-defect ending when the
-/// cause is the caller's frame
-/// (`work/paths/sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary.md`).
+/// `place` is a sketch plane's placement, or one a rigid motion carried
+/// (a revolve's end station), so its columns are a rigid, right-handed
+/// frame (`profile::SketchPlane` holds the witness) and
+/// "counterclockwise in the sketch" means "counterclockwise about
+/// `c2`".
 pub(crate) fn cap_plane<T: Decide>(
     forward: &[Point3<T>],
     place: Affine3<T>,

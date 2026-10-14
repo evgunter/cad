@@ -296,6 +296,15 @@ use sweep::ExtrudeSide;
 use sweep::{ProfileLoop, Section};
 use topo::Body;
 
+/// **A sketch plane from a placement a suite holds as twelve numbers**,
+/// admitted at the decided door (`geom_core::test_support::rigid`) at
+/// the witness tolerance: a suite that writes its plane as a matrix
+/// asks this before the plane exists. Panics, naming the refusal, when
+/// the map is not rigid.
+pub fn plane_of(map: &Affine3<f64>) -> SketchPlane<f64> {
+    SketchPlane::from_frame(geom_core::test_support::rigid(map, Tol::witness()))
+}
+
 /// The placement a path sweep starts from, read off the path's start:
 /// `geom_core::linalg::frame::path_start_frame`, the kernel's own
 /// door for it. The frame's local +Z is the start TANGENT, so the
@@ -308,15 +317,6 @@ use topo::Body;
 /// The door returns a typed refusal for a path whose start tangent
 /// fixes no frame; a fixture whose path is that degenerate is a fixture
 /// bug, so this unwraps with the refusal in the message.
-/// **A sketch plane from a placement a suite holds as twelve numbers**,
-/// admitted at the decided door (`geom_core::test_support::rigid`) at
-/// the witness tolerance: a suite that writes its plane as a matrix
-/// asks this before the plane exists. Panics, naming the refusal, when
-/// the map is not rigid.
-pub fn plane_of(map: &Affine3<f64>) -> SketchPlane<f64> {
-    SketchPlane::from_frame(geom_core::test_support::rigid(map, Tol::witness()))
-}
-
 pub fn normal_start_place(path: &NurbsCurve3<f64>) -> SketchPlane<f64> {
     let (lo, _) = path.domain();
     SketchPlane::from_frame(

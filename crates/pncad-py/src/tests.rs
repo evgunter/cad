@@ -6608,7 +6608,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("anonymous_var_unread", 2),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
-    ("band", 16),
+    ("band", 17),
     ("body", 2),
     ("cap_plane", 3),
     ("certify", 2),

@@ -1151,6 +1151,21 @@ Flagged, NOT fixed here (dispositions):
   build with it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES`
   does not move.
 
+- **F21** (added by PATHS' sketch-plane frame unit)
+  `geom-core/src/linalg/rigid_motion.rs` `RigidMotion::turned_between`,
+  under the caller's site name (`sweep`'s `sweep_path_turn`, a path
+  sweep's turn from the start tangent onto a station's): the divisor
+  `1 + a·b` of the Rodrigues-between rotation, for `a`, `b` direction
+  witnesses. Dimensionless — a defect of the pair, zero exactly when
+  they are opposed — decided against the metre band, which is the
+  clause-(i) debt this row records; the turn has no lever arm of its
+  own (it acts on the section, whose extent is the caller's). The
+  margin is the quantity whose arithmetic degrades as the pair turns
+  toward opposed, so the decision sits on what goes bad rather than on
+  an axis `a × b`, which would escalate on a nearly straight path where
+  any axis serves. Same arm question as F10; one site,
+  `LEDGER_FLAGGED_SITES` 5 → 6.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved
