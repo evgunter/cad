@@ -1437,3 +1437,18 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Still red on main and not ours (pre-4984): the 1e-6 rows `cone_operand_rows`, `r1_lane0_e2e` and `three_solids_on_one_line`, and the 1e-12 `encl_curved_loft_shell` pin. Build A is bisecting the shelling pin.
   - #5059 (`rect_box` midpoint enclosure, build C) is up. CI is red across lint and test, so the FULL reviewer waits for green.
 - 2026-10-14 03:22Z — **#5011 answered and merged** (b8c3aa52). Ev took (A): the CI bar is 15 min, or 25 min for a PR seeding geom-core, geom, geom-brep or topo. Ev asked for an agent to look into the build time for easy wins. Dispatched a build-time lane (session_01QnnUqrMpoZHtXT1LbBth4W, base 41660715). Its findings go in a `work/ciw/` issue, with one PR per measured win of 2 min or more that drops no gate row.
+- 2026-10-14 04:40Z — **Correction to the 02:05Z triage** (build A). Those bisects shared one `CARGO_TARGET_DIR` across worktrees, which serves stale libraries (the hazard `bitdump.rs:29` documents). Re-run with a fresh target per commit:
+  - **#4984 flips three 1e-12 rows, so they are ours:**
+    - `encl_curved_loft_shell::shelling_the_curved_loft_refuses_at_a_walls_fit` (cap reach 1.3958e-10 → 1.39486e-10, the same floor mechanism as the saddle);
+    - both `rigid_map_near_eps_approx` rows, which are ENCL's open `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main.md`.
+    - Build A fixes them on `nurbs/fix-shelling-pin-after-4984`, root cause only, and closes ENCL's issue.
+  - **Still base red when re-run fresh at a71403e3:** the three 1e-6 rows, plus at 1e-12 `cone_operand_rows`, `a_moved_curved_fitted_cap` and the `shell_general_door` cap.
+  - **The digest passes fresh at 2639b944**, so it is not 4984's. #4952's attribution is being re-confirmed fresh.
+  - **Class finding:** a bisect needs a fresh target directory per commit. A shared one gives wrong attributions both ways.
+- 2026-10-14 05:08Z — **Step 2 is up as #5081** (`nurbs/quotient-products-once` @5970bb25, FULL).
+  - Against main: shelling 237 → 120 s, r1 seam 167 → 71 s, face bound 0.87 → 0.47 s, curve meters 8.1 → 4.3 s. The targets (≈70 s, 25 s, 0.17 s) wait on step 3.
+  - The face-bound remainder is filed as `work/issues/interval-scale-by-an-exact-f64-pays-a-general-product`.
+- **#5059's sound midpoint exposes a second latent bug on main.** `ssi/four.rs` `one_arc_pair`'s `reaches_end` "proves" an end lying on a domain side by Krawczyk on a slice whose root sits on the slice box's boundary face. Only the unenclosed f64 midpoint made that pass.
+  - We take it ourselves: a new lane (session_013c7iZGZUnzBka2LTcMSVBi, `nurbs/pair-walk-domain-side-end`) reads such an end on the side's own face, the ℝ⁴ analogue of one_arc's `Piece::Side`.
+  - #5059 also takes a corner-origin midpoint for far-from-origin operands, and closes `work/ssiarith/chart-point-signs-are-f64-evaluations.md`.
+  - Order: the pair-walk fix → #5059 → step 3.
