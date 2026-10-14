@@ -15136,6 +15136,85 @@ mod tests {
         );
     }
 
+    /// **Two arcs that cross are never read apart, at radii orders of
+    /// magnitude apart**, in either order and at `f64` and `Interval`:
+    /// the two arc pairs of `arc-arc-secant-arm-misses-crossings-at-unequal-radii`
+    /// (r = 62.76 × 1.28e-7, and r = 80.44 × 0.0317, crossing 2.0e-11
+    /// inside the large arc's end), each trim counter-clockwise. A
+    /// crossing placed by a difference of squares sits off the smaller
+    /// circle by up to its radius, and the pair reads `Apart`.
+    #[test]
+    fn arcs_crossing_at_unequal_radii_are_never_read_apart() {
+        use geom_core::Interval;
+        type Arc = (f64, f64, f64, f64, f64);
+        fn read<T: Decide>(first: Arc, second: Arc, band: Band) -> &'static str {
+            let seg = |(x, y, r, t0, t1): Arc| MeetSegment::Arc {
+                center: Point3::new(T::from_f64(x), T::from_f64(y), T::zero()),
+                axis: geom_core::Vec3::new(T::zero(), T::zero(), T::one()),
+                radius: T::from_f64(r),
+                u_ref: geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
+                t0: T::from_f64(t0),
+                t1: T::from_f64(t1),
+            };
+            let n = geom_core::Vec3::new(T::zero(), T::zero(), T::one());
+            match segments_meet(seg(first), seg(second), n, band) {
+                EdgePair::Apart => "Apart",
+                EdgePair::Meet => "Meet",
+                EdgePair::Unsure(_) => "Unsure",
+            }
+        }
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (start, sweep) = (0.986_377_959_232_007_9, 4.084_286_531_899_824);
+        let first_big = (
+            -106.677_448_867_187_27,
+            59.130_528_391_886_16,
+            62.755_865_313_469_435,
+            start,
+            start + sweep,
+        );
+        let (start, sweep) = (3.022_777_867_117_959_3, -3.855_885_774_703_99);
+        let first_small = (
+            -86.959_987_196_933_17,
+            -0.447_322_568_277_620_46,
+            1.284_420_198_932_770_8e-7,
+            start + sweep,
+            start,
+        );
+        let (start, sweep) = (5.633_354_791_777_812, -0.902_846_282_788_287_3);
+        let second_big = (
+            6.744_101_644_309_793,
+            79.705_363_072_029_3,
+            80.443_149_988_593_5,
+            start + sweep,
+            start,
+        );
+        let (start, sweep) = (2.274_954_781_868_850_7, 4.970_712_391_069_452);
+        let second_small = (
+            8.183_130_461_020_52,
+            -0.750_331_493_417_868_4,
+            0.031_696_690_544_870_94,
+            start,
+            start + sweep,
+        );
+        let mut wrong = Vec::new();
+        for (name, big, small) in [
+            ("r = 62.76 x 1.28e-7", first_big, first_small),
+            ("r = 80.44 x 0.0317", second_big, second_small),
+        ] {
+            for (order, (p, q)) in [("", (big, small)), (", reversed", (small, big))] {
+                for (scalar, got) in [
+                    ("f64", read::<f64>(p, q, band)),
+                    ("Interval", read::<Interval>(p, q, band)),
+                ] {
+                    if got == "Apart" {
+                        wrong.push(format!("{scalar}: {name}{order}: read Apart"));
+                    }
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
     /// **A vertex in the band of an edge's LOCUS but definitely off
     /// its TRIM is clear** (review NEW-MAJOR): arm 2 decides the trim
     /// alongside the locus, and a vertex whose trim is definitely out
