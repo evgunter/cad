@@ -1425,11 +1425,11 @@ mod tests {
     /// takes the floor's sentence instead, at the import door too; a
     /// rejected zero a smaller tolerance decides passing is offered that
     /// tolerance; a rejected Negative, wholly on the refused side, takes
-    /// the note as an in-band one does, at the import door too, where it
-    /// lies past ε_in, and the note says that a radius below zero is a
-    /// defect; the same Negative on the sign-certain arm takes the note at
-    /// a build and the defect ending over stored geometry; and at the
-    /// import door no reading within ε_in takes the note.
+    /// the note as an in-band one does at a build, where the note says
+    /// that a radius below zero is a defect, and over stored geometry, at
+    /// the import door too where it lies past ε_in, the defect ending of
+    /// a contradiction, on the sign-certain arm alike; and at the import
+    /// door no reading within ε_in takes the note.
     #[test]
     fn a_gates_rejection_ends_by_its_reading_on_either_arm() {
         use geom_core::sym::with_session;
@@ -1527,7 +1527,11 @@ mod tests {
             (
                 "a rejected Negative",
                 &negative,
-                [noted.clone(), noted.clone(), noted.clone()],
+                [
+                    noted.clone(),
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
+                ],
             ),
         ];
         for (what, cause, want) in rows {
@@ -1548,22 +1552,20 @@ mod tests {
                 }
             }
         }
-        // The same negative wedge decided on the sign-certain arm: the
-        // note at a build, and over stored geometry the defect ending of
-        // a contradiction, at the import door too.
+        // The same negative wedge decided on the sign-certain arm ends as
+        // the undecided route does at every door.
         let definite = Refused::Negative {
             margin: negative.margin,
         };
-        let defect = geom_core::KERNEL_OR_FILE_DEFECT_ENDING.to_owned();
-        for (at, want) in [
-            (ReadAt::Run(Reading::Build), noted),
-            (ReadAt::Run(Reading::AtRest), defect.clone()),
-            (ReadAt::File(file), defect),
+        for at in [
+            ReadAt::Run(Reading::Build),
+            ReadAt::Run(Reading::AtRest),
+            ReadAt::File(file),
         ] {
             assert_eq!(
                 DIHEDRAL_ARM.recourse(definite.arm(), at),
-                want,
-                "a definite Negative, sign-certain arm, {at:?}"
+                DIHEDRAL_ARM.recourse(RefusedArm::Undecided(&negative), at),
+                "a definite Negative: the sign-certain arm and the undecided arm agree at {at:?}"
             );
         }
     }

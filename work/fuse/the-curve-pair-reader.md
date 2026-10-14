@@ -29,6 +29,15 @@ Ev ruled on PR 5027 (2026-10-14). The reader lives in `geom-brep`, beside C5's s
    - The walk serves as a differential oracle over the closed forms, outside the band. It would have caught the cleave P1 `a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles` in seconds.
    - The near-concentric census row re-baselines to a decided answer.
 
+## Stage (b) owes
+
+Stage (a) (PR 5093) moved the machinery down unchanged. These were found in its review and belong to stage (b)'s reading:
+
+- **The four root enums are one class.** `geom_brep::half_angle::TrigRoots`, `topo`'s `circle_roots::CircleRoots`, `FirstHarmonicRoots` and `geom_brep::quartic::QuarticRoots`, with their two `From` bridges. Under D3's "One reading per question", stage (b) decides their one shape.
+- **`certified_subdivision` hides a refusal in its value.** It folds a bisect `Exhausted` and a meter refusal into the value arm `TrigRoots::Uncertain`, an untyped refusal inside the value. Stage (b)'s reading returns a typed refusal instead (D4).
+- **Two spellings of one charge.** `topo`'s `circle_roots::rounding_charge` is a one-line alias of `geom_brep::rounding_charge`. Retire the alias.
+- **`LadderRefusal::PastDegreeTwo` is a runtime check a type could rule out**: a degree-two type (`TrigPoly::second`) would make it unrepresentable.
+
 **Closes on landing:**
 - `two-curve-curve-meeting-finders`
 - `near-concentric-arcs-run-the-census-meeting-search-past-its-budget`

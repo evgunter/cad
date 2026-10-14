@@ -68,7 +68,9 @@ use crate::geometry::SurfaceKey;
 use geom::CurveKind;
 
 /// **A frame read off stored geometry**: an origin plus the carrier's
-/// own reference directions, verbatim.
+/// own reference directions, verbatim but for an ellipse's `u_ref`,
+/// which is read off its semi-axes ([`Curve3::major_frame`]): its seam
+/// may sit at either principal vertex.
 ///
 /// The triad is right-handed where it is complete: `u_ref`,
 /// `v_ref = axis × u_ref` ([`Pose::v_ref`]), `axis`.
@@ -512,7 +514,9 @@ pub fn edge_carrier_kind<T: Real>(
 /// The carrier is a cache certified against the edge's intensional
 /// description (D4 ¶2), so what comes back is the concrete curve the
 /// model actually holds, and its `u_ref` is the seam convention that
-/// curve carries. A [`Curve3::Line`] answers with `u_ref: None`: it
+/// curve carries — but for a [`Curve3::Ellipse`], whose seam may sit at
+/// either principal vertex: its `u_ref` is its major direction
+/// ([`Curve3::major_frame`]). A [`Curve3::Line`] answers with `u_ref: None`: it
 /// fixes a direction and no perpendicular (rule 3). A
 /// [`Curve3::Spiric`] answers its stored TORUS frame — `origin` the
 /// torus centre (off the curve, by `≥ R − r − |offset|`), `axis` the
@@ -538,13 +542,13 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             u_ref: None,
             sense: true,
         }),
+        ellipse @ Curve3::Ellipse { center, axis, .. } => Ok(Pose {
+            origin: *center,
+            axis: *axis,
+            u_ref: ellipse.major_frame().map(|f| f.major_dir),
+            sense: true,
+        }),
         Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        }
-        | Curve3::Ellipse {
             center,
             axis,
             u_ref,

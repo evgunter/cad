@@ -3190,6 +3190,8 @@ impl<T: Decide> Track<T> {
     /// and reduced into one period ([`Track::forward`]), so the one
     /// point whose reading the anchor cuts, and where the reduction
     /// jumps, is the start.
+    /// A closed arc's whole turn is `arc.closed`, which
+    /// [`Self::stretches`] answers from whatever its offsets read.
     ///
     /// # Errors
     ///
@@ -3840,12 +3842,12 @@ pub(super) fn param_along<T: Decide>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let w = p - *center;
-            let (x, y) = (w.dot(*u_ref) / *major, w.dot(axis.cross(*u_ref)) / *minor);
+            let (x, y) = (w.dot(*u_ref) / *semi_u, w.dot(axis.cross(*u_ref)) / *semi_v);
             let (s, c) = near.sin_cos();
             Some(near + (y * c - x * s).atan2(x * c + y * s))
         }
