@@ -142,6 +142,16 @@ impl Dd {
     /// `|r.hi − q₁·y.hi| ≤ u·|r.hi|`; the operands' own bounds add
     /// `(e_x + |x/y|·e_y)/(|y| − e_y)`. Poisoned where `|y| − e_y` is
     /// not positive.
+    ///
+    /// As `e_y` approaches `|y|` the bound grows without limit, though it
+    /// stays finite and sound: a divisor known only to within its own
+    /// size yields a reading too wide to tighten anything, and the
+    /// interval readings it is met with stand. In this module the
+    /// divisors are knot differences (exact) and the weight sum, whose
+    /// bound is `u²` of it. The bound also counts `e_y` twice: `r.err`
+    /// carries `|q₀|·e_y` from the remainder's product, and the carried
+    /// term adds `|x/y|·e_y` again. That slack is sound, and it is why
+    /// no row isolates the `u·|r.hi|` term or [`up`].
     pub(crate) fn div(self, y: Self) -> Self {
         let q0 = self.hi / y.hi;
         let r = self.sub(y.mul(Self::exact(q0)));
@@ -324,6 +334,46 @@ mod tests {
         } else {
             d.sign() != num_bigint::Sign::Minus
         }
+    }
+
+    /// **A sum of double-words keeps its own rounding bound.** Two exact
+    /// differences `a₁ − b₁` and `a₂ − b₂` with `b` drawn at `2⁻⁵⁴` to
+    /// `2⁻¹⁰⁴` of `a` (so each low part is nonzero), summed: the
+    /// double-word sum rounds at `u²` of its value, and its `hi + lo`
+    /// stays within its bound of the exact sum, checked in exact
+    /// big-integer arithmetic. The bound itself is checked rather than
+    /// [`Dd::enclosure`], whose `|lo|` widening (about `u` of the value)
+    /// would cover a `u²` term dropped. Red with the sum's `4u²` term
+    /// dropped.
+    #[test]
+    fn a_double_word_sum_keeps_its_own_rounding_bound() {
+        let mut rng = test_utils::fuzz::start("compensated-sum");
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let draw = |rng: &mut test_utils::fuzz::Rng| {
+                let a = rng.range(-1.0, 1.0);
+                let b = a * rng.range(0.5, 1.0) * 2.0_f64.powi(-54 - rng.below(51) as i32);
+                (a, b)
+            };
+            let ((a1, b1), (a2, b2)) = (draw(&mut rng), draw(&mut rng));
+            let s = Dd::difference(a1, b1).add(Dd::difference(a2, b2));
+            let exact = sum(&[big(a1), neg(big(b1)), big(a2), neg(big(b2))]);
+            // `|exact − (hi + lo)| ≤ err`, exactly: the bound itself, which
+            // the enclosure's `|lo|` widening would otherwise swamp.
+            let (d, de) = sum(&[exact, neg(big(s.hi)), neg(big(s.lo))]);
+            let (em, ee) = big(s.err);
+            let (gap, _) = sum(&[(d.magnitude().clone().into(), de), neg((em, ee))]);
+            assert!(
+                gap.sign() != num_bigint::Sign::Plus,
+                "{a1}, {b1}, {a2}, {b2}: the sum is off by more than its bound {:e}; {}",
+                s.err,
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+
+    /// `−x`, exactly.
+    fn neg((m, e): (num_bigint::BigInt, i32)) -> (num_bigint::BigInt, i32) {
+        (-m, e)
     }
 
     /// **A cancelled sum of products keeps its rounding bound.**
