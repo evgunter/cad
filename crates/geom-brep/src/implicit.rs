@@ -765,6 +765,13 @@ impl<T: Real> Conic<T> {
         self.axis.cross(self.u_ref)
     }
 
+    /// The signed semi-axis vectors `semi_u·u_ref` and `semi_v·v_ref`, in
+    /// stored order: the conic is `center + cos θ·first + sin θ·second`.
+    #[must_use]
+    pub fn semi_axis_vectors(&self) -> (Vec3<T>, Vec3<T>) {
+        (self.u_ref * self.semi_u, self.v_ref() * self.semi_v)
+    }
+
     /// The least speed `|C′|` over the carrier: the smaller semi-axis
     /// magnitude.
     #[must_use]

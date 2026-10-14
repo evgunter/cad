@@ -556,7 +556,8 @@ impl<'a> Ends<'a> {
     ) -> Result<SsiBranch, SsiError> {
         let lane = self.operands.lane(pa.as_ref(), pb.as_ref())?;
         let cert = certify::certify_branch(
-            &carrier,
+            &Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            carrier.knot_values().domain(),
             lane,
             self.ctx.extent,
             self.band,

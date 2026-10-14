@@ -205,8 +205,9 @@ fn offset_square_prism() -> topo::Body<f64> {
 /// * **the seam** — our own writer emits every seam carrier
 ///   bit-identical to the wall's boundary column, so the bitwise
 ///   `IsoCurve` rung answers first and declare-and-check is never
-///   reached (measured here: with our own bytes NO seam takes the
-///   `Intersection` rung). State the same seam in a foreign form —
+///   reached for a seam (measured here: with our own bytes NO seam
+///   takes the `Intersection` rung; the bowed walls' four straight cap
+///   rims do, the plane × NURBS certificate taking their line). State the same seam in a foreign form —
 ///   this restates one control point one ULP up in `z`, the smallest
 ///   difference a decimal round-trip can make — and the seam certifies
 ///   through the declare-and-check plane × NURBS rung and CHARTS on
@@ -272,6 +273,16 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
         "our own writer's carriers are bit-identical to the walls' columns, \
          so every seam takes the IsoCurve rung"
     );
+    // The cap rims of the two bowed walls are straight, and the plane ×
+    // NURBS certificate takes their line carrier: they adopt at the
+    // `Intersection` rung, which the ladder offers before the
+    // conventional one.
+    let rims = plane_nurbs_intersections(own_body);
+    assert!(
+        rims.len() == 4 && rims.iter().all(|(_, plane, _)| is_cap(plane)),
+        "the plane × NURBS Intersections with our own bytes are the bowed walls' four \
+         cap rims: {rims:?}"
+    );
 
     // ---- The half the Intersection arm opened: a foreign
     // restatement, first-class and charted. ----
@@ -295,6 +306,11 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
                 seams.len(),
                 1,
                 "exactly the restated seam takes the declare-and-check rung: {seams:?}"
+            );
+            assert_eq!(
+                plane_nurbs_intersections(&body).len(),
+                5,
+                "beside the restated seam, the same four cap rims as our own bytes"
             );
             let (curve, _, wall) = &seams[0];
             // The seam CHARTS. The NURBS wall stores its side (the
@@ -409,11 +425,11 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
         }) => {
             topo::validate_geometric(&body, Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
-            let seams = plane_nurbs_seams(&body);
+            let taken = plane_nurbs_intersections(&body);
             assert!(
-                seams.is_empty(),
+                taken.is_empty(),
                 "both seams are the arc wall's own columns, bit for bit; the \
-                 declare-and-check rung has no takers: {seams:?}"
+                 declare-and-check rung has no takers, seam or cap rim: {taken:?}"
             );
             let line_promotions: Vec<_> = curve_promotions
                 .iter()
@@ -564,6 +580,28 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
 /// M7-8 class, located by DESCRIPTION rather than by key so the pin
 /// survives arena renumbering.
 fn plane_nurbs_seams(
+    body: &topo::Body<f64>,
+) -> Vec<(
+    geom_brep::keys::CurveKey,
+    geom::Surface<f64>,
+    geom::NurbsSurface<f64>,
+)> {
+    plane_nurbs_intersections(body)
+        .into_iter()
+        .filter(|(_, plane, _)| !is_cap(plane))
+        .collect()
+}
+
+/// Whether a plane is one of the prisms' two caps, `z` constant: a
+/// plane × NURBS `Intersection` on a cap is a cap RIM, which the plane ×
+/// NURBS certificate takes for the line it is, not a wall–wall seam.
+fn is_cap(plane: &geom::Surface<f64>) -> bool {
+    matches!(plane, geom::Surface::Plane { normal, .. } if normal.z.abs() > 0.5)
+}
+
+/// Every plane × described-NURBS `Intersection` edge: the seams of
+/// [`plane_nurbs_seams`] and the cap rims beside them.
+fn plane_nurbs_intersections(
     body: &topo::Body<f64>,
 ) -> Vec<(
     geom_brep::keys::CurveKey,

@@ -503,12 +503,12 @@ fn print_the_arm_at_a_small_k() {
         Ok(built) => {
             println!("KPROBE extrude=Ok");
             // How many cap rims kept the conventional description,
-            // and WHICH chart it rests in: the wall the rim's carrier
-            // was swept into, or the cap it borders.
-            let (conventional, wall_chart, cap_chart) = chart_counts(&built);
+            // how many of them are the cap–wall pair, and how many name
+            // a chart instead.
+            let (conventional, pair, chart) = chart_counts(&built);
             println!("KPROBE non_intersection_rims={conventional}");
-            println!("KPROBE wall_chart_rims={wall_chart}");
-            println!("KPROBE cap_chart_rims={cap_chart}");
+            println!("KPROBE pair_rims={pair}");
+            println!("KPROBE chart_rims={chart}");
             // The rule re-read on each rim that kept the conventional
             // description: it reads these plane pairs under-determined,
             // the premise the smooth arm's comment states. This pins
@@ -628,12 +628,12 @@ fn the_cap_rim_arm_is_unreachable_above_the_crossover_and_is_reached_below_it() 
          description:\n{below}",
     );
     assert!(
-        below.contains("KPROBE wall_chart_rims=4"),
-        "below the crossover each smooth rim rests in its WALL's chart:\n{below}",
+        below.contains("KPROBE pair_rims=4"),
+        "below the crossover each smooth rim is the cap–wall pair:\n{below}",
     );
     assert!(
-        below.contains("KPROBE cap_chart_rims=0"),
-        "the cap's chart is not where a smooth rim rests:\n{below}",
+        below.contains("KPROBE chart_rims=0"),
+        "no smooth rim names a chart:\n{below}",
     );
     assert!(
         below.contains("KPROBE rule_under_determined_rims=4"),
