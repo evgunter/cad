@@ -63,18 +63,34 @@ the own torus's, with one gate `2ε` (in band) ahead of another
 | mirror moved apart, `R` in band | `Escalated` on `_chart_major` | `CarrierOffChart` |
 | mirror, `R` in band, nothing apart (control) | `Escalated` on `_chart_major` | the same |
 
-On the Villarceau gates the order is not reached through
-`chart_pcurve` at the run's `K`.
+On the Villarceau gates, what reaches them through `chart_pcurve`
+depends on the gate and the torus. This was measured per gate, and is
+corrected by PR 5089's second review, which found the first draft's
+single-pose claim too wide.
 
-- At the 64 incidence samples (`R = 2`, `r = 0.7`), a circle's
-  first-order departure from the torus has a one-dimensional null
-  space: a turn about the axis, which moves no gate.
-- The least-squares move that puts any one gate at `m` departs
-  `1.02·m` to `1.18·m` at its farthest sample.
-- So a circle with a gate at `K·ε` or past it is refused, or
-  escalated, by the incidence test before any gate is read. Only `K`
-  under about `1/0.9` leaves the window open, and `CAD_AMBIGUITY_K`
-  admits any `K > 1`.
+- **`R = 2`, `r = 0.7`, 64 incidence samples.** A circle's first-order
+  departure from the torus has a one-dimensional null space: a turn
+  about the axis, which moves no gate. The least departure (minimax
+  over the samples) that puts any one gate at `m` is `0.995·m` to
+  `1.04·m`. So a gate in band or past it is read about as far off by
+  the incidence test, which decides first. (The first draft quoted
+  `1.02·m` to `1.18·m`, the least-squares move's maximum, which is not
+  a lower bound.)
+- **Near a horn torus the plane gate is cheaper.** On `R = 2`,
+  `R − r = 1e-6`, band `(1e-9, 1e-8)`, the Villarceau circle moved
+  along its own normal by `3e-9` to `1e-8` escalates on `_plane`, and
+  by `3e-8` it is read on the torus with `_plane` definite and refused
+  as grazing it.
+- **The masking order needs more.** It needs a gate read before
+  `_plane` (`_offset`, `_equator`) in band with `_plane` past it. On
+  that near-horn pose, with `_plane` at `3e-8` or `5e-8`, `2e-9` or
+  `5e-9` of offset or of equator departs about its own margin (`2.6e-9`
+  for `2e-9` of offset, `2.03e-9` for `2e-9` of equator). The incidence
+  test escalates on it before the gates read anything, at both
+  `R − r = 1e-6` and `1e-4`.
+
+So the masking order is not met at the door on any pose measured, but
+the ladder's undecided arm is: the near-horn `_plane` rows reach it.
 
 ## Closed (PCERT, 2026-10-14)
 
@@ -84,7 +100,13 @@ run, splicing it superseded where a later datum answers.
 
 - The spiric chart ladder and its other-torus ladder read it.
 - The Villarceau gates read it too, so one rule covers every ladder. The
-  measurement above is in the gate site's comment.
+  measurement above is in the gate site's comment. Their undecided arm
+  is pinned at the door by
+  `pcurve_villarceau::a_plane_gate_in_band_near_the_horn_escalates_on_it`:
+  a mutant that reads the Villarceau ladder's undecided arm as Zero reds
+  it. A Villarceau ladder put back to the first-E loop reads the same
+  at the door on every pose measured, and is held by `ladder::tests`
+  alone.
 - `topo::boolean::carrier_eq::identity_data` keeps its own copy for now:
   `work/cleave/identity-data-reads-its-ladder-from-geom-brep.md` moves
   it onto the helper.
@@ -96,8 +118,8 @@ Rows: `pcurve_spiric::a_chart_gate_decided_apart_answers_past_an_in_band_one`
 each red:
 
 - the first-E return, as on main, reds the spiric row and three ladder
-  rows (`origin/main`'s `pcurve_cache.rs` against the new row reds it
-  too);
+  rows. `origin/main`'s `pcurve_cache.rs` against the new row reds all
+  three of its poses, since the row reads every pose before asserting;
 - answering on the first definite datum but dropping a kept E that
   nothing later decides reds the control and two ladder rows;
 - a kept run spliced whole rather than superseded reds the

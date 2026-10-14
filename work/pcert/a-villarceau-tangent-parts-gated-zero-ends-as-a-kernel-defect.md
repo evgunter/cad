@@ -22,46 +22,45 @@ pr: 5089
 
 Give the magnitude gate its own decision, sized on the tube and `R − r` with the tolerance offer, and read the tag the way `SizedDecision::recourse` does. Or state why a defect is the right ending for it. Whether `Unsized::recourse` should refuse a gate-tagged arm by type is a separate, ENCL question: `work/encl/unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word.md`.
 
-## Closed: not reproducible at `unit_sign` (PCERT, 2026-10-14)
+## Closed: merged into `band-scale-torus-geometry-ends-as-a-kernel-defect` (PCERT, 2026-10-14)
 
-`unit_sign`'s magnitude gates read numbers the router has already
-decided apart, on the same band, before it calls
-`torus_oblique_circle`:
+**Reproduced.** The router reaches `torus_oblique_circle` by two routes:
+- both class gates apart;
+- the parallel arm: `pcurve_torus_chart_axial` Zero and
+  `pcurve_torus_chart_centered` apart.
 
-- The tube-rate part, levered at `R`, is `r`. `pcurve_torus_chart_axial`
-  (the harmonic sup of `a·e` and `b·e`) reads the same `r` on a
-  Villarceau circle.
-- The orientation part is `√(R² − r²)`. `pcurve_torus_chart_meridian`
-  (`(a × b)·e`, over `r`) reads the same `√(R² − r²)`.
+On the parallel route the router has not read the tube-rate part apart.
+Passing the Villarceau gates there bounds `‖w_r‖ ≤ 3ε`, so the route
+reaches `unit_sign` at `K ≤ 3`, where the tube-rate magnitude's gate
+decides Zero and ends as `ChartIncidence`'s defect.
 
-The router reaches `torus_oblique_circle` only after it decides both
-apart. So a decided Zero (`≤ ε`) here would contradict a reading
-`≥ K·ε` of the same number. An in-band reading is possible only in the
-rounding sliver between the two spellings.
+PR 5089's first review reproduced it:
+- `R = 2`, `r = 1.8e-9`, band `(1e-9, 2e-9)`;
+- a radius-2 circle centred `(2.5e-9, 0, 0)`, its normal tilted
+  `0.9e-9/2` off the axis;
+- result: `Escalated{ChartIncidence}` on
+  `pcurve_torus_villarceau_tube_rate`, margin `9e-10`, rejected Zero.
 
-Measured through `chart_pcurve`, on the Villarceau circle of each torus
-(witness band (1e-9, 1e-8)):
+At `K = 3` and `K = 10` the same family escalates earlier, on
+`_centered`.
 
-| Torus | Result |
-|---|---|
-| `R = 2`, `r = 0.5ε` | imaged as a parallel (the axial gate decides Zero) |
-| `R = 2`, `r = 3ε` | `Escalated{ChartWinding}` on `pcurve_torus_chart_axial`, margin `3e-9` |
-| `R = 2`, `r = 30ε` | imaged as a focal section, both parts definite |
-| `R = r = 2` | imaged as a meridian |
-| `R = 2`, `R − r` = 4 ulps, then `2ε` | imaged as a focal section, both parts definite |
-| `R = 1e-4`, `R − r = 1e-15` | imaged as a meridian |
-| `R = 1e-4`, `R − r = 1e-13` | `Escalated{ChartWinding}` on `pcurve_torus_chart_meridian`, margin `4.47e-9` |
-| `R = 1e-3`, `R − r = 1e-14` | the same, margin `4.47e-9` |
+On the both-apart route the two magnitudes restate the class gates'
+numbers:
+- `_axial` reads `R·sin θ`, the tube-rate part itself;
+- `_meridian` reads `(a × b)·e / r = (R/r)·R·cos θ`, the orientation
+  part times `R/r`, which is one to below rounding wherever `R·cos θ` is
+  at the band's scale.
 
-The orientation part is `√(R² − r²)`, not `R − r`. It reaches the band
-at `R − r ≈ (K·ε)²/2R`, which is below an ulp of `R` at `R = 2`.
+So there a Zero reading would be a disagreement, and a defect is
+right. The `unit_sign` comment states both routes and the `K` bound.
 
-The gate stays as a fail-loud backstop: a Zero or in-band reading there
-is two readings of one number disagreeing, a kernel defect, and that is
-the ending `ChartIncidence` gives it. The site's comment says so.
+**Merged.** This defect is one case of a wider class: band-scale torus
+geometry ending as `Unsized::Defect`.
+- at the router's axial and meridian gates;
+- at a near-horn Villarceau circle's gates and incidence test;
+- here, at `K ≤ 3`.
 
-What the item saw is real one level up. A tube, or a `√(R² − r²)`, at
-the band's scale ends at the router's axial and meridian gates as
-`ChartWinding` → `Unsized::Defect`, which is user geometry at a
-tolerance's scale ending as a kernel defect. That is filed as
-`work/pcert/a-torus-circles-class-gates-end-a-band-scale-tube-as-a-kernel-defect.md`.
+That class is
+`work/pcert/band-scale-torus-geometry-ends-as-a-kernel-defect.md`
+(`design: true`), which carries both reviewers' poses and the design
+question of the sized ending. This item closes into it.

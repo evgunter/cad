@@ -1,7 +1,7 @@
 ---
 id: gate-loops-return-on-an-in-band-gate-before-a-definite-one
 kind: issue
-title: Eight geom-brep gate loops return on an in-band gate through ? before a later gate's definite refusal speaks
+title: "Eight geom-brep gate loops, and run_spiric_checks' sequential stages, return on an in-band gate before a later gate's definite refusal speaks (identity, positivity and headroom polarities)"
 status: open
 opened: 2026-10-14
 priority: P3
@@ -13,40 +13,62 @@ cost: M
 
 Found by the sweep of the PCERT unit that closed
 `an-in-band-gate-masks-a-definite-one-in-the-spiric-and-villarceau-ladders`
-(2026-10-14). Each loop below decides a list of gates through
-`decide(...).map_err(...)?`. A definite reading refuses with a named
-refusal, and the first in-band reading returns as an escalation. So an
-in-band gate read early masks a later gate's definite refusal, and the
-op refuses with the wrong ending: a tolerance offer, or a defect, where
-a datum it has not read yet already decides the refusal and names its
-lever.
+(2026-10-14). The polarities were corrected by PR 5089's second review.
 
-- `crates/geom-brep/src/intersect.rs:2060` — cylinder × sphere
-  degeneracy guard (`cs_cylinder_radius`, `cs_sphere_radius`):
-  `RadiusEscalated` before `DegenerateOperand`.
-- `crates/geom-brep/src/intersect.rs:2284` — plane × cone
-  (`pn_aperture_sin`, `pn_aperture_cos`, `pn_seam_off_axis`):
-  `Escalated` before `DegenerateOperand`.
-- `crates/geom-brep/src/intersect.rs:3080` — cone × circle
+Each loop below decides a list of gates through
+`decide(...).map_err(...)?`, returning on the first in-band reading.
+A later gate's definite refusal therefore never speaks, and the op
+refuses with the wrong ending: a tolerance offer, or a defect, where a
+datum it has not read yet already decides the refusal and names its
+lever. Line numbers are as of the merge of main into PR 5089.
+
+**Identity-shaped (every gate required Zero; any definite gate
+refuses).** `geom_brep::ladder::read_identity` fits these as it is:
+- `crates/geom-brep/src/pcurve_cache.rs:3745`: the winding lane's
+  trigonometric coefficients (`affine_name`). `ChartWinding`'s
+  escalation comes before `ChartWindingUnsupported`.
+- `crates/geom-brep/src/pcurve_cache.rs:5434`: the spiric image's
+  stored scalars (`pcurve_spiric_major`, `_minor`, `_offset`).
+  `ChartWinding`'s escalation comes before `ImageMismatch`.
+
+**Positivity-shaped (every gate required Positive; Zero or Negative
+refuses):**
+- `crates/geom-brep/src/intersect.rs:2058`: cylinder × sphere
+  degeneracy guard (`cs_cylinder_radius`, `cs_sphere_radius`).
+  `RadiusEscalated` comes before `DegenerateOperand`.
+- `crates/geom-brep/src/intersect.rs:2290`: plane × cone
+  (`pn_aperture_sin`, `pn_aperture_cos`, `pn_seam_off_axis`).
+  `Escalated` comes before `DegenerateOperand`.
+- `crates/geom-brep/src/intersect.rs:3096`: cone × circle
   (`coc_aperture_sin`, `_cos`, `coc_seam_off_axis`): the same shape.
-- `crates/geom-brep/src/pcurve_cache.rs:3658` — the winding lane's
-  trigonometric coefficients (`affine_name`): `ChartWinding`'s
-  escalation before `ChartWindingUnsupported`.
-- `crates/geom-brep/src/pcurve_cache.rs:3895` — the azimuth-period
-  gates (`pcurve_azimuth_period`, azimuth then tube): `AzimuthPeriod`'s
-  escalation before `AzimuthPeriodExceeded`.
-- `crates/geom-brep/src/pcurve_cache.rs:5045` — the azimuth- and
-  tube-period gates of the focal-section and spiric lanes: the same.
-- `crates/geom-brep/src/pcurve_cache.rs:5347` — the spiric image's
-  stored scalars (`pcurve_spiric_major`, `_minor`, `_offset`):
-  `ChartWinding`'s escalation before `ImageMismatch`.
-- `crates/geom-brep/src/pcurve_cache/projected.rs:2199` — the projected
-  lane's period gates: `AzimuthPeriod` / `TubePeriod` escalation before
-  `*PeriodExceeded`.
 
-Not this shape: the ssi and props loops over samples, roots and
-clusters, where each element is its own requirement; and
-`props/curved.rs:3801`, which folds an in-band reading by design.
+**Headroom-shaped (every gate passes on Positive or Zero; only Negative
+refuses):**
+- `crates/geom-brep/src/pcurve_cache.rs:3982`: the azimuth-period gates
+  (`pcurve_azimuth_period`, azimuth then tube). `AzimuthPeriod`'s
+  escalation comes before `AzimuthPeriodExceeded`.
+- `crates/geom-brep/src/pcurve_cache.rs:5132`: the azimuth- and
+  tube-period gates of the focal-section and spiric lanes: the same.
+- `crates/geom-brep/src/pcurve_cache/projected.rs:2199`: the projected
+  lane's period gates. The `AzimuthPeriod` / `TubePeriod` escalation
+  comes before `*PeriodExceeded`.
+
+**Sequential stages a loop sweep cannot see.** `run_spiric_checks`
+decides three stages one after another, each returning on its first
+in-band reading:
+- the image's stored scalars (:5434);
+- the wall's `pcurve_spiric_sense` (:5462);
+- the chart ladder (:5516, which reads `read_identity` within itself).
+
+An in-band `_sense` therefore still masks a definite chart gate, as an
+in-band image scalar masks both. Any function that decides several
+refusing gates in straight-line code has the same shape.
+
+Not this shape:
+- the ssi and props loops over samples, roots and clusters, where each
+  element is its own requirement;
+- `props/curved.rs`'s pole fold, which folds an in-band reading by
+  design.
 
 Territory: `intersect.rs` is GERM's, ROOTS' and TANG's; the
 `pcurve_cache` sites are PCERT's (PCTAIL also claims `pcurve_cache.rs`).
@@ -54,8 +76,20 @@ Filed once, here, with that noted.
 
 ## Fix
 
-Read each list through `geom_brep::ladder::read_identity`, as the spiric
-and Villarceau ladders do. Each site's door rows need a pose with an
-in-band gate ahead of a definite one; construct one where none exists,
-and check first whether the site's own earlier gates make the order
-unreachable, as the Villarceau incidence test does.
+`read_identity` reads "every gate Zero". Six of the eight sites, and the
+stages, pass on another sign. The fix needs either:
+- a polarity-aware ladder, where the reader returns pass, refuse or
+  undecided per datum through a pass predicate (`Zero`, `Positive`, or
+  `Positive | Zero`); or
+- a second reader beside `read_identity` for the "every gate passes"
+  shape.
+
+Either keeps the rule and the recording (held runs, spliced superseded
+where a later datum refuses). For the sequential stages the stages'
+gates have to be read as one ladder, or each stage's undecided reading
+held until the later stages have read.
+
+Each site's door rows need a pose with an in-band gate ahead of a
+definite refusal. Construct one where none exists, and check first
+whether the site's own earlier gates make that order unreachable, as
+the Villarceau incidence test does on most poses.
