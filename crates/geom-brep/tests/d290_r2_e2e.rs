@@ -118,7 +118,8 @@ fn plane_nurbs_limbs_image_lands_on_the_carriers_own_domain() {
         "the fixture no longer exercises the pin"
     );
     let limbs = plane_nurbs_limbs::<f64>(
-        &carrier,
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
         &transverse_plane(),
         &quarter_cylinder_wall(),
         1.0,

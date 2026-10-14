@@ -110,8 +110,15 @@ fn arc(r: f64, reversed: bool) -> NurbsCurve3<f64> {
 }
 
 fn hull_at(delta: f64, band: Band) -> geom_brep::PlaneNurbsLimbs<f64> {
-    geom_brep::plane_nurbs_limbs::<f64>(&arc(1.0 + delta, false), &plane(), &wall(), 1.0, band)
-        .unwrap_or_else(|e| panic!("δ = {delta:e}: the seated edge certifies: {e}"))
+    geom_brep::plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(arc(1.0 + delta, false))),
+        (arc(1.0 + delta, false)).knot_values().domain(),
+        &plane(),
+        &wall(),
+        1.0,
+        band,
+    )
+    .unwrap_or_else(|e| panic!("δ = {delta:e}: the seated edge certifies: {e}"))
 }
 
 /// The `δ` that lands the seated edge's bound `MARGIN·ε` under ε, or
@@ -303,7 +310,12 @@ fn the_certificate_re_derives_within_rounding_under_a_rotation() {
             u_ref: map.linear * u_ref,
         };
         let image = geom_brep::plane_nurbs_limbs::<f64>(
-            &carrier.map_points(|p| map.transform_point(p)),
+            &geom::Curve3::Nurbs(std::sync::Arc::new(
+                carrier.map_points(|p| map.transform_point(p)),
+            )),
+            (carrier.map_points(|p| map.transform_point(p)))
+                .knot_values()
+                .domain(),
             &mapped_plane,
             &wall().map_points(|p| map.transform_point(p)),
             1.0,

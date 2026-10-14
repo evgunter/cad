@@ -853,7 +853,7 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
 /// ([`BooleanDecision::SeamWedge`]): the sine of their angle over the
 /// folded lever arm, a crease on a positive margin and a smooth join on
 /// zero. The margin is a norm over a length, so no negative one is read.
-const SEAM_WEDGE: SizedDecision = SizedDecision {
+pub(super) const SEAM_WEDGE: SizedDecision = SizedDecision {
     lever: "move the geometry so the faces at that seam meet either clearly creased or clearly \
             smooth",
     size: "fold across the seam",

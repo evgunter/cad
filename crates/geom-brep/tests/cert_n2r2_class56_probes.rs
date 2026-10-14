@@ -65,7 +65,14 @@ fn n2r2_class5_plane_nurbs_limbs_on_masquerade() {
     ] {
         let w = wall(f);
         assert!(!w.is_placeholder());
-        let r = plane_nurbs_limbs::<f64>(&carrier, &plane(), &w, 1.0, band());
+        let r = plane_nurbs_limbs::<f64>(
+            &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            carrier.knot_values().domain(),
+            &plane(),
+            &w,
+            1.0,
+            band(),
+        );
         eprintln!("[class 5 {name}] plane_nurbs_limbs -> {r:?}");
     }
 }

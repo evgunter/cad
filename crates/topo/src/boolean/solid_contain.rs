@@ -143,7 +143,7 @@
 //!   **`bool_ray_torus_split_lead`** and **`bool_ray_torus_split`** are
 //!   the factorization's own certifications. A constructed root set
 //!   that disagrees with the certified count
-//!   ([`QuarticRoots::CountDisagrees`]) blocks the ray, carrying both
+//!   ([`Unsettled::CountDisagrees`]) blocks the ray, carrying both
 //!   counts ([`PointInSolidError::RootCountDisagrees`]).
 //! - **`bool_ray_torus_incidence`**: `d·n̂` at a torus hit, levered by
 //!   the tube radius.
@@ -202,6 +202,7 @@ use crate::splitting::containment::{
 use crate::validate::decide;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
 use geom_brep::recourse::Reading;
+use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use super::rim_wedge::Rim;
 use super::sphere_region::{RegionRefusal, SphereFaceRegion, sphere_face_region};
@@ -463,7 +464,7 @@ pub enum PointInSolidError {
     },
     /// A test ray met a `Torus` face where the crossings built from its
     /// quartic disagree in number with the count the quartic's signs
-    /// certify ([`QuarticRoots::CountDisagrees`]). The certified count is
+    /// certify ([`Unsettled::CountDisagrees`]). The certified count is
     /// the wrong one: the sign ladder's discriminant carries `f64`
     /// rounding its band does not charge
     /// (`work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`),
@@ -4625,7 +4626,7 @@ pub(super) fn line_sphere_roots<T: Decide>(
 ///   `bool_ray_torus_odd`); the four-root ray through the hole is in it.
 /// * a ray all but perpendicular to the axis has a resolvent root
 ///   `≈ q̂²/c1` that can fall in rung 3's band (`bool_ray_torus_split_lead`).
-/// * a [`QuarticRoots::CountDisagrees`] blocks that ray
+/// * an [`Unsettled::CountDisagrees`] blocks that ray
 ///   ([`PointInSolidError::RootCountDisagrees`]) and another may settle.
 ///
 /// **So this door refuses over a BAND around a tangency, and the band is
@@ -4641,8 +4642,9 @@ pub(super) fn line_sphere_roots<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`geom_core::Indeterminate`] — an in-band classifying sign. The
-/// caller wraps it in its own error type.
+/// [`RootRefusal::Escalated`] — an in-band classifying sign, which the
+/// caller wraps in its own error type — and [`RootRefusal::Unsettled`],
+/// a count the ladder does not certify.
 pub(super) fn line_torus_roots<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
@@ -4651,7 +4653,7 @@ pub(super) fn line_torus_roots<T: Decide>(
     major_radius: T,
     minor_radius: T,
     band: Band,
-) -> Result<QuarticRoots<T>, Indeterminate> {
+) -> Result<QuarticRoots<T>, RootRefusal> {
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
     let ext = major_radius + minor_radius;
@@ -4670,15 +4672,9 @@ pub(super) fn line_torus_roots<T: Decide>(
     let q_hat = T::from_f64(8.0) * rr * e * n;
     let s = big_m.powi(2) - four * rr * (m - n.powi(2));
     match depressed_quartic_roots(p, q_hat, s, ext, &RAY_TORUS_ROWS, band)? {
-        QuarticRoots::Certified { count, ts: ys } => {
-            let mut ts = [T::zero(); 4];
-            for (t, y) in ts.iter_mut().zip(ys).take(count) {
-                // Undo the depression: `t = y − b`.
-                *t = y - b;
-            }
-            Ok(QuarticRoots::Certified { count, ts })
-        }
-        other => Ok(other),
+        // Undo the depression: `t = y − b`.
+        Roots::Certified(ys) => Ok(Roots::Certified(ys.map(|y| y - b))),
+        Roots::Miss => Ok(Roots::Miss),
     }
 }
 
@@ -4703,20 +4699,20 @@ const RAY_TORUS_ROWS: QuarticRows = QuarticRows {
 /// [`RayFault::Graze`] and [`RayFault::Blocked`], as above.
 fn torus_crossings<T: Decide>(
     face: FaceKey,
-    roots: QuarticRoots<T>,
-) -> Result<Option<(usize, [T; 4])>, RayFault<PointInSolidError>> {
+    roots: Result<QuarticRoots<T>, Unsettled>,
+) -> Result<Option<Found<T, 4>>, RayFault<PointInSolidError>> {
     match roots {
-        QuarticRoots::Miss => Ok(None),
-        QuarticRoots::Uncertain => Err(RayFault::Graze),
-        QuarticRoots::Certified { count, ts } => Ok(Some((count, ts))),
-        QuarticRoots::CountDisagrees {
+        Ok(Roots::Miss) => Ok(None),
+        Ok(Roots::Certified(found)) => Ok(Some(found)),
+        Err(Unsettled::CountDisagrees {
             certified,
             constructed,
-        } => Err(RayFault::Blocked(PointInSolidError::RootCountDisagrees {
+        }) => Err(RayFault::Blocked(PointInSolidError::RootCountDisagrees {
             face,
             certified,
             constructed,
         })),
+        Err(_) => Err(RayFault::Graze),
     }
 }
 
@@ -5239,12 +5235,16 @@ fn cast_ray<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let roots = line_torus_roots(q, d, center, axis, major_radius, minor_radius, band)
-                    .map_err(escalate)?;
-                let Some((count, ts)) = torus_crossings(face, roots)? else {
+                let roots =
+                    match line_torus_roots(q, d, center, axis, major_radius, minor_radius, band) {
+                        Ok(roots) => Ok(roots),
+                        Err(RootRefusal::Unsettled(why)) => Err(why),
+                        Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
+                    };
+                let Some(found) = torus_crossings(face, roots)? else {
                     continue;
                 };
-                for &t in &ts[..count] {
+                for &t in found.roots() {
                     let p = q + d * t;
                     match point_on_torus_in_face(
                         face,
