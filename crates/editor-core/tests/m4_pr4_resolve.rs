@@ -567,6 +567,61 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
     }
 }
 
+// ---- Vanished: a merged name's retired constituents are no cascade ----
+
+/// Dropping a member from a union whose caps glued: the merged cap
+/// vanishes, and neither constituent is the cause. Each constituent
+/// retired into the merge (N3) and was never a row of the union, so the
+/// cascade rung does not read one as an operand that vanished first;
+/// the ladder goes on to the edit at the union, which is on the path.
+#[test]
+fn a_vanished_merged_name_is_diagnosed_at_the_edit_not_through_a_retired_constituent() {
+    let s = slide_union(0.5);
+    let ev1 = run(&s.doc, None);
+    let merged = ev1
+        .value(s.union)
+        .unwrap()
+        .name_table
+        .iter()
+        .find_map(|(n, _)| {
+            (n.kind == EntityKind::Face && matches!(n.path.as_slice(), [RoleSeg::Merged(_)]))
+                .then(|| n.clone())
+        })
+        .expect("the flush caps glue into one merged face");
+    let (doc2, _) = step(
+        s.doc.clone(),
+        DocEdit::SetMembers {
+            node: s.union,
+            members: editor_core::Bodies::Spelled(vec![s.a.into()]),
+        },
+    );
+    let ev2 = run(&doc2, Some(&ev1));
+    let res = resolve_with_prior(
+        RunCtx {
+            doc: &doc2,
+            eval: &ev2,
+        },
+        RunCtx {
+            doc: &s.doc,
+            eval: &ev1,
+        },
+        &merged,
+    );
+    let Resolution::Failed(f) = res else {
+        panic!("the merged cap no longer resolves: {res:?}");
+    };
+    let ResolveError::Vanished { diagnosis, .. } = &f.error else {
+        panic!("expected Vanished, got {:?}", f.error);
+    };
+    assert_eq!(
+        *diagnosis,
+        Diagnosis::RecipeEdit {
+            edit: RecipeEditRef::NodeChanged { node: s.union }
+        },
+        "the cause is the SetMembers at the union, not a retired constituent"
+    );
+}
+
 // ---- Vanished: StructuralParam diagnosis ----
 
 #[test]

@@ -521,7 +521,9 @@ or `NodeGone { name, edit }`. `Diagnosis` is one of:
 
 - `PredicateFlip { predicate, from, to }`, `StructuralParam { node, param }`,
   `RecipeEdit { edit }`: evidence on the name's derivation path;
-- `Cascade { through }`: an embedded operand name vanished first;
+- `Cascade { through }`: an embedded operand name vanished first. A
+  `Merged` set's constituents are not operand names, having retired into
+  the merge (N3): the rung reads through them to the names they wrap;
 - `BorderDelta { node, gone, new }`: a face piece's walls changed (below);
 - `GroupResized { node, was, now, cutters }`: the fragment's group changed in
   number, and `cutters` names the seams on its parent only one run spells;

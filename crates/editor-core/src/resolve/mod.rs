@@ -1407,15 +1407,10 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         && *crate::names::edge_line(&crate::names::NameRef::new(name.clone())) == *name
         && !prior.carried(name);
     let lines = cited_lines(name, is_line);
-    let mut cascade: Option<StableName> = None;
-    walk_names(name, Partners::Cascade, &mut |inner| {
-        if cascade.is_none()
-            && lookup(new.eval, inner).is_none()
+    let cascade = first_vanished(name, |inner| {
+        lookup(new.eval, inner).is_none()
             && !(lines.iter().any(|l| core::ptr::eq(*l, inner))
                 && !line_rows(new.eval, inner).is_empty())
-        {
-            cascade = Some(inner.clone());
-        }
     });
     let path = derivation_nodes(name);
     let diagnosis = if let Some(through) = cascade {
@@ -1451,6 +1446,37 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             last_good,
         },
         offers,
+    })
+}
+
+/// The cascade rung's walk: the first name embedded in `name`, in
+/// [`walk_names`] order with [`Partners::Cascade`], that `absent` says
+/// the current run does not hold. A `Merged` set's constituents retired
+/// into the merge (N3): none was a row of its minting node, so none is
+/// asked, and the walk descends through each to the operand names it
+/// wraps.
+fn first_vanished<'a>(
+    name: &'a StableName,
+    mut absent: impl FnMut(&'a StableName) -> bool,
+) -> Option<StableName> {
+    let mut retired: Vec<&StableName> = merged_set(name).collect();
+    let mut cascade = None;
+    walk_names(name, Partners::Cascade, &mut |inner| {
+        let constituent = retired.iter().any(|c| core::ptr::eq(*c, inner));
+        retired.extend(merged_set(inner));
+        if cascade.is_none() && !constituent && absent(inner) {
+            cascade = Some(inner.clone());
+        }
+    });
+    cascade
+}
+
+/// The constituents of every [`RoleSeg::Merged`] set in `name`'s own
+/// path, the names that retired into it (N3).
+fn merged_set(name: &StableName) -> impl Iterator<Item = &StableName> {
+    name.path.iter().flat_map(|seg| match seg {
+        RoleSeg::Merged(set) => set.as_slice(),
+        _ => &[],
     })
 }
 
@@ -2893,6 +2919,40 @@ mod walk_tests {
         seen.clear();
         walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0.digest()));
         assert_eq!(seen, [2, 1], "partners skipped");
+    }
+
+    /// A merged face at node 9 whose constituents wrap the operand caps
+    /// of nodes 1 and 3. The constituents are never rows, so absence is
+    /// asked only of the caps they wrap.
+    #[test]
+    fn the_cascade_walk_asks_through_a_merged_set_and_never_of_it() {
+        let wrap = |of: u64| StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId::new(0, 9),
+            path: vec![RoleSeg::From {
+                read: crate::names::FOLD_A,
+                of: NameRef::new(leaf(of)),
+            }],
+        };
+        let merged = StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId::new(0, 9),
+            path: vec![RoleSeg::Merged(vec![wrap(1), wrap(3)])],
+        };
+        // Absent: every name but the caps of `live`.
+        let held = |live: &'static [u64]| {
+            move |n: &StableName| !live.iter().any(|&k| n.node == RecipeNodeId::new(0, k))
+        };
+        assert_eq!(
+            first_vanished(&merged, held(&[1, 3])),
+            None,
+            "both caps held: a constituent, which is no row, is never blamed"
+        );
+        assert_eq!(
+            first_vanished(&merged, held(&[1])),
+            Some(leaf(3)),
+            "the walk reaches the vanished cap through its constituent"
+        );
     }
 
     #[test]

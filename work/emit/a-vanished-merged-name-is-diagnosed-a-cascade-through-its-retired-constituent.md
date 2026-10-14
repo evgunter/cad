@@ -2,7 +2,8 @@
 id: a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent
 kind: issue
 title: A vanished merged name is diagnosed Cascade through its first constituent, a retired name that was never a row
-status: open
+status: closed
+closed: 2026-10-14
 opened: 2026-10-07
 priority: P3
 cost: E
@@ -40,3 +41,31 @@ Whether the cascade walk skips a `Merged` set's constituents (they are
 not operand names the merged face derives through a row of), or reads
 them only where the constituent was itself a row before the edit.
 Found by the review of PR 4281.
+
+## Closed
+
+The cascade walk reads through a `Merged` set and never asks of it
+(`resolve::first_vanished`, which `resolve_impl`'s step 5 now calls):
+each constituent retired into the merge (N3) and was never a row of its
+minting node, so only the operand names it wraps are looked up. The
+option of reading a constituent where it was a row before the edit
+collapses into this one, because N3 has no constituent that is a row.
+N5's `Cascade` bullet in `crates/editor-core/src/names/README.md` says
+so.
+
+- `tests/m4_pr4_resolve.rs`,
+  `a_vanished_merged_name_is_diagnosed_at_the_edit_not_through_a_retired_constituent`:
+  the sliding union's glued cap, then `SetMembers` dropping the B
+  member. Before the fix the diagnosis read `Cascade { through:
+  From { read: <transform's read>, of: b0's Cap(End) } }` at the union;
+  it now reads `RecipeEdit { NodeChanged(union) }`.
+- `resolve::tests::the_cascade_walk_asks_through_a_merged_set_and_never_of_it`:
+  with both wrapped caps held, no constituent is blamed; with one cap
+  absent, the walk still reaches it through its constituent.
+
+The sweep: every lookup of an embedded name in `crates/editor-core/src`
+(`walk_names`, `embedded`, `for_each_inner` callers). The cascade rung is
+the only one that asks the table about each name it walks.
+`rebind_suggestions` matches constituents on purpose (it offers the
+merge), and `derivation_nodes`/`derivation_reads` collect nodes and
+reads, not rows.
