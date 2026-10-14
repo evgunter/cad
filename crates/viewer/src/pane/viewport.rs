@@ -2054,8 +2054,8 @@ mod tests {
         );
     }
 
-    /// **An id-buffer word that lands on a hidden root's patch is an id
-    /// this picture does not draw**, not the face the index names it:
+    /// **An id-buffer word that lands on a hidden placement's patch is an
+    /// id this picture does not draw**, not the face the index names it:
     /// the index keeps a hidden part's ids and names them, and the
     /// picture draws none of them, so reading the word as that name
     /// would say the id buffer saw a face that is not on screen. Driven
@@ -2064,15 +2064,17 @@ mod tests {
     #[test]
     fn a_hidden_roots_patch_id_is_said_as_an_id_this_picture_does_not_draw() {
         let tol = Tol::witness();
-        let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        assert_eq!(doc.placements().len(), 1, "the plate is placed once");
+        let copy = *doc.placements().first().expect("the plate is placed");
         let mut session = DocSession::inline(doc, tol);
         session.pump();
         let index = plate_index(&session, a_delta(0.5));
         let (landed, eval) = session.landed_pair().expect("the plate lands");
         let id = *index
-            .ids_of_node(extrude)
+            .ids_of_node(copy)
             .first()
-            .expect("the plate's root draws patches");
+            .expect("the plate's placement draws patches");
         let named = index
             .name_of(id)
             .expect("an id of this index has an entry")
@@ -2080,7 +2082,7 @@ mod tests {
             .expect("and the plate's patches name cleanly")
             .clone();
         let hidden = DisplayView {
-            hidden_roots: std::collections::BTreeSet::from([extrude]),
+            hidden_placements: std::collections::BTreeSet::from([copy]),
             ..DisplayView::none()
         };
         let camera = framed();
@@ -2094,7 +2096,7 @@ mod tests {
                 .faces_under_cursor(eval, &camera, pane, cursor, &hidden)
                 .expect("the plate's ray path answers")
                 .is_empty(),
-            "with its only root hidden the plate is out of the ray path's answer"
+            "with its only placement hidden the plate is out of the ray path's answer"
         );
 
         let serial = 7u32;

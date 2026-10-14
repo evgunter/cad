@@ -181,7 +181,7 @@ pub enum IdAnswer {
         error: UnnamedEntity,
     },
     /// An id no patch of this picture is drawn under: one the index
-    /// never assigned, or one it assigned to a part whose root the
+    /// never assigned, or one it assigned to a part whose placement the
     /// display view hides. [`PickIndex::scene_for`] keeps a hidden
     /// part's ids and draws none of them, so the index NAMES such an
     /// id and the picture does not show it, and reading it as that
@@ -240,11 +240,11 @@ impl IdAnswer {
         }
         // The id map is derived from the same windows as the name
         // table, so an id with a name has a patch, and the patch's node
-        // is the root the display view hides or not.
+        // is the placement the display view hides or not.
         let hidden = index
             .ids()
             .key_of(id)
-            .is_some_and(|patch| display.hidden_roots.contains(&patch.node));
+            .is_some_and(|patch| display.hidden_placements.contains(&patch.node));
         match index.name_of(id) {
             None => Self::Undrawn { id },
             Some(_) if hidden => Self::Undrawn { id },
@@ -474,7 +474,7 @@ impl IdNews {
 /// id buffer can answer an id the picture has no name for: a patch
 /// whose name the naming layer refused ([`IdAnswer::Unnamed`]), or an
 /// id no patch of this picture is drawn under ([`IdAnswer::Undrawn`]:
-/// never assigned, or assigned to a hidden root's part, which the
+/// never assigned, or assigned to a hidden placement's part, which the
 /// index would otherwise name). `display` is the view the picture and
 /// the ray were both drawn and asked under, while the view in hand is
 /// the one the picture was drawn under

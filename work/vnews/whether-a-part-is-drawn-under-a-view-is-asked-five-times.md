@@ -14,27 +14,27 @@ copy.
 ## The finding
 
 "Is this part in the picture under this `DisplayView`?" is one rule,
-`display.hidden_roots.contains(&<the part's root>)`, and it is written
+`display.hidden_placements.contains(&<the part's placement>)`, and it is written
 out five times in `crates/viewer/src`:
 
-- `pickindex.rs` `PickIndex::scene_focused` (~:1064): the picture
+- `pickindex.rs` `PickIndex::scene_focused` (~:1193): the picture
   skips a hidden part.
-- `pickindex.rs` `PickIndex::pick_for` (~:1169): the `visible` filter
+- `pickindex.rs` `PickIndex::pick_for` (~:1298): the `visible` filter
   over the unmoved batch.
-- `pickindex.rs` `PickIndex::pick_for` (~:1182): a moved root that is
+- `pickindex.rs` `PickIndex::pick_for` (~:1323): a moved placement that is
   also hidden is skipped.
-- `pickindex.rs` `PickIndex::edge_polyline_for` (~:1347): a hidden
+- `pickindex.rs` `PickIndex::edge_polyline_for` (~:1533): a hidden
   part's edge draws no polyline.
-- `idpass.rs` `IdAnswer::of` (~:243): an id whose patch's node is
+- `idpass.rs` `IdAnswer::of` (~:247): an id whose patch's node is
   hidden is `IdAnswer::Undrawn`.
 
 Only prose keeps them the same. `scene_for`'s doc says an id "names
 the same patch whatever is hidden", and `marks.rs`'s `edge_id_segments`
 doc says it keeps "`PickIndex::edge_polyline_for`'s rule unaltered, so
-the two doors cannot disagree". `marks.rs` itself (~:376) holds no
+the two doors cannot disagree". `marks.rs` itself (`edge_id_segments`) holds no
 copy, because it delegates to `edge_polyline_for`. If the rule grew a
 second clause (a focus-isolated view, or a hidden body rather than a
-hidden root), the picture, the pick, the edge overlay and the id pass
+hidden placement), the picture, the pick, the edge overlay and the id pass
 could each be changed on its own, and nothing would report that they
 had drifted apart.
 
