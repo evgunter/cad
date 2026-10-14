@@ -1168,12 +1168,14 @@ mod tests {
 
     use super::super::ChartAxis;
     use super::super::certify::chart_tube_windows;
-    use super::super::enclose::{Box3, NurbsBoxes};
+    use super::super::enclose::{Box3, NurbsBoxes, UvWindow};
     use super::super::exhaust::UvRect;
     use super::{
         Krawczyk, Shortfall, boundary_zeros, edge_runs, face_roots, krawczyk, one_arc, one_arc_r3,
         pt,
     };
+    use geom_core::Bounds as _;
+    use geom_core::interval::certification::Certification as _;
 
     /// A biquadratic graph `z = g(x) + h(y)` over `[0, 1]²` from the
     /// Bernstein coefficients of `g` and `h`, with `(u, v) = (x, y)`.
@@ -1397,6 +1399,75 @@ mod tests {
             Some(2),
             "the control: the edge below cuts the parabola twice"
         );
+    }
+
+    /// **A point's box encloses the surface's exact point at `f64`.**
+    /// `z = (x − ½)² + y − ¼` on dyadic control, so at `(½ ∓ 2⁻ᵏ, ½)`
+    /// (the parameters `(½ ∓ 2⁻ᵏ, ¼)`) the exact height is `2⁻²ᵏ`, an
+    /// `f64`, far below the rounding of the `+¼ − ¼` the evaluation
+    /// cancels. A zero-width window's box is its midpoint value alone:
+    /// red when that value is the lane's own `f64` evaluation, which
+    /// lands off the exact point (`2.08e-16` for `2.22e-16` at `k = 26`),
+    /// whatever the slope term.
+    #[test]
+    fn a_point_windows_box_encloses_the_exact_point() {
+        let wall = biq([0.25, -0.25, 0.25], [-0.25, 0.25, 0.75]);
+        let boxes = NurbsBoxes::new(&wall);
+        for k in 20..=40 {
+            let h = 2.0_f64.powi(-k);
+            for u in [0.5 - h, 0.5 + h] {
+                let w = UvWindow::new(u, u, 0.25, 0.25).expect("a point window");
+                let z = boxes.rect_box(w).z;
+                let exact = h * h;
+                assert!(
+                    z.lo() <= exact && exact <= z.hi(),
+                    "u = {u:e}: [{:e}, {:e}] misses the exact {exact:e}",
+                    z.lo(),
+                    z.hi()
+                );
+            }
+        }
+    }
+
+    /// **At `Interval` the midpoint is the lane's own evaluation, to the
+    /// bit.** The certified midpoint runs `eval_in_span`'s sum term for
+    /// term over the crossed net, so on a net that is already intervals
+    /// (here with a width on every coordinate, and drawn weights) its bounds are
+    /// the evaluation's own. Red under any reordering of the sum.
+    #[test]
+    fn an_interval_nets_point_box_is_its_own_evaluation() {
+        let mut rng = test_utils::fuzz::start("rect-box-interval-midpoint");
+        for _ in 0..test_utils::fuzz::scaled(40) {
+            let g = [0.0; 3].map(|_| rng.range(-1.0, 1.0));
+            let h = [0.0; 3].map(|_| rng.range(-1.0, 1.0));
+            let pad = rng.range(0.0, 1e-9);
+            let widen = |x: f64| Interval::from_bounds(x - pad, x + pad);
+            let wall = biq(g, h).map_scalar(widen);
+            let weights: Vec<Interval> = (0..9)
+                .map(|_| Interval::point(rng.range(0.5, 2.0)))
+                .collect();
+            let wall = NurbsSurface::new(
+                wall.knot_values_u().clone(),
+                wall.knot_values_v().clone(),
+                wall.control().to_vec(),
+                weights,
+            )
+            .expect("positive point weights");
+            let boxes = NurbsBoxes::new(&wall);
+            let (u, v) = (rng.range(0.0, 1.0), rng.range(0.0, 1.0));
+            let got = boxes.rect_box(UvWindow::new(u, u, v, v).expect("a point window"));
+            let want = wall
+                .window_at(u, v)
+                .expect("a number")
+                .eval_in_span(Interval::point(u), Interval::point(v));
+            for (g, w) in [(got.x, want.x), (got.y, want.y), (got.z, want.z)] {
+                assert!(
+                    g.lo().to_bits() == w.lo().to_bits() && g.hi().to_bits() == w.hi().to_bits(),
+                    "({u}, {v}): {g:?} is not the evaluation's {w:?}; {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
     }
 
     fn bx(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Box3 {

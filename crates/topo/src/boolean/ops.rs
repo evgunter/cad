@@ -129,8 +129,8 @@ use super::voids;
 use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
-    EeContact, EfContact, FfContact, Glue, GluedPair, Operand, OperandRecords, ReductionContacts,
-    SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
+    EeContact, EfContact, FfContact, Glue, GlueVerdict, GluedPair, Operand, OperandRecords,
+    ReductionContacts, SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
@@ -202,6 +202,9 @@ pub struct BooleanBody<T: Real> {
     /// The coincidences the op decided from values, in decision order
     /// and operand keys ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
+    /// The face pairs those coincidences glue, in their order
+    /// ([`GlueVerdict`]).
+    pub verdicts: Vec<GlueVerdict>,
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -318,6 +321,12 @@ pub struct BooleanNaming {
     /// clone keys, as `reduction_contacts`. Read off the classification,
     /// so a path that never classifies has none.
     pub edge_classes: Vec<super::EdgePieceClass>,
+    /// The meridian edges a sphere cut-in minted in each operand before
+    /// the op re-entered on the cut operands, A's then B's, in clone keys
+    /// as `edge_classes`. Each divides one operand face into two of its
+    /// pieces (`face_fragments_a`/`face_fragments_b`): a cut of the
+    /// face's chart, not an edge of the operand.
+    pub chart_cuts: [Vec<EdgeKey>; 2],
     /// The two vertices each of the classification's null edges joins,
     /// `(operand, below end, above end)` in clone keys as
     /// `edge_classes`: one point by construction, so a vertex and its
@@ -598,7 +607,7 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let result = Glue::of(inputs).and_then(|glue| boolean_door(op, a, b, &glue, strategy, tol));
+    let result = boolean_door(op, a, b, &Glue::of(inputs), strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     result
@@ -837,6 +846,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         discards: fin.discards,
         covered,
         edge_classes,
+        chart_cuts: [Vec::new(), Vec::new()],
         null_copies,
         cone_splits,
         edge_joins,
@@ -846,6 +856,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         kind: BooleanResultKind::Seamed,
         contacts,
         naming,
+        verdicts: GlueVerdict::of_rows(&coincidences),
         coincidences,
     }))
 }
@@ -960,9 +971,26 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // and graft other shells, and `carve` keeps every kept
             // entity's key (`splitting::finish`'s `carve`), so those
             // names still hold on `a2` and `b2`.
-            apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
-            return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)
-                .map(|result| Joined::Answered(Box::new(result)));
+            let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
+            let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
+            if let BooleanResult::Body(out) = &mut result {
+                // The cut-ins divided faces before the join did, in the
+                // operand keys the join's rows are in.
+                let n = &mut out.naming;
+                for ((made, joined), edges) in cuts
+                    .into_iter()
+                    .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
+                    .zip(&mut n.chart_cuts)
+                {
+                    *joined = crate::lineage::FaceDivisions::from_rows(
+                        made.divisions
+                            .into_iter()
+                            .chain(joined.rows().iter().copied()),
+                    )?;
+                    edges.extend(made.edges);
+                }
+            }
+            return Ok(Joined::Answered(Box::new(result)));
         }
         // The curved kinds the extent scan leaves: every torus,
         // cylinder and cone face's pairs, certified per pair by the
@@ -2561,7 +2589,6 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .edge_curve_linked(edge, &edge_data)
             .certified()
             .cloned();
-        let curved = existing.as_ref().is_some_and(|c| c.carrier().is_curved());
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (witness, extent) = (draft.witness, draft.extent);
         match seam_reading(surf1, surf2, witness, extent, band)
@@ -2639,40 +2666,13 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier().kind(), e)
                     })?;
                 } else if stale {
-                    if curved {
-                        // The conventional re-description for an arc
-                        // the adjacent surfaces under-determine, on the
-                        // UNCHANGED carrier (no silent geometric
-                        // rewrite — only the description moves). The
-                        // edge comes to REST here, so it is described
-                        // where it rests — as an image in `s1`'s own
-                        // chart (D3's transience fence) — and the arc
-                        // pushforward that used to BE the description
-                        // is recorded as the authority beside it.
-                        // Carrier kinds with no conventional
-                        // pushforward keep the typed refusal.
-                        let c = existing.as_ref().ok_or_else(corrupt)?;
-                        let (t0, t1) = c.params();
-                        let Some(spec) =
-                            geom_brep::EdgeCurveSpec::arc_of_circle(c.carrier().clone(), t0, t1)
-                        else {
-                            return Err(DescribeRefusal::failed(
-                                edge,
-                                EdgeDescribeFailure::NoConventionalLane,
-                            ));
-                        };
-                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|e| {
-                                of_attachment(edge, EdgeDescribeFailure::Arc, c.carrier().kind(), e)
-                            })?;
-                    } else {
-                        let spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                        let carrier = spec.carrier.kind();
-                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|e| {
-                                of_attachment(edge, EdgeDescribeFailure::Line, carrier, e)
-                            })?;
-                    }
+                    // A locus the adjacent surfaces under-determine,
+                    // of any carrier kind, rests in `s1`'s chart.
+                    let c = existing.as_ref().ok_or_else(corrupt)?;
+                    body.set_edge_curve(edge, c.restated_in_chart(s1), tol)
+                        .map_err(|e| {
+                            of_attachment(edge, EdgeDescribeFailure::Chart, c.carrier().kind(), e)
+                        })?;
                 }
             }
         }
@@ -6013,13 +6013,15 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// ([`super::sphere_region`]), and a circle whose crossings lie on an
 /// earlier cut's meridian takes no cut of its own, the crossing layer
 /// meeting it there as it meets a seam.
+///
+/// Returns what the cuts made in each operand, A's then B's.
 fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     a: &mut Body<T>,
     b: &mut Body<T>,
     cut_ins: &[SphereCutIn<T>],
     band: Band,
     tol: Tol,
-) -> Result<(), BooleanError> {
+) -> Result<CutsPerOperand, BooleanError> {
     const ROWS: super::circle_roots::FirstHarmonicRows = super::circle_roots::FirstHarmonicRows {
         noise: "bool_sphere_cut_roots_noise",
         coaxial: "bool_sphere_cut_roots_coaxial",
@@ -6031,6 +6033,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     // The faces each scanned face has been cut into so far, beside its
     // own key: `(operand, scanned face, piece)`.
     let mut pieces: Vec<(Operand, FaceKey, FaceKey)> = Vec::new();
+    let mut made: CutsPerOperand = Default::default();
     for cut in cut_ins {
         let body = match cut.operand {
             Operand::A => &mut *a,
@@ -6433,12 +6436,27 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             tol,
         )?;
         pieces.push((cut.operand, cut.face, created.face));
+        let side = &mut made[usize::from(cut.operand == Operand::B)];
+        side.divisions.push((created.face, face));
+        side.edges.push(created.edge);
     }
     for body in [a, b] {
         crate::pcurves::mint_pcurves(body, tol)
             .map_err(|source| BooleanError::Pcurves { source })?;
     }
-    Ok(())
+    Ok(made)
+}
+
+/// What [`apply_cut_ins`] made in each operand, A's then B's.
+type CutsPerOperand = [ChartCuts; 2];
+
+/// What [`apply_cut_ins`] made in one operand.
+#[derive(Default)]
+struct ChartCuts {
+    /// `(new face, divided-from face)`, in mint order.
+    divisions: Vec<(FaceKey, FaceKey)>,
+    /// The meridian edge each cut minted.
+    edges: Vec<EdgeKey>,
 }
 
 /// Per-shell classification of one operand's clone against the other
@@ -6631,6 +6649,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 kind,
                 contacts,
                 naming,
+                verdicts: GlueVerdict::of_rows(&coincidences),
                 coincidences,
             }))
         }
@@ -6728,6 +6747,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         kind,
         contacts,
         naming,
+        verdicts: GlueVerdict::of_rows(&coincidences),
         coincidences,
     }))
 }
@@ -8770,9 +8790,7 @@ mod tests {
             EdgeDescribeFailure::NotWalkable,
             EdgeDescribeFailure::Intersection,
             EdgeDescribeFailure::Tangency,
-            EdgeDescribeFailure::NoConventionalLane,
-            EdgeDescribeFailure::Arc,
-            EdgeDescribeFailure::Line,
+            EdgeDescribeFailure::Chart,
         ] {
             every.push(DescribeRefusal::failed(strut, failure));
             for fitted in [false, true] {

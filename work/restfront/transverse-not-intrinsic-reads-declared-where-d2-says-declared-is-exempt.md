@@ -76,3 +76,27 @@ the answer changes C7 or D2, it waits for Ev. Either way, every
 constructor that routes through `geom_brep::must_carry_over_edge` now
 stores the intrinsic description where the rule demands it, so tier 3
 is the backstop only for a constructor that does not.
+
+## Provenance of the D2 sentence, and its correction (CLEAVE, PR 4856 fix pass)
+
+- `git log --all -S'exempt by its own declaration' -- docs/DESIGN.md`
+  returns only `99cc678bfd` (2026-09-04, the agent-written editing pass).
+- The text it replaced came from `b846df1f10` (2026-07-20, "ratified
+  2026-07-19 with Ev"). That text enforced the rule on the conventional
+  `MappedCurve`, which was then the declared form, and exempted only
+  escalated dihedrals and `Seam` edges. The NURBS/`Approx`-adjacent
+  exemption came later, in `4eda8abec4` (2026-08-28, a currency pass).
+- PR 4856 rewrites the sentence to what the ratified text and the check
+  both say, without deciding the derived case: the check refuses (among
+  other things) a declared conventional description on a
+  definitely-transverse edge. It also fixes `TransverseNotIntrinsic`'s
+  doc, which still named `MappedCurve`.
+
+**Still open here:** since the collapse, every *derived* chart on a
+definitely-transverse edge escapes the check. That is wider than the
+ratified exemptions ("Seam by kind" and the rest).
+- PR 4856 adds more derived charts at rest: `describe_edges`' stale arm
+  now restates stale circles and lines as derived where it used to stamp
+  a declaration.
+- These edges sit only on smooth adjacencies, so they are not instances
+  of the gap.
