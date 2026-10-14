@@ -149,6 +149,10 @@ macro_rules! proximity_lever {
     };
 }
 
+/// [`BooleanDecision::CylinderAxes`]'s subject, which the carrier
+/// ladder's own axis rung (`carrier_cyl_axis_parallel`) names too.
+const CYLINDER_AXES_PARALLEL: &str = "whether two cylinders' axes are parallel";
+
 /// The corner edge-length lever as a literal, for `concat!`
 /// ([`CORNER_EDGES`]).
 macro_rules! corner_edges {
@@ -1415,7 +1419,7 @@ impl BooleanDecision {
             Self::WallRoots(WallRung::Discriminant) => {
                 "whether an edge crosses a cylinder wall, grazes it or misses it"
             }
-            Self::CylinderAxes => "whether the axes of a cylinder face of each solid are parallel",
+            Self::CylinderAxes => CYLINDER_AXES_PARALLEL,
             Self::TorusRoots => "how many times an edge crosses a torus",
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
             Self::SphereRoots => "whether an edge crosses a sphere, grazes it or misses it",
@@ -1574,12 +1578,14 @@ impl BooleanDecision {
                 SizedPass::Positive,
             ),
             // Only a zero passes, along the rulings: a definite tilt goes
-            // on to the skew and meeting-axes doors, which are frontiers,
-            // so no smaller tolerance decides it passing. The margin is
-            // the axes' drift over the walls' span, which a turn moves.
-            Self::CylinderAxes => Ending::Lever(
-                "turn one part so the two cylinders' axes are clearly parallel, or clearly not",
-            ),
+            // on to other escalations and then to the skew and
+            // meeting-axes frontiers, so the lever names the parallel
+            // side alone and no smaller tolerance decides it passing.
+            // The margin is the axes' drift over the walls' span, which a
+            // turn moves.
+            Self::CylinderAxes => {
+                Ending::Lever("turn one part so the two cylinders' axes are clearly parallel")
+            }
             // Two roots pass at every arm; a miss passes where both ends
             // are off the wall and refuses where one is on it (a miss
             // cannot hold a zero endpoint); a zero is a tangency, refused
@@ -2253,10 +2259,9 @@ pub(in crate::boolean) mod tests {
                 ),
             ),
             BooleanDecision::CylinderAxes => (
-                "whether the axes of a cylinder face of each solid are parallel",
+                "whether two cylinders' axes are parallel",
                 Ending::Lever(
-                    "Recourse: turn one part so the two cylinders' axes are clearly parallel, or \
-                     clearly not",
+                    "Recourse: turn one part so the two cylinders' axes are clearly parallel",
                 ),
             ),
             BooleanDecision::WallRoots(WallRung::Discriminant) => (

@@ -67,3 +67,21 @@ keep `MEET`.
   `offer_rows` carries the new site; `every_decision` and so the word
   budget cover the new decision. Both tests are in the slow set.
 - Sweep sibling filed: `the-germ-frames-in-band-angle-rungs-offer-a-proximity-lever`.
+
+### Fix pass (review of PR 5061)
+
+- The lever names the passing side alone: "turn one part so the two
+  cylinders' axes are clearly parallel". A definite tilt never builds on
+  these poses (the review's 240 runs; this branch's 0.1–0.5 rad at three
+  ε), so offering "clearly not" offered a refusal.
+- The door pin's turned arm asserts the exact frontier at 0.2 rad at every
+  ε: about `x`, `GermFrameUnsupported`; about `y`, `CurvedPierceUnsupported`.
+  (0.1 rad about `x` at ε = 1e-6 ends at the `PierceCurvature` escalation
+  instead, so the pin tips further.)
+- One spelling: `CylinderAxes` and the carrier ladder's
+  `carrier_cyl_axis_parallel` both read "whether two cylinders' axes are
+  parallel".
+- `FrameError` carries one `Escalated { decision, diag }`; the section,
+  axes and radius readings differ only in the decision they carry.
+- The ε-sized margins at visible tilts: filed as
+  `tipped-seams-pose-reads-eps-scaled-margins-at-visible-tilts`.

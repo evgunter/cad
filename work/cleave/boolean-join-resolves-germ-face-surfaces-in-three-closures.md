@@ -59,3 +59,21 @@ Two other notes from the same re-review:
 - Second pose: the seams door pin now tips about `x` and about `y`, and
   `one_face_walls_read_their_axes_as_an_angle` reaches the in-band
   reading through the frame dispatch with every germ inside a face.
+
+### Fix pass (review of PR 5061)
+
+- One walk, held: `join::face_surface` (face → surface key and a borrowed
+  surface, through `Body::face_surface_linked`) is the only face-to-surface
+  read in `join.rs`; `no_arm`, `choose_roles`' ring lane, the wrap-site
+  planar test (no clone now) and `face_pair_section_loops` all go through
+  it. `face_surface_tests::the_join_walks_to_a_faces_surface_in_one_place`
+  counts the reads in the file's code and reds on a second walk.
+- Read once, really: a one-site segment's loop frame (the antipode's) now
+  rides in `SegmentPair`, read before surgery, and the unjoined one-site
+  records are counted before surgery too (refused at the same place). The
+  module doc and `segment_arm`'s now say the same thing: surgery moves the
+  boundary vertices a frame is levered at, so every frame and kind arm is
+  read in the matched state. Why nothing pins that order is stated at the
+  claim site.
+- The rest of `boolean/`'s inline walks are filed as
+  `boolean-walks-face-to-surface-inline-at-two-dozen-sites`.

@@ -19,7 +19,7 @@ use crate::common::differential::outcome;
 use crate::conic_edge_curved_face::{DRUM_RADIUS, TILT, drum_lower};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::finished;
-use topo::{AtRestBody, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanError, BooleanErrorKind, BooleanResult};
 
 /// A vertical rod of radius `r` about `(x, y)` over `z ∈ [z0, z1]`.
 fn rod(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> AtRestBody<f64> {
@@ -464,8 +464,7 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
 }
 
 /// The lever of an in-band reading of a cylinder pair's axes.
-const AXES_LEVER: &str =
-    "Recourse: turn one part so the two cylinders' axes are clearly parallel, or clearly not";
+const AXES_LEVER: &str = "Recourse: turn one part so the two cylinders' axes are clearly parallel";
 
 /// The unit rod about `(1, 1)` over `z ∈ [−0.5, 0.5]` tipped `theta`
 /// about `axis` through its centre, against the unit rod about the
@@ -500,10 +499,13 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
 /// faces' vertices), in the band, and every op escalates
 /// `cc_axes_parallel` as the axes' own decision, whose lever is a turn;
 /// at the radius it would read `0.47·zero`, parallel, and take the
-/// rulings arm with the axes apart. Both ways the lever offers end
-/// where it says: turned back to `0.5·zero / 3.2` every op builds
-/// SOUND, and turned a tenth of a radian every op ends at a typed
-/// refusal, none a defect and none this decision.
+/// rulings arm with the axes apart. The lever names the parallel side
+/// alone, the one that passes: turned back to `0.5·zero / 3.2` every op
+/// builds SOUND. Turned clearly apart, a fifth of a radian, every op
+/// ends at a frontier, the same at every tolerance: about `x` the germ
+/// frame has no arm for the skew walls (`GermFrameUnsupported`), about
+/// `y` an edge pierces a curved face the Boolean cannot yet read
+/// (`CurvedPierceUnsupported`).
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
     let tol = Tol::witness();
@@ -513,7 +515,10 @@ fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
     building.extend(axes.map(|axis| seams_on_the_walls(axis, 0.5 * zero / 3.2)));
     let bad = unsound(&building);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
-    for axis in axes {
+    for (axis, frontier) in axes.into_iter().zip([
+        BooleanErrorKind::GermFrameUnsupported,
+        BooleanErrorKind::CurvedPierceUnsupported,
+    ]) {
         let tipped = seams_on_the_walls(axis, 1.5 * zero / 3.2);
         for (op, r, _) in tipped.runs() {
             assert!(
@@ -530,16 +535,13 @@ fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
                 r.map(|_| "a body").map_err(|e| e.to_string())
             );
         }
-        let turned = seams_on_the_walls(axis, 0.1);
+        let turned = seams_on_the_walls(axis, 0.2);
         for (op, r, _) in turned.runs() {
-            let Err(e) = r else {
-                panic!("{} | {op}: a body", turned.label);
-            };
-            let (key, defect) = topo::test_support::offer_key(&e);
             assert!(
-                !defect && key != "CylinderAxes",
-                "{} | {op}: {key}: {e}",
-                turned.label
+                matches!(&r, Err(e) if e.kind() == frontier),
+                "{} | {op}: want {frontier:?}, got {:?}",
+                turned.label,
+                r.map(|_| "a body").map_err(|e| e.to_string())
             );
         }
     }
