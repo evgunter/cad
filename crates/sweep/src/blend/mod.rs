@@ -1375,6 +1375,13 @@ pub enum Breach {
     /// by the feet the plan split, a link offered to a corner it does not
     /// touch, a chain across two shells.
     Disagrees,
+    /// The entity is construction scaffolding a finished body does not
+    /// hold: an edge with no certified carrier (a null edge), or a
+    /// lone-vertex cycle.
+    Scaffolding,
+    /// The entity's stored carrier is degenerate: a length it is built on
+    /// (a cylinder's axis or radius) does not decide under the run's band.
+    Degenerate,
 }
 
 /// The shared edge-blend refusal — both verbs' one error vocabulary,
@@ -1702,7 +1709,10 @@ pub enum BlendError {
     /// **Frontier** (D2 addendum row 2): a stored carrier, trimline or
     /// surface is not one of the shapes the surgery's closed forms
     /// cover (a circle rim carrier, a straight open trimline, a planar
-    /// support, a torus band).
+    /// support, a torus band). A carrier that is absent or degenerate is
+    /// no shape at all, and refuses [`BlendError::BodyNotIntact`]
+    /// ([`Breach::Scaffolding`], [`Breach::Degenerate`]): the shape
+    /// recourse does not reach it.
     UnsupportedGeometry {
         /// The entity whose stored geometry is not covered.
         at: EntityId,
@@ -1710,10 +1720,11 @@ pub enum BlendError {
         detail: &'static str,
     },
     /// **The body handed to the surgery does not hold together where
-    /// the plan read it** (D2 addendum row 1), in one of the three ways
-    /// a [`Breach`] names: a stored reference that did not resolve, a
-    /// walk that did not close, or keys that disagree with the body's
-    /// own structure — among them a
+    /// the plan read it** (D2 addendum row 1), in one of the ways a
+    /// [`Breach`] names: a stored reference that did not resolve, a
+    /// walk that did not close, construction scaffolding, a degenerate
+    /// stored carrier, or keys that disagree with the body's own
+    /// structure — among them a
     /// requested chain or corner bounded by faces of two shells, which
     /// tier 1 rules out (`EdgeAcrossShells`, one orbit per vertex).
     /// This is not a blend frontier and carries no recourse — the
@@ -2078,6 +2089,12 @@ impl fmt::Display for BlendError {
                         format!(
                             "{at} resolved, but its structure disagrees with the blend's reading"
                         )
+                    }
+                    Breach::Scaffolding => {
+                        format!("{at} is construction scaffolding a finished body does not hold")
+                    }
+                    Breach::Degenerate => {
+                        format!("{at}'s stored carrier is degenerate under the run's band")
                     }
                 };
                 write!(
@@ -2471,6 +2488,16 @@ mod recourse_tests {
                 breach: Breach::Disagrees,
                 detail: "a corner the verdict classified",
             },
+            BlendError::BodyNotIntact {
+                at: EntityId::Edge(EdgeKey::default()),
+                breach: Breach::Scaffolding,
+                detail: "a rim edge carries no certified carrier",
+            },
+            BlendError::BodyNotIntact {
+                at: EntityId::Face(FaceKey::default()),
+                breach: Breach::Degenerate,
+                detail: "a face's cylinder carrier, which the face box reads",
+            },
             BlendError::ScaffoldingOperand { errors: Vec::new() },
             BlendError::InsideOutOperand { errors: Vec::new() },
             BlendError::UnjoinedOperand { errors: Vec::new() },
@@ -2585,6 +2612,14 @@ mod recourse_tests {
             (
                 Breach::Disagrees,
                 format!("{at} resolved, but its structure disagrees with the blend's reading"),
+            ),
+            (
+                Breach::Scaffolding,
+                format!("{at} is construction scaffolding a finished body does not hold"),
+            ),
+            (
+                Breach::Degenerate,
+                format!("{at}'s stored carrier is degenerate under the run's band"),
             ),
         ] {
             assert_eq!(

@@ -336,8 +336,9 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // - `BlendDecision` is `Escalated`'s too: the question that could not
 //   be taken, which alone decides the refusal's recourse.
 // - `Breach` is `BodyNotIntact`'s: a key that did not resolve, a walk
-//   that did not close, or keys that disagree with the blend's reading
-//   — the cause the refusal states, and the one a bug report needs.
+//   that did not close, construction scaffolding, a degenerate stored
+//   carrier, or keys that disagree with the blend's reading — the
+//   cause the refusal states, and the one a bug report needs.
 // - `Convexity` is `ConvexitySignFlip`'s: which way the chain's
 //   material wedge turns. It is NOT one of the three the CUR3 bank
 //   named — the struct-payload sweep found it — and leaving it out

@@ -49,8 +49,9 @@ use crate::blend::naming::BlendNaming;
 use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
     ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, disagrees, face_of_half,
-    halves_of, op, piece_along, piece_distance, point_of, retire_fragment, split_fragment,
-    split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out, unresolved,
+    halves_of, op, piece_along, piece_distance, point_of, retire_fragment, scaffolding,
+    split_fragment, split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out,
+    unresolved,
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, classify};
 
@@ -1028,7 +1029,7 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
             foot_param(body, rim, v1, f1)?,
         );
         let Some((carrier, _)) = stored_piece(body, rim)? else {
-            return Err(unbuilt_geometry(
+            return Err(scaffolding(
                 EntityId::Edge(rim),
                 "an end face's rim carries no certified carrier",
             ));
@@ -1079,10 +1080,9 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedGeometry`] when the rim carries no certified
-/// carrier; [`BlendError::UnsupportedRunOut`] from the foot's parameter
+/// [`BlendError::UnsupportedRunOut`] from the foot's parameter
 /// ([`foot_param`]); [`BlendError::BodyNotIntact`] when the rim does not
-/// resolve or does not end at `vertex`.
+/// resolve, carries no certified carrier, or does not end at `vertex`.
 fn rim_piece<T: Decide + Bounds>(
     body: &Body<T>,
     rim: EdgeKey,
@@ -1094,7 +1094,7 @@ fn rim_piece<T: Decide + Bounds>(
         .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?
         .he_plus;
     let Some((carrier, (t0, t1))) = stored_piece(body, rim)? else {
-        return Err(unbuilt_geometry(
+        return Err(scaffolding(
             EntityId::Edge(rim),
             "an end face's rim carries no certified carrier",
         ));

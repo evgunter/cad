@@ -92,9 +92,9 @@ use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, LoopKey, SurfaceKey, Ver
 
 use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
-    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
+    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, link_carrier, outward,
 };
-use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
+use super::surgery::{degenerate, disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
 /// How many cells one face may be cut into against one reach before it
@@ -938,8 +938,7 @@ impl<T: Real> Station<T> {
 
 fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, BlendError> {
     let at = EntityId::Edge(link.edge);
-    let (carrier, t0, t1) =
-        carrier_of(body, link.edge).ok_or_else(|| unresolved(at, "a link's certified carrier"))?;
+    let (carrier, t0, t1) = link_carrier(body, link.edge)?;
     let p = carrier.eval(geom::mid_param(t0, t1));
     let off_trim = || disagrees(at, "a link's trimline is neither a line nor a circle");
     let fa = foot_on(&link.blend.trim_a.0, p).ok_or_else(off_trim)?;
@@ -2392,8 +2391,12 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         r.skip.dedup();
         reaches.push(r);
     }
-    let boxes = FaceBoxes::of(body, band)
-        .map_err(|e| disagrees(EntityId::Face(e.0), "a face's certified box"))?;
+    let boxes = FaceBoxes::of(body, band).map_err(|e| {
+        degenerate(
+            EntityId::Face(e.0),
+            "a face's cylinder carrier, which its box reads",
+        )
+    })?;
     // Two chains that share a vertex meet there in a corner or a turn,
     // which the corner predicate and the surgery judge: their bands
     // touch by construction.

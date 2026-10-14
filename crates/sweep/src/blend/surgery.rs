@@ -244,11 +244,12 @@ use geom_core::Tol;
 
 /// **Row 1** — the body or the verdict handed to the surgery does not
 /// hold together where the plan read it. Invalid input, not a frontier.
-/// One constructor per [`Breach`], so a site states which of the three
-/// it met and the refusal renders that, not another: a stored key that
-/// did not resolve ([`unresolved`]), a walk that did not close
-/// ([`unwalked`]), or keys that resolved into a structure the plan's
-/// reading disagrees with ([`disagrees`]). The last is the one the
+/// One constructor per [`Breach`], so a site states which it met and
+/// the refusal renders that, not another: a stored key that did not
+/// resolve ([`unresolved`]), a walk that did not close ([`unwalked`]),
+/// construction scaffolding ([`scaffolding`]), a degenerate stored
+/// carrier ([`degenerate`]), or keys that resolved into a structure the
+/// plan's reading disagrees with ([`disagrees`]). The last is the one the
 /// plan's own tokens use — a link offered to a corner it does not touch,
 /// a chart offered another vertex's faces.
 pub(super) fn unresolved(at: EntityId, detail: &'static str) -> BlendError {
@@ -267,6 +268,21 @@ pub(super) fn unwalked(at: EntityId, detail: &'static str) -> BlendError {
 /// or the verdict's reading of the body there.
 pub(super) fn disagrees(at: EntityId, detail: &'static str) -> BlendError {
     let breach = Breach::Disagrees;
+    BlendError::BodyNotIntact { at, breach, detail }
+}
+
+/// **Row 1**, construction scaffolding at `at`: an edge with no
+/// certified carrier, or a lone-vertex cycle. Tier 2 refuses both at
+/// rest, so no operand a door admits reaches it.
+pub(super) fn scaffolding(at: EntityId, detail: &'static str) -> BlendError {
+    let breach = Breach::Scaffolding;
+    BlendError::BodyNotIntact { at, breach, detail }
+}
+
+/// **Row 1**, a stored carrier at `at` whose defining length does not
+/// decide under the run's band.
+pub(super) fn degenerate(at: EntityId, detail: &'static str) -> BlendError {
+    let breach = Breach::Degenerate;
     BlendError::BodyNotIntact { at, breach, detail }
 }
 
@@ -2214,7 +2230,7 @@ fn metered_piece<'b, T: Decide>(
     rims: &[RimPlan<'_, T>],
 ) -> Result<MeteredPiece<'b, T>, BlendError> {
     let Some((stored, window)) = stored_piece(body, edge)? else {
-        return Err(unbuilt_geometry(
+        return Err(scaffolding(
             EntityId::Edge(edge),
             "a support's boundary edge carries no certified carrier",
         ));
@@ -2406,7 +2422,9 @@ pub(super) type Piece<'b, T> = (&'b Curve3<T>, (T, T));
 ///
 /// # Errors
 ///
-/// [`BlendError::BodyNotIntact`] when the edge does not resolve.
+/// [`BlendError::BodyNotIntact`] when the edge or its curve row does
+/// not resolve; `None` for a null edge, which the caller refuses as
+/// [`scaffolding`] in its own words.
 pub(super) fn stored_piece<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
@@ -2414,10 +2432,13 @@ pub(super) fn stored_piece<T: Decide>(
     let e = body
         .get_edge(edge)
         .ok_or_else(|| unresolved(EntityId::Edge(edge), "a boundary edge a clearance reads"))?;
-    Ok(body
-        .get_curve_geom(e.curve)
-        .and_then(|g| g.certified())
-        .map(|c| (c.carrier(), c.params())))
+    let geom = body.get_curve_geom(e.curve).ok_or_else(|| {
+        unresolved(
+            EntityId::Edge(edge),
+            "a boundary edge's curve row a clearance reads",
+        )
+    })?;
+    Ok(geom.certified().map(|c| (c.carrier(), c.params())))
 }
 
 /// **How near and how far one boundary piece comes to a point `c`**:
@@ -2735,12 +2756,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
         .collect();
     for o in opens {
         let l = o.link();
-        let mid = edge_midpoint(body, l.edge).ok_or_else(|| {
-            unresolved(
-                EntityId::Edge(l.edge),
-                "a link edge's stored carrier, for its midpoint",
-            )
-        })?;
+        let mid = edge_midpoint(body, l.edge)?;
         for face in [l.face_a, l.face_b] {
             let (origin, _) = open_trimline(l, face)?;
             // The inward unit: from the sharp edge toward the trim,
@@ -2818,10 +2834,9 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 .get_loop(lp)
                 .ok_or_else(|| unresolved(EntityId::Loop(lp), "a cut-off end face's cycle"))?;
             if let topo::LoopBoundary::Empty { .. } = lone.boundary {
-                return Err(unbuilt_geometry(
+                return Err(scaffolding(
                     EntityId::Loop(lp),
-                    "an end face beside a cut-off carries a lone-vertex cycle, which the sliver \
-                     meter does not cover",
+                    "an end face beside a cut-off carries a lone-vertex cycle",
                 ));
             }
             let walk = loop_walk(body, lp)
@@ -2834,7 +2849,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                     continue;
                 }
                 let Some((carrier, window)) = stored_piece(body, edge)? else {
-                    return Err(unbuilt_geometry(
+                    return Err(scaffolding(
                         EntityId::Edge(edge),
                         "a cycle edge of an end face beside a cut-off carries no certified \
                          carrier",
@@ -3016,7 +3031,7 @@ fn strip_clearance<T: Decide + Bounds>(
                 continue;
             }
             let Some((carrier, window)) = stored_piece(body, edge)? else {
-                return Err(unbuilt_geometry(
+                return Err(scaffolding(
                     EntityId::Edge(edge),
                     "a boundary edge of a planar support beside a requested edge's strip carries \
                      no certified carrier",
@@ -3106,7 +3121,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         seen.push(face);
         let ((ci, si), _) = rim_trim_circles(l.edge, &l.blend, l.face_a == face)?;
         let Some((rim_carrier, _)) = stored_piece(body, l.edge)? else {
-            return Err(unbuilt_geometry(
+            return Err(scaffolding(
                 EntityId::Edge(l.edge),
                 "a rim arc carries no certified carrier",
             ));
@@ -3387,9 +3402,19 @@ fn boxed_reach<T: Bounds>(
 }
 
 /// A link edge's midpoint (the trimline inward direction's anchor).
-fn edge_midpoint<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<Point3<T>> {
-    let e = body.get_edge(edge)?;
-    Some(body.get_curve_geom(e.curve)?.certified()?.mid_point())
+fn edge_midpoint<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Result<Point3<T>, BlendError> {
+    let at = EntityId::Edge(edge);
+    let e = body
+        .get_edge(edge)
+        .ok_or_else(|| unresolved(at, "a link edge, for its midpoint"))?;
+    let Some(c) = body
+        .get_curve_geom(e.curve)
+        .ok_or_else(|| unresolved(at, "a link edge's curve row, for its midpoint"))?
+        .certified()
+    else {
+        return Err(scaffolding(at, "a link edge carries no certified carrier"));
+    };
+    Ok(c.mid_point())
 }
 
 // ------------------------------------------------------------------
@@ -3451,8 +3476,12 @@ fn rim_carrier<T: Decide>(
         .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge"))?;
     let host_half = host_side_half(body, link, host)
         .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's host-side half"))?;
-    let Some(c) = body.get_curve_geom(ed.curve).and_then(|g| g.certified()) else {
-        return Err(unbuilt_geometry(
+    let Some(c) = body
+        .get_curve_geom(ed.curve)
+        .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's curve row"))?
+        .certified()
+    else {
+        return Err(scaffolding(
             EntityId::Edge(e),
             "a rim edge carries no certified carrier",
         ));
@@ -3583,10 +3612,10 @@ pub(super) fn seam_split_param<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`BlendError::BodyNotIntact`] when the edge does not resolve;
-/// [`BlendError::UnsupportedGeometry`] when it carries no certified
-/// carrier with a closed-form parameter, or a periodic window not under
-/// one period.
+/// [`BlendError::BodyNotIntact`] when the edge or its curve row does
+/// not resolve, or it is a null edge;
+/// [`BlendError::UnsupportedGeometry`] when its carrier has no
+/// closed-form parameter, or a periodic window not under one period.
 pub(super) fn split_param_in_span<T: Decide + Bounds>(
     body: &Body<T>,
     seam: EdgeKey,
@@ -3595,8 +3624,12 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
     let sd = body
         .get_edge(seam)
         .ok_or_else(|| unresolved(EntityId::Edge(seam), "a support edge the band splits"))?;
-    let Some(sc) = body.get_curve_geom(sd.curve).and_then(|g| g.certified()) else {
-        return Err(unbuilt_geometry(
+    let Some(sc) = body
+        .get_curve_geom(sd.curve)
+        .ok_or_else(|| unresolved(EntityId::Edge(seam), "a split support edge's curve row"))?
+        .certified()
+    else {
+        return Err(scaffolding(
             EntityId::Edge(seam),
             "a support edge the band splits carries no certified carrier",
         ));
@@ -5654,6 +5687,103 @@ mod tests {
         assert!(
             text.contains("resolved, but its structure disagrees")
                 && !text.contains("did not resolve"),
+            "{text}"
+        );
+    }
+
+    /// **Scaffolding and a degenerate carrier each refuse as their own
+    /// breach**, never as an unsupported shape with the shape recourse.
+    /// A null edge mev'd off a cube corner reaches `split_param_in_span`
+    /// with no certified carrier (`Scaffolding`); a cube face re-charted
+    /// onto a cylinder whose axis has no length reaches the band reach's
+    /// face boxes (`Degenerate`). Neither is reachable through a door:
+    /// tier 2 refuses the null edge, and no finishing door mints a
+    /// zero-axis cylinder.
+    #[test]
+    fn scaffolding_and_a_degenerate_carrier_refuse_as_their_own_breach() {
+        let tail = "so the body is not intact there. There is no way through";
+        let shape = crate::blend::FILLET3_GEOMETRY_RECOURSE;
+
+        let mut body: topo::Body<f64> = cube(L, Tol::witness());
+        let v = body.vertices().next().map(|(k, _)| k).expect("a vertex");
+        let he = body.get_vertex(v).and_then(|d| d.emanating).expect("a fan");
+        let null = body
+            .mev_null(
+                topo::MevSite::Fan { he1: he, he2: he },
+                topo::NewVertexSide::Below,
+            )
+            .expect("a null strut mev's off a cube corner")
+            .edge;
+        let Err(e) = super::split_param_in_span(&body, null, Point3::origin()) else {
+            panic!("a null edge has no carrier to split");
+        };
+        assert!(
+            matches!(
+                e,
+                BlendError::BodyNotIntact {
+                    breach: Breach::Scaffolding,
+                    ..
+                }
+            ),
+            "a null edge is Scaffolding: {e:?}"
+        );
+        let text = e.to_string();
+        assert!(
+            text.ends_with(&format!(
+                "is construction scaffolding a finished body does not hold, {tail}"
+            )) && !text.contains(shape),
+            "{text}"
+        );
+
+        let mut body = cube(L, Tol::witness());
+        let link = crate::test_support::all_links(&body, Tol::witness())
+            .into_iter()
+            .next()
+            .expect("a cube has links");
+        let off = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|f| *f != link.face_a && *f != link.face_b)
+            .expect("a cube has a face off the link");
+        // Lifts RechartUnvouched: the face's edges do not lie on the degenerate chart, which is the row's premise.
+        body.set_face_surface_unvouched_for_tests(
+            off,
+            topo::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::zero(),
+                    radius: L,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
+        )
+        .expect("the face takes the degenerate chart");
+        let band = geom_core::Band::linear(Tol::witness()).expect("the witness band");
+        let req = crate::blend::BlendRequest {
+            body: &body,
+            edges: vec![link.edge],
+            size: 0.1 * L,
+        };
+        let Err(e) = super::super::reach::band_reach_for_tests(&req, band) else {
+            panic!("a face whose cylinder has no axis cannot be boxed");
+        };
+        assert!(
+            matches!(
+                e,
+                BlendError::BodyNotIntact {
+                    at: topo::EntityId::Face(f),
+                    breach: Breach::Degenerate,
+                    ..
+                } if f == off
+            ),
+            "a zero-axis cylinder is Degenerate at its face: {e:?}"
+        );
+        let text = e.to_string();
+        assert!(
+            text.ends_with(&format!(
+                "stored carrier is degenerate under the run's band, {tail}"
+            )) && !text.contains(shape),
             "{text}"
         );
     }
