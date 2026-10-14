@@ -1382,3 +1382,99 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-13 21:55Z — **Dispatched after 4984.**
   - **Build C:** cut-net levers 1+2 on `nurbs/cut-net-quotient-cost`, from 2639b944. It covers both perf rows (cut nets, and the face bound's per-piece restriction), bit-identical, with counting guards. The target is within about 2× of before 4954.
   - **Build A:** `other-rational-speed-readings-read-relaxed-quotient-recipes` on `nurbs/remaining-rational-readings`, with the tier decided at PR time.
+- 2026-10-13 22:40Z — **The quotient bound's cost cannot be closed without changing readings.**
+  - Build C's levers 1+2 are bit-identical and guarded. They take the shell test from 286 to 216 s and r1 from 183 to 113 s, still 6–9× the pre-4954 times. The face bound barely moves (0.96 → 0.93 s).
+  - The remainder is interval arithmetic in the O(n²) quotient products, against the old O(n) hull.
+  - (a) L1+L2 lands as its own PR. (b) The interval scale fast path, at most 25%, is filed, not done.
+  - (c) **Design fork dispatched:** "what the code should be given the quotient bound's per-call cost". Two designers, concurrent, same problem statement, no candidate options. The blinding record is on `analysis/design-fork/nurbs-quotient-cost`. A designer convergence needs no Ev; a split goes to an `[ev]` PR.
+- 2026-10-13 22:58Z — **Red main from 4984** (build C found it during its 3-ε sweep).
+  - **Failure:** `sweep saddle_wall_offset_fit::a_saddle_wall_certifies_on_a_grid_longer_in_one_direction_than_a_square_cap` certifies at 3.850263672224892e-10 against the pinned 3.8534e-10 ± 1e-13, at all three ε.
+  - **Why the gate missed it:** it's a sweep slow row, and 4984's gate didn't seed sweep.
+  - **Assigned to build A, ahead of its handover unit:** confirm the cause, check the new value is right on its own terms (re-baseline with its cause, or fix a bug), and sweep sibling pins on the paths 4984 moved in crates its gate didn't seed.
+  - **Class:** a change to a shared bound (`patch_bound`, offset) moves pinned values in crates the PR gate doesn't seed. The reviewers ran the seeded suites only.
+  - **Next time:** run the slow sets of the bound's downstream consumers (sweep, topo) locally before merging, or seed them.
+- 2026-10-13 22:58Z — **Build C's L1+L2** passes 427 of 428 rows clean across enclose, patch_bound, nurbs_cert, offset, derivative, stretch and the digest at three ε. The one red is the main red above. The PR is opening.
+- 2026-10-13 23:00Z — **Design fork CONVERGED: the cost of the quotient bound.** It ran two rounds and crossed once in round 1, as the protocol anticipates. The record is on `analysis/design-fork/nurbs-quotient-cost`. No Ev and no fork-log row: the statement is unchanged and no ratified text moves.
+  - **The finding beneath both:** `NurbsBoxes` is rebuilt per rung (`certify`) and per `boundary` call, so the 5001 memo lives one probe. Windows nest and never repeat, so no window-keyed cache and no tree.
+  - **The final state:**
+    - an operand-lifetime `NurbsBoxes`;
+    - one raised quotient per cell, with `restrict(a, b)` by de Casteljau and `pieces` by halving;
+    - the piece tables and the exactness ceiling retired;
+    - the cut retired, becoming restriction;
+    - the meet turned into a debug containment check.
+  - **Dispatched to build C as three PRs:**
+    - lifetime (my read);
+    - products-once with halving (FULL);
+    - cut becomes restriction (FULL).
+    - It measures after each step, and the L1+L2 PR is closed as superseded.
+  - **Process note:** the 22:40Z brief's "bit-identical levers are exhausted" was one level off. Both designers found the cause in ownership and order of operations, not in arithmetic.
+- 2026-10-14 00:08Z — **A second red on main from 4984:** the sweep thread-count digest's `tilted_cut_upper` pads read slightly tighter than the table, at all three ε. It is the same class as the saddle-wall pin (sweep not seeded) and is routed to build A's fix PR; the table is re-cut with its cause.
+- 2026-10-14 00:08Z — **Quotient-cost step 1 is PR 5047** (`NurbsBoxes` lifetime, head b23d0f02).
+  - `ChartedNurbs` holds `Rc<NurbsBoxes>`; `PairBoxes` and boundary share it.
+  - Its guard is one build per cell per operand across 20 rungs.
+  - **Times, against main:** shell 286 → 234 s, r1 183 → 164 s. The remainder is the per-window cut, which step 3 handles. Step 2 has started.
+  - Tier: my read, after CI.
+- 2026-10-14 00:16Z — **Correction:** the digest red (`tilted_cut_upper` pads) is NOT 4984's. It passes at 2639b944 and at a71403e3 (pre-4984), and fails on main HEAD. Build A is bisecting the merges after #4938 (#4964, #4952, #4863, #5033, #5022, #5025); the result goes to the owning program, not re-cut by NURBS.
+  - **The saddle pin IS 4984's**, and the re-baseline is sound: the integral wall's floor rose from 1.97616 to 1.97751, against a sampled least ‖S_u×S_v‖ of 1.97754. The fix ships now, on its own PR.
+  - **Reds at 1e-6 under triage** (base red, or flipped by 4984?): `cone_operand_rows`, `r1_lane0_e2e` (TubeNotOneArc), topo `three_solids_on_one_line`.
+- 2026-10-14 01:25Z — **PR 5047 merged** (step 1, `NurbsBoxes` lifetime) at `f0f732d0`.
+  - Hosted test job 23m14s; my read only.
+  - Seam notes posted on ssiarith, ssiedge and ssimarch.
+- 2026-10-14 01:25Z — **Step 2 in progress** (products-once with halving).
+  - Locally, before the halving speed-up: shell 142 s and r1 88 s, against main's 286 and 183; face bound 0.59 s.
+  - Re-baselined with causes: the `patch_bound` tile row (8×8 → 16×16, the retired exactness ceiling) and the `offset_fit` weights-2 pin (2 ulps).
+  - I asked for the curve meters to move off `piece_weights` too (one primitive), splitting into 2a/2b if the PR gets large. FULL review when it's green.
+- 2026-10-14 02:05Z — **Triage of the reds on main** (build A):
+  - The saddle-wall pin from 4984 is being fixed in PR 5053 (head 23c140af), pin only. It merges when green.
+  - The digest `tilted_cut_upper` red is not 4984's. A clean bisect first fails at 5f0d1cf5, the merge of #4952 (pcert). Build A re-cuts the table in its own PR citing #4952, and stops if any pad other than tilted_cut_upper's moves. A seam note went to pcert's log.
+  - The 1e-6 reds (`cone_operand_rows`, `r1_lane0_e2e`, topo `three_solids_on_one_line`) and the 1e-12 `encl_curved_loft_shell` shelling pin all fail at a71403e3, before 4984, so they are base red and not ours. Build A bisects the shelling pin next.
+- 2026-10-14 02:20Z — **Step 3 (cut becomes restriction) WIP** at c4fb888bd on `nurbs/cut-becomes-restriction`.
+  - Its sound, tighter slope exposed a **latent soundness bug on main**: `NurbsBoxes::rect_box`'s midpoint over a point window is a plain f64 evaluation on the f64 lane, so it is not an enclosure. `edge_runs` then decides a wrong sign at an edge touch (`ssi::one_arc` `a_touch_inside_an_edge_resolves_no_count` reads `Some(2)`).
+  - The fix lands first as its own PR (`nurbs/rect-box-midpoint-certified`, FULL review, with a red-under-mutant row), with step 3 on top.
+  - The fork's "meet becomes a containment `debug_assert`" was falsified by measurement: 0.19% of 578,728 meets fall outside, by up to 108% of the whole box's width. The meet stays. A postscript is on the fork record.
+- 2026-10-14 02:55Z — **Main's reds from this program are cleared.**
+  - #5053 (saddle pin) merged at c6b16773 and #5055 (digest re-cut, cause #4952) at fe462015. Each PR's only red was the other's row; they touch disjoint files.
+  - Still red on main and not ours (pre-4984): the 1e-6 rows `cone_operand_rows`, `r1_lane0_e2e` and `three_solids_on_one_line`, and the 1e-12 `encl_curved_loft_shell` pin. Build A is bisecting the shelling pin.
+  - #5059 (`rect_box` midpoint enclosure, build C) is up. CI is red across lint and test, so the FULL reviewer waits for green.
+- 2026-10-14 03:22Z — **#5011 answered and merged** (b8c3aa52). Ev took (A): the CI bar is 15 min, or 25 min for a PR seeding geom-core, geom, geom-brep or topo. Ev asked for an agent to look into the build time for easy wins. Dispatched a build-time lane (session_01QnnUqrMpoZHtXT1LbBth4W, base 41660715). Its findings go in a `work/ciw/` issue, with one PR per measured win of 2 min or more that drops no gate row.
+- 2026-10-14 04:40Z — **Correction to the 02:05Z triage** (build A). Those bisects shared one `CARGO_TARGET_DIR` across worktrees, which serves stale libraries (the hazard `bitdump.rs:29` documents). Re-run with a fresh target per commit:
+  - **#4984 flips three 1e-12 rows, so they are ours:**
+    - `encl_curved_loft_shell::shelling_the_curved_loft_refuses_at_a_walls_fit` (cap reach 1.3958e-10 → 1.39486e-10, the same floor mechanism as the saddle);
+    - both `rigid_map_near_eps_approx` rows, which are ENCL's open `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main.md`.
+    - Build A fixes them on `nurbs/fix-shelling-pin-after-4984`, root cause only, and closes ENCL's issue.
+  - **Still base red when re-run fresh at a71403e3:** the three 1e-6 rows, plus at 1e-12 `cone_operand_rows`, `a_moved_curved_fitted_cap` and the `shell_general_door` cap.
+  - **The digest passes fresh at 2639b944**, so it is not 4984's. #4952's attribution is being re-confirmed fresh.
+  - **Class finding:** a bisect needs a fresh target directory per commit. A shared one gives wrong attributions both ways.
+- 2026-10-14 05:08Z — **Step 2 is up as #5081** (`nurbs/quotient-products-once` @5970bb25, FULL).
+  - Against main: shelling 237 → 120 s, r1 seam 167 → 71 s, face bound 0.87 → 0.47 s, curve meters 8.1 → 4.3 s. The targets (≈70 s, 25 s, 0.17 s) wait on step 3.
+  - The face-bound remainder is filed as `work/issues/interval-scale-by-an-exact-f64-pays-a-general-product`.
+- **#5059's sound midpoint exposes a second latent bug on main.** `ssi/four.rs` `one_arc_pair`'s `reaches_end` "proves" an end lying on a domain side by Krawczyk on a slice whose root sits on the slice box's boundary face. Only the unenclosed f64 midpoint made that pass.
+  - We take it ourselves: a new lane (session_013c7iZGZUnzBka2LTcMSVBi, `nurbs/pair-walk-domain-side-end`) reads such an end on the side's own face, the ℝ⁴ analogue of one_arc's `Piece::Side`.
+  - #5059 also takes a corner-origin midpoint for far-from-origin operands, and closes `work/ssiarith/chart-point-signs-are-f64-evaluations.md`.
+  - Order: the pair-walk fix → #5059 → step 3.
+- 2026-10-14 06:05Z — **All of #4984's reds are fixed:** #5088 (shelling pin and rigid-map margin ladder) merged at 9f9662d8 and closes ENCL's `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main`. The fresh re-check confirms the digest's cause is #4952.
+  - **#5094 (the pair walk reads a domain-side end by its certified face roots, narrowed by Krawczyk) is up.** #5059 turns more SSI rows red than CI showed: a domain corner (`two_bilinear_patches`, 1e-12), two more pair-walk rows, and an interior-box face walk out of depth (`a_branch_beside_a_close_crossing`, 1e-12).
+  - **Ruling:** domain-side and corner ends go to #5094. The interior class goes to #5059, as a compensated (error-free) midpoint with an a-priori bound. (ii) was ruled out only for the boundary root.
+  - **#5034** (ENCL handover, STYLE) has a STYLE reviewer dispatched. **#5081** (step 2) is in FULL review.
+- 2026-10-14 06:20Z — **#5034 merged** (67a9bb4e). It closes ENCL's handover, after a STYLE review plus a comments-only follow-up. Build A posted its ENCL and QUAD seam notes via #5096.
+  - **Two lily-table items** on this slate (`main-reds-the-lily-tessellation-table-...-since-4984` P0, and its duplicate `the-lily-leaf-tessellation-table-moved-on-main` P1) had been filed by FUSE and EMIT and not picked up here. That is a friction finding: `work.py incoming` lists commits that touch `work/nurbs/`, and I read past them.
+  - Build A now has them: a fresh-target bisect, proof that the new counts still meet the certified chord tolerance, re-baseline or fix, and a sweep of every demo and slow set on main for unseen reds.
+- 2026-10-14 06:20Z — **#5081 (step 2) APPROVED at FULL** (session_012Zp7HG7ttcpSHq5uZReKzS).
+  - Soundness confirmed on both lanes: the mispaired-halves and piece-order mutants are red, and the sweep and topo slow sets are 271/271 green.
+  - Interval bounds match up to degree 9 and are tighter from degree 12.
+  - Minors (stale "exact dyadic piece" prose, the restrict callers in the body) go into the push that merges main. The lost W²/W³ halving-sharing (~8% of the face bound) gets filed.
+- 2026-10-14 06:32Z — **Mechanism of the missed lily items:** `work.py incoming` lists main's commits touching `work/nurbs/` *that this branch lacks*. I merge main into the tracker branch at most check-ins, before running it, so items other lanes file are absorbed silently and it reports 0. Fix in practice: run `git log origin/main --since=<last check-in> -- work/nurbs/` and skip commits authored by this program.
+- 2026-10-14 08:20Z — **Step 2 merged: #5081 at 8096a51b** (FULL approve, after a main merge plus prose fixes).
+  - Against main: shelling 237 → 120 s, r1 167 → 71 s, face bound 0.87 → 0.47 s, curve meters 8.1 → 4.3 s.
+  - Also merged: #5102 (lily table re-baselined to #4984's tighter chord bounds; certified deviation ≤ 2.35e-4 against 1e-3; closes the lily P0/P1), #5105 (CIW build-time findings; the SSIARITH fuzz issue), #5108 (base reds triaged onto their owners' slates, no duplicates). Build A's sweep (demos tour/wild and the workspace slow set at default ε, fresh targets) shows no other reds.
+  - **Step 3 measured slower than step 2** with the converged cut: shelling 208 s, r1 133–150 s. Restricting the raised grids costs an O(n³) blossom pyramid at n = 7.
+    - Two bit-identical savings (hoisting the ratio, restricting W² once) bring it to 173/96 s.
+    - Ruling: (A), the textbook O(n²) two-split restriction. It stays within the converged design. Land it only if it matches step 2 on time and margins. Otherwise (B), step 2's cut, goes back to the two designers as a postscript round. No cache; no landing a regression.
+  - **Build A** is on `interval-scale-exact` (`Real::scale_pow2`, the face-bound remainder). **The build-time lane's #5104** (lto off, −3.75 min, every row green at TIER=all) needs a main merge, then STYLE review.
+- 2026-10-14 09:15Z — **#5094 merged** (c54ec254, FULL). The ℝ⁴ pair walk reads an end lying on a domain side through r's certified face roots, narrowed by their own Krawczyk image.
+  - Its Interval-lane witness is red on main under the root-reading mutant.
+  - On main + #5059 + #5094: two_fits (all ε), far_seed, two_bilinear, branch_at and all_finds all pass.
+  - Filed: `a-pair-walk-end-at-a-domain-corner-refuses-undecided` (nurbs; conservative, not unsound) and `the-endpoint-census-cannot-see-reads-held-in-tuple-fields` (tint).
+  - **Step 3 with the two-split restriction (A) beats step 2:** shelling 126 vs 139 s, r1 64 vs 76 s. Rung counts and margins are identical; 0–0.37% of meets fall outside, against 69–88% for step 2's cut.
+  - **#5059** carries a compensated (double-word) midpoint, width ~16u² of the terms at a cancellation.
+  - Order: #5059 (main merge, then FULL) → step 3 (FULL).

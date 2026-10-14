@@ -3297,7 +3297,7 @@ mod tests {
         let sup = want.iter().map(|b| f64::from_bits(*b)).fold(0.0, f64::max);
         assert_eq!(
             sup.to_bits(),
-            1.018_060_029_513_911_7e-1_f64.to_bits(),
+            1.018_060_029_513_912e-1_f64.to_bits(),
             "the weights-2 net's sup bound is {sup:e}, not the rational arm's"
         );
         for k in [-2, -301, 299] {

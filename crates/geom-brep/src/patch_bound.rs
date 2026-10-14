@@ -57,9 +57,7 @@
 //!   piece's own direction — [`PatchCell::m_inf`].
 //!
 //! The cells are those pieces, [`RATIONAL_CERT_SPLITS`] per span
-//! direction rounded down to a count exact at the second order's
-//! degree `3p` ([`geom_core::spline::pieces::piece_count`]). Each
-//! piece is cut from the described net in interval arithmetic,
+//! direction, halved from the cell's quotients in interval arithmetic,
 //! restriction being exact in ℝ, so what the cells enclose is the
 //! described patch; there is no refined net on this arm. A
 //! direction of degree above 18 puts the second order over
@@ -111,8 +109,7 @@ use geom_core::spline::{
 };
 
 /// The fixed piece count of the RATIONAL arm: every nonempty span of
-/// every direction is read on this many exact dyadic pieces (rounded
-/// down to a count exact at the second order's degree, module docs). A
+/// every direction is read on this many equal pieces (module docs). A
 /// CONSTANT (D9: structure, never a data-dependent iteration), and this
 /// arm's own: `geom::curves`' rational meters count their pieces by
 /// their own constant, which prices one curve bound against the
@@ -362,9 +359,9 @@ pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundEr
 
 /// [`patch_cells`] on an EXPLICIT schedule, in **both** arms: the
 /// integral arm refines every nonempty span of every direction into
-/// `splits` equal pieces first, and the rational arm reads `splits`
-/// exact dyadic pieces per span direction (rounded down to a count
-/// exact at degree `3p`, module docs).
+/// `splits` equal pieces first, and the rational arm reads the largest
+/// power of two at most `splits` equal pieces per span direction
+/// (module docs).
 ///
 /// Why a consumer would ask for more than [`patch_cells`] gives: a
 /// cell's enclosure is as wide as its coefficients spread — on the
@@ -1392,15 +1389,13 @@ pub(crate) mod tests {
         assert_eq!(near, far, "a first-span cell read the last u row");
     }
 
-    /// **The cells are the second order's pieces.** The rational arm
-    /// counts its pieces at the second order's degree `3p`, where a
-    /// count stays exact to fewer splits than at `p`: a biquintic reads
-    /// `8` pieces per span direction at `16` splits (degree `15` is
-    /// past the `12` that `16` pieces reach), not the `16` its own
-    /// degree would take. The row pins the count and that the cells tile
-    /// the domain, each extent meeting the next end to end, so extents
-    /// counted at another degree than the pieces leave a gap or an
-    /// overlap.
+    /// **The cells are the second order's pieces, at the schedule's
+    /// count at any degree.** The rational arm halves each cell's
+    /// quotients, so a biquintic, whose second order sits at degree
+    /// `15`, reads all `16` pieces per span direction at `16` splits.
+    /// The row pins the count and that the cells tile the domain, each
+    /// extent meeting the next end to end, so extents counted otherwise
+    /// than the pieces leave a gap or an overlap.
     #[test]
     fn the_rational_cells_tile_each_span_at_the_second_orders_count() {
         let kv = KnotVector::clamped([vec![0.0; 6], vec![1.0; 6]].concat(), 5).expect("valid");
@@ -1415,7 +1410,7 @@ pub(crate) mod tests {
         }
         let n = NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid");
         let cells = patch_cells_refined(&n, RATIONAL_CERT_SPLITS).expect("covered");
-        assert_eq!(cells.len(), 8 * 8, "a biquintic's pieces at 16 splits");
+        assert_eq!(cells.len(), 16 * 16, "a biquintic's pieces at 16 splits");
         let ends = |axis: fn(&PatchCell) -> (f64, f64)| {
             let mut e: Vec<(f64, f64)> = cells.iter().map(axis).collect();
             e.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
@@ -1423,7 +1418,7 @@ pub(crate) mod tests {
             e
         };
         for (what, e) in [("u", ends(|c| c.u)), ("v", ends(|c| c.v))] {
-            assert_eq!(e.len(), 8, "{what}: {e:?}");
+            assert_eq!(e.len(), 16, "{what}: {e:?}");
             assert_eq!(e.first().map(|x| x.0), Some(0.0), "{what}: {e:?}");
             assert_eq!(e.last().map(|x| x.1), Some(1.0), "{what}: {e:?}");
             assert!(
@@ -1451,7 +1446,9 @@ pub(crate) mod tests {
     /// which a Möbius reparameterization makes genuinely curve in
     /// parameter. Dropping any of the integral arm's centred cross
     /// bound's three spread terms reads under a sampled magnitude; a
-    /// speed or `m_sup` loosened by a fifth reads over its box ceiling.
+    /// speed loosened by `1e-9` of itself reads over its box ceiling
+    /// (one far below the ceiling's `1e-12`, `1e-13` say, does not), and
+    /// `m_sup` loosened by a fifth.
     /// The rational arm's terms are the quotient statement's, whose own
     /// rows drop them (`geom_core::spline::derivative`).
     ///
@@ -1461,15 +1458,18 @@ pub(crate) mod tests {
     #[test]
     fn the_meter_sups_bound_every_sampled_magnitude() {
         use geom_core::interval::{dot, norm_sq};
-        // Measured worst over the fixtures at four splits per span, against
-        // the box reading in the fixture's own frame: the speeds at `1.0`×
-        // on every fixture (to an ulp: on the rational arm the box is the
-        // same quotient's coordinate range), `m_sup` at `1.024`× (the
-        // integral arm; at most `1.0`× on the rational fixtures, `0.90`×
-        // strong-`v`, where the box cross product loses the correlation
-        // the area quotient keeps). Each ceiling is that worst with about
-        // a tenth to spare.
-        const SPEED_CEILING: f64 = 1.1;
+        // The speeds are never above the box in ℝ, on either arm: each
+        // coefficient vector (the integral arm's derived control vectors,
+        // the rational arm's ratios `ã_k/b_k`) lies in the box, whose
+        // norm sup is the box reading. So the speed ceiling is the claim
+        // itself, `1` plus rounding: measured at most `1 + 4.5e-16`.
+        // `m_sup` has no such claim on the integral arm — the cross of two
+        // hulls is not the box of the cross — and measures `1.024`× there
+        // (at most `1.0`× on the rational fixtures, `0.90`× strong-`v`,
+        // where the box cross product loses the correlation the area
+        // quotient keeps); its ceiling is that worst with about a tenth to
+        // spare.
+        const SPEED_CEILING: f64 = 1.0 + 1e-12;
         const M_CEILING: f64 = 1.13;
         let names = ["‖S_u‖", "‖S_v‖", "‖S_u × S_v‖"];
         for (name, n) in [

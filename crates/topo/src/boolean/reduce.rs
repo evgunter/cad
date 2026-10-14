@@ -58,7 +58,7 @@
 //! maximal-faces gate ([`gate_maximal_faces`]: no operand carries two
 //! coplanar neighbours).
 
-use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Sign};
+use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use super::boxes;
 use super::circle_roots::CircleRoots;
@@ -72,8 +72,9 @@ use crate::coincidence::{Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::replace_face::ReplaceFaceError;
-use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
+use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, PlaneSide as SplitSide};
 use crate::validate::decide;
+use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
 use geom_core::Tol;
 
 /// Which candidate-generation path the reduction sweep runs — the
@@ -761,6 +762,90 @@ pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
     }
 }
 
+/// A vertex of the swept solid `x` against the planar `face` of the
+/// other, `y`, at its offset from the face's plane through `origin`
+/// along the stored `normal` the door reads its side by: the split's
+/// rule ([`crate::vertex_section::decide_vertex_on_plane`]). The face's
+/// outward normal is read into the section table as a unit direction
+/// over the face's reach ([`super::separating::planar_axis`]), and a
+/// far vertex of `x` takes its side from its own offset, under this
+/// door's name.
+fn vertex_face_side<T: Decide>(
+    (x, (vertex, at)): (&Body<T>, (VertexKey, Point3<T>)),
+    (y, face, plane): (&Body<T>, FaceKey, &PlaneDesc<T>),
+    (origin, normal): (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<geom_core::Decided, VertexRefusal> {
+    let section_plane = || {
+        let outward = crate::face_normal::face_outward_normal(y, face).ok_or(
+            VertexRefusal::Plane("the face's plane has no outward normal (not a plane)"),
+        )?;
+        let normal = super::separating::planar_axis(
+            y,
+            face,
+            || crate::census::face_reach(y, face, band),
+            band,
+        )
+        .ok_or(VertexRefusal::Plane(
+            "the face's outward normal does not read as a unit direction over its reach",
+        ))?;
+        Ok(SectionPlane {
+            origin: plane.origin,
+            normal,
+            reference: geom_brep::ReferenceNormal::of_face_outward(outward),
+        })
+    };
+    let far = |far: VertexKey| {
+        let q = x.resolve_vertex_point(far, crate::live::Proven);
+        let decided = geom_core::k_stats::decide_reported(
+            "bool_vertex_face_side",
+            Margin::of(crate::sector_shape::plane_offset(
+                plane.origin,
+                plane.normal,
+                q,
+            )),
+            band,
+        )
+        .map_err(VertexRefusal::Undecided)?;
+        Ok(match decided.sign {
+            Sign::Negative => SplitSide::Below,
+            Sign::Positive => SplitSide::Above,
+            Sign::Zero => SplitSide::On,
+        })
+    };
+    let offset = Offset {
+        value: crate::sector_shape::plane_offset_rounded(origin, normal, at),
+        normal,
+    };
+    crate::vertex_section::decide_vertex_on_plane(
+        "bool_vertex_face_side",
+        x,
+        (vertex, at),
+        section_plane,
+        (offset, far),
+        band,
+    )
+}
+
+/// The Boolean's refusal of a vertex the rule could not place on a
+/// planar face, `read` being the declaration read of the pair.
+fn vertex_refusal(refusal: VertexRefusal, read: DeclarationRead) -> BooleanError {
+    match refusal {
+        VertexRefusal::Undecided(diag) => {
+            BooleanError::coincidence(Coincide::VertexOnFace, read, diag)
+        }
+        VertexRefusal::Walk(crate::splitting::SplitReduceError::SliverSector {
+            reading: crate::splitting::SectorReading::Escalated(diag),
+            ..
+        }) => BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag),
+        VertexRefusal::Walk(_) => BooleanError::ClassificationInvariant {
+            what: "the neighbourhood walk refused a vertex of an operand at rest (a null edge \
+                   or a degenerate chord where the operand gate admits none)",
+        },
+        VertexRefusal::Plane(what) => BooleanError::ClassificationInvariant { what },
+    }
+}
+
 /// F7: the maximal-faces precondition through the coincidence ladder —
 /// same surface key, or Same±-oriented planes its margins decide one
 /// ([`super::oriented_plane_eq`]), across any edge ⇒
@@ -1171,23 +1256,26 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // from the offset along the OUTWARD normal only by the
                     // face's sense bit, so whether an end is ON the plane
                     // reads the same either way.
-                    let carrier = y
-                        .get_face(face)
-                        .and_then(|f| y.get_surface(f.surface))
-                        .ok_or(BooleanError::ClassificationInvariant {
+                    let Some(&geom::Surface::Plane {
+                        origin: chart_origin,
+                        normal: chart_normal,
+                        ..
+                    }) = y.get_face(face).and_then(|f| y.get_surface(f.surface))
+                    else {
+                        return Err(BooleanError::ClassificationInvariant {
                             what: "planar lane: the face's plane resolved above",
-                        })?;
-                    let side = |p: Point3<T>| {
-                        geom_core::k_stats::decide_reported(
-                            "bool_vertex_face_side",
-                            Margin::of(geom_brep::implicit_residual(carrier, p)),
+                        });
+                    };
+                    let side = |w: VertexKey, p: Point3<T>| {
+                        vertex_face_side(
+                            (x, (w, p)),
+                            (y, face, &plane),
+                            (chart_origin, chart_normal),
                             band,
                         )
-                        .map_err(|diag| {
-                            BooleanError::coincidence(Coincide::VertexOnFace, read, diag)
-                        })
+                        .map_err(|refusal| vertex_refusal(refusal, read))
                     };
-                    let (d1, d2) = (side(pu)?, side(pv)?);
+                    let (d1, d2) = (side(u, pu)?, side(v, pv)?);
                     let (s1, s2) = (d1.sign, d2.sign);
                     // The off end must lie where a parent's cover puts it.
                     let off_end_admitted = || {
@@ -1334,19 +1422,19 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         }
                         // No interior root lands in the face:
                         // endpoint processing only.
-                        let side = |p: Point3<T>| {
-                            geom_core::k_stats::decide_reported(
-                                "bool_vertex_face_side",
-                                Margin::of((p - plane.origin).dot(plane.normal)),
+                        let side = |w: VertexKey, p: Point3<T>| {
+                            vertex_face_side(
+                                (x, (w, p)),
+                                (y, face, &plane),
+                                (plane.origin, plane.normal),
                                 band,
                             )
                         };
                         let read =
                             edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
-                        let on_face =
-                            |diag| BooleanError::coincidence(Coincide::VertexOnFace, read, diag);
-                        let s1 = side(pu).map_err(on_face)?;
-                        let s2 = side(pv).map_err(on_face)?;
+                        let on_face = |refusal| vertex_refusal(refusal, read);
+                        let s1 = side(u, pu).map_err(on_face)?;
+                        let s2 = side(v, pv).map_err(on_face)?;
                         let mut hit = false;
                         if s1.sign == Sign::Zero {
                             hit |= vertex_on_face(
@@ -1365,17 +1453,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                 }
             }
-            let side = |p: Point3<T>| {
-                geom_core::k_stats::decide_reported(
-                    "bool_vertex_face_side",
-                    Margin::of((p - plane.origin).dot(plane.normal)),
+            let side = |w: VertexKey, p: Point3<T>| {
+                vertex_face_side(
+                    (x, (w, p)),
+                    (y, face, &plane),
+                    (plane.origin, plane.normal),
                     band,
                 )
             };
             let read = edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
-            let on_face = |diag| BooleanError::coincidence(Coincide::VertexOnFace, read, diag);
-            let d1 = side(pu).map_err(on_face)?;
-            let d2 = side(pv).map_err(on_face)?;
+            let on_face = |refusal| vertex_refusal(refusal, read);
+            let d1 = side(u, pu).map_err(on_face)?;
+            let d2 = side(v, pv).map_err(on_face)?;
             match (d1.sign, d2.sign) {
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
                     // Proper plane crossing: locate p on the carrier and
@@ -3279,9 +3368,11 @@ fn wall_crossing<T: Decide + Bounds>(
     // a kernel bug, refused — never a zero speed that would read every
     // root as at the span's end.
     let speed_at = |t: T| {
-        crate::carrier_speed::speed_at(carrier, t).ok_or(BooleanError::ClassificationInvariant {
-            what: "a wall root's carrier is neither a line nor a conic",
-        })
+        geom_brep::carrier_speed::speed_at(carrier, t).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "a wall root's carrier is neither a line nor a conic",
+            },
+        )
     };
     let (count, roots) = match found {
         CircleRoots::Certified { count, thetas } => (count, thetas),
@@ -3473,10 +3564,11 @@ fn line_wall_roots_of<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, SpanVerdict<T>>, BooleanError> {
-    use super::solid_contain::{TorusRoots, WallRoots};
+    use super::solid_contain::WallRoots;
+    use geom_brep::quartic::QuarticRoots;
     let span = (t1 - t0).abs();
     let two = |ts: [T; 2]| {
-        let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
+        let mut thetas = [T::zero(); 2 * geom_brep::half_angle::MAX_DEGREE];
         thetas[..2].copy_from_slice(&ts);
         CircleRoots::Certified { count: 2, thetas }
     };
@@ -3530,14 +3622,14 @@ fn line_wall_roots_of<T: Decide>(
             decision: BooleanDecision::TorusRoots,
             diag,
         })? {
-            TorusRoots::Miss => CircleRoots::Miss,
-            TorusRoots::Uncertain => CircleRoots::Uncertain,
-            TorusRoots::Certified { count, ts } => {
-                let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
+            QuarticRoots::Miss => CircleRoots::Miss,
+            QuarticRoots::Uncertain => CircleRoots::Uncertain,
+            QuarticRoots::Certified { count, ts } => {
+                let mut thetas = [T::zero(); 2 * geom_brep::half_angle::MAX_DEGREE];
                 thetas[..ts.len()].copy_from_slice(&ts);
                 CircleRoots::Certified { count, thetas }
             }
-            TorusRoots::CountDisagrees { .. } => {
+            QuarticRoots::CountDisagrees { .. } => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "the constructed roots of a quartic disagree in number with its \
                            certified count",
@@ -3642,7 +3734,7 @@ fn line_cone_roots<T: Decide>(
         Sign::Zero => return Ok(CircleRoots::Uncertain),
         Sign::Negative => return Ok(CircleRoots::Miss),
     }
-    let roots = super::solid_contain::quadratic_roots(a2, b2, c2, disc);
+    let roots = geom_brep::quartic::quadratic_roots(a2, b2, c2, disc);
     let two = T::from_f64(2.0);
     let speed = dir.norm();
     let (lo, hi) = (t0.min(t1), t0.max(t1));
@@ -3659,7 +3751,7 @@ fn line_cone_roots<T: Decide>(
             Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
         }
     }
-    let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
+    let mut thetas = [T::zero(); 2 * geom_brep::half_angle::MAX_DEGREE];
     thetas[..2].copy_from_slice(&roots);
     Ok(CircleRoots::Certified { count: 2, thetas })
 }
@@ -4384,9 +4476,7 @@ mod declaration_order_rows {
             pairs: class
                 .map(|class| vec![GluedPair::new(prism.side_faces[3], wall, class)])
                 .unwrap_or_default(),
-            records_a: Default::default(),
-            records_b: Default::default(),
-            verdicts: Default::default(),
+            ..Glue::none()
         };
         let declared = GluedPairs::<f64>::without_struts(&decls, Default::default());
         let mut acc = ContactAcc::default();
@@ -4549,9 +4639,7 @@ mod declaration_order_rows {
             pairs: class
                 .map(|class| vec![GluedPair::new(xw, yw, class)])
                 .unwrap_or_default(),
-            records_a: Default::default(),
-            records_b: Default::default(),
-            verdicts: Default::default(),
+            ..Glue::none()
         };
         let one = if one_carrier {
             [(xw, yw)].into_iter().collect()
@@ -5055,8 +5143,8 @@ mod edge_span_tests {
         let ellipse = geom::Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major: 1.0,
-            minor: 0.05,
+            semi_u: 1.0,
+            semi_v: 0.05,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let root = core::f64::consts::FRAC_PI_2 - 2e-8;
@@ -5435,8 +5523,8 @@ mod clearance_rows {
                 -0.888_958_285_986_655_8,
             ),
             axis,
-            major: 4.846_323_757_498_574,
-            minor: 0.207_528_397_062_063_02,
+            semi_u: 4.846_323_757_498_574,
+            semi_v: 0.207_528_397_062_063_02,
             u_ref: Vec3::new(
                 0.087_713_558_478_483_3,
                 0.789_303_434_737_465_2,
@@ -5499,8 +5587,8 @@ mod clearance_rows {
         let e = geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         };
         let x = Vec3::new(1.0, 0.0, 0.0);
@@ -5597,8 +5685,8 @@ mod clearance_rows {
                     geom::Curve3::Ellipse {
                         center,
                         axis: n,
-                        major,
-                        minor,
+                        semi_u: major,
+                        semi_v: minor,
                         u_ref,
                     }
                 };

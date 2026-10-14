@@ -225,7 +225,7 @@ pub enum OperandKeys {
 /// historical: a listed key may have been consumed by a later stage
 /// (zip scaffolding, merge absorption, discarded material) — consumers
 /// filter against the entities alive in `body` / chase the rows.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BooleanNaming {
     /// How operand A's keys map into the result.
     pub a_keys: OperandKeys,
@@ -321,6 +321,12 @@ pub struct BooleanNaming {
     /// clone keys, as `reduction_contacts`. Read off the classification,
     /// so a path that never classifies has none.
     pub edge_classes: Vec<super::EdgePieceClass>,
+    /// The meridian edges a sphere cut-in minted in each operand before
+    /// the op re-entered on the cut operands, A's then B's, in clone keys
+    /// as `edge_classes`. Each divides one operand face into two of its
+    /// pieces (`face_fragments_a`/`face_fragments_b`): a cut of the
+    /// face's chart, not an edge of the operand.
+    pub chart_cuts: [Vec<EdgeKey>; 2],
     /// The two vertices each of the classification's null edges joins,
     /// `(operand, below end, above end)` in clone keys as
     /// `edge_classes`: one point by construction, so a vertex and its
@@ -339,6 +345,41 @@ pub struct BooleanNaming {
     /// row's vertex and `gone` edge are dead, and its `kept` edge holds
     /// their interiors (maximal edges, `docs/DESIGN.md`'s merge stage).
     pub edge_joins: Vec<super::EdgeJoin>,
+}
+
+impl Default for BooleanNaming {
+    // Each lineage list names itself where it is made (`LineageRows`).
+    fn default() -> Self {
+        Self {
+            a_keys: Default::default(),
+            b_keys: Default::default(),
+            graft_vertices: Default::default(),
+            graft_edges: Default::default(),
+            graft_dead_edges: Default::default(),
+            graft_faces: Default::default(),
+            seam_edges: Default::default(),
+            vertex_merges: Fusions::new(crate::lineage::LineageRows::Fusions),
+            merge_groups: Default::default(),
+            substitutions: crate::lineage::Substitutions::new(
+                crate::lineage::LineageRows::Substitutions,
+            ),
+            merge_skipped: Default::default(),
+            face_fragments_a: crate::lineage::FaceDivisions::new(
+                crate::lineage::LineageRows::FaceDivisions,
+            ),
+            face_fragments_b: crate::lineage::FaceDivisions::new(
+                crate::lineage::LineageRows::FaceDivisions,
+            ),
+            reduction_contacts: Default::default(),
+            discards: Default::default(),
+            covered: Default::default(),
+            edge_classes: Default::default(),
+            chart_cuts: Default::default(),
+            null_copies: Default::default(),
+            cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
+            edge_joins: Default::default(),
+        }
+    }
 }
 
 impl BooleanNaming {
@@ -720,20 +761,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         connected.completed.iter().map(|p| p.b_face).collect(),
     ];
     let ledger = ledger(&red, decls, [&scaffold[0], &scaffold[1]])?;
-    let hung = red.hung.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
-    // The hung points in result keys: A's clone is the result's own, B's
-    // comes through the graft. The graft maps the points B's kept part
-    // holds, so a key it lacks held only vertices B discarded, and no
-    // vertex of the result sits on it.
-    let hung: Vec<_> = hung
-        .iter()
-        .map(|h| {
-            let [a_keys, b_keys] = &h.keys;
-            let kept_b = b_keys.iter().filter_map(|&k| fin.graft.points.get(k));
-            (h.hang, a_keys.iter().chain(kept_b).copied().collect())
-        })
-        .collect();
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
     // do not each re-derive the whole body, and `gate` below — tier 3
@@ -769,7 +797,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
     super::zip::share_points(&mut body, &points)?;
-    super::zip::refuse_split_hung_points(&body, &hung)?;
     // A pinch keeps one vertex per cone, so lumps that met only there
     // share no edge: each connected piece of a shell becomes a shell.
     let shells: Vec<crate::entity::ShellKey> = body
@@ -782,16 +809,22 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let vertex_merges = desc.vertex_merges();
     let cone_splits = cones.splits().clone();
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
+    let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
+    let mut discarded = [BTreeSet::new(), BTreeSet::new()];
+    for row in &fin.discards {
+        discarded[usize::from(row.operand == Operand::B)].insert(row.face);
+    }
+    let recorded = carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
     let (merged, edge_joins) = finish_output(
         &mut body,
         &mut desc,
         &declared_pairs,
         &seam_edges,
+        &recorded,
         band,
         tol,
     )?;
     let output = output_substitutions(&merged, &edge_joins)?;
-    let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
     let zipped = Zipped {
         operands: [a, b],
         _cones: cones,
@@ -803,10 +836,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // untouched bit-identically.
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
-    let mut discarded = [BTreeSet::new(), BTreeSet::new()];
-    for row in &fin.discards {
-        discarded[usize::from(row.operand == Operand::B)].insert(row.face);
-    }
     let (contacts, coincidences) = carry(
         &body,
         &ledger,
@@ -816,6 +845,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         Some(zipped),
         band,
     )?;
+    share_recorded_points(&mut body, &contacts, &coincidences)?;
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
     interior_loops?;
@@ -840,6 +870,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         discards: fin.discards,
         covered,
         edge_classes,
+        chart_cuts: [Vec::new(), Vec::new()],
         null_copies,
         cone_splits,
         edge_joins,
@@ -964,9 +995,26 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // and graft other shells, and `carve` keeps every kept
             // entity's key (`splitting::finish`'s `carve`), so those
             // names still hold on `a2` and `b2`.
-            apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
-            return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)
-                .map(|result| Joined::Answered(Box::new(result)));
+            let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
+            let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
+            if let BooleanResult::Body(out) = &mut result {
+                // The cut-ins divided faces before the join did, in the
+                // operand keys the join's rows are in.
+                let n = &mut out.naming;
+                for ((made, joined), edges) in cuts
+                    .into_iter()
+                    .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
+                    .zip(&mut n.chart_cuts)
+                {
+                    *joined = crate::lineage::FaceDivisions::from_rows(
+                        made.divisions
+                            .into_iter()
+                            .chain(joined.rows().iter().copied()),
+                    )?;
+                    edges.extend(made.edges);
+                }
+            }
+            return Ok(Joined::Answered(Box::new(result)));
         }
         // The curved kinds the extent scan leaves: every torus,
         // cylinder and cone face's pairs, certified per pair by the
@@ -1787,11 +1835,11 @@ pub(super) fn merge_rows(
         .iter()
         .map(|g| match output.get(Cell::Face(g.kept)) {
             None => Ok((g.kept, g.absorbed.clone())),
-            Some(_) => Err(crate::lineage::RowRefusal {
-                rows: crate::lineage::LineageRows::Substitutions,
-                defect: crate::lineage::RowDefect::NamesRetired,
-                key: Cell::Face(g.kept),
-            }
+            Some(_) => Err(crate::lineage::RowRefusal::of(
+                output.tag(),
+                crate::lineage::RowDefect::NamesRetired,
+                Cell::Face(g.kept),
+            )
             .into()),
         })
         .collect()
@@ -1809,7 +1857,7 @@ pub(super) fn output_substitutions(
     m: &crate::merge_faces::MergeCoplanarOutcome,
     joins: &[super::EdgeJoin],
 ) -> Result<crate::lineage::Substitutions, BooleanError> {
-    let mut rows = crate::lineage::Substitutions::default();
+    let mut rows = crate::lineage::Substitutions::new(crate::lineage::LineageRows::Substitutions);
     let merged = m
         .groups
         .iter()
@@ -2319,6 +2367,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     desc: &mut Descendants,
     declared: &[(SurfaceKey, SurfaceKey)],
     seam_edges: &[EdgeKey],
+    recorded: &BTreeSet<VertexKey>,
     band: Band,
     tol: Tol,
 ) -> Result<
@@ -2344,7 +2393,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     let merged = body.merge_coplanar_faces_unjoined(declared, tol)?;
     desc.absorb_merge(&merged)?;
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
-    let edge_joins = join_stage(body, desc, band, tol)?;
+    let edge_joins = join_stage(body, desc, recorded, band, tol)?;
     Ok((merged, edge_joins))
 }
 
@@ -2799,7 +2848,6 @@ impl KeyView<'_> {
 /// drops ONLY when its coincidence is consumed (entity gone, not
 /// renamed). Re-derivation at the 3′ gate is rejected as
 /// scan-to-bless (F1); the descendants ARE the mint-time knowledge.
-#[derive(Default)]
 pub(super) struct Descendants {
     /// The vertex fusions, in mint order, result keys: the zips'
     /// ([`Self::absorb_fusions`]).
@@ -2834,6 +2882,25 @@ pub(super) struct Descendants {
     /// edge → the joined edge. Checked where each row is added, so it
     /// cannot cycle.
     cells: crate::lineage::Substitutions,
+}
+
+impl Default for Descendants {
+    // Each lineage list names itself where it is made (`LineageRows`).
+    fn default() -> Self {
+        Self {
+            vertices: Fusions::new(crate::lineage::LineageRows::Fusions),
+            fused: Default::default(),
+            copies: Default::default(),
+            along: Default::default(),
+            fragments: [(); 2].map(|()| {
+                crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions)
+            }),
+            absorbed: [(); 2].map(|()| {
+                crate::lineage::Substitutions::new(crate::lineage::LineageRows::Substitutions)
+            }),
+            cells: crate::lineage::Substitutions::new(crate::lineage::LineageRows::Substitutions),
+        }
+    }
 }
 
 impl Descendants {
@@ -3247,7 +3314,7 @@ pub(super) struct Ledger {
     /// the finish discards any.
     incidence: [Incidence; 2],
     /// Each operand's null-edge copies.
-    copies: [crate::lineage::VertexCopies; 2],
+    copies: [crate::lineage::NullEdgeCopies; 2],
 }
 
 /// **The faces around each cell of an operand's clone**, read before
@@ -3307,33 +3374,17 @@ impl Incidence {
     }
 }
 
-/// The keys of `edge`'s pieces after the reduction's splits
-/// ([`super::EdgeSplit`]), in order along it (a split keeps the
-/// parent's leading span, so its child is the piece right after the
-/// parent), and every vertex a split minted on it.
-fn split_pieces(
-    side: Operand,
-    splits: &super::EdgeSplits,
-    edge: EdgeKey,
-) -> (Vec<EdgeKey>, Vec<VertexKey>) {
-    let mut keys = vec![edge];
-    let mut minted = Vec::new();
-    for split in splits.rows().iter().filter(|s| s.operand == side) {
-        if let Some(i) = keys.iter().position(|&k| k == split.parent) {
-            keys.insert(i + 1, split.child);
-            minted.push(split.vertex);
-        }
-    }
-    (keys, minted)
-}
-
 /// The vertex `v` of operand `side`'s clone is a copy of: where a null
 /// edge minted `v` at another vertex, that vertex, read back through
 /// every null edge that hangs at a copy; `v` itself where none did. A
 /// decision's cells name the op's input, which holds no copy. Total:
 /// the copies were checked as each was recorded, so they cannot cycle
-/// ([`crate::lineage::VertexCopies`]).
-fn uncopied(copies: &[crate::lineage::VertexCopies; 2], side: Operand, v: VertexKey) -> VertexKey {
+/// ([`crate::lineage::NullEdgeCopies`]).
+fn uncopied(
+    copies: &[crate::lineage::NullEdgeCopies; 2],
+    side: Operand,
+    v: VertexKey,
+) -> VertexKey {
     copies[usize::from(side == Operand::B)].root(v)
 }
 
@@ -3710,7 +3761,7 @@ fn operand_fate<T: Real>(
     let (pieces, minted, divided): (Vec<Cell>, Vec<Cell>, bool) = match x {
         Cell::Vertex(v) => (copies(v).collect(), Vec::new(), false),
         Cell::Edge(e) => {
-            let (keys, ms) = split_pieces(side, &ledger.splits, e);
+            let (keys, ms) = ledger.splits.pieces(side, e);
             let divided = keys.len() > 1;
             (
                 keys.into_iter().map(Cell::Edge).collect(),
@@ -3855,10 +3906,55 @@ fn imaged<T: Real>(
     Ok(out)
 }
 
+/// The result's vertices an operand's carried vertex-vertex records
+/// name, read through [`operand_fate`] as [`carried`] reads them, before
+/// the output stage's join: the vertices whose touch a record of the
+/// result will name though the join runs an edge through it
+/// (`edge_join::free_vertices`).
+///
+/// # Errors
+///
+/// As [`operand_fate`].
+fn carried_vertices<T: Real>(
+    body: &Body<T>,
+    ledger: &Ledger,
+    views: [&KeyView<'_>; 2],
+    desc: &Descendants,
+    discarded: [&BTreeSet<FaceKey>; 2],
+) -> Result<BTreeSet<VertexKey>, BooleanError> {
+    let mut back: Vec<Back> = Vec::new();
+    for (s, side) in [Operand::A, Operand::B].into_iter().enumerate() {
+        for &(pair, _) in &ledger.carried[s] {
+            if let [x @ Cell::Vertex(_), y @ Cell::Vertex(_)] = pair {
+                for c in [x, y] {
+                    operand_fate(
+                        body,
+                        ledger,
+                        (side, views[s]),
+                        desc,
+                        discarded[s],
+                        c,
+                        &mut back,
+                    )?;
+                }
+            }
+        }
+    }
+    Ok(back
+        .iter()
+        .filter_map(|b| match b.result {
+            Cell::Vertex(v) => Some(v),
+            _ => None,
+        })
+        .collect())
+}
+
 /// **A result the seams were zipped into**, with its two operands: the
 /// only path that leaves an op's copies of one vertex on one point key
-/// (the join's null-edge copies, the zip's split per cone), so the only
-/// one [`carry`] reads pinches for. It holds the zip's
+/// (the join's null-edge copies, the zip's split per cone) when
+/// [`carry`] runs, so the only one it reads pinches for. The keys
+/// [`share_recorded_points`] ties come after the carry, and are read by
+/// no pinch row. It holds the zip's
 /// [`super::zip::ConesSplit`], which only `zip::split_cones` builds.
 pub(super) struct Zipped<'a, T: Real> {
     operands: [&'a Body<T>; 2],
@@ -3869,15 +3965,16 @@ pub(super) struct Zipped<'a, T: Real> {
 /// ledger's pending rows, ascending: each decided row with a vertex end
 /// whose live descendant shares its point key with another live vertex,
 /// where not every vertex on that key descends from an operand vertex
-/// that already shared its key. Two vertices on one point key are an
-/// op's copies of one vertex: the join's null-edge copies
-/// ([`Descendants::copies_of`]) or the zip's split per cone
-/// (`zip::split_cones`), so pieces of the result touch there with no
-/// record between them (D1's structural sharing), and the row that put
-/// the vertex on the other operand's cell is the coincidence that made
-/// them touch (DESIGN, the reduction's coincidence discipline). Copies
-/// an operand already held are its own structure, which no decision of
-/// this op made.
+/// that already shared its key. When the carry runs, two vertices on
+/// one point key the op made are its copies of one vertex: the join's
+/// null-edge copies ([`Descendants::copies_of`]) or the zip's split per
+/// cone (`zip::split_cones`), so pieces of the result touch there with
+/// no record between them (D1's structural sharing), and the row that
+/// put the vertex on the other operand's cell is the coincidence that
+/// made them touch (DESIGN, the reduction's coincidence discipline).
+/// Keys an operand already shared are its own structure, which no
+/// decision of this op made: its copies, or two corners an earlier
+/// boolean decided one point and recorded ([`share_recorded_points`]).
 fn pinch_rows<T: Real>(
     body: &Body<T>,
     operands: [&Body<T>; 2],
@@ -3930,6 +4027,85 @@ fn pinch_rows<T: Real>(
         }
     }
     Ok(out)
+}
+
+/// **The output stage's one key rule**: the vertices of every
+/// vertex-vertex record of the result move onto one point key
+/// ([`record_classes`]), on every path a boolean builds by. Run
+/// after [`carry`], on the records the result ships.
+///
+/// # Errors
+///
+/// As [`record_classes`] and `zip::share_points`.
+fn share_recorded_points<T: Decide>(
+    body: &mut Body<T>,
+    contacts: &ContactRecords,
+    coincidences: &[crate::Coincidence],
+) -> Result<(), BooleanError> {
+    let classes = record_classes(body, contacts, coincidences)?;
+    super::zip::share_points(body, &classes)
+}
+
+/// **Two vertices a record says touch sit on one point key.** A
+/// boolean that decides from values that two vertices of its operands
+/// coincide puts them on one point key in its result, whether they are
+/// cones of one solid's pinch or touching corners of two solids in an
+/// assembly. A vertex-vertex record of the result states that the two
+/// are one point: the op decided it (the carry refuses a record no
+/// decision backs, and every decision it emits decided its margin
+/// Zero), or an operand carried it in and the carry confirmed it by the
+/// census's own read (`records::landings`, which refuses a carried
+/// record whose cells do not meet as the caller's stale record). So
+/// every key the records reach, through their pairs and through the
+/// keys their vertices share, names one point, and the classes of two
+/// or more keys are returned for `zip::share_points`. No position is
+/// read here: the record is the premise.
+/// The records themselves stay, citing their decisions, which is what
+/// the `unproven-coincidence` lint reads.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where a record's vertex does not
+/// resolve in `body`.
+fn record_classes<T: Real>(
+    body: &Body<T>,
+    contacts: &crate::ContactRecords,
+    coincidences: &[crate::Coincidence],
+) -> Result<Vec<super::zip::PointClass>, BooleanError> {
+    let key = |v: VertexKey| {
+        body.get_vertex(v)
+            .map(|d| d.point)
+            .ok_or(BooleanError::JoinDesync {
+                what: "a vertex-vertex record names a vertex the result does not hold",
+            })
+    };
+    let mut roots = super::zip::Roots::new();
+    for (a, b) in contacts.vertex_vertex() {
+        roots.union(key(a)?, key(b)?);
+    }
+    #[cfg_attr(not(feature = "sweep-testing"), allow(unused_mut))]
+    let mut classes = roots.classes();
+    // The margins each class's records cite, for the test witness
+    // (`take_shared_points`).
+    #[cfg(feature = "sweep-testing")]
+    for row in contacts.rows() {
+        let crate::ContactKind::VertexVertex(a, _) = row.kind() else {
+            continue;
+        };
+        let Some(class) = classes.get_mut(&roots.find(key(a)?)) else {
+            continue;
+        };
+        for cite in row.cites.iter() {
+            if let crate::Backing::Decided(k) = cite
+                && let Some(c) = coincidences.get(k as usize)
+            {
+                class.margins.push(c.margin);
+            }
+        }
+    }
+    #[cfg(not(feature = "sweep-testing"))]
+    let _ = coincidences;
+    Ok(classes.into_values().collect())
 }
 
 /// The records `carry_rows` left, their decisions and `pinched`'s
@@ -4001,10 +4177,8 @@ pub(super) fn input_cell((input, cell): End, splits: &super::EdgeSplits) -> crat
     let root = |edge: EdgeKey| splits.root(input, edge);
     let cell = match cell {
         Cell::Vertex(v) => splits
-            .rows()
-            .iter()
-            .find(|s| s.operand == input && s.vertex == v)
-            .map_or(cell, |s| Cell::Edge(root(s.parent))),
+            .minted_on(input, v)
+            .map_or(cell, |parent| Cell::Edge(root(parent))),
         Cell::Edge(e) => Cell::Edge(root(e)),
         // The sweep splits edges and never a face: every pending row is
         // written before the insertion mints a face, so a face key in the
@@ -5989,13 +6163,15 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// ([`super::sphere_region`]), and a circle whose crossings lie on an
 /// earlier cut's meridian takes no cut of its own, the crossing layer
 /// meeting it there as it meets a seam.
+///
+/// Returns what the cuts made in each operand, A's then B's.
 fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     a: &mut Body<T>,
     b: &mut Body<T>,
     cut_ins: &[SphereCutIn<T>],
     band: Band,
     tol: Tol,
-) -> Result<(), BooleanError> {
+) -> Result<CutsPerOperand, BooleanError> {
     const ROWS: super::circle_roots::FirstHarmonicRows = super::circle_roots::FirstHarmonicRows {
         noise: "bool_sphere_cut_roots_noise",
         coaxial: "bool_sphere_cut_roots_coaxial",
@@ -6007,6 +6183,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     // The faces each scanned face has been cut into so far, beside its
     // own key: `(operand, scanned face, piece)`.
     let mut pieces: Vec<(Operand, FaceKey, FaceKey)> = Vec::new();
+    let mut made: CutsPerOperand = Default::default();
     for cut in cut_ins {
         let body = match cut.operand {
             Operand::A => &mut *a,
@@ -6409,12 +6586,27 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             tol,
         )?;
         pieces.push((cut.operand, cut.face, created.face));
+        let side = &mut made[usize::from(cut.operand == Operand::B)];
+        side.divisions.push((created.face, face));
+        side.edges.push(created.edge);
     }
     for body in [a, b] {
         crate::pcurves::mint_pcurves(body, tol)
             .map_err(|source| BooleanError::Pcurves { source })?;
     }
-    Ok(())
+    Ok(made)
+}
+
+/// What [`apply_cut_ins`] made in each operand, A's then B's.
+type CutsPerOperand = [ChartCuts; 2];
+
+/// What [`apply_cut_ins`] made in one operand.
+#[derive(Default)]
+struct ChartCuts {
+    /// `(new face, divided-from face)`, in mint order.
+    divisions: Vec<(FaceKey, FaceKey)>,
+    /// The meridian edge each cut minted.
+    edges: Vec<EdgeKey>,
 }
 
 /// Per-shell classification of one operand's clone against the other
@@ -6563,26 +6755,37 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let declared_pairs =
                 declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
             let mut desc = Descendants::default();
-            let (merged, edge_joins) =
-                finish_output(&mut body, &mut desc, &declared_pairs, &[], band, tol)?;
-            let output = output_substitutions(&merged, &edge_joins)?;
-            crate::pcurves::mint_pcurves(&mut body, tol)
-                .map_err(|source| BooleanError::Pcurves { source })?;
             let none = BTreeSet::new();
             let ledger = ledger(red, decls, [&none, &none])?;
+            let views = [&KeyView::Direct, &KeyView::Graft(&graft)];
             let discarded = [
                 faces_outside(&red.a, &a_keep),
                 faces_outside(&red.b, &b_keep),
             ];
+            let recorded =
+                carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
+            let (merged, edge_joins) = finish_output(
+                &mut body,
+                &mut desc,
+                &declared_pairs,
+                &[],
+                &recorded,
+                band,
+                tol,
+            )?;
+            let output = output_substitutions(&merged, &edge_joins)?;
+            crate::pcurves::mint_pcurves(&mut body, tol)
+                .map_err(|source| BooleanError::Pcurves { source })?;
             let (contacts, coincidences) = carry(
                 &body,
                 &ledger,
-                [&KeyView::Direct, &KeyView::Graft(&graft)],
+                views,
                 &desc,
                 [&discarded[0], &discarded[1]],
                 None,
                 band,
             )?;
+            share_recorded_points(&mut body, &contacts, &coincidences)?;
             let body = gate(body, band, tol)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
             let naming = BooleanNaming {
@@ -6647,10 +6850,6 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     // through the kept one is `covered`; the surviving operand's
     // CARRIED records still apply.
     let mut desc = Descendants::default();
-    let (merged, edge_joins) = finish_output(&mut body, &mut desc, &[], &[], band, tol)?;
-    let output = output_substitutions(&merged, &edge_joins)?;
-    crate::pcurves::mint_pcurves(&mut body, tol)
-        .map_err(|source| BooleanError::Pcurves { source })?;
     let (a_view, b_view) = match kind {
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
@@ -6661,6 +6860,17 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         BooleanResultKind::OperandA => [faces_outside(&red.a, keep), faces_outside(&red.b, &[])],
         _ => [faces_outside(&red.a, &[]), faces_outside(&red.b, keep)],
     };
+    let recorded = carried_vertices(
+        &body,
+        &ledger,
+        [&a_view, &b_view],
+        &desc,
+        [&discarded[0], &discarded[1]],
+    )?;
+    let (merged, edge_joins) = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
+    let output = output_substitutions(&merged, &edge_joins)?;
+    crate::pcurves::mint_pcurves(&mut body, tol)
+        .map_err(|source| BooleanError::Pcurves { source })?;
     let (contacts, coincidences) = carry(
         &body,
         &ledger,
@@ -6670,6 +6880,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         None,
         band,
     )?;
+    share_recorded_points(&mut body, &contacts, &coincidences)?;
     let body = gate(body, band, tol)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {
@@ -7841,7 +8052,7 @@ mod tests {
 
         let mut corrupt = Descendants::default();
         corrupt.vertices.push((a, b)).unwrap();
-        let mut later = super::Fusions::default();
+        let mut later = super::Fusions::new(crate::lineage::LineageRows::Fusions);
         later.push((c, a)).unwrap();
         assert!(
             matches!(
@@ -9362,7 +9573,8 @@ mod found_on_a_divided_face {
         )]
         .into_iter()
         .collect();
-        let mut divisions = crate::lineage::FaceDivisions::default();
+        let mut divisions =
+            crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
         for row in rows {
             divisions.push(row).unwrap();
         }
@@ -9529,7 +9741,8 @@ mod found_on_a_divided_face {
         )]
         .into_iter()
         .collect();
-        let mut divisions = crate::lineage::FaceDivisions::default();
+        let mut divisions =
+            crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
         divisions.push((other, top)).unwrap();
         let mut desc = Descendants::default();
         desc.substitute((Cell::Vertex(taken.vertex), Cell::Edge(edge)))

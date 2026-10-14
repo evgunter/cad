@@ -104,6 +104,10 @@ mod a_tangent_arc_at_other_boolean_vertices;
 mod a_thin_cap_keeps_its_digits;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
+#[path = "a_vertex_on_a_grazing_plane.rs"]
+mod a_vertex_on_a_grazing_plane;
+#[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
+mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
 #[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
@@ -393,6 +397,8 @@ mod contained_flush_cylinder;
 mod contfp_reads_arcs_on_their_carriers;
 #[path = "copied_carriers_at_interval.rs"]
 mod copied_carriers_at_interval;
+#[path = "corner_patch_chart_poles.rs"]
+mod corner_patch_chart_poles;
 #[path = "ellipse_torus.rs"]
 mod ellipse_torus;
 #[path = "encl_curved_loft_shell.rs"]
@@ -670,6 +676,8 @@ mod strut_cover_on_cylinder_pairs;
 
 #[path = "run_walls_built.rs"]
 mod run_walls_built;
+#[path = "section_ellipse_seam_poses.rs"]
+mod section_ellipse_seam_poses;
 #[path = "split_across_a_revolve_seam.rs"]
 mod split_across_a_revolve_seam;
 #[path = "split_along_a_face_plane.rs"]

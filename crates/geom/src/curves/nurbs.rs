@@ -176,11 +176,9 @@ use crate::net;
 
 /// The speed meter's piece schedule (D9: structure, never a decision):
 /// both of `speed_lower_bound`'s piece readings and `speed_upper_bound`
-/// read each nonempty span as this many equal pieces, or as the largest
-/// power of two below it whose weights are exact
-/// ([`geom_core::spline::pieces::piece_count`]): 32 pieces to degree 9,
-/// 16 to 12, 8 to 16, 4 to 24, 2 to 47. The integral reading counts for
-/// the derivative's degree `p − 1`, the rational one for `p`.
+/// read each nonempty span as this many equal pieces, at every degree,
+/// halved from the quotient formed once over the span
+/// ([`geom_core::spline::derivative::speed_pieces`]).
 /// `tests/curves/swaying_corner_meter.rs` pins what it buys on a
 /// swaying corner, where each doubling of the count roughly doubles
 /// the reach (on other nets a finer schedule can read lower: each

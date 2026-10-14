@@ -413,10 +413,10 @@ pub(crate) fn curvature_step(delta_s: f64, m: f64) -> f64 {
 }
 
 /// The per-chord parameter step for chord deviation ≤ `delta_s` on an
-/// ellipse with semi-axes `major` and `minor` in either order and sign
-/// (M5 PR 5; the stored semi-axes carry no order, `geom_brep::Conic`),
-/// capped at [`MAX_ANGULAR_STEP`]. Below, `major` and `minor` name the
-/// larger and the smaller MAGNITUDE.
+/// ellipse with semi-axes `semi_u` and `semi_v` in either order and sign
+/// (the stored semi-axes carry no order, `geom_brep::Conic`), capped at
+/// [`MAX_ANGULAR_STEP`]. Below, `major` and `minor` name the larger and
+/// the smaller MAGNITUDE.
 ///
 /// Certified-conservative from [`curvature_step`]: over a parameter
 /// span φ the arc length is `L ≤ major·φ` (`|dP/dθ| ≤ major`) and the
@@ -425,8 +425,8 @@ pub(crate) fn curvature_step(delta_s: f64, m: f64) -> f64 {
 /// `R_eff = major·(major/minor)²`. Coarser than the circle's exact
 /// sagitta near `major = minor` — conservative is the promised
 /// direction.
-pub(crate) fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
-    let (major, minor) = (major.abs().max(minor.abs()), major.abs().min(minor.abs()));
+pub(crate) fn ellipse_step(delta_s: f64, semi_u: f64, semi_v: f64) -> f64 {
+    let (major, minor) = geom::Curve3::semi_axes_by_size(semi_u, semi_v);
     let r_eff = major * (major / minor) * (major / minor);
     cap_angular(curvature_step(delta_s, r_eff))
 }

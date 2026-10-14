@@ -45,7 +45,14 @@
 //!   `face_reach` and its instance extents — read the same direction
 //!   through the same door (`census::Candidates::class`); they are
 //!   built from `face_reach`, not from these constructors, so the
-//!   inventory below does not count them.
+//!   inventory below does not count them. Pass 2′'s curved-edge class
+//!   (`census::Trees::curved`: [`edge_box`] of each curved edge, a
+//!   spline's control hull) reads the same direction: a loose box
+//!   admits a vertex to `census::curved::may_rest_on`, whose walk passes
+//!   a vertex every piece clears with no decision pushed. It costs that
+//!   walk, and a refusal only where the walk runs past its budget, which
+//!   reads the vertex as one that may rest on the span and hands it to
+//!   the reading.
 //! - `validate`'s check 9 (`ring_pairs`) PRUNES the same way: two
 //!   rings of one face whose hulled edge boxes clear are never handed
 //!   to the contact arms, and whether two rings meet is decided by those
@@ -2322,15 +2329,15 @@ pub(crate) fn edge_box_rule<T: Real>(
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => EdgeBoxRule::ConicAmplitude {
             carrier,
             center: *center,
             axis: *axis,
-            semi_u: *major,
-            semi_v: *minor,
+            semi_u: *semi_u,
+            semi_v: *semi_v,
             u_ref: *u_ref,
             params,
         },
@@ -2678,8 +2685,8 @@ pub(crate) mod tests {
         let carrier = Curve3::Ellipse {
             center: Point3::origin(),
             axis: normal,
-            major: r / alpha.cos(),
-            minor: r,
+            semi_u: r / alpha.cos(),
+            semi_v: r,
             u_ref,
         };
         let plane_surface = Surface::Plane {
@@ -3566,8 +3573,9 @@ pub(crate) mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts SEVEN: the pre-filter's `face_box` and
-        // `edge_box` reads (`census::Trees::build`, the pruning door),
+        // `census.rs` counts EIGHT: the pre-filter's `face_box` and
+        // `edge_box` reads and pass 2′'s curved-edge `edge_box` read
+        // (`census::Candidates::build`, the pruning door),
         // three rule reads of its own, and two that are not doors —
         // two rows in its test module call `face_box` to pin what a
         // described net carrying poison answers there. The number is stated with that content rather
@@ -3593,7 +3601,7 @@ pub(crate) mod tests {
             ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
-            ("census.rs", 7),
+            ("census.rs", 8),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),
@@ -5281,10 +5289,10 @@ pub(crate) mod tests {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
-            } => (*center, *u_ref * *major, axis.cross(*u_ref) * *minor),
+            } => (*center, *u_ref * *semi_u, axis.cross(*u_ref) * *semi_v),
             other => panic!("a conic sector's rim is a conic, got {other:?}"),
         }
     }

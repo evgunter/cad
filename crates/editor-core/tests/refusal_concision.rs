@@ -417,15 +417,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
-                equal_radii: false,
-            },
-        ),
-        (
-            "GermFrameCylinderPinch (equal radii)",
-            BooleanError::GermFrameCylinderPinch {
-                a_face: face,
-                b_face: face,
-                equal_radii: true,
             },
         ),
         (
@@ -633,13 +624,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::CrossingsAlongAContactLine {
                 a_vertex: VertexKey::default(),
                 b_vertex: VertexKey::default(),
-            },
-        ),
-        (
-            "PinchConesOnSeparateKeys",
-            BooleanError::PinchConesOnSeparateKeys {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
             },
         ),
         (

@@ -351,7 +351,8 @@ pub struct KvfsResult {
     pub killed_surface: Option<SurfaceKey>,
     /// The vertex's point (dead key), if killing the vertex orphaned it
     /// and it was removed; `None` if another vertex still references it
-    /// (an op's copies of one vertex share its point, `Body::mev_null`).
+    /// (an op's copies of one vertex share its point, `Body::mev_null`;
+    /// so do two vertices a boolean recorded as one point, `Body::share_point`).
     pub killed_point: Option<PointKey>,
 }
 

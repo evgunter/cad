@@ -23,6 +23,8 @@ N2 defines an obstacle as "a connected part of the parent's region". The far-sid
 
 The same premise covers a later split of a joined `kept` edge. That split climbs to `kept`, then follows `joined_from` into discards bordering a stretch it does not lie along.
 
+`Obstacles::record`'s `touches` walk has the same premise from the other end. An earlier step's seam the output stage joined is recorded as lying along the joined edge, whichever of the two the join kept (the `naming.joined_edge` extension of `d.seams`), so `earlier` holds the `kept` edge. A later chain edge whose split lineage (`Obstacles::up_lineage`) reaches that `kept` edge touches the earlier discard and is linked to it in `walls`, though it may lie along the stretch `kept` held before the join, not the joined seam's, which that discard does not border.
+
 **What guards this today:**
 - A gross over-join (join every discard of the parent) turns four `emit_union_borders` rows and `name_words_corpus` red.
 - No row covers a non-convex parent at a join.

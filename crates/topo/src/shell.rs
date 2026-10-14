@@ -1205,6 +1205,16 @@ pub struct RimNaming {
     /// source seam itself, with `side` `Void` its cavity twin (a row of
     /// [`ShellNaming::inner_edges`]). Empty on every other rim: a pole's
     /// seams are cut short, each kept whole under its key.
+    ///
+    /// Not a checked list of mints ([`crate::lineage::Minted`]): every
+    /// row's second column is the source seam, and with `side` `Outer`
+    /// the first piece keeps that very key, so its row maps the seam to
+    /// itself, which a mint list refuses. The rows are a map from each
+    /// piece to the seam it divides, written once per rim from two keys
+    /// the surgery holds. `Shelled::lineage` still reads them through
+    /// `lineage::roots` and `Descent` as if they were mints, which drops
+    /// the outer rim's seam and lists the void rim's twin among its own
+    /// pieces (`work/shell/shell-lineage-drops-an-outer-rims-divided-seam.md`).
     pub seam_pieces: Vec<(EdgeKey, EdgeKey)>,
 }
 
@@ -4396,7 +4406,7 @@ impl<T: Decide> ArcPiece<T> {
     fn ball(&self) -> (geom_core::Point3<T>, T) {
         let (t0, t1) = self.window;
         let centre = self.carrier.mid_point(t0, t1);
-        let radius = crate::bisect::reach(self.speed, (t0, t1));
+        let radius = geom_core::bisect::reach(self.speed, (t0, t1));
         let Some((hull_centre, hull_radius)) = self.hull else {
             return (centre, radius);
         };
@@ -4697,20 +4707,20 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Ellipse {
                                 center,
                                 ref axis,
-                                major,
-                                minor,
+                                semi_u,
+                                semi_v,
                                 u_ref,
-                            } => conic(center, axis, u_ref, major, minor),
+                            } => conic(center, axis, u_ref, semi_u, semi_v),
                             geom::Curve3::Spiric { .. } => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                crate::carrier_speed::speed_range(curve.carrier()).1,
+                                geom_brep::carrier_speed::speed_range(curve.carrier()).1,
                                 None,
                                 (t0, t1),
                                 edge.he_plus == he,
                             )),
                             geom::Curve3::Nurbs(_) => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                crate::carrier_speed::speed_range(curve.carrier()).1,
+                                geom_brep::carrier_speed::speed_range(curve.carrier()).1,
                                 crate::splitting::containment::carrier_ball(
                                     curve.carrier(),
                                     (t0, t1),
@@ -5233,7 +5243,7 @@ mod tests {
                     end,
                     curve: EdgeArc::Arc(ArcPiece::along(
                         carrier,
-                        crate::carrier_speed::speed_range(carrier).1,
+                        geom_brep::carrier_speed::speed_range(carrier).1,
                         crate::splitting::containment::carrier_ball(carrier, params)
                             .filter(|_| matches!(carrier, geom::Curve3::Nurbs(_))),
                         params,
