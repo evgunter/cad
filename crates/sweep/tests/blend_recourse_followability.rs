@@ -242,7 +242,7 @@ fn the_radius_recourse_reduces_to_a_radius_that_builds() {
 /// survives; the two setbacks are ONE chain's, so this is the
 /// non-splittable sentence. The reduced size builds.
 ///
-/// The sentence's other clause — "enlarge the support face" — is a
+/// The sentence's other clause — "enlarge the band's support faces" — is a
 /// different body, and is not pinned here.
 #[test]
 fn the_clearance_recourse_reduces_to_a_blend_size_that_builds() {
@@ -1266,29 +1266,17 @@ fn the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple() {
     );
 }
 
-/// The brick `[−2, 2]² × [0, 2.5]`'s top front edge, `y = −2, z = 2.5`,
-/// on `body` — the one line edge whose midpoint is there.
-fn top_front_edge(body: &Body<f64>) -> Vec<EdgeKey> {
-    let at = line_edges(body)
-        .into_iter()
-        .filter(|k| {
-            let g = body
-                .get_edge(*k)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(|g| g.certified())
-                .unwrap();
-            let (t0, t1) = g.params();
-            let m = g.carrier().eval((t0 + t1) / 2.0);
-            (m.y + 2.0).abs() < 1e-9 && (m.z - 2.5).abs() < 1e-9
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(at.len(), 1, "one top front edge");
-    at
+/// The brick `[−2, 2]² × [0, 2.5]`'s top front edge, `y = −2, z = 2.5`.
+fn top_front_edge(body: &Body<f64>) -> [EdgeKey; 1] {
+    [crate::band_planar_cut_off::edge(
+        body,
+        [-2.0, -2.0, 2.5],
+        [2.0, -2.0, 2.5],
+    )]
 }
 
-/// **The reorder leg of the clearance and ring recourses — "if the
-/// feature came after the edge, blend before it, re-picking the edges
-/// there".**
+/// **The clearance recourse's reorder leg — "if that face came after
+/// the edge, blend before it, re-picking the edges there".**
 ///
 /// A bore of radius `0.1` along `z` at `(0, −1.8)` crosses the band a
 /// `0.4` blend of the brick's top front edge puts there: its ring lies
@@ -1371,4 +1359,110 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
          the skew bore yet; once it does, this row flips to a build. Got {:?}",
         filleted.err()
     );
+}
+
+/// **The ring recourse's reorder leg, walked to a build.** A bore of
+/// radius `a = 0.02` along the unit cube's `(1, 1)` edge pokes `0.01`
+/// across the trimline into the kept material: it crosses the band and
+/// refuses `RingClearance` at the cap, carrying `FILLET3_RING_RECOURSE`,
+/// under both verbs. Followed (the edge blended on the cube, the bore
+/// subtracted after) the reorder builds tier-3 under both verbs, the
+/// fillet's band and the bore being parallel cylinders, at the rule's
+/// `S − R − H`: the chamfer less the disc's segment beyond the chord,
+/// the fillet less the lens the disc shares with the arc's circle.
+#[test]
+fn the_ring_recourses_reorder_leg_builds_on_a_parallel_bore() {
+    use crate::band_planar_cut_off::{D, Verb, edge, volume_enclosure};
+    use crate::common::cavity::{cut, rod};
+    use core::f64::consts::FRAC_1_SQRT_2;
+    let crease = |body: &Body<f64>| [edge(body, [1.0, 1.0, 0.0], [1.0, 1.0, 1.0])];
+    let (a, poke) = (0.02, 0.01);
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let (centre, kept) = match verb {
+            // From the chord's midpoint `a − poke` towards the old vertex;
+            // the segment of the disc beyond `poke` from its centre.
+            Verb::Chamfer => (
+                1.0 - D / 2.0 + (a - poke) * FRAC_1_SQRT_2,
+                a * a * (poke / a).acos() - poke * (a * a - poke * poke).sqrt(),
+            ),
+            // From the arc's centre `1 − D`, `D + a − poke` along the ray;
+            // the lens the disc shares with the arc's circle.
+            Verb::Fillet => {
+                let (d, r, big) = (D + a - poke, a, D);
+                let lens = r * r * ((d * d + r * r - big * big) / (2.0 * d * r)).acos()
+                    + big * big * ((d * d + big * big - r * r) / (2.0 * d * big)).acos()
+                    - 0.5 * ((-d + r + big) * (d + r - big) * (d - r + big) * (d + r + big)).sqrt();
+                (1.0 - D + d * FRAC_1_SQRT_2, lens)
+            }
+        };
+        let bore = rod(Point2::new(centre, centre), a, -0.5, 1.5);
+        let bored = cut("bore", &cube(1.0, tol()), &bore);
+        let err = verb
+            .run(&bored, &crease(&bored))
+            .err()
+            .unwrap_or_else(|| panic!("{verb:?}: a bore crossing the trimline refuses"));
+        assert!(
+            matches!(err, BlendError::RingClearance { bounded: false, .. }),
+            "{verb:?}: the bore's ring crosses the cap's sliver, got {err:?}"
+        );
+        carries(&err, FILLET3_RING_RECOURSE, "a bore crossing the trimline");
+        let plain = cube(1.0, tol());
+        let blended = verb
+            .run(&plain, &crease(&plain))
+            .expect("the cube's edge blends")
+            .body;
+        let out = topo::subtract(
+            &sweep::test_support::at_rest(&blended, tol()),
+            &sweep::test_support::at_rest(&bore, tol()),
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{verb:?}: the reordered request builds, got {e:?}"))
+        .body()
+        .expect("the bore leaves material")
+        .body
+        .clone()
+        .into_body();
+        validate_geometric(&out, tol())
+            .unwrap_or_else(|e| panic!("{verb:?}: the reorder is tier-3 valid, got {e:?}"));
+        let (v, pad) = volume_enclosure(&out);
+        let closed = 1.0 - verb.section() - kept;
+        assert!(
+            (v - closed).abs() <= pad + 1e-12,
+            "{verb:?}: the reorder is `S − R − H`: {v} ± {pad} vs {closed}"
+        );
+    }
+}
+
+/// **A blind hole entering from a support face, wholly inside the
+/// band's removed material.** Its wall never meets an end face's
+/// plane: the hole's ring is a boundary feature of the support face,
+/// nearer the edge than the band sets back, so the clearance screen
+/// answers first under both verbs (`FaceClearanceUncertified`) and the
+/// caller reads the clearance recourse. Followed, the hole drilled
+/// after the blend lies in air: the rule's `S − R`.
+#[test]
+fn a_blind_hole_from_the_support_face_inside_the_region_refuses_at_the_screen() {
+    use crate::band_planar_cut_off::{Verb, edge, the_box};
+    use crate::common::cavity::{cut, rod};
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let body = cut(
+            "blind hole",
+            &the_box(),
+            &rod(Point2::new(1.0, 0.015), 0.005, 0.97, 1.5),
+        );
+        let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+        let err = verb
+            .run(&body, &[e])
+            .err()
+            .unwrap_or_else(|| panic!("{verb:?}: a blind hole inside the band refuses"));
+        assert!(
+            matches!(err, BlendError::FaceClearanceUncertified { .. }),
+            "{verb:?}: the blind hole refuses at the screen, got {err:?}"
+        );
+        carries(
+            &err,
+            FILLET3_CLEARANCE_RECOURSE,
+            "a blind hole inside the band",
+        );
+    }
 }

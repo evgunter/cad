@@ -708,16 +708,24 @@ What is built of it: face clearance reads each face three ways (clear
 of the region, wholly inside it, or crossing it), and the carve takes a
 through-feature wholly inside the material a convex straight band's
 cut-off removes (the ruled fillet's, the plane–plane fillet's and
-chamfer's), between the band's two caps. Every other wholly-inside,
-sealed or shell case refuses, a case the rule defines and the surgery
-does not build: a void or an island with no cap cycle refuses
-`WhollyInside`, and a blind feature, or a hole whose mouth a concave
-fill covers, refuses as a bound where its wall meets the end face's
-plane. A crossing refuses as an unbuilt case too, not as an exception
-to the rule (`FaceClearance`, `RingClearance`, or the clearance
-screen's `FaceClearanceUncertified`), as the Boolean refuses the
-surface pairs it does not serve; its recourse names the reorder,
-blending before a feature that came after the edge
+chamfer's), between the band's two caps. Every other case refuses, a
+case the rule defines and the surgery does not build, and it refuses
+at the meter that reads it, not by which case it is. The clearance
+screen and the exact ring meters read the supports' own boundary
+features and the end faces' cycles (`FaceClearanceUncertified`,
+`RingClearance`); the reach reads every other face, a crossing as a
+measurement and a face it cannot certify either way as a bound
+(`FaceClearance`); and a request whose every reading is inside but
+that no carve takes refuses `WhollyInside` (a void or an island with no
+cap cycle). So a blind feature entering from an end face, or a hole
+whose mouth a concave fill covers, refuses as a bound where its wall
+meets the end face's plane, while a blind hole entering from a support
+face is read at the screen, its ring nearer the edge than the band
+sets back, and refuses there although it lies wholly inside. A
+crossing refuses as an unbuilt case too, not as an exception to the
+rule, as the Boolean refuses the surface pairs it does not serve; the
+clearance and ring recourses name the reorder, blending before a
+feature that came after the edge
 (`crates/sweep/README.md`, predicate 2). The band and its supports are
 in-place surgery, not a literal Boolean against a body for the region:
 that tool is cusp-edged along both trimlines, and most band × feature

@@ -434,7 +434,7 @@ fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
         "a ring exactly on the trim circle refuses: {exact}"
     );
     let escalated = refuse(0.9 + in_band());
-    assert_same_recourse(&definite, &escalated, "enlarge the support face,");
+    assert_same_recourse(&definite, &escalated, "enlarge the band's support faces,");
 }
 
 #[test]
@@ -446,7 +446,7 @@ fn trio_face_clearance() {
     let exact = face_clearance(f, 1.0, 0.5, 0.5, false, b).unwrap_err();
     assert!(matches!(exact, BlendError::FaceClearanceUncertified { .. }));
     let escalated = face_clearance(f, 1.0, 0.5, 0.5 - in_band(), false, b).unwrap_err();
-    assert_same_recourse(&definite, &escalated, "enlarge the support face");
+    assert_same_recourse(&definite, &escalated, "enlarge the band's support faces");
 }
 
 #[test]

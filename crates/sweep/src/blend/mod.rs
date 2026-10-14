@@ -1036,23 +1036,10 @@ pub const FILLET3_CONTACT_WEDGE_RECOURSE: &str = "change the radius, or blend a 
 /// cannot certify, or a face the band's material reaches. Both verbs
 /// meter clearance (each on its own setbacks), so the sentence names the
 /// blend size, which is the fillet's radius or the chamfer's setback.
-///
-/// **The reorder leg.** A face crossing the band is a case the blend
-/// defines (`S − R`, `S ∪ F`) and does not build, so the result is
-/// reached by blending the body before the feature and applying the
-/// feature after: `fillet(subtract(body, hole))` becomes
-/// `subtract(fillet(body), hole)`. A selection written on the feature's
-/// output names the feature's node (`From { read, of }`), so the
-/// blend's edges are re-picked on the earlier body. The condition is
-/// the sentence's: a face born with the edge (a hole in an extruded
-/// profile) did not come after it, and has no reorder. Where the
-/// Boolean does not yet serve the band × feature surface pair (a
-/// fillet's cylinder against a skew bore) the reordered request
-/// refuses there instead
-/// (`blend_recourse_followability::the_reorder_leg_builds_where_the_boolean_serves_the_band`).
-pub const FILLET3_CLEARANCE_RECOURSE: &str = "reduce the blend size, enlarge the support face, \
-     or move a face the band reaches clear; if that face came after the edge, blend before \
-     it, re-picking the edges there";
+/// The reorder leg is argued in `crates/sweep/README.md` (predicate 2).
+pub const FILLET3_CLEARANCE_RECOURSE: &str = "reduce the blend size, enlarge the band's support \
+     faces, or move a face the band reaches clear; if that face came after the edge, blend \
+     before it, re-picking the edges there";
 /// The clearance recourse when the two uncertified setbacks belong to
 /// two DIFFERENT requested chains — the request is then splittable:
 /// the screen meters both setbacks against the SOURCE face at once,
@@ -1964,8 +1951,8 @@ impl fmt::Display for BlendError {
                 write!(
                     f,
                     "the clearance screen cannot certify that a support face survives: two \
-                     of its boundary features are {} m apart, nearer than their blends set \
-                     back; the screen is conservative by direction. {}",
+                     of its boundary features are {} m apart, nearer than the blend sets \
+                     back from them; the screen is conservative by direction. {}",
                     Measured(*gap),
                     BlendDecision::FaceClearance.recourse_with(lever, margin.arm())
                 )

@@ -35,8 +35,19 @@ output it reads:
   not resolve upstream, so it becomes its `of`. A name `F` minted (an
   edge `F` split, a seam) has no `of`; the action reports it stranded
   as a DM6 write does, and the person re-picks it (re-querying gives
-  the whole parent edge).
+  the whole parent edge);
+- rewrite `F`'s own selections, written on `F`'s old input, which now
+  read `B`'s output: each becomes a name in `B`'s output (a `From` at
+  `B` over it), and one `B` consumes is stranded and reported;
+- rewrite the selections of `B`'s former downstream readers, which now
+  read through `F`: a name `B` minted (a band face) becomes a `From` at
+  `F` over it, and one `F` consumes is stranded and reported.
 
 **Open.** Whether it is one `Edit` or a client composition of the
 existing slot writes, and how it reads when `F` is not the direct input
-(a chain of features between the edge's node and the blend).
+(a chain of features between the edge's node and the blend). The action
+makes several slot writes and selection rewrites at once, while DM6's
+"delete and reconnect" is explicit slot writes "the person choosing
+each": whether one reorder action, chosen once, meets that, or each
+write must be offered to the person, is DM6's question to answer before
+building.
