@@ -1951,8 +1951,8 @@ mod tests {
 
     /// **The production weights, read two corners, are the general
     /// product.** Every weight [`bern_weights`] serves for degrees
-    /// `0 ..= 27` (every pair whose rows are exact, up to `da + db =`
-    /// [`BINOM_EXACT_MAX`]) times operands drawn to provoke ties —
+    /// `0 ..= 27` each (the square whose every pair has exact rows,
+    /// `da + db <=` [`BINOM_EXACT_MAX`]) times operands drawn to provoke ties —
     /// intervals over dyadic values with few significant bits (whose
     /// products are often exact), random doubles, values near the
     /// 2Prod floor and zeros, both signs — [`Interval::mul_nonneg`]

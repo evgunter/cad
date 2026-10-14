@@ -110,10 +110,10 @@ impl DInterval {
     ///   `v`.
     /// - **`v` exact and nonzero**: [`mul_lo`] certifies only a finite
     ///   product at `|v| >= TWO_PROD_VALID_MIN`, so `v` is normal. A
-    ///   neighbouring corner replaces one factor, say `y`, by the next
-    ///   float `y'` on the side that moves the product off `v`, and lies at
-    ///   least `|x|·s(y)` from `v`, `s(z)` being the float spacing next to `z`
-    ///   on that side. For normal `z`, `s(z) >= 2⁻⁵³·|z|`, equal only
+    ///   neighbouring corner replaces one factor, say `y`, by the other
+    ///   endpoint `y'`, at least one float away on the side that moves the
+    ///   product off `v`, so it lies at least `|x|·s(y)` from `v`, `s(z)`
+    ///   being the float spacing next to `z` on that side. For normal `z`, `s(z) >= 2⁻⁵³·|z|`, equal only
     ///   when `z` is a power of two and the step is toward zero, and
     ///   `s(z) <= 2⁻⁵²·|z|`, equal only when `z` is a power of two and
     ///   the step is away from zero (a subnormal `y` has
