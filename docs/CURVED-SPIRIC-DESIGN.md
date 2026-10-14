@@ -155,7 +155,7 @@ is `Line | Circle | Ellipse | Nurbs`.
 two exact `Ellipse`s (`intersect.rs:EqualCylinderSection::TwoEllipses`);
 the refusal is a frame/topology statement,
 `BooleanError::GermFrameCylinderPinch` (`topo/src/boolean/mod.rs`,
-raised in `boolean/join.rs` from `FrameError::IntersectingCylinderAxes`).
+raised in `boolean/join.rs` from `FrameError::CylinderNodes`).
 
 **Refuted: RIMCAP's "same family as #1377".** §6, by §3.4's algebra.
 

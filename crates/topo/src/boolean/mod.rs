@@ -2992,46 +2992,31 @@ pub enum BooleanError {
         /// The section table's refusal.
         section: geom_brep::SectionError,
     },
-    /// **A germ pair of two cylinder walls whose axes definitely
-    /// INTERSECT** — the frame dispatch's named sub-case of "no
-    /// frame", and the door the intersecting equal-radius family
+    /// **A germ pair of two equal cylinder walls whose axes definitely
+    /// INTERSECT**: the door the intersecting equal-radius family
     /// (Steinmetz and every re-posed copy of it) stops at.
     ///
-    /// Two shapes live behind these axes, and the dispatch is allowed
-    /// to name neither:
+    /// The section is the two bisector-plane ellipses, and they are not
+    /// two disjoint loci: the bisector planes' common line runs through
+    /// the axes' meeting point `p` along `â₁ × â₂`, is perpendicular to
+    /// both axes, and therefore meets BOTH walls at `p ± r·n̂`, where
+    /// `n̂ = unit(â₁ × â₂)`. The UNIT is load-bearing off 90°:
+    /// `‖â₁ × â₂‖ = sin θ`, so the raw cross product understates the
+    /// offset by that factor and only coincides with the nodes on the
+    /// perpendicular pose. So the two ellipses CROSS at those two
+    /// points (the nodes), for every member of the family and at every
+    /// pose — four arcs meeting at two valence-4 vertices — and the
+    /// Boolean does not yet build a node.
     ///
-    /// - **Equal radii.** The section is the two bisector-plane
-    ///   ellipses. They are not two disjoint loci: the bisector
-    ///   planes' common line runs through the axes' meeting point `p`
-    ///   along `â₁ × â₂`, is perpendicular to both axes, and therefore
-    ///   meets BOTH walls at `p ± r·n̂`, where `n̂ = unit(â₁ × â₂)`.
-    ///   The UNIT is load-bearing off 90°: `‖â₁ × â₂‖ = sin θ`, so the
-    ///   raw cross product understates the offset by that factor and
-    ///   only coincides with the pinch points on the perpendicular
-    ///   pose. So the two ellipses
-    ///   CROSS at those two points, for every member of the family and
-    ///   at every pose — four arcs meeting at two valence-4 PINCH
-    ///   vertices. A pinch is not a conic frame, and a frame dispatch
-    ///   keyed on surface kinds alone has no point with which to
-    ///   select which branch a germ rides.
-    /// - **Unequal radii.** The locus is a space quartic — canal
-    ///   territory, the general rung — and has no conic frame at all.
-    ///
-    /// Which of the two holds is a RADIUS-equality question, decided by
-    /// its margin (`geom_brep::cylinder_cylinder_section`), and this
-    /// refusal carries the answer as `equal_radii`: equal names the
-    /// equal-radius pinch as a PROVEN configuration — the closed form
-    /// was constructed on the way — while unequal names the quartic.
-    /// Recourse: a chord lane that can walk a self-intersecting section,
-    /// or geometry whose germ pairs are wired.
+    /// Radius equality and coplanar axes are decided by their margins
+    /// (`geom_brep::cylinder_cylinder_section`); at definitely unequal
+    /// radii the locus is a space quartic, the skew pair's unbuilt
+    /// class ([`Self::GermFrameUnsupported`]).
     GermFrameCylinderPinch {
         /// The A-side germ face.
         a_face: FaceKey,
         /// The B-side germ face.
         b_face: FaceKey,
-        /// Whether the two radii decided equal — which of the two shapes
-        /// named in the message the locus actually has.
-        equal_radii: bool,
     },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
@@ -4024,15 +4009,12 @@ impl core::fmt::Display for BooleanError {
                 },
                 meeting_recourse(kind_word(geom::SurfaceKind::Torus)),
             ),
-            // One sentence for BOTH radius cases: the walls may have
-            // equal radii (the section crosses itself) or not (a space
-            // quartic), and `equal_radii` carries which.
             Self::GermFrameCylinderPinch { .. } => write!(
                 f,
-                "two cylinder walls whose axes cross meet here, and the Boolean cannot \
-                 yet trace where they meet, whether their radii are equal (the curve \
-                 crosses itself) or not (a curve it has no form for). Recourse: \
-                 reshape the parts so these two walls do not meet each other",
+                "two cylinder walls of equal radius whose axes cross meet here, along \
+                 two ellipses that cross each other, and the Boolean cannot yet build \
+                 the points where they cross. Recourse: reshape the parts so these two \
+                 walls do not meet each other",
             ),
             Self::Pcurves { source } => write!(
                 f,
@@ -7779,7 +7761,6 @@ mod tests {
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
-                equal_radii: false,
             },
             BooleanError::Pcurves {
                 source: crate::pcurves::PcurveMintError::Unminted { face },

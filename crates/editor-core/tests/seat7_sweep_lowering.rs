@@ -861,11 +861,13 @@ fn raw_spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
     .unwrap()
 }
 
-/// Whether a cyl×cyl pinch refusal decided its radii equal, or a loud
-/// failure.
+/// Whether an intersecting-axes cyl×cyl refusal decided its radii
+/// equal (the node door) or unequal (the general rung's
+/// `GermFrameUnsupported`), or a loud failure.
 fn pinch_equal_radii(err: &BooleanError) -> bool {
     match err {
-        BooleanError::GermFrameCylinderPinch { equal_radii, .. } => *equal_radii,
+        BooleanError::GermFrameCylinderPinch { .. } => true,
+        BooleanError::GermFrameUnsupported { .. } => false,
         other => panic!("the equal-radius pair refused with {other:?}, not the pinch"),
     }
 }
