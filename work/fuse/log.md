@@ -924,3 +924,11 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
 - 2026-10-14: PR 5082 (merge_faces: a declared pair the ladder cannot read refuses typed) merges at addde3e5.
   - **Fix pass:** `DeclaredPairUnread` now carries its kind. The hand-written inventory lists are gone. The reviewer's mixed-kind premise was false: the entry gate already refuses two kinds alike, and a test now pins that. glue's two drops of undeclared pairs are noted at their sites and added to the hone coincidence row.
   - **Before merge:** main was merged in, resolving two conflicts against 5090's re-aimed hone rows (both sides kept). topo+sweep compile on the merged tree, and the merge, glue and declared-pair tests pass (220/220). The merge relied on that local run plus the fix head's green CI.
+- 2026-10-14: PR 5086 (joined_lineage is a provenance copy, one parent per child by type) merges.
+  - **Review 1:** found a MAJOR. A mint-freshness check on a kill-ordered table refuses a valid table when a child is killed before its parent.
+  - **Fix pass:** `joined_lineage` became a `BTreeMap` with one writer, `record_joins`. One write-once-record argument on `Provenance::SplitEdge` now covers both copies. The minimal case is pinned in topo, and the sweep pin asserts exact rows.
+  - **Review 2:** mergeable, with two MINORs, both fixed by the orchestrator:
+    - a second parent is now a debug-assert, not a silent overwrite;
+    - emit_topo keeps its caveat that the `pub` copies are writable from outside;
+    - the origin walk row inherits the write-site check.
+  - **CI:** green at aeed9184, and the PR also compiles merged with main.
