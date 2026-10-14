@@ -1122,7 +1122,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         band,
         &mut stations,
     ) {
-        geom_brep::SecondOrderWalk::Determinate => true,
+        geom_brep::SecondOrderWalk::Determinate(_) => true,
         geom_brep::SecondOrderWalk::UnderDetermined => false,
         geom_brep::SecondOrderWalk::InBand(cause) => return Err(cause),
         geom_brep::SecondOrderWalk::Stopped(stop) => return Err(stop.cause),

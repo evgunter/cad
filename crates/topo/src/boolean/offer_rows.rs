@@ -1660,6 +1660,14 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
         band(),
     )
     .map(|_| ())
+    .map_err(|refusal| match refusal {
+        super::super::ops::SeamRefusal::Undecided(reading, diag) => {
+            super::super::ops::seam_refusal(reading, diag)
+        }
+        mixed @ super::super::ops::SeamRefusal::Mixed(_) => {
+            panic!("a resting cylinder reads smooth at every station, got {mixed:?}")
+        }
+    })
 }
 
 /// A re-cut sphere of radius 1 whose polar axis leans off the escape
@@ -2415,6 +2423,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::LineageRow
         | BooleanErrorKind::SplitLineage
         | BooleanErrorKind::EdgeUndescribed
+        | BooleanErrorKind::MixedSeam
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted

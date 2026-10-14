@@ -9,7 +9,7 @@
 //! contact with its support, and the corner ball's with its band — is
 //! such a join, and `attach_contact` routes its intrinsic arm through
 //! the rule: jet-determinate stores `TangentIntersection`,
-//! under-determined stores the conventional chart image, in-band
+//! under-determined stores the conventional pair (`OnPair`), in-band
 //! refuses typed at the blend door, and a transverse station refuses
 //! `BlendError::SurgeryInvariant` (the smooth premise refuted).
 //!
@@ -611,7 +611,7 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
 /// scaled by two build; the past-the-peak direction is measured in
 /// `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`.
 /// Slim corner arc: the wedge refused in band at `r` builds at `r/10`,
-/// its corner arcs stored as conventional chart images — the smaller
+/// its corner arcs stored as the conventional pair — the smaller
 /// radius leaves the join under-determined, as the sentence says.
 #[test]
 fn the_contact_recourse_is_followable_at_each_site_kind() {
@@ -667,17 +667,17 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
     )
     .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
     assert_eq!(
-        corner_arc_chart_images(&out),
+        corner_arc_pairs(&out),
         4,
-        "the four corner arcs are stored as chart images"
+        "the four corner arcs are stored as the conventional pair"
     );
 }
 
 /// The edges between a blend face and a corner face — the corner balls'
-/// arcs, named by the faces the carve reports — that store a non-seam
-/// chart image. A count over that NAMED set, so an edge the carve did
+/// arcs, named by the faces the carve reports — that store the
+/// conventional pair. A count over that NAMED set, so an edge the carve did
 /// not make (a boolean's rim on the operand) cannot satisfy it.
-fn corner_arc_chart_images(out: &Filleted<f64>) -> usize {
+fn corner_arc_pairs(out: &Filleted<f64>) -> usize {
     let body = &out.body;
     let face = |he| body.face_of_half_edge(he).expect("a live half-edge's face");
     body.edges()
@@ -690,7 +690,7 @@ fn corner_arc_chart_images(out: &Filleted<f64>) -> usize {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.description()),
-                    Some(EdgeDescription::Chart(c)) if !c.wrap
+                    Some(EdgeDescription::OnPair { .. })
                 )
         })
         .count()

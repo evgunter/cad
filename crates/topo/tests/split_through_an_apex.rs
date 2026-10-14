@@ -533,3 +533,101 @@ fn germs_within_the_band_or_on_one_line_refuse_typed() {
         }
     }
 }
+
+/// **A conventional edge between two planes in band of one carrier is
+/// never re-derived from them.** Random base 2 of
+/// [`random_bases_with_corners_in_the_band_split_sound`] splits with
+/// edges between the section and a base face whose coincidence the
+/// carrier ladder reads in band: the describe pass states them as their
+/// pair (`topo::rest_locus`: its certificate, incidence on both, holds
+/// whether or not they are one carrier), and the finish's re-chart
+/// leaves them images in one plane's chart. Two planes `ε` apart have an
+/// ill-conditioned line, so a door that moves either face, or both, must
+/// carry or re-section the edge's own carrier, never the planes' line:
+/// each offset builds tier-3 sound or refuses typed.
+#[test]
+fn an_in_band_pair_moved_by_an_offset_builds_sound_or_refuses_typed() {
+    let corners = [
+        (0.0069, -0.1705, false),
+        (0.1677, 0.0167, false),
+        (0.2073, 0.0697, false),
+        (-0.0899, 0.2899, false),
+        (0.0107, 0.0, true),
+        (-0.1137, 0.1222, false),
+        (-0.3990, 0.6, true),
+        (-0.2155, 0.6, true),
+        (-0.2004, -0.2192, false),
+        (-0.1011, -0.0868, false),
+        (-0.1799, -0.2115, false),
+    ];
+    let base = base_of(&corners);
+    let band = geom_core::Band::linear(t()).unwrap();
+    let mut pairs = 0;
+    for pose in poses() {
+        let u = apex_pyramid(&base, &pose, t());
+        for up in [true, false] {
+            let r = split(&u, &plane_at(&pose, up), t()).expect("random base 2 splits");
+            for part in [&r.above, &r.below] {
+                let SplitPart::Body(b) = part else { continue };
+                let plane = |f: topo::FaceKey| {
+                    matches!(
+                        b.get_surface(b.get_face(f).unwrap().surface),
+                        Some(geom::Surface::Plane { .. })
+                    )
+                };
+                for (edge, e) in b.edges() {
+                    let Some(c) = b
+                        .get_curve_geom(e.curve)
+                        .and_then(topo::CurveGeom::certified)
+                    else {
+                        continue;
+                    };
+                    // A conventional edge between two distinct planes: the
+                    // section and a base face read in band of one carrier,
+                    // stated as their pair or, where the split's finish
+                    // re-charted it, an image in one of them.
+                    let sides = topo::readback::edge_sides(b, edge).unwrap();
+                    let (sa, sb) = sides.surfaces();
+                    let conventional = matches!(
+                        c.description(),
+                        geom_brep::EdgeDescription::OnPair { .. }
+                            | geom_brep::EdgeDescription::Chart(_)
+                    );
+                    let (fa, fb) = sides.faces();
+                    if !conventional || sa == sb || !(plane(fa) && plane(fb)) {
+                        continue;
+                    }
+                    pairs += 1;
+                    let what = format!("{}, up {up}, {edge:?}", pose.label);
+                    let sound = |moved: &topo::Body<f64>, how: &str| {
+                        assert_eq!(
+                            validate_geometric(moved, t()),
+                            Ok(()),
+                            "{what}: {how} builds unsound"
+                        );
+                    };
+                    for d in [1e-3, -1e-3] {
+                        for face in [fa, fb] {
+                            let mut moved = (*b).clone();
+                            if topo::replace_face_offset(&mut moved, face, d, t()).is_ok() {
+                                sound(&moved, &format!("{face:?} offset by {d:e}"));
+                            }
+                        }
+                        let mut moved = (*b).clone();
+                        let together = [fa, fb].map(|face| topo::ChartMove {
+                            faces: vec![face],
+                            distance: d,
+                        });
+                        if topo::offset_planes_together(&mut moved, &together, band, t()).is_ok() {
+                            sound(&moved, &format!("both faces offset by {d:e}"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        pairs > 0,
+        "random base 2's split holds a conventional edge between two planes"
+    );
+}

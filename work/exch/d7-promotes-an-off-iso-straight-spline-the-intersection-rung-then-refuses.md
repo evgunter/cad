@@ -2,10 +2,12 @@
 id: d7-promotes-an-off-iso-straight-spline-the-intersection-rung-then-refuses
 kind: issue
 title: D7 recognition can promote an off-iso straight spline carrier on a stay-NURBS face to a Line, which the plane x NURBS edge certificate refuses
-status: open
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
+closed: 2026-10-14
+branch: pcert/spline-pair-any-carrier
 ---
 
 
@@ -46,3 +48,17 @@ probe in
 - or let the plane × NURBS and NURBS × NURBS edge arms take a line
   carrier as its exact degree-1 net (the fitted row already does,
   `carrier_net`).
+
+## Closed (2026-10-14)
+
+The second fix landed on `pcert/spline-pair-any-carrier`: the plane ×
+NURBS and NURBS × NURBS edge certificates take a carrier of any kind,
+reading a line as its exact degree-1 net. `geom-brep`'s
+`spline_pair_any_carrier::a_promoted_line_certifies_where_its_spline_did_on_the_same_image`
+is the item's own probe: an off-iso straight edge between a plane and a
+flat bilinear wall, stated as a degree-1 spline and as the `Line` D7
+promotes it to, certifies through the door both ways, on bounds within
+roundoff of each other (2.8e-15 and 3.0e-15 m), and the chart image the
+certificate derives is one net for both (feet within 1e-15). The
+promotion no longer removes the rung that certifies the edge; D7 is
+unchanged.

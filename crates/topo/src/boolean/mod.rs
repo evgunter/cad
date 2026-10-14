@@ -200,7 +200,7 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use carrier_pair::{
     PairFace, PairUnread, carrier_pair_decided, carrier_pair_relation, carrier_pair_verdict,
-    face_carrier, flush_pair_relation,
+    face_carrier, flush_pair_relation, rest_locus,
 };
 pub(crate) use contact_verify::rest_pair_reading;
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
@@ -3304,6 +3304,20 @@ pub enum BooleanError {
         /// carrier.
         fitted: bool,
     },
+    /// A seam of the result read smooth at its witness reads its two
+    /// faces meeting at a corner at one station and smoothly at its
+    /// neighbour: the dihedral passes through the ambiguous band between
+    /// them, at a point no station read, so the seam is certifiable as
+    /// neither a corner nor a smooth join (D2's mixed edge). Or it reads
+    /// a corner at every station, refuting the smooth reading at its
+    /// witness.
+    MixedSeam {
+        /// The seam, diagnostic only: the result is never returned.
+        edge: EdgeKey,
+        /// The two stations that disagree; `None` where every station
+        /// reads a corner.
+        stations: Option<geom_brep::MixedStations>,
+    },
     /// One distributed component carries section faces of both sides
     /// (kernel bug, loudly).
     TornComponent {
@@ -3611,6 +3625,8 @@ pub enum BooleanErrorKind {
     SplitLineage,
     /// [`BooleanError::EdgeUndescribed`].
     EdgeUndescribed,
+    /// [`BooleanError::MixedSeam`].
+    MixedSeam,
     /// [`BooleanError::TornComponent`].
     TornComponent,
     /// [`BooleanError::ShellWitnessExhausted`].
@@ -3835,6 +3851,7 @@ impl BooleanError {
             Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
             Self::SplitLineage(_) => BooleanErrorKind::SplitLineage,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
+            Self::MixedSeam { .. } => BooleanErrorKind::MixedSeam,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
             Self::CoincidentShell { .. } => BooleanErrorKind::CoincidentShell,
@@ -4529,6 +4546,22 @@ impl core::fmt::Display for BooleanError {
                     crate::merge_faces::undescribed_ending(cause.as_deref(), *fitted)
                 )
             }
+            Self::MixedSeam {
+                stations: Some(stations),
+                ..
+            } => {
+                write!(
+                    f,
+                    "along a seam of the result, {stations}. Recourse: {}",
+                    refusal_routes::SEAM_WEDGE.lever
+                )
+            }
+            Self::MixedSeam { stations: None, .. } => write!(
+                f,
+                "a seam of the result reads smooth at its witness but a corner at every \
+                 station along it. Recourse: {}",
+                refusal_routes::SEAM_WEDGE.lever
+            ),
             Self::TornComponent { operand, shell } => write!(
                 f,
                 "component {shell:?} of the {} operand carries section faces \
@@ -7971,6 +8004,17 @@ mod tests {
                 cause: None,
                 fitted: false,
             },
+            BooleanError::MixedSeam {
+                edge: EdgeKey::default(),
+                stations: Some(geom_brep::MixedStations {
+                    transverse: 3,
+                    smooth: 4,
+                }),
+            },
+            BooleanError::MixedSeam {
+                edge: EdgeKey::default(),
+                stations: None,
+            },
             BooleanError::TornComponent {
                 operand: Operand::A,
                 shell: ShellKey::default(),
@@ -8107,6 +8151,7 @@ mod tests {
                 BooleanErrorKind::LineageRow => "LineageRow",
                 BooleanErrorKind::SplitLineage => "SplitLineage",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",
+                BooleanErrorKind::MixedSeam => "MixedSeam",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
                 BooleanErrorKind::CoincidentShell => "CoincidentShell",
