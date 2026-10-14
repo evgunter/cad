@@ -761,24 +761,25 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     )?;
 
     // ---- The ring carry-through honesty check (module docs). ----
-    // A cut-off's cap carries its crease: a cycle wholly inside that
-    // sliver goes with the material the band removes or fills
-    // (`reach::CapRing`). A turn's overrun is read through a bound larger
-    // than the overrun, so it carries none.
+    let cut_off = |sliver, l: &AdmittedOpen<'_, T>| CapMeter {
+        sliver,
+        convexity: l.convexity(),
+        origin: SliverOrigin::CutOff { crease: l.edge() },
+    };
     let slivers: Vec<CapMeter<'_, T>> = ruled_plans
         .iter()
         .flat_map(|p| {
             let l = p.link();
-            p.slivers().map(move |s| (s, l.convexity(), Some(l.edge())))
+            p.slivers().map(move |s| cut_off(s, &l))
         })
-        .chain(
-            cut_offs
-                .iter()
-                .map(|c| (&c.end.sliver, c.link.convexity(), Some(c.link.edge()))),
-        )
+        .chain(cut_offs.iter().map(|c| cut_off(&c.end.sliver, &c.link)))
         .chain(turns.iter().filter_map(|t| {
             let o = t.overrun.as_ref()?;
-            Some((&o.sliver, t.links[o.of.far].convexity(), None))
+            Some(CapMeter {
+                sliver: &o.sliver,
+                convexity: t.links[o.of.far].convexity(),
+                origin: SliverOrigin::Overrun,
+            })
         }))
         .collect();
     let unclear = ring_clearance_pass(source, &opens, &rims, &slivers, &supports, band)?;
@@ -2703,10 +2704,26 @@ pub fn ring_clearance_for_tests<T: Decide + Bounds>(
     ring_clearance(face, chain, margin, false, band)
 }
 
-/// One cut-off end face's sliver for the end-face meter: the sliver,
-/// its chain's convexity, and the crease of a cut-off's band, whose
-/// cap gives up a cycle wholly inside the sliver to the carve.
-type CapMeter<'a, T> = (&'a CapSliver<T>, Convexity, Option<EdgeKey>);
+/// One end face's sliver for the end-face meter.
+struct CapMeter<'a, T: Real> {
+    sliver: &'a CapSliver<T>,
+    /// The chain's, for the meter's refusals.
+    convexity: Convexity,
+    origin: SliverOrigin,
+}
+
+/// What cut a [`CapMeter`]'s sliver off its end face, which decides
+/// where a cycle read wholly inside it goes.
+#[derive(Clone, Copy)]
+enum SliverOrigin {
+    /// A cut-off's band: the cap carries its crease, and a cycle wholly
+    /// inside the sliver goes with the material the band removes or
+    /// fills (`reach::CapRing`).
+    CutOff { crease: EdgeKey },
+    /// A turn's overrun: a cycle read inside it is never consumed
+    /// (`crates/sweep/README.md`, the planar cut-off, says why).
+    Overrun,
+}
 
 /// The pre-mutation honesty pass (module docs): every ring of every
 /// touched support face must clear every blend trimline by a definite
@@ -2815,7 +2832,12 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     // the witnesses are samples, so a cycle that crosses with no witness
     // on one side reads as a bound, never as inside.
     let mut unclear = Unclear::new();
-    for &(s, convexity, crease) in slivers {
+    for &CapMeter {
+        sliver: s,
+        convexity,
+        origin,
+    } in slivers
+    {
         let fd = body
             .get_face(s.cap)
             .ok_or_else(|| unresolved(EntityId::Face(s.cap), "a cut-off's end face"))?;
@@ -2883,8 +2905,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                         chain: convexity,
                         margin: super::battery::classified(decision, deep, band, sign),
                     };
-                    match crease {
-                        Some(crease) => unclear.cap_ring(
+                    match origin {
+                        SliverOrigin::CutOff { crease } => unclear.cap_ring(
                             CapRing {
                                 crease,
                                 cap: s.cap,
@@ -2894,7 +2916,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                             },
                             refusal,
                         ),
-                        None => unclear.unconsumed_inside(deep, refusal),
+                        SliverOrigin::Overrun => unclear.unconsumed_inside(deep, refusal),
                     }
                 }
                 CycleReading::Bound => unclear.bound(

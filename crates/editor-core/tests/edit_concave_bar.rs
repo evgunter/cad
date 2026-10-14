@@ -211,17 +211,23 @@ fn a_bar_a_size_edit_puts_inside_a_concave_fill_vanishes_on_the_blends_verdict()
                 f.error
             );
         };
-        assert!(
-            matches!(
-                diagnosis,
-                editor_core::Diagnosis::PredicateFlip {
-                    predicate: "fillet3_face_clearance" | "fillet3_ring_clearance",
-                    from: geom_core::Sign::Positive,
-                    to: geom_core::Sign::Negative,
-                }
-            ),
-            "{verb}: the wall vanishes on a flip of the blend's clearance verdicts, got \
-             {diagnosis:?}"
+        // The diagnosis names the node's first flip by predicate name.
+        // Under the chamfer the face clearance's readings only gain
+        // inside instances (none clear at 0.005 turns inside), which is
+        // a divergence, not a flip, so the ring clearance is the flip.
+        let predicate = if chamfer {
+            "fillet3_ring_clearance"
+        } else {
+            "fillet3_face_clearance"
+        };
+        assert_eq!(
+            diagnosis,
+            editor_core::Diagnosis::PredicateFlip {
+                predicate,
+                from: geom_core::Sign::Positive,
+                to: geom_core::Sign::Negative,
+            },
+            "{verb}: the wall vanishes on the blend's {predicate} flip"
         );
     }
 }

@@ -415,8 +415,7 @@ removes, between its two end faces, as the ruled cut-off does
 and a concave cut-off between two end walls absorbs a bar between
 them wholly inside the material it fills, its cycles buried with the
 walls' slivers, at `ΔV = +(A − A_bar)·L`
-(`crates/sweep/tests/band_concave_bar.rs`, `editor-core`
-`edit_concave_bar`).
+(`band_concave_bar::a_bar_inside_a_concave_bands_fill_is_absorbed_at_every_lean`).
 The fillet's sliver is the ruled cut-off's, between the arc and the
 old vertex; the chamfer's is the triangle of the old vertex and the
 two feet, and a cycle lies inside it when each of its edges stays
@@ -426,9 +425,10 @@ outside it). A bore or a square slot along the edge whose rings lie
 inside each end face's sliver goes at `ΔV = −(A − A_feature)·L`, at a
 perpendicular end face and at oblique ones, and its wall's name
 resolves `Vanished` on the blend's clearance flip after a size edit
-puts it inside (`crates/sweep/tests/band_planar_consume.rs`,
-`editor-core` `edit_planar_carve`). A feature through a turn's overrun
-is not taken: the overrun's sliver is read through the far band's
+puts it inside
+(`band_planar_consume::a_bore_inside_the_planar_bands_sliver_goes_with_it_at_every_lean`,
+`edit_planar_carve::a_bore_a_size_edit_puts_inside_a_planar_sliver_vanishes_on_the_blends_verdict`).
+A feature through a turn's overrun is not taken: the overrun's sliver is read through the far band's
 triangle, a bound larger than the overrun, so its wall refuses as a
 bound
 (`band_turn_overrun_chamfer::a_slot_through_the_overrun_is_never_consumed`).

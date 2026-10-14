@@ -13,10 +13,9 @@
 //! — a bore under a convex band, a bar under a concave one. Its faces,
 //! edges and vertices go; the two cycles leave their caps, and the
 //! slivers they lay in go with the cut-off, cut away or buried. The
-//! walk reads no material side: the feature's faces, closed by the two
-//! discs its cycles bound, enclose a region inside the prism (whose
-//! complement is connected), so `S − M` and `S ∪ F` are the same with
-//! the feature taken first.
+//! walk reads no material side: the region the feature encloses lies
+//! inside the prism, so the band's cut-off builds the same body whether
+//! that region is first filled (a bore) or removed (a bar).
 //!
 //! The walk, per feature, on the clone before the band is carved
 //! ([`consume`]): the cycle on one cap is promoted to a plug face

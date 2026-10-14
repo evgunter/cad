@@ -36,8 +36,9 @@ use topo::{
 
 use crate::band_planar_cut_off::{D, Verb, edge, midpoint_tol, pad_ceiling, tol, volume_enclosure};
 
-/// The section `verb` at size `r` removes from a right dihedral.
-fn section(verb: Verb, r: f64) -> f64 {
+/// The section `verb` at size `r` removes from, or fills in, a right
+/// dihedral.
+pub(crate) fn section(verb: Verb, r: f64) -> f64 {
     verb.section_at(r, PI / 2.0)
 }
 
@@ -55,7 +56,7 @@ fn blend<T: Decide + Bounds + AtRestPolicy>(
     .map_err(|e| e.error)
 }
 
-const VERBS: [Verb; 2] = [Verb::Fillet, Verb::Chamfer];
+pub(crate) const VERBS: [Verb; 2] = [Verb::Fillet, Verb::Chamfer];
 
 /// A closed polygonal profile loop through `pts`.
 pub(crate) fn poly<T: Real>(pts: &[(f64, f64)]) -> ProfileLoop<T> {
@@ -457,7 +458,7 @@ fn a_bore_a_hair_across_the_planar_slivers_arc_crosses_and_one_inside_goes_with_
 
 /// The point `dist` from the chamfer's chord, on its normal through the
 /// chord's midpoint `(1 − D/2, 1 − D/2)` towards the old vertex.
-fn past_the_chord(dist: f64) -> (f64, f64) {
+pub(crate) fn past_the_chord(dist: f64) -> (f64, f64) {
     let m = 1.0 - D / 2.0;
     (m + dist / 2f64.sqrt(), m + dist / 2f64.sqrt())
 }
@@ -639,8 +640,9 @@ fn a_tilted_bore_inside_the_chamfers_prism_goes_with_it() {
 /// past the chamfer's chord), and the cap reads its mouth inside. But the
 /// hole runs into the die behind the wall, not into the fill: it is not
 /// wholly inside the material the band adds, and its wall meets the end
-/// wall's plane, which the reach reads as a bound. What the fill should
-/// do with a feature it would seal is the question step 4 stopped at.
+/// wall's plane, which the reach reads as a bound. Under `S ∪ F` the
+/// fill seals its mouth, the through-hole turning blind; the seal is not
+/// built.
 #[test]
 fn a_hole_whose_mouth_lies_inside_a_concave_sliver_refuses_as_a_bound() {
     let (d, a) = BORE;

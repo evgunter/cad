@@ -36,13 +36,12 @@ use sweep::test_support::{
     rod_section_cut, sketch_from_axes,
 };
 use topo::{
-    AtRestPolicy, Body, ContactRecords, EdgeKey, FaceKey, mass_properties, query,
-    validate_geometric, validate_pseudomanifold,
+    AtRestPolicy, Body, ContactRecords, EdgeKey, FaceKey, query, validate_geometric,
+    validate_pseudomanifold,
 };
 
-use crate::band_planar_cut_off::{D, Verb, midpoint_tol, pad_ceiling, tol};
-
-const VERBS: [Verb; 2] = [Verb::Fillet, Verb::Chamfer];
+use crate::band_planar_consume::{self, VERBS, section};
+use crate::band_planar_cut_off::{D, Verb, edge, midpoint_tol, pad_ceiling, tol, volume_enclosure};
 
 /// The bar's offset from both supports, and its radius, in units of the
 /// fixture's scale: it lies `0.0245` inside the fillet's arc and
@@ -172,30 +171,6 @@ fn straight<T: Decide + Bounds + AtRestPolicy>(
     barred(k, s, (c, c), section, Vec3::new(0.0, 1.0, 0.0))
 }
 
-/// The edge of `body` between the two points, either way round.
-fn edge<T: Real + Bounds>(body: &Body<T>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
-    let scale = a.iter().chain(&b).fold(1.0f64, |m, x| m.max(x.abs()));
-    let near = |p: Point3<T>, q: [f64; 3]| {
-        (mid(p.x) - q[0]).abs() + (mid(p.y) - q[1]).abs() + (mid(p.z) - q[2]).abs() < 1e-9 * scale
-    };
-    let point = |v| {
-        *body
-            .get_point(body.get_vertex(v).expect("a vertex").point)
-            .expect("a point")
-    };
-    query::all_edges(body)
-        .into_iter()
-        .find(|&e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
-            let (s, t) = (
-                point(body.get_half_edge(he).expect("a half").start),
-                point(body.half_edge_end(he).expect("an end")),
-            );
-            (near(s, a) && near(t, b)) || (near(s, b) && near(t, a))
-        })
-        .unwrap_or_else(|| panic!("an edge {a:?} → {b:?}"))
-}
-
 /// The planar fixture's floor edge.
 fn floor<T: Real + Bounds>(body: &Body<T>, k: f64) -> EdgeKey {
     edge(
@@ -243,28 +218,18 @@ fn blend<T: Decide + Bounds + AtRestPolicy>(
     .map_err(|e| e.error)
 }
 
-/// A body's volume, as its enclosure's midpoint and half-width.
-fn volume<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBounds>(
-    body: &Body<T>,
-) -> (f64, f64) {
-    let p = mass_properties(body, tol()).expect("certified props");
-    (
-        mid(p.volume),
-        0.5 * (p.volume.hi() - p.volume.lo()) + p.volume_pad,
-    )
-}
-
 fn rings<T: Real>(body: &Body<T>) -> usize {
     body.faces().map(|(_, f)| f.rings.len()).sum()
 }
 
-/// **The bar is absorbed by the fill**: `verb` at `r` on `edges` builds
-/// at tiers 3 and 3′ with naming totality; the bar's faces `walls` are
-/// gone and retired; its two cycles leave the end walls (two fewer rings
-/// than the source carried); the source's one genus-1 shell, the bar a
-/// handle across the pocket, is left one genus-0 shell; and the volume
-/// rises by `added` to `1e-12` of the scale `k` cubed, with the
-/// enclosure a claim and its midpoint on the closed form.
+/// **The bars are absorbed by the fill**: `verb` at `r` on `edges`
+/// builds at tiers 3 and 3′ with naming totality; the bars' faces
+/// `walls` are gone and retired; the source's one shell, of genus `g`
+/// (each bar a handle across the pocket), is left one genus-0 shell, and
+/// each bar's two cycles leave the end walls (`2g` fewer rings); and the
+/// volume rises by `added` to `1e-12` of the scale `k` cubed, with the
+/// enclosure a claim and its midpoint on the closed form. Returns the
+/// build.
 #[allow(clippy::too_many_arguments)] // the row's own reads, one per argument.
 fn assert_absorbed<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBounds>(
     verb: Verb,
@@ -274,17 +239,16 @@ fn assert_absorbed<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBound
     walls: &[FaceKey],
     (added, k): (f64, f64),
     what: &str,
-) {
+) -> Blended<T> {
     let what = format!("{what} ({verb:?})");
     let what = what.as_str();
     validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3, {e:?}"));
     assert!(!walls.is_empty(), "{what}: the source carries the bar");
     let c0 = topo::readback::euler_counts(body);
-    assert_eq!(
-        (c0.s, c0.genus()),
-        (1, Ok(1)),
-        "{what}: the source's bar is a handle across the pocket"
-    );
+    let g = match (c0.s, c0.genus()) {
+        (1, Ok(g)) if g > 0 => g,
+        got => panic!("{what}: the source is one shell, each bar a handle, got {got:?}"),
+    };
     let out = blend(verb, body, edges, r)
         .unwrap_or_else(|e| panic!("{what}: the fill absorbs the bar, got {e}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
@@ -299,9 +263,9 @@ fn assert_absorbed<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBound
         );
     }
     assert_eq!(
-        rings(&out.body) + 2,
+        rings(&out.body) + 2 * usize::try_from(g).expect("a positive genus"),
         rings(body),
-        "{what}: the bar's two cycles leave the end walls"
+        "{what}: each bar's two cycles leave the end walls"
     );
     let c1 = topo::readback::euler_counts(&out.body);
     assert_eq!(
@@ -309,7 +273,7 @@ fn assert_absorbed<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBound
         (1, Ok(0)),
         "{what}: one genus-0 shell, the handle gone"
     );
-    let ((v0, pad0), (v1, pad1)) = (volume(body), volume(&out.body));
+    let ((v0, pad0), (v1, pad1)) = (volume_enclosure(body), volume_enclosure(&out.body));
     let (dv, pad) = (v1 - v0, pad0 + pad1);
     let scale = k.powi(3);
     assert!(
@@ -320,11 +284,7 @@ fn assert_absorbed<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBound
         (dv - added).abs() < midpoint_tol() * scale,
         "{what}: ΔV's midpoint {dv} is off the closed form {added}"
     );
-}
-
-/// The section `verb` at size `r` fills in a right dihedral.
-fn section(verb: Verb, r: f64) -> f64 {
-    verb.section_at(r, PI / 2.0)
+    out
 }
 
 /// **A bar between the pocket's end walls is absorbed at every scale,
@@ -426,6 +386,140 @@ fn a_square_bar_inside_a_concave_bands_fill_is_absorbed() {
     }
 }
 
+/// A round rod of radius `a` along `x` over `x`, its axis at
+/// pocket-local `c`, at scale one.
+fn rod(x: (f64, f64), c: (f64, f64), a: f64) -> Body<f64> {
+    let at = (0.25 + c.0, 0.5 + c.1);
+    bar(
+        (x.0, at),
+        (x.1, at),
+        0.0,
+        Section::Round(a),
+        Vec3::new(0.0, 1.0, 0.0),
+    )
+}
+
+/// An axis-aligned box over `x`, and over `u` and `v` pocket-local, at
+/// scale one.
+fn pocket_box(x: (f64, f64), u: (f64, f64), v: (f64, f64)) -> Body<f64> {
+    brick(x, (0.25 + u.0, 0.25 + u.1), (0.5 + v.0, 0.5 + v.1), tol())
+}
+
+/// **Two bars in one fill are both absorbed**, under both verbs: genus
+/// 2 → 0, four rings leave, `ΔV = +(A − π·a² − π·a′²)/2`.
+#[test]
+fn two_bars_inside_a_concave_bands_fill_are_both_absorbed() {
+    let (d, a) = BAR;
+    let b = 0.004;
+    let body = boolean(
+        true,
+        straight(1.0, 0.0, (d, d), Section::Round(a)),
+        rod((0.1, 0.9), (0.03, 0.008), b),
+    );
+    let mut walls = bar_walls(&body, Section::Round(a), 1.0);
+    walls.extend(bar_walls(&body, Section::Round(b), 1.0));
+    assert_eq!(walls.len(), 4, "the two bars' four half-walls");
+    for verb in VERBS {
+        let added = (section(verb, D) - PI * (a * a + b * b)) * 0.5;
+        assert_absorbed(
+            verb,
+            &body,
+            &[floor(&body, 1.0)],
+            D,
+            &walls,
+            (added, 1.0),
+            "two bars",
+        );
+    }
+}
+
+/// Those of `faces` that carry an edge from one end wall to the other at
+/// lean zero: a bar's walls between them.
+fn between_the_walls(body: &Body<f64>, faces: &[FaceKey]) -> Vec<FaceKey> {
+    let x = |v| {
+        body.get_point(body.get_vertex(v).expect("a vertex").point)
+            .expect("a point")
+            .x
+    };
+    let spans: Vec<FaceKey> = query::all_edges(body)
+        .into_iter()
+        .filter_map(|e| body.get_edge(e))
+        .filter(|e| {
+            let (s, t) = (
+                x(body.get_half_edge(e.he_plus).expect("a half").start),
+                x(body.half_edge_end(e.he_plus).expect("an end")),
+            );
+            ((s - 0.25).abs() < 1e-9 && (t - 0.75).abs() < 1e-9)
+                || ((s - 0.75).abs() < 1e-9 && (t - 0.25).abs() < 1e-9)
+        })
+        .flat_map(|e| [e.he_plus, e.he_minus])
+        .filter_map(|h| body.face_of_half_edge(h))
+        .collect();
+    faces
+        .iter()
+        .copied()
+        .filter(|f| spans.contains(f))
+        .collect()
+}
+
+/// **A bar run on out through the block's outer faces** is absorbed
+/// between the end walls and keeps its stubs outside the block, under
+/// both verbs: its segment in the pocket goes, at `ΔV = +(A − π·a²)/2`,
+/// and its two cycles on the outer faces and its walls outside them
+/// stay.
+#[test]
+fn a_bar_run_out_through_the_outer_faces_is_absorbed_between_the_walls() {
+    let (d, a) = BAR;
+    let body = boolean(true, die(1.0, 0.0), rod((-1.3, 2.3), (d, d), a));
+    let all = bar_walls(&body, Section::Round(a), 1.0);
+    let walls = between_the_walls(&body, &all);
+    assert_eq!(walls.len(), 2, "the bar's two half-walls in the pocket");
+    for verb in VERBS {
+        let added = (section(verb, D) - PI * a * a) * 0.5;
+        let out = assert_absorbed(
+            verb,
+            &body,
+            &[floor(&body, 1.0)],
+            D,
+            &walls,
+            (added, 1.0),
+            "a bar out through the block",
+        );
+        assert_eq!(
+            bar_walls(&out.body, Section::Round(a), 1.0).len() + 2,
+            all.len(),
+            "{verb:?}: the stubs' walls stay"
+        );
+    }
+}
+
+/// **Two concave bands in one request**: the floor edge and the
+/// opposite floor edge `(¼, ¾, ½) → (¾, ¾, ½)`, the bar in the first
+/// band's fill, under both verbs: the bar is absorbed by its band, at
+/// `ΔV = +(2A − π·a²)/2`.
+#[test]
+fn a_bar_under_one_of_two_concave_bands_is_absorbed() {
+    let (d, a) = BAR;
+    let body = straight::<f64>(1.0, 0.0, (d, d), Section::Round(a));
+    let walls = bar_walls(&body, Section::Round(a), 1.0);
+    let edges = [
+        floor(&body, 1.0),
+        edge(&body, [0.25, 0.75, 0.5], [0.75, 0.75, 0.5]),
+    ];
+    for verb in VERBS {
+        let added = (2.0 * section(verb, D) - PI * a * a) * 0.5;
+        assert_absorbed(
+            verb,
+            &body,
+            &edges,
+            D,
+            &walls,
+            (added, 1.0),
+            "a bar under one of two bands",
+        );
+    }
+}
+
 /// `verb`'s refusal on the planar fixture `body` at scale one.
 fn refusal(verb: Verb, body: &Body<f64>) -> BlendError {
     match blend(verb, body, &[floor(body, 1.0)], D) {
@@ -443,10 +537,12 @@ fn past_the_arc(dist: f64, a: f64) -> (f64, f64) {
 }
 
 /// The pocket-local centre of a bar `dist` from the chamfer's chord, on
-/// its normal through the chord's midpoint, towards the old vertex.
+/// its normal through the chord's midpoint, towards the old vertex: the
+/// convex suite's point, mirrored through its corner `(1, 1)` onto the
+/// pocket's `(0, 0)`.
 fn past_the_chord(dist: f64) -> (f64, f64) {
-    let m = D / 2.0 - dist / 2f64.sqrt();
-    (m, m)
+    let (u, v) = band_planar_consume::past_the_chord(dist);
+    (1.0 - u, 1.0 - v)
 }
 
 /// **A hair either side of the fill's boundary, at every lean.** A bar
@@ -516,74 +612,139 @@ fn a_bar_a_hair_across_the_fills_boundary_crosses_and_one_inside_is_absorbed() {
     }
 }
 
-/// The tilted bar: its axis a tangent of the fillet arc's circle,
-/// touching it at mid-length (the arc's point nearest the old vertex),
-/// its ends `h = 0.0255` either side along the tangent at the two end
-/// walls, of radius `a = 0.002`, its two seams along the tangent; and
-/// the axis's ends.
-fn tilted_bar() -> (Body<f64>, (f64, f64), (f64, f64), f64) {
+/// **A bar an escalate width either side of the fillet's arc**, at
+/// `dist ∈ ±{1e-9, 5e-9, 2e-8}`, radius `0.004`, on the bisector: one
+/// past the arc is never absorbed, at every eps (it refuses at the end
+/// wall's meter or the reach); one inside is absorbed at
+/// `ΔV = +(A − π·a²)/2` or refuses as a bound, never as a measurement.
+#[test]
+fn a_bar_an_escalate_width_past_the_arc_is_never_absorbed() {
+    let a = 0.004;
+    for dist in [-2e-8, -5e-9, -1e-9, 1e-9, 5e-9, 2e-8] {
+        let what = format!("a bar {dist:e} inside the arc");
+        let body = straight::<f64>(1.0, 0.0, past_the_arc(dist, a), Section::Round(a));
+        match blend(Verb::Fillet, &body, &[floor(&body, 1.0)], D) {
+            Err(e) => {
+                let ok = match e {
+                    BlendError::RingClearance {
+                        chain: Convexity::Concave,
+                        bounded,
+                        ..
+                    }
+                    | BlendError::FaceClearance {
+                        chain: Convexity::Concave,
+                        bounded,
+                        ..
+                    } => dist < 0.0 || bounded,
+                    _ => false,
+                };
+                assert!(
+                    ok,
+                    "{what}: a clearance refusal, a bound if inside, got {e:?}"
+                );
+            }
+            Ok(_) => {
+                assert!(dist > 0.0, "{what}: a bar past the arc is never absorbed");
+                let walls = bar_walls(&body, Section::Round(a), 1.0);
+                let added = (section(Verb::Fillet, D) - PI * a * a) * 0.5;
+                assert_absorbed(
+                    Verb::Fillet,
+                    &body,
+                    &[floor(&body, 1.0)],
+                    D,
+                    &walls,
+                    (added, 1.0),
+                    &what,
+                );
+            }
+        }
+    }
+}
+
+/// The tilted bar at lean `s`: its axis a tangent of the fillet arc's
+/// circle, touching it at mid-length (the arc's point nearest the old
+/// vertex), its ends `h = 0.0255` either side along the tangent on the
+/// two end walls, of radius `a = 0.002`, its two seams along the
+/// tangent; and its radius and the axis's length between the walls.
+fn tilted_bar(s: f64) -> (Body<f64>, f64, f64) {
     let (r, h, a) = (D, 0.0255, 0.002);
     let s2 = 2f64.sqrt();
     let touch = (r - r / s2, r - r / s2);
     let p = (touch.0 - h / s2, touch.1 + h / s2);
     let q = (touch.0 + h / s2, touch.1 - h / s2);
-    let body = barred(
-        1.0,
-        0.0,
-        (p, q),
-        Section::Round(a),
-        Vec3::new(0.0, 1.0, -1.0),
+    let on = |x0: f64, (y, z): (f64, f64)| (x0 + s * y, (0.25 + y, 0.5 + z));
+    let (start, end) = (on(0.25, p), on(0.75, q));
+    let axis =
+        ((end.0 - start.0).powi(2) + (end.1.0 - start.1.0).powi(2) + (end.1.1 - start.1.1).powi(2))
+            .sqrt();
+    let body = boolean(
+        true,
+        die(1.0, s),
+        bar(
+            start,
+            end,
+            0.15,
+            Section::Round(a),
+            Vec3::new(0.0, 1.0, -1.0),
+        ),
     );
-    (body, p, q, a)
+    (body, a, axis)
 }
+
+/// The leans the tilted bar is read at.
+const LEANS: [f64; 4] = [0.0, 0.3, 1.0, -1.0];
 
 /// **A tilted bar inside the fill at both end walls that pokes out of
-/// the band surface between them refuses**, as a bound at its wall:
-/// each cycle is `√(r² + h²) − r − a ≈ 1.2e-3` inside the sliver, and
-/// the bar runs `a` past the arc into the ball at mid-length. Its seams
-/// run along the arc's tangent, never nearer its centre than `r`, so
-/// every sampled point of the wall's boundary lies in the fill and the
-/// exact core reads no crossing: only `prism_inside`'s line slack and
-/// its `diagonal·|a × τ|` term hold this row. Without them the bar is
-/// absorbed through the band surface.
+/// the band surface between them refuses** at every lean, as a bound at
+/// its wall: each cycle is `√(r² + h²) − r − a ≈ 1.2e-3` inside the
+/// sliver, and the bar runs `a` past the arc into the ball at
+/// mid-length. Its seams run along the arc's tangent, never nearer its
+/// centre than `r`, so every sampled point of the wall's boundary lies
+/// in the fill and the exact core reads no crossing: only
+/// `prism_inside`'s line slack and its `diagonal·|a × τ|` term hold this
+/// row. Without them the bar is absorbed through the band surface.
 #[test]
 fn a_tilted_bar_inside_at_both_end_walls_through_the_band_surface_refuses() {
-    let (body, ..) = tilted_bar();
-    let got = blend(Verb::Fillet, &body, &[floor(&body, 1.0)], D).map(|_| ());
-    assert!(
-        matches!(
-            got,
-            Err(BlendError::FaceClearance {
-                bounded: true,
-                chain: Convexity::Concave,
-                ..
-            })
-        ),
-        "the tilted bar refuses as a bound at its wall, got {got:?}"
-    );
+    for s in LEANS {
+        let (body, ..) = tilted_bar(s);
+        let got = refusal(Verb::Fillet, &body);
+        assert!(
+            matches!(
+                got,
+                BlendError::FaceClearance {
+                    bounded: true,
+                    chain: Convexity::Concave,
+                    ..
+                }
+            ),
+            "lean {s}: the tilted bar refuses as a bound at its wall, got {got:?}"
+        );
+    }
 }
 
-/// **The same tilted bar is absorbed by the chamfer's fill**, at
-/// `ΔV = +(A·L − π·a²·ℓ)`, `ℓ` the axis's length between the walls. The
-/// fill is a triangular prism, convex, so a wall whose every point lies
-/// on a ruling between points of cycles inside it lies inside it too,
-/// and the reading owes no slack for the lateral run.
+/// **The same tilted bar is absorbed by the chamfer's fill** at every
+/// lean, at `ΔV = +(A·L − π·a²·ℓ)`, `ℓ` the axis's length between the
+/// walls (a round bar between parallel planes holds `π·a²` per unit of
+/// its axis). The fill is a triangular prism, convex, so a wall whose
+/// every point lies on a ruling between points of cycles inside it lies
+/// inside it too, and the reading owes no slack for the lateral run.
 #[test]
 fn a_tilted_bar_inside_the_chamfers_fill_is_absorbed() {
-    let (body, p, q, a) = tilted_bar();
-    let walls = bar_walls(&body, Section::Round(a), 1.0);
-    assert_eq!(walls.len(), 2, "the tilted bar's two half-walls");
-    let axis = (0.25 + (q.0 - p.0).powi(2) + (q.1 - p.1).powi(2)).sqrt();
-    let added = section(Verb::Chamfer, D) * 0.5 - PI * a * a * axis;
-    assert_absorbed(
-        Verb::Chamfer,
-        &body,
-        &[floor(&body, 1.0)],
-        D,
-        &walls,
-        (added, 1.0),
-        "a tilted bar",
-    );
+    for s in LEANS {
+        let (body, a, axis) = tilted_bar(s);
+        let walls = bar_walls(&body, Section::Round(a), 1.0);
+        assert_eq!(walls.len(), 2, "lean {s}: the tilted bar's two half-walls");
+        let added = section(Verb::Chamfer, D) * 0.5 - PI * a * a * axis;
+        assert_absorbed(
+            Verb::Chamfer,
+            &body,
+            &[floor(&body, 1.0)],
+            D,
+            &walls,
+            (added, 1.0),
+            &format!("a tilted bar at lean {s}"),
+        );
+    }
 }
 
 /// **A pin standing from one end wall into the fill refuses** under
@@ -618,6 +779,122 @@ fn a_pin_from_one_end_wall_into_the_fill_refuses_as_a_bound() {
             ),
             "{verb:?}: the pin refuses as a bound, got {got:?}"
         );
+    }
+}
+
+/// What a conservative refusal is pinned at.
+#[derive(Clone, Copy, Debug)]
+enum Pinned {
+    /// `FaceClearance { bounded: true }` on a chain of this convexity.
+    Bound(Convexity),
+    /// `WhollyInside` on a concave chain.
+    WhollyInside,
+}
+
+/// **Shapes the rule defines and the carve does not build refuse**,
+/// under both verbs, each at the meter that reads it first:
+/// - a sealed tube, a bar with a void inside it wholly inside `F`
+///   (`S ∪ F` fills the void): `WhollyInside`, at the void's shell, which
+///   has no cap cycle;
+/// - a bump on the bar wholly inside `F` (`S ∪ F` absorbs both): a
+///   bound, the bar's wall carrying a ring;
+/// - an island, a free box wholly inside `F` (absorbed): `WhollyInside`;
+/// - a blind hole drilled through one end wall, or one through each,
+///   its mouth inside the sliver (`S ∪ F` seals it into a void): a
+///   bound, the hole's wall meeting the wall's plane;
+/// - the convex mirror, a pin out of a box's end face from inside its
+///   convex sliver (`S − M` cuts it free): a bound.
+#[test]
+fn shapes_the_carve_does_not_build_refuse_conservatively() {
+    let (d, a) = BAR;
+    let barred = || straight::<f64>(1.0, 0.0, (d, d), Section::Round(a));
+    let die = || die::<f64>(1.0, 0.0);
+    let pin_out = boolean(
+        true,
+        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        bar(
+            (-0.2, (1.0 - d, 1.0 - d)),
+            (0.05, (1.0 - d, 1.0 - d)),
+            0.0,
+            Section::Round(a),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+    );
+    let pin_edge = edge(&pin_out, [0.0, 1.0, 1.0], [1.0, 1.0, 1.0]);
+    let rows = [
+        (
+            "a sealed tube",
+            boolean(false, barred(), rod((0.3, 0.7), (d, d), 0.003)),
+            None,
+            Pinned::WhollyInside,
+        ),
+        (
+            "a bump on the bar",
+            boolean(
+                true,
+                barred(),
+                pocket_box((0.45, 0.55), (0.009, 0.015), (0.012, 0.024)),
+            ),
+            None,
+            Pinned::Bound(Convexity::Concave),
+        ),
+        (
+            "an island",
+            boolean(
+                true,
+                die(),
+                pocket_box((0.4, 0.6), (0.005, 0.015), (0.005, 0.015)),
+            ),
+            None,
+            Pinned::WhollyInside,
+        ),
+        (
+            "a blind hole in one end wall",
+            boolean(false, die(), rod((0.1, 0.3), (d, d), a)),
+            None,
+            Pinned::Bound(Convexity::Concave),
+        ),
+        (
+            "a blind hole in each end wall",
+            boolean(
+                false,
+                boolean(false, die(), rod((0.1, 0.3), (d, d), a)),
+                rod((0.7, 0.9), (d, d), a),
+            ),
+            None,
+            Pinned::Bound(Convexity::Concave),
+        ),
+        (
+            "a pin out of a convex sliver",
+            pin_out,
+            Some(pin_edge),
+            Pinned::Bound(Convexity::Convex),
+        ),
+    ];
+    for (what, body, crease, want) in rows {
+        let crease = crease.unwrap_or_else(|| floor(&body, 1.0));
+        for verb in VERBS {
+            let got = blend(verb, &body, &[crease], D).map(|_| ());
+            let held = match (want, &got) {
+                (
+                    Pinned::Bound(c),
+                    Err(BlendError::FaceClearance {
+                        bounded: true,
+                        chain,
+                        ..
+                    }),
+                ) => *chain == c,
+                (
+                    Pinned::WhollyInside,
+                    Err(BlendError::WhollyInside {
+                        chain: Convexity::Concave,
+                        ..
+                    }),
+                ) => true,
+                _ => false,
+            };
+            assert!(held, "{what} ({verb:?}): refuses {want:?}, got {got:?}");
+        }
     }
 }
 
