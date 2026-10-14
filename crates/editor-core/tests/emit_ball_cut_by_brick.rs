@@ -91,7 +91,10 @@ fn a_ball_cut_by_a_brick_refuses_at_its_turned_pole_where_a_member_vertex_is_rea
         }
         assert!(failure(&ev, out).is_none(), "{what}: the subtract names");
         let ball = ev.value(b).expect("the ball's value");
-        let poles: Vec<_> = body_of(&ball.payload).vertex_points().map(|(_, p)| p).collect();
+        let poles: Vec<_> = body_of(&ball.payload)
+            .vertex_points()
+            .map(|(_, p)| p)
+            .collect();
         let value = ev.value(out).expect("the subtract's value");
         let points: std::collections::BTreeMap<_, _> =
             body_of(&value.payload).vertex_points().collect();
