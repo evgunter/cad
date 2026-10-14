@@ -1049,3 +1049,8 @@ Signed (CLEAVE orchestrator).
   - Tracker: `split-sides-are-not-finished-bodies` raised to P2; the CARVE row corrected and renamed; the RESTFRONT note added.
   - Filed: CLEAVE P2 `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out` (40 of 784 at 1e-9) and P3 `the-at-rest-result-gate-and-its-typing-live-in-five-homes`.
   - Narrow re-review resumed.
+- 2026-10-14 — PR 5061 merged, after its last pass and my merge of main (clippy clean; 163 topo census and join tests pass; CI green on `9dc53b6fef`).
+  - `join::face_surface` delegates to `readback::carrier_surface`.
+  - `decision_words` names the shared constant.
+  - Filed (P3): `join-census-blind-spots`.
+  - Both rows are closed.
