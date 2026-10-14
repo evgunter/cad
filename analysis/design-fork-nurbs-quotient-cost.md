@@ -93,3 +93,4 @@
   - **Time:** shelling 126 s vs 139 s, r1 64 s vs 76 s.
   - **Parity:** rung counts and worst margins match step 2 exactly.
   - **Meets:** the restricted cut lies outside the whole-cell box in 0–0.37% of meets, against 69–88% for step 2's restricted-net-plus-products cut. That one is often far wider than the whole box and is mostly discarded by the meet.
+- **Step 3 timing reopened (2026-10-14 13:02Z).** Against its own base (main with step 2's cut and #5059's compensated midpoint): r1 is 49 → 65 s (+33%) and shelling is 149 → 123 s (−17%), with rung counts identical. Restricting the raised (2p, 2q) grids costs about 1.6× step 2's restrict-then-form per cut on r1's walls. The earlier "(A) beats step 2" compared against a base without #5059. A postscript round was sent to both designers (A and B) with options (B), (A′), (D′) and open.
