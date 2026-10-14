@@ -1388,3 +1388,14 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - **Designer pair dispatched** (problem with no candidates; blinding byte 83, odd → Fable = A, Opus = B; problem sha `08f79666875f`; committed to `analysis/design-fork/circular-axes-gap`, `c086072d29`). Lane dirs: germ-fork-circax-{a,b}.
   - r5152 draft so far: no outcome differs from main over 21,888 probe rows × 4 ε; 468 seam poses identical; no tangent chord minted (claim 4 holds); one NIT/MINOR (copysign vs the sibling's `decide_nonzero`).
   - **Dispatched** the P3 `plane-torus-section-degenerate-torus-ends-as-corruption`. Implementer: session_017vAPqWJkQ7ZR9Vgy8r2H92, branch `germ/pt-degenerate-torus-ending`.
+- 2026-10-14 18:20 — **r5152 report** (single review, SEQUENTIAL): mergeable; 0 MAJOR, 1 MINOR, 4 NIT.
+  - Executed:
+    - the graze side re-derived and probed against an independent closed form: 21,888 rows × 4 ε, every tangent within 1e-12 (u/s at α ≈ π/2); base missed by up to 0.14 rad in ~6k rows;
+    - the secant arm byte-identical to base;
+    - M0 red at 4 ε, with 958 fuzz contradictions on base;
+    - the 64u/s slack sound, at least 20× under a residue root;
+    - 468 seam poses: no tangent chord minted (end to end still not reachable);
+    - geom-brep 1365, topo 3025, sweep 2704 at 3 ε.
+  - **MINOR, adjudicated as a note:** `copysign` picks the side on the raw sign of `c`, where the sibling `classify.rs:640` decides it with `decide_nonzero`. It thins only at EPS_MIN with K ≈ 1 and a 1 km lever, and the miss is bounded by ~2Kε. Recorded on HONE's three-homes item (the one home takes the decided form).
+  - The NITs stay. The partial-revolve start/end asymmetry is noted on CLEAVE's item.
+  - Merge flow started: /home/user/m5152 = head + main (`1992956011`) + notes (`baf129db08`); full geom-brep/topo/sweep at 3 ε.
