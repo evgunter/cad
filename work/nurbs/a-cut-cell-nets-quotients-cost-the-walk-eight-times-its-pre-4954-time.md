@@ -65,16 +65,22 @@ The restriction is two de Casteljau splits (`blossom::split_restrict`),
 `O(p²)`; the blossom pyramid's `O(p³)` per line ran slower than step 2.
 `bezier_on`, `cut_axis` and `CellAxis::Bezier` are retired.
 
-Local, opt-level 1, `--test-threads 1`, sequential, with #5059's sound
-midpoint in:
+Local, opt-level 1, `--test-threads 1`, sequential, medians of three
+interleaved runs on one box, both with #5059's sound midpoint:
 
-| row | pre-4954 | main `72ad4910` | step 2 (#5081) | step 3 |
+| row | pre-4954 | main `72ad4910` | step-2 cut (`d0497984`) | restriction cut (`9a256acd`) |
 |---|---|---|---|---|
-| `shelling_the_curved_loft_refuses_at_a_walls_fit` | 35.3 s | 237 s | 139 s | 117 s |
-| `r1_lane0_e2e::the_f64_seam_answers_every_public_door` | 12.6 s | 167 s | 76 s | 60 s |
+| `shelling_the_curved_loft_refuses_at_a_walls_fit` | 35.3 s | 237 s | 149 s | 123 s |
+| `r1_lane0_e2e::the_f64_seam_answers_every_public_door` | 12.6 s | 167 s | 49 s | 65 s |
 
-That is about 3.3× and 4.8× pre-4954, short of the 2× target. Rung
-counts and worst margins match step 2's on four parity rows. The cut
-nests inside the whole cell's box (0–0.37% of meets outside, against
-69–88% for step 2's cut), and the meet stays. No cache is added (the
-design fork's ruling).
+Either cut takes the walks well under this item's 8–15×, at 3.5–5.2× of
+pre-4954. The restriction cut is faster on shelling and slower on r1:
+on r1's walls it restricts the raised `(2p, 2q)` grids, which costs
+more than the step-2 cut's restriction of the `(p, q)` block plus its
+small products. Which cut lands is the designers' call (#5123's
+review). The rest of the gap is
+`the-slow-ssi-rows-stay-over-twice-their-pre-4954-time`. Rung counts
+and worst margins match on four parity rows. The restriction cut nests
+inside the whole cell's box (0–0.37% of meets outside, against 69–88%
+for the step-2 cut), and the meet stays. No cache is added (the fork
+admits one only if a measurement asks for it).

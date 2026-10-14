@@ -31,8 +31,9 @@ home in `crates/geom-core/src/spline`.
   steps with exact dyadic piece weights.
 - `blossom.rs` has `CoeffWindow::blossom` and `SpanRow::restrict`.
   Every step goes through `Certification::between`, under the
-  argument contract in that module's docs. `ssi/enclose.rs`'s
-  `bezier_on` cuts still read it.
+  argument contract in that module's docs. (`ssi/enclose.rs`'s
+  `bezier_on` cuts read it until `nurbs/cut-becomes-restriction`
+  retired them.)
 
 ## Why it is not in PR 4954
 
@@ -68,6 +69,6 @@ Bernstein row at ½, next to the pairs above:
   and `props/quad.rs:4376` call them at `(0, ½)` / `(½, 1)`.
 
 The step-3 cut (`nurbs/cut-becomes-restriction`) adds a third
-restriction, `derivative`'s `split_restrict`: two de Casteljau splits,
+restriction, `blossom.rs`'s `split_restrict`: two de Casteljau splits,
 `O(p²)` against `restrict_segment`'s `O(p³)` pyramid. The fold should
 take all three: one restriction door with a halving fast path.

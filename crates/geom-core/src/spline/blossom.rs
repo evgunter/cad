@@ -686,6 +686,117 @@ mod tests {
         }
     }
 
+    /// **A split restriction encloses the exact restriction where its
+    /// ratios round.** Drawn non-dyadic segments and cuts, so both split
+    /// ratios `(a − s0)/(s1 − s0)` and `(b − a)/(s1 − a)` are inexact in
+    /// `f64`; drawn rows of degree 1–6. Every coefficient of
+    /// [`split_restrict`] holds the exact restriction, two de Casteljau
+    /// splits at the exact rational ratios over the stored numbers,
+    /// computed in big-integer fractions. Red under either ratio taken
+    /// as a rounded point instead of an outward interval.
+    #[test]
+    fn a_split_restriction_holds_the_exact_rational_restriction() {
+        use num_bigint::BigInt;
+        /// An exact rational `n/d`, `d > 0`.
+        #[derive(Clone)]
+        struct Q(BigInt, BigInt);
+        impl Q {
+            fn of(x: f64) -> Self {
+                let bits = x.to_bits();
+                let exp = ((bits >> 52) & 0x7ff) as i32;
+                let frac = BigInt::from(bits & ((1 << 52) - 1));
+                let (m, e) = if exp == 0 {
+                    (frac, -1074)
+                } else {
+                    (frac + (BigInt::from(1) << 52), exp - 1075)
+                };
+                let m = if x < 0.0 { -m } else { m };
+                if e >= 0 {
+                    Q(m << e as usize, BigInt::from(1))
+                } else {
+                    Q(m, BigInt::from(1) << (-e) as usize)
+                }
+            }
+            fn add(&self, o: &Q) -> Q {
+                Q(&self.0 * &o.1 + &o.0 * &self.1, &self.1 * &o.1)
+            }
+            fn sub(&self, o: &Q) -> Q {
+                Q(&self.0 * &o.1 - &o.0 * &self.1, &self.1 * &o.1)
+            }
+            fn mul(&self, o: &Q) -> Q {
+                Q(&self.0 * &o.0, &self.1 * &o.1)
+            }
+            fn div(&self, o: &Q) -> Q {
+                let (n, d) = (&self.0 * &o.1, &self.1 * &o.0);
+                if d.sign() == num_bigint::Sign::Minus {
+                    Q(-n, -d)
+                } else {
+                    Q(n, d)
+                }
+            }
+            /// `self ≤ o`.
+            fn le(&self, o: &Q) -> bool {
+                &self.0 * &o.1 <= &o.0 * &self.1
+            }
+        }
+        // The exact split: `right` keeps `[t, 1]`, else `[0, t]`.
+        fn split(row: &[Q], t: &Q, right: bool) -> Vec<Q> {
+            let one_t = Q::of(1.0).sub(t);
+            let mut levels = vec![row.to_vec()];
+            for r in 1..row.len() {
+                let prev = &levels[r - 1];
+                let next = (0..prev.len() - 1)
+                    .map(|i| one_t.mul(&prev[i]).add(&t.mul(&prev[i + 1])))
+                    .collect();
+                levels.push(next);
+            }
+            let p = row.len() - 1;
+            (0..=p)
+                .map(|k| {
+                    if right {
+                        levels[p - k][k].clone()
+                    } else {
+                        levels[k][0].clone()
+                    }
+                })
+                .collect()
+        }
+        let mut rng = test_utils::fuzz::start("split-restrict-rational");
+        for _ in 0..test_utils::fuzz::scaled(60) {
+            let p = 1 + rng.below(6);
+            let row: Vec<f64> = (0..=p).map(|_| rng.range(-3.0, 3.0)).collect();
+            let s0 = rng.range(-2.0, 1.0);
+            let s1 = s0 + rng.range(0.1, 3.0);
+            let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
+            let (a, b) = (x.min(y), x.max(y));
+            let got = split_restrict(
+                &row.iter().map(|&c| Interval::point(c)).collect::<Vec<_>>(),
+                (s0, s1),
+                (a, b),
+            );
+            let (qs0, qs1, qa, qb) = (Q::of(s0), Q::of(s1), Q::of(a), Q::of(b));
+            let ta = qa.sub(&qs0).div(&qs1.sub(&qs0));
+            let tb = qb.sub(&qa).div(&qs1.sub(&qa));
+            let exact = split(
+                &split(
+                    &row.iter().map(|&c| Q::of(c)).collect::<Vec<_>>(),
+                    &ta,
+                    true,
+                ),
+                &tb,
+                false,
+            );
+            for (k, (g, e)) in got.iter().zip(&exact).enumerate() {
+                assert!(
+                    g.is_certified() && Q::of(g.lo()).le(e) && e.le(&Q::of(g.hi())),
+                    "degree {p} on [{s0}, {s1}] cut to [{a}, {b}], coefficient {k}: {g:?} \
+                     misses the exact value; {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
+    }
+
     /// **A segment cut is the Bézier span's restriction, to the bit.**
     /// `restrict_segment` forms each cut end's ratio once rather than at
     /// every entry of every level; on `KnotVector::bezier(p, (s0, s1))`

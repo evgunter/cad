@@ -1326,10 +1326,17 @@ impl<T: Real> CellFirstQuotients<T> {
 impl CellFirstQuotients<crate::interval::Interval> {
     /// The quotients on the part of the block over `[a, b]` along each
     /// axis given a cut, the block spanning `[s0, s1]` along it: every
-    /// line of every numerator and weight power restricted to the cut
-    /// ([`super::restrict_segment`]), at the exact cut ends. An axis
-    /// given `None` is kept whole. A cut out of its span refuses every
-    /// coefficient it restricts.
+    /// line of every numerator and weight power restricted to the cut by
+    /// two de Casteljau splits (`blossom::split_restrict`), each ratio an
+    /// outward interval. An axis given `None` is kept whole. A cut out of
+    /// its span refuses every coefficient it restricts.
+    ///
+    /// Restriction commutes with the ring operations, so the restricted
+    /// grids are the cut block's own numerators and weight power at the
+    /// same degrees, and the statement holds on the cut's pieces as on
+    /// the cell's. Each restricted `W²` coefficient is a convex
+    /// combination of the cell's, which are positive, so it is positive
+    /// too (module docs, "The `b_k` are positive").
     #[must_use]
     pub fn restrict(&self, cuts: (Option<AxisCut>, Option<AxisCut>)) -> Self {
         // `S_u` and `S_v` share `W²` (`Homogeneous::first_raised`), so
