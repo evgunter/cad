@@ -4925,6 +4925,133 @@ mod properties_pane_tests {
         assert_eq!(
             pane.app.session.display().hidden(),
             &std::collections::BTreeSet::from([a])
+
+    /// **The startup document on an inline session, landed, with a
+    /// cap of its extrude selected** — and, where `stale`, the feature
+    /// that made the cap deleted and the run that would drop it
+    /// canceled, so the face still resolves against the landed run
+    /// while the committed document no longer holds its feature. Drawn
+    /// by the whole app; answers the feature the header's Delete names.
+    fn a_face_of_the_body(stale: bool) -> (Driven, RecipeNodeId) {
+        let tol = pncad::tolerance::witness();
+        let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let mut session = crate::session::DocSession::inline(document, tol);
+        session.pump();
+        let face = cap_of(pncad::prelude::CapEnd::End);
+        let body = face.feature();
+        session.perform(SessionOp::Select(Selection::Face(face)));
+        if stale {
+            let deleted = session.perform(SessionOp::DeleteNode { node: body });
+            assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+            session.perform(SessionOp::CancelEvaluation);
+            session.pump();
+            assert!(
+                session.committed_doc().node(body).is_none(),
+                "the committed document dropped the body"
+            );
+            assert!(
+                session
+                    .landed_pair()
+                    .is_some_and(|(landed, _)| landed.node(body).is_some()),
+                "the landed run still holds it"
+            );
+        }
+        let ctx = egui::Context::default();
+        ctx.all_styles_mut(|style| style.interaction.tooltip_delay = 0.0);
+        let mut app =
+            ViewerApp::assemble(&ctx, tol).expect("startup that needs no graphics device");
+        app.session = session;
+        let mut pane = Driven {
+            ctx,
+            app,
+            frame: eframe::Frame::_new_kittest(),
+            time: 0.0,
+        };
+        pane.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        (pane, body)
+    }
+
+    /// **A face of a feature the committed document no longer holds
+    /// offers a Delete that is drawn, cannot be clicked, and says what
+    /// `DeleteNode` would refuse with** — the whole app, the real
+    /// pane, the feature dropped through the real door.
+    ///
+    /// The runtime value that makes it false is a button gated on the
+    /// landed run rather than on the document the op reads: hovered,
+    /// it would say nothing, and clicked it would push a delete the
+    /// edit door then refuses onto the status line.
+    #[test]
+    fn a_stale_faces_delete_is_disabled_with_the_refusal_it_would_get() {
+        let (mut pane, body) = a_face_of_the_body(true);
+        let label = pane.app.session.delete_affordance(body).label;
+        // `Driven::settle` waits for no outstanding evaluation, which a
+        // canceled one stays by construction; what this row needs held
+        // still is the pick index for the picture on screen.
+        for _ in 0..3000 {
+            pane.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+            let picks = &pane.app.picks;
+            if picks.index().is_some() || picks.error().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        pane.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let quiet = pane.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let hovered = pane.hovered(Driven::only(&quiet, &label));
+        let gained = Driven::gained(&quiet, hovered);
+        let said = pane
+            .app
+            .session
+            .delete_refusal(body)
+            .expect("DeleteNode refuses a node the committed document does not hold")
+            .to_string();
+        assert_eq!(
+            gained,
+            vec![said.clone()],
+            "the hover is the op's own sentence"
+        );
+        // Planted: the words a reader gets for this row.
+        assert_eq!(
+            said,
+            format!(
+                "the edit was refused: node {} is not live. \
+                 Recourse: aim the edit at a node the document holds",
+                test_utils::refusal::tag(body.0.digest())
+            )
+        );
+        let before = status(&pane);
+        pane.click(&label);
+        assert_eq!(status(&pane), before, "a disabled button pushes nothing");
+        // The gate and the door, one answer.
+        let refused = pane
+            .app
+            .session
+            .perform(SessionOp::DeleteNode { node: body })
+            .refusal
+            .map(|refusal| refusal.to_string());
+        assert_eq!(refused, Some(said), "what the door answers the click");
+    }
+
+    /// **The same face on a feature the document holds offers a live
+    /// Delete whose hover is its cost and no refusal, and the click
+    /// deletes** — the
+    /// row that keeps the one above from passing because the harness
+    /// missed the button.
+    #[test]
+    fn a_held_faces_delete_is_live_and_says_only_its_cost() {
+        let (mut pane, body) = a_face_of_the_body(false);
+        assert!(pane.app.session.delete_refusal(body).is_none());
+        let affordance = pane.app.session.delete_affordance(body);
+        let label = affordance.label;
+        // The cost hover the affordance owes, and no refusal.
+        assert_eq!(
+            pane.gained_hovering(&label),
+            affordance.hover.into_iter().collect::<Vec<_>>()
+        );
+        pane.click(&label);
+        assert!(
+            pane.app.session.committed_doc().node(body).is_none(),
+            "the click deleted the body"
         );
     }
 
