@@ -1380,3 +1380,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Merge flow started: /home/user/m5066 = head + main (`9632a651c7`); `nextest.toml` auto-merged with the PR's one entry kept; topo in full plus spiric/torus/quad/census rows at 3 ε.
 - 2026-10-14 17:35 — **PR 5066 merged** (`07ade7cebb`) on local green: main merged twice at merge time (`9632a651c7`, then `2ba1d7fc01`). Topo 3027 and spiric/torus/quad/census 431 at 3 ε; then the PR's rows 566 at 3 ε. Row PR-5066: holdout, M, tallied 0; d5066 in the fix-pass column.
 - 2026-10-14 17:12 — **Dispatched** the P3 `circular-axes-refuses-between-the-rim-alignment-band-and-the-axes-band` (cost E). Implementer: session_017BMEP4MiK3zT8gtJU7Q5xg, branch `germ/circular-axes-band-gap`. It carries the ring-path item's P4 triage edit. It must stop at a draft PR if the fix forks a ratified clause.
+- 2026-10-14 17:46 — Check-in.
+  - **PR 5156** (circular-axes) stopped at a draft fork, as instructed.
+    - Measured: on cylinder and cone alike, 8–17 of 25 tilts fall in the gap where the table returns `CircularAxes`, at every scale and ε.
+    - The flat circle (in the plane, radius r) misses the section by at most a − b (worst 0.94ε). The rim circle misses it by thousands of ε.
+    - A = serve the flat circle (widens the documented contract of `PlaneCylinderSection::Rim` / `AxisNormalCircle`). B = refuse the span as one decision with a tilt lever (precedent: `cap_transverse`).
+    - **Designer pair dispatched** (problem with no candidates; blinding byte 83, odd → Fable = A, Opus = B; problem sha `08f79666875f`; committed to `analysis/design-fork/circular-axes-gap`, `c086072d29`). Lane dirs: germ-fork-circax-{a,b}.
+  - r5152 draft so far: no outcome differs from main over 21,888 probe rows × 4 ε; 468 seam poses identical; no tangent chord minted (claim 4 holds); one NIT/MINOR (copysign vs the sibling's `decide_nonzero`).
+  - **Dispatched** the P3 `plane-torus-section-degenerate-torus-ends-as-corruption`. Implementer: session_017vAPqWJkQ7ZR9Vgy8r2H92, branch `germ/pt-degenerate-torus-ending`.
