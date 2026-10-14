@@ -3924,7 +3924,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     let words = check_payload(&unavailable);
     assert_eq!(
         words.reason.as_deref(),
-        Some(refusal.get().to_string().as_str()),
+        Some(refusal.to_string().as_str()),
         "the reason is the kernel's own sentence, whole"
     );
     assert_eq!(

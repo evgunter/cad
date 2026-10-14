@@ -44,24 +44,38 @@ Found by the review of PR 4281.
 
 ## Closed
 
-The cascade walk reads through a `Merged` set and never asks of it
-(`resolve::first_vanished`, which `resolve_impl`'s step 5 now calls):
-each constituent retired into the merge (N3) and was never a row of its
-minting node, so only the operand names it wraps are looked up. The
-option of reading a constituent where it was a row before the edit
-collapses into this one, because N3 has no constituent that is a row.
-N5's `Cascade` bullet in `crates/editor-core/src/names/README.md` says
-so.
+The cascade rung asks only of operand names, and a name that retired
+into a merge (N3) is none:
+
+- A `Merged` set's constituents are read through, never visited, by
+  the cascade walk (`resolve::embedded`'s `Merged` arm under
+  `Partners::Cascade`).
+- A merge over a merged face lists that face's constituents re-wrapped
+  (`emit_topo`'s merge-group loop through
+  `merged::constituents_through_wrappers`, `emit_union`'s
+  `parent_name`), so beneath a constituent sits a name the inner merge
+  retired, held by a `From`. Its shape is a row's, so the table answers:
+  a name a live merged row of its minting node covers
+  (`resolve::retired_into_a_live_merge`) is retired, not vanished.
+  The pair boolean's mint builds the same shape, and the rule reads the
+  table, not the node kind, so it covers both.
+
+`resolve::first_vanished` holds the walk and states the rule. The row's
+second option (read a constituent only where it was a row before the
+edit) needs a prior run, which a single-run resolve does not have.
 
 - `tests/m4_pr4_resolve.rs`,
   `a_vanished_merged_name_is_diagnosed_at_the_edit_not_through_a_retired_constituent`:
   the sliding union's glued cap, then `SetMembers` dropping the B
-  member. Before the fix the diagnosis read `Cascade { through:
-  From { read: <transform's read>, of: b0's Cap(End) } }` at the union;
-  it now reads `RecipeEdit { NodeChanged(union) }`.
-- `resolve::tests::the_cascade_walk_asks_through_a_merged_set_and_never_of_it`:
-  with both wrapped caps held, no constituent is blamed; with one cap
-  absent, the walk still reaches it through its constituent.
+  member. Before: `Cascade { through: From { read: <transform's read>,
+  of: b0's Cap(End) } }` at the union. Now: `RecipeEdit {
+  NodeChanged(union) }`.
+- `a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit`:
+  `U2 = U1 ∪ c` with c flush on U1's glued caps, then `SetMembers(U2,
+  [U1])`. Before (the coverage rule disabled): `Cascade { through: [U1:
+  From { a's Cap(End) }] }`. Now: `RecipeEdit { NodeChanged(U2) }` for
+  every merged face of U2.
+- `resolve::tests::the_cascade_walk_asks_through_a_merged_set_and_never_of_it`.
 
 The sweep: every lookup of an embedded name in `crates/editor-core/src`
 (`walk_names`, `embedded`, `for_each_inner` callers). The cascade rung is

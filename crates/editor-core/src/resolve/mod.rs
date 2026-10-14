@@ -1411,6 +1411,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         lookup(new.eval, inner).is_none()
             && !(lines.iter().any(|l| core::ptr::eq(*l, inner))
                 && !line_rows(new.eval, inner).is_empty())
+            && !retired_into_a_live_merge(new.eval, inner)
     });
     let path = derivation_nodes(name);
     let diagnosis = if let Some(through) = cascade {
@@ -1451,32 +1452,39 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 
 /// The cascade rung's walk: the first name embedded in `name`, in
 /// [`walk_names`] order with [`Partners::Cascade`], that `absent` says
-/// the current run does not hold. A `Merged` set's constituents retired
-/// into the merge (N3): none was a row of its minting node, so none is
-/// asked, and the walk descends through each to the operand names it
-/// wraps.
+/// the current run does not hold.
+///
+/// The rung blames an OPERAND name, and a name that retired into a
+/// merge (N3) is none: it was never a row, so its absence is no
+/// vanishing. Two kinds of name are retired. A `Merged` set's
+/// constituents are, wherever the set sits, and the walk reads through
+/// them without asking ([`Partners::Cascade`]). And a merge over a
+/// merged face lists that face's constituents re-wrapped, so beneath a
+/// constituent sits a name the inner merge retired, held by a `From`
+/// rather than a set; the walk cannot tell it from a row by its shape,
+/// so `absent` answers for it from the table, where a live merged row
+/// covers it ([`retired_into_a_live_merge`]).
 fn first_vanished<'a>(
     name: &'a StableName,
     mut absent: impl FnMut(&'a StableName) -> bool,
 ) -> Option<StableName> {
-    let mut retired: Vec<&StableName> = merged_set(name).collect();
     let mut cascade = None;
     walk_names(name, Partners::Cascade, &mut |inner| {
-        let constituent = retired.iter().any(|c| core::ptr::eq(*c, inner));
-        retired.extend(merged_set(inner));
-        if cascade.is_none() && !constituent && absent(inner) {
+        if cascade.is_none() && absent(inner) {
             cascade = Some(inner.clone());
         }
     });
     cascade
 }
 
-/// The constituents of every [`RoleSeg::Merged`] set in `name`'s own
-/// path, the names that retired into it (N3).
-fn merged_set(name: &StableName) -> impl Iterator<Item = &StableName> {
-    name.path.iter().flat_map(|seg| match seg {
-        RoleSeg::Merged(set) => set.as_slice(),
-        _ => &[],
+/// Whether a live merged row of `name`'s minting node covers it
+/// (`names::merged::row_covers`): the name retired into that merge
+/// (N3), so it is no row and did not vanish.
+fn retired_into_a_live_merge<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> bool {
+    eval.value(name.node).is_some_and(|v| {
+        v.name_table
+            .iter()
+            .any(|(row, _)| crate::names::merged::row_covers(row, name))
     })
 }
 
@@ -1558,7 +1566,7 @@ fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
         }
         let mut children = Vec::new();
         embedded(n, Partners::Include, &mut children);
-        for c in children {
+        for (c, _) in children {
             let line = lines.iter().any(|l| core::ptr::eq(*l, c));
             if line {
                 out.push(c);
@@ -2383,16 +2391,19 @@ enum Partners {
     /// Visit a band, and not a piece's walls (cascade): a wall is cited
     /// by its parent's name, which no table holds once the wall is
     /// itself cut, so a wall that does not resolve is no vanished
-    /// operand; a change of walls is the border delta's to state.
+    /// operand; a change of walls is the border delta's to state. A
+    /// `Merged` set's constituents are read through and not visited:
+    /// each retired into the merge (N3), so none is an operand
+    /// ([`first_vanished`] states the rest of that rule).
     Cascade,
     /// Skip partner positions (structural embedding only).
     Skip,
 }
 
 /// Visits every name embedded in `name`'s role path, at every depth,
-/// in path order (operand names, seam pairs, merged constituents,
-/// pattern masters — and discriminator partners iff `partners` says
-/// so). [`embedded`]'s match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
+/// in path order (operand names, seam pairs, pattern masters, merged
+/// constituents unless `partners` is [`Partners::Cascade`], which reads
+/// through them — and discriminator partners iff `partners` says so). [`embedded`]'s match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
 /// [`Qualifier`] variant embedding names must be
 /// classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
@@ -2405,8 +2416,10 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
     let mut names = Vec::new();
     embedded(name, partners, &mut names);
     names.reverse();
-    while let Some(n) = names.pop() {
-        f(n);
+    while let Some((n, visited)) = names.pop() {
+        if visited {
+            f(n);
+        }
         let deeper = names.len();
         embedded(n, partners, &mut names);
         if let Some(held) = names.get_mut(deeper..) {
@@ -2415,11 +2428,12 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
     }
 }
 
-/// The names [`walk_names`] visits one level down from `name`, in path
-/// order.
-fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a StableName>) {
-    fn visit<'a>(n: &'a StableName, _: Partners, f: &mut Vec<&'a StableName>) {
-        f.push(n);
+/// The names [`walk_names`] reaches one level down from `name`, in path
+/// order, each with whether the walk visits it or only reads through it
+/// to the names below.
+fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a StableName, bool)>) {
+    fn visit<'a>(n: &'a StableName, _: Partners, f: &mut Vec<(&'a StableName, bool)>) {
+        f.push((n, true));
     }
     for seg in &name.path {
         match seg {
@@ -2504,9 +2518,8 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a Stable
                 }
             }
             RoleSeg::Merged(names) => {
-                for n in names {
-                    visit(n, partners, f);
-                }
+                let visited = partners != Partners::Cascade;
+                f.extend(names.iter().map(|n| (n, visited)));
             }
             // Discrimination references, not derivation.
             RoleSeg::Fragment(q) => match q {

@@ -468,7 +468,10 @@ pub enum CheckEvidence {
     SeparationUnavailable {
         /// The kernel's own refusal, shared whole: its class, which a
         /// consumer matches on, is `refusal.get().kind()`, and its
-        /// sentence, which a reader reads, is its `Display`.
+        /// sentence, which a reader reads, is its `Display`. It rides
+        /// in a [`crate::Refusal`] where `Escalated` and `Unsupported`
+        /// hold their shell refusal bare, because `topo::BooleanError`
+        /// is neither `Clone` nor `PartialEq` and a report is both.
         refusal: crate::Refusal<topo::BooleanError>,
     },
     /// One chart-coherence measurement, carried whole
@@ -2046,7 +2049,6 @@ mod tests {
         let refusal = topo::BooleanError::ClassificationInvariant {
             what: "solid separation: the ambient tolerance band is unusable",
         };
-        let sentence = refusal.to_string();
         let finding = super::CheckFinding {
             check: super::CheckId::Separation,
             subject: super::FindingSubject::Output {
@@ -2057,10 +2059,12 @@ mod tests {
                 refusal: refusal.into(),
             },
         };
-        let text = finding.to_string();
-        assert!(
-            text.contains(&format!("separation could not be checked: {sentence}")),
-            "the kernel's sentence, whole: {text}"
+        assert_eq!(
+            finding.to_string(),
+            "check separation: placement 000000000000 output 0: separation could not be \
+             checked: classification invariant violated: solid separation: the ambient \
+             tolerance band is unusable",
+            "the story ends in the kernel's own sentence, whole"
         );
     }
 }

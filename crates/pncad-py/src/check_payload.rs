@@ -32,7 +32,7 @@
 //!
 //! A NESTED REFUSAL is not flattened into its FIELDS. `Escalated` and
 //! `Unsupported` each hold the shell door's own typed refusal and
-//! `SeparationUnavailable` the boolean's;
+//! `SeparationUnavailable` the boolean door's, shared whole;
 //! which shell, and which face, belong to those types' own
 //! vocabularies. What crosses here is the word a caller branches on —
 //! `inner_variant` for the shell refusal's discriminant,

@@ -36,7 +36,7 @@ The machine channel:
 | Python `CheckFinding.reason` | sentence | `str`, the kernel's sentence | unchanged |
 | Python `CheckFinding.boolean_variant` | class | `str`, `boolean_error_tag` of the class | unchanged |
 
-The three readers:
+The readers:
 
 - pncad-py's projection (`crates/pncad-py/src/check_payload.rs`,
   `check_payload`) reads the sentence and class off the refusal; its
@@ -48,7 +48,13 @@ The three readers:
   `the_separation_door_reads_the_kernel_refusal_in_its_own_sentence`:
   the class-beside-sentence invariant it held is now the type's, so it
   pins the finding's rendering of the refusal instead.
-- The payload-rung sweep's table (`tests/refusal_concision_chains.rs`,
+- The payload-rung sweep (`scripts/payload-rung-sweep.py`): its raw
+  uncurated row `CheckEvidence → BooleanErrorKind` is gone (raw 222 →
+  221), and `CheckEvidence → BooleanError` is a new cross-list row (171
+  → 172 raw), since `BooleanError` is curated on the prelude and
+  `CheckEvidence` on the document list. Narrowed stays 50 and `--check`
+  passes.
+- The refusal-concision table (`tests/refusal_concision_chains.rs`,
   `check_findings`) builds the arm from the refusal it rendered before;
   its rows' text is unchanged.
 
