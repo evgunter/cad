@@ -189,3 +189,38 @@ fn a_wall_reversed_in_u_and_v_takes_its_seams_reversed() {
         "every row is the native one mirrored in u and v"
     );
 }
+
+/// REVIEW PROBE (review/5042-r, not for merge): a wrong column that
+/// holds the carrier exactly at the quarter-span probe, handed to the
+/// certifier. Every one must refuse.
+#[test]
+fn review_probe_wrong_column_holding_at_the_probe() {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let mut native = semicircle_prism();
+    topo::mint_pcurves(&mut native, tol()).unwrap();
+    let mut n = 0;
+    for (wall, _) in native.faces() {
+        let chart = native.get_surface(native.get_face(wall).unwrap().surface).unwrap().clone();
+        for h in wall_half_edges(&native, wall) {
+            let Some(cache) = native.pcurve(h) else { continue };
+            let Pcurve::IsoLine { p0, pl } = cache.pcurve().clone() else { continue };
+            let curve = native
+                .get_curve_geom(native.get_edge(native.get_half_edge(h).unwrap().edge).unwrap().curve)
+                .and_then(topo::CurveGeom::certified)
+                .unwrap();
+            let (t0, t1) = curve.params();
+            let tq = t0 + (t1 - t0) * 0.25;
+            for k in [2.0, 0.5, -1.0, 1.0 + 1e-3] {
+                let wrong = Pcurve::IsoLine {
+                    p0: Point2::new(p0.x + pl.x * tq * (1.0 - k), p0.y + pl.y * tq * (1.0 - k)),
+                    pl: geom_core::Vec2::new(pl.x * k, pl.y * k),
+                };
+                assert_eq!((wrong.eval(tq) - cache.pcurve().eval(tq)).norm(), 0.0);
+                let r = geom_brep::PcurveCache::certify(wrong, t0, t1, curve.carrier(), &chart, band);
+                assert!(r.is_err(), "a wrong column certified: {h:?} k={k}");
+                n += 1;
+            }
+        }
+    }
+    assert_eq!(n, 56);
+}

@@ -1,0 +1,52 @@
+diff --git a/crates/sweep/tests/verbs_offc_consumer.rs b/crates/sweep/tests/verbs_offc_consumer.rs
+index e4edfbbd6..9e39cbae9 100644
+--- a/crates/sweep/tests/verbs_offc_consumer.rs
++++ b/crates/sweep/tests/verbs_offc_consumer.rs
+@@ -167,9 +167,11 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
+     .unwrap();
+     // The map re-mint may itself refuse on the moved chart; the claim
+     // under test is tier 3's, so run it whatever the mint said.
+-    let _ = topo::mint_pcurves(&mut body, Tol::witness());
++    let minted = topo::mint_pcurves(&mut body, Tol::witness());
++    eprintln!("PROBE degraded mint: {minted:?}");
+     let errors = topo::validate_geometric(&body, Tol::witness())
+         .expect_err("a degraded fit must not validate");
++    eprintln!("PROBE degraded errors: {errors:?}");
+     assert!(
+         errors.iter().any(|e| matches!(
+             e,
+@@ -999,3 +1001,34 @@ fn a_rim_stated_as_a_row_in_another_chart_takes_its_own_image() {
+             .unwrap_or_else(|e| panic!("{h:?}: the rim's image certifies: {e:?}"));
+     }
+ }
++
++#[test]
++fn review_probe_stated_row_on_main() {
++    let d = 0.05;
++    let (mut body, face) = box_with_approx_cap(d, MINT_TARGET);
++    let same = approx_face_surface(&body, face);
++    body.set_face_surface_unvouched_for_tests(
++        face,
++        FaceSurface::New { surface: Surface::Approx(same), sense: true },
++    )
++    .unwrap();
++    let band = geom_core::Band::linear(Tol::witness()).unwrap();
++    let chart = body.get_surface(body.get_face(face).unwrap().surface).unwrap().clone();
++    let rims: Vec<_> = body.half_edges().map(|(k, _)| k)
++        .filter(|&k| body.face_of_half_edge(k) == Some(face)).collect();
++    for h in rims {
++        let mut fresh = body.clone();
++        fresh.detach_pcurve(h);
++        let image = topo::pcurve_of(&fresh, h, band);
++        eprintln!("PROBE {h:?} derived: {image:?}");
++        let Ok(image) = image else { continue };
++        let curve = fresh.get_curve_geom(fresh.get_edge(fresh.get_half_edge(h).unwrap().edge).unwrap().curve)
++            .and_then(topo::CurveGeom::certified).unwrap();
++        let (t0, t1) = curve.params();
++        let r = geom_brep::PcurveCache::certify(image, t0, t1, curve.carrier(), &chart, band);
++        eprintln!("PROBE {h:?} certify: {:?}", r.as_ref().err());
++    }
++    let mut m = body.clone();
++    eprintln!("PROBE mint: {:?}", topo::mint_pcurves(&mut m, Tol::witness()));
++    panic!("probe");
++}
