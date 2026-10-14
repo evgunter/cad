@@ -1284,3 +1284,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Hosted CI: `test` green. `demos` red on lily finding-13 (leaf_b 5576→5374, leaf_c 5164→4962). That is main's own drift, filed P1 on NURBS as `the-lily-leaf-tessellation-table-moved-on-main`; main's CI skips demos unless a diff seeds them. Added to the known reds.
   - Row `PR-5012.md` last: sequential, M, byte 118, tallied 0, major false.
   - The fix-pass lane reported three slow-set reds at 1e-6/1e-12 that are also red on main and unfiled. Confirming on main `e9e5df7c8a` (scratchpad/vmain.sh); I'll file them if confirmed.
+- 2026-10-14 01:25 — Check-in. r5043 is still reviewing (last write 01:19). The main-branch check of the three slow-set reds is waiting for a build slot. The spiric-lever lane is working. Re-armed for 02:25.
