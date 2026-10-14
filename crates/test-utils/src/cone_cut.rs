@@ -1,13 +1,14 @@
 //! **A double cone cut by a plane, in double-double arithmetic**: the
-//! oracle the plane × cone rows judge a served line pair against, and
-//! read their fixtures' poses with, never reading the arm's own bound.
+//! oracle the plane × cone rows judge a served line pair or ellipse
+//! against, and read their fixtures' poses with, never reading the arm's
+//! own bound.
 //!
 //! Every input is a stored `f64` (the cone's apex, axis and half-angle,
-//! the plane's origin and normal, a served line's origin and direction),
-//! read exactly and carried at about 106 bits, so the oracle's own
-//! rounding is some `1e-32` of the lengths it reads. Points are taken
-//! relative to the apex, which a double-double difference of two `f64`s
-//! holds exactly.
+//! the plane's origin and normal, a served line's origin and direction
+//! or ellipse's fields), read exactly and carried at about 106 bits, so
+//! the oracle's own rounding is some `1e-32` of the lengths it reads.
+//! Points are taken relative to the apex, which a double-double
+//! difference of two `f64`s holds exactly.
 
 /// A double-double: the unevaluated sum of two `f64`s.
 #[derive(Clone, Copy, Debug)]
@@ -153,6 +154,7 @@ fn slants(lo: f64, hi: f64, n: u32) -> Vec<f64> {
 pub struct ConeCut {
     apex: V,
     a: V,
+    n: V,
     e1: V,
     e2: V,
     c: Dd,
@@ -177,6 +179,7 @@ impl ConeCut {
         Self {
             apex,
             a,
+            n,
             e1,
             e2: cross(a, e1),
             c,
@@ -247,6 +250,35 @@ impl ConeCut {
                 .map(|&x| norm(sub(x, p)).f())
                 .fold(f64::INFINITY, f64::min)
         })
+    }
+
+    /// **How far a stored ellipse stands off the cut**: over points of
+    /// `center + u_ref·major·cos θ + (axis × u_ref)·minor·sin θ`, each
+    /// evaluated here from the stored fields, the farthest one stands
+    /// from the double cone or from the plane, whichever is farther.
+    #[must_use]
+    pub fn ellipse_miss(&self, center: P3, axis: P3, major: f64, minor: f64, u_ref: P3) -> f64 {
+        let (center, u) = (sub(v(center), self.apex), v(u_ref));
+        let w = cross(v(axis), u);
+        let mut worst = 0.0_f64;
+        for i in 0..=16 {
+            let (s, c) = Dd::sin_cos(core::f64::consts::FRAC_PI_2 * f64::from(i) / 16.0);
+            for (c, s) in [(c, s), (c.neg(), s), (c.neg(), s.neg()), (c, s.neg())] {
+                let x = add(
+                    center,
+                    add(
+                        scale(u, Dd::of(major).mul(c)),
+                        scale(w, Dd::of(minor).mul(s)),
+                    ),
+                );
+                let h = dot(x, self.a);
+                let r = norm(sub(x, scale(self.a, h)));
+                let off_cone = r.mul(self.cos).sub(h.abs().mul(self.sin)).abs().f();
+                let off_plane = dot(x, self.n).sub(self.qn).abs().f();
+                worst = worst.max(off_cone.min(norm(x).f())).max(off_plane);
+            }
+        }
+        worst
     }
 
     /// The generator pair the plane through the apex parallel to this one

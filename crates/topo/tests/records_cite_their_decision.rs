@@ -764,3 +764,48 @@ fn every_pinch_over_the_poses_records_a_row() {
     }
     assert!(pinches > 0, "the poses pinch somewhere");
 }
+
+/// **An operand's copies on one key stay on one key** (`zip::point_classes`,
+/// `zip::share_points`): the two lobes, the halfspace first, at forty
+/// normals by every op. Wherever the result keeps both copies at the
+/// corner, they share one point key. They carry no vertex-vertex record
+/// (the copies were the operand's structure), so the output stage's
+/// record rule does not reach them: the seam correspondence ties them,
+/// the zips having fused one onto the halfspace's key. Red at 43 of the
+/// 120 runs without the seam tie (the copies on two keys).
+#[test]
+fn an_operands_copies_on_one_key_stay_on_one_key_at_every_normal() {
+    let lobes = built(
+        "the two lobes",
+        topo::intersect(&ell(), &cube_beyond([1.0, 1.3, 0.7], 4.0), tol()),
+    )
+    .body;
+    let n = 40;
+    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let mut held = 0;
+    for i in 0..n {
+        let z = 1.0 - 2.0 * (f64::from(i) + 0.5) / f64::from(n);
+        let r = (1.0 - z * z).sqrt();
+        let m = [
+            r * (ga * f64::from(i)).cos(),
+            r * (ga * f64::from(i)).sin(),
+            z,
+        ];
+        let half = cube_beyond(m, 8.0);
+        for (op, got) in [
+            ("intersect", topo::intersect(&half, &lobes, tol())),
+            ("union", topo::union(&half, &lobes, tol())),
+            ("subtract", topo::subtract(&half, &lobes, tol())),
+        ] {
+            let Ok(BooleanResult::Body(r)) = got else {
+                continue;
+            };
+            let (keys, _) = at_pinch(&r);
+            if keys.len() == 2 {
+                held += 1;
+                assert_eq!(keys[0], keys[1], "normal {i} half-lobes {op}: {keys:?}");
+            }
+        }
+    }
+    assert!(held >= 43, "{held} runs keep both copies");
+}

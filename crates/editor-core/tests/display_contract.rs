@@ -2582,6 +2582,7 @@ test_utils::f6_variants! {
         MemberEdgeTied,
         ConventionalVertex,
         ClosedCarrierUnread,
+        CarrierUnplaced,
         Band,
         Escalated,
     ];
@@ -2724,6 +2725,13 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["closed on its", "no period"],
         ),
         (
+            NamingError::CarrierUnplaced {
+                edge: topo::EdgeKey::default(),
+                carrier: geom::CurveKind::Nurbs,
+            },
+            vec!["gives no parameter for a point", "holds a point"],
+        ),
+        (
             NamingError::Settle(topo::SettleError::Dead {
                 vertex: topo::VertexKey::default(),
                 reached: topo::Cell::Vertex(topo::VertexKey::default()),
@@ -2756,7 +2764,8 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec![
                 // By tag a member read is said by its whole id.
                 "member read 000000000025's edge",
-                "a tie stands where one edge is needed",
+                "is read where one edge is needed",
+                "a tie stands there",
             ],
         ),
         (
