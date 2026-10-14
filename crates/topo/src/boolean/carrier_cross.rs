@@ -1009,58 +1009,51 @@ mod meetings_rows {
                         ..e
                     }
                 };
-                let mut poses: Vec<(&str, Box<dyn Fn(f64) -> Conic<f64>>)> = vec![
-                    (
-                        "centre in the plane",
-                        Box::new(|d| Conic {
-                            center: e.center + (u + v).normalize() * d,
-                            ..e
-                        }),
-                    ),
-                    (
-                        "centre off the plane",
-                        Box::new(|d| Conic {
-                            center: e.center + n * d,
-                            ..e
-                        }),
-                    ),
-                    (
-                        "major",
-                        Box::new(|d| Conic {
-                            major: major + d,
-                            ..e
-                        }),
-                    ),
-                    (
-                        "minor",
-                        Box::new(|d| Conic {
-                            minor: minor - d,
-                            ..e
-                        }),
-                    ),
-                    ("tilt about û", Box::new(|d| tilt(u, d))),
-                    ("tilt about v̂", Box::new(|d| tilt(v, d))),
-                    (
-                        "tilt about û + v̂",
-                        Box::new(|d| tilt((u + v).normalize(), d)),
-                    ),
+                let pose = |what: &str, d: f64| match what {
+                    "centre in the plane" => Conic {
+                        center: e.center + (u + v).normalize() * d,
+                        ..e
+                    },
+                    "centre off the plane" => Conic {
+                        center: e.center + n * d,
+                        ..e
+                    },
+                    "major" => Conic {
+                        major: major + d,
+                        ..e
+                    },
+                    "minor" => Conic {
+                        minor: minor - d,
+                        ..e
+                    },
+                    "tilt about û" => tilt(u, d),
+                    "tilt about v̂" => tilt(v, d),
+                    "tilt about û + v̂" => tilt((u + v).normalize(), d),
+                    "turn" => Conic {
+                        u_ref: turn(u, n, d / (major - minor)),
+                        ..e
+                    },
+                    other => panic!("no pose {other}"),
+                };
+                let mut poses = vec![
+                    "centre in the plane",
+                    "centre off the plane",
+                    "major",
+                    "minor",
+                    "tilt about û",
+                    "tilt about v̂",
+                    "tilt about û + v̂",
                 ];
                 if ratio > 1.1 {
-                    poses.push((
-                        "turn",
-                        Box::new(|d| Conic {
-                            u_ref: turn(u, n, d / (major - minor)),
-                            ..e
-                        }),
-                    ));
+                    poses.push("turn");
                 }
-                for (what, pose) in &poses {
+                for what in poses {
                     for (d, want) in [
                         (0.6 * z, Some(true)),
                         (1.5 * z, None),
                         (2.0 * b.escalate(), Some(false)),
                     ] {
-                        let f = pose(d);
+                        let f = pose(what, d);
                         let stored = [
                             f,
                             Conic {
