@@ -4173,14 +4173,18 @@ fn decide_joint<T: Decide>(
     // The second channel's periods, on the chosen sheet; a shift of the
     // first channel moves no second-channel value.
     let kv = match polar_arm(surface) {
-        Some(polar) => whole_period_count(
-            "pcurve_loop_branch",
-            prev.y - sheet.eval(entry_t).y,
-            tau,
-            |g| Margin::levered(g, polar),
-            band,
-        )
-        .map_err(PinMiss::from)?,
+        Some(polar) => {
+            let gap = prev.y - sheet.eval(entry_t).y;
+            geom_brep::whole_step_count(
+                "pcurve_loop_branch",
+                gap,
+                (tau, 1),
+                geom_brep::branch_estimate(gap, tau).unwrap_or(0),
+                |g| Margin::levered(g, polar),
+                band,
+            )
+            .map_err(PinMiss::from)?
+        }
         None => 0,
     };
     // A spline chart has no angular second channel (`polar_arm` is
@@ -4399,8 +4403,16 @@ pub(crate) fn lever_periods<T: Decide>(
     orbit: Orbit,
     band: Band,
 ) -> Result<i32, BranchMiss> {
-    let step = (orbit.step(period), orbit.per_period());
-    match geom_brep::whole_step_count(name, gap, step, |g| arm.meter(g), band) {
+    let step = orbit.step(period);
+    let from = geom_brep::branch_estimate(gap, step).unwrap_or(0);
+    match geom_brep::whole_step_count(
+        name,
+        gap,
+        (step, orbit.per_period()),
+        from,
+        |g| arm.meter(g),
+        band,
+    ) {
         Err(miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark)) => {
             near_pole_gap_closes(arm, gap, period, orbit, band).ok_or(miss)
         }
@@ -6642,6 +6654,108 @@ mod pole_slit_tests {
         Ok((body, cap, members))
     }
 
+    /// **A half-turn patch of the unit cylinder** (axis `+z`, seam `+x`)
+    /// between heights 0 and 1: the bottom arc `u ∈ [0, π]`, its circle
+    /// carrier's parameter `periods` whole periods below the azimuth it
+    /// covers, a ruling up `u = π`, the top arc back to `u = 0` and a
+    /// ruling down. Minted, or the minting pass's refusal.
+    fn cylinder_patch_below(periods: f64) -> Result<Body<f64>, super::PcurveMintError> {
+        let tol = Tol::witness();
+        let p = |u: f64, z: f64| Point3::new(u.cos(), u.sin(), z);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0, 0.0), true).unwrap();
+        let cylinder = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Cylinder {
+                        origin: Point3::new(0.0, 0.0, 0.0),
+                        axis: Vec3::unit_z(),
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let rim = |body: &mut Body<f64>, z: f64, t0: f64, t1: f64| {
+            let plane = body.add_surface(Surface::Plane {
+                origin: Point3::new(0.0, 0.0, z),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            });
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(cylinder, plane),
+                    witness: p(0.5 * (t0 + t1), z),
+                },
+                carrier: Curve3::Circle {
+                    center: Point3::new(0.0, 0.0, z),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let shift = 2.0 * PI * periods;
+        let bottom_spec = rim(&mut body, 0.0, -shift, PI - shift);
+        let bottom = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(PI, 0.0),
+                bottom_spec,
+                tol,
+            )
+            .unwrap();
+        let up = body
+            .mev(
+                MevSite::Fan {
+                    he1: bottom.he_minus,
+                    he2: bottom.he_minus,
+                },
+                p(PI, 1.0),
+                EdgeCurveSpec::line_between(p(PI, 0.0), p(PI, 1.0)),
+                tol,
+            )
+            .unwrap();
+        // The top arc, its carrier run `[0, π]` like the bottom's, from
+        // `u = π` back to `u = 0`.
+        let mut top_spec = rim(&mut body, 1.0, 0.0, PI);
+        top_spec.carrier = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::new(0.0, 0.0, -1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(-1.0, 0.0, 0.0),
+        };
+        let top = body
+            .mev(
+                MevSite::Fan {
+                    he1: up.he_minus,
+                    he2: up.he_minus,
+                },
+                p(0.0, 1.0),
+                top_spec,
+                tol,
+            )
+            .unwrap();
+        body.mef(
+            MefSite::Chords {
+                he1: top.he_minus,
+                he2: bottom.he_plus,
+            },
+            EdgeCurveSpec::line_between(p(0.0, 1.0), p(0.0, 0.0)),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+        crate::mint_pcurves(&mut body, tol)?;
+        Ok(body)
+    }
+
     /// The cap's stored rows — each half-edge's image and joint element —
     /// as text, by half-edge.
     fn rows(body: &Body<f64>, members: &[crate::HalfEdgeKey]) -> Vec<String> {
@@ -6649,6 +6763,55 @@ mod pole_slit_tests {
             .iter()
             .map(|&he| format!("{he:?} {:?} {:?}", body.pcurve(he), body.joint(he)))
             .collect()
+    }
+
+    /// **A carrier stated whole periods off its azimuth mints.** Nothing
+    /// bounds where a circle carrier's parameter runs against the azimuth
+    /// it covers, so the loop walk's joint gap carries that offset. The
+    /// walk's branch search starts at the gap's own estimate
+    /// (`geom_brep::branch_estimate`) and the marks decide from there, so any
+    /// offset is in reach:
+    /// - the slit cap with its first rim arc 3 and 10 periods below,
+    ///   which the walk refused `BranchOutOfReach` with its search started
+    ///   at zero (from 2 periods, its cap then counted in the sphere's
+    ///   half steps);
+    /// - a half-turn cylinder patch with its bottom arc 5 and 10 periods
+    ///   below, past four whole periods from zero.
+    ///
+    /// Each mints, re-mints from every anchor where it is the slit cap,
+    /// and reads clean. Check 4 reads no offset here: each stored image is
+    /// its own re-derivation, its fidelity branch zero.
+    #[test]
+    fn a_carrier_stated_periods_off_its_azimuth_mints() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        for periods in [3.0, 10.0] {
+            let (mut body, cap, members) = slit_cap_below(periods)
+                .unwrap_or_else(|e| panic!("slit cap {periods} periods below: {e:?}"));
+            let cap_loop = body.get_half_edge(members[0]).unwrap().parent_loop;
+            let minted = rows(&body, &members);
+            for &anchor in &members {
+                body.get_loop_mut(cap_loop).unwrap().boundary =
+                    LoopBoundary::Cycle { first: anchor };
+                crate::mint_pcurves_of(&mut body, &[cap], Tol::witness()).unwrap_or_else(|e| {
+                    panic!("{periods} periods below, anchored at {anchor:?}: {e:?}")
+                });
+                assert_eq!(
+                    rows(&body, &members),
+                    minted,
+                    "{periods}, anchored at {anchor:?}"
+                );
+                assert_eq!(super::validate_pcurves(&body, band), vec![], "{periods}");
+            }
+        }
+        for periods in [5.0, 10.0] {
+            let body = cylinder_patch_below(periods)
+                .unwrap_or_else(|e| panic!("cylinder patch {periods} periods below: {e:?}"));
+            assert_eq!(
+                super::validate_pcurves(&body, band),
+                vec![],
+                "cylinder {periods}"
+            );
+        }
     }
 
     /// **The pass re-mints a pole-slit loop from every anchor, and reads
@@ -6661,48 +6824,6 @@ mod pole_slit_tests {
     /// loop-anchored-past-a-pole-slit`: the pass refused `LoopNotClosed`
     /// where the walk from the anchor carried the pole's free azimuth
     /// gap into its closure).
-    #[test]
-    /// **The branch cap counts whole periods on the sphere too.** The
-    /// slit cap's first rim arc, its carrier parameter `p` periods below
-    /// the azimuth it covers, sits `p + 1` whole periods from the slit's
-    /// image across their joint. That is `2(p + 1)` of the sphere orbit's
-    /// half steps, and as many whole periods from its re-derivation in
-    /// check 4. At `p = 3` both reads sit exactly at
-    /// `geom_brep::MAX_BRANCH_PERIODS` (4) whole periods: the cap mints,
-    /// re-mints from every anchor and reads clean. At `p = 4` it refuses
-    /// typed, `BranchOutOfReach`. A cap counted in the sphere walk's half
-    /// steps refuses from `p = 2`.
-    #[test]
-    fn a_pole_slit_cap_at_the_branch_cap_mints_and_one_period_more_refuses() {
-        let band = Band::linear(Tol::witness()).unwrap();
-        let (mut body, cap, members) =
-            slit_cap_below(3.0).unwrap_or_else(|e| panic!("at the cap the slit cap mints: {e:?}"));
-        let cap_loop = body.get_half_edge(members[0]).unwrap().parent_loop;
-        let minted = rows(&body, &members);
-        for &anchor in &members {
-            body.get_loop_mut(cap_loop).unwrap().boundary = LoopBoundary::Cycle { first: anchor };
-            crate::mint_pcurves_of(&mut body, &[cap], Tol::witness())
-                .unwrap_or_else(|e| panic!("anchored at {anchor:?}, the pass refuses: {e:?}"));
-            assert_eq!(rows(&body, &members), minted, "anchored at {anchor:?}");
-            assert_eq!(
-                super::validate_pcurves(&body, band),
-                vec![],
-                "anchored at {anchor:?}"
-            );
-        }
-        let past = slit_cap_below(4.0).map(|_| ());
-        assert!(
-            matches!(
-                past,
-                Err(super::PcurveMintError::Certify {
-                    error: geom_brep::PcurveCertifyError::BranchOutOfReach,
-                    ..
-                })
-            ),
-            "a period past the cap refuses typed: {past:?}"
-        );
-    }
-
     #[test]
     fn a_pole_slit_loop_re_mints_from_every_anchor() {
         let (mut body, cap, members) = slit_cap();

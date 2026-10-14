@@ -4743,31 +4743,32 @@ fn incidence<T: Decide>(
     }
 }
 
-/// The furthest a branch may sit from the one it is read against, in
-/// whole periods, before [`whole_periods`] refuses it
-/// ([`BranchMiss::OutOfReach`]). A caller whose orbit steps in a
-/// fraction of a period (`topo`'s sphere walk, in half periods) counts
-/// the same whole periods through [`whole_step_count`], so the cap is
-/// one distance on every orbit.
+/// How far, in whole periods, a branch search runs from where it starts
+/// before it refuses ([`BranchMiss::OutOfReach`]). A caller whose orbit
+/// steps in a fraction of a period (`topo`'s sphere walk, in half
+/// periods) counts the same whole periods through [`whole_step_count`],
+/// so the cap is one distance on every orbit.
 ///
-/// **Why a cap, and why four.** The search steps one period at a time
-/// from `k = 0`, two sign decisions a step, so an uncapped search over
-/// a gap of `n` periods costs `2n` decisions and over an unbounded box
-/// would not terminate. Four is not derived from a bound. It is room
-/// above the branches producers are known to reach: the derivation
-/// answers on the principal branch, a row's azimuth extent is gated to
-/// one period (`AzimuthPeriodExceeded`), and a closed loop's walk
-/// closes through at most one period at its seam. A helical producer,
-/// whose rows legitimately sit further out, would need the cap raised
-/// or its branch read off its winding. The refusal says so by type
-/// rather than as a residual
+/// **What the cap bounds.** The search steps one period at a time from
+/// its start, two sign decisions a step; uncapped, a gap `n` periods from
+/// the start costs `2n` decisions, and over an unbounded box it would not
+/// terminate. What the cap means depends on the start:
+/// - The loop walk starts at the gap's own estimate ([`branch_estimate`]),
+///   so the cap bounds the estimate's error, at most a step on either
+///   side of a half-step mark, plus the near-pole read's offsets where
+///   the marks miss (`topo`'s `lever_periods`, at most one whole period
+///   around the read's centre). A carrier stated any number of periods
+///   off the azimuth it covers is then in reach
+///   (`topo`'s `a_carrier_stated_periods_off_its_azimuth_mints`).
+/// - Check 4's fidelity ([`whole_periods`]) and the other callers of
+///   [`whole_period_count`] start at zero, so for them the cap bounds the
+///   branch itself: a stored image more than four periods from its
+///   re-derivation refuses by type. Valid input does not reach that: a
+///   stored image is minted as its own re-derivation, its branch zero,
+///   and the walk's joint elements are stored apart from it.
+///
+/// Four is room, not a derived bound
 /// (`work/pcert/whole-periods-caps-a-branch-at-four-periods.md`).
-///
-/// **What a branch's reach is.** The marks decide a branch up to this
-/// many whole periods from the search's start. Where they miss, `topo`'s
-/// loop walk reads its near-pole offsets (`lever_periods`), at most one
-/// whole period around the read's centre, so the walk's reach is this
-/// cap plus that read's offsets.
 pub const MAX_BRANCH_PERIODS: i32 = 4;
 
 /// Why [`whole_periods`] decided no branch.
@@ -4825,15 +4826,40 @@ pub fn whole_period_count<T: Decide>(
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<i32, BranchMiss> {
-    whole_step_count(name, gap, (period, 1), meter, band)
+    whole_step_count(name, gap, (period, 1), 0, meter, band)
+}
+
+/// **Where a branch search starts** ([`whole_step_count`]'s `from`): the
+/// step of `step` nearest `gap`, `⌊gap/step + ½⌋` ([`Real::periodic_branch`]),
+/// as an integer where it is one, and otherwise, where `gap`'s bracket
+/// straddles a half-step mark, the step below that mark,
+/// `⌊(gap − step/4)/step + ½⌋`, so the search starts beside the mark and
+/// decides it. An estimate, never a decision: the marks decide every
+/// integer from it, so any integer within a step or two of the branch is
+/// as good. `None` for poison, a bracket wider than half a step, or a gap
+/// past any integer the search could count.
+#[must_use]
+pub fn branch_estimate<T: Decide>(gap: T, step: T) -> Option<i32> {
+    let quarter = step * T::from_f64(0.25);
+    let k = gap
+        .periodic_branch(step)
+        .point_value()
+        .or_else(|| (gap - quarter).periodic_branch(step).point_value())?;
+    // `periodic_branch` answers an integer-valued float, so the cast
+    // below is exact wherever this bound lets it through.
+    #[allow(clippy::cast_possible_truncation)]
+    (k.is_finite() && k.abs() <= 1e6).then_some(k as i32)
 }
 
 /// [`whole_period_count`] on an orbit that steps `step` at a time,
 /// `per` steps to a whole period (a sphere's image and its twin, half a
 /// period apart, are `per = 2`): the whole number of steps `k` with
-/// `|gap − k·step| < step/2`. The search stops at
-/// [`MAX_BRANCH_PERIODS`] WHOLE periods, `MAX_BRANCH_PERIODS·per`
-/// steps, so the cap is the same distance whatever the step.
+/// `|gap − k·step| < step/2`. The search starts at `from` and stops
+/// [`MAX_BRANCH_PERIODS`] WHOLE periods from it,
+/// `MAX_BRANCH_PERIODS·per` steps, so the cap is the same distance
+/// whatever the step. A start read off the gap ([`branch_estimate`]) puts
+/// any gap in reach: the marks still decide every integer, and the cap
+/// bounds only how far the decided branch sits from the estimate.
 ///
 /// # Errors
 ///
@@ -4842,6 +4868,7 @@ pub fn whole_step_count<T: Decide>(
     name: &'static str,
     gap: T,
     (period, per): (T, i32),
+    from: i32,
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<i32, BranchMiss> {
@@ -4854,7 +4881,7 @@ pub fn whole_step_count<T: Decide>(
             band,
         )
     };
-    let mut k = 0;
+    let mut k = from;
     // What is already known about the marks either side of `k`: moving
     // up one period learns the lower mark, moving down the upper.
     let (mut below, mut above) = (false, false);
@@ -4866,7 +4893,7 @@ pub fn whole_step_count<T: Decide>(
                 Sign::Positive => {
                     k += 1;
                     (below, above) = (true, false);
-                    if k > reach {
+                    if k - from > reach {
                         return Err(BranchMiss::OutOfReach);
                     }
                     continue;
@@ -4880,7 +4907,7 @@ pub fn whole_step_count<T: Decide>(
                 Sign::Negative => {
                     k -= 1;
                     (below, above) = (false, true);
-                    if k < -reach {
+                    if from - k > reach {
                         return Err(BranchMiss::OutOfReach);
                     }
                     continue;
@@ -4888,6 +4915,78 @@ pub fn whole_step_count<T: Decide>(
             }
         }
         return Ok(k);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod branch_search_rows {
+    use geom_core::{Band, Interval, Margin, Real, SpanLocate};
+
+    use super::{BranchMiss, MAX_BRANCH_PERIODS, branch_estimate, whole_step_count};
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).expect("a valid band")
+    }
+
+    /// **The cap counts whole periods whatever the step.** A gap of seven
+    /// half periods, searched in half steps from zero, is three and a
+    /// half whole periods out: inside [`MAX_BRANCH_PERIODS`] whole
+    /// periods, so it decides `7`. The same search counted as if each
+    /// half step were a period (`per = 1`) stops at four steps and
+    /// refuses.
+    #[test]
+    fn the_cap_counts_whole_periods_on_a_half_step_orbit() {
+        let tau = f64::tau();
+        let gap = 7.0 * tau / 2.0;
+        let read = |per| whole_step_count("t", gap, (tau / 2.0, per), 0, Margin::of, band());
+        assert!(matches!(read(2), Ok(7)), "{:?}", read(2));
+        assert!(
+            matches!(read(1), Err(BranchMiss::OutOfReach)),
+            "{:?}",
+            read(1)
+        );
+        const { assert!(MAX_BRANCH_PERIODS < 7 && 7 <= 2 * MAX_BRANCH_PERIODS) };
+    }
+
+    /// **A search started at the gap's estimate reaches any gap.** A gap
+    /// 25 periods and a fraction out decides `25` from its estimate, and
+    /// refuses from zero. A bracket straddling a half-period mark is
+    /// estimated at the step below the mark, so the search decides the
+    /// mark (here, in band) rather than running out of reach.
+    #[test]
+    fn a_search_from_the_estimate_reaches_any_gap() {
+        let tau = f64::tau();
+        let gap = 25.3 * tau;
+        let from = branch_estimate(gap, tau).expect("a point gap has an estimate");
+        assert_eq!(from, 25);
+        assert!(matches!(
+            whole_step_count("t", gap, (tau, 1), from, Margin::of, band()),
+            Ok(25)
+        ));
+        assert!(matches!(
+            whole_step_count("t", gap, (tau, 1), 0, Margin::of, band()),
+            Err(BranchMiss::OutOfReach)
+        ));
+        let mark = Interval::from_f64(2.5 * tau);
+        let straddle =
+            (mark - Interval::from_f64(0.01)).enclosure_hull(mark + Interval::from_f64(0.01));
+        assert_eq!(branch_estimate(straddle, Interval::tau()), Some(2));
+        let far = Interval::from_f64(40.5 * tau);
+        let far = (far - Interval::from_f64(1e-10)).enclosure_hull(far + Interval::from_f64(1e-10));
+        assert!(matches!(
+            whole_step_count(
+                "t",
+                far,
+                (Interval::tau(), 1),
+                branch_estimate(far, Interval::tau()).expect("an estimate"),
+                Margin::of,
+                band()
+            ),
+            Err(BranchMiss::OnMark | BranchMiss::Undecided(_))
+        ));
+        let inside = Interval::from_f64(2.4 * tau).enclosure_hull(Interval::from_f64(2.45 * tau));
+        assert_eq!(branch_estimate(inside, Interval::tau()), Some(2));
     }
 }
 
