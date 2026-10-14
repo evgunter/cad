@@ -1626,16 +1626,13 @@ fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
             union_of(doc.clone(), &[a, bar], &order),
         ));
     }
-    let mut first: Option<(String, BTreeMap<String, Vec<Vec<String>>>)> = None;
+    let mut sets = Vec::new();
     for (at, (d, n)) in runs {
         let ev = run(&d);
         assert!(failure(&ev, n).is_none(), "{at}: {:?}", failure(&ev, n));
-        let got = splits(&ev, &d, n, &labels);
-        match &first {
-            None => first = Some((at, got)),
-            Some((first_at, want)) => {
-                assert_eq!(&got, want, "{at} against {first_at}: the wall sets");
-            }
-        }
+        sets.push((at, splits(&ev, &d, n, &labels)));
+    }
+    for (at, got) in &sets[1..] {
+        assert_eq!(got, &sets[0].1, "{at} against {}: the wall sets", sets[0].0);
     }
 }

@@ -2358,6 +2358,14 @@ fn bound_holds<'t, 'b, T: Decide>(
     }
 }
 
+/// What [`finish_output`] made: the merge, the joins, and the joined
+/// lineage ([`BooleanNaming::joined_lineage`]).
+pub(super) type OutputStage = (
+    crate::merge_faces::MergeCoplanarOutcome,
+    Vec<super::EdgeJoin>,
+    BTreeMap<EdgeKey, EdgeKey>,
+);
+
 /// **The boolean's output stage**, the one every result path takes
 /// (`docs/DESIGN.md`, the merge stage): the merge of coplanar faces
 /// over the `declared` surface pairs (none where one operand is absent
@@ -2379,14 +2387,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     recorded: &BTreeSet<VertexKey>,
     band: Band,
     tol: Tol,
-) -> Result<
-    (
-        crate::merge_faces::MergeCoplanarOutcome,
-        Vec<super::EdgeJoin>,
-        BTreeMap<EdgeKey, EdgeKey>,
-    ),
-    BooleanError,
-> {
+) -> Result<OutputStage, BooleanError> {
     #[cfg(feature = "sweep-testing")]
     OUTPUT_STAGE_POINTS.with(|s| {
         if let Some(stages) = s.borrow_mut().as_mut() {
