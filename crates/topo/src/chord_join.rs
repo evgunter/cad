@@ -2861,7 +2861,7 @@ fn nearest_branch<T: Decide>(
         arm,
         gap,
         T::tau(),
-        crate::pcurves::PERIOD_ORBIT,
+        crate::pcurves::Orbit::Periods,
         band,
     )
     .map(|k| T::from_f64(f64::from(k)))
@@ -6620,10 +6620,11 @@ mod segment_curve_tests {
 /// **A run's joint branch is a literal.** Over a box, an entry `k`
 /// periods from the previous exit as polynomials that are not constants,
 /// on a cylinder, at `k` either side of zero: the branch less `k` is the
-/// zero polynomial. And on a narrow cone (`sin α ≈ 0.01`), a continuous joint at a vertex
-/// decided clear of the apex but with its lever `d·sin α` under the band
-/// takes the image itself by the near-pole read, where every mark reads
-/// Zero or in band.
+/// zero polynomial. And on a narrow cone (`sin α ≈ 0.01`), a continuous
+/// joint at a vertex decided clear of the apex but with its lever
+/// `d·sin α` under the band takes a lift of its own point by the
+/// near-pole read, where every mark reads Zero or in band: the image
+/// itself at a zero gap, the image a period over at a whole turn's.
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod nearest_branch_rows {
@@ -6660,7 +6661,7 @@ mod nearest_branch_rows {
     }
 
     #[test]
-    fn a_narrow_cone_joint_clear_of_the_apex_takes_its_own_image() {
+    fn a_narrow_cone_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
         let band = Band::linear(Tol::witness()).unwrap();
         let alpha = 0.01f64;
         let cone = geom::Surface::Cone {

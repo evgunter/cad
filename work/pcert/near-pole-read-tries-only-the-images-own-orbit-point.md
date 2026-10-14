@@ -35,7 +35,7 @@ one orbit point further out.
 Two reaches, both pinned as they are today:
 
 - **The narrow cone.** Row
-  `pcurves::stretch_meter::a_narrow_cone_loop_joint_clear_of_the_apex_takes_its_own_image`:
+  `pcurves::stretch_meter::a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point`:
   at `α = 0.01`, `d = 2e-8` (lever `2e-10`), a gap of `τ` reads
   `Discontinuity`. The row admits any refusal there and requires a lift
   only where the marks decide; it does not pin the kind.
@@ -64,26 +64,29 @@ designed fallback.
 
 ## Closed
 
-`near_pole_gap_closes` and `lever_periods` take the orbit offsets
-tried, in place of `twin: bool`, and the caller names them:
-`PERIOD_ORBIT` (0, ±1 whole periods) where the image has no twin,
-`TWIN_ORBIT` (0, ±1, ±2 half periods) where it has one. Every offset
-tried is a lift of the one point: a whole period is a deck
-transformation, and a half step lands on the twin, which the caller's
-second-channel count then decides. `decide_joint` (both `Marks` and
-`MarksNearPole`, and so `turn_element`) passes the set its twin
-selects; `chord_join::nearest_branch` passes `PERIOD_ORBIT`.
+`near_pole_gap_closes` and `lever_periods` take the joint's `Orbit` in
+place of `twin: bool`; the orbit owns both its step and the offsets
+tried, so an offset is never read in the other orbit's step.
+`Orbit::Periods` tries 0, ±1 whole periods where the image has no twin;
+`Orbit::HalfPeriodsWithTwin` tries 0, ±1, ±2 half periods where it has
+one. Every offset tried is a lift of the one point: a whole period is a
+deck transformation, and a half step lands on the twin, which the
+caller's second-channel count then decides. `decide_joint` (both
+`Marks` and `MarksNearPole`, and so `turn_element`) passes the orbit
+its twin selects; `chord_join::nearest_branch` passes `Orbit::Periods`.
 
 Both reaches now decide a lift:
-- `pcurves::stretch_meter::a_narrow_cone_loop_joint_clear_of_the_apex_takes_its_own_image`
+- `pcurves::stretch_meter::a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point`
   requires the lift at gaps 0, 1e-3 and ±τ at every `d`, and on a
   sphere within the band of a pole at 0 and ±τ (two half steps);
 - `pcurves::turn_miss::a_sub_band_turn_decides_the_lift_its_gap_meets`
   (renamed from `a_turn_whose_joint_misses_refuses`): both
-  orientations decide `u = ∓1` from `0.17ε` to `10ε`, and `u = 0`
+  orientations decide `u = ∓1` from `0.17ε` to `3ε` by the near-pole
+  read, with `10ε` the control where the marks decide, and `u = 0`
   under `ε/τ`;
-- `chord_join::nearest_branch_rows::a_narrow_cone_joint_clear_of_the_apex_takes_its_own_image`
+- `chord_join::nearest_branch_rows::a_narrow_cone_joint_clear_of_the_apex_takes_a_lift_of_its_point`
   gains gaps ±τ.
 
-A mutant setting both sets to `{0}` turns all three red; `TWIN_ORBIT`
-back to `{0, ±1}` turns the sphere block red.
+A sibling of this class, a half-turn joint whose in-band near read is
+dropped, is filed as
+`an-in-band-near-pole-read-is-dropped-so-a-half-turn-joint-misses-as-decided`.
