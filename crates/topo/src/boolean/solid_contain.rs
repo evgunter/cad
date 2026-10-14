@@ -3823,8 +3823,9 @@ fn latitude_extremes<T: Decide>(
 /// face may hold a vertex off that plane by more than a tightened band),
 /// and any boundary is `None`, a graze the walk retries on another ray.
 /// Both walk each loop on the one core
-/// (`splitting::containment::carrier_walk`); they differ only on the
-/// boundary, where neither answers inside.
+/// (`splitting::containment::carrier_walk`); they differ around it, on
+/// whether the point is decided on the plane and on how a boundary is
+/// read.
 ///
 /// # Panics
 ///

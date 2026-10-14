@@ -46,11 +46,13 @@
 //!   through the same door (`census::Candidates::class`); they are
 //!   built from `face_reach`, not from these constructors, so the
 //!   inventory below does not count them. Pass 2′'s curved-edge class
-//!   (`census::Trees::curved`, [`edge_box`] of each curved edge) reads
-//!   the same direction: a loose box admits a vertex to
-//!   `census::curved::may_rest_on`, whose walk passes a vertex every
-//!   piece clears with no decision pushed, so it costs that walk and
-//!   never an answer or a refusal.
+//!   (`census::Trees::curved`: [`edge_box`] of each curved edge, a
+//!   spline's control hull) reads the same direction: a loose box
+//!   admits a vertex to `census::curved::may_rest_on`, whose walk passes
+//!   a vertex every piece clears with no decision pushed. It costs that
+//!   walk, and a refusal only where the walk runs past its budget, which
+//!   reads the vertex as one that may rest on the span and hands it to
+//!   the reading.
 //! - `validate`'s check 9 (`ring_pairs`) PRUNES the same way: two
 //!   rings of one face whose hulled edge boxes clear are never handed
 //!   to the contact arms, and whether two rings meet is decided by those

@@ -42,7 +42,8 @@ conventional vertex's edge-edge record.
 
 - **Skipped before any reading:**
   - Candidates are the pairs whose padded boxes meet: a new class of
-    curved-edge boxes (`boolean::boxes::edge_box`) in the census's
+    curved-edge boxes (`boolean::boxes::edge_box`, a spline's control
+    hull) in the census's
     `Candidates`, beside the line edges'.
   - A vertex at one of the edge's ends is pass 1's.
 - **Only reaching vertices are read.** A vertex that every piece of the
