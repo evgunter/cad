@@ -2533,10 +2533,9 @@ fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
 /// levers at its circle's radius.
 ///
 /// **Why a miss refuses rather than reading both branches** (as
-/// `chart_region`'s fold, `solid_contain`'s torus walk and the loop
-/// walk's near-pole read do): the two branches astride a mark keep two
-/// forward spans a whole turn apart, two different moved edges, so no
-/// answer is shared to keep.
+/// `chart_region`'s fold and `solid_contain`'s torus walk do): the two
+/// branches astride a mark keep two forward spans a whole turn apart,
+/// two different moved edges, so no answer is shared to keep.
 ///
 /// # Errors
 ///

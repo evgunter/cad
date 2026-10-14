@@ -1099,9 +1099,11 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// carrier's own axis by the swept angle
     /// ([`crate::MappedSource::RevolvedPoint`], the same
     /// geometry-derived posture as [`Self::line_between`]'s
-    /// `ExtrudedPoint`). This is the conventional description for a
-    /// circular locus the adjacent surfaces UNDER-determine (D2's
-    /// split — e.g. a seam between coplanar faces).
+    /// `ExtrudedPoint`). Like every scaffold it describes a TRANSIENT
+    /// edge: one that comes to rest is restated in a chart
+    /// ([`Self::at_rest_in_chart`]), and an edge already at rest is
+    /// re-homed by [`EdgeCurve::restated_in_chart`], which declares
+    /// nothing the edge did not.
     ///
     /// `None` for a non-circle carrier: no other kind has this
     /// rotation pushforward, and the caller owns its own honest
@@ -1377,11 +1379,11 @@ impl<T: Decide> EdgeCurve<T> {
     ///    after checks 2–5: for circle carriers the interval is
     ///    determined up to a joint whole-period translation of both
     ///    ends (geometrically invisible); for lines it is fully
-    ///    determined. *Which connected component* of the intersection
+    ///    determined. *Which branch* of the intersection
     ///    locus the witness selects remains unverifiable before
     ///    marching exists (M3) — the mid-pin verifies the carrier
     ///    traverses the witness's arc, not that the witness sits on
-    ///    the component the modeler intended.
+    ///    the branch the modeler intended.
     /// 6. `Intersection` of two analytic surfaces over a `Nurbs`
     ///    carrier, through the [`NurbsLane`]
     ///    ([`EdgeCurve::certify_via`], [`EdgeCurve::recertify_via`]):
@@ -1972,6 +1974,24 @@ impl<T: Real> EdgeCurve<T> {
             carrier: self.carrier.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
+        }
+    }
+
+    /// This edge re-homed in `surface`'s chart: an image the door
+    /// derives from the carrier, carrier and interval verbatim, and the
+    /// authority record as it was. A declared locus stays declared; a
+    /// derived one is not given a declaration. The conventional
+    /// restatement for an edge at rest whose description no longer
+    /// names a chart it lies in.
+    #[must_use]
+    pub fn restated_in_chart(&self, surface: SurfaceKey) -> EdgeCurveSpec<T> {
+        let chart = EdgeDescriptionSpec::chart(surface);
+        EdgeCurveSpec {
+            description: match self.authority {
+                EdgeAuthority::Declared(mc) => chart.declared_by(mc),
+                EdgeAuthority::Derived => chart,
+            },
+            ..self.restated_spec()
         }
     }
 
