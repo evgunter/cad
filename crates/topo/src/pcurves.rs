@@ -374,7 +374,8 @@
 
 use geom::Surface;
 use geom_brep::{
-    BranchMiss, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve_over, whole_period_count,
+    BranchMiss, Pcurve, PcurveCache, PcurveCertifyError, WalkStop, chart_pcurve_over,
+    whole_period_count, whole_period_walk,
 };
 use geom_core::Tol;
 use geom_core::k_stats::decide;
@@ -1569,11 +1570,31 @@ fn probe_pick<T: AtRestPolicy>(
 ) -> Result<Option<Pcurve<T>>, Indeterminate> {
     let probe_t = t0 + span * T::from_f64(0.25);
     let probe = carrier.eval(probe_t);
+    first_within(what, candidates, band, |cand| {
+        let uv = cand.eval(probe_t);
+        Margin::of(probe.distance(surface.eval(uv.x, uv.y)))
+    })
+}
+
+/// **The first candidate whose margin decides Zero**, in order. A
+/// candidate whose margin is in band does not stop the search: its
+/// escalation is deferred, and the first deferred one is answered only
+/// where no candidate decides Zero. `Ok(None)` where every margin is
+/// decided off.
+///
+/// # Errors
+///
+/// The first in-band candidate's [`Indeterminate`], where none decides
+/// Zero.
+fn first_within<C, T: Decide>(
+    name: &'static str,
+    candidates: impl IntoIterator<Item = C>,
+    band: Band,
+    margin: impl Fn(&C) -> Margin<T>,
+) -> Result<Option<C>, Indeterminate> {
     let mut deferred = None;
     for cand in candidates {
-        let uv = cand.eval(probe_t);
-        let gap = probe.distance(surface.eval(uv.x, uv.y));
-        match decide(what, Margin::of(gap), band) {
+        match decide(name, margin(&cand), band) {
             Ok(Sign::Zero) => return Ok(Some(cand)),
             Ok(Sign::Positive | Sign::Negative) => {}
             Err(cause) => {
@@ -4096,8 +4117,9 @@ impl AzimuthRule {
 /// lever every mark reads Zero, and a continuous joint whose gap is
 /// within ε of an offset the read tries decides a lift of its own
 /// point. Where an offset the read tries is in band, the chart points
-/// it would join may be one point, and the joint escalates; only a gap
-/// the read decides off every offset it tries refuses (on a mark).
+/// it would join may be one point, and the joint escalates; a gap on a
+/// mark refuses only where the read decides its own nearest orbit
+/// points off ([`lever_periods`]).
 /// No branch is ever decided that names a different point. What such a
 /// pick can move is the loop's winding by one orbit step, so a reader of
 /// the winding as a region checks each joint's room first:
@@ -4307,9 +4329,11 @@ impl From<BranchMiss> for PinMiss {
 }
 
 /// **A joint's orbit**: the step its marks count in, and the offsets
-/// the near-pole read tries ([`near_pole_gap_closes`]), in that step,
-/// first to last. The two travel together, so an offset is never read
-/// in the other orbit's step.
+/// about the image the near-pole read tries first
+/// ([`near_pole_gap_closes`]), in that step; the read then tries the
+/// two branches astride the mark the walk stopped on. The step and the
+/// offsets travel together, so an offset is never read in the other
+/// orbit's step.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Orbit {
     /// No twin: whole periods. The image itself, then the image one
@@ -4317,13 +4341,7 @@ pub(crate) enum Orbit {
     Periods,
     /// A sphere twin half a period over: half periods. The image, the
     /// twin either way round, then the image one period either way
-    /// round. The twin a period over (`±3`) is not tried: a twin is a
-    /// sphere's, and a continuous joint's marks miss on a sphere only
-    /// within the band of a pole. A vertex decided off one has a lever
-    /// past the band's escalate edge, a quarter turn of which clears
-    /// the band to every mark, so there the incidence is undecided
-    /// ([`AzimuthRule::MarksNearPole`]) and a miss escalates, never
-    /// decides.
+    /// round.
     HalfPeriodsWithTwin,
 }
 
@@ -4363,16 +4381,18 @@ enum NearRead {
 /// lever `arm` ([`lever_periods`]): the vertex sits within the band of
 /// a pole or an apex (its incidence undecided), or off a narrow cone's
 /// apex by more than the band while its lever `|p − apex|·sin α` is not,
-/// so no mark reads definitely. The first offset `m` of `orbit`
-/// ([`Orbit::offsets`], in its steps of `period`) whose gap, metered at
-/// that lever, is decided within ε (`pcurve_loop_pole_gap`) is taken.
+/// so no mark reads definitely. The offsets tried are `orbit`'s
+/// ([`Orbit::offsets`]), then the branches `astride` the mark the
+/// marks' walk stopped on, in `orbit`'s steps of `period`; the first
+/// whose gap, metered at that lever, is decided within ε
+/// (`pcurve_loop_pole_gap`) is taken ([`first_within`]).
 /// The two chart points then agree in metres at the vertex, and no
 /// branch is asserted that a margin did not see. Every offset tried is
 /// a lift of the one point: a whole period is a deck transformation of
 /// the chart, and a half step lands on the twin, which names the point
 /// once the caller's second-channel count on it decides. Where none
-/// closes, [`NearRead::InBand`] if one was in band, else
-/// [`NearRead::Off`].
+/// closes, [`NearRead::InBand`] with the first in-band offset's cause,
+/// else [`NearRead::Off`].
 ///
 /// A vertex ON the axis but off the surface (within the band of a pole)
 /// has lever 0, so any gap decides Zero there and the image itself is
@@ -4385,21 +4405,22 @@ fn near_pole_gap_closes<T: Decide>(
     gap: T,
     period: T,
     orbit: Orbit,
+    astride: Option<[i32; 2]>,
     band: Band,
 ) -> NearRead {
     let step = orbit.step(period);
-    let mut in_band = None;
-    for &m in orbit.offsets() {
-        let off = gap - T::from_f64(f64::from(m)) * step;
-        match decide("pcurve_loop_pole_gap", arm.meter(off), band) {
-            Ok(Sign::Zero) => return NearRead::Closes(m),
-            Ok(Sign::Positive | Sign::Negative) => {}
-            Err(cause) => {
-                in_band.get_or_insert(cause);
-            }
-        }
+    let bracket = astride
+        .into_iter()
+        .flatten()
+        .filter(|m| !orbit.offsets().contains(m));
+    let tried = orbit.offsets().iter().copied().chain(bracket);
+    match first_within("pcurve_loop_pole_gap", tried, band, |&m| {
+        arm.meter(gap - T::from_f64(f64::from(m)) * step)
+    }) {
+        Ok(Some(m)) => NearRead::Closes(m),
+        Ok(None) => NearRead::Off,
+        Err(cause) => NearRead::InBand(cause),
     }
-    in_band.map_or(NearRead::Off, NearRead::InBand)
 }
 
 /// **A joint's whole orbit steps by the marks, with the near-pole
@@ -4422,8 +4443,15 @@ fn near_pole_gap_closes<T: Decide>(
 /// azimuth there is within the band in metres, so the marks' `OnMark`
 /// says only that the gap is half a step off an orbit point, not that
 /// the two chart points are apart. Where an offset is in band, they may
-/// be one point, and the answer is an escalation; a decided miss stands
-/// only where the read decides every offset off.
+/// be one point, and the answer is an escalation.
+///
+/// **The read tries the gap's own nearest orbit points.** Besides the
+/// orbit's offsets about the image, it tries the two branches astride
+/// the mark the walk stopped on ([`geom_brep::WalkStop`]). Where the
+/// marks miss as `OnMark`, that mark decided Zero, so the gap is within
+/// the band's zero of it and those two branches are its nearest orbit
+/// points, at any number of turns out. A decided miss therefore stands
+/// only where the gap's nearest orbit points are decided off.
 ///
 /// At a lever with room nothing moves: the read is asked only where a
 /// mark missed, so where the gap is within the band of a mark, and a
@@ -4445,18 +4473,20 @@ pub(crate) fn lever_periods<T: Decide>(
     band: Band,
 ) -> Result<i32, BranchMiss> {
     let step = orbit.step(period);
-    match whole_period_count(name, gap, step, |g| arm.meter(g), band) {
-        Err(miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark)) => {
-            match near_pole_gap_closes(arm, gap, period, orbit, band) {
-                NearRead::Closes(m) => Ok(m),
-                NearRead::InBand(cause) => match miss {
-                    BranchMiss::OnMark => Err(BranchMiss::Undecided(cause)),
-                    undecided => Err(undecided),
-                },
-                NearRead::Off => Err(miss),
-            }
-        }
-        decided => decided,
+    match whole_period_walk(name, gap, step, |g| arm.meter(g), band) {
+        Ok(k) => Ok(k),
+        Err(WalkStop {
+            miss: miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark),
+            astride,
+        }) => match near_pole_gap_closes(arm, gap, period, orbit, astride, band) {
+            NearRead::Closes(m) => Ok(m),
+            NearRead::InBand(cause) => match miss {
+                BranchMiss::OnMark => Err(BranchMiss::Undecided(cause)),
+                undecided => Err(undecided),
+            },
+            NearRead::Off => Err(miss),
+        },
+        Err(stop) => Err(stop.miss),
     }
 }
 
@@ -6170,12 +6200,19 @@ mod stretch_meter {
                 "sphere near its pole, gap {gap}: the image {turns} periods over"
             );
         }
-        // The twin a period over is not an offset the read tries: near
-        // the pole a gap of three half turns escalates, never decides.
+        // Three half turns: the twin a period over, which the orbit's own
+        // offsets do not reach and the branches astride the walk's mark do.
         assert_eq!(
             read(at_gap(&sphere, near_pole, v, 1.5 * tau)),
-            "Escalated",
-            "sphere near its pole, gap 3π: the twin a period over is not tried"
+            format!(
+                "{:?}",
+                JointElement::Shift(Deck {
+                    u: 1,
+                    v: 0,
+                    twin: true,
+                })
+            ),
+            "sphere near its pole, gap 3π: the twin a period over"
         );
         // Where a whole turn at the lever is itself within ε, the image
         // and the image a period over both close, and the image is taken
@@ -6187,18 +6224,159 @@ mod stretch_meter {
         let one = ChartArm::Angular(0.5 * band().zero());
         for (orbit, period_over) in [(Orbit::Periods, 1), (Orbit::HalfPeriodsWithTwin, 2)] {
             for (sign, gap) in [(1, tau), (-1, -tau)] {
-                let first = near_pole_gap_closes(both, gap, tau, orbit, band());
+                let first = near_pole_gap_closes(both, gap, tau, orbit, None, band());
                 assert!(
                     matches!(first, NearRead::Closes(0)),
                     "{orbit:?}, gap {gap}, a whole turn within ε: the image itself first: {first:?}"
                 );
-                let over = near_pole_gap_closes(one, gap, tau, orbit, band());
+                let over = near_pole_gap_closes(one, gap, tau, orbit, None, band());
                 assert!(
                     matches!(over, NearRead::Closes(m) if m == sign * period_over),
                     "{orbit:?}, gap {gap}, only the image a period over within ε: {over:?}"
                 );
             }
         }
+    }
+
+    /// **A gap on a mark answers by the band at the lever, however many
+    /// turns out.** On the `α = 0.01` cone, a gap of `k + ½` turns sits
+    /// on a mark, and the orbit points astride it are `π·lever` off. Within
+    /// ε the read takes one; in band it escalates; past the band the
+    /// marks' decided miss stands. The read tries the branches astride
+    /// the mark the walk stopped on, not only those about the image, so
+    /// the answer is the same at every `k`. Levers sit just either side
+    /// of each band edge, so a mutant moving an edge dies. A whole turn's
+    /// gap at those levers is a lift a whole number of periods over.
+    #[test]
+    fn a_half_turn_gap_answers_by_the_band_at_every_turn_count() {
+        use super::{JointElement, decide_joint};
+        use geom_brep::Pcurve;
+        use geom_core::{Point2, Vec2};
+        let alpha = 0.01f64;
+        let cone: Surface<f64> = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (pi, tau) = (core::f64::consts::PI, core::f64::consts::TAU);
+        let (zero, esc) = (band().zero(), band().escalate());
+        let at = |lever: f64, gap: f64| {
+            let d = lever / alpha.sin();
+            let vertex = Point3::new(lever, 0.0, d * alpha.cos());
+            let flat = Vec2::new(0.0, 0.0);
+            let image = Pcurve::Harmonic {
+                p0: Point2::new(0.0, d),
+                pa: flat,
+                pb: flat,
+                pl: flat,
+            };
+            let prev = Point2::new(gap, d);
+            match decide_joint(chart(&cone), &image, 0.0, prev, vertex, Some(tau), band()) {
+                Ok(JointElement::Shift(deck)) if deck.v == 0 && !deck.twin => {
+                    format!("u = {}", deck.u)
+                }
+                Ok(other) => format!("{other:?}"),
+                Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
+                Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
+                Err(super::PinMiss::OutOfReach) => "OutOfReach".into(),
+            }
+        };
+        // `π·lever` as a fraction of the escalate edge, in band: the
+        // reviewers' levers, and a vertex `22.3·escalate` from the apex.
+        let in_band = [0.55, 0.7, 0.75, 0.85, 0.95, 0.99]
+            .map(|f| f * esc / pi)
+            .into_iter()
+            .chain([22.3 * esc * alpha.sin(), 1.01 * zero / pi]);
+        for lever in in_band {
+            for turns in [0.5, -0.5, 1.5, -1.5, 2.5, -2.5, 3.5, -3.5] {
+                assert_eq!(
+                    at(lever, turns * tau),
+                    "Escalated",
+                    "π·lever {:e}, gap {turns}τ: the branches astride the mark are in band",
+                    pi * lever
+                );
+            }
+        }
+        // Just past the escalate edge every branch astride is decided off.
+        let past = 1.01 * esc / pi;
+        for turns in [0.5, -0.5, 2.5, -2.5, 3.5] {
+            assert_eq!(
+                at(past, turns * tau),
+                "Discontinuity",
+                "π·lever {:e}, gap {turns}τ: decided off every branch astride",
+                pi * past
+            );
+        }
+        // Just under the zero edge the image itself is within ε.
+        assert_eq!(at(0.99 * zero / pi, 0.5 * tau), "u = 0", "gap π within ε");
+        // A whole number of turns at levers with the marks in band.
+        for lever in [0.55 * esc / pi, 0.95 * esc / pi, past] {
+            for (turns, u) in [(1.0, 1), (2.0, 2), (-2.0, -2)] {
+                assert_eq!(
+                    at(lever, turns * tau),
+                    format!("u = {u}"),
+                    "π·lever {:e}, gap {turns}τ: the image {u} periods over",
+                    pi * lever
+                );
+            }
+        }
+        // Two turns at a sub-band lever: the walk stops on its first
+        // mark, half a turn from the image and undecided there, before it
+        // reaches the gap, so no branch astride locates it; the marks'
+        // own escalation answers, never a decided miss.
+        for lever in [0.2 * zero, 0.5 * zero] {
+            assert_eq!(
+                at(lever, 2.0 * tau),
+                "Escalated",
+                "lever {lever:e}, gap 2τ: the walk's first mark is undecided"
+            );
+        }
+    }
+
+    /// **The first in-band candidate's cause is the one answered.**
+    /// Two candidates in band, neither Zero: the escalation carries the
+    /// first one's margin, whichever is larger.
+    #[test]
+    fn first_within_answers_the_first_deferred_cause() {
+        let margins = [3e-9, 7e-9];
+        let out = super::first_within("first_within_row", margins, band(), |&m| Margin::of(m));
+        let want = decide("first_within_row", Margin::of(margins[0]), band());
+        let got = out.err().map(|cause| format!("{:?}", cause.margin));
+        let first = want.err().map(|cause| format!("{:?}", cause.margin));
+        assert!(first.is_some(), "the first margin is in band");
+        assert_eq!(got, first, "the first in-band candidate's margin");
+        assert!(
+            matches!(
+                super::first_within("first_within_row", [7e-9, 0.0], band(), |&m| Margin::of(m)),
+                Ok(Some(m)) if m == 0.0
+            ),
+            "an in-band candidate does not stop a later Zero"
+        );
+    }
+
+    /// **An undecided mark keeps its own cause.** At a lever of half ε a
+    /// gap of two turns stops the marks' walk on its first mark, in band,
+    /// and the near-pole read's offsets are in band too: the escalation
+    /// is the marks' (`name`), not the read's, so a caller that reads
+    /// the predicate sees the walk it asked for.
+    #[test]
+    fn an_undecided_mark_keeps_its_own_cause() {
+        let arm = ChartArm::Angular(0.5 * band().zero());
+        let tau = std::f64::consts::TAU;
+        let out = super::lever_periods(
+            "undecided_mark_row",
+            arm,
+            2.0 * tau,
+            tau,
+            super::Orbit::Periods,
+            band(),
+        );
+        assert!(
+            matches!(&out, Err(geom_brep::BranchMiss::Undecided(cause))
+                if cause.predicate == Some("undecided_mark_row")),
+            "the marks' own escalation: {out:?}"
+        );
     }
 
     /// A placeholder payload has no net to bound, so it has no arms:

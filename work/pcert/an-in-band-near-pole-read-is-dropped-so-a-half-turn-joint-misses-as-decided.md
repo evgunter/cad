@@ -73,20 +73,36 @@ pass matches:** a fold through a helper that returns `bool` from a
 ## Closed
 
 `near_pole_gap_closes` answers a `NearRead`: `Closes(m)` at the first
-offset decided within ε, else `InBand(cause)` if any offset was in
-band, else `Off`. `lever_periods` answers an in-band read over the
-marks' decided `OnMark` with `BranchMiss::Undecided(cause)`; an
-undecided mark keeps its own cause, and `Off` keeps the marks' miss, so
-a decided miss stands only where the read decides every offset off.
-Both reaches follow: `decide_joint` escalates (`PinMiss::Escalated`,
-`turn_element`'s `Err(Some)`), and `chord_join::nearest_branch` answers
+offset decided within ε, else `InBand(cause)` (the first in-band
+offset's cause) if any offset was in band, else `Off`. The offsets it
+tries are the joint's `Orbit` offsets about the image, then the two
+branches astride the mark the marks' walk stopped on
+(`geom_brep::whole_period_walk`'s `WalkStop::astride`). Where the walk
+stops on a mark decided Zero, those two are the gap's own nearest orbit
+points, so `Off` there means the joint's nearest orbit points are
+decided off, at any number of turns out.
+
+`lever_periods` answers an in-band read over the marks' decided
+`OnMark` with `BranchMiss::Undecided(cause)`; an undecided mark keeps
+its own cause, and `Off` keeps the marks' miss. Both reaches follow:
+`decide_joint` escalates (`PinMiss::Escalated`, `turn_element`'s
+`Err(Some)`), and `chord_join::nearest_branch` answers
 `SplitJoinError::Escalated` in place of `SectionInvariant`.
 
-Rows (both pin all three regimes of a gap of `π`: within ε the image,
-in band an escalation, past the band the decided miss):
-- `pcurves::stretch_meter::a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point`;
-- `chord_join::nearest_branch_rows::a_narrow_cone_joint_clear_of_the_apex_takes_a_lift_of_its_point`.
+Rows:
+- `pcurves::stretch_meter::a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point`
+  and `chord_join::nearest_branch_rows::a_narrow_cone_joint_clear_of_the_apex_takes_a_lift_of_its_point`
+  pin a gap of `π` in all three regimes (within ε the image, in band
+  an escalation, past the band the decided miss);
+- `pcurves::stretch_meter::a_half_turn_gap_answers_by_the_band_at_every_turn_count`
+  and its `nearest_branch_rows` twin pin gaps of `k + ½` turns, `|k|`
+  up to 3, at levers between and just either side of the band edges.
 
-A mutant answering the marks' `OnMark` for an in-band read turns both
-red. The kill turn on a band-sized cylinder is not a reach: a turn's
-stored gap is a whole period (its carrier closes), never half of one.
+**The kill turn.** A turn's ends meet within ε, not exactly, so a
+stored gap of half a turn is admissible. No decided miss results: the
+ends meet only where the chord `2ℓ` between them is within ε, so
+`π·ℓ ≤ (π/2)·ε`, under the escalate edge wherever that edge is at
+least `(π/2)·ε` (`K ≥ π/2`; the linear band's `K` is 10), and the read
+answers `Closes` or `InBand`; where `π·ℓ` is past escalate the chord is
+past ε and the ends do not meet. A band with `K < π/2` leaves a window,
+filed as `a-half-turn-kill-under-a-band-tighter-than-pi-over-two-misses-as-decided`.
