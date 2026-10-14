@@ -330,50 +330,99 @@ fn the_boolean_reads_a_grazing_vertex_against_its_section() {
     }
 }
 
-/// **A reading through a vanishing sine is the kernel's.** The plane
-/// runs exactly through the seam vertex at a dihedral `ψ` chosen a tenth
-/// of `K·u/ε`, its stored origin `L` along the rim's tangent, in the
-/// plane: the vertex's offset is the evaluation's rounding alone, a few
-/// ulps of `L`, and divided by `sin ψ` it lands about the band by the
-/// rounding's choice. No row offers a lever there; where the reading is
-/// not certainly within the zero band it refuses as the kernel's limit.
-#[test]
-fn a_reading_through_a_vanishing_sine_is_the_kernels() {
-    let (e, k) = (tol().eps(), tol().k());
-    let psi = (0.1 * k * geom_core::UNIT_ROUNDOFF / e).asin();
+/// The plane exactly through the seam vertex of the cylinder turned
+/// `φ = 2.2`, at dihedral `ψ`, its stored origin `l` along the rim's
+/// tangent, in the plane: the vertex's offset is the evaluation's
+/// rounding alone, a few ulps of `l`.
+fn through_the_seam(psi: f64, l: f64) -> Result<topo::splitting::SplitResult<f64>, SplitError> {
     let phi = 2.2;
     let (cyl, v, n) = pose(phi, psi);
-    if psi.sin() < 10.0 * k * e {
-        // So steep a section reads as rulings to the table at this ε:
-        // nothing here is the section reading's.
-        test_utils::vacuity::stood_down(
-            &format!("ψ = {psi:e} at ε = {e:e}"),
-            "a section the table reads in rulings is not the section reading's",
-        );
-        return;
-    }
     let along = Vec3::new(-phi.sin(), phi.cos(), 0.0);
-    let mut unresolved = 0;
-    for i in 1..=25 {
-        let l = 0.1 * f64::from(i);
-        let label = format!("ψ {psi:e} L {l}");
-        let plane = topo::test_support::split_plane(v + along * l, n, tol());
-        match split(&cyl, &plane, tol()) {
-            Err(SplitError::Reduce(SplitReduceError::SectionUnresolved { .. })) => {
-                let text = split(&cyl, &plane, tol()).unwrap_err().to_string();
-                assert!(
-                    text.ends_with(geom_core::KERNEL_LIMIT_RECOURSE) && !text.contains("move"),
-                    "{label}: the kernel's limit names no lever: {text}"
-                );
-                unresolved += 1;
+    let plane = topo::test_support::split_plane(v + along * l, n, tol());
+    split(&cyl, &plane, tol())
+}
+
+/// Whether `r` refuses at the vertex on the section reading: the one
+/// ending this family must not reach, since its reading is the
+/// rounding's and not the input's.
+fn offers_the_section_lever(r: &Result<topo::splitting::SplitResult<f64>, SplitError>) -> bool {
+    matches!(
+        r,
+        Err(SplitError::Reduce(SplitReduceError::SliverVertex { diag, .. }))
+            if diag.predicate == Some("vertex_section_side")
+    )
+}
+
+/// **A reading within the kernel's own resolution keeps the offset's
+/// verdict.** On the plane through the seam vertex, a few kilometres of
+/// stored origin put the offset's rounding, over `sin ψ`, past `ε/K`:
+/// the section reading is not admitted, and the vertex reads ON by its
+/// offset as it always did. No row refuses at the vertex; every body the
+/// split returns is valid; and at the default band the plane at
+/// `ψ = 3·10⁻⁴` builds at every origin.
+#[test]
+fn an_unresolved_section_reading_keeps_the_offsets_verdict() {
+    let family: [(f64, &[f64]); 3] = [
+        (
+            3e-4,
+            &[1100.0, 1350.0, 1600.0, 1850.0, 2100.0, 2350.0, 2600.0],
+        ),
+        (
+            1e-4,
+            &[1100.0, 1350.0, 1600.0, 1850.0, 2100.0, 2350.0, 2600.0],
+        ),
+        (
+            1e-5,
+            &[100.0, 125.0, 150.0, 175.0, 200.0, 225.0, 250.0, 270.0],
+        ),
+    ];
+    let default_band = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
+    for (psi, lengths) in family {
+        for &l in lengths {
+            let label = format!("ψ {psi:e} L {l}");
+            let r = through_the_seam(psi, l);
+            assert!(!offers_the_section_lever(&r), "{label}: {:?}", r.err());
+            match &r {
+                Ok(halves) => {
+                    for part in [halves.above.body(), halves.below.body()]
+                        .into_iter()
+                        .flatten()
+                    {
+                        assert!(
+                            topo::validate_geometric(part, tol()).is_ok(),
+                            "{label}: an invalid body"
+                        );
+                    }
+                }
+                Err(err) => assert!(
+                    !(default_band && psi == 3e-4),
+                    "{label}: the default band builds here: {err:?}"
+                ),
             }
-            Err(SplitError::Reduce(SplitReduceError::SliverVertex { diag, .. })) => {
-                panic!("{label}: the kernel's rounding offered as the user's lever: {diag:?}")
-            }
-            _ => {}
         }
     }
-    assert!(unresolved > 0, "the family reaches the kernel's limit");
+}
+
+/// **A reading through a vanishing sine offers no lever.** At
+/// `ψ = 0.1·K·u/ε` the rounding of an offset a few ulps of a metre
+/// lands, over `sin ψ`, about the band by the rounding's choice: no row
+/// refuses at the vertex on it. Some rows return bodies that fail
+/// validation on main and here alike
+/// (`a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body`),
+/// so this row reads the ending only.
+#[test]
+fn a_reading_through_a_vanishing_sine_offers_no_lever() {
+    let (e, k) = (tol().eps(), tol().k());
+    let psi = (0.1 * k * geom_core::UNIT_ROUNDOFF / e).asin();
+    for i in 1..=25 {
+        let l = 0.1 * f64::from(i);
+        let r = through_the_seam(psi, l);
+        assert!(
+            !offers_the_section_lever(&r),
+            "ψ {psi:e} L {l}: the kernel's rounding offered as the user's lever: {:?}",
+            r.err()
+        );
+    }
 }
 
 /// The unit cylinder's wall (`0 ≤ y ≤ 1`) under a cone wall rising to
@@ -481,4 +530,48 @@ fn the_shallowest_entered_face_decides() {
     let (predicate, got) = reported(&diag);
     assert_eq!(predicate, "vertex_section_side");
     assert_reads("the shallower face", got, -d / shallow, shallow);
+}
+
+/// **The Boolean's twin of the supporting plane**: the capped cylinder
+/// less a slab whose face is the supporting plane through the rim
+/// vertex. The slab meets the solid only at the vertex, so the
+/// difference keeps the whole solid at every offset within the zero
+/// band.
+#[test]
+fn a_supporting_slab_at_a_rim_vertex_keeps_the_solid() {
+    let e = tol().eps();
+    let body = capped_cylinder();
+    let whole = volume(&body);
+    let v = Point3::new(1.0, 1.0, 0.0);
+    for theta in [5f64.to_radians(), 30f64.to_radians()] {
+        let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
+        // The slab `x ≥ 1` about the vertex, its face's outward normal
+        // `−x` turned onto `−n` about the axis through the vertex.
+        let slab = |d: f64| {
+            let slab = finished(sweep::test_support::prism_at(
+                [(1.0, -3.0), (4.0, -3.0), (4.0, 3.0), (1.0, 3.0)]
+                    .iter()
+                    .map(|&(x, y)| (Point2::new(x, y), 0.0))
+                    .collect(),
+                -3.0,
+                6.0,
+                tol(),
+            ));
+            let slab = moved(
+                &slab,
+                Affine3::rotation_about_axis(v, Vec3::new(0.0, 0.0, 1.0), theta),
+            );
+            moved(&slab, Affine3::translation(n * d))
+        };
+        for c in [0.0, 0.3, -0.3, 0.5, -0.5, 0.9, -0.9] {
+            let label = format!("θ {:.0}° δ {c:+.1}ε", theta.to_degrees());
+            let r = topo::subtract(&body, &slab(c * e), tol())
+                .unwrap_or_else(|err| panic!("{label}: refused: {err:?}"));
+            let got = r.body().map_or(0.0, |b| volume(&b.body));
+            assert!(
+                (got - whole).abs() <= 1e-9 * whole,
+                "{label}: {got} against {whole}"
+            );
+        }
+    }
 }

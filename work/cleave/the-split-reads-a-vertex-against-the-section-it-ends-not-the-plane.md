@@ -57,12 +57,15 @@ on its offset's side.
   supporting plane, a planar face and a ruling the C5 table reads add
   no reading.
 - The reading's own rounding is charged through the division
-  (`Rounded`, with `Rounded::quotient` now in `geom_core::running`). It
-  is the input's only where `K·ρ` reads Zero
-  (`geom_brep::recourse::UnsupportedConditioning::admit`). Past that,
-  only a verdict the rounding cannot move stands, and the rest refuses as
-  the kernel's limit with no lever (`SplitReduceError::SectionUnresolved`,
-  `BooleanError::SectionUnresolved`).
+  (`Rounded`, with `Rounded::quotient` now in `geom_core::running`): the
+  door's offset as it evaluated it (`sector_shape::plane_offset_rounded`,
+  bit-identical to `plane_offset`), plus the skew between the normal it
+  evaluated with and the table's unit normal. It is the input's, with
+  its lever, only where `K·ρ` reads Zero (`vertex_section_resolution`).
+  Past that, a definite side the rounding cannot move stands
+  (`vertex_section_clear`), and otherwise the offset's own verdict does,
+  as on main: Ev's decision on PR 4812, under which nothing that builds
+  starts refusing.
 
 Measured on `origin/main` first, the unit cylinder turned φ ∈ {0.9,
 2.2}, plane through its seam vertex `+ δ·n`, `n = cos ψ·w + sin ψ·ẑ`
@@ -87,9 +90,11 @@ Pinned in `crates/sweep/tests/a_vertex_on_a_grazing_plane.rs` at every
   the `δ = 0` halves, in-band rows refuse typed at the vertex with the
   closed-form reading and the lever, the lever builds, and each definite
   row ends exactly as measured;
-- a plane through the seam vertex at ψ = `0.1·K·u/ε`, its origin moved
-  along the rim's tangent: no row offers a lever, and some refuse as the
-  kernel's limit (stood down where the table reads rulings, at 1e-6);
+- the plane exactly through the seam vertex with its origin moved
+  kilometres in-plane (ψ ∈ {3e-4, 1e-4, 1e-5}): no row refuses at the
+  vertex, every body returned validates, and ψ = 3e-4 builds at the
+  default band, as main does; at ψ = `0.1·K·u/ε` no row offers the
+  section reading's lever;
 - a supporting plane through a rim vertex builds at every offset within
-  the zero band;
+  the zero band, at the split and as a slab the Boolean subtracts;
 - two cone walls both entered at a vertex refuse on the shallower.

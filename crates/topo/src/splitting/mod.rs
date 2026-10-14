@@ -77,7 +77,7 @@ pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
 mod neighborhood;
-pub(crate) use neighborhood::{EntryFault, bisector_side, entry_side};
+pub(crate) use neighborhood::{EntryFault, entry_side, wide_entry};
 // `pub(crate)` for `order::exact_band` alone: the bit-hairline band is
 // a shared DEVICE (audit note N6), and the boolean backstop's
 // sign-certainty arm decides against the same one rather than minting
@@ -401,16 +401,6 @@ pub enum SplitReduceError {
         /// The escalation diagnostics.
         diag: Indeterminate,
     },
-    /// A vertex on the plane reads its distance from a section the plane
-    /// ends at it through a sine too small for the kernel to resolve
-    /// (D9 row 2, [`crate::vertex_section`]): the kernel's limit, with
-    /// no lever.
-    SectionUnresolved {
-        /// The vertex.
-        vertex: VertexKey,
-        /// The reading's conditioning.
-        conditioning: geom_brep::recourse::UnsupportedConditioning,
-    },
     /// A sector-level reading at an ON vertex (the face's extent, the
     /// coplanarity gate, the material sense, wideness, the bisector side,
     /// or a grazed wall's material) cannot place the vertex's
@@ -700,7 +690,6 @@ impl core::fmt::Display for SplitReduceError {
                     diag.lever_ending(SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
-            Self::SectionUnresolved { conditioning, .. } => conditioning.fmt(f),
             Self::SliverSector { reading, .. } => write!(
                 f,
                 concat!(

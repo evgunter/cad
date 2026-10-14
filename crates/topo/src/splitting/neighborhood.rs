@@ -237,27 +237,51 @@ pub(crate) fn entry_side<T: Decide, E>(
     Ok((dir, side))
 }
 
-/// The side of the plane along `normal` a wide sector's subdivision
-/// direction `bisector` points to, levered at the sector's `arm`
-/// (`split_bisector_side`): the walk's class for the duplicate entry,
-/// read by [`crate::vertex_section`] too.
-pub(crate) fn bisector_side<T: Decide>(
-    bisector: Vec3<T>,
-    arm: T,
+/// **A wide sector's subdivision entry**: the sector after an orbit
+/// half-edge, bounded by the rays `(dir_a, dir_b)` in `face`, whose
+/// outward normal there is `n_face`, read by the three
+/// [`sector_shape`] rungs. Where it is wide, its subdivision direction,
+/// arm, and the side of the plane along `normal` that direction points
+/// to, levered at the arm (`split_bisector_side`); `None` for a convex
+/// sector. The walk's duplicate entry, and [`crate::vertex_section`]'s
+/// reading of the same sector. Faults and escalations are the split's
+/// refusals at `(vertex, face)`.
+pub(crate) fn wide_entry<T: Decide>(
+    (vertex, face): (VertexKey, FaceKey),
+    (dir_a, dir_b): (Vec3<T>, Vec3<T>),
+    n_face: OutwardNormal<T>,
+    one_edge: bool,
     normal: Vec3<T>,
     band: Band,
-) -> Result<PlaneSide, Indeterminate> {
-    Ok(
-        match decide(
-            "split_bisector_side",
-            Margin::levered(bisector.dot(normal), arm),
-            band,
-        )? {
-            Sign::Negative => PlaneSide::Below,
-            Sign::Positive => PlaneSide::Above,
-            Sign::Zero => PlaneSide::On,
-        },
+) -> Result<Option<(Vec3<T>, T, PlaneSide)>, SplitReduceError> {
+    let sliver = |diag| SplitReduceError::SliverSector {
+        vertex,
+        face,
+        reading: SectorReading::Escalated(diag),
+    };
+    let SectorShape { arm, bisector, .. } = sector_shape(dir_a, dir_b, n_face, one_edge, band)
+        .map_err(|fault| match fault {
+            SectorFault::NonFiniteChord => SplitReduceError::NonFiniteSectorChord { vertex, face },
+            SectorFault::UnderflowedChord => {
+                SplitReduceError::UnderflowedSectorChord { vertex, face }
+            }
+            SectorFault::Rung { diag, .. } => sliver(diag),
+        })?;
+    let Some(bisector) = bisector else {
+        return Ok(None);
+    };
+    let side = match decide(
+        "split_bisector_side",
+        Margin::levered(bisector.dot(normal), arm),
+        band,
     )
+    .map_err(sliver)?
+    {
+        Sign::Negative => PlaneSide::Below,
+        Sign::Positive => PlaneSide::Above,
+        Sign::Zero => PlaneSide::On,
+    };
+    Ok(Some((bisector, arm, side)))
 }
 
 /// Builds and fully classifies the typed sector array of ON vertex
@@ -357,28 +381,15 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
         let next_he = orbit[(i + 1) % orbit.len()];
         let (_, dir_b, _) = chord(body, vertex, next_he)?;
         let (face, n_face, _) = sector_face(body, vertex, he)?;
-        let sliver = |diag| SplitReduceError::SliverSector {
-            vertex,
-            face,
-            reading: SectorReading::Escalated(diag),
-        };
-        let SectorShape {
-            arm,
-            bisector: wide,
-            ..
-        } = sector_shape(dir_a, dir_b, n_face, he == next_he, band).map_err(
-            |fault| match fault {
-                SectorFault::NonFiniteChord => {
-                    SplitReduceError::NonFiniteSectorChord { vertex, face }
-                }
-                SectorFault::UnderflowedChord => {
-                    SplitReduceError::UnderflowedSectorChord { vertex, face }
-                }
-                SectorFault::Rung { diag, .. } => sliver(diag),
-            },
+        let wide = wide_entry(
+            (vertex, face),
+            (dir_a, dir_b),
+            n_face,
+            he == next_he,
+            plane.normal.get(),
+            band,
         )?;
-        if let Some(bisector) = wide {
-            let class = bisector_side(bisector, arm, plane.normal.get(), band).map_err(sliver)?;
+        if let Some((bisector, arm, class)) = wide {
             entries.push(SectorEntry {
                 he,
                 kind: SectorEntryKind::WideBisector,

@@ -2300,12 +2300,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         .into_iter()
         .filter(|e| quoted_margin(&e.to_string()).is_some_and(|m| m >= 0.0))
         .collect(),
-        BooleanErrorKind::SectionUnresolved => vec![BooleanError::SectionUnresolved {
-            conditioning: geom_brep::recourse::UnsupportedConditioning {
-                subject: "whether a vertex lies on the section the plane cuts in a face at it",
-                resolution: diag.margin,
-            },
-        }],
         BooleanErrorKind::CurvedSectorSideUnsupported => refused()
             .into_iter()
             .map(|verdict| BooleanError::CurvedSectorSideUnsupported { verdict })

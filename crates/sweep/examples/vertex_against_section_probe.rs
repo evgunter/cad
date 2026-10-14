@@ -45,9 +45,63 @@ fn vol(b: Option<&Body<f64>>) -> f64 {
     })
 }
 
+/// `VS_DOOR=witness`: the plane exactly through the seam vertex of the
+/// cylinder turned φ = 2.2 at dihedral `VS_PSI`, its origin moved each
+/// `VS_L` (metres) along the rim's tangent, in the plane; each body a
+/// split returns is checked with `validate_geometric`.
+fn witness() {
+    let list = |k: &str| -> Vec<f64> {
+        std::env::var(k)
+            .unwrap()
+            .split(',')
+            .map(|x| x.parse().unwrap())
+            .collect()
+    };
+    let phi = 2.2f64;
+    let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
+    let cyl = turned(
+        &finished(sweep::test_support::prism(circle, 1.0, tol())),
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        phi,
+    );
+    let (c, s) = (phi.cos(), phi.sin());
+    let v = Point3::new(c, s, 0.0);
+    let along = Vec3::new(-s, c, 0.0);
+    for psi in list("VS_PSI") {
+        let n = Vec3::new(c * psi.cos(), s * psi.cos(), psi.sin());
+        for l in list("VS_L") {
+            let plane = topo::test_support::split_plane(v + along * l, n, tol());
+            let line = match split(&cyl, &plane, tol()) {
+                Ok(r) => {
+                    let check = |b: Option<&Body<f64>>| {
+                        b.map_or("empty".to_owned(), |b| {
+                            match topo::validate_geometric(b, tol()) {
+                                Ok(_) => "valid".to_owned(),
+                                Err(e) => format!("INVALID {e:?}"),
+                            }
+                        })
+                    };
+                    format!(
+                        "ok above {} below {}",
+                        check(r.above.body()),
+                        check(r.below.body())
+                    )
+                }
+                Err(err) => format!("REFUSED {err:?}"),
+            };
+            println!("WITNESS psi{psi:e} L{l}: {line}");
+        }
+    }
+}
+
 fn main() {
     let e = tol().eps();
     let door = std::env::var("VS_DOOR").unwrap_or_default();
+    if door == "witness" {
+        witness();
+        return;
+    }
     let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
     let cyl0 = finished(sweep::test_support::prism(circle, 1.0, tol()));
     let z = Vec3::new(0.0, 0.0, 1.0);

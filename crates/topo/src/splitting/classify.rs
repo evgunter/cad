@@ -273,10 +273,10 @@ pub(super) fn classify_vertices_margined<T: Decide>(
     let mut offsets = SecondaryMap::new();
     let mut zero = Vec::new();
     for (vertex_key, p) in body.vertex_points() {
-        let offset = crate::sector_shape::plane_offset(plane.origin, plane.normal.get(), p);
+        let offset = crate::sector_shape::plane_offset_rounded(plane.origin, plane.normal.get(), p);
         let decided = crate::validate::decide_reported(
             "split_vertex_side",
-            geom_core::Margin::of(offset),
+            geom_core::Margin::of(offset.value),
             band,
         )
         .map_err(|diag| SplitReduceError::SliverVertex {
@@ -309,7 +309,14 @@ pub(super) fn classify_vertices_margined<T: Decide>(
             body,
             (vertex_key, p),
             section_plane,
-            (offset, on_plane, far),
+            (
+                crate::vertex_section::Offset {
+                    value: offset,
+                    normal: plane.normal.get(),
+                },
+                on_plane,
+                far,
+            ),
             band,
         )
         .map_err(|refusal| match refusal {
@@ -317,19 +324,10 @@ pub(super) fn classify_vertices_margined<T: Decide>(
                 vertex: vertex_key,
                 diag,
             },
-            VertexRefusal::Sector { face, diag } => SplitReduceError::SliverSector {
-                vertex: vertex_key,
-                face,
-                reading: super::SectorReading::Escalated(diag),
-            },
             VertexRefusal::Walk(e) => e,
             VertexRefusal::Plane(what) => unreachable!(
                 "{vertex_key:?}: the split plane reads into the table whole, yet {what}"
             ),
-            VertexRefusal::Unresolved(conditioning) => SplitReduceError::SectionUnresolved {
-                vertex: vertex_key,
-                conditioning,
-            },
         })?;
         if decided.sign == Sign::Zero {
             on_vertices.push(vertex_key);

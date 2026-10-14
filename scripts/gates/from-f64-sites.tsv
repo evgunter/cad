@@ -55,7 +55,6 @@ crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(an-edges-parameter-end
 crates/geom-brep/src/props/closure.rs	1	constant	VERTEX_SLACK * band.zero()	the vertex slack, a multiple of the band's zero width: a tolerance
 crates/geom-brep/src/props/loop_area.rs	1	constant	*w	a Gauss weight
 crates/geom-brep/src/props/loop_area.rs	1	constant	*x	a Gauss node
-crates/geom-brep/src/recourse.rs	1	constant	band.escalate() / band.zero()	the band's K, the ratio of its two widths
 crates/geom-brep/src/ssi/certify.rs	1	constant	0.5 * (a + b)	a refined span's midpoint where the chain box's axis is read: a direction the certificate holds for whichever one it is handed
 crates/geom-brep/src/ssi/certify.rs	1	constant	mid	a pair tube chain box's midpoint: a point the chain chose, steering which determinant the certified graph margin is asked for
 crates/geom-brep/src/ssi/certify.rs	1	constant	w.mid	a window's midpoint where the transverse chart direction is read: a selection through the bracket, which the transversality margin certifies for any direction
@@ -160,3 +159,4 @@ crates/topo/src/test_support_fixtures.rs	1	fixture	self.radius	a fixture surface
 crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	1	fixture	t1	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	10	fixture	<fn>	a fixture's f64 frame lifted into T
+crates/topo/src/vertex_section.rs	1	constant	band.escalate() / band.zero()	the band's K, the ratio of its two widths
