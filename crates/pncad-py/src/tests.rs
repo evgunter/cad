@@ -3757,8 +3757,10 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         check_evidence_tag(&CheckEvidence::SeparationUnavailable {
-            kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
-            reason: "boxes refused".into()
+            refusal: pncad::topo::BooleanError::ClassificationInvariant {
+                what: "boxes refused"
+            }
+            .into()
         }),
         "separation_unavailable"
     );
@@ -3834,8 +3836,10 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         &["other_root", "other_output"],
     );
     let unavailable = E::SeparationUnavailable {
-        kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
-        reason: "boxes refused".into(),
+        refusal: pncad::topo::BooleanError::ClassificationInvariant {
+            what: "boxes refused",
+        }
+        .into(),
     };
     carries(&unavailable, &["reason", "boolean_variant"]);
 
@@ -3914,9 +3918,19 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     let pair = check_payload(&separated);
     assert_eq!(pair.other_root, Some(RecipeNodeId::new(0, 4)));
     assert_eq!(pair.other_output, Some(2));
+    let E::SeparationUnavailable { refusal } = &unavailable else {
+        unreachable!("built as the separation arm above")
+    };
+    let words = check_payload(&unavailable);
     assert_eq!(
-        check_payload(&unavailable).reason.as_deref(),
-        Some("boxes refused")
+        words.reason.as_deref(),
+        Some(refusal.to_string().as_str()),
+        "the reason is the kernel's own sentence, whole"
+    );
+    assert_eq!(
+        words.boolean_variant,
+        Some("classification_invariant"),
+        "the class is the arm the refusal is"
     );
 }
 

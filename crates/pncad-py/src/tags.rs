@@ -1583,13 +1583,10 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
 ///
 /// The FFI spelling is this crate's to own; the DISCRIMINANT is not.
 /// It is `BooleanError::kind`, and this map keys off it — the
-/// [`path_error_tag`] shape — so the word does not depend on holding
-/// the error itself. Two doors publish it and they hold different
-/// things: the evaluation ladder's `inner_kind` has the whole
-/// `BooleanError` behind [`node_inner_kind_tag`], and the advisory
-/// checks' `separation_unavailable` evidence has only the class,
-/// because a finding is `Clone + PartialEq` and the error is neither.
-/// One map answers both.
+/// [`path_error_tag`] shape. Two doors publish it: the evaluation
+/// ladder's `inner_kind` behind [`node_inner_kind_tag`], and the
+/// advisory checks' `separation_unavailable` evidence. One map answers
+/// both.
 ///
 /// Over `BooleanErrorKind`'s arms rather than `..`, so a new kernel
 /// refusal stops this build instead of acquiring a silent tag. A kind

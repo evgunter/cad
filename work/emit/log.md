@@ -2335,3 +2335,19 @@ The PR merged with `demos` red on that drift alone.
 **Process.**
 - The fold's first push broke CI's build: `crates/viewer` includes `tests/fixture/mod.rs` by path. Fixed on the next push.
 - The lane's target reached 22G and filled `/` once.
+
+## 2026-10-14 — PR 5122: resolver cascade and the separation refusal
+
+**Closed:**
+- `a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`. The cascade rung no longer blames a retired constituent. Two rules:
+  - it reads through a `Merged` set's constituents, decided in `embedded` under `Partners::Cascade`;
+  - a name that a live merge of its own minting node covers is retired, not vanished (`retired_into_a_live_merge`).
+  
+  A vanished merged name, nested or not, is now diagnosed at the edit, `RecipeEdit`. The names README is unchanged.
+- `separation-unavailable-carries-the-kernel-refusal-shared`. `CheckEvidence::SeparationUnavailable` holds `Refusal<topo::BooleanError>` whole. Python's `reason` and `boolean_variant` are unchanged. `payload-rung-sweep` drops one uncurated row and gains one cross-list row.
+
+**Review.**
+- The falsifier confirmed a nested-union gap by running it. The second rule fixes it, and the gap has its own end-to-end test.
+- Style: the README sentence was dropped (it was already implied by N3 and N5); topo's `BooleanErrorKind` doc was corrected; the skip rule now lives in one place.
+
+**Nothing moved** apart from those diagnoses.
