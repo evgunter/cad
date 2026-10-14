@@ -324,12 +324,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/props/spiric.rs",
-        10,
-        9,
+        14,
+        13,
         "the remaining 1 is `trig_range`'s half-width, safe by construction: it reads \
          `pt` differences of two f64 ends the function has checked finite and ordered, \
          so no operand can be refused. Every other read sits in a function that refuses \
-         a refused input by name (`trig_of`, `span_rates`, `composite`, `wall_chart`)",
+         a refused input by name (`trig_of`, `window_rates`, `span_rates`, \
+         `spiric_length_bound`, `piece_speed`, `composite`, `wall_chart`)",
     ),
     (
         "crates/geom-brep/src/ssi.rs",
