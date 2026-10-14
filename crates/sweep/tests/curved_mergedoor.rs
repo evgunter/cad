@@ -612,11 +612,66 @@ fn a_declared_cone_pair_refuses_typed_rather_than_reading_no_glue() {
     let (k1, k2) = two_keys_of(&mut body, SurfaceKind::Cone);
     let before = format!("{body:?}");
     let got = body.merge_coplanar_faces_declared(&[(k1, k2)], Tol::witness());
-    let Err(MergeCoplanarError::DeclaredPairUnread { f1, f2 }) = got else {
+    let Err(MergeCoplanarError::DeclaredPairUnread { f1, f2, kind }) = got else {
         panic!("a declared cone pair: {got:?}");
     };
-    assert_eq!(sorted(vec![f1, f2]), faces_on(&body, k1, k2));
+    assert_eq!(
+        sorted(vec![f1, f2]),
+        faces_on(&body, k1, k2),
+        "the pair named"
+    );
+    assert_eq!(kind, SurfaceKind::Cone, "the kind named");
     assert_eq!(format!("{body:?}"), before, "the body is untouched");
+}
+
+/// Row 4, across the inventory edge: a declared plane×cone pair (the
+/// cone outside the carrier ladder) takes the same refusal as a
+/// declared plane×cylinder pair (the cylinder inside it): two kinds are
+/// a torn argument, refused at the gate naming the second key, whatever
+/// the ladder could read.
+#[test]
+fn a_declared_pair_of_two_kinds_refuses_alike_inside_and_outside_the_ladder() {
+    let mut frustum = frustum();
+    let plane = body_key_of(&frustum, SurfaceKind::Plane);
+    let cone = body_key_of(&frustum, SurfaceKind::Cone);
+    let mut peg = peg_at(0.0, 0.0, 1.0);
+    let (peg_plane, cyl) = plane_and_cylinder_keys(&peg);
+    for (label, body, keys) in [
+        ("plane, cone", &mut frustum, [(plane, cone), (cone, plane)]),
+        (
+            "plane, cylinder",
+            &mut peg,
+            [(peg_plane, cyl), (cyl, peg_plane)],
+        ),
+    ] {
+        let before = format!("{body:?}");
+        for (k1, k2) in keys {
+            let got = body.merge_coplanar_faces_declared(&[(k1, k2)], Tol::witness());
+            assert!(
+                matches!(
+                    got,
+                    Err(MergeCoplanarError::InvalidInput {
+                        surface,
+                        what: "declared surfaces are not one kind",
+                    }) if surface == k2
+                ),
+                "{label} ({k1:?}, {k2:?}): {got:?}"
+            );
+            assert_eq!(
+                format!("{body:?}"),
+                before,
+                "{label}: the body is untouched"
+            );
+        }
+    }
+}
+
+/// The key of `body`'s first face of `kind`.
+fn body_key_of(body: &Body<f64>, kind: SurfaceKind) -> topo::SurfaceKey {
+    body.faces()
+        .map(|(_, f)| f.surface)
+        .find(|&k| body.get_surface(k).map(geom::Surface::kind) == Some(kind))
+        .unwrap_or_else(|| panic!("no {kind:?} face"))
 }
 
 /// A donut (a revolved circle off the axis).
