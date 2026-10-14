@@ -3021,7 +3021,6 @@ area `kernel`; prefix `walks/`; tag `(WALKS orchestrator)`; ab_band `6600-6699`.
 | `geom-brep-keeps-six-subdivision-walks-of-its-own` | 2026-10-13 | geom-brep keeps six subdivision walks with their own stacks and depth caps beside topo's one bisection core |
 | `circle-pair-home-is-planar-by-name-and-hands-out-an-undecided-half-chord` | 2026-10-14 | geom_core's circle-pair home is filed under arc as planar, hands out a half-chord outside a decided secant, and is accuracy-guarded only from profile |
 | `double-double-arithmetic-is-spelled-in-five-places` | 2026-10-14 | Double-double arithmetic (two_sum, two_prod, a Dd type) is spelled privately in five places beside geom_core::exact::two_sum |
-| `interval-scale-by-an-exact-f64-pays-a-general-product` | 2026-10-14 | An interval times an exact power of two pays a general interval product: the quotient halving's one scale per output |
 | `tier-3-does-not-check-maximal-faces` | 2026-10-14 | Tier 3 does not check maximal faces; the boolean door does, so a split's coplanar artifact is valid at rest and refused as an operand |
 
 ## Blocked
