@@ -627,9 +627,16 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             source: geom_core::spline::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
         },
         PcurveCertifyError::FittedCertificate {
-            limb: Some(geom_brep::SsiLimb::HullSup),
-            what: "a certificate limb exceeded ε",
-            magnitude: Some(FittedMagnitude::LimbResidual(MarginDiag::value(1e-7))),
+            limb: Some(geom_brep::SsiLimb::OnLocus),
+            what: "a foot point of the chart-image schedule would not converge",
+            magnitude: Some(FittedMagnitude::LastFootDistance {
+                t: 0.5,
+                last_distance: 1e-7,
+            }),
+        },
+        PcurveCertifyError::FittedLimb {
+            limb: geom_brep::SsiLimb::HullSup,
+            margin: MarginDiag::value(1e-7),
         },
         PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
         PcurveCertifyError::FittedEscalated {

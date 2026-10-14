@@ -6,6 +6,7 @@
 // carrier it evaluates, and the band and arithmetic it decides in.
 test_utils::gated_to![
     "crates/topo/src/splitting/spiric_arc.rs",
+    "crates/geom-core/src/bisect.rs",
     "crates/geom/src/curves.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/tolerance.rs",

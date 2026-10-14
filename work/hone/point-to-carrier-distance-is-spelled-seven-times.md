@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-14
 ---
 
-Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), which tests every geometric pair question against C5's rule: one total kind-pair table, one method per pair, no runtime fallback (`crates/geom-brep/README.md`, C5).
+Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
 
 ## What
 
@@ -27,4 +27,10 @@ The on-carrier decision is not one reading either:
 
 ## Owed
 
-One point-to-carrier residual: one arm per surface kind, a typed refusal for the kinds with no closed form, and one decision form per predicate name. The test oracles keep their own copies by design.
+Re-aimed to D3 "One reading per question". A point's residual, distance and on-carrier decision are a reading of one carrier against a point. One such reading, with one arm per surface kind, which every spelling above reads.
+
+- `implicit_residual`'s Nurbs and Approx poison is a total evaluator's poison, which D3 says is not a decision: no reading reads it without first refusing on kind. The reading refuses those kinds typed, naming what it lacks.
+- One decision form per predicate name: the exact ρ−r and the linearized (ρ²−r²)/2r are two readings of one fact, which D3 forbids. `bool_curved_contain_carrier` decides once.
+- D3 places one-carrier-against-a-point readings in `geom`, the lowest crate that can state them.
+
+The test oracles keep their own copies by design (D3 exempts them).
