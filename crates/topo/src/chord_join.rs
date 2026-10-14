@@ -6899,6 +6899,31 @@ mod nearest_branch_rows {
     }
 
     #[test]
+    fn review_5071_probe_multi_turn_half_gap() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let alpha = 0.01f64;
+        let cone = geom::Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let pi = core::f64::consts::PI;
+        let tau = core::f64::consts::TAU;
+        eprintln!("zero {:e} esc {:e}", band.zero(), band.escalate());
+        // pi*lever in band and 2*pi*lever past escalate.
+        for frac in [0.55, 0.7, 0.85, 0.95] {
+            let lever = frac * band.escalate() / pi;
+            let d = lever / alpha.sin();
+            let vertex = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
+            for turns in [0.5, -0.5, 1.5, -1.5, 2.5, -2.5, 3.5] {
+                let got = nearest_branch(&cone, FaceKey::default(), vertex, turns * tau, band);
+                eprintln!("frac {frac} pi*lever {:e} gap {turns}τ: {got:?}", pi * lever);
+            }
+        }
+    }
+
+    #[test]
     fn a_narrow_cone_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
         let band = Band::linear(Tol::witness()).unwrap();
         let alpha = 0.01f64;

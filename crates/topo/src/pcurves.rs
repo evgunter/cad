@@ -5827,6 +5827,50 @@ mod stretch_meter {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// review 5071 delta probe: brute force over levers, gaps and bands.
+    /// A decided miss (OnMark / OutOfReach) must not stand where some orbit
+    /// point within the walk's reach is within `escalate` of the gap at the lever.
+    /// An `Ok(m)` must name an orbit point within `escalate` (a lift the
+    /// read or the marks saw).
+    #[test]
+    fn review_5071_delta_brute() {
+        use super::{Orbit, lever_periods};
+        use geom_brep::BranchMiss;
+        let pi = core::f64::consts::PI;
+        let tau = core::f64::consts::TAU;
+        let mut bad = Vec::new();
+        let mut counts = [0usize; 4];
+        for (zero, esc) in [(1e-9, 1e-8), (1e-9, 1.5e-9), (1e-9, 1.6e-9), (1e-9, 2e-9), (1e-9, 3e-9)] {
+            let b = Band::new(zero, esc).unwrap();
+            for orbit in [Orbit::Periods, Orbit::HalfPeriodsWithTwin] {
+                let step = if orbit == Orbit::Periods { tau } else { pi };
+                for li in 0..400 {
+                    let lever = (li as f64 + 0.5) / 400.0 * 3.0 * esc / pi;
+                    for gi in -2000..2000 {
+                        let gap = gi as f64 / 2000.0 * 4.6 * tau;
+                        let out = lever_periods("brute", ChartArm::Angular(lever), gap, tau, orbit, b);
+                        let near = (-60..=60).any(|n: i32| lever * (gap - f64::from(n) * step).abs() < esc);
+                        match out {
+                            Ok(m) => {
+                                counts[0] += 1;
+                                let off = lever * (gap - f64::from(m) * step).abs();
+                                let best = (-60..=60).map(|n: i32| lever * (gap - f64::from(n) * step).abs()).fold(f64::INFINITY, f64::min);
+                                if off >= esc && off > best + 1e-18 { bad.push(format!("Ok far: z {zero} e {esc} {orbit:?} lever {lever:e} gap {gap} m {m} off {off:e}")); }
+                            }
+                            Err(BranchMiss::Undecided(_)) => counts[1] += 1,
+                            Err(BranchMiss::OnMark) | Err(BranchMiss::OutOfReach) => {
+                                counts[2] += 1;
+                                if near && matches!(out, Err(BranchMiss::OnMark)) { counts[3] += 1; bad.push(format!("decided miss near: z {zero} e {esc} {orbit:?} lever {lever:e} gap {gap} {out:?}")); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!("REVIEW5071 counts ok/undecided/miss {counts:?} bad {}", bad.len());
+        for l in bad.iter().take(30) { eprintln!("REVIEW5071 {l}"); }
+    }
+
     /// A bilinear NURBS chart on `[0, 1]²` whose image is a flat
     /// `span × span` metre square: `S(u, v) = (span·u, span·v, 0)`,
     /// so `|S_u| = |S_v| = span` EVERYWHERE — the chart's metre
@@ -6112,7 +6156,7 @@ mod stretch_meter {
             half_angle: alpha,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        for d in [2.0, 5.0, 10.0, 100.0, 1000.0].map(|m| m * band().escalate()) {
+        for d in [2.0, 5.0, 10.0, 22.3, 100.0, 1000.0].map(|m| m * band().escalate()) {
             let vertex = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
             assert!(
                 matches!(singular_at(chart(&cone), vertex, band()), Singular::Off),
@@ -6146,6 +6190,10 @@ mod stretch_meter {
                 want,
                 "d = {d:e} (lever {lever:e}), gap π"
             );
+            // review 5071 probe: the same 3-D configuration a whole number of turns over.
+            for turns in [1.5, 2.5, -2.5, 3.5] {
+                eprintln!("REVIEW5071 d {d:e} pi*lever {pi_lever:e} gap {turns}τ: {}", read(at_gap(&cone, vertex, d, turns * tau)));
+            }
         }
         let sphere: Surface<f64> = Surface::Sphere {
             center: Point3::new(0.0, 0.0, 0.0),
