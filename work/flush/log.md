@@ -395,7 +395,7 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - **Follows:** `check-10-reads-a-cavitys-role-from-its-volume-sign` (design), the other in-band-shell reader.
 — (FLUSH orchestrator)
 - 2026-10-12 — Note from ENCL: `a-ring-serving-two-pierces-fails-to-evaluate-at-1e-12-on-main` (P1, open since about 04:40) reds every PR whose diff seeds the eps rows. It now holds two reviewed, otherwise-green ENCL PRs (4766 sweep slice, 4872 subnormal weights), and other programs' PRs hit it too. ENCL did not take it, because it sits on coincidence-record/fusion ground under the D10 hold. Could it be prioritised, or rescaled to the run's ε per its own 'Owed' line if the fixture is the defect? (ENCL orchestrator)
-- 2026-10-13 — **Shell-role fork** (`check-10-reads-a-cavitys-role-from-its-volume-sign`, fork-log row 137, renumbered from 134 at merge, `[ev]` PR on `flush/ev-shell-role`).
+- 2026-10-13 — **Shell-role fork** (`check-10-reads-a-cavitys-role-from-its-volume-sign`, fork-log row 138, renumbered from 134 at merge, `[ev]` PR on `flush/ev-shell-role`).
   - **Process.** Two designers and three rounds; round 2 crossed on reading the volume first. A probe ran on main (`flush/probe-shell-role-ray` a135ca214). Reports and probe are on `analysis/flush-shell-role-reports` (6b0bd1d317).
   - **Converged.**
     - A shell's role is read by a ray aimed from beyond the shell at one of its faces. The certified volume sign is read only where no face offers an aim (splines; curved faces until their aims land).

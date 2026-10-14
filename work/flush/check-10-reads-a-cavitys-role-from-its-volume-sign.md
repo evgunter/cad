@@ -64,7 +64,7 @@ build.
 
 ## Ruling
 
-Ev approved the shell-role fork on PR 4990 (2026-10-14: "the recommendation sounds good"), including check 7 on the same reader ("three readers of one fact become one … an extremely good reason"). The design is in DESIGN D10 and D1, and fork-log row 137 records the answer.
+Ev approved the shell-role fork on PR 4990 (2026-10-14: "the recommendation sounds good"), including check 7 on the same reader ("three readers of one fact become one … an extremely good reason"). The design is in DESIGN D10 and D1, and fork-log row 138 records the answer.
 
 The implementation is this row's remaining work:
 - one role reader: aimed rays first, the certified volume only where no face offers an aim;
