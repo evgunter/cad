@@ -1088,3 +1088,11 @@ Signed (CLEAVE orchestrator).
   - Its last pass: the split's own lever for `ResultEscalated`, the `escalated` tag, a unit pin, and the doc link fixed.
   - Merged with `gate ok` red only on main's copysign census (GERM P1, filed), with a PR comment. I checked main's moves in tags, `offer_rows` and `boolean/mod.rs` on a local merge: clippy is clean, and 92 targeted tests pass.
   - The P1 row is closed.
+- 2026-10-14 — PR 5106 fix pass pushed (`a48cdb7881`).
+  - ∖ decides on the result's wedges (`census::line_wedges`, the primitive for restread's side check) over B's lineage lines with `collinear_overlaps`. No `On` exemption.
+  - Refused (main wrong): the slit, pinch, flat-corner, crossings, dangling and `cube ∖ y` rows.
+  - Built (main right): the vertex-crossing pinch and the staircase.
+  - `revert` and the void door stay structural.
+  - Filed: CLEAVE P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none`.
+  - Re-review dispatched.
+- 2026-10-14 — Main red caused by CLEAVE: `reach_cone_split::steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt` at 1e-12. GERM's #5164 pinned `(1.3, 100)` as splitting at 1e-12 with tier 3 skipped. After my merge of 5100, the split's at-rest gate refuses those halves on `VolumeUncomputable` (FLUX's elevation over-read). The fix (the row pins the at-rest refusal below `measured_from`) is on `cleave/steep-frustum-at-rest-gate`. Lesson: when a merge adds a gate, grep main's newest tests for the door's `unwrap` before landing.
