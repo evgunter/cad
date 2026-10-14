@@ -5453,7 +5453,11 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
                 diag: pair.gap,
             }));
         }
-        Ok(Err(SideUnread::Fallback { volume, limit })) => {
+        Ok(Err(
+            unread @ SideUnread::Fallback {
+                volume, set_aside, ..
+            },
+        )) => {
             let mut kept = ray_walk::Evidence::default();
             match as_ray_fault(volume.clone()) {
                 RayFault::Fatal(e) => return Err(RayFault::Fatal(e)),
@@ -5461,8 +5465,18 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
                 RayFault::Blocked(e) => kept.blocked(e),
                 RayFault::Graze | RayFault::Unread => {}
             }
-            if let Some(e) = limit {
+            if let Some(e) = unread.limit() {
                 kept.blocked(e.clone());
+            }
+            // A ray set aside at a sharp corner read in band there: it is
+            // this point's evidence, not a pair.
+            for s in set_aside {
+                if let crate::side_reader::SetAsideWhy::Corner { far, gap, .. } = &s.why {
+                    kept.in_band(PointInSolidError::Escalated {
+                        face: *far,
+                        diag: *gap,
+                    });
+                }
             }
             return Err(match kept.ranked() {
                 ray_walk::Ranked::Blocked(e) => RayFault::Blocked(e),

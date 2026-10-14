@@ -6093,6 +6093,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "shell_classify_error_tag",
         values: &[
             "band",
+            "corner",
             "escalated",
             "props",
             "ray",

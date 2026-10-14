@@ -3085,6 +3085,7 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
         ShellClassifyError::ZeroVolume { .. } => "zero_volume",
         ShellClassifyError::Straddles { .. } => "straddles",
         ShellClassifyError::RayInBand { .. } => "ray_in_band",
+        ShellClassifyError::Corner { .. } => "corner",
         ShellClassifyError::Ray { .. } => "ray",
     }
 }

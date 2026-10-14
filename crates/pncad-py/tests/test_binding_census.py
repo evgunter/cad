@@ -1135,7 +1135,7 @@ BOUND_AS = {
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
-    # `escalated`, `zero_volume`, `straddles`, `ray_in_band` or `ray`.
+    # `escalated`, `zero_volume`, `straddles`, `ray_in_band`, `corner` or `ray`.
     # `CheckEvidence.reason`
     # is the same refusal's sentence — the kernel's own prose — and
     # this is the branchable half beside it, so a caller stops

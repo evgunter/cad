@@ -335,22 +335,43 @@ pub enum BooleanDecision {
     /// 10, a shell of a solid of several), or which side of a solid's
     /// faces its material lies on (check 7), at the finished-body gate:
     /// the side at infinity, read by a ray aimed at one of the shell's
-    /// faces. Raised only where the ray met two faces in band of each
-    /// other (`side_at_infinity_order`, their gap along it) and no
-    /// other aimed ray read the side: a pair in band, which definite cuts
-    /// can compose, so the operands are ill-conditioned at this ε. It
-    /// names the shell whose pair binds the offer, and how many more pairs
-    /// lie in band, each decided by the same tolerance.
+    /// faces. Raised where the ray met two faces that do not meet in band
+    /// of each other (`side_at_infinity_order`, their gap along it) and
+    /// no other aimed ray read the side: a pair in band, which definite
+    /// cuts can compose, so the operands are ill-conditioned at this ε.
+    /// It names the pair whose gap binds the offer, by its two faces, and
+    /// how many more of the result's readings lie in band, each decided
+    /// by the same tolerance.
     ShellRole {
-        /// The binding shell's solid, in the refused result. The result is
-        /// never returned, so this and `shell` are diagnostic only: they
-        /// tell refusals apart, and locate nothing a caller holds
+        /// The face of the ray's closest crossing, in the refused result.
+        /// The result is never returned, so the faces are diagnostic only:
+        /// they tell refusals apart and name the pair the lever is about,
+        /// and locate nothing a caller holds
         /// (`work/tally/the-shell-role-refusal-locates-no-piece.md`).
+        near: crate::entity::FaceKey,
+        /// The face of the crossing in band of it.
+        far: crate::entity::FaceKey,
+        /// How many more of the result's readings lie in band.
+        others: u32,
+    },
+    /// Which side of a solid of the result its material lies on (check
+    /// 7), at the finished-body gate, where no aimed ray read the side
+    /// and none met a pair in band, and the sign of the solid's volume
+    /// lies in band (`positive_volume`, `V/A`, a mean half-thickness):
+    /// the solid is thin wherever a ray was aimed at it. It names the
+    /// solid, how many of its faces offered an aim and how many of those
+    /// rays were set aside at sharp corners, and how many more of the
+    /// result's readings lie in band.
+    SolidSide {
+        /// The solid, in the refused result: diagnostic only, as
+        /// [`BooleanDecision::ShellRole`]'s is.
         solid: crate::entity::SolidKey,
-        /// The binding shell, diagnostic only as `solid` is.
-        shell: crate::entity::ShellKey,
-        /// How many more of the result's aimed pairs lie in band.
-        others: usize,
+        /// How many of its faces offered an aim.
+        aimed: u32,
+        /// How many of those rays were set aside at a sharp corner.
+        corners: u32,
+        /// How many more of the result's readings lie in band.
+        others: u32,
     },
     /// A question the curved-extent scan asks of a sphere face, which
     /// takes no declarations.
@@ -864,13 +885,14 @@ pub(super) const SEAM_WEDGE: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-/// Whether a shell of the result bounds material or a cavity
-/// ([`BooleanDecision::ShellRole`]): the margin is the gap along an aimed
-/// ray between the two faces it met first, a magnitude, and a definite
-/// gap reads the role.
-const RESULT_SHELL: SizedDecision = SizedDecision {
-    lever: "move the parts so the faces of the pieces and cavities they leave are clearly apart",
-    size: "gap",
+/// Which side of a solid of the result its material lies on, off its
+/// volume ([`BooleanDecision::SolidSide`]): the margin is `V/A`, a mean
+/// half-thickness. A definite positive one passes; a definite negative
+/// one is a result inside out, the kernel's, which no tolerance makes
+/// pass, so only the positive side offers one.
+const RESULT_SIDE: SizedDecision = SizedDecision {
+    lever: "move the parts so each solid of the result they leave is clearly thicker",
+    size: "volume over area",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
     no_size: None,
@@ -1459,6 +1481,7 @@ impl BooleanDecision {
                 crate::merge_faces::edge_on_faces_subject!("an edge of the result")
             }
             Self::ShellRole { .. } => "whether a shell of the result bounds material or a cavity",
+            Self::SolidSide { .. } => "which side of a solid of the result its material lies on",
             Self::Sphere(question) => question.subject(),
             Self::SelfCheck(check) => check.subject(),
         }
@@ -1654,7 +1677,8 @@ impl BooleanDecision {
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
             Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
-            Self::ShellRole { .. } => Ending::Sized(RESULT_SHELL),
+            Self::ShellRole { .. } => Ending::Sized(crate::props::AIMED_PAIR),
+            Self::SolidSide { .. } => Ending::Sized(RESULT_SIDE),
             Self::Sphere(question) => question.ending(),
             // A broken invariant, as the check's definite refusal says.
             Self::SelfCheck(_) => Ending::Unsized(Unsized::Defect),
@@ -1674,19 +1698,50 @@ impl BooleanDecision {
     /// result shell's role read in band also counts the shells beside it
     /// the same tolerance decided.
     pub(crate) fn recourse(self, diag: &Indeterminate) -> String {
-        let ending = self.ending(diag).recourse(diag);
-        match self {
-            Self::ShellRole { others: 0, .. } => ending,
-            Self::ShellRole { others: 1, .. } => format!(
-                "1 more pair of the result's faces lies in band, decided by the same tolerance. \
-                 {ending}"
+        format!("{}{}", self.evidence(), self.ending(diag).recourse(diag))
+    }
+
+    /// **What a reading of the result's side found**, ahead of the
+    /// ending: the pair's two faces, or what no aimed ray read, and how
+    /// many more readings the same tolerance decided. Empty for every
+    /// other decision.
+    pub(crate) fn evidence(self) -> String {
+        let (read, others) = match self {
+            Self::ShellRole {
+                near, far, others, ..
+            } => (
+                format!("an aimed ray met faces {near:?} and {far:?} of the result there. "),
+                others,
             ),
-            Self::ShellRole { others, .. } => format!(
-                "{others} more pairs of the result's faces lie in band, decided by the same \
-                 tolerance. {ending}"
+            Self::SolidSide {
+                aimed: 0, others, ..
+            } => (
+                "no face of the solid offers a ray to aim. ".to_owned(),
+                others,
             ),
-            _ => ending,
-        }
+            Self::SolidSide {
+                aimed,
+                corners,
+                others,
+                ..
+            } => (
+                format!(
+                    "none of the {aimed} rays aimed at the solid's faces read its side, \
+                     {corners} of them at a sharp corner. "
+                ),
+                others,
+            ),
+            _ => return String::new(),
+        };
+        let more = match others {
+            0 => String::new(),
+            1 => "1 more of the result's readings lies in band, decided by the same tolerance. "
+                .to_owned(),
+            n => format!(
+                "{n} more of the result's readings lie in band, decided by the same tolerance. "
+            ),
+        };
+        format!("{read}{more}")
     }
 }
 
@@ -1972,8 +2027,14 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
                 BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces],
                 BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole {
+                    near: crate::entity::FaceKey::default(),
+                    far: crate::entity::FaceKey::default(),
+                    others: 0,
+                }],
+                BooleanDecisionKind::SolidSide => vec![BooleanDecision::SolidSide {
                     solid: crate::entity::SolidKey::default(),
-                    shell: crate::entity::ShellKey::default(),
+                    aimed: 0,
+                    corners: 0,
                     others: 0,
                 }],
                 BooleanDecisionKind::Sphere => SphereQuestion::iter()
@@ -2350,8 +2411,16 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::ShellRole { .. } => (
                 "whether a shell of the result bounds material or a cavity",
                 Ending::Sized(
-                    "Recourse: move the parts so the faces of the pieces and cavities they leave \
-                     are clearly apart",
+                    "Recourse: move the geometry so the two faces the aimed ray met are clearly \
+                     apart",
+                    SizedPass::Positive,
+                ),
+            ),
+            BooleanDecision::SolidSide { .. } => (
+                "which side of a solid of the result its material lies on",
+                Ending::Sized(
+                    "Recourse: move the parts so each solid of the result they leave is clearly \
+                     thicker",
                     SizedPass::Positive,
                 ),
             ),
@@ -2604,7 +2673,9 @@ pub(in crate::boolean) mod tests {
                 );
                 let (subject, ending) = want(decision, readable);
                 let head = format!("{subject} is undecided: {}. ", diag.payload());
-                let tail = text.strip_prefix(&head);
+                let tail = text
+                    .strip_prefix(&head)
+                    .and_then(|t| t.strip_prefix(&decision.evidence()));
                 match ending {
                     Ending::Sized(lever, passes) => {
                         assert!(

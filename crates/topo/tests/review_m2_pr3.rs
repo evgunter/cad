@@ -524,7 +524,7 @@ fn assert_only_its_orientation_unread(body: &Body<f64>) {
         matches!(
             found.as_ref().map_err(Vec::as_slice),
             Err([ValidationError::OrientationUndecided {
-                reading: topo::OrientationUnread::Volume(_),
+                reading: topo::OrientationUnread::Volume { .. },
                 ..
             }])
         ),

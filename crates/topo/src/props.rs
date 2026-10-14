@@ -2884,7 +2884,20 @@ pub enum ShellClassifyError {
         shell: ShellKey,
         /// The ray's pair: the face it was aimed at, the two faces it
         /// met, and their gap along it.
-        pair: crate::boolean::AimedPair,
+        pair: Box<crate::boolean::AimedPair>,
+    },
+    /// No aimed ray read the shell's side, one was set aside at a sharp
+    /// corner (two faces that meet, crossed in band of each other), and
+    /// the volume then refused too: `volume` is that refusal, and
+    /// `corner` the first such ray. A corner is no pair, so this refusal
+    /// is the volume's, naming where the rays went.
+    Corner {
+        /// The unclassifiable shell.
+        shell: ShellKey,
+        /// The first ray set aside at a corner.
+        corner: Box<crate::side_reader::SetAside>,
+        /// The volume's refusal.
+        volume: Box<ShellClassifyError>,
     },
     /// An aimed ray's walk refused on a face of the shell that does not
     /// walk: a broken body.
@@ -2910,12 +2923,13 @@ pub const SHELL_ROLE: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-/// The shell-role decision read off a ray aimed at one of the shell's
-/// faces (`side_at_infinity_order`): its margin is the gap along the
-/// ray between the two faces it met first, a magnitude, and it passes on
-/// a definite gap.
-pub const SHELL_ROLE_RAY: SizedDecision = SizedDecision {
-    lever: "move the geometry so these two faces are clearly apart",
+/// The side read off a ray aimed at one of a shell's or a solid's faces
+/// (`side_at_infinity_order`): its margin is the gap along the ray
+/// between the two faces it met first, a magnitude, and it passes on a
+/// definite gap. One decision and one lever, at rest and at a boolean's
+/// door alike (`BooleanDecision::ShellRole`).
+pub const AIMED_PAIR: SizedDecision = SizedDecision {
+    lever: "move the geometry so the two faces the aimed ray met are clearly apart",
     size: "gap",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
@@ -2947,12 +2961,17 @@ impl fmt::Display for ShellClassifyPayload<'_> {
             }
             ShellClassifyError::RayInBand { pair, .. } => write!(
                 f,
-                geom_core::undecided!(
-                    "which side of a shell its material lies on, read by a ray aimed at one of \
-                     its faces: the order of the two faces it meets first",
-                    payload
-                ),
-                pair.gap.payload()
+                "which side of a shell its material lies on cannot be read: {}",
+                crate::side_reader::PairPayload(pair)
+            ),
+            ShellClassifyError::Corner { corner, volume, .. } => write!(
+                f,
+                "{}; and no aimed ray read its side: {}",
+                volume.payload(),
+                crate::side_reader::UnreadRays {
+                    aimed: 1,
+                    set_aside: core::slice::from_ref(corner),
+                }
             ),
             ShellClassifyError::Ray { source, .. } => write!(f, "{source}"),
         }
@@ -2980,6 +2999,7 @@ impl ShellClassifyError {
         match self {
             Self::Escalated { source, .. } => Some(RefusedArm::Undecided(source)),
             Self::RayInBand { pair, .. } => Some(RefusedArm::Undecided(&pair.gap)),
+            Self::Corner { volume, .. } => volume.arm(),
             Self::ZeroVolume { verdict, .. } => Some(RefusedArm::Zero(*verdict)),
             Self::Straddles { .. } => Some(RefusedArm::SignCertain(None)),
             Self::Props { .. } | Self::Band { .. } | Self::Ray { .. } => None,
@@ -2987,13 +3007,14 @@ impl ShellClassifyError {
     }
 
     /// The shell-role decision's one ending for this refusal (D4 ¶1
-    /// (i)) read `at`: the ray's ([`SHELL_ROLE_RAY`]) for a pair in band,
-    /// the volume's ([`SHELL_ROLE`]) otherwise; `None` where the refusal
-    /// is not that decision's.
+    /// (i)) read `at`: the ray's ([`AIMED_PAIR`]) for a pair in band,
+    /// the volume's ([`SHELL_ROLE`]) otherwise, a corner's included (a
+    /// corner is no pair); `None` where the refusal is not that
+    /// decision's.
     #[must_use]
     pub fn recourse(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> Option<String> {
         let decision = match self {
-            Self::RayInBand { .. } => SHELL_ROLE_RAY,
+            Self::RayInBand { .. } => AIMED_PAIR,
             _ => SHELL_ROLE,
         };
         Some(decision.recourse(self.arm()?, at))
@@ -3017,6 +3038,7 @@ impl fmt::Display for ShellClassifyError {
             | Self::ZeroVolume { .. }
             | Self::Straddles { .. }
             | Self::RayInBand { .. }
+            | Self::Corner { .. }
             | Self::Ray { .. } => write!(f, "{}", self.payload()),
         }?;
         match self.ending() {
@@ -3194,8 +3216,25 @@ pub(crate) fn shell_role<T: Decide>(
     match side_at_infinity(body, &SolidFaces::of_shell(body, shell), band, volume) {
         Ok(Ok(SolidContainment::In)) => Ok(ShellRole::Void),
         Ok(Ok(_)) => Ok(ShellRole::Outer),
-        Ok(Err(SideUnread::InBand(pair))) => Err(ShellClassifyError::RayInBand { shell, pair }),
-        Ok(Err(SideUnread::Fallback { volume, .. })) => Err(volume),
+        Ok(Err(SideUnread::InBand(pair))) => Err(ShellClassifyError::RayInBand {
+            shell,
+            pair: Box::new(pair),
+        }),
+        Ok(Err(SideUnread::Fallback {
+            volume, set_aside, ..
+        })) => Err(
+            match set_aside
+                .into_iter()
+                .find(|s| matches!(s.why, crate::side_reader::SetAsideWhy::Corner { .. }))
+            {
+                Some(corner) => ShellClassifyError::Corner {
+                    shell,
+                    corner: Box::new(corner),
+                    volume: Box::new(volume),
+                },
+                None => volume,
+            },
+        ),
         Err(source) => Err(ShellClassifyError::Ray { shell, source }),
     }
 }

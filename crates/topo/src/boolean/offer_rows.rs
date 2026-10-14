@@ -453,6 +453,9 @@ cases! {
     // A ray aimed at 60° across two parallel faces `D/2` apart meets them
     // `D` apart along it.
     aimed_ray_across_a_pair_in_band: "ShellRole", D, ROLE_SITE, Valued => aimed_pair(D / 2.0);
+    // A needle whose volume over area is the margin, and whose aimed rays
+    // read nothing.
+    needle_whose_volume_lies_in_band: "SolidSide", D, ROLE_SITE, Valued => needle(D);
     sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
         "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
          normal carries a seam across the escape plane that the crossing layer meets first: no \
@@ -1626,12 +1629,25 @@ fn aimed_pair(gap: f64) -> Result<(), BooleanError> {
                 solid,
                 error: crate::ShellClassifyError::RayInBand {
                     shell: pair.shell,
-                    pair,
+                    pair: Box::new(pair),
                 },
             },
         ])),
         other => panic!("the aimed ray reads the pair: {other:?}"),
     }
+}
+
+/// A needle `1 × w × w` whose volume over area, `w / (4 + 2w)`, is
+/// `margin`: no aimed ray reads its side (no face offers an aim, or each
+/// ray is set aside), and its volume's sign lies in band at
+/// [`DESIGN_EPS`]. Refused as the result gate refuses it.
+fn needle(margin: f64) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let w = 4.0 * margin / (1.0 - 2.0 * margin);
+    let body = crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, w), (0.0, w), tol);
+    crate::AtRestBody::validate(body, tol)
+        .map(|_| ())
+        .map_err(super::super::ops::finished_body_refusal)
 }
 
 /// A unit prism's top split on its diagonal, one half re-described on
@@ -2570,7 +2586,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
-    ("ops.rs", "escalated", "BooleanDecision::ShellRole", 1),
+    ("ops.rs", "escalated", "BooleanDecision::ShellRole", 2),
+    ("ops.rs", "escalated", "BooleanDecision::SolidSide", 2),
+    ("ops.rs", "finding_arm", "BooleanDecision::ShellRole", 1),
+    ("ops.rs", "finding_arm", "BooleanDecision::SolidSide", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (

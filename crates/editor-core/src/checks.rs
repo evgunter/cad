@@ -1531,7 +1531,8 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds>(
                     source @ (ShellClassifyError::Escalated { .. }
                     | ShellClassifyError::ZeroVolume { .. }
                     | ShellClassifyError::Straddles { .. }
-                    | ShellClassifyError::RayInBand { .. }),
+                    | ShellClassifyError::RayInBand { .. }
+                    | ShellClassifyError::Corner { .. }),
                 ) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,

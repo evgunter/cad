@@ -1440,7 +1440,7 @@ impl<T: Real> Geo<T> {
 /// admits rendering as legitimate `Bounds` context; the refusal is
 /// #990's.) `{:?}` prints `1.0` where `{}` prints `1`, so this matches
 /// the tree's shape and not its spelling.
-fn witness<T: Real>(p: Point3<T>) -> String {
+pub(crate) fn witness<T: Real>(p: Point3<T>) -> String {
     format!("({:?}, {:?}, {:?})", p.x, p.y, p.z)
 }
 

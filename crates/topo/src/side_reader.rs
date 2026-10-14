@@ -41,12 +41,14 @@ pub(crate) const AIMED_ROWS: RayRows = RayRows {
 /// ([`side_at_infinity`]). Two faces that do not meet, whose crossings
 /// of one ray lie in band, are a pair of cells at most that far apart, so
 /// a ray reads in band only where a pair does.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AimedPair {
     /// The shell of the face the ray was aimed at.
     pub shell: crate::entity::ShellKey,
     /// The face the ray was aimed at.
     pub aimed: FaceKey,
+    /// The point on it the ray was aimed at, as coordinates.
+    pub aim: String,
     /// The face of the ray's closest crossing.
     pub near: FaceKey,
     /// The face of the crossing in band of it.
@@ -56,22 +58,172 @@ pub struct AimedPair {
     pub gap: Indeterminate,
 }
 
+/// **An aimed ray the reader set aside**, and why
+/// ([`side_at_infinity`]): the face it was aimed at, where it aimed, and
+/// what kept it from reading the side.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SetAside {
+    /// The face the ray was aimed at.
+    pub aimed: FaceKey,
+    /// The point on it the ray was aimed at, as coordinates; `None`
+    /// where no ray was cast at it (a face the ray test has no arm for).
+    pub aim: Option<String>,
+    /// Why it read nothing.
+    pub why: SetAsideWhy,
+}
+
+/// Why an aimed ray read nothing ([`SetAside`]).
+///
+/// **NOT carried to the façade's curated list, and that is a
+/// decision rather than an omission** (`scripts/payload-rung-sweep.py`
+/// names this rung; the disposition table cites this paragraph as its
+/// home). A Rust caller can already name and match it — `pncad`
+/// re-exports `topo` whole — and the Python door says which refusal it
+/// rides in (`orientation_undecided`, a shell's `corner`) and carries
+/// its sentence, which names each ray set aside and why. Publishing it
+/// owes the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude` and a
+/// Python word per arm, both the façade crate's to write.
+///
+/// **The falsifier is a Python caller who must tell a sharp corner from
+/// a crossing in band of a face's boundary** without reading the
+/// sentence. When the façade carries the reading, delete this paragraph
+/// and the disposition row with it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SetAsideWhy {
+    /// Its two closest crossings lie in band of each other on faces that
+    /// meet: a sharp corner, whose gap closes at the cell the faces
+    /// share, and no pair.
+    Corner {
+        /// The face of its closest crossing.
+        near: FaceKey,
+        /// The face of the crossing in band of it.
+        far: FaceKey,
+        /// Their gap along the ray, in band.
+        gap: Indeterminate,
+    },
+    /// A crossing it could not place: in band of a face's boundary, or
+    /// of a face it met tangentially.
+    Crossing(PointInSolidError),
+    /// It grazed a face, or crossed nothing it could read.
+    Graze,
+    /// A face it could not read, or a broken one: a limit, no tolerance
+    /// moves.
+    Limit(PointInSolidError),
+}
+
 /// What [`side_at_infinity`] could not read.
 #[derive(Clone, Debug)]
 pub(crate) enum SideUnread<V> {
-    /// An aimed ray read in band, and no other decided: the first such
-    /// ray's pair on two faces that do not meet, or, where the fallback
-    /// did not read either, the first sharp corner's.
+    /// An aimed ray read in band on two faces that do not meet, and no
+    /// other decided: the first such ray's pair.
     InBand(AimedPair),
-    /// No aimed ray read the side, and the fallback refused with
-    /// `volume`. `limit` is the first limit an aimed ray met: a face it
-    /// could not read (a spline face), or a broken one.
+    /// No aimed ray read the side, none read a pair in band, and the
+    /// fallback refused with `volume`.
     Fallback {
         /// The fallback's refusal.
         volume: V,
-        /// The first limit an aimed ray met, where one did.
-        limit: Option<PointInSolidError>,
+        /// How many faces offered an aim.
+        aimed: usize,
+        /// The rays set aside, in face order.
+        set_aside: Vec<SetAside>,
     },
+}
+
+/// **A pair's words**: the aimed face and point, the two faces met and
+/// their gap, the one text every refusal naming an [`AimedPair`] renders.
+pub(crate) struct PairPayload<'a>(pub(crate) &'a AimedPair);
+
+impl core::fmt::Display for PairPayload<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let p = self.0;
+        write!(
+            f,
+            "a ray aimed at face {:?} at {} met faces {:?} and {:?} in band of each other: {}",
+            p.aimed,
+            p.aim,
+            p.near,
+            p.far,
+            p.gap.payload()
+        )
+    }
+}
+
+/// **What no aimed ray read**, in words: that no face offered an aim,
+/// or each ray set aside and why ([`SetAside`]).
+pub(crate) struct UnreadRays<'a> {
+    /// How many faces offered an aim.
+    pub(crate) aimed: usize,
+    /// The rays set aside.
+    pub(crate) set_aside: &'a [SetAside],
+}
+
+impl core::fmt::Display for UnreadRays<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.set_aside.is_empty() {
+            return f.write_str(
+                "no face of it offers a ray to aim (a point more than the tolerance inside a \
+                 planar face, or a curved face's chart window)",
+            );
+        }
+        if self.aimed == 0 {
+            f.write_str("no ray was aimed: ")?;
+        } else {
+            write!(
+                f,
+                "{} of the {} rays aimed at its faces read nothing: ",
+                self.set_aside.len(),
+                self.aimed
+            )?;
+        }
+        for (k, s) in self.set_aside.iter().enumerate() {
+            if k > 0 {
+                f.write_str("; ")?;
+            }
+            write!(f, "at face {:?}", s.aimed)?;
+            if let Some(aim) = &s.aim {
+                write!(f, " (aimed at {aim})")?;
+            }
+            match &s.why {
+                SetAsideWhy::Corner { near, far, gap } => write!(
+                    f,
+                    ", faces {near:?} and {far:?}, which meet, crossed in band of each other at a \
+                     sharp corner: {}",
+                    gap.payload()
+                )?,
+                SetAsideWhy::Crossing(PointInSolidError::Escalated { face, diag }) => write!(
+                    f,
+                    ", its crossing of face {face:?} in band of that face's boundary: {}",
+                    diag.payload()
+                )?,
+                SetAsideWhy::Crossing(e) => write!(f, ", a crossing in band: {}", e.summary())?,
+                SetAsideWhy::Graze => {
+                    f.write_str(", a graze or a tie, or no crossing it could place")?;
+                }
+                SetAsideWhy::Limit(PointInSolidError::KindUnsupported { face, kind }) => write!(
+                    f,
+                    ", face {face:?} is a {} surface, which no ray can cross yet",
+                    crate::boolean::kind_word(*kind)
+                )?,
+                SetAsideWhy::Limit(e) => write!(f, ", {}", e.summary())?,
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<V> SideUnread<V> {
+    /// The first limit an aimed ray met, where one did: a face it could
+    /// not read (a spline face), or a broken one.
+    pub(crate) fn limit(&self) -> Option<&PointInSolidError> {
+        match self {
+            Self::Fallback { set_aside, .. } => set_aside.iter().find_map(|s| match &s.why {
+                SetAsideWhy::Limit(e) => Some(e),
+                _ => None,
+            }),
+            Self::InBand(_) => None,
+        }
+    }
 }
 
 /// An aim: a point on a face and the face's outward normal there.
@@ -224,21 +376,33 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     // A face the ray test has no arm for faults EVERY ray at
     // `face_geo`, whatever it aims at: no aim can read, so none is cast,
     // and the volume reads with that face as the limit.
-    if let Some(e) = faces
-        .iter()
-        .find_map(|&face| uncrossable(body, face).transpose())
-    {
-        let e = e?;
-        return Ok(volume().map_err(|volume| SideUnread::Fallback {
-            volume,
-            limit: Some(e),
-        }));
+    for &face in faces {
+        if let Some(e) = uncrossable(body, face)? {
+            return Ok(volume().map_err(|volume| SideUnread::Fallback {
+                volume,
+                aimed: 0,
+                set_aside: vec![SetAside {
+                    aimed: face,
+                    aim: None,
+                    why: SetAsideWhy::Limit(e),
+                }],
+            }));
+        }
     }
-    let (mut in_band, mut at_a_corner, mut limit) = (None, None, None);
+    let (mut in_band, mut aimed, mut set_aside) = (None, 0, Vec::new());
     let (along, across) = AIM_INCIDENCE;
     for &face in faces {
         let Some((aim, normal)) = aim_at(body, sel, face, band)? else {
             continue;
+        };
+        aimed += 1;
+        let at = crate::census::witness(aim);
+        let mut set = |why| {
+            set_aside.push(SetAside {
+                aimed: face,
+                aim: Some(at.clone()),
+                why,
+            });
         };
         let shell = body
             .get_face(face)
@@ -254,10 +418,17 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
         let crossings = match ray_crossings(body, sel, from, d, reach, band, AIMED_ROWS) {
             Ok(crossings) => crossings,
             Err(RayFault::Blocked(e) | RayFault::Fatal(e)) => {
-                limit.get_or_insert(e);
+                set(SetAsideWhy::Limit(e));
                 continue;
             }
-            Err(RayFault::InBand(_) | RayFault::Graze | RayFault::Unread) => continue,
+            Err(RayFault::InBand(e)) => {
+                set(SetAsideWhy::Crossing(e));
+                continue;
+            }
+            Err(RayFault::Graze | RayFault::Unread) => {
+                set(SetAsideWhy::Graze);
+                continue;
+            }
         };
         // The pair's gap is read as a magnitude, the distance between the
         // two crossings whichever the scan met first.
@@ -272,6 +443,7 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
             AimedPair {
                 shell,
                 aimed: face,
+                aim: at.clone(),
                 near,
                 far,
                 gap,
@@ -283,20 +455,27 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
             // at the cell they share, and a ray crossing a sharp corner
             // near it reads in band however definite every pair is.
             Err(RayFault::InBand(pair)) if meet(body, pair.near, pair.far) => {
-                at_a_corner.get_or_insert(pair);
+                set(SetAsideWhy::Corner {
+                    near: pair.near,
+                    far: pair.far,
+                    gap: pair.gap,
+                });
             }
             Err(RayFault::InBand(pair)) => {
                 in_band.get_or_insert(pair);
             }
-            Ok(None) | Err(_) => {}
+            // `closest` reads no limit: a tie, a crossing on an edge, or
+            // none at all.
+            Ok(None) | Err(_) => set(SetAsideWhy::Graze),
         }
     }
     if let Some(pair) = in_band {
         return Ok(Err(SideUnread::InBand(pair)));
     }
-    Ok(volume().map_err(|volume| match at_a_corner {
-        Some(pair) => SideUnread::InBand(pair),
-        None => SideUnread::Fallback { volume, limit },
+    Ok(volume().map_err(|volume| SideUnread::Fallback {
+        volume,
+        aimed,
+        set_aside,
     }))
 }
 #[cfg(test)]
@@ -352,8 +531,13 @@ mod pre_filter_tests {
                 &read,
                 Ok(Err(SideUnread::Fallback {
                     volume: "the volume",
-                    limit: Some(e),
-                })) if *e == want
+                    aimed: 0,
+                    set_aside,
+                })) if set_aside == &[SetAside {
+                    aimed: spline,
+                    aim: None,
+                    why: SetAsideWhy::Limit(want.clone()),
+                }]
             ),
             "the volume reads, limited by the spline face"
         );
@@ -421,10 +605,13 @@ mod pre_filter_tests {
         assert!(
             matches!(
                 &read,
-                Ok(Err(SideUnread::Fallback {
+                Ok(Err(unread @ SideUnread::Fallback {
                     volume: "the volume",
-                    limit: Some(PointInSolidError::KindUnsupported { face, .. }),
-                })) if *face == spline
+                    ..
+                })) if matches!(
+                    unread.limit(),
+                    Some(PointInSolidError::KindUnsupported { face, .. }) if *face == spline
+                )
             ),
             "with one, the volume reads, limited by the spline face"
         );

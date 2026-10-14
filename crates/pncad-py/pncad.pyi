@@ -6903,7 +6903,7 @@ class CheckEvidence:
     the flux inventory, so the count is UNKNOWABLE and says so rather
     than guessing; `inner_variant` is which of the shell door's seven
     refusals it was (`band`, `props`, `escalated`, `zero_volume`,
-    `straddles`, `ray_in_band`, `ray`).
+    `straddles`, `ray_in_band`, `corner`, `ray`).
     `stale_expectation` (`expected`) — an
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,

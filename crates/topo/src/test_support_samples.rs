@@ -1515,7 +1515,11 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         "OrientationUndecided".to_owned(),
         ValidationError::OrientationUndecided {
             solid,
-            reading: crate::OrientationUnread::Volume(None),
+            reading: crate::OrientationUnread::Volume {
+                margin: None,
+                aimed: 0,
+                set_aside: Vec::new(),
+            },
         },
     ));
 

@@ -770,12 +770,21 @@ impl core::fmt::Display for CensusUnsupportedCause {
 pub enum OrientationUnread {
     /// A ray aimed at one of the solid's faces met two of them in band
     /// of each other, and no other aimed ray read the side.
-    Pair(crate::boolean::AimedPair),
-    /// No face offered an aim that read, and the sign of the solid's
-    /// volume is undecided at this tolerance: in band where the reading
-    /// carries its escalation, else straddling zero by the solid's own
-    /// rounding.
-    Volume(Option<Indeterminate>),
+    Pair(Box<crate::boolean::AimedPair>),
+    /// No aimed ray read the side, and the sign of the solid's volume is
+    /// undecided at this tolerance.
+    Volume {
+        /// The volume's escalation where it lies in band (`V/A`, a mean
+        /// half-thickness); `None` where it straddles zero by the solid's
+        /// own rounding.
+        margin: Option<Indeterminate>,
+        /// How many of its faces offered an aim: a planar face's point
+        /// certified inside it, a curved face's chart window's middle.
+        aimed: usize,
+        /// The aimed rays set aside, and why: a sharp corner, a crossing
+        /// in band of a face's boundary, a graze, or a limit.
+        set_aside: Vec<crate::side_reader::SetAside>,
+    },
     /// An aimed ray's walk refused on a face that does not walk.
     Ray(crate::boolean::PointInSolidError),
 }
@@ -4078,24 +4087,38 @@ impl fmt::Display for ValidationError {
             Self::OrientationUndecided { reading, .. } => match reading {
                 OrientationUnread::Pair(pair) => write!(
                     f,
-                    "which side of a solid's faces its material lies on cannot be read: a ray \
-                     aimed at one of its faces met two of them in band of each other: {}. {}",
-                    pair.gap.payload(),
-                    crate::props::SHELL_ROLE_RAY
+                    "which side of a solid's faces its material lies on cannot be read: {}. {}",
+                    crate::side_reader::PairPayload(pair),
+                    crate::props::AIMED_PAIR
                         .recourse(RefusedArm::Undecided(&pair.gap), Reading::AtRest)
                 ),
-                OrientationUnread::Volume(Some(diag)) => write!(
-                    f,
-                    "which side of a solid's faces its material lies on cannot be read: no face \
-                     of it offers a ray to aim, and the sign of its volume is undecided: {}. {}",
-                    diag.payload(),
-                    crate::props::SHELL_ROLE.recourse(RefusedArm::Undecided(diag), Reading::AtRest)
-                ),
-                OrientationUnread::Volume(None) => f.write_str(
-                    "which side of a solid's faces its material lies on cannot be read: no face \
-                     of it offers a ray to aim, and its volume's enclosure straddles zero at this \
-                     tolerance. Recourse: remove the degenerate geometry, or tighten the tolerance",
-                ),
+                OrientationUnread::Volume {
+                    margin,
+                    aimed,
+                    set_aside,
+                } => {
+                    write!(
+                        f,
+                        "which side of a solid's faces its material lies on cannot be read: {}",
+                        crate::side_reader::UnreadRays {
+                            aimed: *aimed,
+                            set_aside,
+                        }
+                    )?;
+                    match margin {
+                        Some(diag) => write!(
+                            f,
+                            "; and the sign of its volume is undecided: {}. {}",
+                            diag.payload(),
+                            crate::props::SHELL_ROLE
+                                .recourse(RefusedArm::Undecided(diag), Reading::AtRest)
+                        ),
+                        None => f.write_str(
+                            "; and its volume's enclosure straddles zero by its own rounding. \
+                             Recourse: remove the degenerate geometry, or tighten the tolerance",
+                        ),
+                    }
+                }
                 OrientationUnread::Ray(source) => write!(
                     f,
                     "which side of a solid's faces its material lies on cannot be read: {source}"
@@ -5955,29 +5978,35 @@ fn plus_v_errors<T: Decide>(
         });
     }
     let undecided = |reading| ValidationError::OrientationUndecided { solid, reading };
+    // The walk's verdict as the reader's fallback: a side, or why not.
     let volume = || match walked {
         Some(PlusVVerdict::Pass) => Ok(SolidContainment::Out),
         Some(PlusVVerdict::Refuse) => Ok(SolidContainment::In),
-        Some(PlusVVerdict::Unresolved) => {
-            Err(Some(Box::new(ValidationError::VolumeSignUnresolved {
-                solid,
-            })))
-        }
-        Some(PlusVVerdict::Undecided(reading)) => Err(Some(Box::new(undecided(
-            OrientationUnread::Volume(*reading),
-        )))),
+        Some(PlusVVerdict::Unresolved) => Err(Some(None)),
+        Some(PlusVVerdict::Undecided(reading)) => Err(Some(Some(*reading))),
         Some(PlusVVerdict::Uncomputable(_)) | None => Err(None),
     };
     let read =
         SolidFaces::select(body, faces).and_then(|sel| side_at_infinity(body, &sel, band, volume));
     match read {
         Ok(Ok(SolidContainment::In)) => errors.push(ValidationError::NegativeVolume { solid }),
+        // Uncomputable: reported above, the certificate's.
         Ok(Ok(_)) | Ok(Err(SideUnread::Fallback { volume: None, .. })) => {}
-        Ok(Err(SideUnread::InBand(pair))) => errors.push(undecided(OrientationUnread::Pair(pair))),
+        Ok(Err(SideUnread::InBand(pair))) => {
+            errors.push(undecided(OrientationUnread::Pair(Box::new(pair))));
+        }
         Ok(Err(SideUnread::Fallback {
-            volume: Some(error),
-            ..
-        })) => errors.push(*error),
+            volume: Some(None), ..
+        })) => errors.push(ValidationError::VolumeSignUnresolved { solid }),
+        Ok(Err(SideUnread::Fallback {
+            volume: Some(Some(margin)),
+            aimed,
+            set_aside,
+        })) => errors.push(undecided(OrientationUnread::Volume {
+            margin,
+            aimed,
+            set_aside,
+        })),
         Err(source) => errors.push(undecided(OrientationUnread::Ray(source))),
     }
     errors

@@ -99,7 +99,7 @@ fn assert_pillow_rests(body: &Body<f64>, tol: Tol) {
         matches!(
             found.as_ref().map_err(Vec::as_slice),
             Err([ValidationError::OrientationUndecided {
-                reading: crate::OrientationUnread::Volume(_),
+                reading: crate::OrientationUnread::Volume { .. },
                 ..
             }])
         ),
