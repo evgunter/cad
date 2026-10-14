@@ -2,10 +2,11 @@
 id: circle-lowers-to-one-segment
 kind: unit
 title: circle and circle_split(n ≥ 1) lower to one full-turn segment per arc; lily migrates; re-baseline
-status: open
+status: dispatched
 opened: 2026-09-25
 priority: P1
 cost: D
+branch: paths/circle-lowers-to-one-segment
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
 blocked_on: []
 ---
