@@ -1366,3 +1366,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Also seen: `germ_plane_torus_spiric::the_fat_corner_bars_lens…` pin red at ε = EPS_MIN only, identical on main. EPS_MIN is not a CI ε; noted, not filed.
   - Merge verify started in /home/user/m5125 (main merged clean).
 - 2026-10-14 16:05 — **PR 5125 merged** (`edbb1a8058`) on local green: main merged twice (`d54ecfc064`, then `1053d95a18`). Full geom-brep 1338, topo 3017, sweep 2698 at 3 ε; the PR's rows 566 at 3 ε on the second merge. The CLEAVE filing rides the PR. The PR body is corrected to name the missed `common_line`. Row PR-5125 is sequential, M, tallied 0.
+- 2026-10-14 16:10 — **Triage, lanes free.**
+  - P1 c5 is held by D10.
+  - P2 conic-past-band: what remains is the carrier half, which is CLEAVE's (anchored form, per Ev's PR 4812), so there is nothing for GERM to dispatch.
+  - The ring-path ruling/crest item is unprioritized and is not reached through the public ops. To mark P4 with the next GERM PR that touches `work/`.
+  - **Dispatched** the P3 `a-plane-cone-apex-tangent-reads-a-residue-generator-off-the-tangency`, which serves wrong geometry (a generator ~2e-5 off the tangency) and costs E. Implementer: session_01GDFC3FaSKmBFBjRrhpTLEC, branch `germ/pn-apex-tangent-generator`. The arm is drawn at review.
