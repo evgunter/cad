@@ -569,8 +569,8 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
 }
 
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
-/// ellipse's major) times its span, a spiric's speed bound
-/// `r(R − r)/f_min` times its span.
+/// ellipse's major) times its span, a spiric's piecewise
+/// [`spiric::spiric_length_bound`].
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
@@ -578,7 +578,7 @@ fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
         Curve3::Circle { radius, .. } => (radius * Interval::point(span)).mag(),
         Curve3::Ellipse { major, .. } => (major * Interval::point(span)).mag(),
         Curve3::Spiric { .. } => spiric_edge_q(e, Point3::origin(), None)
-            .and_then(|q| spiric::spiric_length_bound(&q))
+            .and_then(|q| spiric::spiric_length_bound(&q, spiric::LENGTH_PIECES))
             .ok_or(PropsError::QuadratureUnsupported {
                 what: "a spiric edge whose span's rate window has no certified positive f",
             })?,

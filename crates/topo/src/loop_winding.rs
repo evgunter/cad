@@ -186,7 +186,8 @@ const SPIRIC_PIECES: [usize; 4] = [16, 128, 1024, 8192];
 /// arc's vector area about its carrier's start point, which no chord
 /// through that point changes: `geom_brep`'s certified enclosure
 /// ([`spiric::spiric_vector_area`], the face lane's own term) at
-/// `pieces`. The length is [`spiric::spiric_length_bound`]. `None` for
+/// `pieces`. The length is [`spiric::spiric_length_bound`] at the same
+/// `pieces`, so a refinement tightens the lever too. `None` for
 /// any other carrier, and for a span whose rate window has no certified
 /// positive `f`.
 fn spiric_segment_term(
@@ -218,7 +219,7 @@ fn spiric_segment_term(
         forward,
         wall: None,
     };
-    let length = spiric::spiric_length_bound(&edge)?;
+    let length = spiric::spiric_length_bound(&edge, pieces)?;
     let [x, y, z] = spiric::spiric_vector_area(&edge, pieces);
     let area = Vec3::new(x, y, z);
     Some((area + area, Interval::from_certified(length)))
@@ -613,37 +614,30 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             lane.lift(normal.y),
             lane.lift(normal.z),
         );
-        let term = |(c, span, fwd): &(Curve3<Interval>, (Interval, Interval), bool), pieces| {
-            conic_segment_term((c, *span), *fwd)
-                .or_else(|| spiric_segment_term((c, *span), *fwd, pieces))
-        };
-        // A spiric with no enclosure over its span would be summed as
-        // its chord: refuse it rather than wind it so.
-        let unenclosed = |c: &(Curve3<Interval>, (Interval, Interval), bool)| {
-            matches!(c.0, Curve3::Spiric { .. }) && term(c, SPIRIC_PIECES[0]).is_none()
-        };
-        if lifted
-            .iter()
-            .filter_map(|(_, c)| c.as_ref())
-            .chain(closing.as_ref())
-            .any(unenclosed)
-        {
-            return Err(Unwound::Uncertified);
-        }
         let Some((&finest, coarser)) = SPIRIC_PIECES.split_last() else {
             unreachable!("the piece counts are a non-empty constant")
         };
+        // A spiric with no term at `pieces` would be summed as its
+        // chord: refuse it rather than wind it so.
         let margin = |pieces| {
-            let points: Vec<_> = lifted
+            let term = |(c, span, fwd): &(Curve3<Interval>, (Interval, Interval), bool)| {
+                match conic_segment_term((c, *span), *fwd)
+                    .or_else(|| spiric_segment_term((c, *span), *fwd, pieces))
+                {
+                    None if matches!(c, Curve3::Spiric { .. }) => Err(Unwound::Uncertified),
+                    t => Ok(t),
+                }
+            };
+            let points = lifted
                 .iter()
-                .map(|(p, c)| (*p, c.as_ref().and_then(|c| term(c, pieces))))
-                .collect();
-            let closing_term = closing.as_ref().and_then(|c| term(c, pieces));
+                .map(|(p, c)| Ok((*p, c.as_ref().map(term).transpose()?.flatten())))
+                .collect::<Result<Vec<_>, Unwound>>()?;
+            let closing_term = closing.as_ref().map(term).transpose()?.flatten();
             let (area, perimeter) = winding_sum(&points, point(end), closing_term, open, normal);
-            Margin::over_lever(area, perimeter)
+            Ok::<_, Unwound>(Margin::over_lever(area, perimeter))
         };
         for &pieces in coarser {
-            let read = margin(pieces);
+            let read = margin(pieces)?;
             if crate::validate::decide("planar_winding_spiric_refine", read, band).is_ok() {
                 return Ok(crate::validate::decide_reported(
                     WINDING_PREDICATE,
@@ -654,7 +648,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         }
         Ok(crate::validate::decide_reported(
             WINDING_PREDICATE,
-            margin(finest),
+            margin(finest)?,
             band,
         ))
     }

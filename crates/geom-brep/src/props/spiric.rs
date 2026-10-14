@@ -218,12 +218,88 @@ pub fn span_rates(e: &SpiricEdgeQ) -> Option<(Interval, Interval)> {
     du.is_certified().then_some((speed, du))
 }
 
-/// An upper bound on a spiric edge's length, `S·(t₁ − t₀)`
-/// ([`span_rates`]).
+/// The piece count a face's perimeter reads its spiric edges' lengths
+/// at ([`spiric_length_bound`]).
+pub const LENGTH_PIECES: usize = 64;
+
+/// **An upper bound on a spiric edge's length**: `[t₀.lo, t₁.hi]` in
+/// `pieces` equal pieces, each charged its width times [`piece_speed`].
+/// The bound tightens toward the arc's length as `pieces` grows, the
+/// pinch's piece included. `None` when a piece's `f` is not certified
+/// positive, or `pieces` is `0`.
 #[must_use]
-pub fn spiric_length_bound(e: &SpiricEdgeQ) -> Option<f64> {
-    let (speed, _) = span_rates(e)?;
-    Some((speed * (e.t1 - e.t0)).mag())
+pub fn spiric_length_bound(e: &SpiricEdgeQ, pieces: usize) -> Option<f64> {
+    if !(e.t0.is_certified() && e.t1.is_certified()) || pieces == 0 {
+        return None;
+    }
+    let (a, b) = (e.t0.lo(), e.t1.hi());
+    let span = b - a;
+    if !(span.is_finite() && span >= 0.0) {
+        return None;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let node = |i: usize| {
+        if i == pieces {
+            b
+        } else {
+            a + span * (i as f64 / pieces as f64)
+        }
+    };
+    (0..pieces).try_fold(0.0, |len, i| {
+        let (p, q) = (node(i), node(i + 1));
+        let piece = (pt(piece_speed(e, p, q)?) * (pt(q) - pt(p))).hi();
+        Some(certified_hi(pt(len) + pt(piece)))
+    })
+}
+
+/// **`sup|P′|` over `t ∈ [p, q]`**, reading `sin t` and `f` together.
+/// `|P′|² = r²(1 + d²sin²t/f²)` ([`geom::spiric_rate_bounds`]); with
+/// `x = 1 + cos t`, `sin²t = x(2 − x)` and
+/// `f² = (ρ − |d|)(ρ + |d|)`, `ρ − |d| = δ + r·x`, `δ = R − r − |d|`:
+///
+/// ```text
+/// d²sin²t/f² = d²·(2 − x)·φ(x)/(ρ + |d|),   φ(x) = x/(δ + r·x)
+/// ```
+///
+/// `φ` is monotone in `x` wherever `δ + r·x > 0` (its derivative has
+/// `δ`'s sign), so its sup over the piece is at one end of the piece's
+/// `x`. Near the pinch (`ρ → |d|` as `x → 0`) the factor `x` cancels
+/// the vanishing `f²` — `φ ≤ 1/r` for `δ ≥ 0` — where sup `|sin|` over
+/// inf `f` read apart grows like `1/f`. The smaller of the two
+/// readings is the bound. `None` when the piece's `f` is not
+/// certified positive.
+fn piece_speed(e: &SpiricEdgeQ, p: f64, q: f64) -> Option<f64> {
+    if !(e.minor.is_certified() && e.major.is_certified() && e.offset.is_certified()) {
+        return None;
+    }
+    let (c, s) = trig_range(p, q);
+    let rho = e.major + e.minor * c;
+    if !(rho.is_certified() && s.is_certified()) {
+        return None;
+    }
+    let reach = rho.lo() - e.offset.mag();
+    if reach.is_nan() || reach <= 0.0 {
+        return None;
+    }
+    let (apart, _) =
+        geom::spiric_rate_bounds(e.minor, e.offset, (pt(rho.lo()), pt(rho.hi())), pt(s.mag()));
+    let d_abs = geom_core::Real::abs(e.offset);
+    let x = (Interval::one() + c).clamped_to(0.0, 2.0);
+    let delta = e.major - e.minor - d_abs;
+    let phi = |x: f64| {
+        let den = delta + e.minor * pt(x);
+        (den.is_certified() && den.lo() > 0.0).then(|| (pt(x) / den).hi())
+    };
+    let together = phi(x.lo()).zip(phi(x.hi())).map(|(lo, hi)| {
+        let ratio = e.offset.sqr() * (pt(2.0) - x) * pt(lo.max(hi)) / (rho + d_abs);
+        e.minor * (Interval::one() + ratio).sqrt()
+    });
+    [Some(apart), together]
+        .into_iter()
+        .flatten()
+        .filter(|v| v.is_certified())
+        .map(Bounds::hi)
+        .reduce(f64::min)
 }
 
 /// `∫_a^b g` for `N` integrands at once, `pieces` equal pieces (the rule
@@ -680,6 +756,9 @@ pub fn spiric_face_rounds<T: Decide>(
 }
 
 #[cfg(test)]
+mod length_fuzz;
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
@@ -964,7 +1043,7 @@ mod tests {
 
     /// A spiric edge in an arbitrary frame: `(edge, P(t) − ref)`.
     #[allow(clippy::too_many_arguments)]
-    fn framed(
+    pub(super) fn framed(
         (big, r, d): (f64, f64, f64),
         axis: [f64; 3],
         normal: [f64; 3],
@@ -1054,7 +1133,9 @@ mod tests {
     /// **A cut through the tube's hole** (`|d| > R − r`): `f` is real on
     /// the arc though not on the whole circle, and the lane bounds it by
     /// the arc's own window ([`span_rates`]) — the vector area, the wall
-    /// terms and the length bound all certify, against the definitions.
+    /// terms and the length bound all certify, against the definitions;
+    /// the length bound holds the arc from above, where `φ` falls with
+    /// `x` ([`piece_speed`]).
     /// The whole-circle bound (`f_min = √((R − r)² − d²)`) is NaN here.
     #[test]
     fn a_cut_through_the_tubes_hole_is_bounded_by_its_own_arc() {
@@ -1068,10 +1149,36 @@ mod tests {
             (t0, t1),
             true,
         );
-        assert!(
-            spiric_length_bound(&e).is_some_and(f64::is_finite),
-            "the arc's length"
-        );
+        for ((big, r, d), span) in [
+            ((big, r, d), (t0, t1)),
+            (
+                (
+                    1.746_019_885_272_977_8,
+                    0.776_110_402_223_510_8,
+                    -1.179_434_705_286_893_2,
+                ),
+                (3.914_462_384_376_397_7, 7.990_064_206_637_532),
+            ),
+        ] {
+            let (e, _) = framed(
+                (big, r, d),
+                [0.0, 1.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0; 3],
+                [0.0; 3],
+                span,
+                true,
+            );
+            let arc = walked((big, r, d), span, 4000);
+            for pieces in [16, 128] {
+                let bound = spiric_length_bound(&e, pieces).unwrap();
+                assert!(
+                    arc <= bound,
+                    "({big}, {r}) cut at {d}, {span:?}, {pieces} pieces: the length bound \
+                     {bound} under the arc's {arc}"
+                );
+            }
+        }
         let want = vector_area_reference(&point, t0, t1);
         let got = spiric_vector_area(&e, 256);
         for k in 0..3 {
@@ -1100,6 +1207,81 @@ mod tests {
             wall_chart(&face, &chart, 64).is_ok(),
             "the wall's pad has a rate bound"
         );
+    }
+
+    /// The length of the polygon through `n + 1` evenly spaced points of
+    /// the spiric `(R, r, d)` over `[t0, t1]`, less `1e-12` of itself for
+    /// rounding: under the arc's own length. Each side is read in the
+    /// oval's plane, `(r·sin t, f)`, from differences that keep their
+    /// digits at the pinch: `Δ sin t` and `Δρ` by sum-to-product,
+    /// `Δf = Δρ·(ρ_a + ρ_b)/(f_a + f_b)`, and `f² = (ρ − |d|)(ρ + |d|)`
+    /// with `ρ − |d| = δ + 2r·cos²(t/2)`, `δ = R − r − |d|` from the
+    /// exact two-sum of `R − r`.
+    pub(super) fn walked((big, r, d): (f64, f64, f64), (t0, t1): (f64, f64), n: u32) -> f64 {
+        let s = big - r;
+        let b = s - big;
+        let delta = (s - d.abs()) + ((big - (s - b)) + (-r - b));
+        let rho = |t: f64| big + r * t.cos();
+        let f = |t: f64| {
+            let c = (t / 2.0).cos();
+            ((delta + 2.0 * r * c * c) * (rho(t) + d.abs())).sqrt()
+        };
+        let at = |k: u32| t0 + (t1 - t0) * f64::from(k) / f64::from(n);
+        let len: f64 = (0..n)
+            .map(|k| {
+                let (ta, tb) = (at(k), at(k + 1));
+                let (m, h) = ((ta + tb) / 2.0, (tb - ta) / 2.0);
+                let dy = 2.0 * r * m.cos() * h.sin();
+                let drho = -2.0 * r * m.sin() * h.sin();
+                let dz = drho * (rho(ta) + rho(tb)) / (f(ta) + f(tb));
+                dy.hypot(dz)
+            })
+            .sum();
+        len * (1.0 - 1e-12)
+    }
+
+    /// **The length bound reads the arc at the pinch**: ovals cut `1e-3`
+    /// to `1e-12` short of the inner equator, on both sides of the axis,
+    /// over arcs through the pinch, along its neck and across a whole
+    /// period. The bound stays above a 4000-point polygon of the arc
+    /// ([`walked`]) at
+    /// every piece count, and within 1.1 times it at 16 pieces and 1.02
+    /// times at 128 — where `sup|sin t|` over `inf f`, read apart, is up
+    /// to `10⁶` times the arc's speed.
+    #[test]
+    fn the_length_bound_reads_the_arc_at_the_pinch() {
+        for (big, r) in [(2.0, 0.5), (3.0, 1.0), (1.0, 0.9)] {
+            for gap in [1e-3, 1e-6, 1e-9, 1e-12] {
+                for d in [big - r - gap, gap - big + r] {
+                    for span in [
+                        (PI - 0.5, PI + 0.3),
+                        (PI - 0.1, PI - 1e-4),
+                        (PI + 1e-6, PI + 4e-3),
+                        (PI - 1e-5, PI + 1e-5),
+                        (0.0, 2.0 * PI),
+                    ] {
+                        let (e, _) = framed(
+                            (big, r, d),
+                            [0.0, 1.0, 0.0],
+                            [1.0, 0.0, 0.0],
+                            [0.0; 3],
+                            [0.0; 3],
+                            span,
+                            true,
+                        );
+                        let arc = walked((big, r, d), span, 4000);
+                        for (pieces, slack) in [(1, f64::INFINITY), (16, 1.1), (128, 1.02)] {
+                            let bound = spiric_length_bound(&e, pieces).unwrap();
+                            assert!(
+                                arc <= bound && bound <= slack * arc,
+                                "({big}, {r}) cut at {d}, {span:?}, {pieces} pieces: \
+                                 bound {bound} against the arc's {arc}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// **The wall terms against the definitions** — `u` differentiated
