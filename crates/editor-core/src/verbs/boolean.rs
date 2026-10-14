@@ -37,10 +37,12 @@ use verbs::{Verb, VerbRecord};
 use crate::names::{self, NamingError};
 use crate::node::RecipeNodeId;
 
-/// A two-operand verb's naming emitter: this node's id, the result
-/// body, the birth record, and the two operands' naming contexts, in.
+/// A two-operand verb's naming emitter: this node's id, the op, the
+/// result body, the birth record, and the two operands' naming
+/// contexts, in.
 pub(crate) type PairEmitter<T> = fn(
     RecipeNodeId,
+    BooleanOp,
     &Body<T>,
     &BooleanNaming,
     &names::OperandCtx<'_, T>,

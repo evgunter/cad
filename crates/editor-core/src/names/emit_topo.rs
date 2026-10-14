@@ -979,6 +979,7 @@ impl<'n> FaceDescent<'n> {
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
 pub(crate) fn name_boolean<T: Decide>(
     node: RecipeNodeId,
+    op: topo::BooleanOp,
     body: &Body<T>,
     naming: &topo::BooleanNaming,
     a: &OperandCtx<'_, T>,
@@ -1234,6 +1235,7 @@ pub(crate) fn name_boolean<T: Decide>(
 
     let edge_groups = name_boolean_edges(
         node,
+        op,
         &mut rec,
         body,
         naming,
@@ -1340,6 +1342,7 @@ pub(super) fn name_parent_faces<T: geom_core::Real, K: Ord + Clone>(
 #[allow(clippy::too_many_arguments)]
 fn name_boolean_edges<T: Decide>(
     node: RecipeNodeId,
+    op: topo::BooleanOp,
     rec: &mut GroupRecord,
     body: &Body<T>,
     naming: &topo::BooleanNaming,
@@ -1369,6 +1372,15 @@ fn name_boolean_edges<T: Decide>(
     // flat and curved faces — the chord's geometry picks the one it lies
     // within (`rim_holding`); when nothing picks one,
     // `NamingError::SharedRim` is what the arm below says. ----
+    /// What a chord finds of the rims its two faces of one operand share.
+    enum RimRead {
+        /// The rim the chord lies within.
+        Holds(EdgeKey),
+        /// The pair's one rim, which the chord lies off.
+        Off(EdgeKey),
+        /// No rim, or several of which the chord lies within none.
+        None(RimShare),
+    }
     enum ChordKind {
         /// A seam: its two faces' names, and the one operand both
         /// descend from where they do.
@@ -1432,37 +1444,45 @@ fn name_boolean_edges<T: Decide>(
         // is, which depends on why the faces were paired. Only unmerged
         // faces meet along a curved rim: merged faces are planar (F7),
         // and two planes meet in a line.
-        let same_side_rim = |op: &OperandCtx<'_, T>,
+        let read_rim = |op: &OperandCtx<'_, T>,
+                        f0: FaceKey,
+                        f1: FaceKey|
+         -> Result<RimRead, NamingError> {
+            Ok(match rim_between(op.body, f0, f1)? {
+                Rim::One(rim) if chord_within(body, e, op.body, rim, bnd)? => RimRead::Holds(rim),
+                Rim::One(rim) => RimRead::Off(rim),
+                Rim::NotOne(RimShare::Several) => {
+                    match rim_holding(body, e, op.body, f0, f1, bnd)? {
+                        Some(rim) => RimRead::Holds(rim),
+                        None => RimRead::None(RimShare::Several),
+                    }
+                }
+                Rim::NotOne(found) => RimRead::None(found),
+            })
+        };
+        // The rim the chord lies within, or the refusal for what the walk
+        // found instead: `off_rim` for a chord off the pair's one rim.
+        let rim_or_refuse = |read: RimRead,
+                             op: &OperandCtx<'_, T>,
                              f0: FaceKey,
                              f1: FaceKey,
                              off_rim: &dyn Fn(EdgeKey) -> NamingError|
          -> Result<EdgeKey, NamingError> {
-            let found = match rim_between(op.body, f0, f1)? {
-                Rim::One(rim) => {
-                    return if chord_within(body, e, op.body, rim, bnd)? {
-                        Ok(rim)
-                    } else {
-                        Err(off_rim(rim))
-                    };
-                }
-                Rim::NotOne(RimShare::Several) => {
-                    if let Some(rim) = rim_holding(body, e, op.body, f0, f1, bnd)? {
-                        return Ok(rim);
-                    }
-                    RimShare::Several
-                }
-                Rim::NotOne(found) => found,
-            };
-            Err(NamingError::SharedRim {
-                node: op.node,
-                face: f0,
-                other: f1,
-                found,
-            })
+            match read {
+                RimRead::Holds(rim) => Ok(rim),
+                RimRead::Off(rim) => Err(off_rim(rim)),
+                RimRead::None(found) => Err(NamingError::SharedRim {
+                    node: op.node,
+                    face: f0,
+                    other: f1,
+                    found,
+                }),
+            }
         };
-        // Two UNMERGED faces of one operand whose closures meet at the
-        // chord meet along their one shared rim, so a chord off it is a
-        // body the emitter cannot read — a kernel fact, not a rule.
+        // Two unmerged faces of one operand meeting along a chord off
+        // every rim they share meet where the other operand filled the
+        // gap between them, which only a union does (the arm below);
+        // anywhere else no rule reads the chord.
         let unmerged_off_rim = |_| NamingError::Emission {
             what: "a chord between two unmerged faces of one operand lies off the rim they share",
         };
@@ -1495,10 +1515,12 @@ fn name_boolean_edges<T: Decide>(
                 );
                 let (op, f0) = d0.of(a, b);
                 let (_, f1) = d1.of(a, b);
-                let rim = same_side_rim(op, f0, f1, &|rim| NamingError::MergedChordOffRim {
-                    edge: e,
-                    node: op.node,
-                    rim,
+                let rim = rim_or_refuse(read_rim(op, f0, f1)?, op, f0, f1, &|rim| {
+                    NamingError::MergedChordOffRim {
+                        edge: e,
+                        node: op.node,
+                        rim,
+                    }
                 })?;
                 return Ok(match side {
                     topo::Operand::A => ChordKind::SameA(rim),
@@ -1513,31 +1535,29 @@ fn name_boolean_edges<T: Decide>(
             (OpSide::B(_), OpSide::A(_)) => {
                 ChordKind::Cross(operand_face_name(d1)?, operand_face_name(d0)?, None)
             }
-            // Two faces of one operand that share no edge there meet
-            // only where the other operand filled the gap between them
-            // and was consumed: they are its seam, in name order.
-            (OpSide::A(f0), OpSide::A(f1)) | (OpSide::B(f0), OpSide::B(f1))
-                if f0 != f1
-                    && matches!(
-                        rim_between(d0.of(a, b).0.body, f0, f1)?,
-                        Rim::NotOne(RimShare::NotAdjacent)
-                    ) =>
-            {
-                let (n0, n1) = (operand_face_name(d0)?, operand_face_name(d1)?);
-                let side = Some(d0.operand());
-                if n1.name < n0.name {
-                    ChordKind::Cross(n1, n0, side)
-                } else {
-                    ChordKind::Cross(n0, n1, side)
+            // Two faces of one operand: the rim they share, where the
+            // chord lies within one. A union's chord between two distinct
+            // faces of one operand off every rim they share is where the
+            // other operand filled the gap between them and was consumed:
+            // their seam, in name order. A subtract or an intersect keeps
+            // only the operand's material, so it never holds that gap.
+            (OpSide::A(f0), OpSide::A(f1)) | (OpSide::B(f0), OpSide::B(f1)) => {
+                let side = d0.operand();
+                let ctx = d0.of(a, b).0;
+                let read = read_rim(ctx, f0, f1)?;
+                if !matches!(read, RimRead::Holds(_)) && f0 != f1 && op == topo::BooleanOp::Union {
+                    let (n0, n1) = (operand_face_name(d0)?, operand_face_name(d1)?);
+                    return Ok(if n1.name < n0.name {
+                        ChordKind::Cross(n1, n0, Some(side))
+                    } else {
+                        ChordKind::Cross(n0, n1, Some(side))
+                    });
                 }
-            }
-            // Two faces of one operand: the rim they share
-            // (`same_side_rim`).
-            (OpSide::A(fa0), OpSide::A(fa1)) => {
-                ChordKind::SameA(same_side_rim(a, fa0, fa1, &unmerged_off_rim)?)
-            }
-            (OpSide::B(fb0), OpSide::B(fb1)) => {
-                ChordKind::SameB(same_side_rim(b, fb0, fb1, &unmerged_off_rim)?)
+                let rim = rim_or_refuse(read, ctx, f0, f1, &unmerged_off_rim)?;
+                match side {
+                    topo::Operand::A => ChordKind::SameA(rim),
+                    topo::Operand::B => ChordKind::SameB(rim),
+                }
             }
         })
     };
@@ -1555,13 +1575,26 @@ fn name_boolean_edges<T: Decide>(
     // group — the widening B1 asks for, not a collision.
     type SeamGroup = (bool, Option<topo::Operand>, Vec<EdgeKey>);
     let mut seam_groups: BTreeMap<(NameRef, NameRef), SeamGroup> = BTreeMap::new();
-    let mut add_seam = |fa: Upstream, fb: Upstream, one: Option<topo::Operand>, e: EdgeKey| {
+    // One name pair is one seam, so its edges agree on whether both
+    // faces are one operand's; a pair that disagrees is two seams
+    // spelled alike, which the group cannot hold.
+    let mut add_seam = |fa: Upstream,
+                        fb: Upstream,
+                        one: Option<topo::Operand>,
+                        e: EdgeKey|
+     -> Result<(), NamingError> {
         let from_tie = fa.tied || fb.tied;
         let slot = seam_groups
             .entry((fa.name, fb.name))
             .or_insert((false, one, Vec::new()));
+        if slot.1 != one {
+            return Err(bug(
+                "one seam name holds edges between faces of one operand and of two",
+            ));
+        }
         slot.0 |= from_tie;
         slot.2.push(e);
+        Ok(())
     };
     // ---- Edges the output stage's joins made, named for the operand
     // edges they lie along (`joined_cover`): read off this body and the
@@ -1595,7 +1628,7 @@ fn name_boolean_edges<T: Decide>(
             continue; // consumed by the merge stage, or named above
         }
         let (fa, fb, one) = seam_pair(e)?;
-        add_seam(fa, fb, one, e);
+        add_seam(fa, fb, one, e)?;
     }
 
     // ---- Operand-descended edges, grouped by (side, root). ----
@@ -1657,7 +1690,7 @@ fn name_boolean_edges<T: Decide>(
             // geometrically there (`chord_kind`).
             match chord_kind(e, Some(root.operand()))? {
                 ChordKind::Cross(fa, fb, one) => {
-                    add_seam(fa, fb, one, e);
+                    add_seam(fa, fb, one, e)?;
                 }
                 ChordKind::SameA(k) => {
                     groups.entry(OpSide::A(k)).or_default().push(e);
@@ -4173,9 +4206,17 @@ mod tests {
             table: &empty,
             body: &built.body,
         };
-        let t = name_boolean(bool_node, &result, &naming, &a, &b, Tol::witness())
-            .unwrap()
-            .table;
+        let t = name_boolean(
+            bool_node,
+            topo::BooleanOp::Union,
+            &result,
+            &naming,
+            &a,
+            &b,
+            Tol::witness(),
+        )
+        .unwrap()
+        .table;
 
         // Exactly one Merged name, on the kept (top) face, with the
         // TWO deduped constituents in sorted order.
@@ -4248,6 +4289,7 @@ mod tests {
         };
         let err = name_boolean(
             RecipeNodeId::new(0, 9),
+            topo::BooleanOp::Union,
             &built.body,
             &naming,
             &a,
@@ -4405,6 +4447,7 @@ mod tests {
         };
         let err = name_boolean(
             RecipeNodeId::new(0, 9),
+            topo::BooleanOp::Union,
             &body,
             &naming,
             &a,
@@ -4484,6 +4527,7 @@ mod tests {
         };
         let err = name_boolean(
             RecipeNodeId::new(0, 9),
+            topo::BooleanOp::Union,
             &built.body,
             &naming,
             &a,
@@ -4560,6 +4604,7 @@ mod tests {
         };
         let out = name_boolean(
             RecipeNodeId::new(0, 9),
+            topo::BooleanOp::Union,
             &built.body,
             &naming,
             &a,
@@ -4661,9 +4706,17 @@ mod tests {
             table: &empty,
             body: &built.body,
         };
-        let t = name_boolean(bool_node, &result, &naming, &a, &b, Tol::witness())
-            .unwrap()
-            .table;
+        let t = name_boolean(
+            bool_node,
+            topo::BooleanOp::Union,
+            &result,
+            &naming,
+            &a,
+            &b,
+            Tol::witness(),
+        )
+        .unwrap()
+        .table;
         let wrap = |inner: &StableName| {
             name1(
                 EntityKind::Face,
@@ -4775,6 +4828,7 @@ mod tests {
         };
         let err = name_boolean(
             RecipeNodeId::new(0, 9),
+            topo::BooleanOp::Union,
             &built.body,
             &naming,
             &a,
@@ -6051,13 +6105,38 @@ mod touch_reread_rows {
         let (xn, yn) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
         let (xt, yt) = (table(x, xn), table(y, yn));
         let mut named = Named::default();
-        for (what, (a, an, at), (b, bn, bt), r) in [
-            ("x − y", (x, xn, &xt), (y, yn, &yt), subtract(x, y, t())),
-            ("y − x", (y, yn, &yt), (x, xn, &xt), subtract(y, x, t())),
-            ("x ∪ y", (x, xn, &xt), (y, yn, &yt), union(x, y, t())),
-            ("y ∪ x", (y, yn, &yt), (x, xn, &xt), union(y, x, t())),
-            ("x ∩ y", (x, xn, &xt), (y, yn, &yt), intersect(x, y, t())),
-            ("y ∩ x", (y, yn, &yt), (x, xn, &xt), intersect(y, x, t())),
+        use topo::BooleanOp::{Intersect, Subtract, Union};
+        for (what, (a, an, at), (b, bn, bt), r, op) in [
+            (
+                "x − y",
+                (x, xn, &xt),
+                (y, yn, &yt),
+                subtract(x, y, t()),
+                Subtract,
+            ),
+            (
+                "y − x",
+                (y, yn, &yt),
+                (x, xn, &xt),
+                subtract(y, x, t()),
+                Subtract,
+            ),
+            ("x ∪ y", (x, xn, &xt), (y, yn, &yt), union(x, y, t()), Union),
+            ("y ∪ x", (y, yn, &yt), (x, xn, &xt), union(y, x, t()), Union),
+            (
+                "x ∩ y",
+                (x, xn, &xt),
+                (y, yn, &yt),
+                intersect(x, y, t()),
+                Intersect,
+            ),
+            (
+                "y ∩ x",
+                (y, yn, &yt),
+                (x, xn, &xt),
+                intersect(y, x, t()),
+                Intersect,
+            ),
         ] {
             let Ok(BooleanResult::Body(r)) = r else {
                 continue;
@@ -6074,11 +6153,11 @@ mod touch_reread_rows {
                 table: bt,
                 body: b,
             };
-            let table = match name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t())
-            {
-                Ok(e) => e.table,
-                Err(e) => panic!("{label}, {}, {what}: names, got {e:?}", pose.label),
-            };
+            let table =
+                match name_boolean(RecipeNodeId::new(0, 9), op, &r.body, &r.naming, &a, &b, t()) {
+                    Ok(e) => e.table,
+                    Err(e) => panic!("{label}, {}, {what}: names, got {e:?}", pose.label),
+                };
             named.built += 1;
             let mut fragmented = BTreeSet::new();
             for (n, e) in table.iter().filter(|(n, _)| n.kind == EntityKind::Vertex) {
@@ -6135,8 +6214,16 @@ mod touch_reread_rows {
             table: &yt,
             body: &bare_hollow,
         };
-        let named = name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t())
-            .expect("x − y names");
+        let named = name_boolean(
+            RecipeNodeId::new(0, 9),
+            topo::BooleanOp::Subtract,
+            &r.body,
+            &r.naming,
+            &a,
+            &b,
+            t(),
+        )
+        .expect("x − y names");
         let ties: Vec<&crate::names::StableName> = named
             .table
             .iter()
