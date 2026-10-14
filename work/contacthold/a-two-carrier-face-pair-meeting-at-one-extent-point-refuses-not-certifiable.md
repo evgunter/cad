@@ -2,7 +2,9 @@
 id: a-two-carrier-face-pair-meeting-at-one-extent-point-refuses-not-certifiable
 kind: issue
 title: tangent_pair_at_rest refuses NotCertifiable where two faces' extents along their tangent line meet at one point, where the interiors cannot meet there
-status: open
+status: review
+branch: contacthold/one-tangent-interiors-reading
+pr: 5006
 opened: 2026-10-13
 priority: P3
 refs: [point-touch-reading]
@@ -36,3 +38,9 @@ The zero-overlap arm answers `Apart` (stale), or states why a
 one-point overlap can hide an interior meeting; a fixture: a plate face
 and a cylinder sheet tangent along a ruling, their heights abutting at
 one value.
+
+Fixed on `contacthold/one-tangent-interiors-reading` (PR 5006). The op and
+the census now share one gate, `boolean::tangent_extents_meet`
+(`bool_tangent_line_overlap`), and it answers `false` for zero length the
+same way it does for a negative one. Witness:
+`census::two_carrier_records::a_two_carrier_record_whose_extents_meet_at_one_point_is_stale`.

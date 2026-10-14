@@ -136,30 +136,6 @@ pub(super) fn decided<T: Decide>(
         .ok()
 }
 
-/// Whether a point is in two cells, each reading pushing what stopped
-/// it: `Some(false)` where either reads it out, whatever the other
-/// pushed (a decided answer drops the other's escalations); `Some(true)`
-/// where both read it in; `None` otherwise, with what both pushed.
-pub(super) fn in_both(
-    a: impl FnOnce(&mut Vec<ValidationError>) -> Option<bool>,
-    b: impl FnOnce(&mut Vec<ValidationError>) -> Option<bool>,
-    errors: &mut Vec<ValidationError>,
-) -> Option<bool> {
-    let mut held = Vec::new();
-    let on_a = a(&mut held);
-    if on_a == Some(false) {
-        return Some(false);
-    }
-    match (on_a, b(&mut held)) {
-        (_, Some(false)) => Some(false),
-        (Some(true), Some(true)) => Some(true),
-        _ => {
-            errors.extend(held);
-            None
-        }
-    }
-}
-
 /// Whether a search decision definitely came out `sign`; an escalation
 /// keeps the piece open.
 fn surely<T: Decide>(name: &'static str, margin: T, band: Band, sign: Sign) -> bool {
@@ -606,7 +582,7 @@ fn meet_at<T: Decide>(
     let t = polish_foot(b, a.curve.eval(s), t, slack);
     let s = polish_foot(a, b.curve.eval(t), s, slack);
     let p = a.curve.eval(s);
-    in_both(
+    super::in_both(
         |errors| interior_at(body, a, p, s, band, errors),
         |errors| interior_at(body, b, p, t, band, errors),
         held,
@@ -658,7 +634,7 @@ fn reads_meet<T: Decide>(
     // A candidate undecided on one edge may stand beside another on
     // both: its escalations stand only if no candidate is on both.
     if points.into_iter().any(|p| {
-        in_both(
+        super::in_both(
             |errors| on_interior(body, ra, p, band, errors),
             |errors| on_interior(body, rb, p, band, errors),
             &mut held,
