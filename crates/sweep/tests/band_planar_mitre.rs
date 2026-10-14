@@ -729,12 +729,6 @@ fn a_mitre_over_a_void_refuses_where_its_bands_reach_it() {
         );
         finished("the voided box", body, tol())
     };
-    let turn = |body: &Body<f64>| {
-        [
-            edge(body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
-            edge(body, [0.0, 0.0, 1.0], [0.0, 1.5, 1.0]),
-        ]
-    };
     for (verb, inside, clear) in [(Verb::Chamfer, 0.97, 0.93), (Verb::Fillet, 0.99, 0.975)] {
         let body = with_void(inside);
         assert_eq!(body.solids().count(), 1, "the void is a shell of the box");
@@ -746,6 +740,74 @@ fn a_mitre_over_a_void_refuses_where_its_bands_reach_it() {
             verb,
             verb.section() * 3.5 - overlap(verb),
             "a void clear of the mitre's bands",
+        );
+    }
+}
+
+/// The box's two top edges turning at `(0, 0, 1)`.
+fn turn(body: &Body<f64>) -> [EdgeKey; 2] {
+    [
+        edge(body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
+        edge(body, [0.0, 0.0, 1.0], [0.0, 1.5, 1.0]),
+    ]
+}
+
+/// **A void inside each band's uncut prism** — a box straddling the
+/// mitre plane in the corner both prisms overlap — is wholly inside
+/// read band by band, and refuses `WhollyInside`: it has no cap cycle.
+#[test]
+fn a_void_straddling_the_mitre_inside_both_prisms_refuses_wholly_inside() {
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let body = cut(
+            "void",
+            &the_box(),
+            &brick(
+                Point3::new(0.005, 0.005, 0.99),
+                Point3::new(0.015, 0.015, 0.995),
+            ),
+        );
+        let got = verb.run(&body, &turn(&body));
+        assert!(
+            matches!(got, Err(BlendError::WhollyInside { .. })),
+            "{verb:?}: a void inside both prisms refuses WhollyInside, got {:?}",
+            got.err()
+        );
+    }
+}
+
+/// **An L-shaped void inside the union of a mitre's two bands but
+/// inside neither band's uncut prism alone**: read band by band, each
+/// leg crosses the other band's prism, so the void refuses as a
+/// crossing, `FaceClearance` unbounded, carrying the clearance recourse.
+#[test]
+fn an_l_void_inside_only_a_mitres_union_refuses_as_a_crossing() {
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let leg_x = cut(
+            "void leg x",
+            &the_box(),
+            &brick(
+                Point3::new(0.005, 0.005, 0.99),
+                Point3::new(0.5, 0.015, 0.995),
+            ),
+        );
+        let body = cut(
+            "void leg y",
+            &leg_x,
+            &brick(
+                Point3::new(0.005, 0.005, 0.99),
+                Point3::new(0.015, 0.5, 0.995),
+            ),
+        );
+        assert_eq!(body.faces().count(), 14, "the box and one L void");
+        let got = verb.run(&body, &turn(&body)).err();
+        assert!(
+            matches!(got, Some(BlendError::FaceClearance { bounded: false, .. })),
+            "{verb:?}: the L void refuses as a crossing, got {got:?}"
+        );
+        let shown = got.unwrap().to_string();
+        assert!(
+            shown.contains(sweep::blend::FILLET3_CLEARANCE_RECOURSE),
+            "{verb:?}: the refusal carries the clearance recourse: {shown}"
         );
     }
 }

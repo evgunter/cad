@@ -1672,7 +1672,7 @@ pub(crate) fn carrier_ball<T: Decide>(
         // width.
         geom::Curve3::Spiric { .. } => Some((
             carrier.mid_point(t0, t1),
-            crate::bisect::reach(crate::carrier_speed::speed_range(carrier).1, (t0, t1)),
+            geom_core::bisect::reach(geom_brep::carrier_speed::speed_range(carrier).1, (t0, t1)),
         )),
         // Positive weights put a NURBS curve inside its control
         // hull, so inside any ball holding every control point: the

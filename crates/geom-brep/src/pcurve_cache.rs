@@ -180,6 +180,7 @@ use geom_core::{
 
 use crate::certify::{CERT_SAMPLES, CertCheck, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
+use crate::ladder::{IdentityLadder, read_identity};
 use crate::recourse::{Reading, RefusedArm, Unsized};
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -5519,48 +5520,46 @@ fn run_spiric_checks<T: Decide>(
                 ("pcurve_spiric_chart_minor", Margin::of(s_minor - r_minor)),
                 ("pcurve_spiric_chart_tilt", Margin::levered(sin_tilt, arm)),
             ];
-            for (i, (name, margin)) in gates.into_iter().enumerate() {
-                match decide(name, margin, band).map_err(winding_escalated)? {
-                    Sign::Zero => {}
-                    Sign::Positive | Sign::Negative => {
-                        // Not the named torus. Only a CENTRE that fails
-                        // can leave the chart the OTHER torus that holds
-                        // the oval, and the gates after it, not yet
-                        // decided, must hold for that.
-                        let mut other = i == 0;
-                        if other {
-                            let d_other = s_center
-                                - torus_center(match torus {
-                                    WallTorus::Own => WallTorus::Mirror,
-                                    WallTorus::Mirror => WallTorus::Own,
-                                });
-                            for (name, margin) in gates
-                                .into_iter()
-                                .skip(1)
-                                .chain([("pcurve_spiric_chart_other", Margin::norm3(d_other))])
-                            {
-                                if decide(name, margin, band).map_err(winding_escalated)?
-                                    != Sign::Zero
-                                {
-                                    other = false;
-                                    break;
-                                }
-                            }
-                        }
-                        if other {
-                            return Err(PcurveCertifyError::ImageMismatch {
-                                image: PcurveKind::Spiric,
-                                why: "the wall image names one of the two tori that hold the \
-                                      oval, and the chart is the other",
-                            });
-                        }
-                        return Err(spiric_off_own_chart(
-                            "the chart torus is neither the carrier's own nor its mirror \
-                             through the cutting plane, and a spiric oval lies on no other \
-                             torus",
-                        )
-                        .refusal(surface, carrier));
+            // Read as an identity ladder (`crate::ladder`): a gate
+            // decided apart answers past an earlier in-band one.
+            let reader = |name, margin| geom_core::k_stats::decide_reported(name, margin, band);
+            match read_identity(gates, reader) {
+                IdentityLadder::Zero(_) => {}
+                IdentityLadder::Undecided(kept) => {
+                    return Err(winding_escalated(kept.refusing_cause()));
+                }
+                IdentityLadder::Apart { at, .. } => {
+                    // Not the named torus. Only a CENTRE apart can leave
+                    // the chart the OTHER torus that holds the oval: a
+                    // radius or tilt apart is apart from both, so the
+                    // other torus's ladder is read only on the centre.
+                    let neither = spiric_off_own_chart(
+                        "the chart torus is neither the carrier's own nor its mirror \
+                         through the cutting plane, and a spiric oval lies on no other \
+                         torus",
+                    )
+                    .refusal(surface, carrier);
+                    if at != 0 {
+                        return Err(neither);
                     }
+                    let d_other = s_center
+                        - torus_center(match torus {
+                            WallTorus::Own => WallTorus::Mirror,
+                            WallTorus::Mirror => WallTorus::Own,
+                        });
+                    let data = gates
+                        .into_iter()
+                        .skip(1)
+                        .chain([("pcurve_spiric_chart_other", Margin::norm3(d_other))]);
+                    return Err(match read_identity(data, reader) {
+                        IdentityLadder::Zero(_) => PcurveCertifyError::ImageMismatch {
+                            image: PcurveKind::Spiric,
+                            why: "the wall image names one of the two tori that hold the \
+                                  oval, and the chart is the other",
+                        },
+                        IdentityLadder::Apart { .. } => neither,
+                        IdentityLadder::Undecided(kept) => winding_escalated(kept.refusing_cause()),
+                    });
                 }
             }
             // Each residue at its own arm, in metres: a moved centre
@@ -8161,10 +8160,13 @@ fn winding_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// Villarceau circle: the centre lies on the line where the plane meets
 /// the equator. Not shown off the torus but past any gate is a circle
 /// grazing it ([`Grazer::TorusCircle`]) — a circle ⊥ the axis centred `δ`
-/// off it leaves the tube's crest by only `δ²/2r`. A circle that fails
-/// one gate alone by more than the band is, to first order, that far off
-/// the torus, so the incidence test refuses it before the gates read it:
-/// the gates are what tells a grazer from the class.
+/// off it leaves the tube's crest by only `δ²/2r`. How far off the torus
+/// a gate's failure puts a circle depends on the gate and the torus (the
+/// gate site's comment): about the gate's own margin for each gate on a
+/// ring torus, so the incidence test reads such a circle first, but much
+/// less for the plane gate near a horn torus, where a circle past that
+/// gate reaches the gates and refuses as grazing. The gates are what
+/// tells a grazer from the class.
 ///
 /// **The image** (variant docs): the vertex is the point
 /// `centre + R·d̂` farthest from the axis (`d̂` the unit radial of the
@@ -8174,7 +8176,8 @@ fn winding_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// `R·(n × d̂)`, along the axis (`pcurve_torus_villarceau_tube_rate`,
 /// `±r`) and along the azimuth (`pcurve_chart_orientation`,
 /// `±√(R² − r²)`), each levered at `R`; each magnitude is first decided
-/// positive, which only a tube or an `R − r` at the band's scale fails.
+/// positive, which fails only where the tube `r`, or `√(R² − r²)`, is at
+/// the band's scale (the comment at `unit_sign`).
 ///
 /// # Errors
 ///
@@ -8226,20 +8229,60 @@ fn torus_oblique_circle<T: Decide>(
         ),
         ("pcurve_torus_villarceau_radius", Margin::of(radius - big)),
     ];
-    for (name, margin) in gates {
-        match decide(name, margin, band).map_err(incidence_escalated)? {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => {
-                return Err(grazes(surface, carrier, Grazer::TorusCircle));
-            }
+    // Read as an identity ladder (`crate::ladder`), the spiric chart's
+    // rule: a gate decided apart answers past an earlier in-band one.
+    // What reaches these gates through `chart_pcurve`, as measured:
+    // - On `R = 2`, `r = 0.7`, a circle's first-order departure from the
+    //   torus at the 64 incidence samples has a one-dimensional null space
+    //   (a turn about the axis, which moves no gate), and the least
+    //   departure that puts any one gate at `m` is `0.995·m` to `1.04·m`
+    //   at its farthest sample: a gate in band or past it is read about as
+    //   far off the torus by the incidence test, which decides first.
+    // - Near a horn torus the plane gate is cheaper. On `R = 2`,
+    //   `R − r = 1e-6`, band `(1e-9, 1e-8)`, the Villarceau circle moved
+    //   along its own normal by `3e-9` to `1e-8` escalates here on
+    //   `_plane` (`pcurve_villarceau::a_plane_gate_in_band_near_the_horn_…`),
+    //   and by `3e-8` is read on the torus and refused as grazing it.
+    // - The masking order needs a gate read before `_plane` (`_offset`,
+    //   `_equator`) in band with `_plane` past it. On that near-horn pose,
+    //   with `_plane` at `3e-8` or `5e-8`, `2e-9` or `5e-9` of offset or
+    //   of equator departs about its own margin (`2.6e-9` for `2e-9` of
+    //   offset, `2.03e-9` for `2e-9` of equator),
+    //   and the incidence test escalates on it before the gates read
+    //   anything.
+    // `ladder`'s rows hold the rule itself.
+    match read_identity(gates, |name, margin| {
+        geom_core::k_stats::decide_reported(name, margin, band)
+    }) {
+        IdentityLadder::Zero(_) => {}
+        IdentityLadder::Apart { .. } => {
+            return Err(grazes(surface, carrier, Grazer::TorusCircle));
         }
+        IdentityLadder::Undecided(kept) => return Err(incidence_escalated(kept.refusing_cause())),
     }
     let d = w_r / w_r.norm();
     let tangent = n.cross(d);
-    // The tangent's two parts are `±r` and `±√(R² − r²)` on a Villarceau
-    // circle, so neither is in the band unless the tube, or `R − r`, is
-    // at the band's own scale: there the class is undecided at this
-    // tolerance, and the magnitude's gate escalates.
+    // The tangent's two parts, levered at `R`, are `R·sin θ` (`r` on a
+    // Villarceau circle) and `R·cos θ` (`√(R² − r²)`), `θ` the plane's
+    // tilt. The router reaches here by two routes:
+    // - Both class gates apart. `pcurve_torus_chart_axial` read the
+    //   tube-rate part's own number, `R·sin θ`, apart.
+    //   `pcurve_torus_chart_meridian` read `(a × b)·e / r = (R/r)·R·cos θ`
+    //   apart. `R·cos θ` at the band's scale forces `R − r ≤ (K·ε)²/2R`,
+    //   where `R/r` is one to below rounding, so the readings agree.
+    // - The parallel arm: `_axial` Zero (`R·sin θ ≤ ε`) and
+    //   `pcurve_torus_chart_centered` apart (`‖w_r‖ ≥ K·ε`). Passing the
+    //   gates above then needs `‖w_r‖ ≤ r + ε` (`_offset`) and
+    //   `r ≤ R·sin θ + ε` (`_tilt`), so `‖w_r‖ ≤ 3·ε`: this route reaches
+    //   here only at `K ≤ 3`, up to rounding, and there the tube-rate part
+    //   decides Zero (measured at `R = 2`, `r = 1.8e-9`, band
+    //   `(1e-9, 2e-9)`).
+    // At the run's `K` above 3, a Zero or in-band reading here is two
+    // readings of one number disagreeing, a kernel defect, which is the
+    // ending `ChartIncidence` gives it. The `K ≤ 3` route's defect ending
+    // is the class
+    // `work/pcert/band-scale-torus-geometry-ends-as-a-kernel-defect.md`
+    // covers.
     let unit_sign = |name, along: Vec3<T>| {
         let part = tangent.dot(along);
         geom_core::k_stats::decide_positive(name, Margin::levered(part.abs(), big), band)

@@ -4406,7 +4406,7 @@ impl<T: Decide> ArcPiece<T> {
     fn ball(&self) -> (geom_core::Point3<T>, T) {
         let (t0, t1) = self.window;
         let centre = self.carrier.mid_point(t0, t1);
-        let radius = crate::bisect::reach(self.speed, (t0, t1));
+        let radius = geom_core::bisect::reach(self.speed, (t0, t1));
         let Some((hull_centre, hull_radius)) = self.hull else {
             return (centre, radius);
         };
@@ -4713,14 +4713,14 @@ fn moved_walls<T: Decide>(
                             } => conic(center, axis, u_ref, semi_u, semi_v),
                             geom::Curve3::Spiric { .. } => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                crate::carrier_speed::speed_range(curve.carrier()).1,
+                                geom_brep::carrier_speed::speed_range(curve.carrier()).1,
                                 None,
                                 (t0, t1),
                                 edge.he_plus == he,
                             )),
                             geom::Curve3::Nurbs(_) => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                crate::carrier_speed::speed_range(curve.carrier()).1,
+                                geom_brep::carrier_speed::speed_range(curve.carrier()).1,
                                 crate::splitting::containment::carrier_ball(
                                     curve.carrier(),
                                     (t0, t1),
@@ -5243,7 +5243,7 @@ mod tests {
                     end,
                     curve: EdgeArc::Arc(ArcPiece::along(
                         carrier,
-                        crate::carrier_speed::speed_range(carrier).1,
+                        geom_brep::carrier_speed::speed_range(carrier).1,
                         crate::splitting::containment::carrier_ball(carrier, params)
                             .filter(|_| matches!(carrier, geom::Curve3::Nurbs(_))),
                         params,

@@ -14,7 +14,7 @@
 //! ([`geom_brep::ConicTorusHarmonics`]). No half-angle ladder runs: its
 //! octic has no certified solver, and the quartic ladder's only part in
 //! the degree-2 doors is its escalations. The shared certified
-//! subdivision answers alone ([`super::circle_roots::certified_subdivision`],
+//! subdivision answers alone ([`geom_brep::half_angle::certified_subdivision`],
 //! at degree four), under the `bool_ellipse_torus_sub_*` rows, with the
 //! circle × torus door's metering: `F`'s rounding charged against its
 //! term bound, read in residual metres through the floor
@@ -28,7 +28,7 @@
 //! the residual's least slope near the root — `F`'s least slope over the
 //! smaller of the carrier's and the surface's ceilings on `|F|` per
 //! metre of residual — at the carrier's top speed, must be definitely
-//! inside the band ([`super::circle_roots::RootSlack`]). A shallow
+//! inside the band ([`geom_brep::half_angle::RootSlack`]). A shallow
 //! crossing whose root the representation cannot place refuses as
 //! `Uncertain` there.
 //!
@@ -40,9 +40,9 @@
 use geom_core::{Band, Decide};
 
 use super::BooleanError;
-use super::circle_roots::{
-    CircleRoots, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
-    rounding_charge,
+use super::circle_roots::{CircleRoots, rounding_charge};
+use geom_brep::half_angle::{
+    RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
 };
 /// The torus arm's subdivision rows (module docs).
 const TORUS_ROWS: SubdivisionRows = SubdivisionRows {
@@ -122,7 +122,7 @@ fn torus_walk<T: Decide>(
         residual: &placed,
         f_per_metre_hi: h.f_per_metre_hi.min(h.f_per_metre_surface),
     });
-    certified_subdivision(
+    Ok(certified_subdivision(
         &TrigPoly {
             cos: h.cos,
             sin: h.sin,
@@ -142,6 +142,7 @@ fn torus_walk<T: Decide>(
         meter.as_ref(),
         band,
     )
+    .into())
 }
 
 #[cfg(test)]

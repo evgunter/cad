@@ -87,14 +87,6 @@ pub(super) fn distance(s: &geom::Surface<f64>, p: Point3<f64>) -> f64 {
     distance_from_anchor(s, |anchor| p - anchor)
 }
 
-/// How many times consecutive samples change sign.
-pub(super) fn sign_changes(samples: &[f64]) -> usize {
-    samples
-        .windows(2)
-        .filter(|w| (w[0] < 0.0) != (w[1] < 0.0))
-        .count()
-}
-
 /// The ellipse `c + a·û cos θ + b·v̂ sin θ` on the unit normal `n`, its
 /// `û` the part of `u` square to `n`.
 pub(super) fn ellipse(c: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64) -> geom::Curve3<f64> {

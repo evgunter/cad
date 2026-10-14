@@ -35,6 +35,11 @@ crates/geom-brep/src/edge_nurbs.rs	1	constant	*w	on_carrier_domain: the interpol
 crates/geom-brep/src/edge_nurbs.rs	1	launders(an-edges-parameter-ends-enter-a-carrier-piece-as-constants)	<fn>	edge_piece: a piece end that is no carrier breakpoint is the f64 end of the edge's parameter enclosure, a computed value entered as a constant (breakpoints keep their held values)
 crates/geom-brep/src/extent.rs	1	constant	f64::from(k)	a sample index
 crates/geom-brep/src/extent.rs	1	constant	parts.len() as f64	a count
+crates/geom-brep/src/half_angle.rs	1	constant	f64::from(POLE_CANDIDATES)	a candidate count
+crates/geom-brep/src/half_angle.rs	1	constant	f64::from(n)	a subdivision count
+crates/geom-brep/src/half_angle.rs	1	constant	f64::from(top)	a subdivision count
+crates/geom-brep/src/half_angle.rs	2	constant	share	a fixed split fraction (SPLITS)
+crates/geom-brep/src/half_angle.rs	3	constant	f64::from(k)	a subdivision index
 crates/geom-brep/src/implicit.rs	1	constant	k as f64	a sample index
 crates/geom-brep/src/newell.rs	1	constant	points.len() as f64	a point count
 crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(INCIDENCE_SAMPLES)	a sample count
@@ -61,6 +66,7 @@ crates/geom-brep/src/ssi/certify.rs	1	constant	w.mid	a window's midpoint where t
 crates/geom-brep/src/ssi/enclose.rs	1	constant	um	a subdivision cell's midpoint: a point the exhaustiveness subdivision chose, the mean-value box's centre
 crates/geom-brep/src/ssi/enclose.rs	1	constant	vm	a subdivision cell's midpoint: a point the exhaustiveness subdivision chose, the mean-value box's centre
 crates/geom-brep/src/tangent.rs	1	constant	f64::from(crate::certify::CERT_SAMPLES - 1)	a sample count
+crates/geom-core/src/bisect.rs	1	constant	escalate	the band's escalation width, a tolerance
 crates/geom-core/src/dual.rs	1	constant	f64::from(n)	powi's exponent
 crates/geom-core/src/dual.rs	1	constant	x	the Real impl's own door: Dual::from_f64 embeds at its value scalar
 crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval::from_computed is the point embed by design
@@ -70,12 +76,11 @@ crates/geom-core/src/spline/basis.rs	1	constant	factor	a falling factorial of th
 crates/geom-core/src/spline/basis.rs	1	constant	self.0.knots().knots()[i]	the lifted basis over a bare KnotVector, which holds no value in a scalar: its one production caller is geom's f64 fit, where from_f64 is the identity; a carrier's evaluation reads basis_funs_in over its held knots. KNOWN GAP: pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
 crates/geom-core/src/spline/derivative.rs	2	constant	p as f64	the degree, a derivative coefficient's factor over the held knots (and a Bézier axis's degree, the r-th derivative's scale)
 crates/geom-core/src/spline/derivative.rs	1	constant	p.checked_sub(r)? as f64	the degree of a Bézier axis's r-th derivative, its scale's factor
-crates/geom-core/src/spline/derivative.rs	2	constant	k	an exact binomial integer (the quotient bound's Bernstein product and elevation weights; QUOTIENT_MAX_DEGREE keeps every one below 2^53)
+crates/geom-core/src/spline/derivative.rs	3	constant	k	an exact binomial integer (the quotient bound's Bernstein product and elevation weights; QUOTIENT_MAX_DEGREE keeps every one below 2^53), or the exact power of two 2^-r a halving scales an output by once
 crates/geom-core/src/spline/knot_values.rs	1	constant	hi	Knots::on_domain: the re-expression's upper end, the caller's f64 parameter
 crates/geom-core/src/spline/knot_values.rs	1	constant	lo	Knots::on_domain: the re-expression's lower end, the caller's f64 parameter
 crates/geom-core/src/spline/knots.rs	1	constant	hi	knot_difference: a knot of a bare KnotVector, which holds no value in a scalar (callers: the certification ring's hull over the value channel, and Knots::on_domain's caller-given ends). KNOWN GAP: the function is pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
 crates/geom-core/src/spline/knots.rs	1	constant	lo	knot_difference: a knot of a bare KnotVector, which holds no value in a scalar (callers: the certification ring's hull over the value channel, and Knots::on_domain's caller-given ends). KNOWN GAP: the function is pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
-crates/geom-core/src/spline/pieces.rs	1	constant	*wj	a piece-restriction weight (piece_weights: exact de Casteljau ratios of a dyadic piece schedule)
 crates/geom-core/src/sym.rs	1	constant	x	the Real impl's own door: Sym::from_f64 is the Lit
 crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/geom/src/curves/banded.rs	1	constant	l	a dropped term's structural zero, signed as its pivot
@@ -108,15 +113,9 @@ crates/sweep/src/skin.rs	1	constant	k as f64 / steps	a sub-arc breakpoint k/m, s
 crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T
-crates/topo/src/bisect.rs	1	constant	escalate	the band's escalation width, a tolerance
 crates/topo/src/boolean/boxes.rs	1	constant	l as f64	a sample index
 crates/topo/src/boolean/boxes.rs	3	constant	k as f64	a sample index
 crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
-crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(POLE_CANDIDATES)	a candidate count
-crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(n)	a subdivision count
-crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(top)	a subdivision count
-crates/topo/src/boolean/circle_roots.rs	2	constant	share	a fixed split fraction (SPLITS)
-crates/topo/src/boolean/circle_roots.rs	3	constant	f64::from(k)	a subdivision index
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/boolean/mod.rs	1	constant	boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/boolean/rim_wedge.rs	1	constant	k	a fixed wrap count
