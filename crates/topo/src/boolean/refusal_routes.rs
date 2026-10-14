@@ -1415,9 +1415,7 @@ impl BooleanDecision {
             Self::WallRoots(WallRung::Discriminant) => {
                 "whether an edge crosses a cylinder wall, grazes it or misses it"
             }
-            Self::CylinderAxes => {
-                "whether the axes of a cylinder face of each solid are parallel"
-            }
+            Self::CylinderAxes => "whether the axes of a cylinder face of each solid are parallel",
             Self::TorusRoots => "how many times an edge crosses a torus",
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
             Self::SphereRoots => "whether an edge crosses a sphere, grazes it or misses it",
