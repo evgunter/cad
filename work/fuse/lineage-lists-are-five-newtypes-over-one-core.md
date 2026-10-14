@@ -2,11 +2,12 @@
 id: lineage-lists-are-five-newtypes-over-one-core
 kind: issue
 title: The checked lineage lists are five newtypes re-forwarding one core, tagged through their key type, with unchecked (new, from) edge rows left outside the Boolean
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: M
 refs: [split-rows-are-chased-with-no-cycle-check, null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader]
+closed: 2026-10-13
 ---
 
 Found by the review of PR 5022 (`fuse/lineage-rows-refuse-at-append`),
@@ -55,3 +56,38 @@ as `split_lineage` from the Boolean (`BooleanErrorKind::SplitLineage`,
 `Substitutions`, `FaceDivisions`, `EdgeDivisions`) with what a row
 records (`NullEdgeCopies`, `ConeCopies`), and `word()` mixes the two
 again ("vertex fusion", "copy-per-cone"). One rule for both.
+
+## Closed
+
+- **One list of minted cells.** `crate::lineage::Minted<K, L>` holds the
+  rows, the freshness check, `root`, `from`, `rows` and `is_empty`, and
+  the invariant prose, once. `FaceDivisions`, `ConeCopies`, the new
+  `SplitEdgeDivisions`, and the Boolean's per-operand `EdgeDivisions`
+  and `NullEdgeCopies` (was `VertexCopies`) are aliases of it.
+  Visibility stays per instance: the crate-only aliases and tags are
+  `pub(crate)`, and `from_rows` is an inherent method of
+  `FaceDivisions` alone, so only a face division list can be built
+  outside the kernel.
+- **The tag belongs to the list.** `LineageKey` keeps only `cell()`;
+  each list carries a `ListTag` (`crate::lineage::tag`), a unit type
+  where every list of the alias names itself alike (so the list has a
+  `Default`), and a value carrying the operand for the Boolean's
+  per-operand lists. `Substitutions<K, L = tag::Substitution>`, and
+  `Fusions = Substitutions<VertexKey, tag::Fusion>`.
+- **`EdgeSplits` stores each split once**: each operand's
+  `EdgeDivisions` rows, and beside them the vertex each split minted.
+  `pieces` and `minted_on` replace `ops::split_pieces` and
+  `input_cell`'s row scan.
+- **Edge rows outside the Boolean.** The split's `edge_pieces` is a
+  `SplitEdgeDivisions`, refused at append as the new
+  `SplitReduceError::LineageRow`. `RimNaming::seam_pieces` stays a plain
+  list, with the reason at the field: its outer rim's first row maps
+  the seam to itself by design (a piece→seam map, not mints). Measuring
+  that writer turned up `shell-lineage-drops-an-outer-rims-divided-seam`.
+- **One tag per cycle.** `BooleanErrorKind::SplitLineage` reaches
+  Python as `split_lineage_cycle`, as `NamingError::SplitLineage`
+  already did.
+- **`LineageRows`.** Each arm is the name of a list (`EdgeDivisions`
+  now `EdgeDivisions(Option<Operand>)`, covering the split's list), and
+  `word()` names what one row records ("copy-per-cone" is now "cone
+  copy").

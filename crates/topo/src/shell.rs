@@ -1205,6 +1205,13 @@ pub struct RimNaming {
     /// source seam itself, with `side` `Void` its cavity twin (a row of
     /// [`ShellNaming::inner_edges`]). Empty on every other rim: a pole's
     /// seams are cut short, each kept whole under its key.
+    ///
+    /// Not a checked list of mints ([`crate::lineage::Minted`]): every
+    /// row's second column is the source seam, and with `side` `Outer`
+    /// the first piece keeps that very key, so its row maps the seam to
+    /// itself, which a mint list refuses. The rows are a map from each
+    /// piece to the seam it divides, written once per rim from two keys
+    /// the surgery holds, and no row is chased past its second column.
     pub seam_pieces: Vec<(EdgeKey, EdgeKey)>,
 }
 

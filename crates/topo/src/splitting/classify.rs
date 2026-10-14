@@ -749,15 +749,16 @@ fn span_roots<T: Decide>(
 /// a graze root within ε of it by `split_conic_belly_graze`'s Zero.
 /// Their verdicts are cached without re-measuring. Returns each piece
 /// a split minted with the edge it was split from, `(new edge,
-/// divided-from edge)` in mint order.
+/// divided-from edge)` in mint order, each checked as it was minted
+/// ([`SplitReduceError::LineageRow`] where an earlier row names it).
 pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     plane: &SplitPlane<T>,
     sides: &mut SecondaryMap<VertexKey, PlaneSide>,
     on_vertices: &mut Vec<VertexKey>,
     tol: Tol,
-) -> Result<Vec<(EdgeKey, EdgeKey)>, SplitReduceError> {
-    let mut pieces = Vec::new();
+) -> Result<crate::lineage::SplitEdgeDivisions, SplitReduceError> {
+    let mut pieces = crate::lineage::SplitEdgeDivisions::default();
     let band = geom_core::Band::linear(tol)?;
     // Snapshot: splitting adds edges; only operand edges can cross (a
     // split child's remaining crossing is handled through the parent's
@@ -850,7 +851,9 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             })?;
             sides.insert(created.vertex, PlaneSide::On);
             on_vertices.push(created.vertex);
-            pieces.push((created.new_edge, target));
+            pieces
+                .push((created.new_edge, target))
+                .map_err(SplitReduceError::LineageRow)?;
             target = created.new_edge;
         }
     }
