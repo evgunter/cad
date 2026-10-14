@@ -30,6 +30,8 @@ use slotmap::SlotMap;
 
 type Limbs = Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal>;
 
+type IntervalLimbs = Result<PlaneNurbsLimbs<geom_core::interval::Interval>, PlaneNurbsRefusal>;
+
 /// A bilinear wall through four corners, `control[iu * 2 + iv]`.
 fn bilinear(corners: [Point3<f64>; 4]) -> NurbsSurface<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -643,5 +645,166 @@ fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
     assert!(
         images[0].len() == images[1].len() && apart <= 1e-15,
         "one image, its feet within roundoff: {apart:e}"
+    );
+}
+
+/// `x` as an `Interval` point.
+fn itv(x: f64) -> geom_core::interval::Interval {
+    use geom_core::Real as _;
+    geom_core::interval::Interval::from_f64(x)
+}
+
+/// **The closed forms certify alike at `Interval`.** The diagonal on
+/// the plane × wall pair and on the wall × wall pair, and a short
+/// circle on the quarter-cylinder wall, certify at `Interval` as at
+/// `f64`, each hull bound within ε; the 1.3 rad circle refuses at limb
+/// 2's break value at both scalars. The two bounds are not nested: each
+/// scalar derives its own chart image from its own foot schedule, and
+/// each bound is certified for the image it read (the short circle's
+/// `Interval` bound comes out a few parts in 10⁶ BELOW the `f64` one at
+/// the default ε, and above it at 1e-6 and 1e-12).
+#[test]
+fn the_closed_forms_reach_the_same_verdict_at_interval() {
+    use geom_core::interval::Interval;
+    use geom_core::{Bounds as _, Real as _};
+    let one = Interval::from_f64(1.0);
+    let lifted = |p: (f64, f64)| (itv(p.0), itv(p.1));
+    let line = diagonal();
+    let short_arc = short(0.002);
+    let certified: [(&str, Limbs, IntervalLimbs); 3] = [
+        (
+            "line, plane × wall",
+            plane_nurbs_limbs(
+                &line,
+                (0.0, 1.0),
+                &diagonal_plane(),
+                &flat_wall(),
+                1.0,
+                band(),
+            ),
+            plane_nurbs_limbs(
+                &line.map_scalar(itv),
+                lifted((0.0, 1.0)),
+                &diagonal_plane().map_scalar(itv),
+                &flat_wall().map_scalar(itv),
+                one,
+                band(),
+            ),
+        ),
+        (
+            "line, wall × wall",
+            nurbs_pair_limbs(
+                &line,
+                (0.0, 1.0),
+                &flat_wall(),
+                &diagonal_wall(),
+                1.0,
+                band(),
+            ),
+            nurbs_pair_limbs(
+                &line.map_scalar(itv),
+                lifted((0.0, 1.0)),
+                &flat_wall().map_scalar(itv),
+                &diagonal_wall().map_scalar(itv),
+                one,
+                band(),
+            ),
+        ),
+        (
+            "circle, short",
+            plane_nurbs_limbs(
+                &circle(0.5),
+                short_arc,
+                &horizontal(0.5),
+                &quarter_cylinder_wall(),
+                1.0,
+                band(),
+            ),
+            plane_nurbs_limbs(
+                &circle(0.5).map_scalar(itv),
+                lifted(short_arc),
+                &horizontal(0.5).map_scalar(itv),
+                &quarter_cylinder_wall().map_scalar(itv),
+                one,
+                band(),
+            ),
+        ),
+    ];
+    for (name, at_f64, at_itv) in certified {
+        let (Ok(f), Ok(i)) = (&at_f64, &at_itv) else {
+            panic!("{name}: certifies at both scalars: {at_f64:?}, {at_itv:?}")
+        };
+        println!(
+            "{name}: f64 hull {:e}, Interval hull {:?}",
+            f.hull_sup, i.hull_sup
+        );
+        assert!(
+            f.hull_sup <= eps() && i.hull_sup.hi() <= eps(),
+            "{name}: both hull bounds within ε: {:e} and {:?}",
+            f.hull_sup,
+            i.hull_sup
+        );
+    }
+    let at_f64 = plane_nurbs_limbs(
+        &circle(0.5),
+        (0.1, 1.4),
+        &horizontal(0.5),
+        &quarter_cylinder_wall(),
+        1.0,
+        band(),
+    );
+    let at_itv = plane_nurbs_limbs(
+        &circle(0.5).map_scalar(itv),
+        lifted((0.1, 1.4)),
+        &horizontal(0.5).map_scalar(itv),
+        &quarter_cylinder_wall().map_scalar(itv),
+        one,
+        band(),
+    );
+    for (scalar, limb) in [
+        ("f64", at_f64.as_ref().err()),
+        ("Interval", at_itv.as_ref().err()),
+    ] {
+        assert!(
+            matches!(
+                limb,
+                Some(
+                    PlaneNurbsRefusal::Limb {
+                        limb: SsiLimb::HullValueChart,
+                        ..
+                    } | PlaneNurbsRefusal::Escalated {
+                        limb: SsiLimb::HullValueChart,
+                        ..
+                    }
+                )
+            ),
+            "the 1.3 rad circle refuses at limb 2's break value at {scalar}: {limb:?}"
+        );
+    }
+}
+
+/// **A circle's parameter is periodic.** The short arc read at `t + 2π`
+/// is the same locus, and certifies on the same bound.
+#[test]
+fn a_short_arc_past_two_pi_certifies_on_the_same_bound() {
+    let tau = core::f64::consts::TAU;
+    let (a, b) = short(0.002);
+    let bound = |params| {
+        plane_nurbs_limbs(
+            &circle(0.5),
+            params,
+            &horizontal(0.5),
+            &quarter_cylinder_wall(),
+            1.0,
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("{params:?}: the short arc certifies: {e}"))
+        .hull_sup
+    };
+    let (base, shifted) = (bound((a, b)), bound((a + tau, b + tau)));
+    println!("short arc: {base:e}; past 2π: {shifted:e}");
+    assert!(
+        (shifted - base).abs() <= 1e-3 * base.max(f64::MIN_POSITIVE) + 1e-15,
+        "the same bound past 2π: {base:e} against {shifted:e}"
     );
 }
