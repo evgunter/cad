@@ -2268,6 +2268,20 @@ pub enum RefusedRow {
 
 /// **Why a node of an equal cylinder pair is not built**
 /// ([`BooleanError::NodeUnbuilt`]).
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and the refusal's sentence names the case and states
+/// its own recourse, which is all a person acts on: move or turn the
+/// parts. Carrying it would add the CUR3 property row and a Python word
+/// with no reader that acts on the difference.
+///
+/// **The falsifier is a caller that acts on the case by itself**: a
+/// placement driver that nudges a part off a node when it reads
+/// `OnBoundary` but not `OppositeSenses`. Then carry it and delete this
+/// paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeWhy {
     /// The node lies on an edge or a vertex of the operand's face: a
