@@ -1,0 +1,5 @@
+fork: emit-notch-floor (rows a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex, a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere)
+dispatched: 2026-10-14T14:44:31Z
+byte: 20
+mapping: A=Opus B=Fable
+protocol: 26db1af89e
