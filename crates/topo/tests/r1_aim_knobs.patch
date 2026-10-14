@@ -1,0 +1,60 @@
+diff --git a/crates/topo/src/boolean/solid_contain.rs b/crates/topo/src/boolean/solid_contain.rs
+index 250a5dd9e..3354cc3ae 100644
+--- a/crates/topo/src/boolean/solid_contain.rs
++++ b/crates/topo/src/boolean/solid_contain.rs
+@@ -5951,7 +5951,13 @@ fn aim_at<T: Decide>(
+     let (u, v) = match face_geo(body, face, &sel.charts, band) {
+         Ok(FaceGeo::Cylinder { az, h, .. }) => (mid(az), mid(h)),
+         Ok(FaceGeo::Cone { az, v, .. }) => (az.map_or_else(T::pi, mid), mid(v)),
+-        Ok(FaceGeo::Torus { u, v, .. }) => (u.map_or_else(T::pi, mid), v.map_or_else(T::pi, mid)),
++        Ok(FaceGeo::Torus { u, v, .. }) => (
++            u.map_or_else(T::pi, mid),
++            match std::env::var("R1_TORUS_V").ok().and_then(|x| x.parse::<f64>().ok()) {
++                Some(x) => T::from_f64(x),
++                None => v.map_or_else(T::pi, mid),
++            },
++        ),
+         Ok(FaceGeo::Sphere { .. }) => (T::from_f64(1.0), T::from_f64(0.3)),
+         Ok(_) => return Ok(None),
+         Err(PointInSolidError::CorruptFace { face }) => {
+@@ -6058,9 +6064,12 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
+ ) -> Result<Result<SolidContainment, SideUnread<V>>, PointInSolidError> {
+     let faces = sel.faces();
+     let (mut in_band, mut at_a_corner, mut limit) = (None, None, None);
+-    let (along, across) = AIM_INCIDENCE;
++    let (along, across) = if std::env::var_os("R1_AIM_NORMAL").is_some() { (1.0, 0.0) } else { AIM_INCIDENCE };
+     for &face in faces {
+         let Some((aim, normal)) = aim_at(body, sel, face, band)? else {
++            if std::env::var_os("R1_TRACE").is_some() {
++                eprintln!("R1 aim face {face:?}: no aim");
++            }
+             continue;
+         };
+         let shell = body
+@@ -6080,7 +6089,12 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
+                 limit.get_or_insert(e);
+                 continue;
+             }
+-            Err(RayFault::InBand(_) | RayFault::Graze | RayFault::Unread) => continue,
++            Err(f @ (RayFault::InBand(_) | RayFault::Graze | RayFault::Unread)) => {
++                if std::env::var_os("R1_TRACE").is_some() {
++                    eprintln!("R1 aim face {face:?}: set aside in walk: {}", match f { RayFault::InBand(e) => format!("inband {e}"), RayFault::Graze => "graze".into(), _ => "unread".into() });
++                }
++                continue;
++            }
+         };
+         // The pair's gap is read as a magnitude, the distance between the
+         // two crossings whichever the scan met first.
+@@ -6100,7 +6114,11 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
+                 gap,
+             }
+         };
+-        match crossings.closest(AIMED_ROWS.order, band, pair) {
++        let r1 = crossings.closest(AIMED_ROWS.order, band, pair);
++        if std::env::var_os("R1_TRACE").is_some() {
++            eprintln!("R1 aim face {face:?}: {:?}", r1.as_ref().map(|o| o.as_ref().map(|h| (h.0, h.1))).map_err(|e| match e { RayFault::InBand(p) => format!("inband near {:?} far {:?} meet {} gap {:?}", p.near, p.far, meet(body, p.near, p.far), p.gap.margin), RayFault::Graze => "graze".into(), RayFault::Unread => "unread".into(), _ => "other".into() }));
++        }
++        match r1 {
+             Ok(Some((outward, _, _))) => return Ok(Ok(side_before(outward))),
+             // Two faces that meet at a vertex are no pair: their gap closes
+             // at the cell they share, and a ray crossing a sharp corner
