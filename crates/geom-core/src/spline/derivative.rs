@@ -1772,6 +1772,55 @@ mod tests {
         );
     }
 
+    /// **A flat block's cut keeps its exact derivative.** The bilinear
+    /// plane `(x, y, z) = (u, v, 0.3·u − 0.7·v)` with unit weights over
+    /// a cell has constant `N_u` and `N_v` and `W² = 1`: its whole-cell
+    /// quotient pieces read them exactly (zero-width), and so does every
+    /// cut at non-dyadic ends, so a zero-width whole box stays zero-width
+    /// under the cut. Red with `split_restrict`'s equal-neighbour arm
+    /// removed (the thin step widens constant rows by the ratio's width).
+    #[test]
+    fn a_flat_blocks_cut_keeps_its_exact_derivative() {
+        let a: Vec<[Interval; 3]> = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+            .iter()
+            .map(|&(u, v)| [u, v, 0.3 * u - 0.7 * v].map(Interval::from_f64))
+            .collect();
+        let w = vec![Interval::from_f64(1.0); 4];
+        let held = [0.0, 0.0, 1.0, 1.0].map(Interval::from_f64);
+        let k = super::super::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1)
+            .expect("a Bézier vector");
+        let axes = (
+            super::CellAxis::Span(k.span(1).expect("the span"), &held),
+            super::CellAxis::Span(k.span(1).expect("the span"), &held),
+        );
+        let whole =
+            super::cell_first_quotients(axes, super::CellBlock::Homogeneous { a: &a, w: &w })
+                .expect("a block under the ceiling");
+        let zero_width = |pieces: &[super::CellQuotients<Interval>]| {
+            pieces.iter().all(|q| {
+                [&q.u, &q.v].iter().all(|r| {
+                    r.numer()
+                        .iter()
+                        .flatten()
+                        .chain(r.denom())
+                        .all(|x| x.lo() == x.hi())
+                })
+            })
+        };
+        assert!(
+            zero_width(&whole.pieces((2, 2)).expect("the whole pieces")),
+            "the whole cell"
+        );
+        let cut = whole
+            .restrict((
+                Some(((0.0, 1.0), (0.1, 0.7))),
+                Some(((0.0, 1.0), (0.3, 0.9))),
+            ))
+            .pieces((2, 2))
+            .expect("the cut's pieces");
+        assert!(zero_width(&cut), "the cut widened a constant quotient");
+    }
+
     /// An interval's two ends and its certification, as bits.
     fn bits(x: Interval) -> (u64, u64, bool) {
         (x.lo().to_bits(), x.hi().to_bits(), x.is_certified())

@@ -821,6 +821,32 @@ mod tests {
         }
     }
 
+    /// **Equal neighbours step to themselves exactly.** A constant row
+    /// of a drawn non-dyadic value, cut at drawn non-dyadic ends of a
+    /// non-dyadic segment, comes back the same value bit for bit, where
+    /// the plain thin step `x·(1 − t) + y·t` would widen it by the
+    /// ratio's own width at every level. Red with the `x == y` arm of
+    /// `step` removed.
+    #[test]
+    fn a_constant_row_is_cut_to_itself_exactly() {
+        let mut rng = test_utils::fuzz::start("split-restrict-constant");
+        for _ in 0..test_utils::fuzz::scaled(200) {
+            let p = 1 + rng.below(8);
+            let c = Interval::point(rng.range(-3.0, 3.0));
+            let s0 = rng.range(-2.0, 1.0);
+            let s1 = s0 + rng.range(0.1, 3.0);
+            let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
+            let (a, b) = (x.min(y), x.max(y));
+            for got in split_restrict(&vec![c; p + 1], (s0, s1), (a, b)) {
+                assert!(
+                    got.lo().to_bits() == c.lo().to_bits()
+                        && got.hi().to_bits() == c.hi().to_bits(),
+                    "degree {p} on [{s0}, {s1}] cut to [{a}, {b}]: {got:?} is not {c:?}"
+                );
+            }
+        }
+    }
+
     /// **A segment cut is the Bézier span's restriction, to the bit.**
     /// `restrict_segment` forms each cut end's ratio once rather than at
     /// every entry of every level; on `KnotVector::bezier(p, (s0, s1))`
