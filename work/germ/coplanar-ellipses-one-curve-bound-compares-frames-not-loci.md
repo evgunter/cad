@@ -2,8 +2,11 @@
 id: coplanar-ellipses-one-curve-bound-compares-frames-not-loci
 kind: issue
 title: two coplanar ellipses are read one curve by a frame comparison, not a locus bound
-status: open
+status: closed
 opened: 2026-10-14
+closed: 2026-10-14
+pr: 5172
+branch: germ/ellipse-pair-locus-bound
 priority: P2
 cost: M
 ---
@@ -28,3 +31,10 @@ already reads two ellipses by the least `‖L_e − L_f·Q‖` over the whole
 orthogonal group (the Procrustes rotation), a locus bound.
 
 Fix: read the ellipse pair's one-curve decision on a locus bound.
+
+## Fixed (PR 5172)
+
+The arm decides on `geom_brep::Conic::locus_gap` (the Procrustes bound
+lifted from `carrier_cross`), its rounding charged at
+`rounding_charge(m_e + m_f + g)`. Pinned by
+`crates/geom-brep/tests/coplanar_ellipses_one_locus.rs`.
