@@ -15,7 +15,7 @@ PR 5101 made a definite refused reading end one way at rest whichever arm routes
 
 A zero proved by the symbolic tier is just as definite: no tolerance and no subdivision moves it (`MarginDiag::shows`: "a proved zero is no size the user may intend"). But it classes `Shows::NoSize`, so at rest it ends in the lever and the decision's note:
 
-- `CertCheck::ParamSpan` at rest, proved zero: "Recourse: move the geometry so this edge is not vanishingly short; an edge of no length, or a reversed one, is one no kernel construction mints, so this is a kernel defect or a damaged file, worth reporting".
+- `CertCheck::ParamSpan` at rest, proved zero: "Recourse: move the geometry so this edge runs forward over a clear length; an edge of no length, or a reversed one, is one no kernel construction mints, so this is a kernel defect or a damaged file, worth reporting".
 - The same decision at rest, reversed span (`Refused::Negative`, either route): `KERNEL_OR_FILE_DEFECT_ENDING`.
 
 Both readings say the stored span contradicts the stored edge, yet they end in two stories.

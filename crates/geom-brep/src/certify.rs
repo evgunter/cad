@@ -5341,9 +5341,14 @@ mod tests {
                  this is a kernel defect or a damaged file, worth reporting",
             ),
         ];
-        for (error, reading, want) in rows {
-            assert_eq!(error.render(reading), want, "{reading:?}: {error:?}");
-        }
+        let wrong: Vec<String> = rows
+            .iter()
+            .filter_map(|(error, reading, want)| {
+                let got = error.render(*reading);
+                (got != *want).then(|| format!("{reading:?} {error:?}:\n got  {got}\n want {want}"))
+            })
+            .collect();
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 
     /// The residual families pair their definite and undecided arms per

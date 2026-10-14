@@ -22,7 +22,7 @@ At the STEP import door, `SizedDecision::recourse_in_file` (`crates/geom-brep/sr
 
 At the `Interval` lane, a span's Zero verdict can carry an enclosure that straddles zero, for example `[-2e-12, 6e-12]`:
 - `tightens_below` gives no value for it, because both ends must lie on the passing side;
-- so the door reads: "This length is below the file's declared coincidence distance ε_in = …, so the file does not state it. Recourse: move the geometry so this edge is not vanishingly short; an edge of no length … is a kernel defect or a damaged file".
+- so the door reads: "This length is below the file's declared coincidence distance ε_in = …, so the file does not state it. Recourse: move the geometry so this edge runs forward over a clear length; an edge of no length … is a kernel defect or a damaged file".
 
 That attaches a defect claim to what may be sound geometry below ε_in. poleband_eps12's span is such geometry: a sphere band truncated 9e-11 rad below the pole, and at f64 a positive point margin, so the door offers the value. The note's premise, "an edge of no length", is not what a straddling enclosure establishes.
 
