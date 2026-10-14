@@ -145,7 +145,7 @@ fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
             passes: geom_core::SizedPass::Positive,
             no_size: None,
             unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
-            definite: None,
+            refused: geom_core::RefusedSign::NoSize,
         },
     );
     assert!(err.to_string().ends_with(&ending), "{err}");

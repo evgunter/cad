@@ -2156,7 +2156,7 @@ mod tests {
                             passes: geom_core::SizedPass::NonZero,
                             no_size: None,
                             unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
-                            definite: None,
+                            refused: geom_core::RefusedSign::NoSize,
                         },
                     ),
                 };

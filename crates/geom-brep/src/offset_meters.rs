@@ -190,7 +190,7 @@ impl Meter {
     /// and what it passes on. A definite refusal read over a body at
     /// rest is still the lever's: the stored description's base and
     /// distance are what it edits.
-    pub(crate) fn decision(self) -> SizedDecision {
+    fn decision(self) -> SizedDecision {
         match self {
             // A floor of exactly zero on a face with no pole, cusp or
             // pinch is the refinement ladder running out of rungs on a

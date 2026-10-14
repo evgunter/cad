@@ -15,8 +15,8 @@
 
 use geom_core::{
     Band, Decided, FileCoincidence, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
-    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING, Sign,
-    SizedWords, lever_recourse, noted,
+    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING, RefusedSign,
+    Sign, SizedWords, lever_recourse, noted,
 };
 pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE};
 
@@ -331,12 +331,12 @@ impl LeverOnly {
 /// What a reading that shows no size may mean beyond the lever, by
 /// where it is read: appended to the lever as "; {note}" on an exact
 /// zero, a reading wholly on zero or the refused side (in band or past
-/// it, and so a sign-certain arm, save a stored contradiction's at rest),
-/// or a zero the symbolic tier proved ([`MarginDiag::sized_recourse`]), and on no other
-/// reading. At the import door it rides only on a reading whose nearer
-/// end lies past ε_in, which the door reads as at rest; within ε_in the
-/// door's one sentence carries no note
-/// ([`MarginDiag::sized_recourse_in_file`]).
+/// it, and so a sign-certain arm, save a stored contradiction's at
+/// rest), or a zero the symbolic tier proved
+/// ([`MarginDiag::sized_recourse`]), and on no other reading. At the
+/// import door it rides only on a reading whose nearer end lies past
+/// ε_in, which the door reads as at rest; within ε_in the door's one
+/// sentence carries no note ([`MarginDiag::sized_recourse_in_file`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NoSize {
     /// The note at a build, where the kernel made the geometry.
@@ -448,13 +448,15 @@ impl SizedDecision {
     /// Everything the reporting margin's sentence needs but the number,
     /// at `reading`: the one place a definite refused reading's ending is
     /// chosen, so the sign-certain arm and a reading past the band routed
-    /// as undecided end alike. Over stored geometry a contradiction ends
-    /// as a defect (D4 ¶1 (iv)); every other definite reading ends as its
-    /// in-band sibling does, in the lever and the decision's note.
+    /// as undecided end alike. Over stored geometry a
+    /// [`StoredDefinite::Contradiction`] contradicts the stored data the
+    /// decision reads ([`RefusedSign::ContradictsStoredData`], a defect,
+    /// D4 ¶1 (iv)); every other definite reading ends as its in-band
+    /// sibling does, in the lever and the decision's note.
     fn words(self, reading: Reading) -> SizedWords<'static> {
-        let definite = match (reading, self.stored) {
-            (Reading::AtRest, StoredDefinite::Contradiction) => Some(KERNEL_OR_FILE_DEFECT_ENDING),
-            (Reading::Build, _) | (Reading::AtRest, StoredDefinite::Lever) => None,
+        let refused = match (reading, self.stored) {
+            (Reading::AtRest, StoredDefinite::Contradiction) => RefusedSign::ContradictsStoredData,
+            (Reading::Build, _) | (Reading::AtRest, StoredDefinite::Lever) => RefusedSign::NoSize,
         };
         SizedWords {
             lever: self.lever,
@@ -462,7 +464,7 @@ impl SizedDecision {
             passes: self.passes,
             no_size: self.no_size.map(|note| note.at(reading)),
             unreadable: unreadable_margin_note(reading),
-            definite,
+            refused,
         }
     }
 }
@@ -828,7 +830,8 @@ mod tests {
     /// past the band routed as undecided (tagged by its gate, or not) and
     /// the same verdict on the sign-certain arm (with its reading or
     /// without) end alike. At a build each ends in the lever and the
-    /// build's note; at rest, and at the import door past ε_in, a stored
+    /// build's note; at rest, and at the import door past ε_in where the
+    /// decision has one (the offset meters have none), a stored
     /// contradiction ends in the defect ending and a decision the lever
     /// reaches in the lever and the stored note. An in-band reading on the
     /// refused side is not definite, so it keeps the lever and the note at
@@ -875,9 +878,11 @@ mod tests {
                    measure; a radius below zero is a defect";
         let angle = "Recourse: move the geometry so the surfaces cross at a clearer angle";
         let defect = KERNEL_OR_FILE_DEFECT_ENDING.to_owned();
-        type End = Box<dyn Fn(RefusedArm<'_>, ReadAt) -> String>;
+        // `None` where the decision has no import door: the offset
+        // meters are asked at a build or at rest only (`Meter::recourse`).
+        type End = Box<dyn Fn(RefusedArm<'_>, ReadAt) -> Option<String>>;
         let certify =
-            |check| -> End { Box::new(move |a, at| crate::certify::recourse(check, a, at)) };
+            |check| -> End { Box::new(move |a, at| Some(crate::certify::recourse(check, a, at))) };
         // (decision, its ending, at a build, definite at rest, in band at rest)
         let rows: [(&str, End, String, String, String); 5] = [
             (
@@ -896,14 +901,17 @@ mod tests {
             ),
             (
                 "NormalFloor",
-                Box::new(|a, at| Meter::NormalFloor.decision().recourse(a, at)),
+                Box::new(|a, at| match at {
+                    ReadAt::Run(reading) => Some(Meter::NormalFloor.recourse(a, reading)),
+                    ReadAt::File(_) => None,
+                }),
                 floor.to_owned(),
                 floor.to_owned(),
                 floor.to_owned(),
             ),
             (
                 "DIHEDRAL_ARM",
-                Box::new(|a, at| crate::DIHEDRAL_ARM.recourse(a, at)),
+                Box::new(|a, at| Some(crate::DIHEDRAL_ARM.recourse(a, at))),
                 arm.to_owned(),
                 defect.clone(),
                 arm.to_owned(),
@@ -917,33 +925,34 @@ mod tests {
             ),
         ];
         for (decision, end, build, definite, kept) in rows {
+            let door = decision != "NormalFloor";
             for (route, refused) in routes {
                 let at = |at: ReadAt| end(refused, at);
                 assert_eq!(
                     at(Reading::Build.into()),
-                    build,
+                    Some(build.clone()),
                     "{decision}, {route}, at a build"
                 );
                 assert_eq!(
                     at(Reading::AtRest.into()),
-                    definite,
+                    Some(definite.clone()),
                     "{decision}, {route}, at rest"
                 );
                 assert_eq!(
                     at(file),
-                    definite,
+                    door.then(|| definite.clone()),
                     "{decision}, {route}, at the door past ε_in"
                 );
             }
             let undecided = RefusedArm::Undecided(&in_band);
             assert_eq!(
                 end(undecided, Reading::AtRest.into()),
-                kept,
+                Some(kept.clone()),
                 "{decision}, in band, at rest"
             );
             assert_eq!(
                 end(undecided, file),
-                kept,
+                door.then_some(kept),
                 "{decision}, in band, at the door past ε_in"
             );
         }
