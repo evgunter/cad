@@ -55,14 +55,19 @@ section, one oval in the torus's own minor angle — minted by
 `plane_torus_section`'s axis-parallel arm, which the offset-axial
 door's rim mint calls; a plane through the axis cuts the more exact
 `Circle`, and `Curve3::spiric` refuses it), whose residuals are zero by
-construction; rung 3, a fitted cubic
-`Curve3::Nurbs` carrying the C2 certificate. Parabola and hyperbola are
+construction because the kernel derived them from their pair; rung 3,
+a pair with no closed form (a spline operand), whose carrier is
+evidence of any kind — a fitted cubic `Curve3::Nurbs` where the kernel
+marched it, a closed form where a file stated one or recognition
+promoted one — carrying the C2 certificate. A closed form is zero by
+construction only on rungs 1–2; declared on a rung-3 pair, it is
+checked like any other carrier. Parabola and hyperbola are
 outside the inventory by decision: a plane×cone section of either kind
 refuses typed, naming its conic. Conics round-trip to rational-quadratic NURBS only as
 an export/tessellation form, never as the kernel carrier (the axes and
 centre are what dispatch consumes). There is no polyline rung.
 
-**C2 — A fitted carrier's certificate has three limbs, all mandatory.**
+**C2 — The certificate of a carrier the kernel did not derive has three limbs, all mandatory.**
 (1) On-locus residual at the fixed `CERT_SAMPLES` schedule: `|f(C(t))|`
 in metres for an analytic operand (`implicit.rs`); for a NURBS operand
 `|C(t) − S(u*,v*)|` at the projected foot point; any point of the
@@ -593,6 +598,16 @@ an edge's carrier lies within `2ε / sin θ` of the described section
 along the wall, `θ` the angle between the plane and the wall, the same
 conditioning every certified `Intersection` edge already has; that is
 stated here and not enforced.
+The same rule governs curve pairs. Two carrier spans (a carrier and a
+parameter interval) meet through one exhaustive `(CurveKind, CurveKind)`
+table, and every candidate it proposes is settled by one point-on-span
+reading (`Off`, `Carrier`, `On`, `End`). Line, circle and ellipse pairs
+are closed forms that solve in one conic's angle and measure in metres; a
+pair with a spiric or spline side is the certified bisection walk, which
+is also the closed forms' differential test oracle. A candidate generator's
+in-band decision escalates and never prunes, and a candidate admitted under
+a `Zero` reading is placed by the exactly degenerate formula, never by the
+generic one.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (all but the parabola and hyperbola),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its

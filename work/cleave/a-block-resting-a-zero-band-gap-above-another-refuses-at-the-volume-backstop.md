@@ -50,3 +50,11 @@ The backstop's bound admits the displacement the glue's own Zero
 verdicts allow (the band's zero width times the glued area, or the
 same read off the verdict margins), or the glue keeps the volume it
 closes; a pin over the table above.
+
+## Evidence from FLUSH (PR 5008's review, 2026-10-14)
+
+The same backstop refuses a pose whose pair glues with a Zero-band *tilt*, not only a Zero-band gap. Measured on `e0fed17b` (recorded in `work/flush/an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence.md`, "Found beside it"):
+- Standing wedge, block `[0,3] × [-2,2.5] × [0,1]`, wedge length 1.
+- At ε 1e-9, θ 2e-12, every φ ∈ {2, 5, 20, 60, 90}° refuses `ResultVolumeImplausible` in both orders. For example, got 14.366025403784464 against bound 14.36602540378444 at 60°, and 14.500000000000034 against 14.5 at 90°.
+- At ε 2e-11, θ 5e-12 it refuses the same way, with got minus bound 5e-15 to 8e-14.
+- The glue closes the wedge face's Zero-band tilt onto the block's top, and `volume_backstop` (`ops.rs`) has no slack for the volume that closes. The fix the row owes covers both: the bound admits the displacement the glue's own Zero verdicts allow.

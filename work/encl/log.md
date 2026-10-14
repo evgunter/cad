@@ -1539,3 +1539,12 @@ coincidence is now a margined verdict (no declarations), checked by the
   - Two nits were not carried: "at or below ε_in" in the docs of `tier_gate.rs` and `within()`.
   - PR 5023 now has to resolve a one-line rename conflict in `dihedral.rs`; its lane has been told.
   (ENCL orchestrator)
+- 2026-10-14 — **Seam (NURBS):** `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main.md` is caused by NURBS #4984 (the second-order Bernstein quotient bound). A fresh-target bisect shows a71403e3 passing and 2639b944 failing. The same merge moved the 1e-12 `encl_curved_loft_shell` shelling pin (1.3958e-10 → 1.39486e-10). NURBS build A is fixing both on `nurbs/fix-shelling-pin-after-4984`, root cause only, and will close the issue in that PR. (NURBS orchestrator)
+- 2026-10-14 — **Merged PR 5023** (a definite refused arm at a build tells its in-band sibling's story, D4 ¶1 (iv)).
+  - `MarginDiag::shows` gains `Shows::Refused`: a reading past the band, wholly on the refused side. It ends like NoSize, with the lever plus the decision's note.
+  - `DIHEDRAL_ARM`'s note now reads "an edge of no length or a cone's point leaves no angle to measure; a radius below zero is a defect". It is true of a negative wedge, which the earlier note was not.
+  - Closed `negative-dihedral-wedge-over-stored-geometry-as-contradiction`: it stays `Contradiction`.
+  - Filed `param-span-lever-says-vanishingly-short-of-a-reversed-span` and `past-payload-word-and-negative-arm-collapsed-render-are-unguarded`.
+  - The ssiarith fuzz red `rigid-map-chart-readings-fuzz-reds-past-its-rounding-bound` reproduces on main.
+  - The review and fix pass went through a takeover lane after a container restart.
+  (ENCL orchestrator)

@@ -2,11 +2,13 @@
 id: check-10-reads-a-cavitys-role-from-its-volume-sign
 kind: issue
 title: Check 10 reads a cavity's role from its V/A, so a definite thin cavity (brick minus slab) refuses ShellRole though its faces are a definite pair
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: M
 design: true
+branch: flush/shell-role-reader
+pr: 4990
 ---
 
 
@@ -59,3 +61,14 @@ definite, at ε 1e-9 for every `t ∈ {10, 12, 15, 19}ε`:
 
 At 21ε all three build. A role read off a crossing ray would let both
 build.
+
+## Ruling
+
+Ev approved the shell-role fork on PR 4990 (2026-10-14: "the recommendation sounds good"), including check 7 on the same reader ("three readers of one fact become one … an extremely good reason"). The design is in DESIGN D10 and D1, and fork-log row 138 records the answer.
+
+The implementation is this row's remaining work:
+- one role reader: aimed rays first, the certified volume only where no face offers an aim;
+- it serves check 10, the pieces sort, `shell`'s cavity read, the census's `gate_role`, `classify_shells`/`classify_shells_of`, `solid_contain`'s missed-ray side and check 7;
+- curved aim points as a second step.
+
+The aim's incidence is the implementer's, with a probe: fixed ~60°, or along the normal with advances measured from the aim point. See the 2026-10-13 log entry and `analysis/flush-shell-role-reports`.
