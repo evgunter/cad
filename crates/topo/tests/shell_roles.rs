@@ -100,7 +100,7 @@ fn per_shell_volumes_sum_to_the_body_volume() {
 
 /// The role read is the NAMED funnel site: each shell's role is read
 /// off a ray aimed at one of its faces, its closest crossing decided by
-/// `bool_point_in_solid_order`, and no shell's volume sign is read.
+/// `side_at_infinity_order`, and no shell's volume sign is read.
 #[test]
 fn role_read_is_the_aimed_ray() {
     let body = voided();
@@ -114,7 +114,7 @@ fn role_read_is_the_aimed_ray() {
         .collect();
     assert_eq!(classes.len(), 2);
     assert!(
-        read.contains(&"bool_point_in_solid_order"),
+        read.contains(&"side_at_infinity_order"),
         "the roles are read by aimed rays: {read:?}"
     );
     assert!(

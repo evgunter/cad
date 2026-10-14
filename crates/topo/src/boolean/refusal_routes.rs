@@ -326,7 +326,7 @@ pub enum BooleanDecision {
     /// faces its material lies on (check 7), at the finished-body gate:
     /// the side at infinity, read by a ray aimed at one of the shell's
     /// faces. Raised only where the ray met two faces in band of each
-    /// other (`bool_point_in_solid_order`, their gap along it) and no
+    /// other (`side_at_infinity_order`, their gap along it) and no
     /// other aimed ray read the side: a pair in band, which definite cuts
     /// can compose, so the operands are ill-conditioned at this ε. It
     /// names the shell whose pair binds the offer, and how many more pairs

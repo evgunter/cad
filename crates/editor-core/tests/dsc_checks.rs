@@ -25,12 +25,11 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     Advisory, CancelToken, CheckEvidence, CheckFinding, CheckId, CheckKind, ChecksConfig,
-    ChecksError, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
+    ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
     enforce_checks, run_checks, subject_body,
 };
 use fixture::{ang, insert, len, on_frame, square};
 use geom_core::Tol;
-use topo::ShellClassifyError;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     editor_core::evaluate::<f64>(
@@ -284,74 +283,34 @@ fn stale_expectation_on_a_nonexistent_root() {
     );
 }
 
-/// The escalation row (the review's P9 fixture, promoted): a slab
-/// whose `V/A` sits INSIDE the ambiguity band — built relative to the
-/// run's ε AND its K, so the row holds at every matrix point and at
-/// every `CAD_AMBIGUITY_K`. For a unit-square slab of thickness
-/// `(1 + K)·ε`, `V/A ≈ dz/2 = ((1 + K)/2)·ε`, which is strictly inside
-/// `(ε, K·ε)` for every K > 1 — the only K the tolerance accepts.
-/// Pinned at `10ε` the row was a claim about K = 10: at any K below 3
-/// the same slab is DEFINITE and the escalation it asserts never
-/// happens.
+/// The thin row (the review's P9 fixture, promoted): a slab whose `V/A`
+/// sits INSIDE the ambiguity band — built relative to the run's ε AND
+/// its K, so the row holds at every matrix point and at every
+/// `CAD_AMBIGUITY_K`. For a unit-square slab of thickness `(1 + K)·ε`,
+/// `V/A ≈ dz/2 = ((1 + K)/2)·ε`, strictly inside `(ε, K·ε)` for every
+/// K > 1. Its one shell is its solid's outer shell by arity, so the
+/// count reads one component, the one expected: no finding.
 #[test]
-fn in_band_shell_escalates_typed_never_guessed() {
+fn a_thin_slab_counts_as_one_component() {
     let tol = Tol::witness();
     let dz = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin", Tol::witness());
     let (doc, thin) = slab(doc, 0.0, 0.5, 0.0, dz);
-    let (doc, root) = fixture::place(doc, thin);
+    let (doc, _root) = fixture::place(doc, thin);
     let report = checks(&doc, &ChecksConfig::default());
-    // Exactly one finding: the typed escalation. NEVER a counted
-    // verdict — an in-band orientation is not guessed to a side (F6).
-    assert_eq!(report.findings.len(), 1, "{report}");
-    let finding = &report.findings[0];
-    assert_eq!(
-        finding.subject,
-        editor_core::FindingSubject::Output { root, output_ix: 0 }
-    );
-    let CheckEvidence::Escalated {
-        source: ShellClassifyError::Escalated { source, .. },
-    } = &finding.evidence
-    else {
-        panic!("expected the typed in-band escalation, got: {finding}");
-    };
-    // The escalation names the funnel site it came from.
-    assert_eq!(source.predicate, Some("chk_shell_volume_sign"));
-    // The rendered story names the margin data and ends in the
-    // shell-role decision's own ending — a thickness a smaller
-    // tolerance decides — not the funnel's generic
-    // declare-the-coincidence menu, and no kernel arena key or
-    // predicate name.
-    let rendered = finding.to_string();
-    assert!(!rendered.contains("chk_shell_volume_sign"), "{rendered}");
-    assert!(
-        rendered.contains(
-            "Recourse: thicken or remove the degenerate geometry, or, if this thickness is \
-             intended, tighten the tolerance below "
-        ),
-        "{rendered}"
-    );
-    assert!(!rendered.contains("declare"), "{rendered}");
-    assert!(!rendered.contains("ShellKey"), "{rendered}");
+    assert!(report.findings.is_empty(), "{report}");
 }
 
-/// The void side of the same decision: a 3 m box holding a unit-square
-/// cavity `(1 + K)·ε` thick. The outer shell decides; the cavity's
-/// `V/A`, certified about the body, lies wholly in band on the void side,
-/// so the Boolean door's result gate refuses the union as the operands'
-/// ill-conditioning (D10, Booleans: `Escalated` on the shell's role, not
-/// `ResultInvalid`): a result holding an in-band shell is not built, so
-/// the checks run stops at its placement, poisoned through the failed
-/// boolean. The refusal carries the certified enclosure, and ends valued
-/// at `|m|/K` off its nearer end.
+/// The void side: a 3 m box holding a unit-square cavity `(1 + K)·ε`
+/// thick, its `V/A` in band on the void side. A ray aimed at one of the
+/// cavity's faces reads it a cavity off its two faces, a definite pair
+/// (D10, Booleans), so the union builds one solid of two shells, and
+/// the count reads one component: no finding.
 ///
 /// The sheet is what a unit cube cavity leaves when a box filling all
-/// but its top `(1 + K)·ε` is united into it. Subtracting a thin tool
-/// directly never reaches the census either: the cavity it leaves is a
-/// shell whose role is in band, which the same result gate refuses.
+/// but its top `(1 + K)·ε` is united into it.
 #[test]
-fn in_band_void_shell_escalates_with_its_valued_ending() {
-    use geom_core::{Band, ErrorTextReading};
+fn a_thin_void_shell_is_a_cavity_and_the_count_reads_one() {
     let tol = Tol::witness();
     let t = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin-void", Tol::witness());
@@ -371,56 +330,9 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             members: editor_core::Bodies::Spelled(vec![hollow.into(), c.into()]),
         },
     );
-    let (doc, placement) = fixture::place(doc, root);
-    let ev = run(&doc);
-    let refused = run_checks(&doc, &ev, &ChecksConfig::default(), tol)
-        .expect_err("the door refuses a solid whose cavity has no role");
-    assert!(
-        matches!(
-            &refused,
-            ChecksError::Root(editor_core::NodeStanding::Poisoned { node, through })
-                if *node == placement && *through == root
-        ),
-        "expected the placement poisoned through the failed boolean, got: {refused:?}"
-    );
-    let failed = ev.node_error(root).expect("the root's refusal");
-    let editor_core::NodeErrorKind::Boolean(
-        error @ topo::BooleanError::Escalated {
-            decision: topo::BooleanDecision::ShellRole { others: 0, .. },
-            diag,
-        },
-    ) = &failed.kind
-    else {
-        panic!("expected the door's in-band typing, got: {failed:?}");
-    };
-    // Check 10's certified reading, wholly in the band.
-    assert_eq!(diag.predicate, Some("positive_volume_exact"), "{error}");
-    assert!(diag.terminal_sliver, "{error}");
-    assert_eq!(diag.band, Band::linear(tol).expect("the run's band"));
-    let ErrorTextReading::Enclosure { lo, hi } = diag.margin.diagnostic_f64_for_error_text() else {
-        panic!("expected a certified enclosure, got: {error}");
-    };
-    // The cavity's own V/A on the void side: a unit square `h` deep,
-    // `h` the sheet as its two planes are represented.
-    let h = 2.0 - (0.5 + (1.5 - t));
-    let want = -h / (2.0 + 4.0 * h);
-    assert!(
-        lo <= hi && hi < 0.0 && (hi - want).abs() <= 1e-6 * want.abs(),
-        "enclosure [{lo:e}, {hi:e}], want ≈ {want:e}"
-    );
-    let below = hi.abs() / (diag.band.escalate() / diag.band.zero());
-    let rendered = error.to_string();
-    assert!(
-        rendered.starts_with("whether a shell of the result bounds material or a cavity"),
-        "{rendered}"
-    );
-    assert!(
-        rendered.ends_with(&format!(
-            "Recourse: move the parts so the pieces and cavities they leave are clearly thick, \
-             or, if this thickness is intended, tighten the tolerance below {below:e} m"
-        )),
-        "{rendered}"
-    );
+    let (doc, _placement) = fixture::place(doc, root);
+    let report = checks(&doc, &ChecksConfig::default());
+    assert!(report.findings.is_empty(), "{report}");
 }
 
 #[test]

@@ -1310,8 +1310,7 @@ pub enum ValidationError {
     /// a lone `sense` flip. (The analytic curved kinds get the same
     /// statement from this check's curved arm,
     /// [`Self::CurvedSenseInverted`] — M6-6.) `Zero` and escalated
-    /// windings are exempt (the check-7 posture: an orientation probe,
-    /// not a thinness gate — degenerate pillow fixtures stay legal and
+    /// windings are exempt (an orientation probe, not a thinness gate —
     /// ε-tightening never flips valid → invalid; a genuinely
     /// positive-area loop never classifies `Negative` under a
     /// tighter ε). Examined on loops of `Line`, `Circle` and `Ellipse`
@@ -4797,17 +4796,19 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    ([`ValidationError::LoopRoleInverted`]) and a curved face's
 ///    stored `sense` bit against the material side its own boundary
 ///    traversal encodes ([`ValidationError::CurvedSenseInverted`]).
-/// 7. **The +V invariant, PER SOLID** (solids, arena order): each
-///    solid's own faces enclose definitely-positive volume, decided
-///    from a certified enclosure at the round its sign stops being in
-///    doubt ([`ValidationError::NegativeVolume`], naming the solid;
-///    [`ValidationError::VolumeUncomputable`] where the quadrature
-///    produces no enclosure at all or the sign is still indefinite
-///    when the schedule runs out). The margin is `V / A` over that
-///    solid's faces, a length; `Zero` and escalated margins are
-///    exempt. **The subject is the solid and not the body**: a body's
-///    total is a sum, and a sum hides a sign — an inside-out part
-///    beside a larger ordinary solid totals positive.
+/// 7. **The orientation invariant, PER SOLID** (solids, arena order):
+///    each solid's own faces leave infinity outside its material, read
+///    by the reader of a shell's role — a ray aimed at one of its faces
+///    from beyond it, and its volume's certified sign only where no face
+///    offers an aim that reads ([`ValidationError::NegativeVolume`],
+///    naming the solid; [`ValidationError::OrientationUndecided`] where
+///    no reading decides). The volume is walked beside it all the same,
+///    for the certificate ([`ValidationError::VolumeUncomputable`] where
+///    the quadrature produces no enclosure at all or the sign is still
+///    indefinite when the schedule runs out). **The subject is the solid
+///    and not the body**: a body's total is a sum, and a sum hides a
+///    sign — an inside-out part beside a larger ordinary solid totals
+///    positive.
 /// 8. **Stored pcurve caches** ([`ValidationError::Pcurve`]).
 /// 9. **A face's loops trim one region** — a ring disjoint from
 ///    and nested in its outer loop ([`ValidationError::RingMeetsOuter`]

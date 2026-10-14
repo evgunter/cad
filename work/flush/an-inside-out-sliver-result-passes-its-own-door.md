@@ -2,10 +2,11 @@
 id: an-inside-out-sliver-result-passes-its-own-door
 kind: issue
 title: An inside-out one-shell sliver result passes its own door and is caught only as the next op's InsideOutOperand, which blames the operand
-status: open
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
+closed: 2026-10-14
 ---
 
 
@@ -37,3 +38,21 @@ Not measured here: whether any op inverts a sliver result. A probe would
 run `gate_sliver_orientation` over every result whose `slivers()` is
 non-empty across the batteries (R1's `review-sliver-probe` feature on
 `flush/thinness-by-pairs-review` @ a79ba445 logs those results).
+
+## Closed (FLUSH `flush/shell-role-reader`, 2026-10-14)
+
+Check 7 reads a solid's orientation with the reader of a shell's role
+(`validate.rs` `plus_v_errors`, `boolean/solid_contain.rs`
+`side_at_infinity`): a ray aimed at one of its faces from beyond it,
+the volume only where no face offers an aim that reads. A sliver's
+volume no longer exempts it, so an inside-out sliver result refuses at
+its own door as `ResultInvalid { NegativeVolume }`, the kernel's defect
+class. `AtRestBody::slivers` and the operand gate that read it
+(`gate_sliver_orientation`) are retired. Pinned on the at-rest gate:
+`crates/topo/tests/shell_role_reader.rs`
+`a_lone_slab_is_outer_and_inside_out_refuses_at_rest` and
+`a_slab_in_the_plane_x_equals_y_reads_its_role`.
+
+The reader found one such body main ships: a fin ∪ a pyramid across its
+fold leaves a region winding −1
+(`a-fin-united-with-a-pyramid-across-its-fold-leaves-a-region-winding-minus-one`).

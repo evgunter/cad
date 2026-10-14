@@ -4767,7 +4767,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     use editor_core::{CheckEvidence, CheckFinding, CheckId};
     use geom_core::{Band, Indeterminate, MarginDiag};
     use topo::{ShellClassifyError as S, ShellKey};
-    const LEVER: &str = "Recourse: thicken or remove the degenerate geometry";
+    const LEVER: &str = "Recourse: remove the degenerate geometry";
     let shell = ShellKey::default();
     // `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
     let band = Band::new(1e-9, 1e-8).expect("a band");
@@ -4801,7 +4801,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             "in band, outer side",
             escalated(MarginDiag::value(5e-9)),
             format!(
-                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 5e-10 m",
+                "{}{LEVER}, or, if this volume over area is intended, tighten the tolerance below 5e-10 m",
                 in_band("5e-9")
             ),
         ),
@@ -4809,7 +4809,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             "in band, void side",
             escalated(MarginDiag::value(-2e-9)),
             format!(
-                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 2e-10 m",
+                "{}{LEVER}, or, if this volume over area is intended, tighten the tolerance below 2e-10 m",
                 in_band("-2e-9")
             ),
         ),
@@ -4839,7 +4839,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             },
             format!(
                 "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
-                 this tolerance. {LEVER}, or, if this thickness is intended, tighten the \
+                 this tolerance. {LEVER}, or, if this volume over area is intended, tighten the \
                  tolerance below 5e-11 m"
             ),
         ),
@@ -4871,8 +4871,9 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         assert_eq!(text, want, "{name}");
         // The finding ends in the shell-role decision's ending read at
         // rest; the shell door's own Display reads it at a build.
-        let arm = source.arm().expect("the shell-role decision's refusal");
-        let ending = topo::props::SHELL_ROLE.recourse(arm, geom_brep::recourse::Reading::AtRest);
+        let ending = source
+            .recourse(geom_brep::recourse::Reading::AtRest)
+            .expect("the shell-role decision's refusal");
         assert!(text.ends_with(&ending), "{name}: {text}");
         let built = source.ending().expect("the shell-role decision's refusal");
         let whole = source.to_string();

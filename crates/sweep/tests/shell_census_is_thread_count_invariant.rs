@@ -64,10 +64,9 @@ fn voided_rod() -> Body<f64> {
 /// `props_chart_loop_whole` Zero: within the slack of none) —
 /// per-junction and per-loop facts, whichever edge a walk starts at.
 ///
-/// Each shell is read twice, so every `props_*` count is even: once at
-/// `f64` (`chk_shell_volume_sign`), and once re-derived at the interval
-/// scalar, where the role the first reading decided is certified
-/// (`chk_shell_volume_sign_enclosure`).
+/// Each shell's sums are measured once (`props_*`), and its role is read
+/// off rays aimed at its faces (`side_at_infinity_order` and the ray
+/// walk's rows); no volume sign is read.
 #[test]
 fn voided_rods_verdicts_as_a_sorted_multiset() {
     let body = voided_rod();
@@ -84,25 +83,69 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
     }
     got.sort();
     let want: Vec<(String, usize)> = [
-        ("chk_shell_volume_sign Negative", 1),
-        ("chk_shell_volume_sign Positive", 1),
-        ("chk_shell_volume_sign_enclosure Negative", 1),
-        ("chk_shell_volume_sign_enclosure Positive", 1),
-        ("props_chart_axis_inside Positive", 4),
-        ("props_chart_junction_closed Zero", 16),
-        ("props_chart_loop_turns Positive", 4),
-        ("props_chart_loop_whole Zero", 4),
-        ("props_circle_axis_class Positive", 8),
-        ("props_cylinder_circle_off_axis Zero", 8),
-        ("props_cylinder_circle_tilt Zero", 8),
-        ("props_face_extent Positive", 4),
-        ("props_meridian_axial Zero", 8),
-        ("props_meridian_on_surface Zero", 8),
-        ("props_rim_axis_parallel Zero", 8),
-        ("props_rim_center_on_axis Zero", 8),
-        ("props_rim_fit Zero", 8),
-        ("props_rim_span_forward Positive", 8),
-        ("props_rim_span_winding Positive", 8),
+        ("bool_point_in_solid_advance Positive", 10),
+        ("bool_point_in_solid_clearance Positive", 4),
+        ("bool_point_in_solid_denom Negative", 4),
+        ("bool_point_in_solid_denom Positive", 10),
+        ("bool_point_in_solid_denom Zero", 4),
+        ("bool_ray_cylinder_disc Positive", 6),
+        ("bool_wall_iso_meridian Zero", 20),
+        ("bool_wall_iso_rim Zero", 60),
+        ("bool_wall_piece_span Negative", 10),
+        ("bool_wall_piece_span Positive", 10),
+        ("bool_wall_rim_level Negative", 10),
+        ("bool_wall_section_tilt Positive", 20),
+        ("bool_wall_trim Negative", 6),
+        ("bool_wall_trim Positive", 18),
+        ("bool_wall_trim Zero", 16),
+        ("bool_wall_trim_period Positive", 32),
+        ("chk_shell_role_order Negative", 2),
+        ("chk_shell_role_order Positive", 6),
+        ("chk_shell_role_order Zero", 4),
+        ("pcurve_chart_azimuth_frame Negative", 31),
+        ("pcurve_chart_azimuth_frame Positive", 37),
+        ("pcurve_chart_azimuth_frame Zero", 34),
+        ("pcurve_chart_orientation Positive", 34),
+        ("pcurve_chart_radial_moving Positive", 34),
+        ("pcurve_chart_radial_moving Zero", 34),
+        ("point_in_arc_loop_arm Positive", 12),
+        ("point_in_arc_loop_conic_advance Negative", 8),
+        ("point_in_arc_loop_conic_advance Positive", 8),
+        ("point_in_arc_loop_conic_disc Negative", 4),
+        ("point_in_arc_loop_conic_disc Positive", 8),
+        ("point_in_arc_loop_conic_end Positive", 16),
+        ("point_in_arc_loop_conic_on Positive", 12),
+        ("point_in_arc_loop_conic_span Positive", 12),
+        ("point_in_arc_loop_conic_window Negative", 4),
+        ("point_in_arc_loop_conic_window Positive", 4),
+        ("point_in_arc_loop_side Negative", 8),
+        ("point_in_arc_loop_side Positive", 4),
+        ("point_in_arc_loop_side Zero", 6),
+        ("point_in_loop_advance Negative", 3),
+        ("point_in_loop_advance Positive", 5),
+        ("point_in_loop_arm Positive", 5),
+        ("point_in_loop_arm Zero", 2),
+        ("point_in_loop_boundary Positive", 20),
+        ("point_in_loop_segment Positive", 20),
+        ("point_in_loop_side Negative", 12),
+        ("point_in_loop_side Positive", 8),
+        ("props_chart_axis_inside Positive", 2),
+        ("props_chart_junction_closed Zero", 8),
+        ("props_chart_loop_turns Positive", 2),
+        ("props_chart_loop_whole Zero", 2),
+        ("props_circle_axis_class Positive", 4),
+        ("props_cylinder_circle_off_axis Zero", 4),
+        ("props_cylinder_circle_tilt Zero", 4),
+        ("props_face_extent Positive", 2),
+        ("props_meridian_axial Zero", 4),
+        ("props_meridian_on_surface Zero", 4),
+        ("props_rim_axis_parallel Zero", 4),
+        ("props_rim_center_on_axis Zero", 4),
+        ("props_rim_fit Zero", 4),
+        ("props_rim_span_forward Positive", 4),
+        ("props_rim_span_winding Positive", 4),
+        ("split_window_branch Negative", 51),
+        ("split_window_branch Positive", 51),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))

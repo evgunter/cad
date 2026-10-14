@@ -31,3 +31,13 @@ Carry something a caller can use. The binding shell's bounding box is
 cheap at the gate (`boolean::boxes`), or there could be a point on it.
 Do it once for all in-band shells, if the refusal's shape allows.
 `BooleanDecision` is `Copy`, which rules out a list in the decision.
+
+## Measured (FLUSH `flush/shell-role-reader`, 2026-10-14)
+
+The door's `Escalated { ShellRole }` now quotes an aimed ray's pair in
+band (check 10's `ShellClassifyError::RayInBand` or check 7's
+`OrientationUnread::Pair`), its margin the gap along the ray. The
+decision still names its solid and shell, keys into the unreturned
+result; the pair beside it (`AimedPair`: the aimed face and the two
+faces met) is keys into the same body, so it locates nothing a caller
+holds either. Still open.

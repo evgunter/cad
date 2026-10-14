@@ -2995,8 +2995,7 @@ fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
     let log = bracket.finish();
     let read: Vec<_> = log.verdicts.iter().map(|v| v.predicate).collect();
     assert!(
-        read.contains(&"bool_point_in_solid_order")
-            && !read.contains(&"bool_point_in_solid_infinity"),
+        read.contains(&"side_at_infinity_order") && !read.contains(&"bool_point_in_solid_infinity"),
         "the far probe must be answered at infinity by an aimed ray, got {read:?}"
     );
     assert_eq!(validate_geometric(&body, tol), Ok(()));

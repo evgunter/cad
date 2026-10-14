@@ -175,6 +175,10 @@
 //!   in band of a junction's (the sine and cosine of their angle,
 //!   levered by the radius), and **`bool_wall_outline_reach`** the
 //!   confined refusal's ball (a distance less a radius, metres).
+//! - **`side_at_infinity_advance`**, **`_denom`**, **`_clearance`**,
+//!   **`_beside`** and **`_order`**: the planar rows above, as a ray aimed
+//!   from beyond the selection decides them ([`AIMED_ROWS`]); the curved
+//!   arms keep their own names.
 //! - **The side at infinity** ([`side_at_infinity`], the one reader of
 //!   a shell's role and of a solid's orientation) — consulted here only
 //!   when a ray crosses NO boundary at all: `q` then sits on the
@@ -5160,12 +5164,9 @@ fn clear_of_carrier<T: Decide>(
     elev: T,
     face: FaceKey,
     band: Band,
+    rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
-    match decide(
-        "bool_point_in_solid_clearance",
-        Margin::of(elev.abs()),
-        band,
-    ) {
+    match decide(rows.clearance, Margin::of(elev.abs()), band) {
         Ok(Sign::Zero) => Ok(false),
         Ok(_) => Ok(true),
         Err(diag) => Err(RayFault::InBand(PointInSolidError::Escalated {
@@ -5192,6 +5193,7 @@ fn ray_passes_beside<T: Decide>(
     d: Vec3<T>,
     normal: Vec3<T>,
     band: Band,
+    rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
     let f = body
         .get_face(face)
@@ -5210,14 +5212,41 @@ fn ray_passes_beside<T: Decide>(
     let (Some(above), Some(below)) = (above, below) else {
         return Ok(true); // no vertex: the loop bounds no region
     };
-    Ok(decide(
-        "bool_point_in_solid_beside",
-        Margin::of(above.max(below)),
-        band,
-    )
-    .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?
+    Ok(decide(rows.beside, Margin::of(above.max(below)), band)
+        .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?
         == Sign::Positive)
 }
+
+/// **The names a ray's planar crossings are decided under**: a schedule
+/// ray's ([`SCHEDULE_ROWS`]) or a ray aimed at the boundary from beyond
+/// it ([`AIMED_ROWS`]), so the reader of the side at infinity, which
+/// every at-rest gate runs, logs apart from point containment.
+#[derive(Clone, Copy)]
+struct RayRows {
+    advance: &'static str,
+    denom: &'static str,
+    clearance: &'static str,
+    beside: &'static str,
+    order: &'static str,
+}
+
+/// A schedule ray's rows (module docs).
+const SCHEDULE_ROWS: RayRows = RayRows {
+    advance: "bool_point_in_solid_advance",
+    denom: "bool_point_in_solid_denom",
+    clearance: "bool_point_in_solid_clearance",
+    beside: "bool_point_in_solid_beside",
+    order: "bool_point_in_solid_order",
+};
+
+/// An aimed ray's rows ([`side_at_infinity`]).
+const AIMED_ROWS: RayRows = RayRows {
+    advance: "side_at_infinity_advance",
+    denom: "side_at_infinity_denom",
+    clearance: "side_at_infinity_clearance",
+    beside: "side_at_infinity_beside",
+    order: "side_at_infinity_order",
+};
 
 /// One ray of the sweep: the verdict its closest crossing reads
 /// ([`Crossings`]), or `None` where the ray crosses no face.
@@ -5229,8 +5258,8 @@ fn cast_ray<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<Option<SolidContainment>, RayFault<PointInSolidError>> {
-    let closest = ray_crossings(body, sel, q, d, reach, band)?.closest(
-        "bool_point_in_solid_order",
+    let closest = ray_crossings(body, sel, q, d, reach, band, SCHEDULE_ROWS)?.closest(
+        SCHEDULE_ROWS.order,
         band,
         |diag, &(_, face, _), _| PointInSolidError::Escalated { face, diag },
     )?;
@@ -5258,14 +5287,15 @@ fn ray_crossings<T: Decide>(
     d: Vec3<T>,
     reach: T,
     band: Band,
+    rows: RayRows,
 ) -> Result<Crossings<T, (Sign, FaceKey, T)>, RayFault<PointInSolidError>> {
     let faces = sel.faces();
     let mut crossings = Crossings::new();
     // A crossing at advance `t` on `face`; behind `q` it is none.
     let mut offer = |face: FaceKey, t: T, outward: Sign, edge: bool| {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        let ahead = ray_walk::advance("bool_point_in_solid_advance", Margin::of(t), band)
-            .map_err(|f| f.map(escalate))?;
+        let ahead =
+            ray_walk::advance(rows.advance, Margin::of(t), band).map_err(|f| f.map(escalate))?;
         if ahead == Sign::Positive {
             crossings.push(t, (outward, face, t), edge || outward == Sign::Zero);
         }
@@ -5284,12 +5314,8 @@ fn ray_crossings<T: Decide>(
                 // The cosine levered by the selection's reach: how far
                 // the ray rises off the plane over every length at which
                 // it could meet the face ([`selection_reach`]).
-                let denom_sign = decide(
-                    "bool_point_in_solid_denom",
-                    Margin::levered(denom, reach),
-                    band,
-                )
-                .map_err(escalate)?;
+                let denom_sign =
+                    decide(rows.denom, Margin::levered(denom, reach), band).map_err(escalate)?;
                 if denom_sign == Sign::Zero {
                     // A ray parallel to the plane within the band rises
                     // off it by at most the band's zero over the reach.
@@ -5297,9 +5323,9 @@ fn ray_crossings<T: Decide>(
                     // wherever its foot is outside the face, so a miss
                     // is asked, not assumed: q definitely off the plane,
                     // or the face definitely to one side of the ray.
-                    let clear = clear_of_carrier((q - origin).dot(normal), face, band);
+                    let clear = clear_of_carrier((q - origin).dot(normal), face, band, rows);
                     if matches!(clear, Ok(true))
-                        || ray_passes_beside(body, face, q, d, normal, band)?
+                        || ray_passes_beside(body, face, q, d, normal, band, rows)?
                     {
                         continue;
                     }
@@ -5359,7 +5385,7 @@ fn ray_crossings<T: Decide>(
                         let radial = w - axis * w.dot(axis);
                         let elev =
                             (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
-                        if clear_of_carrier(elev, face, band)? {
+                        if clear_of_carrier(elev, face, band, rows)? {
                             continue;
                         }
                         return Err(RayFault::Graze);
@@ -5558,11 +5584,8 @@ fn ray_crossings<T: Decide>(
                     Sign::Positive => {}
                 }
                 for t in quadratic_roots(a2, b2, c2, disc) {
-                    let ahead =
-                        ray_walk::advance("bool_point_in_solid_advance", Margin::of(t), band)
-                            .map_err(|f| {
-                                f.map(|diag| PointInSolidError::Escalated { face, diag })
-                            })?;
+                    let ahead = ray_walk::advance(rows.advance, Margin::of(t), band)
+                        .map_err(|f| f.map(|diag| PointInSolidError::Escalated { face, diag }))?;
                     if ahead == Sign::Negative {
                         continue;
                     }
@@ -5873,6 +5896,64 @@ pub(crate) enum SideUnread<V> {
     },
 }
 
+/// **Where a ray aimed at `face` aims**, and the face's outward normal
+/// there. A planar face aims at a point certified strictly inside it
+/// ([`crate::stands::planar_interior_point`]), and offers none where no
+/// candidate certifies. A cylinder, cone or torus face aims at its
+/// chart's point at the middle of its window (a full turn's middle where
+/// it wraps), and a closed sphere at a fixed point of its chart; neither
+/// is certified inside the face, nor needs to be: the ray's start lies
+/// beyond every face whatever it aims at, so its closest crossing reads
+/// the side wherever it lands, and an aim off the face only steers it.
+/// A trimmed sphere, a cone this door cannot trim and a spline offer
+/// none.
+///
+/// # Errors
+///
+/// A planar face that does not walk, or whose plane or in-face walk
+/// refuses other than in band; a face that does not resolve.
+fn aim_at<T: Decide>(
+    body: &Body<T>,
+    sel: &SolidFaces,
+    face: FaceKey,
+    band: Band,
+) -> Result<Option<(Point3<T>, Vec3<T>)>, PointInSolidError> {
+    match face_plane(body, face) {
+        Ok((_, normal)) => {
+            return Ok(
+                crate::stands::planar_interior_point(body, face, band)?.map(|aim| (aim, normal))
+            );
+        }
+        Err(PointInSolidError::KindUnsupported { .. }) => {}
+        Err(e) => return Err(e),
+    }
+    let mid = |(lo, hi): (T, T)| (lo + hi) * T::from_f64(0.5);
+    let (u, v) = match face_geo(body, face, &sel.charts, band) {
+        Ok(FaceGeo::Cylinder { az, h, .. }) => (mid(az), mid(h)),
+        Ok(FaceGeo::Cone { az, v, .. }) => (az.map_or_else(T::pi, mid), mid(v)),
+        Ok(FaceGeo::Torus { u, v, .. }) => (u.map_or_else(T::pi, mid), v.map_or_else(T::pi, mid)),
+        Ok(FaceGeo::Sphere { .. }) => (T::from_f64(1.0), T::from_f64(0.3)),
+        Ok(_) => return Ok(None),
+        Err(PointInSolidError::CorruptFace { face }) => {
+            return Err(PointInSolidError::CorruptFace { face });
+        }
+        Err(_) => return Ok(None),
+    };
+    let aim = body
+        .get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .ok_or(PointInSolidError::CorruptFace { face })?
+        .eval(u, v);
+    // A normal the face's own reader cannot give (an in-band residual,
+    // an apex) leaves no incidence to aim at: the face offers none.
+    Ok(
+        crate::face_normal::face_outward_normal_at(body, face, aim, band)
+            .ok()
+            .flatten()
+            .map(|normal| (aim, normal.vec())),
+    )
+}
+
 /// Whether faces `a` and `b` meet: some vertex of one's loops is a vertex
 /// of the other's.
 fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -> bool {
@@ -5898,19 +5979,29 @@ fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -> bool {
 /// face's outward normal and `sin 60°` along the face.
 const AIM_INCIDENCE: (f64, f64) = (0.5, 0.866_025_403_784_438_6);
 
+/// The turn about the face's normal its aimed ray's tangent component
+/// makes off the normal's frame (`Vec3::orthonormal_basis`), as
+/// `(sin, cos)` of the golden angle: an axis frame's tangent would lay
+/// the ray in a coordinate plane, parallel to every face of a box
+/// across it, where a turn the model has no reason to share lays it
+/// parallel to none.
+const AIM_TURN: (f64, f64) = (0.675_490_294_261_523_8, -0.737_368_878_078_319_7);
+
 /// **The side at infinity of `sel`'s faces** — the one reader of a
 /// shell's role (D10, Booleans: `Out` is an outer boundary, `In` a
 /// cavity's) and of a solid's orientation (D1 tier 3, check 7: `In` is
 /// inside out).
 ///
-/// **Aimed rays first.** Each planar face of the selection that offers
-/// a point certified strictly inside it ([`crate::stands::planar_interior_point`])
-/// is aimed at, in face order: the ray leaves from twice the
-/// selection's reach from that point, beyond every face, so its start
-/// lies on the side at infinity, and meets the face at 60° from its
-/// outward normal ([`AIM_INCIDENCE`]). Its closest crossing's outward
-/// sign is the side, as a schedule ray's is ([`cast_ray`]). The first ray
-/// that decides answers.
+/// **Aimed rays first.** Each face of the selection that offers an aim
+/// ([`aim_at`]: a planar face's certified interior point, a curved
+/// face's chart window's middle) is aimed at, in face order: the ray
+/// leaves from twice the selection's reach from that point, beyond every
+/// face, so its start lies on the side at infinity, and meets the face at
+/// 60° from its outward normal ([`AIM_INCIDENCE`]), turned about it off
+/// the coordinate planes ([`AIM_TURN`]). Its closest crossing's outward
+/// sign is the side, as a schedule ray's is ([`cast_ray`]), its decisions
+/// logged under the aimed rows ([`AIMED_ROWS`]). The first ray that
+/// decides answers.
 ///
 /// The incidence keeps a ray's reading in band only where a pair is:
 /// the ray cannot graze the face it aims at (`d·n = −½`), and between
@@ -5925,8 +6016,9 @@ const AIM_INCIDENCE: (f64, f64) = (0.5, 0.866_025_403_784_438_6);
 ///
 /// **The volume only where no face offers an aim that reads.**
 /// Where no aimed ray decided and none read in band, `volume` reads
-/// the side: a selection all of whose faces are curved or splines, or
-/// whose rays all grazed, met a limit or crossed a sharp corner in band.
+/// the side: a selection all of whose faces are trimmed spheres, untrimmable
+/// cones or splines, or whose rays all grazed, met a limit or crossed a
+/// sharp corner in band.
 /// An aimed ray read in band on two faces that do not meet refuses on
 /// its pair ([`SideUnread::InBand`]) without the volume: a pair in band
 /// is the answer, and the volume's margin, a mean half-thickness, would
@@ -5948,24 +6040,21 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     let (mut in_band, mut at_a_corner, mut limit) = (None, None, None);
     let (along, across) = AIM_INCIDENCE;
     for &face in faces {
-        let normal = match face_plane(body, face) {
-            Ok((_, normal)) => normal,
-            Err(PointInSolidError::KindUnsupported { .. }) => continue,
-            Err(e) => return Err(e),
-        };
-        let Some(aim) = crate::stands::planar_interior_point(body, face, band)? else {
+        let Some((aim, normal)) = aim_at(body, sel, face, band)? else {
             continue;
         };
         let shell = body
             .get_face(face)
             .ok_or(PointInSolidError::CorruptFace { face })?
             .shell;
-        let (tangent, _) = normal.orthonormal_basis();
+        let (b1, b2) = normal.orthonormal_basis();
+        let (turn_sin, turn_cos) = AIM_TURN;
+        let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
         let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
         let from = aim + out * (selection_reach(body, faces, aim)? * T::from_f64(2.0));
         let d = (aim - from).normalize();
         let reach = selection_reach(body, faces, from)?;
-        let crossings = match ray_crossings(body, sel, from, d, reach, band) {
+        let crossings = match ray_crossings(body, sel, from, d, reach, band, AIMED_ROWS) {
             Ok(crossings) => crossings,
             Err(RayFault::Blocked(e) | RayFault::Fatal(e)) => {
                 limit.get_or_insert(e);
@@ -5977,7 +6066,7 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
         // two crossings whichever the scan met first.
         let pair = |signed, &(_, far, at_far): &(Sign, FaceKey, T), &(_, near, at_near): &_| {
             let gap = geom_core::k_stats::decide_magnitude(
-                "bool_point_in_solid_order",
+                AIMED_ROWS.order,
                 Margin::of((at_far - at_near).abs()),
                 band,
             )
@@ -5991,7 +6080,7 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
                 gap,
             }
         };
-        match crossings.closest("bool_point_in_solid_order", band, pair) {
+        match crossings.closest(AIMED_ROWS.order, band, pair) {
             Ok(Some((outward, _, _))) => return Ok(Ok(side_before(outward))),
             // Two faces that meet at a vertex are no pair: their gap closes
             // at the cell they share, and a ray crossing a sharp corner

@@ -7195,7 +7195,7 @@ mod tests {
         let gap = |m| Indeterminate {
             margin: MarginDiag::value(m),
             band,
-            predicate: Some("bool_point_in_solid_order"),
+            predicate: Some("side_at_infinity_order"),
             terminal_sliver: false,
         };
         let shells: Vec<ShellKey> = (1..=3)

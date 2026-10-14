@@ -6,6 +6,8 @@
 //! to pass check 7 and a valid one to escalate in the shell
 //! classification, in point containment and in a boolean. Oracle: the
 //! disc's volume `π r² h` and its membership, read off the construction.
+//! The disc is a solid's only shell, so it classifies `Outer` by arity
+//! either way round, and check 7 reads its orientation.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, cylinder_of_arcs_at, finished};
@@ -86,7 +88,9 @@ fn far_thin_discs_are_read_by_their_exact_volume() {
                 &inverted,
                 "inside out",
                 Err(vec![ValidationError::NegativeVolume { solid }]),
-                ShellRole::Void,
+                // A solid's only shell is outer by arity, however wound:
+                // its orientation is check 7's.
+                ShellRole::Outer,
                 [Out, In],
             ),
         ] {
@@ -275,7 +279,7 @@ fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
                             &inverted,
                             "inside out",
                             Err(vec![ValidationError::NegativeVolume { solid }]),
-                            ShellRole::Void,
+                            ShellRole::Outer,
                         ),
                     ] {
                         assert_eq!(

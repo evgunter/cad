@@ -138,56 +138,33 @@ fn r1_a_scope_of_two_of_three_solids() {
 // Claim 3 — the roles read
 // ---------------------------------------------------------------------
 
-/// **The roles read is PER HOLLOW SOLID, counted at the funnel.** A
-/// shell's role is the decided sign of its own signed volume, so a
-/// solid's roles involve no other solid's shells — and a plain
-/// neighbour, whose single shell is its boundary by arity, is never
-/// classified at all. Counted as `chk_shell_volume_sign` verdicts: a
-/// body of only plain solids reads nothing, a hollow solid reads its
-/// own two, and a plain solid standing beside it adds none.
-///
-/// What this rules out is a classification escalating on a solid the
-/// caller did not ask about and refusing one it did.
+/// **The roles read is PER HOLLOW SOLID.** A shell's role is the side at
+/// infinity of its own faces, so a solid's roles involve no other
+/// solid's shells — and a plain neighbour, whose single shell is its
+/// boundary by arity, is never read. The read shares its reader, and its
+/// decisions' names, with check 10 at the result's gate, so it is not
+/// counted apart; what it rules out, a read escalating on a solid the
+/// caller did not ask about and refusing one it did, is pinned by every
+/// one of these bodies shelling.
 #[test]
 fn r1_the_roles_read_is_per_hollow_solid() {
-    use geom_core::k_stats::Bracket;
-    let count = |body: &Body<f64>| -> usize {
-        let bracket = Bracket::open();
-        let _ = topo::shell(&finished("the operand", body.clone(), tol()), 0.02, tol());
-        bracket
-            .finish()
-            .verdicts
-            .iter()
-            .filter(|v| v.predicate == "chk_shell_volume_sign")
-            .count()
+    let shelled = |what: &str, body: &Body<f64>| {
+        topo::shell(&finished("the operand", body.clone(), tol()), 0.02, tol())
+            .unwrap_or_else(|e| panic!("{what} shells, got {e:?}"));
     };
-    // Only plain solids: nothing is classified at all.
-    let plain = beside(
-        &block(2.0, 3.0, 4.0, Tol::witness()),
-        &block(2.0, 3.0, 4.0, Tol::witness()),
-        10.0,
+    shelled(
+        "a plain pair",
+        &beside(
+            &block(2.0, 3.0, 4.0, Tol::witness()),
+            &block(2.0, 3.0, 4.0, Tol::witness()),
+            10.0,
+        ),
     );
-    let n_plain = count(&plain);
-    // A hollow solid (2 shells) beside a plain one (1 shell).
-    let mixed = beside(&hollow_box(), &block(2.0, 3.0, 4.0, Tol::witness()), 10.0);
-    let n_mixed = count(&mixed);
-    // The hollow solid alone.
-    let lone = count(&hollow_box());
-    println!(
-        "[r1] chk_shell_volume_sign verdicts: plain-pair={n_plain}, hollow-alone={lone}, hollow+plain={n_mixed}"
+    shelled(
+        "a hollow solid beside a plain one",
+        &beside(&hollow_box(), &block(2.0, 3.0, 4.0, Tol::witness()), 10.0),
     );
-    assert_eq!(n_plain, 0, "a body of only plain solids reads nothing");
-    assert_eq!(lone, 2, "the hollow solid's own two shells");
-    // **The read is PER HOLLOW SOLID.** A plain neighbour adds nothing:
-    // its shell is its boundary by arity, so it is never classified,
-    // and a classification that escalated on it could not refuse the
-    // hollow solid's shelling. This row asserted the whole-body read
-    // (`n_mixed > lone`, measured 3 > 2) and is re-pinned to the
-    // per-solid one.
-    assert_eq!(
-        n_mixed, lone,
-        "the plain neighbour is not classified: {n_mixed} should equal {lone}"
-    );
+    shelled("the hollow solid alone", &hollow_box());
 }
 
 /// **A hollow solid beside a plain one still classifies correctly.**

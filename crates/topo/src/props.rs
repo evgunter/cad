@@ -2911,7 +2911,7 @@ pub const SHELL_ROLE: SizedDecision = SizedDecision {
 };
 
 /// The shell-role decision read off a ray aimed at one of the shell's
-/// faces (`bool_point_in_solid_order`): its margin is the gap along the
+/// faces (`side_at_infinity_order`): its margin is the gap along the
 /// ray between the two faces it met first, a magnitude, and it passes on
 /// a definite gap.
 pub const SHELL_ROLE_RAY: SizedDecision = SizedDecision {

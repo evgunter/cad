@@ -155,17 +155,24 @@ fn assert_smooth_built_and_refused_at_rest(text: &str, label: &str) {
     );
 }
 
+/// Every rim transverse, and tier 3 passes the body or refuses only its
+/// orientation: a needle whose short sides are about `K·ε` holds no face
+/// a point can be certified inside, so no ray is aimed at it, and its
+/// volume's sign is undecided (D1 tier 3, check 7: a solid whose
+/// orientation no reading decides refuses).
 fn assert_all_transverse_and_valid(text: &str, label: &str) {
-    for needle in [
-        "RKPROBE extrude=Ok",
-        "RKPROBE non_intersection_rims=0",
-        "RKPROBE tier3=Ok",
-    ] {
+    for needle in ["RKPROBE extrude=Ok", "RKPROBE non_intersection_rims=0"] {
         assert!(
             text.contains(needle),
             "{label}: expected {needle:?}:\n{text}"
         );
     }
+    assert!(
+        text.contains("RKPROBE tier3=Ok")
+            || (text.contains("RKPROBE tier3=Err n=1")
+                && text.contains("RKPROBE tier3_error=OrientationUndecided")),
+        "{label}: tier 3 passes, or refuses only the orientation:\n{text}"
+    );
 }
 
 fn assert_in_band_rim(text: &str, label: &str) {

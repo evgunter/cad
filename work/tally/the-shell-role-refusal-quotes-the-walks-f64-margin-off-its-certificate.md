@@ -44,3 +44,14 @@ the same cause: a volume summed in f64 about the world origin.
 Have the refusal quote the certified reading wherever one was taken. Or,
 if a valued margin is wanted, take the walk's sums about the body's
 corner, as the re-derivation does.
+
+## Measured (FLUSH `flush/shell-role-reader`, 2026-10-14)
+
+A shell's role is read off a ray aimed at one of its faces, and its
+volume's sign only where no face offers an aim that reads
+(`props::shell_volume_role`). The door no longer types a shell's volume
+reading at all: its `Escalated { ShellRole }` quotes the ray's pair.
+This row narrows to the volume fallback (a shell no face of which offers an aim,
+`the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`), where
+`validate`'s and `classify_shells`' refusals still quote the walk's
+reading.
