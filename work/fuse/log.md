@@ -937,3 +937,14 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Fixes:** the live audit doc re-pointed; the lower crates' docs state their contract rather than their topo callers; the quartic ladder's own doc moved down with it.
   - **Deferred:** four findings go to stage (b) on the unit row: the root enums as one class, `TrigRoots::Uncertain`'s untyped refusal, the `rounding_charge` alias, and `PastDegreeTwo`.
   - **CI:** green at 13e3b83, and the PR also compiles merged with main.
+- 2026-10-14: curve-pair reader stage (b) opens as two stacked PRs.
+  - **The PRs:**
+    - 5118 (b1): one `Roots` shape, typed `Unsettled`, `DegreeTwo`, the point-on-span reading.
+    - 5121 (b2): the meeting reader, which covers the kind table, pose, `meet`, the closed forms, the walk and the oracle.
+  - **Reviews (Opus and Fable):**
+    - 5118 is mergeable with MINORs.
+    - 5121 has two MAJORs:
+      - transverse closed forms decide "no meeting" at a zero-band distance (D4: an in-band decision pruned);
+      - an eccentric ellipse refuses `Unsupported` on a listed arm.
+    - Other findings: an unpinned meter, an oracle whose tolerance and families hide wrong answers, unscheduled refusal windows, and copies minted by the stack (`DegreeTwo` hand-written, `extreme_sign` byte-copied from topo).
+  - **Next:** one fix pass is dispatched for both PRs.
