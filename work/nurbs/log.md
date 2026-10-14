@@ -1417,3 +1417,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-14 00:16Z — **Correction:** the digest red (`tilted_cut_upper` pads) is NOT 4984's. It passes at 2639b944 and at a71403e3 (pre-4984), and fails on main HEAD. Build A is bisecting the merges after #4938 (#4964, #4952, #4863, #5033, #5022, #5025); the result goes to the owning program, not re-cut by NURBS.
   - **The saddle pin IS 4984's**, and the re-baseline is sound: the integral wall's floor rose from 1.97616 to 1.97751, against a sampled least ‖S_u×S_v‖ of 1.97754. The fix ships now, on its own PR.
   - **Reds at 1e-6 under triage** (base red, or flipped by 4984?): `cone_operand_rows`, `r1_lane0_e2e` (TubeNotOneArc), topo `three_solids_on_one_line`.
+- 2026-10-14 01:25Z — **PR 5047 merged** (step 1, `NurbsBoxes` lifetime) at `f0f732d0`.
+  - Hosted test job 23m14s; my read only.
+  - Seam notes posted on ssiarith, ssiedge and ssimarch.
+- 2026-10-14 01:25Z — **Step 2 in progress** (products-once with halving).
+  - Locally, before the halving speed-up: shell 142 s and r1 88 s, against main's 286 and 183; face bound 0.59 s.
+  - Re-baselined with causes: the `patch_bound` tile row (8×8 → 16×16, the retired exactness ceiling) and the `offset_fit` weights-2 pin (2 ulps).
+  - I asked for the curve meters to move off `piece_weights` too (one primitive), splitting into 2a/2b if the PR gets large. FULL review when it's green.

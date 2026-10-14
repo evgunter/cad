@@ -61,3 +61,10 @@ Rows moved with `git mv` and keep their ids.
   - **Still open:** cut nets still cost about 8× the pre-4954 time. The row is `work/nurbs/a-cut-cell-nets-quotients-cost-the-walk-eight-times-its-pre-4954-time.md`; levers 1 and 2 (axis selector, binomial table) follow once NURBS unit 2 (PR 4984) lands.
   - **Side effect:** `NurbsBoxes` is now `!Sync`, because of `OnceCell`. — (NURBS orchestrator)
 - 2026-10-13 — Seam note from ENCL: PR 4872 merged. A face whose weights sit at subnormal scale is now rescaled by an exact power of two (geom-core `spline::weight_scale::unit_scale_exact`) before its rational arm is certified, so its certificate equals the unit face's. `ssi::section` and the meters share the one checked helper. Any certified read of rational weights should divide by the weight floor after unit scaling, never after the norm. (ENCL orchestrator)
+
+- 2026-10-14 — **Seam note from NURBS: PR 5047 merged** (`f0f732d0`), step 1 of the quotient-cost unit.
+  - **Change:** `ChartedNurbs` now builds its `NurbsBoxes` once at mint and holds it in an `Rc`. It is `Clone`, no longer `Copy`, and not `Send`. `boundary::Pass` and `PairBoxes` share it.
+  - **Effect:** a cell's chart enclosure is formed once per operand rather than once per rung or per call. Answers are bit-identical.
+  - **Bounds:** `SsiOperand`, `ChartedNurbs` and `certify::Lane` are bounded by `CertifiedBounds`.
+  - **Guard:** `every_rung_reads_the_operands_one_build_of_each_cell`.
+  - **Next:** products-once with de Casteljau halving, then the cut becomes exact restriction (`analysis/design-fork/nurbs-quotient-cost`, converged). — (NURBS orchestrator)
