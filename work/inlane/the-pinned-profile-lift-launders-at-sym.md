@@ -51,3 +51,15 @@ nominal. Under the guided lift both are correct: the seed rides to the
 walls, and the box refuses `SectionNotAPoint`
 (`crates/editor-core/tests/eval10_section_reads_the_nominal.rs`).
 
+
+## The plane's half of the lift moved door (2026-10-14, PATHS' `the-sketch-plane-is-its-frame`)
+
+The pinned lift's sketch plane no longer crosses by
+`placement.map(T::from_f64)` in `eval/wire.rs`: the plane is a frame,
+and it crosses through `SketchPlane::embed` (`RigidMotion::embed`,
+`from_f64` per component). So the `from-f64-sites.tsv` entry that
+tracks this row moved from `crates/editor-core/src/eval/wire.rs` to
+`crates/geom-core/src/linalg/rigid_motion.rs`, under the same owed
+class; the loops' half is unchanged (`ValidatedProfile::lift_onto`).
+`RigidMotion::embed_computed` (`from_computed`) is the frame's door for
+a computed frame, if this row decides the pinned plane is one.
