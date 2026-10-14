@@ -2,7 +2,9 @@
 id: a-rigid-map-moves-an-enclose-chart-margin-past-its-rounding-allowance
 kind: issue
 title: A rigid map moves an enclose chart margin by 1.3e-12 relative, past the fuzz test's rounding allowance
-status: open
+status: closed
+branch: nurbs/rigid-map-chart-allowance
+closed: 2026-10-14
 opened: 2026-10-14
 ---
 
@@ -55,3 +57,12 @@ Pin both seeds as deterministic tests beside whichever fix lands
 (`docs/prompts/implementer-discipline.md` §8).
 
 — found by the build-time lane (NURBS), 2026-10-14
+
+## Resolution (NURBS build A, 2026-10-14)
+
+This is the same defect as
+`rigid-map-chart-readings-fuzz-reds-past-its-rounding-bound`: the same
+reading and the same cause. It is closed there, and that item's
+resolution carries the measurement and the fix. This item's "likely
+cause" was right: a margin rounds at the wall's scale, not at its own
+value. Both of its seeds are pinned as fixed rows there.
