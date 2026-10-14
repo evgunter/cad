@@ -114,11 +114,24 @@ fn p3b_a_band_scale_major_radius_through_the_revolve_door() {
             eprintln!("[p3b] R = {major:e}: the revolve door refuses");
             continue;
         };
-        match topo::shell(
-            &finished("the operand", rev.body.clone(), tol()),
-            minor * 0.1,
-            tol(),
-        ) {
+        // A torus whose minor radius is within a few Kε of the band reads
+        // no orientation at rest: its aimed rays' torus split and its
+        // volume are both in band, and its own door says so.
+        let operand = match topo::AtRestBody::validate(rev.body.clone(), tol()) {
+            Ok(operand) => operand,
+            Err(e) => {
+                assert!(
+                    matches!(
+                        e.as_slice(),
+                        [topo::ValidationError::OrientationUndecided { .. }]
+                    ),
+                    "R = {major:e}: an operand at the band refuses only its orientation, got {e:?}"
+                );
+                eprintln!("[p3b] R = {major:e}: refuses at rest — {e:?}");
+                continue;
+            }
+        };
+        match topo::shell(&operand, minor * 0.1, tol()) {
             Ok(out) => {
                 let props = topo::mass_properties(&out.body, tol());
                 eprintln!("[p3b] R = {major:e}: SHELLS — volume {props:?}");
