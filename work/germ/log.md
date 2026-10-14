@@ -1279,3 +1279,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **5012's fix pass** pushed `a8f0a6e9bf`: 7 items done, hosted CI running. Local verify via vpr.sh is running (summary in v5012/summary.txt).
     - The lane reports three topo reds that are also red on main and unfiled: at 1e-6 `three_solids_on_one_line::an_edge_crossing_both_wedges_refuses_typed…`; at 1e-12 `rigid_map_near_eps_approx::{the_image_of_a_face_minted_near_eps_refuses_re_derivation, a_rigid_map_moves_a_face_minted_near_eps}`. I'll confirm them on main and file them.
   - Re-armed for 01:24.
+- 2026-10-14 01:00 — **PR 5012 merged** (`c83fb86ec7`); the ring-path far-frame item closes.
+  - Verify: locally on head + main, topo 2996 and sweep 2651 green at three ε. Main merged again at merge time; the ring_path, chord_join and census rows (243) green at three ε.
+  - Hosted CI: `test` green. `demos` red on lily finding-13 (leaf_b 5576→5374, leaf_c 5164→4962). That is main's own drift, filed P1 on NURBS as `the-lily-leaf-tessellation-table-moved-on-main`; main's CI skips demos unless a diff seeds them. Added to the known reds.
+  - Row `PR-5012.md` last: sequential, M, byte 118, tallied 0, major false.
+  - The fix-pass lane reported three slow-set reds at 1e-6/1e-12 that are also red on main and unfiled. Confirming on main `e9e5df7c8a` (scratchpad/vmain.sh); I'll file them if confirmed.
