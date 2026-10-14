@@ -243,16 +243,29 @@ pub(crate) enum Consistency {
 /// - **`vertex_separation`** — margin: the chord length |b − a|
 ///   (meters, a direct displacement; no lever arm). Zero ⇒ degenerate
 ///   segment (the Q1 sliver semantics: within band ⇒ escalation).
+/// - **`arc_sweep_range`** (arcs only, and only under
+///   [`Consistency::Decide`], refused typed as the consistency checks
+///   below are) — margin: r·|Δθ|·(2π − |Δθ|)/2π (meters: the
+///   dimensionless range product levered by the radius — the arc
+///   length r·|Δθ| near an empty sweep and the gap r·(2π − |Δθ|) near a
+///   full turn), with |Δθ| the stored sweep's magnitude. Positive ⇒
+///   0 < |Δθ| < 2π; a sweep past a full turn is Negative. A full turn
+///   is Zero here and refused: between two vertices it is a zero chord,
+///   and D1's full turn is one segment at one vertex
+///   ([`build_loop_seg`]'s other arm). Asked before the straightness
+///   read because that read's tan(Δθ/4) is 4π-periodic: a sweep of
+///   4π + δ bows like δ, and would read as δ's chord.
 /// - **`segment_straightness`** — margin: the signed sagitta
 ///   s = (L/2)·tan(Δθ/4) (meters): the apex's offset from the chord,
 ///   zero for a stored line. This is the dimensionless quarter-sweep
 ///   tangent acting through its lever arm, the half-chord L/2. Zero ⇒
 ///   line (the arc is chord-coincident at tolerance, and its carrier is
-///   not carried); a definite sign ⇒ arc with that turn sense; in-band
-///   ⇒ a sliver arc, escalated.
-/// - **The three consistency checks** (arcs only, and only under
-///   [`Consistency::Decide`]; D1's table arcs, "verified at validate
-///   as ε-decisions"), each refused typed
+///   not carried); a definite sign ⇒ arc with that turn sense, which is
+///   the sweep's own sign over the range just asked; in-band ⇒ a sliver
+///   arc, escalated.
+/// - **The difference checks** (arcs read as arcs, and only under
+///   [`Consistency::Decide`]; with `arc_sweep_range`, D1's table arcs
+///   "verified at validate as ε-decisions"), each refused typed
 ///   ([`SegIssue::Inconsistent`]) on a definite answer it does not
 ///   accept:
 ///   - **`arc_start_on_carrier`** — margin: ‖a − c‖ − r (meters,
@@ -260,17 +273,6 @@ pub(crate) enum Consistency {
 ///   - **`arc_landing`** — margin: ‖point_from(a, 1) − b‖ (meters,
 ///     direct; [`Arc2::landing`]). Zero ⇒ the start, turned by the
 ///     sweep about the centre, lands on the end.
-///   - **`arc_sweep_range`** — margin: r·|Δθ|·(2π − |Δθ|)/2π (meters:
-///     the dimensionless range product levered by the radius — the arc
-///     length r·|Δθ| near an empty sweep and the gap r·(2π − |Δθ|)
-///     near a full turn), with |Δθ| the sweep signed by the decided
-///     turn. The turn is the sign of tan(Δθ/4), which is the sweep's own
-///     sign for |Δθ| < 2π, so what this reads is the upper bound:
-///     Positive ⇒ |Δθ| < 2π, and a sweep past a full turn is Negative
-///     (its gap, or its quarter tangent's sign, has turned). A full turn
-///     is Zero here and refused: between two vertices it is a zero
-///     chord, and D1's full turn is one segment at one vertex
-///     ([`build_loop_seg`]'s other arm).
 /// - **`arc_diameter_clearance`** (arcs only) — margin:
 ///   2r − |a − apex| = 2r·(1 − sin(|Δθ|/4)) (meters, computed in the
 ///   second form): how far the arc's half-span chord sits below the
@@ -292,9 +294,14 @@ pub(crate) fn build_seg<T: Decide>(
     band: Band,
 ) -> Result<Seg<T>, SegIssue<T>> {
     match consistency {
-        Consistency::Decide => classify(a, b, segment, band, |arc, span| {
-            check_carrier(arc, a, b, span, Range::Chord, band)
-        }),
+        Consistency::Decide => classify(
+            a,
+            b,
+            segment,
+            band,
+            |arc| sweep_range(arc, arc.sweep.abs(), Range::Chord, band),
+            |arc| check_carrier(arc, a, b, band),
+        ),
         Consistency::ByConstruction => {
             build_constructed_seg(a, b, segment, band).map_err(SegIssue::Shape)
         }
@@ -318,7 +325,8 @@ pub(crate) fn build_loop_seg<T: Decide>(
     match segments[k] {
         Segment::Arc(arc) if crate::is_full_turn(segments) => match consistency {
             Consistency::Decide => full_turn(a, arc, band, |arc, span| {
-                check_carrier(arc, a, a, span, Range::FullTurn, band)
+                check_carrier(arc, a, a, band)?;
+                sweep_range(arc, span, Range::FullTurn, band)
             }),
             // No door constructs a full turn yet, so nothing has yet
             // shown a construction that writes one exactly (its start
@@ -404,7 +412,7 @@ fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
     })
 }
 
-/// Which sweeps [`check_carrier`]'s `arc_sweep_range` accepts.
+/// Which sweeps [`sweep_range`] accepts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Range {
     /// 0 < |Δθ| < 2π: an arc between two vertices.
@@ -422,17 +430,20 @@ pub(crate) fn build_constructed_seg<T: Decide>(
     segment: Segment<T>,
     band: Band,
 ) -> Result<Seg<T>, ShapeIssue<T>> {
-    classify(a, b, segment, band, |_, _| Ok(()))
+    classify(a, b, segment, band, |_| Ok(()), |_| Ok(()))
 }
 
-/// [`build_seg`]'s body, with the arc's consistency checks as `check`
-/// (the arc and its span |Δθ|), run after the turn is decided.
+/// [`build_seg`]'s body, with an arc's consistency checks: `range` on
+/// its stored sweep before the straightness read, which a sweep outside
+/// the range would fool, and `check` on its carrier once it is read as
+/// an arc.
 fn classify<T: Decide, E: From<ShapeIssue<T>>>(
     a: Point2<T>,
     b: Point2<T>,
     segment: Segment<T>,
     band: Band,
-    check: impl FnOnce(Arc2<T>, T) -> Result<(), E>,
+    range: impl FnOnce(Arc2<T>) -> Result<(), E>,
+    check: impl FnOnce(Arc2<T>) -> Result<(), E>,
 ) -> Result<Seg<T>, E> {
     let escalated = |source| E::from(ShapeIssue::Escalated(source));
     let frame = ChordFrame::of(a, b);
@@ -449,7 +460,10 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
     // line has no turn for its margin to report.
     let bow = match segment {
         Segment::Line => T::zero(),
-        Segment::Arc(arc) => arc.quarter_tan(),
+        Segment::Arc(arc) => {
+            range(arc)?;
+            arc.quarter_tan()
+        }
     };
     let straightness = decide(
         "segment_straightness",
@@ -466,7 +480,7 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
                 Sign::Negative => arc.reversed().sweep,
                 Sign::Positive | Sign::Zero => arc.sweep,
             };
-            check(arc, span)?;
+            check(arc)?;
             let apex = arc.apex(a, b);
             let span_chord = a.distance(apex);
             // 2r − |a − apex| with |a − apex| = 2r·sin(|Δθ|/4), spelled
@@ -555,17 +569,13 @@ fn resolves<T: Decide>(
     }
 }
 
-/// Validation's three consistency checks of a stored arc against its
-/// endpoints `a → b`, decided in order at the run's band ([`build_seg`]
-/// states each margin; `range` which sweeps the last one accepts,
-/// [`full_turn`] the full turn's). `span` is the sweep signed by the
-/// arc's decided turn into |Δθ|, without an `abs`.
+/// Validation's two difference checks of a stored arc against its
+/// endpoints `a → b`, `arc_start_on_carrier` then `arc_landing`,
+/// decided at the run's band ([`build_seg`] states each margin).
 fn check_carrier<T: Decide>(
     arc: Arc2<T>,
     a: Point2<T>,
     b: Point2<T>,
-    span: T,
-    range: Range,
     band: Band,
 ) -> Result<(), SegIssue<T>> {
     let refuse = |check: ArcCheck| Err(SegIssue::Inconsistent { check });
@@ -605,6 +615,18 @@ fn check_carrier<T: Decide>(
             return refuse(ArcCheck::Landing);
         }
     }
+    Ok(())
+}
+
+/// Validation's third consistency check, `arc_sweep_range`, of a stored
+/// arc's sweep magnitude `span` against the sweeps `range` accepts
+/// ([`build_seg`] states the margin, [`full_turn`] the full turn's).
+fn sweep_range<T: Decide>(
+    arc: Arc2<T>,
+    span: T,
+    range: Range,
+    band: Band,
+) -> Result<(), SegIssue<T>> {
     let tau = T::tau();
     let (ratio, accept) = match range {
         Range::Chord => (span * (tau - span) / tau, Sign::Positive),
@@ -615,7 +637,9 @@ fn check_carrier<T: Decide>(
     if read == accept {
         Ok(())
     } else {
-        refuse(ArcCheck::SweepRange)
+        Err(SegIssue::Inconsistent {
+            check: ArcCheck::SweepRange,
+        })
     }
 }
 
@@ -2389,6 +2413,81 @@ mod pair_contact_tests {
         let mut wrong_rows = wrong("f64", band_edge_rows::<f64>());
         wrong_rows.extend(wrong("Interval", band_edge_rows::<Interval>()));
         assert!(wrong_rows.is_empty(), "{}", wrong_rows.join("\n"));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod sweep_range_tests {
+    use super::*;
+    use geom_core::{Interval, Tol};
+
+    /// What [`build_seg`] read: the segment's kind, or the predicate
+    /// that refused it.
+    type Read = Result<&'static str, &'static str>;
+
+    /// The carrier's radius and the short arc's sweep δ: a chord rδ
+    /// = 1e-4 past every ε row's band, and a sagitta rδ²/8 ≈ 1.3e-13
+    /// within every row's ε, so the short arc reads as its chord at
+    /// each row.
+    const R: f64 = 1e4;
+    const DELTA: f64 = 1e-8;
+
+    /// The arc on the circle of radius [`R`] about the origin from
+    /// (R, 0) to the polar angle [`DELTA`], storing `sweep`.
+    fn read<T: Decide>(sweep: f64, band: Band) -> Read {
+        let pt = |t: f64| Point2::new(T::from_f64(R * t.cos()), T::from_f64(R * t.sin()));
+        let carrier = Arc2 {
+            centre: Point2::new(T::zero(), T::zero()),
+            radius: T::from_f64(R),
+            sweep: T::from_f64(sweep),
+        };
+        match build_seg(
+            pt(0.0),
+            pt(DELTA),
+            Segment::Arc(carrier),
+            Consistency::Decide,
+            band,
+        ) {
+            Ok(Seg {
+                kind: SegKind::Line,
+                ..
+            }) => Ok("line"),
+            Ok(Seg {
+                kind: SegKind::Arc(..),
+                ..
+            }) => Ok("arc"),
+            Err(issue) => Err(issue.predicate()),
+        }
+    }
+
+    /// **A stored sweep outside 0 < |Δθ| ≤ 2π refuses whatever its
+    /// sagitta**, at `f64` and at `Interval`. The quarter tangent the
+    /// straightness read takes is 4π-periodic, so 4π ± δ bows like δ;
+    /// 2π + δ bows far off its chord; δ itself is a legitimate arc
+    /// whose sagitta is within ε, read as its chord.
+    #[test]
+    fn a_stored_sweep_past_a_full_turn_refuses_whatever_its_sagitta() {
+        let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("band: {e}"));
+        let tau = std::f64::consts::TAU;
+        let rows: [(&str, f64, Read); 4] = [
+            ("4π + δ", 2.0 * tau + DELTA, Err("arc_sweep_range")),
+            ("−4π − δ", -2.0 * tau - DELTA, Err("arc_sweep_range")),
+            ("2π + δ", tau + DELTA, Err("arc_sweep_range")),
+            ("δ", DELTA, Ok("line")),
+        ];
+        let mut wrong = Vec::new();
+        for (name, sweep, want) in rows {
+            for (scalar, got) in [
+                ("f64", read::<f64>(sweep, band)),
+                ("Interval", read::<Interval>(sweep, band)),
+            ] {
+                if got != want {
+                    wrong.push(format!("{scalar}: {name}: want {want:?}, got {got:?}"));
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 }
 
