@@ -832,3 +832,49 @@ fn a_table_arc_off_its_vertex_below_the_scene_resolution_is_unreadable_not_incon
         other => panic!("expected a real inconsistency at r = 1, got {other:?}"),
     }
 }
+
+/// **A small arc crossing a large one is a crossing, at any ratio of
+/// their radii.** A half disc of radius 100, from whose left corner a
+/// chord runs up to a short arc of radius 1000ε centred on the half
+/// disc's arc. The short arc spans 0.4 rad about the crossing of the
+/// two carriers, so it crosses the half disc's arc once, deep inside
+/// both, while its ends stand a fifth of its radius either side of
+/// it; two lines outside the disc close the loop at the right corner.
+/// The radius ratio is 10⁸ at ε = 1e-9 and 10¹¹ at 1e-12.
+#[test]
+fn a_small_arc_crossing_a_large_one_is_non_simple() {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let (big, small) = (100.0, 1e3 * tol().eps());
+    let centre = Point2::new(0.0, big);
+    let at = |t: f64| Point2::new(small * t.cos(), big + small * t.sin());
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new([
+        (
+            Point2::new(big, 0.0),
+            Segment::Arc(Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: big,
+                sweep: std::f64::consts::PI,
+            }),
+        ),
+        (Point2::new(-big, 0.0), Segment::Line),
+        (
+            at(-0.2),
+            Segment::Arc(Arc2 {
+                centre,
+                radius: small,
+                sweep: 0.4,
+            }),
+        ),
+        (at(0.2), Segment::Line),
+        (Point2::new(2.0 * big, 2.0 * big), Segment::Line),
+    ]);
+    assert_eq!(
+        err(&profile(vec![lp])),
+        ProfileError::NonSimple {
+            first: sref(0, 0),
+            second: sref(0, 2),
+            kind: ContactKind::Crossing,
+        }
+    );
+}

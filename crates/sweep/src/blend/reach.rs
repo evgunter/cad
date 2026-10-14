@@ -94,7 +94,7 @@ use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
     Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
 };
-use super::surgery::{loop_walk, not_intact};
+use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
 /// How many cells one face may be cut into against one reach before it
@@ -770,30 +770,30 @@ fn normal_at<T: Decide>(
     p: Point3<T>,
 ) -> Result<Vec3<T>, BlendError> {
     outward(body, face, p)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))
 }
 
 fn surface_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Surface<T>, BlendError> {
     body.get_face(face)
         .and_then(|f| body.get_surface(f.surface))
         .cloned()
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face's stored surface"))
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face's stored surface"))
 }
 
 fn surface_key<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<SurfaceKey, BlendError> {
     body.get_face(face)
         .map(|f| f.surface)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face's stored surface"))
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face's stored surface"))
 }
 
 fn point_of<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, BlendError> {
     super::surgery::point_of(body, v)
-        .ok_or_else(|| not_intact(EntityId::Vertex(v), "a chain vertex's point"))
+        .ok_or_else(|| unresolved(EntityId::Vertex(v), "a chain vertex's point"))
 }
 
 fn faces_at<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Vec<FaceKey>, BlendError> {
     body.faces_of_vertex(v)
-        .ok_or_else(|| not_intact(EntityId::Vertex(v), "a chain vertex's face fan"))
+        .ok_or_else(|| unwalked(EntityId::Vertex(v), "a chain vertex's face fan"))
 }
 
 /// The point of `curve` nearest `p`, for a line or a circle (a band's
@@ -888,18 +888,18 @@ fn screened<T: Decide + Bounds>(
 ) -> Result<bool, BlendError> {
     let f = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a support the band replaces"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a support the band replaces"))?;
     let mut vacant = true;
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let vertices: Vec<VertexKey> = match body.get_loop(lp).map(|l| l.boundary) {
             Some(topo::LoopBoundary::Cycle { first }) => body
                 .loop_cycle(first)
-                .ok_or_else(|| not_intact(EntityId::Loop(lp), "a support's cycle"))?
+                .ok_or_else(|| unwalked(EntityId::Loop(lp), "a support's cycle"))?
                 .into_iter()
                 .filter_map(|he| body.get_half_edge(he).map(|h| h.start))
                 .collect(),
             Some(topo::LoopBoundary::Empty { vertex }) => vec![vertex],
-            None => return Err(not_intact(EntityId::Loop(lp), "a support's loop")),
+            None => return Err(unresolved(EntityId::Loop(lp), "a support's loop")),
         };
         for v in vertices {
             if ends.binary_search(&v).is_ok() {
@@ -938,11 +938,13 @@ impl<T: Real> Station<T> {
 }
 
 fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, BlendError> {
-    let unread = || not_intact(EntityId::Edge(link.edge), "a link's carrier or trimlines");
-    let (carrier, t0, t1) = carrier_of(body, link.edge).ok_or_else(unread)?;
+    let at = EntityId::Edge(link.edge);
+    let (carrier, t0, t1) =
+        carrier_of(body, link.edge).ok_or_else(|| unresolved(at, "a link's certified carrier"))?;
     let p = carrier.eval(geom::mid_param(t0, t1));
-    let fa = foot_on(&link.blend.trim_a.0, p).ok_or_else(unread)?;
-    let fb = foot_on(&link.blend.trim_b.0, p).ok_or_else(unread)?;
+    let off_trim = || disagrees(at, "a link's trimline is neither a line nor a circle");
+    let fa = foot_on(&link.blend.trim_a.0, p).ok_or_else(off_trim)?;
+    let fb = foot_on(&link.blend.trim_b.0, p).ok_or_else(off_trim)?;
     let c = match link.blend.surface {
         Surface::Cylinder {
             origin,
@@ -1205,14 +1207,14 @@ fn circular_reach<T: Decide + Bounds>(
         ..
     } = link.blend.surface
     else {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Edge(link.edge),
             "a circular spine's band is not a torus",
         ));
     };
     let (o, a) = canonical_axis(center, axis);
     let (c, _) =
-        st.c.ok_or_else(|| not_intact(EntityId::Edge(link.edge), "a torus band's spine point"))?;
+        st.c.ok_or_else(|| disagrees(EntityId::Edge(link.edge), "a torus band's spine point"))?;
     let reach = (st.p - c).norm();
     // A torus about its own axis: `big + reach` across, `reach` along.
     let ext = |k: T| major_radius * (T::one() - k.powi(2)).max(T::zero()).sqrt() + reach;
@@ -1964,7 +1966,7 @@ fn boundary_reading<T: Decide>(
 ) -> Result<Option<(T, T)>, BlendError> {
     let f = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))?;
     let most = |x: Point3<T>, g: fn(&Bound<T>, Point3<T>) -> T| {
         core.iter()
             .map(|b| g(b, x))
@@ -1979,7 +1981,7 @@ fn boundary_reading<T: Decide>(
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let l = body
             .get_loop(lp)
-            .ok_or_else(|| not_intact(EntityId::Loop(lp), "a face's loop"))?;
+            .ok_or_else(|| unresolved(EntityId::Loop(lp), "a face's loop"))?;
         let first = match l.boundary {
             topo::LoopBoundary::Cycle { first } => first,
             topo::LoopBoundary::Empty { vertex } => {
@@ -1989,11 +1991,11 @@ fn boundary_reading<T: Decide>(
         };
         for he in body
             .loop_cycle(first)
-            .ok_or_else(|| not_intact(EntityId::Loop(lp), "a face's cycle"))?
+            .ok_or_else(|| unwalked(EntityId::Loop(lp), "a face's cycle"))?
         {
             let edge = body
                 .get_half_edge(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a face's boundary"))?
+                .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face's boundary"))?
                 .edge;
             let Some((c, t0, t1)) = carrier_of(body, edge) else {
                 continue;
@@ -2085,7 +2087,7 @@ fn prism_inside<T: Decide>(
     };
     let f = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))?;
     let mut slack = T::zero();
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let Some(walk) = loop_walk(body, lp) else {
@@ -2097,7 +2099,7 @@ fn prism_inside<T: Decide>(
             }
             let w = body
                 .half_edge_end(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a face edge's end"))?;
+                .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face edge's end"))?;
             let Some((Curve3::Line { dir, .. }, _, _)) = carrier_of(body, edge) else {
                 return Ok(None);
             };
@@ -2353,7 +2355,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     for v in verts {
         let fan = body
             .edges_of_vertex(v)
-            .ok_or_else(|| not_intact(EntityId::Vertex(v), "a chain vertex's edge fan"))?;
+            .ok_or_else(|| unwalked(EntityId::Vertex(v), "a chain vertex's edge fan"))?;
         if !fan.iter().all(|e| requested.binary_search(e).is_ok()) {
             continue;
         }
@@ -2384,7 +2386,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         reaches.push(r);
     }
     let boxes = FaceBoxes::of(body, band)
-        .map_err(|e| not_intact(EntityId::Face(e.0), "a face's certified box"))?;
+        .map_err(|e| disagrees(EntityId::Face(e.0), "a face's certified box"))?;
     // Two chains that share a vertex meet there in a corner or a turn,
     // which the corner predicate and the surgery judge: their bands
     // touch by construction.
