@@ -7,8 +7,8 @@
 //! - a circle tangent to the wall, or crossing or clearing it by less
 //!   than `Kε` in the residual the band classifies (`d + d²/2r` at a
 //!   distance `d`, `geom_brep::implicit_residual`), at any tilt, is
-//!   escalated or `Uncertain`, never a `Miss` or a certified count (D1's
-//!   trilean), and `OnSurface` only where it lies on the wall to within
+//!   escalated or `Unsettled`, never a `Miss` or a certified count (D1's
+//!   trilean), and `On` only where it lies on the wall to within
 //!   the band all round;
 //! - a circle within the band of square to the wall's axis, which the
 //!   first-harmonic arm takes, whose extreme is aimed at the zero band's
@@ -124,11 +124,11 @@ fn noise_reading(c: &geom::Curve3<f64>, r: f64) -> f64 {
 
 /// Whether the band permits `got`, the door's answer on an arc of the
 /// circle `c` against the wall of radius `r`, of the pose whose truth is
-/// `truth` (module docs): `Uncertain` or an escalation always, `OnSurface`
+/// `truth` (module docs): `Unsettled` or an escalation always, `On`
 /// where the circle lies within `Kε` of the wall all round, and a `Miss`
 /// or a count only on a pose clear of `Kε` in the residual, and true.
 fn permitted(
-    got: &Result<CircleRoots<f64>, BooleanError>,
+    got: &Result<Result<CircleRoots<f64>, Unsettled>, BooleanError>,
     truth: &exact::Truth,
     c: &geom::Curve3<f64>,
     r: f64,
@@ -136,11 +136,11 @@ fn permitted(
 ) -> bool {
     let clear = truth.residual_depth >= 10.0 * eps;
     match got {
-        Ok(CircleRoots::Uncertain) | Err(_) => true,
-        Ok(CircleRoots::OnSurface) => farthest(c, r) <= 10.0 * eps,
-        Ok(CircleRoots::Miss) => clear && truth.roots.is_empty(),
-        Ok(CircleRoots::Certified { count, .. }) => clear && *count == truth.roots.len(),
-        Ok(CircleRoots::AtApex) => false,
+        Ok(Err(Unsettled::AtApex)) => false,
+        Ok(Err(_)) | Err(_) => true,
+        Ok(Ok(CircleRoots::On(_))) => farthest(c, r) <= 10.0 * eps,
+        Ok(Ok(CircleRoots::Miss)) => clear && truth.roots.is_empty(),
+        Ok(Ok(CircleRoots::Certified(found))) => clear && found.count() == truth.roots.len(),
     }
 }
 
@@ -434,7 +434,7 @@ fn a_first_harmonic_extreme_at_the_bands_edges_is_answered_truly_or_not_at_all()
                 let truth = exact::truth(&c, &wall(r));
                 let got = conic_quadric_roots(&c, m - h, m + h, &wall(r), band);
                 posed += 1;
-                answered += usize::from(!matches!(got, Ok(CircleRoots::Uncertain) | Err(_)));
+                answered += usize::from(!matches!(got, Ok(Err(_)) | Err(_)));
                 if !permitted(&got, &truth, &c, r, eps) {
                     wrong.push(format!(
                         "ε {eps:e}, aimed {target:e}, A₂ {a2:e} (residual {:.6e}, {} true \
@@ -464,7 +464,7 @@ fn a_first_harmonic_extreme_at_the_bands_edges_is_answered_truly_or_not_at_all()
 /// circle whose plane holds the wall's axis. Square to the axis the
 /// first-harmonic arm escalates it on the exact range; tilted, the
 /// subdivision splits the piece holding the double root down to the
-/// band's width and answers `Uncertain`.
+/// band's width and refuses `Unsettled`.
 #[test]
 fn an_exact_tangency_is_escalated_at_every_tilt() {
     let mut wrong = Vec::new();
@@ -486,7 +486,7 @@ fn an_exact_tangency_is_escalated_at_every_tilt() {
                 for b in [0.0, PI, 0.5 * PI] {
                     let c = tangent_circle(r, rho, 0.0, tilt, b);
                     let got = conic_quadric_roots(&c, -1.0, 1.0, &wall(r), band);
-                    if !matches!(got, Ok(CircleRoots::Uncertain) | Err(_)) {
+                    if !matches!(got, Ok(Err(_)) | Err(_)) {
                         wrong.push(format!(
                             "ε {eps:e}, wall r {r}, ρ {rho}, tilt arc {s:e}, b {b}: {got:?}"
                         ));
@@ -521,10 +521,11 @@ fn a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly() {
     let truth = exact::truth(&c, &wall(1.0));
     assert_eq!(truth.roots.len(), 2, "the pose crosses the wall twice");
     let got = conic_quadric_roots(&c, -1.0, 1.0, &wall(1.0), band);
-    let Ok(CircleRoots::Certified { count: 2, thetas }) = got else {
+    let Ok(Ok(CircleRoots::Certified(found))) = got else {
         panic!("two certified crossings, got {got:?}");
     };
-    for &t in &thetas[..2] {
+    let thetas: [_; 2] = found.roots().try_into().unwrap();
+    for &t in &thetas {
         let off = truth
             .roots
             .iter()
@@ -537,7 +538,7 @@ fn a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly() {
 /// **A root whose slack reads in the band's gap is refused**: a crossing
 /// of the ρ = 1500 family `5.4e-8` m deep at `ε = 1e-9`, whose bisected
 /// roots read ON the wall but whose slack meter cannot place them inside
-/// the zero band. The answer is `Uncertain`; a meter that accepted the
+/// the zero band. The answer is refused `Unsettled`; a meter that accepted the
 /// gap reading certifies both roots `2.05e-9` m from the truth.
 #[test]
 fn a_root_whose_slack_reads_in_the_gap_is_refused() {
@@ -555,10 +556,7 @@ fn a_root_whose_slack_reads_in_the_gap_is_refused() {
         "the pose crosses the wall twice"
     );
     let got = conic_quadric_roots(&c, -1.0, 1.0, &wall(1.0), band);
-    assert!(
-        matches!(got, Ok(CircleRoots::Uncertain)),
-        "refused, got {got:?}"
-    );
+    assert!(matches!(got, Ok(Err(_))), "refused, got {got:?}");
 }
 
 /// **A circle of radius 1500 against a unit wall places every certified
@@ -599,11 +597,12 @@ fn a_circle_of_radius_1500_places_its_roots_within_the_zero_band() {
             let truth = exact::truth(&c, &wall(1.0));
             let got = conic_quadric_roots(&c, -1.0, 1.0, &wall(1.0), band);
             match got {
-                Ok(CircleRoots::Miss) if !truth.roots.is_empty() => wrong.push(format!(
+                Ok(Ok(CircleRoots::Miss)) if !truth.roots.is_empty() => wrong.push(format!(
                     "ε {eps:e}, depth {depth:e}, g {g}, b {b}: Miss on {} true roots",
                     truth.roots.len()
                 )),
-                Ok(CircleRoots::Certified { count, thetas }) => {
+                Ok(Ok(CircleRoots::Certified(found))) => {
+                    let (count, thetas) = (found.count(), found.roots());
                     if count != truth.roots.len() {
                         wrong.push(format!(
                             "ε {eps:e}, depth {depth:e}, g {g}, b {b}: {count} certified, {} true",
@@ -689,10 +688,10 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
             }
             let got = circle_torus_roots(&c, m - h, m + h, &torus, band);
             let true_answer = match &got {
-                Ok(CircleRoots::Uncertain | CircleRoots::AtApex) | Err(_) => continue,
-                Ok(CircleRoots::Miss) => truth.roots.is_empty(),
-                Ok(CircleRoots::Certified { count, .. }) => *count == truth.roots.len(),
-                Ok(CircleRoots::OnSurface) => false,
+                Ok(Err(_)) | Err(_) => continue,
+                Ok(Ok(CircleRoots::Miss)) => truth.roots.is_empty(),
+                Ok(Ok(CircleRoots::Certified(found))) => found.count() == truth.roots.len(),
+                Ok(Ok(CircleRoots::On(_))) => false,
             };
             if truth.residual_depth < eps || !true_answer {
                 wrong.push(format!(

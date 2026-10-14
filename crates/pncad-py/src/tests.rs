@@ -3757,8 +3757,10 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         check_evidence_tag(&CheckEvidence::SeparationUnavailable {
-            kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
-            reason: "boxes refused".into()
+            refusal: pncad::topo::BooleanError::ClassificationInvariant {
+                what: "boxes refused"
+            }
+            .into()
         }),
         "separation_unavailable"
     );
@@ -3834,8 +3836,10 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         &["other_root", "other_output"],
     );
     let unavailable = E::SeparationUnavailable {
-        kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
-        reason: "boxes refused".into(),
+        refusal: pncad::topo::BooleanError::ClassificationInvariant {
+            what: "boxes refused",
+        }
+        .into(),
     };
     carries(&unavailable, &["reason", "boolean_variant"]);
 
@@ -3914,9 +3918,19 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     let pair = check_payload(&separated);
     assert_eq!(pair.other_root, Some(RecipeNodeId::new(0, 4)));
     assert_eq!(pair.other_output, Some(2));
+    let E::SeparationUnavailable { refusal } = &unavailable else {
+        unreachable!("built as the separation arm above")
+    };
+    let words = check_payload(&unavailable);
     assert_eq!(
-        check_payload(&unavailable).reason.as_deref(),
-        Some("boxes refused")
+        words.reason.as_deref(),
+        Some(refusal.to_string().as_str()),
+        "the reason is the kernel's own sentence, whole"
+    );
+    assert_eq!(
+        words.boolean_variant,
+        Some("classification_invariant"),
+        "the class is the arm the refusal is"
     );
 }
 
@@ -4860,6 +4874,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_undecided",
             "lineage_row",
             "merge",
+            "mixed_seam",
             "nesting_unread",
             "non_finite_sector_chord",
             "non_manifold_result",
@@ -4973,6 +4988,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coincidence_relation_tag",
         values: &[
+            "axes_meet",
             "co_ruled",
             "coaxial",
             "common_foot",
@@ -4980,6 +4996,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "on_carrier",
             "same_opposite",
             "same_oriented",
+            "same_radius",
             "surface_tangent",
             "tangent",
         ],
@@ -5025,6 +5042,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "carrier_ladder",
             "census_at_rest",
             "coaxial_sphere",
+            "crossing_cylinders",
             "plane_ladder",
             "profile_junction",
             "split_on",
@@ -6097,6 +6115,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "partition",
             "pcurve",
             "rim",
+            "rim_seam_mixed",
             "roles",
             "thickness",
             "wall_clearance",
@@ -6488,6 +6507,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "loop_cycle_overrun",
             "loop_role_inverted",
             "missing_provenance",
+            "mixed_dihedral",
             "multiply_owned",
             "negative_volume",
             "next_prev_mismatch",
@@ -6499,6 +6519,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "orphan_entity",
             "orphan_geometry",
             "outer_listed_as_ring",
+            "pair_corner_determined",
+            "pair_tangency_determined",
             "parent_loop_mismatch",
             "pcurve",
             "pinch_corner_crossed",

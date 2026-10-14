@@ -2335,3 +2335,38 @@ The PR merged with `demos` red on that drift alone.
 **Process.**
 - The fold's first push broke CI's build: `crates/viewer` includes `tests/fixture/mod.rs` by path. Fixed on the next push.
 - The lane's target reached 22G and filled `/` once.
+
+## 2026-10-14 — PR 5122: resolver cascade and the separation refusal
+
+**Closed:**
+- `a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`. The cascade rung no longer blames a retired constituent. Two rules:
+  - it reads through a `Merged` set's constituents, decided in `embedded` under `Partners::Cascade`;
+  - a name that a live merge of its own minting node covers is retired, not vanished (`retired_into_a_live_merge`).
+  
+  A vanished merged name, nested or not, is now diagnosed at the edit, `RecipeEdit`. The names README is unchanged.
+- `separation-unavailable-carries-the-kernel-refusal-shared`. `CheckEvidence::SeparationUnavailable` holds `Refusal<topo::BooleanError>` whole. Python's `reason` and `boolean_variant` are unchanged. `payload-rung-sweep` drops one uncurated row and gains one cross-list row.
+
+**Review.**
+- The falsifier confirmed a nested-union gap by running it. The second rule fixes it, and the gap has its own end-to-end test.
+- Style: the README sentence was dropped (it was already implied by N3 and N5); topo's `BooleanErrorKind` doc was corrected; the skip rule now lives in one place.
+
+**Nothing moved** apart from those diagnoses.
+
+## 2026-10-14 — PR 5139: borders lineage; notch and pocket-floor rows measured
+
+**Closed: `a-booleans-same-step-split-and-join-loses-the-childs-lineage`.**
+- A new topo record, `BooleanNaming::joined_lineage` (record only), maps each edge the output-stage join kills to the edge it was split from.
+- The boolean and the Split now share the helpers `edge_join::split_records` and `edge_join::record_joined_lineage`, which keep the two-parent assert.
+- `borders.rs` reads the record. Every `split_from` write goes through `note_split`, an agreeing `entry` write.
+- No name moved. A whole-suite probe found no change in which discards each piece reaches.
+
+**Measured and stopped on design** (`design: true`):
+- `a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex`. The notch pins are named `…_read_as_one_obstacle_today`.
+- `a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere`. The pocket-floor pin is `#[ignore]`d.
+- Both questions went to the blinded designer pair `emit-notch-floor`.
+
+**Still open:** `a-face-whose-discarded-fragments-share-a-chord-has-no-fixture`, which no fixture reaches yet.
+
+**Filed:** `a-booleans-merge-stage-kills-split-records-no-row-copies`.
+
+**Process.** The lane's 11G target, together with two designer builds, brought `/` down to 7G free. The fold round skipped its workspace build, and the target was deleted once the fold was pushed.

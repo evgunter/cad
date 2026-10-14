@@ -1478,3 +1478,46 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Step 3 with the two-split restriction (A) beats step 2:** shelling 126 vs 139 s, r1 64 vs 76 s. Rung counts and margins are identical; 0–0.37% of meets fall outside, against 69–88% for step 2's cut.
   - **#5059** carries a compensated (double-word) midpoint, width ~16u² of the terms at a cancellation.
   - Order: #5059 (main merge, then FULL) → step 3 (FULL).
+- 2026-10-14 10:22Z — **Friction:** #5104's test step 8 (default ε) went red at 3a366af7, and no session could name the failing row.
+  - `get_job_logs` returns only the job's last 5000 lines, and later steps push step 8's FAIL line out of that window.
+  - Job re-run is 403 ("Resource not accessible by integration"); the log blob URL is proxy-blocked; the annotations say only "exit code 100".
+  - Locally at the same head and profile: 13972/13972. Suspected cause: the seed-varying enclose fuzzer filed on SSIARITH.
+  - Re-running via a legitimate main merge.
+- 2026-10-14 10:24Z — **Correction:** I wrote at 08:11 that #5104's TIER=all run had passed the slow set. It did not: at TIER=all the slow-set step is **skipped**, because its seed list is empty. The slow-set evidence for lto=off is the lane's local three-ε run, which matches main's nightly reds exactly.
+  - **Finding:** a ci.yml diff runs every row except the slow set. Noted for CIW.
+  - In the same hosted job, 1e-6 and 1e-12 ran the whole suite at 13972/13972. So the default-ε red points to a seed-varying row, not to lto=off.
+- 2026-10-14 11:27Z — **#5104 merged** (2e59df73, STYLE). The CI test and cache-prime builds now run with `lto = "off"`. Local saving: −5 min build, −3.75 min job. The hosted saving is to be measured by the build-time lane.
+  - The CIW items (TIER=all skips the slow set; a FAIL line past the 5000-line log tail can't be named, re-run returns 403) are going in via #5120.
+  - **#5059 FULL review: approve with fixes.** **M1 (pre-existing on main, the subject of the closed ssiarith item):** `rect_box`'s rounded `um ± hu` can miss the window's own corner. Witness: z = 1000x − 500 on u ∈ [½, ½ + 3·2⁻⁵³]; random search finds 15,856 of 400k corners missed on a slope-1000 line. Build C fixes it in #5059 with outward `[u0 − um, u1 − um]` plus a red-under-mutant row.
+  - `compensated.rs` was re-derived against JMP17 with no miss, and 2500 adversarial cells were checked against exact rationals. The midpoint costs +22% per `rect_box`.
+  - **#5123 (step 3)** is in FULL review. **#5114 (exact-scale)** waits on CI.
+- 2026-10-14 12:21Z — **#5059 re-check OK** at 7a8cc0b9: the M1 outward offsets give 0/400k corner misses on each wall, and the m1 and m2 rows are red under their mutants. It merges on green.
+  - **#5123 (step 3) FULL review: one MAJOR, the timing doesn't reproduce.** Head vs its own base d0497984: r1 93–96 s vs 64–65 s (45% slower), shelling unchanged. gdb puts 24 of 30 samples in `split_restrict` under `cut`.
+    - Build C's (A)-vs-step-2 table used a base without #5059. Everything else holds: soundness, the meet, retirements, the +1.11e-17 touch claim, parity, and downstream 275/275 and 266/266 at 3 ε.
+    - Ruling: no landing as a regression. Re-measure and profile head vs base; if (A) can't beat it, (B) goes to the designers.
+  - **#5132 (build A): the SSIARITH rigid-map fuzzer P2.** The cause is the test's scale (the margin rounds at magnitude 1, not at its own value), not a bound. Test-only fix, with the 4 seeds pinned and a production mutant still red. FULL review on green.
+  - **#5114 (exact-scale)** is in FULL review.
+- 2026-10-14 12:48Z — **#5059 merged** (01bd9fa7, FULL plus the M1 re-check). It closes `work/ssiarith/chart-point-signs-are-f64-evaluations`. #5132 (the rigid-map fuzzer, test-only) is in FULL review.
+- 2026-10-14 13:25Z — **Step 3 postscript round converged** (both designers, on the fork record branch). Keep "the cut restricts the formed quotients"; reject (B) step 2's cut and (D′) per-cut choice. Make the restriction cheap, in this order:
+  - (1) a thin-ratio step instead of `Interval::between`;
+  - (2) axis-lazy restriction;
+  - (3) a window-reading object that restricts once across doors;
+  - (4) batching;
+  - (5) a one-piece cut, only if still needed.
+  - The fallback is to restrict the formed low-degree grids. #5123 lands only when it's no regression against main on either row.
+  - **Protocol finding:** I appended B's answer to the fork record before A had answered, and A's brief pointed it there, so A's answer was not blind (A disclosed this). Next time, append postscript answers only after both are in.
+  - #5132 (fuzzer) is at 5ed36e07 after review fixes, with Unit tightened to 32 ulps. #5114 is in FULL review, with the ε rows green and slow sets running.
+- 2026-10-14 13:50Z — **#5132 merged** (d6396bc0; FULL review mergeable, follow-up test-module plus docs only). It closes both SSIARITH rigid-map fuzzer items.
+  - Build A's next unit is measurement only, so it can't collide with #5123's files: a perf split of shelling and r1 on main and on #5123's head (how much of the excess over pre-4954 is not the quotient unit), plus a `RATIONAL_CERT_SPLITS`/`BLOCK_PIECE_SPLITS` sensitivity run on main. Tables go to build C too.
+  - The NURBS slate on main has no unblocked code item outside #5123's territory: the corner-end refusal and the elevation conditioning both wait on a consumer.
+- 2026-10-14 14:40Z — **#5114 FULL review: one soundness MAJOR.** `exact_scale` tests `|r| ≥ MIN_POSITIVE` on the rounded product, so an exact product one 2^-1075 step below MIN_POSITIVE rounds up and is returned unpadded (bits `0x001F_FFFF_FFFF_FFFF` × 0.5). Everything else is clean, and callgrind shows −15% total. Sent to build A (it owns #5114) ahead of its profiling unit.
+  - **#5123 step 1 (thin step) beats main:** shelling 144 → 106 s (−27%), r1 47 → 36 s (−23%). Rungs are identical and margins agree within 2e-13. The plain thin step widened equal neighbours by t's width; equal-neighbour exactness (`x == y` steps to `x`) brings the cut-wider-than-whole meets down to 0.5–8.6%, and the meet clamps those.
+  - **Ruling:** that's a lost tightening, not a lost decision. #5123 lands on step 1 once it is re-timed against main, passes the downstream suites at both ε, has a witness row and gets the reviewer's re-check. Steps 2–4 (axis-lazy, a window-reading object, batching) become a filed follow-up.
+- 2026-10-14 15:20Z — **#5114 merged** (e27a4648). The MAJOR is fixed with a strict `|r| > MIN_POSITIVE`, plus a boundary row that was red on the prior head. The reviewer's exhaustive boundary scan (1.17M cases) finds 0 inexact shortcuts, against 1022 under `>=`. Callgrind: −15% total, −26% on halving.
+  - **#5123 re-timed** (thin step plus equal-neighbour exactness, b3d723f3, against main 85caa597): shelling 143 → 97 s (−32%), r1 49 → 32 s (−35%). Build C acknowledged the ruling: it lands on step 1, with steps 2–4 as a follow-up. It is merging main (now with #5114) and doing the landing items.
+- 2026-10-14 15:30Z — **The hosted saving from lto off (#5104) is measured.** The median `test` build step fell from 1206 to 871 s (−335 s; n = 60 vs 31, against main's cache prime at 11:32Z), matching the local −291/−302 s. Whole test jobs on two branches went from 55.7 to 30.4 min and from 45.3 to 34.2 min, though the trees differed between those runs. Recorded on the CIW findings item via #5143 (tracker only).
+- 2026-10-14 15:55Z — **Build A's profile split** (measurement only; gdb sampling, fresh targets, main d6396bc0 against #5123's pre-thin-step 2d1a8d73).
+  - **Shell:** the slow rows' excess over pre-4954 is ≈95% the quotient unit (forming, restriction and the piece readers). The remainder is ≈9% offset-fit Bernstein products (`compose.rs` `bern_mul_row_into` under `offset_fit::dot_spans`) plus ≈4 s walk.
+  - **r1:** essentially all quotient. Its +30% at 2d1a8d73 was `split_restrict`/`between`, which the thin step has since fixed (−35% against main).
+  - **Piece counts:** `RATIONAL_CERT_SPLITS` 16 → 8 doesn't move these rows. `BLOCK_PIECE_SPLITS` 2 → 1 gives −36% shell and −24% r1, but reds `a_block_is_read_on_its_pieces` and the m5_pr7 flat-wall slope margin at 1e-9, a real decision. It is filed as the converged plan's step 5 (an adaptive split), with those rows as its guard.
+  - **Build A's next unit:** offset-fit Bernstein products. Measure repeated `Composite::build` calls and a cheaper sound inner term, then implement what's real. It stays out of #5123's files.
