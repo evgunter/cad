@@ -201,8 +201,8 @@ fn ellipse() -> Curve3<f64> {
     Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
-        major: 2.0,
-        minor: 1.0,
+        semi_u: 2.0,
+        semi_v: 1.0,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }

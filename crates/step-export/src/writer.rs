@@ -431,20 +431,22 @@ impl<'a> Writer<'a> {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => {
+                // STEP's `semi_axis_1` lies along the placement's
+                // reference direction, in either order with `semi_axis_2`.
                 let placement = self.axis2_placement(
                     center,
                     axis,
                     u_ref,
                     "ellipse centre",
                     "ellipse axis",
-                    "ellipse u_ref (semi-major direction)",
+                    "ellipse u_ref (seam direction)",
                 )?;
-                let a = fmt_real(major, "ellipse semi-major axis")?;
-                let b = fmt_real(minor, "ellipse semi-minor axis")?;
+                let a = fmt_real(semi_u, "ellipse semi-axis along the seam")?;
+                let b = fmt_real(semi_v, "ellipse semi-axis across the seam")?;
                 self.emit(&format!("ELLIPSE('', #{placement}, {a}, {b})"))
             }
             // A spiric has no STEP entity — a bicircular quartic of
