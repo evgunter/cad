@@ -4901,6 +4901,25 @@ pub fn whole_step_count<T: Decide>(
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<i32, BranchMiss> {
+    let out = whole_step_count_inner(name, gap, (period, per), from, meter, band);
+    if name != "pcurve_loop_branch" && !matches!(out, Ok(0)) {
+        use std::io::Write as _;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/root/probes/census.log") {
+            let t = std::thread::current();
+            let _ = writeln!(f, "{name}\t{out:?}\tfrom={from}\t{}", t.name().unwrap_or("?"));
+        }
+    }
+    out
+}
+
+fn whole_step_count_inner<T: Decide>(
+    name: &'static str,
+    gap: T,
+    (period, per): (T, i32),
+    from: i32,
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<i32, BranchMiss> {
     let reach = MAX_BRANCH_PERIODS * per;
     let half = T::from_f64(0.5);
     let mark = |k: i32, side: T| {
@@ -10716,5 +10735,38 @@ mod iso_arc_poison {
             &breaks,
         );
         assert!(g.value.is_nan() && g.deriv.is_nan(), "{g:?}");
+    }
+}
+
+#[cfg(test)]
+mod review_5126_probes {
+    use geom_core::{Band, Interval, Margin, Real, SpanLocate};
+    use super::{branch_estimate, whole_step_count_any};
+    fn band() -> Band { Band::new(1e-9, 1e-8).expect("band") }
+    #[test]
+    fn review_5126_probe_scalars() {
+        let tau = f64::tau();
+        let it = Interval::tau();
+        for (n, w) in [(10.3, 0.0), (10.3, 1.0), (10.3, 2.0), (10.3, 4.0), (2.3, 4.0), (10.5, 0.0), (10.5, 1e-12), (10.5, 0.3), (10.5, 2.0), (1e7, 0.0)] {
+            let c = Interval::from_f64(n * tau);
+            let g = (c - Interval::from_f64(w)).enclosure_hull(c + Interval::from_f64(w));
+            let e = branch_estimate(g, it);
+            let r = whole_step_count_any("t", g, (it, 1), Margin::of, band());
+            let rf = whole_step_count_any("t", n * tau, (tau, 1), Margin::of, band());
+            eprintln!("PROBE n={n} w={w} est={e:?} interval={r:?} f64={rf:?}");
+        }
+        for g in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 1e300, -25.7 * tau] {
+            eprintln!("PROBE f64 {g:e}: est={:?} any={:?}", branch_estimate(g, tau), whole_step_count_any("t", g, (tau, 1), Margin::of, band()));
+        }
+        let ninf = Interval::from_f64(5.0 * tau).enclosure_hull(Interval::from_f64(f64::INFINITY));
+        eprintln!("PROBE interval [5τ,inf]: est={:?} any={:?}", branch_estimate(ninf, it), whole_step_count_any("t", ninf, (it, 1), Margin::of, band()));
+        // levered meter at tiny lever: far gap
+        for lever in [1e-11, 1e-10, 3e-10, 1e-9] {
+            let r = whole_step_count_any("t", 30.0 * tau, (tau, 1), |g| Margin::levered(g, lever), band());
+            eprintln!("PROBE lever={lever:e} gap 30τ -> {r:?}");
+        }
+        // Dual
+        let d = geom_core::Dual::<f64>::new(25.3 * tau, 1.0);
+        eprintln!("PROBE dual -> {:?}", whole_step_count_any("t", d, (geom_core::Dual::from_f64(tau), 1), Margin::of, band()));
     }
 }

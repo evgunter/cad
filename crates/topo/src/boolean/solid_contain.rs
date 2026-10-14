@@ -5894,6 +5894,33 @@ mod torn_hop_rows {
     }
 
     #[test]
+    fn review_5126_probe_torus_window_far_carrier() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let tau = std::f64::consts::TAU;
+        for n in [0.0, 1.0, 3.0, 5.0, -5.0, 10.0] {
+            let built = std::panic::catch_unwind(|| crate::boolean::boxes::tests::torus_wall_shifted(
+                n * tau,
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                2.0,
+                0.5,
+                (0.3, 1.9),
+                (-0.7, 0.8),
+            ));
+            match built {
+                Err(_) => eprintln!("PROBE torus n={n}: fixture panicked (mint?)"),
+                Ok((body, face)) => {
+                    let w = torus_chart_windows(&body, face, band);
+                    let v = crate::pcurves::validate_pcurves(&body, band);
+                    let fw = torus_face_windows(&body, face, 2.0, 0.5, band);
+                    eprintln!("PROBE torus n={n}: windows={:?} face_windows={:?} tier3={}", w.map(|w| w.is_some()), fw.map(|_| ()), v.len());
+                }
+            }
+        }
+    }
+
+    #[test]
     fn the_torus_window_panics_on_a_torn_curve() {
         let band = Band::linear(geom_core::Tol::witness()).unwrap();
         let (mut body, face) = crate::boolean::boxes::tests::torus_wall(

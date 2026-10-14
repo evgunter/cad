@@ -6018,6 +6018,55 @@ mod stretch_meter {
         }
     }
 
+    /// review/5126-r probe: far gaps at a near-pole / narrow-cone joint.
+    #[test]
+    fn review_5126_probe_far_gap_near_pole() {
+        use super::{Deck, JointElement, decide_joint};
+        use geom_brep::Pcurve;
+        use geom_core::{Point2, Vec2};
+        let _ = Deck::IDENTITY;
+        let zero = Vec2::new(0.0, 0.0);
+        let tau = std::f64::consts::TAU;
+        let at_gap = |surface: &Surface<f64>, vertex, v: f64, gap: f64| {
+            let image = Pcurve::Harmonic { p0: Point2::new(0.0, v), pa: zero, pb: zero, pl: zero };
+            let prev = Point2::new(gap, v);
+            decide_joint(chart(surface), &image, 0.0, prev, vertex, Some(tau), band())
+        };
+        let read = |out: Result<JointElement, super::PinMiss>| match out {
+            Ok(element) => format!("{element:?}"),
+            Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
+            Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
+            Err(super::PinMiss::OutOfReach) => "OutOfReach".into(),
+        };
+        let sphere: Surface<f64> = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for x in [5e-9, 7e-9, 9e-9, 2e-8] {
+            let p = Point3::new(x, 0.0, (4.0 - x * x).sqrt());
+            let s = singular_at(chart(&sphere), p, band());
+            let v = (p.z / 2.0).asin();
+            for n in [1.0, 1.5, 2.0, 3.0, 5.0, 10.0] {
+                eprintln!("PROBE sphere x={x:e} {s:?} gap={n}τ -> {}", read(at_gap(&sphere, p, v, n * tau)));
+            }
+        }
+        let alpha = 0.01f64;
+        let cone: Surface<f64> = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for d in [2.0, 100.0, 300.0, 1000.0].map(|m| m * band().escalate()) {
+            let vertex = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
+            for n in [0.5, 1.0, 5.0, 10.0, 10.5] {
+                eprintln!("PROBE cone d={d:e} lever={:e} gap={n}τ -> {}", d * alpha.sin(), read(at_gap(&cone, vertex, d, n * tau)));
+            }
+        }
+    }
+
     /// **A joint clear of the apex, or within the band of a pole, takes
     /// a lift of its own point at any gap on its orbit.** At `α = 0.01`
     /// a vertex `d` from the apex is decided `Off` the singular set from
@@ -6760,6 +6809,29 @@ mod pole_slit_tests {
             .iter()
             .map(|&he| format!("{he:?} {:?} {:?}", body.pcurve(he), body.joint(he)))
             .collect()
+    }
+
+    #[test]
+    fn review_5126_probe_chart_region_far_patch() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let b0 = cylinder_patch_below(0.0).unwrap();
+        for periods in [0.0, 4.0, 6.0, 7.0, 8.0, 9.0, 10.0, 20.0, 100.0] {
+            let a = match cylinder_patch_below(periods) {
+                Ok(a) => a,
+                Err(e) => { eprintln!("PROBE cyl {periods}: mint refused {e:?}"); continue; }
+            };
+            for (f, face) in a.faces() {
+                let LoopBoundary::Cycle { first } = a.get_loop(face.outer).unwrap().boundary else { continue };
+                let cycle = a.loop_cycle(first).unwrap();
+                let xs: Vec<String> = crate::pcurves::lifted_images(&a, &cycle).iter().zip(&cycle).map(|(im, he)| {
+                    let (t0, t1) = a.pcurve(*he).map(|c| c.params()).unwrap_or((0.0, 0.0));
+                    im.as_ref().map_or("none".into(), |im| format!("t[{t0:e},{t1:e}] u {:e}..{:e} v {:e}..{:e} img {im:?}", im.eval(t0).x, im.eval(t1).x, im.eval(t0).y, im.eval(t1).y))
+                }).collect();
+                let o = crate::chart_region_overlap(&a, f, &b0, f, band);
+                let self_o = crate::chart_region_overlap(&a, f, &a, f, band);
+                eprintln!("PROBE cyl {periods} face {f:?}: lifted u {xs:?}\n   vs unshifted -> {o:?}\n   vs itself -> {self_o:?}");
+            }
+        }
     }
 
     /// **A carrier stated whole periods off its azimuth mints.** Nothing

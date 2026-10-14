@@ -3950,6 +3950,187 @@ pub(crate) mod tests {
         (body, face)
     }
 
+    /// review/5126-r probe copy of torus_wall, bottom parallel shifted.
+    pub(crate) fn torus_wall_shifted(
+        shift: f64,
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        u_ref: Vec3<f64>,
+        major: f64,
+        minor: f64,
+        (u0, u1): (f64, f64),
+        (v0, v1): (f64, f64),
+    ) -> (Body<f64>, FaceKey) {
+        let v_ref = axis.cross(u_ref);
+        let e = |u: f64| u_ref * u.cos() + v_ref * u.sin();
+        let on =
+            |u: f64, v: f64| center + e(u) * (major + minor * v.cos()) + axis * (minor * v.sin());
+        let mut body = Body::<f64>::new();
+        // The seed FIRST: a surface added before it has a face is
+        // orphan geometry, which `mvfs`'s tier-1 postcondition
+        // rejects.
+        let seed = body.mvfs(on(u0, v0), true).unwrap();
+        let torus = body.add_surface(Surface::Torus {
+            center,
+            axis,
+            major_radius: major,
+            minor_radius: minor,
+            u_ref,
+        });
+        // A PARALLEL at `v`: the torus cut by the plane ⊥ the axis
+        // there. Ascending in `u` when `up`, descending otherwise.
+        let parallel = |body: &mut Body<f64>, v: f64, up: bool| {
+            let c = center + axis * (minor * v.sin());
+            let radius = major + minor * v.cos();
+            let plane = body.add_surface(Surface::Plane {
+                origin: c,
+                normal: axis,
+                u_ref,
+            });
+            let (carrier, t0, t1) = if up {
+                (
+                    Curve3::Circle {
+                        center: c,
+                        axis,
+                        radius,
+                        u_ref,
+                    },
+                    u0 + shift,
+                    u1 + shift,
+                )
+            } else {
+                (
+                    Curve3::Circle {
+                        center: c,
+                        axis: -axis,
+                        radius,
+                        u_ref: e(u1),
+                    },
+                    0.0,
+                    u1 - u0,
+                )
+            };
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(torus, plane),
+                    witness: on((u0 + u1) * 0.5, v),
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        // A MERIDIAN at `u`: the torus cut by the plane through the
+        // axis at that azimuth. Ascending in `v` when `up`. The
+        // descending one is the chord `mef` closes the wall with, whose
+        // two faces are the seed and the wall: described as an image in
+        // the torus's chart, which the wall wears, since no face wears
+        // the cutting plane.
+        let meridian = |body: &mut Body<f64>, u: f64, up: bool| {
+            let spine = center + e(u) * major;
+            let description = if up {
+                EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(
+                        torus,
+                        body.add_surface(Surface::Plane {
+                            origin: center,
+                            normal: axis.cross(e(u)),
+                            u_ref: e(u),
+                        }),
+                    ),
+                    witness: on(u, (v0 + v1) * 0.5),
+                }
+            } else {
+                EdgeDescriptionSpec::chart(torus)
+            };
+            let (carrier, t0, t1) = if up {
+                (
+                    Curve3::Circle {
+                        center: spine,
+                        axis: e(u).cross(axis),
+                        radius: minor,
+                        u_ref: e(u),
+                    },
+                    v0,
+                    v1,
+                )
+            } else {
+                (
+                    Curve3::Circle {
+                        center: spine,
+                        axis: axis.cross(e(u)),
+                        radius: minor,
+                        u_ref: e(u) * v1.cos() + axis * v1.sin(),
+                    },
+                    0.0,
+                    v1 - v0,
+                )
+            };
+            EdgeCurveSpec {
+                description,
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let bottom = parallel(&mut body, v0, true);
+        let e_b = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                on(u1, v0),
+                bottom,
+                Tol::witness(),
+            )
+            .unwrap();
+        let right = meridian(&mut body, u1, true);
+        let e_r = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_b.he_minus,
+                    he2: e_b.he_minus,
+                },
+                on(u1, v1),
+                right,
+                Tol::witness(),
+            )
+            .unwrap();
+        let top = parallel(&mut body, v1, false);
+        let e_t = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_r.he_minus,
+                    he2: e_r.he_minus,
+                },
+                on(u0, v1),
+                top,
+                Tol::witness(),
+            )
+            .unwrap();
+        let he = body
+            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
+            .unwrap();
+        let left = meridian(&mut body, u0, false);
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: e_b.he_plus,
+                },
+                left,
+                FaceSurface::Shared {
+                    key: torus,
+                    sense: true,
+                },
+                Tol::witness(),
+            )
+            .unwrap()
+            .face;
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        (body, face)
+    }
+
     /// A CONE wall face: the patch `u ∈ [u0, u1] × z ∈ [z0, z1]` on
     /// the cone of half-angle `alpha` about `z` with its apex at the
     /// origin. Rims are the cone's own circles, sides its generators.
