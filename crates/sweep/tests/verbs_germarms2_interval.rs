@@ -124,15 +124,16 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
 /// the direct pose's door key for key — measured, so it is asserted as
 /// an equality rather than assumed away. At `eps = 1e-12` the
 /// enclosures are wider than the band itself, and the certified lane
-/// refuses the FIXTURE before the geometry is ever in question —
-/// measured, on the meeting-axes pose:
+/// refuses the FIXTURE before the geometry is ever in question: an
+/// edge's certification escalates, at the crossing insertion or at the
+/// join's edge — measured, on the meeting-axes pose:
 ///
 /// ```text
-/// CrossingInsertion { operand: A, edge: EdgeKey(7v1), source: Certification {
-///   error: Escalated { check: MappedSource, sample: 7, cause: Indeterminate {
-///     margin: Enclosure { lo: 0.0, hi: 1.0970253705214178e-12 },
+/// Join(BooleanJoin(Euler(Certification { error: Escalated {
+///   check: EndpointStart, sample: 0, cause: Indeterminate {
+///     margin: Enclosure { lo: 0.0, hi: 1.5324803774465046e-12 },
 ///     band: Band { zero: 1e-12, escalate: 1e-11 },
-///     predicate: Some("carrier_matches_mapped_source") } } } }
+///     predicate: Some("carrier_endpoint_start") } } })))
 /// ```
 ///
 /// **Both narrowings matter, and neither is cosmetic.**
@@ -142,9 +143,9 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
 ///   A blanket "or escalates" would have accepted an escalation where
 ///   the measurement says the door is answered exactly.
 /// - The escape matches the escalation's SHAPE, not a substring of its
-///   rendering. It admits the certification escalation above — a
-///   crossing-insertion refusal whose predicate is
-///   `carrier_matches_mapped_source` — and it explicitly refuses an
+///   rendering. It admits an edge certification escalation like the
+///   one above, at the crossing insertion or the join's edge, and it
+///   explicitly refuses an
 ///   escalation of either germ-frame predicate, because those are the
 ///   very predicates this unit's rows exist to pin: a substring test
 ///   would have greened a `cc_axes_coplanar` escalation,
@@ -157,8 +158,9 @@ fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &
 }
 
 /// The one escape [`same_door_or_escalated`] admits, against the direct
-/// pose's answer `d`: a crossing-insertion certification escalation at
-/// the narrowest band, of no germ-frame predicate.
+/// pose's answer `d`: an edge certification escalation at the narrowest
+/// band, of no germ-frame predicate, at the crossing insertion or the
+/// join's edge.
 fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
     let r = format!("{reposed:?}");
     let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
@@ -168,8 +170,16 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
          pose's door key for key; direct {d}, re-posed {r}",
         band.zero()
     );
-    let BooleanError::CrossingInsertion { source, .. } = reposed else {
-        panic!("{what}: the only admitted escape is a crossing-insertion escalation; got {r}");
+    let source = match reposed {
+        BooleanError::CrossingInsertion { source, .. } => source,
+        BooleanError::Join(j) => match j.error() {
+            topo::SplitJoinError::Euler(source) => source,
+            _ => panic!("{what}: the only admitted escape is a certification escalation; got {r}"),
+        },
+        _ => panic!(
+            "{what}: the only admitted escape is a crossing-insertion or join edge's \
+             escalation; got {r}"
+        ),
     };
     let topo::EulerOpError::Certification { error } = source else {
         panic!("{what}: the only admitted escape is a certification refusal; got {r}");
