@@ -8,10 +8,10 @@
 //! result's seam pieces and poles then descend from the ball's by key
 //! but lie off the ball's own seam and poles. The subtract names them by
 //! key; the union reads member vertices off the members' own bodies,
-//! finds none at the turned pole, and reads it as a meeting of the
-//! ball's two meridians with no other member, which no pairwise
-//! judgement classifies. Which reading is right is the open question of
-//! [`ROW`].
+//! finds none at the turned pole, and reads it by the lines through it:
+//! the ball's two meridians, which lie on one great circle and so are
+//! one line, meeting no face of another member there. Which reading is
+//! right is the open question of [`ROW`].
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{failure, run};
@@ -84,7 +84,7 @@ fn a_ball_cut_by_a_brick_refuses_at_its_turned_pole_where_a_member_vertex_is_rea
         if op != "subtract" {
             let e = format!("{:?}", failure(&ev, out).expect("refuses"));
             assert!(
-                e.contains("has a side no pairwise judgement classified"),
+                e.contains("one member edge meets no face at a union vertex no seam reaches"),
                 "{what}: refused other than at the turned pole ({ROW}): {e}"
             );
             continue;

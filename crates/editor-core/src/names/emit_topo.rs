@@ -3179,10 +3179,14 @@ impl<T: Decide> Track<T> {
             .map_err(|source| NamingError::Escalated { predicate, source })
     }
 
-    /// `p`'s offset from the start along the carrier, in `[0, period)`
-    /// on a periodic one, where `p` lies on the carrier (its distance
-    /// from the carrier's point at its recovered parameter decided
-    /// zero through `predicate`); `None` off it.
+    /// `p`'s offset from the start along the carrier, where `p` lies on
+    /// the carrier (its distance from the carrier's point at its
+    /// recovered parameter decided zero through `predicate`); `None` off
+    /// it. On a periodic carrier the offset lies in `[0, period)`: zero
+    /// at the start, decided first, and otherwise read from the point
+    /// half a period on ([`geom::Curve3::param_near`] anchored there),
+    /// so the one point whose reading the anchor cuts, and where a
+    /// reduction into one period would jump, is the start.
     ///
     /// # Errors
     ///
@@ -3195,26 +3199,29 @@ impl<T: Decide> Track<T> {
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Option<T>, NamingError> {
-        let Some(u) = self.carrier.param_near(p, self.mid) else {
+        let gap = |q: Point3<T>| {
+            decide(predicate, Margin::of((p - q).norm()), bnd)
+                .map_err(|source| NamingError::Escalated { predicate, source })
+        };
+        let anchor = match self.period {
+            Some(per) => {
+                if gap(self.carrier.eval(self.t0))? == Sign::Zero {
+                    return Ok(Some(T::zero()));
+                }
+                self.t0 + per * T::from_f64(0.5)
+            }
+            None => self.mid,
+        };
+        let Some(u) = self.carrier.param_near(p, anchor) else {
             return Err(NamingError::CarrierUnplaced {
                 edge: self.edge,
                 carrier: self.carrier.kind(),
             });
         };
-        let gap = decide(
-            predicate,
-            Margin::of((p - self.carrier.eval(u)).norm()),
-            bnd,
-        )
-        .map_err(|source| NamingError::Escalated { predicate, source })?;
-        if gap != Sign::Zero {
+        if gap(self.carrier.eval(u))? != Sign::Zero {
             return Ok(None);
         }
-        let off = u - self.t0;
-        Ok(Some(match self.period {
-            Some(per) => off - per * (off / per).floor(),
-            None => off,
-        }))
+        Ok(Some(u - self.t0))
     }
 
     /// The stretches of offsets `arc` holds: one on an open carrier;
@@ -3341,18 +3348,19 @@ impl<T: Decide> EdgeCarrier<T> {
 }
 
 impl<T: Decide> Track<T> {
-    /// Whether edge `other` lies on this edge's carrier, a carrier of
-    /// its kind holding `other`'s two ends and its middle, and if so
-    /// whether the two run the same way along it: the cosine between
-    /// their tangents at `other`'s middle, levered by `other`'s length.
-    /// Two edges on one carrier are parallel there, so the cosine is ±1
-    /// and never near its band.
+    /// Whether edge `other` lies on this edge's carrier, and if so
+    /// whether the two run the same way along it, read off `other`'s
+    /// points a quarter, half and three quarters of the way along it:
+    /// it lies on the carrier when all three do ([`Track::offset`]),
+    /// and runs this edge's way when, going forward along the carrier
+    /// from the first, the second comes before the third. The two
+    /// stretches compared differ by a quarter of `other`, so the verdict
+    /// is never near its band.
     ///
     /// # Errors
     ///
-    /// [`NamingError::CarrierUnplaced`] on a carrier that recovers no
-    /// parameter for a point, as [`Track::offset`]; and
-    /// [`NamingError::Emission`] where the cosine decides zero.
+    /// As [`Track::offset`]; and [`NamingError::Emission`] where the
+    /// two stretches decide equal.
     pub(super) fn runs_with(
         &self,
         other: &Self,
@@ -3362,33 +3370,19 @@ impl<T: Decide> Track<T> {
         if self.carrier.kind() != other.carrier.kind() {
             return Ok(None);
         }
-        let on = [other.t0, other.mid, other.t0 + other.len];
-        for t in on {
-            if self
-                .offset(other.carrier.eval(t), predicate, bnd)?
-                .is_none()
-            {
-                return Ok(None);
+        let mut at = Vec::with_capacity(3);
+        for f in [0.25, 0.5, 0.75] {
+            let t = other.t0 + other.len * T::from_f64(f);
+            match self.offset(other.carrier.eval(t), predicate, bnd)? {
+                Some(o) => at.push(o),
+                None => return Ok(None),
             }
         }
-        let Some(u) = self
-            .carrier
-            .param_near(other.carrier.eval(other.mid), self.mid)
-        else {
-            return Err(NamingError::CarrierUnplaced {
-                edge: self.edge,
-                carrier: self.carrier.kind(),
-            });
+        let fwd = |x: T| match self.period {
+            Some(per) => x - per * (x / per).floor(),
+            None => x,
         };
-        let (mine, theirs) = (self.carrier.deriv(u), other.carrier.deriv(other.mid));
-        let cos = mine.dot(theirs) / (mine.norm() * theirs.norm());
-        let way = decide(
-            predicate,
-            Margin::levered(cos, other.len * other.speed),
-            bnd,
-        )
-        .map_err(|source| NamingError::Escalated { predicate, source })?;
-        match way {
+        match self.sign(fwd(at[2] - at[0]) - fwd(at[1] - at[0]), predicate, bnd)? {
             Sign::Positive => Ok(Some(true)),
             Sign::Negative => Ok(Some(false)),
             Sign::Zero => Err(NamingError::Emission {
