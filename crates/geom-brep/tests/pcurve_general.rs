@@ -14,6 +14,7 @@ use crate::shared::fixture;
 use crate::shared::surf;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
+use geom_brep::recourse::Reading;
 use geom_brep::{FittedLane, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Vec3};
@@ -91,6 +92,7 @@ fn a_general_image_of_the_wrong_column_refuses_definitely() {
         matches!(
             got,
             Err(PcurveCertifyError::ResidualExceeded { .. }
+                | PcurveCertifyError::FittedLimb { .. }
                 | PcurveCertifyError::FittedCertificate { .. })
         ),
         "the wrong column is a definite refusal, not an escalation: {got:?}"
@@ -270,8 +272,8 @@ fn ellipse() -> Curve3<f64> {
     Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 0.4),
         axis: Vec3::new(-k / s, 0.0, 1.0 / s),
-        major: s,
-        minor: 1.0,
+        semi_u: s,
+        semi_v: 1.0,
         u_ref: Vec3::new(1.0 / s, 0.0, k / s),
     }
 }
@@ -290,8 +292,8 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
             let Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } = ellipse()
             else {
@@ -300,8 +302,8 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
             Curve3::Ellipse {
                 center: center + Vec3::new(0.0, 0.0, 1e-3),
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             }
         }),
@@ -335,6 +337,7 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
             matches!(
                 refused,
                 Err(PcurveCertifyError::ResidualExceeded { .. }
+                    | PcurveCertifyError::FittedLimb { .. }
                     | PcurveCertifyError::FittedCertificate { .. })
             ),
             "{name}: a millimetre off the wall refuses definitely: {refused:?}"
@@ -452,7 +455,11 @@ fn a_curved_carriers_image_bowed_between_samples_refuses_at_the_hull_at_every_sc
             }
             for (scalar, got) in legs {
                 assert!(
-                    matches!(got, Err(PcurveCertifyError::FittedCertificate { .. })),
+                    matches!(
+                        got,
+                        Err(PcurveCertifyError::FittedLimb { .. }
+                            | PcurveCertifyError::FittedCertificate { .. })
+                    ),
                     "{name} bowed {bow:e} at {scalar}: refused at the hull (check 4), no \
                      earlier: {got:?}"
                 );
@@ -529,18 +536,21 @@ fn a_general_image_wrong_between_samples_refuses_at_the_hull() {
             band(),
             Some(FittedLane::certified()),
         );
-        let Err(PcurveCertifyError::FittedCertificate { limb, .. }) = got else {
+        let Err(refusal @ PcurveCertifyError::FittedLimb { limb, .. }) = got else {
             panic!("{name}: the bend between samples refuses at the hull: {got:?}");
         };
         // The bend sits on a break of the composite, so the hull reads
-        // its value there past the band, or its bound over a span
-        // holding it.
-        assert!(
-            matches!(
-                limb,
-                Some(geom_brep::SsiLimb::HullSup | geom_brep::SsiLimb::HullValueChart)
-            ),
-            "{name}: check 4's hull is what refuses: {limb:?}"
+        // the stored image's value there past the band: the image's own
+        // miss, which no loosening repairs.
+        assert_eq!(
+            limb,
+            geom_brep::SsiLimb::HullValueChart,
+            "{name}: check 4's hull reads the bend at its break"
+        );
+        assert_eq!(
+            refusal.ending(Reading::AtRest).as_deref(),
+            Some(geom_brep::recourse::defect_ending(Reading::AtRest)),
+            "{name}: a stored image a millimetre off is a stored contradiction: {refusal}"
         );
     }
 }
@@ -606,8 +616,8 @@ fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
     assert!(
         matches!(
             got,
-            Err(PcurveCertifyError::FittedCertificate {
-                limb: Some(geom_brep::SsiLimb::HullSup | geom_brep::SsiLimb::HullValueChart),
+            Err(PcurveCertifyError::FittedLimb {
+                limb: geom_brep::SsiLimb::HullSup | geom_brep::SsiLimb::HullValueChart,
                 ..
             })
         ),

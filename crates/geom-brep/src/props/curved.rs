@@ -100,12 +100,12 @@ pub enum MaterialSign {
     ///   neither pole is read, though the face may hold neither
     ///   (`props_sphere_pole_side.rs`,
     ///   `a_pole_in_the_band_of_a_great_carriers_plane_leaves_the_loop_unread`);
-    /// * one whose loop has a pole off it on EACH side (a rim-only cap,
-    ///   a tilted cap or a blend corner patch holding a pole). Under
-    ///   either sense such a face holds a pole, which breaks the rule
-    ///   that a chart singularity inside a face is a vertex of it; the
-    ///   reading carries nothing about the bit, and validity, not the
-    ///   side reader, is what refuses the face.
+    /// * one whose loop has a pole off it on EACH side (a rim-only cap
+    ///   or a tilted cap holding a pole). Under either sense such a
+    ///   face holds a pole, which breaks the rule that a chart
+    ///   singularity inside a face is a vertex of it; the reading
+    ///   carries nothing about the bit, and validity, not the side
+    ///   reader, is what refuses the face.
     Unencoded,
 }
 
@@ -2094,14 +2094,14 @@ fn require_cone_ellipse<T: Decide>(
     let Curve3::Ellipse {
         center,
         axis: n,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = e.carrier
     else {
         return Err(PropsError::Unimplemented);
     };
-    let (a, b) = (u_ref * major, n.cross(u_ref) * minor);
+    let (a, b) = (u_ref * semi_u, n.cross(u_ref) * semi_v);
     let (cos2, sin2) = (cos_a.powi(2), sin_a.powi(2));
     let perp = |p: Vec3<T>| p - axis * p.dot(axis);
     let m = |p: Vec3<T>, q: Vec3<T>| perp(p).dot(perp(q)) * cos2 - p.dot(axis) * q.dot(axis) * sin2;
@@ -2207,9 +2207,9 @@ fn require_cone_conic_spans<T: Decide>(
     for e in edges {
         match e.carrier {
             Curve3::Circle { radius, .. } => require_rim_span(e, radius, band)?,
-            Curve3::Ellipse { major, minor, .. } => require_span_within_period(
+            Curve3::Ellipse { semi_u, semi_v, .. } => require_span_within_period(
                 e,
-                major.abs().min(minor),
+                semi_u.abs().min(semi_v),
                 band,
                 [
                     "props_cone_ellipse_span_forward",
@@ -2229,7 +2229,9 @@ fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
     match e.carrier {
         Curve3::Line { .. } => Ok((e.p1() - e.p0()).norm()),
         Curve3::Circle { radius, .. } => Ok(radius * (e.t1 - e.t0).abs()),
-        Curve3::Ellipse { major, minor, .. } => Ok(major.max(minor) * (e.t1 - e.t0).abs()),
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            Ok(geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * (e.t1 - e.t0).abs())
+        }
         Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
     }
 }
