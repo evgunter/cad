@@ -1491,3 +1491,22 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **#5059 FULL review: approve with fixes.** **M1 (pre-existing on main, the subject of the closed ssiarith item):** `rect_box`'s rounded `um ± hu` can miss the window's own corner. Witness: z = 1000x − 500 on u ∈ [½, ½ + 3·2⁻⁵³]; random search finds 15,856 of 400k corners missed on a slope-1000 line. Build C fixes it in #5059 with outward `[u0 − um, u1 − um]` plus a red-under-mutant row.
   - `compensated.rs` was re-derived against JMP17 with no miss, and 2500 adversarial cells were checked against exact rationals. The midpoint costs +22% per `rect_box`.
   - **#5123 (step 3)** is in FULL review. **#5114 (exact-scale)** waits on CI.
+- 2026-10-14 12:21Z — **#5059 re-check OK** at 7a8cc0b9: the M1 outward offsets give 0/400k corner misses on each wall, and the m1 and m2 rows are red under their mutants. It merges on green.
+  - **#5123 (step 3) FULL review: one MAJOR, the timing doesn't reproduce.** Head vs its own base d0497984: r1 93–96 s vs 64–65 s (45% slower), shelling unchanged. gdb puts 24 of 30 samples in `split_restrict` under `cut`.
+    - Build C's (A)-vs-step-2 table used a base without #5059. Everything else holds: soundness, the meet, retirements, the +1.11e-17 touch claim, parity, and downstream 275/275 and 266/266 at 3 ε.
+    - Ruling: no landing as a regression. Re-measure and profile head vs base; if (A) can't beat it, (B) goes to the designers.
+  - **#5132 (build A): the SSIARITH rigid-map fuzzer P2.** The cause is the test's scale (the margin rounds at magnitude 1, not at its own value), not a bound. Test-only fix, with the 4 seeds pinned and a production mutant still red. FULL review on green.
+  - **#5114 (exact-scale)** is in FULL review.
+- 2026-10-14 12:48Z — **#5059 merged** (01bd9fa7, FULL plus the M1 re-check). It closes `work/ssiarith/chart-point-signs-are-f64-evaluations`. #5132 (the rigid-map fuzzer, test-only) is in FULL review.
+- 2026-10-14 13:25Z — **Step 3 postscript round converged** (both designers, on the fork record branch). Keep "the cut restricts the formed quotients"; reject (B) step 2's cut and (D′) per-cut choice. Make the restriction cheap, in this order:
+  - (1) a thin-ratio step instead of `Interval::between`;
+  - (2) axis-lazy restriction;
+  - (3) a window-reading object that restricts once across doors;
+  - (4) batching;
+  - (5) a one-piece cut, only if still needed.
+  - The fallback is to restrict the formed low-degree grids. #5123 lands only when it's no regression against main on either row.
+  - **Protocol finding:** I appended B's answer to the fork record before A had answered, and A's brief pointed it there, so A's answer was not blind (A disclosed this). Next time, append postscript answers only after both are in.
+  - #5132 (fuzzer) is at 5ed36e07 after review fixes, with Unit tightened to 32 ulps. #5114 is in FULL review, with the ε rows green and slow sets running.
+- 2026-10-14 13:50Z — **#5132 merged** (d6396bc0; FULL review mergeable, follow-up test-module plus docs only). It closes both SSIARITH rigid-map fuzzer items.
+  - Build A's next unit is measurement only, so it can't collide with #5123's files: a perf split of shelling and r1 on main and on #5123's head (how much of the excess over pre-4954 is not the quotient unit), plus a `RATIONAL_CERT_SPLITS`/`BLOCK_PIECE_SPLITS` sensitivity run on main. Tables go to build C too.
+  - The NURBS slate on main has no unblocked code item outside #5123's territory: the corner-end refusal and the elevation conditioning both wait on a consumer.

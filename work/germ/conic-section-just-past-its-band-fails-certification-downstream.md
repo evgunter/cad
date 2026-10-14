@@ -256,3 +256,23 @@ Euler gate's `EndpointStart` on the carrier (this row's carrier half) and a
 `MapResidual` sample of the consumed arc itself, which no span bound
 reaches.
 
+
+## Fourth note from PCERT (2026-10-14)
+
+The line above under CLEAVE's note, "the chart-image half … the
+α = 1.55 `MapResidual` table, where the carrier is accurate and the
+pcurve image is not", no longer holds after #5043. PCERT's
+`focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor` is
+closed as fixed by it (PR 5128).
+
+The `1/cos²α` was the carrier's, not the image's. With the arm's
+`K = −D·M` and apex-foot centre, the α = 1.55 table's whole-turn
+residuals are about `5·u·A`:
+- at ε = 1e-12: S = 1, f = 0.5 reads 3.6e-14, and S = 0.01, f = 0.9
+  reads 1.6e-15, both splitting;
+- at ε = 1e-9: S = 100, f = 0.5 reads 3.6e-12.
+
+What this row still holds at α = 1.55 is the near-parabola mechanism,
+uniform in α: S = 1, f = 0.999 escalates at the edge's `EndpointStart`,
+margin 1.28e-12, at ε = 1e-12. The 2026-10-13 β closure noted its own
+part the same way.

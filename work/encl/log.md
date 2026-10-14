@@ -1570,3 +1570,8 @@ coincidence is now a margined verdict (no declarations), checked by the
     - restfront `an-at-rest-certify-lead-calls-a-gates-definite-rejection-undecided`;
     - guard `loop-boundary-discards-selftest-fails-on-a-clean-tree`, which is red on main and not ours.
   (ENCL orchestrator)
+- 2026-10-14 — **Design fork on the proven zero** (`a-proven-zero-is-definite-yet-ends-as-no-size-at-rest`). One designer pair ran three rounds: they disagreed, crossed, then converged. The converged answer is a three-valued kind per sized decision (lever / stored contradiction / unminted), read by both the no-size and the refused class. It clarifies D4 ¶1 (iv), so it went to Ev as `[ev]` PR 5134 (fork-log row 142). Code waits for Ev's answer.
+  - The blinding byte and every report are on `analysis/design-fork/proven-zero`.
+  - The designer A dispatch was lost to a container restart and re-dispatched with the same brief.
+  - Found on the way: PR 5101's body was wrong that `NotTransverse` at rest "was already the defect ending". A Transversality or TangentSecondOrder zero verdict at rest still ends in the lever alone.
+  (ENCL orchestrator)
