@@ -719,6 +719,14 @@ pub trait Real:
     /// need a topology-grade statement about the seam go through the
     /// predicate layer, like every other decision.
     ///
+    /// **What a reader owes at the jump: nothing.** An exact multiple of
+    /// `period` reduces to `0`, and an input a hair below one to a hair
+    /// under `period` (above), so which end of the jump a coincidence
+    /// lands on is rounding, not information. A caller reads the result
+    /// only where its answer is invariant under that branch, and a whole
+    /// turn comes from structure it holds (a closed carrier, a self-loop,
+    /// a decided full span), never from this value.
+    ///
     /// **What is promised across periods**: nothing bitwise. `2π` is not
     /// representable, so `θ + k·fl(τ)` is a *different real parameter*
     /// than `θ + k·τ`; reduced evaluations of `θ` and `θ + k·fl(τ)`
