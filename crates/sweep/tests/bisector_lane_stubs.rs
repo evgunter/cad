@@ -75,7 +75,10 @@ fn four(a: &Body<f64>, b: &Body<f64>, what: &str) -> [Measured; 4] {
         finished("operand B", b.clone(), tol),
     );
     let built = |r: Result<BooleanResult<f64>, topo::BooleanError>, op: &str| match r {
-        Ok(BooleanResult::Body(body)) => volume(&body.body),
+        Ok(BooleanResult::Body(body)) => {
+            assert_crossing_rows(&body.coincidences, &format!("{what}, {op}"));
+            volume(&body.body)
+        }
         other => panic!("{what}, {op}: the bisector lane builds, got {other:?}"),
     };
     [
@@ -84,6 +87,31 @@ fn four(a: &Body<f64>, b: &Body<f64>, what: &str) -> [Measured; 4] {
         built(topo::subtract(&a, &b, tol), "A∖B"),
         built(topo::subtract(&b, &a, tol), "B∖A"),
     ]
+}
+
+/// **The two coincidences the lane is decided from are recorded**: the
+/// walls' radii decided equal and their axes decided meeting, each a
+/// row between a wall face of A and one of B, for the
+/// `unproven-coincidence` lint.
+fn assert_crossing_rows(rows: &[topo::Coincidence], what: &str) {
+    let crossing: Vec<_> = rows
+        .iter()
+        .filter(|r| r.site == topo::DecisionSite::CrossingCylinders)
+        .collect();
+    for relation in [topo::Relation::SameRadius, topo::Relation::AxesMeet] {
+        assert!(
+            crossing.iter().any(|r| r.relation == relation),
+            "{what}: a {relation:?} row is recorded, got {crossing:?}"
+        );
+    }
+    assert!(
+        crossing.iter().all(|r| r.face_pair().is_some()
+            && matches!(
+                r.relation,
+                topo::Relation::SameRadius | topo::Relation::AxesMeet
+            )),
+        "{what}: every crossing row relates a face of A to one of B: {crossing:?}"
+    );
 }
 
 /// Asserts the four volumes against the operands' and `cap`, the

@@ -397,7 +397,7 @@ fn revolve_minted_walls_meet_the_same_gate() {
         Err(e) => assert_eq!(
             e.kind(),
             BooleanErrorKind::GermFrameCylinderPinch,
-            "the germ frame's pinch refusal: {e}"
+            "the node refusal: {e}"
         ),
         Ok(topo::BooleanResult::Body(body)) => {
             let va = topo::mass_properties(&a, tol).unwrap().volume;

@@ -12,9 +12,11 @@
 //! The section frame a curved germ turns about is read here too, keyed
 //! by the germ's two surface kinds ([`germ_section_loops`],
 //! [`pair_section_frame_at`]): a straight pair has none, each conic pair
-//! names its centre and axis, and the plane×torus pair names two loops
-//! with a frame each ([`SectionLoops`]), of which a germ takes its own
-//! ([`germ_section_frame`]).
+//! names its centre and axis, and the plane×torus pair and the equal
+//! cylinder pair with meeting axes name two loops with a frame each
+//! ([`SectionLoops`]), of which a germ takes the one its branch names
+//! ([`germ_section_frame`]; the branch is decided where the germ is
+//! minted, [`germ_branch`]).
 //!
 //! # Matching is germ identity, not slots or senses (the below-copy
 //! # audit)
@@ -770,6 +772,7 @@ fn matched_records<T: Decide>(
 /// section is curved, so the record's germs, at one site of one loop of
 /// it, can only match each other. Its A germ and the loop its branch
 /// names.
+#[allow(clippy::type_complexity)] // (germ, its loop)
 fn one_site<T: Decide>(
     red: &BooleanReduction<T>,
     rec: &OpenRecord<T>,
@@ -1608,11 +1611,11 @@ fn bisector_planes<T: Decide>(
         }
         let (fa, fb) = (seg.germ.a_face, seg.germ.b_face);
         let key = (surface(&red.a, fa)?, surface(&red.b, fb)?);
-        if !planes.contains_key(&key) {
+        if let std::collections::btree_map::Entry::Vacant(slot) = planes.entry(key) {
             let loops = face_pair_section_loops((&red.a, fa), (&red.b, fb), band)?.ok_or(
                 desync("a bisector segment's face pair has no section loops"),
             )?;
-            planes.insert(key, loops);
+            slot.insert(loops);
         }
     }
     Ok(planes)
@@ -3149,10 +3152,12 @@ pub(super) fn germ_branch<T: Decide>(
 /// a wrong chord from it.
 ///
 /// The answer is the section's loops, each with its frame
-/// ([`SectionLoops`]); the caller picks the loop a germ lies on by its
-/// site. The plane×torus pair names two loops with frames of their own
-/// ([`pt_germ_frame`]); every other pair's section is one loop, or loops
-/// that share one frame ([`conic_section_frame_at`]).
+/// ([`SectionLoops`]); a germ takes the loop its branch names, decided
+/// where it was minted ([`germ_branch`]). The plane×torus pair
+/// ([`pt_germ_frame`]) and the equal cylinder pair with meeting axes
+/// ([`cylinder_pair_frame`]) name two loops with frames of their own;
+/// every other pair's section is one loop, or loops that share one frame
+/// ([`conic_section_frame_at`]).
 pub(super) fn pair_section_frame_at<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
@@ -3181,6 +3186,11 @@ pub(super) fn pair_section_frame_at<T: Decide>(
 /// radius: a definite gap is SKEW, whose locus is a space quartic —
 /// canal territory, the general rung — and keeps `NoArm` verbatim. A
 /// Zero gap means the axes meet ([`intersecting_cylinder_axes`]).
+///
+/// The axis rows are read at the foot of `at` on each axis, levered at
+/// the length the walls run together or the larger radius, whichever is
+/// longer — two axes a sine θ apart drift θ·span apart over the walls
+/// ([`cylinder_pair_axes`]).
 ///
 /// Asked of the table's own row too
 /// ([`geom_brep::cylinder_axes_coplanar`], `cc_axes_coplanar`), read
@@ -3227,16 +3237,13 @@ fn cylinder_pair_frame<T: Decide>(
 }
 
 /// [`pair_section_frame_at`]'s pairs whose sections share one frame.
-/// The plane×cylinder and cylinder pairs read their axis rows at the
-/// foot of `at` on each axis ([`germ_section_loops`]: a point the
-/// section is consumed at), levered at `extent`, the consumed region's
-/// measure the caller took from `at` ([`frame_extent`]). The
-/// plane×cylinder pair is levered at its wall face's axial extent from
-/// `at` and its reach across the wall ([`geom_brep::Reach::Face`]); the
-/// cylinder pair at the length its walls run together or the larger
-/// radius, whichever is longer — two axes a sine θ apart drift θ·span
-/// apart over the walls. [`FrameExtent::Radii`], a pair handed without
-/// its faces, levers by the radii alone.
+/// The plane×cylinder pair reads its axis rows at the foot of `at` on
+/// the axis ([`germ_section_loops`]: a point the section is consumed
+/// at), levered at `extent`, the consumed region's measure the caller
+/// took from `at` ([`frame_extent`]): its wall face's axial extent from
+/// `at` and its reach across the wall ([`geom_brep::Reach::Face`]).
+/// [`FrameExtent::Radii`], a pair handed without its faces, levers by
+/// the radius alone.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 fn conic_section_frame_at<T: Decide>(
     sa: &geom::Surface<T>,
@@ -5052,7 +5059,8 @@ mod frame_dispatch_tests {
     use geom_core::{Point3, Tol, Vec3};
 
     use super::{
-        FrameError, cs_pair_frame, frame_refusal, pair_section_frame, serves_cylinder_nodes,
+        FrameError, FrameExtent, cs_pair_frame, frame_refusal, pair_section_frame,
+        pair_section_frame_at, serves_cylinder_nodes,
     };
 
     /// The point the rows read the frame's axis rows at.
@@ -6004,6 +6012,63 @@ mod frame_dispatch_tests {
                     matches!(got, Err(FrameError::NoArm)),
                     "a non-cylinder pair with no arm must refuse with NoArm exactly — \
                      the pinch variant is not reachable for these kinds"
+                );
+            }
+        }
+    }
+
+    /// **The bisector split names each ellipse and vanishes at the
+    /// nodes.** At several angles between meeting axes, every sampled
+    /// point of the table's `a1 − a2`-plane ellipse reads the positive
+    /// branch and picks the loop turning about that plane's normal, every
+    /// point of the `a1 + a2`-plane ellipse the negative one, and the two
+    /// nodes `p ± r·n̂` read no branch.
+    #[test]
+    fn the_bisector_split_names_each_ellipse_and_vanishes_at_the_nodes() {
+        use super::super::Branch;
+        use geom_brep::{EqualCylinderSection, cylinder_cylinder_section};
+        let p = Point3::new(0.3, -0.2, 0.7);
+        let a1 = Vec3::new(0.0, 0.0, 1.0);
+        for deg in [30.0_f64, 60.0, 90.0, 140.0] {
+            let t = deg.to_radians();
+            let a2 = Vec3::new(t.sin(), 0.0, t.cos());
+            let (sa, sb) = (cylinder_at(p, a1, 1.0), cylinder_at(p, a2, 1.0));
+            let Ok(Some(loops)) = pair_section_frame_at(&sa, &sb, at(), FrameExtent::Radii, band())
+            else {
+                panic!("{deg}°: the pair serves its two loops");
+            };
+            let reach = geom_brep::Reach::Measured {
+                at: at(),
+                lever: 1.0,
+            };
+            let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) =
+                cylinder_cylinder_section(&sa, &sb, &reach, band())
+            else {
+                panic!("{deg}°: the table constructs the ellipses");
+            };
+            for (ellipse, want) in [(&e1, Branch::Positive), (&e2, Branch::Negative)] {
+                let geom::Curve3::Ellipse { axis, .. } = *ellipse else {
+                    panic!("{deg}°: an ellipse carrier");
+                };
+                for k in 0..12 {
+                    // Clear of the nodes, which stand at the minor
+                    // vertices (parameters ±π/2).
+                    let s = f64::from(k) * core::f64::consts::FRAC_PI_6 + 0.2;
+                    let q = ellipse.eval(s);
+                    let got = loops.branch_at(q, band()).expect("decided");
+                    assert_eq!(got, Some(want), "{deg}°, parameter {s}");
+                    let lp = loops.pick(want).expect("a loop");
+                    assert!(
+                        lp.axis.cross(axis).norm() < 1e-12,
+                        "{deg}°: the branch picks the loop in its own plane"
+                    );
+                }
+            }
+            let n = a1.cross(a2).normalize();
+            for node in [p + n, p - n] {
+                assert!(
+                    matches!(loops.branch_at(node, band()), Ok(None)),
+                    "{deg}°: a node reads no branch"
                 );
             }
         }

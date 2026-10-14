@@ -3029,7 +3029,11 @@ pub enum BooleanError {
     /// perpendicular pose. So the two ellipses CROSS at those two
     /// points (the nodes), for every member of the family and at every
     /// pose — four arcs meeting at two valence-4 vertices — and the
-    /// Boolean does not yet build a node.
+    /// Boolean does not yet build a node. Where neither node lies in both
+    /// faces of a germ's face pair, the pair's section is disjoint arcs
+    /// of the two ellipses, and the join's bisector lane builds it; this
+    /// refusal is raised where a node is not definitely outside one of
+    /// the faces (`join::place_nodes`), or a germ lies on a node.
     ///
     /// Radius equality and coplanar axes are decided by their margins
     /// (`geom_brep::cylinder_cylinder_section`); at definitely unequal
@@ -4891,10 +4895,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     };
     verified
         .coincidences
-        .extend(glue::coaxial_rows(a_operand, b_operand, decls, band)?);
-    verified.coincidences.extend(glue::crossing_cylinder_rows(
-        a_operand, b_operand, decls, band,
-    )?);
+        .extend(glue::frame_rows(a_operand, b_operand, decls, band)?);
     let declared = GluedPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(
         a_operand,

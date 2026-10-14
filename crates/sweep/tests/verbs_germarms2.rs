@@ -26,16 +26,14 @@
 //!   layer's tangency door. Turning each operand about its OWN axis
 //!   moves the seams off the pinch without moving either SURFACE, and
 //!   that pose does reach the join.
-//! - **The join has no frame for the pair.** A germ-pair frame is one
-//!   conic's centre and axis, and a self-crossing ellipse pair is not
-//!   one conic. The dispatch decides by margin WHICH of the two shapes
-//!   the locus has — radii equal, the pinch, or unequal, the general
-//!   quartic — but neither answer yields one conic, so it has no frame
-//!   to hand over either way. It refuses typed at a door that names the pinch. Walking the section across
-//!   a pinch is a chord lane this tree does not have — the plane-side
-//!   `BoolPlanar` chord and the plane-carrying `Split` context are
-//!   both premised on one member of the pair being a PLANE — and that
-//!   lane is not this unit's to invent.
+//! - **The join builds the section between the nodes, not through
+//!   them.** Each germ rides one ellipse, its branch decided where it is
+//!   minted, and the join's bisector lane cuts each wall by that
+//!   ellipse's plane. Along an arc through a node each wall's sector
+//!   changes side of the other solid, so no two germs bound such an
+//!   arc; a node in both faces of a germ's face pair refuses typed at
+//!   the node placement, the door that names the pinch. Branch stubs,
+//!   whose nodes miss a face, build (`bisector_lane_stubs`).
 //!
 //! Every row is paired with the same fixture under a `transform_rigid`
 //! off every axis plane. A pose whose direct-extruded and re-posed
@@ -171,21 +169,16 @@ fn the_steinmetz_pair_answers_identically_under_a_rigid_re_pose() {
 /// finds the seam rulings' four wall crossings, splits both operands,
 /// and the germ pair that comes out is cylinder × cylinder.
 ///
-/// The join then refuses at the door that names the pinch. That is the
-/// honest destination and not a shortfall: the section is two ellipses
-/// crossing at two points, a germ-pair FRAME is one conic's centre and
-/// axis, and no amount of dispatch work makes a self-crossing pair into
-/// one conic. What would serve it is a chord lane that walks a
-/// self-intersecting section, on two WALL sides — a lane this tree does
-/// not have in any form (its two curved chord lanes both require one
-/// member of the pair to be a plane).
+/// The join then refuses at the door that names the pinch: both nodes
+/// lie inside both walls, so the section crosses itself inside the face
+/// pairs, and the node is not built.
 #[test]
 fn seams_off_the_pinch_reach_the_join_and_name_it() {
     let (a, b) = seams_off_the_pinch(1.2, PI / 4.0);
     let err = union_err(&a, &b);
     assert!(
         matches!(err, BooleanError::GermFrameCylinderPinch { .. }),
-        "expected the germ frame's pinch door, got {err:?}"
+        "expected the node door, got {err:?}"
     );
     // The message must name the crossing axes and the equal radii, and
     // end on what the person can do. The nodes' formula (the UNIT
