@@ -4190,7 +4190,7 @@ fn periodic_envelope<T: Decide>(
     Ok(terms)
 }
 
-/// The chart with its frame made orthonormal by Gram–Schmidt:
+/// The chart with its frame made orthonormal ([`geom::square_frame`]):
 /// `n̂ = axis/‖axis‖`, and `ê₁` the part of `u_ref` normal to `n̂`,
 /// normalised (the map's `v_ref` is then `n̂ × ê₁`). In exact
 /// arithmetic it is the frame the lemma on
@@ -4198,9 +4198,8 @@ fn periodic_envelope<T: Decide>(
 /// unit frame is its own twin, and its twin's forms reduce to its own.
 fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
     let frame = |axis: Vec3<T>, u_ref: Vec3<T>| {
-        let n = axis / axis.norm();
-        let e1 = u_ref - n * n.dot(u_ref);
-        (n, e1 / e1.norm())
+        let f = geom::square_frame(axis, u_ref);
+        (f.axis, f.u_ref)
     };
     match *surface {
         Surface::Cylinder {
@@ -5186,6 +5185,11 @@ fn run_focal_section_checks<T: Decide>(
 /// Every term is rounding-scale on a minted image, so the envelope is
 /// the exact image's distance from the carrier plus the drift every
 /// banded check-1 gate admitted.
+///
+/// The coefficient terms are full-period sups by construction: a short
+/// arc pays the far side's coefficient error. That is the contract; on
+/// the suites' certificates it costs at most about 2.2× against the
+/// span's own miss (`focal-section-envelope-bounds-the-whole-ellipse-not-the-span`).
 fn focal_section_envelope<T: Real>(
     image: &FocalImage<T>,
     carrier: Harmonic3<T>,
@@ -7631,7 +7635,15 @@ fn derive_class<T: Decide>(
                     // that is no section of this cone yields a `β`
                     // the schedule and envelope refuse in metres.
                     let ecc = (T::zero() - r0.dot(ra)) / ra.dot(ra);
-                    let beta = ecc / (T::one() + (T::one() - ecc.powi(2)).sqrt());
+                    // On a section `√(1 − ecc²)` is the projection's axis
+                    // ratio `|rb|/|ra|` (`ra ⟂ rb`: the major axis lies in
+                    // the plane of the cone's axis, `e_v` normal to it),
+                    // read so without the root's `1/k` gain on `ecc`'s
+                    // rounding near a parabola. Off the cone the two part
+                    // at first order (a centre `δ` along `e_u` parts them
+                    // by `δ/(A·k)`); either way the envelope measures the
+                    // image against the carrier.
+                    let beta = ecc / (T::one() + rb.norm() / ra.norm());
                     let orient = ra.cross(rb).dot(axis);
                     let sense = match decide(
                         "pcurve_chart_orientation",

@@ -583,6 +583,113 @@ pub(crate) struct EdgeSplit {
     pub(crate) child: crate::entity::EdgeKey,
 }
 
+/// A Boolean reduction's edge splits ([`EdgeSplit`]), each operand's
+/// in split order: its `(child, parent)` rows checked where each split
+/// is recorded ([`crate::lineage::EdgeDivisions`]), and beside each row
+/// the vertex the split minted between them. A split mints its child, so
+/// the rows cannot cycle, and the walk from a piece back to the operand
+/// edge it lies on ([`Self::root`]) ends.
+#[derive(Clone, Debug)]
+pub(crate) struct EdgeSplits {
+    divisions: [crate::lineage::EdgeDivisions; 2],
+    /// Each operand's minted vertices, one per row of its divisions and
+    /// in the same order: [`Self::push`] is the one writer of both, and
+    /// pushes the vertex only once the division's row is in, so the
+    /// `i`-th vertex is the one minted between the `i`-th row's two
+    /// edges (asserted where they are read together, [`Self::of`]).
+    vertices: [Vec<VertexKey>; 2],
+}
+
+impl Default for EdgeSplits {
+    fn default() -> Self {
+        let of = |operand| {
+            crate::lineage::EdgeDivisions::new(crate::lineage::LineageRows::EdgeDivisions(Some(
+                operand,
+            )))
+        };
+        Self {
+            divisions: [of(Operand::A), of(Operand::B)],
+            vertices: [Vec::new(), Vec::new()],
+        }
+    }
+}
+
+impl EdgeSplits {
+    /// Records `split`.
+    ///
+    /// # Errors
+    ///
+    /// The division list's refusal where `split`'s child is not one the
+    /// split minted: an earlier split names it.
+    pub(crate) fn push(&mut self, split: EdgeSplit) -> Result<(), crate::lineage::RowRefusal> {
+        let side = usize::from(split.operand == Operand::B);
+        self.divisions[side].push((split.child, split.parent))?;
+        self.vertices[side].push(split.vertex);
+        Ok(())
+    }
+
+    /// `operand`'s splits, in the order made: `(parent, vertex, child)`.
+    fn of(
+        &self,
+        operand: Operand,
+    ) -> impl Iterator<Item = (crate::entity::EdgeKey, VertexKey, crate::entity::EdgeKey)> + '_
+    {
+        let side = usize::from(operand == Operand::B);
+        debug_assert_eq!(
+            self.divisions[side].rows().len(),
+            self.vertices[side].len(),
+            "one minted vertex per edge division row"
+        );
+        self.divisions[side]
+            .rows()
+            .iter()
+            .zip(&self.vertices[side])
+            .map(|(&(child, parent), &vertex)| (parent, vertex, child))
+    }
+
+    /// The edge of `operand`'s input the piece `edge` of its clone lies
+    /// on: read back through every split, each child to the parent it was
+    /// split from. Total, since the rows cannot cycle.
+    pub(crate) fn root(
+        &self,
+        operand: Operand,
+        edge: crate::entity::EdgeKey,
+    ) -> crate::entity::EdgeKey {
+        self.divisions[usize::from(operand == Operand::B)].root(edge)
+    }
+
+    /// The edge of `operand`'s clone a split minted `v` on, where one did.
+    pub(crate) fn minted_on(
+        &self,
+        operand: Operand,
+        v: VertexKey,
+    ) -> Option<crate::entity::EdgeKey> {
+        self.of(operand)
+            .find(|&(_, vertex, _)| vertex == v)
+            .map(|(parent, _, _)| parent)
+    }
+
+    /// The keys of `edge`'s pieces after `operand`'s splits, in order
+    /// along it (a split keeps the parent's leading span, so its child is
+    /// the piece right after the parent), and every vertex a split minted
+    /// on it.
+    pub(crate) fn pieces(
+        &self,
+        operand: Operand,
+        edge: crate::entity::EdgeKey,
+    ) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
+        let mut keys = vec![edge];
+        let mut minted = Vec::new();
+        for (parent, vertex, child) in self.of(operand) {
+            if let Some(i) = keys.iter().position(|&k| k == parent) {
+                keys.insert(i + 1, child);
+                minted.push(vertex);
+            }
+        }
+        (keys, minted)
+    }
+}
+
 /// One cell of a body: what a contact record names, two at a time
 /// ([`Contact`]).
 ///
@@ -748,29 +855,70 @@ pub struct BooleanInputs {
     ///
     /// **Not carried by the façade.** It is the union fold's channel
     /// (`editor_core`'s n-ary union hands each step the pass's
-    /// verdicts, read through member lineage); a caller of a pair
-    /// boolean who set it would promise verdicts no pass decided.
-    /// Nothing enforces that yet: a Rust caller of
-    /// [`crate::boolean_op_with`] can set it, and its pairs glue
-    /// unmeasured (`work/intent/boolean-given-pairs-glue-unmeasured-for-any-rust-caller.md`).
-    pub given: Option<Vec<GivenPair>>,
+    /// verdicts, read through member lineage). Its pairs are made only
+    /// from a verdict some boolean decided ([`GlueVerdict::given_at`]),
+    /// but nothing ties that verdict to these operands: a caller who
+    /// re-keys or reuses one glues its pair here with nothing measured
+    /// and no row recorded
+    /// (`work/flush/a-glue-verdict-is-not-bound-to-the-bodies-it-judged.md`).
+    pub given: Option<Vec<GluedPair>>,
     /// Operand A's own contact records, carried into the result.
     pub records_a: OperandRecords,
     /// Operand B's own contact records, carried into the result.
     pub records_b: OperandRecords,
 }
 
-/// **One carrier pair decided before the operation**: a face of each
-/// operand and the relation its decision found, which must glue
-/// ([`crate::Relation::glued_class`]).
+/// **A face pair a boolean glued on its own decision**: a face of
+/// each operand, in that operation's operand keys, and the class its
+/// margin's relation glued them under. Only the kernel mints one
+/// ([`BooleanBody::verdicts`]), from the face-pair rows of the
+/// operation's own coincidences: it is what an n-ary union's pairwise
+/// judgement hands its fold steps (DM4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GivenPair {
+pub struct GlueVerdict {
+    a: FaceKey,
+    b: FaceKey,
+    class: GlueClass,
+}
+
+impl GlueVerdict {
     /// The A-operand face.
-    pub a: FaceKey,
+    pub fn a(self) -> FaceKey {
+        self.a
+    }
+
     /// The B-operand face.
-    pub b: FaceKey,
+    pub fn b(self) -> FaceKey {
+        self.b
+    }
+
     /// The decided relation.
-    pub relation: crate::Relation,
+    pub fn relation(self) -> crate::Relation {
+        self.class.relation()
+    }
+
+    /// **This verdict, given to a fold step**: the pair of `a` and the
+    /// judged B face, under the judged class. The fold passes each
+    /// accumulation face whose lineage holds the judged A face, over
+    /// the judged B operand; nothing here checks either.
+    pub fn given_at(self, a: FaceKey) -> GluedPair {
+        GluedPair::new(a, self.b, self.class)
+    }
+
+    /// The verdicts `rows` record: each row relating an A-operand face
+    /// and a B-operand face under a relation that glues, in row order.
+    pub(crate) fn of_rows(rows: &[crate::Coincidence]) -> Vec<Self> {
+        rows.iter()
+            .filter_map(|row| {
+                let (a, b) = row.face_pair()?;
+                Some(Self {
+                    a,
+                    b,
+                    class: row.relation.glued_class()?,
+                })
+            })
+            .collect()
+    }
 }
 
 /// **The pairs one boolean glues**, and the records it carries: the
@@ -818,12 +966,7 @@ impl Glue {
 
     /// The glue `inputs` states: its given pairs under their classes,
     /// or none, to be decided ([`glue::decided_declarations`]).
-    ///
-    /// # Errors
-    ///
-    /// [`BooleanError::InvalidInput`] where a given relation does not
-    /// glue.
-    pub(crate) fn of(inputs: &BooleanInputs) -> Result<Self, BooleanError> {
+    pub(crate) fn of(inputs: &BooleanInputs) -> Self {
         let BooleanInputs {
             given,
             records_a,
@@ -831,34 +974,22 @@ impl Glue {
         } = inputs;
         let (pairs, verdicts) = match given {
             None => (Vec::new(), Verdicts::Decided),
-            Some(given) => (
-                given
-                    .iter()
-                    .map(|g| {
-                        g.relation
-                            .glued_class()
-                            .map(|class| GluedPair::new(g.a, g.b, class))
-                            .ok_or(BooleanError::InvalidInput {
-                                operand: Operand::A,
-                                what: "a given pair's relation does not glue",
-                            })
-                    })
-                    .collect::<Result<_, _>>()?,
-                Verdicts::Given,
-            ),
+            Some(given) => (given.clone(), Verdicts::Given),
         };
-        Ok(Self {
+        Self {
             pairs,
             records_a: records_a.clone(),
             records_b: records_b.clone(),
             verdicts,
-        })
+        }
     }
 }
 
-/// One glued cross-operand face pair and its class.
+/// **One glued cross-operand face pair and its class**: a pair an
+/// operation decided, or one it was given ([`BooleanInputs::given`]),
+/// whose one public mint is [`GlueVerdict::given_at`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct GluedPair {
+pub struct GluedPair {
     /// The A-operand face.
     pub(crate) a: FaceKey,
     /// The B-operand face.
@@ -1760,7 +1891,7 @@ pub struct BooleanReduction<T: Real> {
     pub null_edges: Vec<BoolNullEdgeRecord<T>>,
     /// Each operand's null-edge copies, checked as each null edge was
     /// recorded ([`NullEdges::extend`]).
-    pub(crate) copies: [crate::lineage::VertexCopies; 2],
+    pub(crate) copies: [crate::lineage::NullEdgeCopies; 2],
     /// The cross-body correspondence pairs.
     pub null_pairs: Vec<NullEdgePairRecord>,
     /// Pierced-face ring insertions.
@@ -1787,7 +1918,7 @@ pub struct BooleanReduction<T: Real> {
     /// (`shell_witness::on_verdict`).
     pub(crate) coincident: Vec<SettledPair>,
     /// Every edge split the reduction made, both clones, split order.
-    pub(crate) edge_splits: Vec<EdgeSplit>,
+    pub(crate) edge_splits: EdgeSplits,
     /// Every operand edge piece the sector passes classified beside a
     /// vertex ([`EdgePieceClass`]), sorted.
     pub edge_classes: Vec<EdgePieceClass>,
@@ -2428,8 +2559,7 @@ pub enum BooleanError {
     },
     /// A boolean's input ([`BooleanInputs`]) references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
-    /// non-planar given face), or gives a pair a relation that does not
-    /// glue — a caller bug, refused before any
+    /// non-planar given face) — a caller bug, refused before any
     /// classification runs (M4 PR 5).
     InvalidInput {
         /// The operand whose key failed.
@@ -2966,6 +3096,14 @@ pub enum BooleanError {
         /// Which lockstep invariant broke.
         what: &'static str,
     },
+    /// An operand edge's `SplitEdge` provenance never reached a root:
+    /// the walk back from an edge a germ runs along (`Body::split_root`),
+    /// or the chain a discarded face's boundary edge records
+    /// (`discard::discard_row`), came back to an edge it had passed. A
+    /// kernel defect: `Body::split_edge` records each child's parent as
+    /// it mints the child, so each record names an older key, and a
+    /// graft forwards the records injectively onto keys it mints.
+    SplitLineage(crate::SplitLineageCycle),
     /// A lineage list refused a row where a stage added it: a vertex
     /// fusion, a substitution or a face division that maps a cell to
     /// itself, names a cell an earlier row retired, or mints a cell an
@@ -3305,6 +3443,8 @@ pub enum BooleanErrorKind {
     JoinDesync,
     /// [`BooleanError::LineageRow`].
     LineageRow,
+    /// [`BooleanError::SplitLineage`].
+    SplitLineage,
     /// [`BooleanError::EdgeUndescribed`].
     EdgeUndescribed,
     /// [`BooleanError::TornComponent`].
@@ -3530,6 +3670,7 @@ impl BooleanError {
             Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
+            Self::SplitLineage(_) => BooleanErrorKind::SplitLineage,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
@@ -4177,15 +4318,15 @@ impl core::fmt::Display for BooleanError {
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
                  reduction)"
             ),
+            Self::SplitLineage(cycle) => write!(
+                f,
+                "the Boolean's split records of an operand edge are corrupt, so no body \
+                 is returned: {cycle}. {KERNEL_DEFECT_ENDING}"
+            ),
             Self::LineageRow { rows, defect, key } => write!(
                 f,
-                "the Boolean's lineage records refused {}, so no body is returned. \
-                 {KERNEL_DEFECT_ENDING}",
-                crate::lineage::RowRefusal {
-                    rows: *rows,
-                    defect: *defect,
-                    key: *key,
-                }
+                "{}, so no body is returned. {KERNEL_DEFECT_ENDING}",
+                crate::lineage::RowRefusal::of(*rows, *defect, *key).refused_by("Boolean")
             ),
             Self::EdgeUndescribed {
                 failure,
@@ -5358,19 +5499,6 @@ fn hung_points<T: Real>(
     Ok(out)
 }
 
-/// The operand edge `piece` of `operand`'s clone lies on: read back
-/// through `splits`, each child to the parent it was split from.
-fn split_root(splits: &[EdgeSplit], operand: Operand, piece: EdgeKey) -> EdgeKey {
-    let mut edge = piece;
-    while let Some(split) = splits
-        .iter()
-        .find(|s| s.operand == operand && s.child == edge)
-    {
-        edge = split.parent;
-    }
-    edge
-}
-
 /// A vertex that touches a face and pairs ([`vtxfac::touch_classes`]).
 struct Touch<T: Real> {
     /// Its pierce's classes, as first read.
@@ -5391,14 +5519,18 @@ struct Touch<T: Real> {
 /// minted ([`crate::null::mev_null_run`]).
 struct NullEdges<T: Real> {
     records: Vec<BoolNullEdgeRecord<T>>,
-    copies: [crate::lineage::VertexCopies; 2],
+    copies: [crate::lineage::NullEdgeCopies; 2],
 }
 
 impl<T: Real> Default for NullEdges<T> {
     fn default() -> Self {
         Self {
             records: Vec::new(),
-            copies: Default::default(),
+            copies: [Operand::A, Operand::B].map(|operand| {
+                crate::lineage::NullEdgeCopies::new(crate::lineage::LineageRows::NullEdgeCopies(
+                    operand,
+                ))
+            }),
         }
     }
 }
@@ -5476,7 +5608,7 @@ fn piece_classes<T: Real>(
     operand: Operand,
     vertex: VertexKey,
     classes: &[(HalfEdgeKey, SideCode)],
-    splits: &[EdgeSplit],
+    splits: &EdgeSplits,
 ) -> Result<Vec<EdgePieceClass>, BooleanError> {
     let desync = |what| BooleanError::ClassificationInvariant { what };
     let mut out = Vec::with_capacity(classes.len());
@@ -5493,7 +5625,7 @@ fn piece_classes<T: Real>(
         out.push(EdgePieceClass {
             operand,
             vertex,
-            edge: split_root(splits, operand, piece),
+            edge: splits.root(operand, piece),
             starts,
             class,
         });
@@ -7652,6 +7784,9 @@ mod tests {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
             },
             BooleanError::JoinDesync { what: "a lockstep" },
+            BooleanError::SplitLineage(crate::SplitLineageCycle {
+                edge: EdgeKey::default(),
+            }),
             BooleanError::LineageRow {
                 rows: crate::lineage::LineageRows::Substitutions,
                 defect: crate::lineage::RowDefect::NamesRetired,
@@ -7798,6 +7933,7 @@ mod tests {
                 BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::LineageRow => "LineageRow",
+                BooleanErrorKind::SplitLineage => "SplitLineage",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",

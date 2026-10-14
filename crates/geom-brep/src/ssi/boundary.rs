@@ -301,6 +301,8 @@ fn inward(end: ChartEnd) -> f64 {
 pub(crate) struct Pass<'a> {
     /// The wall.
     pub wall: &'a NurbsSurface<f64>,
+    /// Its chart enclosures over its own cells, read for the whole pass.
+    pub boxes: &'a NurbsBoxes<'a, f64>,
     /// Its chart speeds.
     pub speeds: ChartSpeeds,
     /// The plane.
@@ -376,7 +378,7 @@ impl Pass<'_> {
 
     /// The plane distance's partials over a chart rectangle.
     fn partials(&self, r: UvRect) -> (Interval, Interval) {
-        let boxes = NurbsBoxes::new(self.wall);
+        let boxes = self.boxes;
         let n = [
             self.plane.normal.x,
             self.plane.normal.y,
@@ -521,7 +523,7 @@ impl Pass<'_> {
                 }
             }
             match side_cover(
-                &NurbsBoxes::new(self.wall),
+                self.boxes,
                 self.plane.normal_interval(),
                 (side, domain),
                 strip,
@@ -610,7 +612,7 @@ impl Pass<'_> {
         }
         let ((u0, u1), (v0, v1)) = self.domain();
         let mag = magnitude(phi);
-        let boxes = NurbsBoxes::new(self.wall);
+        let boxes = self.boxes;
         for &pad in &rungs[first..] {
             let cell = self.corner_cell(corner, pad);
             let (pu, pv) = self.partials(cell);
