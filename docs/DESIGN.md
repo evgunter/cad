@@ -446,11 +446,14 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   census participation, containment evidence — has exactly one home:
   `topo::insert_void`, the door the boolean owns, callable without the
   SSI pipeline for provably-no-crossing cases with caller-certified
-  containment. Three producers: boolean subtraction (its probe
+  containment. Four producers: boolean subtraction (its probe
   verdicts); `shell`'s sealed hollow (its offset margin, OFFSET-DESIGN
-  O4); and the full revolve of a holed profile, DEFINED as
+  O4); the full revolve of a holed profile, DEFINED as
   `revolve(outer) − revolve(hole-as-outer)` and executed through the
-  degenerate no-crossing arm (the profile's validated 2-D margins).
+  degenerate no-crossing arm (the profile's validated 2-D margins); and
+  a concave blend's fill sealing a blind hole's mouth, DEFINED by the
+  blend's Boolean semantics (`S ∪ F`) and executed by its surgery (the
+  mouth's cycle on the face the fill covers).
   Recipe-layer sugar may wrap any of these; the door stays the one
   birthplace. `UnsupportedToroid` is permanent: a D3 ring-torus
   boundary — spindle tori have no representation.
