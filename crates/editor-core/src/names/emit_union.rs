@@ -1006,15 +1006,22 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let bug = |what| NamingError::Emission { what };
         let (n, name) = line;
         let m = self.member(*n, name.name())?;
-        // The member's rows on the line, each with its edge: the
-        // classified piece is the one at `v`.
+        // The member's rows on the line, each with its edge, a tied
+        // row with each candidate's: the classified piece is the one at
+        // `v`. The line itself need not be a row.
         let mut rows: BTreeMap<topo::EdgeKey, &StableName> = BTreeMap::new();
         for row in core::iter::once(name.name())
             .chain(m.table.on_line(name.name()).iter().map(|r| r.name()))
         {
-            if let Some(Entry::Unique(e)) = m.table.lookup(row)
-                && let EntityKey::Edge(k) = e.key
-            {
+            let candidates = match m.table.lookup(row) {
+                Some(Entry::Unique(e)) => core::slice::from_ref(e),
+                Some(Entry::Tied(es)) => es.as_slice(),
+                None => continue,
+            };
+            for e in candidates {
+                let EntityKey::Edge(k) = e.key else {
+                    return Err(bug("a member's row on an edge's line names no edge"));
+                };
                 rows.entry(k).or_insert(row);
             }
         }
@@ -1494,13 +1501,20 @@ fn cite_member_edges<T: geom_core::Decide>(
             points.push(vertex_point(body, v)?);
         }
         // Each crossing is read on the member edge of the line it lies
-        // on, the line's least row where it lies on none.
+        // on, the line's least row where it lies on none: a tied row by
+        // the candidate it lies on, each candidate an edge of its own.
         let member_table = member_of(members, member, edge.name())?.table;
         let mut on_line = Vec::new();
         for row in member_table.on_line(edge.name()) {
-            if let Some(Entry::Unique(e)) = member_table.lookup(row)
-                && let EntityKey::Edge(k) = e.key
-            {
+            let candidates = match member_table.lookup(row) {
+                Some(Entry::Unique(e)) => core::slice::from_ref(e),
+                Some(Entry::Tied(es)) => es.as_slice(),
+                None => return Err(bug("a member's row on a line is not in its table")),
+            };
+            for e in candidates {
+                let EntityKey::Edge(k) = e.key else {
+                    return Err(bug("a member's row on an edge's line names no edge"));
+                };
                 on_line.push((k, row));
             }
         }
