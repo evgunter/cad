@@ -9,6 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::SurfaceKind;
 use geom_core::Tol;
 use mesh::budget::{self, FaceMeasure, Mode};
 // The `loft_prism` corpus body (#212): squares at z = 0 and 2, the
@@ -17,9 +18,7 @@ use mesh::budget::{self, FaceMeasure, Mode};
 // `sweep::test_support`'s, shared with the mesher's golden and budget
 // rows that meter the same solid.
 use sweep::test_support::loft_prism;
-use tess_meter::{
-    Bound, Chart, FaceName, FaceNames, Sizing, best_split_cells, divisions, face_rows,
-};
+use tess_meter::{Bound, FaceName, FaceNames, Sizing, best_split_cells, divisions, face_rows};
 use test_utils::vacuity::Exposure;
 
 #[test]
@@ -51,7 +50,7 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
     // `chart == Nurbs` stops being the right right-hand side, and this
     // is the line that says so first rather than the one below saying
     // it as a sizing failure.
-    let mut charts: Vec<&str> = rows.iter().map(|r| r.chart.tag()).collect();
+    let mut charts: Vec<&str> = rows.iter().map(|r| r.chart.name()).collect();
     charts.sort_unstable();
     charts.dedup();
     assert_eq!(
@@ -67,11 +66,11 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
         // spelling of it would read as a second check and be neither.
         assert_eq!(
             r.sizing.columns().is_some(),
-            r.chart == Chart::Nurbs,
+            r.chart == SurfaceKind::Nurbs,
             "face {}: chart {} took {:?} — sizing columns belong to the \
              Hessian-sized lane and to no other",
             r.face,
-            r.chart.tag(),
+            r.chart.name(),
             r.sizing
         );
     }
@@ -164,7 +163,10 @@ fn an_off_lane_face_gets_an_empty_tailed_row() {
     let rows = face_rows(6e-3, &body, &mesh, &measures, None);
     assert_eq!(rows.len(), body.faces().count());
 
-    let caps: Vec<_> = rows.iter().filter(|r| r.chart == Chart::Plane).collect();
+    let caps: Vec<_> = rows
+        .iter()
+        .filter(|r| r.chart == SurfaceKind::Plane)
+        .collect();
     assert!(!caps.is_empty(), "the loft's caps are planar faces");
     let cols = tess_meter::CSV_HEADER.split(',').count();
     for r in &caps {

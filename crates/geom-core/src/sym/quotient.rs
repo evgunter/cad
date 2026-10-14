@@ -93,10 +93,11 @@
 //! itself a denominator already in the DAG, so a power of something
 //! (i) or (ii) covers.
 //!
-//! **(iv) Rule C's polynomial square root** (`signed::fold`, dial-off
-//! in the shipped set): the new denominator `d` satisfies `d² = D` for
-//! the old `D`, and the site refuses a zero `d` outright, so `d = 0`
-//! iff `D = 0` — again a power of something already covered.
+//! **(iv) Rule G's split denominators** (`root`'s canonical form): the
+//! `sqrt(D')` atom, the `|R|` atom (`R² = D'`) or the exact rational
+//! root that `sqrt(N/D) = sqrt(N)/sqrt(D)` leaves below, for `D'` the
+//! primitive part of a `D` the split proved positive — zero iff `D` is,
+//! so again a root of something already covered.
 //!
 //! On a box clause 1 admits, then, the two forms denote the same real
 //! function at every point, which is exactly what the theorem needs.
@@ -190,7 +191,9 @@
 //! `work/sym/derived-frame-placement-freezes-on-the-symbolic-lane`
 //! the numbers.
 
-use super::form::{Form, Mono, Poly, exp_of};
+use std::sync::Arc;
+
+use super::form::{Form, Mono, Poly, exp_of, mono_div};
 use super::rational::Rat;
 
 /// **The monomial in both `a` and `b`** — per indeterminate, the
@@ -208,7 +211,12 @@ fn shared(a: &Mono, b: &Mono) -> Mono {
 /// min-exponent merge as [`shared`], folded over the terms. The empty
 /// monomial for the zero polynomial and wherever the terms share no
 /// indeterminate.
-fn content(p: &Poly) -> Mono {
+///
+/// Rule E's own use is the quotient's shared factor; the decision read
+/// ([`super::signed`]) divides the same content out of a decision's
+/// halves to read a sign through the positive factors dressing it, and
+/// asks THIS function rather than re-deriving the merge.
+pub(super) fn content(p: &Poly) -> Mono {
     let mut it = p.monos();
     let Some(first) = it.next() else {
         return Mono::new();
@@ -235,23 +243,13 @@ fn content(p: &Poly) -> Mono {
 /// `[(1,1)]`, and the order has flipped — so the terms are collected
 /// and sorted ONCE, which is `n log n` against the `n` binary-searched
 /// inserts (each an `O(n)` memmove) the first spelling cost.
-fn divide(p: &Poly, g: &Mono) -> Option<Poly> {
+pub(super) fn divide(p: &Poly, g: &Mono) -> Option<Poly> {
     if g.is_empty() {
         return Some(p.clone());
     }
     let mut terms: Vec<(Mono, Rat)> = Vec::with_capacity(p.terms().len());
     for (m, c) in p.terms() {
-        let mut rest = Mono::with_capacity(m.len());
-        for &(id, e) in m {
-            let d = exp_of(g, id);
-            if e < d {
-                return None;
-            }
-            if e > d {
-                rest.push((id, e - d));
-            }
-        }
-        terms.push((rest, c.clone()));
+        terms.push((mono_div(m, g)?, c.clone()));
     }
     terms.sort_by(|(a, _), (b, _)| a.cmp(b));
     Poly::from_sorted_terms(terms)
@@ -290,8 +288,24 @@ fn den_pivot(d: &Poly) -> Option<&Rat> {
 /// a shape the rule does not reach comes back unchanged — and never
 /// grows the form.
 pub(super) fn cancel(f: &Form) -> Form {
+    cancelled(f).unwrap_or_else(|| f.clone())
+}
+
+/// [`cancel`] over a SHARED form: the same `Arc` back where the rule
+/// has nothing to do, so a walk memo and the per-node reduction's memo
+/// (`sym::reduce_per_node`) can hold one allocation of a form rule E
+/// leaves alone.
+pub(super) fn cancel_shared(f: Arc<Form>) -> Arc<Form> {
+    match cancelled(&f) {
+        Some(g) => Arc::new(g),
+        None => f,
+    }
+}
+
+/// [`cancel`]'s work, `None` on the no-op paths.
+fn cancelled(f: &Form) -> Option<Form> {
     if f.poisoned || f.num.is_zero() || f.den.is_zero() {
-        return f.clone();
+        return None;
     }
     let g = shared(&content(&f.num), &content(&f.den));
     // **The no-op path is free.** Most nodes of a walk have nothing to
@@ -304,7 +318,7 @@ pub(super) fn cancel(f: &Form) -> Form {
     // 0.358, the link 2.53 → 2.43.
     let pivot_is_unit = den_pivot(&f.den).is_some_and(|s| s.abs() == Rat::one());
     if g.is_empty() && pivot_is_unit && constant_ratio(&f.num, &f.den).is_none() {
-        return f.clone();
+        return None;
     }
     let (num, den) = if g.is_empty() {
         (f.num.clone(), f.den.clone())
@@ -336,19 +350,17 @@ pub(super) fn cancel(f: &Form) -> Form {
         None => (num, den),
     };
     if let Some(r) = constant_ratio(&num, &den) {
-        return Form {
+        return Some(Form {
             num: Poly::constant(r),
             den: Poly::one(),
             poisoned: false,
-            gated: f.gated,
-        };
+        });
     }
-    Form {
+    Some(Form {
         num,
         den,
         poisoned: false,
-        gated: f.gated,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -496,11 +508,11 @@ mod scalar_rows {
         let (out, counts) = with_session_rules(budget(), rules, || {
             crate::k_stats::decide("sym5_rule_e_row", Margin::of(build()), band())
         });
-        matches!(out, Ok(Sign::Zero)) && counts.symbolic_zero == 1
+        matches!(out, Ok(Sign::Zero)) && counts.symbolic == 1
     }
 
     fn p(name: &str, v: f64) -> Sym<f64> {
-        Sym::param(ParamSymbol::of(name), v)
+        Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
     }
 
     /// **The theorem row.** An already-normalised vector's own norm is

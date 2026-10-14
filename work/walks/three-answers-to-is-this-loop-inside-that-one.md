@@ -44,7 +44,7 @@ the boundary case:
    widens the divergence this row tracks: `ring_nesting` and
    `boolean::contfp` now dispatch on the loop's shape, `rehome_rings`
    still does not
-   (`work/reach/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`).
+   (`work/cleave/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`).
    **2026-09-25 (ATREST-12): one instrument again, and no shape
    dispatch** — `splitting::containment::point_in_carrier_loop` (the
    walk that reads each edge on its own carrier, ATREST-9) on every
@@ -54,7 +54,12 @@ the boundary case:
    spline outer edge, the query inside the ball holding the loop).
    `ring_nesting` now shares its walk with `solid_contain::point_in_face`;
    `contfp` still dispatches on `loop_shape` and `rehome_rings` on
-   nothing.
+   nothing. **2026-10-01 (CLEAVE,
+   `rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`):
+   `rehome_rings` reads the run through `point_in_carrier_loop` too**,
+   so the two now share the instrument and differ on the sample set
+   (one representative against every vertex) and on the boundary
+   posture, which is this row's question.
 
 Two of the three agree on the instrument and disagree on the sample set
 and on the boundary; the first agrees with neither and is not a

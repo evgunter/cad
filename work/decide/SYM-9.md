@@ -50,7 +50,7 @@ the union, items A–U of the brief, every one listed in the PR body.
 
 Phase 1's tables stand, on five of the six documents at the nominal;
 the pad is measured on the release leaf instrument, where the ladder
-recovers nothing (`work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
+recovers nothing (`work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
 
 What changed at the fix pass: the rules differentials run with no
 ladder on both sides (the first cut had the ladder inside all of them),
@@ -67,7 +67,7 @@ two), six registrations on R2's bracket, nothing on the other four.
 
 `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
 stays open at P2 for shape 2 (the render). Filed:
-`work/sym/a-retrys-zero-has-no-cross-check-against-the-numeric-channel`.
+`work/rules/a-retrys-zero-has-no-cross-check-against-the-numeric-channel`.
 
 ## Closed (2026-09-24)
 

@@ -43,9 +43,10 @@ norm through `norm_sup` on point intervals.
 Measured on the sibling site this was found from — `offset_fit`'s
 `m_sup`, the same shape on the same kind of hulls — the `f64` fold sat
 below the ring reading on **306 of 308 cells** of a real grid, worst
-deficit 4.70e-16 relative (`d = 1e-6`, quarter cylinder; the
-in-module row `the_normal_divisor_is_the_rings_reading_not_an_f64_fold`
-still counts it). Assembly B's operands are midpoints rather than
+deficit 4.70e-16 relative (`d = 1e-6`, quarter cylinder; counted by
+the in-module row `the_normal_divisor_is_the_rings_reading_not_an_f64_fold`,
+retired when `m_sup` moved to coefficient norms — ENCL,
+`encl/offset-cert-coefficient-norms`). Assembly B's operands are midpoints rather than
 magnitudes, so the count will differ, but the mechanism is identical.
 
 ## Why it is filed rather than fixed
@@ -66,7 +67,8 @@ moves.
 *An upper bound on a norm assembled by an `f64` fold of ring
 endpoints, used as a divisor.* The three members found are this one,
 `offset_fit::Composite::cell_bound`'s `m_sq`/`y_sq` (fixed at #2469)
-and `ssi::certify`'s `stretch`.
+and the plane×NURBS `stretch` (now `ssi::enclose`'s
+`chart_transverse_margin`).
 
 ## Still live after RATE-PAIR (2026-09-15)
 
@@ -80,3 +82,7 @@ Worth saying because the rate pair is the natural place a reader would
 look for this: `dn` is NOT a rate. It is the norm of a direction
 vector, so no `SupSpeed` tag applies and the pair's doors do not reach
 it. What it wants is the ring's fold, which this file already owns.
+
+## Note from SSI (2026-10-01)
+
+PR 3653 (`ssi/chart-rate`) routes `cell_normal`'s `dn` through `geom_core::interval::norm_sup`, so the f64 fused-multiply-add fold this row describes is gone. The substance looks closed; whether the row closes is OFFSET's call.

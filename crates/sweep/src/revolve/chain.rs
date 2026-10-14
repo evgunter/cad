@@ -32,9 +32,10 @@ pub(super) struct MeridianChain {
     pub(super) face: FaceKey,
 }
 
-/// Grows `segs` as a closed chain in `r#loop`, anchored at `anchor`
-/// (the loop's only vertex — an `mvfs` seed or a bridge tip), and
-/// closes it with an `mef` carrying `cap`. Every meridian chain is
+/// Grows `segs` — two or more: a one-segment loop is swept whole
+/// (`turn::sweep_turn`) — as a closed chain in `r#loop`, anchored at
+/// `anchor` (the loop's only vertex — an `mvfs` seed or a bridge tip),
+/// and closes it with an `mef` carrying `cap`. Every meridian chain is
 /// laid down at the sketch placement: the wedge's end chain is not
 /// built here but swept from this one, and a full period is
 /// definitionally the identity.
@@ -43,7 +44,7 @@ pub(super) struct MeridianChain {
 /// is what it returns; each caller's `?` lifts it through its own
 /// `From<EulerOpError>`.
 #[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness, not a duty of its own
-pub(super) fn build_chain<T: Decide>(
+pub(super) fn build_chain<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     frame: &AxisFrame<T>,
     r#loop: LoopKey,
@@ -58,8 +59,8 @@ pub(super) fn build_chain<T: Decide>(
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
         MevSite::Lone { r#loop },
-        qs[1 % n],
-        placed_segment_spec(&segs[0], place, normal, qs[0], qs[1 % n], tol),
+        qs[1],
+        placed_segment_spec(&segs[0], place, normal, qs[0], qs[1], tol),
         tol,
     )?;
     hes.push(first.he_plus);

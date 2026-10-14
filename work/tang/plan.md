@@ -1,7 +1,6 @@
 # TANG — declared tangency, germ and pierce, the pinch machinery (plan)
 
-**STATUS: OPEN, awaiting its first sitting.** Opened 2026-09-20 by
-CURVED's cut (Ev, in-chat). Live state is `work/tang/log.md`'s tail
+Opened 2026-09-20 by CURVED's cut (Ev, in-chat). Live state is `work/tang/log.md`'s tail
 and the item files beside this plan, never this file.
 
 Branch prefix: **`tang/`** — unit branches `tang/<unit>-<slug>`,

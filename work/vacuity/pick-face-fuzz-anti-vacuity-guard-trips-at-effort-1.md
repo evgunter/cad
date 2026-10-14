@@ -176,3 +176,8 @@ for that run — a message this row's instance carries is not a message that
 one's had — but it does raise the prior: three of three fully-messaged
 reds of this `#[test]` are the searched anti-vacuity guard, and zero are
 oracle disagreements.
+
+**Again, 2026-10-07**: PR 4143's CI (`test`, one eps row, head
+`d37f5dcd`) tripped it with seed `0x9c7901b099374603`; it reproduces
+locally at the default eps with `CAD_FUZZ_SEED=0x9c7901b099374603
+CAD_FUZZ_EFFORT=1`. That PR touches no picking code.

@@ -8,11 +8,13 @@
 //! it is verified by code-read + suites-green only (rare germ-fan
 //! lane), stated in the audit doc's row.
 //!
-//! **CI EXECUTES THIS SUITE.** It is rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
-//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
-//! by `--check-executed`, so every assertion below is a gate and a red here
-//! fails the merge. By hand:
+//! **The nightly executes this suite; the PR gate only builds it.** It is
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! under the DEFAULT selection by `scripts/k_probe_sweep.sh` in the
+//! nightly's dev-probe row, whose tally is floored by `--check-executed`,
+//! so a red here reds the nightly. The PR gate compiles it (`clippy
+//! --all-features`) and runs none of it, so a PR can merge green over a red
+//! here. By hand:
 //! `cargo test -p topo --features probe --test all -- rim_dim_review_probes::`.
 
 #![cfg(feature = "probe")]
@@ -27,7 +29,6 @@ use geom_core::k_stats::{self, Probe};
 use topo::{BooleanResult, subtract};
 
 const FIXED: &[&str] = &[
-    "props_rim_level_group",
     "props_rim_side",
     "bool_join_facing",
     "bool_strut_order",
@@ -58,17 +59,18 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
             Tol::witness(),
         )
     };
+    let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
+    let a = fin("a", bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)));
+    let b = fin("b", bx((1.0, 3.0), (1.0, 3.0), (1.0, 3.0)));
+    let a2 = fin("a2", bx((0.0, 4.0), (0.0, 4.0), (0.0, 1.0)));
+    let b2 = fin("b2", bx((1.0, 2.0), (1.0, 2.0), (-1.0, 2.0)));
     k_stats::start_recording();
-    let a = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = bx((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
     let r = subtract(&a, &b, Tol::witness()).expect("corner subtract");
     let BooleanResult::Body(rb) = r else {
         panic!("corner: body out");
     };
     topo::validate_pseudomanifold(&rb.body, &topo::ContactRecords::default(), Tol::witness())
         .expect("census");
-    let a2 = bx((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
-    let b2 = bx((1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
     // The F4 fix (see rim_dim_boolean_twins module docs) retired this
     // configuration's in-band refusal on coarse ε rows: the winding is
     // metered to its mean width, so the mm pocket subtract computes at
@@ -120,18 +122,18 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
              (the F3 routing pin is vacuous otherwise)"
         );
     }
-    // Deviation 2, pinned rather than asserted in prose: the bound check
-    // RUNS on these mm-scale operands. Pre-F3 the raw m³ comparand put
-    // a 2 mm cube's 8e-9 m³ inside the default band, read that as "not
-    // certifiably bounded", and skipped the bound entirely — only 1 of
-    // the 3 mm-scale checks ran. Both arms of both checks must fire now
-    // (2 bound checks × 2 arms = 4 samples, 2 under each name).
+    // Deviation 2, pinned rather than asserted in prose: the bound checks
+    // RUN on these mm-scale operands. Pre-F3 the raw m³ comparand put a
+    // 2 mm cube's 8e-9 m³ inside the default band, read that as "not
+    // certifiably bounded", and skipped the bound entirely. Each of the
+    // two subtracts reaches both arms of both its bounds (∖ ≤ A and
+    // ∖ ≥ A − B): 4 samples under each name.
     for arm in ["volume_backstop", "volume_backstop_violation"] {
         assert_eq!(
             counts.get(arm).map(|c| c.0),
-            Some(2),
-            "{arm}: both mm-scale bound checks must reach this arm — a \
-             count of 1 is the pre-F3 silent skip coming back"
+            Some(4),
+            "{arm}: every mm-scale bound check must reach this arm — a \
+             lower count is the pre-F3 silent skip coming back"
         );
     }
 }
@@ -139,7 +141,7 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
 use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::SampleOutcome;
-use topo::{SplitPlane, split};
+use topo::split;
 
 /// Linearity probe for the fixed sites the twin pin leaves SILENT:
 /// a flush-face subtract (coplanar lane -> bool_plane_orient) and an
@@ -156,24 +158,26 @@ fn silent_fixed_predicates_scale_linearly() {
                 Tol::witness(),
             )
         };
+        let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
+        let a = fin("a", bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)));
+        let b = fin("b", bx((1.0, 2.0), (0.5, 1.5), (0.5, 1.5)));
         k_stats::start_recording();
-        // Flush: b's x-max face lies IN a's x=2 face plane. Undeclared,
-        // so the op REFUSES typed at bool_plane_offset — but the
-        // bool_plane_orient sample fires (and records) first, which is
-        // all this probe harvests.
-        let a = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-        let b = bx((1.0, 2.0), (0.5, 1.5), (0.5, 1.5));
+        // Flush: b's x-max face lies IN a's x=2 face plane, which the
+        // op glues on its decided zero; the bool_plane_orient sample
+        // fires on the way, which is all this probe harvests.
         assert!(
-            subtract(&a, &b, Tol::witness()).is_err(),
-            "undeclared flush must refuse"
+            subtract(&a, &b, Tol::witness()).is_ok(),
+            "the flush subtract builds"
         );
         // Oblique split of a cube.
         let body = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)).clone();
+        let body = topo::test_support::finished("the body", body, Tol::witness());
         let n = geom_core::Vec3::new(Probe(1.0 / 3.0), Probe(2.0 / 3.0), Probe(2.0 / 3.0));
-        let plane = SplitPlane {
-            origin: geom_core::Point3::new(Probe(s(1.0)), Probe(s(1.0)), Probe(s(1.0))),
-            normal: n,
-        };
+        let plane = topo::test_support::split_plane(
+            geom_core::Point3::new(Probe(s(1.0)), Probe(s(1.0)), Probe(s(1.0))),
+            n,
+            geom_core::Tol::witness(),
+        );
         split(&body, &plane, Tol::witness()).expect("oblique split");
         let mut out: BTreeMap<&'static str, Vec<f64>> = BTreeMap::new();
         for sample in k_stats::take_samples() {

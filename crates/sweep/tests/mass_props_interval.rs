@@ -8,6 +8,7 @@
 
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};
 use profile::RawLoop;
+use sweep::ExtrudeSide;
 
 use crate::common::interval::{p2, v2};
 use geom_core::Tol;
@@ -63,7 +64,10 @@ fn l_prism_interval_encloses_closed_forms() {
     ]);
     let body = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(Interval::from_f64(1.0)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

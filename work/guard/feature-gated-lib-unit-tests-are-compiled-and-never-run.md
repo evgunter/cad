@@ -79,3 +79,18 @@ nothing runs (`probe-suite-census.sh`, the `$want_marker`
 disposition). DECIDE-2 worked around it instead: its third seam pin
 is an integration row in a rostered suite, and
 `geom_core::sym::discharge_sample_outcomes` exists to let it be one.
+
+## Since filed (2026-10-01)
+
+The TOPO lane that closed `kev-describing-row-fails-under-all-features`
+ran `cargo nextest run -p topo --all-features --lib` against the
+default run on `origin/main` d25fcce4a2: seven lib rows exist only
+under `probe`, four more than the hit list above names for `topo`,
+all of the swept shape (a `#[cfg(feature = "probe")]` directly above
+`#[test]`), so they landed after the sweep:
+`chart_region::wiring_rows::probe_is_wired_to_the_certified_region_doors`,
+`props::wiring_rows::probe_is_wired_to_the_certified_quadrature`,
+`props::wiring_rows::probe_is_wired_to_the_certified_shell_door` and
+`splitting::containment::tests::an_ellipses_centre_records_no_invalid_margin`.
+All seven pass there. The per-op scalpel's half of the same gap is
+`work/ciw/no-ci-row-runs-topo-under-the-per-op-postcondition-scalpel.md`.

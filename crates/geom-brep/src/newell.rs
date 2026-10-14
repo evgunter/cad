@@ -23,8 +23,18 @@
 //!
 //! The plane's origin is the centroid `c` (on the plane whenever the
 //! vertices are — the mean of points within ε of a plane is within ε of
-//! it); `u_ref` comes from the branchless orthonormal basis (Duff 2017,
-//! the PR 1 machinery), so the whole construction is comparison-free.
+//! it); `u_ref` comes from [`Vec3::orthonormal_basis`], which crosses
+//! the normal with the world axis its own components choose.
+//!
+//! **What this module assumes about that frame: nothing.** It is the
+//! caller that mints the frame of every extruded wall and cap, and it
+//! reads back none of `u_ref`'s properties — the certification below
+//! measures vertex distances to `(origin, normal)`, the orientation
+//! contract is the loop order's right-hand normal, and `u_ref` rides
+//! along as the chart's reference direction for whoever charts the
+//! plane later. A different constructor renames every frame this
+//! module mints and changes no claim it makes.
+//!
 //! The far-from-origin accuracy is pinned by the 1e8-offset rectangle
 //! test at ε = 1e-9.
 //!
@@ -66,7 +76,7 @@
 //! `fixed_n3_*` test.)
 
 use geom::Surface;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::dihedral::decide;
 
@@ -110,11 +120,12 @@ impl core::fmt::Display for NewellError {
                 "vertex {vertex} lies definitely off the loop's plane, so the loop is not \
                  planar at tolerance"
             ),
-            Self::Escalated { vertex, cause } => write!(
-                f,
-                "whether vertex {vertex} lies on the loop's plane is too close to call: \
-                 {cause}"
-            ),
+            Self::Escalated { vertex, cause } => cause
+                .undecided(
+                    format_args!("whether vertex {vertex} lies on the loop's plane"),
+                    cause.ending(COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
         }
     }
 }
@@ -207,8 +218,7 @@ mod tests {
         };
         assert_eq!((normal.x, normal.y, normal.z), (0.0, 0.0, 1.0));
         assert_eq!((origin.x, origin.y), (0.5, 0.5));
-        // u_ref is unit and perpendicular to the normal (branchless
-        // basis).
+        // u_ref is unit and perpendicular to the normal.
         assert!((u_ref.norm() - 1.0).abs() < 1e-15);
         assert!(u_ref.dot(normal).abs() < 1e-15);
         // Reversed order flips the normal.

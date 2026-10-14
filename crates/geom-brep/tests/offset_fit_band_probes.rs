@@ -4,7 +4,7 @@
 //! The doors take the run's ε as the `Tol` witness alone and derive the
 //! meters' band from it, so the only way to reach the arm is to COMMIT
 //! a pathological tolerance. The global commits once per process, so
-//! each arm is an `#[ignore]`d probe re-exec'd in its own process by
+//! the arm is an `#[ignore]`d probe re-exec'd in its own process by
 //! `the_band_arm_is_reachable_through_the_doors` — `geom-core`'s
 //! `band_tolerance.rs` pattern. The spawner touches no global itself,
 //! and a probe is inert in an ordinary run.
@@ -70,34 +70,14 @@ fn probe_overflow_arm_through_the_doors() {
     println!("PROBE overflow-through-the-doors OK");
 }
 
-/// PROBE (own process). The COLLAPSE arm: the subnormal ε = 2⁻¹⁰²³ with
-/// the least admitted K, so K·ε rounds back onto ε.
-#[test]
-#[ignore]
-fn probe_collapse_arm_through_the_doors() {
-    let eps = f64::from_bits(1u64 << 51);
-    let tol = commit(eps, 1.0f64.next_up());
-    every_door_refuses(
-        tol,
-        BandError::Empty {
-            zero: eps,
-            escalate: eps,
-        },
-    );
-    println!("PROBE collapse-through-the-doors OK at eps={eps:e}");
-}
-
-/// **Both arms of `Band::linear` reach the offset-fit doors' `Band`
-/// arm**, each from a tolerance the run's validator admits. Each row is
-/// a re-exec'd child because each commits a different global.
+/// **`Band::linear`'s overflow arm reaches the offset-fit doors' `Band`
+/// arm** from a tolerance the run's validator admits. Its collapse arm
+/// needs an ε below the floor, which no run commits (geom-core's
+/// `the_floor_refuses_every_eps_that_collapses_linear`). The row is a
+/// re-exec'd child because it commits its own global.
 #[test]
 fn the_band_arm_is_reachable_through_the_doors() {
-    for probe in [
-        "probe_overflow_arm_through_the_doors",
-        "probe_collapse_arm_through_the_doors",
-    ] {
-        spawn_probe(probe);
-    }
+    spawn_probe("probe_overflow_arm_through_the_doors");
 }
 
 /// Re-execs this binary at one `#[ignore]`d probe, in its own process.

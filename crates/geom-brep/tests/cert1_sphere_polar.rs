@@ -94,11 +94,10 @@ fn a_pole_crossing_meridian_arc_measures_the_half_cap_exactly() {
     );
 }
 
-/// **The rimless arm: the hemisphere split at ±π/4 still measures
-/// `2πR²`.** The same set of points as the pole-split loop the arm was
-/// written for — one great circle, both halves on the SAME carrier, so
-/// `props_band_coplanar`'s margin is bitwise 0 — with the two vertices
-/// moved off the poles to latitudes ±π/4. Both poles then fall in the
+/// **The rimless hemisphere split at ±π/4 still measures `2πR²`.**
+/// The same set of points as the pole-split loop — one great circle,
+/// both halves on the SAME carrier — with the two vertices moved off
+/// the poles to latitudes ±π/4. Both poles then fall in the
 /// arcs' INTERIORS; the endpoint fold gave `(∓√2/2)` and the face
 /// measured −29.2893% (issue 723, comment 4). Pure topology must not
 /// move the answer: the area is the hemisphere's, `2πR²`.
@@ -157,9 +156,10 @@ fn a_split_vertex_a_hair_off_the_pole_still_certifies() {
 /// world produces (certification bounds `0 < Δt ≤ τ` per edge; the
 /// import door normalises into `(0, τ]`), and answering it exactly
 /// would be a closed form over an uncertified premise. The parse
-/// therefore re-decides certification's bound per meridian arc
-/// (`props_meridian_span_winding`, the same margin at the same band
-/// and lever) and refuses under that name — the disposition the torus
+/// therefore re-decides certification's bound per arc
+/// (`props_sphere_arc_span_winding`, the same margin at the same band,
+/// levered by the arc's radius, which a meridian's is the sphere's) and
+/// refuses under that name — the disposition the torus
 /// fold already takes for a span it reconstructs across pieces. The
 /// other three rows of this issue's block still ride the fold: their
 /// arcs contain a pole and stay within one period.
@@ -174,8 +174,8 @@ fn a_multi_wrap_span_is_refused_at_the_parse() {
     assert!(
         matches!(
             curved_face(&sphere(), &pair, true, band),
-            Err(PropsError::NotIsoRectangle {
-                what: "props_meridian_span_winding"
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_arc_span_winding"
             })
         ),
         "a 3π meridian span is past the per-edge winding bound and refuses by its name"
@@ -232,10 +232,10 @@ fn near_polar_two_level_row(v0: f64, v1: f64, v2: f64) -> Vec<LoopEdge<f64>> {
 /// separation is `~R·dv = 10·escalate` — decisively distinct at any ε
 /// and any K — while their AXIAL separation is
 /// `R·Δsin v ≈ R·dv·(δ0 + dv/2) < 0.007·(10·escalate) < zero`: the
-/// collapsed `(sin v, 0)` lever decided the pair `Zero`, the interior
-/// rim passed as coincident with the extreme, and the staircase was
-/// ACCEPTED. The honest answer is the iso-rectangle refusal, by the
-/// one named predicate.
+/// collapsed `(sin v, 0)` lever decided the pair `Zero` and the
+/// staircase passed as a rectangle. The shape door (`mesh`'s) refuses
+/// it by the one named predicate; the flux lane reads no level and
+/// measures the staircase's own area.
 #[test]
 fn two_distinct_near_polar_rims_are_not_one_level() {
     let band = band();
@@ -245,12 +245,20 @@ fn two_distinct_near_polar_rims_are_not_one_level() {
     let edges = near_polar_staircase(0.2, v2 - dv, v2);
     assert!(
         matches!(
-            curved_face(&sphere(), &edges, true, band),
+            geom_brep::props::require_iso_rectangle(&sphere(), &edges, band),
             Err(PropsError::NotIsoRectangle {
                 what: "props_rim_level"
             })
         ),
         "two near-polar rims 10·escalate apart must not pass as one level"
+    );
+    let area = curved_face(&sphere(), &edges, true, band)
+        .expect("the staircase measures")
+        .area;
+    let exact = RS * RS * ((v2 - dv).sin() + v2.sin() - 2.0 * 0.2_f64.sin());
+    assert!(
+        (area - exact).abs() / exact < 1e-12,
+        "staircase area {area:e} vs {exact:e}"
     );
 }
 
@@ -267,7 +275,8 @@ fn two_distinct_near_polar_rims_are_not_one_level() {
 /// which is what this row exists to redden. The step is stated as the
 /// two-level row: a `3·zero` meridian is inside certification's own
 /// ambiguity band for a span, and a staircase would escalate on that
-/// premise before the rim levels were ever compared.
+/// premise before the rim levels were ever compared. Asked of the shape
+/// door, whose parse compares rim levels; the flux lane compares none.
 #[test]
 fn the_near_polar_refusal_floor_is_the_coincidence_threshold() {
     let band = band();
@@ -275,7 +284,7 @@ fn the_near_polar_refusal_floor_is_the_coincidence_threshold() {
     let dv = 3.0 * band.zero() / RS;
     let v2 = core::f64::consts::FRAC_PI_2 - d0;
     let edges = near_polar_two_level_row(0.2, v2 - dv, v2);
-    match curved_face(&sphere(), &edges, true, band) {
+    match geom_brep::props::require_iso_rectangle(&sphere(), &edges, band) {
         Err(PropsError::NotIsoRectangle { .. }) | Err(PropsError::Escalated { .. }) => {}
         other => panic!(
             "two near-polar rims 3·zero of point separation apart must not \
@@ -301,6 +310,11 @@ fn a_near_polar_step_within_the_band_is_still_one_level() {
     let v0 = 0.2;
     let v2 = core::f64::consts::FRAC_PI_2 - d0;
     let edges = near_polar_two_level_row(v0, v2 - dv, v2);
+    assert_eq!(
+        geom_brep::props::require_iso_rectangle(&sphere(), &edges, band),
+        Ok(()),
+        "the shape door reads one level"
+    );
     let got = curved_face(&sphere(), &edges, true, band)
         .expect("a rim step half an epsilon of point separation is one level");
     let closed = 2.0 * RS * RS * (v2.sin() - v0.sin());

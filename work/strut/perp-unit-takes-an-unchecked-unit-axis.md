@@ -11,7 +11,7 @@ cost: E
 ## Where this came from
 
 The class sweep of `unit-vector-witness-in-geom-core` (SCALAR; the
-ruling is `work/scalar/unit-vector-invariants-carried-as-prose.md`
+ruling is SCALAR's `unit-vector-invariants-carried-as-prose` (ruled on PR 2457; `docs/doc-ledger/scalar-leaves-the-tracker.md`)
 §RATIFIED). The class: a function whose doc or parameter name asserts
 a unit-vector precondition it does not check. `geom_core::UnitVec3<T>`
 now exists to carry that fact across a function boundary — minted by
@@ -61,9 +61,9 @@ perpendicularity is free and the magnitude is not.
 It is reachable: the two supports of a corner link are distinct faces
 but nothing here refuses them being coplanar-parallel. Taking it wants
 `UnitVec3::new` under a name BLEND owns, or
-`OrthoFrame::from_axis_and_reference` if the triple is what the caller
+`RigidMotion::from_axis_and_reference` if the triple is what the caller
 actually wants — the second is now one call
-(`crates/geom-core/src/linalg/ortho_frame.rs`).
+(`crates/geom-core/src/linalg/rigid_motion.rs`).
 
 Found by FRAME-WITNESS's review sweep, whose pattern (a doc-word match
 plus a `Vec3` parameter) could not see it: the premise is in the

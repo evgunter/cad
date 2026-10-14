@@ -35,7 +35,7 @@ use editor_core::{
     CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg,
     evaluate,
 };
-use fixture::{ang, axis_in_plane, edge_of, insert, len, on_frame_keeping, table};
+use fixture::{ang, edge_of, insert, len, on_frame, revolve_about, table};
 use geom_core::Tol;
 use topo::{Body, EdgeKey};
 
@@ -49,7 +49,10 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-/// Every `BandTrim` name in every value of an evaluation.
+/// Every `BandTrim` name in every value of an evaluation, a joined
+/// edge's members included: the blend's closing join (`docs/DESIGN.md`,
+/// maximal edges) names two trimlines it made one edge as the set of
+/// their names, each still a `BandTrim`.
 fn band_trims(ev: &Evaluation<f64>) -> usize {
     ev.order
         .iter()
@@ -57,8 +60,15 @@ fn band_trims(ev: &Evaluation<f64>) -> usize {
         .map(|v| {
             v.name_table
                 .iter()
-                .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandTrim { .. })))
-                .count()
+                .map(|(n, _)| match n.path.first() {
+                    Some(RoleSeg::BandTrim { .. }) => 1,
+                    Some(RoleSeg::Merged(cs)) => cs
+                        .iter()
+                        .filter(|c| matches!(c.path.first(), Some(RoleSeg::BandTrim { .. })))
+                        .count(),
+                    _ => 0,
+                })
+                .sum::<usize>()
         })
         .sum()
 }
@@ -131,7 +141,7 @@ fn the_ladder_rim_phase_already_reached_the_emitter_from_the_corpus() {
 /// `mouth`) and the wall ABOVE it (`mouth` → `top`).
 fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blend5_r1_probe_lantern", Tol::witness());
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -146,20 +156,9 @@ fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
             (0.2, 1.2),
         ]],
     );
-    let (doc, axis) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
     let (doc, revolve) = insert(
         doc,
-        Node::Revolve {
-            profile,
-            axis,
-            angle: ang(std::f64::consts::TAU),
-        },
+        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     (doc, revolve)
 }
@@ -171,9 +170,11 @@ fn filleted(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Fillet {
-            target: revolve,
             radius: len(0.04),
-            selection: vec![rim],
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                vec![rim],
+            ),
         },
     )
 }

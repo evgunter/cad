@@ -37,18 +37,7 @@ fn kink_sheet() -> NurbsSurface<f64> {
 }
 
 fn lift(s: &NurbsSurface<f64>) -> NurbsSurface<Interval> {
-    let ctrl = s
-        .control()
-        .iter()
-        .map(|p| p.map(Interval::from_f64))
-        .collect();
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        ctrl,
-        s.weights().to_vec(),
-    )
-    .unwrap()
+    s.map_scalar(Interval::from_f64)
 }
 
 fn contains(e: Interval, v: f64) -> bool {

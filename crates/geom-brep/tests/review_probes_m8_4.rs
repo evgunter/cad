@@ -12,7 +12,7 @@
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{ChartWindow, Pcurve, PcurveCache};
+use geom_brep::{Pcurve, PcurveCache};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Vec2};
 
@@ -59,15 +59,6 @@ fn imported_wall() -> Surface<f64> {
     ))
 }
 
-fn window() -> ChartWindow<f64> {
-    ChartWindow {
-        u_min: 0.0,
-        u_max: WIDE,
-        v_min: 0.0,
-        v_max: 1.0,
-    }
-}
-
 fn certify_seam(u: f64, carrier: &Curve3<f64>) -> Result<(), String> {
     PcurveCache::certify(
         Pcurve::IsoLine {
@@ -78,7 +69,6 @@ fn certify_seam(u: f64, carrier: &Curve3<f64>) -> Result<(), String> {
         1.0,
         carrier,
         &imported_wall(),
-        window(),
         band(),
     )
     .map(|_| ())
@@ -168,7 +158,6 @@ fn probe_d_diagonal_image_refuses_typed() {
         1.0,
         &carrier,
         &imported_wall(),
-        window(),
         band(),
     )
     .map(|_| ())

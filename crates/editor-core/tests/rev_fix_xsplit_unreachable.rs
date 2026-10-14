@@ -7,27 +7,29 @@
 //! [`split`] over EVERY subset of the recipe and assert that no
 //! accepted cut ever mints an interface crossing.
 //!
-//! The edge notion is re-derived here from the public
-//! [`editor_core::reading_edges`] rather than from the collector's own
-//! gate, so the row goes red if the two ever disagree — which is the
-//! whole content of the change under review.
+//! Whether a mate welds its two members is re-derived here from the
+//! member walk (`fixture::mate_members`) rather than from the
+//! collector's own gate, so the row goes red if the two ever disagree.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Expr, MateFrame,
-    MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, content_pin,
-    derivation_nodes, split,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Formula, MateFrame,
+    MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, derivation_nodes,
+    split,
 };
 use fixture::resolver::in_part;
 use fixture::{in_copy, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
-fn block(label: &str) -> ProfileDoc {
+/// The unit cube `[0,1]³`, as a whole part document, and its body.
+fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -36,34 +38,79 @@ fn block(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
-    );
-    doc
+    )
 }
 
-fn block_ref(label: &str) -> DocRef {
-    let doc = block(label);
-    let pin = content_pin(&doc, Tol::witness()).unwrap();
-    DocRef { id: doc.id(), pin }
+/// [`block`] as a reference, and its body, placed in the part's world
+/// ([`fixture::resolver::PartStore::insert_part`], which is what lets
+/// [`in_part`] spell its caps through the placement).
+fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
+    fixture::resolver::PartStore::new().insert_part(block(label), Tol::witness())
 }
 
-fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
+/// **The world the product is** (A10): each `(pattern, count)`'s copies
+/// placed through a `Part` per copy, and each of `bodies` placed — the
+/// old product roots, in their document order.
+fn world(doc: ProfileDoc, roots: &[(RecipeNodeId, Option<i64>)]) -> ProfileDoc {
+    roots.iter().fold(doc, |doc, &(root, copies)| match copies {
+        None => fixture::place(doc, root).0,
+        Some(count) => (0..count).fold(doc, |doc, i| {
+            let (doc, copy) = insert(
+                doc,
+                Node::Part {
+                    of: root.into(),
+                    select: editor_core::PartSelect::Instance(Formula::count(i)),
+                },
+            );
+            fixture::place(doc, copy).0
+        }),
+    })
+}
+
+/// Whether `id` is one of [`world`]'s nodes: a placement, or a `Part`
+/// selecting a pattern copy for one.
+fn of_the_world(doc: &ProfileDoc, id: RecipeNodeId) -> bool {
+    matches!(
+        doc.node(id),
+        Some(Node::PlaceInWorld { .. } | Node::Part { .. })
+    )
+}
+
+/// `cut` and the world copies of what it moves: each `Part` selecting a
+/// copy of a cut pattern, then every placement of a cut body.
+fn with_world(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> BTreeSet<RecipeNodeId> {
+    let mut out = cut.clone();
+    for id in doc.ids() {
+        if let Some(Node::Part { of, .. }) = doc.node(id)
+            && doc.operation_of(*of).is_some_and(|at| out.contains(&at))
+        {
+            out.insert(id);
+        }
     }
+    fixture::with_placements(doc, &out)
 }
 
-fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
+fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
+}
+
+fn seat(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),
@@ -75,7 +122,7 @@ fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     }
 }
 
-fn linear(spacing: f64) -> PatternKind {
+fn linear(spacing: f64) -> PatternKind<Formula> {
     PatternKind::Linear {
         direction: [scl(1.0), scl(0.0), scl(0.0)],
         spacing: len(spacing),
@@ -91,17 +138,22 @@ struct Sweep {
     straddling_mates: usize,
 }
 
-/// Runs [`split`] over every non-empty subset of `doc`'s recipe and
+/// Runs [`split`] over every non-empty subset of `doc`'s recipe (its
+/// world placements and copy `Part`s ride with what they place,
+/// [`with_world`]) and
 /// asserts the AQ8 invariant on each accepted one: an interface record
 /// is always empty, and any remainder mate whose ends straddle the cut
-/// is NOT an A12 edge.
+/// welds no two members.
 fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
-    let ids: Vec<RecipeNodeId> = doc.order().to_vec();
+    let ids: Vec<RecipeNodeId> = doc
+        .ids()
+        .into_iter()
+        .filter(|&id| !of_the_world(doc, id))
+        .collect();
     assert!(ids.len() <= 12, "2^n: keep the recipe small");
-    // A mate is an EDGE iff BOTH its heads resolve to members — which
-    // the public A12 walk reports as two edges out of the mate.
+    // A mate welds two members iff BOTH its sides resolve to members.
     let edge_count = |m: RecipeNodeId| {
-        editor_core::reading_edges(doc)
+        crate::fixture::mate_members(doc)
             .into_iter()
             .filter(|&(mate, _)| mate == m)
             .count()
@@ -120,7 +172,7 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
             .collect();
         let Ok(out) = split(
             doc,
-            &cut,
+            &with_world(doc, &cut),
             DocumentId::derive(&format!("{label}-part-{mask}")),
             Tol::witness(),
             None,
@@ -139,7 +191,7 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
             interface.crossings.len(),
             interface.crossings
         );
-        for &id in doc.order() {
+        for id in doc.ids() {
             if cut.contains(&id) {
                 continue;
             }
@@ -147,13 +199,17 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
                 continue;
             };
             let inside = |n: &StableName| derivation_nodes(n).is_subset(&cut);
-            if inside(&a.name) != inside(&b.name) {
+            let (a, b) = (
+                crate::fixture::side_name(doc, *a),
+                crate::fixture::side_name(doc, *b),
+            );
+            if inside(&a) != inside(&b) {
                 seen.straddling_mates += 1;
                 assert_ne!(
                     edge_count(id),
                     2,
-                    "{label}: cut {cut:?} was ACCEPTED with mate {id:?} — an A12 EDGE — \
-                     straddling it. The cluster precondition should have refused."
+                    "{label}: cut {cut:?} was ACCEPTED with mate {id:?} — welding two members — \
+                     straddling it. The group precondition should have refused."
                 );
             }
         }
@@ -167,30 +223,33 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
 /// and plain instance heads.
 fn three_shapes() -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-shapes"), Tol::witness());
-    let (doc, a) = insert(doc, Node::instantiate_part(block_ref("rev-xs-a")));
+    let (a_ref, a_body) = block_ref("rev-xs-a");
+    let (doc, a) = insert(doc, Node::instantiate_part(a_ref));
     let (doc, pa) = insert(
         doc,
         Node::Pattern {
-            input: a,
-            count: Expr::count(3),
+            input: a.into(),
+            count: Formula::count(3),
             kind: linear(2.0),
         },
     );
-    let (doc, b) = insert(doc, Node::instantiate_part(block_ref("rev-xs-b")));
-    let (doc, c) = insert(doc, Node::instantiate_part(block_ref("rev-xs-c")));
+    let (b_ref, b_body) = block_ref("rev-xs-b");
+    let (doc, b) = insert(doc, Node::instantiate_part(b_ref));
+    let (c_ref, c_body) = block_ref("rev-xs-c");
+    let (doc, c) = insert(doc, Node::instantiate_part(c_ref));
     let (doc, pc) = insert(
         doc,
         Node::Pattern {
-            input: c,
-            count: Expr::count(2),
+            input: c.into(),
+            count: Formula::count(2),
             kind: linear(3.0),
         },
     );
     let (doc, npc) = insert(
         doc,
         Node::Pattern {
-            input: pc,
-            count: Expr::count(2),
+            input: pc.into(),
+            count: Formula::count(2),
             kind: linear(7.0),
         },
     );
@@ -198,10 +257,11 @@ fn three_shapes() -> ProfileDoc {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
-                in_copy(pa, 1, in_part(a, CapEnd::End)),
-                in_part(b, CapEnd::Start),
-            ),
+            node: Box::new(seat(
+                in_copy(pa, 1, in_part(a, a_body, CapEnd::End)),
+                in_part(b, b_body, CapEnd::Start),
+            )),
+            fresh: Vec::new(),
         },
     );
     // A head the name UNDERQUALIFIES — one `Instance(i)` over a
@@ -212,13 +272,14 @@ fn three_shapes() -> ProfileDoc {
     let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
         seat(
-            in_copy(npc, 1, in_part(c, CapEnd::End)),
-            in_part(b, CapEnd::End),
+            in_copy(npc, 1, in_part(c, c_body, CapEnd::End)),
+            in_part(b, b_body, CapEnd::End),
         ),
         editor_core::MateSide::A,
         b,
+        b_body,
     );
-    doc
+    world(doc, &[(pa, Some(3)), (b, None), (npc, Some(4))])
 }
 
 /// The adversary the four-cut sample cannot reach: a pattern-placed
@@ -230,35 +291,39 @@ fn three_shapes() -> ProfileDoc {
 fn foreign_master() -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-foreign"), Tol::witness());
     let (doc, _datum) = insert(doc, fixture::xy_frame());
-    let (doc, a) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-a")));
+    let (a_ref, _) = block_ref("rev-xs-f-a");
+    let (doc, a) = insert(doc, Node::instantiate_part(a_ref));
     let (doc, pa) = insert(
         doc,
         Node::Pattern {
-            input: a,
-            count: Expr::count(3),
+            input: a.into(),
+            count: Formula::count(3),
             kind: linear(2.0),
         },
     );
-    let (doc, c) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-c")));
-    let (doc, d) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-d")));
+    let (c_ref, c_body) = block_ref("rev-xs-f-c");
+    let (doc, c) = insert(doc, Node::instantiate_part(c_ref));
+    let (d_ref, d_body) = block_ref("rev-xs-f-d");
+    let (doc, d) = insert(doc, Node::instantiate_part(d_ref));
     // The head resolves to no member (the walk reaches `a` under a
     // name whose master is `c`), which the insert door refuses: it is
     // authored the way such a head arises after insert.
     let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
         seat(
-            in_copy(pa, 2, in_part(c, CapEnd::End)),
-            in_part(d, CapEnd::Start),
+            in_copy(pa, 2, in_part(c, c_body, CapEnd::End)),
+            in_part(d, d_body, CapEnd::Start),
         ),
         editor_core::MateSide::A,
         d,
+        d_body,
     );
-    doc
+    world(doc, &[(pa, Some(3)), (c, None), (d, None)])
 }
 
 /// INVARIANT (AQ8, exhaustively): over EVERY subset of the recipe, no
 /// cut `split` accepts ever mints an interface crossing, and no
-/// accepted cut leaves an A12 EDGE straddling it.
+/// accepted cut leaves a mate welding two members straddling it.
 #[test]
 fn no_cut_whatsoever_severs_a_mate_edge_or_mints_a_crossing() {
     let seen = sweep_every_cut(&three_shapes(), "shapes");

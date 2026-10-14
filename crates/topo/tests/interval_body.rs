@@ -12,6 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use geom::{NetState, NurbsSurface, Surface};
@@ -116,14 +117,27 @@ fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
             )
         })
         .collect();
-    let net = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap();
+    let net = NurbsSurface::new(
+        Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+        Knots::from(kv).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 4],
+    )
+    .unwrap();
     assert_eq!(
         net.net_state(),
         NetState::Poisoned,
         "the fixture is corrupt DESCRIBED geometry at this scalar, not the placeholder"
     );
-    body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(Arc::new(net))))
-        .unwrap();
+    // Lifts RechartStrandsDescriptions: the poisoned described net is the surface check's subject.
+    body.set_face_surface_unvouched_for_tests(
+        face,
+        FaceSurface::New {
+            surface: Surface::Nurbs(Arc::new(net)),
+            sense: true,
+        },
+    )
+    .unwrap();
 
     let errs = validate_geometric(&body, Tol::witness())
         .expect_err("corrupt described geometry is refused at the interval scalar too");

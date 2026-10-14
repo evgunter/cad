@@ -4,7 +4,7 @@ kind: issue
 title: PropsError::QuadratureBudget fires from six sites in three lanes under three round budgets and an exact arm — the rounds payload (0 / 1 / N+1) is the only tell
 status: open
 opened: 2026-09-06
-refs: [quad2-rational-max-rounds-dial-decision, budgetexhausted-conflates-three-terminations]
+refs: [quad2-rational-max-rounds-dial-decision]
 priority: P1
 cost: D
 ---
@@ -56,3 +56,10 @@ constant should name the one that survives it.
 
 PROPS — `crates/geom-brep/src/props/*` is this program's territory and
 the rational quad lane is its own.
+
+## A reference that outlived its program (2026-10-03)
+
+`budgetexhausted-conflates-three-terminations` was PROPS' and was deleted with `work/props/` when that program closed.
+It is dropped from this row's `refs:` because `refs` names live items; the
+finding is unchanged and readable at `git show 63df2069c:work/props/<id>.md`,
+and PROPS' done-state of record is `docs/doc-ledger/props-leaves-the-tracker.md`.

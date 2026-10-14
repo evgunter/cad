@@ -1,6 +1,6 @@
-//! **A validated loop keeps which declared joints are cusps.** The
-//! `.cusp()` door emits the same declaration `.tangent()` does, so the
-//! kind is decided at validation — once per declared joint, with the
+//! **A validated loop keeps which tangent joints are cusps.** The
+//! `.cusp()` door constructs a tangent joint as `.tangent()` does, so
+//! the kind is decided at validation — once per tangent joint, with the
 //! path door's own `path_junction_side` question — and recorded as
 //! `ValidatedLoop::cusp_joints`: canonical, carried through the
 //! reversal remap, the lift and the guided replay, and read by
@@ -10,8 +10,8 @@
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use profile::{
-    Decision, Open, Profile, ProfileError, ProfileLoop, RawLoop, SketchPlane, Start,
-    ValidatedProfile,
+    ClosedLoop, ConstructedProfile, Decision, Open, Profile, ProfileError, ProfileLoop,
+    SketchPlane, Start, ValidatedProfile, replay_guided, replay_recording,
 };
 
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
@@ -22,6 +22,11 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 
 /// The lune through the `.cusp()` door: the kiss is canonical joint 2.
 fn lune() -> ProfileLoop<f64> {
+    lune_closed().into()
+}
+
+/// [`lune`] with the program that built it.
+fn lune_closed() -> ClosedLoop<f64> {
     let tol = Tol::witness();
     Open.at(Point2::new(0.0, 4.0))
         .angle(-std::f64::consts::FRAC_PI_2, tol)
@@ -35,7 +40,6 @@ fn lune() -> ProfileLoop<f64> {
         .cusp()
         .tangent_arc_to(Start, tol)
         .unwrap()
-        .into()
 }
 
 /// The same lune authored RAW and wound the other way (clockwise), so
@@ -46,7 +50,6 @@ fn raw_lune() -> ProfileLoop<f64> {
         (Point2::new(0.0, 2.0), -1.0),
         (Point2::new(0.0, 0.0), 1.0),
     ])
-    .with_tangent_joints(vec![2])
 }
 
 /// The canonical index of the vertex at `at`.
@@ -64,7 +67,7 @@ fn the_cusp_door_records_its_joint_and_the_tangent_door_does_not() {
     assert_eq!(v.loops()[0].tangent_joints(), &[2]);
     assert_eq!(v.loops()[0].cusp_joints(), &[2]);
 
-    // A rounded rectangle: eight declared joints, every one smooth.
+    // A rounded rectangle: eight tangent joints, every one smooth.
     let q = 0.25;
     let b = core::f64::consts::FRAC_PI_8.tan();
     let rounded = bulge_loop(vec![
@@ -76,8 +79,7 @@ fn the_cusp_door_records_its_joint_and_the_tangent_door_does_not() {
         (Point2::new(q, 1.0), b),
         (Point2::new(0.0, 1.0 - q), 0.0),
         (Point2::new(0.0, q), b),
-    ])
-    .with_tangent_joints((0..8).collect());
+    ]);
     let v = validated(vec![rounded]);
     assert_eq!(v.loops()[0].tangent_joints().len(), 8);
     assert_eq!(v.loops()[0].cusp_joints(), &[] as &[usize]);
@@ -106,7 +108,7 @@ fn a_reversed_loop_keeps_its_cusp_at_the_same_vertex() {
 }
 
 /// An arbelos: a big semicircle over two small ones, three cusps and
-/// no smooth joint. Every arc is declared tangent at both ends, and
+/// no smooth joint. Every arc is tangent at both ends, and
 /// none is a fillet.
 #[test]
 fn an_arbelos_has_three_cusps_and_no_blend_arc() {
@@ -114,8 +116,7 @@ fn an_arbelos_has_three_cusps_and_no_blend_arc() {
         (Point2::new(0.0, 0.0), -1.0),
         (Point2::new(1.0, 0.0), -1.0),
         (Point2::new(2.0, 0.0), 1.0),
-    ])
-    .with_tangent_joints(vec![0, 1, 2]);
+    ]);
     let v = validated(vec![arbelos]);
     assert_eq!(v.loops()[0].tangent_joints(), &[0, 1, 2]);
     assert_eq!(v.loops()[0].cusp_joints(), &[0, 1, 2]);
@@ -137,16 +138,25 @@ fn the_lift_carries_the_cusps() {
 /// reproduces the record and refuses one that disagrees.
 #[test]
 fn the_guided_pass_compares_the_cusps_against_the_record() {
-    let p = Profile::new(SketchPlane::xy(), vec![lune()]);
+    // The guided door takes a loop the guided replay built, so the lune
+    // goes through its own program: recorded at f64 (pass 1), then
+    // replayed guided by that record.
+    let program = lune_closed().program;
+    let (pass1, record) = replay_recording(&program, Tol::witness()).unwrap();
+    let guided_loop = replay_guided(&program, &record, Tol::witness()).unwrap();
+    let p = ConstructedProfile::new(SketchPlane::xy(), vec![pass1]);
+    let replayed = ConstructedProfile::new(SketchPlane::xy(), vec![guided_loop]);
     let (recorded, mut canonical) = p.validate_recording(Tol::witness()).unwrap();
     assert_eq!(canonical.loops[0].cusp_joints, vec![2]);
-    let guided = p.validate_guided(Tol::witness(), &canonical).unwrap();
+    let guided = replayed
+        .validate_guided(Tol::witness(), &canonical)
+        .unwrap();
     assert_eq!(
         guided.loops()[0].cusp_joints(),
         recorded.loops()[0].cusp_joints()
     );
     canonical.loops[0].cusp_joints.clear();
-    match p.validate_guided(Tol::witness(), &canonical) {
+    match replayed.validate_guided(Tol::witness(), &canonical) {
         Err(ProfileError::Structure(r)) => {
             assert_eq!(r.decision, Decision::CuspJoints { loop_: 0 });
         }

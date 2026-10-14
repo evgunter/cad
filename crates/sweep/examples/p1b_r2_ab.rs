@@ -30,6 +30,7 @@ use geom::Surface;
 use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::blend::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey};
@@ -54,9 +55,16 @@ fn cube(l: f64) -> Body<f64> {
     let validated = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the square is a valid profile");
-    extrude(&validated, Extrusion::Distance(l), Tol::witness())
-        .expect("the square extrudes")
-        .body
+    extrude(
+        &validated,
+        Extrusion::Distance {
+            depth: l,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the square extrudes")
+    .body
 }
 
 fn scaffold_descriptions(body: &Body<f64>) -> usize {
@@ -64,7 +72,7 @@ fn scaffold_descriptions(body: &Body<f64>) -> usize {
         .filter(|(_, e)| {
             body.get_curve_geom(e.curve)
                 .and_then(topo::CurveGeom::certified)
-                .is_some_and(|c| matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)))
+                .is_some_and(|c| c.description().is_scaffold())
         })
         .count()
 }
@@ -86,7 +94,12 @@ fn main() {
     );
 
     let edges: Vec<EdgeKey> = blank.edges().map(|(k, _)| k).collect();
-    match fillet_edges(&blank, &edges, r, Tol::witness()) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&blank, Tol::witness()),
+        &edges,
+        r,
+        Tol::witness(),
+    ) {
         Err(e) => {
             // ARM B's interesting outcome: if reinstating the conversion
             // makes the fillet refuse, the refusal (and its site) is the

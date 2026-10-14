@@ -3,13 +3,11 @@
 //! against the moved chart, and the result rests tier-3 valid.
 //!
 //! The analytic fixture is a revolved rectangular annulus — a tube.
-//! Four faces (two coaxial cylinder walls, two annular caps), eight
-//! edges, four vertices, and every description class the door has a
-//! lane for: a `Seam` on each wall, an `Intersection` on each rim, a
-//! `MappedCurve` on each cap's radial seam. Offsetting the outer wall
-//! exercises all three transport lanes AND the re-anchoring of the two
-//! cap seams whose far end moved with it; offsetting a cap exercises
-//! the plane's translation and the two wall seams' re-anchoring.
+//! Four faces (two coaxial cylinder walls, two annular caps, each
+//! carrying its bore as a ring), six edges, four vertices: a `Seam` on
+//! each wall and an `Intersection` on each rim. Offsetting the outer
+//! wall exercises both transport lanes; offsetting a cap exercises the
+//! plane's translation and the two wall seams' re-anchoring.
 //!
 //! The `Approx` rows sit on the loft prism the OFF-C consumer built,
 //! now driven THROUGH the door rather than through the attach layer by
@@ -22,6 +20,7 @@
 use geom::{Curve3, Surface};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, CurveGeom, FaceKey, ReplaceFaceError};
 
@@ -164,8 +163,8 @@ fn circle_radii(body: &Body<f64>) -> Vec<f64> {
 
 /// **The headline row, both signs.** The outer wall's surface becomes
 /// its offset, its `Seam` and both `Intersection` rims are
-/// re-described against the moved cylinder, the two cap seams whose far
-/// end moved with it are re-anchored, and the body rests tier-3 valid.
+/// re-described against the moved cylinder, and the body rests tier-3
+/// valid.
 #[test]
 fn the_cylinder_wall_offsets_at_both_signs() {
     for d in [0.05_f64, -0.05] {
@@ -191,61 +190,63 @@ fn the_cylinder_wall_offsets_at_both_signs() {
     }
 }
 
-/// The cap seams' PARAMETER ranges follow the moved wall: a radial
-/// segment from `r = 0.4` to `r = 0.8` now ends at `r = 0.8 + d`, and
-/// its authoritative sketch datum says so — the door re-states the
-/// segment rather than patching the carrier around it.
+/// The untouched wall's declared meridians' PARAMETER range follows the
+/// moved cap: the vessel's angle-0 and angle-π meridians — segments from
+/// `y = 0` to `y = 0.4`, each parting the wall's two π-bands and so
+/// each a declared image at rest (no wrap edge, D1) — now end at
+/// `y = 0.4 + d`, and their authoritative sketch data say so — the door
+/// re-states the segment rather than patching the carrier around it.
 #[test]
-fn the_untouched_cap_seams_are_re_anchored() {
+fn the_untouched_walls_declared_meridian_is_re_anchored() {
     let d = 0.05;
-    let mut body = tube(0.4, 0.8, 0.6);
-    let face = cylinder_face(&body, 0.8);
-    topo::replace_face_offset(&mut body, face, d, Tol::witness()).unwrap();
+    let mut body = common::shell_operands::vessel(0.5, 0.4);
+    let cap = plane_face(&body, 0.4);
+    topo::replace_face_offset(&mut body, cap, d, Tol::witness()).unwrap();
 
-    // **Re-expressed at PCURVE P-1b.** This row is about a SKETCH
-    // DATUM — the radial segment the door re-states — and about the
-    // parameter interval that datum implies. Before U2 a pushforward
-    // said what it was by BEING the description, so both walks
-    // selected on the `MappedCurve` variant. U2 moved the pushforward
-    // into the authority record (Q3) and left the description saying
-    // where the locus lies; the datum is the same datum, at the field
-    // that now holds it. Selecting on it also merges the two walks
-    // into one, so the spans and the far endpoints are read off the
-    // SAME edges — which the two independent filters only assumed.
-    let mut seams: Vec<(f64, f64)> = body
+    // Selected on the sketch datum the door re-states, so the span and
+    // the far endpoint are read off the SAME edges.
+    let meridians: Vec<(f64, f64)> = body
         .edges()
         .filter_map(|(_, e)| {
             let c = body
                 .get_curve_geom(e.curve)
                 .and_then(CurveGeom::certified)?;
-            let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve::PlacedSegment {
-                segment: geom_brep::SketchSegment::Line { a, b },
+            let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
+                source:
+                    geom_brep::MappedSource::PlacedSegment {
+                        segment: geom_brep::SketchSegment::Line { a, b },
+                        ..
+                    },
                 ..
             }) = c.authority()
             else {
                 return None;
             };
             let (t0, t1) = c.params();
-            Some(((t1 - t0).abs(), a.x.max(b.x)))
+            Some(((t1 - t0).abs(), a.y.max(b.y)))
         })
         .collect();
-    seams.sort_by(|x, y| x.0.total_cmp(&y.0));
-    assert_eq!(seams.len(), 2, "the two cap seams, got {seams:?}");
-    assert!(
-        seams
-            .iter()
-            .all(|(span, _)| (span - (0.4 + d)).abs() < 1e-15),
-        "both cap seams span the wider annulus, got {seams:?}"
+    assert_eq!(
+        meridians.len(),
+        2,
+        "the wall's two declared meridians, got {meridians:?}"
     );
     assert!(
-        seams.iter().all(|(_, far)| (far - (0.8 + d)).abs() < 1e-15),
-        "the sketch segments' far endpoints followed the wall: {seams:?}"
+        meridians
+            .iter()
+            .all(|(span, _)| (span - (0.4 + d)).abs() < 1e-15),
+        "the meridian spans the taller wall, got {meridians:?}"
+    );
+    assert!(
+        meridians
+            .iter()
+            .all(|(_, far)| (far - (0.4 + d)).abs() < 1e-15),
+        "the sketch segment's far endpoint followed the cap: {meridians:?}"
     );
 }
 
 /// **The planar row.** A cap's plane translates by `d·n`, its two rims
-/// translate with it, its `MappedCurve` seam's PLACEMENT absorbs the
-/// same translation, and the two wall seams are re-anchored at their
+/// translate with it, and the two wall seams are re-anchored at their
 /// moved end.
 #[test]
 fn a_planar_cap_offsets_at_both_signs() {
@@ -345,8 +346,8 @@ fn an_undescribable_neighbor_pair_refuses_typed() {
         matches!(
             e,
             ReplaceFaceError::NeighborPairUnroutable {
-                kind: geom_brep::SurfaceKind::Cone,
-                other_kind: geom_brep::SurfaceKind::Cone,
+                kind: geom::SurfaceKind::Cone,
+                other_kind: geom::SurfaceKind::Cone,
                 ..
             }
         ),
@@ -356,47 +357,73 @@ fn an_undescribable_neighbor_pair_refuses_typed() {
 
 /// **What the coaxial arm bought, measured at the door.** With
 /// `cone × cylinder` routed, the coned tube's cone reaches PAST the C5
-/// gate and stops at the next honest door: the per-chart re-anchor.
-///
-/// The magnitude is pinned, not just the variant. The cone's rims stand
-/// on cylinders that did NOT move, and the door transports the shared
-/// vertex by this ONE chart's own offset action — a displacement of `d`
-/// along the cone's normal, whose radial component `d·cos α` is exactly
-/// how far the vertex ends up off the untouched cylinder it must still
-/// stand on. At `d = 0.05` and `cos α = 0.6` that is `0.03` m of real
-/// corner error, correctly refused rather than built: the per-chart
-/// door offsets one chart, and a body of revolution wanting all of them
-/// at once goes through the simultaneous axial door instead.
+/// gate, and the per-chart door derives each rim as the moved cone's
+/// coaxial section with the cylinder that did NOT move: a circle of
+/// that cylinder's own radius, its corner where the cone's seam meets
+/// it. The shared vertex slides along the untouched cylinder rather
+/// than following the cone's normal off it.
 #[test]
-fn the_routed_cone_reaches_past_c5_and_refuses_at_the_rims() {
+fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
     let mut body = coned_tube();
     let face = cone_face(&body);
-    let before = format!("{body:?}");
-    let e = topo::replace_face_offset(&mut body, face, 0.05, Tol::witness())
-        .expect_err("the untouched cylinders cannot hold the cone's moved rims");
-    assert!(
-        !matches!(e, ReplaceFaceError::NeighborPairUnroutable { .. }),
-        "cone x cylinder is routed; the C5 gate must not shadow the honest door, got {e}"
-    );
-    let ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
-        panic!("expected the per-chart re-anchor refusal, got {e}");
+    topo::replace_face_offset(&mut body, face, 0.05, Tol::witness())
+        .expect("the cone moves between its untouched cylinders");
+    let cone = body
+        .get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .cloned()
+        .expect("the moved cone");
+    let geom::Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = cone
+    else {
+        panic!("the moved face is a cone")
     };
-    assert!(
-        (gap - 0.03).abs() < 1e-12,
-        "the corner error is d·cos alpha: got {gap}"
-    );
-    assert_eq!(
-        format!("{body:?}"),
-        before,
-        "the body is BIT-untouched on Err, not merely radius-untouched"
-    );
+    let on_cone = |p: geom_core::Point3<f64>| {
+        let w = p - apex;
+        let h = w.dot(axis);
+        ((w - axis * h).norm() - h.abs() * half_angle.tan()).abs() < 1e-9
+    };
+    let cylinders: Vec<f64> = body
+        .faces()
+        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
+            _ => None,
+        })
+        .collect();
+    let mut rims = 0;
+    for (he, h) in body.half_edges() {
+        if body.face_of_half_edge(he) != Some(face) {
+            continue;
+        }
+        let curve = body
+            .get_curve_geom(body.get_edge(h.edge).expect("a live edge").curve)
+            .and_then(topo::CurveGeom::certified)
+            .expect("a certified rim");
+        if let geom::Curve3::Circle { radius, .. } = *curve.carrier() {
+            assert!(
+                cylinders.iter().any(|c| (c - radius).abs() < 1e-12),
+                "a rim of radius {radius} is not on an untouched cylinder {cylinders:?}"
+            );
+            let (t0, t1) = curve.params();
+            for t in [t0, 0.5 * (t0 + t1), t1] {
+                let p = curve.carrier().eval(t);
+                assert!(on_cone(p), "a rim point at {p:?} is off the moved cone");
+            }
+            rims += 1;
+        }
+    }
+    assert_eq!(rims, 2, "the moved cone keeps both rims");
 }
 
 /// **The apex window.** The cone's `v`-window, shifted by the offset's
 /// `d·cot α`, reaches the apex: the mint would put the face's own
 /// window on the mirror nappe, so the door refuses BEFORE the boundary
 /// is even planned (the row above is the same face at a smaller `|d|`,
-/// which reaches the rims instead).
+/// which moves).
 ///
 /// This wall sits BELOW its apex, and `d` is along the chart normal at
 /// the face, so the offset that reaches the apex is the negative one —
@@ -427,9 +454,16 @@ fn a_shared_surface_key_refuses_typed() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a disc is a valid profile");
-    let mut body = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .expect("the disc extrudes")
-        .body;
+    let mut body = sweep::extrude(
+        &profile,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the disc extrudes")
+    .body;
     let wall = body
         .faces()
         .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. })))
@@ -461,25 +495,16 @@ fn a_shared_surface_key_refuses_typed() {
 
 /// **The fitted lane, through the door.** A lofted prism's wall face
 /// carries a NURBS surface, so the door reaches the fit door and mints
-/// the certified `Approx` — and then refuses, by name, at the first
-/// boundary edge the fit's own rows do not carry.
-///
-/// **That refusal is the honest one, and it is structural rather than
-/// tolerance-shaped.** A fitted chart covers exactly its own parameter
-/// window. Move the face, and the seam it shares with the next wall is
-/// no longer a row of EITHER chart: the neighbour would have to extend
-/// to meet it, which a bounded chart cannot do. No `d` makes that
-/// close, so the door decides it before it mutates rather than letting
-/// the pcurve lane discover it after.
-///
-/// Every edge of the wall's boundary refuses for that one reason — the
-/// mapped rims because a `v`-row is not an `IsoCurve` (which is
-/// `u`-const by definition) and so cannot be re-described at all, the
-/// seams because the chart on the other side is bounded too. The row
-/// pins the variant rather than which edge the loop walk reaches
-/// first, which is bookkeeping.
+/// the certified `Approx`, and then refuses, by name, at a seam with
+/// the next wall. The wall across it is a distinct spline face that does
+/// not move with it, so the edge is the NURBS × NURBS section of the
+/// two, which at the prism's right angle runs along the moved fit's side
+/// (`d·cot 90° = 0`): the arm refuses it typed, an `EdgeSection` of
+/// `Approx × Nurbs` carrying the section's own verdict, per ε and side
+/// as `common::approx::assert_seam_verdict` pins it. The door decides
+/// that before it mutates.
 #[test]
-fn the_fitted_lane_refuses_at_a_shared_bounded_chart() {
+fn the_fitted_lane_refuses_at_a_seam_with_a_held_spline_wall() {
     for d in [5e-10_f64, -5e-10] {
         let mut body = prism();
         let wall = *spline_walls(&body)
@@ -488,10 +513,7 @@ fn the_fitted_lane_refuses_at_a_shared_bounded_chart() {
         let before = body.clone();
         let e = topo::replace_face_offset(&mut body, wall, d, Tol::witness())
             .expect_err("a fitted face's shared seam has nowhere to go");
-        assert!(
-            matches!(e, ReplaceFaceError::FittedBoundaryUnsupported { .. }),
-            "d = {d}: expected the bounded-chart refusal, got {e}"
-        );
+        common::approx::assert_seam_verdict("planar prism", false, d, &e);
         assert_eq!(
             format!("{:?}", body.faces().collect::<Vec<_>>()),
             format!("{:?}", before.faces().collect::<Vec<_>>()),
@@ -577,106 +599,5 @@ fn a_body_the_door_did_not_touch_is_bit_identical() {
         radius_of(&a, cylinder_face(&a, 0.4)),
         radius_of(&moved, cylinder_face(&moved, 0.4)),
         "and no other face"
-    );
-}
-
-/// **The replaced face's OWN boundary keeps its declaring pushforward**
-/// — the sibling of `the_untouched_cap_seams_are_re_anchored`, on the
-/// other side of the door.
-///
-/// That row watches an edge the offset re-ANCHORS (its endpoint moved
-/// with a neighbour). This one watches an edge the offset TRANSPORTS:
-/// the moved cap's own radial seam, which travels bodily with the face.
-///
-/// **Why it exists.** U2 split what used to be one datum in two. The
-/// locus is now a chart image, stated in the chart's own coordinates —
-/// so the offset re-parameterizes the chart and the image needs no
-/// transport at all, which is exactly the argument that let P-1b retire
-/// the *"not a rigid translation"* refusal for conventional edges. The
-/// DECLARATION beside it is the other half: a `MappedCurve`, sketch
-/// data under a 3-space placement, which does have to be carried. The
-/// retirement's argument covers the first half and not the second, and
-/// the boundary lane initially wrote `declared: None` — destroying the
-/// provenance record for every edge the fence had converted.
-///
-/// **Measured on one head, not argued.** Same body, same door, same
-/// offset, differing only in which arm the edge's description sends it
-/// down:
-///
-/// | the seam's description | authority afterwards |
-/// |---|---|
-/// | `Chart { declared: Some(mc) }` (this branch) | `Derived` — destroyed |
-/// | `Scaffold(mc)` (what `main` stores) | `Declared`, placement translated by `d·n` |
-///
-/// So the branch CHANGED this lane rather than inheriting a defect, and
-/// the fix restores what the other arm always did. The row asserts the
-/// restored behaviour, and the arithmetic is exact: a plane offset is a
-/// rigid translation, so the placement moves by exactly `d` along the
-/// normal and nothing else moves at all.
-#[test]
-fn the_moved_caps_own_seam_keeps_its_declaring_pushforward() {
-    let d = 0.05_f64;
-    let mut body = tube(0.4, 0.8, 0.6);
-    let cap = plane_face(&body, 0.6);
-
-    // Both caps' radial seams are chart images the profile segment
-    // declared; only the y = 0.6 one is on the face being replaced.
-    let declared_seams = |b: &Body<f64>| -> Vec<(topo::EdgeKey, geom_core::Vec3<f64>)> {
-        b.edges()
-            .filter_map(|(k, e)| {
-                let c = b.get_curve_geom(e.curve).and_then(CurveGeom::certified)?;
-                let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve::PlacedSegment {
-                    place,
-                    ..
-                }) = c.authority()
-                else {
-                    return None;
-                };
-                matches!(c.description(), geom_brep::EdgeDescription::Chart(_))
-                    .then_some((k, place.translation))
-            })
-            .collect()
-    };
-    let before = declared_seams(&body);
-    assert_eq!(
-        before.len(),
-        2,
-        "the tube's two cap seams are declared chart images, got {before:?}"
-    );
-    assert!(
-        before
-            .iter()
-            .all(|(_, t)| (t.x, t.y, t.z) == (0.0, 0.0, 0.0)),
-        "both are minted at the identity placement, got {before:?}"
-    );
-
-    topo::replace_face_offset(&mut body, cap, d, Tol::witness()).expect("the cap offset lands");
-
-    let after = declared_seams(&body);
-    assert_eq!(
-        after.len(),
-        2,
-        "both declarations SURVIVE the offset — the transported one is \
-         not silently demoted to Derived; got {after:?}"
-    );
-    // One seam travelled with the face, by exactly the offset; the
-    // other never moved. Both are read off the same list, so a lane
-    // that translated the wrong one fails here too.
-    let mut moved: Vec<geom_core::Vec3<f64>> = after.iter().map(|(_, t)| *t).collect();
-    moved.sort_by(|a, b| a.y.total_cmp(&b.y));
-    assert_eq!(
-        (moved[0].x, moved[0].y, moved[0].z),
-        (0.0, 0.0, 0.0),
-        "the untouched cap's seam did not move"
-    );
-    assert_eq!(
-        (moved[1].x, moved[1].z),
-        (0.0, 0.0),
-        "a plane offset moves along its normal and nowhere else"
-    );
-    assert!(
-        (moved[1].y - d).abs() < 1e-15,
-        "the moved cap's seam was carried by exactly d = {d}, got {:?}",
-        moved[1]
     );
 }

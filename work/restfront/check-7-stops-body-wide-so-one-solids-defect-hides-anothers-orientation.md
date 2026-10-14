@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-28
 priority: P3
 cost: M
-refs: [product-per-part-gate-counts-solids-but-gates-sources]
+refs: [3323]
 ---
 
 

@@ -19,7 +19,7 @@ fn print_k_flip_probe() {
     let t = Tol::witness().get();
     let margin = 17.0 * t.eps;
     let band = Band::linear(Tol::witness()).unwrap();
-    let out = match margin.sign_within(band) {
+    let out = match margin.sign_within(band).map(|d| d.sign) {
         Ok(Sign::Positive) => "positive".to_string(),
         Ok(Sign::Zero) => "zero".to_string(),
         Ok(Sign::Negative) => "negative".to_string(),

@@ -11,7 +11,7 @@ cost: D
 ## Where this came from
 
 The class sweep of `unit-vector-witness-in-geom-core` (SCALAR; the
-ruling is `work/scalar/unit-vector-invariants-carried-as-prose.md`
+ruling is SCALAR's `unit-vector-invariants-carried-as-prose` (ruled on PR 2457; `docs/doc-ledger/scalar-leaves-the-tracker.md`)
 §RATIFIED). The class: a function whose doc or parameter name asserts
 a unit-vector precondition it does not check. `geom_core::UnitVec3<T>`
 now exists to carry that fact across a function boundary — minted by
@@ -77,7 +77,7 @@ not the sweep.
 ## Added by FRAME-WITNESS's §4 sweep (2026-09-15)
 
 The two hand-rolled FRAME dodges this crate pair carries — the ladder
-the unit's own `OrthoFrame::gram_schmidt` now writes once, with both
+the unit's own `RigidMotion::gram_schmidt` now writes once, with both
 lengths decided and a typed refusal naming which axis:
 
 - `crates/step-import/src/adopt.rs`, `line_frame` (`:1031-1058`): a

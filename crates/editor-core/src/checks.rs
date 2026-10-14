@@ -1,10 +1,12 @@
 //! The advisory-check registry (DISCIPLINES-DESIGN DS6, grade 4) and
-//! its three residents: the connectedness check (LONGTERM-IDEAS
+//! its four residents: the connectedness check (LONGTERM-IDEAS
 //! I1(0b)), the product-separation check (the establishment of
 //! disjointness `topo::graft_disjoint_all_keyed` leaves to its
-//! callers), and the chart-coherence examination
+//! callers), the chart-coherence examination
 //! (`topo::examine_chart_coherence`, read per rest body and default
-//! `Off`).
+//! `Off`), and the unproven-coincidence check (D10: each coincidence a
+//! node decided from values that the coincidence door,
+//! [`crate::coincide::prove`], does not prove structural).
 //!
 //! A check is a **pure analysis over a finished evaluation** producing
 //! findings — no declaration vocabulary, no verify table, and by
@@ -33,9 +35,10 @@
 //!   "the caller turned me off" and "the data would not let me look"
 //!   are two answers and only the first is reversible by changing the
 //!   configuration.
-//! - **Deterministic order** (D9): findings follow root-list order,
-//!   then output-index order within a root — a report that changes
-//!   only when the document or its evaluation does.
+//! - **Deterministic order** (D9): a body check's findings follow the
+//!   placements' document order; the unproven-coincidence check's
+//!   follow evaluation order, then each node's decision order — a
+//!   report that changes only when the document or its evaluation does.
 //!
 //! The check set is a CLOSED enum ([`CheckId`], the D3 philosophy): a
 //! new check is a new variant, and the compiler enumerates every match
@@ -50,9 +53,11 @@ use geom_core::{BandError, CertifiedBounds, Decide, Tol};
 use topo::{AtRestPolicy, Body, ContactRecords, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
-use crate::eval::Evaluation;
+use crate::eval::{Evaluation, NodeStanding};
 use crate::node::RecipeNodeId;
 use crate::product;
+
+pub mod at_rest;
 
 /// The closed set of checks. A new check = a new variant; every match
 /// over this enum is a site the compiler then walks you to.
@@ -87,6 +92,14 @@ pub enum CheckId {
     /// ([`CheckEvidence::ChartCoherenceUnavailable`]) rather than
     /// reporting a clean body it never read.
     ChartCoherence,
+    /// The `unproven-coincidence` lint (D10): a coincidence an
+    /// operation decided from values that the door
+    /// ([`crate::coincide::prove`]) does not prove structural. It holds
+    /// at the current values; whether it holds across the family the
+    /// door has not shown. Read off every evaluated
+    /// node's [`crate::eval::NodeValue::coincidences`]; it refuses
+    /// nothing and changes no body.
+    UnprovenCoincidence,
 }
 
 impl CheckId {
@@ -114,6 +127,12 @@ impl CheckId {
             // metres, which is a theorem about the data — never that
             // the body is wrong, which it does not say.
             Self::ChartCoherence => CheckKind::Certified,
+            // Certified in the direction it stays SILENT: a row it does
+            // not report is one the door proved structural. What it
+            // reports is the absence of that proof, which is exactly
+            // what the finding says — never "this holds only at these
+            // values", which a later rung may refute.
+            Self::UnprovenCoincidence => CheckKind::Certified,
         }
     }
 }
@@ -131,7 +150,12 @@ impl CheckId {
     /// subject-less resident placed after [`Self::Separation`] would
     /// lose its findings on exactly the documents that have no
     /// product.
-    pub const ALL: [Self; 3] = [Self::Connectedness, Self::ChartCoherence, Self::Separation];
+    pub const ALL: [Self; 4] = [
+        Self::Connectedness,
+        Self::ChartCoherence,
+        Self::UnprovenCoincidence,
+        Self::Separation,
+    ];
 
     /// Whether this resident reads the registry's [`Subject`].
     ///
@@ -147,6 +171,9 @@ impl CheckId {
             // output exactly as connectedness is; no product, nothing
             // to gather.
             Self::ChartCoherence => false,
+            // The rows ride each node's value, and the at-rest census's
+            // ride the gathered product.
+            Self::UnprovenCoincidence => true,
         }
     }
 }
@@ -161,6 +188,7 @@ impl fmt::Display for CheckId {
             // would make the list unreadable at the boundary between
             // two entries.
             Self::ChartCoherence => f.write_str("chart-coherence"),
+            Self::UnprovenCoincidence => f.write_str("unproven-coincidence"),
         }
     }
 }
@@ -330,6 +358,12 @@ pub struct ChecksConfig {
     /// Turning it on is one field, and `Off` is VISIBLY off
     /// ([`ChecksReport::skipped`]).
     pub chart_coherence: Advisory,
+    /// [`CheckId::UnprovenCoincidence`]'s severity — [`Advisory`]: the
+    /// quieting record is an assertion at the coincidence's site, which
+    /// the check does not read yet, so `Error` is unrepresentable. A
+    /// per-run choice and never a document's: turning it off removes
+    /// reports, never changes a body (DS3).
+    pub unproven_coincidence: Advisory,
 }
 
 impl Default for ChecksConfig {
@@ -339,6 +373,7 @@ impl Default for ChecksConfig {
             expected_components: BTreeMap::new(),
             separation: Advisory::Warn,
             chart_coherence: Advisory::Off,
+            unproven_coincidence: Advisory::Warn,
         }
     }
 }
@@ -351,6 +386,7 @@ impl ChecksConfig {
             CheckId::Connectedness => self.connectedness,
             CheckId::Separation => self.separation.severity(),
             CheckId::ChartCoherence => self.chart_coherence.severity(),
+            CheckId::UnprovenCoincidence => self.unproven_coincidence.severity(),
         }
     }
 
@@ -403,11 +439,11 @@ pub enum CheckEvidence {
     /// An expectation with no subject: `expected_components` carries
     /// an entry at this `(root, output_ix)` and no evaluated subject
     /// consumed it — the body vanished (a boolean may have consumed
-    /// the whole part) or the key names no root output. Expectations
+    /// the whole part) or the key names no placement output. Expectations
     /// are two-directional: an entry that binds nothing is stale, not
     /// silently ignored. (The DEFAULT expectation — no entry — binds
-    /// only existing subjects: a root that legitimately denotes zero
-    /// bodies with nothing stated about it stays clean.)
+    /// only existing subjects: a placement whose copy legitimately
+    /// holds no body, with nothing stated about it, stays clean.)
     StaleExpectation {
         /// The entry's stated component count.
         expected: u32,
@@ -489,6 +525,16 @@ pub enum CheckEvidence {
     /// from a body with nothing to report, which is the one thing this
     /// resident may not be.
     ChartCoherenceUnavailable,
+    /// A coincidence the finding's node decided from values that the
+    /// door does not prove structural ([`crate::coincide::prove`]).
+    UnprovenCoincidence {
+        /// The row, its cells named in the node's inputs' tables.
+        row: Box<crate::coincide::NamedCoincidence>,
+        /// What separates the two cells' constructions.
+        residual: Box<crate::coincide::Residual>,
+        /// What would make it structural.
+        recourse: crate::coincide::Recourse,
+    },
 }
 
 impl CheckEvidence {
@@ -506,51 +552,104 @@ impl CheckEvidence {
     }
 }
 
-/// One finding of one check on one subject — a body-denoting root
-/// output, attributed as `(root, output_ix)` (the
-/// [`crate::AtRestFinding`]/`Attribution` rhyme).
+/// One finding of one check on one subject ([`FindingSubject`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct CheckFinding {
     /// The check that fired.
     pub check: CheckId,
-    /// The root whose value carries the subject body.
-    pub root: RecipeNodeId,
-    /// Which output body of that root (multi-output ops; 0 for a
-    /// single-body root).
-    pub output_ix: u32,
+    /// What the finding is about.
+    pub subject: FindingSubject,
     /// What was found.
     pub evidence: CheckEvidence,
 }
 
+/// **What a finding is about.** A body check's subject is a
+/// body-denoting root output; the unproven-coincidence check's is the
+/// node that decided the row, root or not, which denotes no one body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FindingSubject {
+    /// A root output, attributed as `(root, output_ix)` (the
+    /// [`crate::AtRestFinding`]/`Attribution` rhyme), which
+    /// [`subject_body`] resolves.
+    Output {
+        /// The root whose value carries the subject body.
+        root: RecipeNodeId,
+        /// Which output body of that root (multi-output ops; 0 for a
+        /// single-body root).
+        output_ix: u32,
+    },
+    /// A node of the document, root or not.
+    Node(RecipeNodeId),
+    /// Two copies of the product, earlier in gather order first: an
+    /// at-rest finding between them that no mate speaks for.
+    Copies {
+        /// The earlier copy.
+        a: crate::checks::at_rest::CopyRef,
+        /// The other copy.
+        b: crate::checks::at_rest::CopyRef,
+    },
+}
+
+/// A copy as a finding says it: its placement's output, and its member
+/// where the placement defines several.
+fn copy_said(copy: crate::checks::at_rest::CopyRef, by: crate::spoken::Speaker<'_>) -> String {
+    match copy.member {
+        0 => by.read(copy.var),
+        member => format!("{} member {member}", by.read(copy.var)),
+    }
+}
+
 // One story, one recourse, in one place, through the document layer's
-// one sink ([`crate::finding`]). The subject is the finding's (root,
-// output) attribution. Three arms end in a recourse the story already
+// one sink ([`crate::finding`]), each root said by the speaker the
+// finding is said by. The subject is the finding's (root, output)
+// attribution. Three arms end in a recourse the story already
 // carries, so `recourse` answers "" ("already told") there:
 // - Unsupported forwards its payload's `Display`, recourse included.
 // - Escalated renders the refusal's data view,
 //   [`ShellClassifyError::payload`] (no stage prefix and no arena key,
-//   neither of which a document user can act on), then the same ending
-//   the refusal's own `Display` ends in, [`ShellClassifyError::ending`].
+//   neither of which a document user can act on), then the shell-role
+//   decision's ending read at rest ([`topo::props::SHELL_ROLE`] on
+//   [`ShellClassifyError::arm`]): the checks window reads a body at rest.
 // - StaleExpectation's pinned prose ends in its own ". Recourse:".
-impl crate::finding::Finding for CheckFinding {
+impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "check {}: root {} output {}",
-            self.check, self.root.0, self.output_ix
-        )
+        let Self(finding, by) = *self;
+        match finding.subject {
+            FindingSubject::Node(node) => {
+                write!(f, "check {}: {}", finding.check, by.node_as(node, "node"))
+            }
+            FindingSubject::Output { root, output_ix } => write!(
+                f,
+                "check {}: {} output {}",
+                finding.check,
+                by.node_as(root, "placement"),
+                output_ix
+            ),
+            FindingSubject::Copies { a, b } => write!(
+                f,
+                "check {}: copies {} and {}",
+                finding.check,
+                copy_said(a, by),
+                copy_said(b, by)
+            ),
+        }
     }
 
     fn story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.evidence {
+        let Self(finding, by) = *self;
+        match &finding.evidence {
             CheckEvidence::Connectedness { actual, expected } => write!(
                 f,
                 "{actual} disconnected component(s) where {expected} was expected"
             ),
             CheckEvidence::Escalated { source } => {
                 write!(f, "the component count is unknowable: {}", source.payload())?;
-                match source.ending() {
-                    Some(ending) => write!(f, ". {ending}"),
+                match source.arm() {
+                    Some(arm) => write!(
+                        f,
+                        ". {}",
+                        topo::props::SHELL_ROLE.recourse(arm, geom_brep::recourse::Reading::AtRest)
+                    ),
                     None => Ok(()),
                 }
             }
@@ -561,18 +660,18 @@ impl crate::finding::Finding for CheckFinding {
             CheckEvidence::StaleExpectation { expected } => write!(
                 f,
                 "an expectation of {expected} component(s) has no subject: the body \
-                 vanished (a boolean may have consumed the part) or the key names no root \
-                 output. Recourse: remove the ChecksConfig::expected_components entry, or \
-                 fix the root"
+                 vanished (a boolean may have consumed the part) or the key names no \
+                 placement output. Recourse: remove the ChecksConfig::expected_components \
+                 entry, or fix the placement"
             ),
             CheckEvidence::NotSeparated {
                 other_root,
                 other_output,
             } => write!(
                 f,
-                "not certifiably disjoint from root {} output {other_output}, so any space \
-                 they share is gathered twice",
-                other_root.0
+                "not certifiably disjoint from {} output {other_output}, so any space they \
+                 share is gathered twice",
+                by.node_as(*other_root, "placement")
             ),
             CheckEvidence::SeparationUnavailable { reason, .. } => {
                 write!(f, "separation could not be checked: {reason}")
@@ -621,20 +720,42 @@ impl crate::finding::Finding for CheckFinding {
             CheckEvidence::ChartCoherenceUnavailable => f.write_str(
                 "this evaluation's lane does not examine chart coherence, so nothing was read",
             ),
+            CheckEvidence::UnprovenCoincidence { row, residual, .. } => {
+                let cell = |c: &crate::coincide::NamedCell| match c {
+                    crate::coincide::NamedCell::Entity { name, .. } => by.name(name).to_string(),
+                    crate::coincide::NamedCell::Tool { input } => {
+                        format!("the plane of {}", by.read(*input))
+                    }
+                    crate::coincide::NamedCell::Piece { profile, piece } => {
+                        crate::names::words::piece(piece, *profile, by)
+                    }
+                };
+                write!(
+                    f,
+                    "{} {} {}, decided from values ({}, margin {:e}), is not proven \
+                     structural: {residual}",
+                    cell(&row.cells[0]),
+                    crate::coincide::relation_words(row.relation),
+                    cell(&row.cells[1]),
+                    crate::coincide::site_words(row.site),
+                    row.margin,
+                )
+            }
         }
     }
 
     fn recourse(&self) -> &str {
-        match &self.evidence {
+        match &self.0.evidence {
             CheckEvidence::Connectedness { .. } => {
                 "Recourse: a stray component usually means a boolean that missed its operand \
                  or an instance placed nowhere; if it is deliberate, state the expected count \
                  in ChecksConfig::expected_components"
             }
             CheckEvidence::NotSeparated { .. } => {
-                "Recourse: usually a feature left dangling as a second product root, so \
-                 delete it or feed it downstream; roots meant to TOUCH want a mate, and \
-                 roots meant to INTERPENETRATE want a boolean"
+                "Recourse: usually a body placed twice, or a body placed beside what it \
+                 was combined into, so delete the stray placement or re-point it at the \
+                 result; copies meant to TOUCH want a mate, and copies meant to \
+                 INTERPENETRATE want a boolean"
             }
             CheckEvidence::ChartCoherence { .. } => {
                 "a MEASUREMENT, not a refusal: judge the metres against the band; an \
@@ -657,6 +778,7 @@ impl crate::finding::Finding for CheckFinding {
                 "Recourse: evaluate the document at f64 to measure it, or turn this check \
                  off rather than reading its silence as a clean body"
             }
+            CheckEvidence::UnprovenCoincidence { recourse, .. } => recourse.words(),
             CheckEvidence::Escalated { .. }
             | CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. }
@@ -665,34 +787,68 @@ impl crate::finding::Finding for CheckFinding {
     }
 }
 
+/// A finding and the speaker its roots are said by: the one shape the
+/// sink composes.
+#[derive(Clone, Copy)]
+struct SaidFinding<'a>(&'a CheckFinding, crate::spoken::Speaker<'a>);
+
+impl crate::spoken::Say for CheckFinding {
+    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+        crate::finding::compose(f, &SaidFinding(self, by))
+    }
+}
+
+/// The sentence where no document is at hand: each root by its tag.
 impl fmt::Display for CheckFinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        crate::finding::compose(f, self)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
+}
+
+/// The findings, each said by `by`, one per line ([`crate::finding::render_list`]).
+fn say_findings(
+    f: &mut fmt::Formatter<'_>,
+    findings: &[CheckFinding],
+    by: crate::spoken::Speaker<'_>,
+) -> fmt::Result {
+    let said: Vec<SaidFinding<'_>> = findings.iter().map(|x| SaidFinding(x, by)).collect();
+    crate::finding::render_list(f, &said)
 }
 
 /// The result of one [`run_checks`] run: findings in deterministic
 /// order, and the checks that were configured `Off` — visibly skipped,
 /// because "checked and fine" and "not checked" are different answers.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ChecksReport {
+    /// The document the checks were run over: its roots' ids are
+    /// spelled in it, so it is the one document the report's human
+    /// form speaks from ([`ChecksReport::spoken`]).
+    pub document: crate::DocumentId,
     /// Findings in deterministic order (D9): each resident's own
     /// findings by root-list position then output index, residents in
     /// registry order. NOT one global sort — root 5's connectedness
     /// finding precedes root 1's separation finding, because each
-    /// resident appends its own pass in sequence.
+    /// resident appends its own pass in sequence, and the coincidence
+    /// door's are settled into the place its pass holds
+    /// ([`ChecksReport::settle`]).
     pub findings: Vec<CheckFinding>,
     /// Checks that did not run because their severity is `Off`.
     pub skipped: Vec<CheckId>,
+    /// **Checks whose answer a job at rest still owes** ([`DoorJob`]):
+    /// a state of the report, not a finding. Only
+    /// [`run_checks_at_rest_on`] leaves one here, until its job's
+    /// findings are settled in ([`ChecksReport::settle`]); a
+    /// synchronous run's report has none.
+    pub pending: Vec<CheckId>,
 }
 
-impl fmt::Display for ChecksReport {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl crate::spoken::Say for ChecksReport {
+    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         if self.findings.is_empty() {
             write!(f, "checks: no findings")?;
         } else {
             write!(f, "checks: {} finding(s)", self.findings.len())?;
-            crate::finding::render_list(f, &self.findings)?;
+            say_findings(f, &self.findings, by)?;
         }
         if !self.skipped.is_empty() {
             write!(f, "\nchecks skipped (severity Off):")?;
@@ -700,7 +856,76 @@ impl fmt::Display for ChecksReport {
                 write!(f, " {check}")?;
             }
         }
+        if !self.pending.is_empty() {
+            write!(f, "\nchecks pending (running at rest):")?;
+            for check in &self.pending {
+                write!(f, " {check}")?;
+            }
+        }
         Ok(())
+    }
+}
+
+/// The sentence where no document is at hand: each root by its tag.
+impl fmt::Display for ChecksReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl ChecksReport {
+    /// **Settles a job's findings into the report it was split from**:
+    /// they take the place in [`ChecksReport::findings`] the
+    /// synchronous run gives them, and the check is no longer pending.
+    ///
+    /// # Panics
+    ///
+    /// When `door` is not the answer to a job this report is pending
+    /// on: another document's, or a report that pends on no door.
+    pub fn settle(&mut self, door: DoorFindings) {
+        assert_eq!(
+            door.document, self.document,
+            "a door job's findings settle only into its own document's report"
+        );
+        let before = self.pending.len();
+        self.pending.retain(|c| *c != CheckId::UnprovenCoincidence);
+        assert!(
+            self.pending.len() < before,
+            "the report is not pending on the coincidence door"
+        );
+        self.findings.splice(door.at..door.at, door.findings);
+    }
+
+    /// **The speaker for this report's roots**: each as `doc` holds it
+    /// now. A frame that draws the findings one at a time says each
+    /// through it ([`crate::spoken::Said`]).
+    ///
+    /// The guard is the [`crate::DocumentId`], which survives every
+    /// edit: it refuses another document, and cannot tell one version
+    /// of the checked document from another. Which version — the one
+    /// the checks ran over — is the caller's to hand in.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the checks were run over.
+    #[must_use]
+    pub fn speaker<'a, P: crate::ProfilePayload>(
+        &self,
+        doc: &'a Doc<P>,
+    ) -> crate::spoken::Speaker<'a> {
+        crate::spoken::assert_taken_of("this checks report", self.document, doc);
+        crate::spoken::Speaker::of(doc)
+    }
+
+    /// **The report as the frame holding the checked document says
+    /// it**: each root as `doc` holds it now.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the checks were run over.
+    #[must_use]
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
+        crate::spoken::Said(self, self.speaker(doc)).to_string()
     }
 }
 
@@ -709,15 +934,11 @@ impl fmt::Display for ChecksReport {
 /// not that a check fired.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChecksError {
-    /// A root produced no value in this evaluation (failed, poisoned,
-    /// or past a cancelation's prefix) — the [`crate::product()`]
-    /// posture: checks are defined over roots that evaluated, and a
-    /// report over a partial evaluation would claim more than was
-    /// checked.
-    Root {
-        /// The root without a value.
-        node: RecipeNodeId,
-    },
+    /// A root has no value in this evaluation, and its standing says
+    /// why and where the repair is — the [`crate::product()`] posture:
+    /// checks are defined over roots that evaluated, and a report over
+    /// a partial evaluation would claim more than was checked.
+    Root(NodeStanding),
     /// The run's tolerance cannot form a band.
     Band {
         /// The band construction failure.
@@ -745,24 +966,13 @@ pub enum ChecksError {
     /// when an enabled resident actually reads the subject: residents
     /// that read the evaluation have answered before it.
     Product {
-        /// Which arm of the gather's refusal fired — the typed half,
-        /// and the one a consumer branches on. `None` when nothing
-        /// refused: the subject was never asked for, so there is no
-        /// gather refusal behind its absence.
-        ///
-        /// [`crate::ProductError`] itself is neither `Clone` nor
-        /// `PartialEq` and this refusal is both, so the error cannot
-        /// ride here; its class projection can, and does — the
-        /// [`CheckEvidence::SeparationUnavailable`] shape, one door
-        /// over.
-        kind: Option<product::ProductErrorKind>,
-        /// The gather's own refusal, rendered, for a reader — it
-        /// carries the node ids and finding lists `kind` drops.
-        ///
-        /// What a caller READS is the gather's own sentence; `kind`
-        /// beside it is what a caller MATCHES on, so neither half is a
-        /// substring hunt through the other.
-        reason: String,
+        /// The gather's refusal, whole: its class
+        /// ([`product::ProductRefusal::kind`]) is what a consumer
+        /// branches on, and its sentence is said by the frame holding
+        /// the checked document ([`ChecksError::spoken`]). `None` when
+        /// nothing refused: the caller handed a subject that was never
+        /// taken ([`Subject::Unavailable`]).
+        refusal: Option<product::ProductRefusal>,
     },
 }
 
@@ -781,38 +991,48 @@ impl From<crate::ident::Mispaired> for ChecksError {
     }
 }
 
-impl ChecksError {
-    /// [`ChecksError::Product`] built from ONE subject: the class a
-    /// consumer matches and the sentence a reader reads travel
-    /// together out of [`Subject::Unavailable`], which paired them off
-    /// a single refusal. The door goes through here rather than
-    /// writing the two fields at the raise site, so the pairing is a
-    /// property of a function and not of a literal.
-    fn product_unavailable(kind: Option<product::ProductErrorKind>, reason: &str) -> Self {
-        Self::Product {
-            kind,
-            reason: reason.to_owned(),
-        }
-    }
-}
-
-impl fmt::Display for ChecksError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl crate::spoken::Say for ChecksError {
+    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         match self {
-            Self::Root { node } => write!(
-                f,
-                "checks: root {} produced no value in this evaluation — evaluate to \
-                 completion (and fix or remove the failing root) before running checks",
-                node.0
-            ),
+            Self::Root(standing) => {
+                write!(
+                    f,
+                    "checks: {}",
+                    crate::spoken::Said(&standing.of_placement(), by)
+                )
+            }
             Self::Band { error } => write!(f, "checks: {error}"),
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
                 "checks: the evaluation is of document {found}, not of \
                  document {expected}",
             ),
-            Self::Product { reason, .. } => write!(f, "checks: {reason}"),
+            Self::Product {
+                refusal: Some(refusal),
+            } => write!(f, "checks: {}", crate::spoken::Said(refusal, by)),
+            Self::Product { refusal: None } => write!(
+                f,
+                "checks: an enabled check reads the document's product, and none was taken. {}",
+                crate::sentence::Recourse("pass the gathered product as the subject")
+            ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl fmt::Display for ChecksError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl ChecksError {
+    /// **The refusal as the frame holding the checked document says
+    /// it**: each node, a root's or the gather's, as `doc` holds it now
+    /// ([`crate::Doc::spoken`]).
+    #[must_use]
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 
@@ -822,19 +1042,57 @@ impl core::error::Error for ChecksError {}
 /// check is configured at `Error`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CheckRefusal {
+    /// The document of the report refused ([`ChecksReport::document`]),
+    /// the one its human form speaks from ([`CheckRefusal::spoken`]).
+    pub document: crate::DocumentId,
     /// The refusing findings (every `Error`-severity finding of the
     /// report, in report order).
     pub findings: Vec<CheckFinding>,
 }
 
-impl fmt::Display for CheckRefusal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl crate::spoken::Say for CheckRefusal {
+    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         write!(
             f,
             "{} check finding(s) at Error severity:",
             self.findings.len()
         )?;
-        crate::finding::render_list(f, &self.findings)
+        say_findings(f, &self.findings, by)
+    }
+}
+
+/// The sentence where no document is at hand: each root by its tag.
+impl fmt::Display for CheckRefusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl CheckRefusal {
+    /// **The refusal as the frame holding the checked document says
+    /// it**: each root as `doc` holds it now.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the refused report was run over.
+    #[must_use]
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
+        crate::spoken::Said(self, self.speaker(doc)).to_string()
+    }
+
+    /// **The speaker for this refusal's roots**: each as `doc` holds it
+    /// now, under the guard [`ChecksReport::speaker`] states.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the refused report was run over.
+    #[must_use]
+    pub fn speaker<'a, P: crate::ProfilePayload>(
+        &self,
+        doc: &'a Doc<P>,
+    ) -> crate::spoken::Speaker<'a> {
+        crate::spoken::assert_taken_of("this check refusal", self.document, doc);
+        crate::spoken::Speaker::of(doc)
     }
 }
 
@@ -854,7 +1112,7 @@ impl core::error::Error for CheckRefusal {}
 /// - [`Subject::Product`] — the gather succeeded and this is it. It
 ///   must be a product OF THE PAIR the door is handed
 ///   ([`run_checks_on`] refuses otherwise).
-/// - [`Subject::NoBodyRoots`] — no root denotes a body at all, the
+/// - [`Subject::EmptyProduct`] — nothing is placed in the world, the
 ///   reading [`product::ProductErrorKind::means_no_body`] states and
 ///   this arm carries ([`Subject::refused`] routes a gather refusal
 ///   of that class here). A resident that needs a body has no
@@ -867,25 +1125,21 @@ impl core::error::Error for CheckRefusal {}
 ///   a subject and none was taken
 ///   ([`ChecksConfig::needs_a_subject`]). A
 ///   subject-reading resident that is enabled and meets this arm makes
-///   the door refuse [`ChecksError::Product`] carrying the refusal's
-///   class and its sentence; residents that read no subject have
-///   already answered by then, so their own refusals still come first.
+///   the door refuse [`ChecksError::Product`] carrying the refusal;
+///   residents that read no subject have already answered by then, so
+///   their own refusals still come first.
 #[derive(Debug)]
 pub enum Subject<'a, T: Decide> {
     /// The gathered product, borrowed for the run.
     Product(&'a product::Product<T>),
-    /// No root denotes a body, so there is no product to be had.
-    NoBodyRoots,
+    /// Nothing is placed in the world, so there is no product to be
+    /// had.
+    EmptyProduct,
     /// There is no subject, and this is why.
     Unavailable {
-        /// Which arm of the gather refused — the typed half a consumer
-        /// branches on. `None` when nothing refused: no enabled
-        /// resident asked for a subject, so none was taken and there
-        /// is no refusal to carry a class from.
-        kind: Option<product::ProductErrorKind>,
-        /// The gather's own refusal, rendered — or the sentence saying
-        /// no enabled resident asked for one.
-        reason: String,
+        /// The gather's refusal. `None` when nothing refused: no
+        /// enabled resident asked for a subject, so none was taken.
+        refusal: Option<product::ProductRefusal>,
     },
 }
 
@@ -895,7 +1149,7 @@ impl<T: Decide> Subject<'_, T> {
     ///
     /// **A gather refusal is two different facts, and this is where
     /// they part.** The one class that predicate reads as an ABSENCE
-    /// rather than a fault becomes [`Subject::NoBodyRoots`]: a merely
+    /// rather than a fault becomes [`Subject::EmptyProduct`]: a merely
     /// empty document is checkable, and routing it to
     /// [`Subject::Unavailable`] would make a subject-reading resident
     /// refuse [`ChecksError::Product`] over it — the outcome that arm
@@ -904,19 +1158,16 @@ impl<T: Decide> Subject<'_, T> {
     /// a gather error hands it over whole rather than re-deriving a
     /// classification that has one home.
     ///
-    /// **The `Unavailable` it builds carries ONE refusal**: `kind` is
-    /// the class a consumer matches, `reason` the gather's own sentence
-    /// a reader reads, and both come off the same error — the pairing
-    /// invariant this door holds and a hand-built literal does not.
+    /// The `Unavailable` it builds carries the refusal whole, its ids
+    /// bare, so the door's refusal is said by the frame holding the
+    /// document ([`ChecksError::spoken`]).
     #[must_use]
-    pub fn refused(source: &product::ProductError) -> Self {
-        let kind = source.kind();
-        if kind.means_no_body() {
-            return Self::NoBodyRoots;
+    pub fn refused(source: product::ProductError) -> Self {
+        if source.kind().means_no_body() {
+            return Self::EmptyProduct;
         }
         Self::Unavailable {
-            kind: Some(kind),
-            reason: source.to_string(),
+            refusal: Some(source.into()),
         }
     }
 
@@ -924,10 +1175,7 @@ impl<T: Decide> Subject<'_, T> {
     /// ([`ChecksConfig::needs_a_subject`]). No refusal is behind this
     /// absence, so there is no class to carry.
     fn not_needed() -> Self {
-        Self::Unavailable {
-            kind: None,
-            reason: "checks: no enabled check reads the document's product".to_string(),
-        }
+        Self::Unavailable { refusal: None }
     }
 }
 
@@ -959,12 +1207,15 @@ impl<T: Decide> Subject<'_, T> {
 ///
 /// # Errors
 ///
-/// [`ChecksError`] — an evaluation of another document, a root without
+/// [`ChecksError`] — an evaluation of another document, a placement without
 /// a value in `ev`, a band the tolerance cannot form, or a document
-/// whose roots do not gather into a product for a resident that reads
+/// whose placements do not gather into a product for a resident that reads
 /// one. These mean the checks could not run at all; a check that ran
 /// and disagreed is a FINDING, not an error.
-pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane>(
+pub fn run_checks<
+    P: crate::ProfilePayload,
+    T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane,
+>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
@@ -981,7 +1232,7 @@ pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherence
     }
     let subject = match product::product_recorded(doc, ev, tol) {
         Ok(ref gathered) => return run_checks_on(doc, ev, Subject::Product(gathered), cfg, tol),
-        Err(ref source) => Subject::refused(source),
+        Err(source) => Subject::refused(source),
     };
     run_checks_on(doc, ev, subject, cfg, tol)
 }
@@ -1010,13 +1261,49 @@ pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherence
 /// enabled resident reads the subject and finds
 /// [`Subject::Unavailable`] — after the residents that read no subject
 /// have answered, so their refusals still come first.
-pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane>(
+pub fn run_checks_on<
+    P: crate::ProfilePayload,
+    T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane,
+>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     subject: Subject<'_, T>,
     cfg: &ChecksConfig,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
+    let (mut report, door) = run_checks_at_rest_on(doc, ev, subject, cfg, tol)?;
+    if let Some(job) = door {
+        let Ok(findings) = job.run(doc, &crate::CancelToken::new()) else {
+            unreachable!("a token no one else holds is never canceled")
+        };
+        report.settle(findings);
+    }
+    Ok(report)
+}
+
+/// **The registry with the coincidence door left to run at rest**:
+/// what [`run_checks_on`] answers, except that the
+/// `unproven-coincidence` check is [`ChecksReport::pending`] and its
+/// door is handed back as a [`DoorJob`] for the caller to run off its
+/// draw path. [`run_checks_on`] is this with the job run at once. A
+/// frame that redraws on every edit takes this one: the door's replay
+/// costs seconds on a filleted document, and the next edit cancels the
+/// job ([`DoorJob::run`]). Where no row asks for the door, there is no
+/// job and nothing is pending.
+///
+/// # Errors
+///
+/// As [`run_checks_on`].
+pub fn run_checks_at_rest_on<
+    P: crate::ProfilePayload,
+    T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane,
+>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+    subject: Subject<'_, T>,
+    cfg: &ChecksConfig,
+    tol: Tol,
+) -> Result<(ChecksReport, Option<DoorJob>), ChecksError> {
     let pairing = |found| crate::ident::mispaired(doc.id(), found).map(ChecksError::from);
     if let Some(refusal) = pairing(ev.document) {
         return Err(refusal);
@@ -1026,7 +1313,12 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
     {
         return Err(refusal);
     }
-    let mut report = ChecksReport::default();
+    let mut report = ChecksReport {
+        document: doc.id(),
+        findings: Vec::new(),
+        skipped: Vec::new(),
+        pending: Vec::new(),
+    };
     if cfg.severity(CheckId::Connectedness) == Severity::Off {
         report.skipped.push(CheckId::Connectedness);
     } else {
@@ -1037,23 +1329,190 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
     } else {
         chart_coherence(doc, ev, tol, &mut report)?;
     }
+    let mut door = None;
+    if cfg.severity(CheckId::UnprovenCoincidence) == Severity::Off {
+        report.skipped.push(CheckId::UnprovenCoincidence);
+    } else if let Subject::Unavailable { refusal } = &subject {
+        // The at-rest rows ride the product: a mated pair's, and every
+        // contact between two copies, so a document whose product did
+        // not gather has rows nobody can read.
+        return Err(ChecksError::Product {
+            refusal: refusal.clone(),
+        });
+    } else {
+        let rows = door_rows(doc, ev, &subject);
+        if !rows.is_empty() {
+            report.pending.push(CheckId::UnprovenCoincidence);
+            door = Some(DoorJob {
+                document: doc.id(),
+                rows,
+                tol,
+                at: report.findings.len(),
+            });
+        }
+    }
     if cfg.severity(CheckId::Separation) == Severity::Off {
         report.skipped.push(CheckId::Separation);
-    } else if let Subject::Unavailable { kind, reason } = &subject {
+    } else if let Subject::Unavailable { refusal } = &subject {
         // The resident is on and there is no subject: the registry
         // could not run, and the refusal carried here is the one it
-        // could not run over — class and sentence together.
-        return Err(ChecksError::product_unavailable(*kind, reason));
+        // could not run over.
+        return Err(ChecksError::Product {
+            refusal: refusal.clone(),
+        });
     } else {
         separation(&subject, tol, &mut report);
     }
-    Ok(report)
+    Ok((report, door))
+}
+
+/// **The coincidence door, split off a report to run at rest**
+/// ([`run_checks_at_rest_on`]): the rows it owes an answer about, named
+/// in the document the report was taken of.
+#[derive(Clone, Debug)]
+pub struct DoorJob {
+    document: crate::DocumentId,
+    rows: Vec<DoorRows>,
+    tol: Tol,
+    /// Where its findings go among the report's.
+    at: usize,
+}
+
+impl DoorJob {
+    /// **Runs the door** over the job's rows in `doc`: the findings to
+    /// settle into the report it was split from
+    /// ([`ChecksReport::settle`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::coincide::Canceled`] once `cancel` is canceled: the
+    /// replay checks it between nodes, and the door between the margins
+    /// it discharges.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the report was taken of.
+    pub fn run<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        cancel: &crate::CancelToken,
+    ) -> Result<DoorFindings, crate::coincide::Canceled> {
+        crate::spoken::assert_taken_of("this door job", self.document, doc);
+        Ok(DoorFindings {
+            document: self.document,
+            at: self.at,
+            findings: door_findings(doc, &self.rows, self.tol, cancel)?,
+        })
+    }
+}
+
+/// **A [`DoorJob`]'s answer**, to settle into its report
+/// ([`ChecksReport::settle`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct DoorFindings {
+    document: crate::DocumentId,
+    at: usize,
+    findings: Vec<CheckFinding>,
+}
+
+/// One row set: the subject its findings are reported against, the
+/// node whose decision the door proves it at, and its rows in decision
+/// order.
+type DoorRows = (
+    FindingSubject,
+    RecipeNodeId,
+    Vec<crate::coincide::NamedCoincidence>,
+);
+
+/// **The rows the `unproven-coincidence` resident asks the door
+/// about** (D10): every evaluated node's rows, in evaluation order then
+/// decision order, then the at-rest census's rows on the gathered
+/// product and on each unplaced group's own space, in their order; each
+/// under the subject it is reported against — the node that decided it,
+/// the mate whose pair the census decided, or the two copies it found
+/// in contact.
+fn door_rows<P, T: Decide>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+    subject: &Subject<'_, T>,
+) -> Vec<DoorRows> {
+    let at_rest: Vec<&crate::assembly::AtRestRow> = match subject {
+        Subject::Product(gathered) => gathered
+            .coincidences
+            .iter()
+            .chain(
+                gathered
+                    .spaces
+                    .iter()
+                    .filter_map(|space| space.gather.as_ref().ok())
+                    .flat_map(|space| space.coincidences.iter()),
+            )
+            .collect(),
+        Subject::EmptyProduct | Subject::Unavailable { .. } => Vec::new(),
+    };
+    // A row of two copies is proved at the first copy's placement, which
+    // is no decision the replay retakes: the door replays no census row.
+    let at_rest_node = |by: &crate::assembly::AtRestBy| match *by {
+        crate::assembly::AtRestBy::Mate(mate) => mate,
+        crate::assembly::AtRestBy::Copies(a, _) => doc
+            .operation_of(a.var)
+            .unwrap_or_else(|| unreachable!("a gathered copy is a live placement's output")),
+    };
+    ev.order
+        .iter()
+        .filter_map(|&node| {
+            ev.value(node)
+                .map(|value| (node, value.coincidences.to_vec()))
+        })
+        .filter(|(_, rows)| !rows.is_empty())
+        .map(|(node, rows)| (FindingSubject::Node(node), node, rows))
+        .chain(at_rest.into_iter().map(|r| {
+            let subject = match r.by {
+                crate::assembly::AtRestBy::Mate(mate) => FindingSubject::Node(mate),
+                crate::assembly::AtRestBy::Copies(a, b) => FindingSubject::Copies { a, b },
+            };
+            (subject, at_rest_node(&r.by), vec![r.row.clone()])
+        }))
+        .collect()
+}
+
+/// The `unproven-coincidence` resident's findings: each row the door
+/// leaves unproven, reported against its row set's subject.
+fn door_findings<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    rows: &[DoorRows],
+    tol: Tol,
+    cancel: &crate::CancelToken,
+) -> Result<Vec<CheckFinding>, crate::coincide::Canceled> {
+    let nodes: Vec<(RecipeNodeId, &[crate::coincide::NamedCoincidence])> = rows
+        .iter()
+        .map(|(_, node, rows)| (*node, &rows[..]))
+        .collect();
+    let proofs = crate::coincide::prove(doc, &nodes, tol, cancel)?;
+    let rows = rows
+        .iter()
+        .flat_map(|(subject, _, rows)| rows.iter().map(move |row| (*subject, row)));
+    Ok(rows
+        .zip(proofs.into_iter().flatten())
+        .filter_map(|((subject, row), proof)| match proof {
+            crate::coincide::Proof::Unproven { residual, recourse } => Some(CheckFinding {
+                check: CheckId::UnprovenCoincidence,
+                subject,
+                evidence: CheckEvidence::UnprovenCoincidence {
+                    row: Box::new(row.clone()),
+                    residual: Box::new(residual),
+                    recourse,
+                },
+            }),
+            crate::coincide::Proof::Structural(_) => None,
+        })
+        .collect())
 }
 
 /// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s
 /// body before the registry grew a second resident, moved out
 /// unchanged so each resident is independently `Off`-able.
-fn connectedness<P, T: Decide + CertifiedBounds>(
+fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
@@ -1063,12 +1522,8 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
     // Entries not yet consumed by a subject; whatever remains after
     // the walk is stale (an expectation with no subject).
     let mut unconsumed = cfg.expected_components.clone();
-    for &root in doc.roots() {
-        let Some(value) = ev.value(root) else {
-            return Err(ChecksError::Root { node: root });
-        };
-        // Non-body roots (datums, mates, profiles, declarations)
-        // denote no subject; an empty boolean denotes zero subjects.
+    for root in doc.placements() {
+        let value = ev.usable(root).map_err(ChecksError::Root)?;
         let Some(sources) = product::sources_of(value) else {
             continue;
         };
@@ -1092,8 +1547,7 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
                     if actual != expected {
                         report.findings.push(CheckFinding {
                             check: CheckId::Connectedness,
-                            root,
-                            output_ix,
+                            subject: FindingSubject::Output { root, output_ix },
                             evidence: CheckEvidence::Connectedness { actual, expected },
                         });
                     }
@@ -1108,16 +1562,14 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
                 ) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,
-                        root,
-                        output_ix,
+                        subject: FindingSubject::Output { root, output_ix },
                         evidence: CheckEvidence::Escalated { source },
                     });
                 }
                 Err(source @ ShellClassifyError::Props { .. }) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,
-                        root,
-                        output_ix,
+                        subject: FindingSubject::Output { root, output_ix },
                         evidence: CheckEvidence::Unsupported { source },
                     });
                 }
@@ -1129,8 +1581,7 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
     for ((root, output_ix), expected) in unconsumed {
         report.findings.push(CheckFinding {
             check: CheckId::Connectedness,
-            root,
-            output_ix,
+            subject: FindingSubject::Output { root, output_ix },
             evidence: CheckEvidence::StaleExpectation { expected },
         });
     }
@@ -1156,28 +1607,24 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
 ///
 /// # Order (D9)
 ///
-/// Roots in root-list order, each root's outputs in output-index
-/// order, and within one body the door's own total order — its
-/// findings, then its unexamined loops. A pure function of the
+/// Placements in document order, and within one copy the door's own
+/// total order — its findings, then its unexamined loops. A pure function of the
 /// evaluation and eps, as the door itself is.
-fn chart_coherence<P, T: Decide + ChartCoherenceLane>(
+fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     tol: Tol,
     report: &mut ChecksReport,
 ) -> Result<(), ChecksError> {
-    for &root in doc.roots() {
-        let Some(value) = ev.value(root) else {
-            return Err(ChecksError::Root { node: root });
-        };
+    for root in doc.placements() {
+        let value = ev.usable(root).map_err(ChecksError::Root)?;
         let Some(sources) = product::sources_of(value) else {
             continue;
         };
         for (output_ix, body, _contacts, _rows) in sources {
             let at = |evidence| CheckFinding {
                 check: CheckId::ChartCoherence,
-                root,
-                output_ix,
+                subject: FindingSubject::Output { root, output_ix },
                 evidence,
             };
             let Some(examined) = T::examine_chart_coherence(body.as_ref(), tol) else {
@@ -1220,8 +1667,8 @@ fn chart_coherence<P, T: Decide + ChartCoherenceLane>(
 ///
 /// # Determinism (D9)
 ///
-/// `solid_roots` is in gather order, which is root-list order then
-/// output order then the source body's own solid order. The walk is
+/// `solid_copies` is in gather order, which is the placements'
+/// document order then the copy's own solid order. The walk is
 /// `i < j` over that list, so the findings come out in a stable order
 /// that does not depend on arena iteration luck.
 ///
@@ -1262,14 +1709,14 @@ fn separation<T: Decide + CertifiedBounds>(
     report: &mut ChecksReport,
 ) {
     // No product, no pair to hold to a certificate, so no finding —
-    // the reading [`Subject::NoBodyRoots`] states. `Unavailable` never
+    // the reading [`Subject::EmptyProduct`] states. `Unavailable` never
     // reaches here while this resident is enabled ([`run_checks_on`]
     // refuses first) and is silent when it is not.
     let Subject::Product(gathered) = subject else {
         return;
     };
     // Fewer than two gathered solids cannot make a pair.
-    if gathered.solid_roots.len() < 2 {
+    if gathered.solid_copies.len() < 2 {
         return;
     }
     let boxes = match topo::SolidSeparation::of(&gathered.body, tol) {
@@ -1277,19 +1724,21 @@ fn separation<T: Decide + CertifiedBounds>(
         Err(source) => {
             // No pair has a verdict. One finding against the first
             // subject says so rather than a silent clean report (F6).
-            let first = gathered.solid_roots[0];
+            let first = gathered.solid_copies[0];
             report.findings.push(CheckFinding {
                 check: CheckId::Separation,
-                root: first.node,
-                output_ix: first.output,
+                subject: FindingSubject::Output {
+                    root: first.node,
+                    output_ix: first.output,
+                },
                 evidence: CheckEvidence::separation_unavailable(&source),
             });
             return;
         }
     };
     let declared = declared_pairs(gathered);
-    for (j, later) in gathered.solid_roots.iter().enumerate() {
-        for earlier in &gathered.solid_roots[..j] {
+    for (j, later) in gathered.solid_copies.iter().enumerate() {
+        for earlier in &gathered.solid_copies[..j] {
             if (earlier.node, earlier.output) == (later.node, later.output) {
                 continue;
             }
@@ -1306,8 +1755,10 @@ fn separation<T: Decide + CertifiedBounds>(
             }
             report.findings.push(CheckFinding {
                 check: CheckId::Separation,
-                root: earlier.node,
-                output_ix: earlier.output,
+                subject: FindingSubject::Output {
+                    root: earlier.node,
+                    output_ix: earlier.output,
+                },
                 evidence: CheckEvidence::NotSeparated {
                     other_root: later.node,
                     other_output: later.output,
@@ -1339,7 +1790,23 @@ fn declared_pairs<T: Decide>(
     // the honest reading is that a broken declaration makes this
     // resident LOUDER about the pair it named, never quieter. The
     // unresolvable-ENTITY direction is `note`'s doing below.
-    let contacts = &gathered.contacts;
+    //
+    // A record the census minted between two copies no mate relates
+    // suppresses nothing: it backs a contact the `unproven-coincidence`
+    // check reports, and quieting the separation finding beside it would
+    // let a touch nobody stated read as clean twice over. A record
+    // counts here only where it cites a row a mate's pair decided. One
+    // that rode up from a source relates two solids of that one copy,
+    // a pair this resident never examines.
+    let mated = |cites: &topo::Cites| {
+        cites.iter().any(|backing| match backing {
+            topo::Backing::Decided(k) => gathered
+                .coincidences
+                .get(k as usize)
+                .is_some_and(|row| matches!(row.by, crate::assembly::AtRestBy::Mate(_))),
+            topo::Backing::Carried { .. } => false,
+        })
+    };
     let owner = topo::SolidOwners::of(&gathered.body);
     let mut out = std::collections::BTreeSet::new();
     let mut note = |a: Option<topo::SolidKey>, b: Option<topo::SolidKey>| {
@@ -1349,17 +1816,21 @@ fn declared_pairs<T: Decide>(
             out.insert(if a <= b { (a, b) } else { (b, a) });
         }
     };
-    for c in &contacts.vv {
-        note(owner.vertex(c.a), owner.vertex(c.b));
-    }
-    for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
-        note(owner.vertex(c.vertex), owner.face(c.face));
-    }
-    for c in &contacts.curves {
-        note(owner.face(c.face_a), owner.face(c.face_b));
-    }
-    for c in &contacts.patches {
-        note(owner.face(c.face_a), owner.face(c.face_b));
+    let solid = |cell| match cell {
+        topo::Cell::Vertex(v) => owner.vertex(v),
+        // An edge belongs to its ends' solid.
+        topo::Cell::Edge(e) => gathered
+            .body
+            .get_edge(e)
+            .and_then(|d| gathered.body.get_half_edge(d.he_plus))
+            .and_then(|h| owner.vertex(h.start)),
+        topo::Cell::Face(f) => owner.face(f),
+    };
+    for record in gathered.contacts.rows() {
+        if mated(&record.cites) {
+            let [a, b] = record.cells();
+            note(solid(a), solid(b));
+        }
     }
     out
 }
@@ -1381,7 +1852,7 @@ fn declared_pairs<T: Decide>(
 /// pair, and this door hands the whole pair on rather than dropping
 /// half of it. Splitting them again downstream re-opens the failure
 /// this signature closes: a subject that IS a declared boolean result
-/// reporting its own certified seam as an UNDECLARED contact under the
+/// reporting its own certified seam as an UNRECORDED contact under the
 /// tier-3′ gate, while the identical body read through its value
 /// passes. (That direction fails loud, never silently — an absent
 /// record set can only make the gate refuse — but a loud wrong answer
@@ -1426,14 +1897,56 @@ pub fn enforce_checks(report: &ChecksReport, cfg: &ChecksConfig) -> Result<(), C
     if findings.is_empty() {
         Ok(())
     } else {
-        Err(CheckRefusal { findings })
+        Err(CheckRefusal {
+            document: report.document,
+            findings,
+        })
     }
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{CheckEvidence, ChecksError, RecipeNodeId, Subject};
+    use super::{CheckEvidence, RecipeNodeId, Subject};
+
+    /// A stand-in finding, told apart by its count.
+    fn finding(check: super::CheckId, expected: u32) -> super::CheckFinding {
+        super::CheckFinding {
+            check,
+            subject: super::FindingSubject::Node(RecipeNodeId::new(0, 7)),
+            evidence: CheckEvidence::StaleExpectation { expected },
+        }
+    }
+
+    /// INVARIANT: a door job's findings settle where the synchronous
+    /// run puts them, after the residents before the door and before
+    /// those after it, and the check stops pending. Reds if `settle`
+    /// appends rather than splices.
+    #[test]
+    fn a_door_job_settles_its_findings_in_the_doors_place() {
+        use super::CheckId::{Connectedness, Separation, UnprovenCoincidence};
+        let document = crate::DocumentId(1);
+        let mut report = super::ChecksReport {
+            document,
+            findings: vec![finding(Connectedness, 1), finding(Separation, 3)],
+            skipped: Vec::new(),
+            pending: vec![UnprovenCoincidence],
+        };
+        report.settle(super::DoorFindings {
+            document,
+            at: 1,
+            findings: vec![finding(UnprovenCoincidence, 2)],
+        });
+        assert!(report.pending.is_empty());
+        assert_eq!(
+            report.findings,
+            [
+                finding(Connectedness, 1),
+                finding(UnprovenCoincidence, 2),
+                finding(Separation, 3)
+            ]
+        );
+    }
 
     /// The variant name `Debug` opens with.
     fn variant_of(debug: &str) -> String {
@@ -1443,52 +1956,51 @@ mod tests {
             .collect()
     }
 
-    /// INVARIANT: the subject door's unavailable arm carries the class
-    /// and the prose OF ONE REFUSAL, and the checks door forwards both
-    /// halves of that one pair — `kind` is the arm the gather's error
-    /// actually is, not a class written down beside it.
+    /// INVARIANT: the subject door's unavailable arm carries the gather
+    /// refusal it was handed, whole, so the checks door can forward it
+    /// for the frame holding the document to say.
     ///
-    /// The refusal below is reachable: one body placed under two
-    /// roots gathers into `ProductError::PlacedUnderTwoRoots`, which is
-    /// what `editor-core`'s own `docm5` row drives through this door
-    /// end-to-end. This row pins the CONSTRUCTION, which is the part a
-    /// caller deriving its own subject can get wrong.
+    /// The refusal below is reachable: a placement whose body was
+    /// deleted gathers into `ProductError::StrandedPlacement`.
     #[test]
-    fn the_subject_door_carries_the_class_of_the_gather_refusal_it_saw() {
-        let refusal = crate::ProductError::RootPoisoned {
-            node: RecipeNodeId(7),
-            through: RecipeNodeId(2),
+    fn the_subject_door_carries_the_gather_refusal_it_saw() {
+        let refusal = || crate::ProductError::StrandedPlacement {
+            placement: RecipeNodeId::new(0, 7),
         };
-        let subject: Subject<'_, f64> = Subject::refused(&refusal);
-        let Subject::Unavailable { kind, reason } = &subject else {
-            panic!("the arm this row is about");
-        };
-        // The reader's half is the gather's own sentence, whole.
-        assert_eq!(*reason, refusal.to_string());
-        // The consumer's half is the arm the error IS — compared
-        // against the variant name `Debug` prints for the error, so a
-        // class hardcoded here would have to be the right one by
-        // accident to pass.
-        assert_eq!(
-            format!("{:?}", kind.expect("a refusal carries its class")),
-            variant_of(&format!("{refusal:?}"))
-        );
-        // And the checks door forwards that same pair, both halves.
-        let ChecksError::Product {
-            kind: door,
-            reason: prose,
-        } = ChecksError::product_unavailable(*kind, reason)
+        let subject: Subject<'_, f64> = Subject::refused(refusal());
+        let Subject::Unavailable {
+            refusal: Some(carried),
+        } = &subject
         else {
-            panic!("the arm this row is about");
+            panic!("the arm this row is about: {subject:?}");
         };
-        assert_eq!(door, *kind);
-        assert_eq!(prose, refusal.to_string());
+        assert_eq!(
+            format!("{:?}", carried.error()),
+            format!("{:?}", refusal()),
+            "the refusal crosses whole"
+        );
+        assert_eq!(
+            format!("{:?}", carried.kind()),
+            variant_of(&format!("{:?}", refusal())),
+            "and its class is the arm the error is"
+        );
+    }
+
+    /// A door handed a subject that was never taken, with a check on
+    /// that reads one, says so and says what to pass.
+    #[test]
+    fn a_subject_never_taken_refuses_in_its_own_words() {
+        assert_eq!(
+            super::ChecksError::Product { refusal: None }.to_string(),
+            "checks: an enabled check reads the document's product, and none was taken. \
+             Recourse: pass the gathered product as the subject"
+        );
     }
 
     /// INVARIANT: the subject door ROUTES the refusal it is handed.
     /// The one class [`product::ProductErrorKind::means_no_body`]
-    /// reads as an ABSENCE — `ProductError::NoBodyRoots`, a document
-    /// that simply denotes no body — becomes [`Subject::NoBodyRoots`];
+    /// reads as an ABSENCE — `ProductError::EmptyProduct`, a document
+    /// whose world holds nothing — becomes [`Subject::EmptyProduct`];
     /// every other class becomes [`Subject::Unavailable`].
     ///
     /// That arm is the one refusal that must not go through the
@@ -1507,23 +2019,26 @@ mod tests {
     #[test]
     fn the_subject_door_routes_an_absence_away_from_the_unavailable_arm() {
         for refusal in [
-            crate::ProductError::NoBodyRoots,
-            crate::ProductError::RootPoisoned {
-                node: RecipeNodeId(7),
-                through: RecipeNodeId(2),
+            crate::ProductError::EmptyProduct {
+                unplaced: Vec::new(),
             },
+            crate::ProductError::Root(crate::NodeStanding::Poisoned {
+                node: RecipeNodeId::new(0, 7),
+                through: RecipeNodeId::new(0, 2),
+            }),
         ] {
             let absence = refusal.kind().means_no_body();
-            let subject: Subject<'_, f64> = Subject::refused(&refusal);
+            let shown = format!("{refusal:?}");
+            let subject: Subject<'_, f64> = Subject::refused(refusal);
             assert_eq!(
-                matches!(subject, Subject::NoBodyRoots),
+                matches!(subject, Subject::EmptyProduct),
                 absence,
-                "{refusal:?}: the door's arm must follow the classification"
+                "{shown}: the door's arm must follow the classification"
             );
             assert_eq!(
                 matches!(subject, Subject::Unavailable { .. }),
                 !absence,
-                "{refusal:?}: and the arm it is NOT is the refusing one"
+                "{shown}: and the arm it is NOT is the refusing one"
             );
         }
     }
@@ -1534,11 +2049,10 @@ mod tests {
     #[test]
     fn a_subject_no_resident_asked_for_carries_no_refusal_class() {
         let subject: Subject<'_, f64> = Subject::not_needed();
-        let Subject::Unavailable { kind, reason } = &subject else {
-            panic!("the arm this row is about");
-        };
-        assert_eq!(*kind, None);
-        assert!(reason.contains("no enabled check"), "{reason}");
+        assert!(
+            matches!(subject, Subject::Unavailable { refusal: None }),
+            "{subject:?}"
+        );
     }
 
     /// INVARIANT: the separation door's evidence carries the class and

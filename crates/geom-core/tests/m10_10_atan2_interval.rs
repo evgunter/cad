@@ -28,7 +28,12 @@ fn band() -> Band {
 
 /// A parameter over a box, minted in the installed session.
 fn over(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param_over(ParamSymbol::of(name), Interval::from_bounds(lo, hi), lo, hi)
+    Sym::param_over(
+        ParamSymbol::new(test_utils::symbol_id(name)),
+        Interval::from_bounds(lo, hi),
+        lo,
+        hi,
+    )
 }
 
 /// How the tier answered the margin `build` makes inside a fresh
@@ -39,7 +44,7 @@ fn how(build: impl FnOnce() -> Sym<Interval>) -> String {
         geom_core::k_stats::decide("atan2_interval", Margin::of(build()), band())
     });
     match out {
-        Ok(Sign::Zero) if counts.symbolic_zero == 1 => "theorem".to_owned(),
+        Ok(Sign::Zero) if counts.symbolic == 1 => "proven".to_owned(),
         Ok(s) => format!("numeric {s:?}"),
         Err(e) => format!("refused {:?}", e.margin),
     }
@@ -55,7 +60,7 @@ fn the_atan2_fold_decides_over_a_box_and_a_straddling_offset() {
     for (lo, hi) in [(0.1, 0.2), (0.5, 1.5), (1.0e-9, 1.0e3)] {
         assert_eq!(
             how(|| Sym::zero().atan2(over("x", lo, hi).sqrt())),
-            "theorem",
+            "proven",
             "sqrt over [{lo}, {hi}]"
         );
         assert_eq!(
@@ -63,7 +68,7 @@ fn the_atan2_fold_decides_over_a_box_and_a_straddling_offset() {
                 let x = over("x", lo, hi);
                 Sym::zero().atan2(x * x)
             }),
-            "theorem",
+            "proven",
             "even power over [{lo}, {hi}]"
         );
     }
@@ -77,7 +82,7 @@ fn the_atan2_fold_decides_over_a_box_and_a_straddling_offset() {
                 let r2 = r * r;
                 Sym::zero().atan2(r2 / r2.sqrt())
             }),
-            "theorem",
+            "proven",
             "r²/sqrt(r²) over δ ∈ ±{half:e}"
         );
     }
@@ -109,7 +114,7 @@ fn a_plain_parameter_never_folds() {
         answer.starts_with("refused") || answer.starts_with("numeric"),
         "a straddling plain parameter is the numeric channel's: {answer}"
     );
-    assert_ne!(answer, "theorem");
+    assert_ne!(answer, "proven");
 }
 
 /// **The `N = 0` box refuses through clause 1**: `sqrt(x)` over a box
@@ -159,7 +164,7 @@ fn the_pi_fold_and_the_interval_pi_enclose_the_same_constant() {
         (pi.lo(), pi.hi()),
         "the node's value IS Interval::pi()"
     );
-    assert_eq!(counts.symbolic_zero, 1, "{counts:?}");
+    assert_eq!(counts.symbolic, 1, "{counts:?}");
     assert!(
         lo <= core::f64::consts::PI && core::f64::consts::PI.next_up() >= hi && lo < hi,
         "a 1-ulp enclosure of the real π"

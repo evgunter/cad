@@ -29,3 +29,17 @@ Re-cut the baseline on main, the same way the script's header says,
 and update `tools/tess-lint/tests/cut_line_pin.rs`'s transcription of
 the cut line along with it. Or decide that the `name` column is
 informational, and say so where the column is documented.
+
+## Note (2026-10-01, BAND PR #3736)
+
+BAND's run-wall PR re-cut the whole baseline at its own tree
+(`# tess-budget-cut: 5eaf710e5b2d`), since a full revolve's planar walls
+became one face and five scenes' rows moved. The full re-cut also
+re-spelled the stale `name` cells this row describes, in diecomposed,
+diefillet, diepips, heatsink5/7/9 and teapot. It updated
+`tools/tess-lint/tests/cut_line_pin.rs`'s transcription of the cut line
+and `baseline_census.rs`'s totals as well (1605 → 1591 rows, 308 392 →
+308 372 triangles, 29 727 → 29 618 pairs). Once that PR merges, the
+"re-cut on main" half of this row is done. The other half is still
+open: the gate does not read the `name` column, and nothing says that
+it is informational.

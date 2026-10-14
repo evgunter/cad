@@ -28,16 +28,16 @@ is a second-class citizen in exactly the places draft's output would
 land next:
 
 - where the new cone meets a drafted plane neighbor at generic tilt,
-  `plane_cone_section` routes to rung 3 **permanently** — "parabola
-  and hyperbola are outside the conic inventory **by decision, not
-  by omission**" (R1, `intersect.rs:228-235`). Cone SSI coverage
-  is otherwise zero (cyl×cone, cone×cone, cone×sphere all
+  `plane_cone_section` builds the exact `Ellipse` (Ev, 2026-10-01:
+  "exact ellipses are certainly allowed there") and refuses a
+  parabolic or hyperbolic section typed — "parabola and hyperbola are
+  outside the conic inventory **by decision, not by omission**" (R1).
+  Cone SSI coverage is otherwise zero (cyl×cone, cone×cone, cone×sphere all
   unimplemented in the C5 table).
-- a cone face is boolean-live only where the pair-scoped operand
-  gate (VERBS-GATE, #1001) finds no unsupported PAIR it could
-  enter, and fillet's cone arms are the COAXIAL ones (VERBS-ARMS-2)
-  — a cone meeting a drafted plane at generic tilt is neither, so
-  the drafted body is still one-way there.
+- a cone face joins a plane in the boolean where their section is an
+  ellipse or a circle (the plane × cone germ lane), and fillet's cone
+  arms are the COAXIAL ones (VERBS-ARMS-2) — a cone meeting a drafted
+  plane at generic tilt booleans, and does not fillet there.
 
 **Recommendation**: v1 ships plane-only with a typed
 `DraftUnsupported`-class refusal naming the wall kind.
@@ -70,7 +70,8 @@ pass**, and the kernel has partial vocabulary for it:
   no-certification-here contract — the caller owns re-description.
 - **The vertex half has no public door**: `get_vertex_mut` is
   `pub(crate)`; the only whole-body point rewriter is
-  `transform_rigid`, which is rigid by checked contract.
+  `transform_rigid`, which moves by a `RigidMotion` witness (rigid by
+  construction, or decided at its door).
 - **The pass shape has one shipped inhabitant**:
   `topo::replace_face_offset` (VERBS OFF-D, #1043) replaces ONE
   face's surface, re-describes its boundary and places the vertices

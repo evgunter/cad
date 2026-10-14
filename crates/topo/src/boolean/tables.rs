@@ -85,6 +85,25 @@ pub fn eq15_3_lump(op: BooleanOp, on_side: Operand, relation: PlaneRelation) -> 
     }
 }
 
+/// Whether the Eq. 15.3 lump of a coincident sector pair keeps exactly
+/// one operand's copy of the shared region, so that the result holds
+/// one face's region through the other face
+/// (`BooleanNaming::covered`). The other arms keep neither copy.
+pub fn lump_keeps_one(op: BooleanOp, relation: PlaneRelation) -> bool {
+    kept_copy(op, relation).is_some()
+}
+
+/// Which operand's copy of a coincident sector pair's region the Eq.
+/// 15.3 lump keeps, when it keeps exactly one ([`lump_keeps_one`]).
+pub fn kept_copy(op: BooleanOp, relation: PlaneRelation) -> Option<Operand> {
+    let kept = |o| eq15_3_lump(op, o, relation) == super::finish::kept_side(op, o);
+    match (kept(Operand::A), kept(Operand::B)) {
+        (true, false) => Some(Operand::A),
+        (false, true) => Some(Operand::B),
+        _ => None,
+    }
+}
+
 /// A Table II result cell for one test sector.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TableIiVerdict {
@@ -124,18 +143,15 @@ pub fn table_iii_rule(op: BooleanOp, comparison: Operand, relation: PlaneRelatio
     eq15_3_lump(op, comparison, relation) == SideCode::Out
 }
 
-/// Resolves a Table II verdict cell to a concrete intersect decision.
-pub fn resolve_verdict(
-    v: TableIiVerdict,
-    op: BooleanOp,
-    comparison: Operand,
-    relation: PlaneRelation,
-) -> bool {
+/// Resolves a Table II verdict cell to a concrete intersect decision,
+/// given Table III's rule for the cell's on-sector: whether it lumps
+/// `Out` ([`table_iii_rule`] for a coincident pair).
+pub fn resolve_verdict(v: TableIiVerdict, lumps_out: bool) -> bool {
     match v {
         TableIiVerdict::No => false,
         TableIiVerdict::Yes => true,
-        TableIiVerdict::Rule => table_iii_rule(op, comparison, relation),
-        TableIiVerdict::NotRule => !table_iii_rule(op, comparison, relation),
+        TableIiVerdict::Rule => lumps_out,
+        TableIiVerdict::NotRule => !lumps_out,
     }
 }
 
@@ -148,6 +164,24 @@ mod tests {
     use PlaneRelation::{SameOpposite as Minus, SameOriented as Plus};
     use SideCode::{In, On, Out};
     use TableIiVerdict::{No, NotRule, Rule, Yes};
+
+    /// The lump keeps one copy of a coincident region exactly where the
+    /// two faces' materials lie on the side the op keeps one of: ∪ and
+    /// ∩ on same-oriented faces, ∖ on opposed ones (B is reverted).
+    #[test]
+    fn a_lump_keeps_one_copy_on_the_kept_arms_only() {
+        let cells = [
+            (Union, Plus, true),
+            (Union, Minus, false),
+            (Intersect, Plus, true),
+            (Intersect, Minus, false),
+            (Subtract, Plus, false),
+            (Subtract, Minus, true),
+        ];
+        for (op, rel, keeps_one) in cells {
+            assert_eq!(lump_keeps_one(op, rel), keeps_one, "{op:?} {rel:?}");
+        }
+    }
 
     /// Eq. 15.3, every cell of the BOOK's table (the adjudicated one;
     /// module docs for the ∖-row misprint record).
@@ -220,8 +254,8 @@ mod tests {
     #[test]
     fn tog_fig18_worked_example() {
         let (r1, _) = table_ii(In, On);
-        assert!(resolve_verdict(r1, Union, A, Plus));
+        assert!(resolve_verdict(r1, table_iii_rule(Union, A, Plus)));
         let (r1, _) = table_ii(Out, On);
-        assert!(resolve_verdict(r1, Union, B, Plus));
+        assert!(resolve_verdict(r1, table_iii_rule(Union, B, Plus)));
     }
 }

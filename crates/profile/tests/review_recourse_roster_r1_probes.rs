@@ -56,19 +56,16 @@ const LAYERS: &[(&str, &[&str])] = &[
             "vertex_separation",
         ],
     ),
-    (
-        "path junction classification:",
-        &["path_junction_side", "path_junction_turn"],
-    ),
 ];
 
 fn rendered(name: &'static str) -> String {
     let band = Band::linear(Tol::witness()).expect("the run's band forms");
     PathError::<f64>::Escalated {
         source: Indeterminate {
-            margin: MarginDiag::Value((band.zero() + band.escalate()) / 2.0),
+            margin: MarginDiag::value((band.zero() + band.escalate()) / 2.0),
             band,
             predicate: Some(name),
+            terminal_sliver: false,
         },
     }
     .to_string()
@@ -110,7 +107,13 @@ fn every_routed_name_renders_the_sentence_its_own_layer_owns() {
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     for name in test_utils::source::predicate_census(&src, profile_carriers()).names {
         let name: &'static str = Box::leak(name.into_boxed_str());
-        let routed = !rendered(name).starts_with("escalated at the path door:");
+        // The door's own fall-through opens with what the decision
+        // decides, in its subject's words, or as unnamed.
+        let text = rendered(name);
+        let fall_through = text.starts_with(profile::UNNAMED_DECISION)
+            || profile::decision_subject(name)
+                .is_some_and(|what| text.starts_with(&format!("{what} is undecided: ")));
+        let routed = !fall_through;
         assert_eq!(
             routed,
             paired.contains(name),

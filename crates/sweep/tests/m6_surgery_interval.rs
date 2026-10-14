@@ -18,13 +18,13 @@ mod certified {
 
     use geom::Curve3;
     use geom::Surface;
-    use geom_core::{Affine3, Bounds, Interval};
+    use geom_core::{Bounds, Interval};
     use profile::{Profile, test_support::bulge_loop};
     use sweep::blend::build::fillet_edges;
-    use sweep::test_support::{cube, sketch_from_axes};
+    use sweep::test_support::{cube, finished, sketch_from_axes};
     use sweep::{Revolution, RevolveAxis, revolve};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-    use topo::{Body, BooleanDeclarations, mass_properties};
+    use topo::{Body, mass_properties};
 
     const DIE_L: f64 = 1.0;
     const DIE_R: f64 = 0.12;
@@ -67,7 +67,7 @@ mod certified {
         let h = DIE_L / 2.0;
         topo::transform_rigid(
             &ball,
-            &Affine3::translation(v3(h, h, DIE_L + (PIP_R - PIP_H))),
+            &geom_core::RigidMotion::translation(v3(h, h, DIE_L + (PIP_R - PIP_H))).unwrap(),
             Tol::witness(),
         )
         .unwrap()
@@ -130,9 +130,9 @@ mod certified {
     fn interval_one_pip_composed_die_is_bracketed() {
         let pipped = boolean_op_with(
             BooleanOp::Subtract,
-            &cube(DIE_L, Tol::witness()),
-            &pip_ball(),
-            &BooleanDeclarations::none(),
+            &finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness()),
+            &finished("the pip ball", pip_ball(), Tol::witness()),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )
@@ -152,9 +152,14 @@ mod certified {
             .map(|(k, _)| k)
             .collect();
         assert_eq!(box_edges.len(), 12);
-        let blanked = fillet_edges(&pipped, &box_edges, iv(DIE_R), Tol::witness())
-            .expect("the in-place box blends decide definitely at Interval")
-            .body;
+        let blanked = fillet_edges(
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
+            &box_edges,
+            iv(DIE_R),
+            Tol::witness(),
+        )
+        .expect("the in-place box blends decide definitely at Interval")
+        .body;
         let rims: Vec<_> = blanked
             .edges()
             .filter(|(_, e)| {
@@ -177,8 +182,13 @@ mod certified {
             .map(|(k, _)| k)
             .collect();
         assert_eq!(rims.len(), 2, "one rim of two arcs");
-        let out = fillet_edges(&blanked, &rims, iv(RIM_R), Tol::witness())
-            .expect("the rim torus band decides definitely at Interval");
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&blanked, Tol::witness()),
+            &rims,
+            iv(RIM_R),
+            Tol::witness(),
+        )
+        .expect("the rim torus band decides definitely at Interval");
         assert_eq!(out.band_faces.len(), 1);
         let die = out.body;
         assert_eq!(

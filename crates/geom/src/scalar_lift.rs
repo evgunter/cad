@@ -47,9 +47,13 @@
 //!
 //! # What a lift is, and is not
 //!
-//! A lift is a **structural map**: every scalar field goes through `f`,
-//! every `f64` structure field (knots, weights, degrees, windows,
-//! tolerances) is carried verbatim, and no arithmetic is performed. It
+//! A lift is a **structural map**: every scalar field goes through `f`
+//! (a NURBS payload's control points, weights and held knots among
+//! them), every `f64` structure field (degrees, knot structure, the
+//! weights' value channel, windows, tolerances) is carried verbatim,
+//! and no arithmetic is performed. `f` keeps every value's point, so
+//! the structure carried over is still the lifted values' value
+//! channel. It
 //! is therefore exact whenever `f` is — `Real::from_f64` at every
 //! scalar, `Dual::constant` for the dual lanes — and then the lifted
 //! geometry **evaluates to the source**: bit for bit in a `Dual`'s
@@ -90,7 +94,18 @@
 //! `weights.len()` still equals `control.len()`, and no weight VALUE
 //! moved — every weight is still the positive finite number `new`
 //! admitted, and every knot vector is still the one `KnotVector`'s own
-//! constructor accepted. The `debug_assert` in each door re-derives
+//! constructor accepted.
+//!
+//! **One door is not a structural map: a knot-algebra plan's output**
+//! (the curves' `apply_plans`, the surface's `from_u_columns` after
+//! `map_u_columns`). There the knot vector and the weights are NEW —
+//! the plan's own. Its counts agree by the plan's construction (one
+//! weight per control point of the knot vector it builds), and every
+//! weight it writes passed `geom_core::spline::algebra`'s written-weight
+//! admission, the same regime `new` checks
+//! (`geom_core::spline::weight_in_regime`); a weight outside it refuses
+//! the operation with `KnotAlgebraError::WeightCollapse` before any
+//! curve is built. The `debug_assert` in each door re-derives
 //! the count agreement (D2 addendum row 5: a bug detectable only by
 //! re-derivation).
 //!

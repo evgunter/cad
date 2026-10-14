@@ -20,31 +20,43 @@ test_utils::gated_to![
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Dimension, DimensionError, Expr, ParamEnv, ParamName, ParseError, eval, eval_count, parse_expr,
-    unparse,
+    Dimension, DimensionError, Formula, ParseError, VarEnv, VarName, eval, eval_count,
+    parse_formula, unparse,
 };
 use proptest::prelude::*;
+use test_utils::fuzz;
 
-fn no_params() -> BTreeMap<ParamName, Dimension> {
+fn no_params() -> BTreeMap<VarName, Dimension> {
     BTreeMap::new()
 }
 
-fn p(src: &str) -> Expr {
-    parse_expr(src, &no_params()).expect(src)
+fn p(src: &str) -> Formula {
+    parse_formula(src, &no_params()).expect(src)
 }
 
 fn perr(src: &str) -> ParseError {
-    parse_expr(src, &no_params()).expect_err(src)
+    parse_formula(src, &no_params()).expect_err(src)
 }
 
-fn bits(e: &Expr) -> Vec<u64> {
+/// The `f64` bits of every number `e` holds, in pre-order: a written
+/// quantity's value, and a rational constant's value.
+fn bits(e: &Formula) -> Vec<u64> {
     let mut out = Vec::new();
-    e.literal_bits(&mut out);
+    if let Some(v) = e.literal_value() {
+        out.push(v.to_bits());
+    } else if let Some(r) = e.as_ratio() {
+        out.push(r.eval::<f64>().to_bits());
+    }
+    for i in 0..2 {
+        if let Some(child) = e.child(i) {
+            out.extend(bits(child));
+        }
+    }
     out
 }
 
-fn ev(e: &Expr) -> f64 {
-    eval::<f64>(e, &ParamEnv::default()).expect("finite eval")
+fn ev(e: &Formula) -> f64 {
+    eval::<f64>(&Clone::clone(e), &VarEnv::default()).expect("finite eval")
 }
 
 #[test]
@@ -93,7 +105,10 @@ fn unit_suffixed_literals_land_in_canonical_units() {
 fn bare_integers_are_counts_and_bare_reals_are_scalars() {
     let five = p("5");
     assert_eq!(five.dim(), Dimension::Count);
-    assert_eq!(eval_count(&five, &ParamEnv::<f64>::default()), Ok(5));
+    assert_eq!(
+        eval_count(&Clone::clone(&five), &VarEnv::<f64>::default()),
+        Ok(5)
+    );
     for src in ["5.0", "5.", "1e3", "2.5e-3", "0.5"] {
         assert_eq!(p(src).dim(), Dimension::Scalar, "{src}");
     }
@@ -159,23 +174,26 @@ fn precedence_and_child_order_match_the_ast_descend_indices() {
 #[test]
 fn params_resolve_against_the_callers_table() {
     let mut params = no_params();
-    params.insert(ParamName::new("width"), Dimension::Length);
-    params.insert(ParamName::new("n"), Dimension::Count);
-    params.insert(ParamName::new("mm"), Dimension::Scalar);
-    let e = parse_expr("width + 25 mm", &params).unwrap();
+    params.insert(VarName::from_static("width"), Dimension::Length);
+    params.insert(VarName::from_static("n"), Dimension::Count);
+    params.insert(VarName::from_static("mm"), Dimension::Scalar);
+    let e = parse_formula("width + 25 mm", &params).unwrap();
     assert_eq!(e.dim(), Dimension::Length);
     let mut refs = Vec::new();
-    e.param_refs(&mut refs);
-    assert_eq!(refs, vec![(ParamName::new("width"), Dimension::Length)]);
-    assert_eq!(parse_expr("n", &params).unwrap().dim(), Dimension::Count);
+    e.named_reads(&mut refs);
+    assert_eq!(
+        refs,
+        vec![(VarName::from_static("width"), Dimension::Length)]
+    );
+    assert_eq!(parse_formula("n", &params).unwrap().dim(), Dimension::Count);
     // A param may share a unit's name: position disambiguates (an
     // ident is a unit only DIRECTLY after a number).
     assert_eq!(
-        parse_expr("mm + 1.0", &params).unwrap().dim(),
+        parse_formula("mm + 1.0", &params).unwrap().dim(),
         Dimension::Scalar
     );
     assert!(matches!(
-        parse_expr("q", &params),
+        parse_formula("q", &params),
         Err(ParseError::UnknownParam { pos: 0, name }) if name == "q"
     ));
     // `sin` not followed by `(` is an ident like any other.
@@ -311,9 +329,19 @@ fn every_dimension_error_reaches_through_the_parser() {
             found: Dimension::Length,
         }
     );
+    // A count of integer constants beside a continuous operand reads as
+    // the scalar it equals (`2 * 5 mm`, `turn/4`, `(2 + 1) * 5 mm`); a
+    // count reading a variable there is still refused.
+    assert_eq!(p("2 * 5 mm").dim(), Dimension::Length);
+    assert_eq!(p("turn/4").dim(), Dimension::Angle);
+    assert_eq!(ev(&p("(2 + 1) * 5 mm")), 0.015);
+    let count_param: BTreeMap<_, _> = [(VarName::from_static("n"), Dimension::Count)].into();
     assert_eq!(
-        dim_err("2 * 5 mm"),
-        DimensionError::CountNeedsExplicitPromotion { op: "mul" }
+        parse_formula("n * 5 mm", &count_param),
+        Err(ParseError::Dimension {
+            pos: 2,
+            error: DimensionError::CountNeedsExplicitPromotion { op: "mul" },
+        })
     );
     assert_eq!(
         dim_err("5 / 2"),
@@ -332,13 +360,13 @@ fn every_dimension_error_reaches_through_the_parser() {
     assert_eq!(dim_err("1e999"), DimensionError::NonFiniteLiteral);
     assert_eq!(dim_err("1e400 mm"), DimensionError::NonFiniteLiteral);
     // DEVIATION (reported): `LiteralCountIsInteger` is STRUCTURALLY
-    // unreachable through text — bare integers route to `Expr::count`
+    // unreachable through text — bare integers route to `Formula::count`
     // and a unit suffix always makes a continuous dimension, so no
-    // source string can ask for a Count-dimension `Expr::literal`.
+    // source string can ask for a Count-dimension `Formula::literal`.
     // Pinned at the constructor door instead, so the variant's refusal
     // stays exercised from this suite.
     assert_eq!(
-        Expr::literal(2.0, Dimension::Count).unwrap_err(),
+        Formula::literal(2.0, Dimension::Count).unwrap_err(),
         DimensionError::LiteralCountIsInteger
     );
 }
@@ -384,9 +412,9 @@ proptest! {
             _ => (quantity::fmt_angle(value, quantity::RAD), Dimension::Angle),
         };
         let text = text.unwrap();
-        let e = parse_expr(&text, &no_params()).expect(&text);
+        let e = parse_formula(&text, &no_params()).expect(&text);
         prop_assert_eq!(e.dim(), dim, "{}", &text);
-        let back = eval::<f64>(&e, &ParamEnv::default()).expect(&text);
+        let back = eval::<f64>(&Clone::clone(&e), &VarEnv::default()).expect(&text);
         prop_assert_eq!(back.to_bits(), value.to_bits(), "{}", &text);
     }
 }
@@ -397,6 +425,13 @@ proptest! {
 /// `.` or an exponent — so it lexes as a REAL, never as a Count).
 fn arb_real_text() -> impl Strategy<Value = String> {
     (-1.0e6f64..1.0e6).prop_map(|v| format!("{v:?}"))
+}
+
+/// A bare decimal's text a constant spells exactly: six places keep
+/// its reduced numerator and denominator under 2^53, as a bare number
+/// inside a formula must be (`ConstantOutOfRange` otherwise).
+fn arb_constant_text() -> impl Strategy<Value = String> {
+    (-1.0e6f64..1.0e6).prop_map(|v| format!("{v:.6}"))
 }
 
 /// Random well-formed source of the given dimension, exercising every
@@ -410,7 +445,7 @@ fn arb_text_of(dim: Dimension, depth: u32) -> BoxedStrategy<String> {
         Dimension::Angle => (arb_real_text(), prop_oneof!["deg", "rad", "pi rad"])
             .prop_map(|(n, u)| format!("{n} {u}"))
             .boxed(),
-        Dimension::Scalar => prop_oneof![arb_real_text(), Just("S".to_string())].boxed(),
+        Dimension::Scalar => prop_oneof![arb_constant_text(), Just("S".to_string())].boxed(),
         Dimension::Count => prop_oneof![
             (-1000i64..1000).prop_map(|n| n.to_string()),
             Just("N".to_string()),
@@ -485,21 +520,21 @@ proptest! {
             .prop_flat_map(|dim| arb_text_of(dim, 3).prop_map(move |src| (dim, src))),
     ) {
         let mut params = BTreeMap::new();
-        params.insert(ParamName::new("S"), Dimension::Scalar);
-        params.insert(ParamName::new("N"), Dimension::Count);
-        let e = parse_expr(&src, &params).expect(&src);
+        params.insert(VarName::from_static("S"), Dimension::Scalar);
+        params.insert(VarName::from_static("N"), Dimension::Count);
+        let e = parse_formula(&src, &params).expect(&src);
         prop_assert_eq!(e.dim(), dim, "{}", &src);
     }
 }
 
 // --- The door OUTWARD (issue #1103): `unparse` -----------------
 //
-// The pin is the ROUND TRIP, structurally: `parse_expr(unparse(e))`
+// The pin is the ROUND TRIP, structurally: `parse_formula(unparse(e, names))`
 // is `bit_eq` to `e`. `bit_eq` is display-unit-blind by design, so the
 // units get their own assertions rather than riding along.
 
 /// The declared parameters the unparse suites resolve names against.
-fn rt_params() -> BTreeMap<ParamName, Dimension> {
+fn rt_params() -> BTreeMap<VarName, Dimension> {
     [
         ("w", Dimension::Length),
         ("a", Dimension::Angle),
@@ -507,18 +542,18 @@ fn rt_params() -> BTreeMap<ParamName, Dimension> {
         ("n", Dimension::Count),
     ]
     .into_iter()
-    .map(|(name, dim)| (ParamName::new(name), dim))
+    .map(|(name, dim)| (VarName::from_static(name), dim))
     .collect()
 }
 
-fn rp(src: &str) -> Expr {
-    parse_expr(src, &rt_params()).expect(src)
+fn rp(src: &str) -> Formula {
+    parse_formula(src, &rt_params()).expect(src)
 }
 
 /// `e`'s source text, checked to read back as `e` itself.
-fn round_trip(e: &Expr) -> String {
-    let text = unparse(e);
-    let back = parse_expr(&text, &rt_params()).expect(&text);
+fn round_trip(e: &Formula) -> String {
+    let text = unparse(e, &|_| None);
+    let back = parse_formula(&text, &rt_params()).expect(&text);
     assert!(
         back.bit_eq(e),
         "{text:?} reparsed to a different expression:\n  {back:?}\n  {e:?}"
@@ -617,7 +652,7 @@ fn unparse_parenthesises_exactly_where_the_grammar_needs_it() {
         ("-(w * 2.0)", "-(w * 2.0)", "-w * 2.0"),
     ] {
         let e = rp(src);
-        assert_eq!(unparse(&e), expected);
+        assert_eq!(unparse(&e, &|_| None), expected);
         assert!(
             !rp(naive).bit_eq(&e),
             "{naive:?} is not actually a wrong reading of {src:?}"
@@ -634,7 +669,7 @@ fn unparse_parenthesises_exactly_where_the_grammar_needs_it() {
         "w * -2.0",
         "sin(a) * 2.0",
     ] {
-        assert_eq!(unparse(&rp(src)), src);
+        assert_eq!(unparse(&rp(src), &|_| None), src);
     }
 }
 
@@ -655,18 +690,18 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
         let text = round_trip(&e);
         assert_eq!(text, src);
         assert_eq!(
-            parse_expr(&text, &rt_params())
+            parse_formula(&text, &rt_params())
                 .expect(src)
                 .display_unit()
                 .map(|u| u.symbol()),
             Some(symbol)
         );
     }
-    // A literal authored through `Expr::literal` NAMES the canonical
+    // A literal authored through `Formula::literal` NAMES the canonical
     // row rather than remembering nothing — there is no unmarked state
     // — so it writes its suffix like any other and the round trip is a
     // fixed point rather than a normalisation.
-    let bare = Expr::literal(0.025, Dimension::Length).expect("finite length");
+    let bare = Formula::literal(0.025, Dimension::Length).expect("finite length");
     assert_eq!(bare.display_unit().map(|u| u.symbol()), Some("m"));
     let text = round_trip(&bare);
     assert_eq!(text, "0.025 m");
@@ -677,40 +712,232 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
     );
 
     // The dimensionless row is the one whose notation is the ABSENCE of
-    // a suffix, so a Scalar still writes bare digits — and `2.0` rather
-    // than `2`, because a bare integer is a `Count` in this grammar.
-    let scalar = Expr::literal(2.0, Dimension::Scalar).expect("finite scalar");
-    assert_eq!(scalar.display_unit().map(|u| u.symbol()), Some(""));
-    assert_eq!(round_trip(&scalar), "2.0");
+    // a suffix, so a written dimensionless value is written as its bare
+    // digits — `2.0` rather than `2`, because a bare integer is a
+    // `Count` in this grammar. Those digits read back as the constant
+    // they spell exactly where one in range does (alone, either mints
+    // a free `Scalar`), and alone as the written value where none does.
+    let scalar = Formula::literal(2.0, Dimension::Scalar).expect("finite scalar");
+    assert!(scalar.as_quantity().is_some());
+    assert_eq!(unparse(&scalar, &|_| None), "2.0");
+    assert_eq!(rp("2.0"), Formula::ratio(2, 1).unwrap());
+    let inexact = Formula::literal(0.1 + 0.2, Dimension::Scalar).expect("finite scalar");
+    assert_eq!(inexact.display_unit().map(|u| u.symbol()), Some(""));
+    assert_eq!(round_trip(&inexact), "0.30000000000000004");
 }
 
+/// **A minus sign directly before a number is that literal's own**, so
+/// every literal the constructors admit has a spelling: a negative one
+/// reads back as itself rather than as the negation of its magnitude
+/// one node deeper, and the negation of a non-negative literal writes a
+/// bracket to stay a negation. `i64::MIN` reads too, since its digits
+/// are read with their sign.
 #[test]
-fn a_negative_literal_is_the_one_shape_this_grammar_cannot_spell() {
-    // The grammar has no negative number TOKEN — `-` is always an
-    // operator — so a negative literal's own source text reads back as
-    // the negation of its magnitude: same value, one node deeper.
-    // Pinned rather than papered over (`unparse`'s docs state it).
-    let negative = Expr::literal(-0.025, Dimension::Length).expect("finite length");
-    let text = unparse(&negative);
-    assert_eq!(text, "-0.025 m");
-    let back = rp(&text);
-    assert!(!back.bit_eq(&negative));
-    assert_eq!(
-        ev(&back),
-        ev(&negative),
-        "the two spellings evaluate identically"
+fn a_sign_before_a_number_is_the_literals_own() {
+    let length = |metres: f64| Formula::literal(metres, Dimension::Length).expect("finite length");
+    for (label, e, text) in [
+        ("a negative length", length(-0.025), "-0.025 m"),
+        (
+            "a negated length",
+            Formula::neg(length(0.025)).expect("shallow"),
+            "-(0.025 m)",
+        ),
+        (
+            "a negated negative length",
+            Formula::neg(length(-0.025)).expect("shallow"),
+            "--0.025 m",
+        ),
+        ("a negative count", Formula::count(-7), "-7"),
+        (
+            "a negated count",
+            Formula::neg(Formula::count(7)).expect("shallow"),
+            "-(7)",
+        ),
+        (
+            "the least count",
+            Formula::count(i64::MIN),
+            "-9223372036854775808",
+        ),
+        (
+            "a negative constant",
+            Formula::ratio(-3, 2).expect("in range"),
+            "-1.5",
+        ),
+        (
+            "a negated constant",
+            Formula::neg(Formula::ratio(1, 3).expect("in range")).expect("shallow"),
+            "-(1/3)",
+        ),
+        (
+            "a sign after an operator",
+            Formula::sub(length(0.5), length(-0.25)).expect("same dimension"),
+            "0.5 m - -0.25 m",
+        ),
+    ] {
+        assert_eq!(round_trip(&e), text, "{label}");
+    }
+    assert!(rp("-25 mm").child(0).is_none(), "`-25 mm` is one literal");
+    assert!(
+        rp("-(25 mm)").child(0).is_some(),
+        "`-(25 mm)` negates the literal inside it"
     );
-    // The same for a negative count, and `i64::MIN` refuses outright —
-    // its magnitude is one past `i64::MAX`, the corner
-    // `ParseError::IntegerOverflow`'s docs already record.
-    let count = Expr::count(-7);
-    assert_eq!(unparse(&count), "-7");
-    assert!(!rp("-7").bit_eq(&count));
-    assert_eq!(eval_count::<f64>(&rp("-7"), &ParamEnv::default()), Ok(-7));
-    assert!(matches!(
-        parse_expr(&unparse(&Expr::count(i64::MIN)), &rt_params()),
-        Err(ParseError::IntegerOverflow { .. })
-    ));
+    assert_eq!(ev(&rp("-25 mm")), ev(&rp("-(25 mm)")), "and they agree");
+    assert!(
+        matches!(
+            perr("-9223372036854775809"),
+            ParseError::IntegerOverflow { pos: 1, .. }
+        ),
+        "one past the least count still refuses, at its digits"
+    );
+}
+
+/// A literal of `dim` drawn from `rng`: either sign, zero of either sign
+/// included, in a unit the dimension's table rows offer, or one of the
+/// declared parameters.
+fn random_leaf(rng: &mut fuzz::Rng, dim: Dimension) -> Formula {
+    let magnitude = match rng.below(4) {
+        0 => 0.0,
+        1 => rng.range(0.0, 2.0),
+        2 => rng.range(0.0, 1e-3),
+        _ => (rng.range(0.0, 1e4)).round(),
+    };
+    let value = if rng.below(2) == 0 {
+        -magnitude
+    } else {
+        magnitude
+    };
+    let unit = |symbols: &[&str], rng: &mut fuzz::Rng| {
+        quantity::unit_by_symbol(symbols[rng.below(symbols.len())]).expect("a table symbol")
+    };
+    match (dim, rng.below(6)) {
+        (Dimension::Length, 0) => Formula::named(VarName::from_static("w"), dim),
+        (Dimension::Angle, 0) => Formula::named(VarName::from_static("a"), dim),
+        (Dimension::Scalar, 0) => Formula::named(VarName::from_static("s"), dim),
+        (Dimension::Count, 0) => Formula::named(VarName::from_static("n"), dim),
+        (Dimension::Length, _) => {
+            Formula::literal_with_unit(value, dim, unit(&["m", "mm", "cm", "in"], rng))
+                .expect("a finite length")
+        }
+        (Dimension::Angle, _) => {
+            Formula::literal_with_unit(value, dim, unit(&["rad", "deg", "pi rad"], rng))
+                .expect("a finite angle")
+        }
+        // A bare decimal inside a formula is the constant it spells,
+        // so it is drawn with few enough places to be one in range.
+        (Dimension::Scalar, _) => p(&format!("{value:.6}")),
+        (Dimension::Count, 1) => Formula::count(if rng.below(2) == 0 {
+            i64::MIN
+        } else {
+            i64::MAX
+        }),
+        (Dimension::Count, _) => {
+            #[allow(clippy::cast_possible_truncation)]
+            let count = value as i64;
+            Formula::count(count)
+        }
+    }
+}
+
+/// An operand of `dim` nesting at most two levels: a leaf, its negation,
+/// or a call over one (`sin` of an angle, `scalar` of a count).
+fn random_atom(rng: &mut fuzz::Rng, dim: Dimension, leaf_only: bool) -> Formula {
+    let pick = if leaf_only { 0 } else { rng.below(4) };
+    match (dim, pick) {
+        (_, 1) => Formula::neg(random_leaf(rng, dim)).expect("shallow"),
+        (Dimension::Scalar, 2) => {
+            Formula::sin(random_leaf(rng, Dimension::Angle)).expect("an angle")
+        }
+        (Dimension::Scalar, 3) => {
+            Formula::count_to_scalar(random_leaf(rng, Dimension::Count)).expect("a count")
+        }
+        _ => random_leaf(rng, dim),
+    }
+}
+
+/// A tree of `dim` nesting exactly `levels`: each step puts one operator
+/// over the tree so far and, for a binary one, an operand at most as
+/// deep beside it on either side.
+fn random_tree(rng: &mut fuzz::Rng, dim: Dimension, levels: usize) -> Formula {
+    let mut tree = random_leaf(rng, dim);
+    for step in 1..levels {
+        // An operand nesting two levels only once the tree does.
+        let other = |rng: &mut fuzz::Rng, dim| random_atom(rng, dim, step == 1);
+        let left = rng.below(2) == 0;
+        let pair = |tree: Formula, other: Formula| if left { (tree, other) } else { (other, tree) };
+        tree = match (dim, rng.below(7)) {
+            (_, 0) => Formula::neg(tree),
+            (_, 1) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Formula::add(a, b)
+            }
+            (_, 2) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Formula::sub(a, b)
+            }
+            (_, 3) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Formula::min(a, b)
+            }
+            (_, 4) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Formula::max(a, b)
+            }
+            (Dimension::Count, _) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Formula::mul(a, b)
+            }
+            (_, 5) => {
+                let (a, b) = pair(tree, other(rng, Dimension::Scalar));
+                Formula::mul(a, b)
+            }
+            // The divisor is a scalar, so a tree of another dimension
+            // stays on the left.
+            (Dimension::Scalar, _) => {
+                let (a, b) = pair(tree, other(rng, dim));
+                Formula::div(a, b)
+            }
+            (_, _) => Formula::div(tree, other(rng, Dimension::Scalar)),
+        }
+        .unwrap_or_else(|err| panic!("step {step} builds: {err} — {}", fuzz::replay()));
+    }
+    tree
+}
+
+/// **Every tree the constructors admit reads back through its own
+/// text**, up to the nesting bound and on the smallest stack a door runs
+/// on: `parse_formula(unparse(e, names))` is `e` node for node (so it nests as
+/// deep) and bit for bit, and writes the same text again (so each
+/// literal remembers its unit). The trees draw literals of either sign
+/// and both zeros, at the bottom of the deepest chain and beside it.
+#[test]
+fn every_tree_to_the_bound_reads_back_through_its_text() {
+    const BOUND: usize = 128;
+    test_utils::own_thread::on_the_smallest_stack(|| {
+        let mut rng = fuzz::start("unparse then parse, random trees to the nesting bound");
+        for trial in 0..fuzz::scaled(300) {
+            let dim = [Dimension::Length, Dimension::Scalar, Dimension::Count][rng.below(3)];
+            let levels = if trial % 2 == 0 {
+                BOUND
+            } else {
+                1 + rng.below(BOUND)
+            };
+            let e = random_tree(&mut rng, dim, levels);
+            let text = unparse(&e, &|_| None);
+            let back = parse_formula(&text, &rt_params())
+                .unwrap_or_else(|err| panic!("trial {trial}: {err}\n{text}\n{}", fuzz::replay()));
+            assert!(
+                back.bit_eq(&e),
+                "trial {trial}: {text:?} reads back as another tree — {}",
+                fuzz::replay()
+            );
+            assert_eq!(
+                unparse(&back, &|_| None),
+                text,
+                "trial {trial}: the reading writes other text — {}",
+                fuzz::replay()
+            );
+        }
+    });
 }
 
 proptest! {
@@ -724,11 +951,11 @@ proptest! {
             .prop_flat_map(|dim| arb_text_of(dim, 3)),
     ) {
         let mut params = BTreeMap::new();
-        params.insert(ParamName::new("S"), Dimension::Scalar);
-        params.insert(ParamName::new("N"), Dimension::Count);
-        let e = parse_expr(&src, &params).expect(&src);
-        let text = unparse(&e);
-        let back = parse_expr(&text, &params).expect(&text);
+        params.insert(VarName::from_static("S"), Dimension::Scalar);
+        params.insert(VarName::from_static("N"), Dimension::Count);
+        let e = parse_formula(&src, &params).expect(&src);
+        let text = unparse(&e, &|_| None);
+        let back = parse_formula(&text, &params).expect(&text);
         prop_assert!(back.bit_eq(&e), "{} -> {}", &src, &text);
     }
 }

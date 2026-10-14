@@ -88,20 +88,10 @@ fn describe(outcome: &LiftOutcome) -> String {
 // ------------------------------------------------------------------
 
 /// The §5-1 half-disc: two quarter arcs on one carrier and the diameter
-/// back, its joint DECLARED — every zero-turn joint is a declared
-/// tangent joint, so this is the table the lattice materializes for it,
-/// and it lifts through the lattice's own spelling,
-/// `.tangent().tangent_arc_to(p)`, bit for bit.
+/// back. Its joint between the arcs is one carrier continuing, so it is
+/// tangent; the driver refuses the run's zero-turn junction as a sharp
+/// spelling, and the lift spells it `.tangent().tangent_arc_to(p)`.
 fn half_disc() -> ProfileLoop<f64> {
-    half_disc_undeclared().with_tangent_joints(vec![1])
-}
-
-/// The same half-disc as RAW data with its joint UNDECLARED — what a
-/// STEP import or a hand-built table carries. The driver refuses the
-/// run's zero-turn junction undeclared, and the lift's one re-spelling
-/// DECLARES it, so the replay differs from the source in exactly that
-/// joint (`an_undeclared_cocircular_run_lifts_as_the_declared_joint`).
-fn half_disc_undeclared() -> ProfileLoop<f64> {
     let b = quarter_bulge();
     chain(&[(1.0, 0.0, b), (0.0, 1.0, b), (-1.0, 0.0, 0.0)])
 }
@@ -111,9 +101,10 @@ fn thirds() -> ProfileLoop<f64> {
     circle_split(Point2::new(1.2, 1.7), 0.35, 3, 0.0, Tol::witness())
         .expect("boss rim splits")
         .loop_
+        .into_loop()
 }
 
-/// A plain arc chain: no declared joints, no same-carrier run.
+/// A plain arc chain: no constructed joints, no same-carrier run.
 fn arc_chain() -> ProfileLoop<f64> {
     chain(&[(0.0, 0.0, 0.3), (2.0, 0.0, -0.2), (2.0, 2.0, 0.1)])
 }
@@ -129,8 +120,7 @@ fn unequal_split() -> ProfileLoop<f64> {
     ])
 }
 
-/// Two collinear sides in a row: a same-carrier LINE run, for which the
-/// chain vocabulary has no `line_continue`.
+/// Two collinear sides in a row: a same-carrier LINE run.
 fn collinear_run() -> ProfileLoop<f64> {
     ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
@@ -144,28 +134,24 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
     vec![
         ("rect", rect(0.0, 0.0, 2.0, 1.0), Class::Bits),
         ("l_profile", l_profile(), Class::Bits),
-        ("arc_chain", arc_chain(), Class::Bits),
-        ("lens", lens(), Class::Bits),
+        ("arc_chain", arc_chain(), Class::Value),
+        ("lens", lens(), Class::Value),
         ("circle_h", circle_h(0.0, 0.0, 1.0), Class::Bits),
         ("circle_v", circle_v(0.0, 0.0, 1.0), Class::Value),
         (
             "circle_primitive",
             circle(Point2::new(0.5, -0.25), 1.5, Tol::witness())
                 .expect("circle")
-                .loop_,
+                .loop_
+                .into_loop(),
             Class::Bits,
         ),
         ("circle_split_3", thirds(), Class::Bits),
-        ("half_disc", half_disc(), Class::Bits),
-        (
-            "half_disc_undeclared",
-            half_disc_undeclared(),
-            Class::Mismatch,
-        ),
+        ("half_disc", half_disc(), Class::Value),
         ("bracket", bracket(), Class::Value),
         ("rounded_rect", rounded_rect(4.0, 3.0, 0.5), Class::Value),
-        ("unequal_split", unequal_split(), Class::Refused),
-        ("collinear_run", collinear_run(), Class::Wall),
+        ("unequal_split", unequal_split(), Class::Value),
+        ("collinear_run", collinear_run(), Class::Bits),
     ]
 }
 
@@ -176,6 +162,7 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
 #[test]
 fn the_census() {
     let mut rows = Vec::new();
+    let mut moved = Vec::new();
     let mut tally = [0usize; 5];
     for (name, loop_, expected) in corpus() {
         let outcome = lift_checked(&loop_, Tol::witness());
@@ -185,33 +172,23 @@ fn the_census() {
         // below are an independent measurement rather than a restatement
         // of the fixture table.
         tally[got as usize] += 1;
-        assert_eq!(
-            got,
-            expected,
-            "census row `{name}` changed class: {}",
-            describe(&outcome)
-        );
+        if got != expected {
+            moved.push(format!("`{name}`: {got:?}, want {expected:?}"));
+        }
     }
     println!(
         "--- LIFT CENSUS ---\n{}\n-------------------",
         rows.join("\n")
     );
+    assert!(moved.is_empty(), "census rows changed class: {moved:?}");
 
     // The tally of record. A vocabulary change that moves a loop
     // between buckets must move these numbers deliberately.
-    assert_eq!(tally[Class::Bits as usize], 8, "bit-identical lifts");
-    assert_eq!(tally[Class::Value as usize], 3, "value-equal lifts");
-    assert_eq!(tally[Class::Refused as usize], 1, "structural walls");
-    assert_eq!(tally[Class::Wall as usize], 1, "geometric walls");
-    // The one mismatch is the undeclared cocircular run, whose lift
-    // DECLARES the joint the source left undeclared: a joint-set
-    // difference the comparator scores as incomparable, pinned to
-    // exactly that in `an_undeclared_cocircular_run_lifts_as_the_declared_joint`.
-    assert_eq!(
-        tally[Class::Mismatch as usize],
-        1,
-        "declared-joint mismatches"
-    );
+    assert_eq!(tally[Class::Bits as usize], 6, "bit-identical lifts");
+    assert_eq!(tally[Class::Value as usize], 7, "value-equal lifts");
+    assert_eq!(tally[Class::Refused as usize], 0, "structural walls");
+    assert_eq!(tally[Class::Wall as usize], 0, "geometric walls");
+    assert_eq!(tally[Class::Mismatch as usize], 0, "mismatches");
 }
 
 /// The F10 report the design demands: the tool must SAY which fidelity
@@ -239,7 +216,7 @@ fn the_fidelity_report_is_honest() {
         other => panic!("bracket should lift: {}", describe(&other)),
     }
     // `rounded_rect` joined the value-equal class when the lift widened
-    // (BOOL-9: a declared joint before a closing straight is the
+    // (BOOL-9: a constructed joint before a closing straight is the
     // continuation verb, so this loop lifts instead of refusing), and it
     // arrived with no ceiling of its own — the coarse `LiftOutcome`
     // bucketing was holding it, and there the RELATIVE criterion is
@@ -264,7 +241,25 @@ fn the_fidelity_report_is_honest() {
         }
         other => panic!("rounded_rect should lift: {}", describe(&other)),
     }
-    // The undeclared shapes are exact — nothing derived enters them.
+    // An undeclared arc is written about its stored centre
+    // (`arc_to(Center)`), and the replay keeps that centre and reads the
+    // radius as the rim at the arc's start and the sweep off the chord
+    // about it, so the free arc chains are value-equal too, and their
+    // residue is this, measured.
+    for (name, loop_, ceiling) in [("arc_chain", arc_chain(), 1e-14), ("lens", lens(), 1e-15)] {
+        match lift_checked(&loop_, Tol::witness()) {
+            LiftOutcome::Lifted {
+                fidelity,
+                worst_abs,
+                ..
+            } => {
+                assert_eq!(fidelity, Fidelity::ValueEqual, "{name}");
+                assert!(worst_abs < ceiling, "{name}: {worst_abs:e}");
+            }
+            other => panic!("{name} should lift: {}", describe(&other)),
+        }
+    }
+    // The undeclared straight shapes are exact — nothing derived enters them.
     for (name, loop_) in [
         ("rect", rect(0.0, 0.0, 2.0, 1.0)),
         ("l_profile", l_profile()),
@@ -343,84 +338,102 @@ fn structural_walls_are_named() {
     ]);
     assert_eq!(refusal(&nan), Some(LiftRefusal::NonFinite { vertex: 1 }));
 
-    // A declared index that names no vertex.
-    let mut stray = rect(0.0, 0.0, 1.0, 1.0);
-    stray = stray.with_tangent_joints(vec![9]);
-    assert_eq!(
-        refusal(&stray),
-        Some(LiftRefusal::JointIndexOutOfRange {
-            joint: 9,
-            vertices: 4
-        })
+    // A joint validation cannot decide: the subdivision vertex of the
+    // bottom side stands inside the band off it, so there is no
+    // tangent set to spell.
+    let eps = Tol::witness().eps();
+    let undecided = bulge_loop(vec![
+        vert(0.0, 0.0, 0.0),
+        vert(1.0, 2.0 * eps, 0.0),
+        vert(2.0, 0.0, 0.0),
+        vert(2.0, 1.0, 0.0),
+        vert(0.0, 1.0, 0.0),
+    ]);
+    assert!(
+        matches!(
+            refusal(&undecided),
+            Some(LiftRefusal::Unclassified(
+                profile::ProfileError::Escalated { .. }
+            ))
+        ),
+        "{:?}",
+        refusal(&undecided)
     );
 
     // The two walls this list no longer names are demonstrated in
     // `bool9_probes.rs` instead.
-
-    // A same-carrier arc run that reaches the seam: the declared joint
-    // the lift spells is a mid-chain one, so the §5-1 class survives
-    // here as a wall even though its mid-chain twin lifts.
-    assert_eq!(
-        refusal(&unequal_split()),
-        Some(LiftRefusal::SameCarrierClose { joint: 2 })
-    );
 }
 
-/// The geometric walls stay the DRIVER's: the lift re-implements no
-/// predicate, so the wall of record is the binder's own typed error.
+/// **A same-carrier run lifts wherever it sits.** Its joints are one
+/// carrier continuing, so validation derives them tangent and the lift
+/// spells each with a continuation: a collinear LINE run as
+/// `.tangent().line(len)`, bit for bit, and a cocircular ARC run mid-chain
+/// (`.tangent().tangent_arc_to(p)`) and at the seam (the arrival
+/// carrying the seam's tangency) alike, value-equal, the leading arc
+/// being written about its stored centre.
+///
+/// Red if the lift stops reading the derived set: each run's
+/// zero-turn junction is the one the driver refuses as a sharp
+/// spelling.
 #[test]
-fn geometric_walls_are_the_drivers_own() {
+fn a_same_carrier_run_lifts_wherever_it_sits() {
     match lift_checked(&collinear_run(), Tol::witness()) {
-        LiftOutcome::ReplayRefused { error, .. } => {
-            // The collinear continuation is carrier identity, and the
-            // chain vocabulary has no `line_continue` to spell it.
-            let rendered = error.to_string();
+        LiftOutcome::Lifted {
+            program, fidelity, ..
+        } => {
+            assert_eq!(fidelity, Fidelity::BitIdentical);
             assert!(
-                rendered.contains("carrier") || rendered.contains("tangent"),
-                "unexpected wall: {rendered}"
+                program.iter().any(|s| matches!(s.verb(), Verb::Tangent)),
+                "{program:?}"
             );
         }
-        other => panic!(
-            "a collinear line run should hit a wall: {}",
-            describe(&other)
-        ),
+        other => panic!("a collinear line run lifts: {}", describe(&other)),
+    }
+    for (name, loop_) in [
+        ("half_disc", half_disc()),
+        ("unequal_split", unequal_split()),
+    ] {
+        assert_eq!(
+            classify(&lift_checked(&loop_, Tol::witness())),
+            Class::Value,
+            "{name}"
+        );
     }
 }
 
-/// The §5-1 same-carrier class, both halves in one place: MID-CHAIN it
-/// lifts (through the lattice's own declared-joint spelling,
-/// `.tangent().tangent_arc_to(p)`), AT THE SEAM it still refuses.
+/// **A cocircular run lifts with its joint constructed.** The driver
+/// refuses the raw run's zero-turn junction as a sharp spelling
+/// (`JunctionTangent`), and the lift spells the tangent joint the
+/// lattice's own way — `.tangent()` then `tangent_arc_to(p)`, the
+/// tangent-chord derivation the raw carrier satisfies — which mints the
+/// raw run's vertex BITS: the vertex table replays bit for bit, the
+/// arcs agree in the last bits (the leading arc is written about its
+/// stored centre, and its replayed radius is the rim at its start), and
+/// the replay constructs exactly the joint validation derives.
+///
+/// Red if the comparator reads the constructed joint as a different
+/// loop, or the replay constructs a joint other than source joint 1.
 #[test]
-fn the_same_carrier_class_splits_in_two() {
-    assert_eq!(
-        classify(&lift_checked(&half_disc(), Tol::witness())),
-        Class::Bits
-    );
-    assert_eq!(
-        classify(&lift_checked(&unequal_split(), Tol::witness())),
-        Class::Refused
-    );
-}
-
-/// **An UNDECLARED cocircular run lifts as the DECLARED joint.** The
-/// driver refuses the raw run's zero-turn junction (`JunctionTangent`)
-/// and the lift's re-spelling is the lattice's own — `.tangent()` then
-/// `tangent_arc_to(p)`, the tangent-chord derivation the raw carrier
-/// satisfies — which mints the raw run's vertex and bulge BITS: the
-/// vertex table replays bit for bit, and the one difference is the
-/// joint the ruling names (every zero-turn joint is a declared tangent
-/// joint). The comparator scores a joint-set difference as
-/// incomparable, so the census classes the row `Mismatch`; this row
-/// says precisely what that mismatch is and is not.
-#[test]
-fn an_undeclared_cocircular_run_lifts_as_the_declared_joint() {
-    let raw = half_disc_undeclared();
-    let LiftOutcome::Mismatch {
-        program, rotation, ..
-    } = lift_checked(&raw, Tol::witness())
+fn a_cocircular_run_lifts_with_its_joint_constructed() {
+    let raw = half_disc();
+    let outcome = lift_checked(&raw, Tol::witness());
+    let LiftOutcome::Lifted {
+        program,
+        rotation,
+        fidelity,
+        ..
+    } = outcome
     else {
-        panic!("the undeclared run's lift is the joint-set mismatch");
+        panic!(
+            "the cocircular run lifts with its joint constructed: {}",
+            describe(&outcome)
+        );
     };
+    assert_eq!(
+        fidelity,
+        Fidelity::ValueEqual,
+        "the table replays to the last bits: the leading arc's radius is the rim at its start"
+    );
     let verbs: Vec<Verb> = program.iter().map(Step::verb).collect();
     assert_eq!(
         verbs,
@@ -431,23 +444,15 @@ fn an_undeclared_cocircular_run_lifts_as_the_declared_joint() {
             Verb::TangentArcTo,
             Verb::LineTo
         ],
-        "the joint is declared, the arc derived from the inherited tangent"
+        "the joint is constructed, the arc derived from the inherited tangent"
     );
-    let replayed = replay(&program, Tol::witness()).expect("the declared spelling replays");
+    let replayed = replay(&program, Tol::witness()).expect("the tangent spelling replays");
     let n = raw.vertices().len();
-    assert_eq!(replayed.vertices().len(), n);
-    for k in 0..n {
-        let w = raw.vertices()[(rotation + k) % n];
-        let g = replayed.vertices()[k];
-        assert_eq!(w.x.to_bits(), g.x.to_bits(), "vertex {k} x");
-        assert_eq!(w.y.to_bits(), g.y.to_bits(), "vertex {k} y");
-        assert_eq!(
-            raw.bulges()[(rotation + k) % n].to_bits(),
-            replayed.bulges()[k].to_bits(),
-            "vertex {k} bulge"
-        );
-    }
-    assert_eq!(replayed.tangent_joints(), &[(1 + n - rotation) % n]);
+    assert_eq!(
+        replayed.constructed_joints(),
+        &[(1 + n - rotation) % n],
+        "the replay constructs source joint 1"
+    );
 }
 
 /// The 2 × 2 square whose first side is written as an ARC of bulge
@@ -471,6 +476,7 @@ fn zero_bulge_square(b: f64) -> ProfileLoop<f64> {
         .line_to(Start, t)
         .unwrap()
         .loop_
+        .into_loop()
 }
 
 /// The same square with its first side a `tangent_arc_to` whose target
@@ -493,6 +499,7 @@ fn collinear_tangent_arc_square() -> ProfileLoop<f64> {
         .line_to(Start, t)
         .unwrap()
         .loop_
+        .into_loop()
 }
 
 /// **A zero bulge is stored as a line, whichever verb wrote it**, so it
@@ -507,7 +514,6 @@ fn zero_bulge_arc_to_lifts_as_a_line() {
             "b = {b:e}: {:?}",
             lp.segments()[0]
         );
-        assert_eq!(lp.bulges()[0].to_bits(), b.to_bits(), "b = {b:e}");
         let program = lift(&lp, Tol::witness()).expect("the square lifts");
         assert!(
             matches!(program[1], Step::LineTo(Target::Point(p)) if (p.x, p.y) == (2.0, 0.0)),

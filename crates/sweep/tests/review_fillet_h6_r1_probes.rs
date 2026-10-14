@@ -24,6 +24,7 @@ use geom_core::{Point2, Tol, Vec3};
 use profile::{
     Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
 };
+use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::validate_geometric;
 
@@ -130,15 +131,15 @@ fn worst_admitted_obliquity_on_a_tight_rim_reads_the_band() {
                 for r in smooth {
                     assert!(
                         matches!(&r.description, EdgeDescription::Chart(c)
-                            if !c.seam && c.surface == r.wall),
+                            if !c.wrap && c.surface == r.wall),
                         "f={f} K={k}: a smooth rim must be an image in its wall's chart, got {:?}",
                         r.description,
                     );
                 }
                 // A smooth cap-wall pair has no material side, so the
                 // body the door hands back is one the at-rest gate
-                // refuses — once per smooth rim, under
-                // `material_wedge_side`.
+                // refuses — once per smooth rim, as the material
+                // pairing.
                 let refused = validate_geometric(&built.body, tol)
                     .expect_err("a smooth cap rim has no material side");
                 let sliver = refused
@@ -146,14 +147,16 @@ fn worst_admitted_obliquity_on_a_tight_rim_reads_the_band() {
                     .filter(|e| {
                         matches!(
                             e,
-                            topo::ValidationError::SliverDihedral { cause, .. }
-                                if cause.predicate == Some("material_wedge_side")
+                            topo::ValidationError::SliverDihedral {
+                                check: topo::WedgeCheck::MaterialPairing,
+                                ..
+                            }
                         )
                     })
                     .count();
                 assert_eq!(
                     sliver, 4,
-                    "f={f} K={k}: one material_wedge_side refusal per smooth rim, got {refused:?}",
+                    "f={f} K={k}: one material-pairing refusal per smooth rim, got {refused:?}",
                 );
             }
         }
@@ -179,8 +182,15 @@ fn transverse_cap_rims_validate_at_rest() {
     .validate(tol)
     .unwrap();
     for (name, profile) in [("square", rect(2.0, 2.0)), ("cylinder", circle)] {
-        let built = extrude(&profile, Extrusion::Distance(1.0), tol)
-            .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        let built = extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{name}: {e:?}"));
         for d in cap_rim_descriptions(&built) {
             assert!(
                 matches!(d, EdgeDescription::Intersection { .. }),
@@ -209,16 +219,13 @@ fn revolve_refuses_an_in_band_second_order_at_the_door() {
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![
-            bulge_loop(vec![
-                (Point2::new(r, 0.0), 0.0),
-                (Point2::new(1.5, 0.0), 0.0),
-                (Point2::new(1.5, 2.0), 0.0),
-                (Point2::new(1.0 + r, 2.0), b),
-                (Point2::new(r, 1.0), 0.0),
-            ])
-            .with_tangent_joints(vec![3, 4]),
-        ],
+        vec![bulge_loop(vec![
+            (Point2::new(r, 0.0), 0.0),
+            (Point2::new(1.5, 0.0), 0.0),
+            (Point2::new(1.5, 2.0), 0.0),
+            (Point2::new(1.0 + r, 2.0), b),
+            (Point2::new(r, 1.0), 0.0),
+        ])],
     )
     .validate(tol)
     .unwrap();

@@ -2,9 +2,10 @@
 //! K-telemetry CSVs (the `scripts/k_probe_sweep.sh` output — every
 //! predicate decision of the Band 4 corpus + the demo scenes at the
 //! recording scalar) and FLAGS margins that crowd a decision boundary.
-//! **The CI row is a GATE: a finding fails it.** A firing lint is
-//! evidence that the margin DISTRIBUTION moved — possibly that a
-//! threshold or the baseline is stale — never a licence to nudge
+//! **The CI row is a GATE: a finding fails it.** Rule (2)'s zero arm is
+//! the one reading that is tallied and printed instead of flagged. A
+//! firing lint is evidence that the margin DISTRIBUTION moved — possibly
+//! that a threshold or the baseline is stale — never a licence to nudge
 //! geometry until the lint goes quiet; the CLI prints that discipline
 //! and its recourse on every failure (`main.rs`). Harness breakage
 //! (missing or malformed input) fails with its own distinct voice.
@@ -21,7 +22,10 @@
 //!    escalation threshold (`|m| < 10² · Kε`, **capped at**
 //!    [`BASELINE_FLOOR_MARGIN`] — see "Rule (2)'s discrimination
 //!    floor"), or a zero-classified margin within [`PROXIMITY_FACTOR`]
-//!    below the coincidence threshold (`|m| > ε / 10²`).
+//!    below the coincidence threshold (`|m| > ε / 10²`). **The zero
+//!    arm is a tally, not a finding** ([`zero_arm_usage`]): the CLI
+//!    prints how much of ε each such predicate uses, per file, and
+//!    fails nothing on it. The definite arm gates.
 //! 3. **Below the baseline floor** — a definite non-zero margin
 //!    smaller than [`BASELINE_FLOOR_MARGIN`], the bottom edge of the
 //!    committed baseline's ε-INDEPENDENT distribution (see "Threshold
@@ -269,12 +273,15 @@ pub const AMBIENT_BAND_MIN: f64 = 1e-13;
 /// bounds it is derived instead, in `tests/threshold_provenance.rs`:
 /// below the structural edge the rule-2 cap stops binding at the
 /// loosest supported row, and above the corpus's own largest zero-side
-/// ratio the baseline starts flagging itself under rule (2)-below.
-/// **That measured ceiling is the binding one of the two** — well
-/// under the structural edge, and under 2x above the shipped factor,
-/// at the 1e-12 row where a fixed rounding-scale coincidence is
-/// closest to `band_zero`. Both halves of that sentence are the
-/// assertions the test makes, in that order. It is NOT the crate's
+/// ratio the baseline starts tallying itself under rule (2)'s zero arm.
+/// The measured ceiling is the nearer of the two — well under the
+/// structural edge, and under 2x above the shipped factor, at the
+/// 1e-12 row where a fixed rounding-scale coincidence is closest to
+/// `band_zero`. Both halves of that sentence are the assertions the
+/// test makes, in that order. Since the zero arm became a tally (Ev,
+/// PR 4567) crossing it fails no gate: it says the baseline would
+/// tally itself, which is what prompts a re-cut. Only the structural
+/// edge constrains what gates. It is NOT the crate's
 /// narrowest headroom: this one is 1.88x of a policy digit, while
 /// `EPS_COUPLED_FLOOR_RATIO` sits 8.9% below its P0 and this floor
 /// 16.6% below its datum — different quantities, not a ranking.
@@ -459,9 +466,6 @@ pub enum Reason {
     Invalid,
     /// Definite margin within [`PROXIMITY_FACTOR`] of `band_escalate`.
     NearBandAbove,
-    /// Zero-classified margin within [`PROXIMITY_FACTOR`] below
-    /// `band_zero`.
-    NearBandBelow,
     /// Definite margin below [`BASELINE_FLOOR_MARGIN`].
     BelowBaselineFloor,
     /// An [`EPS_COUPLED_PREDICATES`] margin below
@@ -470,7 +474,7 @@ pub enum Reason {
 }
 
 impl Reason {
-    /// **Which RULE of the module's three this reason belongs to.**
+    /// **Which RULE this reason belongs to, as the CLI tallies it.**
     ///
     /// The distinction is load-bearing since M10-6: rule 1 detects a
     /// margin the run could not decide at all (`indeterminate`) or a
@@ -482,24 +486,25 @@ impl Reason {
     /// toward zero by construction will make in bulk without anything
     /// being wrong.
     ///
+    /// Rule 4's floor tallies under rule 3, the floor it recalibrates.
+    ///
     /// A consumer may demote 2 and 3 with a recorded justification
     /// (`docs/K-REPORT.md`'s recourse 2). Demoting rule 1 would demote
     /// the trigger, so nothing offers that.
     pub fn rule(self) -> u8 {
         match self {
             Self::InBand | Self::Invalid => 1,
-            Self::NearBandAbove | Self::NearBandBelow => 2,
+            Self::NearBandAbove => 2,
             Self::BelowBaselineFloor | Self::BelowEpsCoupledFloor => 3,
         }
     }
 
     /// Every reason, for tallying — so a per-rule count cannot silently
     /// omit a variant the enum grows.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 5] = [
         Self::InBand,
         Self::Invalid,
         Self::NearBandAbove,
-        Self::NearBandBelow,
         Self::BelowBaselineFloor,
         Self::BelowEpsCoupledFloor,
     ];
@@ -511,7 +516,6 @@ impl core::fmt::Display for Reason {
             Reason::InBand => "IN the ambiguity band (indeterminate outcome)",
             Reason::Invalid => "invalid (poisoned) margin",
             Reason::NearBandAbove => "definite within 10^2 of the escalation threshold",
-            Reason::NearBandBelow => "zero-classified within 10^2 of the coincidence threshold",
             Reason::BelowBaselineFloor => "definite below the baseline distribution's floor (4e-5)",
             Reason::BelowEpsCoupledFloor => {
                 "ε-coupled headroom below the ε-relative floor (1.5e2·ε)"
@@ -519,6 +523,45 @@ impl core::fmt::Display for Reason {
         };
         f.write_str(s)
     }
+}
+
+/// Rule (2)'s zero arm: the fraction of `band_zero` a zero-classified
+/// margin uses, when it is more than `1 /` [`PROXIMITY_FACTOR`] of it.
+///
+/// **A tally, never a finding.** A `zero` outcome answers "within ε",
+/// and a margin that is the arithmetic's own rounding — a root slack, a
+/// noise meter — sits in this window by construction at the tightest ε
+/// on a metre-scale scene. Its usage of ε is a fact about the scene and
+/// the ε row, so the CLI prints it ([`Scan::zero_arm`]) and fails
+/// nothing on it. Rule (2)'s definite arm is a [`Reason`] and gates.
+#[must_use]
+pub fn zero_arm_usage(margin: f64, band_zero: f64, outcome: &str) -> Option<f64> {
+    let m = margin.abs();
+    (outcome == "zero" && band_zero >= AMBIENT_BAND_MIN && m > band_zero / PROXIMITY_FACTOR)
+        .then(|| m / band_zero)
+}
+
+/// One predicate's zero-arm readings in one file ([`zero_arm_usage`]).
+#[derive(Debug, Clone)]
+pub struct ZeroArmTally {
+    pub predicate: String,
+    /// Samples of this predicate the zero arm read.
+    pub count: usize,
+    /// The one with the largest `|m| / band_zero`; the first such row
+    /// on a tie.
+    pub worst: ZeroArmRow,
+}
+
+/// One zero-arm sample, with the row it came from.
+#[derive(Debug, Clone)]
+pub struct ZeroArmRow {
+    /// 1-based line number in the input.
+    pub line: usize,
+    pub shape: String,
+    pub margin: f64,
+    pub band_zero: f64,
+    /// `|margin| / band_zero`.
+    pub usage: f64,
 }
 
 /// One flagged CSV row.
@@ -538,27 +581,15 @@ pub struct Flag {
 pub struct Scan {
     /// Samples considered (every non-header, non-empty line).
     pub scanned: usize,
-    /// How many of [`Scan::scanned`] were `symbolic_zero` — decisions
-    /// the symbolic identity tier answered, which answer to no rule
-    /// here ([`lint_sample`]'s arm says why) and are reported as their
+    /// How many of [`Scan::scanned`] were `symbolic` — decisions
+    /// the symbolic identity tier answered, however it reached the
+    /// zero, which answer to no rule here ([`lint_sample`]'s arm says why) and are reported as their
     /// own number rather than folded into the clean count.
     pub symbolic: usize,
-    /// How many of [`Scan::scanned`] were `sign_gated` — decisions the
-    /// symbolic tier answered through its clause-3 fold (a theorem
-    /// conditional on a sign it certified over the box). Never a rule
-    /// sample, for the same reason as `symbolic_zero`, and reported as
-    /// its own number because the two claims differ in kind.
-    pub sign_gated: usize,
-    /// How many of [`Scan::scanned`] were `registered` — decisions the
-    /// symbolic tier answered through a REGISTERED IDENTITY (a
-    /// constructor's axiom about what it built, verified at the leaf's
-    /// witness; ERROR-DESIGN E12's provenance reserve). Never a rule
-    /// sample, for the same reason as the two columns above, and its
-    /// own number because the claim differs in kind from both: those
-    /// two are theorems of exact arithmetic, this one additionally
-    /// rests on the registrant's argument.
-    pub registered: usize,
     pub flags: Vec<Flag>,
+    /// Rule (2)'s zero arm, per predicate, largest usage first. Never
+    /// part of [`Scan::flags`]: see [`zero_arm_usage`].
+    pub zero_arm: Vec<ZeroArmTally>,
     /// `Some((10²·Kε, floor))` when this file's ambient rows are loose
     /// enough that rule (2)'s definite arm was capped at the baseline
     /// floor. The CLI PRINTS this — the cap is never silent (module
@@ -600,20 +631,19 @@ const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,ou
 /// ZERO times while the CI row still reported success. The tool was
 /// right to refuse a token it did not know — that refusal is
 /// deliberate, review MIN-2 — and being right is not the same as being
-/// noticed.
+/// noticed. (DECIDE-10 later renamed that variant `Symbolic`, serialized
+/// as `symbolic`, and this list and its pin moved with it.)
 ///
 /// `tests::the_accepted_outcomes_are_exactly_the_recorders` pins this
 /// list against `SampleOutcome::ALL` variant by variant, so the next
 /// variant reds a test here instead of silently disarming a gate.
-pub const ACCEPTED_OUTCOMES: [&str; 8] = [
+pub const ACCEPTED_OUTCOMES: [&str; 6] = [
     "zero",
     "positive",
     "negative",
     "indeterminate",
     "invalid",
-    "symbolic_zero",
-    "sign_gated",
-    "registered",
+    "symbolic",
 ];
 
 /// What a numeric column of the sweep may say.
@@ -739,19 +769,15 @@ pub fn lint_sample(
     match outcome {
         "indeterminate" => reasons.push(Reason::InBand),
         "invalid" => reasons.push(Reason::Invalid),
-        "zero" if band_zero >= AMBIENT_BAND_MIN => {
-            // Coincidence proximity is the same question in the same
-            // units for every family: a zero classification is a
-            // decision against ε itself, ε-coupled or not.
-            if m > band_zero / PROXIMITY_FACTOR {
-                reasons.push(Reason::NearBandBelow);
-            }
-        }
+        // Rule (2)'s zero arm reads these, as a tally and for every
+        // family alike: `zero_arm_usage`.
+        "zero" => {}
         // **Never a rule sample, and not because it is uninteresting.**
-        // A `symbolic_zero` row is a decision the symbolic identity tier
-        // answered (ERROR-DESIGN E12): the margin's expression is
-        // identically zero in the document's parameters, so `Zero` was a
-        // theorem and the margin was never CLASSIFIED against the band
+        // A `symbolic` row is a decision the symbolic identity tier
+        // answered (ERROR-DESIGN E12): the margin's expression is zero
+        // wherever the construction takes the decisions it took, so
+        // `Zero` was proven and the margin was never CLASSIFIED against
+        // the band
         // at all. Every rule here is a statement about where a decided
         // margin sits relative to a threshold; there is no such
         // position to report, so rule 1 cannot fire (nothing landed
@@ -759,22 +785,7 @@ pub fn lint_sample(
         // make. The row still counts — in its own column, `Scan::
         // symbolic` — because the ratio of symbolic to numeric
         // decisions is the evidence the tier exists to produce.
-        //
-        // A `sign_gated` row is the same tier's answer through its
-        // clause-3 fold: zero as a theorem CONDITIONAL on a sign the
-        // funnel certified over the leaf's box. The margin was still
-        // never classified against the band, so it is no rule's
-        // sample either; it counts in `Scan::sign_gated`, apart from
-        // the unconditional column, because the two claims differ.
-        // A `registered` row is the same tier's answer through the
-        // registered-identity door: zero because a CONSTRUCTOR stated
-        // that two of the expression's nodes are one real and the
-        // leaf's witness agreed. Still never classified against the
-        // band — no rule has a comparison to make — and still its own
-        // column (`Scan::registered`), because an axiom about a
-        // construction is not a theorem of the arithmetic and reading
-        // the three together as one number would hide exactly that.
-        "symbolic_zero" | "sign_gated" | "registered" => {}
+        "symbolic" => {}
         "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
             if is_eps_coupled(predicate) {
                 if m < EPS_COUPLED_FLOOR_RATIO * band_zero {
@@ -806,10 +817,9 @@ pub fn lint_sample(
 /// failure voice.
 pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
+    let mut zero_arm: Vec<ZeroArmTally> = Vec::new();
     let mut scanned = 0usize;
     let mut symbolic = 0usize;
-    let mut sign_gated = 0usize;
-    let mut registered = 0usize;
     let mut proximity_capped = None;
     let mut unruled = [0usize; EPS_COUPLED_UNRULED.len()];
     for (i, line) in text.lines().enumerate() {
@@ -905,14 +915,8 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             });
         }
         scanned += 1;
-        if out == "symbolic_zero" {
+        if out == "symbolic" {
             symbolic += 1;
-        }
-        if out == "sign_gated" {
-            sign_gated += 1;
-        }
-        if out == "registered" {
-            registered += 1;
         }
         // Counted for EVERY outcome, not just the definite arm: the
         // question this column answers is whether the family has a
@@ -929,6 +933,28 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
                 proximity_capped = Some((raw, BASELINE_FLOOR_MARGIN));
             }
         }
+        if let Some(usage) = zero_arm_usage(margin, band_zero, out) {
+            let row = ZeroArmRow {
+                line: i + 1,
+                shape: shape.to_string(),
+                margin,
+                band_zero,
+                usage,
+            };
+            match zero_arm.iter_mut().find(|t| t.predicate == pred) {
+                Some(t) => {
+                    t.count += 1;
+                    if usage > t.worst.usage {
+                        t.worst = row;
+                    }
+                }
+                None => zero_arm.push(ZeroArmTally {
+                    predicate: pred.to_string(),
+                    count: 1,
+                    worst: row,
+                }),
+            }
+        }
         let reasons = lint_sample(pred, margin, band_zero, band_escalate, out);
         if !reasons.is_empty() {
             flags.push(Flag {
@@ -941,12 +967,12 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             });
         }
     }
+    zero_arm.sort_by(|a, b| b.worst.usage.total_cmp(&a.worst.usage));
     Ok(Scan {
         scanned,
         symbolic,
-        sign_gated,
-        registered,
         flags,
+        zero_arm,
         proximity_capped,
         unruled: EPS_COUPLED_UNRULED
             .iter()
@@ -1033,17 +1059,74 @@ mod tests {
     }
 
     #[test]
-    fn proximity_flags_both_sides_of_the_band() {
+    fn proximity_flags_the_definite_side_and_tallies_the_zero_side() {
         // Definite 1.5 decades above Kε: flagged (and it is also below
         // the baseline floor).
         assert_eq!(
             lint_sample("p", 3e-7, 1e-9, 1e-8, "positive"),
             vec![Reason::NearBandAbove, Reason::BelowBaselineFloor]
         );
-        // Zero half a decade below ε: flagged.
+        // Zero half a decade below ε: read by the zero arm, and no
+        // flag.
+        assert!(lint_sample("p", 3e-10, 1e-9, 1e-8, "zero").is_empty());
+        assert_eq!(zero_arm_usage(-3e-10, 1e-9, "zero"), Some(3e-10 / 1e-9));
+        // At the threshold itself, under it, against a tie-break band,
+        // or on a definite outcome: not read.
+        assert_eq!(zero_arm_usage(1e-11, 1e-9, "zero"), None);
+        assert_eq!(zero_arm_usage(1e-12, 1e-9, "zero"), None);
+        assert_eq!(zero_arm_usage(1e-101, 1e-100, "zero"), None);
+        assert_eq!(zero_arm_usage(3e-10, 1e-9, "positive"), None);
+    }
+
+    #[test]
+    fn the_zero_arm_tallies_per_predicate_and_keeps_the_worst_row() {
+        let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                   demo/a,p,2e-14,1e-12,1e-11,zero\n\
+                   demo/b,q,5e-14,1e-12,1e-11,zero\n\
+                   demo/c,p,3e-13,1e-12,1e-11,zero\n\
+                   demo/d,p,-1e-13,1e-12,1e-11,zero\n\
+                   demo/e,p,5e-15,1e-12,1e-11,zero\n";
+        let scan = lint_csv(csv).expect("valid csv");
+        assert!(scan.flags.is_empty(), "the zero arm is never a flag");
+        let got: Vec<_> = scan
+            .zero_arm
+            .iter()
+            .map(|t| {
+                (
+                    t.predicate.as_str(),
+                    t.count,
+                    t.worst.line,
+                    t.worst.shape.as_str(),
+                )
+            })
+            .collect();
         assert_eq!(
-            lint_sample("p", 3e-10, 1e-9, 1e-8, "zero"),
-            vec![Reason::NearBandBelow]
+            got,
+            vec![("p", 3, 4, "demo/c"), ("q", 1, 3, "demo/b")],
+            "per predicate, largest usage first, the worst row kept"
+        );
+        assert_eq!(scan.zero_arm[0].worst.usage, 3e-13 / 1e-12);
+    }
+
+    #[test]
+    fn the_zero_arm_sorts_by_usage_and_keeps_the_first_row_on_a_tie() {
+        // The smaller-usage predicate comes first in the file, so an
+        // unsorted tally reads it first; `p`'s worst usage is tied
+        // between lines 3 and 4, so `>=` would keep line 4.
+        let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                   demo/a,q,5e-14,1e-12,1e-11,zero\n\
+                   demo/b,p,3e-13,1e-12,1e-11,zero\n\
+                   demo/c,p,-3e-13,1e-12,1e-11,zero\n";
+        let scan = lint_csv(csv).expect("valid csv");
+        let got: Vec<_> = scan
+            .zero_arm
+            .iter()
+            .map(|t| (t.predicate.as_str(), t.count, t.worst.line))
+            .collect();
+        assert_eq!(
+            got,
+            vec![("p", 2, 3), ("q", 1, 2)],
+            "largest usage first whatever the file order; the first row on a tie"
         );
     }
 
@@ -1376,8 +1459,8 @@ mod tests {
         for r in Reason::ALL {
             let rule = r.rule();
             assert!(
-                (1..=3).contains(&rule),
-                "{r:?} claims rule {rule}, which is not one of the module's three"
+                [1, 2, 3].contains(&rule),
+                "{r:?} claims rule {rule}, which is not one the CLI tallies"
             );
         }
         // Rule 1 is exactly the two undecided outcomes: the trigger E6
@@ -1391,7 +1474,7 @@ mod tests {
         for r in Reason::ALL {
             assert!(seen.insert(format!("{r:?}")), "{r:?} listed twice in ALL");
         }
-        assert_eq!(seen.len(), 6, "Reason::ALL must list every variant");
+        assert_eq!(seen.len(), 5, "Reason::ALL must list every variant");
     }
 
     /// An `indeterminate` row is rule 1 and a merely-near-threshold row

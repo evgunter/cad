@@ -67,7 +67,7 @@ pub use editor_core::{
 /// a report whose fields cannot be named is a report a consumer can
 /// print and not read.
 pub use editor_core::{
-    Chamber, ChamberSpan, LiftRefusal, PerParam, Rss, Sensitivity, SensitivityOutcome,
+    Chamber, ChamberSpan, DivergedAt, LiftRefusal, PerParam, Rss, Sensitivity, SensitivityOutcome,
     SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase, render_sensitivity,
     stackup,
 };
@@ -97,7 +97,7 @@ pub use editor_core::{AssertionVerdict, Certified, UnevaluatedReason, WINDOW_TIG
 /// second spelling, and a bitwise comparison of two spellings tests
 /// the spellings.
 pub use editor_core::mc::{
-    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
+    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
     monte_carlo, sample_offsets, summarize,
 };
 

@@ -338,7 +338,8 @@ fn mid_surgery_body_refuses_typed() {
     // walk refuses on the placeholder (had the face carried a real
     // plane, the empty loop would refuse as EmptyLoop next).
     let mut body = topo::Body::<f64>::new();
-    body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0)).unwrap();
+    body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
+        .unwrap();
     match step_string(&body, &StepOptions::default(), Tol::witness()) {
         Err(StepExportError::UnsupportedSurface { kind, .. }) => {
             assert_eq!(kind, "nurbs placeholder");

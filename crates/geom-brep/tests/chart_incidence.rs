@@ -1,0 +1,457 @@
+//! **The class gates of the sphere and cone charts against their
+//! incidence tests.** `chart_pcurve`'s sphere arm reads two class gates
+//! — polar (the carrier plane ⊥ the axis, centred on it) and meridian —
+//! and the cone's reads one (a rim: ⊥ the axis, centred on it). Every
+//! carrier failing them is decided by an incidence test
+//! (`pcurve_sphere_chart_incident`, `pcurve_cone_chart_incident`): on
+//! the chart, its image, an uncovered class or a grazing circle; off
+//! it, a carrier off the chart. A
+//! gate that reads a SECOND, amplified quantity after an in-band first
+//! one — or a first-order quantity for a second-order departure — must
+//! not decide off-chart on its own; these rows build on-chart carriers
+//! at exactly that boundary.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::shared::surf::off_cone;
+use crate::shared::tol::{band, eps};
+use geom::{Curve3, Surface};
+use geom_brep::{Grazer, Pcurve, PcurveCertifyError, chart_pcurve};
+use geom_core::spline::KnotVector;
+use geom_core::{Interval, Point3, Real, Tol, Vec3};
+
+/// The right circular cone of half-angle `alpha` about `+z` with its
+/// apex at the origin.
+fn cone(alpha: f64) -> Surface<f64> {
+    Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::unit_z(),
+        half_angle: alpha,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// The cone's section by the plane through `(0, 0, h)` whose normal is
+/// tilted `theta` off the axis toward `+x`: an ellipse, major along the
+/// plane's `x` direction. With `T = tan²α` and `A = cos²θ − T·sin²θ`,
+/// the centre sits `−T·h·sin θ / A` along that direction and the
+/// semi-axes are `h·tan α·cos θ / A` and `h·tan α·cos θ / √A`.
+fn section(alpha: f64, h: f64, theta: f64) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64) {
+    let t = alpha.tan().powi(2);
+    let (s, c) = theta.sin_cos();
+    let a = c * c - t * s * s;
+    let u = Vec3::new(c, 0.0, -s);
+    let centre = Point3::new(0.0, 0.0, h) + u * (-t * h * s / a);
+    let k = h * alpha.tan() * c;
+    (centre, Vec3::new(s, 0.0, c), u, k / a, k / a.sqrt())
+}
+
+/// A tilted plane section of a cone lies on it, and is imaged; the
+/// same ellipse moved off it by `2·K·ε` — just past the sliver, so a
+/// meter loose by more than a factor of two would excuse it — is a
+/// carrier off the chart.
+#[test]
+fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
+    let alpha = 0.5;
+    let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
+    let on = Curve3::Ellipse {
+        center: centre,
+        axis,
+        major,
+        minor,
+        u_ref,
+    };
+    let dist = off_cone(&on, &cone(alpha));
+    assert!(dist < 1e-14, "on the cone: {dist:e}");
+    let got = chart_pcurve(&on, &cone(alpha), band());
+    assert!(
+        matches!(got, Ok(Pcurve::FocalSection(_))),
+        "a cone section derives its section image: {got:?}"
+    );
+    let shift = 2.0 * Tol::witness().k() * eps();
+    let moved = Curve3::Ellipse {
+        center: centre + axis * shift,
+        axis,
+        major,
+        minor,
+        u_ref,
+    };
+    let dist = off_cone(&moved, &cone(alpha));
+    assert!(
+        dist > Tol::witness().k() * eps(),
+        "the move is past the sliver: {dist:e}"
+    );
+    let got = chart_pcurve(&moved, &cone(alpha), band());
+    assert!(
+        matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+        "a moved section is off the cone: {got:?}"
+    );
+}
+
+/// The cone incidence margin, `|k₀| + |(k₁, k₂)| + |(k₃, k₄)|` over
+/// `2·sin α·z_min`, read through one harmonic group at a time: each row
+/// builds a conic off the cone whose residual lives in ONE group, at
+/// `5·K·ε` — past the sliver — with every other group inside `ε`, so a
+/// margin that dropped that group would call it uncovered.
+#[test]
+fn each_harmonic_group_of_the_cone_residual_decides_alone() {
+    let (e, k) = (eps(), Tol::witness().k());
+    let off = |what: &str, carrier: Curve3<f64>, alpha: f64| {
+        let got = chart_pcurve(&carrier, &cone(alpha), band());
+        assert!(
+            matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+            "{what}: {got:?}"
+        );
+    };
+    // k₀ alone: a circle ⊥ the axis of the wrong radius, centred 2·K·ε
+    // off the axis so the rim's centring gate sends it to the test.
+    // `k₀ ≈ cos²α·2ρ·δρ`, `k₁ = 2·cos²α·w·a` stays under ε.
+    let alpha = 1.55_f64;
+    let rho = alpha.tan();
+    let d_rho = 5.0 * k * e * 2.0 * alpha.sin() / (alpha.cos().powi(2) * 2.0 * rho);
+    off(
+        "k0: a wrong radius",
+        Curve3::Circle {
+            center: Point3::new(2.0 * k * e, 0.0, 1.0),
+            axis: Vec3::unit_z(),
+            radius: rho + d_rho,
+            u_ref: Vec3::unit_x(),
+        },
+        alpha,
+    );
+    // (k₁, k₂) alone: the right radius, centred δ off the axis — the
+    // first harmonic is `2·cos²α·δ·ρ`, k₀ = `cos²α·δ²` is second
+    // order, and the margin reads `δ·cos α`.
+    let alpha = 0.5_f64;
+    let delta = 5.0 * k * e / alpha.cos();
+    off(
+        "k1,k2: an off-axis rim",
+        Curve3::Circle {
+            center: Point3::new(delta, 0.0, 1.0),
+            axis: Vec3::unit_z(),
+            radius: alpha.tan(),
+            u_ref: Vec3::unit_x(),
+        },
+        alpha,
+    );
+    // (k₃, k₄) alone: an ellipse ⊥ the axis, centred on it, with
+    // `A² + B² = 2ρ²` (so k₀ = 0) and `A² − B² = 2s` (k₃ = cos²α·s).
+    let rho = alpha.tan();
+    let s = 5.0 * k * e * 2.0 * alpha.sin() / alpha.cos().powi(2);
+    off(
+        "k3,k4: an ellipse round the axis",
+        Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::unit_z(),
+            major: (rho * rho + s).sqrt(),
+            minor: (rho * rho - s).sqrt(),
+            u_ref: Vec3::unit_x(),
+        },
+        alpha,
+    );
+}
+
+/// **The cone's rim gates on a needle and on a wide cone.** A circle
+/// approximating the section by a plane tilted inside the axial band
+/// (`ρ·sin θ = ε/2`) lies on the cone to rounding. Its centre is
+/// `≈ tan α · ε/2` off the axis: inside the centring band on a needle
+/// cone, where it is a rim and images in closed form, and past it on a
+/// wide one, where the centring gate fails. There the incidence test,
+/// not the gate, decides — and the circle is on the cone, grazing it:
+/// a cone holds no circle but its rims.
+#[test]
+fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
+    let e = eps();
+    for (alpha, rim) in [(0.05_f64, true), (1.55, false)] {
+        let h = 1.0;
+        let theta = 0.5 * e / (h * alpha.tan());
+        let (centre, axis, u_ref, major, minor) = section(alpha, h, theta);
+        let circle = Curve3::Circle {
+            center: centre,
+            axis,
+            radius: (major * minor).sqrt(),
+            u_ref,
+        };
+        let dist = off_cone(&circle, &cone(alpha));
+        assert!(dist < 0.01 * e, "alpha = {alpha}: on the cone: {dist:e}");
+        let got = chart_pcurve(&circle, &cone(alpha), band());
+        if rim {
+            assert!(
+                got.is_ok(),
+                "alpha = {alpha}: a needle cone's near-rim is a rim: {got:?}"
+            );
+        } else {
+            assert!(
+                centre.x.abs() > 10.0 * e,
+                "alpha = {alpha}: the centre offset is past the band: {:e}",
+                centre.x
+            );
+            assert!(
+                matches!(
+                    got,
+                    Err(PcurveCertifyError::CarrierGrazesChart {
+                        grazer: Grazer::ConeCircle,
+                        ..
+                    })
+                ),
+                "alpha = {alpha}: an on-cone circle that is no rim grazes the chart, never off \
+                 it: {got:?}"
+            );
+        }
+    }
+}
+
+/// A small circle exactly on the unit sphere near its pole, whose plane
+/// is tilted off ⊥-the-axis by an angle `θ` small enough that the
+/// polar class's axial gate (`|a·z| + |b·z| = ρ·sin θ`) reads ZERO, but
+/// whose centre's radial offset (`h·sin θ`, `h ≈ R`) is `h/ρ` times
+/// larger and reads nonzero. The circle lies on the sphere (its centre
+/// is the foot of the sphere's centre on its plane, `ρ² + h² = R²`), so
+/// the pair is an uncovered general circle, never off the chart.
+#[test]
+fn a_near_pole_small_circle_tilted_inside_the_axial_band_is_on_the_sphere() {
+    let e = eps();
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    for rho in [1e-2_f64, 1e-3, 1e-4] {
+        let h = (1.0 - rho * rho).sqrt();
+        // ρ·sin θ = ε/2: inside the axial gate's zero half.
+        let s = 0.5 * e / rho;
+        let c = (1.0 - s * s).sqrt();
+        let n = Vec3::new(s, 0.0, c);
+        let carrier = Curve3::Circle {
+            center: Point3::new(h * s, 0.0, h * c),
+            axis: n,
+            radius: rho,
+            u_ref: Vec3::new(c, 0.0, -s),
+        };
+        let worst = (0..64)
+            .map(|i| {
+                let p = carrier.eval(f64::from(i) * core::f64::consts::TAU / 64.0);
+                ((p.x * p.x + p.y * p.y + p.z * p.z).sqrt() - 1.0).abs()
+            })
+            .fold(0.0_f64, f64::max);
+        assert!(worst < 1e-14, "rho = {rho:e}: on the sphere: {worst:e}");
+        // The amplified quantity really is past the band, so the row
+        // exercises the second gate rather than passing the first two.
+        assert!(h * s > 10.0 * e, "rho = {rho:e}: centre offset {:e}", h * s);
+        let got = chart_pcurve(&carrier, &sphere, band());
+        assert!(
+            matches!(got, Ok(Pcurve::Projected(_))),
+            "rho = {rho:e}: an on-sphere circle is a general circle with a projected image: \
+             {got:?}"
+        );
+    }
+}
+
+/// **An in-band move is never read off the cone or the sphere** (the
+/// one-sided incidence test). A cone section moved along the cone's
+/// axis by half the band's zero half derives its image; a sphere's
+/// general circle moved by as much is the general circle the projected
+/// route images, never a carrier off the chart.
+#[test]
+fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
+    let alpha = 0.5;
+    let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
+    let moved = Curve3::Ellipse {
+        center: centre + Vec3::unit_z() * (0.5 * eps()),
+        axis,
+        major,
+        minor,
+        u_ref,
+    };
+    let got = chart_pcurve(&moved, &cone(alpha), band());
+    assert!(
+        matches!(got, Ok(Pcurve::FocalSection(_))),
+        "a cone section moved ε/2: {got:?}"
+    );
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let n = Vec3::new(0.3, 0.0, 1.0).normalize();
+    let (h, rho) = (0.6_f64, 0.8_f64);
+    let circle = Curve3::Circle {
+        center: Point3::origin() + n * (h + 0.5 * eps()),
+        axis: n,
+        radius: rho,
+        u_ref: Vec3::unit_y(),
+    };
+    let got = chart_pcurve(&circle, &sphere, band());
+    assert!(
+        matches!(got, Ok(Pcurve::Projected(_))),
+        "a general circle moved ε/2 off the sphere: {got:?}"
+    );
+}
+
+/// **A poison end of the interval locates no piece, so the projected
+/// image's box is poison.** The `Net` carrier is the sharp case: its
+/// box is built from knot values alone, so a poison end that located
+/// the first piece read a certified box of that piece for a window
+/// nobody asked about. At the interval scalar a NaI end now answers a
+/// box with nothing certified in it.
+#[test]
+fn a_projected_net_image_boxes_a_nai_end_as_poison() {
+    let lift = |x: f64| Interval::from_f64(x);
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::Knots::from(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            )
+            .lift(geom_core::Real::from_f64),
+            vec![
+                Point3::new(lift(0.1), lift(-0.2), lift(0.0)),
+                Point3::new(lift(0.7), lift(0.9), lift(0.0)),
+                Point3::new(lift(1.3), lift(0.2), lift(0.0)),
+                Point3::new(lift(1.6), lift(0.8), lift(0.0)),
+            ],
+            [1.0, 0.6, 1.0, 1.0].map(lift).to_vec(),
+        )
+        .unwrap(),
+    ));
+    let plane = Surface::Plane {
+        origin: Point3::new(lift(0.05), lift(0.1), lift(0.0)),
+        normal: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+        u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+    };
+    let image = chart_pcurve(&carrier, &plane, band()).unwrap();
+    assert!(
+        matches!(&image, Pcurve::Projected(p) if matches!(p.carrier(), geom_brep::FramedCarrier::Net(_))),
+        "the fixture is a projected net: {image:?}"
+    );
+    let certified = |b: geom_brep::ChartWindow<Interval>| {
+        [b.u_min, b.u_max, b.v_min, b.v_max]
+            .iter()
+            .all(|x| x.is_certified())
+    };
+    let ok = image.chart_box(lift(0.0), lift(1.0));
+    assert!(certified(ok), "CONTROL: the whole interval boxes: {ok:?}");
+    let nai = lift(f64::NAN);
+    for (name, b) in [
+        ("NaI start", image.chart_box(nai, lift(1.0))),
+        ("NaI end", image.chart_box(lift(0.0), nai)),
+    ] {
+        assert!(
+            [b.u_min, b.u_max, b.v_min, b.v_max]
+                .iter()
+                .all(|x| x.is_poison()),
+            "{name}: {b:?}"
+        );
+    }
+}
+
+/// **The projected image answers a poison parameter with poison in
+/// every channel it carries.** At `Dual` that includes the derivative
+/// channel, where a bare `from_f64(NaN)` would be a dual constant whose
+/// derivative reads as a zero: the point (`ProjectedImage::eval`) and
+/// the box (`chart_box`'s poison window) are both checked.
+#[test]
+fn a_projected_image_answers_a_poison_dual_parameter_with_poison_in_every_channel() {
+    use geom_core::Dual64;
+    let lift = Dual64::constant;
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::Knots::from(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            )
+            .lift(geom_core::Real::from_f64),
+            vec![
+                Point3::new(lift(0.1), lift(-0.2), lift(0.0)),
+                Point3::new(lift(0.7), lift(0.9), lift(0.0)),
+                Point3::new(lift(1.3), lift(0.2), lift(0.0)),
+                Point3::new(lift(1.6), lift(0.8), lift(0.0)),
+            ],
+            [1.0, 0.6, 1.0, 1.0].map(lift).to_vec(),
+        )
+        .unwrap(),
+    ));
+    let plane = Surface::Plane {
+        origin: Point3::new(lift(0.05), lift(0.1), lift(0.0)),
+        normal: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+        u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+    };
+    let image = chart_pcurve(&carrier, &plane, band()).unwrap();
+    assert!(
+        matches!(&image, Pcurve::Projected(p) if matches!(p.carrier(), geom_brep::FramedCarrier::Net(_))),
+        "the fixture is a projected net: {image:?}"
+    );
+    let poison = |x: Dual64| x.value.is_nan() && x.deriv.is_nan();
+    let t = Dual64::variable(f64::NAN);
+    let p = image.eval(t);
+    assert!(poison(p.x) && poison(p.y), "eval: {p:?}");
+    let b = image.chart_box(t, lift(1.0));
+    assert!(
+        [b.u_min, b.u_max, b.v_min, b.v_max].into_iter().all(poison),
+        "chart_box: {b:?}"
+    );
+}
+
+/// **A plane chart's box covers every span of its net.** A plane chart
+/// reads the whole net as one piece, so the piece crosses the net's
+/// knots; its box is each span's own restriction, hulled. The fixture is
+/// a two-span polyline `(0,0) → (1,0) → (1,5)`, whose first span
+/// extended past its knot runs along `v = 0`: a box read off that
+/// extension misses the corner `(1, 5)` the curve ends at. At `f64` and
+/// at the certification scalar, where the box must also certify.
+#[test]
+fn a_plane_chart_box_covers_every_span_of_its_net() {
+    fn check<T: geom_core::Decide>(
+        lift: impl Fn(f64) -> T,
+        lo: impl Fn(T) -> f64,
+        hi: impl Fn(T) -> f64,
+        tag: &str,
+    ) {
+        let carrier = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::Knots::from(
+                    KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+                )
+                .lift(&lift),
+                vec![
+                    Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+                    Point3::new(lift(1.0), lift(0.0), lift(0.0)),
+                    Point3::new(lift(1.0), lift(5.0), lift(0.0)),
+                ],
+                vec![lift(1.0), lift(1.0), lift(1.0)],
+            )
+            .unwrap(),
+        ));
+        let plane = Surface::Plane {
+            origin: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+            normal: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+            u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        };
+        let image = chart_pcurve(&carrier, &plane, band()).unwrap();
+        let b = image.chart_box(lift(0.0), lift(1.0));
+        let (u, v) = ((lo(b.u_min), hi(b.u_max)), (lo(b.v_min), hi(b.v_max)));
+        assert!(
+            u.0 <= 0.0 && u.1 >= 1.0 && v.0 <= 0.0 && v.1 >= 5.0,
+            "{tag}: the box u {u:?} v {v:?} misses a corner of the polyline [0, 1] x [0, 5]"
+        );
+    }
+    check(|x| x, |x| x, |x| x, "f64");
+    check(
+        Interval::from_f64,
+        |x: Interval| {
+            if x.is_certified() {
+                geom_core::Bounds::lo(x)
+            } else {
+                f64::NAN
+            }
+        },
+        |x: Interval| {
+            if x.is_certified() {
+                geom_core::Bounds::hi(x)
+            } else {
+                f64::NAN
+            }
+        },
+        "Interval",
+    );
+}

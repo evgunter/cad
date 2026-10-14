@@ -24,7 +24,7 @@ Both leave `docs/` when the experiment concludes.
 - **Dual Opus review concordance** — `docs/DUAL-REVIEW-PROTOCOL.md`
   (**read it before dispatching a dual**) and `docs/DUAL-REVIEW-LOG.md`.
   What a second independent review buys; every unit the review tiers
-  ([[orchestration-model]]) send to a dual is a row.
+  ([[orchestration-model]]) send to the dual tier is a row.
 - **Design-fork review** — `docs/DESIGN-FORK-PROTOCOL.md` (**read it
   before dispatching the pair**) and `docs/DESIGN-FORK-LOG.md`. What
   the Opus and Fable designers recommended, and what Ev then

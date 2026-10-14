@@ -473,23 +473,31 @@ fn the_line_arm_is_the_projection_and_ignores_the_anchor() {
     }
 }
 
-/// The kinds whose inversion is a solve refuse by returning `None` —
-/// the typed refusal each consumer turns into its own error. An
-/// ellipse's `θ` is the eccentric anomaly, NOT the polar angle, so the
-/// circle arm's arithmetic would be silently wrong here rather than
-/// merely imprecise; that is why the arm is absent and not
-/// approximated.
+/// An ellipse's `θ` is the eccentric anomaly, NOT the polar angle: on
+/// this carrier the point at `θ = 0.7` sits at polar angle `0.40`, so
+/// the circle arm's arithmetic would answer that. The arm recovers `θ`
+/// on the branch nearest the anchor, a turn away included.
 #[test]
-fn the_ellipse_and_nurbs_arms_refuse() {
+fn the_ellipse_arm_recovers_the_eccentric_anomaly() {
     let ellipse = Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 0.0),
+        center: Point3::new(0.5, -1.0, 2.0),
         axis: Vec3::unit_z(),
         major: 2.0,
         minor: 1.0,
         u_ref: Vec3::unit_x(),
     };
-    assert!(ellipse.param_near(ellipse.eval(0.7), 0.7).is_none());
+    for t in [0.7, -2.9, 3.1, 0.7 + TAU] {
+        for near in [t - 1.0, t, t + 1.5] {
+            let got = ellipse.param_near(ellipse.eval(t), near).unwrap();
+            assert!((got - t).abs() < 1e-12, "t={t}, near={near}: got {got}");
+        }
+    }
+}
 
+/// A spline's inversion is a solve, so its arm refuses by returning
+/// `None` — the typed refusal each consumer turns into its own error.
+#[test]
+fn the_nurbs_arm_refuses() {
     let nurbs = Curve3::<f64>::nurbs_placeholder();
     assert!(nurbs.param_near(Point3::new(0.0, 0.0, 0.0), 0.0).is_none());
 }

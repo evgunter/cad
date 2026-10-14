@@ -79,3 +79,7 @@ five literals become one `match`.
 
 Territory: `crates/pncad-py/*` is LIB's fence and this program's
 `keep_out` announces its pncad-py rows there.
+
+## Note (INTENT stage 3 A, 2026-10-10)
+
+`"axis_in_plane"` is gone: INTENT stage 3 A retired `Datum::AxisInPlane` into `Revolve`'s axis slots, so `Datum.kind` answers the other words only. The rest of the finding stands.

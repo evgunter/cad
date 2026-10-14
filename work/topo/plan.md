@@ -55,7 +55,7 @@ What this program does **not** take is written in `program.md`'s
   board before it lands, and never taken silently.
 - **The remaining 35 `topo/src` files are unowned and NOT finished.**
   `body.rs`, `entity.rs`, `geometry.rs`, `instance.rs`, `null.rs`,
-  `lib.rs`, `contact.rs`, `separation.rs`, `ray_parity.rs`,
+  `lib.rs`, `contact.rs`, `separation.rs`, `ray_walk.rs`,
   `offset_axial.rs`, `iso.rs`, the four `sector_*`/`chart*` files, the
   eleven `review_m1_*`/`review_d21`/`r2_probes` readers,
   `test_support_impl.rs`, and `param_source.rs` (new on main with
@@ -127,7 +127,7 @@ with its brief and tier on its item:
 
 **Not yet, and why:**
 
-- `D262` waits on `work/meta`'s `decide_flagged` register.
+- (`D262` no longer waits on the `decide_flagged` register: its residue is fail-loud lookups, not a dimension; dispatched 2026-09-30.)
 - `the-re-basing-gate-refuses-m7-8-where-nothing-moves` waits on Ev
   (PR 3156).
 

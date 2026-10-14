@@ -1,9 +1,11 @@
 //! **The open bands** — the two carves of a link that ENDS: the planar
-//! band between trivalent corners ([`planar`]) and the ruled band cut
-//! off at transverse caps ([`ruled`]). Each is one link carved into one
-//! blend face, its births recorded in the open-band rows of
+//! band ([`planar`]), ending in corner patches or cut off at plane end
+//! faces, and the ruled band cut off at plane caps ([`ruled`]). The
+//! cut-off both take is [`end_face`]'s. Each carves one blend face — of
+//! one link, or, on the planar band, of several joined on one support
+//! pair — its births recorded in the open-band rows of
 //! [`BlendNaming`](crate::blend::naming::BlendNaming) (`feet`, `trims`,
-//! `arcs`, `blends`). Everything both rest on — the door, the plans'
+//! `arcs`, `blends`, `joined_blends`). Everything both rest on — the door, the plans'
 //! admission, the refusal classes, the chord helpers, the description
 //! pass and the one face-destroying door
 //! ([`crate::blend::surgery::SourceFaces::kef_minted`]) — is
@@ -12,5 +14,6 @@
 //! THIS call established) binds every site under this directory as it
 //! binds there.
 
+pub(super) mod end_face;
 pub(super) mod planar;
 pub(super) mod ruled;

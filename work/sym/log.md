@@ -1359,3 +1359,234 @@ stored `(858, 104, 991, 2750)` and F-on `(854, 128, 979, 2722)` /
 (`encl/batch-split-loop-mustcarry`, which applies only its own gate's
 A/B-measured delta to these tables) and its cause is not measured;
 no registrant column moves. The item has the full table. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+- 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
+## 2026-10-02 — SYM-15 spec'd: the chain's wedge poison; single FULL review
+
+**`props/sign-hull` is on `main`** (#2468, merged 2026-10-01), so SYM's
+and DECIDE's units branch from and target `main` from now on.
+
+**A triage of SYM's open P0/P1 rows** gives this order:
+1. the chain's wedge poison (this unit);
+2. `ignored-sym-receipt-rows-drifted-red-on-main-unattributed` (a
+   bisect, then a re-take);
+3. the rotation-angle readout;
+4. a re-take of `derived-frame-placement-freezes-on-the-symbolic-lane`,
+   which rules E, F and G have mostly answered;
+5. the chain's self-intersection, Phase 1;
+6. the arm straddle.
+
+`a-face-frame-on-a-revolved-cap-…` is mostly not SYM's (the sweep's
+revolve, or TIER's widening row) and is offered to its owner.
+
+**SYM is at 47.5 budget points against its 30 ceiling.** The
+priority-seam split is put to Ev: the nine P2/P3/unpriced rows go either
+to a new sibling track, or by charter.
+
+**Review tier: single FULL review.** It is a defect at one minting site,
+settled by execution. A stop rule re-homes the row if the poison is
+minted outside the tier and the fix is not local.
+
+Spec `docs/SYM-15-SPEC.md`. Branch `sym/15-wedge-poison` from `main`.
+- 2026-10-02 — Seam note from PCERT: PR 3759 (pcurve rows mandatory at rest, C4) files `pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box` on this slate: once every extrude mints, the pcurve certificate's envelope and map-residual checks (zero by construction) widen past the band over a parameter box at the certified scalars, regressing M10-7's plate, the m10_3 drive and sym11's certified lane. PCERT is holding 3759 and has put the question of where that discharge belongs (the certificate's form, or the symbolic tier's registration) to a designer pair; the reports land as comments on PR 3759. If SYM has a view or work in flight on it, say so there. (PCERT orchestrator)
+- 2026-10-02 — Seam note from PCERT, the answer to the note above: the widening is fixed in the certificate's own form, by Ev's ruling on `[ev]` PR 3781 (merged).
+  - The `Harmonic` envelope is spelled in the carrier's coefficients, as incidence plus fidelity, so a minted row's identity is a polynomial theorem.
+  - The schedule leaves the box certificate.
+  - PCERT's unit `pcurve-certificate-states-incidence-and-fidelity` builds it and lands with PR 3759.
+  - Nothing is owed by SYM. A tier rule `cos/sin(atan2(y,x)) = x,y/√(x²+y²)` was weighed and judged worthwhile tier reach, but not the fix. The `pcurve-certificate-checks-widen…` issue rides 3759 and closes with the unit. (PCERT orchestrator)
+
+## 2026-10-02 — SYM-15 merged (#3804): the wedge poison is legitimate, named, and its levers filed
+
+Phase 1 stopped under the spec's first stop rule; the review found the
+stop only partly right (2 MAJOR). The ε-dependent wall is the `sin θ`
+formula's dependency (lever i, local to `dihedral.rs`), not width lost
+upstream; the poison point is the transform's decorrelated images
+(lever ii, SHELL's `transform.rs`); and the cause-naming refusal was
+local, so the spec's legitimate-poison Phase 2 shipped:
+`CertCheck::TangentPlanes`, read only after the wedge decision refuses,
+verdict-neutral over geom-brep, topo, sweep and the tour. Pins: the
+chain's wall row's message; the minimal row renamed
+`a_cylinder_gradient_reaching_zero_leaves_no_tangent_plane`. Successors:
+`work/props/interval-sin-theta-as-cross-over-norms-loses-the-shared-magnitude`
+and `work/shell/transform-rigid-recertifies-images-enclosed-apart` (P2
+each); a seam line on PROPS'
+`invalid-margin-recourse-cannot-tell-an-unimplemented-kind-from-bad-inputs`
+for `classify_dihedral`'s other callers. The chain's mechanism has one
+home, `chaintol.rs`'s "What sets the wall". Spec deleted
+(`docs/doc-ledger/sym-15-spec.md`). The arm's straddle
+(`a-chain-of-three-joints-straddles-dihedral-arm`) is next behind it.
+
+## 2026-10-02 — SYM-16 spec'd: the ignored receipt rows' drift; single FULL review
+
+Second in the 2026-10-02 triage order, after SYM-15. The two
+`#[ignore]`d receipt rows (`sym11_the_exact_channel_never_contradicts_past_the_ceiling`
+and `m10_9_the_pad_at_both_rule_f_dials`) drifted red between
+`03ac24d8ba` and `8ee3daf171` with the drift unattributed, and every
+PR since has adjusted them by its own delta only.
+
+**Review tier: single FULL review.** The unit is a measurement, a
+bisect and a schedule change, settled by re-running the rows at the
+bisected commits; a wrong move found in another program's code stops
+the unit and is filed there.
+
+Spec `docs/SYM-16-SPEC.md`. Branch `sym/16-receipt-drift` from `main`.
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — the second priority-seam cut: RULES opened
+
+Ev said yes in chat (2026-10-06) to the split put on 2026-10-02: SYM
+measured 45 budget points against 30. SYM keeps its P0 and P1 rows (20
+points); its four P2, three P3 and three unbanded rows moved by
+`git mv`, ids kept, to a new sibling, RULES (`work/rules/`, band
+10900-10999, `ready`). TIER, the 2026-09-20 sibling, stood at 25/30 and
+could not take them. Citations of the moved rows' paths in code
+comments and live items were updated in the same commit; logs keep
+their history. `plan.md`'s slate and order are re-written from the
+2026-10-02 triage.
+
+## 2026-10-06 — SYM-16 merged (#4155): the receipt rows' drift attributed, and the rows on the gate
+
+Every move of the two receipt rows since SYM-11 is bisected along
+`main`'s first parent and judged; all are right except the pad's
+`frozen` set moving with the document's id mint (#3455, #3594), filed
+on RULES. #3774 (PATHS 5b) re-took both rows on `main` mid-review; the
+fix pass attributed it (registrations became theorems; the earlier
+refusal is the replay scale's move) and took its values. Both rows are
+off `#[ignore]`: the rule-F row on the slow set, the past-the-ceiling
+row on the per-PR fast set (0.86 s). The review found the stop rule
+did not apply. The first implementer was lost to a container restart
+after opening the PR; a second ran the fix pass. Spec deleted
+(`docs/doc-ledger/sym-16-spec.md`).
+
+## 2026-10-06 — SYM-17 spec'd: the widened rotation angle on the plain lane; single FULL review
+
+First in the remaining 2026-10-02 order after SYM-15 and SYM-16. On
+the chain, the plain `Interval` lane refuses at the first transform
+(`transform_rigid_col0_unit`) while the symbolic tier certifies; the
+item's mechanism is a reading of the refusal, not a measurement.
+
+**Review tier: single FULL review.** Phase 1 is a readout and a priced
+choice between three answers; two of them land in PROPS' or SHELL's
+checks or state a scope of the plain lane, and those stop after
+Phase 1 for the owner or Ev.
+
+Spec `docs/SYM-17-SPEC.md`. Branch `sym/17-rotation-readout` from `main`.
+- 2026-10-12 — Seam note from NURBS: build C will add a held-constant query (working name `held_constant`, unless an existing spelling is found) to `geom_core::spline::SpanLocate` on branch `nurbs/held-constant-weights`. It returns `Some` only for a scalar with no derivative or symbolic part, and is implemented for `Sym` in `crates/geom-core/src/sym.rs` and for `Dual`. The NURBS speed meter uses it to keep weights that carry symbols or tangents off the net-only integral arm (row `the-integral-speed-meter-drops-a-dual-weights-tangent`). The `Sym` thread-count digest lines may move. (NURBS orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4840, merged at `8e772980bb`): `MarginDiag::tightens_below` withholds the tighten offer for a margin `theorem()` proves zero, on D4 ¶1 (i)'s ground: a proved-zero margin is not a size the user may intend, though numeric-first `decide_sign` would pass it at a smaller ε on Inexact lanes. `Indeterminate::reading` says 'a zero the symbolic tier proved, which no tolerance makes a size'; `IndeterminatePayload` renders a proven in-band enclosure as 'reaches into the ambiguity band'; only a proof removes Subdivide. Filed on sym: `an-in-band-enclosure-excluding-zero-is-stamped-proven-zero-unchecked`. (ENCL orchestrator)
+- 2026-10-12 — Seam note from NURBS: PR 4869 (merged `8fc1358437`) adds `geom_core::sym::session_installed()`, the one home of "is a symbolic session installed on this thread". `decisions_are_thread_portable` and `with_session_in`'s nesting check now use it; the latter replaces a third hand spelling. So does the NURBS speed meter's memo, which serves and fills only outside a session. (NURBS orchestrator)
+- 2026-10-12 — SYM-17 re-routed to Ev the way the protocol asks: the (c) / (a′) choice had been put to Ev in chat only. Two designers weighed it (blinding on `analysis/design-fork/sym-17-widened-rotation`) and converged after one round: a `Rigid3<T>` rigid-motion witness that `transform_rigid` takes, landing alone, and no scope statement. The question is in the item's "Question" and on its `[ev]` PR. Phase 2 waits for Ev.
+- 2026-10-12 — Ev answered SYM-17's `[ev]` question: a rigid-motion witness merged with `OrthoFrame` and closed under the rigid group's action (the item's "Question, and Ev's answer"). Phase 2 is re-specced on it.
+- 2026-10-12 — SYM-17 Phase 2 specced on Ev's answer (`docs/SYM-17-SPEC.md` §Phase 2): `RigidMotion<T>` replaces `OrthoFrame`, with mints by construction, one decided door and the action on `UnitVec3`, and `transform_rigid` takes it. Cost M → H. **Review tier: dual, concurrent arm (difficulty H).** It is a new core type replacing another, and it changes a door's signature across geom-core, topo, editor-core, sweep, step-import and the demos: an architectural change of broad reach. Phase 2 continues on `sym/17-rotation-readout` (draft PR 4197). Seams: FLUX (linalg), SHELF/SHELL/OFFSET (`transform.rs`), WIRE (`eval/wire`), MSOLVE/INTENT (the mate solve, within the stop rule), and the sweep owners.
+
+## 2026-10-13 — SYM-17 merged (#4197): `RigidMotion<T>` replaces `OrthoFrame`
+
+On Ev's answer, `RigidMotion<T>` replaces `OrthoFrame`:
+- it is minted rigid by construction (the half-turns, the Rodrigues
+  rotations and the translations);
+- it has one decided door, `check_rigid`, for a literal map;
+- it is closed under compose and inverse;
+- `topo::transform_rigid` takes it;
+- the plain `Interval` lane now certifies the chain: at one link up to
+  6.49e-9, at four up to 6.73e-10.
+
+**Review.** The concurrent dual review (difficulty H) ran on
+`a89f7a54eb`; both reviews were APPROVE-WITH-FIXES. The guide doctests'
+red was a bilateral MAJOR. The fix pass took the doctests, the
+compounding bound (filed P3), the interval finiteness at the mints, the
+test gaps, the K-REPORT and the stale prose. The delta review on
+`1355348da2` came back MERGEABLE-WITH-NITS, with one MINOR: the decided
+door admitted an unbounded `Interval` translation. The final pass made
+the door ask `Real::is_bounded` as the mints do, and made `is_bounded` a
+required method.
+
+**Re-baselines.** The door's three translation decisions retire, so:
+- `asm2a` goes 466 → 463, and `kstats_bracket_rows` 922 → 919;
+- `OWN_FRAMES` goes 2 → 16.
+
+CI is green at `22c2a3550a` except for main's known ε = 1e-12 ring row
+(FLUSH). The sweep's `x − x` / `0·x` siblings are filed on INTENT, BOXES
+and MSOLVE. Spec deleted (`docs/doc-ledger/sym-17-spec.md`).
+- 2026-10-13 — **Seam note from NURBS: PR 4944 merged** (`89f044e92e`).
+  - `SymCounts` gains `checks_expanded` and `checks_frozen`, and the digest prints them as `chk=expanded/total`.
+  - `Session::free` names the free indeterminates the session minted, and `any_indet` is the one shared walker.
+  - The digest bodies are now built inside the session, and the door is receipted on its own. The sym-session lines moved, e.g. arc `chk=103/110`, strip `104/116`, `disp=0` unchanged.
+  - A guard red-lines the digest when coverage falls below 4/5 at ≥ 20 checks.
+  - Touched: `geom-core/src/sym.rs`, `sym/discharge_pins.rs`, `sym11_witness_kind_rows.rs`, `mass_props_are_thread_count_invariant.rs` and the three `thread-count-digest/eps-*.txt`. — (NURBS orchestrator)
+
+- 2026-10-13 — **Red main, from a semantic conflict between PR 4918 (contacthold) and PR 4197 (SYM-17).** Main at 0c28d7f4 and at 4dce8298 does not compile sweep's tests.
+  - 4918 (merged 13:45Z) added `sweep/tests/a_circle_of_one_radius_elsewhere_is_no_rim.rs` and `a_face_off_the_tangent_ruling.rs`, which call `topo::transform_rigid` with an `&Affine3`.
+  - 4197 (merged 15:35Z, from a branch whose last main merge was 11:54Z) changed it to take `&RigidMotion`.
+  - **Fix:** PR 4992 (`nurbs/fix-main-sweep-rigid-tests`), test-only. It wraps the four sites in `geom_core::test_support::rigid`. It merges on CI.
+  - **Class:** a signature change's re-spelling pass covers only the callers its branch can see. A branch that last merged main hours before it lands misses callers added since. — (NURBS orchestrator)
+## 2026-10-13 — SYM's two P0s re-taken on `main` and closed; SYM handed back `ready`
+
+Every row of `m10_derived_frame_tilted_interval` was re-run on `main` at
+`621e036e19` (release, ε default, ignored rows included; 18/18 pass).
+- `derived-frame-placement-freezes-on-the-symbolic-lane` **closes**.
+  The document it was filed on, the tilt-`u` family and `tiltNZ` all
+  certify, and the degree freeze it named no longer refuses anything.
+- `a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity`
+  **closes**. The revolve no longer refuses, since PCERT retired its
+  predicate, and what is left is the boss's attachment-gate refusal,
+  which the tier now moves (4 → 1 with rule E on).
+
+The successors:
+- `derived-frame-spin-documents-stopped-certifying-under-guided` (P1).
+  The spin and half-spin documents certified at SYM-5 and refuse on
+  `main` at the wall join. This is unattributed, and nothing went red
+  because the row is evidence-only. Next comes a bisect and a gating
+  row.
+- `derived-frame-guided-boss-residue-after-rules-e-and-f` (P2): tilt-UV,
+  the stacked pair, and the revolved cap's boss.
+
+**SYM is handed back `ready` at P1**, with nobody on it. Its
+dispatchable spine is P1:
+- the spin regression;
+- the chain's arm straddle;
+- the mitre freeze;
+- the chain's self-intersection, whose Phase 1 only can run until
+  CLEAR's engine lands.
+
+The order in `plan.md` is unchanged past the closed rows.

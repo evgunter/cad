@@ -35,10 +35,13 @@ fn interval_constructs_decides_and_encloses_in_a_default_build() {
     let x = Interval::from_f64(1e-3);
     assert_eq!(Bounds::lo(x), 1e-3, "from_f64 is the point enclosure");
     assert_eq!(Bounds::hi(x), 1e-3, "from_f64 is the point enclosure");
-    assert_eq!(x.sign_within(band), Ok(Sign::Positive));
-    assert_eq!(Interval::from_f64(0.0).sign_within(band), Ok(Sign::Zero));
+    assert_eq!(x.sign_within(band).map(|d| d.sign), Ok(Sign::Positive));
     assert_eq!(
-        Interval::from_f64(-1e-3).sign_within(band),
+        Interval::from_f64(0.0).sign_within(band).map(|d| d.sign),
+        Ok(Sign::Zero)
+    );
+    assert_eq!(
+        Interval::from_f64(-1e-3).sign_within(band).map(|d| d.sign),
         Ok(Sign::Negative)
     );
 
@@ -85,14 +88,30 @@ fn the_bit_identity_channel_reads_intervals_in_a_default_build() {
 #[test]
 fn interval_locates_a_span_range_in_a_default_build() {
     let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
-    let straddling = Interval::from_bounds(0.5, 1.5).locate_spans(&knots);
+    let indices = |x: Interval| {
+        x.locate_spans(&knots)
+            .map(|set| (set.first.index(), set.last.index()))
+    };
     assert_eq!(
-        (straddling.first.index(), straddling.last.index()),
-        (2, 3),
+        indices(Interval::from_bounds(0.5, 1.5)),
+        Some((2, 3)),
         "[0.5, 1.5] straddles the knot at 1.0"
     );
-    let inside = Interval::from_f64(0.5).locate_spans(&knots);
-    assert_eq!((inside.first.index(), inside.last.index()), (2, 2));
+    assert_eq!(indices(Interval::from_f64(0.5)), Some((2, 2)));
+    // The locator reads the bracket, not the certificate: a `Trv`
+    // enclosure is sound, so it still locates; its decoration is for
+    // the reader that certifies.
+    let trv = Interval::from_bounds(-1.0, 4.0).sqrt();
+    assert!(!trv.is_certified(), "the fixture is a Trv enclosure");
+    assert_eq!(indices(trv), Some((2, 3)), "a Trv [0, 2] stopped locating");
+    // Poison has no bracket, so it locates nothing.
+    assert_eq!(
+        indices(Interval::from_f64(f64::NAN)),
+        None,
+        "NaI located a span"
+    );
+    let empty = Interval::from_bounds(-2.0, -1.0).sqrt();
+    assert_eq!(indices(empty), None, "an empty enclosure located a span");
 }
 
 /// `DualInterval` — the dual-over-interval alias Q1 ratifies — names a
@@ -108,9 +127,9 @@ fn dual_interval_is_nameable_in_a_default_build() {
 /// The refusing half of the decision door is compiled too: a
 /// domain-clamped enclosure (`sqrt([-1, 4])` clamps to `[0, 2]`, a
 /// plausible bracket) is refused on its DECORATION, not on its
-/// endpoints — `MarginDiag::Invalid`, where the straddling row above
-/// refuses with `MarginDiag::Enclosure`. A build that compiled the
-/// arithmetic but not the poison channel would answer `Positive`.
+/// endpoints — `MarginKind::Invalid`, where the straddling row above
+/// refuses with `MarginKind::Enclosure`. A build that compiled the
+/// arithmetic but not the refusal channel would answer `Positive`.
 #[test]
 fn a_domain_clamp_refuses_on_the_decoration_in_a_default_build() {
     let band = Band::new(1e-9, 1e-8).unwrap();
@@ -121,7 +140,7 @@ fn a_domain_clamp_refuses_on_the_decoration_in_a_default_build() {
     );
     let refused = clamped.sign_within(band).unwrap_err();
     assert!(
-        matches!(refused.margin, geom_core::MarginDiag::Invalid),
+        refused.margin.is_invalid(),
         "a clamped enclosure refuses on its decoration: {refused:?}"
     );
     assert_eq!(

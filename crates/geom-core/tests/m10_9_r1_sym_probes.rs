@@ -27,11 +27,14 @@ fn band() -> Band {
 }
 
 fn pi(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param(ParamSymbol::of(name), Interval::from_bounds(lo, hi))
+    Sym::param(
+        ParamSymbol::new(test_utils::symbol_id(name)),
+        Interval::from_bounds(lo, hi),
+    )
 }
 
 fn sign_of(m: Sym<Interval>) -> Result<Sign, ()> {
-    m.sign_within(band()).map_err(|_| ())
+    m.sign_within(band()).map(|d| d.sign).map_err(|_| ())
 }
 
 /// **THE WITNESS AT `Interval` IS "THE ENCLOSURES MEET", AND THAT IS NOT
@@ -65,7 +68,7 @@ fn r1_a_coincidence_at_one_point_of_the_box_registers_and_decides_zero() {
         Ok(Sign::Zero),
         "and the tier then answers Zero for the WHOLE box: {counts:?}"
     );
-    assert_eq!(counts.registered, 1, "counted as a registered zero");
+    assert_eq!(counts.symbolic, 1, "counted as a proven zero");
     // What the claim is actually worth at an interior point.
     let at = |v: f64| v * v - v;
     println!(
@@ -173,8 +176,8 @@ fn r1_two_registrations_make_the_two_channels_contradict_and_it_is_counted() {
         "the numeric channel answers, so no false Zero is returned"
     );
     assert_eq!(
-        counts.registered, 0,
-        "the decision is not a registered discharge — the numeric answer stands"
+        counts.symbolic, 0,
+        "the decision is not a symbolic discharge — the numeric answer stands"
     );
     assert_eq!(
         counts.registrations_contradicted, 1,
@@ -202,7 +205,7 @@ fn r1_a_refused_registration_is_counted_in_the_receipt() {
         );
     });
     println!("   after a refused registration: {counts:?}");
-    assert_eq!(counts.registered, 0, "nothing was recorded");
+    assert_eq!(counts.symbolic, 0, "nothing was recorded");
     assert_eq!(
         counts.registrations_refused, 1,
         "and the refusal is counted: {counts:?}"

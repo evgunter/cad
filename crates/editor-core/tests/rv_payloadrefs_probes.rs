@@ -14,7 +14,7 @@
 //!   param-ref doors for the param TABLE, which are different faults.
 //! - The dimension arm's rendered prose names the node (PROBE 3) —
 //!   ADOPTED: the fact is now a word of the F6 case for
-//!   `SnapshotError::PayloadDocParamDimension` in `display_contract`,
+//!   `SnapshotError::PayloadVarKind` in `display_contract`,
 //!   which is the census that owns rendered prose, so the probe is
 //!   gone rather than kept as a second copy of it.
 //! - The noun both payload arms use (PROBE 4): it said "measurement
@@ -26,11 +26,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, DocParam, EditError, Expr, MeasureExpr, Node, ParamName, PatternKind,
-    PersistError, ProfileDoc, RecipeNodeId, SnapshotError, apply, load, save,
+    Dimension, DocEdit, EditError, Formula, FreeVar, Node, PatternKind, PersistError, ProfileDoc,
+    RecipeNodeId, SnapshotError, VarName, apply, load, save,
 };
 use fixture::{ang, insert, len, on_frame, scl, square};
 use geom_core::Tol;
@@ -38,8 +39,8 @@ use geom_core::Tol;
 /// A frame, a profile, an extrude and a COUNT document parameter
 /// `howmany`,
 /// plus a linear pattern whose count READS that parameter.
-fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
-    let name = ParamName::new("howmany");
+fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
+    let name = VarName::from_static("howmany");
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("rv-payloadrefs"),
@@ -53,15 +54,16 @@ fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: name.clone(),
-            value: DocParam::Count { value: 3 },
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -71,8 +73,8 @@ fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
-            count: Expr::param(name.clone(), Dimension::Count),
+            input: extrude.into(),
+            count: Formula::named(name.clone(), Dimension::Count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),
@@ -84,7 +86,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
 
 /// **PROBE 1 — the walk's domain, at its edge.** `Node::slots()` gives
 /// a pattern a `SlotId::Count` only while its rule is a STEPPED one
-/// (`node::rule_slots`), and `payload_exprs` returns `None` for a
+/// (`node::rule_rows`), and `payload_exprs` returns `None` for a
 /// pattern at every rule. So a file carrying an `Explicit` rule AND a
 /// count expression holds an `Expr` that NEITHER param-ref walk reads
 /// — and this row measures what the load door does with one whose
@@ -114,10 +116,7 @@ fn rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref() {
             }]
         });
         // ... and the parameter it reads leaves the table.
-        let params = wire["snapshot"]["params"]
-            .as_object_mut()
-            .expect("the params are a map");
-        assert!(params.remove(&name.0).is_some());
+        crate::wire::wire_undeclare(wire, name.as_str());
     });
 
     let verdict = load(&corrupt, Tol::witness());
@@ -130,7 +129,7 @@ fn rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref() {
     }
     let rendered = format!("{}", verdict.expect_err("refused"));
     assert!(
-        !rendered.contains(&name.0),
+        !rendered.contains(name.as_str()),
         "the refusal for an unreadable parameter reference does not name the parameter — that is \
          the cost of the domain edge, and this is the assertion that says so: {rendered}"
     );
@@ -149,12 +148,9 @@ fn rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref() {
 /// arms.
 #[test]
 fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading() {
-    let name = ParamName::new("depth");
+    let name = VarName::from_static("depth");
     // The F1 checker, at construction, with no document in sight.
-    let fault = MeasureExpr::add(
-        MeasureExpr::value(Expr::param(name.clone(), Dimension::Length)),
-        MeasureExpr::value(ang(1.0)),
-    );
+    let fault = Formula::add(Formula::named(name.clone(), Dimension::Length), ang(1.0));
     assert!(
         fault.is_err(),
         "a length added to an angle is refused by the F1 checker at construction"
@@ -162,7 +158,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
 
     // The param TABLE, which construction never asks: reading a
     // declared LENGTH parameter as an ANGLE builds fine.
-    let leaf = MeasureExpr::value(Expr::param(name.clone(), Dimension::Angle));
+    let leaf = Formula::named(name.clone(), Dimension::Angle);
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("rv-payloadrefs-f1"),
@@ -176,15 +172,16 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: name.clone(),
-            value: DocParam::continuous(Dimension::Length, 1.0),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -195,21 +192,23 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Measure {
-                expr: leaf,
-                refs: Vec::new(),
-            },
+            node: Box::new(Node::Assertion {
+                value: leaf,
+                bound: ang(0.0),
+                relation: editor_core::AssertionRelation::AtLeast,
+            }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PayloadDocParamDimension {
+        Err(EditError::PayloadVarKind {
             declared,
             referenced,
             ..
         }) => assert_eq!(
             (declared, referenced),
-            (Dimension::Length, Dimension::Angle)
+            (editor_core::VarKind::Length, Dimension::Angle)
         ),
         other => panic!(
             "the EDIT door is the first door to see a payload reading a declared parameter at \
@@ -226,8 +225,8 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
 /// was the measure's noun applied to both.
 ///
 /// The repaired sentence says "payload expression", at the load door
-/// here and at the edit door's twins (`EditError::PayloadUnknownDocParam`
-/// / `PayloadDocParamDimension`). This row pins it over an
+/// here and at the edit door's twins (`EditError::PayloadUnknownVarName`
+/// / `PayloadVarKind`). This row pins it over an
 /// ASSERTION's refusal, which is the half nothing else renders: the F6
 /// cases in `display_contract.rs` build the arms directly and never
 /// reach an assertion fixture, so a regression to the measure's noun
@@ -236,9 +235,14 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
 fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let rendered = format!(
         "{}",
-        SnapshotError::PayloadUnknownDocParam {
-            node: RecipeNodeId(7),
-            name: ParamName::new("depth"),
+        SnapshotError::PayloadVarKind {
+            node: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 7)),
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId::new(0, 3),
+                Some(VarName::from_static("depth")),
+            ),
+            declared: editor_core::VarKind::Angle,
+            referenced: editor_core::Dimension::Length,
         }
     );
     assert!(
@@ -254,9 +258,9 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     // The edit door's twin, the same noun.
     let edit = format!(
         "{}",
-        EditError::PayloadUnknownDocParam {
-            name: ParamName::new("depth"),
-            node: RecipeNodeId(7),
+        EditError::PayloadUnknownVarName {
+            name: VarName::from_static("depth"),
+            node: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 7)),
         }
     );
     assert!(

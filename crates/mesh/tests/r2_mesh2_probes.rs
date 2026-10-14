@@ -13,6 +13,7 @@ use mesh::tessellate;
 use mesh::validate::check_mesh;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
 use topo::Body;
@@ -41,7 +42,10 @@ fn skewed(nu: f64, loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     );
     extrude(
         &validated(plane, loops),
-        Extrusion::Distance(h),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude")

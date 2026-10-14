@@ -2,10 +2,13 @@
 id: mate-band-fault-unreachable-on-a-mate
 kind: issue
 title: MateFault::Band on a MATE is unreachable through the insert door, so the solve's and the tree's mate-side Band arms are measured by no row — only a loaded snapshot reaches them
-status: open
+status: closed
 opened: 2026-09-20
 priority: P0
-cost: D
+cost: E
+parent: MSOLVE-12
+pr: 3698
+closed: 2026-10-01
 ---
 
 
@@ -56,3 +59,18 @@ it, so the mate half is measured rather than hand-built.
   arm (chrome's and view's territory; the finding is the kernel's).
 - `crates/viewer/tests/tree_badges.rs` — `child_band_refusal_rows`,
   the row the snapshot road extends.
+
+## Closed (2026-10-01, PR 3698)
+
+`crates/viewer/tests/tree_badges.rs`,
+`a_loaded_snapshot_reaches_a_mates_band_refusal`: one child authors a
+document holding a mate at ε = 16 m under the default K (a band
+exists) and saves it through the save door; a second commits the same
+ε with a `CAD_AMBIGUITY_K` that makes K·ε overflow, loads the text, and
+asserts the mate's own evaluated value is `MateFault::Band` and that
+the tree draws the mate row FAILED in the payload's own words with no
+row pointed at it (`blamed_mates`' empty answer). A document records
+its ε and not its K, which is how a file authored where a band existed
+meets a process with none. The kernel half and the viewer half are one
+row: the loader asserts both. Nothing retired: the hand-built values
+in `display_contract.rs` and the Python arm table stand.

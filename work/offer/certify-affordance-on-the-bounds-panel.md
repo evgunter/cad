@@ -81,12 +81,12 @@ the probe seeds anything, and `certified_range` raises
 parameters that expression reads instead. (The probe half of that was
 `work/chrome/probe-bounds-lacks-driven-slot-guard`, closed 2026-09-04
 at PR 1746; this row used to call it adjacent and open.) What a
-"certify" control still owes is the eleven other `RangeRefusal` arms,
+"certify" control still owes is the ten other `RangeRefusal` arms,
 which have no probe counterpart at all: the seed's own
 (`SeedNotABracket`, `SeedIsNotTheAnalyzedAxis`,
 `MoreThanOneAxisVaries`), the field's (`NotAContinuousParam`,
 `UnknownNode`, `UnknownSlot`, `StructuralSlot`), the derivation's
-(`SyntheticNameTaken`, `Derivation`), the driver's own `Drive`, and
+(`Derivation`), the driver's own `Drive`, and
 `LeavesAreNotAPartition`, which is the fail-loud door on a driver
 change rather than a case today's driver reaches.
 

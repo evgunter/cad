@@ -35,3 +35,13 @@ at the rung's docs, the N5 paragraph, `m4_pr4_ci`'s pin comment and
 carry the partner (or an equivalent recoverable witness) for
 `OrderAlong`, which is a names-lane design surface, not the rung's.
 Measured, not acted on; difficulty M.
+
+## Since (2026-09-30, PR 3241)
+
+`Borders` (N2 as ruled on #3454) retired `Qualifier::SideOf`, the
+`name_frag_side_of` predicate and the shadow-exec rung this row
+describes, with `FlipSource` and `bool7_shadow_exec`'s rows; the
+group-size rung this row led to stands, now pinned in
+`crates/editor-core/tests/resolve_piece_ladder.rs`. A face piece's
+vanish whose walls changed is read by the border delta
+(`resolve::border_delta`).

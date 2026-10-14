@@ -11,8 +11,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Indeterminate, MarginDiag};
-use topo::readback::{DanglingRef, ReadbackError};
-use topo::{ContactRefusal, EdgeKey, EntityId, FaceKey, GeomRef, ReplaceFaceError, SurfaceKey};
+use topo::readback::ReadbackError;
+use topo::{ContactRefusal, EdgeKey, EntityId, FaceKey, ReplaceFaceError};
 
 use test_utils::f6::{assert_f6, assert_f6_every_variant};
 
@@ -20,9 +20,10 @@ use test_utils::f6::{assert_f6, assert_f6_every_variant};
 /// refusal actually carries out of the verification ladder.
 fn in_band() -> Indeterminate {
     Indeterminate {
-        margin: MarginDiag::Value(3e-11),
+        margin: MarginDiag::value(3e-11),
         band: Band::new(1e-12, 1e-9).expect("zero < escalate"),
         predicate: Some("side_of_plane"),
+        terminal_sliver: false,
     }
 }
 
@@ -83,7 +84,7 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
         ),
         (
             ContactRefusal::Escalated { diag: in_band() },
-            vec!["escalated", "side_of_plane", topo::CONTACT_RECOURSE],
+            vec!["escalated", topo::CONTACT_RECOURSE],
         ),
         (
             ContactRefusal::Undeclared { diag: in_band() },
@@ -127,23 +128,16 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
     );
 }
 
-/// The two `Dangling` lanes read as different facts — a stale or
-/// foreign handle versus a geometry reference dangling inside the
-/// body — and the keys render through the crate's own noun functions.
+/// `Dangling` reads as a stale or foreign handle, and the key renders
+/// through the crate's own noun function.
 #[test]
 fn readback_error_display_names_its_content_not_its_struct() {
     let cases = [
         (
             ReadbackError::Dangling {
-                what: DanglingRef::Entity(EntityId::Face(FaceKey::default())),
+                what: EntityId::Face(FaceKey::default()),
             },
             vec!["face", "does not resolve", "stale", "lineage"],
-        ),
-        (
-            ReadbackError::Dangling {
-                what: DanglingRef::Geometry(GeomRef::Surface(SurfaceKey::default())),
-            },
-            vec!["surface", "does not resolve", "live entity"],
         ),
         (
             ReadbackError::NoCanonicalFrame { carrier: "NURBS" },
@@ -195,7 +189,7 @@ fn together_edge_disagreement_display_is_true_at_all_three_meters() {
         // mechanisms.
         assert_f6(
             &err,
-            &["carrier", "moved surface", "endpoint", "midpoint", gap],
+            &["curve", "moved surface", "endpoint", "midpoint", gap],
             // Deliberately ONE identifier, not an enum mirror: this row
             // is about one variant's sentence being true at three
             // raising sites, so the ban list is that variant and the
