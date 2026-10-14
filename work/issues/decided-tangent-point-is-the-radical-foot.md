@@ -44,7 +44,10 @@ tangent's one point, each its owner's to weigh:
   (P2): near-concentric carriers put the foot centimetres off both
   arcs, and the chordal `arc_span` reading of that point refuses
   `TangentialContact` between arcs that are 1–3 cm apart, so the
-  radial place does decide a verdict there. The external arm takes
+  radial place does decide a verdict there. Its `a` now comes from the
+  clearances (`Circles::foot`), which takes out rounding of about
+  `u·r²/d` but keeps the point at the foot, so the amplification here
+  is unchanged. The external arm takes
   `c₁ + û·r₁` and is already gap-optimal. **This point is read as a
   location**: `crates/profile/src/validate.rs` `judge_pair` discounts a
   `Touch` only where `seg::coincident("contact_at_shared_vertex",
@@ -83,3 +86,12 @@ nothing. What moves is its radial place, which matters wherever the
 point is used as a location. The location reader found, above, is
 dominated by the angle; the span reading of the same point is not, and
 has its own item. That keeps this row at P3 for the other hits.
+
+The same formula also rounds badly at radii orders of magnitude apart,
+which is a separate defect from the foot's place: fixed in `seg.rs`'s
+secant and internal-tangent arms by
+`arc-arc-secant-arm-misses-crossings-at-unequal-radii`, and filed for
+the other sites as `circle-pair-edge-candidates-cancel-at-unequal-radii`
+(RESTFRONT), `circle-crossing-closed-forms-cancel-at-unequal-radii`
+(HONE) and `sphere-sphere-section-radius-cancels-at-unequal-radii`
+(ROOTS).

@@ -34,7 +34,8 @@ use super::BlendError;
 use super::naming::BlendNaming;
 use super::reach::Consumed;
 use super::surgery::{
-    SourceFaces, face_of_half, invariant_broken, loop_of_half, loop_walk, not_intact, op,
+    SourceFaces, disagrees, face_of_half, invariant_broken, loop_of_half, loop_walk, op,
+    unresolved, unwalked,
 };
 
 /// One feature the carve takes, read off the source.
@@ -63,11 +64,14 @@ impl Feature {
 /// Each half-edge of `lp`'s cycle ([`loop_walk`]); a lone-vertex cycle
 /// has none.
 fn halves<T: Decide>(body: &Body<T>, lp: LoopKey) -> Result<Vec<HalfEdgeKey>, BlendError> {
-    let unread = || not_intact(EntityId::Loop(lp), "a consumed feature's cycle");
-    if let LoopBoundary::Empty { .. } = body.get_loop(lp).ok_or_else(unread)?.boundary {
+    let lone = body
+        .get_loop(lp)
+        .ok_or_else(|| unresolved(EntityId::Loop(lp), "a consumed feature's cycle"))?;
+    if let LoopBoundary::Empty { .. } = lone.boundary {
         return Ok(Vec::new());
     }
-    let walk = loop_walk(body, lp).ok_or_else(unread)?;
+    let walk = loop_walk(body, lp)
+        .ok_or_else(|| unwalked(EntityId::Loop(lp), "a consumed feature's cycle"))?;
     Ok(walk.into_iter().map(|(he, _, _)| he).collect())
 }
 
@@ -75,7 +79,7 @@ fn halves<T: Decide>(body: &Body<T>, lp: LoopKey) -> Result<Vec<HalfEdgeKey>, Bl
 fn face_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<HalfEdgeKey>, BlendError> {
     let f = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a consumed feature's face"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a consumed feature's face"))?;
     let mut all = Vec::new();
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         all.extend(halves(body, lp)?);
@@ -85,7 +89,7 @@ fn face_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<HalfEdgeK
 
 /// The loop and the face of `he`'s mate.
 fn across<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<(LoopKey, FaceKey), BlendError> {
-    let unread = || not_intact(EntityId::HalfEdge(he), "a consumed feature's half-edge");
+    let unread = || unresolved(EntityId::HalfEdge(he), "a consumed feature's half-edge");
     let m = body.mate(he).ok_or_else(unread)?;
     Ok((
         loop_of_half(body, m).ok_or_else(unread)?,
@@ -131,7 +135,7 @@ pub(super) fn plan<T: Decide>(
     for (i, &face) in faces.iter().enumerate() {
         let f = body
             .get_face(face)
-            .ok_or_else(|| not_intact(EntityId::Face(face), "a consumed feature's face"))?;
+            .ok_or_else(|| unresolved(EntityId::Face(face), "a consumed feature's face"))?;
         if !f.rings.is_empty() {
             return Err(refuse());
         }
@@ -181,7 +185,7 @@ pub(super) fn plan<T: Decide>(
             for he in face_halves(body, f)? {
                 let h = body
                     .get_half_edge(he)
-                    .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a feature's half-edge"))?;
+                    .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a feature's half-edge"))?;
                 edges.push(h.edge);
                 vertices.push(h.start);
             }
@@ -232,10 +236,10 @@ fn spur<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Option<HalfEdgeKey>,
         inner = true;
         let end = body
             .half_edge_end(he)
-            .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a spur's end"))?;
+            .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a spur's end"))?;
         let valence = body
             .edges_of_vertex(end)
-            .ok_or_else(|| not_intact(EntityId::Vertex(end), "a spur's end"))?
+            .ok_or_else(|| unwalked(EntityId::Vertex(end), "a spur's end"))?
             .len();
         if valence == 1 {
             return Ok(Some(he));
@@ -324,7 +328,7 @@ pub(super) fn consume<T: Decide + topo::AtRestPolicy>(
     retire_spurs(body, cap)?;
     let lone = body
         .get_loop(ring)
-        .ok_or_else(|| not_intact(EntityId::Loop(ring), "a consumed feature's kept cycle"))?;
+        .ok_or_else(|| unresolved(EntityId::Loop(ring), "a consumed feature's kept cycle"))?;
     if !matches!(lone.boundary, LoopBoundary::Empty { .. }) {
         return Err(invariant_broken(
             EntityId::Loop(ring),
@@ -333,10 +337,10 @@ pub(super) fn consume<T: Decide + topo::AtRestPolicy>(
     }
     let outer = body
         .get_face(cap)
-        .ok_or_else(|| not_intact(EntityId::Face(cap), "a consumed feature's cap"))?
+        .ok_or_else(|| unresolved(EntityId::Face(cap), "a consumed feature's cap"))?
         .outer;
     let Some(&target) = halves(body, outer)?.first() else {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Face(cap),
             "a consumed feature's cap has no outer cycle",
         ));
