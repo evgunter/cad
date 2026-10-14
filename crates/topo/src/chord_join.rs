@@ -3751,9 +3751,15 @@ fn along_edge_spec<T: Decide>(
     (u1, u2): (VertexKey, VertexKey),
     site: ChordSite,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
-    let (JoinLane::AlongEdge, Some(edge)) = (lane, segment) else {
+    let Some(edge) = segment else {
         return Ok(None);
     };
+    // A self-loop chord along a closed edge is that edge whole in every
+    // lane: the segment is the edge, and its direction is the chord
+    // site's to decide, not a section's.
+    if !matches!(lane, JoinLane::AlongEdge) && !(u1 == u2 && closed_at(body, edge, u1, face)?) {
+        return Ok(None);
+    }
     let point = |v: VertexKey| {
         body.get_vertex(v)
             .map(|d| body.point_of(v, d))
@@ -3837,6 +3843,26 @@ fn along_edge_spec<T: Decide>(
                    and circles are copied)",
         }),
     }
+}
+
+/// Whether both ends of `edge` are copies of the site of `u`.
+fn closed_at<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    u: VertexKey,
+    face: FaceKey,
+) -> Result<bool, SplitJoinError> {
+    let Some((a, b)) = body.edge_vertices(edge) else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "the segment's edge no longer resolves",
+        });
+    };
+    let tied = null_site(body, &[u]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
+        face,
+        what: StaleSite::WHAT,
+    })?;
+    Ok(tied.contains(&a) && tied.contains(&b))
 }
 
 /// **Which way a closed edge's chord runs**, where both ends of the
