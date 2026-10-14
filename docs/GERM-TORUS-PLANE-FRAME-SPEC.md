@@ -705,8 +705,9 @@ Rows run in-crate, against `pair_section_frame_at` and
   conversion"). Its recourse differs too: the spiric quartic's is the
   torus's meeting recourse, the hyperbola's says cut all the way round.
 - **Q4 Two loops on one face pair** (answered: the germ's loop, by
-  margin). The cylinder pair's intersecting axes refuse as a pinch
-  (`GermFrameCylinderPinch`) because no one frame serves both ellipses.
+  margin). The cylinder pair's intersecting axes need a frame per
+  ellipse, because no one frame serves both: each germ carries its
+  branch, decided where it is minted.
   Here each loop has a proven frame and the germ's loop is decided
   definite at every site (§1.1), so refusing would turn away M1, B1 and
   B2 with no gain. The alternative, a frame chosen at the face's

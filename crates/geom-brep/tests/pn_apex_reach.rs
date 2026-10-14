@@ -101,6 +101,21 @@ impl Pose {
         a * self.alpha.cos() + (e1 * cu + e2 * su) * self.alpha.sin()
     }
 
+    /// The generator the plane grazes: of the two where `g·n` is
+    /// extremal over the azimuth (radial along `±` the normal's part
+    /// square to the axis), the one whose slope is nearer zero.
+    fn grazed(&self) -> Vec3<f64> {
+        let a = self.axis;
+        let across = (self.normal - a * self.normal.dot(a)).normalize();
+        let (s, c) = self.alpha.sin_cos();
+        let (up, down) = (a * c + across * s, a * c - across * s);
+        if up.dot(self.normal).abs() <= down.dot(self.normal).abs() {
+            up
+        } else {
+            down
+        }
+    }
+
     /// The plane's slope to the generator at azimuth `u`, `g(u)·n`.
     fn slope(&self, u: f64) -> f64 {
         self.generator(u).dot(self.normal)
@@ -999,12 +1014,24 @@ fn apex_outcomes_agree_with_the_oracle() {
             // The points read at the extent carry the placement's
             // rounding, `scale + extent` per unit.
             let slack = 64.0 * f64::EPSILON * (3.0 * scale + extent);
-            for l in lines {
+            for l in &lines {
                 let (off_plane, generator) = line_residuals(&pose, l, extent, slack.max(1e-12));
                 if off_plane > e * (1.0 + 1e-6) + slack || !generator {
                     contradictions.push(format!(
                         "{kind} {off_plane:e} off the plane, a generator through the apex: \
                          {generator}: {}",
+                        label()
+                    ));
+                }
+            }
+            if let [Curve3::Line { dir, .. }] = lines[..] {
+                // Both azimuths are read off the normal's part square to
+                // the axis, so each carries `f64::EPSILON/s` of it.
+                let s = pose.axis.cross(pose.normal).norm();
+                let off = dir.normalize().cross(pose.grazed()).norm();
+                if off > 1e-12 + 64.0 * f64::EPSILON / s {
+                    contradictions.push(format!(
+                        "{kind} {off:e} rad off the grazed generator: {}",
                         label()
                     ));
                 }
