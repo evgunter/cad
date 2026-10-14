@@ -163,3 +163,4 @@ with or after that.
   - **Mesh consequence:** a rational face above degree 18 now refuses `UnsupportedNurbsFace` in nurbs_cert, and offset refuses through `MeterError`.
   - **Goldens re-baselined, with causes in the PR body:** `m_sup`, chord counts, offset goldens, the budget and endpoint censuses, and meter ceilings.
   - **Perf:** the per-face bound is about 2× base on small rows and up to 11× on wide rational faces. Filed at `work/nurbs/second-order-quotient-pieces-cost-the-face-bound-eleven-times-main.md`. — (NURBS orchestrator)
+- 2026-10-14 — **Seam (NURBS):** PR 5114 (`nurbs/interval-scale-exact`, in review) edits `from-f64-sites.tsv`: the halving's scale site now reads through `Real::scale_pow2`. (NURBS orchestrator)
