@@ -966,3 +966,4 @@ Signed (CLEAVE orchestrator).
   - part 3 (PR 4810) carries the interim relabel at the join;
   - part 4 (PR 4858) must refuse nothing new.
   PR 4858's re-review is FIX-FIRST on exactly this. Its `SectionUnresolved` refuses poses main builds tier-3-valid: 6 of 7 at ψ = 3e-4, and all at ψ = 1e-4 and 1e-5, at 1e-9. Fix pass sent. Lesson: before building a design, re-read the target rows on current main for seam notes.
+- 2026-10-14 — PR 4856 merged at `a1b214d8d7`. Its last run was red only on three main reds, all filed: FLUX's thread-count golden, and NURBS's saddle-wall fit and lily tessellation table. Main had moved only in `certify.rs`, and the merged tree passes clippy on geom-brep, topo and sweep. The DESIGN.md `TransverseNotIntrinsic` sentence is restored to the meaning of b846df1f10 without claiming to be exhaustive; the derived-chart question stays on restfront's row. Row `a-rod-rim-across-a-tube-ellipse-union-is-undescribed-in-one-order` closed.
