@@ -29,3 +29,11 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), 
 - `merge_faces`' silent `false` becomes a typed refusal or a stated "unread is not mergeable" rule.
 
 Sites 4–5 are bit-identity rather than geometric questions. Whether they stay outside the table is the fix's call.
+
+## Item 3, the declared half, fixed (2026-10-14, `fuse/pair-gaps-fail-loud`)
+
+**Reproduced.** A frustum's two cone wall faces on two keys, declared one pair, gave `merge_coplanar_faces_declared` → `Ok` with no groups and no skips. The declaration was dropped unsaid.
+
+**Fixed.** `carriers_continue` now refuses a declared pair the ladder cannot read: `MergeCoplanarError::DeclaredPairUnread { f1, f2 }`, with the row `sweep/tests/curved_mergedoor.rs::a_declared_cone_pair_refuses_typed_rather_than_reading_no_glue`.
+
+**Still open.** An undeclared pair outside the inventory still reads as no glue. It cannot refuse without breaking every body with two adjacent cones of different keys, such as a revolved two-slope profile. The answer it owes needs a cone, NURBS and `Approx` rung, which is the one coincidence table this row asks for and waits on the principle.

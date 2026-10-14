@@ -583,6 +583,42 @@ fn ball(r: f64) -> Body<f64> {
         .body
 }
 
+/// A cone frustum (a revolved trapezoid whose slant meets the axis).
+fn frustum() -> Body<f64> {
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(0.5, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    revolve(&profile, axis_y(), Revolution::Full, Tol::witness())
+        .unwrap()
+        .body
+}
+
+/// Row 1⁷ (public door): a declared CONE pair — the frustum's two wall
+/// faces on two keys — is a pair the carrier ladder has no rung for
+/// (`face_carrier` is `None` for a cone). The door refuses it typed,
+/// naming the pair, where it used to read the unread pair as "no glue"
+/// and return `Ok` with the declaration silently unhonoured
+/// (`hone/carrier-coincidence-is-decided-by-seven-readings`).
+#[test]
+fn a_declared_cone_pair_refuses_typed_rather_than_reading_no_glue() {
+    let mut body = frustum();
+    assert_eq!(validate_closed(&body), Ok(()), "frustum: tier 2");
+    let (k1, k2) = two_keys_of(&mut body, SurfaceKind::Cone);
+    let before = format!("{body:?}");
+    let got = body.merge_coplanar_faces_declared(&[(k1, k2)], Tol::witness());
+    let Err(MergeCoplanarError::DeclaredPairUnread { f1, f2 }) = got else {
+        panic!("a declared cone pair: {got:?}");
+    };
+    assert_eq!(sorted(vec![f1, f2]), faces_on(&body, k1, k2));
+    assert_eq!(format!("{body:?}"), before, "the body is untouched");
+}
+
 /// A donut (a revolved circle off the axis).
 fn donut() -> Body<f64> {
     let lp = bulge_loop(vec![

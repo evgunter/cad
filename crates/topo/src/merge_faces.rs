@@ -487,6 +487,17 @@ pub enum MergeCoplanarError {
         /// The second face.
         f2: FaceKey,
     },
+    /// A declared face pair meets at an edge, and its surface kind is
+    /// one the carrier ladder has no rung for (cone, NURBS, `Approx`:
+    /// `face_carrier` describes none of them). Nothing here can read
+    /// the declaration against the geometry, so it is refused, never
+    /// read as "no glue" with the declaration silently unhonoured.
+    DeclaredPairUnread {
+        /// The pair's first face (arena order at the meeting edge).
+        f1: FaceKey,
+        /// The second face.
+        f2: FaceKey,
+    },
     /// After absorbing a group, the survivor's loops admit no unique
     /// positively-wound outline, so the outer/ring roles cannot be
     /// assigned; refused rather than guessed. The intra-face `kemr`
@@ -1162,6 +1173,14 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "the two declared faces face opposite ways across the edge they share. {}",
                 DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain(None), Reading::Build)
+            ),
+            Self::DeclaredPairUnread { f1, f2 } => write!(
+                f,
+                "merge_coplanar_faces: faces {f1:?} and {f2:?} are declared one surface, and \
+                 the kernel has no reading that compares two surfaces of their kind (it \
+                 compares planes, spheres, cylinders and tori), so the declaration cannot be \
+                 checked. Recourse: put both faces on one surface key, which glues on \
+                 identity, or leave the pair undeclared"
             ),
             Self::MergedFaceRoleAmbiguous { face, verdict } => match verdict {
                 OutlineVerdict::SeveralPositive { loops } => write!(
@@ -2486,7 +2505,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ///
     /// # Errors
     ///
-    /// The declared ladder's refusals ([`declared_pair_verdict`]); an
+    /// The declared ladder's refusals ([`declared_pair_verdict`]); a
+    /// declared pair the ladder cannot read
+    /// ([`MergeCoplanarError::DeclaredPairUnread`]); an
     /// undeclared pair's in-band reading
     /// ([`MergeDecision::Neighbours`], [`MergeDecision::NeighbourCoincidence`]).
     ///
@@ -2585,7 +2606,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
 
     /// [`Body::faces_continue`] for a pair that is not two planes: the
     /// carrier ladder's reading, declared or not, where both kinds are
-    /// in its inventory; no glue where either is outside it.
+    /// in its inventory. Where either is outside it, an undeclared pair
+    /// does not glue, and a declared one refuses
+    /// ([`MergeCoplanarError::DeclaredPairUnread`]): the declaration
+    /// names one kind for both, so it is a pair the ladder cannot read,
+    /// and reading it as "no glue" would drop the declaration unsaid.
     fn carriers_continue(
         &self,
         f1: FaceKey,
@@ -2596,6 +2621,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         let verdict =
             match crate::boolean::carrier_pair_relation(self, f1, self, f2, declared, band) {
                 Ok(verdict) => verdict,
+                Err(crate::boolean::PairUnread::OutsideInventory) if declared => {
+                    return Err(MergeCoplanarError::DeclaredPairUnread { f1, f2 });
+                }
                 Err(crate::boolean::PairUnread::OutsideInventory) => return Ok(false),
                 Err(crate::boolean::PairUnread::Extent(_)) => {
                     return Err(MergeCoplanarError::Escalated {
