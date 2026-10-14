@@ -418,6 +418,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          and `mag`",
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
+    (
+        "crates/geom-core/src/spline/blossom.rs",
+        1,
+        0,
+        "`split_restrict`'s `step` compares two whole brackets bit for bit, both \
+         ends, and returns the first where they are the same: no one-sided \
+         comparison, and a refused bracket comes back as it went in, decoration \
+         and all",
+    ),
     ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
