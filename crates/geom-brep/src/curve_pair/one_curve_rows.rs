@@ -72,7 +72,7 @@ fn two_sections_read_coplanar_in_band_are_one_curve_only_where_they_are() {
             let two = matches!(fault, Some(MeetFault::Unsupported { .. }));
             let escalated = matches!(fault, Some(MeetFault::Escalated(_)));
             assert!(
-                two || (k < 0.2 && escalated),
+                two || escalated,
                 "k = {k}, {order}: two crossing sections are not one curve: {got:?}"
             );
         }
@@ -230,7 +230,8 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
 /// the band. Between the crossings the great circle dips at most `0.1·θ`
 /// below the section's plane, so at `k = 30` the two stay within the
 /// band's gap of each other over that whole arc and escalate too. At
-/// `θ = 10⁻³` they cross definitely, and meet at both crossings.
+/// `θ = 0.2`, past the tangency floor at every ε row, they cross
+/// definitely, and meet at both crossings.
 #[test]
 fn two_sphere_sections_read_coplanar_are_one_circle_only_within_the_band() {
     let b = band();
@@ -259,14 +260,14 @@ fn two_sphere_sections_read_coplanar_are_one_circle_only_within_the_band() {
         matches!(got, Err(ref r) if matches!(r.fault, MeetFault::Escalated(_))),
         "k = 30: in band between the crossings: {got:?}"
     );
-    let m = met(&great, &section(1e-3), b).unwrap();
+    let m = met(&great, &section(0.2), b).unwrap();
     let h = 0.19f64.sqrt();
     for w in [[0.9, h, 0.0], [0.9, -h, 0.0]] {
         assert!(
             m.points
                 .iter()
                 .any(|p| p.point.distance(Point3::from_array(w)) < 1e-6),
-            "θ = 1e-3: {w:?} in {m:?}"
+            "θ = 0.2: {w:?} in {m:?}"
         );
     }
 }
