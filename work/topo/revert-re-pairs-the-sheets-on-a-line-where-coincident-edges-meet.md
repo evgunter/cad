@@ -46,6 +46,14 @@ closed form:
   floor), which `revert`'s signature cannot hand back today: it returns
   a body and no records. The door that reverts owes the record.
 
+The pinch (two solids touching along a line, its ends on shared point
+keys) re-pairs across the solids: bricks in quadrants 1 and 3 complement
+to quadrants 2 and 4, each a crease between one brick's face and the
+other's. `B − pinch` in `crates/topo/tests/pierce_strut_at_a_pinch.rs`
+(bare and reflex) and `cutter ∖ pinch` in
+`crates/topo/tests/union_flush_onto_edge_contact.rs` pin the refusal
+until this lands; their answers are the re-paired bodies.
+
 Two kissing cusps (D1's doubled cusp) re-pair as two seams; see the
 `[ev]` PR 4795 body, report A of round 2, and its question (A) on D1's
 "legal together or not at all".

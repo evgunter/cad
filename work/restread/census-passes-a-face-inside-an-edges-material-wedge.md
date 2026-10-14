@@ -60,6 +60,11 @@ Each passes tiers 3 and 3′ on `origin/main` `ebf6c05239`, at rest:
   `x = 3`, which cuts the slit (30.1125). ∖ now refuses both
   (`BooleanError::Revert`), so neither reaches the gate today; the
   check is what would catch the next door that writes one.
+- **A pinch reverted.** On main, `B − pinch` in
+  `crates/topo/tests/pierce_strut_at_a_pinch.rs` and `cutter ∖ pinch` in
+  `crates/topo/tests/union_flush_onto_edge_contact.rs` kept each brick's
+  own two faces paired on the pinch line, 270° each, and 3′ passed
+  them; ∖ refuses them now.
 - **A face inside an edge's wedge.** ∖ of a glued tip, the tool's
   records carried: topo's
   `subtracting-a-glued-tip-reverts-its-edge-on-face-line-into-the-rider-form`.

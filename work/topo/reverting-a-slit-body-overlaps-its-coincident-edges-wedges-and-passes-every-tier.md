@@ -76,6 +76,17 @@ Landed: the minimal sound form, not the re-pairing.
   split lineage (the slit cut across has its pieces' ends on new point
   keys); the single-operand fallback and the void door
   (`VoidInsertError::Revert`) refuse through `revert`.
+- The seamed finish skips a pair the classification read `On` the
+  other operand's boundary: there the join pairs the sheets with that
+  operand's faces.
+- The pinch (two bricks touching along a line, its ends on shared point
+  keys since PR 4793) is the same class. On main, `B − pinch` in
+  `pierce_strut_at_a_pinch` (bare and reflex) and `cutter ∖ pinch` in
+  `union_flush_onto_edge_contact` answered with each brick's own two
+  faces still paired on the line (measured: each result edge on the
+  z-axis bounds faces centred in one quadrant), the complement's
+  wedges overlapping, and those rows pinned it. They now pin
+  `BooleanError::Revert`.
 - Pins: `crates/topo/tests/a_doubled_line_does_not_revert.rs` at every
   pose (default, 1e-6, 1e-12 measured locally). A single cusp still
   reverts to the legal knife slit
