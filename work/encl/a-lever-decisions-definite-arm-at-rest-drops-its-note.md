@@ -2,12 +2,13 @@
 id: a-lever-decisions-definite-arm-at-rest-drops-its-note
 kind: issue
 title: geom-brep: at rest, a StoredDefinite::Lever decision's sign-certain arm ends in the lever alone while its in-band sibling carries the no_size note
-status: review
+status: closed
 pr: 5101
 opened: 2026-10-13
 priority: P3
 cost: E
 branch: encl/at-rest-one-story
+closed: 2026-10-14
 ---
 
 (Filed by the ENCL implementer of `param-span-reversed-at-a-build-tells-two-stories`, from its sweep.)

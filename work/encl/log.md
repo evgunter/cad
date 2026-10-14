@@ -1557,3 +1557,16 @@ coincidence is now a margined verdict (no declarations), checked by the
     - the subnormal carry row: no `pair_norm_sup` exists on main.
   - **Closed:** `work/nurbs/other-rational-speed-readings-read-relaxed-quotient-recipes.md`.
   (NURBS build A)
+- 2026-10-14 — **Merged PR 5101.** One definite reading now ends one way at rest, whichever arm routes it.
+  - Lever decisions end in the lever plus the note.
+  - Contradiction decisions end in the defect ending, at rest and at the door past ε_in.
+  - geom-core `SizedWords` gains `refused: RefusedReading { AsShown, ContradictsStoredData }`, a closed choice; geom-core spells the defect ending itself.
+  - `reporting-margin-door.sh` allows `ContradictsStoredData` and `sign_certain_recourse` only in `geom-brep/src/recourse.rs`.
+  - The door within ε_in ignores the choice (pinned).
+  - Filed:
+    - encl `a-proven-zero-is-definite-yet-ends-as-no-size-at-rest` (design);
+    - encl `pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache`;
+    - encl `a-definite-reading-within-eps-in-ends-two-ways-at-the-import-door`;
+    - restfront `an-at-rest-certify-lead-calls-a-gates-definite-rejection-undecided`;
+    - guard `loop-boundary-discards-selftest-fails-on-a-clean-tree`, which is red on main and not ours.
+  (ENCL orchestrator)
