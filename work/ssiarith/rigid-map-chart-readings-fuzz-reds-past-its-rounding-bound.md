@@ -34,3 +34,12 @@ Met at the default effort in a local 1e-12 run. It reproduces on main at `9f97c7
 - Case: "two-span patch" again, a rigid map about `(-0.1568, 0.9182, 0.3246)` through `(0.4462, 0.6121, -0.4581)` by 2.9171.
 - The same transverse margin moved, from 0.002672789803881874 to 0.0026727898038855606: about 3.7e-15 absolute.
 - So effort 1 meets it too, and the per-PR gate can turn red on it.
+
+## A third seed (CLEAVE, PR 4810's CI, 2026-10-14)
+
+Run 38559879516, at the default-ε row, on a branch that leaves
+`crates/geom-brep/` unchanged against main:
+
+- Reproduce with `CAD_FUZZ_SEED=0x02ca45d5a69168ee CAD_FUZZ_EFFORT=1`.
+- Case: "two-span patch" again, a rigid map about `(0.2923, 0.3162, 0.4222)`
+  through `(-0.9421, 0.2088, 1.1689)` by 3.5580.
