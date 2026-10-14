@@ -71,5 +71,13 @@ direction by about `0.1·u·|c|/r`, but that is the stored centre
 `center + d·r` rounding by `u·|c|`, and the image follows the stored
 carrier, as it must.
 
+The table is reproduced by `probe_villarceau_small_vector`
+(`geom-brep/tests/pcurve_villarceau.rs` on branch `pcert/villarceau-probe`
+@ `d0b8357e1`, not for merge; run with `--no-capture`). The review of PR
+5050 reproduced it independently (`review/5050-r` @ `5aefe397a`,
+`pcurve_cache/review_5050_probe.rs`). Its adversarial row moves the
+centre by `δ` and gets a miss of exactly `δ` at every `r`, so the image
+follows the carrier rather than any ideal direction.
+
 The suite's 260 torus `FocalSection` certificates agree: envelope /
 span miss is at most 3.6, and nothing grows with a thin tube.

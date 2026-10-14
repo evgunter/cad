@@ -93,6 +93,9 @@ miss, by at most 2.4e-14 (cone) and 5.9e-15 (torus) on positions of
 order 1 to 100. That is f64 evaluation rounding, since the envelope
 bounds the exact image's miss.
 
+The census is a one-off measurement that nothing computes with, so it
+is unguarded by design.
+
 **No new row.** The two reads that made the far side worse are each
 already guarded by rows that go red when the fix is reverted:
 - the vertex azimuth by
