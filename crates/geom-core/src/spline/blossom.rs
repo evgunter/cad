@@ -267,8 +267,15 @@ fn convex(t: Interval) -> (Interval, Interval) {
 /// exactly what it was, as [`Certification::between`] keeps it, where
 /// the plain step would widen it by `t`'s own width at every level.
 /// Sound: a convex combination of two values in one interval is in it.
+/// The same enclosure means the same ends AND the same refusal: a
+/// certified `x` beside a refused `y` with its ends takes the general
+/// step, which carries `y`'s refusal, rather than coming back
+/// certified.
 fn step(x: Interval, y: Interval, (t, s): (Interval, Interval)) -> Interval {
-    if x.lo().to_bits() == y.lo().to_bits() && x.hi().to_bits() == y.hi().to_bits() {
+    if x.lo().to_bits() == y.lo().to_bits()
+        && x.hi().to_bits() == y.hi().to_bits()
+        && x.is_certified() == y.is_certified()
+    {
         x
     } else {
         x * s + y * t
@@ -844,6 +851,37 @@ mod tests {
                     "degree {p} on [{s0}, {s1}] cut to [{a}, {b}]: {got:?} is not {c:?}"
                 );
             }
+        }
+    }
+
+    /// **A refused neighbour is not laundered by the equal arm.** A
+    /// certified `[0, 2]` beside `sqrt([-1, 4])` — the same ends, refused
+    /// (the domain clamp records `Trv`) — cut strictly inside, where
+    /// every coefficient of the cut reads both, comes back refused in
+    /// either order, as [`Certification::between`] refuses
+    /// it; the pair of certified `[0, 2]`s stays certified. Red with the
+    /// equal arm comparing ends alone: the row `[certified, refused]`
+    /// came back certified.
+    #[test]
+    fn a_refused_neighbour_with_the_same_ends_stays_refused() {
+        let ok = Interval::from_bounds(0.0, 2.0);
+        let refused = Interval::from_bounds(-1.0, 4.0).sqrt();
+        assert!(ok.is_certified() && !refused.is_certified());
+        assert!(
+            ok.lo().to_bits() == refused.lo().to_bits()
+                && ok.hi().to_bits() == refused.hi().to_bits(),
+            "the probe needs the same ends: {ok:?} {refused:?}"
+        );
+        for cut in [(0.25, 0.5), (0.5, 0.75), (0.125, 0.875), (0.375, 0.375)] {
+            for row in [[ok, refused], [refused, ok]] {
+                let got = split_restrict(&row, (0.0, 1.0), cut);
+                assert!(
+                    got.iter().all(|c| !c.is_certified()),
+                    "{row:?} cut to {cut:?} came back {got:?}"
+                );
+            }
+            let got = split_restrict(&[ok, ok], (0.0, 1.0), cut);
+            assert!(got.iter().all(|c| c.is_certified()), "{got:?}");
         }
     }
 
