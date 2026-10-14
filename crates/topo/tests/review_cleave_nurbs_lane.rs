@@ -144,7 +144,7 @@ where
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = carried(&cavity);
     let bracket = geom_core::k_stats::Bracket::open();
-    topo::insert_void(&mut dst, solid, cavity, &evidence, geom_core::Tol::witness()).expect("an M7-8 cavity inserts");
+    topo::insert_void(&mut dst, solid, cavity, &evidence).expect("an M7-8 cavity inserts");
     let verdicts = bracket.finish().verdicts;
     assert!(
         verdicts.is_empty(),
@@ -189,7 +189,7 @@ fn a_plain_cavity_through_the_void_door_decides_nothing() {
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = carried(&cavity);
     let bracket = geom_core::k_stats::Bracket::open();
-    topo::insert_void(&mut dst, solid, cavity, &evidence, geom_core::Tol::witness()).expect("inserts");
+    topo::insert_void(&mut dst, solid, cavity, &evidence).expect("inserts");
     let verdicts = bracket.finish().verdicts;
     assert!(verdicts.is_empty(), "{} verdicts", verdicts.len());
     assert_eq!(topo::validate_geometric(&dst, Tol::witness()), Ok(()));

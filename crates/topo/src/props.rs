@@ -3823,7 +3823,7 @@ mod wiring_rows {
 /// hands out a bracket door is a bound the `Bounds` scope rule's gate
 /// cannot read at its use sites, so every door that reads a bracket
 /// spells `Bounds` where the reader can see it.
-pub trait AtRestPolicy: Decide + geom_core::Bounds {
+pub trait AtRestPolicy: Decide {
     /// **This scalar's offset-fit door, or `None` where the fit is not
     /// derived here** — the ONE seam the `Some` comes from, read by
     /// check 1's tier-3 battery, the offset mint
@@ -4320,7 +4320,7 @@ where
 /// pairing obligation.
 impl<T> AtRestPolicy for geom_core::Dual<T>
 where
-    geom_core::Dual<T>: Decide + geom_core::Bounds,
+    geom_core::Dual<T>: Decide,
 {
     /// The fit is derived at `f64` only — the same reason every other
     /// arm here gives, and a separate fact from the gates below, which

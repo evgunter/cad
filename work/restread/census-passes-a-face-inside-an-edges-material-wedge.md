@@ -68,3 +68,23 @@ Each passes tiers 3 and 3′ on `origin/main` `ebf6c05239`, at rest:
 - **A face inside an edge's wedge.** ∖ of a glued tip, the tool's
   records carried: topo's
   `subtracting-a-glued-tip-reverts-its-edge-on-face-line-into-the-rider-form`.
+
+## The primitive exists (PR 5106)
+
+`census::line_wedges` reads, for one line, the material wedge of every
+line edge on it (its two face sheets, the sector rungs for convexity
+and an interior direction, `geom_brep::enters_material` for membership)
+and answers whether two wedges overlap, refusing typed (D4) where a
+reading is in band. ∖ runs it on the lines its operand's coincident
+edges name. Run over every line where coincident edges lie, it is this
+row's side check for coincident edges, and it would catch the whole
+class at the gate: CLEAVE's
+`boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none`
+lists Boolean results on main that pass every tier with overlaps of
+40° to 180°. What it does not read is a face crossing the line with no
+edge there (the rider form): that is a point-in-face question.
+
+Unverified, from PR 5106's review diagnostic (to be measured):
+`join1_r2_rand`, `join_reflex_wedge_probes`, editor-core's `emit_topo`
+`touch_reread` rows, the `offer_rows` sliver cavities, and
+`a_vertex_read_again_classes_every_edge`.

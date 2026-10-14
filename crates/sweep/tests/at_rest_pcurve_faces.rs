@@ -337,7 +337,7 @@ fn a_tilted_parallel_strut_refuses_its_certificate() {
             matches!(&m, Err(e) if certificate_refused(e)),
             "parallel tilted {tilt} at {c}: the mint refuses with it: {m:?}"
         );
-        let fr = validate_pcurves(&body.revert(geom_core::Tol::witness()).unwrap(), band());
+        let fr = validate_pcurves(&body.revert().unwrap(), band());
         assert!(
             matches!(fr.as_slice(), [e] if certificate_refused(e)),
             "parallel tilted {tilt} at {c}: reversed, the same verdict: {fr:?}"
@@ -424,7 +424,7 @@ fn a_row_shifted_a_whole_period_is_refused_at_every_position() {
                     f.iter().any(discontinuous),
                     "row {i} shifted {shift}, gap {j} (none where {j} = {i}): {f:?}"
                 );
-                let fr = validate_pcurves(&body.revert(geom_core::Tol::witness()).unwrap(), band());
+                let fr = validate_pcurves(&body.revert().unwrap(), band());
                 assert!(
                     fr.iter().any(discontinuous),
                     "row {i} shifted {shift}, gap {j}, reversed: {fr:?}"
@@ -503,7 +503,7 @@ fn a_loop_moved_a_period_over_reads_only_its_gap_at_every_position() {
             let only_gap = [PcurveMintError::MissingCache { half_edge: gap }];
             let f = validate_pcurves(&body, band());
             assert_eq!(f, only_gap, "moved {shift}, gap {j}");
-            let fr = validate_pcurves(&body.revert(geom_core::Tol::witness()).unwrap(), band());
+            let fr = validate_pcurves(&body.revert().unwrap(), band());
             assert!(
                 fr.len() == 1 && matches!(fr[0], PcurveMintError::MissingCache { .. }),
                 "moved {shift}, gap {j}, reversed: {fr:?}"

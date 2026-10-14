@@ -67,30 +67,25 @@ Measured on `origin/main` `ebf6c05239` at ε = default, 1e-6 and 1e-12
   with the slab ending at `x = 3` (the slit cut across): 30.1125, every
   tier passes.
 
-Landed: the minimal sound form, not the re-pairing.
-- `Body::revert` returns `Result<Self, RevertError>` and refuses
-  `RevertError::CoincidentEdges { edges, ends }` where two distinct
-  edges run between the same two point keys on two lines or one stored
-  curve.
-- ∖ refuses `BooleanError::Revert { operand: B, source }`: the seamed
-  finish reads the input's coincident edges through the reduction's
-  split lineage (the slit cut across has its pieces' ends on new point
-  keys); the single-operand fallback and the void door
-  (`VoidInsertError::Revert`) refuse through `revert`.
-- The seamed finish skips a pair the classification read `On` the
-  other operand's boundary: there the join pairs the sheets with that
-  operand's faces.
-- The pinch (two bricks touching along a line, its ends on shared point
-  keys since PR 4793) is the same class. On main, `B − pinch` in
-  `pierce_strut_at_a_pinch` (bare and reflex) and `cutter ∖ pinch` in
-  `union_flush_onto_edge_contact` answered with each brick's own two
-  faces still paired on the line (measured: each result edge on the
-  z-axis bounds faces centred in one quadrant), the complement's
-  wedges overlapping, and those rows pinned it. They now pin
-  `BooleanError::Revert`.
-- Pins: `crates/topo/tests/a_doubled_line_does_not_revert.rs` at every
-  pose (default, 1e-6, 1e-12 measured locally). A single cusp still
-  reverts to the legal knife slit
-  (`tier3_tests::revert_maps_the_legal_cusp_to_the_legal_slit`).
+Landed: refusals, not the re-pairing.
+- `Body::revert` refuses `RevertError::CoincidentEdges` structurally,
+  deciding nothing: two line edges on the same two point keys
+  (`census::shared_segments`). The void door and ∖'s fallbacks (B
+  whole, or a cavity nothing joins) refuse where the operand holds
+  such a line; the fallbacks first read every collinear overlap.
+- ∖'s seamed finish reads B's collinear overlaps through the split
+  lineage, and refuses `BooleanError::Revert` only where the result's
+  material wedges on the line overlap (`census::line_wedges`). Where
+  the other operand's faces meet the line the join can re-pair the
+  sheets, and two rows show it does: `a_vertex_crossing_both_sides_of_a_pinch`
+  (`cutter ∖ pinch`, one 90° edge) and the staircase's `P − X` (two
+  disjoint 90° edges) build as on main.
+- Pinned refused: the slit at every pose, the bare and reflex pinch
+  (`B − pinch`), the unequal-heights pinch, and nine
+  `union_flush_onto_edge_contact` rows whose main answers overlapped
+  (90°, 13.6° or more). The table is in PR 5106's body.
 - The re-pairing is filed as
-  `revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet`.
+  `revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet`;
+  the same overlaps built by the join from inputs that hold no line,
+  as CLEAVE's P1
+  `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none`.

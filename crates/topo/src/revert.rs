@@ -94,13 +94,16 @@
 //! would leave each edge bounding the complement of its own wedge, more
 //! than π each, and the two would overlap. That re-pairing is not built, so
 //! `revert` refuses such a body ([`RevertError::CoincidentEdges`]),
-//! naming where the line runs. It reads the line as the census's
-//! edge-edge pass does: two line edges whose interiors overlap along a
-//! positive length, whatever backs their bounds (shared point keys,
-//! records, or one edge's end resting on the other). Two curved edges on
-//! one curve are outside that reader, as they are outside the census's
-//! exact sweeps. A single cusp is one edge, so its revert, the knife
-//! slit, is unaffected.
+//! naming where the line runs. It reads the line structurally, deciding
+//! nothing: two line edges whose ends lie on the same two point keys
+//! ([`crate::census::shared_segments`]). A pair a decision would read
+//! (a bound on a record, one edge's end on the other's interior) is the
+//! boolean's to read, which holds a band: ∖ reads every collinear
+//! overlap of its operand's kept part ([`crate::census::collinear_overlaps`])
+//! and checks the result's wedges on each ([`crate::census::line_wedges`]).
+//! Two curved edges on one curve are outside both readers, as they are
+//! outside the census's exact sweeps. A single cusp is one edge, so its
+//! revert, the knife slit, is unaffected.
 //!
 //! Functional style (the plan's assumption, made concrete): `revert`
 //! takes `&self` and returns a **new body value** — the operand is
@@ -133,9 +136,10 @@
 use std::collections::BTreeSet;
 
 use geom::Surface;
-use geom_core::{Band, BandError, Bounds, Decide, Indeterminate, Point3, Real, Tol};
+use geom_core::{Indeterminate, Real};
 
 use crate::body::Body;
+use crate::census::CollinearOverlap;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey};
 use crate::geometry::CurveKey;
 use crate::live::{OPERATORS_KEEP_LINKS, Proven, dangling_link, link};
@@ -150,9 +154,7 @@ impl<T: Real> Body<T> {
     /// # Errors
     ///
     /// [`RevertError::CoincidentEdges`] where two distinct edges lie on
-    /// one line (module docs); [`RevertError::Undecided`] where the band
-    /// cannot tell whether two line edges do; [`RevertError::Band`]
-    /// where `tol` forms no band.
+    /// one segment (module docs).
     ///
     /// # Panics
     ///
@@ -161,12 +163,9 @@ impl<T: Real> Body<T> {
     /// body could not keep (D2 row 4): a body no public door leaves.
     /// Every such read precedes construction of the result.
     #[track_caller]
-    pub fn revert(&self, tol: Tol) -> Result<Self, RevertError>
-    where
-        T: Decide + Bounds,
-    {
+    pub fn revert(&self) -> Result<Self, RevertError> {
         let out = self.reverted();
-        match self.coincident_lines(tol)?.first() {
+        match crate::census::shared_segments(self).into_iter().next() {
             Some(line) => Err(line.refusal()),
             None => Ok(out),
         }
@@ -359,100 +358,71 @@ impl<T: Real> Body<T> {
         );
         out
     }
-
-    /// Every line where two distinct line edges lie (module docs): each
-    /// collinear overlap as the census reads it
-    /// ([`crate::census::collinear_overlaps`]).
-    ///
-    /// # Errors
-    ///
-    /// [`RevertError::Undecided`] and [`RevertError::Band`], as
-    /// [`Self::revert`].
-    pub(crate) fn coincident_lines(&self, tol: Tol) -> Result<Vec<CoincidentLine>, RevertError>
-    where
-        T: Decide + Bounds,
-    {
-        let band = Band::linear(tol).map_err(RevertError::Band)?;
-        let at = |p: Point3<T>| {
-            let mid = |x: T| 0.5 * (x.lo() + x.hi());
-            [mid(p.x), mid(p.y), mid(p.z)]
-        };
-        let overlaps = crate::census::collinear_overlaps(self, band)
-            .map_err(|(edges, cause)| RevertError::Undecided { edges, cause })?;
-        Ok(overlaps
-            .into_iter()
-            .map(|o| CoincidentLine {
-                edges: o.edges,
-                ends: o.ends.map(at),
-            })
-            .collect())
-    }
 }
 
-/// **A line where two distinct edges of a body lie**: the two edges, in
-/// arena order, and where their common span begins and ends, read off
-/// the scalar's bracket midpoints.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct CoincidentLine {
-    pub(crate) edges: [EdgeKey; 2],
-    pub(crate) ends: [[f64; 3]; 2],
-}
-
-impl CoincidentLine {
-    /// [`Body::revert`]'s refusal of this line.
-    pub(crate) fn refusal(self) -> RevertError {
+impl<T: Real> CollinearOverlap<T> {
+    /// The refusal naming this line: its two edges and where it runs.
+    pub(crate) fn refusal(&self) -> RevertError {
         RevertError::CoincidentEdges {
             edges: self.edges,
-            ends: self.ends,
+            from: crate::census::witness(self.ends[0]),
+            to: crate::census::witness(self.ends[1]),
         }
     }
 }
 
-/// Why [`Body::revert`] refused (closed enum, D4 ¶3).
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// Why [`Body::revert`], or ∖ on the lines it reverts, refused (closed
+/// enum, D4 ¶3).
+#[derive(Clone, Debug, PartialEq)]
 pub enum RevertError {
     /// **Two distinct edges lie on one line**, so more than two face
     /// sheets meet there and the material decides which of them pair
     /// into edges: one edge per creased wedge of material. The
     /// complement's wedges pair the sheets differently, and reversing
-    /// each face's side alone would leave both edges bounding the
+    /// each face's side alone leaves both edges bounding the
     /// complement's wedge of each, the two wedges overlapping. The
     /// re-pairing is not built, so the reversal refuses.
     CoincidentEdges {
         /// The two edges, in arena order.
         edges: [EdgeKey; 2],
-        /// Where their common span begins and ends.
-        ends: [[f64; 3]; 2],
+        /// Where their common span begins.
+        from: String,
+        /// Where it ends.
+        to: String,
     },
-    /// The band cannot tell whether two line edges lie on one line.
+    /// The band cannot tell whether two line edges lie on one line, or
+    /// how the material wedges on such a line stand.
     Undecided {
         /// The two edges, in arena order.
         edges: [EdgeKey; 2],
         /// The escalated decision.
         cause: Indeterminate,
     },
-    /// The run's tolerance forms no band.
-    Band(BandError),
+    /// A face meeting a line where two edges lie has no tangent plane
+    /// there, so the material on its side of the line has no reading.
+    NoSheet {
+        /// The two coincident edges, in arena order.
+        edges: [EdgeKey; 2],
+    },
 }
 
 impl core::fmt::Display for RevertError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let at = |[x, y, z]: &[f64; 3]| format!("({x}, {y}, {z})");
         match self {
-            Self::CoincidentEdges { ends, .. } => {
-                let [from, to] = ends;
-                let (from, to) = (at(from), at(to));
-                write!(
-                    f,
-                    "two edges lie on one line from {from} to {to}: the complement pairs the \
-                     faces meeting there differently, and that re-pairing is not built"
-                )
-            }
+            Self::CoincidentEdges { from, to, .. } => write!(
+                f,
+                "two edges lie on one line from {from} to {to}: the complement pairs the faces \
+                 meeting there differently, and that re-pairing is not built"
+            ),
             Self::Undecided { cause, .. } => write!(
                 f,
-                "whether two edges lie on one line is undecided at this tolerance: {cause}"
+                "whether two edges lie on one line, and how the material on it stands, is \
+                 undecided at this tolerance: {cause}"
             ),
-            Self::Band(e) => write!(f, "the tolerance forms no band: {e}"),
+            Self::NoSheet { .. } => write!(
+                f,
+                "a face meeting a line where two edges lie has no tangent plane there"
+            ),
         }
     }
 }
@@ -480,7 +450,7 @@ mod tests {
             before.iter().all(|s| *s),
             "the seed states sense: true and every mef derives it"
         );
-        let reverted = cube.body.revert(geom_core::Tol::witness()).unwrap();
+        let reverted = cube.body.revert().unwrap();
         let after: Vec<bool> = reverted.faces().map(|(_, f)| f.sense).collect();
         assert!(after.iter().all(|s| !*s), "every non-plane face flipped");
         // The surfaces themselves are untouched (the reversal is on the
@@ -490,7 +460,7 @@ mod tests {
             format!("{:?}", cube.body.surfaces().collect::<Vec<_>>()),
         );
         assert_eq!(
-            format!("{:?}", reverted.revert(geom_core::Tol::witness()).unwrap()),
+            format!("{:?}", reverted.revert().unwrap()),
             format!("{:?}", cube.body),
         );
     }
@@ -514,17 +484,17 @@ mod tests {
                 kept += 1;
             }
             assert_eq!(
-                format!("{:?}", reverted.revert(geom_core::Tol::witness()).unwrap()),
+                format!("{:?}", reverted.revert().unwrap()),
                 format!("{body:?}"),
                 "bitwise involution"
             );
             kept
         };
         let cube = declined_cube::<f64>(Tol::witness());
-        assert_eq!(assert_kept(&cube.body, &cube.body.revert(geom_core::Tol::witness()).unwrap()), 6);
+        assert_eq!(assert_kept(&cube.body, &cube.body.revert().unwrap()), 6);
 
         let plane = lone_plane_face();
-        assert_eq!(assert_kept(&plane, &plane.revert(geom_core::Tol::witness()).unwrap()), 1);
+        assert_eq!(assert_kept(&plane, &plane.revert().unwrap()), 1);
     }
 
     /// One plane face bounded by a single line edge (a two-half-edge
@@ -644,7 +614,7 @@ mod tests {
         ];
         for (cause, torn, fragments) in rows {
             let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-                drop(torn.revert(geom_core::Tol::witness()).unwrap());
+                drop(torn.revert().unwrap());
             }));
             for fragment in fragments.iter().map(String::as_str).chain([ROW_FOUR]) {
                 assert!(
@@ -711,7 +681,7 @@ mod tests {
         body.faces.get_mut(seed.face).unwrap().surface = copy;
         body.surfaces.remove(chart).unwrap();
         let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            drop(body.revert(geom_core::Tol::witness()).unwrap());
+            drop(body.revert().unwrap());
         }));
         for fragment in [
             format!("{}'s chart image's surface names", GeomRef::Curve(curve)),
@@ -798,7 +768,7 @@ mod tests {
             "the image has a v channel (sin t · 1): pb = {pb:?}"
         );
 
-        let reverted = body.revert(geom_core::Tol::witness()).unwrap();
+        let reverted = body.revert().unwrap();
         let mirrored = curve_of(&reverted);
         let Pcurve::Harmonic {
             p0: q0,
@@ -846,7 +816,7 @@ mod tests {
             "the certificate that travelled verbatim is the fresh run's"
         );
         assert_eq!(
-            format!("{:?}", reverted.revert(geom_core::Tol::witness()).unwrap()),
+            format!("{:?}", reverted.revert().unwrap()),
             format!("{body:?}"),
             "bitwise involution"
         );

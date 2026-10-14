@@ -834,7 +834,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
 #[test]
 fn reverting_a_sphere_moves_the_flag_and_nothing_about_the_surface() {
     let ball = common::ball();
-    let reverted = ball.revert(geom_core::Tol::witness()).unwrap();
+    let reverted = ball.revert().unwrap();
     let a = export(&ball, "ball");
     let b = export(&reverted, "ball");
     assert_ne!(a, b, "revert is visible in the text");

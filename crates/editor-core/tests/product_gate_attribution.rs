@@ -158,7 +158,7 @@ fn flip_one_face(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> usize {
 /// slot.
 fn turn_inside_out(ev: &mut Evaluation<f64>, node: RecipeNodeId) {
     let body = slot(ev, node);
-    let reversed = body.revert(geom_core::Tol::witness()).unwrap();
+    let reversed = body.revert().unwrap();
     *body = Arc::new(reversed);
 }
 

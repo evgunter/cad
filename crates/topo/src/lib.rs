@@ -203,7 +203,6 @@ pub mod replace_face;
 #[cfg(test)]
 pub(crate) mod revalue_pin;
 pub mod revert;
-pub mod wedge_probe;
 #[cfg(test)]
 mod review_d18;
 #[cfg(test)]

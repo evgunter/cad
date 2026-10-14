@@ -47,7 +47,7 @@ fn door_inserts_a_certified_cavity() {
     let (solid, _) = dst.solids().next().unwrap();
     let src_shell = cavity.shells().next().unwrap().0;
     let evidence = probed_in(&cavity);
-    let inserted = insert_void(&mut dst, solid, cavity, &evidence, geom_core::Tol::witness()).unwrap();
+    let inserted = insert_void(&mut dst, solid, cavity, &evidence).unwrap();
 
     assert_eq!(validate(&dst), Ok(()));
     assert_eq!(validate_closed(&dst), Ok(()));
@@ -80,7 +80,7 @@ fn door_accepts_carried_strict_evidence() {
             })
             .collect(),
     };
-    insert_void(&mut dst, solid, cavity, &evidence, geom_core::Tol::witness()).unwrap();
+    insert_void(&mut dst, solid, cavity, &evidence).unwrap();
     assert_eq!(dst.shells().count(), 2);
     assert_eq!(validate_closed(&dst), Ok(()));
 }
@@ -98,7 +98,7 @@ fn door_agrees_with_the_subtract_fallback() {
     );
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = probed_in(&cavity);
-    insert_void(&mut dst, solid, cavity, &evidence, geom_core::Tol::witness()).unwrap();
+    insert_void(&mut dst, solid, cavity, &evidence).unwrap();
 
     let r = subtract(&a, &b, Tol::witness()).unwrap();
     let BooleanResult::Body(bb) = r else {
@@ -121,7 +121,7 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
     let (mut dst, cavity) = outer_and_cavity();
     let (solid, _) = dst.solids().next().unwrap();
     let pristine = format!("{dst:?}");
-    let e = insert_void(&mut dst, solid, cavity, &VoidEvidence::default(), geom_core::Tol::witness()).unwrap_err();
+    let e = insert_void(&mut dst, solid, cavity, &VoidEvidence::default()).unwrap_err();
     assert!(
         matches!(e, VoidInsertError::MissingEvidence { .. }),
         "{e:?}"
@@ -143,7 +143,7 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
                 .collect(),
         };
         let pristine = format!("{dst:?}");
-        let e = insert_void(&mut dst, solid, cavity, &evidence, geom_core::Tol::witness()).unwrap_err();
+        let e = insert_void(&mut dst, solid, cavity, &evidence).unwrap_err();
         assert!(
             matches!(e, VoidInsertError::NotStrictlyContained { .. }),
             "{verdict:?}: {e:?}"
@@ -167,7 +167,7 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
                 .collect(),
         };
         let pristine = format!("{dst:?}");
-        let e = insert_void(&mut dst, solid, cavity, &evidence, geom_core::Tol::witness()).unwrap_err();
+        let e = insert_void(&mut dst, solid, cavity, &evidence).unwrap_err();
         assert!(
             matches!(e, VoidInsertError::NotStrictlyContained { .. }),
             "{sign:?}: {e:?}"
@@ -185,7 +185,7 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
     let (mut donor, donor_cavity) = outer_and_cavity();
     let (donor_solid, _) = donor.solids().next().unwrap();
     let donor_evidence = probed_in(&donor_cavity);
-    insert_void(&mut donor, donor_solid, donor_cavity, &donor_evidence, geom_core::Tol::witness()).unwrap();
+    insert_void(&mut donor, donor_solid, donor_cavity, &donor_evidence).unwrap();
     let foreign = donor.shells().nth(1).unwrap().0;
 
     let (mut dst, cavity) = outer_and_cavity();
@@ -195,7 +195,7 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
         .shells
         .push((foreign, VoidContainment::Probed(SolidContainment::In)));
     let pristine = format!("{dst:?}");
-    let e = insert_void(&mut dst, solid, cavity, &evidence, geom_core::Tol::witness()).unwrap_err();
+    let e = insert_void(&mut dst, solid, cavity, &evidence).unwrap_err();
     assert!(matches!(e, VoidInsertError::ForeignShell { .. }), "{e:?}");
     assert_eq!(
         format!("{dst:?}"),
@@ -213,7 +213,7 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
         .shells
         .push((dup, VoidContainment::Carried { sign: Sign::Zero }));
     let pristine = format!("{dst:?}");
-    let e = insert_void(&mut dst, solid, cavity, &evidence, geom_core::Tol::witness()).unwrap_err();
+    let e = insert_void(&mut dst, solid, cavity, &evidence).unwrap_err();
     assert!(
         matches!(e, VoidInsertError::DuplicateEvidence { .. }),
         "{e:?}"
@@ -255,7 +255,7 @@ fn door_refuses_a_hollow_cavity() {
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = probed_in(&hollow);
     let pristine = format!("{dst:?}");
-    let e = insert_void(&mut dst, solid, hollow, &evidence, geom_core::Tol::witness()).unwrap_err();
+    let e = insert_void(&mut dst, solid, hollow, &evidence).unwrap_err();
     assert!(
         matches!(e, VoidInsertError::HollowCavity { solid } if solid == hollow_solid),
         "{e:?}"
@@ -305,9 +305,9 @@ fn one_destination_through_either_door_reads_identically() {
         let (solid, _) = dst.solids().next().unwrap();
         let evidence = probed_in(&cavity);
         if n_ary {
-            topo::insert_voids(&mut dst, &[solid], cavity, &evidence, geom_core::Tol::witness()).unwrap();
+            topo::insert_voids(&mut dst, &[solid], cavity, &evidence).unwrap();
         } else {
-            insert_void(&mut dst, solid, cavity, &evidence, geom_core::Tol::witness()).unwrap();
+            insert_void(&mut dst, solid, cavity, &evidence).unwrap();
         }
         dst
     };
@@ -333,7 +333,7 @@ fn two_destinations_each_take_their_own_cavity() {
     assert_eq!(cavity.solids().count(), 2);
 
     let evidence = probed_in(&cavity);
-    let inserted = topo::insert_voids(&mut dst, &dst_solids, cavity, &evidence, geom_core::Tol::witness()).unwrap();
+    let inserted = topo::insert_voids(&mut dst, &dst_solids, cavity, &evidence).unwrap();
 
     assert_eq!(validate(&dst), Ok(()));
     assert_eq!(validate_closed(&dst), Ok(()));
@@ -374,17 +374,17 @@ fn a_wrong_destination_arity_refuses_typed() {
     };
 
     // Two destinations for one cavity solid.
-    let e = topo::insert_voids(&mut dst, &[solid, solid], cavity.clone(), &evidence, geom_core::Tol::witness()).unwrap_err();
+    let e = topo::insert_voids(&mut dst, &[solid, solid], cavity.clone(), &evidence).unwrap_err();
     assert_eq!(e, count(2, 1), "{e}");
 
     // None at all.
-    let e = topo::insert_voids(&mut dst, &[], cavity, &evidence, geom_core::Tol::witness()).unwrap_err();
+    let e = topo::insert_voids(&mut dst, &[], cavity, &evidence).unwrap_err();
     assert_eq!(e, count(0, 1), "{e}");
 
     // A cavity of no solid, under no destination: the counts agree and
     // still nothing would be inserted.
     let empty = VoidEvidence::default();
-    let e = topo::insert_voids(&mut dst, &[], topo::Body::new(), &empty, geom_core::Tol::witness()).unwrap_err();
+    let e = topo::insert_voids(&mut dst, &[], topo::Body::new(), &empty).unwrap_err();
     assert_eq!(e, count(0, 0), "{e}");
     assert_eq!(reading(&dst), before, "the body is untouched on all three");
 }

@@ -142,7 +142,7 @@ pub struct VoidEvidence {
 
 /// Typed refusal of [`insert_void`] (closed enum, D4 ¶3). Every
 /// refusal fires before any mutation.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum VoidInsertError {
     /// A cavity shell arrived with no containment certificate — the
     /// door never derives containment (module docs), so absence
@@ -299,14 +299,13 @@ impl VoidInserted {
 /// # Errors
 ///
 /// [`VoidInsertError`] — [`insert_voids`]'s, before any mutation.
-pub fn insert_void<T: Decide + geom_core::Bounds>(
+pub fn insert_void<T: Decide>(
     dst: &mut Body<T>,
     dst_solid: SolidKey,
     cavity: Body<T>,
     evidence: &VoidEvidence,
-    tol: geom_core::Tol,
 ) -> Result<VoidInserted, VoidInsertError> {
-    insert_voids(dst, &[dst_solid], cavity, evidence, tol)
+    insert_voids(dst, &[dst_solid], cavity, evidence)
 }
 
 /// [`insert_void`] for a cavity body holding N solids: `dst_solids`
@@ -339,17 +338,16 @@ pub fn insert_void<T: Decide + geom_core::Bounds>(
 /// Where a record of the cavity does not resolve, naming it (D2 row 4):
 /// a body no public door leaves. The graft is staged, so `dst` is
 /// unwritten when it fires.
-pub fn insert_voids<T: Decide + geom_core::Bounds>(
+pub fn insert_voids<T: Decide>(
     dst: &mut Body<T>,
     dst_solids: &[SolidKey],
     cavity: Body<T>,
     evidence: &VoidEvidence,
-    tol: geom_core::Tol,
 ) -> Result<VoidInserted, VoidInsertError> {
     if let Some((solid, _)) = cavity.solids().find(|(_, s)| s.shells.len() > 1) {
         return Err(VoidInsertError::HollowCavity { solid });
     }
-    insert_hollow_voids(dst, dst_solids, cavity, evidence, tol)
+    insert_hollow_voids(dst, dst_solids, cavity, evidence)
 }
 
 /// [`insert_voids`] admitting a hollow cavity, for the verbs that file
@@ -364,12 +362,11 @@ pub fn insert_voids<T: Decide + geom_core::Bounds>(
 /// # Errors
 ///
 /// As [`insert_voids`], less [`VoidInsertError::HollowCavity`].
-pub(crate) fn insert_hollow_voids<T: Decide + geom_core::Bounds>(
+pub(crate) fn insert_hollow_voids<T: Decide>(
     dst: &mut Body<T>,
     dst_solids: &[SolidKey],
     cavity: Body<T>,
     evidence: &VoidEvidence,
-    tol: geom_core::Tol,
 ) -> Result<VoidInserted, VoidInsertError> {
     // ---- Argument checks (pure reads, first — no mutation happens
     // unless the destinations resolve and pair with the cavity's
@@ -426,7 +423,7 @@ pub(crate) fn insert_hollow_voids<T: Decide + geom_core::Bounds>(
         };
         (dst.arena_counts(), transplant)
     };
-    let reversed = cavity.revert(tol).map_err(VoidInsertError::Revert)?;
+    let reversed = cavity.revert().map_err(VoidInsertError::Revert)?;
     let graft = graft_solids_disjoint(dst, dst_solids, &reversed).unwrap_or_else(|e| {
         unreachable!(
             "the void graft refused ({e:?}): its every argument refusal was checked above \
@@ -476,7 +473,7 @@ mod torn_cavity_rows {
         };
         let before = format!("{dst:?}");
         let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            let _ = insert_void(&mut dst, solid, cavity, &evidence, geom_core::Tol::witness());
+            let _ = insert_void(&mut dst, solid, cavity, &evidence);
         }));
         for fragment in [format!("{vertex:?}"), format!("{point:?}")] {
             assert!(report.contains(&fragment), "want {fragment:?} in: {report}");

@@ -61,16 +61,24 @@ Two kissing cusps (D1's doubled cusp) re-pair as two seams; see the
 Blocked on 4795: the pairing rule is that PR's principle, and a ruling
 for radial edges would change what the complement is.
 
-## What today's refusal does not read
+## What today's refusals read
 
-The refusal reads point keys and curve keys only, so these reach the
-naive map unrefused (none measured):
-- coincident edges whose ends are distinct point keys a vertex–vertex
-  record joins, and partial overlaps backed by vertex–edge records:
-  `revert` sees no records;
-- coincident curved edges on two curve keys, e.g. PR 4622's curved
-  keel slit if the split mints its two arcs on two keys;
-- an edge lying in a face and a face–face line touch (measured for the
-  edge in a face: `subtracting-a-glued-tip-reverts-its-edge-on-face-line-into-the-rider-form`).
+- `Body::revert` and the void door read structurally, deciding nothing
+  (the void door's contract): two line edges on the same two point
+  keys (`census::shared_segments`). A pair a record backs, or a partial
+  overlap, reaches their naive map unrefused.
+- ∖ reads every collinear overlap of its operand's kept part
+  (`census::collinear_overlaps`), partial overlaps included, and
+  refuses where the result's wedges on the line overlap
+  (`census::line_wedges`). The pinch of unequal bricks (heights 1.5 and
+  1.25, a partial overlap) is pinned refused there.
+- Coincident curved edges are outside both readers, as they are
+  outside the census's exact sweeps; PR 4622's curved keel slit is the
+  known instance, unmeasured. A curve key shared by two edges, which a
+  certified curve's own parameter span would make one arc, is minted
+  by no door.
+- An edge lying in a face and a face–face line touch: measured for the
+  edge in a face,
+  `subtracting-a-glued-tip-reverts-its-edge-on-face-line-into-the-rider-form`.
 
-The re-pairing retires the refusal and these with it.
+The re-pairing retires the refusals and these with them.

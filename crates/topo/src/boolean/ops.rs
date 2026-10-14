@@ -651,15 +651,6 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
     let result = boolean_door(op, a, b, &Glue::of(inputs), strategy, tol);
-    if std::env::var("MEASURE_WEDGES").is_ok() {
-        if let Ok(BooleanResult::Body(r)) = &result {
-            let body: &Body<T> = &r.body;
-            if let Some(b) = (body as &dyn core::any::Any).downcast_ref::<Body<f64>>() {
-                eprintln!("WEDGES {op:?}: {}", crate::wedge_probe::report(b));
-                eprintln!("LINEW {op:?}: {}", crate::wedge_probe::line_report(b));
-            }
-        }
-    }
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     result
@@ -728,6 +719,83 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     let (a, b) = (one_solid(a)?, one_solid(b)?);
     boolean_op_recut(op, &a, &b, decls, strategy, true, tol)
+}
+
+/// **∖'s check on an operand part it reverts and nothing joins
+/// afterwards**: the single-operand fallback's B whole, and the
+/// containment fallback's cavity. Each line where two of its edges lie
+/// ([`crate::census::collinear_overlaps`]) reaches the result as the
+/// reversal leaves it, so each is refused: where four or more sheets
+/// meet on a line, reversing each face's side always mis-pairs them.
+///
+/// # Errors
+///
+/// [`BooleanError::Revert`]: such a line, or one the band cannot read.
+fn no_unjoined_line<T: Decide + Bounds>(
+    body: &crate::body::Body<T>,
+    band: Band,
+) -> Result<(), BooleanError> {
+    let refused = |source| BooleanError::Revert {
+        operand: Operand::B,
+        source,
+    };
+    let lines = crate::census::collinear_overlaps(body, band)
+        .map_err(|(edges, cause)| refused(crate::RevertError::Undecided { edges, cause }))?;
+    match lines.first() {
+        Some(line) => Err(refused(line.refusal())),
+        None => Ok(()),
+    }
+}
+
+/// **∖'s check on the lines it reverted**: on each line where two
+/// edges of B's input lie ([`crate::census::collinear_overlaps`]) and
+/// the reverted part kept a piece of both (`kept`, read back through the
+/// reduction's splits), the result's material wedges
+/// ([`crate::census::line_wedges`]) must not overlap. Reversing each
+/// face's side turns the coincident edges' wedges into their
+/// complements, which overlap; where the other operand's faces meet the
+/// line the join can re-pair the sheets, and where none do the reversed
+/// pair reaches the result as it was reversed. The result says which
+/// happened.
+///
+/// # Errors
+///
+/// [`BooleanError::Revert`]: an overlap, naming B's two edges and where
+/// they run; or a reading that cannot answer.
+fn reverted_lines_disjoint<T: Decide + Bounds>(
+    result: &crate::body::Body<T>,
+    b: &crate::body::Body<T>,
+    kept: &BTreeSet<crate::entity::EdgeKey>,
+    band: Band,
+) -> Result<(), BooleanError> {
+    if kept.is_empty() {
+        return Ok(());
+    }
+    let refused = |source| BooleanError::Revert {
+        operand: Operand::B,
+        source,
+    };
+    let lines = crate::census::collinear_overlaps(b, band)
+        .map_err(|(edges, cause)| refused(crate::RevertError::Undecided { edges, cause }))?;
+    for line in lines
+        .iter()
+        .filter(|line| line.edges.iter().all(|edge| kept.contains(edge)))
+    {
+        match crate::census::line_wedges(result, line.ends, band) {
+            Ok(crate::census::LineWedges::Disjoint) => {}
+            Ok(crate::census::LineWedges::Overlap(_)) => return Err(refused(line.refusal())),
+            Err(crate::census::WedgeRefusal::Undecided(cause)) => {
+                return Err(refused(crate::RevertError::Undecided {
+                    edges: line.edges,
+                    cause,
+                }));
+            }
+            Err(crate::census::WedgeRefusal::NoSheet(_)) => {
+                return Err(refused(crate::RevertError::NoSheet { edges: line.edges }));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// `body` as the pipeline reads an operand: as is when it holds at most
@@ -869,6 +937,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     share_recorded_points(&mut body, &contacts, &coincidences)?;
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
+    reverted_lines_disjoint(&body, b, &fin.reverted_roots, band)?;
     interior_loops?;
     T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
@@ -6795,6 +6864,11 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
         (false, false) => {
             let mut body = carve_kept(&red.a, &a_keep)?;
             let b_body = carve_kept(&red.b, &b_keep)?;
+            if op == BooleanOp::Subtract {
+                // Read here: the void door decides nothing, so its own
+                // reading is structural.
+                no_unjoined_line(&b_body, band)?;
+            }
             let solid =
                 single_solid(&body).map_err(|_| desync("fallback A carve not one solid"))?;
             let graft = if op == BooleanOp::Subtract {
@@ -6813,7 +6887,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         .map(|&s| (s, voids::VoidContainment::Probed(SolidContainment::In)))
                         .collect(),
                 };
-                voids::insert_hollow_voids(&mut body, &[solid], b_body, &evidence, tol)
+                voids::insert_hollow_voids(&mut body, &[solid], b_body, &evidence)
                     .map_err(|e| match e {
                         voids::VoidInsertError::StaleSolid { .. }
                         | voids::VoidInsertError::SolidCount { .. } => unreachable!(
@@ -6941,7 +7015,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     let reduction_contacts = contacts.clone();
     let mut body = body;
     if kind == BooleanResultKind::OperandB && op == BooleanOp::Subtract {
-        body = body.revert(tol).map_err(|source| BooleanError::Revert {
+        no_unjoined_line(&body, band)?;
+        body = body.revert().map_err(|source| BooleanError::Revert {
             operand: Operand::B,
             source,
         })?;
@@ -7365,7 +7440,7 @@ mod tests {
         let lamina = pillow.flipped_face_sense_for_tests(split.face).unwrap();
         let inside_out =
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol)
-                .revert(geom_core::Tol::witness())
+                .revert()
                 .unwrap();
         let up = Vec3::new(0.0, 0.0, 1.0);
         let offset = 1e3 * tol.get().eps;
@@ -7744,7 +7819,7 @@ mod tests {
         // Complement operand (negative flux volume): its bound is
         // vacuous and must be SKIPPED — A ∩ revert(B) legitimately
         // exceeds vol(revert B); the A-side bound still applies.
-        let rev = quad_prism(&square, 0.5, Tol::witness()).revert(geom_core::Tol::witness()).unwrap();
+        let rev = quad_prism(&square, 0.5, Tol::witness()).revert().unwrap();
         volume_backstop(
             BooleanOp::Intersect,
             &cube,
@@ -7779,7 +7854,7 @@ mod tests {
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let prism = |h: f64| quad_prism(&square, h, Tol::witness());
         let (cube, small, quarter, tall) = (prism(1.0), prism(0.5), prism(0.25), prism(1.5));
-        let rev = cube.revert(geom_core::Tol::witness()).unwrap();
+        let rev = cube.revert().unwrap();
         let refuses = |op, a, b, result, which: &str| {
             let err = volume_backstop(
                 op,
@@ -7875,7 +7950,7 @@ mod tests {
         let run = |v_over_a: f64| {
             // `V = s³ − 1` over `A = 6 + 6s²`.
             let s = (1.0 + 12.0 * v_over_a).cbrt();
-            let mut result = mapped_cube::<f64>(unit(0.0, 1.0), tol).revert(geom_core::Tol::witness()).unwrap();
+            let mut result = mapped_cube::<f64>(unit(0.0, 1.0), tol).revert().unwrap();
             cube_into(&mut result, unit(5.0, s), tol);
             volume_backstop(
                 BooleanOp::Intersect,

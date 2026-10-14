@@ -92,22 +92,14 @@ fn slit_body(pose: &Pose) -> Body<f64> {
     above
 }
 
-/// Asserts `refusal` names the slit: the line runs between the points
-/// of `MEET` and [`OPEN`] at `pose`, and both its edges of `body` lie on
-/// it.
-fn names_the_slit(what: &str, body: &Body<f64>, pose: &Pose, refusal: RevertError) {
-    let RevertError::CoincidentEdges { edges, ends } = refusal else {
+/// Asserts `refusal` names the slit: both its edges of `body` run
+/// between the points of `MEET` and [`OPEN`] at `pose`.
+fn names_the_slit(what: &str, body: &Body<f64>, pose: &Pose, refusal: &RevertError) {
+    let RevertError::CoincidentEdges { edges, .. } = refusal else {
         panic!("{what}: {refusal:?}, not the coincident edges");
     };
     let near = |p: Point3<f64>, q: [f64; 3]| p.distance(pose.at(q)) < 1e-9;
-    let [p, q] = ends.map(|[x, y, z]| Point3::new(x, y, z));
-    assert!(
-        (near(p, MEET) && near(q, OPEN)) || (near(p, OPEN) && near(q, MEET)),
-        "{what}: the line runs {:?} to {:?}, not the keel",
-        at(p),
-        at(q)
-    );
-    for edge in edges {
+    for &edge in edges {
         let he = body.get_edge(edge).unwrap().he_plus;
         let ends = [
             body.get_half_edge(he).unwrap().start,
@@ -115,8 +107,8 @@ fn names_the_slit(what: &str, body: &Body<f64>, pose: &Pose, refusal: RevertErro
         ]
         .map(|v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap());
         assert!(
-            ends.iter().all(|&e| near(e, MEET) || near(e, OPEN)),
-            "{what}: {edge:?} runs {:?}, off the keel",
+            ends.iter().any(|&e| near(e, MEET)) && ends.iter().any(|&e| near(e, OPEN)),
+            "{what}: {edge:?} runs {:?}, not the keel",
             ends.map(at)
         );
     }
@@ -136,10 +128,10 @@ fn the_split_slit_body_is_legal_and_refuses_to_revert() {
             "{what}: tier 3′"
         );
         let refusal = body
-            .revert(geom_core::Tol::witness())
+            .revert()
             .err()
             .unwrap_or_else(|| panic!("{what}: the slit body reverted"));
-        names_the_slit(what, &body, &pose, refusal);
+        names_the_slit(what, &body, &pose, &refusal);
     }
 }
 
@@ -213,11 +205,39 @@ fn a_slit_cavity_refuses_before_the_destination_is_written() {
                 .map(|(s, _)| (s, VoidContainment::Probed(topo::SolidContainment::In)))
                 .collect(),
         };
-        let refusal = match insert_void(&mut dst, solid, cavity.clone(), &evidence, geom_core::Tol::witness()) {
+        let refusal = match insert_void(&mut dst, solid, cavity.clone(), &evidence) {
             Err(VoidInsertError::Revert(refusal)) => refusal,
             other => panic!("{what}: {other:?}, not the revert's refusal"),
         };
-        names_the_slit(what, &cavity, &pose, refusal);
+        names_the_slit(what, &cavity, &pose, &refusal);
         assert_eq!(format!("{dst:?}"), before, "{what}: the destination moved");
+    }
+}
+
+/// **A pinch of two bricks of unequal heights does not revert through
+/// ∖ either.** Bricks over quadrants 1 and 3 touch along the z-axis,
+/// the first to `z = 1.5`, the second to `z = 1.25`: the touch is a
+/// partial collinear overlap whose upper bound is the second brick's
+/// vertex on the first's edge, not one point key. `B − pinch`, with `B`
+/// the box `[−0.5, 0.5]² × [0, 1]`, keeps the touch inside `B`, where
+/// the complement pairs the two bricks' faces across them; the reversed
+/// pair would bound 270° each, and ∖ refuses.
+#[test]
+fn a_pinch_of_unequal_bricks_refuses_its_revert_through_subtract() {
+    for pose in poses() {
+        let what = pose.label;
+        let q1 = posed_box(what, [(0.0, 1.0), (0.0, 1.0), (0.5, 1.5)], &pose, t());
+        let q3 = posed_box(what, [(-1.0, 0.0), (-1.0, 0.0), (0.5, 1.25)], &pose, t());
+        let BooleanResult::Body(pinch) = topo::union(&q1, &q3, t()).unwrap() else {
+            panic!("{what}: the pinch is empty");
+        };
+        let b = posed_box(what, [(-0.5, 0.5), (-0.5, 0.5), (0.0, 1.0)], &pose, t());
+        match subtract(&b, &pinch.body, t()) {
+            Err(BooleanError::Revert {
+                operand: Operand::B,
+                source: RevertError::CoincidentEdges { .. },
+            }) => {}
+            other => panic!("{what}: B − pinch: {other:?}, not the revert's refusal"),
+        }
     }
 }

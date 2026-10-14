@@ -481,7 +481,7 @@ fn a_declared_seat_with_a_keel_is_probed() {
 fn a_solid_whose_cavity_crosses_its_wall_blocks_its_pair() {
     let mut body = block((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
     let cavity = block((2.0, 4.0), (1.0, 2.0), (0.25, 0.75))
-        .revert(geom_core::Tol::witness())
+        .revert()
         .unwrap();
     topo::graft_disjoint(&mut body, &cavity).unwrap();
     let mut body = body.with_solids_merged_for_tests();
@@ -509,7 +509,7 @@ fn hollow(outer: [(f64, f64); 3], void: [(f64, f64); 3]) -> Body<f64> {
             .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
             .collect(),
     };
-    insert_void(&mut body, solid, hole, &evidence, geom_core::Tol::witness()).unwrap();
+    insert_void(&mut body, solid, hole, &evidence).unwrap();
     body
 }
 

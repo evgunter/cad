@@ -1841,7 +1841,7 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
     let kiss = kiss_edge(&p);
-    let reverted = p.body.revert(geom_core::Tol::witness()).unwrap();
+    let reverted = p.body.revert().unwrap();
     assert_eq!(validate(&reverted), Ok(()));
     assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
     assert_eq!(
@@ -1863,7 +1863,7 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     // this body's wedges.
     // Bit-faithful: revert is an involution, so the pair really is one
     // body read two ways.
-    let back = reverted.revert(geom_core::Tol::witness()).unwrap();
+    let back = reverted.revert().unwrap();
     assert_eq!(
         crate::fixtures::deep_snapshot(&back),
         crate::fixtures::deep_snapshot(&p.body)
@@ -3109,7 +3109,7 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
         (Outer, Outer),
         "upright: the roles"
     );
-    let inverted = upright.revert(geom_core::Tol::witness()).unwrap();
+    let inverted = upright.revert().unwrap();
     let solid = inverted.solids().next().expect("one solid").0;
     assert_eq!(
         validate_geometric(&inverted, tol),
@@ -3164,7 +3164,7 @@ fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
         Void,
         "the premise: read with no lane, the upright slab's rounded sum calls it a cavity"
     );
-    let inverted = upright.revert(geom_core::Tol::witness()).unwrap();
+    let inverted = upright.revert().unwrap();
     for (body, want) in [(&upright, Outer), (&inverted, Void)] {
         let classified = crate::classify_shells(body, tol).expect("the shell classifies")[0].role;
         let gate = crate::census::gate_role(body, shell, band, tol);
@@ -3188,7 +3188,7 @@ fn an_inside_out_slab_just_past_the_band_is_refused() {
     let band = geom_core::Band::linear(tol).expect("a band");
     let t = 4.0 * band.escalate();
     for far in [0.0, 1e3, 5e3] {
-        let inverted = far_anchored_slab(0.0, 1e-3, t, far, tol).revert(geom_core::Tol::witness()).unwrap();
+        let inverted = far_anchored_slab(0.0, 1e-3, t, far, tol).revert().unwrap();
         let solid = inverted.solids().next().expect("one solid").0;
         assert_eq!(
             validate_geometric(&inverted, tol),
@@ -3529,7 +3529,7 @@ fn far_thin_half_disc_reads(far: bool, tol: Tol) {
     }
     // Check 7 on the inside-out body first: an enclosure that lets it
     // pass is the defect this row exists to see.
-    let inverted = upright.revert(geom_core::Tol::witness()).unwrap();
+    let inverted = upright.revert().unwrap();
     let solid = inverted.solids().next().expect("one solid").0;
     assert_eq!(
         validate_geometric(&inverted, tol),
@@ -3571,7 +3571,7 @@ fn check_10_reads_every_shell_s_role_or_refuses_the_solid() {
         cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
         let mut slab = far_anchored_slab(3.0, 1e-3, t, 1e3, tol);
         if inside_out {
-            slab = slab.revert(geom_core::Tol::witness()).unwrap();
+            slab = slab.revert().unwrap();
         }
         crate::graft_disjoint_all_keyed(&mut body, &slab).expect("the slab grafts");
         let [keeper, donor] = solids_of(&body)[..] else {
@@ -3636,7 +3636,7 @@ fn the_census_gate_finds_a_far_slab_nested_in_another_solid() {
     let band = geom_core::Band::linear(tol).expect("a band");
     let mut body = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
     let cavity = crate::test_support::brick::<f64>((5e-3, 6e-3), (0.0, 1e-3), (0.0, 1e-3), tol)
-        .revert(geom_core::Tol::witness())
+        .revert()
         .unwrap();
     crate::graft_disjoint_all_keyed(&mut body, &cavity).expect("the graft");
     body.merge_all_solids().expect("one solid");

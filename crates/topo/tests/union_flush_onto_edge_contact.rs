@@ -451,12 +451,16 @@ fn keys_at(body: &Body<f64>, p: (f64, f64, f64)) -> Vec<topo::VertexKey> {
 /// Each op of `pinch` and `cutter`, in both operand orders and with
 /// `carried` as the pinch's own records, builds at its volume and
 /// passes 3′: `pinch ∪ cutter`, `pinch ∖ cutter`, `pinch ∩ cutter` and
-/// `cutter ∖ pinch`.
+/// `cutter ∖ pinch`. A `cutter ∖ pinch` given no volume refuses
+/// `BooleanError::Revert` instead: the result would carry the pinch's
+/// coincident edges with overlapping wedges, where the complement pairs
+/// the two bricks' faces across them.
 fn every_op_builds(
     pinch: &AtRestBody<f64>,
     carried: &topo::OperandRecords,
     cutter: &AtRestBody<f64>,
-    [union, pinch_less, common, cutter_less]: [f64; 4],
+    [union, pinch_less, common]: [f64; 3],
+    cutter_less: Option<f64>,
     tol: Tol,
 ) {
     let ab = BooleanInputs {
@@ -469,18 +473,26 @@ fn every_op_builds(
     };
     for (op, got, want) in topo::test_support::ops_under_test(|| {
         [
-            ("pinch ∪ cutter", union_in(pinch, cutter, &ab, tol), union),
+            (
+                "pinch ∪ cutter",
+                union_in(pinch, cutter, &ab, tol),
+                Some(union),
+            ),
             (
                 "pinch ∖ cutter",
                 subtract_in(pinch, cutter, &ab, tol),
-                pinch_less,
+                Some(pinch_less),
             ),
             (
                 "pinch ∩ cutter",
                 intersect_in(pinch, cutter, &ab, tol),
-                common,
+                Some(common),
             ),
-            ("cutter ∪ pinch", union_in(cutter, pinch, &ba, tol), union),
+            (
+                "cutter ∪ pinch",
+                union_in(cutter, pinch, &ba, tol),
+                Some(union),
+            ),
             (
                 "cutter ∖ pinch",
                 subtract_in(cutter, pinch, &ba, tol),
@@ -489,10 +501,23 @@ fn every_op_builds(
             (
                 "cutter ∩ pinch",
                 intersect_in(cutter, pinch, &ba, tol),
-                common,
+                Some(common),
             ),
         ]
     }) {
+        let Some(want) = want else {
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::Revert {
+                        operand: topo::Operand::B,
+                        ..
+                    })
+                ),
+                "{op}: {got:?}, not the revert's refusal"
+            );
+            continue;
+        };
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
@@ -548,7 +573,8 @@ fn a_vertex_crossing_both_sides_of_a_pinch_builds_in_every_op() {
         &pinch.body,
         &carried,
         &wedge(80.0, 190.0, (0.5, 1.0), tol),
-        [2.0 + outside, 2.0 - inside, inside, outside],
+        [2.0 + outside, 2.0 - inside, inside],
+        Some(outside),
         tol,
     );
 }
@@ -653,8 +679,8 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
             pinch_volume + cutter_volume - common,
             pinch_volume - common,
             common,
-            cutter_volume - common,
         ],
+        None,
         tol,
     );
 }
@@ -912,12 +938,8 @@ fn a_pinch_line_flat_in_the_shared_corners_face_builds_in_every_op() {
         &pinch.body,
         &carried,
         &sheared_wedge(shear, tol),
-        [
-            2.0 + cutter_volume - common,
-            2.0 - common,
-            common,
-            cutter_volume - common,
-        ],
+        [2.0 + cutter_volume - common, 2.0 - common, common],
+        None,
         tol,
     );
 }
@@ -1344,6 +1366,19 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
         ]
     }) {
         let op = format!("{op} (notch {notch:?})");
+        if op.starts_with("prism ∖ pinch") {
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::Revert {
+                        operand: topo::Operand::B,
+                        ..
+                    })
+                ),
+                "{op}: {got:?}, not the revert's refusal"
+            );
+            continue;
+        }
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
@@ -1796,7 +1831,9 @@ fn lens_volumes(
 
 /// A lens `y`, built in the `order` named, against the cube's corner:
 /// each op builds at its share of `[common, y]` ([`lens_volumes`]) and
-/// passes 3′ with `y`'s records carried.
+/// passes 3′ with `y`'s records carried, but `cube ∖ y`, which refuses
+/// `BooleanError::Revert`: `y`'s coincident struts lie inside the cube,
+/// and the result would carry them with overlapping wedges.
 fn lens_against_the_cube(
     y: &BooleanBody<f64>,
     [common, y_volume]: [f64; 2],
@@ -1809,10 +1846,22 @@ fn lens_against_the_cube(
         "y = {order}: volume {got}, want {y_volume}"
     );
     for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
+        if op == "cube ∖ y" {
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::Revert {
+                        operand: topo::Operand::B,
+                        ..
+                    })
+                ),
+                "cube ∖ y (y = {order}): {got:?}, not the revert's refusal"
+            );
+            continue;
+        }
         let volume = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
-            "cube ∖ y" => 1.0 - common,
             _ => common,
         };
         let op = format!("{op} (y = {order})");

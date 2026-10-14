@@ -3446,16 +3446,17 @@ pub enum BooleanError {
     /// piece, and the result is not handed back under a guessed
     /// grouping.
     Pieces(crate::pieces::PieceSortError),
-    /// ∖ reverts an operand's kept part ([`crate::Body::revert`]), and
-    /// that part does not revert: two of its edges lie on one line, and
-    /// the complement pairs the faces meeting there differently, which
-    /// is not built.
+    /// ∖ reverts an operand's kept part, two of whose edges lie on one
+    /// line, and the complement pairs the faces meeting there
+    /// differently: the result would carry the pair with overlapping
+    /// material wedges ([`crate::census::line_wedges`]), or nothing
+    /// joins the reverted part to re-pair them. The re-pairing is not
+    /// built.
     Revert {
         /// The operand reverted.
         operand: Operand,
-        /// The revert's refusal: the two coincident edges in the
-        /// operand's own keys where the operand holds them, else in its
-        /// working clone's.
+        /// The refusal: the two coincident edges in the operand's own
+        /// keys, and where their line runs.
         source: crate::revert::RevertError,
     },
 }
@@ -8019,7 +8020,8 @@ mod tests {
                 operand: Operand::B,
                 source: crate::revert::RevertError::CoincidentEdges {
                     edges: [edge, edge],
-                    ends: [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
+                    from: "(0.0, 1.0, 2.0)".to_owned(),
+                    to: "(3.0, 4.0, 5.0)".to_owned(),
                 },
             },
         ]

@@ -63,6 +63,12 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     pub graft: GraftMap,
     /// The faces the selection discarded (`BooleanNaming::discards`).
     pub discards: Vec<DiscardRow>,
+    /// Under ∖, the edges of B's input the reverted part keeps a piece
+    /// of, read back through the reduction's splits: the clone's piece
+    /// ends sit on point keys of their own, and the clone holds
+    /// coincident edges of its own where the other operand's lie in its
+    /// faces, so ∖'s lines are read on the input and kept through these.
+    pub reverted_roots: BTreeSet<crate::entity::EdgeKey>,
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -272,16 +278,12 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         .map_err(|_| desync("carving the kept B component failed"))?;
 
     // ---- ∖: revert the kept B side (Eq. 15.1's (BinA)⁻¹). ----
+    let mut reverted_roots = BTreeSet::new();
     if op == BooleanOp::Subtract {
-        let refused = |source| BooleanError::Revert {
-            operand: Operand::B,
-            source,
-        };
-        if let Some(line) =
-            kept_coincident_line(b_pristine, &b_kept, &red.edge_splits, tol).map_err(refused)?
-        {
-            return Err(refused(line.refusal()));
-        }
+        reverted_roots = b_kept
+            .edges()
+            .map(|(edge, _)| red.edge_splits.root(Operand::B, edge))
+            .collect();
         b_kept = b_kept.reverted();
     }
 
@@ -419,46 +421,8 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         vertex_map,
         graft,
         discards,
+        reverted_roots,
     })
-}
-
-/// The first line of `input`'s coincident edges
-/// ([`Body::revert`]'s refusal) both of whose edges keep a piece in
-/// `kept`, the part of `input`'s working clone ∖ reverts. The clone is
-/// read through its input: the reduction splits edges where the other
-/// operand's faces cross them, minting each piece's ends on point keys
-/// of its own; and the clone holds coincident edges of its own where the
-/// other operand's coincident edges lie in its faces, which is that
-/// operand's line, not this one's.
-///
-/// # Errors
-///
-/// [`crate::RevertError::Undecided`] and [`crate::RevertError::Band`],
-/// read on `input`.
-fn kept_coincident_line<T: Decide + geom_core::Bounds>(
-    input: &Body<T>,
-    kept: &Body<T>,
-    splits: &super::EdgeSplits,
-    tol: Tol,
-) -> Result<Option<crate::revert::CoincidentLine>, crate::RevertError> {
-    let lines = input.coincident_lines(tol)?;
-    if std::env::var("NO_PRECHECK").is_ok() || lines.is_empty() {
-        return Ok(None);
-    }
-    let roots: BTreeSet<_> = kept
-        .edges()
-        .map(|(edge, _)| splits.root(Operand::B, edge))
-        .collect();
-    let found = lines
-        .into_iter()
-        .find(|line| line.edges.iter().all(|edge| roots.contains(edge)));
-    if std::env::var("NO_PRECHECK2").is_ok() {
-        if let Some(l) = found {
-            crate::wedge_probe::PROBE_LINE.with(|p| *p.borrow_mut() = Some(l.ends));
-        }
-        return Ok(None);
-    }
-    Ok(found)
 }
 
 /// The one result key `kept` holds, if it holds exactly one.
