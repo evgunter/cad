@@ -1281,8 +1281,8 @@ enum Shows {
     /// Past the band wholly on sides the decision refuses: a decided sign
     /// it cannot use, which shows no size as [`Shows::NoSize`] does and
     /// ends as it does, save where the caller's words say it contradicts
-    /// stored data ([`RefusedSign::ContradictsStoredData`]).
-    /// The only class that reads [`SizedWords::refused`].
+    /// stored data ([`RefusedReading::ContradictsStoredData`]); the only
+    /// class that reads [`SizedWords::refused`].
     Refused,
     /// Poisoned.
     Unreadable,
@@ -1362,20 +1362,21 @@ pub struct SizedWords<'a> {
     /// [`UNREADABLE_STORED_MARGIN_NOTE`] over stored geometry).
     pub unreadable: &'a str,
     /// What a decided sign the decision refuses means to the caller
-    /// ([`RefusedSign`]): read only where the reading shows one
+    /// ([`RefusedReading`]): read only where the reading shows one
     /// ([`MarginDiag::sized_recourse`] past the band, and
     /// [`SizedWords::sign_certain_recourse`]).
-    pub refused: RefusedSign,
+    pub refused: RefusedReading,
 }
 
 /// **What a decided sign its decision refuses means to the caller**
 /// ([`SizedWords::refused`]): the one choice a caller makes about such a
 /// reading's ending. The ending's words are geom-core's either way.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RefusedSign {
-    /// Nothing more than it shows: no size, so it ends as a reading that
-    /// shows none does, in the lever and [`SizedWords::no_size`].
-    NoSize,
+pub enum RefusedReading {
+    /// Nothing more than its class shows: no size, so it ends as a
+    /// reading that shows none does, in the lever and
+    /// [`SizedWords::no_size`].
+    AsShown,
     /// The caller knows the decision's inputs are data it holds stored,
     /// which no decided refused sign agrees with: the reading contradicts
     /// that data, and it ends in [`KERNEL_OR_FILE_DEFECT_ENDING`]
@@ -1412,8 +1413,8 @@ impl Shows {
                  {v:e} m"
             ),
             Self::Refused => match refused {
-                RefusedSign::NoSize => lever_recourse(lever, no_size),
-                RefusedSign::ContradictsStoredData => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
+                RefusedReading::AsShown => lever_recourse(lever, no_size),
+                RefusedReading::ContradictsStoredData => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
             },
             Self::NoSize => lever_recourse(lever, no_size),
             Self::Floor => lever_recourse(lever, Some(&floor_note(size))),
@@ -2494,7 +2495,7 @@ impl Indeterminate {
                 passes: self.passes(),
                 no_size: None,
                 unreadable,
-                refused: RefusedSign::NoSize,
+                refused: RefusedReading::AsShown,
             },
         )
     }
@@ -2958,7 +2959,7 @@ mod tests {
             passes: SizedPass::Positive,
             no_size: Some("N"),
             unreadable: "U",
-            refused: RefusedSign::NoSize,
+            refused: RefusedReading::AsShown,
         };
         let want = "Recourse: L; N";
         assert_eq!(words.sign_certain_recourse(), want, "no reading kept");
@@ -2991,8 +2992,8 @@ mod tests {
             refused,
         };
         let (plain, stored) = (
-            words(RefusedSign::NoSize),
-            words(RefusedSign::ContradictsStoredData),
+            words(RefusedReading::AsShown),
+            words(RefusedReading::ContradictsStoredData),
         );
         let margins = [
             MarginDiag::value(5e-9),
@@ -3036,6 +3037,57 @@ mod tests {
         assert_eq!(stored.sign_certain_recourse(), KERNEL_OR_FILE_DEFECT_ENDING);
     }
 
+    /// **Within ε_in the import door ignores what the caller knows of a
+    /// refused reading** ([`MarginDiag::sized_recourse_in_file`]): a
+    /// reading whose every point lies within the file's coincidence
+    /// distance ends in the door's sentence and the lever, under either
+    /// [`RefusedReading`], with no note and no defect ending, whether it
+    /// is refused past the band, in band showing no size, or past the
+    /// band on the passing side; past ε_in the refused reading reads the
+    /// choice as [`MarginDiag::sized_recourse`] does. Red if the door's
+    /// within-ε_in arm reads the choice.
+    #[test]
+    fn within_eps_in_the_door_ignores_what_the_caller_knows_of_a_refused_reading() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let file = FileCoincidence::new(1e-6);
+        let words = |refused| SizedWords {
+            lever: "L",
+            size: "length",
+            passes: SizedPass::Positive,
+            no_size: Some("N"),
+            unreadable: "U",
+            refused,
+        };
+        let within = "This length is within the file's declared coincidence distance ε_in = \
+                      1e-6 m, so the file cannot tell it from zero. Recourse: L";
+        for refused in [
+            RefusedReading::AsShown,
+            RefusedReading::ContradictsStoredData,
+        ] {
+            for margin in [
+                MarginDiag::value(-5e-8),
+                MarginDiag::enclosure(-5e-8, -2e-8),
+                MarginDiag::value(-5e-10),
+                MarginDiag::value(5e-8),
+            ] {
+                assert_eq!(
+                    margin.sized_recourse_in_file(band, words(refused), file),
+                    within,
+                    "{refused:?} over {margin:e}"
+                );
+            }
+        }
+        let past = MarginDiag::value(-1e-3);
+        assert_eq!(
+            past.sized_recourse_in_file(band, words(RefusedReading::AsShown), file),
+            "Recourse: L; N"
+        );
+        assert_eq!(
+            past.sized_recourse_in_file(band, words(RefusedReading::ContradictsStoredData), file),
+            KERNEL_OR_FILE_DEFECT_ENDING
+        );
+    }
+
     /// The sentence the reporting margin gives a sized decision: the
     /// valued offer where a smaller tolerance decides the margin passing
     /// and the door may name one, else the lever with the caller's note,
@@ -3050,7 +3102,7 @@ mod tests {
             passes: SizedPass::Positive,
             no_size,
             unreadable: "u",
-            refused: RefusedSign::NoSize,
+            refused: RefusedReading::AsShown,
         };
         let offer = "Recourse: L, or, if this length is intended, tighten the tolerance below \
                      5e-11 m";
@@ -3124,7 +3176,7 @@ mod tests {
             passes: SizedPass::Positive,
             no_size: Some("n"),
             unreadable: "u",
-            refused: RefusedSign::NoSize,
+            refused: RefusedReading::AsShown,
         };
         // The largest margin whose deciding tolerance in `band` is
         // exactly ε_min, found by ulp search.
@@ -3271,7 +3323,7 @@ mod tests {
             passes: SizedPass::Positive,
             no_size: Some("n"),
             unreadable: "u",
-            refused: RefusedSign::NoSize,
+            refused: RefusedReading::AsShown,
         };
         let file = FileCoincidence::new(1e-8);
         let head = "This length is within the file's declared coincidence distance ε_in = 1e-8 m, \
@@ -3367,7 +3419,7 @@ mod tests {
             passes: SizedPass::Positive,
             no_size: Some("n"),
             unreadable: "u",
-            refused: RefusedSign::NoSize,
+            refused: RefusedReading::AsShown,
         };
         let at = |eps_in| FileCoincidence::new(eps_in);
         // Wholly within ε_in, the size is one the file cannot tell from

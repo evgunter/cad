@@ -5406,7 +5406,7 @@ mod tests {
                     passes: geom_core::SizedPass::NonZero,
                     no_size: None,
                     unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
-                    refused: geom_core::RefusedSign::NoSize,
+                    refused: geom_core::RefusedReading::AsShown,
                 },
             );
             assert!(
@@ -6173,7 +6173,7 @@ mod tests {
                 passes: geom_core::SizedPass::Positive,
                 no_size: None,
                 unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
-                refused: geom_core::RefusedSign::NoSize,
+                refused: geom_core::RefusedReading::AsShown,
             },
         );
         assert!(

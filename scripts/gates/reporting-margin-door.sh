@@ -45,7 +45,7 @@
 #
 # THE DEFECT CHOICE IS A FOURTH LIST. A sized decision's caller may say
 # a decided refused sign contradicts the stored data its decision reads
-# (`RefusedSign::ContradictsStoredData`), which turns that reading's
+# (`RefusedReading::ContradictsStoredData`), which turns that reading's
 # ending into the kernel-or-file defect ending; and the sign-certain arm
 # asks the refused class's ending without a reading
 # (`SizedWords::sign_certain_recourse`). Both belong to the one table
@@ -73,6 +73,10 @@
 # production source text, so:
 #   * a call reached through a macro, or a re-export or `use … as`
 #     alias under another name, is invisible to it;
+#   * so is a glob import of the stored-contradiction choice:
+#     `use geom_core::RefusedReading::*;` followed by a bare
+#     `ContradictsStoredData` escapes the definite-ending count, which
+#     matches the variant only under its enum's name;
 #   * so is a path spelled with whitespace inside it —
 #     `MarginDiag :: value(`, or the path split across lines — since
 #     the matcher reads each record's text as written;
@@ -132,7 +136,7 @@ SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z
 DEFINITE_ALLOWLIST=(
   'crates/geom-brep/src/recourse.rs 2 the sized-decision table: SizedDecision::words picks the stored-contradiction choice once for both routes, and the sign-certain arm asks the refused class ending through those words'
 )
-DEFINITE_RE='(RefusedSign::ContradictsStoredData|sign_certain_recourse)([^A-Za-z0-9_]|$)'
+DEFINITE_RE='(RefusedReading::ContradictsStoredData|sign_certain_recourse)([^A-Za-z0-9_]|$)'
 
 # `path count why` — production files that may write the classifier's
 # verdict `terminal_sliver: true` on an escalation of their own. None:
@@ -413,7 +417,7 @@ plant_sentence_oracle_outside() {
 # The stored-contradiction choice made outside the sized-decision table.
 plant_definite_choice_outside() {
   mkdir -p "$1/crates/topo/src"
-  printf 'fn f(w: SizedWords) -> SizedWords { SizedWords { refused: RefusedSign::ContradictsStoredData, ..w } }\n' \
+  printf 'fn f(w: SizedWords) -> SizedWords { SizedWords { refused: RefusedReading::ContradictsStoredData, ..w } }\n' \
     > "$1/crates/topo/src/props.rs"
 }
 
@@ -449,7 +453,7 @@ gate_selftest() {
   gate_selftest_case "sized_recourse_in_file asked outside the allowlisted sites" plant_sized_in_file_oracle_outside
   gate_selftest_case ": sized_recourse_in_file asked outside the allowlisted sites" plant_long_in_file_oracle_outside
   gate_selftest_case "terminal_sliver: true written outside the classifier" plant_forged_sliver
-  gate_selftest_case "RefusedSign::ContradictsStoredData spelled outside the allowlisted sites" plant_definite_choice_outside
+  gate_selftest_case "RefusedReading::ContradictsStoredData spelled outside the allowlisted sites" plant_definite_choice_outside
   gate_selftest_case "sign_certain_recourse spelled outside the allowlisted sites" plant_sign_certain_outside
   gate_selftest_passes "the definition, the allowlisted calls and mints, a test module's, the poison constant and prose" gate_plant_clean
   gate_selftest_homes --narrowed --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"

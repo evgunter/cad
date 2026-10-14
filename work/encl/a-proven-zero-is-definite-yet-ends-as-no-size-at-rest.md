@@ -1,7 +1,7 @@
 ---
 id: a-proven-zero-is-definite-yet-ends-as-no-size-at-rest
 kind: issue
-title: geom-core/geom-brep: a symbolic-tier proven zero classes NoSize, so at rest it never takes RefusedSign::ContradictsStoredData; a proved-zero ParamSpan ends in lever plus note while a reversed span ends in the defect ending
+title: geom-core/geom-brep: a symbolic-tier proven zero classes NoSize, so at rest it never takes RefusedReading::ContradictsStoredData; a proved-zero ParamSpan ends in lever plus note while a reversed span ends in the defect ending
 status: open
 opened: 2026-10-14
 ---
@@ -11,7 +11,7 @@ opened: 2026-10-14
 
 ## What
 
-PR 5101 made a definite refused reading end one way at rest whichever arm routes it. The ending reads the reading's class (`Shows`, `crates/geom-core/src/predicate.rs`) and the decision's `StoredDefinite` (`crates/geom-brep/src/recourse.rs`, `SizedDecision::words`). Only `Shows::Refused` reads `SizedWords::refused`, so only a reading past the band on the refused side can end as a stored contradiction (`RefusedSign::ContradictsStoredData`, `KERNEL_OR_FILE_DEFECT_ENDING`).
+PR 5101 made a definite refused reading end one way at rest whichever arm routes it. The ending reads the reading's class (`Shows`, `crates/geom-core/src/predicate.rs`) and the decision's `StoredDefinite` (`crates/geom-brep/src/recourse.rs`, `SizedDecision::words`). Only `Shows::Refused` reads `SizedWords::refused`, so only a reading past the band on the refused side can end as a stored contradiction (`RefusedReading::ContradictsStoredData`, `KERNEL_OR_FILE_DEFECT_ENDING`).
 
 A zero proved by the symbolic tier is just as definite: no tolerance and no subdivision moves it (`MarginDiag::shows`: "a proved zero is no size the user may intend"). But it classes `Shows::NoSize`, so at rest it ends in the lever and the decision's note:
 

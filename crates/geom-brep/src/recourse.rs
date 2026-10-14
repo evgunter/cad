@@ -15,8 +15,8 @@
 
 use geom_core::{
     Band, Decided, FileCoincidence, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
-    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING, RefusedSign,
-    Sign, SizedWords, lever_recourse, noted,
+    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING,
+    RefusedReading, Sign, SizedWords, lever_recourse, noted,
 };
 pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE};
 
@@ -450,13 +450,17 @@ impl SizedDecision {
     /// chosen, so the sign-certain arm and a reading past the band routed
     /// as undecided end alike. Over stored geometry a
     /// [`StoredDefinite::Contradiction`] contradicts the stored data the
-    /// decision reads ([`RefusedSign::ContradictsStoredData`], a defect,
+    /// decision reads ([`RefusedReading::ContradictsStoredData`], a defect,
     /// D4 ¶1 (iv)); every other definite reading ends as its in-band
     /// sibling does, in the lever and the decision's note.
     fn words(self, reading: Reading) -> SizedWords<'static> {
         let refused = match (reading, self.stored) {
-            (Reading::AtRest, StoredDefinite::Contradiction) => RefusedSign::ContradictsStoredData,
-            (Reading::Build, _) | (Reading::AtRest, StoredDefinite::Lever) => RefusedSign::NoSize,
+            (Reading::AtRest, StoredDefinite::Contradiction) => {
+                RefusedReading::ContradictsStoredData
+            }
+            (Reading::Build, _) | (Reading::AtRest, StoredDefinite::Lever) => {
+                RefusedReading::AsShown
+            }
         };
         SizedWords {
             lever: self.lever,
