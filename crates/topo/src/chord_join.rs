@@ -35,9 +35,10 @@
 //!   [`Body::ring_move`] — the `laringmv` step (lkemr/ring-placement
 //!   mirror site);
 //! - two halves of one null edge making up a ring alone (a one-site
-//!   section loop's pierce of a planar face) ⇒ the ring is promoted to
-//!   a face and joined there, and the conic that winds against the old
-//!   face's outer loop goes back to it as a ring
+//!   section loop's pierce of a planar or spherical face), or with the
+//!   closed edge the segment runs along ⇒ the ring is promoted to a face
+//!   and joined there, and the conic whose region holds the old face's
+//!   outer loop goes back to it as a ring
 //!   ([`ChordJoiner::join_lone_ring`]).
 //!
 //! `cut(edge)` retires a fully-joined null edge: halves in different
@@ -99,8 +100,12 @@
 //! loop's: a one-face closed wall cut across its one wrap edge, in the
 //! split or the boolean, and in the boolean also the partner's planar
 //! face, whose interior that edge pierces
-//! ([`ChordJoiner::join_lone_ring`]). There the chord is the whole
-//! section conic, from the vertex round to itself. In the plane × plane
+//! ([`ChordJoiner::join_lone_ring`]); and in the boolean a closed edge
+//! (one vertex, both its ends) lying in the other operand, which copies
+//! that edge whole on its own side ([`along_edge_spec`]) and is the
+//! section conic in the partner's planar or spherical face. There the
+//! chord is the whole section conic, from the vertex round to itself.
+//! In the plane × plane
 //! lane, on a planar face the split divides, or on a ruling section, a
 //! self-loop is a lone site, and rides `mef`'s placeholder circle
 //! (`EdgeCurveSpec::self_loop_circle_at`), which bounds nothing. A
@@ -232,11 +237,13 @@ pub enum SplitJoinError {
         /// How many halves remained.
         count: usize,
     },
-    /// A closed section loop has ONE site that is not a wrap edge
-    /// crossing a planar face: the one vertex on the loop holds both its
-    /// ends, and the join closes a loop on itself only there
-    /// (`boolean::join::wrap_site_segments`). Any other is refused
-    /// typed, before the loose ends are counted.
+    /// A closed section loop has ONE site that the join does not close
+    /// a loop at: the one vertex on the loop holds both its ends, and
+    /// the join closes a loop on itself only at a wrap edge crossing a
+    /// planar face, or along a closed edge lying in a planar or a
+    /// spherical face or along another closed edge
+    /// (`boolean::join::one_site_segments`). Any other is refused typed,
+    /// before the loose ends are counted.
     SingleSiteSectionLoop {
         /// How many such loops.
         count: usize,
@@ -546,8 +553,9 @@ impl core::fmt::Display for SplitJoinError {
             ),
             Self::SingleSiteSectionLoop { count } => write!(
                 f,
-                "{count} section loop(s) close through a single vertex that is not a \
-                 wrap edge crossing a planar face, and such a loop joined at one site is not \
+                "{count} section loop(s) close through a single vertex where neither a wrap \
+                 edge crosses a planar face nor a closed edge lies in a planar or spherical \
+                 face or along another closed edge, and such a loop joined at one site is not \
                  built. {}",
                 geom_core::NOT_YET_ENDING
             ),
@@ -3719,7 +3727,10 @@ fn path_ring_side<T: Decide>(
 /// section the lane would compute from the germ's face pair, which may
 /// be two faces on one carrier, or meet in no conic. A line is the
 /// straight chord; a circle is its own arc, on the carrier reversed
-/// when the chord runs against it. The boolean takes this lane on both
+/// when the chord runs against it. A closed circle, both of whose ends
+/// are the chord's one site, is its own whole turn, run the way the
+/// chord's `mef` `site` needs ([`closed_chord_runs_forward`]) and stated
+/// in the chart of the face it divides. The boolean takes this lane on both
 /// solids for an edge of both, and on the edge's solid alone for a
 /// conic edge of one lying in a face of the other whose pair has no
 /// section lane (a tube's rim on a ball). `None` on every other lane:
