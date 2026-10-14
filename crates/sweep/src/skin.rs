@@ -96,7 +96,8 @@ const MAX_SUB_ARC: f64 = core::f64::consts::FRAC_PI_2;
 /// documents where the banded half of its user situation actually
 /// lives and carries that door's recourse. The path sweep decides its
 /// station tangents and turns under the band ([`sweep_places`]), so
-/// [`SkinError::PathTangentReversal`] has its in-band twin,
+/// [`SkinError::PathTangentVanishes`] and
+/// [`SkinError::PathTangentReversal`] have their in-band twin,
 /// [`SkinError::PathTangentUndecided`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum SkinError {
@@ -185,12 +186,16 @@ pub enum SkinError {
         /// The sections available.
         sections: usize,
     },
-    /// The path has no usable tangent at a station, so no rigid frame
-    /// carries the profile through it: the tangent VANISHES (its
-    /// length is not finite and decided positive), or it doubles back
-    /// on the start tangent (`1 + t₀·tᵢ` decided zero), where every
-    /// axis perpendicular to the two is a minimal rotation and no
-    /// stated frame picks one ([`sweep_places`]).
+    /// The path's tangent at a station has no direction: its length
+    /// is not finite and decided positive ([`sweep_places`]).
+    PathTangentVanishes {
+        /// The station where the tangent vanished.
+        station: usize,
+    },
+    /// The path's tangent at a station doubles back on the start
+    /// tangent (`1 + t₀·tᵢ` decided zero), where every axis
+    /// perpendicular to the two is a minimal rotation and no stated
+    /// frame picks one ([`sweep_places`]).
     PathTangentReversal {
         /// The station where the frame failed.
         station: usize,
@@ -222,8 +227,20 @@ pub enum SkinError {
     Structure(SplineError),
 }
 
-/// The recourse a path sweep's tangent refusals end with.
+/// The recourse a path sweep's vanishing tangent ends with.
 const PATH_RECOURSE: &str = "smooth the path there";
+
+/// The recourse a path sweep's reversed tangent ends with: a sweep
+/// turns every station from the start tangent, so no smoothing of a
+/// path that doubles back gives it a frame.
+const REVERSAL_RECOURSE: &str = "loft the section through planes stated at the stations \
+                                 (`loft_body`), or sweep the path in pieces that each turn \
+                                 less than a half turn";
+
+/// The recourse a path sweep's undecided tangent or turn ends with.
+const PATH_UNDECIDED_RECOURSE: &str = "smooth the path there; where it doubles back, loft the \
+                                       section through planes stated at the stations \
+                                       (`loft_body`)";
 
 impl core::fmt::Display for SkinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -270,17 +287,23 @@ impl core::fmt::Display for SkinError {
                 "degree {degree} is not usable for {sections} sections (it must be at least 1 \
                  and below the section count)"
             ),
+            Self::PathTangentVanishes { station } => write!(
+                f,
+                "the path's tangent vanishes at station {station}, so no rigid frame carries \
+                 the profile through it. Recourse: {PATH_RECOURSE}"
+            ),
             Self::PathTangentReversal { station } => write!(
                 f,
-                "the path's tangent reverses or vanishes at station {station}, so no rigid \
-                 frame carries the profile through it. Recourse: {PATH_RECOURSE}"
+                "the path's tangent at station {station} doubles back on its start tangent, so \
+                 no one minimal rotation carries the start frame there. Recourse: \
+                 {REVERSAL_RECOURSE}"
             ),
             Self::PathTangentUndecided { station, source } => source
                 .undecided(
                     format_args!(
                         "whether the path's tangent vanishes or reverses at station {station}"
                     ),
-                    source.lever_ending(PATH_RECOURSE),
+                    source.lever_ending(PATH_UNDECIDED_RECOURSE),
                 )
                 .fmt(f),
             Self::StationNotFinite { station } => write!(
@@ -1400,7 +1423,7 @@ pub fn sweep_geometry<L: SectionLoop>(
 pub(crate) const SWEEP_PATH_TANGENT: &str = "sweep_path_tangent";
 
 /// The K funnel name of a path sweep's station turn: `1 + t₀·tᵢ`, the
-/// divisor of the minimal rotation carrying the start tangent onto the
+/// margin of the minimal rotation carrying the start tangent onto the
 /// station's ([`RigidMotion::turned_between`]).
 pub(crate) const SWEEP_PATH_TURN: &str = "sweep_path_turn";
 
@@ -1411,7 +1434,8 @@ pub(crate) const SWEEP_PATH_TURN: &str = "sweep_path_turn";
 /// Station `i`'s plane is `plane`'s frame turned about its own origin
 /// by the minimal rotation carrying the start tangent `t₀` onto the
 /// station's tangent `tᵢ` ([`RigidMotion::turned_between`]: the
-/// Rodrigues-between form, no normalized axis and no angle), then
+/// quaternion `(1 + t₀·tᵢ, t₀ × tᵢ)`'s matrix, no normalized axis and
+/// no angle), then
 /// translated by the path's displacement from its start point. A
 /// rotation of a frame is a frame, so no station is decided again.
 ///
@@ -1426,8 +1450,8 @@ pub(crate) const SWEEP_PATH_TURN: &str = "sweep_path_turn";
 ///   frame picks one. Where the path doubles back exactly, the turn
 ///   refuses decided; within the band of doubling back, undecided.
 ///
-/// At station 0, and at every station of a straight path, `t₀ × tᵢ`
-/// is exactly zero and the turn is the identity with no rounding.
+/// At station 0, and at every station whose tangent is `t₀` bit for
+/// bit, the turn is the identity with no rounding.
 ///
 /// # At a lane scalar
 ///
@@ -1442,8 +1466,9 @@ pub(crate) const SWEEP_PATH_TURN: &str = "sweep_path_turn";
 ///
 /// [`SkinError::TooFewSections`] for `stations < 2`,
 /// [`SkinError::Band`] for a tolerance with no band,
-/// [`SkinError::PathTangentReversal`] naming the station whose
-/// tangent vanishes or doubles back, [`SkinError::PathTangentUndecided`]
+/// [`SkinError::PathTangentVanishes`] naming the station whose
+/// tangent vanishes, [`SkinError::PathTangentReversal`] the station
+/// whose tangent doubles back, [`SkinError::PathTangentUndecided`]
 /// naming the station where either could not be decided, and
 /// [`SkinError::StationNotFinite`] for a station whose placement
 /// overflows.
@@ -1480,7 +1505,7 @@ pub fn sweep_places<T: Decide>(
                     UnitVec3Error::Degenerate
                     | UnitVec3Error::NonFiniteLength
                     | UnitVec3Error::UnderflowedLength => {
-                        SkinError::PathTangentReversal { station }
+                        SkinError::PathTangentVanishes { station }
                     }
                 })
         })

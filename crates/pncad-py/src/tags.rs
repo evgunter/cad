@@ -1713,6 +1713,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::DegenerateSection { .. } => "degenerate_section",
         SkinError::BadDegree { .. } => "bad_degree",
         SkinError::NoParameterStep { .. } => "no_parameter_step",
+        SkinError::PathTangentVanishes { .. } => "path_tangent_vanishes",
         SkinError::PathTangentReversal { .. } => "path_tangent_reversal",
         SkinError::PathTangentUndecided { .. } => "path_tangent_undecided",
         SkinError::StationNotFinite { .. } => "station_not_finite",

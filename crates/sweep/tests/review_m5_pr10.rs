@@ -312,6 +312,42 @@ fn review_half_turn_path_refuses_at_the_turns_decision() {
     }
 }
 
+/// **A planar hairpin refuses, and says to loft it.** A semicircular
+/// U-bend in a coordinate plane has an exact turn axis (`ẑ`), and the
+/// sweep built it before the turn decided `1 + t₀·tᵢ`; now its last
+/// station doubles back on the start tangent within the band and the
+/// sweep refuses there. Smoothing cannot help a path that doubles
+/// back, so the refusal's recourse names the loft through stated
+/// planes, not the vanishing tangent's "smooth the path there".
+#[test]
+fn a_planar_hairpin_refuses_with_the_loft_recourse() {
+    use sweep::skin::sweep_geometry;
+    let path = segment_curve(
+        0,
+        bulge_arc(Point2::new(0.0, 0.0), Point2::new(0.0, 2.0), 1.0),
+        Affine3::identity(),
+    )
+    .expect("path");
+    let profile: sweep::Section = vec![profile::ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(0.3, 0.0),
+        Point2::new(0.3, 0.2),
+        Point2::new(0.0, 0.2),
+    ])];
+    let err = sweep_geometry(&profile, SketchPlane::xy(), &path, 5, 2, Tol::witness())
+        .expect_err("the hairpin doubles back at its last station");
+    assert_eq!(err, SkinError::PathTangentReversal { station: 4 });
+    let text = err.to_string();
+    assert!(
+        text.contains("loft the section through planes stated at the stations"),
+        "the reversal names the loft: {text}"
+    );
+    assert!(
+        !text.contains("smooth the path"),
+        "the reversal does not offer smoothing: {text}"
+    );
+}
+
 /// A VANISHING tangent is the case the arm genuinely catches: a path
 /// curve whose derivative is zero at a station has no frame at all.
 #[test]
@@ -338,7 +374,7 @@ fn review_vanishing_tangent_refuses_typed() {
         Point2::new(0.0, 0.2),
     ])];
     match sweep_geometry(&profile, SketchPlane::xy(), &path, 3, 2, Tol::witness()) {
-        Err(SkinError::PathTangentReversal { station: 0 }) => {}
+        Err(SkinError::PathTangentVanishes { station: 0 }) => {}
         other => panic!("a vanishing tangent must refuse at station 0, got {other:?}"),
     }
 }
