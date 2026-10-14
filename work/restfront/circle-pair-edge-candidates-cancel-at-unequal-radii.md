@@ -2,10 +2,11 @@
 id: circle-pair-edge-candidates-cancel-at-unequal-radii
 kind: issue
 title: The at-rest validator's circle x circle edge-pair candidates are placed by differences of squares, so at radii orders of magnitude apart they sit off the smaller circle and a crossing reads apart
-status: open
+status: dispatched
 opened: 2026-10-13
 priority: P0
 cost: E
+branch: paths/circle-pair-shared-home
 ---
 
 

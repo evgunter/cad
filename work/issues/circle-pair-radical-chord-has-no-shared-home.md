@@ -2,10 +2,11 @@
 id: circle-pair-radical-chord-has-no-shared-home
 kind: issue
 title: The circle-pair radical foot and half-chord have no shared home, so each site that fixes its cancellation mints its own copy
-status: open
+status: dispatched
 opened: 2026-10-13
 priority: P1
 cost: M
+branch: paths/circle-pair-shared-home
 ---
 
 Found by both reviews of #5032 (`arc-arc-secant-arm-misses-crossings-at-unequal-radii`).
