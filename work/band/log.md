@@ -1090,3 +1090,16 @@ through the public `run_battery_for` on a raw body (a row pins it);
 `Degenerate` only crate-internally. Cost M, full review
 APPROVE-WITH-FIXES. Filed `blend-two-geometry-refusals-meet-no-shape`
 and `blend-reach-may-refuse-a-valid-thin-cylinder-as-degenerate`.
+
+## 2026-10-14 — a bar inside a concave band's fill is absorbed (PR 5099, step 2)
+
+A bar between two end walls wholly inside the material a concave band's
+fill adds goes at `ΔV = +(A − A_bar)·L`: a cut-off's cap ring read
+inside its sliver carries its crease on either convexity
+(`SliverOrigin::CutOff`), and nothing else reads the side, so step 1's
+carve runs for the fill unchanged. Cost H: a concurrent dual (DR row
+`PR-5099`), both APPROVE, tally 0. The fix pass took in both reviewers'
+probes; the ruled table's island-voids cell carries an erratum (the
+voids lie in `F`, which fills them), and the step-2 refusals steps 3 and
+4 inherit are pinned (a bump on the bar, a sealed tube, blind holes in
+the walls). Filed `a-feature-inside-a-turns-overrun-is-not-carved`.
