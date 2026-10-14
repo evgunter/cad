@@ -1845,3 +1845,176 @@ mod motion_rows {
         );
     }
 }
+
+/// The scalar crossings and the turn between two directions.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod crossing_and_turn_rows {
+    use super::tests::{SITE, band, bits12};
+    use super::*;
+    use crate::interval::Interval;
+    use crate::spline::SpanLocate;
+    use crate::sym::Sym;
+
+    fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
+        UnitVec3::new(v, SITE, band()).unwrap()
+    }
+
+    fn turn(
+        a: UnitVec3<f64>,
+        b: UnitVec3<f64>,
+        about: Point3<f64>,
+    ) -> Result<RigidMotion<f64>, TurnError> {
+        RigidMotion::turned_between(a, b, about, SITE, band())
+    }
+
+    /// **The turn carries `a` onto `b`, is rigid, and leaves its anchor
+    /// where it was**, over pairs from a few degrees to a few degrees
+    /// short of opposed, and is the identity bit for bit on a pair that
+    /// is one direction.
+    #[test]
+    fn the_turn_carries_one_direction_onto_the_other_about_its_anchor() {
+        let about = Point3::new(0.75, -2.5, 1e3);
+        for k in 0..48 {
+            let t = 0.05 + f64::from(k) * 0.0645;
+            let a = unit(Vec3::new(t.cos(), 0.4 * t.sin(), 0.3));
+            let b = unit(Vec3::new((2.0 * t).sin(), -t.cos(), 0.5 - t));
+            let m = turn(a, b, about).unwrap_or_else(|e| panic!("pair {k}: {e}"));
+            let carried = m.turn(a).get() - b.get();
+            assert!(
+                carried.norm() < 1e-14,
+                "pair {k}: a lands {carried:?} off b"
+            );
+            assert!(
+                RigidMotion::check_rigid(&m.to_affine(), band()).is_ok(),
+                "pair {k}: the turn is rigid"
+            );
+            let moved = m.transform_point(about) - about;
+            assert!(moved.norm() < 1e-12, "pair {k}: the anchor moved {moved:?}");
+        }
+        let a = unit(Vec3::new(0.3, -0.7, 0.2));
+        let same = turn(a, a, about).unwrap();
+        assert_eq!(
+            bits12(&same.to_affine()),
+            bits12(&RigidMotion::identity().to_affine()),
+            "a pair that is one direction turns by the identity, with no rounding"
+        );
+    }
+
+    /// **The one decision is `1 + a·b`, on the band's own thresholds**:
+    /// an opposed pair refuses decided, a pair within the band of
+    /// opposed refuses undecided, and one past the band builds.
+    #[test]
+    fn a_pair_near_opposed_refuses_by_where_its_divisor_lies_in_the_band() {
+        let b = band();
+        // 1 + a·b = 1 − cos δ ≈ δ²/2 for b at π − δ from a.
+        let at = |margin: f64| {
+            let d = (2.0 * margin).sqrt();
+            unit(Vec3::new(-d.cos(), d.sin(), 0.0))
+        };
+        let x = UnitVec3::exact_x();
+        let origin = Point3::origin();
+        let opposed = UnitVec3::by_construction(Vec3::new(-1.0, 0.0, 0.0));
+        assert_eq!(turn(x, opposed, origin).err(), Some(TurnError::Opposed));
+        assert_eq!(
+            turn(x, at(0.25 * b.zero()), origin).err(),
+            Some(TurnError::Opposed),
+            "inside the coincidence threshold the pair is opposed"
+        );
+        assert!(
+            matches!(
+                turn(x, at(0.5 * (b.zero() + b.escalate())), origin),
+                Err(TurnError::Undecided(_))
+            ),
+            "between the thresholds the turn cannot be decided"
+        );
+        assert!(
+            turn(x, at(4.0 * b.escalate()), origin).is_ok(),
+            "past the escalation threshold the turn builds"
+        );
+    }
+
+    /// **`translated` keeps the axes bit for bit and adds to the
+    /// origin**, and refuses an origin that leaves the format.
+    #[test]
+    fn translated_moves_only_the_origin() {
+        let m = RigidMotion::rotation(unit(Vec3::new(1.0, 2.0, -0.5)), 0.8).unwrap();
+        let t = Vec3::new(-0.0, 3.25, -1e-3);
+        let moved = m.translated(t).unwrap();
+        let axes = |f: RigidMotion<f64>| {
+            [f.u().get(), f.v().get(), f.w().get()].map(|c| [c.x, c.y, c.z].map(f64::to_bits))
+        };
+        assert_eq!(axes(moved), axes(m), "the axes are kept");
+        let want = m.origin() + t;
+        let got = moved.origin();
+        assert_eq!(
+            [got.x, got.y, got.z].map(f64::to_bits),
+            [want.x, want.y, want.z].map(f64::to_bits)
+        );
+        assert_eq!(
+            m.translated(Vec3::new(f64::MAX, 0.0, 0.0))
+                .and_then(|f| f.translated(Vec3::new(f64::MAX, 0.0, 0.0)))
+                .err(),
+            Some(RigidMotionError::NonFinite(MotionPart::Translation))
+        );
+    }
+
+    /// **`embed` and `point_value` are inverse crossings, bit for bit**,
+    /// and `point_value` refuses a motion whose components are boxes.
+    #[test]
+    fn embed_and_point_value_round_trip_and_a_box_has_no_point() {
+        let m = RigidMotion::gram_schmidt(
+            Point3::new(-0.0, 1e-300, 7.5),
+            Vec3::new(1.0, 1.0, 0.0),
+            Vec3::new(-1.0, 1.0, 2.0),
+            SITE,
+            band(),
+        )
+        .unwrap();
+        let lifted: RigidMotion<Interval> = m.embed();
+        let back = lifted
+            .point_value()
+            .expect("a point motion has its f64 back");
+        assert_eq!(bits12(&back.to_affine()), bits12(&m.to_affine()));
+        let computed: RigidMotion<Interval> = m.embed_computed();
+        assert_eq!(
+            bits12(&computed.point_value().unwrap().to_affine()),
+            bits12(&m.to_affine()),
+            "at a scalar where the two entries agree, so do the two crossings"
+        );
+        let wide = RigidMotion::axes_xy(Point3::new(
+            Interval::from_bounds(0.0, 1.0),
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+        ));
+        assert!(
+            wide.point_value().is_none(),
+            "a box has no single f64 point"
+        );
+    }
+
+    /// **`embed` enters constants and `embed_computed` unknowns** at the
+    /// symbolic scalar, where the two entries differ: the first is a
+    /// literal per component, the second is not.
+    #[test]
+    fn embed_computed_enters_each_component_as_an_unknown_at_sym() {
+        let m = RigidMotion::rotation(unit(Vec3::new(0.3, -0.7, 0.2)), 0.4).unwrap();
+        let constant: RigidMotion<Sym<f64>> = m.embed();
+        let computed: RigidMotion<Sym<f64>> = m.embed_computed();
+        fn twelve<T: Real>(f: RigidMotion<T>) -> [T; 12] {
+            let (o, u, v, w) = (f.origin(), f.u().get(), f.v().get(), f.w().get());
+            [o.x, o.y, o.z, u.x, u.y, u.z, v.x, v.y, v.z, w.x, w.y, w.z]
+        }
+        let read =
+            |f: RigidMotion<Sym<f64>>| twelve(f).map(|c| c.plain_constant().map(f64::to_bits));
+        assert_eq!(
+            read(constant),
+            twelve(m).map(|c| Some(c.to_bits())),
+            "embed carries each component as the literal it is"
+        );
+        assert!(
+            read(computed).iter().all(Option::is_none),
+            "embed_computed carries none of them as a literal"
+        );
+    }
+}
