@@ -107,5 +107,5 @@ blind bore, pin, boss, dimple. (4) Whole shells and the seal, sharing
 (re-point plus the selection unwrap, one action) run beside any step;
 the crossing arm waits on the intersection table.
 
-Two designers (fork-log row 138) recommended this from their first
-reports; it replaces row 137's case-by-case recommendation.
+Two designers (fork-log row 140) recommended this from their first
+reports; it replaces row 139's case-by-case recommendation.

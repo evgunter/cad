@@ -2,12 +2,13 @@
 id: the-split-reads-a-vertex-against-the-section-it-ends-not-the-plane
 kind: unit
 title: The split decides a vertex's distance from the section it will end (delta / sin psi), not its offset from the plane
-status: review
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
 parent: a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join
 branch: cleave/vertex-against-section
+closed: 2026-10-14
 ---
 
 Part 4 of the design on
