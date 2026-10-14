@@ -1332,3 +1332,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Both flag:** PR 5012's far-frame rows (~1e6) sit outside the box. Whether `resolution` still earns its place once the box gate exists is a question for the box item.
   - **B's off-question finds:** a turned frame at |o| ≈ 990 (inside the box) refuses ∩/∖ `VolumeUnmeasured { QuadratureBudget }` while the origin builds, suggested for FLUX; D4 ¶4 "rejected at construction" is unbuilt.
   - Both say no ratified text moves, so Ev's PR 4895 discretion should apply once they agree.
+- 2026-10-14 09:35 — Check-in. 5066's fix pass is testing the winding's finer-count change (item 5). The pt-section-gaps designers are in reconciliation round 1. Re-armed for 10:35.
