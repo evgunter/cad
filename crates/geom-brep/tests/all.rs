@@ -83,6 +83,8 @@ mod chart_box_span;
 mod axis_rows_read_as_one_sum;
 #[path = "computed_values_enter_as_unknowns.rs"]
 mod computed_values_enter_as_unknowns;
+#[path = "coplanar_ellipses_one_locus.rs"]
+mod coplanar_ellipses_one_locus;
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
