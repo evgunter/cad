@@ -2,11 +2,12 @@
 id: a-prism-crossing-a-face-along-a-contact-line-refuses-vertex-read-twice
 kind: issue
 title: A prism crossing a face along an edge lying in it refuses VertexReadTwice, or UnpairedLooseEnds at the join in one slot; a wedge's face beside the edge refuses ClassificationInvariant
-status: open
+status: dispatched
 opened: 2026-10-13
 priority: P2
 cost: M
 refs: [a-contact-line-whose-ray-holds-a-subdivision-bisector-refuses-unbuilt]
+branch: tang/crossing-face-vertex-read-twice
 ---
 
 Found by the TANG lane that built the contact-line bisector arm

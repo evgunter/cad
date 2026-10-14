@@ -1484,10 +1484,14 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                     match containment {
                         FaceContainment::Out => {}
+                        // The pieces are read against every face again,
+                        // not only those after this one: a face the edge
+                        // lies in read only its ends, and `w` lies in it
+                        // too.
                         FaceContainment::In => {
                             let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                             push_vf(contacts, x_is, w, face, on);
-                            requeue(&mut worklist, x, edge_key, w, j + 1)?;
+                            requeue(&mut worklist, x, edge_key, w, 0)?;
                             break 'faces;
                         }
                         FaceContainment::OnEdge(ey) => {
@@ -1495,7 +1499,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             let wy =
                                 split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
                             push_vv(contacts, x_is, w, wy, on);
-                            requeue(&mut worklist, x, edge_key, w, j + 1)?;
+                            requeue(&mut worklist, x, edge_key, w, 0)?;
                             break 'faces;
                         }
                         FaceContainment::OnVertex(vy) => {
@@ -1509,7 +1513,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 contacts,
                             )?;
                             push_vv(contacts, x_is, w, vy, on);
-                            requeue(&mut worklist, x, edge_key, w, j + 1)?;
+                            requeue(&mut worklist, x, edge_key, w, 0)?;
                             break 'faces;
                         }
                     }

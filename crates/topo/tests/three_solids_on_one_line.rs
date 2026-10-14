@@ -786,9 +786,10 @@ fn a_prism_whose_face_holds_the_line_builds_in_every_member_order() {
 /// the ray holds that face's bisector. The 0° prism lies in the third's
 /// half-turn about the line, and every body it makes is sound against
 /// the members' closed forms. One over 40°–110° crosses the third's
-/// face along the line and refuses: `VertexReadTwice`, but with the
-/// prism first where the third leads the line body's fold, at the join
-/// (`work/tang/a-prism-crossing-a-face-along-a-contact-line-refuses-vertex-read-twice.md`).
+/// face along the line, where the 120° prism's edge lies in it, its top
+/// above that prism's corner or below it, and refuses `VertexReadTwice`
+/// in every op, slot and order; the refusal's recourse builds (the row
+/// below).
 #[test]
 fn a_prism_against_a_contact_line_on_a_bisector_builds_or_refuses_typed_in_every_op() {
     let face = Prism {
@@ -815,6 +816,7 @@ fn a_prism_against_a_contact_line_on_a_bisector_builds_or_refuses_typed_in_every
     for (tool, crosses) in [
         (Prism::on_line(0.0, 50.0, (0.5, 2.0)), false),
         (Prism::on_line(40.0, 110.0, (0.5, 2.0)), true),
+        (Prism::on_line(40.0, 110.0, (0.5, 1.6)), true),
     ] {
         let b = tool.body();
         let solo = area(&tool.footprint()) * (tool.z.1 - tool.z.0);
@@ -830,19 +832,126 @@ fn a_prism_against_a_contact_line_on_a_bisector_builds_or_refuses_typed_in_every
                 holds: &in_line,
                 volume: line_volume,
             };
-            let refuses = |_: &str, line_first: bool| {
-                crosses.then_some(if line_first || order[0] != 2 {
-                    BooleanErrorKind::VertexReadTwice
-                } else {
-                    BooleanErrorKind::Join
-                })
-            };
+            let refuses = |_: &str, _| crosses.then_some(BooleanErrorKind::VertexReadTwice);
             every_op(
                 &format!("the prism over {:?}, the line body {order:?}", tool.foot),
                 &line,
                 &tool_closed,
                 common,
                 &refuses,
+            );
+        }
+    }
+}
+
+/// **The recourse of a prism crossing a face beside a corner resting on
+/// it builds in every op**: the line body of the row above is two
+/// pieces, the plate with the third and the 120° prism, touching along
+/// the line where the 120° prism's corner rests on the third's face. A
+/// prism over 40°–110°, its top above that corner or below it, refuses
+/// `VertexReadTwice` against the joined body in every op; applied to
+/// the pieces before they are joined, as the refusal's recourse says,
+/// each op builds a body sound against the members' closed forms: the
+/// union in either grouping, the intersection of each piece joined, the
+/// line less the prism as the plate's piece less it joined to the 120°
+/// prism it misses, and the prism less the line piece by piece.
+#[test]
+fn the_recourse_of_a_prism_crossing_a_face_beside_a_resting_corner_builds() {
+    let third = Prism {
+        foot: [bearing(80.0, 0.3), bearing(260.0, 0.3), bearing(350.0, 0.4)],
+        z: (0.44, 1.81),
+        moved: 0.0,
+        tilt: (0.0, 0.0),
+    };
+    let p120 = Prism::on_line(120.0, 170.0, (0.47, 1.7));
+    let plate = finished(
+        "the plate",
+        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        t(),
+    );
+    let built = |what: &str, r: Result<BooleanResult<f64>, BooleanError>| match r {
+        Ok(BooleanResult::Body(r)) => r.body,
+        other => panic!("{what}: {other:?}"),
+    };
+    let base = built("the plate and the third", union(&plate, &third.body(), t()));
+    let piece = p120.body();
+    let in_line = |q| in_plate(q) || third.holds(q) || p120.holds(q);
+    let line_volume = union_volume(&[third, p120], true);
+    for top in [2.0, 1.6] {
+        let tool = Prism::on_line(40.0, 110.0, (0.5, top));
+        let b = tool.body();
+        let solo = area(&tool.footprint()) * (tool.z.1 - tool.z.0);
+        let all = union_volume(&[third, p120, tool], true);
+        let common = line_volume + solo - all;
+        let what = |route: &str| format!("the prism topped at {top}, {route}");
+        // The 120° prism meets the tool only along the line.
+        type Route<'a> = (&'a str, AtRestBody<f64>, f64, &'a dyn Fn([f64; 3]) -> bool);
+        let routes: [Route; 5] = [
+            (
+                "the union, the plate's piece first",
+                built(
+                    &what("∪ 1"),
+                    union(&built(&what("∪ 1a"), union(&b, &base, t())), &piece, t()),
+                ),
+                all,
+                &|q| in_line(q) || tool.holds(q),
+            ),
+            (
+                "the union, the 120° prism first",
+                built(
+                    &what("∪ 2"),
+                    union(&built(&what("∪ 2a"), union(&b, &piece, t())), &base, t()),
+                ),
+                all,
+                &|q| in_line(q) || tool.holds(q),
+            ),
+            (
+                "the intersection, piece by piece",
+                {
+                    let x = built(&what("∩ a"), topo::intersect(&base, &b, t()));
+                    match topo::intersect(&piece, &b, t()) {
+                        Ok(BooleanResult::Empty) => x,
+                        Ok(BooleanResult::Body(y)) => built(&what("∩"), union(&x, &y.body, t())),
+                        Err(e) => panic!("{}: {e:?}", what("∩ b")),
+                    }
+                },
+                common,
+                &|q| in_line(q) && tool.holds(q),
+            ),
+            (
+                "the line less the prism",
+                built(
+                    &what("∖"),
+                    union(
+                        &built(&what("∖ a"), topo::subtract(&base, &b, t())),
+                        &piece,
+                        t(),
+                    ),
+                ),
+                line_volume - common,
+                &|q| in_line(q) && !tool.holds(q),
+            ),
+            (
+                "the prism less the line",
+                built(
+                    &what("∖′"),
+                    topo::subtract(
+                        &built(&what("∖′ a"), topo::subtract(&b, &base, t())),
+                        &piece,
+                        t(),
+                    ),
+                ),
+                solo - common,
+                &|q| tool.holds(q) && !in_line(q),
+            ),
+        ];
+        for (route, body, volume, holds) in &routes {
+            let what = what(route);
+            sound(&what, body, holds);
+            let v = topo::mass_properties(body, t()).unwrap().volume;
+            assert!(
+                (v - volume).abs() < 1e-9,
+                "{what}: volume {v}, closed form {volume}"
             );
         }
     }
@@ -1033,6 +1142,135 @@ fn a_contact_line_in_a_face_of_the_other_builds_in_every_op() {
                 common,
                 &|_, _| None,
             );
+        }
+    }
+}
+
+/// **A contact line beside a face that holds it, no bisector there,
+/// builds in every op**: the plate, the 120° prism and a [`Wedge`]
+/// whose face holds the line from its apex at the plate's top, so that
+/// vertex holds the 120° prism's edge and a sector of the wedge's face
+/// the ray runs inside. Folded with the 120° prism last, the body
+/// refuses `VertexReadTwice`: its corner rests on the wedge's face. In
+/// every other member order it meets upright prisms on the line, none
+/// meeting the 120° prism's wedge, by every op in either operand slot,
+/// and is sound against the members' closed forms: the wedge lies above
+/// the plate, so the common parts are its parts in each prism. Its
+/// union, folded with the members' records carried, passes tier 3′
+/// either way round.
+#[test]
+fn a_contact_line_beside_a_face_holding_it_builds_in_every_op() {
+    // A union of `x` and `y` carrying their records.
+    let carried_union =
+        |x: &AtRestBody<f64>, y: &AtRestBody<f64>, records: [topo::OperandRecords; 2]| {
+            let [records_a, records_b] = records;
+            let inputs = topo::BooleanInputs {
+                records_a,
+                records_b,
+                ..topo::BooleanInputs::default()
+            };
+            match topo::boolean_op_with(
+                topo::BooleanOp::Union,
+                x,
+                y,
+                &inputs,
+                topo::SweepStrategy::Realized,
+                t(),
+            ) {
+                Ok(BooleanResult::Body(r)) => r,
+                other => panic!("a carried union: {other:?}"),
+            }
+        };
+    let p120 = Prism::on_line(120.0, 170.0, (0.47, 1.7));
+    let plate = finished(
+        "the plate",
+        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        t(),
+    );
+    let above = |p: &Prism| area(&p.footprint()) * (p.z.1 - PLATE[2].1);
+    for wedge in [
+        Wedge {
+            half: 45.0,
+            toward: 350.0,
+        },
+        Wedge {
+            half: 70.0,
+            toward: 170.0,
+        },
+    ] {
+        let members = [plate.clone(), p120.body(), wedge.body()];
+        let in_line = |q| in_plate(q) || p120.holds(q) || wedge.holds(q);
+        let line_volume = 6.0 + above(&p120) + wedge.volume() - wedge.common_with(&p120);
+        for order in orders(members.len()) {
+            let what = format!(
+                "the wedge towards {}°, the line body {order:?}",
+                wedge.toward
+            );
+            let line_body = match fold(&members, &order) {
+                Err((k, e)) if order[2] == 1 => {
+                    assert_eq!(
+                        e.kind(),
+                        BooleanErrorKind::VertexReadTwice,
+                        "{what}: step {k}"
+                    );
+                    continue;
+                }
+                Err((k, e)) => panic!("{what}: step {k} refused: {e:?}"),
+                Ok(_) if order[2] == 1 => panic!("{what}: built where it refuses"),
+                Ok(r) => r.body,
+            };
+            let mut carried_body = members[order[0]].clone();
+            let mut records = topo::OperandRecords::default();
+            for &i in &order[1..] {
+                let r = carried_union(
+                    &carried_body,
+                    &members[i],
+                    [records, topo::OperandRecords::default()],
+                );
+                records = r.contacts.carried();
+                carried_body = r.body.clone();
+            }
+            let line = Closed {
+                body: &line_body,
+                holds: &in_line,
+                volume: line_volume,
+            };
+            for tool in [
+                Prism::on_line(0.0, 50.0, (0.5, 2.0)),
+                Prism::on_line(40.0, 110.0, (0.5, 2.0)),
+                Prism::on_line(180.0, 230.0, (0.5, 2.0)),
+                Prism::on_line(280.0, 330.0, (0.5, 2.0)),
+            ] {
+                let what = format!("{what}, the prism over {:?}", tool.foot);
+                let b = tool.body();
+                for line_first in [true, false] {
+                    let none = topo::OperandRecords::default;
+                    let r = if line_first {
+                        carried_union(&carried_body, &b, [records.clone(), none()])
+                    } else {
+                        carried_union(&b, &carried_body, [none(), records.clone()])
+                    };
+                    assert_eq!(
+                        validate_pseudomanifold(&r.body, &r.contacts, t()).err(),
+                        None,
+                        "{what}, the line body first: {line_first}: the carried union at 3′"
+                    );
+                }
+                let solo = area(&tool.footprint()) * (tool.z.1 - tool.z.0);
+                let common =
+                    area(&tool.footprint()) * (PLATE[2].1 - tool.z.0) + wedge.common_with(&tool);
+                every_op(
+                    &what,
+                    &line,
+                    &Closed {
+                        body: &b,
+                        holds: &|q| tool.holds(q),
+                        volume: solo,
+                    },
+                    common,
+                    &|_, _| None,
+                );
+            }
         }
     }
 }
