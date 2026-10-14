@@ -2809,9 +2809,19 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 MISMATCH
             }
         }
+        CertifyError::PlaneNurbs(P::Limb {
+            limb: geom_brep::SsiLimb::ImageMiss,
+            ..
+        }) => {
+            "it is on its spline face where the check looked, but the check's own image of it \
+             there misses by more than the tolerance"
+        }
         CertifyError::PlaneNurbs(P::Limb { limb, .. }) => {
             if limb.check().bounds_a_miss() {
-                BOUND
+                bound_reason!(
+                    "it strays from its faces, reading a spline face through the check's own \
+                     image of it,"
+                )
             } else {
                 MISMATCH
             }
@@ -16838,9 +16848,23 @@ mod certify_escalation_rows {
                         margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),
-                "the check's certified bound on how far it strays from its faces exceeds the \
-                 tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
-                 indicate a kernel bug worth reporting",
+                "the check's certified bound on how far it strays from its faces, reading a \
+                 spline face through the check's own image of it, exceeds the tolerance. \
+                 Recourse: loosen the tolerance, as a last resort; this refusal may indicate a \
+                 kernel bug worth reporting",
+            ),
+            // The lane's own image misses where the carrier is on the
+            // face: the certificate's limit, never the carrier's fault.
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::ssi::SsiLimb::ImageMiss,
+                        margin: geom_core::MarginDiag::value(4.6e-4),
+                    },
+                )),
+                "it is on its spline face where the check looked, but the check's own image of \
+                 it there misses by more than the tolerance. Recourse: loosen the tolerance, as \
+                 a last resort; this refusal may indicate a kernel bug worth reporting",
             ),
             (
                 says(CertifyError::AnalyticRung3(

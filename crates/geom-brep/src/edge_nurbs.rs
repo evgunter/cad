@@ -433,21 +433,39 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::Limb { limb, margin } => match limb {
                 SsiLimb::HullSup => write!(
                     f,
-                    "{} bounds the declared carrier's distance from both surfaces by {margin:e} \
-                     m, past the run tolerance — the certificate cannot show the carrier is on \
-                     them",
+                    "{} bounds the declared carrier's distance from one of its surfaces by \
+                     {margin:e} m, past the run tolerance, reading a spline surface through \
+                     the certificate's own image of the carrier on it — limb 1 found the \
+                     carrier on that surface at every schedule sample, and the certificate \
+                     cannot show it stays on it between them",
                     limb.name()
                 ),
                 SsiLimb::HullValueChart => write!(
                     f,
-                    "{} reads {margin:e} m against the run tolerance — the declared carrier \
-                     is off the surface point its description names",
+                    "{} reads {margin:e} m at a break, past the run tolerance: the declared \
+                     carrier against the surface point the certificate's own image of it \
+                     names there, which bounds the carrier's miss and is not the miss — the \
+                     certificate cannot show the carrier is on that surface",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
+                SsiLimb::ImageMiss => write!(
                     f,
-                    "{} measured {margin:e} m against the run tolerance — the declared carrier \
-                     is not on both surfaces",
+                    "{} reads {margin:e} m at a break, past the run tolerance, where the \
+                     declared carrier is on the surface — the certificate's own image of the \
+                     carrier is too coarse for its curve there, and the carrier is not shown \
+                     off its surfaces",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::HullValue => write!(
+                    f,
+                    "{} measured the declared carrier {margin:e} m from a surface, past the run \
+                     tolerance — the carrier is not on both surfaces",
+                    limb.name()
+                ),
+                SsiLimb::Tube => write!(
+                    f,
+                    "{} measured {margin:e} m against the run tolerance — the certificate \
+                     cannot show the carrier is its surfaces' one crossing",
                     limb.name()
                 ),
             },

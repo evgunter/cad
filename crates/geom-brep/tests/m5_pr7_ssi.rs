@@ -1139,10 +1139,13 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     .expect_err("CORRUPT-PCURVE: a corrupted parameter map cannot certify");
     match err {
         SsiError::CertificateLimb {
-            limb: SsiLimb::HullValueChart,
+            limb: SsiLimb::ImageMiss,
             margin,
         } => assert!(upper(margin) > eps(), "CORRUPT-PCURVE: {margin:e}"),
-        other => panic!("CORRUPT-PCURVE: expected limb 2's value at a break, got {other}"),
+        other => panic!(
+            "CORRUPT-PCURVE: expected limb 2's value at a break, where the carrier is on the \
+             wall and the pcurve misses, got {other}"
+        ),
     }
 }
 

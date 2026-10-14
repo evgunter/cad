@@ -2064,7 +2064,7 @@ impl PcurveCheck {
     fn of_fitted_limb(limb: SsiLimb) -> Option<Self> {
         match limb {
             SsiLimb::HullSup => Some(Self::Envelope),
-            SsiLimb::HullValueChart => Some(Self::MapResidual),
+            SsiLimb::HullValueChart | SsiLimb::ImageMiss => Some(Self::MapResidual),
             SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => None,
         }
     }

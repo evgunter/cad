@@ -957,14 +957,21 @@ impl core::fmt::Display for SsiError {
             Self::CertificateLimb { limb, margin } => match limb {
                 SsiLimb::HullSup => write!(
                     f,
-                    "ssi: {} bounds the fitted carrier's distance from the locus it claims by \
-                     {margin:e} m, past the tolerance",
+                    "ssi: {} bounds the fitted carrier's distance from the locus it claims, \
+                     through its pcurve, by {margin:e} m, past the tolerance",
                     limb.name()
                 ),
                 SsiLimb::HullValueChart => write!(
                     f,
-                    "ssi: the fitted carrier failed {} at {margin:e} m — the carrier is off \
-                     the surface point its pcurve names",
+                    "ssi: the fitted carrier failed {} at {margin:e} m — the carrier against \
+                     the surface point its pcurve names, which bounds the carrier's miss and is \
+                     not the miss",
+                    limb.name()
+                ),
+                SsiLimb::ImageMiss => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {margin:e} m where the carrier is on \
+                     the surface — its pcurve misses the carrier's foot path there",
                     limb.name()
                 ),
                 SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(

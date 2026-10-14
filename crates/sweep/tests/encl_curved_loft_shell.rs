@@ -533,8 +533,8 @@ fn tilted_top_prism() -> Body<f64> {
 /// The march arm builds nothing yet: the moved tilted cap's section of
 /// each polynomial wall is certified by the march, and the plane ×
 /// NURBS edge certificate's limb 2 reads its composite a few
-/// micrometres at a break — the carrier against the surface point its
-/// pcurve names, a bound on its miss — though the marched branch lies
+/// micrometres at a break where the marched branch's own foot is on the
+/// wall: the pcurve's own miss (`SsiLimb::ImageMiss`), the branch lying
 /// on both surfaces to ~5e-11
 /// (`work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`).
 /// The gap is a length, not a multiple of ε, so which verdict it earns
@@ -570,7 +570,7 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
         };
         match error {
             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                limb: geom_brep::ssi::SsiLimb::ImageMiss,
                 margin,
             }) => {
                 let value = upper(*margin);
@@ -580,7 +580,7 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
                 );
             }
             geom_brep::CertifyError::Escalated { check, .. } => {
-                assert_eq!(*check, geom_brep::ssi::SsiLimb::HullValueChart.check());
+                assert_eq!(*check, geom_brep::ssi::SsiLimb::ImageMiss.check());
                 assert!(
                     10.0 * eps > micrometres.start,
                     "eps {eps:e}, d {d}: limb 2 escalated with no micrometre in the band"

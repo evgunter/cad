@@ -303,6 +303,12 @@ pub enum SsiLimb {
     /// surface from above, so the bound over a span holding the break
     /// cannot clear.
     HullValueChart,
+    /// [`HullValueChart`](Self::HullValueChart) at a break where the
+    /// carrier's own distance from the surface, read through its foot
+    /// as limb 1 reads it, is within the band: the carrier is on the
+    /// surface there, so the value past the band is the pcurve's own
+    /// miss of the carrier's foot path.
+    ImageMiss,
     /// Limb 3 — the uniqueness tube.
     Tube,
 }
@@ -317,6 +323,10 @@ impl SsiLimb {
             Self::HullValueChart => {
                 "limb 2 (the carrier against its pcurve's surface point at a break of its \
                  composite)"
+            }
+            Self::ImageMiss => {
+                "limb 2 (the pcurve's surface point against a carrier on the surface, at a \
+                 break of its composite)"
             }
             Self::Tube => "limb 3 (uniqueness tube)",
         }
@@ -341,7 +351,7 @@ impl SsiLimb {
             Self::OnLocus => CertCheck::PlaneNurbsOnLocus,
             Self::HullSup => CertCheck::PlaneNurbsHull,
             Self::HullValue => CertCheck::AnalyticBreakResidual,
-            Self::HullValueChart => CertCheck::PlaneNurbsHullValue,
+            Self::HullValueChart | Self::ImageMiss => CertCheck::PlaneNurbsHullValue,
             Self::Tube => CertCheck::Transversality,
         }
     }
@@ -650,7 +660,36 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // every coefficient of every operand entered interval arithmetic through its
     // own bracket (`certified_coords`), so a widened control net widens the
     // composite and the bound stays honest.
-    let sup = hull_limb(&CHART_HULL, subdivide(hull, band)?, band, at)?;
+    let stopped = subdivide(hull, band)?;
+    // A break past the band bounds the carrier's miss through its
+    // pcurve's surface point. Where the carrier's own foot there reads
+    // within the band, the miss is the pcurve's ([`SsiLimb::ImageMiss`]).
+    let carrier_on_surface = |tb: f64| {
+        let th = if tb == t0 {
+            h0
+        } else if tb == t1 {
+            h1
+        } else {
+            T::from_f64(tb)
+        };
+        let p = pcurve.eval(th);
+        surface
+            .project_from_seed(carrier.eval(th), p.x.lo(), p.y.lo())
+            .is_ok_and(|proj| {
+                matches!(
+                    decide_reported("ssi_on_locus_foot", Margin::of(proj.distance), band),
+                    Ok(Decided {
+                        sign: Sign::Zero,
+                        ..
+                    })
+                )
+            })
+    };
+    let arm = match stopped {
+        Subdivided::Value { at: tb, .. } if carrier_on_surface(tb) => &CHART_IMAGE_HULL,
+        _ => &CHART_HULL,
+    };
+    let sup = hull_limb(arm, stopped, band, at)?;
     Ok((worst, sup))
 }
 
@@ -1083,6 +1122,13 @@ pub(crate) const CHART_HULL: HullArm = HullArm {
     sup: "ssi_hull_sup_chart",
     value: "ssi_hull_value_chart",
     value_limb: SsiLimb::HullValueChart,
+};
+
+/// [`CHART_HULL`] at a break where the carrier is on the surface: a
+/// refusal on the value there names the pcurve's own miss.
+const CHART_IMAGE_HULL: HullArm = HullArm {
+    value_limb: SsiLimb::ImageMiss,
+    ..CHART_HULL
 };
 
 /// Limb 2's verdict on where [`subdivide`] stopped, and its bound: the
