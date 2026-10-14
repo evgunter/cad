@@ -536,6 +536,146 @@ fn a_crossing_read_in_band_is_not_settled_by_an_end_beside_the_other_crossing() 
     );
 }
 
+/// The unit circle about the origin and the circle about `(d, 0)` of
+/// radius `1 − d + g`: carriers `d` apart whose internal clearance is
+/// `g`, so within the band of tangency at angle 0 for `|g| ≤ ε`, and
+/// apart by `d(1 − cos θ) − g` at angle `θ`.
+fn near_concentric(d: f64, g: f64) -> ((Point2<f64>, f64), (Point2<f64>, f64)) {
+    ((Point2::new(0.0, 0.0), 1.0), (Point2::new(d, 0.0), 1.0 - d + g))
+}
+
+fn rim((c, r): (Point2<f64>, f64), angle: f64) -> Point2<f64> {
+    Point2::new(c.x + r * angle.cos(), c.y + r * angle.sin())
+}
+
+/// A hole bounded by the arc of `circle` from angle `from` through
+/// `sweep` and its chord.
+fn cap_hole(circle: (Point2<f64>, f64), from: f64, sweep: f64) -> profile::ProfileLoop<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let arc = Segment::Arc(Arc2 {
+        centre: circle.0,
+        radius: circle.1,
+        sweep,
+    });
+    ProfileLoop::new([
+        (rim(circle, from), arc),
+        (rim(circle, from + sweep), Segment::Line),
+    ])
+}
+
+/// A hole outside `circle`: its arc clockwise from angle `hi` to `lo`,
+/// closed by lines out to x = 3.
+fn outside_hole(circle: (Point2<f64>, f64), hi: f64, lo: f64) -> profile::ProfileLoop<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let arc = Segment::Arc(Arc2 {
+        centre: circle.0,
+        radius: circle.1,
+        sweep: lo - hi,
+    });
+    let (top, bottom) = (rim(circle, hi), rim(circle, lo));
+    ProfileLoop::new([
+        (top, arc),
+        (bottom, Segment::Line),
+        (Point2::new(3.0, bottom.y), Segment::Line),
+        (Point2::new(3.0, top.y), Segment::Line),
+    ])
+}
+
+/// Validates `p` at `f64` and at `Interval`, which must agree up to an
+/// escalation's margin.
+fn validate_both(p: &profile::Profile<f64>) -> Result<(), ProfileError> {
+    let verdict = |read: &Result<(), ProfileError>| match read {
+        Err(ProfileError::Escalated { site, source }) => format!("{site:?} {:?}", source.predicate),
+        other => format!("{other:?}"),
+    };
+    let at_f64 = p.validate(tol()).map(|_| ());
+    let at_interval = common::lift::<geom_core::Interval>(p)
+        .validate(tol())
+        .map(|_| ());
+    assert_eq!(
+        verdict(&at_f64),
+        verdict(&at_interval),
+        "f64 and Interval disagree"
+    );
+    at_f64
+}
+
+/// **Two arcs on near-concentric carriers decided internally tangent
+/// read their tangency on each carrier, not at the radical foot.**
+///
+/// With centres `d` apart and internal clearance `g`, the radical foot
+/// stands about `g/d` off both unit-scale circles: 0.029 at `d = 17ε`,
+/// `g = 0.5ε`, at every ε. Each hole's arc stops `s` short of angle 0,
+/// so the arcs are `2s` apart, centimetres at most, and none of them
+/// may refuse. The second table puts the arcs within ε of each other
+/// along the stretch where the carriers stay within the band, which
+/// reaches far from angle 0 when `d` is a few ε: there, a hole inside
+/// the unit circle and a hole outside the other circle, with the arcs
+/// holding angle 0 or not, must refuse: a tangency, an end's touch, or
+/// (for nested carriers) an end read in band of the other carrier.
+#[test]
+fn near_concentric_arcs_read_their_tangency_on_each_carrier() {
+    let eps = tol().eps();
+    for (d, g, s) in [
+        (17.0, 0.5, 0.005),
+        (17.0, 0.5, 0.01),
+        (17.0, 0.5, 0.014),
+        (34.0, 0.9, 0.01),
+        (17.0, -0.5, 0.01),
+        (1000.0, 0.5, 0.001),
+    ] {
+        let (one, two) = near_concentric(d * eps, g * eps);
+        let p = profile(vec![
+            rect(-5.0, -5.0, 10.0, 10.0),
+            cap_hole(one, s, 2.0),
+            cap_hole(two, -2.0 - s, 2.0),
+        ]);
+        assert_eq!(
+            validate_both(&p),
+            Ok(()),
+            "arcs {:e} apart, d = {d}ε, g = {g}ε",
+            2.0 * s
+        );
+    }
+    let pair = (sref(1, 0), sref(2, 0));
+    let tangent = || ProfileError::TangentialContact {
+        first: pair.0,
+        second: pair.1,
+    };
+    let touch = || ProfileError::NonSimple {
+        first: pair.0,
+        second: pair.1,
+        kind: ContactKind::Touch,
+    };
+    for (d, g, (from, sweep), (hi, lo), want) in [
+        (17.0, 0.5, (-0.2, 0.4), (0.2, -0.2), Some(tangent())),
+        (17.0, 0.5, (0.1, 0.4), (0.3, 0.05), Some(touch())),
+        (17.0, 0.5, (-0.3, 0.2), (0.2, -0.2), Some(touch())),
+        (17.0, 0.5, (-0.2, 0.4), (0.3, 0.1), Some(touch())),
+        (17.0, -0.5, (0.1, 0.4), (0.3, 0.05), None),
+        (17.0, -0.5, (-0.3, 0.2), (-0.05, -0.25), None),
+        (34.0, 0.9, (0.05, 0.1), (0.12, 0.08), Some(touch())),
+    ] {
+        let (one, two) = near_concentric(d * eps, g * eps);
+        let p = profile(vec![
+            rect(-5.0, -5.0, 10.0, 10.0),
+            cap_hole(one, from, sweep),
+            outside_hole(two, hi, lo),
+        ]);
+        let label = format!("d = {d}ε, g = {g}ε, arc {from}+{sweep} against {hi}..{lo}");
+        match (validate_both(&p), want) {
+            (Err(got), Some(want)) => assert_eq!(got, want, "{label}"),
+            (Err(ProfileError::Escalated { site, source }), None) => {
+                assert_eq!(site, EscalationSite::SegmentPair(pair.0, pair.1), "{label}");
+                assert_eq!(source.predicate, Some("circle_side"), "{label}");
+            }
+            (got, _) => panic!("{label}: {got:?}"),
+        }
+    }
+}
+
 #[test]
 fn near_tangent_hole_escalates_on_the_internal_clearance() {
     match err(&near_tangent_hole(tol().eps())) {
