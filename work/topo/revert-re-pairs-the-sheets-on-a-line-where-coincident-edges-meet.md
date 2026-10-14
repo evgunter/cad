@@ -90,3 +90,8 @@ The re-pairing retires the refusals and these with them.
   `slab ∖ blocks` with the contact as two 270° edges (overlap 180°) and
   ran six ops of that slab against the plate. It now pins the refusal;
   the six ops come back once the slab builds right.
+- `crates/topo/tests/records_cite_their_decision.rs`
+  `cutting_a_touching_pair_out_of_a_slab_refuses_its_revert`: on main it
+  cut the same slab and read a carried edge-edge record's lineage at a
+  plate's pierce (`a_carried_edge_edge_record_split_at_a_pierce_names_its_inputs_cells`).
+  It now pins the refusal; the lineage row comes back with the re-pairing.

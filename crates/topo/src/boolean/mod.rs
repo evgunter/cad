@@ -249,6 +249,12 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
             Coincide::Sectors.subject()
         }
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
+        // The census's edge-edge reading, which ∖ takes of the operand it
+        // reverts (`census::collinear_overlaps`).
+        "pm_census_ee_parallel" => "whether two straight edges of one solid are parallel",
+        "pm_census_ee_line_gap" => "whether two straight edges of one solid lie on one line",
+        "pm_census_span_order" => "the order of two points along a straight edge",
+        "pm_census_ee_overlap" => "whether two edges on one line overlap along a length",
         "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),

@@ -1578,18 +1578,13 @@ fn wedge<T: Decide>(body: &Body<T>, e: &EdgeGeo<T>, band: Band) -> Result<Wedge<
     let own = n_plus.vec().cross(e.dir);
     let next = n_minus.vec().cross(-e.dir);
     let arm = e.len;
-    let shape = crate::sector_shape::sector_shape(
-        own * arm,
-        next * arm,
-        geom_brep::OutwardNormal::from_chart(e.dir, true),
-        false,
-        band,
-    )
-    .map_err(|fault| match fault {
-        crate::sector_shape::SectorFault::Rung { diag, .. } => WedgeRefusal::Undecided(diag),
-        crate::sector_shape::SectorFault::NonFiniteChord
-        | crate::sector_shape::SectorFault::UnderflowedChord => WedgeRefusal::NoSheet(e.key),
-    })?;
+    let shape = crate::sector_shape::edge_wedge_shape(own * arm, next * arm, e.dir, band).map_err(
+        |fault| match fault {
+            crate::sector_shape::SectorFault::Rung { diag, .. } => WedgeRefusal::Undecided(diag),
+            crate::sector_shape::SectorFault::NonFiniteChord
+            | crate::sector_shape::SectorFault::UnderflowedChord => WedgeRefusal::NoSheet(e.key),
+        },
+    )?;
     Ok(Wedge {
         key: e.key,
         span: e.span(),
