@@ -57,6 +57,7 @@ mod carrier_net;
 pub mod carrier_speed;
 pub mod certify;
 pub mod conic_bend;
+pub mod curve_pair;
 pub(crate) mod descent;
 pub mod description;
 pub mod dihedral;

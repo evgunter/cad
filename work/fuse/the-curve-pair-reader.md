@@ -29,14 +29,20 @@ Ev ruled on PR 5027 (2026-10-14). The reader lives in `geom-brep`, beside C5's s
    - The walk serves as a differential oracle over the closed forms, outside the band. It would have caught the cleave P1 `a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles` in seconds.
    - The near-concentric census row re-baselines to a decided answer.
 
-## Stage (b) owes
+## Stage (b)
 
-Stage (a) (PR 5093) moved the machinery down unchanged. These were found in its review and belong to stage (b)'s reading:
+Stage (b)'s first part settles what stage (a)'s review found, and builds step 2:
 
-- **The four root enums are one class.** `geom_brep::half_angle::TrigRoots`, `topo`'s `circle_roots::CircleRoots`, `FirstHarmonicRoots` and `geom_brep::quartic::QuarticRoots`, with their two `From` bridges. Under D3's "One reading per question", stage (b) decides their one shape.
-- **`certified_subdivision` hides a refusal in its value.** It folds a bisect `Exhausted` and a meter refusal into the value arm `TrigRoots::Uncertain`, an untyped refusal inside the value. Stage (b)'s reading returns a typed refusal instead (D4).
-- **Two spellings of one charge.** `topo`'s `circle_roots::rounding_charge` is a one-line alias of `geom_brep::rounding_charge`. Retire the alias.
-- **`LadderRefusal::PastDegreeTwo` is a runtime check a type could rule out**: a degree-two type (`TrigPoly::second`) would make it unrepresentable.
+- **The root finders have one shape** (`geom_brep::roots`): `Roots<T, N, C>` holds decided answers only (a miss, ON, a certified count), and every refusal is typed in the `Err` (`Unsettled`, or `RootRefusal` where a finder escalates). `TrigRoots`, `QuarticRoots` and topo's `CircleRoots` and `FirstHarmonicRoots` are its instances; `Roots::widen` is the one bridge. `circle_roots::rounding_charge` is retired, and `half_angle_roots` takes a `DegreeTwo`, so a residual past degree two is unrepresentable.
+- **One span type and one point-on-span reading**: `geom_brep::curve_pair::{Span, Contact}`.
+
+Its second part is step 3, the meeting reading.
+
+**Stage (c) owes** the callers. These four readings still decide the point-on-span question themselves and move onto `Span::contact`:
+- `carrier_cross::strictly_inside`;
+- `census::curved::interior_at` and `clear_of_end`;
+- the census line lane's `on_edge_interior`;
+- `LoopEdge::contact`'s conic rows (`ConicArc::hit`), which read the distance to the conic rather than at a parameter.
 
 **Closes on landing:**
 - `two-curve-curve-meeting-finders`
