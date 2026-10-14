@@ -512,7 +512,16 @@ UV-space tolerance appears in any certified statement; the chart's
 stretch is the lever arm. A row certifies against its carrier and chart alone, on one branch (a τ jump
 is unrepresentable in `Harmonic`'s `α + β·t`, and the projected
 image's sector condition refuses one); no caller's window enters
-it. The face's rows lift its loops, and `topo::pcurves` certifies the
+it. On a periodic chart a harmonic image's winding is structure the
+row stores, never decided in metres: the row holds its windings (`β`,
+and `σ` where the second channel is an angle) as the derivation's own
+values, `certify` compares them with the image it re-derives exactly,
+and the image's sweep is the carrier's own span, which the edge
+certificate decides at the carrier's rate. The envelope is the row's
+one statement in metres. A torus face's convention (a tube radius and
+a ring gap each clear of the band) is decided where the face is
+admitted and re-decided at rest; a row reads `r` and `R − r` only as
+decided data. The face's rows lift its loops, and `topo::pcurves` certifies the
 loop: at each joint the walk decides the deck element (the whole number
 of periods, and on a sphere the involution twin) as an integer, with
 half the step to the next point of the joint's orbit as room: half a
@@ -546,7 +555,11 @@ stored row, a half-minted face's included. A topology door may drop
 rows mid-surgery; every public producer ends with a full mint, so
 validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
-covers refuses at the producer rather than reaching rest uncached. A
+covers refuses at the producer rather than reaching rest uncached.
+A closed-form class whose gate lands in the band means only that the
+class is not shown: the carrier takes the chart's general lane (its
+projected image), and no refusal of a declared carrier's image ends
+as a kernel defect. A
 carrier whose route refuses (a spline or a circle whose projected image
 reaches a pole) refuses at the producer like any other refusal: no
 class goes unrouted, so the exemption excuses only a scalar that holds

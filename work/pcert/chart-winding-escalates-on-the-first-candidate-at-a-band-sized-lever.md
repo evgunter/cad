@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-13
 priority: P3
 cost: M
+needs_ev: true
 ---
 
 
@@ -37,3 +38,18 @@ winding (the chart polygon, the forward-span check) is what an answer
 has to show.
 
 Loud today (an escalation), never a wrong answer.
+
+## The question for Ev
+
+One question covers this item and its sibling
+(`chart-winding-escalates-on-the-first-candidate-at-a-band-sized-lever`,
+`band-scale-torus-geometry-ends-as-a-kernel-defect`): what certification
+owes a row whose angular or curvature-scale quantities sit at a
+band-sized lever, where today the refusal ends as "a kernel defect;
+report it". Two designers weighed it and converged after one round: on
+a periodic chart the winding is structure the row stores and `certify`
+compares exactly, never decided in metres (the near-apex child row then
+certifies); the torus convention is decided where a torus face is
+admitted; a closed-form class gate in band means "class not shown" and
+the carrier takes the general (projected) lane. The C4 text the answer
+changes is in the `[ev]` PR that carries this question.

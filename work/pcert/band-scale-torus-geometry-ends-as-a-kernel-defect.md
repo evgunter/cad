@@ -1,13 +1,14 @@
 ---
 id: band-scale-torus-geometry-ends-as-a-kernel-defect
 kind: issue
-title: "chart_pcurve's torus arm ends band-scale geometry as Unsized::Defect: a thin tube or near-horn torus at the class gates, a near-horn Villarceau circle at its gates and incidence test, and the parallel route's unit_sign at K ≤ 3"
+title: chart_pcurve's torus arm ends band-scale geometry as Unsized::Defect: a thin tube or near-horn torus at the class gates, a near-horn Villarceau circle at its gates and incidence test, and the parallel route's unit_sign at K ≤ 3
 status: open
 opened: 2026-10-14
 priority: P3
 cost: M
 design: true
 refs: [a-villarceau-tangent-parts-gated-zero-ends-as-a-kernel-defect]
+needs_ev: true
 ---
 
 ## What
@@ -96,3 +97,18 @@ The obvious ending is a sized decision with the tolerance offer.
   gates read them.
 
 That needs a designer's look before a lane builds it.
+
+## The question for Ev
+
+One question covers this item and its sibling
+(`chart-winding-escalates-on-the-first-candidate-at-a-band-sized-lever`,
+`band-scale-torus-geometry-ends-as-a-kernel-defect`): what certification
+owes a row whose angular or curvature-scale quantities sit at a
+band-sized lever, where today the refusal ends as "a kernel defect;
+report it". Two designers weighed it and converged after one round: on
+a periodic chart the winding is structure the row stores and `certify`
+compares exactly, never decided in metres (the near-apex child row then
+certifies); the torus convention is decided where a torus face is
+admitted; a closed-form class gate in band means "class not shown" and
+the carrier takes the general (projected) lane. The C4 text the answer
+changes is in the `[ev]` PR that carries this question.
