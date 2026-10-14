@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-14
 ---
 
-Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), which tests every geometric pair question against C5's rule: one total kind-pair table, one method per pair, no runtime fallback (`crates/geom-brep/README.md`, C5).
+Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
 
 ## What
 
@@ -21,7 +21,11 @@ Coaxiality of two revolution carriers is decided separately in:
 
 ## Owed
 
-One coaxiality reading, one arm per revolution-kind pair, with each consumer reading it. `coaxial_rows`' skip and dropped `Err` should each be either a table arm or a typed refusal.
+Re-aimed to D3 "One reading per question". Coaxial is one class of the carrier pair's *pose*, decided once by the pose reading. The "one coaxiality reading" is that pose reading's coaxial class, with one method per revolution-kind pair, and the five tests become consumers of it.
+
+- `glue::coaxial_rows`' `_ => continue` is a consumer matching on kinds. It matches on the pose reading's answer instead, and refuses typed the pairs it does not serve.
+- Its dropped `Err` from `cylinder_sphere_section` (no row, no refusal) is a typed refusal read as a verdict, which D4's line "A typed refusal is never read as a verdict" (`docs/DESIGN.md`, D4 item 3) forbids. It propagates, or takes a path that decides the question itself.
+- `blend/battery::support_coaxiality` and `offset_axial`'s frame read the pose reading rather than testing coaxiality themselves.
 
 ## The dropped `Err`, probed (2026-10-14, `fuse/pair-gaps-fail-loud`)
 

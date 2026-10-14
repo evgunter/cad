@@ -2317,3 +2317,21 @@ The PR merged with `demos` red on that drift alone.
 **Pin.** `emit_ball_cut_by_brick.rs` pins every op in both orders. Subtract cites a ball pole off the ball's own poles, so the test flips when the re-chart goes.
 
 **Process.** The lane's report said main did not build: `BooleanNaming`'s `Default` had no `chart_cuts`. #5060 had already fixed that.
+
+## 2026-10-14 — PR 5073: union readings (four rows closed)
+
+**Closed:**
+- `a-unions-member-lookups-skip-a-non-unique-row-silently`: a tied member face is read by key, a tied vertex carries its tie through `TieRows`, and a tied edge refuses `MemberEdgeTied` where it bears.
+- `a-point-on-a-curved-edge-is-placed-by-its-chord`: `edge_holds` reads along the carrier; a NURBS carrier refuses with the new `CarrierUnplaced`.
+- `the-joined-edge-reading-has-two-implementations`: the pair and the union share `joined_candidates`, `joined_along` and `edges_holding`.
+- `a-run-of-seams-says-every-seam-after-the-first-as-an-edge`: every seam in a run is said by its two faces.
+
+**Coverage change.** A union flush with a member's tied edge now refuses where main named it. N5 reads a line as its least member row, and the README has no rule for a tied one. No corpus or suite row moved.
+
+**Review.** The falsifier and style reviewers found nothing blocking. Twelve findings were folded in, three of them silent defaults.
+
+**Filed:** `two-seam-runs-whose-seams-differ-in-unopened-faces-can-read-alike-within-the-evaluation`.
+
+**Process.**
+- The fold's first push broke CI's build: `crates/viewer` includes `tests/fixture/mod.rs` by path. Fixed on the next push.
+- The lane's target reached 22G and filled `/` once.
