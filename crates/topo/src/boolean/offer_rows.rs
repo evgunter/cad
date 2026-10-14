@@ -2938,6 +2938,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
+    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 2),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
