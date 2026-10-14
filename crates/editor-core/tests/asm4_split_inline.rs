@@ -1782,13 +1782,13 @@ fn flat_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<editor_core::StepId>
     }
 }
 
-/// **A split re-mints the cut profiles' steps in the part's own order,
+/// **A split re-mints the cut profiles' steps from the part's own mint,
 /// and its step map says so, however the source minted them.** The cut
 /// profile's step 2 was re-minted by a reshaping, so its ids come from
-/// two different edits. The part document mints its one profile's steps
-/// from its own empty mint, in step order, and the step map pairs each
-/// old id with the id in the same position; the same split minted twice
-/// mints the same ids (D9).
+/// two different edits. The part document mints its one profile's five
+/// ids from its own empty mint and no more, and the step map pairs each
+/// old id with the id the part's program holds in the same position;
+/// the same split minted twice mints the same ids (D9).
 #[test]
 fn a_split_step_map_follows_a_non_contiguous_re_mint() {
     let (doc, [f2, p2, e2], _) = reshaped_component("asm4-steps", 2, false);
@@ -1981,7 +1981,10 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
     let part_profile = out.node_map[&p2];
     let minted = flat_ids(&out.part, part_profile);
     let expected: Vec<_> = old.iter().map(|s| out.step_map[s]).collect();
-    assert_eq!(minted, expected, "the part's program holds each step's image");
+    assert_eq!(
+        minted, expected,
+        "the part's program holds each step's image"
+    );
     let reds = std::collections::BTreeMap::new();
     let crossed = editor_core::remap_name(&was, &out.node_map, &out.step_map, &reds)
         .expect("the split's maps cover the run");

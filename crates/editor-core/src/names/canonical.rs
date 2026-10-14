@@ -396,22 +396,31 @@ pub(crate) fn collapsed<'n, E>(
     canonical(was, now, Seams::ByName, image)
 }
 
+/// What [`rewritten`] made of a published name.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Rewritten {
+    /// The name in canonical form.
+    Canonical(StableName),
+    /// A name with a rank that cannot be re-read, exactly as the
+    /// segment rewrite left it, and why.
+    Carried(StableName, Unrankable),
+}
+
 /// **A published name after a rewrite**, in canonical form:
 /// [`canonical`] with the name's own seams in the order
 /// [`Seams::of_published`] reads off it.
 ///
-/// A name with a rank that cannot be re-read is carried EXACTLY as the
-/// segment rewrite left it — nothing reordered, nothing re-ranked. A
-/// rewrite re-spells a reference; it is not a door. Two of the refusals
-/// are emission-time facts: the collapse refuses [`RankRule::Refuse`]'s
+/// A name with a rank that cannot be re-read is answered
+/// [`Rewritten::Carried`], nothing reordered and nothing re-ranked: a
+/// rewrite re-spells a reference, and whether it may carry one is the
+/// rewriter's to say (`SegRewrite::unrankable`). Two of the reasons are
+/// emission-time facts: the collapse refuses [`RankRule::Refuse`]'s
 /// shape, and no emitter mints a rank at or past its count, so a name
 /// carrying either was never published and resolves to nothing before
 /// the rewrite and after it. [`RankRule::RefuseRun`] is not: a pair
-/// boolean publishes a ranked run, and a rewrite whose map does not keep
-/// name order (a split's) can make another of its lines least. That
-/// name is carried out of order and resolves to nothing, though it
-/// resolved before
-/// (`work/emit/a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical.md`).
+/// boolean publishes a ranked run, and a rewrite whose map does not
+/// keep name order can make another of its lines least, so the name
+/// carried resolves to nothing though it resolved before.
 ///
 /// # Errors
 ///
@@ -420,16 +429,16 @@ pub(crate) fn rewritten<'n, E>(
     was: &'n StableName,
     now: StableName,
     image: Image<'_, 'n, E>,
-) -> Result<StableName, E> {
+) -> Result<Rewritten, E> {
     let seams = Seams::of_published(was);
     if !has_rank(&now) && !has_sense(&now) {
-        return Ok(order(now, seams));
+        return Ok(Rewritten::Canonical(order(now, seams)));
     }
     let carried = now.clone();
     match canonical(was, now, seams, image) {
-        Ok(name) => Ok(name),
+        Ok(name) => Ok(Rewritten::Canonical(name)),
         Err(Stop::Image(e)) => Err(e),
-        Err(Stop::Unrankable(_)) => Ok(carried),
+        Err(Stop::Unrankable(why)) => Ok(Rewritten::Carried(carried, why)),
     }
 }
 
@@ -635,6 +644,14 @@ mod tests {
     }
 
     /// The identity image: the name written is the name meant.
+    /// The canonical form a rewrite answers, where it answers one.
+    fn formed(r: Result<Rewritten, ()>) -> StableName {
+        match r {
+            Ok(Rewritten::Canonical(n)) => n,
+            other => panic!("a canonical form: {other:?}"),
+        }
+    }
+
     fn same(n: &StableName) -> Result<StableName, ()> {
         Ok(n.clone())
     }
@@ -688,7 +705,7 @@ mod tests {
         if seams == Seams::Sided {
             assert_eq!(minted(f.clone()), f);
         }
-        assert_eq!(rewritten(&f, f.clone(), &mut same).unwrap(), f);
+        assert_eq!(formed(rewritten(&f, f.clone(), &mut same)), f);
         f
     }
 
@@ -963,7 +980,7 @@ mod tests {
             })
         };
         let now = crossing(union_seam(&y2, &x2), 0);
-        let out = rewritten(&was, now, &mut image).unwrap();
+        let out = formed(rewritten(&was, now, &mut image));
         assert_eq!(out, crossing(union_seam(&y2, &x2), 1));
         // An edge piece carries no rank, so the same rewrite of a piece
         // of that seam only re-spells it.
@@ -982,7 +999,7 @@ mod tests {
         };
         let was = piece(union_seam(&x, &y));
         let now = piece(union_seam(&y2, &x2));
-        assert_eq!(rewritten(&was, now.clone(), &mut image).unwrap(), now);
+        assert_eq!(formed(rewritten(&was, now.clone(), &mut image)), now);
     }
 
     #[test]
@@ -1029,12 +1046,12 @@ mod tests {
         // x and y come out with y' < x': the seam's pair reorders.
         let (x2, y2) = (face(9, 5), face(9, 4));
         let now = crossing(union_seam(&y2, &x2), Sense::Enters, 0);
-        let out = rewritten(&was, now, &mut swap((x2.clone(), y2.clone()))).unwrap();
+        let out = formed(rewritten(&was, now, &mut swap((x2.clone(), y2.clone()))));
         assert_eq!(out, crossing(union_seam(&y2, &x2), Sense::Leaves, 1));
         // x and y come out with x' < y': the pair keeps its order.
         let (x3, y3) = (face(9, 4), face(9, 5));
         let now = crossing(union_seam(&x3, &y3), Sense::Enters, 0);
-        let out = rewritten(&was, now.clone(), &mut swap((x3, y3))).unwrap();
+        let out = formed(rewritten(&was, now.clone(), &mut swap((x3, y3))));
         assert_eq!(out, now);
     }
 
@@ -1080,11 +1097,11 @@ mod tests {
         };
         let (x2, y2) = (face(9, 5), face(9, 4));
         let now = crossing(union_seam(&y2, &x2), Sense::Enters, 0);
-        let out = rewritten(&was, now, &mut swap((x2.clone(), y2.clone()))).unwrap();
+        let out = formed(rewritten(&was, now, &mut swap((x2.clone(), y2.clone()))));
         assert_eq!(out, crossing(union_seam(&y2, &x2), Sense::Leaves, 1));
         let (x3, y3) = (face(9, 4), face(9, 5));
         let now = crossing(union_seam(&x3, &y3), Sense::Enters, 0);
-        let out = rewritten(&was, now.clone(), &mut swap((x3, y3))).unwrap();
+        let out = formed(rewritten(&was, now.clone(), &mut swap((x3, y3))));
         assert_eq!(out, now);
         // A lone crossing, with no rank to re-read, still flips.
         let lone = |edge: StableName, sense| {
@@ -1094,7 +1111,7 @@ mod tests {
         };
         let was = lone(union_seam(&x, &y), Sense::Enters);
         let now = lone(union_seam(&y2, &x2), Sense::Enters);
-        let out = rewritten(&was, now, &mut swap((x2.clone(), y2.clone()))).unwrap();
+        let out = formed(rewritten(&was, now, &mut swap((x2.clone(), y2.clone()))));
         assert_eq!(out, lone(union_seam(&y2, &x2), Sense::Leaves));
     }
 
@@ -1122,7 +1139,7 @@ mod tests {
         ));
         assert_eq!(
             rewritten(&was, now.clone(), &mut same).unwrap(),
-            now,
+            Rewritten::Carried(now, Unrankable::RankOutsideCount),
             "nothing reordered, nothing re-ranked"
         );
     }
