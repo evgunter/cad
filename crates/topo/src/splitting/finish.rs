@@ -57,11 +57,11 @@
 //! edge's adjacent pair. The describe pass restates each one in what
 //! the must-carry rule demands over its current pair
 //! (`describe_section_boundary`'s smooth arm) — for two flush planes,
-//! whose zero second order under-determines the locus, an image in the
-//! section chart — so a coplanar product's boundary descriptions are
+//! whose zero second order under-determines the locus, the pair
+//! (`OnPair`) — so a coplanar product's boundary descriptions are
 //! adjacency-coherent at rest; on a NEAR-flush operand the same
-//! restatement meters the section chart's containment, and a line chord
-//! the band cannot decide refuses as the edge's own reading
+//! restatement meters the edge's incidence on both planes, and a line
+//! chord the band cannot decide refuses as the edge's own reading
 //! ([`SplitFinishError::EdgeOnFacesEscalated`]).
 
 use geom_core::{Decide, Real, UnitVec3, Vec3};
@@ -439,11 +439,15 @@ pub enum SplitFinishError {
     },
     /// A section-boundary edge read smooth at its witness and a corner
     /// at a station of the must-carry rule
-    /// ([`geom_brep::MustCarryRefusal::Refuted`]): the two readings
-    /// disagree, so the split refuses rather than choose a description.
+    /// ([`geom_brep::MustCarryRefusal::Refuted`],
+    /// [`geom_brep::MustCarryRefusal::Mixed`]): the readings disagree,
+    /// so the split refuses rather than choose a description.
     SmoothJoinRefuted {
         /// The section-boundary edge.
         edge: EdgeKey,
+        /// The two neighbouring stations that disagree, where one reads
+        /// smooth; `None` where every station reads a corner.
+        mixed: Option<geom_brep::MixedStations>,
     },
     /// A section loop's winding about its chart normal has no sign, so
     /// the section face's material side cannot be read: in the band
@@ -592,11 +596,19 @@ impl core::fmt::Display for SplitFinishError {
                     diag.lever_ending(crate::merge_faces::EDGE_ON_PLANE_LEVER),
                 )
                 .fmt(f),
-            Self::SmoothJoinRefuted { .. } => write!(
+            Self::SmoothJoinRefuted {
+                mixed: Some(stations),
+                ..
+            } => write!(
+                f,
+                "along an edge the cut leaves between two faces, {stations}. Recourse: {}",
+                super::SPLIT_COINCIDENCE_RECOURSE
+            ),
+            Self::SmoothJoinRefuted { mixed: None, .. } => write!(
                 f,
                 "two faces along the cut meet smoothly at the middle of their shared edge \
-                 but at a corner elsewhere along it, so the split cannot say what that edge \
-                 is. Recourse: {}",
+                 but at a corner at every station along it, so the split cannot say what \
+                 that edge is. Recourse: {}",
                 super::SPLIT_COINCIDENCE_RECOURSE
             ),
             Self::SectionWindingUndecided {
@@ -942,7 +954,8 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
 /// The re-descriptions a section face's re-chart takes: every edge of
 /// `face` among those the re-chart strands (`stranded`, from
 /// [`Body::stranded_by`]) whose description names the chart the face
-/// wears now, stated as an image in that chart. The re-chart reads
+/// wears now, stated as an image in that chart, or, for a conventional
+/// pair, as the pair it is. The re-chart reads
 /// that image as the chart the face moves onto, or, where the edge's
 /// other face keeps the chart, as that chart itself
 /// ([`Body::set_face_surfaces_describing`]). Carrier, interval and a
@@ -976,7 +989,18 @@ fn section_plane_restatements<T: Decide>(
             if !Named::of(geom).keys().any(|k| k == chart) {
                 continue;
             }
-            out.push((edge, curve.restated_in_chart(chart)));
+            // A pair names no chart to restate it in: listed as it
+            // stands, its key for this face stands for the chart the
+            // face moves onto.
+            let spec = if matches!(
+                curve.description(),
+                geom_brep::EdgeDescription::OnPair { .. }
+            ) {
+                curve.restated_spec()
+            } else {
+                curve.restated_in_chart(chart)
+            };
+            out.push((edge, spec));
         }
     }
     Ok(out)
@@ -1123,26 +1147,24 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                             witness,
                         },
                         band,
-                        || s_self,
                         |_, diag| SplitFinishError::DescribeEscalated { edge, diag },
                         |_, diag| SplitFinishError::DescribeBendEscalated { edge, diag },
-                        || SplitFinishError::SmoothJoinRefuted { edge },
-                        |chart| {
-                            unreachable!(
-                                "{chart:?} is this section face's own surface, one of the pair \
-                                 the join was read over"
-                            )
-                        },
+                        |mixed| SplitFinishError::SmoothJoinRefuted { edge, mixed },
                     )?;
                     // A description of the demanded kind that names
-                    // the edge's current pair stays verbatim (a stated
+                    // the edge's current faces stays verbatim (a stated
                     // image travels exactly); anything else — a
                     // citation whose partner this split reassigned to
                     // the other product, a scaffold, or the other kind
-                    // — is restated. An edge between TWO section faces
-                    // is visited once per face and ends with the FIRST
-                    // visit's chart (section faces iterate in arena key
-                    // order); either adjacent chart certifies.
+                    // — is restated.
+                    let pair = geom_brep::SurfacePair::new(s_self, s_other);
+                    let rest = crate::rest_locus(
+                        body,
+                        [(s_self, Some(face)), (s_other, Some(other_face))],
+                        &spec.carrier,
+                        (spec.param_start, spec.param_end),
+                        band,
+                    );
                     let intrinsic =
                         matches!(demanded, geom_brep::MustCarryDescription::Intrinsic(_));
                     let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
@@ -1150,31 +1172,34 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         // this edge bounds two, so a wrap flag on it is
                         // restated.
                         geom_brep::EdgeDescription::Chart(ref ch) if ch.wrap => false,
+                        // A conventional form is coherent only where it
+                        // rests where the one home says it rests.
                         geom_brep::EdgeDescription::Chart(ref ch) => {
-                            !intrinsic && (ch.surface == s_self || ch.surface == s_other)
+                            !intrinsic && rest == geom_brep::RestLocus::Chart(ch.surface)
                         }
-                        geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
-                            intrinsic && pair == geom_brep::SurfacePair::new(s_self, s_other)
+                        geom_brep::EdgeDescription::OnPair { pair: p } => {
+                            !intrinsic && rest == geom_brep::RestLocus::Pair(p)
+                        }
+                        geom_brep::EdgeDescription::TangentIntersection { pair: p, .. } => {
+                            intrinsic && p == pair
                         }
                         geom_brep::EdgeDescription::Intersection { .. }
                         | geom_brep::EdgeDescription::Scaffold(_) => false,
                     });
                     if !coherent {
-                        // The conventional image rests in the section
-                        // chart, which every section-boundary edge lies
-                        // in to within the BAND: on a near-flush
+                        // Every section-boundary edge lies on the
+                        // section to within the BAND: on a near-flush
                         // operand it is metered like any description
                         // (D4 ¶3).
-                        let spec = match demanded {
-                            geom_brep::MustCarryDescription::Intrinsic(description) => {
-                                geom_brep::EdgeCurveSpec {
-                                    description,
-                                    ..spec
-                                }
-                            }
-                            geom_brep::MustCarryDescription::Conventional(chart) => {
-                                curve.restated_in_chart(chart)
-                            }
+                        let mut description = demanded.spec(rest);
+                        if !intrinsic
+                            && let geom_brep::EdgeAuthority::Declared(mc) = curve.authority()
+                        {
+                            description = description.declared_by(mc);
+                        }
+                        let spec = geom_brep::EdgeCurveSpec {
+                            description,
+                            ..spec
                         };
                         let carrier = spec.carrier.kind();
                         body.set_edge_curve(edge, spec, tol)
@@ -1704,7 +1729,7 @@ mod smooth_arm_rows {
     /// neighbour's cylinder runs ACROSS the edge, tangent to the
     /// section plane at the midpoint only: the witness reads smooth,
     /// the stations either side read a corner, and the split refuses
-    /// rather than choose a description for an edge of neither kind.
+    /// the mixed edge, naming the first two stations that disagree.
     #[test]
     fn a_corner_at_a_station_refuses_as_a_refuted_smooth_join() {
         let SectionEdge {
@@ -1719,8 +1744,19 @@ mod smooth_arm_rows {
         body.surfaces[s_other] = cylinder_under(mid, Vec3::unit_z().cross(along));
         let band = Band::linear(tol()).unwrap();
         match super::describe_section_boundary(&mut body, face, band, tol()) {
-            Err(SplitFinishError::SmoothJoinRefuted { edge: refused }) => {
+            Err(SplitFinishError::SmoothJoinRefuted {
+                edge: refused,
+                mixed: Some(stations),
+            }) => {
                 assert_eq!(refused, edge, "the refusal names the mixed edge");
+                assert_eq!(
+                    stations,
+                    geom_brep::MixedStations {
+                        transverse: 3,
+                        smooth: 4
+                    },
+                    "the stations bracketing the tangency at the midpoint"
+                );
             }
             other => panic!("a smooth-at-the-witness corner refuses typed, got {other:?}"),
         }
@@ -1820,8 +1856,8 @@ mod smooth_arm_rows {
     /// current pair (the neighbour a cylinder ALONG the edge, κ_rel =
     /// 1), then the neighbour's surface becomes the section plane
     /// itself: the citation still names the current pair, but the rule
-    /// now answers under-determined, so the edge is restated as an
-    /// image in the section chart rather than kept.
+    /// now answers under-determined, so the edge is restated as the
+    /// conventional pair rather than kept.
     #[test]
     fn a_coherent_tangency_on_an_under_determined_edge_is_restated_conventionally() {
         let SectionEdge {
@@ -1865,10 +1901,14 @@ mod smooth_arm_rows {
             .expect("a flush neighbour describes conventionally");
         let curve = body.get_edge(edge).unwrap().curve;
         let stored = body.get_curve_geom(curve).unwrap().certified().unwrap();
+        // The neighbour is now a second record of the section's plane:
+        // one carrier, so the edge rests in the first record's chart.
         match stored.description() {
-            geom_brep::EdgeDescription::Chart(c) => {
-                assert_eq!(c.surface, s_self, "restated in the section chart");
-            }
+            geom_brep::EdgeDescription::Chart(chart) => assert_eq!(
+                chart.surface,
+                geom_brep::SurfacePair::new(s_self, s_other).keys()[0],
+                "restated in the first record's chart"
+            ),
             other => panic!("an under-determined edge keeps no tangency, got {other:?}"),
         }
     }

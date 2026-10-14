@@ -1228,6 +1228,21 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::PlanarFaceResidual { face, vertex },
         ValidationError::PlanarBoundaryResidual { face, edge },
         ValidationError::TransverseNotIntrinsic { edge },
+        ValidationError::MixedDihedral {
+            edge,
+            stations: geom_brep::MixedStations {
+                transverse: 3,
+                smooth: 4,
+            },
+        },
+        ValidationError::PairTangencyDetermined {
+            edge,
+            sagitta: geom_core::MarginDiag::value(5e-3),
+        },
+        ValidationError::PairCornerDetermined {
+            edge,
+            wedge: geom_core::MarginDiag::value(5e-3),
+        },
         ValidationError::ScaffoldAtRest { edge },
         ValidationError::JoinableVertexAtRest { vertex },
         ValidationError::JoinUndecidedAtRest {
