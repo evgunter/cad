@@ -5631,16 +5631,16 @@ mod tests {
     /// **The import door reads certification as at rest, with its ε_in
     /// words** (D4 ¶1), over every check and every arm: the door's ending
     /// is the at-rest one, except that a band-decided arm of a sized
-    /// decision whose margin's nearer end lies at or below ε_in ends in
-    /// one sentence, whichever arm the run's band placed it on: the file
-    /// does not state the size, and keeping it takes declaring the file's
-    /// uncertainty below it and tightening, together, or else the lever
-    /// alone, with no decision's note, an enclosure across zero's
-    /// included — and a residual's
-    /// miss within ε_in but beyond ε, or a certified bound on it wholly
-    /// within ε_in, names setting ε to ε_in as a stopgap. An ε_in below every margin leaves every ending at rest
-    /// but a reading at zero's. No ending at the door blames the kernel
-    /// alone, or carries a second recourse.
+    /// decision whose margin's nearer end lies within ε_in ends in one
+    /// sentence, whichever arm the run's band placed it on: the file
+    /// cannot tell the size from zero, and keeping it takes declaring the
+    /// file's uncertainty below it and tightening, together, or else the
+    /// lever alone, with no decision's note, an enclosure across zero's
+    /// included — and a residual's miss within ε_in but beyond ε, or a
+    /// certified bound on it wholly within ε_in, names setting ε to ε_in
+    /// as a stopgap. An ε_in below every margin leaves every ending at
+    /// rest but a reading at zero's. No ending at the door blames the
+    /// kernel alone, or carries a second recourse.
     #[test]
     fn the_import_door_reads_at_rest_with_its_eps_in_words() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -5692,10 +5692,10 @@ mod tests {
                     RefusedArm::Zero(Classified { margin, .. }) => Some(margin),
                     RefusedArm::SignCertain(_) | RefusedArm::Straddle => None,
                 };
-                // A reading at or across zero has its nearer end below
+                // A reading at or across zero has its nearer end within
                 // every ε_in, so even the narrow one reads it in the door's
-                // sentence: "is below" where the whole reading is, "may lie
-                // below" where only that end is, then the lever alone. The
+                // sentence: "is within" where the whole reading is, "may lie
+                // within" where only that end is, then the lever alone. The
                 // door cannot tell a zero the file stores from a rounded
                 // one, so no decision's note rides there.
                 let reaches_zero = match banded.map(MarginDiag::diagnostic_f64_for_error_text) {
@@ -5712,16 +5712,16 @@ mod tests {
                     (Ending::Sized(sized), Some(far))
                         if !(sized.passes.passes_zero() && matches!(arm, RefusedArm::Zero(_))) =>
                     {
-                        let (lies, states) = if far <= narrow.eps_in() {
-                            ("is below", "does not state")
+                        let (lies, tells) = if far <= narrow.eps_in() {
+                            ("is within", "cannot tell")
                         } else {
-                            ("may lie below", "may not state")
+                            ("may lie within", "might not tell")
                         };
                         assert_eq!(
                             narrow_door,
                             format!(
                                 "This {} {lies} the file's declared coincidence distance ε_in = \
-                                 {:e} m, so the file {states} it. Recourse: {}",
+                                 {:e} m, so the file {tells} it from zero. Recourse: {}",
                                 sized.size,
                                 narrow.eps_in(),
                                 sized.lever
@@ -5750,8 +5750,9 @@ mod tests {
                         // One sentence for every band-decided arm, the
                         // run's placement of it picking no other words.
                         assert!(
-                            door.starts_with(&format!("This {} is below the file's", sized.size))
-                                && door.contains("so the file does not state it. Recourse: "),
+                            door.starts_with(&format!("This {} is within the file's", sized.size))
+                                && door
+                                    .contains("so the file cannot tell it from zero. Recourse: "),
                             "{check:?} {arm:?}: {door}"
                         );
                         if at_rest.contains("tighten") {
@@ -5995,8 +5996,8 @@ mod tests {
     /// **The collapsed-arm gates' definite refusals read the import door
     /// like every sized decision's** (D4 ¶1): a collapsed transversality
     /// arm and a collapsed span meter end through [`recourse`] at the door, so
-    /// a zero within the file's ε_in is a size the file does not state,
-    /// not the at-rest offer to tighten alone.
+    /// a zero within the file's ε_in is a size the file cannot tell from
+    /// zero, not the at-rest offer to tighten alone.
     #[test]
     fn the_collapsed_arm_gates_read_the_import_door() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -6022,7 +6023,7 @@ mod tests {
                 "{check:?}: the door's ending is the decision's"
             );
             assert!(
-                door.contains("so the file does not state it. Recourse: ")
+                door.contains("so the file cannot tell it from zero. Recourse: ")
                     && door.contains(" m and tighten the tolerance below 5e-11 m"),
                 "{check:?}: {door}"
             );

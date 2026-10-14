@@ -586,12 +586,18 @@ const PLATE_MAX_TERMS: usize = 28;
 /// check asks the tier's algebra without the door, so the
 /// `Door/Assertion` line, 396 calls that built nothing, is gone. The
 /// slab's `Early/Assertion` digests move the same way at each ε row.
+///
+/// The pcurve envelope's orthonormal chart squaring its frame by cross
+/// products (`geom::square_frame`) builds its frame terms in another
+/// form: `Plain/Decision`, `Early/Assertion` and `Door/Decision` +14
+/// forms each, and the `Plain/Assertion` digest; every call and freeze
+/// holds.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 16048 frozen 324 digest f89ef49f722b34fae182cdf42193f5b8\n\
-     Plain/Assertion calls 654 forms 4542 frozen 405 digest 3c4fc6a4bbbcee24d316349a6cc2996f\n\
+     Plain/Decision calls 1048 forms 16062 frozen 324 digest 715619d65a643a83cc5e70b84b682d55\n\
+     Plain/Assertion calls 654 forms 4542 frozen 405 digest f63af9fca1a4ea01e1f6315ee03c04fd\n\
      Early/Decision calls 352 forms 8970 frozen 0 digest 7331ca9ce50daa679d9117fae6863d1a\n\
-     Early/Assertion calls 654 forms 5505 frozen 0 digest 9e115d316f094da06cfb34dd062c14d0\n\
-     Door/Decision calls 396 forms 7377 frozen 0 digest cd68ef595d7f324c874b3f5aec2e3bbb";
+     Early/Assertion calls 654 forms 5519 frozen 0 digest 68250ff348585275fa8c8d419067c7fe\n\
+     Door/Decision calls 396 forms 7391 frozen 0 digest d5224bf3c464a7398f599a5455143cb7";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
