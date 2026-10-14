@@ -647,6 +647,60 @@ fn t9_a_nurbs_carrier_on_a_plane_chart_describes_through_its_projected_image() {
     );
 }
 
+/// **T9b** — why `chart_edge` reads a projected row through
+/// `Pcurve::chart_box` rather than `Pcurve::eval` over the walked
+/// interval, as the closed forms do. On T9's shape (a degree-1 chord on
+/// a plane chart), the spline's interval evaluation is poison over the
+/// whole edge: its rational denominator `(1 − t) + t` encloses to
+/// `[0, 2]`, which holds zero. Between the ends it is loose by the same
+/// lost correlation, about 9× in `u` and 5× in `v` over `[0.1, 0.9]`.
+/// The box, the per-piece control hull, is the image's exact hull.
+///
+/// This row guards the deviation: it goes red the day the spline arm of
+/// `eval` becomes tight over a wide `t`, and that is when `chart_edge`'s
+/// projected arm can read `eval` like the others.
+#[test]
+fn t9b_a_projected_rows_eval_over_its_edge_is_poison_and_its_box_is_exact() {
+    let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let chord = NurbsCurve3::new(
+        Knots::from(knots).lift(Real::from_f64),
+        vec![
+            Point3::new(iv(0.5), iv(-0.5), iv(0.0)),
+            Point3::new(iv(0.5), iv(0.5), iv(0.0)),
+        ],
+        vec![Real::one(); 2],
+    )
+    .unwrap();
+    let image = geom_brep::chart_pcurve(&Curve3::Nurbs(Arc::new(chord)), &base_plane(), band())
+        .expect("a chord on the plane has a projected image");
+    let width = |x: Interval| x.hi() - x.lo();
+
+    let whole = image.eval(iv(0.0).enclosure_hull(iv(1.0)));
+    assert!(
+        !whole.x.hi().is_finite() || !whole.y.hi().is_finite(),
+        "eval over the whole edge is no longer poison: {whole:?}"
+    );
+    let inner = image.eval(iv(0.1).enclosure_hull(iv(0.9)));
+    assert!(
+        width(inner.x) > 0.5 && width(inner.y) > 5.0 * 0.8,
+        "eval over [0.1, 0.9] is now tight: {inner:?} (the true image is u = 0.5, v in [-0.4, 0.4])"
+    );
+
+    let hull = image.chart_box(iv(0.0), iv(1.0));
+    let (u, v) = (
+        hull.u_min.enclosure_hull(hull.u_max),
+        hull.v_min.enclosure_hull(hull.v_max),
+    );
+    assert!(
+        width(u) <= 1e-15 && (u.lo() - 0.5).abs() <= 1e-15,
+        "the box's u is not the chord's 0.5: {u:?}"
+    );
+    assert!(
+        (v.lo() + 0.5).abs() <= 1e-15 && (v.hi() - 0.5).abs() <= 1e-15,
+        "the box's v is not the chord's [-0.5, 0.5]: {v:?}"
+    );
+}
+
 // ---------------------------------------------------------------- //
 // T10 — the audit's dimensional claim (F19), guarded
 // ---------------------------------------------------------------- //

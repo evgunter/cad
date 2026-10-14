@@ -4571,8 +4571,14 @@ fn chart_edge<T: Decide>(
             })
         }
         // A projected image is the chart's inverse of its carrier, exact
-        // like the closed forms, so its slack is zero too; its enclosure
-        // is its own chart box, the sector hull's ranges per piece.
+        // like the closed forms, so its slack is zero too. Its enclosure
+        // is its own chart box, the sector hull's ranges per piece, and
+        // not `eval` over the span as the closed forms read: the spline's
+        // interval evaluation loses the correlation between its rational
+        // quotient's numerator and denominator, so over a whole edge the
+        // denominator encloses zero and the image is poison, and between
+        // the ends it is several times too wide
+        // (`trim_3_chart_bound::t9b_…`).
         Pcurve::Projected(_) => {
             let hull = walked.pcurve.chart_box(walked.t0, walked.t1);
             Ok(ChartEdge::Envelope {
