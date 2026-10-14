@@ -3,11 +3,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::sync::Arc;
+
 
 use crate::shared::fixture::quarter_cylinder_wall;
 use crate::shared::tol::{band, eps};
-use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::{PlaneNurbsRefusal, nurbs_pair_limbs, plane_nurbs_limbs};
 use geom_core::interval::Interval;
 use geom_core::spline::KnotVector;
@@ -143,6 +143,4 @@ fn p3_short_circle_off_the_wall_refuses() {
     let got = plane_nurbs_limbs(&off, (a, b), &horizontal(0.5), &quarter_cylinder_wall(), 1.0, band());
     println!("P3 off circle: {got:?}");
     assert!(got.is_err(), "{got:?}");
-    let _ = NurbsCurve3::<f64>::new;
-    let _ = Arc::new(0);
 }
