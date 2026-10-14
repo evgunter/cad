@@ -5111,6 +5111,13 @@ fn fidelity<T: Decide>(
     // box encloses on both sides). The twin is asked only where `P_d`'s
     // branch decides none, so an image on `P_d`'s branch never pays for
     // it.
+    if std::env::var("R5126_FID").is_ok() {
+        let k = branch("pcurve_fidelity_branch", p0.x - q0.x, arm_u);
+        if !matches!(k, Ok(ref z) if z.value_channel() == 0.0) {
+            eprintln!("FID k={:?} stored p0={:?} pl={:?} derived q0={:?} ql={:?} t=[{:?},{:?}] surf={:?}", k.as_ref().ok().map(|z| z.value_channel()), p0.x.value_channel(), pl.x.value_channel(), q0.x.value_channel(), ql.x.value_channel(), t0.value_channel(), t1.value_channel(), core::mem::discriminant(surface));
+            eprintln!("FIDBT {}", std::backtrace::Backtrace::force_capture());
+        }
+    }
     let (k_u, (q0, qa, qb, ql)) = match branch("pcurve_fidelity_branch", p0.x - q0.x, arm_u) {
         Ok(k) => (Some(k), (q0, qa, qb, ql)),
         Err(BranchMiss::OutOfReach) => return Err(PcurveCertifyError::BranchOutOfReach),

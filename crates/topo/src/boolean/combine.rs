@@ -779,6 +779,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
         let Some(&dk) = half_edges.get(k) else {
             continue;
         };
+        crate::pcurves::r5126_log(cache, "combine");
         dst.pcurves.insert(dk, cache.clone());
     }
     // The joint elements go with their half-edges the same way: the

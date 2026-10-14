@@ -2515,6 +2515,7 @@ pub fn mint_pcurves<T: AtRestPolicy>(body: &mut Body<T>, tol: Tol) -> Result<(),
     body.pcurves.clear();
     body.joints.clear();
     for (he, row, element) in rows {
+        r5126_log(&row, "mint");
         body.write_row(he, row, element);
     }
     Ok(())
@@ -2589,6 +2590,7 @@ pub fn mint_pcurves_of<T: AtRestPolicy>(
     body.drop_rows(cleared);
     let before = body.pcurves.len();
     for (he, row, element) in rows {
+        r5126_log(&row, "mint");
         body.write_row(he, row, element);
     }
     Ok(body.pcurves.len() - before)
@@ -3538,6 +3540,7 @@ pub(crate) fn apply_site_rows<T: Decide>(
             SiteRows::Leave => {}
             SiteRows::Mint { images, joints } => {
                 for (at, cache) in images {
+                    r5126_log(&cache, "site");
                     body.attach_pcurve(key(at), cache);
                 }
                 for (at, element) in joints {
@@ -6812,6 +6815,29 @@ mod pole_slit_tests {
     }
 
     #[test]
+    fn review_5126_probe_chart_boundary_far() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        for periods in [0.0, 1.0, 3.0, 4.0, 5.0, 10.0] {
+            match cylinder_patch_below(periods) {
+                Err(e) => eprintln!("PROBE cb cyl {periods}: mint refused {e:?}"),
+                Ok(a) => for (f, face) in a.faces() {
+                    let s = a.get_surface(face.surface).unwrap().clone();
+                    let r = super::chart_boundary(&a, f, &s, band).map(|_| ());
+                    eprintln!("PROBE cb cyl {periods} face {f:?}: chart_boundary -> {r:?}");
+                },
+            }
+            match slit_cap_below(periods) {
+                Err(e) => eprintln!("PROBE cb cap {periods}: mint refused {e:?}"),
+                Ok((a, cap, _)) => {
+                    let s = a.get_surface(a.get_face(cap).unwrap().surface).unwrap().clone();
+                    let r = super::chart_boundary(&a, cap, &s, band).map(|_| ());
+                    eprintln!("PROBE cb cap {periods}: chart_boundary -> {r:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn review_5126_probe_chart_region_far_patch() {
         let band = Band::linear(Tol::witness()).unwrap();
         let b0 = cylinder_patch_below(0.0).unwrap();
@@ -7880,5 +7906,17 @@ mod from_computed_rows {
                 laundered: 0,
             }
         );
+    }
+}
+
+pub(crate) fn r5126_log<T: Decide>(cache: &geom_brep::PcurveCache<T>, site: &str) {
+    use geom_core::SpanLocate as _;
+    if std::env::var("R5126_FID").is_ok() {
+        if let geom_brep::Pcurve::Harmonic { p0, pl, .. } = cache.pcurve() {
+            let x = p0.x.value_channel();
+            if x.abs() > 6.0 {
+                eprintln!("WRITE {site} p0.x={x} pl.x={} {}", pl.x.value_channel(), std::backtrace::Backtrace::force_capture());
+            }
+        }
     }
 }

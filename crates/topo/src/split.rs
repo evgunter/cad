@@ -491,6 +491,8 @@ impl<T: Decide> Body<T> {
         // parent's own loop, so the loop's one-branch unwrap is the
         // parent's and needs no re-pinning.
         if let Some(rows) = rows_plus {
+            crate::pcurves::r5126_log(&rows.parent_half, "split");
+            crate::pcurves::r5126_log(&rows.new_half, "split");
             self.pcurves.insert(hp.key(), rows.parent_half);
             self.pcurves.insert(n_plus, rows.new_half);
         }
