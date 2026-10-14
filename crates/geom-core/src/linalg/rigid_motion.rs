@@ -1976,11 +1976,22 @@ mod crossing_and_turn_rows {
                     RigidMotion::check_rigid(&m.to_affine(), band()).is_ok(),
                     "{at}: the rigidity door admits the f64 turn"
                 );
-                // The same two directions minted at `Interval`, from
-                // the `f64` witnesses' values as point inputs.
+                // The same two directions at `Interval`, as point
+                // enclosures: each is the aim of an `f64` frame, admitted
+                // at `Interval` by the decided door, which keeps the
+                // map's entries verbatim.
                 let at_interval = |d: UnitVec3<f64>| {
-                    UnitVec3::new(d.get().map(Interval::from_f64), SITE, band())
-                        .unwrap_or_else(|e| panic!("{at}: a unit input mints at Interval: {e:?}"))
+                    let frame = RigidMotion::from_aim_and_reference(
+                        Point3::origin(),
+                        d,
+                        Vec3::new(0.3, -0.5, 0.8),
+                        SITE,
+                        band(),
+                    )
+                    .unwrap_or_else(|e| panic!("{at}: a frame aims along the input: {e:?}"));
+                    RigidMotion::check_rigid(&frame.to_affine().map(Interval::from_f64), band())
+                        .unwrap_or_else(|e| panic!("{at}: the frame is rigid at Interval: {e}"))
+                        .w()
                 };
                 let (ai, bi) = (at_interval(a), at_interval(b));
                 let mi = RigidMotion::turned_between(ai, bi, Point3::origin(), SITE, band())

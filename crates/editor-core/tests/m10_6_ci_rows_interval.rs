@@ -811,10 +811,10 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let plain = plain_distance_doc();
     let mut text = String::new();
     for (label, d) in [("min_clearance_neck", &doc), ("plain_distance", &plain)] {
-        let ev = evaluate::<f64>(
+        // The drive's witness: its profile nodes run the second pass at
+        // `f64` too, so this is the vector the drive compares.
+        let ev = editor_core::eval::evaluate_as_drive_witness::<f64>(
             d,
-            None,
-            &CancelToken::new(),
             &EvalOptions::default(),
             Tol::witness(),
         );

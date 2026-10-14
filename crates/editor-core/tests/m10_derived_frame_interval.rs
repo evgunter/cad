@@ -558,27 +558,27 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
     );
 }
 
-/// **The freeze population is not what refuses.** With every rule off
-/// the derived-frame document still freezes, and what refuses at
-/// `5e-2` is NOT one of the freezes: on the sign-hull construction the
-/// gate's residual is a plain THEOREM — the opaque `Select` atoms of an
-/// axis-aligned frame cancel as `X − X` — so the document goes on to
-/// the boss's side plane, where the value channel's
-/// `newell_plane_residual` is `Invalid` and no tier is asked at all
-/// (`Decide for Sym<T>` turns a domain violation into no symbolic
-/// question). Neither the plain tier nor A0 alone freezes ANYTHING
-/// getting there, so what refuses is not a freeze either way, and no
-/// rule of the atom algebra stands between the derived frame and its
-/// authored twin. The ten forms that used to freeze at A0's rung sat
-/// under `1/max(1, min(1, max(0, 1))/4)` — a `max`/`min` of two
-/// CONSTANTS — and A0 decides those exactly now
+/// **With A0, the freeze population is not what refuses.** The
+/// derived-frame document's profile is elaborated at the lane, so with
+/// every rule off its plain form freezes, and the first refusal is the
+/// extrude's attachment gate: `carrier_endpoint_start` escalates over
+/// a residual the plain tier could not settle. With A0 alone NOTHING
+/// freezes, and what refuses at `5e-2` is the boss's side plane, where
+/// the value channel's `newell_plane_residual` is `Invalid` and no tier
+/// is asked at all (`Decide for Sym<T>` turns a domain violation into
+/// no symbolic question). So no rule of the atom algebra past A0 stands
+/// between the derived frame and its authored twin. The forms that
+/// used to freeze at A0's rung sat under
+/// `1/max(1, min(1, max(0, 1))/4)` — a `max`/`min` of two CONSTANTS —
+/// and A0 decides those exactly now
 /// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
 ///
-/// The rung that used to read `carrier_endpoint_start` under `none`
-/// was a golden of the plain form's first refusal on the construction
-/// `props/sign-hull` replaced, and it cannot be met by any dial:
-/// `work/decide/the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`
-/// carries the measurement.
+/// The `none` rung read `newell_plane_residual` with nothing frozen
+/// while the profile's loops were the `f64` elaboration lifted as
+/// constants; elaborated at the lane, the loops carry the box's
+/// unknowns into the gate, and the rung is the attachment gate's
+/// again (`work/decide/the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`
+/// carries the earlier measurement).
 #[test]
 fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
@@ -591,15 +591,12 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
         "plain form alone refuses: {plain_fails:?}"
     );
     assert!(
-        plain_fails[0].contains("newell_plane_residual")
-            && plain_fails[0].contains("margin is invalid"),
-        "with no rule the gate is still a theorem and what refuses is clause 1's, on the \
-         boss's side plane: {plain_fails:?}"
+        plain_fails[0].contains("carrier_endpoint_start"),
+        "with no rule what refuses is the attachment gate's start endpoint: {plain_fails:?}"
     );
-    assert_eq!(
-        plain_counts.frozen, 0,
-        "and it freezes NOTHING getting there, so the refusal cannot be a freeze: \
-         {plain_counts:?}"
+    assert!(
+        plain_counts.frozen > 0,
+        "and the plain form freezes getting there: {plain_counts:?}"
     );
 
     let a0 = SymRules {

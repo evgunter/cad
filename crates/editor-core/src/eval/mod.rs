@@ -3279,6 +3279,19 @@ where
     }
 }
 
+/// **[`evaluate_witness`] for a row outside this crate**: the
+/// evaluation the E6 drive takes as its `f64` witness, whose profile
+/// nodes' logs hold both passes, so a row can read the vector the drive
+/// compares its leaves against.
+#[cfg(any(test, feature = "test-support"))]
+pub fn evaluate_as_drive_witness<T: EvalScalar>(
+    doc: &Doc<ProfileProgram>,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Evaluation<T> {
+    evaluate_witness(doc, &CancelToken::new(), opts, tol)
+}
+
 /// **The profile's second pass, run at `f64`** — the pass the `f64`
 /// lane does not run ([`ProfileLane`]), run here so a row can hold the
 /// `f64` evaluation's profile value against it, bit for bit. Pass 1 is

@@ -118,7 +118,10 @@ fn eval_over<T: editor_core::EvalScalar>(
         param_box: box_.map(std::sync::Arc::new),
         ..EvalOptions::default()
     };
-    evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
+    // The drive's own evaluation: its witness runs the profile's second
+    // pass at `f64` too, so the vectors read here are the ones it
+    // compares.
+    editor_core::eval::evaluate_as_drive_witness(doc, &opts, Tol::witness())
 }
 
 fn one_axis(doc: &ProfileDoc, n: &'static str, h: f64) -> ParamBox {

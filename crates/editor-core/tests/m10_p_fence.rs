@@ -2,9 +2,9 @@
 //!
 //! The profile lift is additive machinery beside an unchanged build
 //! path, and the fence is what makes "unchanged" a measurement rather
-//! than an intention. With the lift OFF — the default, and the only
-//! setting the build path ever uses — evaluating the whole Band 4
-//! corpus must produce exactly the bits it produced before the lift
+//! than an intention. At `f64` the lane IS the profile's first pass
+//! (`editor_core::ProfileLane`), so evaluating the whole Band 4 corpus
+//! at `f64` must produce exactly the bits it produced before the lift
 //! existed.
 //!
 //! The digest below is that measurement, and it is deliberately
@@ -177,9 +177,8 @@
 //! every eps, which is itself a claim this file makes and a reason for
 //! a reader to be suspicious if one ever needs a second number.
 //!
-//! WHAT THE INTERVAL ROW IS NOT. It pins that the lift OFF changes
-//! nothing at `Interval` — a fence around the BUILD path, which binds
-//! its parameters at their nominals. It is not evidence about a WIDE
+//! WHAT THE INTERVAL ROW IS NOT. It pins the `Interval` build at the
+//! nominals — a fence around the BUILD path's bindings. It is not evidence about a WIDE
 //! interval parameter, which is a different door: an evaluation
 //! carrying an `EvalOptions::param_box` binds `nominal + [lo, hi]`
 //! instead, and `m10_3_driver_interval`'s rows are what drive that.
@@ -890,8 +889,15 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     );
 }
 
-/// The same fence at `Interval`, where the lift's second pass would
-/// otherwise be tempting to leave on.
+/// The same fence at `Interval`, where every profile is elaborated at
+/// the lane (its second pass).
+///
+/// **RE-BLESSED WHEN THE PINNED LIFT RETIRED** (Ev's ruling A on
+/// #5068): the profiles' loops are the lane's own elaboration, not the
+/// `f64` elaboration lifted, and `declared_tangency`'s bracket refuses
+/// its junction at `Interval`
+/// (`work/paths/the-declared-tangency-bracket-refuses-its-closing-junction-at-interval.md`).
+/// The `f64` row did not move.
 #[test]
 fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
@@ -910,7 +916,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x0c6c_2f14_9ab8_e583, 0xe3ba_b4b8_e5db_99b7),
+        (0x6bc2_995f_cdd0_9650, 0xdb12_ca85_f497_3ccc),
         "the corpus's Interval evaluation moved"
     );
 }
