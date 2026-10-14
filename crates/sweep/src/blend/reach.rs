@@ -10,9 +10,10 @@
 //! which would need the band trimmed by the face; or wholly inside such
 //! a region, every cell of the face's box that may hold a point of its
 //! surface inside it, or inside the prism a straight band removes or
-//! fills over the cycles its caps read inside ([`prism_inside`]), where the
-//! face goes with the material ([`Consumed`]; elsewhere that carve is
-//! not built, and the request refuses [`BlendError::WhollyInside`]). A
+//! fills, read through the cycles its caps read inside and the edges its
+//! exact core holds ([`prism_inside`]); inside a straight band's material
+//! the face goes with it ([`Consumed`]; elsewhere that carve is not
+//! built, and the request refuses [`BlendError::WhollyInside`]). A
 //! face certified none of the three refuses [`BlendError::FaceClearance`]
 //! with `bounded: true`. The readings make one verdict for the request
 //! with a cut-off's end-face meter's ([`Unclear`]): a crossing anywhere
@@ -2012,32 +2013,146 @@ fn boundary_reading<T: Decide>(
     Ok(reading)
 }
 
+/// What a face is read against for the prism a straight band removes or
+/// fills ([`prism_inside`]): the spine's unit direction, the cycles its
+/// caps' meter read inside the sliver, the band's exact core (empty
+/// where its bounds only enclose the material), and whether the
+/// section is convex.
+struct Prism<'a, T: Real> {
+    tau: Vec3<T>,
+    rings: &'a [CapRing<T>],
+    core: &'a [Bound<T>],
+    convex: bool,
+}
+
+/// How many pieces one edge may be cut into against a core before it is
+/// read uncertified ([`edge_in_core`]): a cost ceiling, as
+/// [`CELL_BUDGET`] is, which decides only how far an edge is chased.
+const EDGE_PIECES: usize = 1024;
+
+/// The deepest of the depths `all` certifies `k` at.
+fn depth_of<K: PartialEq, T: Real>(all: &[(K, T)], k: K) -> Option<T> {
+    all.iter()
+        .filter(|(x, _)| *x == k)
+        .map(|(_, d)| *d)
+        .reduce(|m, d| m.max(d))
+}
+
+/// **How deep inside a straight band's exact core every point of `edge`
+/// lies**: positive when certified, and then a lower bound on each
+/// point's distance from the core's complement; `None` for an edge not
+/// certified, or whose carrier has no speed bound here (a line, a
+/// circle, an ellipse have one).
+///
+/// The edge is cut into pieces by parameter; a piece of parameter width
+/// `w` lies within `σ·w/2` of the point at its middle parameter, `σ` a
+/// bound on the carrier's speed, so in that point's box widened by that
+/// much, over which [`Bound::high_strict`] bounds each core bound from
+/// above. A piece that does not certify is halved until it does, its
+/// radius falls within the band's `escalate`, or [`EDGE_PIECES`] are
+/// spent.
+fn edge_in_core<T: Decide + Bounds>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    core: &[Bound<T>],
+    band: Band,
+) -> Result<Option<T>, BlendError> {
+    if core.is_empty() {
+        return Ok(None);
+    }
+    let (c, t0, t1) = carrier_of(body, edge)?;
+    let speed = match &c {
+        Curve3::Line { dir, .. } => dir.norm(),
+        Curve3::Circle {
+            axis,
+            radius,
+            u_ref,
+            ..
+        } => radius.abs() * (u_ref.norm() + axis.cross(*u_ref).norm()),
+        Curve3::Ellipse {
+            axis,
+            semi_u,
+            semi_v,
+            u_ref,
+            ..
+        } => semi_u.abs() * u_ref.norm() + semi_v.abs() * axis.cross(*u_ref).norm(),
+        _ => return Ok(None),
+    };
+    let half = T::from_f64(0.5);
+    let mut queue = VecDeque::from([(t0, t1)]);
+    let mut most: Option<T> = None;
+    let mut spent = 0;
+    while let Some((a, b)) = queue.pop_front() {
+        let mid = (a + b) * half;
+        let m = c.eval(mid);
+        let r = (speed * (b - a).abs() * half).hi();
+        let cell = Cell::<T>::new(
+            [m.x.lo() - r, m.y.lo() - r, m.z.lo() - r],
+            [m.x.hi() + r, m.y.hi() + r, m.z.hi() + r],
+        );
+        let Some(inner) = core
+            .iter()
+            .map(|g| g.high_strict(&cell))
+            .reduce(|m, g| m.max(g))
+        else {
+            return Ok(None);
+        };
+        if sure(T::zero() - inner, band) {
+            most = Some(most.map_or(inner, |m| m.max(inner)));
+            continue;
+        }
+        spent += 1;
+        if spent >= EDGE_PIECES || r <= band.escalate() {
+            return Ok(None);
+        }
+        queue.extend([(a, mid), (mid, b)]);
+    }
+    Ok(most.map(|m| T::zero() - m))
+}
+
 /// **How surely a face lies wholly inside the prism a straight band
-/// removes or fills**, read through the cycles its caps' meter read inside the
-/// sliver (`rings`, this link's): positive when it certainly does, and
-/// then a lower bound on how far inside; `None` when the face is not of
-/// the shape the reading takes.
+/// removes or fills**: positive when it certainly does, and then a
+/// lower bound on how far inside; `None` when the face is not of the
+/// shape the reading takes.
 ///
 /// The band's material `M` is the prism over its cross-section `S⊥`
 /// along the spine `τ` (both supports and the band are ruled along `τ`),
 /// between the two cap planes; its slice in a cap's plane is the sliver
 /// `S` the cap's meter reads, bounded by the end curve and the two rim
-/// pieces. A face is read on a surface ruled along a direction `a` (a
-/// cylinder's axis, or a plane's direction nearest `τ`, for which
-/// `|a × τ| = |n·τ|` with `n` the plane's unit normal, any direction of
-/// a plane normal to `τ` included), and only when
-/// every edge of its boundary is an edge of one of `rings` or a line
-/// between two of their vertices. Then each point `x` of the face lies on
-/// an `a`-line between two points of its boundary (the ends of that
-/// line's piece through `x` in the face), and each of those within
-/// `|w − u|·|d × τ|` of the projection of a vertex of `rings` (a line
-/// edge `u → w` along `d`) or on a ring. A ring at depth `δ` in a cap of
-/// normal `n` has its projection along `τ` at depth at least
-/// `δ·|n·τ|` in `S⊥`, so `x` projects into `S⊥` when that least depth
-/// exceeds the lines' slack plus the face's extent along its `a`-lines
-/// (its box's diagonal) times `|a × τ|`; and it lies between the cap
-/// planes, being a convex combination of boundary points that do. The
-/// reading is that excess.
+/// pieces. A point is certified at depth `δ` when it lies between the
+/// cap planes and its projection along `τ` lies at least `δ` inside
+/// `S⊥`. Each edge of the face's boundary is certified one of three
+/// ways:
+/// - an edge of one of the `rings`: a ring at depth `δ` in a cap of
+///   normal `n` has its projection at depth at least `δ·|n·τ|`;
+/// - an edge read inside the band's exact core ([`edge_in_core`]): the
+///   core is the section's bounds and the cap half-spaces, each
+///   1-Lipschitz, so a point where all lie below `−δ` has the ball of
+///   radius `δ` about it in `M`, and its projection lies `δ` inside
+///   `S⊥`;
+/// - a line `u → w` along `d` between two vertices certified so, each of
+///   whose points lies between the cap planes and within
+///   `|w − u|·|d × τ|` of an end's projection (the lines' slack).
+///
+/// Then the face, on a plane or a cylinder, is read one of two ways:
+/// - on a plane not parallel to `τ` (`|n·τ|` certainly positive), which
+///   projects one-to-one onto `S⊥`'s plane, the face onto the region
+///   its boundary encloses there. `S⊥` is simply connected (two support
+///   lines and the band's curve bound it), so each component of its
+///   points deeper than `δ` is too (its complement is the
+///   `δ`-neighbourhood of a connected set), and a closed curve in one
+///   encloses only its points: the face lies at the least depth less the
+///   slack. It lies between the cap planes, as the convex hull of its
+///   boundary does;
+/// - on any other, a surface ruled along a direction `a` (a cylinder's
+///   axis, or a plane's direction nearest `τ`, for which
+///   `|a × τ| = |n·τ|`), each point `x` of the face lies on an `a`-line
+///   between two points of its boundary (the ends of that line's piece
+///   through `x` in the face), so it projects within its run along that
+///   line, at most the face's box's diagonal, times `|a × τ|` of a
+///   boundary point's projection, and lies between the cap planes as a
+///   convex combination of points that do. The reading is the least
+///   depth less the slack and that term.
 ///
 /// No row pins the factor `|n·τ|`, because no crossing can need it at
 /// a cap leaned less than about 88°: a fillet's wall that dips `δ⊥`
@@ -2047,30 +2162,40 @@ fn boundary_reading<T: Decide>(
 /// sliver bounds below about `0.025`. On a convex `S⊥` it scales only
 /// the margin.
 ///
-/// Where `S⊥` is `convex` (a chord end's triangle) neither term is owed:
-/// a line's points and a face's are convex combinations of boundary
-/// points whose projections lie at least the least depth inside `S⊥`,
-/// and the distance from a convex set's boundary is concave inside it,
-/// so the reading is that least depth.
-fn prism_inside<T: Decide>(
+/// Where `S⊥` is `convex` (a chord end's triangle) neither the slack
+/// nor the ruling's term is owed: a line's points and a face's are
+/// convex combinations of boundary points whose projections lie at
+/// least the least depth inside `S⊥`, and the distance from a convex
+/// set's boundary is concave inside it, so the reading is that least
+/// depth.
+fn prism_inside<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     surface: &Surface<T>,
     (flo, fhi): ([f64; 3], [f64; 3]),
-    tau: Vec3<T>,
-    rings: &[CapRing<T>],
-    convex: bool,
+    prism: &Prism<'_, T>,
+    band: Band,
 ) -> Result<Option<T>, BlendError> {
+    let Prism {
+        tau,
+        rings,
+        core,
+        convex,
+    } = *prism;
     if rings.is_empty() || flo.iter().chain(&fhi).any(|x| !x.is_finite()) {
         return Ok(None);
     }
-    let tilt = match surface {
-        Surface::Cylinder { axis, .. } => axis.normalize().cross(tau).norm(),
-        Surface::Plane { normal, .. } => normal.normalize().dot(tau).abs(),
+    // The ruling's `|a × τ|`, or `None` for a plane read by its boundary.
+    let ruled = match surface {
+        Surface::Cylinder { axis, .. } => Some(axis.normalize().cross(tau).norm()),
+        Surface::Plane { normal, .. } => {
+            let along = normal.normalize().dot(tau).abs();
+            (!sure(along, band)).then_some(along)
+        }
         _ => return Ok(None),
     };
-    let mut ring_edges: Vec<EdgeKey> = Vec::new();
-    let mut ring_vertices: Vec<VertexKey> = Vec::new();
+    let mut edges: Vec<(EdgeKey, T)> = Vec::new();
+    let mut vertices: Vec<(VertexKey, T)> = Vec::new();
     let mut least: Option<T> = None;
     for r in rings {
         let Surface::Plane { normal, .. } = surface_of(body, r.cap)? else {
@@ -2082,45 +2207,75 @@ fn prism_inside<T: Decide>(
             return Ok(None);
         };
         for (_, start, edge) in walk {
-            ring_edges.push(edge);
-            ring_vertices.push(start);
+            edges.push((edge, deep));
+            vertices.push((start, deep));
         }
     }
-    let Some(least) = least else {
+    let Some(mut least) = least else {
         return Ok(None);
     };
     let f = body
         .get_face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))?;
-    let mut slack = T::zero();
+    // Every edge but a line first: its ends certify the lines.
+    let mut lines = Vec::new();
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let Some(walk) = loop_walk(body, lp) else {
             return Ok(None);
         };
         for (he, u, edge) in walk {
-            if ring_edges.contains(&edge) {
+            if let Some(deep) = depth_of(&edges, edge) {
+                least = least.min(deep);
                 continue;
             }
             let w = body
                 .half_edge_end(he)
                 .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face edge's end"))?;
-            let (Curve3::Line { dir, .. }, _, _) = carrier_of(body, edge)? else {
+            if let (Curve3::Line { dir, .. }, _, _) = carrier_of(body, edge)? {
+                lines.push((edge, u, w, dir));
+                continue;
+            }
+            let Some(deep) = edge_in_core(body, edge, core, band)? else {
                 return Ok(None);
             };
-            if !ring_vertices.contains(&u) || !ring_vertices.contains(&w) {
-                return Ok(None);
-            }
-            let run = (point_of(body, w)? - point_of(body, u)?).norm();
-            slack = slack.max(run * dir.normalize().cross(tau).norm());
+            least = least.min(deep);
+            vertices.extend([(u, deep), (w, deep)]);
         }
     }
+    // A line between two certified vertices takes the slack; any other
+    // is read in the core, its ends certified with it, or waits for its
+    // ends.
+    let certified = |v: &[(VertexKey, T)], u, w| depth_of(v, u).zip(depth_of(v, w));
+    let mut pending = Vec::new();
+    for (edge, u, w, dir) in lines {
+        if certified(&vertices, u, w).is_some() {
+            pending.push((u, w, dir));
+        } else if let Some(deep) = edge_in_core(body, edge, core, band)? {
+            least = least.min(deep);
+            vertices.extend([(u, deep), (w, deep)]);
+        } else {
+            pending.push((u, w, dir));
+        }
+    }
+    let mut slack = T::zero();
+    for (u, w, dir) in pending {
+        let Some((du, dw)) = certified(&vertices, u, w) else {
+            return Ok(None);
+        };
+        least = least.min(du).min(dw);
+        let run = (point_of(body, w)? - point_of(body, u)?).norm();
+        slack = slack.max(run * dir.normalize().cross(tau).norm());
+    }
+    if convex {
+        return Ok(Some(least));
+    }
+    let Some(tilt) = ruled else {
+        return Ok(Some(least - slack));
+    };
     let corner = |v: [f64; 3]| {
         let [x, y, z] = v.map(T::from_computed);
         Point3::new(x, y, z)
     };
-    if convex {
-        return Ok(Some(least));
-    }
     let diagonal = (corner(fhi) - corner(flo)).norm();
     Ok(Some(least - slack - diagonal * tilt))
 }
@@ -2136,14 +2291,15 @@ fn prism_inside<T: Decide>(
 /// ([`entity_order`]), so the refusal is the same in every read order.
 ///
 /// An inside reading the carve consumes is one on a straight band's
-/// cap ([`CapRing`]) or a face of the prism over such rings
-/// ([`prism_inside`]): only when every inside reading is one does the
-/// request build ([`Consumed`]); otherwise it refuses `WhollyInside`.
+/// cap ([`CapRing`]), a face of the prism over such rings
+/// ([`prism_inside`]) or a face inside a straight band's exact core:
+/// only when every inside reading is one does the request build
+/// ([`Consumed`]); otherwise it refuses `WhollyInside`.
 pub(crate) struct Unclear<T> {
     bound: Option<(T, BlendError)>,
     inside: Option<(T, BlendError)>,
     rings: Vec<CapRing<T>>,
-    faces: Vec<FaceKey>,
+    faces: Vec<(FaceKey, EdgeKey)>,
     unconsumed: bool,
 }
 
@@ -2163,11 +2319,15 @@ pub(crate) struct CapRing<T> {
 
 /// **What a request whose verdict is inside consumes**: the cap cycles
 /// and the faces read wholly inside the material a straight band
-/// removes or fills, and the refusal they would owe were the carve not to take
+/// removes or fills, each with the crease of every band it was read
+/// inside, and the refusal they would owe were the carve not to take
 /// them ([`BlendError::WhollyInside`], the shallowest).
 pub(crate) struct Consumed<T> {
     pub(crate) rings: Vec<CapRing<T>>,
+    /// Sorted, once each.
     pub(crate) faces: Vec<FaceKey>,
+    /// Each face and a crease whose band's material it was read in.
+    pub(crate) read: Vec<(FaceKey, EdgeKey)>,
     pub(crate) refusal: BlendError,
 }
 
@@ -2263,11 +2423,12 @@ impl<T: Bounds> Unclear<T> {
         self.deepen(ring.depth, refusal);
     }
 
-    /// A face certified wholly inside the prism a straight band removes
-    /// or fills ([`prism_inside`]), which the carve consumes.
-    fn prism_face(&mut self, face: FaceKey, depth: T, refusal: BlendError) {
-        if !self.faces.contains(&face) {
-            self.faces.push(face);
+    /// A face certified wholly inside the prism the band of `crease`
+    /// removes or fills ([`prism_inside`], or its exact core), which the
+    /// carve consumes.
+    fn prism_face(&mut self, face: FaceKey, crease: EdgeKey, depth: T, refusal: BlendError) {
+        if !self.faces.contains(&(face, crease)) {
+            self.faces.push((face, crease));
         }
         self.deepen(depth, refusal);
     }
@@ -2304,11 +2465,13 @@ impl<T: Bounds> Unclear<T> {
             None => Ok(None),
             Some((_, refusal)) if self.unconsumed => Err(refusal),
             Some((_, refusal)) => {
-                let mut faces = self.faces;
+                let mut faces: Vec<FaceKey> = self.faces.iter().map(|(f, _)| *f).collect();
                 faces.sort_unstable();
+                faces.dedup();
                 Ok(Some(Consumed {
                     rings: self.rings,
                     faces,
+                    read: self.faces,
                     refusal,
                 }))
             }
@@ -2512,14 +2675,16 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             });
             if let Some((exact, deep)) = inside {
                 let sign = classify_bound(deep)?;
-                unclear.unconsumed_inside(
-                    deep,
-                    BlendError::WhollyInside {
-                        at: EntityId::Face(face),
-                        chain: chains[exact.chain].first().convexity,
-                        margin: classified(decision, deep, band, sign),
-                    },
-                );
+                let refusal = BlendError::WhollyInside {
+                    at: EntityId::Face(face),
+                    chain: chains[exact.chain].first().convexity,
+                    margin: classified(decision, deep, band, sign),
+                };
+                // A straight band's exact core lies in its prism.
+                match exact.spine {
+                    Some((crease, _)) => unclear.prism_face(face, crease, deep, refusal),
+                    None => unclear.unconsumed_inside(deep, refusal),
+                }
                 continue;
             }
             // Inside the prism a straight band removes or fills, read through
@@ -2536,12 +2701,19 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 // exactly when that slice is; a ring read through the
                 // exact triangle certifies it for its cap.
                 let convex = mine.iter().all(|r| r.convex);
-                let reading = prism_inside(body, face, &surface, fbox, tau, &mine, convex)?;
+                let prism = Prism {
+                    tau,
+                    rings: &mine,
+                    core: &reach.core,
+                    convex,
+                };
+                let reading = prism_inside(body, face, &surface, fbox, &prism, band)?;
                 if let Some(excess) = reading.filter(|x| sure(*x, band)) {
                     let deep = T::zero() - excess;
                     let sign = classify_bound(deep)?;
                     unclear.prism_face(
                         face,
+                        edge,
                         deep,
                         BlendError::WhollyInside {
                             at: EntityId::Face(face),
@@ -2697,14 +2869,15 @@ fn metered<T: Decide + Bounds>(
 /// The test-support door to [`band_reach`] alone, for a fillet request:
 /// its links resolved, walked into chains and broken at their turns as
 /// the battery builds the verdict's chains, and no other predicate run
-/// — so a row can pin the reach on a body some earlier predicate or
-/// door refuses, over the chains production meters. Compiled into no
-/// shipped build.
+/// but the carve's plan of what the verdict consumes
+/// (`consume::plan`) — so a row can pin the reach on a body some earlier
+/// predicate or door refuses, over the chains production meters.
+/// Compiled into no shipped build.
 ///
 /// # Errors
 ///
-/// [`band_reach`]'s, and whatever resolving a link or classifying a
-/// junction refuses.
+/// [`band_reach`]'s and the plan's, and whatever resolving a link or
+/// classifying a junction refuses.
 #[cfg(any(test, feature = "test-support"))]
 pub fn band_reach_for_tests<T: Decide + Bounds>(
     req: &super::BlendRequest<'_, T>,
@@ -2729,8 +2902,10 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
         BlendKind::Fillet,
         band,
         Unclear::new(),
-    )
-    .map(|_| ())
+    )?
+    .map_or(Ok(()), |consumed| {
+        super::consume::plan(req.body, &consumed).map(|_| ())
+    })
 }
 
 #[cfg(test)]

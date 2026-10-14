@@ -521,26 +521,31 @@ fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() 
     }
 }
 
-/// **The square wall's mid-sliver hole is a bound under both verbs,
-/// never inside nor a crossing**: the fillet's round end reads its ring
-/// inside the sliver, and the chamfer's chord end inside its triangle;
-/// but the hole is blind, its floor neither a cap's cycle nor a line
-/// between two, so under either verb the reach reads its wall, which
-/// meets the window's end plane, as a bound, and a bound outranks an
-/// inside reading.
+/// **The square wall's mid-sliver hole goes with the band under both
+/// verbs**: the fillet's round end reads its mouth inside the sliver,
+/// and the chamfer's chord end inside its triangle; the hole is blind,
+/// along the spine, `0.016` deep, and its floor is read inside the
+/// band's core, so it is a cup the carve takes. The band runs `2` along
+/// `x`: `ΔV = −(2A − π·a²·0.016)`.
 #[test]
-fn a_hole_in_a_square_walls_sliver_refuses_as_a_bound_under_both_verbs() {
-    let body = drilled(0.0, 0.04, 0.015, 0.004);
+fn a_hole_in_a_square_walls_sliver_goes_with_the_band_under_both_verbs() {
+    let (rad, deep) = (0.004, 0.016);
+    let body = drilled(0.0, 0.04, 0.015, rad);
     let front = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     for verb in [Verb::Fillet, Verb::Chamfer] {
-        let got = verb.run(&body, &[front]).map(|_| ());
+        let out = verb
+            .run(&body, &[front])
+            .unwrap_or_else(|e| panic!("{verb:?}: the blind hole goes with the band, got {e}"));
+        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
+        let section = match verb {
+            Verb::Fillet => (1.0 - core::f64::consts::FRAC_PI_4) * D * D,
+            Verb::Chamfer => D * D / 2.0,
+        };
+        let want = -(2.0 * section - core::f64::consts::PI * rad * rad * deep);
+        let dv = volume(&out.body) - volume(&body);
         assert!(
-            matches!(
-                got,
-                Err(BlendError::FaceClearance { bounded: true, .. }
-                    | BlendError::RingClearance { bounded: true, .. })
-            ),
-            "{verb:?}: a bound, got {got:?}"
+            (dv - want).abs() < midpoint_tol(),
+            "{verb:?}: ΔV {dv} vs the closed form {want}"
         );
     }
 }
