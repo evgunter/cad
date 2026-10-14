@@ -647,6 +647,37 @@ impl<T: Real> NurbsSurface<T> {
     /// symbolic session only, as
     /// [`crate::curves::NurbsCurve3::speed_upper_bound`] is.
     pub fn stretch_sup(&self) -> (geom_core::SupSpeed<T>, geom_core::SupSpeed<T>) {
+        // CENSUS PROBE (not for main): each f64 read beside the same net
+        // lifted to `Interval`, to `PCERT_STRETCH_LOG` as
+        // `STRETCH f_u lo_u hi_u f_v lo_v hi_v <test>`.
+        if let Some(path) = std::env::var_os("PCERT_STRETCH_LOG")
+            && let Some(f) = (self as &dyn core::any::Any).downcast_ref::<NurbsSurface<f64>>()
+        {
+            use geom_core::Bounds;
+            let (fu, fv) = f.stretch_sup_unprobed();
+            let (iu, iv) = f
+                .map_scalar(<geom_core::Interval as Real>::from_f64)
+                .stretch_sup_unprobed();
+            let (iu, iv) = (iu.get(), iv.get());
+            let line = format!(
+                "STRETCH {:e} {:e} {:e} {:e} {:e} {:e} {}\n",
+                fu.get(),
+                iu.lo(),
+                iu.hi(),
+                fv.get(),
+                iv.lo(),
+                iv.hi(),
+                std::thread::current().name().unwrap_or("?")
+            );
+            use std::io::Write;
+            if let Ok(mut fh) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = fh.write_all(line.as_bytes());
+            }
+        }
+        self.stretch_sup_unprobed()
+    }
+
+    fn stretch_sup_unprobed(&self) -> (geom_core::SupSpeed<T>, geom_core::SupSpeed<T>) {
         crate::curves::nurbs::session_memo(&self.stretch, || {
             let pieces = self.pieces(false);
             let side = |read: fn(&geom_core::spline::CellQuotients<T>) -> T| {

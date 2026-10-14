@@ -1925,6 +1925,26 @@ pub(super) fn projected_envelope<T: Decide>(
             }
             let (incidence, rho_floor) =
                 net_incidence(&hull, (t0, t1), &image.chart, &twin, d, band)?;
+            // CENSUS PROBE (not for main): the fixed-part incidence beside
+            // the same read on a hull cut 64 times across `[t0, t1]`, to
+            // `PCERT_P4_LOG` as `P4INC fixed refined <test>`.
+            if let Some(path) = std::env::var_os("PCERT_P4_LOG") {
+                let (a, b) = (t0.value_channel(), t1.value_channel());
+                let cuts: Vec<f64> = (1..64).map(|i| a + (b - a) * f64::from(i) / 64.0).collect();
+                if let Ok(fine) = lane.projected_hull(image, &twin_net, &twin, &cuts)
+                    && let Ok((refined, _)) = net_incidence(&fine, (t0, t1), &image.chart, &twin, d, band)
+                {
+                    let line = format!(
+                        "P4INC {:e} {:e} {}\n",
+                        incidence.value_channel(), refined.value_channel(),
+                        std::thread::current().name().unwrap_or("?")
+                    );
+                    use std::io::Write;
+                    if let Ok(mut fh) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                        let _ = fh.write_all(line.as_bytes());
+                    }
+                }
+            }
             (incidence, d, rho_floor)
         }
         (FramedCarrier::Circle { centre, a, b, .. }, Curve3::Circle { .. }) => {
