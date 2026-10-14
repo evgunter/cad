@@ -480,8 +480,9 @@ BOUNDS_ALLOWLIST=(
   # funnel shape: `overlapping_pairs` builds each face's certified box
   # (`boxes::face_box`) and walks the box-overlapping cross pairs, and
   # its two readers carry the bound to call it: `decided_declarations`,
-  # which hands each pair to the carrier ladder, and `coaxial_rows`,
-  # which decides the cylinder × sphere pairs' coaxial frame. None
+  # which hands each pair to the carrier ladder, and `frame_rows`,
+  # which decides the cylinder × sphere pairs' coaxial frame and the
+  # cylinder pairs' crossing one. None
   # reads a bracket of its own beyond the box builders'.
   'crates/topo/src/boolean/glue.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard

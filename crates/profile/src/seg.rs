@@ -21,7 +21,8 @@
 
 use geom_core::k_stats::{decide, decide_reported};
 use geom_core::{
-    Arc2, Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Real, Sign, Vec2,
+    Arc2, Band, Circles2, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Real, Sign,
+    Vec2,
 };
 
 use crate::Segment;
@@ -243,16 +244,29 @@ pub(crate) enum Consistency {
 /// - **`vertex_separation`** — margin: the chord length |b − a|
 ///   (meters, a direct displacement; no lever arm). Zero ⇒ degenerate
 ///   segment (the Q1 sliver semantics: within band ⇒ escalation).
+/// - **`arc_sweep_range`** (arcs only, and only under
+///   [`Consistency::Decide`], refused typed as the consistency checks
+///   below are) — margin: r·|Δθ|·(2π − |Δθ|)/2π (meters: the
+///   dimensionless range product levered by the radius — the arc
+///   length r·|Δθ| near an empty sweep and the gap r·(2π − |Δθ|) near a
+///   full turn), with |Δθ| the stored sweep's magnitude. Positive ⇒
+///   0 < |Δθ| < 2π; a sweep past a full turn is Negative. A full turn
+///   is Zero here and refused: between two vertices it is a zero chord,
+///   and D1's full turn is one segment at one vertex
+///   ([`build_loop_seg`]'s other arm). Asked before the straightness
+///   read because that read's tan(Δθ/4) is 4π-periodic: a sweep of
+///   4π + δ bows like δ, and would read as δ's chord.
 /// - **`segment_straightness`** — margin: the signed sagitta
 ///   s = (L/2)·tan(Δθ/4) (meters): the apex's offset from the chord,
 ///   zero for a stored line. This is the dimensionless quarter-sweep
 ///   tangent acting through its lever arm, the half-chord L/2. Zero ⇒
 ///   line (the arc is chord-coincident at tolerance, and its carrier is
-///   not carried); a definite sign ⇒ arc with that turn sense; in-band
-///   ⇒ a sliver arc, escalated.
-/// - **The three consistency checks** (arcs only, and only under
-///   [`Consistency::Decide`]; D1's table arcs, "verified at validate
-///   as ε-decisions"), each refused typed
+///   not carried); a definite sign ⇒ arc with that turn sense, which is
+///   the sweep's own sign over the range just asked; in-band ⇒ a sliver
+///   arc, escalated.
+/// - **The difference checks** (arcs read as arcs, and only under
+///   [`Consistency::Decide`]; with `arc_sweep_range`, D1's table arcs
+///   "verified at validate as ε-decisions"), each refused typed
 ///   ([`SegIssue::Inconsistent`]) on a definite answer it does not
 ///   accept:
 ///   - **`arc_start_on_carrier`** — margin: ‖a − c‖ − r (meters,
@@ -260,17 +274,6 @@ pub(crate) enum Consistency {
 ///   - **`arc_landing`** — margin: ‖point_from(a, 1) − b‖ (meters,
 ///     direct; [`Arc2::landing`]). Zero ⇒ the start, turned by the
 ///     sweep about the centre, lands on the end.
-///   - **`arc_sweep_range`** — margin: r·|Δθ|·(2π − |Δθ|)/2π (meters:
-///     the dimensionless range product levered by the radius — the arc
-///     length r·|Δθ| near an empty sweep and the gap r·(2π − |Δθ|)
-///     near a full turn), with |Δθ| the sweep signed by the decided
-///     turn. The turn is the sign of tan(Δθ/4), which is the sweep's own
-///     sign for |Δθ| < 2π, so what this reads is the upper bound:
-///     Positive ⇒ |Δθ| < 2π, and a sweep past a full turn is Negative
-///     (its gap, or its quarter tangent's sign, has turned). A full turn
-///     is Zero here and refused: between two vertices it is a zero
-///     chord, and D1's full turn is one segment at one vertex
-///     ([`build_loop_seg`]'s other arm).
 /// - **`arc_diameter_clearance`** (arcs only) — margin:
 ///   2r − |a − apex| = 2r·(1 − sin(|Δθ|/4)) (meters, computed in the
 ///   second form): how far the arc's half-span chord sits below the
@@ -292,9 +295,14 @@ pub(crate) fn build_seg<T: Decide>(
     band: Band,
 ) -> Result<Seg<T>, SegIssue<T>> {
     match consistency {
-        Consistency::Decide => classify(a, b, segment, band, |arc, span| {
-            check_carrier(arc, a, b, span, Range::Chord, band)
-        }),
+        Consistency::Decide => classify(
+            a,
+            b,
+            segment,
+            band,
+            |arc| sweep_range(arc, arc.sweep.abs(), Range::Chord, band),
+            |arc| check_carrier(arc, a, b, band),
+        ),
         Consistency::ByConstruction => {
             build_constructed_seg(a, b, segment, band).map_err(SegIssue::Shape)
         }
@@ -318,7 +326,8 @@ pub(crate) fn build_loop_seg<T: Decide>(
     match segments[k] {
         Segment::Arc(arc) if crate::is_full_turn(segments) => match consistency {
             Consistency::Decide => full_turn(a, arc, band, |arc, span| {
-                check_carrier(arc, a, a, span, Range::FullTurn, band)
+                check_carrier(arc, a, a, band)?;
+                sweep_range(arc, span, Range::FullTurn, band)
             }),
             // No door constructs a full turn yet, so nothing has yet
             // shown a construction that writes one exactly (its start
@@ -404,7 +413,7 @@ fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
     })
 }
 
-/// Which sweeps [`check_carrier`]'s `arc_sweep_range` accepts.
+/// Which sweeps [`sweep_range`] accepts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Range {
     /// 0 < |Δθ| < 2π: an arc between two vertices.
@@ -422,17 +431,20 @@ pub(crate) fn build_constructed_seg<T: Decide>(
     segment: Segment<T>,
     band: Band,
 ) -> Result<Seg<T>, ShapeIssue<T>> {
-    classify(a, b, segment, band, |_, _| Ok(()))
+    classify(a, b, segment, band, |_| Ok(()), |_| Ok(()))
 }
 
-/// [`build_seg`]'s body, with the arc's consistency checks as `check`
-/// (the arc and its span |Δθ|), run after the turn is decided.
+/// [`build_seg`]'s body, with an arc's consistency checks: `range` on
+/// its stored sweep before the straightness read, which a sweep outside
+/// the range would fool, and `check` on its carrier once it is read as
+/// an arc.
 fn classify<T: Decide, E: From<ShapeIssue<T>>>(
     a: Point2<T>,
     b: Point2<T>,
     segment: Segment<T>,
     band: Band,
-    check: impl FnOnce(Arc2<T>, T) -> Result<(), E>,
+    range: impl FnOnce(Arc2<T>) -> Result<(), E>,
+    check: impl FnOnce(Arc2<T>) -> Result<(), E>,
 ) -> Result<Seg<T>, E> {
     let escalated = |source| E::from(ShapeIssue::Escalated(source));
     let frame = ChordFrame::of(a, b);
@@ -449,7 +461,10 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
     // line has no turn for its margin to report.
     let bow = match segment {
         Segment::Line => T::zero(),
-        Segment::Arc(arc) => arc.quarter_tan(),
+        Segment::Arc(arc) => {
+            range(arc)?;
+            arc.quarter_tan()
+        }
     };
     let straightness = decide(
         "segment_straightness",
@@ -466,7 +481,7 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
                 Sign::Negative => arc.reversed().sweep,
                 Sign::Positive | Sign::Zero => arc.sweep,
             };
-            check(arc, span)?;
+            check(arc)?;
             let apex = arc.apex(a, b);
             let span_chord = a.distance(apex);
             // 2r − |a − apex| with |a − apex| = 2r·sin(|Δθ|/4), spelled
@@ -555,17 +570,13 @@ fn resolves<T: Decide>(
     }
 }
 
-/// Validation's three consistency checks of a stored arc against its
-/// endpoints `a → b`, decided in order at the run's band ([`build_seg`]
-/// states each margin; `range` which sweeps the last one accepts,
-/// [`full_turn`] the full turn's). `span` is the sweep signed by the
-/// arc's decided turn into |Δθ|, without an `abs`.
+/// Validation's two difference checks of a stored arc against its
+/// endpoints `a → b`, `arc_start_on_carrier` then `arc_landing`,
+/// decided at the run's band ([`build_seg`] states each margin).
 fn check_carrier<T: Decide>(
     arc: Arc2<T>,
     a: Point2<T>,
     b: Point2<T>,
-    span: T,
-    range: Range,
     band: Band,
 ) -> Result<(), SegIssue<T>> {
     let refuse = |check: ArcCheck| Err(SegIssue::Inconsistent { check });
@@ -605,6 +616,18 @@ fn check_carrier<T: Decide>(
             return refuse(ArcCheck::Landing);
         }
     }
+    Ok(())
+}
+
+/// Validation's third consistency check, `arc_sweep_range`, of a stored
+/// arc's sweep magnitude `span` against the sweeps `range` accepts
+/// ([`build_seg`] states the margin, [`full_turn`] the full turn's).
+fn sweep_range<T: Decide>(
+    arc: Arc2<T>,
+    span: T,
+    range: Range,
+    band: Band,
+) -> Result<(), SegIssue<T>> {
     let tau = T::tau();
     let (ratio, accept) = match range {
         Range::Chord => (span * (tau - span) / tau, Sign::Positive),
@@ -615,7 +638,9 @@ fn check_carrier<T: Decide>(
     if read == accept {
         Ok(())
     } else {
-        refuse(ArcCheck::SweepRange)
+        Err(SegIssue::Inconsistent {
+            check: ArcCheck::SweepRange,
+        })
     }
 }
 
@@ -865,7 +890,7 @@ impl<T: Real> Seg<T> {
 /// clearance margins (`carrier_line_circle`,
 /// `carrier_circles_identity` / `_external` / `_internal`) are
 /// bit-identical to [`line_arc`]/[`arc_arc`]'s expressions (the circle
-/// ones read the same [`Circles`]); line/line
+/// ones read the same [`Circles2`]); line/line
 /// joints reuse `chord_side` in the same expression form on the
 /// joint's *far* endpoint (a carrier-identity question — the pair pass
 /// asks it of other points). Same funnel, same bands, no new ε.
@@ -896,8 +921,8 @@ pub(crate) fn joint_tangency<T: Decide>(
         (SegKind::Line, SegKind::Arc(g)) => line_circle_joint(prev, g, band),
         (SegKind::Arc(g), SegKind::Line) => line_circle_joint(next, g, band),
         (SegKind::Arc(g1), SegKind::Arc(g2)) => {
-            let circles = Circles::of(g1, g2);
-            let identity = circles.identity();
+            let pair = carrier_pair(g1, g2).pair();
+            let identity = pair.identity();
             let same = decide_reported("carrier_circles_identity", Margin::of(identity), band)?;
             match same.sign {
                 Sign::Zero | Sign::Negative => Ok(JointReading {
@@ -908,7 +933,7 @@ pub(crate) fn joint_tangency<T: Decide>(
                     scale: circles_scale(g1, g2),
                 }),
                 Sign::Positive => {
-                    let external = circles.external();
+                    let external = pair.external();
                     let outside =
                         decide_reported("carrier_circles_external", Margin::of(external), band)?;
                     match outside.sign {
@@ -930,7 +955,7 @@ pub(crate) fn joint_tangency<T: Decide>(
                             scale: circles_scale(g1, g2),
                         }),
                         Sign::Negative => {
-                            let internal = circles.internal();
+                            let internal = pair.internal();
                             let inside = decide_reported(
                                 "carrier_circles_internal",
                                 Margin::of(internal),
@@ -1283,12 +1308,12 @@ fn arc_clear_of_carrier<T: Decide>(
 ///   internal clearance. Negative ⇒ nested, no contact; Zero ⇒
 ///   internally tangent (contact on the center line beyond both
 ///   centers); Positive (with external Negative) ⇒ two proper
-///   intersections, on the radical line ([`Circles::crossings`]), whose
+///   intersections, on the radical line ([`Circles2::crossings`]), whose
 ///   half-chord's square is a product of four factors: the two
 ///   clearances, each definite in this branch, and `d + |r₁ − r₂|` and
 ///   `d + r₁ + r₂`, so it cannot poison.
 ///
-/// The three margins and the crossings read one [`Circles`], so the
+/// The three margins and the crossings read one [`Circles2`], so the
 /// factors the crossings take are the margins decided, bit for bit.
 ///
 /// Divisions by d occur only in branches where the identity margin was
@@ -1301,10 +1326,11 @@ fn arc_arc<T: Decide>(
     g2: &ArcGeom<T>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
-    let circles = Circles::of(g1, g2);
+    let circles = carrier_pair(g1, g2);
+    let pair = circles.pair();
     match decide(
         "carrier_circles_identity",
-        Margin::of(circles.identity()),
+        Margin::of(pair.identity()),
         band,
     )? {
         Sign::Zero | Sign::Negative => {
@@ -1339,7 +1365,7 @@ fn arc_arc<T: Decide>(
             let spans = |q| (arc_span(g1, q, band), arc_span(g2, q, band));
             match decide(
                 "carrier_circles_external",
-                Margin::of(circles.external()),
+                Margin::of(pair.external()),
                 band,
             )? {
                 Sign::Positive => {}
@@ -1347,13 +1373,13 @@ fn arc_arc<T: Decide>(
                     // Externally tangent; d = r₁ + r₂ ≥ the definite
                     // identity margin, so the division is safe.
                     let delta = g2.arc.centre - g1.arc.centre;
-                    let q = g1.arc.centre + delta * (g1.arc.radius / circles.d);
+                    let q = g1.arc.centre + delta * (g1.arc.radius / pair.d());
                     candidates(&mut contacts, (s1, s2), &[q], CKind::Tangency, spans, band)?;
                 }
                 Sign::Negative => {
                     match decide(
                         "carrier_circles_internal",
-                        Margin::of(circles.internal()),
+                        Margin::of(pair.internal()),
                         band,
                     )? {
                         Sign::Negative => {}
@@ -1392,97 +1418,14 @@ fn arc_arc<T: Decide>(
     }
 }
 
-/// Two carrier circles as [`arc_arc`] and [`joint_tangency`] read
-/// them: the centres `c1`, `c2`, the first radius, the centre distance
-/// `d`, and `r₁ + r₂` and `r₁ − r₂`, each formed once. The three margins
-/// are read from these fields, and so are the radical foot and the
-/// half-chord, so each factor those take is a margin the caller decided.
-pub(crate) struct Circles<T: Real> {
-    c1: Point2<T>,
-    c2: Point2<T>,
-    r1: T,
-    /// The centre distance.
-    pub d: T,
-    sum: T,
-    diff: T,
-}
-
-impl<T: Real> Circles<T> {
-    pub(crate) fn of(g1: &ArcGeom<T>, g2: &ArcGeom<T>) -> Self {
-        Self::new(
-            (g1.arc.centre, g1.arc.radius),
-            (g2.arc.centre, g2.arc.radius),
-        )
-    }
-
-    /// The circles `(centre, radius)`.
-    pub(crate) fn new((c1, r1): (Point2<T>, T), (c2, r2): (Point2<T>, T)) -> Self {
-        Self {
-            c1,
-            c2,
-            r1,
-            d: c1.distance(c2),
-            sum: r1 + r2,
-            diff: r1 - r2,
-        }
-    }
-
-    /// `carrier_circles_identity`'s margin, d + |r₁ − r₂|.
-    pub(crate) fn identity(&self) -> T {
-        self.d + self.diff.abs()
-    }
-
-    /// `carrier_circles_external`'s margin, d − (r₁ + r₂).
-    pub(crate) fn external(&self) -> T {
-        self.d - self.sum
-    }
-
-    /// `carrier_circles_internal`'s margin, d − |r₁ − r₂|.
-    pub(crate) fn internal(&self) -> T {
-        self.d - self.diff.abs()
-    }
-
-    /// The radical line's signed distance `a` from `c1` along the line
-    /// of centres, and `r₁ − a = (r₁ + r₂ − d)(d − r₁ + r₂)/2d`, the
-    /// second of which [`Self::crossings`] reuses.
-    ///
-    /// The textbook `a = (d² + r₁² − r₂²)/2d` is a difference of
-    /// squares and errs by about `u·r²/d`. Each factor here rounds at
-    /// the inputs' own scale: `r₁ + r₂ − d` is minus the external
-    /// margin and `d − r₁ + r₂` is the internal one or `d + |r₁ − r₂|`.
-    fn radical(&self) -> (T, T, T) {
-        let two_d = self.d + self.d;
-        let inner = (self.sum - self.d) * (self.d - self.diff);
-        (self.r1 - inner / two_d, inner, two_d)
-    }
-
-    /// The radical foot, on the line of centres: the internally tangent
-    /// pair's contact point. `d` must be definitely positive.
-    pub(crate) fn foot(&self) -> Point2<T> {
-        let (a, _, _) = self.radical();
-        self.c1 + ((self.c2 - self.c1) / self.d) * a
-    }
-
-    /// The two crossings of a proper secant, either side of the radical
-    /// foot by the half-chord `h`, with
-    /// `h² = (r₁ + r₂ − d)(d − r₁ + r₂)(d + r₁ − r₂)(d + r₁ + r₂)/4d²`.
-    /// `d` must be definitely positive.
-    ///
-    /// The textbook `r₁² − a²` is a difference of squares, and where the
-    /// radii differ by orders of magnitude it takes the crossings off
-    /// both carriers at `f64` by up to the smaller radius. Here each of
-    /// the four factors is definite in the secant branch, so the radicand
-    /// cannot poison and at `Interval` encloses, and the crossings sit on
-    /// both carriers to a few ulps of the largest of `d`, the radii and
-    /// the centres' coordinates (the foot is `c₁ + û·a`).
-    pub(crate) fn crossings(&self) -> [Point2<T>; 2] {
-        let (a, inner, two_d) = self.radical();
-        let h = (inner * ((self.d + self.diff) * (self.sum + self.d)) / two_d.powi(2)).sqrt();
-        let u = (self.c2 - self.c1) / self.d;
-        let n = perp(u);
-        let foot = self.c1 + u * a;
-        [foot + n * h, foot - n * h]
-    }
+/// The two carriers as [`arc_arc`] and [`joint_tangency`] read them.
+/// The margins and the crossings read one [`Circles2`], so each factor
+/// the crossings take is a margin the caller decided.
+fn carrier_pair<T: Real>(g1: &ArcGeom<T>, g2: &ArcGeom<T>) -> Circles2<T> {
+    Circles2::new(
+        (g1.arc.centre, g1.arc.radius),
+        (g2.arc.centre, g2.arc.radius),
+    )
 }
 
 /// Reads the candidate contacts of two carriers, `points`, each from
@@ -2394,10 +2337,84 @@ mod pair_contact_tests {
 
 #[cfg(test)]
 #[allow(clippy::panic)]
+mod sweep_range_tests {
+    use super::*;
+    use geom_core::{Interval, Tol};
+
+    /// What [`build_seg`] read: the segment's kind, or the predicate
+    /// that refused it.
+    type Read = Result<&'static str, &'static str>;
+
+    /// The carrier's radius and the short arc's sweep δ: a chord rδ
+    /// = 1e-4 past every ε row's band, and a sagitta rδ²/8 ≈ 1.3e-13
+    /// within every row's ε, so the short arc reads as its chord at
+    /// each row.
+    const R: f64 = 1e4;
+    const DELTA: f64 = 1e-8;
+
+    /// The arc on the circle of radius [`R`] about the origin from
+    /// (R, 0) to the polar angle [`DELTA`], storing `sweep`.
+    fn read<T: Decide>(sweep: f64, band: Band) -> Read {
+        let pt = |t: f64| Point2::new(T::from_f64(R * t.cos()), T::from_f64(R * t.sin()));
+        let carrier = Arc2 {
+            centre: Point2::new(T::zero(), T::zero()),
+            radius: T::from_f64(R),
+            sweep: T::from_f64(sweep),
+        };
+        match build_seg(
+            pt(0.0),
+            pt(DELTA),
+            Segment::Arc(carrier),
+            Consistency::Decide,
+            band,
+        ) {
+            Ok(Seg {
+                kind: SegKind::Line,
+                ..
+            }) => Ok("line"),
+            Ok(Seg {
+                kind: SegKind::Arc(..),
+                ..
+            }) => Ok("arc"),
+            Err(issue) => Err(issue.predicate()),
+        }
+    }
+
+    /// **A stored sweep outside 0 < |Δθ| ≤ 2π refuses whatever its
+    /// sagitta**, at `f64` and at `Interval`. The quarter tangent the
+    /// straightness read takes is 4π-periodic, so 4π ± δ bows like δ;
+    /// 2π + δ bows far off its chord; δ itself is a legitimate arc
+    /// whose sagitta is within ε, read as its chord.
+    #[test]
+    fn a_stored_sweep_past_a_full_turn_refuses_whatever_its_sagitta() {
+        let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("band: {e}"));
+        let tau = std::f64::consts::TAU;
+        let rows: [(&str, f64, Read); 4] = [
+            ("4π + δ", 2.0 * tau + DELTA, Err("arc_sweep_range")),
+            ("−4π − δ", -2.0 * tau - DELTA, Err("arc_sweep_range")),
+            ("2π + δ", tau + DELTA, Err("arc_sweep_range")),
+            ("δ", DELTA, Ok("line")),
+        ];
+        let mut wrong = Vec::new();
+        for (name, sweep, want) in rows {
+            for (scalar, got) in [
+                ("f64", read::<f64>(sweep, band)),
+                ("Interval", read::<Interval>(sweep, band)),
+            ] {
+                if got != want {
+                    wrong.push(format!("{scalar}: {name}: want {want:?}, got {got:?}"));
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
 mod circles_accuracy_tests {
-    use super::Circles;
     use crate::dd::{Dd, off_circle, radical_foot};
-    use geom_core::Point2;
+    use geom_core::{Circles2, Point2};
 
     type P = (f64, f64);
 
@@ -2407,8 +2424,8 @@ mod circles_accuracy_tests {
     /// reads 10⁴ or more on some row.
     const ULPS: f64 = 8.0;
 
-    fn circles((c1, r1): (P, f64), (c2, r2): (P, f64)) -> Circles<f64> {
-        Circles::new((Point2::new(c1.0, c1.1), r1), (Point2::new(c2.0, c2.1), r2))
+    fn circles((c1, r1): (P, f64), (c2, r2): (P, f64)) -> Circles2<f64> {
+        Circles2::new((Point2::new(c1.0, c1.1), r1), (Point2::new(c2.0, c2.1), r2))
     }
 
     fn scale((c1, r1): (P, f64), (c2, r2): (P, f64)) -> f64 {

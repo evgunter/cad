@@ -12,13 +12,17 @@
 //! it would be finished, by tier 2, naming the scaffolding. Each row
 //! first passes the same request on the clean block, so the refusal is
 //! the scaffolding's and nothing else's.
+//!
+//! The battery's own entry reads a raw body no gate stood before, so it
+//! meets the strut itself, and refuses it with the advice the gate gives.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol};
-use sweep::blend::BlendError;
+use sweep::blend::battery::{BlendRequest, run_battery_for};
 use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, BlendKind, Breach};
 use sweep::test_support::block;
 use topo::{AtRestBody, Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ValidationError};
 
@@ -145,4 +149,57 @@ fn a_lone_vertex_ring_on_a_support_face_does_not_finish() {
         vec![ValidationError::ScaffoldingEmptyLoop { loop_: ring }],
         "tier 2 names the ring"
     );
+}
+
+/// **The battery's raw-body entry refuses scaffolding with the door's
+/// advice.** A null strut on a support face, met by the face screen
+/// with every block edge requested, and the strut's own edge
+/// requested: each is `Scaffolding` at the null edge, ending in the
+/// recourse the at-rest gate's refusal ends in, under both verbs.
+#[test]
+fn the_raw_battery_refuses_a_null_strut_as_scaffolding_with_the_doors_advice() {
+    let (mut body, _face, anchor) = block_and_anchor();
+    let edges = block_edges(&body);
+    let strut = body
+        .mev_null(
+            topo::MevSite::Fan {
+                he1: anchor,
+                he2: anchor,
+            },
+            topo::NewVertexSide::Below,
+        )
+        .expect("a null strut at the anchor's start");
+    let band = geom_core::Band::linear(Tol::witness()).expect("the witness band");
+    let advice = format!("Recourse: {}", topo::Unfinished::SCAFFOLDING_RECOURSE);
+    for (what, request) in [
+        ("the block's edges", edges),
+        ("the strut", vec![strut.edge]),
+    ] {
+        for kind in [BlendKind::Fillet, BlendKind::Chamfer] {
+            let req = BlendRequest {
+                body: &body,
+                edges: request.clone(),
+                size: 0.2,
+            };
+            let Err(e) = run_battery_for(&req, band, kind) else {
+                panic!("{what}, {kind:?}: the battery passed a body carrying a null strut");
+            };
+            assert!(
+                matches!(
+                    e,
+                    BlendError::BodyNotIntact {
+                        at: topo::EntityId::Edge(at),
+                        breach: Breach::Scaffolding,
+                        ..
+                    } if at == strut.edge
+                ),
+                "{what}, {kind:?}: the null edge is Scaffolding: {e:?}"
+            );
+            let text = e.to_string();
+            assert!(
+                text.ends_with(&advice) && topo::Unfinished::SCAFFOLDING_REFUSAL.ends_with(&advice),
+                "{what}, {kind:?}: the battery and the gate give one advice: {text}"
+            );
+        }
+    }
 }

@@ -131,10 +131,8 @@
 //! ```
 
 pub mod attach;
-pub(crate) mod bisect;
 pub mod body;
 pub mod boolean;
-pub(crate) mod carrier_speed;
 pub(crate) mod census;
 pub mod chart;
 pub mod chart_bound;
@@ -313,6 +311,23 @@ pub mod test_support {
         wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// Tier 3's local checks on `body` at the band of `eps` rather than
+    /// the run's: `Tol` is committed once per process, so this is how
+    /// one test reads a body built at the run's ε at a tighter one.
+    ///
+    /// # Panics
+    ///
+    /// Where `eps` forms no band with the run's K.
+    #[allow(clippy::expect_used)]
+    pub fn tier3_at(
+        body: &Body<f64>,
+        eps: f64,
+        tol: geom_core::Tol,
+    ) -> Vec<crate::ValidationError> {
+        let band = geom_core::Band::linear_at(tol, eps).expect("a band at eps");
+        crate::validate::tier3_local_checks(body, band, tol, None, None).0
+    }
 
     /// **Restates the surface at `key`** as `surface`: a row that needs
     /// a datum no construction mints (a cone's seam off square to its
@@ -886,8 +901,8 @@ pub use boolean::{
     boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
     face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
-    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
-    tangent_pair_relation, union,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
+    subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
