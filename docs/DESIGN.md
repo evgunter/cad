@@ -883,6 +883,31 @@ the file's own coincidence distance as the band. C5
 (`crates/geom-brep/README.md`) is this rule's instance for surface and
 curve pairs.
 
+**What a consumer does with the answer.** A reading of which special
+case a geometry is (a class, a pose's trilean) answers *shown* (Zero),
+*ruled out* (definite) or *in band*, and in band means only that the
+case is not shown. Its consumer is one of two kinds, and each owes the
+build and the `unproven-coincidence` lint exactly what it does with the
+answer. A **lane choice** picks a form for one certified statement the
+body has either way: a pcurve row's class, an edge's rest locus, a
+section curve's formula where both answers give the same cells, a
+carrier's recognised kind at import. Zero takes the closed form; in
+band and definite take a lane whose certificate does not rest on the
+answer, the general lane where one exists or a closed form whose own
+envelope carries the miss, and the derivation says "not shown" so no
+consumer reads the form as shown. A lane choice records nothing, never
+ends as a kernel defect at a build, and refuses only where no lane
+certifies without the answer, with the closed form's pose as its lever
+(D4 ¶1). A closed form before the general lane is a stage of the one
+reading, not a fallback: both state one certificate. A **structural
+act** changes which cells the result has on the answer: a boolean's
+glue, a vertex fusion, an edge join, a split's ON verdict, a section
+trilean that decides how many curves meet and where. Zero acts and is
+recorded (D10), in band refuses with the decision's own lever (D4 ¶1),
+at the reading or at the result's finished-body gate, and definite
+keeps apart. At rest, only a definite contradiction of what is stored
+is a defect.
+
 ### D4 (agreed): Single strict global tolerance; operations fail loudly
 
 No per-entity tolerances that grow as operations get sloppy (the Open
@@ -1592,7 +1617,10 @@ deciding operation through and their names there, never by a stamp
 the kernel carries; a contact record a result carries cites the
 coincidence that backs it. A per-construction table of output forms is
 only ever a cache generated from the symbolic evaluation and checked
-against it, never written by hand.
+against it, never written by hand. A reading that only chooses a cell's
+form (D3's lane choice) infers no coincidence and records nothing; a
+door that makes cells one on a class it read (the boolean's edge join)
+records it.
 
 **Booleans.** A boolean's operands must already be in one space;
 otherwise it refuses. It glues what its verdicts decide Zero where an

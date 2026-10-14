@@ -556,10 +556,12 @@ rows mid-surgery; every public producer ends with a full mint, so
 validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
 covers refuses at the producer rather than reaching rest uncached.
-A closed-form class whose gate lands in the band means only that the
-class is not shown: the carrier takes the chart's general lane (its
-projected image), and no refusal of a declared carrier's image ends
-as a kernel defect. A
+A closed-form class gate is a lane choice (D3): in band or definite,
+the carrier takes a lane whose certificate does not rest on the class,
+its projected image where the chart has one. Whether the carrier lies
+on the chart at all is a residual, not a class gate: a miss is the
+lever on a declared carrier and a defect only on one the kernel
+derived. A
 carrier whose route refuses (a spline or a circle whose projected image
 reaches a pole) refuses at the producer like any other refusal: no
 class goes unrouted, so the exemption excuses only a scalar that holds

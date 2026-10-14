@@ -112,3 +112,12 @@ certifies); the torus convention is decided where a torus face is
 admitted; a closed-form class gate in band means "class not shown" and
 the carrier takes the general (projected) lane. The C4 text the answer
 changes is in the `[ev]` PR that carries this question.
+
+Ev asked (on that PR) for a general principle behind the third answer,
+since booleans decide their in-band cases differently and the lint is a
+separate stage. Two more designers converged on one: a reading's
+consumer is either a lane choice (it picks a form for one certified
+statement, takes a lane that does not rest on the answer, and records
+nothing) or a structural act (it changes the result's cells, records a
+Zero for the lint and refuses in band). That paragraph goes in D3, with
+a sentence in D10.
