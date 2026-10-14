@@ -63,3 +63,14 @@ unless the parent's own boundary passes through the joined-away vertex.
 That exception is
 `a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex.md`'s
 question, not this row's.
+
+**What is gated.** Only the topo record is: the `topo` fixture above
+goes red without it. The `borders.rs` line that reads it into
+`split_from` has no editor-core gate, because no name moves through
+it. Neither probe is kept as a gate. The 8566 count is a census of
+how often the case arises, and it moves with any change to the suite
+or the corpus, so pinning it would only re-baseline. The reach
+comparison needs a second chase that skips the copied hops, which
+exists only to be compared against. Read as a gate, it would assert
+that the record never matters, which is the opposite of what the
+record is for.

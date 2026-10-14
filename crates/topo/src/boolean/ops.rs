@@ -823,7 +823,11 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         discarded[usize::from(row.operand == Operand::B)].insert(row.face);
     }
     let recorded = carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
-    let (merged, edge_joins, joined_lineage) = finish_output(
+    let OutputStage {
+        merged,
+        edge_joins,
+        joined_lineage,
+    } = finish_output(
         &mut body,
         &mut desc,
         &declared_pairs,
@@ -2358,13 +2362,15 @@ fn bound_holds<'t, 'b, T: Decide>(
     }
 }
 
-/// What [`finish_output`] made: the merge, the joins, and the joined
-/// lineage ([`BooleanNaming::joined_lineage`]).
-pub(super) type OutputStage = (
-    crate::merge_faces::MergeCoplanarOutcome,
-    Vec<super::EdgeJoin>,
-    BTreeMap<EdgeKey, EdgeKey>,
-);
+/// What [`finish_output`] made.
+pub(super) struct OutputStage {
+    /// The merge of coplanar faces.
+    pub(super) merged: crate::merge_faces::MergeCoplanarOutcome,
+    /// The joins, in the order made ([`BooleanNaming::edge_joins`]).
+    pub(super) edge_joins: Vec<super::EdgeJoin>,
+    /// The joined-away edges' parents ([`BooleanNaming::joined_lineage`]).
+    pub(super) joined_lineage: BTreeMap<EdgeKey, EdgeKey>,
+}
 
 /// **The boolean's output stage**, the one every result path takes
 /// (`docs/DESIGN.md`, the merge stage): the merge of coplanar faces
@@ -2405,7 +2411,11 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     desc.absorb_merge(&merged)?;
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
     let (edge_joins, joined_lineage) = join_stage(body, desc, recorded, band, tol)?;
-    Ok((merged, edge_joins, joined_lineage))
+    Ok(OutputStage {
+        merged,
+        edge_joins,
+        joined_lineage,
+    })
 }
 
 /// One output stage's vertices, each with its point rendered
@@ -6775,7 +6785,11 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             ];
             let recorded =
                 carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
-            let (merged, edge_joins, joined_lineage) = finish_output(
+            let OutputStage {
+                merged,
+                edge_joins,
+                joined_lineage,
+            } = finish_output(
                 &mut body,
                 &mut desc,
                 &declared_pairs,
@@ -6879,8 +6893,11 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         &desc,
         [&discarded[0], &discarded[1]],
     )?;
-    let (merged, edge_joins, joined_lineage) =
-        finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
+    let OutputStage {
+        merged,
+        edge_joins,
+        joined_lineage,
+    } = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
     let output = output_substitutions(&merged, &edge_joins)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;

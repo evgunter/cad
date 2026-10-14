@@ -40,7 +40,7 @@ The same premise covers a later split of a joined `kept` edge. That split climbs
 Two fixtures in `editor-core` `emit_union_borders`. Both name alike in
 every member order and pin today's reading.
 
-**`regions_meeting_only_at_a_notch_apex_are_one_obstacle`.**
+**`regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today`.**
 - Members:
   - the plate notched at (1.5, 1.2);
   - `m` = [−1, 2] × [1.2, 3] × [0.5, 1.5];
@@ -53,13 +53,13 @@ every member order and pin today's reading.
   With the two regions read as two obstacles it would be
   {`m:y=1.20`, `s:x=0.80`}.
 
-**`two_members_regions_meeting_only_at_a_notch_apex_are_one_obstacle`.**
+**`two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today`.**
 - `m` is split at x = 1.5 into `m1` and `m2`, so each region is its own
   member's discard.
 - The right piece again cites `m2:x=2.00`.
-- I tried not linking discards that share an edge only through a join,
-  and attributing a piece edge to each obstacle it reaches separately.
-  Neither fixture moved. `s` splits the joined edge afterwards, and the
+- Two readings were tried: not linking discards that share an edge
+  only through a join, and attributing a piece edge to each obstacle it
+  reaches separately. Neither fixture moved. `s` splits the joined edge afterwards, and the
   left piece's piece of it climbs to the joined edge, which runs along
   both regions. So the left piece meets the right region too, and that
   region divides.

@@ -173,13 +173,27 @@ fn an_edge_split_and_joined_away_in_one_step_records_its_parent() {
         "a piece the cut minted is joined away: {:?}",
         naming.edge_joins
     );
+    assert_eq!(out.body.edges().count(), 12, "the union is one brick");
     for (g, from) in &naming.joined_lineage {
         assert!(gone.contains(g), "{g:?} is a joined-away edge");
         assert!(out.body.get_edge(*g).is_none(), "{g:?} is dead");
-        assert_ne!(g, from, "{g:?} names a parent other than itself");
-        assert!(
-            out.body.get_edge(*from).is_some() || gone.contains(from),
-            "{g:?}'s parent {from:?} is live, or joined away itself"
+        // The parent, followed through any parent the join also
+        // killed, lies on the result edge `g` was joined into: the long
+        // edge the cut divided.
+        let mut up = *from;
+        let mut hops = 0;
+        while let Some(&p) = naming.joined_lineage.get(&up) {
+            up = p;
+            hops += 1;
+            assert!(
+                hops <= naming.joined_lineage.len(),
+                "{g:?}'s lineage cycles"
+            );
+        }
+        assert_eq!(
+            naming.joined_edge(up),
+            naming.joined_edge(*g),
+            "{g:?}'s parent {from:?} lies on the edge {g:?} was joined into"
         );
     }
 }

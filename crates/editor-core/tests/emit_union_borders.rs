@@ -1475,7 +1475,7 @@ fn notched_plate() -> Mem {
 /// only at a point is one obstacle is N2's open question
 /// (`work/emit/a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex.md`).
 #[test]
-fn regions_meeting_only_at_a_notch_apex_are_one_obstacle() {
+fn regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today() {
     check(&u(
         "notch_apex",
         vec![
@@ -1503,13 +1503,13 @@ fn regions_meeting_only_at_a_notch_apex_are_one_obstacle() {
 }
 
 /// **Two members' discards that meet only at a notch's apex** are one
-/// obstacle too, as [`regions_meeting_only_at_a_notch_apex_are_one_obstacle`]:
+/// obstacle too, as [`regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today`]:
 /// `m` is two members abutting at the apex's `x`, so each region is its
 /// own member's discard, and what makes them one is the join at the
 /// apex, which makes one edge of both members' seams, and `s`'s later
 /// split of that edge, whose pieces lead back to it.
 #[test]
-fn two_members_regions_meeting_only_at_a_notch_apex_are_one_obstacle() {
+fn two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today() {
     check(&u(
         "notch_apex_two",
         vec![

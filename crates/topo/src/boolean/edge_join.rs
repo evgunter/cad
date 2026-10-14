@@ -610,13 +610,7 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(Vec<EdgeJoin>, BTreeMap<EdgeKey, EdgeKey>), BooleanError> {
-    let split_from: BTreeMap<EdgeKey, EdgeKey> = body
-        .edges()
-        .filter_map(|(e, _)| match body.edge_provenance_of(e) {
-            Some(crate::provenance::Provenance::SplitEdge { edge }) => Some((e, *edge)),
-            _ => None,
-        })
-        .collect();
+    let split_from = split_records(body);
     // The boolean's own surgery body, re-minted whole after the carry:
     // no staging and no re-mint here.
     let free = free_vertices(body, recorded);
@@ -628,11 +622,42 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
         if let Some(v) = j.conventional {
             desc.substitute((Cell::Vertex(v), Cell::Edge(j.kept)))?;
         }
+    }
+    record_joined_lineage(&mut lineage, &split_from, &joined);
+    Ok((joined, lineage))
+}
+
+/// Each edge of `body` with a `SplitEdge` record → the edge it was
+/// split from: the records as they stand, taken before a join's kills
+/// drop the killed edges' ([`record_joined_lineage`]).
+pub(crate) fn split_records<T: Real>(body: &Body<T>) -> BTreeMap<EdgeKey, EdgeKey> {
+    body.edges()
+        .filter_map(|(e, _)| match body.edge_provenance_of(e) {
+            Some(crate::provenance::Provenance::SplitEdge { edge }) => Some((e, *edge)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Writes into `lineage` each of `joins`' `gone` edges that held a
+/// record in `split_from` ([`split_records`], taken before the kills),
+/// with the edge it was split from. An edge recorded twice names one
+/// parent: a body holds one record per edge.
+pub(crate) fn record_joined_lineage(
+    lineage: &mut BTreeMap<EdgeKey, EdgeKey>,
+    split_from: &BTreeMap<EdgeKey, EdgeKey>,
+    joins: &[EdgeJoin],
+) {
+    for j in joins {
         if let Some(&from) = split_from.get(&j.gone) {
-            lineage.insert(j.gone, from);
+            let earlier = lineage.insert(j.gone, from);
+            debug_assert!(
+                earlier.is_none_or(|e| e == from),
+                "{:?} recorded with two parents ({earlier:?}, {from:?})",
+                j.gone
+            );
         }
     }
-    Ok((joined, lineage))
 }
 
 /// **Why the join refused**, as a door that is not the boolean carries
