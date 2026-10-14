@@ -2419,54 +2419,42 @@ fn flush_lines<T: Decide>(
     least_per_line(
         edges.iter().cloned(),
         |e| match crossed_edge(e, op.table) {
-            Some(k) => straight_segment(op.body, k),
+            Some(k) => EdgeCarrier::of_edge(op.body, k).map(Some),
             None => Ok(None),
         },
         bnd,
     )
 }
 
-/// **Edges that run flush on one straight line, counted once as the
-/// least of them** (N2's lines at a vertex), least first: each of
-/// `edges` in order, except one whose segment lies on the line of a
-/// lesser one's, through [`ON_MEMBER_EDGE`]. `segment` reads an edge's
-/// segment, `None` for an edge that is no straight line
-/// ([`straight_segment`]), which is a line of its own. The one home of
-/// the collapse the pair boolean (`flush_lines`) and the union
-/// (`emit_union::Flush::meeting`) both read.
+/// **Edges that run flush on one line, counted once as the least of
+/// them** (N2's lines at a vertex), least first: each of `edges` in
+/// order, except one that lies on the line of a lesser one's, through
+/// [`ON_MEMBER_EDGE`]: a straight edge on its straight line, a curved
+/// one on its certified carrier ([`EdgeCarrier::runs_with`]). `line`
+/// reads an edge's carrier, `None` for an edge that is a line of its
+/// own. The one home of the collapse the pair boolean (`flush_lines`)
+/// and the union (`emit_union::Flush::meeting`) both read.
 pub(super) fn least_per_line<E: Ord, T: Decide>(
     edges: impl IntoIterator<Item = E>,
-    mut segment: impl FnMut(&E) -> Result<Option<Segment<T>>, NamingError>,
+    mut line: impl FnMut(&E) -> Result<Option<EdgeCarrier<T>>, NamingError>,
     bnd: geom_core::Band,
 ) -> Result<Vec<E>, NamingError> {
     let mut sorted: Vec<E> = edges.into_iter().collect();
     sorted.sort();
-    let mut kept: Vec<(E, Option<Segment<T>>)> = Vec::with_capacity(sorted.len());
+    let mut kept: Vec<(E, Option<EdgeCarrier<T>>)> = Vec::with_capacity(sorted.len());
     for e in sorted {
-        let seg = segment(&e)?;
+        let on_line = line(&e)?;
         let mut flush = false;
-        if let Some(seg) = &seg {
+        if let Some(on_line) = &on_line {
             for on in kept.iter().filter_map(|(_, on)| on.as_ref()) {
-                flush |= on.runs_with(seg, ON_MEMBER_EDGE, bnd)?.is_some();
+                flush |= on.runs_with(on_line, ON_MEMBER_EDGE, bnd)?.is_some();
             }
         }
         if !flush {
-            kept.push((e, seg));
+            kept.push((e, on_line));
         }
     }
     Ok(kept.into_iter().map(|(e, _)| e).collect())
-}
-
-/// Edge `e`'s segment if it is straight ([`is_straight`]), else `None`.
-pub(super) fn straight_segment<T: Decide>(
-    body: &Body<T>,
-    e: EdgeKey,
-) -> Result<Option<Segment<T>>, NamingError> {
-    if is_straight(body, e) {
-        Segment::of_edge(body, e).map(Some)
-    } else {
-        Ok(None)
-    }
 }
 
 /// The edge a seam vertex is ranked along: an A-side edge, a B-side
@@ -3312,6 +3300,101 @@ impl<T: Decide> Track<T> {
         walk_cover(read, (T::zero(), self.len), |p, q| {
             Ok(self.sign(p - q, predicate, bnd)? == Sign::Positive)
         })
+    }
+}
+
+/// **An edge's line for the flush readings**: its [`Segment`] where it
+/// is straight ([`is_straight`]), its [`Track`] along its certified
+/// carrier where it is curved.
+pub(super) enum EdgeCarrier<T: Decide> {
+    Straight(Segment<T>),
+    Curved(Track<T>),
+}
+
+impl<T: Decide> EdgeCarrier<T> {
+    /// Edge `e` of `body`, from its `he_plus` start to its end.
+    pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Result<Self, NamingError> {
+        Ok(if is_straight(body, e) {
+            EdgeCarrier::Straight(Segment::of_edge(body, e)?)
+        } else {
+            EdgeCarrier::Curved(Track::of_edge(body, e)?)
+        })
+    }
+
+    /// Whether `other` lies on this edge's line, and if so whether the
+    /// two run the same way along it: [`Segment::runs_with`] for two
+    /// straight edges, [`Track::runs_with`] for two curved ones. A
+    /// straight edge lies on no curved one's carrier, nor a curved one
+    /// on a straight one's line.
+    pub(super) fn runs_with(
+        &self,
+        other: &Self,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Option<bool>, NamingError> {
+        match (self, other) {
+            (EdgeCarrier::Straight(a), EdgeCarrier::Straight(b)) => a.runs_with(b, predicate, bnd),
+            (EdgeCarrier::Curved(a), EdgeCarrier::Curved(b)) => a.runs_with(b, predicate, bnd),
+            _ => Ok(None),
+        }
+    }
+}
+
+impl<T: Decide> Track<T> {
+    /// Whether edge `other` lies on this edge's carrier, a carrier of
+    /// its kind holding `other`'s two ends and its middle, and if so
+    /// whether the two run the same way along it: the cosine between
+    /// their tangents at `other`'s middle, levered by `other`'s length.
+    /// Two edges on one carrier are parallel there, so the cosine is ±1
+    /// and never near its band.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::CarrierUnplaced`] on a carrier that recovers no
+    /// parameter for a point, as [`Track::offset`]; and
+    /// [`NamingError::Emission`] where the cosine decides zero.
+    pub(super) fn runs_with(
+        &self,
+        other: &Self,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Option<bool>, NamingError> {
+        if self.carrier.kind() != other.carrier.kind() {
+            return Ok(None);
+        }
+        let on = [other.t0, other.mid, other.t0 + other.len];
+        for t in on {
+            if self
+                .offset(other.carrier.eval(t), predicate, bnd)?
+                .is_none()
+            {
+                return Ok(None);
+            }
+        }
+        let Some(u) = self
+            .carrier
+            .param_near(other.carrier.eval(other.mid), self.mid)
+        else {
+            return Err(NamingError::CarrierUnplaced {
+                edge: self.edge,
+                carrier: self.carrier.kind(),
+            });
+        };
+        let (mine, theirs) = (self.carrier.deriv(u), other.carrier.deriv(other.mid));
+        let cos = mine.dot(theirs) / (mine.norm() * theirs.norm());
+        let way = decide(
+            predicate,
+            Margin::levered(cos, other.len * other.speed),
+            bnd,
+        )
+        .map_err(|source| NamingError::Escalated { predicate, source })?;
+        match way {
+            Sign::Positive => Ok(Some(true)),
+            Sign::Negative => Ok(Some(false)),
+            Sign::Zero => Err(NamingError::Emission {
+                what: "two edges on one carrier run neither way along it",
+            }),
+        }
     }
 }
 
@@ -6847,5 +6930,108 @@ mod rim_holding_rows {
     #[test]
     fn a_straight_chord_is_held_by_no_curved_piece() {
         assert_eq!(holding(chord_line(at(45.0), at(120.0))), None);
+    }
+
+    /// A body whose one edge is an arc of the unit circle at z = 0 run
+    /// clockwise, from `d0` to `d1` degrees (`d1 < d0`): carried by the
+    /// circle about −z, whose own parameter runs the other way.
+    fn clockwise_arc(d0: f64, d1: f64) -> (Body<f64>, EdgeKey) {
+        let tol = Tol::witness();
+        let c = geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: -Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let mut body = Body::<f64>::new();
+        let born = body.mvfs(at(d0), true).unwrap();
+        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(c, -d0 * DEG, -d1 * DEG).unwrap();
+        let e = body
+            .mev(
+                topo::MevSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                at(d1),
+                spec,
+                tol,
+            )
+            .unwrap()
+            .edge;
+        (body, e)
+    }
+
+    /// **Two arcs lie on one line when they lie on one circle, and run
+    /// the way their tangents agree** (`EdgeCarrier::runs_with`), so the
+    /// lines at a vertex count coincident arcs once (`least_per_line`):
+    /// an arc of the unit circle runs with a disjoint arc of it the
+    /// same way, and with a clockwise one the other way; an arc of a
+    /// circle through only two of its points, a straight edge, and a
+    /// circle of another radius are not on its line.
+    #[test]
+    fn arcs_of_one_circle_are_one_line_either_way_along_it() {
+        use super::{EdgeCarrier, least_per_line};
+        use crate::names::discriminate::ON_MEMBER_EDGE;
+        let bnd = band(Tol::witness()).unwrap();
+        let line = |(b, e): (Body<f64>, EdgeKey)| EdgeCarrier::of_edge(&b, e).unwrap();
+        let base = line(chord_arc(0.0, 90.0));
+        let runs = |other: (Body<f64>, EdgeKey)| {
+            base.runs_with(&line(other), ON_MEMBER_EDGE, bnd).unwrap()
+        };
+        assert_eq!(
+            runs(chord_arc(120.0, 200.0)),
+            Some(true),
+            "a disjoint arc, counter-clockwise"
+        );
+        assert_eq!(
+            runs(clockwise_arc(60.0, 10.0)),
+            Some(false),
+            "an overlapping arc, clockwise"
+        );
+        assert_eq!(
+            runs(chord_line(at(0.0), at(90.0))),
+            None,
+            "the straight chord"
+        );
+        let wider = {
+            let tol = Tol::witness();
+            let c = geom::Curve3::Circle {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::unit_z(),
+                radius: 2.0,
+                u_ref: Vec3::unit_x(),
+            };
+            let mut body = Body::<f64>::new();
+            let born = body.mvfs(c.eval(0.0), true).unwrap();
+            let spec = geom_brep::EdgeCurveSpec::arc_of_circle(c.clone(), 0.0, 90.0 * DEG).unwrap();
+            let e = body
+                .mev(
+                    topo::MevSite::Lone {
+                        r#loop: born.r#loop,
+                    },
+                    c.eval(90.0 * DEG),
+                    spec,
+                    tol,
+                )
+                .unwrap()
+                .edge;
+            (body, e)
+        };
+        assert_eq!(runs(wider), None, "an arc of a wider circle");
+        let edges = [
+            chord_arc(0.0, 90.0),
+            clockwise_arc(60.0, 10.0),
+            chord_arc(200.0, 250.0),
+        ];
+        let lines = least_per_line(
+            0..edges.len(),
+            |&i| EdgeCarrier::of_edge(&edges[i].0, edges[i].1).map(Some),
+            bnd,
+        )
+        .unwrap();
+        assert_eq!(
+            lines,
+            vec![0],
+            "three arcs of one circle are one line, the least"
+        );
     }
 }
