@@ -6761,6 +6761,31 @@ mod rim_holding_rows {
         assert_eq!(holding(chord_arc(30.0, 60.0)), None);
     }
 
+    /// **A point on a curved edge is placed along its carrier, never by
+    /// its chord**: of the rim's three pieces (−90°–45°, 45°–120°,
+    /// 120°–180°), a point on the arc inside the middle one is held by
+    /// it alone, the midpoint of that piece's chord (inside the circle,
+    /// on no piece) by none, a split point by the two pieces it ends,
+    /// and the rim's own ends by the piece each ends.
+    #[test]
+    fn a_point_on_a_curved_piece_is_held_along_its_carrier() {
+        let (body, _, _, pieces) = split_prism();
+        let bnd = band(Tol::witness()).unwrap();
+        let held = |p: Point3<f64>| {
+            super::edges_holding(p, pieces.iter().map(|&k| (k, &body, k)), bnd).unwrap()
+        };
+        let chord_mid = at(45.0) + (at(120.0) - at(45.0)) * 0.5;
+        assert_eq!(held(at(80.0)), vec![pieces[1]], "on the arc, inside the middle piece");
+        assert_eq!(held(chord_mid), Vec::<EdgeKey>::new(), "the middle piece's chord");
+        let mut split = held(at(45.0));
+        split.sort_unstable();
+        let mut ends = vec![pieces[0], pieces[1]];
+        ends.sort_unstable();
+        assert_eq!(split, ends, "the split at 45°");
+        assert_eq!(held(at(-90.0)), vec![pieces[0]], "the rim's start");
+        assert_eq!(held(at(180.0)), vec![pieces[2]], "the rim's end");
+    }
+
     /// A chord ending exactly at the split at 45° is held by the piece
     /// it lies along, not by the piece that only meets it there.
     #[test]

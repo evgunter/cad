@@ -3714,4 +3714,221 @@ mod tests {
             other => panic!("two cells under one member name refuse: {other:?}"),
         }
     }
+
+    /// A unit cube, its extrude's own table, and the cube read as both
+    /// a union's one member (read `(1, 7)`) and its finished body, each
+    /// finished face descending from the member face it is.
+    struct SelfMember {
+        union: RecipeNodeId,
+        read: VarId,
+        body: topo::Body<f64>,
+        table: NameTable,
+    }
+
+    impl SelfMember {
+        fn new() -> Self {
+            use profile::RawLoop;
+            let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_xy(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+            ));
+            let square = profile::ProfileLoop::polygon(
+                [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                    .into_iter()
+                    .map(|(x, y)| geom_core::Point2::new(x, y)),
+            );
+            let prof = profile::Profile::new(plane, vec![square])
+                .validate(geom_core::Tol::witness())
+                .unwrap();
+            let built = sweep::extrude(
+                &prof,
+                sweep::Extrusion::Distance {
+                    depth: 1.0_f64,
+                    side: crate::ExtrudeSide::Along,
+                },
+                geom_core::Tol::witness(),
+            )
+            .unwrap();
+            let table = crate::names::emit_sweep::name_extrude(
+                RecipeNodeId::new(0, 4),
+                &built,
+                &crate::eval::ProfilePieces::numbered(
+                    &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
+                ),
+            )
+            .unwrap();
+            SelfMember {
+                union: RecipeNodeId::new(0, 9),
+                read: VarId::new(1, 7),
+                body: built.body,
+                table: (*table).clone(),
+            }
+        }
+
+        /// The table with entities `a` and `b` tied under `a`'s name,
+        /// `b`'s own name dropped: the member's own N2 tie.
+        fn tie(&mut self, a: EntityKey, b: EntityKey) -> StableName {
+            let name = self.table.name_of(&ent(0, a)).unwrap().clone();
+            let mut t = NameTable::new();
+            for (n, e) in self.table.iter() {
+                let Entry::Unique(e) = e else { unreachable!("an extrude ties nothing") };
+                if e.key != a && e.key != b {
+                    t.insert(n.clone(), *e).unwrap();
+                }
+            }
+            t.insert_tied(name.clone(), vec![ent(0, a), ent(0, b)])
+                .unwrap();
+            self.table = t;
+            name
+        }
+
+        fn members(&self) -> [Member<'_, f64>; 1] {
+            [Member {
+                read: self.read,
+                body: &self.body,
+                table: &self.table,
+            }]
+        }
+
+        fn flush<'a>(&'a self, members: &'a [Member<'a, f64>]) -> Flush<'a, f64> {
+            let mut faces = BTreeMap::new();
+            let mut face_ents = BTreeMap::new();
+            let mut face_names = BTreeMap::new();
+            for (f, _) in self.body.faces() {
+                let name = self
+                    .table
+                    .name_ref_of(&ent(0, EntityKey::Face(f)))
+                    .unwrap()
+                    .clone();
+                let from = (self.read, name);
+                face_names.insert(f, entity_name(self.union, &from));
+                faces.insert(f, BTreeSet::from([from]));
+                face_ents.insert(f, BTreeSet::from([(0, f)]));
+            }
+            Flush {
+                union: self.union,
+                body: &self.body,
+                members,
+                inc: Incidence::of(&self.body).unwrap(),
+                faces,
+                face_ents,
+                edges: BTreeMap::new(),
+                spans: BTreeMap::new(),
+                face_names,
+                bnd: geom_core::Band::new(1e-9, 1e-6).unwrap(),
+            }
+        }
+
+        /// A face of the cube, and an edge it bounds with its faces.
+        fn face_and_edge(&self) -> (topo::FaceKey, topo::EdgeKey, [topo::FaceKey; 2]) {
+            let inc = Incidence::of(&self.body).unwrap();
+            let (&k, fs) = inc.edge_faces.iter().next().unwrap();
+            let [f0, f1] = fs.as_slice() else { panic!("a cube edge has two faces") };
+            (*f0, k, [*f0, *f1])
+        }
+    }
+
+    /// **A member face its member ties is read by its key** (N2: the
+    /// candidates of a tied row are separate parents spelled alike): the
+    /// joined-edge reading still finds the member edge between it and
+    /// its neighbour, rather than reading the tied face as no face.
+    #[test]
+    fn a_member_face_its_member_ties_is_read_by_its_key() {
+        let mut m = SelfMember::new();
+        let (f, k, fs) = m.face_and_edge();
+        let other = m
+            .body
+            .faces()
+            .map(|(g, _)| g)
+            .find(|g| !fs.contains(g))
+            .unwrap();
+        m.tie(EntityKey::Face(f), EntityKey::Face(other));
+        let edge = m.table.name_ref_of(&ent(0, EntityKey::Edge(k))).unwrap().clone();
+        let members = m.members();
+        let flush = m.flush(&members);
+        let cover = flush.edge_cover(k, &fs).unwrap();
+        assert_eq!(
+            cover.within,
+            vec![(m.read, edge)],
+            "the edge between a tied member face and its neighbour lies within the member edge"
+        );
+    }
+
+    /// **A member vertex its member ties is cited, and the tie goes
+    /// downstream**: the finished vertex at either candidate sits at the
+    /// member vertex, spelled by the tied name, and the two finished
+    /// vertices that cite it are one tied row, not a vertex read as no
+    /// member vertex and named by the lines through it.
+    #[test]
+    fn a_member_vertex_its_member_ties_is_cited_with_its_tie() {
+        let mut m = SelfMember::new();
+        let vs: Vec<_> = m.body.vertices().map(|(v, _)| v).collect();
+        let (v0, v1, v2) = (vs[0], vs[1], vs[2]);
+        let tied = m.tie(EntityKey::Vertex(v0), EntityKey::Vertex(v1));
+        let members = m.members();
+        let flush = m.flush(&members);
+        let cited = |v| flush.least_vertex(v).unwrap();
+        let tied_ref = m.table.name_ref_of(&ent(0, EntityKey::Vertex(v0))).unwrap().clone();
+        assert_eq!(*tied_ref, tied);
+        assert_eq!(cited(v0), Some(((m.read, tied_ref.clone()), true)), "candidate 0");
+        assert_eq!(cited(v1), Some(((m.read, tied_ref.clone()), true)), "candidate 1");
+        let own = m.table.name_ref_of(&ent(0, EntityKey::Vertex(v2))).unwrap().clone();
+        assert_eq!(cited(v2), Some(((m.read, own), false)), "an untied vertex");
+
+        let fold_name = |i: u64| StableName {
+            kind: EntityKind::Vertex,
+            node: m.union,
+            path: vec![RoleSeg::Instance {
+                i: u32::try_from(i).unwrap(),
+                of: NameRef::new(tied.clone()),
+            }],
+        };
+        let mut t = NameTable::new();
+        t.insert(fold_name(0), ent(0, EntityKey::Vertex(v0))).unwrap();
+        t.insert(fold_name(1), ent(0, EntityKey::Vertex(v1))).unwrap();
+        let lines = EdgeLines {
+            member: BTreeMap::new(),
+            seam: BTreeMap::new(),
+        };
+        let out = cite_member_edges(
+            t,
+            Vec::new(),
+            &[],
+            &m.body,
+            &members,
+            &flush,
+            (&lines, &Links::default()),
+            flush.bnd,
+        )
+        .unwrap();
+        let name = entity_name(m.union, &(m.read, tied_ref));
+        match out.lookup(&name) {
+            Some(Entry::Tied(es)) => assert_eq!(
+                es.iter().map(|e| e.key).collect::<BTreeSet<_>>(),
+                BTreeSet::from([EntityKey::Vertex(v0), EntityKey::Vertex(v1)]),
+            ),
+            other => panic!("the two candidates are one tied row: {other:?}"),
+        }
+        assert_eq!(out.len(), 1, "no row keeps the fold's spelling");
+    }
+
+    /// **A member edge its member ties refuses where one edge's faces
+    /// are needed**: the faces a vertex's lines bound are one pair per
+    /// member edge, and a tie offers several, so the reading refuses
+    /// typed instead of reading the edge as bounding no face.
+    #[test]
+    fn a_member_edge_its_member_ties_refuses_where_its_faces_are_read() {
+        let mut m = SelfMember::new();
+        let es: Vec<_> = m.body.edges().map(|(e, _)| e).collect();
+        let (e0, e1) = (es[0], es[1]);
+        let tied = m.tie(EntityKey::Edge(e0), EntityKey::Edge(e1));
+        let members = m.members();
+        let flush = m.flush(&members);
+        let edge = (m.read, NameRef::new(tied.clone()));
+        match flush.sides(&BTreeSet::from([edge.clone()])) {
+            Err(NamingError::MemberEdgeTied { member, edge }) => {
+                assert_eq!((member, *edge), (m.read, tied));
+            }
+            other => panic!("a tied member edge's faces refuse: {other:?}"),
+        }
+    }
 }
