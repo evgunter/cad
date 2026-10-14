@@ -8,6 +8,7 @@
 use crate::common;
 use common::{brick, finished};
 use geom_core::Tol;
+use test_utils::source;
 use topo::{Body, BooleanInputs, BooleanOp, BooleanResult, FaceKey, Relation, Surface};
 
 fn tol() -> Tol {
@@ -82,84 +83,104 @@ fn a_rest_touch_is_the_unions_one_verdict_and_glues_as_given() {
     );
 }
 
-/// Whether `s` names one of the two gated types as a whole word.
-fn names_a_gated_type(s: &str) -> bool {
-    s.split(|c: char| !(c.is_alphanumeric() || c == '_'))
-        .any(|w| w == "GluedPair" || w == "GlueVerdict")
+/// The two types a given pair is made of.
+const GATED: [&str; 2] = ["GluedPair", "GlueVerdict"];
+
+/// Whether `code` names a gated type as a whole word.
+fn names_a_gated_type(code: &str) -> bool {
+    GATED.iter().any(|ty| {
+        code.match_indices(ty)
+            .any(|(at, _)| source::word_at(code, at, ty))
+    })
+}
+
+/// Every whole-word offset of `word` in `code`.
+fn words<'a>(code: &'a str, word: &'a str) -> impl Iterator<Item = usize> + 'a {
+    code.match_indices(word)
+        .map(|(at, _)| at)
+        .filter(move |&at| source::word_at(code, at, word))
+}
+
+/// `code`'s item head starting at `at`, up to its body or `;`.
+fn head(code: &str, at: usize) -> &str {
+    match source::item_body(code, at) {
+        source::ItemBody::Body(body) => &code[at..body.start],
+        source::ItemBody::Declaration(end) => &code[at..end],
+        source::ItemBody::Unterminated => panic!("an unterminated item at {at}"),
+    }
+}
+
+/// Whether the item head whose `fn` or `struct` is at `at` is `pub`
+/// with no restriction: `pub` (and `const`) before it on its line.
+fn plainly_public(code: &str, at: usize) -> bool {
+    let mut before = code[source::line_start(code, at)..at].split_whitespace();
+    before.clone().any(|w| w == "pub") && before.all(|w| w == "pub" || w == "const")
 }
 
 /// **`given_at` is the one public mint of a given pair**: no other
 /// public function in `topo`'s source, nor a trait function on either
 /// type, returns a `GluedPair` or a `GlueVerdict` (or `Self` inside
 /// their impls), neither type has a public field, and neither derives
-/// `Default` or `Deserialize`.
-/// A second mint, such as a public `of_rows` over `Coincidence`'s public
-/// fields, would let any caller state a pair.
+/// `Default` or `Deserialize`. A second mint, such as a public
+/// `of_rows` over `Coincidence`'s public fields, would let any caller
+/// state a pair.
 #[test]
 fn the_one_public_mint_of_a_given_pair_is_given_at() {
-    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-        for e in std::fs::read_dir(dir).unwrap() {
-            let p = e.unwrap().path();
-            if p.is_dir() {
-                walk(&p, out);
-            } else if p.extension().is_some_and(|x| x == "rs") {
-                out.push(p);
-            }
-        }
-    }
-    let mut files = Vec::new();
-    walk(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
-        &mut files,
-    );
-    files.sort();
+    let src = source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut mints = Vec::new();
     let mut gated_types = 0;
-    for f in &files {
-        let src = std::fs::read_to_string(f).unwrap();
-        let lines: Vec<&str> = src.lines().collect();
-        let mut in_gated_impl = false;
-        for (i, line) in lines.iter().enumerate() {
-            let t = line.trim_start();
-            if t.starts_with("impl") {
-                in_gated_impl = names_a_gated_type(t.split('{').next().unwrap());
-            }
-            if t.starts_with("pub struct GluedPair") || t.starts_with("pub struct GlueVerdict") {
-                gated_types += 1;
-                let derive = lines[..i]
-                    .iter()
-                    .rev()
-                    .find(|d| d.trim_start().starts_with("#[derive"))
-                    .unwrap();
-                assert!(
-                    !derive.contains("Default") && !derive.contains("Deserialize"),
-                    "{t} derives a mint: {derive}"
-                );
-                for field in lines[i + 1..].iter().take_while(|l| !l.starts_with('}')) {
-                    assert!(
-                        !field.trim_start().starts_with("pub "),
-                        "{t} has a public field: {field}"
-                    );
-                }
-            }
-            let public = t.starts_with("pub fn ") || t.starts_with("pub const fn ");
-            let trait_fn = in_gated_impl && t.starts_with("fn ");
-            if !(public || trait_fn) {
+    for file in source::rust_sources(&src) {
+        let code = source::code_only(&std::fs::read_to_string(&file).unwrap());
+        // Each impl of a gated type, its body's span and whether it
+        // implements a trait.
+        let gated_impls: Vec<(std::ops::Range<usize>, bool)> = words(&code, "impl")
+            .filter_map(|at| {
+                let source::ItemBody::Body(body) = source::item_body(&code, at) else {
+                    return None;
+                };
+                let head = source::impl_head(&code, at, body.start)?;
+                GATED
+                    .contains(&source::type_base(&head.self_type))
+                    .then_some((body, head.trait_path.is_some()))
+            })
+            .collect();
+        for at in words(&code, "fn") {
+            let in_impl = gated_impls.iter().find(|(body, _)| body.contains(&at));
+            let trait_fn = in_impl.is_some_and(|&(_, is_trait)| is_trait);
+            if !(plainly_public(&code, at) || trait_fn) {
                 continue;
             }
-            // The whole signature, which may wrap, up to its body or `;`.
-            let mut sig = String::new();
-            for l in &lines[i..] {
-                sig.push_str(l);
-                if l.contains('{') || l.trim_end().ends_with(';') {
-                    break;
-                }
+            let ret = head(&code, at).split_once("->").map_or("", |(_, r)| r);
+            if names_a_gated_type(ret) || (in_impl.is_some() && words(ret, "Self").next().is_some())
+            {
+                let name = source::ident(&code, source::skip_ws(&code, at + "fn".len()));
+                mints.push(format!("{}: {name}", file.display()));
             }
-            let sig = sig.split('{').next().unwrap();
-            let ret = sig.split_once("->").map_or("", |(_, r)| r);
-            if names_a_gated_type(ret) || (in_gated_impl && ret.contains("Self")) {
-                let name = t.split('(').next().unwrap().rsplit(' ').next().unwrap();
-                mints.push(format!("{}: {name}", f.display()));
+        }
+        for ty in GATED {
+            for at in words(&code, "struct").filter(|&at| {
+                source::word_at(&code, source::skip_ws(&code, at + "struct".len()), ty)
+            }) {
+                gated_types += 1;
+                assert!(plainly_public(&code, at), "{ty} is a public type");
+                let derive = code[..at].rfind("#[derive(").expect("a derive on {ty}");
+                let derive = &code[derive..code[derive..].find(']').unwrap() + derive];
+                assert!(
+                    !derive.contains("Default") && !derive.contains("Deserialize"),
+                    "{ty} derives a mint: {derive}"
+                );
+                let source::ItemBody::Body(body) = source::item_body(&code, at) else {
+                    panic!("{ty} has fields");
+                };
+                for (field, _) in code[body.clone()].match_indices("pub") {
+                    let rest = &code[body.start + field..];
+                    assert!(
+                        !source::word_at(&code, body.start + field, "pub")
+                            || rest.starts_with("pub("),
+                        "{ty} has a public field: {}",
+                        rest.lines().next().unwrap()
+                    );
+                }
             }
         }
     }
