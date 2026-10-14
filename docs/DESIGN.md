@@ -264,13 +264,16 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    like any coincidence. In-band κ_rel escalates; osculation
    refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
-   Two material wedges on one line, tangent or transverse (a doubled
-   cusp, or a reflex edge lying in one of its own faces), are the
-   coincident-distinct-edges class, each edge classifying separately;
-   no face passes through an edge's material wedge. Where the line
-   ends inside a face, the face carries the two edges as a zero-area
-   ring, which bounds no hole and whose winding is exempt; where it
-   reaches the face's boundary, as a slit of that loop.
+   Two material wedges on one line, each bounded by two faces at an
+   angle, tangent or transverse (a doubled cusp, or a reflex edge
+   lying in one of its own faces), are the coincident-distinct-edges
+   class, each edge classifying separately; no face passes through an
+   edge's material wedge. Where the line ends inside a face, the face
+   carries the two edges as a zero-area ring, which bounds no hole and
+   whose winding is exempt; where it reaches the face's boundary, as a
+   slit of that loop. A face's own side of the line is no wedge: an
+   edge touching a face from outside its wedge stays one edge, in
+   contact with that face.
    Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
    sector classification) refuse typed at the consumer.
    Also at tier 3: **maximal edges** (a joinable vertex at rest is a
