@@ -2813,15 +2813,9 @@ mod tests {
     }
 
     /// The rod `ρ ≤ ½` about `z` over `z ∈ [0, 1]`, a wall face of it,
-    /// that face's stored cylinder, and its top cap.
-    #[allow(clippy::expect_used, clippy::panic)]
-    fn rod<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>() -> (
-        topo::Body<T>,
-        topo::FaceKey,
-        geom::Surface<T>,
-        topo::FaceKey,
-    ) {
-        use geom::Surface;
+    /// and that face's stored cylinder.
+    #[allow(clippy::expect_used)]
+    fn rod<T: topo::AtRestPolicy>() -> (topo::Body<T>, topo::FaceKey, geom::Surface<T>) {
         use geom_core::{Point2, Tol};
         let half = T::from_f64(0.5);
         let body = crate::test_support::prism_at(
@@ -2833,25 +2827,16 @@ mod tests {
             T::one(),
             Tol::witness(),
         );
-        let surface = |f: topo::FaceKey| {
-            let face = body.get_face(f).expect("a face of the rod");
-            body.get_surface(face.surface).expect("its surface").clone()
-        };
         let mut faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
         faces.sort_unstable();
-        let wall = *faces
-            .iter()
-            .find(|&&f| matches!(surface(f), Surface::Cylinder { .. }))
-            .expect("the rod's wall");
-        let top = *faces
-            .iter()
-            .find(|&&f| match surface(f) {
-                Surface::Plane { origin, .. } => origin.z.lo() > 0.5,
-                _ => false,
+        let (wall, stored) = faces
+            .into_iter()
+            .find_map(|f| {
+                let s = body.get_surface(body.get_face(f)?.surface)?;
+                matches!(s, geom::Surface::Cylinder { .. }).then(|| (f, s.clone()))
             })
-            .expect("the rod's top cap");
-        let stored = surface(wall);
-        (body, wall, stored, top)
+            .expect("the rod's wall");
+        (body, wall, stored)
     }
 
     /// The unit axis `cos t · z + sin t · x` through the origin.
@@ -2891,50 +2876,47 @@ mod tests {
     /// **A cylinder's clip does not move with where its origin is
     /// stored**: the rod's wall read about an axis leaning half the zero
     /// band off its own, with its origin stored at the base and up to
-    /// 1e5 m along, clips to its boundary's span at every storage.
-    /// Stored 1000 m along, the origin stood `500·zero` off the axis and
-    /// the face's clip was lost.
-    #[allow(clippy::expect_used, clippy::panic)]
-    fn the_clip_reads_one_span_at_every_stored_origin<
-        T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy,
-    >() {
+    /// 1e5 m along, clips to its boundary's span at every storage, at
+    /// `f64` and at `Interval`. Stored 3 m along, the origin stood
+    /// `1.5·zero` off the axis and the face's clip was lost.
+    #[test]
+    #[allow(clippy::panic)]
+    fn the_clip_reads_one_span_at_every_stored_origin() {
         use super::{Clip, sheet_clip};
+        use geom_core::Bounds;
         let band = band();
-        let (body, wall, stored, _) = rod::<T>();
-        let (o, a) = leaning::<T>(0.5 * band.zero());
-        let spans: Vec<(f64, f64)> = [0.0, -3.0, 1.0e3, 1.0e5]
-            .into_iter()
-            .map(
-                |along| match sheet_clip(&body, wall, &stored_at(&stored, along), o, a, band) {
-                    Some(Clip::Z(z0, z1)) => (z0.lo(), z1.hi()),
-                    Some(Clip::Rho(..)) => {
-                        panic!("stored {along} m along: an axial clip, not a radial one")
+        let storages = [0.0, -3.0, 1.0e3, 1.0e5];
+        macro_rules! spans {
+            ($t:ty) => {{
+                let (body, wall, stored) = rod::<$t>();
+                let (o, a) = leaning::<$t>(0.5 * band.zero());
+                storages.map(|along| {
+                    match sheet_clip(&body, wall, &stored_at(&stored, along), o, a, band) {
+                        Some(Clip::Z(z0, z1)) => (z0.lo(), z1.hi()),
+                        Some(Clip::Rho(..)) => {
+                            panic!("stored {along} m along: an axial clip, not a radial one")
+                        }
+                        None => panic!("stored {along} m along: the wall clips"),
                     }
-                    None => panic!("stored {along} m along: the wall clips"),
-                },
-            )
-            .collect();
-        for (along, span) in [0.0, -3.0, 1.0e3, 1.0e5].into_iter().zip(&spans) {
-            assert_eq!(
-                *span, spans[0],
-                "stored {along} m along: the base storage's span"
+                })
+            }};
+        }
+        for (scalar, spans) in [
+            ("f64", spans!(f64)),
+            ("Interval", spans!(geom_core::interval::Interval)),
+        ] {
+            for (along, span) in storages.into_iter().zip(spans) {
+                assert_eq!(
+                    span, spans[0],
+                    "{scalar}, stored {along} m along: the base storage's span"
+                );
+            }
+            let (z0, z1) = spans[0];
+            assert!(
+                z0 <= 0.0 && z1 >= 1.0 && z1 - z0 < 1.0 + 1e-6,
+                "{scalar}: the span holds the wall's [0, 1] and little else: {z0}..{z1}"
             );
         }
-        let (z0, z1) = spans[0];
-        assert!(
-            z0 <= 0.0 && z1 >= 1.0 && z1 - z0 < 1.0 + 1e-6,
-            "the span holds the wall's [0, 1] and little else: {z0}..{z1}"
-        );
-    }
-
-    #[test]
-    fn the_clip_reads_one_span_at_every_stored_origin_f64() {
-        the_clip_reads_one_span_at_every_stored_origin::<f64>();
-    }
-
-    #[test]
-    fn the_clip_reads_one_span_at_every_stored_origin_interval() {
-        the_clip_reads_one_span_at_every_stored_origin::<geom_core::interval::Interval>();
     }
 
     /// **A clip holds its face at any lean the clip admits**: the
@@ -2948,11 +2930,14 @@ mod tests {
     fn a_clip_holds_its_face_at_every_lean_it_admits() {
         use super::{Clip, sheet_clip};
         let band = band();
-        let (body, wall, stored, top) = rod::<f64>();
-        let cap = body
-            .get_surface(body.get_face(top).expect("the cap").surface)
-            .expect("its plane")
-            .clone();
+        let (body, wall, stored) = rod::<f64>();
+        let (top, cap) = body
+            .faces()
+            .find_map(|(f, face)| match body.get_surface(face.surface)? {
+                s @ geom::Surface::Plane { origin, .. } if origin.z > 0.5 => Some((f, s.clone())),
+                _ => None,
+            })
+            .expect("the rod's top cap");
         let ring = |z: f64| {
             (0..64).map(move |k| {
                 let u = core::f64::consts::TAU * f64::from(k) / 64.0;
@@ -3012,7 +2997,7 @@ mod tests {
     fn a_sheet_slack_reads_one_value_at_every_stored_origin() {
         use super::sheet_fn;
         let band = band();
-        let (_, _, wall, _) = rod::<f64>();
+        let (_, _, wall) = rod::<f64>();
         let (o, a) = leaning::<f64>(0.5 * band.zero());
         let reach = (Point3::new(-2.0, -2.0, -2.0), Point3::new(2.0, 2.0, 2.0));
         let plane_at = |x: f64| geom::Surface::Plane {
