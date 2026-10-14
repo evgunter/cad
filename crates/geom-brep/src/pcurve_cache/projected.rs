@@ -827,7 +827,8 @@ impl<T: SpanLocate> ProjectedImage<T> {
 /// How many equal parts the fitted door cuts each knot span of a net
 /// into, in the composite's ring, when composing the chart's implicit
 /// form along it (`pcurve_cache::projected_hull_lane`): the incidence
-/// is read per part.
+/// is read per part. Not halved further: on honest rows eight parts read
+/// within 0.3% of a 64-cut read (`work/pcert/projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band.md`).
 pub(crate) const INCIDENCE_CUTS: usize = 8;
 
 /// How many equal parts [`ProjectedImage::sweep_box`] cuts a piece into.

@@ -84,11 +84,13 @@ fn faces_of(body: &Body<f64>, e: topo::EdgeKey) -> (FaceKey, FaceKey) {
     if a <= b { (a, b) } else { (b, a) }
 }
 
-/// Row 1: the tangent-tip edge (between two section faces) carries the
-/// FIRST-visited section face's chart — the keep rule pinned where
-/// keep and restate genuinely differ.
+/// Row 1: the tangent-tip edge lies between two section faces on two
+/// coplanar records, which are one carrier and determine nothing
+/// incidence on one does not: it rests in the chart of the pair's first
+/// record (`topo::rest_locus`), whichever section face the describe
+/// pass visits first, so there is no visit order for it to depend on.
 #[test]
-fn tip_edge_keeps_the_first_visits_section_chart() {
+fn tip_edge_rests_in_the_first_of_its_coplanar_section_charts() {
     let body = extruded(vec![notched(0.0)], 1.0);
     let body = sweep::test_support::finished("the body", body, Tol::witness());
     let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
@@ -118,20 +120,16 @@ fn tip_edge_keeps_the_first_visits_section_chart() {
         .get_curve_geom(below.get_edge(tip[0]).unwrap().curve)
         .and_then(topo::CurveGeom::certified)
         .expect("certified");
-    let geom_brep::EdgeDescription::Chart(ch) = c.description() else {
+    let geom_brep::EdgeDescription::Chart(chart) = c.description() else {
         panic!(
             "the tip edge is conventional after the restate: {:?}",
             c.description()
         );
     };
-    // Section faces are visited in arena key order, the first visit
-    // restates, and the second KEEPS — so the chart is the lower
-    // key's. An always-restate arm would leave the higher key's chart
-    // here instead.
     assert_eq!(
-        ch.surface,
-        surf(f_first),
-        "the kept chart is the first visit's, not the last's"
+        chart.surface,
+        geom_brep::SurfacePair::new(surf(f_first), surf(f_second)).keys()[0],
+        "the tip edge rests in the first of its two section records' charts"
     );
 }
 
@@ -202,8 +200,8 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
         "above at tier 3"
     );
     // The joint circles surviving in below kept their carriers and
-    // intervals bitwise, and every one is conventionally described in
-    // an adjacent chart (the flush annulus/section pair).
+    // intervals bitwise, and every one rests conventionally in the chart
+    // of the first of the flush annulus/section records, one plane.
     let after = joint_circles(below);
     assert!(
         !after.is_empty(),
@@ -230,14 +228,18 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
         if !(center.y == 1.0 && radius == 1.0) {
             continue;
         }
-        let geom_brep::EdgeDescription::Chart(ch) = c.description() else {
-            panic!("joint circle {k:?} is conventional after the restate");
+        let geom_brep::EdgeDescription::Chart(chart) = c.description() else {
+            panic!(
+                "joint circle {k:?} is conventional after the restate: {:?}",
+                c.description()
+            );
         };
         let (fa, fb) = faces_of(below, k);
         let surf = |f: FaceKey| below.get_face(f).unwrap().surface;
-        assert!(
-            ch.surface == surf(fa) || ch.surface == surf(fb),
-            "joint circle {k:?}'s chart names an adjacent surface"
+        assert_eq!(
+            chart.surface,
+            geom_brep::SurfacePair::new(surf(fa), surf(fb)).keys()[0],
+            "joint circle {k:?} rests in the first of its two coplanar records' charts"
         );
     }
 }

@@ -1557,3 +1557,21 @@ coincidence is now a margined verdict (no declarations), checked by the
     - the subnormal carry row: no `pair_norm_sup` exists on main.
   - **Closed:** `work/nurbs/other-rational-speed-readings-read-relaxed-quotient-recipes.md`.
   (NURBS build A)
+- 2026-10-14 — **Merged PR 5101.** One definite reading now ends one way at rest, whichever arm routes it.
+  - Lever decisions end in the lever plus the note.
+  - Contradiction decisions end in the defect ending, at rest and at the door past ε_in.
+  - geom-core `SizedWords` gains `refused: RefusedReading { AsShown, ContradictsStoredData }`, a closed choice; geom-core spells the defect ending itself.
+  - `reporting-margin-door.sh` allows `ContradictsStoredData` and `sign_certain_recourse` only in `geom-brep/src/recourse.rs`.
+  - The door within ε_in ignores the choice (pinned).
+  - Filed:
+    - encl `a-proven-zero-is-definite-yet-ends-as-no-size-at-rest` (design);
+    - encl `pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache`;
+    - encl `a-definite-reading-within-eps-in-ends-two-ways-at-the-import-door`;
+    - restfront `an-at-rest-certify-lead-calls-a-gates-definite-rejection-undecided`;
+    - guard `loop-boundary-discards-selftest-fails-on-a-clean-tree`, which is red on main and not ours.
+  (ENCL orchestrator)
+- 2026-10-14 — **Design fork on the proven zero** (`a-proven-zero-is-definite-yet-ends-as-no-size-at-rest`). One designer pair ran three rounds: they disagreed, crossed, then converged. The converged answer is a three-valued kind per sized decision (lever / stored contradiction / unminted), read by both the no-size and the refused class. It clarifies D4 ¶1 (iv), so it went to Ev as `[ev]` PR 5134 (fork-log row 142). Code waits for Ev's answer.
+  - The blinding byte and every report are on `analysis/design-fork/proven-zero`.
+  - The designer A dispatch was lost to a container restart and re-dispatched with the same brief.
+  - Found on the way: PR 5101's body was wrong that `NotTransverse` at rest "was already the defect ending". A Transversality or TangentSecondOrder zero verdict at rest still ends in the lever alone.
+  (ENCL orchestrator)

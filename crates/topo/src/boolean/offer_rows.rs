@@ -1660,6 +1660,14 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
         band(),
     )
     .map(|_| ())
+    .map_err(|refusal| match refusal {
+        super::super::ops::SeamRefusal::Undecided(reading, diag) => {
+            super::super::ops::seam_refusal(reading, diag)
+        }
+        mixed @ super::super::ops::SeamRefusal::Mixed(_) => {
+            panic!("a resting cylinder reads smooth at every station, got {mixed:?}")
+        }
+    })
 }
 
 /// A re-cut sphere of radius 1 whose polar axis leans off the escape
@@ -1719,6 +1727,7 @@ fn germ_facing(lean: f64) -> Result<(), BooleanError> {
         a_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
         b_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
         dir,
+        branch: super::super::Branch::Only,
     };
     let (p1, p2) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     let g1 = germ(Vec3::new(lean, 1.0, 0.0).normalize());
@@ -2414,6 +2423,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::LineageRow
         | BooleanErrorKind::SplitLineage
         | BooleanErrorKind::EdgeUndescribed
+        | BooleanErrorKind::MixedSeam
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted
@@ -2646,12 +2656,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
-    (
-        "circle_torus.rs",
-        "circle_torus_roots",
-        "BooleanDecision::ArcTorusRoots",
-        1,
-    ),
+    ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
     (
         "circle_torus.rs",
         "escalated",

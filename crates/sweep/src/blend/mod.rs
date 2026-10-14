@@ -1375,6 +1375,17 @@ pub enum Breach {
     /// by the feet the plan split, a link offered to a corner it does not
     /// touch, a chain across two shells.
     Disagrees,
+    /// The entity is construction scaffolding a finished body does not
+    /// hold: an edge with no certified carrier (a null edge), or a
+    /// lone-vertex cycle. The one breach with a way through, and it is
+    /// the advice every door gives an operand with scaffolding at rest
+    /// ([`topo::Unfinished::SCAFFOLDING_RECOURSE`]): a direct battery
+    /// caller hands in a body no door gated.
+    Scaffolding,
+    /// The entity's stored carrier is degenerate: a length it is built on,
+    /// such as a cylinder's axis or radius, does not decide under the
+    /// run's band.
+    Degenerate,
 }
 
 /// The shared edge-blend refusal — both verbs' one error vocabulary,
@@ -1702,7 +1713,10 @@ pub enum BlendError {
     /// **Frontier** (D2 addendum row 2): a stored carrier, trimline or
     /// surface is not one of the shapes the surgery's closed forms
     /// cover (a circle rim carrier, a straight open trimline, a planar
-    /// support, a torus band).
+    /// support, a torus band). A carrier that is absent or degenerate is
+    /// no shape at all, and refuses [`BlendError::BodyNotIntact`]
+    /// ([`Breach::Scaffolding`], [`Breach::Degenerate`]): the shape
+    /// recourse does not reach it.
     UnsupportedGeometry {
         /// The entity whose stored geometry is not covered.
         at: EntityId,
@@ -1710,15 +1724,17 @@ pub enum BlendError {
         detail: &'static str,
     },
     /// **The body handed to the surgery does not hold together where
-    /// the plan read it** (D2 addendum row 1), in one of the three ways
-    /// a [`Breach`] names: a stored reference that did not resolve, a
-    /// walk that did not close, or keys that disagree with the body's
-    /// own structure — among them a
+    /// the plan read it** (D2 addendum row 1), in one of the ways a
+    /// [`Breach`] names: a stored reference that did not resolve, a
+    /// walk that did not close, construction scaffolding, a degenerate
+    /// stored carrier, or keys that disagree with the body's own
+    /// structure — among them a
     /// requested chain or corner bounded by faces of two shells, which
     /// tier 1 rules out (`EdgeAcrossShells`, one orbit per vertex).
-    /// This is not a blend frontier and carries no recourse — the
+    /// This is not a blend frontier and carries no blend recourse — the
     /// input is invalid, and the surgery refuses rather than building
-    /// on it.
+    /// on it; scaffolding alone ends in topo's advice to finish the
+    /// edit.
     BodyNotIntact {
         /// The entity the plan was reading.
         at: EntityId,
@@ -2079,11 +2095,20 @@ impl fmt::Display for BlendError {
                             "{at} resolved, but its structure disagrees with the blend's reading"
                         )
                     }
+                    Breach::Scaffolding => {
+                        format!("{at} is construction scaffolding a finished body does not hold")
+                    }
+                    Breach::Degenerate => {
+                        format!("{at}'s stored carrier is degenerate under the run's band")
+                    }
                 };
-                write!(
-                    f,
-                    "{detail} — {what}, so the body is not intact there. There is no way through"
-                )
+                write!(f, "{detail} — {what}, so the body is not intact there. ")?;
+                match breach {
+                    Breach::Scaffolding => {
+                        write!(f, "Recourse: {}", topo::Unfinished::SCAFFOLDING_RECOURSE)
+                    }
+                    _ => write!(f, "There is no way through"),
+                }
             }
             Self::ScaffoldingOperand { .. } => {
                 write!(f, "the body {}", topo::Unfinished::SCAFFOLDING_REFUSAL)
@@ -2268,7 +2293,8 @@ mod recourse_tests {
     /// `blend_recourse_followability::a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`
     /// execute both requests. `ScaffoldingOperand`, `InsideOutOperand`
     /// and `UnjoinedOperand` route here too and end in `topo::Unfinished`'s
-    /// shared refusal, whose advice
+    /// shared refusal, as `BodyNotIntact`'s scaffolding breach ends in
+    /// its recourse, whose advice
     /// `pole_slit_window::a_slit_operand_refuses_at_both_blend_doors_at_a_dual`
     /// and
     /// `blend_operand_gate::the_counterclockwise_wedge_blends_outward_at_both_doors`
@@ -2471,6 +2497,16 @@ mod recourse_tests {
                 breach: Breach::Disagrees,
                 detail: "a corner the verdict classified",
             },
+            BlendError::BodyNotIntact {
+                at: EntityId::Edge(EdgeKey::default()),
+                breach: Breach::Scaffolding,
+                detail: "a rim edge carries no certified carrier",
+            },
+            BlendError::BodyNotIntact {
+                at: EntityId::Face(FaceKey::default()),
+                breach: Breach::Degenerate,
+                detail: "a face's stored surface, which the face box reads",
+            },
             BlendError::ScaffoldingOperand { errors: Vec::new() },
             BlendError::InsideOutOperand { errors: Vec::new() },
             BlendError::UnjoinedOperand { errors: Vec::new() },
@@ -2563,7 +2599,8 @@ mod recourse_tests {
 
     /// **`BodyNotIntact` states the cause its breach names, and no
     /// other**: only an unresolved key is rendered as one that did not
-    /// resolve.
+    /// resolve, and only scaffolding — which a door refuses with the
+    /// same advice — has a way through.
     #[test]
     fn body_not_intact_renders_each_breach_as_its_own_cause() {
         let at = EntityId::Face(FaceKey::default());
@@ -2575,21 +2612,34 @@ mod recourse_tests {
             }
             .to_string()
         };
-        let tail = "so the body is not intact there. There is no way through";
-        for (breach, cause) in [
-            (Breach::Unresolved, format!("{at} did not resolve")),
+        let none = "There is no way through".to_owned();
+        let finish = format!("Recourse: {}", topo::Unfinished::SCAFFOLDING_RECOURSE);
+        for (breach, cause, way) in [
+            (Breach::Unresolved, format!("{at} did not resolve"), &none),
             (
                 Breach::Unwalked,
                 format!("the walk from {at} did not close"),
+                &none,
             ),
             (
                 Breach::Disagrees,
                 format!("{at} resolved, but its structure disagrees with the blend's reading"),
+                &none,
+            ),
+            (
+                Breach::Scaffolding,
+                format!("{at} is construction scaffolding a finished body does not hold"),
+                &finish,
+            ),
+            (
+                Breach::Degenerate,
+                format!("{at}'s stored carrier is degenerate under the run's band"),
+                &none,
             ),
         ] {
             assert_eq!(
                 render(breach),
-                format!("a support — {cause}, {tail}"),
+                format!("a support — {cause}, so the body is not intact there. {way}"),
                 "{breach:?}"
             );
         }

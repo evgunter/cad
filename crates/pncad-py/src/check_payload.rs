@@ -32,7 +32,7 @@
 //!
 //! A NESTED REFUSAL is not flattened into its FIELDS. `Escalated` and
 //! `Unsupported` each hold the shell door's own typed refusal and
-//! `SeparationUnavailable` the boolean class beside its sentence;
+//! `SeparationUnavailable` the boolean door's, shared whole;
 //! which shell, and which face, belong to those types' own
 //! vocabularies. What crosses here is the word a caller branches on —
 //! `inner_variant` for the shell refusal's discriminant,
@@ -266,9 +266,9 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
             site: Some(decision_site_tag(row.site)),
             ..none
         },
-        CheckEvidence::SeparationUnavailable { kind, reason } => CheckEvidencePayload {
-            reason: Some(Cow::Borrowed(reason)),
-            boolean_variant: Some(boolean_error_tag(*kind)),
+        CheckEvidence::SeparationUnavailable { refusal } => CheckEvidencePayload {
+            reason: Some(Cow::Owned(refusal.to_string())),
+            boolean_variant: Some(boolean_error_tag(refusal.get().kind())),
             ..none
         },
     }
