@@ -31,3 +31,20 @@ Under PR 4795's clause "no face passes through an edge's material
 wedge", tier 3 (or 3′) refuses a face whose interior lies inside an
 adjacent edge's wedge. Pin the boolean's three trench bodies (both ends
 closed, one open, wall to wall) red until the boolean row lands.
+
+## Note from CLEAVE (2026-10-14): the radial-edges fork on PR 4795
+
+Both designers ask for one general check: **touching cells' material
+lies on opposite sides of each other**, inside one solid as well as
+between two. Concretely:
+- a face lies outside an edge's wedge (this row);
+- coincident distinct edges on one line have disjoint material
+  sectors;
+- a face lies outside a vertex's material cone.
+
+Today the side-reading touch analysis runs only between two solids,
+and inside one solid an edge-on-face record is confirmed by position
+alone. A reverted slit body is the coincident-edge case: see topo's
+`reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier`.
+The D1 sentence on 4795 names this check, so this row's scope grows
+to cover it if Ev ratifies.

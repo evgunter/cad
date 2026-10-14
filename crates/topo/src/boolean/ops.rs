@@ -225,7 +225,7 @@ pub enum OperandKeys {
 /// historical: a listed key may have been consumed by a later stage
 /// (zip scaffolding, merge absorption, discarded material) — consumers
 /// filter against the entities alive in `body` / chase the rows.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BooleanNaming {
     /// How operand A's keys map into the result.
     pub a_keys: OperandKeys,
@@ -345,6 +345,41 @@ pub struct BooleanNaming {
     /// row's vertex and `gone` edge are dead, and its `kept` edge holds
     /// their interiors (maximal edges, `docs/DESIGN.md`'s merge stage).
     pub edge_joins: Vec<super::EdgeJoin>,
+}
+
+impl Default for BooleanNaming {
+    // Each lineage list names itself where it is made (`LineageRows`).
+    fn default() -> Self {
+        Self {
+            a_keys: Default::default(),
+            b_keys: Default::default(),
+            graft_vertices: Default::default(),
+            graft_edges: Default::default(),
+            graft_dead_edges: Default::default(),
+            graft_faces: Default::default(),
+            seam_edges: Default::default(),
+            vertex_merges: Fusions::new(crate::lineage::LineageRows::Fusions),
+            merge_groups: Default::default(),
+            substitutions: crate::lineage::Substitutions::new(
+                crate::lineage::LineageRows::Substitutions,
+            ),
+            merge_skipped: Default::default(),
+            face_fragments_a: crate::lineage::FaceDivisions::new(
+                crate::lineage::LineageRows::FaceDivisions,
+            ),
+            face_fragments_b: crate::lineage::FaceDivisions::new(
+                crate::lineage::LineageRows::FaceDivisions,
+            ),
+            reduction_contacts: Default::default(),
+            discards: Default::default(),
+            covered: Default::default(),
+            edge_classes: Default::default(),
+            chart_cuts: Default::default(),
+            null_copies: Default::default(),
+            cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
+            edge_joins: Default::default(),
+        }
+    }
 }
 
 impl BooleanNaming {
@@ -1811,11 +1846,11 @@ pub(super) fn merge_rows(
         .iter()
         .map(|g| match output.get(Cell::Face(g.kept)) {
             None => Ok((g.kept, g.absorbed.clone())),
-            Some(_) => Err(crate::lineage::RowRefusal {
-                rows: crate::lineage::LineageRows::Substitutions,
-                defect: crate::lineage::RowDefect::NamesRetired,
-                key: Cell::Face(g.kept),
-            }
+            Some(_) => Err(crate::lineage::RowRefusal::of(
+                output.tag(),
+                crate::lineage::RowDefect::NamesRetired,
+                Cell::Face(g.kept),
+            )
             .into()),
         })
         .collect()
@@ -1833,7 +1868,7 @@ pub(super) fn output_substitutions(
     m: &crate::merge_faces::MergeCoplanarOutcome,
     joins: &[super::EdgeJoin],
 ) -> Result<crate::lineage::Substitutions, BooleanError> {
-    let mut rows = crate::lineage::Substitutions::default();
+    let mut rows = crate::lineage::Substitutions::new(crate::lineage::LineageRows::Substitutions);
     let merged = m
         .groups
         .iter()
@@ -2823,7 +2858,6 @@ impl KeyView<'_> {
 /// drops ONLY when its coincidence is consumed (entity gone, not
 /// renamed). Re-derivation at the 3′ gate is rejected as
 /// scan-to-bless (F1); the descendants ARE the mint-time knowledge.
-#[derive(Default)]
 pub(super) struct Descendants {
     /// The vertex fusions, in mint order, result keys: the zips'
     /// ([`Self::absorb_fusions`]).
@@ -2858,6 +2892,25 @@ pub(super) struct Descendants {
     /// edge → the joined edge. Checked where each row is added, so it
     /// cannot cycle.
     cells: crate::lineage::Substitutions,
+}
+
+impl Default for Descendants {
+    // Each lineage list names itself where it is made (`LineageRows`).
+    fn default() -> Self {
+        Self {
+            vertices: Fusions::new(crate::lineage::LineageRows::Fusions),
+            fused: Default::default(),
+            copies: Default::default(),
+            along: Default::default(),
+            fragments: [(); 2].map(|()| {
+                crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions)
+            }),
+            absorbed: [(); 2].map(|()| {
+                crate::lineage::Substitutions::new(crate::lineage::LineageRows::Substitutions)
+            }),
+            cells: crate::lineage::Substitutions::new(crate::lineage::LineageRows::Substitutions),
+        }
+    }
 }
 
 impl Descendants {
@@ -3271,7 +3324,7 @@ pub(super) struct Ledger {
     /// the finish discards any.
     incidence: [Incidence; 2],
     /// Each operand's null-edge copies.
-    copies: [crate::lineage::VertexCopies; 2],
+    copies: [crate::lineage::NullEdgeCopies; 2],
 }
 
 /// **The faces around each cell of an operand's clone**, read before
@@ -3331,33 +3384,17 @@ impl Incidence {
     }
 }
 
-/// The keys of `edge`'s pieces after the reduction's splits
-/// ([`super::EdgeSplit`]), in order along it (a split keeps the
-/// parent's leading span, so its child is the piece right after the
-/// parent), and every vertex a split minted on it.
-fn split_pieces(
-    side: Operand,
-    splits: &super::EdgeSplits,
-    edge: EdgeKey,
-) -> (Vec<EdgeKey>, Vec<VertexKey>) {
-    let mut keys = vec![edge];
-    let mut minted = Vec::new();
-    for split in splits.rows().iter().filter(|s| s.operand == side) {
-        if let Some(i) = keys.iter().position(|&k| k == split.parent) {
-            keys.insert(i + 1, split.child);
-            minted.push(split.vertex);
-        }
-    }
-    (keys, minted)
-}
-
 /// The vertex `v` of operand `side`'s clone is a copy of: where a null
 /// edge minted `v` at another vertex, that vertex, read back through
 /// every null edge that hangs at a copy; `v` itself where none did. A
 /// decision's cells name the op's input, which holds no copy. Total:
 /// the copies were checked as each was recorded, so they cannot cycle
-/// ([`crate::lineage::VertexCopies`]).
-fn uncopied(copies: &[crate::lineage::VertexCopies; 2], side: Operand, v: VertexKey) -> VertexKey {
+/// ([`crate::lineage::NullEdgeCopies`]).
+fn uncopied(
+    copies: &[crate::lineage::NullEdgeCopies; 2],
+    side: Operand,
+    v: VertexKey,
+) -> VertexKey {
     copies[usize::from(side == Operand::B)].root(v)
 }
 
@@ -3734,7 +3771,7 @@ fn operand_fate<T: Real>(
     let (pieces, minted, divided): (Vec<Cell>, Vec<Cell>, bool) = match x {
         Cell::Vertex(v) => (copies(v).collect(), Vec::new(), false),
         Cell::Edge(e) => {
-            let (keys, ms) = split_pieces(side, &ledger.splits, e);
+            let (keys, ms) = ledger.splits.pieces(side, e);
             let divided = keys.len() > 1;
             (
                 keys.into_iter().map(Cell::Edge).collect(),
@@ -4025,10 +4062,8 @@ pub(super) fn input_cell((input, cell): End, splits: &super::EdgeSplits) -> crat
     let root = |edge: EdgeKey| splits.root(input, edge);
     let cell = match cell {
         Cell::Vertex(v) => splits
-            .rows()
-            .iter()
-            .find(|s| s.operand == input && s.vertex == v)
-            .map_or(cell, |s| Cell::Edge(root(s.parent))),
+            .minted_on(input, v)
+            .map_or(cell, |parent| Cell::Edge(root(parent))),
         Cell::Edge(e) => Cell::Edge(root(e)),
         // The sweep splits edges and never a face: every pending row is
         // written before the insertion mints a face, so a face key in the
@@ -7883,7 +7918,7 @@ mod tests {
 
         let mut corrupt = Descendants::default();
         corrupt.vertices.push((a, b)).unwrap();
-        let mut later = super::Fusions::default();
+        let mut later = super::Fusions::new(crate::lineage::LineageRows::Fusions);
         later.push((c, a)).unwrap();
         assert!(
             matches!(
@@ -9404,7 +9439,8 @@ mod found_on_a_divided_face {
         )]
         .into_iter()
         .collect();
-        let mut divisions = crate::lineage::FaceDivisions::default();
+        let mut divisions =
+            crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
         for row in rows {
             divisions.push(row).unwrap();
         }
@@ -9571,7 +9607,8 @@ mod found_on_a_divided_face {
         )]
         .into_iter()
         .collect();
-        let mut divisions = crate::lineage::FaceDivisions::default();
+        let mut divisions =
+            crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
         divisions.push((other, top)).unwrap();
         let mut desc = Descendants::default();
         desc.substitute((Cell::Vertex(taken.vertex), Cell::Edge(edge)))
