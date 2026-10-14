@@ -15,7 +15,7 @@ A cup on a cut-off's cap (a blind bore under a convex band, a pin under
 a concave one) goes with the plane–plane band, whose reach has an exact
 core: the cup's faces that do not meet the cap (its floor or end) and
 the edges they bound are read inside that core
-(`reach::edge_in_core`, `reach::inside_bound`), and the faces that do
+(`reach::curve_in_core`, `reach::inside_bound`), and the faces that do
 meet it are read through the mouth and those edges
 (`reach::prism_inside`). The ruled band's reach (a cylinder support) has
 no exact core (`straight_reach` keeps `core` only when `exact`; its

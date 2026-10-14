@@ -1103,3 +1103,14 @@ probes; the ruled table's island-voids cell carries an erratum (the
 voids lie in `F`, which fills them), and the step-2 refusals steps 3 and
 4 inherit are pinned (a bump on the bar, a sealed tube, blind holes in
 the walls). Filed `a-feature-inside-a-turns-overrun-is-not-carved`.
+
+## 2026-10-14 — a cup on one end wall goes with the band (PR STEP3PR, step 3)
+
+The end-wall half of step 3: a blind bore under a convex plane–plane
+band and a pin under a concave one, wholly inside the region, go at
+`ΔV = ∓(A·L − V_cup)`. A cup's faces off the cap are certified through
+their edges read in the band's exact core, a plane face not parallel to
+the spine by its boundary, and `consume` takes a disk on one cycle,
+bridging a face's rings first, so a bump on a bar now builds too. The
+strip-mouth half (dimple, boss) and the ruled band's cups are filed.
+

@@ -108,7 +108,8 @@ as a fillet that does.
 re-word the crossing refusal's recourse to the reorder (and to what is
 true where none exists). (2) The concave bar. (3) The one-cycle members:
 blind bore, pin, boss, dimple. (4) Whole shells and the seal, sharing
-`insert_void`'s bookkeeping. Step 1: PR 5077. Step 2: PR 5099. The lint and an editor reorder action
+`insert_void`'s bookkeeping. Step 1: PR 5077. Step 2: PR 5099. Step 3: PR STEP3PR
+(the end-wall half). The lint and an editor reorder action
 (re-point plus the selection unwrap, one action) run beside any step;
 the crossing arm waits on the intersection table.
 
@@ -134,4 +135,41 @@ reports; it replaces row 139's case-by-case recommendation.
 - **Filed:** `an-oblique-caps-inside-reading-charges-a-ring-its-major-semi-axis`
   (a hair inside the fillet's arc at a leaning wall reads a bound, both
   sides alike).
+
+## Findings (step 3: the one-cycle members, end-wall half)
+
+- **Built** on the plane–plane fillet and chamfer: a cup on one
+  cut-off cap, wholly inside the band's region — a blind bore under a
+  convex band (`S − R`), a pin under a concave one (`S ∪ F`), an
+  undercut bore or a headed pin, two cups from the two caps, a square
+  pin. Rows: `band_one_cycle_members`, `editor-core`
+  `edit_one_cycle_members`. The readings: the cap's existing three-way
+  sliver reading for the mouth; each other edge of a cup face read
+  inside the band's exact core piece by piece (`reach::curve_in_core`);
+  a plane face not parallel to the spine certified by its boundary
+  (the section is simply connected); the cell walk's inside reading of
+  a face in a straight band's exact core now consumable, keyed by the
+  band's crease. `consume` takes a disk (`V − E + F − R = 1`) on one
+  cycle beside the annulus, bridges a face's rings to its outer cycle
+  before the merge, and requires every face of a feature to be read
+  inside the band whose caps carry its cycles.
+- **What moved among the step-2 pins** (`band_concave_bar`): the pin
+  from one end wall builds (it is this step's member); the bump on the
+  bar builds too (`a_bump_on_a_bar_inside_the_fill_is_absorbed_with_it`,
+  `ΔV` in closed form): the bump's footprint ring on the bar's wall is
+  bridged and the bar and bump go as one annulus. The sealed tube still
+  refuses `WhollyInside` (its void shell has no cap cycle: step 4), and
+  the blind holes in the walls still refuse as a bound (they run into
+  the die, outside `F`; `S ∪ F` seals them: step 4). Elsewhere: the
+  convex blind hole under the chamfer in
+  `band_planar_cut_off_meters` and the square wall's blind hole in
+  `band_planar_oblique_fillet` now build; the planar-consume blind-bore
+  refusal row is gone, its case built here.
+- **Still refusing, typed, at the meter that reads it**: a cup on the
+  ruled band (a bound: its reach has no exact core,
+  `a-ruled-bands-cup-has-no-core-to-read-its-far-faces-in`); a cup whose
+  axis leans off the spine under the fillet, charged its box diagonal
+  times the lean (a bound, conservative); a mouth or head across the band
+  surface (a measurement); everything on a support's strip (the dimple
+  and the boss: `a-cup-whose-mouth-lies-on-a-supports-strip-is-not-carved`).
 
