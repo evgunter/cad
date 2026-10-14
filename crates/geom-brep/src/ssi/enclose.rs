@@ -906,8 +906,6 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         let (u0, u1, v0, v1) = (w.u.start(), w.u.end(), w.v.start(), w.v.end());
         let um = 0.5 * (u0 + u1);
         let vm = 0.5 * (v0 + v1);
-        let hu = 0.5 * (u1 - u0);
-        let hv = 0.5 * (v1 - v0);
         // The midpoint evaluation is the only EVALUATION in this
         // module, and it is an ENCLOSURE on every lane: the window's
         // net and knots crossed at the seam ([`Interval::from_certified`])
@@ -922,8 +920,16 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         let c = self.enclosed_point(win, um, vm);
         let du = self.cell_deriv_box(w, true);
         let dv = self.cell_deriv_box(w, false);
-        let ru = Interval::from_bounds(-hu, hu);
-        let rv = Interval::from_bounds(-hv, hv);
+        // The window's offsets from its midpoint, each end's difference
+        // rounded outward: `um` is itself rounded, and `±(u1 − u0)/2`
+        // formed in `f64` can fall short of an end by an ulp, which
+        // leaves `S` at the window's own corner outside its box.
+        let offsets = |lo: f64, mid: f64, hi: f64| {
+            let mid = Interval::point(mid);
+            Interval::hull(Interval::point(lo) - mid, Interval::point(hi) - mid)
+        };
+        let ru = offsets(u0, um, u1);
+        let rv = offsets(v0, vm, v1);
         Box3 {
             x: c.x + du.x * ru + dv.x * rv,
             y: c.y + du.y * ru + dv.y * rv,

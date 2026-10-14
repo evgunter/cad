@@ -1430,30 +1430,37 @@ mod tests {
 
     /// **A point's box is as narrow far from the origin as near it.**
     /// The certified midpoint is read about the window's corner control
-    /// point, so its width scales with the window's extent: the same
-    /// dyadic wall moved by `2⁹` m in each axis (exactly) reads each
-    /// coordinate within four ulps of `2⁹` (3 measured). Red where the
-    /// sum is taken about the origin, whose every term rounds at `2⁹`'s
-    /// ulp (33 measured).
+    /// point too, so its width scales with the window's extent: the same
+    /// dyadic wall moved by `2⁹` m in each axis (exactly), its control
+    /// widened by an ulp of `2⁹` so that no double-word reading applies
+    /// (it reads points only), reads each coordinate within six ulps of
+    /// `2⁹` (5 measured, the widening itself 2). Red where the sum is
+    /// taken about the origin alone, whose every term rounds at `2⁹`'s
+    /// ulp (35 measured).
     #[test]
     fn a_far_walls_point_box_is_as_narrow_as_a_near_ones() {
         let mut rng = test_utils::fuzz::start("rect-box-far-midpoint");
         let far = 512.0;
         let ulp = far * f64::EPSILON;
+        let pad = ulp;
         let mut worst = 0.0_f64;
         for _ in 0..test_utils::fuzz::scaled(40) {
             let dyadic = |rng: &mut test_utils::fuzz::Rng| (rng.range(-64.0, 64.0)).round() / 64.0;
             let g = [0.0; 3].map(|_| dyadic(&mut rng));
             let h = [0.0; 3].map(|_| dyadic(&mut rng));
             let near = biq(g, h);
+            let thick = |x: f64| Interval::from_bounds(x + far - pad, x + far + pad);
             let moved = NurbsSurface::new(
-                near.knots_u().clone(),
-                near.knots_v().clone(),
+                near.knot_values_u().lift(|x| Interval::from_bounds(x, x)),
+                near.knot_values_v().lift(|x| Interval::from_bounds(x, x)),
                 near.control()
                     .iter()
-                    .map(|p| Point3::new(p.x + far, p.y + far, p.z + far))
+                    .map(|p| Point3::new(thick(p.x), thick(p.y), thick(p.z)))
                     .collect(),
-                near.weights().to_vec(),
+                near.weights()
+                    .iter()
+                    .map(|&w| Interval::from_bounds(w, w))
+                    .collect(),
             )
             .expect("the moved wall");
             let boxes = NurbsBoxes::new(&moved);
@@ -1464,10 +1471,34 @@ mod tests {
             }
         }
         assert!(
-            worst <= 4.0,
+            worst <= 6.0,
             "a point box {worst} ulps of 2⁹ wide; {}",
             test_utils::fuzz::replay()
         );
+    }
+
+    /// **A window's box holds `S` at the window's own corners.** On the
+    /// line `z = 1000x − 500`, the window `u ∈ [½, ½ + 3·2⁻⁵³]` at
+    /// `v = ¼`: its rounded midpoint lies `2⁻⁵²` above `½` while its
+    /// rounded half-width is `1.5·2⁻⁵³`, so `[um − hu, um + hu]` misses
+    /// `u = ½`, where `S` is exactly `0`. The box takes the offsets
+    /// `[u0 − um, u1 − um]` rounded outward, and holds both corners'
+    /// exact heights. Red under `±hu`.
+    #[test]
+    fn a_windows_box_holds_its_own_corners() {
+        let wall = biq([-500.0, 0.0, 500.0], [0.0, 0.0, 0.0]);
+        let boxes = NurbsBoxes::new(&wall);
+        let (u0, u1) = (0.5, 0.5 + 3.0 * 2.0_f64.powi(-53));
+        let z = boxes
+            .rect_box(UvWindow::new(u0, u1, 0.25, 0.25).expect("a window"))
+            .z;
+        // `1000·(u − ½)` at each corner, exactly.
+        for exact in [0.0, 3000.0 * 2.0_f64.powi(-53)] {
+            assert!(
+                z.lo() <= exact && exact <= z.hi(),
+                "{z:?} misses the corner height {exact:e}"
+            );
+        }
     }
 
     fn bx(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Box3 {
