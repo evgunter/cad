@@ -142,10 +142,11 @@
 //! native loft's own description class, which is what the NURBS
 //! chart's pcurve mint accepts; `RevolvedPoint` for arc rims, whose
 //! degree-1 chart image the certificate's hull refuses, on rational
-//! walls minting nothing — the native rational body's own state). Multi-ring NURBS faces keep refusing typed at the
-//! curved-face ring gate (no NURBS chart inversion — stage-1
-//! recognition territory, named there), as do spline sub-types the
-//! writer never emits (knots-implied `QUASI_UNIFORM_CURVE` and kin).
+//! walls minting nothing — the native rational body's own state).
+//! Multi-ring NURBS faces keep refusing typed at the curved-face ring
+//! gate (no NURBS chart inversion — stage-1 recognition territory,
+//! named there), as do spline sub-types the writer never emits
+//! (knots-implied `QUASI_UNIFORM_CURVE` and kin).
 //!
 //! **Coverage is bounded by what the writer can emit** (#207): the
 //! loft/sweep skin's chord-length fit drifts unit weights on any

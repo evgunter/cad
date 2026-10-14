@@ -1384,8 +1384,6 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                     ) => return Ok(rim),
                     Err(
                         PcurveCertifyError::ResidualExceeded { .. }
-                        | PcurveCertifyError::CarrierOffChart { .. }
-                        | PcurveCertifyError::ImageMismatch { .. }
                         | PcurveCertifyError::IsoUnsupported { .. },
                     ) => {}
                     Err(error) => return Err(PcurveMintError::Certify { half_edge, error }),

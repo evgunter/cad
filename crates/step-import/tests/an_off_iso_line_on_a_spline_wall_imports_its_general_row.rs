@@ -12,10 +12,10 @@
 //! The diagonal adopts at the `Intersection` rung, which the ladder
 //! offers first: the plane × NURBS certificate takes its line carrier,
 //! whose chart image on the wall is straight. The pcurve re-mint then
-//! derives its image on the wall. No row or column of the wall holds the line a quarter span
-//! in, so the mint stores its `General` image, which certifies against
-//! the wall: the import ships, every wall row stored, and tier 3
-//! re-certifies them.
+//! derives its image on the wall. No row or column of the wall holds
+//! the line a quarter span in, so the mint stores its `General` image,
+//! which certifies against the wall: the import ships, every wall row
+//! stored, and tier 3 re-certifies them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;

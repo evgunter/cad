@@ -425,11 +425,11 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
         }) => {
             topo::validate_geometric(&body, Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
-            let seams = plane_nurbs_seams(&body);
+            let taken = plane_nurbs_intersections(&body);
             assert!(
-                seams.is_empty(),
+                taken.is_empty(),
                 "both seams are the arc wall's own columns, bit for bit; the \
-                 declare-and-check rung has no takers: {seams:?}"
+                 declare-and-check rung has no takers, seam or cap rim: {taken:?}"
             );
             let line_promotions: Vec<_> = curve_promotions
                 .iter()
