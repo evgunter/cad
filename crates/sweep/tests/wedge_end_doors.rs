@@ -660,7 +660,8 @@ fn the_shoulder_seam_stores_one_description_through_the_chord_and_split_edge() {
     );
 }
 
-/// The cap of `piece` lying in `z = height`.
+/// The cap of `piece` lying in `z = height`, read within ε: the thin
+/// shoulder's two caps are only `½√(2ε)` apart.
 fn cap_at(piece: &Body<f64>, height: f64) -> topo::FaceKey {
     let caps: Vec<_> = piece
         .faces()
@@ -668,7 +669,7 @@ fn cap_at(piece: &Body<f64>, height: f64) -> topo::FaceKey {
             matches!(
                 piece.get_surface(f.surface),
                 Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && (origin.z - height).abs() < 1e-6
+                    if normal.z.abs() > 0.5 && (origin.z - height).abs() < tol().eps()
             )
         })
         .map(|(k, _)| k)
@@ -681,7 +682,7 @@ fn cap_at(piece: &Body<f64>, height: f64) -> topo::FaceKey {
 
 /// **An offset that lengthens the pair re-asks it.** The thin
 /// shoulder's chord seam (`h = ½√(2ε)`, under-determined, `OnPair`) is
-/// re-anchored when either cap moves out by `d`; the seam is then
+/// re-anchored when either cap moves out by `d = c·√(2ε)`; the seam is then
 /// `h + d` long, its sagitta far past `K·ε`, so the rule over the edge
 /// as it now runs demands the intrinsic tangency, and the body is valid
 /// at rest. Keeping the pair verbatim left a body tier 3 refuses
@@ -700,8 +701,10 @@ fn an_offset_cap_re_asks_the_shoulder_pair_over_its_new_length() {
         "OnPair",
         "the short seam is the pair"
     );
+    // Lengthened to `(½ + c)·√(2ε)`, past the band's `√K` at K = 10 at
+    // every ε row (an absolute `d` of a millimetre is in band at 1e-6).
     for height in [0.0, h] {
-        for d in [1e-3, 1e-2] {
+        for d in [4.0, 16.0].map(|c| c * (2.0 * tol().eps()).sqrt()) {
             let label = format!("the cap at z = {height:e} moved out by {d:e}");
             let mut body = wall.clone();
             topo::replace_faces_offset(&mut body, &[cap_at(&wall, height)], d, tol())
