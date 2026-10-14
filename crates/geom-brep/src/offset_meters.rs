@@ -190,7 +190,7 @@ impl Meter {
     /// and what it passes on. A definite refusal read over a body at
     /// rest is still the lever's: the stored description's base and
     /// distance are what it edits.
-    fn decision(self) -> SizedDecision {
+    pub(crate) fn decision(self) -> SizedDecision {
         match self {
             // A floor of exactly zero on a face with no pole, cusp or
             // pinch is the refinement ladder running out of rungs on a
@@ -905,10 +905,10 @@ mod tests {
     /// on every arm; the conditional tighten, valued at `m/K`, only on
     /// a band-decided arm whose margin is positive (a zero verdict
     /// inside the band, or an undecided margin); the lever alone
-    /// straddling zero, and on the sign-certain arm at rest; the report
-    /// clause on a floor that shows no size — zero, in band on the
-    /// refused side, or sign-certain at a build — which no tolerance
-    /// resolves, and where the decision has none, the lever alone there;
+    /// straddling zero; the report clause on a floor that shows no size —
+    /// zero, in band on the refused side, or sign-certain, at a build and
+    /// at rest alike — which no tolerance resolves, and where the
+    /// decision has none, the lever alone there;
     /// and a poisoned margin keeps the lever and says what it may mean.
     /// Read with another lever, each ending keeps its shape and swaps the
     /// lever alone.
@@ -924,7 +924,7 @@ mod tests {
                 ),
             ),
             (floor_zero(0.0), format!("{SPLIT}{REPORT}")),
-            (floor_of(-1e-3, negative(-1e-3)), SPLIT.to_owned()),
+            (floor_of(-1e-3, negative(-1e-3)), format!("{SPLIT}{REPORT}")),
             (
                 escalated(Meter::NormalFloor, MarginDiag::value(5e-9)),
                 format!(
@@ -982,13 +982,6 @@ mod tests {
             for reading in [Reading::Build, Reading::AtRest] {
                 // A poisoned margin's note names the file at rest.
                 let want = match (reading, &error) {
-                    (
-                        Reading::Build,
-                        MeterError::NormalFloor {
-                            verdict: Refused::Negative { .. },
-                            ..
-                        },
-                    ) => format!("{SPLIT}{REPORT}"),
                     (Reading::AtRest, MeterError::Escalated { meter, source })
                         if source.margin.is_invalid() =>
                     {

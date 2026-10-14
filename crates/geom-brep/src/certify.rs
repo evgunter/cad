@@ -985,9 +985,9 @@ impl CertCheck {
 /// - A decision on a size (it passes on a nonzero sign) ends as
 ///   [`SizedDecision::recourse`] gives: its lever on every arm, the
 ///   conditional tolerance on a band-decided one, and at rest a
-///   sign-certain arm, a stored contradiction no move of the geometry
-///   reaches, ends in the ending that names the file as well as the
-///   kernel (D4 ¶1 (iv)).
+///   definite refusal of a stored contradiction no move of the geometry
+///   reaches, on either arm, ends in the ending that names the file as
+///   well as the kernel (D4 ¶1 (iv)).
 /// - A residual or a form selection has no size. Every arm ends in the
 ///   kernel-defect ending where the kernel built the geometry exactly
 ///   (the file's too, at rest). Where the kernel

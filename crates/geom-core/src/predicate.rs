@@ -1280,7 +1280,8 @@ enum Shows {
     Past,
     /// Past the band wholly on sides the decision refuses: a decided sign
     /// it cannot use, which shows no size as [`Shows::NoSize`] does and
-    /// ends as it does (D4 ¶1 (iv)).
+    /// ends as it does, save where its words name a definite ending
+    /// ([`SizedWords::definite`], D4 ¶1 (iv)).
     Refused,
     /// Poisoned.
     Unreadable,
@@ -1359,6 +1360,12 @@ pub struct SizedWords<'a> {
     /// ([`UNREADABLE_MARGIN_NOTE`] at a build,
     /// [`UNREADABLE_STORED_MARGIN_NOTE`] over stored geometry).
     pub unreadable: &'a str,
+    /// The whole ending, in place of the lever and [`SizedWords::no_size`],
+    /// of a decided sign the decision refuses ([`Shows::Refused`], and so
+    /// [`SizedWords::sign_certain_recourse`]) where its reader's door ends
+    /// one as a defect: a stored contradiction read at rest (D4 ¶1 (iv)).
+    /// `None` ends it as a reading that shows no size does.
+    pub definite: Option<&'a str>,
 }
 
 impl SizedWords<'_> {
@@ -1381,6 +1388,7 @@ impl Shows {
             size,
             no_size,
             unreadable,
+            definite,
             ..
         } = words;
         match self {
@@ -1388,7 +1396,8 @@ impl Shows {
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
                  {v:e} m"
             ),
-            Self::NoSize | Self::Refused => lever_recourse(lever, no_size),
+            Self::Refused => definite.map_or_else(|| lever_recourse(lever, no_size), str::to_owned),
+            Self::NoSize => lever_recourse(lever, no_size),
             Self::Floor => lever_recourse(lever, Some(&floor_note(size))),
             Self::Unresolved | Self::Past => lever_recourse(lever, None),
             Self::Unreadable => lever_recourse(lever, Some(unreadable)),
@@ -1795,7 +1804,8 @@ impl MarginDiag {
     ///   if this {size} is intended, tighten the tolerance below `|m|/K`",
     ///   `K` the band's multiplier, `m` the end nearer zero;
     /// - where the margin shows no size — in band or past it, wholly on
-    ///   a side the decision refuses — [`SizedWords::no_size`];
+    ///   a side the decision refuses — [`SizedWords::no_size`]; past it,
+    ///   [`SizedWords::definite`] in place of the whole ending, where given;
     /// - where only a tolerance at or below [`EPS_MIN`] decides it,
     ///   [`floor_note`];
     /// - where it is poisoned, [`SizedWords::unreadable`]
@@ -2466,6 +2476,7 @@ impl Indeterminate {
                 passes: self.passes(),
                 no_size: None,
                 unreadable,
+                definite: None,
             },
         )
     }
@@ -2929,6 +2940,7 @@ mod tests {
             passes: SizedPass::Positive,
             no_size: Some("N"),
             unreadable: "U",
+            definite: None,
         };
         let want = "Recourse: L; N";
         assert_eq!(words.sign_certain_recourse(), want, "no reading kept");
@@ -2956,6 +2968,7 @@ mod tests {
             passes: SizedPass::Positive,
             no_size,
             unreadable: "u",
+            definite: None,
         };
         let offer = "Recourse: L, or, if this length is intended, tighten the tolerance below \
                      5e-11 m";
@@ -3029,6 +3042,7 @@ mod tests {
             passes: SizedPass::Positive,
             no_size: Some("n"),
             unreadable: "u",
+            definite: None,
         };
         // The largest margin whose deciding tolerance in `band` is
         // exactly ε_min, found by ulp search.
@@ -3175,6 +3189,7 @@ mod tests {
             passes: SizedPass::Positive,
             no_size: Some("n"),
             unreadable: "u",
+            definite: None,
         };
         let file = FileCoincidence::new(1e-8);
         let head = "This length is within the file's declared coincidence distance ε_in = 1e-8 m, \
@@ -3270,6 +3285,7 @@ mod tests {
             passes: SizedPass::Positive,
             no_size: Some("n"),
             unreadable: "u",
+            definite: None,
         };
         let at = |eps_in| FileCoincidence::new(eps_in);
         // Wholly within ε_in, the size is one the file cannot tell from
