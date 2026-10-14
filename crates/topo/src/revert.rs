@@ -157,10 +157,11 @@ impl<T: Real> Body<T> {
     /// Every such read precedes construction of the result.
     #[track_caller]
     pub fn revert(&self) -> Result<Self, RevertError> {
-        if let Some(&refusal) = self.coincident_edges().first() {
-            return Err(refusal);
+        let out = self.reverted();
+        match self.coincident_edges().first() {
+            Some(&refusal) => Err(refusal),
+            None => Ok(out),
         }
-        Ok(self.reverted())
     }
 
     /// [`Self::revert`]'s map with no refusal, for ∖'s working clone,

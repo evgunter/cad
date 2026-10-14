@@ -2459,7 +2459,7 @@ fn revert_anchor_rows(body: &Body<f64>, tear: RevertTear, capture: &PanicCapture
     each_revert_tear(body, tear, |torn, _| {
         let planted = kill_anchor_faults(&torn);
         cells[0] += 1;
-        match capture.run(|| torn.revert().unwrap()) {
+        match capture.run(|| torn.reverted()) {
             Err(report) => {
                 assert!(
                     report.contains(ROW_FOUR),
@@ -2601,7 +2601,7 @@ fn revert_rename_rows(body: &Body<f64>, tear: RevertTear, capture: &PanicCapture
     let mut cells = RenameCells::default();
     each_revert_tear(body, tear, |torn, image| {
         cells.calls += 1;
-        let reverted = match capture.run(|| torn.revert().unwrap()) {
+        let reverted = match capture.run(|| torn.reverted()) {
             Ok(reverted) => reverted,
             Err(report) => {
                 assert!(
@@ -3693,9 +3693,9 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
     let trial = body.clone();
     let skipped = std::cell::Cell::new(false);
     judge_read(capture, &mut census, "revert", || {
-        drop(trial.revert().unwrap());
+        let answered = trial.revert().is_ok();
         skipped.set(!revert_reads_whole(&trial));
-        Ok(true)
+        Ok(answered)
     });
     assert!(
         !skipped.get(),
