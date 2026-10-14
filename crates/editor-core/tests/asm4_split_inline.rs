@@ -1889,3 +1889,146 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
     }
 }
+
+/// Every pair of `old`'s ids keeps its order through `map`.
+fn keeps_id_order(map: &editor_core::StepMap) -> bool {
+    let images: Vec<_> = map.values().collect();
+    images.windows(2).all(|w| w[0] < w[1])
+}
+
+/// The lateral edge of extrude `body` that starts at `step`'s leg.
+fn lateral_edge(body: RecipeNodeId, step: editor_core::StepId) -> StableName {
+    StableName {
+        kind: editor_core::EntityKind::Edge,
+        node: body,
+        path: vec![RoleSeg::LateralEdge(editor_core::ProfileVertexRef::Piece {
+            step,
+            role: editor_core::PieceRole::Leg,
+        })],
+    }
+}
+
+/// A pair boolean's ranked `EdgeCrossing` run over two lateral edges of
+/// `body`, told apart by the steps `a` and `b`, in name order.
+fn ranked_run(
+    body: RecipeNodeId,
+    minter: RecipeNodeId,
+    a: editor_core::StepId,
+    b: editor_core::StepId,
+) -> StableName {
+    let mut run: Vec<editor_core::RunLine> = [a, b]
+        .into_iter()
+        .map(|step| editor_core::RunLine {
+            line: editor_core::NameRef::new(lateral_edge(body, step)),
+            sense: Some(editor_core::Sense::Outside),
+        })
+        .collect();
+    run.sort();
+    StableName {
+        kind: editor_core::EntityKind::Vertex,
+        node: minter,
+        path: vec![
+            RoleSeg::EdgeCrossing(run),
+            RoleSeg::Fragment(editor_core::Qualifier::OrderAlong { rank: 0, of: 2 }),
+        ],
+    }
+}
+
+/// The run's lines, in the order the name holds them.
+fn run_lines(name: &StableName) -> Vec<StableName> {
+    match name.path.first() {
+        Some(RoleSeg::EdgeCrossing(run)) => run.iter().map(|l| (*l.line).clone()).collect(),
+        other => panic!("an edge-crossing run, got {other:?}"),
+    }
+}
+
+/// **A split and an inline keep a profile's step ids in name order,
+/// however a `SetProgram` left them in the program.** The reshaping
+/// re-mints step 2 after every other step, so the source program holds
+/// its ids out of order. A ranked run over two lateral edges of one
+/// extrude, told apart by those steps, is ranked along its least line;
+/// the part and the host spell it with the same line least and the same
+/// rank, so it is the name their emitters mint (ASSEMBLY.md A4,
+/// *Acceptance*: name-resolution identity, up to minted ids).
+#[test]
+fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
+    let (doc, [f2, p2, e2], _) = reshaped_component("asm4-order", 2, false);
+    let old = flat_ids(&doc, p2);
+    assert!(
+        old[2] > old[3],
+        "the fixture holds its ids out of program order: {old:?}"
+    );
+    let was = ranked_run(e2, e2, old[2], old[3]);
+    assert_eq!(
+        run_lines(&was)[0],
+        lateral_edge(e2, old[3]),
+        "the step re-minted last lies on the greater line"
+    );
+
+    let out = split(
+        &doc,
+        &BTreeSet::from([f2, p2, e2]),
+        DocumentId::derive("asm4-order-new"),
+        Tol::witness(),
+        None,
+    )
+    .expect("legal");
+    assert!(
+        keeps_id_order(&out.step_map),
+        "the split's step map keeps id order: {:?}",
+        out.step_map
+    );
+    let part_profile = out.node_map[&p2];
+    let minted = flat_ids(&out.part, part_profile);
+    let expected: Vec<_> = old.iter().map(|s| out.step_map[s]).collect();
+    assert_eq!(minted, expected, "the part's program holds each step's image");
+    let reds = std::collections::BTreeMap::new();
+    let crossed = editor_core::remap_name(&was, &out.node_map, &out.step_map, &reds)
+        .expect("the split's maps cover the run");
+    let e2_part = out.node_map[&e2];
+    assert_eq!(
+        crossed,
+        ranked_run(
+            e2_part,
+            e2_part,
+            out.step_map[&old[2]],
+            out.step_map[&old[3]]
+        ),
+        "the part spells the run with its least line and its rank as the source did"
+    );
+    assert_eq!(
+        run_lines(&crossed)[0],
+        editor_core::remap_name(&run_lines(&was)[0], &out.node_map, &out.step_map, &reds)
+            .expect("covered"),
+        "the least line is the image of the least line"
+    );
+
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(doc, Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-order-host"), Tol::witness());
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let inlined = inline(
+        &host,
+        instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("legal");
+    assert!(
+        keeps_id_order(&inlined.step_map),
+        "the inline's step map keeps id order: {:?}",
+        inlined.step_map
+    );
+    let e2_host = inlined.node_map[&e2];
+    assert_eq!(
+        editor_core::remap_name(&was, &inlined.node_map, &inlined.step_map, &reds)
+            .expect("the inline's maps cover the run"),
+        ranked_run(
+            e2_host,
+            e2_host,
+            inlined.step_map[&old[2]],
+            inlined.step_map[&old[3]]
+        ),
+        "the host spells the run with its least line and its rank as the part did"
+    );
+}
