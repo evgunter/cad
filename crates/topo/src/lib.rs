@@ -846,24 +846,25 @@ pub(crate) mod vertex_section;
 
 pub use body::Body;
 pub use boolean::{
-    AlongFace, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanError,
-    BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming, BooleanOp,
-    BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc, CarrierEqError,
-    CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair,
-    ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords, ContainDecision,
-    ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact,
-    EfContact, FaceContainment, FfContact, Fusions, GlueVerdict, GluedPair, HeldEdge, JOIN_LEVER,
-    JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm, NullEdgePairRecord, Operand,
-    OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord,
-    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError,
-    ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck, SettleError, Settler,
-    Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion,
-    SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment,
-    VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
-    boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
-    flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
-    joinable_vertices, joined_cell, joined_edge, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, tangent_pair_relation, union,
+    AimedPair, AlongFace, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
+    BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
+    BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
+    CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
+    CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
+    ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeJoin,
+    EdgePieceClass, EeContact, EfContact, FaceContainment, FfContact, Fusions, GlueVerdict,
+    GluedPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
+    LeverArm, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite,
+    PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
+    PlaneRung, PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,
+    SettleError, Settler, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces,
+    SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact,
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
+    tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -945,10 +946,10 @@ pub use pcurves::{
     PcurveMintError, SiteRowRefusal, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of,
 };
 pub use props::{
-    AtRestOutcome, AtRestPolicy, CertifiedSliver, MassProperties, MassPropsError, QuadLane,
-    ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole,
-    SignCertificate, TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells,
-    classify_shells_of, classify_shells_structural, mass_properties, mass_properties_structural,
+    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
+    ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate,
+    TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells, classify_shells_of,
+    classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
@@ -986,8 +987,8 @@ pub use splitting::{
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
-    CrossingSideVerdict, RingContact, RingPairContact, StaleDeclaration, Unfinished,
-    ValidationError, WedgeCheck, contact_marks, contact_marks_structural, validate,
+    CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, StaleDeclaration,
+    Unfinished, ValidationError, WedgeCheck, contact_marks, contact_marks_structural, validate,
     validate_closed, validate_geometric, validate_geometric_certificate,
     validate_geometric_certificate_structural, validate_geometric_structural,
     validate_pseudomanifold, validate_pseudomanifold_certificate,

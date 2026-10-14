@@ -9,12 +9,13 @@
 //!
 //! # The reading
 //!
-//! Each shell's role is read off its own sign walk ([`shell_role`]
-//! through [`ShellRead`], the reader check 10 uses). A solid with one
-//! shell, or with at most one decided `Outer`, is left as it is and
-//! nothing is probed. A shell whose role stays undecided is silent
-//! there, as check 10 leaves it uncounted: beside at most one decided
-//! `Outer` it cannot make a second piece that the count would see.
+//! Each shell's role is the side at infinity of its faces
+//! ([`shell_role`] through [`ShellRead`], the reader check 10 uses). A
+//! solid with one shell, or with at most one decided `Outer`, is left as
+//! it is and nothing is probed. A shell whose role stays undecided there
+//! moves nothing: beside at most one decided `Outer` it cannot make a
+//! second piece, and check 10 refuses it at the at-rest gate the
+//! caller runs next, where its scalar runs one (`ShellRoleUndecided`).
 //!
 //! In a solid with two or more decided `Outer`s, every shell is read
 //! where it stands ([`witness_insides`], the crate's witness ladder,
@@ -222,12 +223,8 @@ fn pieces_of<T: Decide + crate::props::AtRestPolicy>(
     let read: Vec<Result<ShellRead, PieceSortError>> = shells
         .iter()
         .map(|&shell| {
-            ShellRead::of(body, shell, band, tol, quad).map_err(|refusal| {
-                PieceSortError::RoleUnread {
-                    shell,
-                    source: refusal.error,
-                }
-            })
+            ShellRead::of(body, shell, band, tol, quad)
+                .map_err(|source| PieceSortError::RoleUnread { shell, source })
         })
         .collect();
     let decided_outers = read
@@ -235,6 +232,9 @@ fn pieces_of<T: Decide + crate::props::AtRestPolicy>(
         .flatten()
         .filter(|r| r.role == ShellRole::Outer)
         .count();
+    // At most one decided `Outer`: nothing moves, and a role left unread
+    // here is refused by check 10 at the at-rest gate the caller runs
+    // next, where its scalar runs one (`ShellRoleUndecided`).
     if decided_outers < 2 {
         return Ok(Vec::new());
     }

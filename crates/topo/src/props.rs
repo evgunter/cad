@@ -841,57 +841,12 @@ impl RoleNames {
     }
 }
 
-/// The shell-role decision's name on the walk's sums.
-pub(crate) const SHELL_ROLE_NAMES: RoleNames = RoleNames::one("chk_shell_volume_sign");
-
-/// The shell-role decision's name on the interval re-derivation.
-pub(crate) const SHELL_ROLE_ENCLOSURE_NAMES: RoleNames =
-    RoleNames::one("chk_shell_volume_sign_enclosure");
-
-/// **A shell certified in band of having no volume**: the interval
-/// re-derivation's escalation, where its one enclosure of `V/A` lies
-/// wholly inside one sliver band ([`Indeterminate::terminal_sliver`],
-/// the classifier's own verdict), so the shell is a sliver at this
-/// tolerance whatever its rounding. Minted only where that holds, so
-/// a holder never re-checks it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CertifiedSliver(Indeterminate);
-
-impl CertifiedSliver {
-    /// `certified` as a sliver, where its enclosure lies wholly in band.
-    pub(crate) fn of(certified: Indeterminate) -> Option<Self> {
-        certified.terminal_sliver.then_some(Self(certified))
-    }
-
-    /// The certified escalation: its enclosure, band and name.
-    #[must_use]
-    pub fn reading(&self) -> &Indeterminate {
-        &self.0
-    }
-}
-
-/// **Why a shell has no role**: the refusal its readers report, and
-/// whether its certified reading found it a sliver. The two are apart
-/// because the refusal's words are the walk's (a valued margin), while
-/// the sliver is the certificate's, which may refute what the walk read.
-#[derive(Clone, Debug)]
-pub(crate) struct RoleRefusal {
-    /// The refusal every reader of the shell's role reports.
-    pub(crate) error: ShellClassifyError,
-    /// The certified reading's verdict, where it lies wholly in band.
-    pub(crate) sliver: Option<Box<CertifiedSliver>>,
-}
-
 /// A role read that decided no role: the two ends' decisions (one and
-/// the same for an exact volume), and whether the certified reading
-/// found the shell a sliver.
+/// the same for an exact volume).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RoleUnread {
     lo: Result<Decided, Indeterminate>,
     hi: Result<Decided, Indeterminate>,
-    /// `None` where no certified reading was taken, or it was not wholly
-    /// in band.
-    sliver: Option<CertifiedSliver>,
 }
 
 impl RoleUnread {
@@ -900,30 +855,10 @@ impl RoleUnread {
         self.hi.err().or(self.lo.err())
     }
 
-    /// The certified reading's verdict, where it lies wholly in band
-    /// ([`Self::certified_by`]'s).
-    pub(crate) fn sliver(&self) -> Option<CertifiedSliver> {
-        self.sliver
-    }
-
-    /// `shell`'s refusal for this read: the walk's ends pick its words
-    /// ([`shell_role_refusal`]), and the certified reading says whether
-    /// the shell is a sliver, whatever those ends decided.
-    pub(crate) fn refusal(self, shell: ShellKey, band: Band) -> RoleRefusal {
-        RoleRefusal {
-            error: shell_role_refusal(shell, self.lo, self.hi, band),
-            sliver: self.sliver.map(Box::new),
-        }
-    }
-
-    /// This read, with what the certified reading `certified` (an exact
-    /// one: both ends one enclosure) says of the sliver band.
-    fn certified_by(self, certified: &Self) -> Self {
-        let sliver = match (certified.lo, certified.hi) {
-            (Err(lo), Err(hi)) if lo == hi => CertifiedSliver::of(hi),
-            _ => None,
-        };
-        Self { sliver, ..self }
+    /// `shell`'s refusal for this read, its ends picking the words
+    /// ([`shell_role_refusal`]).
+    pub(crate) fn refusal(self, shell: ShellKey, band: Band) -> ShellClassifyError {
+        shell_role_refusal(shell, self.lo, self.hi, band)
     }
 }
 
@@ -958,11 +893,7 @@ pub(crate) fn read_role<U: Decide>(
             let one = sign(names.high, volume, lever);
             read(
                 role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
-                RoleUnread {
-                    lo: one,
-                    hi: one,
-                    sliver: None,
-                },
+                RoleUnread { lo: one, hi: one },
             )
         }
         SignReading::Bracket(ends) => {
@@ -971,14 +902,7 @@ pub(crate) fn read_role<U: Decide>(
                 return RoleRead::Decided(role);
             }
             let lo = sign(names.low, ends.volume_lo, ends.surface_area);
-            read(
-                role_at(BracketEnd::Low, lo),
-                RoleUnread {
-                    lo,
-                    hi,
-                    sliver: None,
-                },
-            )
+            read(role_at(BracketEnd::Low, lo), RoleUnread { lo, hi })
         }
     }
 }
@@ -1062,14 +986,11 @@ pub(crate) fn certify_role<T: Decide>(
             (Some(Ok((exact, recentred))), walk) => {
                 let unread = match (read_role(exact, certified, band), walk) {
                     (RoleRead::Decided(role), _) => return Certified::Role(role),
-                    (RoleRead::Unread(cert), RoleRead::Unread(unread)) => {
-                        unread.certified_by(&cert)
-                    }
+                    (RoleRead::Unread(_), RoleRead::Unread(unread)) => unread,
                     // The walk's decision is not certified, so it is no role:
                     // the certified read refuses, its own ends giving the
                     // words. Where both are unread the walk's ends give them.
-                    // Either way the sliver verdict is the certificate's.
-                    (RoleRead::Unread(cert), RoleRead::Decided(_)) => cert.certified_by(&cert),
+                    (RoleRead::Unread(cert), RoleRead::Decided(_)) => cert,
                 };
                 if recentred {
                     Certified::Open(unread)
@@ -2834,16 +2755,17 @@ pub(crate) fn run_edges<T: Decide>(
 
 /// The derived outer/void designation of one shell. The shell list
 /// stores no such designation ([`crate::entity::Solid`]'s documented
-/// invariant): the role IS the sign of the shell's signed volume —
-/// a shell's loops wind about the outward normal, so a boundary that
-/// bounds material from outside integrates positive and a cavity wall
-/// integrates negative.
+/// invariant): the role IS the side at infinity of the shell's faces
+/// ([`shell_role`]) — a boundary that bounds material from outside
+/// leaves infinity outside its material, and a cavity wall leaves it
+/// inside. Its signed volume has the same sign: positive for the one,
+/// negative for the other.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShellRole {
-    /// Definitely-positive signed volume: the shell is the outer
-    /// boundary of one connected component of material.
+    /// Infinity outside the material: the shell is the outer boundary
+    /// of one connected component of material.
     Outer,
-    /// Definitely-negative signed volume: the shell bounds an internal
+    /// Infinity inside the material: the shell bounds an internal
     /// cavity.
     Void,
 }
@@ -2954,16 +2876,47 @@ pub enum ShellClassifyError {
         /// The unclassifiable shell.
         shell: ShellKey,
     },
+    /// A ray aimed at one of the shell's faces from beyond it met two of
+    /// its faces in band of each other along it, and no other aimed ray
+    /// read the shell's side: the pair is in band at this tolerance.
+    RayInBand {
+        /// The unclassifiable shell.
+        shell: ShellKey,
+        /// The ray's pair: the face it was aimed at, the two faces it
+        /// met, and their gap along it.
+        pair: crate::boolean::AimedPair,
+    },
+    /// An aimed ray's walk refused on a face of the shell that does not
+    /// walk: a broken body.
+    Ray {
+        /// The unclassifiable shell.
+        shell: ShellKey,
+        /// The walk's refusal.
+        source: crate::boolean::PointInSolidError,
+    },
 }
 
-/// The shell-role decision (`chk_shell_volume_sign`): its margin is
-/// `V/A`, the mean wall thickness the shell's volume corresponds to, and
-/// it passes on either definite sign — positive is an outer boundary,
+/// The shell-role decision read off a shell's volume
+/// (`chk_shell_volume_sign`), where no face of the shell offers an aimed
+/// ray that reads its side ([`shell_role`]): its margin is `V/A`, and it
+/// passes on either definite sign — positive is an outer boundary,
 /// negative a void. A reader over stored geometry ends a refusal of it
-/// itself, at rest ([`ShellClassifyError::arm`]).
+/// itself, at rest ([`ShellClassifyError::recourse`]).
 pub const SHELL_ROLE: SizedDecision = SizedDecision {
-    lever: "thicken or remove the degenerate geometry",
-    size: "thickness",
+    lever: "remove the degenerate geometry",
+    size: "volume over area",
+    passes: SizedPass::NonZero,
+    stored: StoredDefinite::Lever,
+    no_size: None,
+};
+
+/// The shell-role decision read off a ray aimed at one of the shell's
+/// faces (`bool_point_in_solid_order`): its margin is the gap along the
+/// ray between the two faces it met first, and it passes on a definite
+/// gap.
+pub const SHELL_ROLE_RAY: SizedDecision = SizedDecision {
+    lever: "move the geometry so these two faces are clearly apart",
+    size: "gap",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
     no_size: None,
@@ -2992,6 +2945,16 @@ impl fmt::Display for ShellClassifyPayload<'_> {
             ShellClassifyError::Straddles { .. } => {
                 f.write_str("a shell's certified volume bracket straddles zero at this tolerance")
             }
+            ShellClassifyError::RayInBand { pair, .. } => write!(
+                f,
+                geom_core::undecided!(
+                    "which side of a shell its material lies on, read by a ray aimed at one of \
+                     its faces: the order of the two faces it meets first",
+                    payload
+                ),
+                pair.gap.payload()
+            ),
+            ShellClassifyError::Ray { source, .. } => write!(f, "{source}"),
         }
     }
 }
@@ -3016,20 +2979,32 @@ impl ShellClassifyError {
     pub fn arm(&self) -> Option<RefusedArm<'_>> {
         match self {
             Self::Escalated { source, .. } => Some(RefusedArm::Undecided(source)),
+            Self::RayInBand { pair, .. } => Some(RefusedArm::Undecided(&pair.gap)),
             Self::ZeroVolume { verdict, .. } => Some(RefusedArm::Zero(*verdict)),
             Self::Straddles { .. } => Some(RefusedArm::SignCertain(None)),
-            Self::Props { .. } | Self::Band { .. } => None,
+            Self::Props { .. } | Self::Band { .. } | Self::Ray { .. } => None,
         }
     }
 
     /// The shell-role decision's one ending for this refusal (D4 ¶1
-    /// (i)), read at a build, where the shell door's own `Display` reads
-    /// it; `None` where the refusal is not that decision's. A reader
-    /// over stored geometry reads [`ShellClassifyError::arm`] at rest
-    /// itself, where a poisoned margin's note names the file.
+    /// (i)) read `at`: the ray's ([`SHELL_ROLE_RAY`]) for a pair in band,
+    /// the volume's ([`SHELL_ROLE`]) otherwise; `None` where the refusal
+    /// is not that decision's.
+    #[must_use]
+    pub fn recourse(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> Option<String> {
+        let decision = match self {
+            Self::RayInBand { .. } => SHELL_ROLE_RAY,
+            _ => SHELL_ROLE,
+        };
+        Some(decision.recourse(self.arm()?, at))
+    }
+
+    /// [`ShellClassifyError::recourse`] read at a build, where the shell
+    /// door's own `Display` reads it. A reader over stored geometry reads
+    /// it at rest itself, where a poisoned margin's note names the file.
     #[must_use]
     pub fn ending(&self) -> Option<String> {
-        Some(SHELL_ROLE.recourse(self.arm()?, Reading::Build))
+        self.recourse(Reading::Build)
     }
 }
 
@@ -3040,7 +3015,9 @@ impl fmt::Display for ShellClassifyError {
             Self::Escalated { .. }
             | Self::Props { .. }
             | Self::ZeroVolume { .. }
-            | Self::Straddles { .. } => write!(f, "{}", self.payload()),
+            | Self::Straddles { .. }
+            | Self::RayInBand { .. }
+            | Self::Ray { .. } => write!(f, "{}", self.payload()),
         }?;
         match self.ending() {
             Some(ending) => write!(f, ". {ending}"),
@@ -3057,26 +3034,21 @@ impl std::error::Error for ShellClassifyError {}
 /// The flux machinery is tier-3 check 7's, SHARED (engineering
 /// convention 2): each shell sums the same per-face contributions the
 /// whole-body [`mass_properties`] sums, restricted to that shell's
-/// face list — never a second flux implementation. The sign is a
-/// decided predicate through the crate funnel (`chk_shell_volume_sign`)
-/// with check 7's margin convention: the comparand is `V/A`, the mean
-/// boundary displacement the volume corresponds to — a length. The read
-/// is bracket-honest: the bracket is the shell re-derived in interval
-/// arithmetic (closed-form faces over their stored geometry, quadrature
-/// faces at their certified enclosures), so a shell whose volume is
-/// below its own rounding has no role. `Outer` requires the
-/// bracket's LOW end definitely positive, `Void` its HIGH end
-/// definitely negative; anything else refuses typed
-/// ([`ShellClassifyError::Escalated`] / [`ShellClassifyError::ZeroVolume`]
-/// / [`ShellClassifyError::Straddles`]), never a guess.
+/// face list — never a second flux implementation. The role is the one
+/// reader's ([`shell_role`]): a solid's only shell is `Outer` by arity,
+/// and any other shell's role is the side at infinity of its faces, read
+/// off rays aimed at them and off its volume's certified sign only where
+/// no face offers an aim that reads. A role no reading decides refuses
+/// typed, never a guess.
 ///
 /// # Errors
 ///
 /// [`ShellClassifyError`] — the first shell that cannot be classified
-/// refuses the call: an inherited flux refusal, an escalated sign, a
-/// volume zero at this tolerance, or a bracket straddling zero. (A
-/// component count over a partial classification would be a guess; the
-/// caller gets the refusal instead.)
+/// refuses the call: an inherited flux refusal, an aimed ray's pair in
+/// band, or, where no aim read, an escalated sign, a volume zero at
+/// this tolerance, or a bracket straddling zero. (A component count over
+/// a partial classification would be a guess; the caller gets the
+/// refusal instead.)
 pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
@@ -3090,9 +3062,10 @@ pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
 /// flux summed through the closed form alone
 /// ([`mass_properties_structural`]'s walk, per shell). A shell with a
 /// face that needs the certified quadrature refuses typed
-/// ([`ShellClassifyError::Props`]). A closed-form shell's role is read
-/// off the walk's own sums, so at a rounding scalar a shell whose volume
-/// is below that rounding can read a role the certified door refuses
+/// ([`ShellClassifyError::Props`]). Where a shell's role falls back to
+/// its volume, a closed-form shell's is read off the walk's own sums, so
+/// at a rounding scalar a shell whose volume is below that rounding can
+/// read a role the certified door refuses
 /// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 ///
 /// # Errors
@@ -3112,12 +3085,13 @@ pub fn classify_shells_structural<T: Decide>(
 /// made of exactly the shells named and no others, in shell-arena slot
 /// order.
 ///
-/// **A shell's role is a property of that shell alone**: the signed
-/// volume its own faces integrate, decided at its own bracket. So a
-/// caller asking about one solid's shells is asking a question that
-/// does not involve any other solid's, and it should not pay another
-/// solid's refusal for it — a classification that escalates on a
-/// neighbour would otherwise refuse a body this caller can answer for.
+/// **A shell's role is a property of that shell alone** (and of how
+/// many shells its solid holds): the side at infinity its own faces
+/// leave. So a caller asking about one solid's shells is asking a
+/// question that does not involve any other solid's, and it should not
+/// pay another solid's refusal for it — a classification that escalates
+/// on a neighbour would otherwise refuse a body this caller can answer
+/// for.
 /// [`classify_shells`] is this door over every shell of the body.
 ///
 /// A shell the body does not hold is skipped rather than refused: the
@@ -3137,9 +3111,9 @@ pub fn classify_shells_of<T: Decide + geom_core::CertifiedBounds>(
 }
 
 /// The per-shell classification through `quad` — the shared body of
-/// [`classify_shells_of`] and [`classify_shells_structural`]. `shell`
-/// calls it with the lane its operand's check 10 read roles through, so
-/// the two reads of one shell are one read ([`role_at_target`]).
+/// [`classify_shells_of`] and [`classify_shells_structural`]: each named
+/// shell's sums measured at the reporting target ([`measured_at_target`])
+/// and its role read by the one reader of it ([`shell_role`]).
 pub(crate) fn classify_shells_through<T: Decide>(
     body: &Body<T>,
     shells: &[ShellKey],
@@ -3152,27 +3126,13 @@ pub(crate) fn classify_shells_through<T: Decide>(
         if !shells.contains(&shell_key) {
             continue;
         }
-        let props = |source| ShellClassifyError::Props {
-            shell: shell_key,
-            source,
-        };
-        let (role, sums) = role_at_target(
-            body,
-            &shell.faces,
-            band,
-            tol,
-            quad,
-            SHELL_ROLE_NAMES,
-            SHELL_ROLE_ENCLOSURE_NAMES,
-        )
-        .map_err(props)?;
-        let role = match role {
-            Ok(role) => role,
-            Err(RoleWalkRefusal::Refused(source)) => return Err(props(source)),
-            Err(RoleWalkRefusal::Unread(unread)) => {
-                return Err(unread.refusal(shell_key, band).error);
+        let sums = measured_at_target(body, &shell.faces, band, tol, quad).map_err(|source| {
+            ShellClassifyError::Props {
+                shell: shell_key,
+                source,
             }
-        };
+        })?;
+        let role = shell_role(body, shell_key, band, tol, quad)?;
         out.push(ShellClassification {
             shell: shell_key,
             solid: shell.solid,
@@ -3186,49 +3146,79 @@ pub(crate) fn classify_shells_through<T: Decide>(
     Ok(out)
 }
 
-/// **A shell's role, at sign level** — whether `shell` bounds material
-/// (`Outer`) or a cavity (`Void`), read off the sign of the volume its
-/// own faces enclose, in its own face-list order, by the role walk
-/// ([`role_walk`]) through `quad`. Tier 3's check 10, the result sort
-/// ([`crate::stands::ShellRead`]) and the census's void screen read it;
-/// the shell classification reads the same shell at the reporting
-/// target ([`role_at_target`]). Its decisions are logged under check 7's
-/// names, which tier 3 reads a shell's role under; a name labels a
-/// decision and changes none.
+/// **A shell's role** — whether `shell` bounds material (`Outer`) or a
+/// cavity (`Void`): the side at infinity its faces leave (D10, Booleans).
+/// The one reader of it: tier 3's check 10, the result sort
+/// ([`crate::stands::ShellRead`]), the census's void screen, `shell`'s
+/// cavity read and the shell classification read it, and check 7 reads a
+/// solid's orientation off the same reader.
+///
+/// A solid's only shell is its outer shell by arity, and is read no
+/// further. Any other shell is read off rays aimed at its faces from
+/// beyond it ([`crate::boolean::solid_contain::side_at_infinity`]), and
+/// off the sign of its volume, walked through `quad`
+/// ([`shell_volume_role`]), only where no face of it offers an aim that
+/// reads.
 ///
 /// A shell the body does not hold reads no face, and refuses as a
 /// volume of zero.
 ///
 /// # Errors
 ///
-/// The shell's typed refusal: the walk's or the re-derivation's
-/// [`ShellClassifyError::Props`], or the role the last round left
-/// undecided (escalated, zero or straddling).
-pub(crate) fn shell_role<'b, T: Decide>(
-    body: &'b Body<T>,
+/// The shell's typed refusal: an aimed ray read in band
+/// ([`ShellClassifyError::RayInBand`], naming its pair) or walked into a
+/// broken face ([`ShellClassifyError::Ray`]); or, where no aim read,
+/// the volume walk's [`ShellClassifyError::Props`] or the role its last
+/// round left undecided (escalated, zero or straddling).
+pub(crate) fn shell_role<T: Decide>(
+    body: &Body<T>,
     shell: ShellKey,
     band: Band,
     tol: Tol,
     quad: Option<QuadLane<T>>,
-) -> Result<(ShellRole, SignCertificate<'b, T>), ShellClassifyError> {
-    shell_role_read(body, shell, band, tol, quad).map_err(|refusal| refusal.error)
+) -> Result<ShellRole, ShellClassifyError> {
+    use crate::boolean::SolidContainment;
+    use crate::boolean::solid_contain::{SideUnread, SolidFaces, side_at_infinity};
+    let record = body.get_shell(shell);
+    if record
+        .and_then(|s| body.get_solid(s.solid))
+        .is_some_and(|solid| solid.shells.len() == 1)
+    {
+        return Ok(ShellRole::Outer);
+    }
+    let volume = || match shell_volume_role(body, shell, band, tol, quad)? {
+        ShellRole::Outer => Ok(SolidContainment::Out),
+        ShellRole::Void => Ok(SolidContainment::In),
+    };
+    match side_at_infinity(body, &SolidFaces::of_shell(body, shell), band, volume) {
+        Ok(Ok(SolidContainment::In)) => Ok(ShellRole::Void),
+        Ok(Ok(_)) => Ok(ShellRole::Outer),
+        Ok(Err(SideUnread::InBand(pair))) => Err(ShellClassifyError::RayInBand { shell, pair }),
+        Ok(Err(SideUnread::Fallback { volume, .. })) => Err(volume),
+        Err(source) => Err(ShellClassifyError::Ray { shell, source }),
+    }
 }
 
-/// [`shell_role`], keeping the certified reading's sliver verdict beside
-/// a refusal, for check 10.
-pub(crate) fn shell_role_read<'b, T: Decide>(
-    body: &'b Body<T>,
+/// **A shell's role off the sign of its volume** — [`shell_role`]'s
+/// fallback, where no face of the shell offers an aim that reads: the
+/// role walk ([`role_walk`]) over its own faces through `quad`, logged
+/// under check 7's names.
+///
+/// # Errors
+///
+/// The walk's or the re-derivation's [`ShellClassifyError::Props`], or
+/// the role the last round left undecided (escalated, zero or
+/// straddling).
+pub(crate) fn shell_volume_role<T: Decide>(
+    body: &Body<T>,
     shell: ShellKey,
     band: Band,
     tol: Tol,
     quad: Option<QuadLane<T>>,
-) -> Result<(ShellRole, SignCertificate<'b, T>), RoleRefusal> {
-    let props = |source| RoleRefusal {
-        error: ShellClassifyError::Props { shell, source },
-        sliver: None,
-    };
+) -> Result<ShellRole, ShellClassifyError> {
+    let props = |source| ShellClassifyError::Props { shell, source };
     let faces = body.get_shell(shell).map_or(&[][..], |s| &s.faces[..]);
-    let (role, certificate) = role_walk(
+    let (role, _) = role_walk(
         body,
         faces,
         band,
@@ -3240,7 +3230,7 @@ pub(crate) fn shell_role_read<'b, T: Decide>(
     )
     .map_err(props)?;
     match role {
-        Ok(role) => Ok((role, certificate)),
+        Ok(role) => Ok(role),
         Err(RoleWalkRefusal::Refused(source)) => Err(props(source)),
         Err(RoleWalkRefusal::Unread(unread)) => Err(unread.refusal(shell, band)),
     }
@@ -3255,9 +3245,8 @@ pub(crate) enum RoleWalkRefusal {
     Unread(Box<RoleUnread>),
 }
 
-/// **A certified reading as a role, the one place**: what both grains
-/// of the role read ([`role_walk`], [`role_at_target`]) make of
-/// [`certify_role`]'s verdict.
+/// **A certified reading as a role, the one place**: what the role walk
+/// ([`role_walk`]) makes of [`certify_role`]'s verdict.
 fn role_of(certified: Certified) -> Result<ShellRole, RoleWalkRefusal> {
     match certified {
         Certified::Role(role) => Ok(role),
@@ -3272,9 +3261,9 @@ fn role_of(certified: Certified) -> Result<ShellRole, RoleWalkRefusal> {
 /// `faces`, measured through `measure` and certified through `certify`
 /// round by round ([`Round::certify`], under `names` on the walk's sums
 /// and `certified` on the re-derivation), stopping at the first round
-/// that certifies a role or refuses. Every role read of a closed surface
-/// is this walk or [`role_at_target`], and both make a reading a role
-/// through [`certify_role`] and [`role_of`]: a shell's ([`shell_role`])
+/// that certifies a role or refuses. Every volume read of a closed
+/// surface's side is this walk, and makes a reading a role through
+/// [`certify_role`] and [`role_of`]: a shell's fallback ([`shell_role`])
 /// and a point-in-solid selection's at infinity (`boolean::solid_contain`)
 /// differ in the faces they hand and the lanes they hold, never in how a
 /// reading becomes a role.
@@ -3316,41 +3305,23 @@ pub(crate) fn role_walk<'b, T: Decide>(
     )
 }
 
-/// **The role read at the reporting target** — `faces` measured over
+/// **A shell's sums at the reporting target** — `faces` measured over
 /// their whole schedules through `quad`, serially in the given order,
-/// and the role certified once off that reading ([`certify_role`],
-/// [`role_of`]), with the reporting sums beside it. The shell
-/// classification reads here: it reports the volume, so it measures to
-/// the target whatever the sign does, and a role read round by round
-/// would pay a second entry into every face it left open
-/// ([`SignCertificate::refine_to_target`]).
-///
-/// **It reads what the role walk reads.** Its reading is the one the
-/// walk's last round takes over the same faces in the same order (the
-/// rounds are the reporting walk's, [`sign_walk`]), certified through
-/// the same lane, so where the walk reads no role it reads none. Where
-/// the walk decided sooner it decided off a sound enclosure of the same
-/// exact value, so this reads the same role or none. A re-derivation
-/// refusal is round-independent — it comes from a face's structure or a
-/// closed-form face, which every round measures alike — so the walk
-/// cannot refuse at a round where this decides.
-///
-/// A face that refused on budget is the refusal before any role is
-/// read: the sums are not the reporting walk's without it.
+/// the reporting walk's rounds ([`sign_walk`]). The shell classification
+/// reports a shell's volume, so it measures to the target whatever its
+/// role's reading needed.
 ///
 /// # Errors
 ///
 /// [`MassPropsError`] where a face has no enclosure, or refused on
 /// budget.
-fn role_at_target<T: Decide>(
+fn measured_at_target<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     band: Band,
     tol: Tol,
     quad: Option<QuadLane<T>>,
-    names: RoleNames,
-    certified: RoleNames,
-) -> Result<(Result<ShellRole, RoleWalkRefusal>, MassProperties<T>), MassPropsError> {
+) -> Result<MassProperties<T>, MassPropsError> {
     let hook = reporting_hook(quad);
     // Serial, for [`decide_faces_serially`]'s reason.
     let runs = decide_faces_serially(faces, |&face_key| {
@@ -3360,14 +3331,7 @@ fn role_at_target<T: Decide>(
     if let Some((face, source)) = refused {
         return Err(MassPropsError::Face { face, source });
     }
-    let role = role_of(certify_role(
-        sums.reading(),
-        |tight| quad.map(|lane| rederived(body, band, tol, lane, &runs, tight)),
-        names,
-        certified,
-        band,
-    ));
-    Ok((role, sums))
+    Ok(sums)
 }
 
 /// The refusal of a shell whose bracket `[lo, hi]` classified to neither
@@ -4967,111 +4931,6 @@ mod shell_role_refusal_tests {
         ];
         for (name, lo, hi, want) in rows {
             assert_eq!(shell_role_refusal(shell, lo, hi, band), want, "{name}");
-        }
-    }
-
-    /// **The sliver rides beside every refusal**, whatever the walk's ends
-    /// decided: a walk that read zero, or straddled, against a certificate
-    /// wholly in band is refuted by it, and the refusal's words stay the
-    /// walk's (`vee300 nt e0 a1 d6e-9`: the walk reads 8.7e-10, in the
-    /// zero band, and the certificate [1.69973e-9, 1.69973e-9]).
-    #[test]
-    fn a_refusal_keeps_the_certified_sliver_beside_the_walks_words() {
-        let shell = ShellKey::default();
-        let band = Band::new(1e-9, 1e-8).expect("a band");
-        let certified = CertifiedSliver::of(
-            geom_core::Interval::from_bounds(1.6997276e-9, 1.699728e-9)
-                .sign_within(band)
-                .expect_err("in band"),
-        )
-        .expect("an enclosure wholly in band");
-        let ok = |sign, m| {
-            Ok(Decided {
-                sign,
-                margin: MarginDiag::value(m),
-            })
-        };
-        let rows = [
-            (
-                "the walk reads zero",
-                ok(Sign::Zero, 8.7e-10),
-                ok(Sign::Zero, 8.7e-10),
-            ),
-            (
-                "the walk straddles",
-                ok(Sign::Negative, -1.0),
-                ok(Sign::Positive, 1.0),
-            ),
-            (
-                "the walk is in band",
-                3e-9_f64.sign_within(band),
-                3e-9_f64.sign_within(band),
-            ),
-        ];
-        for (name, lo, hi) in rows {
-            for sliver in [None, Some(certified)] {
-                let refusal = RoleUnread { lo, hi, sliver }.refusal(shell, band);
-                assert_eq!(
-                    refusal.error,
-                    shell_role_refusal(shell, lo, hi, band),
-                    "{name}"
-                );
-                assert_eq!(
-                    refusal.sliver.as_deref(),
-                    sliver.as_ref(),
-                    "{name}: the certificate's verdict rides"
-                );
-            }
-        }
-    }
-
-    /// The certified reading marks a read a sliver only where its one
-    /// enclosure lies wholly in band: a point margin in band, an
-    /// enclosure touching a threshold, or two different ends do not.
-    #[test]
-    fn only_an_enclosure_wholly_in_band_certifies_a_sliver() {
-        let band = Band::new(1e-9, 1e-8).expect("a band");
-        let read = |lo: f64, hi: f64| geom_core::Interval::from_bounds(lo, hi).sign_within(band);
-        let walk = RoleUnread {
-            lo: 3e-9_f64.sign_within(band),
-            hi: 3e-9_f64.sign_within(band),
-            sliver: None,
-        };
-        let one = |r: Result<Decided, Indeterminate>| RoleUnread {
-            lo: r,
-            hi: r,
-            sliver: None,
-        };
-        let rows = [
-            ("wholly in band", one(read(2e-9, 4e-9)), true),
-            ("a point in band", one(3e-9_f64.sign_within(band)), false),
-            ("touching the zero band", one(read(1e-9, 4e-9)), false),
-            (
-                "straddling the escalate edge",
-                one(read(4e-9, 1.2e-8)),
-                false,
-            ),
-            ("touching the escalate edge", one(read(4e-9, 1e-8)), false),
-            (
-                "straddling the escalate edge on the void side",
-                one(read(-1.2e-8, -4e-9)),
-                false,
-            ),
-            ("across zero", one(read(-2e-9, 4e-9)), false),
-            (
-                "two ends, each in band",
-                RoleUnread {
-                    lo: read(2e-9, 3e-9),
-                    hi: read(3e-9, 4e-9),
-                    sliver: None,
-                },
-                false,
-            ),
-        ];
-        for (name, certified, want) in rows {
-            let got = walk.certified_by(&certified);
-            assert_eq!(got.sliver.is_some(), want, "{name}");
-            assert_eq!(got.hi, walk.hi, "{name}: the walk's own reading stays");
         }
     }
 }

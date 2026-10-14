@@ -522,16 +522,15 @@ pub(crate) struct ShellRead {
 
 impl ShellRead {
     /// `shell` read, or the shell's typed refusal where its role cannot
-    /// be, with the certified reading's sliver verdict
-    /// ([`crate::props::shell_role_read`]).
+    /// be ([`crate::props::shell_role`]).
     pub(crate) fn of<T: Decide>(
         body: &Body<T>,
         shell: ShellKey,
         band: Band,
         tol: Tol,
         quad: Option<QuadLane<T>>,
-    ) -> Result<Self, crate::props::RoleRefusal> {
-        crate::props::shell_role_read(body, shell, band, tol, quad).map(|(role, _)| Self {
+    ) -> Result<Self, crate::props::ShellClassifyError> {
+        crate::props::shell_role(body, shell, band, tol, quad).map(|role| Self {
             shell,
             role,
             sel: SolidFaces::of_shell(body, shell).with_role(role),

@@ -426,9 +426,9 @@ pub enum ShellError<T: Real> {
     NoSolid,
     /// A solid's shells could not be told apart into one outer
     /// boundary and its voids: a solid stores no such designation, so
-    /// the roles are the decided signs of the shells' signed volumes,
-    /// and that decision refused. Read once per HOLLOW solid, over
-    /// that solid's own shells only.
+    /// the roles are read off the shells' faces
+    /// ([`crate::props::shell_role`]), and that reading refused. Read
+    /// once per HOLLOW solid, over that solid's own shells only.
     Roles {
         /// The classifier's typed refusal, verbatim.
         error: crate::props::ShellClassifyError,
@@ -1387,50 +1387,39 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // ---- Decide: which operand shells are VOIDS, per solid. ----
     //
     // A solid stores no outer designation (`ShellRole`'s docs): a
-    // shell's role is the decided sign of its signed volume, and it is
-    // read here, once, off the operand — the one flux read this verb
-    // makes, and only where some solid is hollow. A single-shell solid's
-    // shell is its boundary by arity, so a body of only those reads
-    // nothing and its verdict log is untouched. Everything downstream
+    // shell's role is the side at infinity of its faces, read here,
+    // once, off the operand by the one reader of it
+    // (`props::shell_role`). A single-shell solid's shell is its
+    // boundary by arity, so a body of only those reads nothing. A
+    // solid's roles are its own: one outer boundary each, read over its
+    // own shells and never over another solid's. Everything downstream
     // that tells a void from the outer shell reads THIS list, never the
     // result's geometry.
-    // The whole body's voids, gathered from the PER-SOLID reads. A
-    // solid's roles are its own: one outer boundary each, decided over
-    // its own shells and never over another solid's — so a plain
-    // neighbour's shell is never classified at all, and a
-    // classification that escalated on one could not refuse a solid
-    // this verb can answer for.
     let mut voids: Vec<ShellKey> = Vec::new();
     for &solid in &solids {
         let shells = &proven(&body.solids, solid, EntityId::Solid).shells;
-        // A single-shell solid's shell is its boundary by arity, so
-        // that solid reads nothing and its verdict log is untouched.
         if shells.len() == 1 {
             continue;
         }
-        let roles = crate::props::classify_shells_through(body, shells, tol, T::quad_lane())
-            .map_err(|error| ShellError::Roles { error })?;
-        // The gate read these roles through the same sign walk at the
-        // same band: check 10 finished the operand only with every one
-        // decided and at most one `Outer` (two is its
-        // `SolidOuterShells`), and check 7 only with the solid's volume
-        // positive, which shells each decided negative cannot sum to.
-        // The classification reads a role only where that walk read the
-        // same one (`props::role_at_target`), so it cannot count
-        // otherwise.
-        let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
+        let mut outer = 0;
+        for &shell in shells {
+            match crate::props::shell_role(body, shell, band, tol, T::quad_lane())
+                .map_err(|error| ShellError::Roles { error })?
+            {
+                ShellRole::Outer => outer += 1,
+                ShellRole::Void => voids.push(shell),
+            }
+        }
+        // The gate read these roles with the same reader at the same
+        // band: check 10 finished the operand only with every one read
+        // and exactly one `Outer` per solid (two is its
+        // `SolidOuterShells`, none a `ShellWinding`).
         if outer != 1 {
             unreachable!(
-                "{outer} decided outer shells under one solid of a finished operand, whose \
-                 checks 7 and 10 read every role the classification reads"
+                "{outer} outer shells under one solid of a finished operand, whose check 10 \
+                 read every role this reads"
             );
         }
-        voids.extend(
-            roles
-                .iter()
-                .filter(|c| c.role == ShellRole::Void)
-                .map(|c| c.shell),
-        );
     }
 
     // ---- Decide: each solid's charts, each with ONE orientation. ----

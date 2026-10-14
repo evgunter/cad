@@ -5316,19 +5316,17 @@ fn touch_verdict<T: Decide>(
 }
 
 /// The role of `shell` the cross-solid gate reads: the one shell-role
-/// reader ([`crate::props::shell_role`]) through the scalar's own lane,
-/// so the gate drops exactly the shells check 10, the result sort and
-/// the shell classification read as `Void`. `None` where it does not
-/// read.
+/// reader ([`crate::props::shell_role`], a solid's only shell `Outer` by
+/// arity) through the scalar's own lane, so the gate drops exactly the
+/// shells check 10, the result sort and the shell classification read
+/// as `Void`. `None` where it does not read.
 pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     shell: crate::entity::ShellKey,
     band: Band,
     tol: Tol,
 ) -> Option<crate::props::ShellRole> {
-    crate::props::shell_role(body, shell, band, tol, T::quad_lane())
-        .ok()
-        .map(|(role, _)| role)
+    crate::props::shell_role(body, shell, band, tol, T::quad_lane()).ok()
 }
 
 /// A face's world reach ([`face_reach`]): its low and high corners.
@@ -5887,17 +5885,14 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .and_modify(|b| *b = join(*b, h))
             .or_insert(h);
     }
-    // The shells the gate reads: every shell but a VOID. A solid's only
-    // shell is its outer one; among several, a shell's role is read
-    // ([`gate_role`]), and a shell whose role does not read is kept —
-    // the conservative direction, since keeping a shell only sends more
-    // pairs to the probe. Why voids may be dropped is the loop's
-    // argument below.
+    // The shells the gate reads: every shell but a VOID ([`gate_role`]),
+    // and a shell whose role does not read is kept — the conservative
+    // direction, since keeping a shell only sends more pairs to the
+    // probe. Why voids may be dropped is the loop's argument below.
     let gate_shells: Vec<(SolidKey, Hull<T>)> = shell_boxes
         .iter()
-        .filter(|&(&shell, &(solid, _))| {
-            let lone = body.get_solid(solid).is_some_and(|d| d.shells.len() < 2);
-            lone || gate_role(body, shell, band, tol) != Some(crate::props::ShellRole::Void)
+        .filter(|&(&shell, _)| {
+            gate_role(body, shell, band, tol) != Some(crate::props::ShellRole::Void)
         })
         .map(|(_, &b)| b)
         .collect();

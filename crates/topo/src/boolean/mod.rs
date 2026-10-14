@@ -202,8 +202,8 @@ pub use carrier_pair::{
 pub(crate) use contact_verify::rest_pair_reading;
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
-    PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
-    point_in_solid_of,
+    AimedPair, PointInSolidError, SolidContainment, SolidFaces, point_in_solid,
+    point_in_solid_faces, point_in_solid_of,
 };
 pub use voids::{
     VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void, insert_voids,

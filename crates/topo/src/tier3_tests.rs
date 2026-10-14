@@ -3061,25 +3061,25 @@ fn far_anchored_slab(x0: f64, w: f64, t: f64, far: f64, tol: Tol) -> Body<f64> {
     body
 }
 
-/// `body`'s one shell's role, through check 10's read and through the
-/// shell classification.
-fn roles_of(body: &Body<f64>, tol: Tol) -> (crate::ShellRole, crate::ShellRole) {
+/// `body`'s one shell's role off the sign of its volume, the role
+/// reader's fallback where no face offers an aim, through the certified
+/// lane.
+fn volume_role_of(body: &Body<f64>, tol: Tol) -> crate::ShellRole {
     let band = geom_core::Band::linear(tol).expect("a band");
     let (shell, _) = body.shells.iter().next().expect("one shell");
     let lane = Some(crate::props::QuadLane::certified());
-    let (read, _) = crate::props::shell_role(body, shell, band, tol, lane)
-        .expect("check 10's read decides a role");
-    let classified = crate::classify_shells(body, tol).expect("the shell classifies");
-    (read, classified[0].role)
+    crate::props::shell_volume_role(body, shell, band, tol, lane)
+        .expect("the volume's sign decides a role")
 }
 
 /// **A sign is read off the exact volume, not off its rounding.** The
 /// slab of 1 mm × 1 mm × 100 nm anchored 5 km away: the walk's `f64`
 /// sum reads it NEGATIVE (−1.2e-12 m³) where it is exactly
 /// `1e-3 · 1e-3 · 1e-7 = +1e-13`, and reads its inside-out twin
-/// positive. Check 7, check 10's role read and the shell classification
-/// read the interval re-derivation, and give the exact answer both ways.
-/// (ε ≤ 1e-9: wider, the slab is thinner than the band.)
+/// positive. The volume's role read, where the role reader falls back to
+/// it, reads the interval re-derivation, and gives the exact answer both
+/// ways; check 7 and the shell classification agree. (ε ≤ 1e-9: wider,
+/// the slab is thinner than the band.)
 #[test]
 fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
     use crate::ShellRole::{Outer, Void};
@@ -3105,9 +3105,9 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
         "upright: check 7"
     );
     assert_eq!(
-        roles_of(&upright, tol),
-        (Outer, Outer),
-        "upright: the roles"
+        volume_role_of(&upright, tol),
+        Outer,
+        "upright: the volume's role"
     );
     let inverted = upright.revert();
     let solid = inverted.solids().next().expect("one solid").0;
@@ -3117,10 +3117,19 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
         "inside-out: check 7"
     );
     assert_eq!(
-        roles_of(&inverted, tol),
-        (Void, Void),
-        "inside-out: the roles"
+        volume_role_of(&inverted, tol),
+        Void,
+        "inside-out: the volume's role"
     );
+    // A solid's only shell is outer by arity, however it is wound: its
+    // orientation is check 7's.
+    for body in [&upright, &inverted] {
+        assert_eq!(
+            crate::classify_shells(body, tol).expect("the shell classifies")[0].role,
+            Outer,
+            "the classification reads a lone shell by arity"
+        );
+    }
     // Point containment's side at infinity reads the same sign: inside
     // and beside the slab, both ways round.
     use crate::boolean::SolidContainment::{In, Out};
@@ -3139,10 +3148,10 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
 
 /// **The census's void screen reads a shell's role as the rest of the
 /// crate does.** The far-anchored slab of the row above, whose `f64`
-/// sum reads it negative: a lane-free role read calls the upright slab
+/// sum reads it negative: a lane-free volume read calls the upright slab
 /// a `Void` (the premise, asserted), and a cross-solid gate holding no
-/// lane dropped it as one. Through the scalar's own lane the gate reads
-/// what the shell classification reads, both ways round.
+/// lane dropped it as one. The gate reads what the shell classification
+/// reads, both ways round: a lone shell is outer by arity.
 #[test]
 fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
     use crate::ShellRole::{Outer, Void};
@@ -3158,14 +3167,13 @@ fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
     let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
     let shell = upright.shells.iter().next().expect("one shell").0;
     assert_eq!(
-        crate::props::shell_role(&upright, shell, band, tol, None)
-            .expect("a lane-free read decides")
-            .0,
+        crate::props::shell_volume_role(&upright, shell, band, tol, None)
+            .expect("a lane-free read decides"),
         Void,
         "the premise: read with no lane, the upright slab's rounded sum calls it a cavity"
     );
     let inverted = upright.revert();
-    for (body, want) in [(&upright, Outer), (&inverted, Void)] {
+    for (body, want) in [(&upright, Outer), (&inverted, Outer)] {
         let classified = crate::classify_shells(body, tol).expect("the shell classifies")[0].role;
         let gate = crate::census::gate_role(body, shell, band, tol);
         assert_eq!(
@@ -3542,14 +3550,14 @@ fn far_thin_half_disc_reads(far: bool, tol: Tol) {
         "far {far}, upright: check 7"
     );
     assert_eq!(
-        roles_of(&upright, tol),
-        (Outer, Outer),
-        "far {far}, upright: the roles"
+        volume_role_of(&upright, tol),
+        Outer,
+        "far {far}, upright: the volume's role"
     );
     assert_eq!(
-        roles_of(&inverted, tol),
-        (Void, Void),
-        "far {far}, inside-out: the roles"
+        volume_role_of(&inverted, tol),
+        Void,
+        "far {far}, inside-out: the volume's role"
     );
 }
 

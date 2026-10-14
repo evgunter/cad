@@ -392,7 +392,7 @@ impl<T: Decide> SphereFaceRegion<T> {
             }
         }
         let (arc, theta) = crossings
-            .closest("bool_sphere_region_order", band, |diag, _| {
+            .closest("bool_sphere_region_order", band, |diag, _, _| {
                 RegionRefusal::Escalated(diag)
             })?
             // A great circle meeting no arc lies wholly on one side.
