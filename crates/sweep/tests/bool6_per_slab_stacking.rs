@@ -1,9 +1,9 @@
 //! **The per-slab stacking fold** (issue 368, ruled 2026-09-01).
 //!
 //! The loft's stacking statement is a fold over adjacent section
-//! pairs, each pair decided against its own base section's plane
-//! normal (`sweep::loft`'s `stacking_fold`, where the statement is
-//! made and stated). These rows pin what that admits, what it refuses,
+//! pairs, each pair's displacement decided against both its sections'
+//! plane normals (`sweep::loft`'s `stacking_fold`, where the statement
+//! is made and stated). These rows pin what that admits, what it refuses,
 //! and what it names when it refuses.
 //!
 //! The admitted family reaches past a half turn, and the ORACLE that
@@ -17,9 +17,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Mat3, Tol, Vec3};
+use geom::NurbsCurve3;
+use geom_core::spline::KnotVector;
+use geom_core::{Affine3, Mat3, Point3, Tol, Vec3};
 use sweep::test_support::{loft_prism_sections, stacked_at};
-use sweep::{LoftError, Lofted, loft_body};
+use sweep::{LoftError, Lofted, loft_body, sweep_body};
 
 use crate::common;
 use common::{band_midpoint, quad};
@@ -239,11 +241,7 @@ fn a_reversed_middle_slab_refuses_naming_its_pair() {
 /// The step is read off the RUN's band rather than written as a digit,
 /// because what the row pins is a band verdict — half of ε is
 /// coincident at every ε row, and a fixed digit would pin the verdict
-/// at one row and something else at the others. Exactly coincident
-/// sections cannot reach this door at all: the skin refuses them first
-/// as `SkinError::DegenerateSection` (it needs a chord step to
-/// parameterize at all), so the reachable degenerate slab is the
-/// sliver, which is what the arm's own docs call it.
+/// at one row and something else at the others.
 #[test]
 fn a_sliver_middle_slab_refuses_naming_its_pair() {
     let sliver = 0.5 * Tol::witness().eps();
@@ -342,4 +340,191 @@ fn the_arc_spine_helper_places_a_right_handed_tangent_frame() {
         step.dot(places[0].linear.c2) > 0.0,
         "the first slab advances along the first station's own normal"
     );
+}
+
+/// A placement at `origin` whose plane normal is `(0, −sin a, cos a)`:
+/// the identity frame turned by `a` about `x`, right-handed.
+fn turned_about_x(origin: Vec3<f64>, cos_a: f64) -> Affine3<f64> {
+    let sin_a = (1.0 - cos_a * cos_a).sqrt();
+    let linear = Mat3::from_cols(
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, cos_a, sin_a),
+        Vec3::new(0.0, -sin_a, cos_a),
+    );
+    Affine3::from_parts(linear, origin)
+}
+
+/// A placement at height `z` whose plane normal is `−z`.
+fn facing_down_at(z: f64) -> Affine3<f64> {
+    turned_about_x(Vec3::new(0.0, 0.0, z), -1.0)
+}
+
+/// **A top section facing down refuses, naming the far section.** The
+/// two-section loft's one slab steps `+z`, along section 0's normal,
+/// but section 1's plane faces `−z`: its ring winds against section
+/// 0's about the stack. The forward twin builds and tier 3 accepts
+/// it; the inverted one refuses at the door, so no body reaches
+/// `validate_geometric`.
+#[test]
+fn a_top_section_facing_down_refuses_naming_the_far_section() {
+    let tol = Tol::witness();
+    let sections = vec![loft_prism_sections()[0].clone(); 2];
+    let forward = loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0]), 1, tol)
+        .expect("the forward two-section loft builds");
+    assert_eq!(
+        topo::validate_geometric(&forward.body, tol),
+        Ok(()),
+        "the forward twin passes tier 3"
+    );
+    let places = [stacked_at(&[0.0])[0], facing_down_at(1.0)];
+    match loft_body::<f64>(&sections, &places, 1, tol) {
+        Err(e @ LoftError::FarSectionNotForward { slab }) => {
+            assert_eq!(slab, 0, "the loft's one slab is slab 0");
+            let text = e.to_string();
+            assert!(
+                text.contains("section 1's plane") && text.contains("author section 1"),
+                "the refusal names the far section and its recourse: {text}"
+            );
+        }
+        other => panic!("expected FarSectionNotForward naming slab 0, got {other:?}"),
+    }
+}
+
+/// **An interior section facing back refuses at its first slab's far
+/// check.** `z = 0, 1, 0.5` with normals `+z, −z, −z`: slab 1 steps
+/// `−z` along section 1's `−z` normal and section 2's, so its own
+/// decides are both `Positive`; only slab 0's far decide, section 1's
+/// normal against slab 0's `+z` step, sees the turn.
+#[test]
+fn an_interior_section_facing_back_refuses_at_slab_0s_far_check() {
+    let places = [
+        stacked_at(&[0.0])[0],
+        facing_down_at(1.0),
+        facing_down_at(0.5),
+    ];
+    match loft_body::<f64>(&loft_prism_sections(), &places, 2, Tol::witness()) {
+        Err(LoftError::FarSectionNotForward { slab }) => assert_eq!(
+            slab, 0,
+            "slab 0's far section (section 1) is where the stack turns"
+        ),
+        other => panic!("expected FarSectionNotForward naming slab 0, got {other:?}"),
+    }
+}
+
+/// **A far section edge-on to its slab refuses, and one inside the band
+/// escalates as the far half.** Section 1 is the square turned about `x` until its
+/// normal's component along the slab's unit `+z` step is the margin
+/// itself: half of ε is `Zero`, which refuses through the far arm (the
+/// sections are a unit apart, so this is no sliver), and the band's
+/// midpoint escalates carrying the slab and the predicate.
+#[test]
+fn a_far_section_edge_on_refuses_and_one_in_band_escalates() {
+    let tol = Tol::witness();
+    let sections = vec![loft_prism_sections()[0].clone(); 2];
+    let places = |margin: f64| {
+        [
+            stacked_at(&[0.0])[0],
+            turned_about_x(Vec3::new(0.0, 0.0, 1.0), margin),
+        ]
+    };
+    match loft_body::<f64>(&sections, &places(0.5 * tol.eps()), 1, tol) {
+        Err(LoftError::FarSectionNotForward { slab }) => assert_eq!(slab, 0, "slab 0"),
+        other => panic!("expected FarSectionNotForward for a Zero far margin, got {other:?}"),
+    }
+    match loft_body::<f64>(&sections, &places(band_midpoint(tol)), 1, tol) {
+        Err(LoftError::FarStackingEscalated { slab, source }) => {
+            assert_eq!(slab, 0, "the escalation carries slab 0");
+            assert_eq!(source.predicate, Some("loft_stacking"), "and the predicate");
+        }
+        other => panic!("expected FarStackingEscalated for an in-band far margin, got {other:?}"),
+    }
+}
+
+/// **The y-prism refuses here.** Section 0 is the unit square in
+/// `z = 0` facing `+z`; section 1 is a half-width-0.5 square centred at
+/// `(3, 0.5, 0.3)`, turned −60° about `y` so its normal is
+/// `(−0.87, 0, 0.5)`. The slab steps `(2.5, 0, 0.3)`: along section 0's
+/// normal, against section 1's. The body this lofts is embedded but
+/// inside out — its cross-section winds clockwise about the stack.
+/// Refusing it at the far decide is the stacking fold's deliberate
+/// behaviour until the loft door certifies embedding.
+#[test]
+fn the_inside_out_y_prism_refuses_at_the_far_check() {
+    let (s, c) = (-core::f64::consts::FRAC_PI_3).sin_cos();
+    let tilted = Affine3::from_parts(
+        Mat3::from_cols(
+            Vec3::new(c, 0.0, -s),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(s, 0.0, c),
+        ),
+        Vec3::new(3.0, 0.5, 0.3),
+    );
+    let sections = vec![
+        quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
+        quad([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]),
+    ];
+    let places = [stacked_at(&[0.0])[0], tilted];
+    match loft_body::<f64>(&sections, &places, 1, Tol::witness()) {
+        Err(LoftError::FarSectionNotForward { slab }) => assert_eq!(slab, 0, "slab 0"),
+        other => panic!("expected FarSectionNotForward naming slab 0, got {other:?}"),
+    }
+}
+
+/// **An embedded hood is refused by the far decide — the interim's
+/// disclosed cost.** A 10×10 square base in `z = 0` facing `+z`, and a
+/// 4×4 top centred at `(0, 0, 6)` turned 100° about `y`, so its normal
+/// `(0.98, 0, −0.17)` leans back across the slab's `+z` step. The body
+/// is embedded and correctly oriented (signed volume ≈ +227.5 at the
+/// merge base, tier 3 `Ok`); only the conservative far decide refuses
+/// it. It should BUILD once the loft door's embedding certificate
+/// retires the fold.
+#[test]
+fn an_embedded_hood_with_a_downturned_top_is_refused_by_the_far_decide() {
+    let top = Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::new(0.0, 1.0, 0.0),
+        100f64.to_radians(),
+    );
+    let top = Affine3::from_parts(top.linear, Vec3::new(0.0, 0.0, 6.0));
+    let sections = vec![
+        quad([(-5.0, -5.0), (5.0, -5.0), (5.0, 5.0), (-5.0, 5.0)]),
+        quad([(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)]),
+    ];
+    match loft_body::<f64>(&sections, &[stacked_at(&[0.0])[0], top], 1, Tol::witness()) {
+        Err(LoftError::FarSectionNotForward { slab: 0 }) => {}
+        other => panic!("expected the far decide's refusal at slab 0, got {other:?}"),
+    }
+}
+
+/// **An embedded oblique arc sweep is refused by the far decide — the
+/// interim's disclosed cost.** A 0.4 square, its plane tilted 70° about
+/// `y` off the path's start normal, swept at three stations along a
+/// 120° arc of radius 5. The body is embedded and correctly oriented
+/// (signed volume ≈ 0.553 at the merge base, tier 3 `Ok`); slab 0's far
+/// section leans back across the slab's chord, so the conservative far
+/// decide refuses it. It should BUILD once the loft door's embedding
+/// certificate retires the fold.
+#[test]
+fn an_embedded_oblique_arc_sweep_is_refused_by_the_far_decide() {
+    let (s120, c120) = 120f64.to_radians().sin_cos();
+    let path = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 5.0 * 60f64.to_radians().tan()),
+            Point3::new(5.0 - 5.0 * c120, 0.0, 5.0 * s120),
+        ],
+        vec![1.0, 0.5, 1.0],
+    )
+    .unwrap();
+    let start = Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::new(0.0, 1.0, 0.0),
+        70f64.to_radians(),
+    );
+    let section = quad([(-0.2, -0.2), (0.2, -0.2), (0.2, 0.2), (-0.2, 0.2)]);
+    match sweep_body::<f64>(&section, start, &path, 3, 2, Tol::witness()) {
+        Err(LoftError::FarSectionNotForward { slab: 0 }) => {}
+        other => panic!("expected the far decide's refusal at slab 0, got {other:?}"),
+    }
 }

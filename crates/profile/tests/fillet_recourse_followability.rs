@@ -142,8 +142,10 @@ fn carries_no_fillet_recourse(err: &PathError<f64>, what: &str) {
 
 /// **What an in-band fillet verdict reads like**: the site the door was
 /// resolving, the gate's own sentence, and never the shared coincidence
-/// recourse — the caller authored no joint here, so there is no
-/// coincidence for them to declare.
+/// recourse as its recourse — the caller authored no joint here, so the
+/// gate's sentence says what to change. The shared recourse is matched as
+/// it renders (`Recourse: move the geometry`): a gate's own sentence may
+/// end on the same words as its last arm.
 fn carries_its_own_recourse(err: &PathError<f64>, sentence: &str, what: &str) {
     let shown = err.to_string();
     assert!(
@@ -155,7 +157,7 @@ fn carries_its_own_recourse(err: &PathError<f64>, sentence: &str, what: &str) {
         "{what}: the caller must read the gate's own sentence.\n  got: {shown}"
     );
     assert!(
-        !shown.contains(geom_core::COINCIDENCE_RECOURSE),
+        !shown.contains(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
         "{what}: a fillet the caller asked for has no joint they declared.\n  got: {shown}"
     );
 }
@@ -199,7 +201,7 @@ fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
             },
             tol(),
         )
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// The same corner class with the STRAIGHT side short: its ray starts
@@ -218,7 +220,7 @@ fn straight_leg(start_x: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError
             tol(),
         )?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **Two unit lobes** whose crossing is a real corner. At a radius at
@@ -239,7 +241,7 @@ fn two_lobes(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         },
         tol(),
     )
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// **The mixed-winding arc × arc corner.** The legs turn opposite ways,
@@ -261,7 +263,7 @@ fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 /// **A short straight leg meeting a radius-2 circle at a real angle.**
@@ -289,7 +291,7 @@ fn short_leg_at_angle(a: f64, delta: f64, radius: f64) -> Result<ProfileLoop<f64
         .line_to(Point2::new(-3.0, -3.0), tol())?
         .line_to(Point2::new(-3.0, 3.0), tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **The lever lens.** Two carriers of radius `big`, mixed winding, so
@@ -319,7 +321,7 @@ fn lever_lens(big: f64, rho2: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     .line_to(Point2::new(-1.5 * big, 2.0 * big), tol())?
     .line_to(Point2::new(-1.5 * big, -1.5 * big), tol())?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// The conditioning gate's own threshold at the lens, computed from
@@ -353,7 +355,7 @@ fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathE
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 // ------------------------------------------------------------------ rows
@@ -387,15 +389,18 @@ fn every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one() {
         });
         let err = PathError::<f64>::Escalated {
             source: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::Value(-5.0 * tol().eps()),
+                margin: geom_core::MarginDiag::value(-5.0 * tol().eps()),
                 band: geom_core::Band::linear(tol()).expect("the run's band forms"),
                 predicate: Some(predicate),
+                terminal_sliver: false,
             },
         };
         carries_its_own_recourse(&err, sentence, predicate);
+        // The routed sentence names the gate in words; the predicate's
+        // own name is routing, carried on the typed refusal.
         assert!(
-            err.to_string().contains(predicate),
-            "the refusal names the gate that could not be classified: {err}"
+            !err.to_string().contains(predicate),
+            "the refusal names the gate in words, not by its routing name: {err}"
         );
     }
 }
@@ -851,7 +856,7 @@ fn far_bend(shift: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, Pat
         .angle(theta, tol())?
         .line(3.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// The turn at which the stored sagitta `r(1 − cos(θ/2))` crosses the
@@ -923,7 +928,7 @@ fn the_flattened_recourse_is_followed_by_a_larger_turn_and_a_larger_radius() {
             .line_to(Point2::new(4.0, 0.0), tol())
             .and_then(|p| p.line_to(anchor, tol()))
             .and_then(|p| p.line_to(Start, tol()))
-            .map(|c| c.loop_),
+            .map(|c| c.loop_.into_loop()),
         "dropping the fillet",
     );
 }
@@ -1020,7 +1025,7 @@ fn the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet() {
             .line_to(Point2::new(4.0, 0.0), tol())
             .and_then(|p| p.line_to(anchor, tol()))
             .and_then(|p| p.line_to(Start, tol()))
-            .map(|c| c.loop_),
+            .map(|c| c.loop_.into_loop()),
         "dropping the fillet settles it either way",
     );
 }

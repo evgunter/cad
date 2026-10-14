@@ -51,15 +51,15 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
-    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamName,
-    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload,
-    evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
+    ProfileLift, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -213,9 +213,9 @@ fn distributed_plate() -> ProfileDoc {
     const RADIUS: f64 = 1.25e-3;
     let spread = half();
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("half_spacing"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: SPACING / 2.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -223,24 +223,24 @@ fn distributed_plate() -> ProfileDoc {
                 lo: -0.05 * spread,
                 hi: 0.05 * spread,
             }),
-        },
+        }),
     });
     for n in ["hole_a_r", "hole_b_r"] {
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: name(n),
-            value: DocParam::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: RADIUS,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(Distribution::Normal {
                     sigma: 0.2 * spread,
                 }),
-            },
+            }),
         });
     }
     let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (-4.0e-3, -2.0e-3),
@@ -253,33 +253,39 @@ fn distributed_plate() -> ProfileDoc {
         ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
-        profile: plate_p,
+        profile: plate_p.into(),
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
-    let hs = Expr::param(name("half_spacing"), Dimension::Length);
+    let hs = Formula::named(name("half_spacing"), Dimension::Length);
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
-            centre: [Expr::neg(hs.clone()), len(0.0)],
-            radius: Expr::param(name("hole_a_r"), Dimension::Length),
+            centre: [
+                Formula::neg(hs.clone()).expect("a shallow negation"),
+                len(0.0),
+            ],
+            radius: Formula::named(name("hole_a_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));
     let hole_a = r.insert(Node::Extrude {
-        profile: hole_a_p,
+        profile: hole_a_p.into(),
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
     let hole_b_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [hs, len(0.0)],
-            radius: Expr::param(name("hole_b_r"), Dimension::Length),
+            radius: Formula::named(name("hole_b_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));
     let hole_b = r.insert(Node::Extrude {
-        profile: hole_b_p,
+        profile: hole_b_p.into(),
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
     let ev = evaluate::<f64>(
         &r.doc,
@@ -299,9 +305,9 @@ fn distributed_plate() -> ProfileDoc {
                 editor_core::EntityKind::Face,
             )),
             &[editor_core::GeomPred::SurfaceKind(
-                editor_core::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
+                editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
             )],
-            &r.doc.param_env::<f64>(),
+            &r.doc.var_env::<f64>(),
             Tol::witness(),
         )
         .expect("the hole wall is an exact atom");
@@ -309,41 +315,42 @@ fn distributed_plate() -> ProfileDoc {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of = |n: &str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let radius_of = |n: &'static str| Formula::named(name(n), Dimension::Length);
+    let web = Formula::sub(
+        r.len_of(measured.outputs[0]),
+        Formula::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
     )
     .expect("L - L");
-    let measure = r.insert(Node::measure(web, refs).expect("indices in range"));
+
     // A bound the run can DECIDE: a decade past the escalation
     // threshold below the nominal web, so the verdict is a plain
     // `Holds` rather than a band-coincident one. Row 1 is about the
     // verdict being taken and holding, not about the band.
     r.insert(Node::Assertion {
-        measure,
+        value: web,
         bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     r.doc
 }
 
 fn carries_assertion(doc: &ProfileDoc) -> bool {
-    doc.order()
+    doc.ids()
         .iter()
         .any(|&id| matches!(doc.node(id), Some(Node::Assertion { .. })))
 }
 
 fn assertions_of(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Assertion { .. })))
         .collect()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// The ε-scaled half-width every parametric fixture here uses, for the
@@ -380,18 +387,18 @@ fn band_placement() -> ProfileDoc {
 
 fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("place"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(distribution),
-        },
+        }),
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (0.0, 0.0),
@@ -412,39 +419,40 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(2.0),
+        side: ExtrudeSide::Along,
     });
-    let placed = r.insert(Node::Transform {
-        input: solid,
-        translation: [
-            Expr::param(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
-        ],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
-                ),
+    let placed = r.insert(Node::transform(
+        solid,
+        editor_core::Step::Rigid {
+            translation: [
+                Formula::named(name("place"), Dimension::Length),
+                len(0.0),
+                len(0.0),
             ],
-        )
-        .expect("both indices in range"),
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
+    let measured = r.measure(
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+            ),
+        ],
     );
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(0.3),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, measure)
 }
@@ -559,7 +567,7 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
             entry.name,
             budget.basis,
             mass.basis.word(),
-            mass.render()
+            mass.render(&entry.doc)
         );
         let unresolved = mass
             .unresolved
@@ -570,13 +578,13 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
             "{}: unresolved mass {unresolved} exceeds the recorded budget {}\n{}",
             entry.name,
             budget.unresolved,
-            mass.render()
+            mass.render(&entry.doc)
         );
         assert!(
             !verdict.certified().is_empty(),
             "{}: nothing certified, so no assertion was checked anywhere\n{}",
             entry.name,
-            mass.render()
+            mass.render(&entry.doc)
         );
 
         // Then the assertions, leaf by leaf.
@@ -737,8 +745,7 @@ fn accounting_text() -> String {
 /// so there is one home and a change to either reds this golden, which
 /// is exactly what a golden about someone else's fixture is for.
 fn planted_flip() -> ProfileDoc {
-    let eps = Tol::witness().eps();
-    crate::m10_3_driver_interval::slab(20.0 * eps, 40.0 * eps)
+    crate::m10_3_driver_interval::notch(-0.25, 0.3)
 }
 
 fn terminal_sliver() -> ProfileDoc {
@@ -757,7 +764,12 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
     let forced = analyzed_box(&band_placement(), &AnalysisPolicy::default());
     assert_eq!(MassBasis::of(&priced), MassBasis::Priced);
     match MassBasis::of(&forced) {
-        MassBasis::Forced { by } => assert_eq!(by, vec![name("place")]),
+        MassBasis::Forced { by } => {
+            assert_eq!(
+                by,
+                vec![band_placement().var_named("place").expect("declared")]
+            );
+        }
         other => panic!("a band parameter forces the basis: {other:?}"),
     }
     // And the RENDERING says so in words, which is what a consumer
@@ -766,9 +778,9 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
     // The band fixture is a `min_clearance` document (its measure is
     // the neck's), so it takes the numeric lane — see
     // [`drive_registered`].
-    let verdict =
-        drive_registered(&band_placement(), &analyzed, Tol::witness()).expect("the nominal builds");
-    let rendered = MassBudget::of(verdict.accounting(), &analyzed).render();
+    let band = band_placement();
+    let verdict = drive_registered(&band, &analyzed, Tol::witness()).expect("the nominal builds");
+    let rendered = MassBudget::of(verdict.accounting(), &analyzed).render(&band);
     assert!(
         rendered.contains("FORCED, not priced"),
         "the rendering must not let a forced mass read as a priced one: {rendered}"
@@ -858,7 +870,7 @@ fn plain_distance_doc() -> ProfileDoc {
     let mut r = Recorder::new();
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -866,23 +878,22 @@ fn plain_distance_doc() -> ProfileDoc {
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
-            ],
-        )
-        .expect("indices in range"),
+    let measured = r.measure(
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &[
+            SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
+            SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
+        ],
     );
+    let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(0.5),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     r.doc
 }

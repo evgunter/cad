@@ -13,16 +13,25 @@
 
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
+use editor_core::CapEnd;
 use editor_core::{
-    Alignment, AxisSense, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
-    EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
-    clusters, load, product, relative_freedom_components, save,
+    Alignment, AxisSense, ContactClass, DocEdit, DocumentId, EditError, EntityKind, Evaluation,
+    Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node, NodeErrorKind, NodeResult,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, groups, load, product,
+    relative_freedom_components, save,
 };
-use fixture::resolver::{PART_BODY, PartStore, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
+
+/// A one-metre lever, through the one door a lever is formed by.
+fn unit_arm() -> editor_core::mate::coset::Arm {
+    editor_core::mate::coset::Arm::of(0.0, 1.0).expect("a metre is in range")
+}
 
 /// `step`, with the minted id unwrapped — every insert in this suite
 /// mints one.
@@ -33,8 +42,8 @@ fn mint(doc: ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> (Profile
 
 // ---- Substrate ----
 
-/// A one-solid part: a unit square extruded 1 tall.
-fn part(label: &str) -> ProfileDoc {
+/// A one-solid part: a unit square extruded 1 tall, and its body.
+fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -43,66 +52,66 @@ fn part(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
-    );
-    doc
+    )
 }
 
 /// An assembly of `n` instances of one part, plus the store that
-/// resolves them.
-fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore) {
+/// resolves them and the part's body. Only the first carries an offset
+/// — the rest sit where their mates put them — so the first roots
+/// every group the rows' mates make, and a mate moves its other side
+/// onto it.
+fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore, RecipeNodeId) {
     let mut store = PartStore::default();
-    let doc_ref = store.insert(part(&format!("{label}-part")), Tol::witness());
+    let (doc_ref, body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
-    for _ in 0..n {
+    for i in 0..n {
         let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
         doc = next;
+        if i > 0 {
+            doc = step(
+                doc,
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: None,
+                    fresh: Vec::new(),
+                },
+            )
+            .0;
+        }
         ids.push(id);
     }
-    (doc, ids, store)
+    (crate::fixture::place_all(doc, &ids), ids, store, body)
 }
 
-fn in_part(instance: RecipeNodeId, part_node: RecipeNodeId) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: part_node,
-                path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
-            }
-            .into(),
-        }],
-    }
+fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference,
-    }
-}
-
+/// A rest mate between instances `a` and `b` of the part whose body is
+/// `body`, each head the body's start cap.
+#[allow(clippy::too_many_arguments)] // the mate's whole datum, and the body its heads name
 fn mate(
+    body: RecipeNodeId,
     a: RecipeNodeId,
     b: RecipeNodeId,
     primitive: MatePrimitive,
     sense: AxisSense,
-    fa: MateFrame,
-    fb: MateFrame,
+    fa: MateFrame<Formula>,
+    fb: MateFrame<Formula>,
     clocking: Option<f64>,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(in_part(a, PART_BODY)),
-        b: crate::fixture::head(in_part(b, PART_BODY)),
+        a: crate::fixture::head(in_part(a, body, CapEnd::Start)).into(),
+        b: crate::fixture::head(in_part(b, body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: fa,
@@ -126,7 +135,7 @@ fn near(a: Frame, b: Frame, tol: f64) -> bool {
         .all(|(x, y)| (x - y).abs() <= tol)
 }
 
-fn z_up() -> MateFrame {
+fn z_up() -> MateFrame<Formula> {
     frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
@@ -150,12 +159,13 @@ fn mate_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> editor_core::MateFaul
 /// closes it, which is exactly the combination A11 rule 1 lists as its
 /// own DETERMINED example.
 fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, PartStore, RecipeNodeId) {
-    let (doc, ids, store) = assembly("asm-r2a-row1", 2);
+    let (doc, ids, store, body) = assembly("asm-r2a-row1", 2);
     // Coaxial about the shared +z, clocked at zero: prismatic along z.
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
+                body,
                 ids[0],
                 ids[1],
                 MatePrimitive::Coaxial,
@@ -163,7 +173,8 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, PartStore, RecipeNodeId)
                 z_up(),
                 z_up(),
                 Some(0.0),
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     // The seating face: a's outward normal is +z at z = 1; b's own
@@ -174,7 +185,8 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, PartStore, RecipeNodeId)
     let (doc, rest) = mint(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
+                body,
                 ids[0],
                 ids[1],
                 MatePrimitive::PlanarRest { offset: -1.0 },
@@ -182,7 +194,8 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, PartStore, RecipeNodeId)
                 frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
                 frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
                 None,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     (doc, ids, store, rest)
@@ -192,12 +205,21 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, PartStore, RecipeNodeId)
 /// the shared axis. The maintenance rows want this shape because
 /// deleting the single mate is the split, and the document it splits
 /// FROM is one that solved.
-fn stacked_pair(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId, PartStore) {
-    let (doc, ids, store) = assembly(label, 2);
+fn stacked_pair(
+    label: &str,
+) -> (
+    ProfileDoc,
+    Vec<RecipeNodeId>,
+    RecipeNodeId,
+    PartStore,
+    RecipeNodeId,
+) {
+    let (doc, ids, store, body) = assembly(label, 2);
     let (doc, joint) = mint(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
+                body,
                 ids[0],
                 ids[1],
                 MatePrimitive::FrameCoincidence,
@@ -205,10 +227,11 @@ fn stacked_pair(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId, Pa
                 frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
                 z_up(),
                 None,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
-    (doc, ids, joint, store)
+    (doc, ids, joint, store, body)
 }
 
 #[test]
@@ -217,18 +240,15 @@ fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(ids[1]), None, "the pair solves");
-    assert_eq!(poses.gauge(ids[1]), Some(ids[0]), "the gauge is instance 0");
+    assert_eq!(poses.root(ids[1]), Some(ids[0]), "the root is instance 0");
     let relative = poses.relative(ids[1]).expect("a solved pose");
     assert!(
         relative.bit_eq(&Frame::translation([0.0, 0.0, 2.0])),
         "the child sits at the seating height plus the standoff: {relative:?}"
     );
     assert!(
-        poses
-            .relative(ids[0])
-            .expect("the gauge")
-            .is_identity_bits(),
-        "the gauge's own relative pose is the bit-exact identity"
+        poses.relative(ids[0]).expect("the root").is_identity_bits(),
+        "the root's own relative pose is the bit-exact identity"
     );
 
     let ev = run(&doc, &o);
@@ -280,13 +300,14 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
 
 #[test]
 fn row2_a_v_block_refuses_under_naming_prismatic_and_its_direction() {
-    let (doc, ids, store) = assembly("asm-r2a-row2", 2);
+    let (doc, ids, store, body) = assembly("asm-r2a-row2", 2);
     let mut doc = doc;
     for axis in [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]] {
         let (next, _) = step(
             doc,
             DocEdit::InsertNode {
-                node: mate(
+                node: Box::new(mate(
+                    body,
                     ids[0],
                     ids[1],
                     MatePrimitive::PlanarRest { offset: 0.0 },
@@ -294,7 +315,8 @@ fn row2_a_v_block_refuses_under_naming_prismatic_and_its_direction() {
                     frame([0.0, 0.0, 0.0], axis, [0.0, 0.0, 1.0]),
                     frame([0.0, 0.0, 0.0], axis, [0.0, 0.0, 1.0]),
                     None,
-                ),
+                )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -330,14 +352,15 @@ fn row2_a_v_block_refuses_under_naming_prismatic_and_its_direction() {
 
 #[test]
 fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
-    let (doc, ids, store) = assembly("asm-r2a-row3", 2);
+    let (doc, ids, store, body) = assembly("asm-r2a-row3", 2);
     let mut doc = doc;
     let mut mates = Vec::new();
     for height in [0.0, 1.0] {
         let (next, id) = mint(
             doc,
             DocEdit::InsertNode {
-                node: mate(
+                node: Box::new(mate(
+                    body,
                     ids[0],
                     ids[1],
                     MatePrimitive::PlanarRest { offset: 0.0 },
@@ -345,7 +368,8 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
                     frame([0.0, 0.0, height], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
                     frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
                     None,
-                ),
+                )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -376,84 +400,97 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
         "the measured clash IS the authored gap mismatch: {metres}"
     );
     let message = fault.to_string();
-    assert!(message.contains(predicate), "{message}");
+    assert!(
+        message.contains("the translation leaves the shared plane") && !message.contains(predicate),
+        "the sentence says in words what the predicate found: {message}"
+    );
     assert!(message.contains("clash"), "{message}");
 }
 
-// ---- Row 4: the cluster-record keying migration ----
+// ---- Row 4: the mate door, and no edit records a frame (A11 (2)) ----
 
+/// Row 4a — a mate insert that joins two groups places its first
+/// operand's group on its second's: it clears the root offset of `a`'s
+/// group (the mate door), in the same logged edit, and replays without
+/// solving: the merged group keeps one root.
 #[test]
-fn row4a_a_mate_insert_joins_two_clusters_consuming_the_absorbed_frame() {
-    let (doc, ids, _) = assembly("asm-r2a-row4a", 2);
+fn row4a_a_mate_insert_joins_two_groups_clearing_as_root_offset() {
+    let (doc, ids, _, body) = assembly("asm-r2a-row4a", 2);
+    let a_offset = editor_core::Placement::literal(&Frame::translation([1.0, 0.0, 0.0]));
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(a_offset.clone()),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([0.0, 5.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                0.0, 5.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
-    assert_eq!(clusters(&doc).len(), 2, "two singleton clusters");
+    assert_eq!(groups(&doc).len(), 2, "two singleton groups");
     let before = doc.clone();
-
-    let applied = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: mate(
-                ids[0],
-                ids[1],
-                MatePrimitive::Coaxial,
-                AxisSense::Aligned,
-                z_up(),
-                z_up(),
-                Some(0.0),
-            ),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the mate inserts");
-    assert_eq!(clusters(&applied.doc).len(), 1, "one cluster now");
+    let insert = DocEdit::InsertNode {
+        node: Box::new(mate(
+            body,
+            ids[0],
+            ids[1],
+            MatePrimitive::Coaxial,
+            AxisSense::Aligned,
+            z_up(),
+            z_up(),
+            Some(0.0),
+        )),
+        fresh: Vec::new(),
+    };
+    let applied = apply(&doc, &insert, Tol::witness(), &editor_core::RefusingReach)
+        .expect("the mate inserts");
+    assert_eq!(groups(&applied.doc).len(), 1, "one group now");
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::Cluster(ClusterMaintenance::Join {
-            survived: ids[0],
-            absorbed: ids[1],
-            absorbed_frame: Some(Frame::translation([0.0, 5.0, 0.0])),
-        })],
-        "the join names the survivor and CONSUMES the absorbed frame"
+        vec![Maintenance::OffsetCleared {
+            instance: doc.spoken(ids[0]),
+            offset: fixture::offset_of(&doc, ids[0]).expect("the moved root holds an offset"),
+        }],
+        "the door clears the moved group's root offset and says so"
     );
+    assert_eq!(fixture::offset_of(&applied.doc, ids[0]), None);
     assert_eq!(
-        applied.doc.placements().len(),
-        1,
-        "one cluster, one recorded frame"
+        fixture::offset_of(&applied.doc, ids[1]),
+        fixture::offset_of(&doc, ids[1]),
+        "the surviving root's offset is unchanged"
     );
+    let replayed = editor_core::apply_replayed(&doc, &insert, Tol::witness())
+        .expect("the logged edit replays with no reach");
     assert!(
-        applied.doc.placement(ids[1]).bit_eq(&doc.placement(ids[0])),
-        "the surviving gauge's frame is unchanged, bit for bit"
+        replayed.doc.bit_eq(&applied.doc),
+        "and replays to the same document"
     );
+    assert_eq!(replayed.maintenance, applied.maintenance);
     assert!(before.bit_eq(&doc), "undo is the prior value, held exactly");
 }
 
+/// Row 4b — deleting the placing mate is not refused, records no
+/// frame, and leaves the orphan's group UNPLACED: it has no offset, so
+/// it lives in its own space and has no world pose.
 #[test]
-fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
-    let (doc, ids, joint, store) = stacked_pair("asm-r2a-row4b");
-    // Deleting the mate SPLITS the cluster: the orphan's frame is
-    // minted from the solved pose, so the edit levers through the
-    // store's own reach.
-    let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+fn row4b_a_mate_delete_is_not_refused_and_unplaces_the_orphan() {
+    let (doc, ids, joint, store, _) = stacked_pair("asm-r2a-row4b");
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([0.0, 0.0, 4.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                0.0, 0.0, 4.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let before = doc.clone();
@@ -461,134 +498,143 @@ fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
         &doc,
         &DocEdit::DeleteNode { id: joint },
         Tol::witness(),
-        &reach,
+        &editor_core::RefusingReach,
     )
     .expect("the mate deletes");
-    assert_eq!(clusters(&applied.doc).len(), 2, "the cluster split");
-    assert_eq!(
-        applied.maintenance,
-        vec![Maintenance::Cluster(ClusterMaintenance::Split {
-            from: ids[0],
-            to: ids[1],
-            frame: Some(Frame::translation([0.0, 0.0, 5.0])),
-        })],
-        "the orphan's frame is RE-MINTED from its solved pose, so its \
-         world pose is unchanged"
-    );
+    assert_eq!(groups(&applied.doc).len(), 2, "the group split");
     assert!(
-        applied
-            .doc
-            .placement(ids[0])
+        crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
+        "no frame is recorded: {:?}",
+        applied.maintenance
+    );
+    let poses = solve(&applied.doc, &with_resolver(store), Tol::witness());
+    assert_eq!(
+        poses.unplaced(ids[1]),
+        Some(editor_core::Unplaced::NoOffset)
+    );
+    assert!(matches!(
+        poses.placement(&applied.doc, ids[1]),
+        Err(editor_core::PoseRefusal::Unplaced { instance, .. }) if instance == ids[1]
+    ));
+    assert!(
+        poses
+            .placement(&applied.doc, ids[0])
+            .expect("the surviving root is placed")
             .bit_eq(&Frame::translation([0.0, 0.0, 4.0])),
-        "the surviving cluster keeps its frame verbatim"
+        "the surviving group keeps its offset verbatim"
     );
     assert!(before.bit_eq(&doc), "undo is the prior value, held exactly");
 }
 
+/// Row 4c — deleting the root is not refused either: DM7 reports the
+/// world placement that read it and the mate head it stranded, and the
+/// survivor's group, which no member places, is unplaced.
 #[test]
-fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
-    let (doc, ids, _, store) = stacked_pair("asm-r2a-row4c");
-    let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([0.0, 0.0, 4.0]),
-        },
-    );
+fn row4c_deleting_the_root_unplaces_the_survivor() {
+    let (doc, ids, _, store, _body) = stacked_pair("asm-r2a-row4c");
     let before = doc.clone();
     let applied = apply(
         &doc,
         &DocEdit::DeleteNode { id: ids[0] },
         Tol::witness(),
-        &reach,
+        &editor_core::RefusingReach,
     )
-    .expect("the gauge deletes");
-    // The mate names the dead instance with an instance-qualified
-    // head, which is a payload NAME and not a DAG edge: the delete
-    // stands and DM7's report rides beside the registry act, read at
-    // the door before the registry reconciles.
+    .expect("the root deletes");
     let mate_node = applied
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(applied.doc.node(id), Some(Node::Mate { .. })))
         .expect("the mate survives its member");
-    assert_eq!(
-        applied.maintenance,
-        vec![
-            Maintenance::Strand {
-                node: mate_node,
-                name: in_part(ids[0], PART_BODY),
-            },
-            Maintenance::Cluster(ClusterMaintenance::GaugeRewrite {
-                from: ids[0],
-                to: ids[1],
-                frame: Some(Frame::translation([0.0, 0.0, 5.0])),
-            }),
-        ],
-        "the key moves to the next representative, composed with the \
-         already-solved relative pose, so the survivor's world pose \
-         does not move"
+    // The root's world placement is the first, `assembly` placing the
+    // instances in order.
+    let placement = doc.placements()[0];
+    let rows = crate::fixture::without_anonymous(&applied.maintenance);
+    assert!(
+        matches!(rows.last(), Some(Maintenance::StrandedSelection { .. })),
+        "the mate's selection of the root's face strands: {rows:?}"
     );
     assert_eq!(
-        applied.doc.placements().keys().copied().collect::<Vec<_>>(),
-        vec![ids[1]]
+        rows[..rows.len() - 1].to_vec(),
+        vec![
+            Maintenance::StrandedRead {
+                node: doc.spoken(placement),
+                slot: editor_core::OperandSlot::Body,
+                var: doc.spoken_var(doc.output(ids[0], 0).expect("the root's body")),
+            },
+            Maintenance::StrandedRead {
+                node: doc.spoken(mate_node),
+                slot: editor_core::OperandSlot::Side(editor_core::MateSide::A),
+                var: doc.spoken_var(doc.output(ids[0], 0).expect("the root's body")),
+            }
+        ],
+        "the strands are the whole report: no frame is recorded"
+    );
+    let poses = solve(&applied.doc, &with_resolver(store), Tol::witness());
+    assert_eq!(
+        poses.unplaced(ids[1]),
+        Some(editor_core::Unplaced::NoOffset)
     );
     assert!(before.bit_eq(&doc), "undo is the prior value, held exactly");
 }
 
+/// Row 4d — a lone instance's world pose is its offset's frame, bit for
+/// bit (A11 (5)), and a mate-less document round-trips identically.
 #[test]
 fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
-    let (doc, ids, _) = assembly("asm-r2a-row4d", 3);
+    let (doc, ids, store, _) = assembly("asm-r2a-row4d", 3);
+    let placed =
+        Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.25, [2.0, 3.0, 0.0], fixture::band())
+            .expect("a literal axis has a definite direction");
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[2],
-            frame: Frame::rotate_then_translate(
-                [0.0, 0.0, 1.0],
-                0.25,
-                [2.0, 3.0, 0.0],
-                fixture::band(),
-            )
-            .expect("a literal axis has a definite direction"),
+        DocEdit::SetOffset {
+            instance: ids[2],
+            offset: Some(editor_core::Placement::literal(&placed)),
+            fresh: Vec::new(),
         },
     );
-    assert_eq!(
-        doc.placements().keys().copied().collect::<Vec<_>>(),
-        vec![ids[2]],
-        "a singleton cluster's gauge IS its instance, so the key is \
-         exactly the pre-mate one"
+    let poses = solve(&doc, &with_resolver(store), Tol::witness());
+    assert!(
+        poses
+            .placement(&doc, ids[2])
+            .expect("placed")
+            .bit_eq(&placed),
+        "a lone instance returns its offset's frame bit for bit"
+    );
+    assert!(
+        poses
+            .placement(&doc, ids[0])
+            .expect("placed")
+            .is_identity_bits(),
+        "an instance at the empty offset on the world sits at the identity"
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the round trip is bit-exact");
-    // The header necessarily moved (the `Node::Mate` arm took a schema
-    // version), so byte-identity is asserted BELOW it — everything the
-    // cluster keying could have touched.
     let body = |t: &str| t.split_once('\n').expect("a header").1.to_string();
     assert_eq!(
         body(&text),
         body(&save(&back, &[], Tol::witness()).expect("saves")),
-        "every byte below the header survives the keying migration"
+        "every byte below the header survives the round trip"
     );
 }
 
-// ---- Row 4e/4f: the cut is a union of WHOLE clusters (ASM-4 rider ii) ----
+// ---- Row 4e/4f: the cut is a union of WHOLE groups (ASM-4 rider ii) ----
 
-/// Two clusters of two: `{i0,i1}` and `{i2,i3}`, each joined by one
-/// mate, each carrying a recorded frame on its gauge.
-fn two_clusters() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore) {
-    let (doc, ids, store) = assembly("asm-r2a-clusters", 4);
+/// Two groups of two: `{i0,i1}` and `{i2,i3}`, each joined by one
+/// mate, each carrying a recorded frame on its root.
+fn two_groups() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore) {
+    let (doc, ids, store, body) = assembly("asm-r2a-clusters", 4);
     let mut doc = doc;
     let mut mates = Vec::new();
     for (a, b) in [(0, 1), (2, 3)] {
         let (next, m) = mint(
             doc,
             DocEdit::InsertNode {
-                node: mate(
+                node: Box::new(mate(
+                    body,
                     ids[a],
                     ids[b],
                     MatePrimitive::FrameCoincidence,
@@ -596,7 +642,8 @@ fn two_clusters() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStor
                     frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
                     z_up(),
                     None,
-                ),
+                )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -604,99 +651,107 @@ fn two_clusters() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStor
     }
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([3.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                3.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[2],
-            frame: Frame::translation([7.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[2],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                7.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     (doc, ids, mates, store)
 }
 
-/// Row 4e — a cut of ONE WHOLE cluster hoists its frame onto the
-/// remainder instance and leaves the part unplaced. This is ASM-4's
-/// D-2 rider (ii) doing its job at a cluster the pre-mate predicate
-/// could not even spell: two instantiate nodes, one cluster.
+/// Row 4e — a cut of ONE WHOLE placed group, with the world placements
+/// of what it moves, moves as selected (A4): the part's root keeps its
+/// offset, and the remainder instance sits at the
+/// empty chain.
 #[test]
-fn row4e_a_whole_cluster_cut_hoists_the_cluster_frame() {
+fn row4e_a_whole_group_cut_moves_as_selected() {
     use std::collections::BTreeSet;
-    let (doc, ids, mates, store) = two_clusters();
+    let (doc, ids, mates, store) = two_groups();
     let o = with_resolver(store);
     let cut = BTreeSet::from([ids[0], ids[1], mates[0]]);
-    let out = editor_core::split(
+    let out = fixture::split_world(
         &doc,
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4e"),
         Tol::witness(),
         o.resolver.as_ref(),
     )
-    .expect("a whole-cluster cut splits");
-    assert!(
-        out.part.placements().is_empty(),
-        "the part holds the cluster UNPLACED — its world pose belongs \
-         to the assembly"
+    .expect("a whole-group cut splits");
+    assert_eq!(
+        fixture::offset_of(&out.part, out.node_map[&ids[0]]),
+        Some(editor_core::Placement::literal(&Frame::translation([
+            3.0, 0.0, 0.0
+        ]))),
+        "the part's root keeps its offset"
     );
     let instance = *out
         .remainder
-        .order()
+        .ids()
         .iter()
-        .find(|id| doc.node(**id).is_none())
+        .find(|id| {
+            doc.node(**id).is_none()
+                && matches!(out.remainder.node(**id), Some(Node::InstantiatePart { .. }))
+        })
         .expect("the remainder gained an instance");
-    assert!(
-        out.remainder
-            .placement(instance)
-            .bit_eq(&Frame::translation([3.0, 0.0, 0.0])),
-        "the cluster's frame HOISTED onto the remainder instance"
+    assert_eq!(
+        fixture::offset_of(&out.remainder, instance),
+        Some(editor_core::Placement::IDENTITY),
+        "the remainder instance sits at the empty chain"
     );
-    assert!(
-        out.remainder
-            .placement(ids[2])
-            .bit_eq(&Frame::translation([7.0, 0.0, 0.0])),
-        "the untouched cluster keeps its own frame"
+    assert_eq!(
+        fixture::offset_of(&out.remainder, ids[2]),
+        Some(editor_core::Placement::literal(&Frame::translation([
+            7.0, 0.0, 0.0
+        ]))),
+        "the untouched group keeps its own offset"
     );
 }
 
-/// Row 4f — a cut that TEARS a cluster refuses typed, naming the
-/// cluster and the instance on the far side (review MAJOR-2).
+/// Row 4f — a cut that TEARS a group refuses typed, naming the
+/// group and the instance on the far side (review MAJOR-2).
 ///
-/// A11 puts the frame on the cluster, so a torn cluster has one frame
-/// and two homes. Before this refusal landed, such a cut passed the
-/// hoist's cluster count (the torn cluster was FILTERED OUT of it, so
-/// a torn cluster looked like an absent one) and the torn frame —
-/// `[7,0,0]` here — silently vanished.
+/// A11 puts the frame on the group, so a torn group has one frame
+/// and two homes.
 #[test]
-fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
+fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
     use std::collections::BTreeSet;
-    let (doc, ids, mates, store) = two_clusters();
+    let (doc, ids, mates, store) = two_groups();
     let o = with_resolver(store);
-    // One whole cluster PLUS one instance torn out of the other.
+    // One whole group PLUS one instance torn out of the other.
     let cut = BTreeSet::from([ids[0], ids[1], mates[0], ids[2]]);
-    match editor_core::split(
+    match fixture::split_world(
         &doc,
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4f"),
         Tol::witness(),
         o.resolver.as_ref(),
     ) {
-        Err(editor_core::SplitError::TornCluster {
-            gauge,
+        Err(editor_core::SplitError::TornGroup {
+            root,
             instance,
-            gauge_is_cut,
+            root_is_cut,
         }) => {
-            assert_eq!(gauge, ids[2], "the torn cluster's gauge is named");
-            assert_eq!(instance, ids[3], "so is the member left behind");
-            assert!(gauge_is_cut, "and which side each is on");
+            assert_eq!(root, doc.spoken(ids[2]), "the torn group's root is named");
+            assert_eq!(instance, doc.spoken(ids[3]), "so is the member left behind");
+            assert!(root_is_cut, "and which side each is on");
         }
-        other => panic!("expected TornCluster, got {other:?}"),
+        other => panic!("expected TornGroup, got {other:?}"),
     }
-    // The message names the cluster, both sides, and the repair.
-    let message = editor_core::split(
+    // The message names the group, both sides, and the repair.
+    let message = fixture::split_world(
         &doc,
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4f2"),
@@ -705,27 +760,41 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
     )
     .expect_err("refuses")
     .to_string();
-    assert!(message.contains("tears the placement cluster"), "{message}");
+    assert!(message.contains("tears the placement group"), "{message}");
     assert!(message.contains("widen the cut"), "{message}");
+    assert!(
+        message.contains(&format!(
+            "rooted at {}. The root is cut and its member {} is kept",
+            doc.spoken(ids[2]),
+            doc.spoken(ids[3])
+        )),
+        "both ends are spoken, the root's side and the member's said: {message}"
+    );
+    for id in [ids[2], ids[3]] {
+        assert!(
+            !message.contains(&id.0.to_string()),
+            "{id:?} in decimal: {message}"
+        );
+    }
     // The tear is refused in the OTHER direction too: keeping the
-    // gauge and cutting the member is the same fault.
+    // root and cutting the member is the same fault.
     let other_way = BTreeSet::from([ids[0], ids[1], mates[0], ids[3]]);
-    match editor_core::split(
+    match fixture::split_world(
         &doc,
         &other_way,
         editor_core::DocumentId::derive("asm-r2a-4f3"),
         Tol::witness(),
         o.resolver.as_ref(),
     ) {
-        Err(editor_core::SplitError::TornCluster {
-            gauge,
+        Err(editor_core::SplitError::TornGroup {
+            root,
             instance,
-            gauge_is_cut,
+            root_is_cut,
         }) => {
-            assert_eq!((gauge, instance), (ids[2], ids[3]));
-            assert!(!gauge_is_cut);
+            assert_eq!((root, instance), (doc.spoken(ids[2]), doc.spoken(ids[3])));
+            assert!(!root_is_cut);
         }
-        other => panic!("expected TornCluster, got {other:?}"),
+        other => panic!("expected TornGroup, got {other:?}"),
     }
 }
 
@@ -753,8 +822,9 @@ fn row5_the_closure_set_is_closed_under_intersection() {
         point: p,
         direction: d,
     };
-    let meet =
-        |a, b| editor_core::mate::coset::intersect_subgroups(a, b, band, 1.0).expect("decided");
+    let meet = |a, b| {
+        editor_core::mate::coset::intersect_subgroups(a, b, band, unit_arm()).expect("decided")
+    };
     // The universal rows: SE(3) is the identity, empty absorbs,
     // trivial is the zero.
     for g in [
@@ -839,12 +909,14 @@ fn row5_the_closure_set_is_closed_under_intersection() {
 /// A pin: a coaxial mate whose two axes are authored at `a_at` on the
 /// A side and `b_at` on the B side, both along +z.
 fn pin(
+    body: RecipeNodeId,
     a: RecipeNodeId,
     b: RecipeNodeId,
     a_at: [f64; 3],
     b_at: [f64; 3],
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     mate(
+        body,
         a,
         b,
         MatePrimitive::Coaxial,
@@ -863,18 +935,20 @@ fn pin(
 /// witness of the intersection.
 #[test]
 fn row5b_two_pins_clocked_apart_but_invariant_matched_fold_to_prismatic() {
-    let (doc, ids, store) = assembly("asm-r2a-row5b", 2);
+    let (doc, ids, store, body) = assembly("asm-r2a-row5b", 2);
     let (doc, _) = mint(
         doc,
         DocEdit::InsertNode {
-            node: pin(ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+            node: Box::new(pin(body, ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     // A's second pin sits at +x; B's at +y — same radius, quarter turn.
     let (doc, second) = mint(
         doc,
         DocEdit::InsertNode {
-            node: pin(ids[0], ids[1], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            node: Box::new(pin(body, ids[0], ids[1], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let o = with_resolver(store);
@@ -919,7 +993,7 @@ fn row5b_the_folded_representative_is_the_solved_clocking() {
         },
         representative: Affine3::from_parts(Mat3::identity(), Vec3::new(1.0, -1.0, 0.0)),
     };
-    let out = intersect(held, added, band, 1.0).expect("the pair is assemblable");
+    let out = intersect(held, added, band, unit_arm()).expect("the pair is assemblable");
     assert_eq!(out.subgroup.name(), "prismatic");
     let turned = out
         .representative
@@ -935,17 +1009,19 @@ fn row5b_the_folded_representative_is_the_solved_clocking() {
 /// the radius difference, 1.
 #[test]
 fn row5b_mismatched_inter_axis_invariants_refuse_contradictory() {
-    let (doc, ids, store) = assembly("asm-r2a-row5b-mismatch", 2);
+    let (doc, ids, store, body) = assembly("asm-r2a-row5b-mismatch", 2);
     let (doc, first) = mint(
         doc,
         DocEdit::InsertNode {
-            node: pin(ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+            node: Box::new(pin(body, ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let (doc, second) = mint(
         doc,
         DocEdit::InsertNode {
-            node: pin(ids[0], ids[1], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]),
+            node: Box::new(pin(body, ids[0], ids[1], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let o = with_resolver(store);
@@ -977,11 +1053,12 @@ fn row5b_mismatched_inter_axis_invariants_refuse_contradictory() {
 /// seating height.
 #[test]
 fn row5b_a_rest_and_two_pins_determine_the_plate() {
-    let (doc, ids, store) = assembly("asm-r2a-row5b-plate", 2);
+    let (doc, ids, store, body) = assembly("asm-r2a-row5b-plate", 2);
     let (doc, _) = mint(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
+                body,
                 ids[0],
                 ids[1],
                 MatePrimitive::PlanarRest { offset: -1.0 },
@@ -989,19 +1066,22 @@ fn row5b_a_rest_and_two_pins_determine_the_plate() {
                 frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
                 frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
                 None,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = mint(
         doc,
         DocEdit::InsertNode {
-            node: pin(ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+            node: Box::new(pin(body, ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = mint(
         doc,
         DocEdit::InsertNode {
-            node: pin(ids[0], ids[1], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+            node: Box::new(pin(body, ids[0], ids[1], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let o = with_resolver(store);
@@ -1029,13 +1109,14 @@ fn row5b_a_rest_and_two_pins_determine_the_plate() {
 
 #[test]
 fn row6a_mated_instances_share_an_a9_component() {
-    let (doc, ids, _) = assembly("asm-r2a-row6a", 2);
+    let (doc, ids, _, body) = assembly("asm-r2a-row6a", 2);
     let apart = relative_freedom_components(&doc);
     assert_eq!(apart.len(), 2, "unmated instances are relatively free");
     let (doc, mate_id) = mint(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
+                body,
                 ids[0],
                 ids[1],
                 MatePrimitive::Coaxial,
@@ -1043,29 +1124,32 @@ fn row6a_mated_instances_share_an_a9_component() {
                 z_up(),
                 z_up(),
                 Some(0.0),
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let together = relative_freedom_components(&doc);
     assert_eq!(together.len(), 1, "the mate COUPLES the components");
     assert!(together[0].contains(&mate_id));
     assert_eq!(
-        editor_core::reading_edges(&doc),
+        crate::fixture::mate_members(&doc),
         vec![(mate_id, ids[0]), (mate_id, ids[1])],
-        "the reading edges are recomputed from the name heads"
+        "each side lands on its instance"
     );
 }
 
 #[test]
-fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
-    let (doc, ids, store) = assembly("asm-r2a-row6b", 2);
+fn row6b_a_mate_insert_and_delete_place_nothing() {
+    let (doc, ids, store, body) = assembly("asm-r2a-row6b", 2);
     let o = with_resolver(store);
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    assert_eq!(doc.roots(), &ids[..], "both instances are roots");
+    let placed = doc.placements();
+    assert_eq!(placed.len(), 2, "both instances are placed");
     let (doc, mate_id) = mint(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
+                body,
                 ids[0],
                 ids[1],
                 MatePrimitive::Coaxial,
@@ -1073,33 +1157,24 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
                 z_up(),
                 z_up(),
                 Some(0.0),
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
-    assert_eq!(
-        doc.roots(),
-        &[ids[0], ids[1], mate_id][..],
-        "no tip transfer: the mate APPENDS as an ordinary non-body root"
-    );
-    // A lone coaxial mate leaves the pair UNDER-determined, so the
-    // prior solve places the second instance nowhere — and deleting
-    // the mate is the recourse that refusal names, so the edit door
-    // takes it: the orphan keeps the cluster's frame (there is no
-    // solved pose to preserve) rather than the delete refusing.
+    assert_eq!(doc.placements(), placed, "a mate places nothing (A10)");
+    // A lone coaxial mate leaves the pair UNDER-determined; deleting
+    // it is the recourse that refusal names, and no edit records a
+    // frame, so the door takes it and reports nothing.
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate_id }, Tol::witness(), &reach)
         .expect("deleting an under-determined mate is its recourse");
-    assert_eq!(
-        applied.cluster_rows(),
-        vec![ClusterMaintenance::Split {
-            from: ids[0],
-            to: ids[1],
-            frame: None,
-        }],
-        "the orphan takes the cluster's (absent) frame"
+    assert!(
+        crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
+        "{:?}",
+        applied.maintenance
     );
     let doc = applied.doc;
-    assert_eq!(doc.roots(), &ids[..], "and leaves them as it found them");
+    assert_eq!(doc.placements(), placed, "and leaves them as it found them");
 }
 
 #[test]
@@ -1107,13 +1182,12 @@ fn row6c_the_gather_ignores_the_mate_root() {
     let (doc, ids, store, _) = determined_pair();
     let ev = run(&doc, &with_resolver(store));
     let mates: Vec<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
         .collect();
     for &m in &mates {
-        assert!(doc.roots().contains(&m), "a mate IS listed as a root");
         assert!(matches!(
             ev.result(m),
             Some(NodeResult::Ok(v)) if matches!(v.payload, editor_core::ValuePayload::Mate(_))
@@ -1132,11 +1206,12 @@ fn row6c_the_gather_ignores_the_mate_root() {
 
 #[test]
 fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
-    let (doc, ids, store) = assembly("asm-r2a-row6d", 2);
+    let (doc, ids, store, body) = assembly("asm-r2a-row6d", 2);
     let (doc, mate_id) = mint(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
+                body,
                 ids[0],
                 ids[1],
                 MatePrimitive::Coaxial,
@@ -1144,12 +1219,13 @@ fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
                 z_up(),
                 z_up(),
                 Some(0.0),
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
     assert_eq!(
-        editor_core::reading_edges(&doc),
+        crate::fixture::mate_members(&doc),
         vec![(mate_id, ids[0])],
         "the stranded head contributes NO edge (N5)"
     );
@@ -1158,15 +1234,21 @@ fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
         .fault(mate_id)
         .expect("the solve refuses")
         .clone();
-    let editor_core::MateFault::DanglingHead { head, .. } = &fault else {
-        panic!("expected DanglingHead, got {fault:?}");
-    };
-    assert_eq!(*head, ids[1]);
-    assert!(fault.to_string().contains("rebind"), "{fault}");
+    assert!(
+        matches!(
+            &fault,
+            editor_core::MateFault::SideUnresolved {
+                side: editor_core::MateSide::B,
+                ..
+            }
+        ),
+        "expected the stranded side, got {fault:?}"
+    );
+    assert!(fault.to_string().contains("re-author the side"), "{fault}");
     let ev = run(&doc, &o);
     assert!(matches!(
-        mate_fault(&ev, mate_id),
-        editor_core::MateFault::DanglingHead { .. }
+        ev.node_error(mate_id).map(|e| &e.kind),
+        Some(NodeErrorKind::UnresolvedRead { .. })
     ));
 }
 
@@ -1176,7 +1258,7 @@ fn row6e_a_non_tree_mate_declares_rather_than_determining() {
     let o = with_resolver(store);
     let roles = solve(&doc, &o, Tol::witness());
     let mates: Vec<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
@@ -1192,7 +1274,7 @@ fn row6e_a_non_tree_mate_declares_rather_than_determining() {
 
     // A third instance mated to both makes a loop: the loop-closing
     // pair is not in the spanning tree, so its mate DECLARES.
-    let (doc, ids3, store3) = assembly("asm-r2a-row6e", 3);
+    let (doc, ids3, store3, body) = assembly("asm-r2a-row6e", 3);
     let o3 = with_resolver(store3);
     let mut doc = doc;
     let mut made = Vec::new();
@@ -1200,7 +1282,8 @@ fn row6e_a_non_tree_mate_declares_rather_than_determining() {
         let (next, id) = mint(
             doc,
             DocEdit::InsertNode {
-                node: mate(
+                node: Box::new(mate(
+                    body,
                     ids3[a],
                     ids3[b],
                     MatePrimitive::FrameCoincidence,
@@ -1208,14 +1291,15 @@ fn row6e_a_non_tree_mate_declares_rather_than_determining() {
                     z_up(),
                     z_up(),
                     None,
-                ),
+                )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
         made.push(id);
     }
     let roles = solve(&doc, &o3, Tol::witness());
-    // The spanning tree leaves the gauge for each neighbour in
+    // The spanning tree leaves the root for each neighbour in
     // document order — (0,1) then (0,2) — so the pair that closes the
     // loop is (1,2), whatever order the mates were authored in.
     assert_eq!(roles.role(made[0]), Some(MateRole::Determining));
@@ -1230,18 +1314,18 @@ fn row6e_a_non_tree_mate_declares_rather_than_determining() {
 // ---- Row 6f–6j: A12's repair path, and the three doors ----
 // ---- that keep a head honest                              ----
 
-/// A12: *"A dangling head (N5) contributes no edge until `Rebind`"* —
-/// the rebind of a stranded head IS the repair, and the reading edge
-/// comes back with it. Here the head is the document's ONLY reference
-/// to the stranded name, so the edit's own reference count is what
-/// decides whether the repair runs at all.
+/// A side whose body is deleted is an unresolved read (D10), and its
+/// repair is the side's slot door: re-pointing the side at a face of
+/// another instance resolves it again. No door re-points it for the
+/// author.
 #[test]
-fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
-    let (doc, ids, store) = assembly("asm-r2a-rebind-only-ref", 3);
+fn row6f_the_slot_door_repairs_a_stranded_side() {
+    let (doc, ids, store, body) = assembly("asm-r2a-rebind-only-ref", 3);
     let (doc, mate_id) = mint(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
+                body,
                 ids[0],
                 ids[1],
                 MatePrimitive::Coaxial,
@@ -1249,121 +1333,61 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
                 z_up(),
                 z_up(),
                 Some(0.0),
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
     assert_eq!(
-        editor_core::reading_edges(&doc),
+        crate::fixture::mate_members(&doc),
         vec![(mate_id, ids[0])],
         "the stranded head contributes NO edge (N5)"
     );
     let applied = doc
         .apply(
-            &DocEdit::Rebind {
-                from: in_part(ids[1], PART_BODY),
-                to: in_part(ids[2], PART_BODY),
+            &DocEdit::SetParam {
+                node: mate_id,
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side(
+                    editor_core::MateSide::B,
+                )),
+                value: editor_core::SlotValue::Read(
+                    crate::fixture::head(in_part(ids[2], body, CapEnd::Start)).into(),
+                ),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect("a mate head is a rebind site");
+        .expect("a side is re-pointed by its slot door");
     assert_eq!(
-        editor_core::reading_edges(&applied.doc),
+        crate::fixture::mate_members(&applied.doc),
         vec![(mate_id, ids[0]), (mate_id, ids[2])],
-        "the repaired head reads through the instance it now names"
+        "the repaired side reads through the instance it now names"
     );
     assert!(
         applied.record.structural,
-        "a mate payload moved, so its content key moved with it"
+        "a mate's read moved, so its content key moved with it"
     );
     let o = with_resolver(store);
     assert!(
-        !matches!(
-            solve(&applied.doc, &o, Tol::witness()).fault(mate_id),
-            Some(editor_core::MateFault::DanglingHead { .. })
-        ),
-        "and the solve no longer refuses the head"
+        solve(&applied.doc, &o, Tol::witness())
+            .fault(mate_id)
+            .is_none_or(|f| !matches!(f, editor_core::MateFault::SideUnresolved { .. })),
+        "and the solve no longer refuses the side"
     );
 }
 
-/// The same repair with a `Declare` referencing the stranded name too:
-/// the declaration's rewrite is what makes the edit acceptable, so a
-/// mate head skipped here is skipped SILENTLY — the loud arm never
-/// fires.
-#[test]
-fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
-    let (doc, ids, _) = assembly("asm-r2a-rebind-with-declare", 3);
-    let (doc, mate_id) = mint(
-        doc,
-        DocEdit::InsertNode {
-            node: mate(
-                ids[0],
-                ids[1],
-                MatePrimitive::Coaxial,
-                AxisSense::Aligned,
-                z_up(),
-                z_up(),
-                Some(0.0),
-            ),
-        },
-    );
-    let (doc, declare_id) = mint(
-        doc,
-        DocEdit::InsertNode {
-            node: Node::Declare {
-                pairs: vec![(
-                    (
-                        SitedRef::new(ids[1], in_part(ids[1], PART_BODY)),
-                        SitedRef::new(ids[0], in_part(ids[0], PART_BODY)),
-                    ),
-                    ContactClass::Rest,
-                )],
-            },
-        },
-    );
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
-    let applied = doc
-        .apply(
-            &DocEdit::Rebind {
-                from: in_part(ids[1], PART_BODY),
-                to: in_part(ids[2], PART_BODY),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the declare pair alone makes this a rebind site");
-    let Some(Node::Declare { pairs }) = applied.doc.node(declare_id) else {
-        panic!("the declare is still there");
-    };
-    assert_eq!(
-        pairs[0].0.0.name,
-        in_part(ids[2], PART_BODY),
-        "the declaration's NAME was rewritten"
-    );
-    assert_eq!(
-        pairs[0].0.0.at, ids[1],
-        "and its site was not — a site is an authored fact, not a repair target"
-    );
-    assert_eq!(
-        editor_core::reading_edges(&applied.doc),
-        vec![(mate_id, ids[0]), (mate_id, ids[2])],
-        "and so was the mate head — one rebind repairs every site, or none of them"
-    );
-}
-
-/// The insert door's own claim (`Node::named_nodes`): a mate's two
-/// heads carry the `Declare` carve-out, so a head naming a node that
-/// never existed is a typo and is refused THERE — the only door that
-/// checks.
+/// A mate side read at a node that never existed is a typo, refused at
+/// the insert door as the unresolved read it is.
 #[test]
 fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
-    let (doc, ids, _) = assembly("asm-r2a-mate-insert-door", 1);
-    let ghost = RecipeNodeId(9_999);
+    let (doc, ids, _, body) = assembly("asm-r2a-mate-insert-door", 1);
+    let ghost = RecipeNodeId::new(0, 9_999);
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: mate(
+                node: Box::new(mate(
+                    body,
                     ids[0],
                     ghost,
                     MatePrimitive::Coaxial,
@@ -1371,29 +1395,31 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
                     z_up(),
                     z_up(),
                     Some(0.0),
-                ),
+                )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .expect_err("the head names no node");
     assert!(
-        matches!(&err, EditError::DeclareNamesMissingNode { name } if name.node == ghost),
+        matches!(&err, EditError::UnresolvedInput { input } if input.id() == ghost),
         "{err:?}"
     );
 }
 
-/// A saved file is DATA: a mate head naming an id past the mint counter
-/// is as corrupt as a `Declare` pair naming one, and worse to let in —
+/// A saved file is DATA: a mate side's name naming an id past the mint
+/// counter is as corrupt as a declared pair naming one, and worse to let in —
 /// `Rebind`'s source door refuses a never-minted id, so the document
 /// would load unrepairable.
 #[test]
-fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
-    let (doc, ids, _) = assembly("asm-r2a-mate-wire-id", 3);
+fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
+    let (doc, ids, _, body) = assembly("asm-r2a-mate-wire-id", 3);
     let (doc, mate_id) = mint(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
+                body,
                 ids[0],
                 ids[2],
                 MatePrimitive::Coaxial,
@@ -1401,7 +1427,8 @@ fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
                 z_up(),
                 z_up(),
                 Some(0.0),
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
@@ -1410,38 +1437,42 @@ fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
     // field-order change breaks the probe instead of silently moving it
     // onto an unrelated id.
     let corrupt = doctored(&text, |wire| {
-        let head = &mut wire["snapshot"]["nodes"][mate_id.0.to_string()]["Mate"]["b"]["name"];
+        let read: editor_core::VarId = serde_json::from_value(
+            wire["snapshot"]["nodes"][mate_id.0.to_string()]["Mate"]["b"].clone(),
+        )
+        .expect("a mate side is a variable id");
+        let head = &mut wire["snapshot"]["vars"][read.0.to_string()]["def"]["Select"]["names"][0];
         assert_eq!(
             head["node"],
             serde_json::json!(ids[2].0),
-            "the probe is aimed at the `b` head"
+            "the probe is aimed at the `b` side's name"
         );
-        head["node"] = serde_json::json!(99);
+        head["node"] = serde_json::json!(RecipeNodeId::new(0, 99).0);
     });
     match load(&corrupt, Tol::witness()) {
-        Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::IdBeyondCounter {
+        Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::NodeNotMinted {
             id,
-            ..
-        })) => assert_eq!(id, RecipeNodeId(99)),
-        other => panic!("expected IdBeyondCounter, got {other:?}"),
+        })) => assert_eq!(id.id(), RecipeNodeId::new(0, 99)),
+        other => panic!("expected NodeNotMinted, got {other:?}"),
     }
 }
 
 /// The name-level edit door (`apply_with_names`, PR 3's R6 obligation)
-/// reads a mate's heads under the rule it has always applied to a
-/// `Declare` pair: checkable exactly when the minting node evaluated
+/// reads a mate side's selection under the rule it has always applied to
+/// a declared pair: checkable exactly when the minting node evaluated
 /// `Ok`, deferred otherwise. An instance-qualified head the tables
 /// carry passes; a role the part's product does not have is refused
 /// there rather than at the solve.
 #[test]
-fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
-    let (doc, ids, store) = assembly("asm-r2a-mate-name-door", 2);
+fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
+    let (doc, ids, store, body) = assembly("asm-r2a-mate-name-door", 2);
     let ev = run(&doc, &with_resolver(store));
     assert!(
         editor_core::apply_with_names(
             &doc,
             &DocEdit::InsertNode {
-                node: mate(
+                node: Box::new(mate(
+                    body,
                     ids[0],
                     ids[1],
                     MatePrimitive::Coaxial,
@@ -1449,7 +1480,8 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
                     z_up(),
                     z_up(),
                     Some(0.0),
-                ),
+                )),
+                fresh: Vec::new(),
             },
             &ev,
             Tol::witness(),
@@ -1465,8 +1497,8 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Lateral(crate::fixture::no_piece())],
+                node: body,
+                path: vec![RoleSeg::Lateral(crate::fixture::no_piece().into())],
             }
             .into(),
         }],
@@ -1477,6 +1509,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         alignment,
         ..
     } = mate(
+        body,
         ids[0],
         ids[1],
         MatePrimitive::Coaxial,
@@ -1491,12 +1524,13 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
     let err = editor_core::apply_with_names(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Mate {
+            node: Box::new(Node::Mate {
                 a,
-                b: crate::fixture::head(bogus.clone()),
+                b: crate::fixture::head(bogus.clone()).into(),
                 class,
                 alignment,
-            },
+            }),
+            fresh: Vec::new(),
         },
         &ev,
         Tol::witness(),
@@ -1505,7 +1539,9 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
     .unwrap_err();
     assert_eq!(
         err,
-        EditError::NameUnresolvedInEvaluation { name: bogus },
+        EditError::NameUnresolvedInEvaluation {
+            name: doc.spoken_name(&bogus)
+        },
         "the mate head is checkable, so it is checked"
     );
 }
@@ -1514,13 +1550,14 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
 
 #[test]
 fn row7a_a_standalone_clocking_refuses_typed() {
-    let (doc, ids, _store) = assembly("asm-r2a-row7a", 2);
+    let (doc, ids, _store, body) = assembly("asm-r2a-row7a", 2);
     // The table's static gap is a fact about the mate alone, so the
     // edit door refuses it where it is authored, carrying the solve's
     // own fault — and asks no reach for it.
     let fault = door_refusal(
         &doc,
         mate(
+            body,
             ids[0],
             ids[1],
             MatePrimitive::Clocking,
@@ -1539,10 +1576,11 @@ fn row7a_a_standalone_clocking_refuses_typed() {
 
 #[test]
 fn row7b_a_clocking_rider_on_a_planar_rest_refuses_typed() {
-    let (doc, ids, _store) = assembly("asm-r2a-row7b", 2);
+    let (doc, ids, _store, body) = assembly("asm-r2a-row7b", 2);
     let fault = door_refusal(
         &doc,
         mate(
+            body,
             ids[0],
             ids[1],
             MatePrimitive::PlanarRest { offset: 0.0 },
@@ -1566,11 +1604,12 @@ fn row7b_a_clocking_rider_on_a_planar_rest_refuses_typed() {
 /// solve door says when a future class reaches it.
 #[test]
 fn row7c_an_unadmitted_class_refuses_naming_the_fit_deferral() {
-    let (doc, ids, _) = assembly("asm-r2a-row7c", 2);
+    let (doc, ids, _, body) = assembly("asm-r2a-row7c", 2);
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
+                body,
                 ids[0],
                 ids[1],
                 MatePrimitive::Coaxial,
@@ -1578,7 +1617,8 @@ fn row7c_an_unadmitted_class_refuses_naming_the_fit_deferral() {
                 z_up(),
                 z_up(),
                 Some(0.0),
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
@@ -1594,6 +1634,17 @@ fn row7c_an_unadmitted_class_refuses_naming_the_fit_deferral() {
     assert!(message.contains("fit"), "{message}");
 }
 
+/// The `Fit` deferral sentence a refusal steers to is the KERNEL's,
+/// quoted verbatim through the re-export chain — one wording, and the
+/// mate verification cites the same constant.
+#[test]
+fn the_fit_deferral_sentence_is_quoted_not_paraphrased() {
+    assert_eq!(editor_core::FIT_DEFERRAL, topo::FIT_DEFERRAL);
+    assert_eq!(editor_core::names::FIT_DEFERRAL, topo::FIT_DEFERRAL);
+    assert!(editor_core::FIT_DEFERRAL.contains("Fit { gap }"));
+    assert!(editor_core::FIT_DEFERRAL.contains("not yet built"));
+}
+
 /// The typed escalation: a case split constructed to land INSIDE the
 /// ambiguity band at the run's own ε, so the row holds at every ε CI
 /// sweeps.
@@ -1604,14 +1655,15 @@ fn row7d_an_in_band_case_split_escalates_typed() {
     // displacement at the mate's lever arm is 3ε — definitely inside
     // (ε, Kε) for the default K = 10.
     let tilt = 3.0 * eps;
-    let (doc, ids, store) = assembly("asm-r2a-row7d", 2);
+    let (doc, ids, store, body) = assembly("asm-r2a-row7d", 2);
     let mut doc = doc;
     let mut mates = Vec::new();
     for axis in [[0.0, 0.0, 1.0], [tilt, 0.0, 1.0]] {
         let (next, id) = mint(
             doc,
             DocEdit::InsertNode {
-                node: mate(
+                node: Box::new(mate(
+                    body,
                     ids[0],
                     ids[1],
                     MatePrimitive::PlanarRest { offset: 0.0 },
@@ -1619,7 +1671,8 @@ fn row7d_an_in_band_case_split_escalates_typed() {
                     frame([0.0, 0.0, 0.0], axis, [0.0, 1.0, 0.0]),
                     frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
                     None,
-                ),
+                )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -1644,27 +1697,27 @@ fn row7d_an_in_band_case_split_escalates_typed() {
     );
 }
 
-/// **The mate solve's escalations are on no node's log.** The solve is
-/// a whole-document computation that runs BEFORE any node's verdict
-/// bracket opens, so the funnel's escalation on the in-band case split
-/// lands in whatever frame encloses the evaluation — visible to an
-/// outer bracket a caller holds, on no `NodeValue` and no `NodeError`
-/// — and reaches a consumer only as `NodeErrorKind::Mate` carrying
-/// `MateFault::Indeterminate`. Pinned so the gap is guarded: the item
-/// `work/props/escalation-channel-misses-op-minted-indeterminates.md`
-/// records it, and this row goes red when the solve is bracketed.
+/// **The mate solve's escalation is on the refused mate's own log,
+/// and on no other.** The solve is a whole-document computation that
+/// runs before any node's frame opens, so it keeps each decision for
+/// the mate whose answer it decided, and that mate's node splices it
+/// into its own frame. The in-band case split here is decided while
+/// the fold adds `mates[1]` to the pair's intersection, so it is
+/// `mates[1]`'s: on that mate's `NodeError`, on no other node's log,
+/// and not in a frame the caller holds around the evaluation.
 #[test]
-fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_frame() {
+fn row7e_a_mate_solve_escalation_is_on_the_refused_mates_own_log_and_not_in_an_outer_frame() {
     let eps = geom_core::Tol::witness().get().eps;
     let tilt = 3.0 * eps;
-    let (doc, ids, store) = assembly("asm-r2a-row7e", 2);
+    let (doc, ids, store, body) = assembly("asm-r2a-row7e", 2);
     let mut doc = doc;
     let mut mates = Vec::new();
     for axis in [[0.0, 0.0, 1.0], [tilt, 0.0, 1.0]] {
         let (next, id) = mint(
             doc,
             DocEdit::InsertNode {
-                node: mate(
+                node: Box::new(mate(
+                    body,
                     ids[0],
                     ids[1],
                     MatePrimitive::PlanarRest { offset: 0.0 },
@@ -1672,7 +1725,8 @@ fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_fram
                     frame([0.0, 0.0, 0.0], axis, [0.0, 1.0, 0.0]),
                     frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
                     None,
-                ),
+                )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -1684,38 +1738,48 @@ fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_fram
     let named = |escalations: &[geom_core::k_stats::Escalation]| {
         escalations
             .iter()
-            .any(|e| e.predicate() == "mate_axes_parallel")
+            .filter(|e| e.predicate() == "mate_axes_parallel")
+            .count()
     };
+    let mut carriers = Vec::new();
     for (id, result) in &ev.nodes {
         let on_node = match result {
             NodeResult::Ok(v) => named(&v.escalations),
             NodeResult::Failed(e) => named(&e.escalations),
-            NodeResult::Poisoned { .. } => false,
+            NodeResult::Poisoned { .. } => 0,
         };
-        assert!(!on_node, "node {} carries the solve's escalation", id.0);
+        carriers.extend(std::iter::repeat_n(*id, on_node));
     }
-    assert!(
-        matches!(
-            mate_fault(&ev, mates[1]),
-            editor_core::MateFault::Indeterminate { .. }
-        ),
-        "the mate node fails typed through the error enum"
+    assert_eq!(
+        carriers,
+        vec![mates[1]],
+        "the escalation is on the refused mate's log, once, and on no other node's"
     );
-    assert!(
+    let editor_core::MateFault::Indeterminate { mate: refused, .. } = mate_fault(&ev, mates[1])
+    else {
+        panic!("the mate node fails typed through the error enum");
+    };
+    assert_eq!(
+        refused, mates[1],
+        "the fault names the mate whose log holds it"
+    );
+    assert_eq!(
         named(&outside.escalations),
-        "the outer frame saw the solve's escalation: {:?}",
+        0,
+        "no frame around the evaluation sees the solve's escalation: {:?}",
         outside.escalations
     );
 }
 
 #[test]
 fn row7e_a_self_mate_refuses_naming_the_instance_it_names_twice() {
-    let (doc, ids, _store) = assembly("asm-r2a-row7e", 2);
+    let (doc, ids, _store, body) = assembly("asm-r2a-row7e", 2);
     // One member on both sides is a fact about the mate alone: the
     // edit door refuses it with the solve's own fault.
     let fault = door_refusal(
         &doc,
         mate(
+            body,
             ids[0],
             ids[0],
             MatePrimitive::Coaxial,
@@ -1732,26 +1796,61 @@ fn row7e_a_self_mate_refuses_naming_the_instance_it_names_twice() {
     assert!(fault.to_string().contains("a PAIR"), "{fault}");
 }
 
+/// A non-finite number never enters a mate: the authored-vectors door
+/// refuses it typed, a literal frame offset holding one refuses at the
+/// edit door as a placement's literal does (named by its side and
+/// step), and a non-finite rider refuses as a non-finite alignment.
 #[test]
 fn row7f_a_non_finite_alignment_refuses_at_the_edit_door() {
-    let (doc, ids, _) = assembly("asm-r2a-row7f", 2);
-    let refusal = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: mate(
-                ids[0],
-                ids[1],
-                MatePrimitive::Coaxial,
-                AxisSense::Aligned,
-                frame([f64::NAN, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-                z_up(),
-                None,
-            ),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect_err("a non-finite alignment never enters the document");
+    assert!(matches!(
+        MateFrame::<Formula>::authored(
+            [f64::NAN, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            Tol::witness()
+        ),
+        Err(geom_core::FrameError::NonFiniteLength { .. })
+    ));
+    let (doc, ids, _, body) = assembly("asm-r2a-row7f", 2);
+    let insert = |a: MateFrame<Formula>, clocking| {
+        apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(mate(
+                    body,
+                    ids[0],
+                    ids[1],
+                    MatePrimitive::Coaxial,
+                    AxisSense::Aligned,
+                    a,
+                    z_up(),
+                    clocking,
+                )),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err("a non-finite alignment never enters the document")
+    };
+    let literal = MateFrame::on_part(editor_core::Placement::literal(
+        &editor_core::Frame::translation([f64::NAN, 0.0, 0.0]),
+    ));
+    let refusal = insert(literal, None);
+    assert!(
+        matches!(
+            refusal,
+            editor_core::EditError::NonFinitePlacement {
+                at: editor_core::FrameSite::MateStep {
+                    side: editor_core::MateSide::A,
+                    index: 0
+                },
+                ..
+            }
+        ),
+        "{refusal:?}"
+    );
+    let refusal = insert(z_up(), Some(f64::NAN));
     assert!(
         matches!(refusal, editor_core::EditError::NonFiniteAlignment { .. }),
         "{refusal:?}"
@@ -1766,7 +1865,7 @@ fn row7f_a_non_finite_alignment_refuses_at_the_edit_door() {
 /// multiply them back into the metre figure.
 #[test]
 fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
-    let (doc, ids, store) = assembly("asm-r2a-row7g", 2);
+    let (doc, ids, store, body) = assembly("asm-r2a-row7g", 2);
     // The rider on a coincidence is DECIDED over the mate's own lever,
     // so the door asks the reach for the two parts and refuses the
     // contradiction where the mate is authored; the id it names is
@@ -1776,7 +1875,8 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: mate(
+                node: Box::new(mate(
+                    body,
                     ids[0],
                     ids[1],
                     MatePrimitive::FrameCoincidence,
@@ -1784,15 +1884,17 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
                     z_up(),
                     z_up(),
                     Some(core::f64::consts::FRAC_PI_2),
-                ),
+                )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &reach,
         )
         .expect_err("the rider contradicts the coincidence");
-    let EditError::MateRefused { node: id, fault } = err else {
+    let EditError::MateRefused { node, fault, .. } = err else {
         panic!("expected MateRefused, got {err:?}");
     };
+    let id = node.id();
     let fault = *fault;
     let editor_core::MateFault::Contradictory {
         held,
@@ -1822,11 +1924,18 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
     );
     let message = fault.to_string();
     assert!(
-        message.contains(&format!("mate {} contradicts itself", id.0)),
+        message.contains(&format!(
+            "mate {} contradicts itself",
+            test_utils::refusal::tag(id.0.digest())
+        )),
         "one mate at fault is named ONCE: {message}"
     );
     assert!(
-        !message.contains(&format!("mates {} and {}", id.0, id.0)),
+        !message.contains(&format!(
+            "mates {} and {}",
+            test_utils::refusal::tag(id.0.digest()),
+            test_utils::refusal::tag(id.0.digest())
+        )),
         "the pair sentence reads as an indexing fault here: {message}"
     );
     assert!(

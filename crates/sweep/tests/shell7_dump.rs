@@ -24,6 +24,7 @@ use topo::Body;
 use crate::common::bulge;
 use crate::common::charts::hollow_moves;
 use crate::common::torus_walls::{klein_elbow, torus_barrel, torus_belly};
+use sweep::test_support::finished;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -66,7 +67,7 @@ fn dump(label: &str, body: &Body<f64>) {
             c.description()
         );
     }
-    for (k, v) in body.vertices() {
+    for (k, p) in body.vertex_points() {
         let mut faces = body.faces_of_vertex(k).unwrap();
         faces.sort();
         let mut surfaces: Vec<_> = faces
@@ -77,7 +78,7 @@ fn dump(label: &str, body: &Body<f64>) {
         surfaces.dedup();
         println!(
             "[dump] {label}: vertex {k:?} point={:?} faces={faces:?} distinct_surfaces={surfaces:?}",
-            body.get_point(v.point).unwrap()
+            p
         );
     }
     match topo::mass_properties(body, tol()) {
@@ -95,7 +96,16 @@ fn dump(label: &str, body: &Body<f64>) {
 }
 
 fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
-    match topo::shell(body, t, tol()) {
+    // A hand-split operand is construction state (tier 3's check 11):
+    // the gate's refusal is the dump's line for it.
+    let operand = match topo::AtRestBody::validate(body.clone(), tol()) {
+        Ok(operand) => operand,
+        Err(e) => {
+            println!("[dump] {label}: not at rest {e:?}");
+            return None;
+        }
+    };
+    match topo::shell(&operand, t, tol()) {
         Ok(s) => {
             dump(label, &s.body);
             Some(s.body)
@@ -111,7 +121,7 @@ fn direct(label: &str, body: &Body<f64>, t: f64) {
     let mut cavity = body.clone();
     let band = Band::linear(tol()).expect("band");
     match topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, tol()) {
-        Ok(()) => dump(label, &cavity),
+        Ok(_) => dump(label, &cavity),
         Err(e) => println!("[dump] {label}: direct door Err {e}"),
     }
 }
@@ -350,25 +360,13 @@ fn shell7_dump_corpus() {
         "[dump] drum, seam split, operand: tier3={:?}",
         topo::validate_geometric(&drum, tol())
     );
-    match topo::shell(&drum, 0.05, tol()) {
-        Ok(s) => dump("drum, seam split, unminted", &s.body),
-        Err(topo::ShellError::NotValid { errors }) => {
-            println!("[dump] drum, seam split, unminted: shell NotValid {errors:?}");
-        }
-        Err(e) => println!("[dump] drum, seam split, unminted: shell Err {e}"),
-    }
+    shelled("drum, seam split, unminted", &drum, 0.05);
     topo::mint_pcurves(&mut drum, tol()).expect("the split operand's pcurves mint");
     println!(
         "[dump] drum, seam split, operand minted: tier3={:?}",
         topo::validate_geometric(&drum, tol())
     );
-    match topo::shell(&drum, 0.05, tol()) {
-        Ok(s) => dump("drum, seam split", &s.body),
-        Err(topo::ShellError::NotValid { errors }) => {
-            println!("[dump] drum, seam split: shell NotValid {errors:?}");
-        }
-        Err(e) => println!("[dump] drum, seam split: shell Err {e}"),
-    }
+    shelled("drum, seam split", &drum, 0.05);
     direct("drum, seam split, direct door", &drum, 0.05);
     // The seam-posture class past the torus: the two shapes that pass
     // the door and stop later, measured.
@@ -377,7 +375,7 @@ fn shell7_dump_corpus() {
         Revolution::Full,
     );
     dump("collinear cap, operand", &cap);
-    match topo::shell(&cap, 0.05, tol()) {
+    match topo::shell(&finished("the operand", cap.clone(), tol()), 0.05, tol()) {
         Ok(s) => dump("collinear cap", &s.body),
         Err(topo::ShellError::NotValid { errors }) => {
             println!("[dump] collinear cap: shell NotValid {errors:?}")
@@ -396,7 +394,7 @@ fn shell7_dump_corpus() {
         Revolution::Full,
     );
     dump("two-arc sphere, operand", &ball);
-    match topo::shell(&ball, 0.05, tol()) {
+    match topo::shell(&finished("the operand", ball.clone(), tol()), 0.05, tol()) {
         Ok(s) => dump("two-arc sphere", &s.body),
         Err(topo::ShellError::NotValid { errors }) => {
             println!("[dump] two-arc sphere: shell NotValid {errors:?}")

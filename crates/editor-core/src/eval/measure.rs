@@ -31,8 +31,9 @@
 //! its answer comes from the E7 subdivision engine
 //! (`clearance::min_separation`) as a certified BRACKET, and
 //! the value is computed in the node's wiring — where the bodies are —
-//! rather than here. [`eval_measure`] intercepts that primitive before
-//! this dispatch is consulted, and the arm below says so.
+//! rather than here. The wiring (`wire::wire_measure`) intercepts that
+//! primitive before this dispatch is consulted, and the arm below says
+//! so.
 //!
 //! # Which trileans this module consumes
 //!
@@ -66,7 +67,7 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use topo::Body;
 
-use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
+use crate::measure::MeasurePrimitive;
 use crate::names::{EntityKey, EntityRef};
 
 /// A carrier pair this unit has no closed form for, named by the pair
@@ -169,10 +170,6 @@ pub(crate) enum Carrier<T: geom_core::Real> {
     /// A carrier outside the v1 table, kept as its CLASS so a refusal
     /// can name it.
     Other(&'static str),
-    /// A reference the expression never indexes, so its carrier was
-    /// never read. Unreachable from any closed form (the node door
-    /// bounds every index), and announced as a kernel bug if reached.
-    Unread,
 }
 
 impl<T: geom_core::Real> Carrier<T> {
@@ -185,7 +182,6 @@ impl<T: geom_core::Real> Carrier<T> {
             Self::Sphere { .. } => "a sphere face",
             Self::Line { .. } => "a line edge",
             Self::Other(what) => what,
-            Self::Unread => "an unread reference",
         }
     }
 }
@@ -307,8 +303,8 @@ pub(crate) enum PrimitiveRefusal {
 
 /// **The v1 primitive evaluator.** One closed form per row of the
 /// module's table; every other pair refuses.
-pub(crate) fn primitive<T: Decide>(
-    prim: MeasurePrimitive,
+pub(crate) fn primitive<T: Decide, R>(
+    prim: &MeasurePrimitive<R>,
     a: &Carrier<T>,
     b: &Carrier<T>,
     band: Band,
@@ -318,11 +314,10 @@ pub(crate) fn primitive<T: Decide>(
         MeasurePrimitive::Angle { .. } => angle(a, b),
         MeasurePrimitive::Gap { .. } => gap(a, b, band),
         // Not a closed form over carriers at all: its answer is the E7
-        // engine's, computed at the node's wiring and read off the
-        // pre-order vector in `eval_measure_inner`, which intercepts
-        // this primitive before it reaches here. Announced as the
-        // kernel bug it would be rather than measured by some other
-        // arm that happens to compile.
+        // engine's, computed at the node's wiring, which answers this
+        // primitive before it reaches here. Announced as the kernel bug
+        // it would be rather than measured by some other arm that
+        // happens to compile.
         MeasurePrimitive::MinClearance { .. } => unreachable!(
             "`min_clearance` is answered by the clearance engine before the closed-form table \
              is consulted; reaching this arm means the interception and this dispatch disagree"
@@ -459,13 +454,13 @@ fn reference<T: Decide>(c: &Carrier<T>) -> (Point3<T>, T) {
         Carrier::Sphere { center, radius } => (*center, *radius),
         // A line carries no origin (its type docs say why), so it has
         // no reference point to measure a reach from, and neither does
-        // an unread or unsupported carrier. The world origin with reach
+        // an unsupported carrier. The world origin with reach
         // zero is the DEFINED answer for them, not a claim that they
         // cannot arrive — see [`arm`]'s "which carriers reach it". No v1
         // lever site can hand one here (`angle` is the only line
         // consumer and takes no arm); a new lever site must check that
         // again rather than inherit it.
-        Carrier::Line { .. } | Carrier::Other(_) | Carrier::Unread => (Point3::origin(), T::zero()),
+        Carrier::Line { .. } | Carrier::Other(_) => (Point3::origin(), T::zero()),
     }
 }
 
@@ -515,7 +510,14 @@ fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Opt
     match c {
         Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
         Curve3::Circle { center, radius, .. } => Some(from(*center) + *radius),
-        Curve3::Ellipse { center, major, .. } => Some(from(*center) + *major),
+        // The semi-axes carry no order and no sign (`geom_brep::Conic`):
+        // the reach is the larger MAGNITUDE.
+        Curve3::Ellipse {
+            center,
+            major,
+            minor,
+            ..
+        } => Some(from(*center) + major.abs().max(minor.abs())),
         // Every point of the spiric lies on its torus, within `R + r` of
         // the torus centre.
         Curve3::Spiric {
@@ -744,175 +746,291 @@ fn gap<T: Decide>(
     }
 }
 
-/// **Evaluates a whole measured expression, and refuses a non-finite
-/// result** — [`crate::expr::eval`]'s two-part shape, deliberately
-/// mirrored: a recursive `Real` core with no decisions in it, then the
-/// ONE ruled door on the final value.
-///
-/// The door is not a second implementation. It is
-/// [`crate::expr::refuse_non_finite`], the very function
-/// [`crate::expr::eval`] calls, because this language's `Div` is the
-/// same partial operation that language's is: `13 / 0` is `inf` in
-/// both, and only one of them used to say so.
-pub(crate) fn eval_measure<T: Decide>(
-    expr: &MeasureExpr,
-    carriers: &[Carrier<T>],
-    leaves: &[T],
-    cursor: &mut usize,
-    clearances: &[T],
-    clearance_cursor: &mut usize,
-    band: Band,
-) -> Result<T, PrimitiveRefusal> {
-    let value = eval_measure_inner(
-        expr,
-        carriers,
-        leaves,
-        cursor,
-        clearances,
-        clearance_cursor,
-        band,
-    )?;
+/// **A measured value, refused when it is not finite** — the ruled
+/// door [`crate::expr::eval`] applies to a document expression,
+/// [`crate::expr::refuse_non_finite`], applied to a measure for the same
+/// reason: a measure is a number a reader believes, and an assertion
+/// over `inf` would report a verdict about nothing.
+pub(crate) fn finite<T: Decide>(value: T) -> Result<T, PrimitiveRefusal> {
     crate::expr::refuse_non_finite(value).map_err(PrimitiveRefusal::NonFinite)
 }
 
-/// The recursive core: the primitives against the resolved carriers,
-/// the arithmetic in between, and the value leaves read off the vector
-/// the node's leaf stage already evaluated. No decisions inside —
-/// poison FLOWS through values per the kernel policy, and the single
-/// refusal door is [`eval_measure`]'s.
+/// **What an observed variable is worth in one evaluation** (D10): a
+/// value at the evaluation's scalar, or the typed absence a measure
+/// under it carries at that scalar ([`crate::MeasureUnavailableAt`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Observed<T> {
+    /// The value, in kernel units.
+    Value(T),
+    /// A measure it reads has no value at this scalar.
+    Unavailable(crate::measure::MeasureUnavailableAt),
+}
+
+/// **Why an observed variable has no reading** in an evaluation.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ObservedRefusal {
+    /// A measure defining an output it reads has no value: it failed,
+    /// is poisoned, or did not run.
+    Measure(super::NodeStanding),
+    /// Its definition refused, or it reads a variable with no binding.
+    Expr(crate::expr::EvalError),
+}
+
+impl core::fmt::Display for ObservedRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Measure(standing) => write!(f, "{standing}"),
+            Self::Expr(source) => write!(f, "{source}"),
+        }
+    }
+}
+
+impl core::error::Error for ObservedRefusal {}
+
+/// **`var` read at `dim`, measured values bound**: an observed
+/// variable's measure outputs are bound from `results` (the values the
+/// measures computed in this evaluation), and every observed definition
+/// over them is evaluated over those, at `env`'s scalar; every other
+/// variable reads `env`'s binding. A variable that is not observed is
+/// `env`'s reading of it. `env` itself is never written: a
+/// construction's environment holds no measured value
+/// ([`crate::Doc::var_env`]).
 ///
-/// Both vectors arrive INDEX-ALIGNED with this walk — the carriers
-/// with the node's references, the leaves with
-/// [`MeasureExpr::value_leaves`]'s pre-order — so nothing here
-/// resolves a name or re-evaluates an expression: resolution ran once,
-/// leaf evaluation ran once, and the content key saw exactly the
-/// values this arithmetic sees.
-fn eval_measure_inner<T: Decide>(
-    expr: &MeasureExpr,
-    carriers: &[Carrier<T>],
-    leaves: &[T],
-    cursor: &mut usize,
-    clearances: &[T],
-    clearance_cursor: &mut usize,
-    band: Band,
-) -> Result<T, PrimitiveRefusal> {
-    let binary =
-        |a: &MeasureExpr, b: &MeasureExpr, cursor: &mut usize, clearance_cursor: &mut usize| {
-            let x = eval_measure_inner(
-                a,
-                carriers,
-                leaves,
-                cursor,
-                clearances,
-                clearance_cursor,
-                band,
-            )?;
-            let y = eval_measure_inner(
-                b,
-                carriers,
-                leaves,
-                cursor,
-                clearances,
-                clearance_cursor,
-                band,
-            )?;
-            Ok::<(T, T), PrimitiveRefusal>((x, y))
+/// # Errors
+///
+/// [`ObservedRefusal::Measure`] when a measure under `var` has no value
+/// in `results`, and [`ObservedRefusal::Expr`] when an evaluation over
+/// the bound values refuses.
+pub(crate) fn observe<T: Decide, P>(
+    doc: &crate::Doc<P>,
+    env: &crate::expr::VarEnv<T>,
+    results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
+    var: crate::VarId,
+    dim: crate::Dimension,
+) -> Result<Observed<T>, ObservedRefusal> {
+    use crate::expr::ParamValue;
+    use std::collections::BTreeSet;
+    let outputs = doc.observed_outputs(var);
+    if outputs.is_empty() {
+        return crate::expr::eval_var(var, dim, env)
+            .map(Observed::Value)
+            .map_err(ObservedRefusal::Expr);
+    }
+    // A measure's output read directly is the value the measure
+    // computed, which passed the non-finite door at the measure.
+    if outputs == [var] {
+        return measured(doc, results, var);
+    }
+    // The measured values bound over `env`, then every definition under
+    // `var` that reads one re-bound in definition order: the same step
+    // that binds every definition of a construction's environment.
+    let mut local = env.clone();
+    let mut touched: BTreeSet<crate::VarId> = BTreeSet::new();
+    for &output in &outputs {
+        let Some(at_dim) = doc.var(output).and_then(|held| held.kind().dimension()) else {
+            continue;
         };
-    match expr.kind() {
-        MeasureKind::Primitive(p) => {
-            let [ia, ib] = p.refs();
-            // Both indices were bounds-checked at the node door and
-            // re-checked at load, so a miss is a kernel bug: it is
-            // announced as one rather than carried as a refusal a
-            // caller could believe in.
-            let (Some(a), Some(b)) = (carriers.get(ia as usize), carriers.get(ib as usize)) else {
-                unreachable!(
-                    "`{}` reads references {ia} and {ib} of {} resolved carriers, yet \
-                     `Node::measure_fault` bounds every index against the node's reference \
-                     list at both the construction and the load door",
-                    p.verb(),
-                    carriers.len()
+        match measured(doc, results, output)? {
+            Observed::Value(value) => {
+                local.refused.remove(&output);
+                local
+                    .bindings
+                    .insert(output, ParamValue::Continuous { dim: at_dim, value });
+            }
+            unavailable @ Observed::Unavailable(_) => return Ok(unavailable),
+        }
+        touched.insert(output);
+    }
+    let under = definitions_under(doc, var);
+    for id in doc.definition_order() {
+        if !under.contains(&id) {
+            continue;
+        }
+        let mut reads = Vec::new();
+        if let Some(expr) = doc.var(id).and_then(|held| held.def().defined()) {
+            expr.var_reads(&mut reads);
+        }
+        if reads.iter().any(|(read, _)| touched.contains(read)) {
+            doc.bind_definition(id, &mut local);
+            touched.insert(id);
+        }
+    }
+    crate::expr::eval_var(var, dim, &local)
+        .map(Observed::Value)
+        .map_err(ObservedRefusal::Expr)
+}
+
+/// **`formula` evaluated with measured values bound**: [`observe`] for
+/// each observed variable it reads, every other read `env`'s. The door
+/// a reader outside the document takes to a measurement's value that no
+/// variable holds — `Recording::measure`'s `value` before an assertion
+/// lowers it.
+///
+/// # Errors
+///
+/// As [`observe`].
+pub(crate) fn observe_formula<T: Decide, P>(
+    doc: &crate::Doc<P>,
+    env: &crate::expr::VarEnv<T>,
+    results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
+    formula: &crate::Formula,
+) -> Result<Observed<T>, ObservedRefusal> {
+    let mut reads = Vec::new();
+    formula.var_reads(&mut reads);
+    let mut local = env.clone();
+    for (read, dim) in reads {
+        if doc.observed_outputs(read).is_empty() {
+            continue;
+        }
+        match observe(doc, env, results, read, dim)? {
+            Observed::Value(value) => {
+                local
+                    .bindings
+                    .insert(read, crate::expr::ParamValue::Continuous { dim, value });
+            }
+            unavailable @ Observed::Unavailable(_) => return Ok(unavailable),
+        }
+    }
+    crate::expr::eval(formula, &local)
+        .map(Observed::Value)
+        .map_err(ObservedRefusal::Expr)
+}
+
+/// **The defined variables `var`'s value is computed through**: `var`
+/// itself when it is defined, and every definition its definitions
+/// read, transitively.
+fn definitions_under<P>(
+    doc: &crate::Doc<P>,
+    var: crate::VarId,
+) -> std::collections::BTreeSet<crate::VarId> {
+    let mut under = std::collections::BTreeSet::new();
+    let mut stack = vec![var];
+    while let Some(at) = stack.pop() {
+        let Some(expr) = doc.var(at).and_then(|held| held.def().defined()) else {
+            continue;
+        };
+        if !under.insert(at) {
+            continue;
+        }
+        let mut reads = Vec::new();
+        expr.var_reads(&mut reads);
+        stack.extend(reads.into_iter().map(|(read, _)| read));
+    }
+    under
+}
+
+/// **The measure an observed variable's absence is said at**: the first
+/// measure under `var` with no value at this scalar, which is what
+/// [`observe`] answered [`Observed::Unavailable`] for — or, read before
+/// any run, the first measure under it.
+pub(crate) fn unavailable_at<P>(doc: &crate::Doc<P>, var: crate::VarId) -> crate::RecipeNodeId {
+    let measures: Vec<crate::RecipeNodeId> = doc
+        .observed_outputs(var)
+        .into_iter()
+        .filter_map(|out| doc.operation_of(out))
+        .collect();
+    let clearance = measures.iter().copied().find(|&node| {
+        matches!(
+            doc.node(node),
+            Some(crate::Node::Measure {
+                primitive: MeasurePrimitive::MinClearance { .. }
+            })
+        )
+    });
+    match clearance.or_else(|| measures.first().copied()) {
+        Some(node) => node,
+        None => unreachable!(
+            "{var:?} is read as a measured value, and every reader asks that it is one"
+        ),
+    }
+}
+
+/// **What the measure defining `output` computed in this run.**
+fn measured<T: Decide, P>(
+    doc: &crate::Doc<P>,
+    results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
+    output: crate::VarId,
+) -> Result<Observed<T>, ObservedRefusal> {
+    let Some(node) = doc.operation_of(output) else {
+        return Err(ObservedRefusal::Expr(
+            crate::expr::EvalError::UnresolvedVar { var: output },
+        ));
+    };
+    let value = super::usable_in(results, node, || super::NodeStanding::NotEvaluated { node })
+        .map_err(ObservedRefusal::Measure)?;
+    match &value.payload {
+        super::ValuePayload::Measure { value, .. } => Ok(Observed::Value(*value)),
+        super::ValuePayload::MeasureUnavailable { reason, .. } => {
+            Ok(Observed::Unavailable(*reason))
+        }
+        _ => Err(ObservedRefusal::Expr(crate::expr::EvalError::OutputRead {
+            var: output,
+        })),
+    }
+}
+
+/// **Which endpoints of an observed value's enclosure belong to what it
+/// names** ([`Certified`](crate::measure::Certified)): structural, off
+/// the measures under it, so the same at every scalar. A value that is
+/// one `min_clearance` measure's output is its lower bound only; one a
+/// definition carries a `min_clearance` through is neither; every other
+/// value is a whole enclosure.
+pub(crate) fn certified<P>(doc: &crate::Doc<P>, var: crate::VarId) -> crate::measure::Certified {
+    use crate::measure::Certified;
+    let clearance = |out: &crate::VarId| {
+        doc.operation_of(*out)
+            .and_then(|node| doc.node(node))
+            .is_some_and(|node| {
+                matches!(
+                    node,
+                    crate::Node::Measure {
+                        primitive: MeasurePrimitive::MinClearance { .. }
+                    }
                 )
+            })
+    };
+    let outputs = doc.observed_outputs(var);
+    if outputs == [var] && clearance(&var) {
+        Certified::LowerBoundOnly
+    } else if outputs.iter().any(clearance) {
+        Certified::Neither
+    } else {
+        Certified::Enclosure
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    /// **`curve_reach` bounds an ellipse in any stored frame.** The
+    /// semi-axes carry no order and no sign, so an ellipse stored with
+    /// `minor` the larger, or `major` negative, reaches as far as its
+    /// larger magnitude. Read at the stored `major` it under-reached —
+    /// and an under-estimate here certifies a parallelism that does not
+    /// hold. Dense samples of the whole ellipse against the bound.
+    #[test]
+    fn the_reach_bounds_an_ellipse_in_any_stored_frame() {
+        let origin = Point3::new(0.3, -0.2, 0.1);
+        let center = Point3::new(1.0, 2.0, -0.5);
+        for (major, minor) in [(0.5, 3.0), (-3.0, 0.5), (-0.5, -3.0), (3.0, -0.5)] {
+            let e = Curve3::Ellipse {
+                center,
+                axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                major,
+                minor,
+                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
             };
-            // `Unread` is filled in for references no primitive
-            // indexes; reaching one from a primitive means the read
-            // set and this walk disagree, which is a kernel bug.
-            if matches!(a, Carrier::Unread) || matches!(b, Carrier::Unread) {
-                unreachable!(
-                    "`{}` reads references {ia}/{ib}, which the resolver marked unread — the \
-                     read set is computed from these very primitives",
-                    p.verb()
-                )
-            }
-            // **The one primitive whose value did not come from a
-            // carrier.** `min_clearance` measures between two
-            // SELECTIONS through the E7 engine, which wants bodies and
-            // face scopes; its answers were computed once, in the
-            // node's wiring, and arrive here in this very pre-order —
-            // the same arrangement the value leaves have, for the same
-            // reason (one walk, one order, no chance of two consumers
-            // disagreeing about which leaf is which).
-            if matches!(p, MeasurePrimitive::MinClearance { .. }) {
-                let i = *clearance_cursor;
-                *clearance_cursor += 1;
-                return match clearances.get(i) {
-                    Some(v) => Ok(*v),
-                    None => unreachable!(
-                        "`min_clearance` leaf {i} of {} computed answers is missing, yet that \
-                         vector is this expression's own primitives walked in this very order",
-                        clearances.len()
-                    ),
-                };
-            }
-            primitive(*p, a, b, band)
-        }
-        MeasureKind::Value(_) => {
-            let i = *cursor;
-            *cursor += 1;
-            // Same reasoning: the leaf vector IS this expression's own
-            // `value_leaves` walked in this very order, so a short
-            // vector is a kernel bug, not a document fault.
-            match leaves.get(i) {
-                Some(v) => Ok(*v),
-                None => unreachable!(
-                    "measure value leaf {i} of {} evaluated leaves is missing, yet the leaf \
-                     vector is this expression's own `value_leaves` in this very order",
-                    leaves.len()
-                ),
-            }
-        }
-        MeasureKind::Neg(a) => Ok(-eval_measure_inner(
-            a,
-            carriers,
-            leaves,
-            cursor,
-            clearances,
-            clearance_cursor,
-            band,
-        )?),
-        MeasureKind::Add(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x + y)
-        }
-        MeasureKind::Sub(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x - y)
-        }
-        MeasureKind::Mul(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x * y)
-        }
-        MeasureKind::Div(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x / y)
-        }
-        MeasureKind::Min(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x.min(y))
-        }
-        MeasureKind::Max(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x.max(y))
+            let reach = curve_reach(&e, 0.0, core::f64::consts::TAU, origin).expect("a conic");
+            let far = (0..=4000)
+                .map(|k| (e.eval(core::f64::consts::TAU * f64::from(k) / 4000.0) - origin).norm())
+                .fold(0.0_f64, f64::max);
+            assert!(
+                far <= reach,
+                "({major}, {minor}): a point {far} out against a reach of {reach}"
+            );
         }
     }
 }

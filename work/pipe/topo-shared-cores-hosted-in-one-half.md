@@ -1,13 +1,14 @@
 ---
 id: topo-shared-cores-hosted-in-one-half
 kind: issue
-title: topo — two shared cores still hosted inside one half, finish and conic_plane_crossing_roots
+title: topo — two shared cores still hosted inside one half, finish and plane_crossing_lane
 status: open
 opened: 2026-08-20
 github: 695
 refs: [690, S5, S173]
 priority: P1
-cost: D
+cost: H
+design: true
 ---
 
 ## From GitHub issue 695
@@ -26,9 +27,9 @@ Cost as scoped by the implementing lane: two functions, 16 grep hits, ~1 day. It
 
 **Correction to that scoping, from the style review:** deviation 4 describes `SplitFinishError::Corrupt` as *"payload-free, 2 closure sites in `splitting/finish.rs`"*. The file carries **12 direct constructions** (`:247, :254, :305, :328, :498, :511, :514, :527, :548, :550, :554, :557`) plus 2 closure definitions (`:353, :578`) — **13 sites, not 2**. The credibility of deferring it rested on that number.
 
-## Unit 2 — `conic_plane_crossing_roots`, and it carries a K-name question
+## Unit 2 — `plane_crossing_lane`, and it carries a K-name question
 
-`crates/topo/src/boolean/reduce.rs:565` calls `crate::splitting::conic_plane_crossing_roots` (defined `crates/topo/src/splitting/classify.rs:147`) on the boolean's **production** edge×face crossing path — not a test. The surrounding comment says *"the splitting lane's C12.1 machinery reused verbatim"*, and the function's own doc says *"shared with the boolean reduction sweep"*.
+`crates/topo/src/boolean/reduce.rs:565` calls `crate::splitting::plane_crossing_lane` (defined `crates/topo/src/splitting/classify.rs:147`) on the boolean's **production** edge×face crossing path — not a test. The surrounding comment says *"the splitting lane's C12.1 machinery reused verbatim"*, and the function's own doc says *"shared with the boolean reduction sweep"*.
 
 It **decides three K predicates**: `split_conic_plane_parallel`, `split_conic_belly_graze`, `split_conic_phase_frame` — all under `split_*` names, decided on the boolean lane.
 
@@ -66,3 +67,33 @@ dispatch estimate made by reading the row against the tree on
 2026-09-11, not a verdict on the finding, and a lane that finds it wrong
 says so in its PR. The id, the `track:` letter where the row carries
 one, and the body above are unchanged by the move.
+
+## Note (REACH, PR 3984, 2026-10-03)
+
+Unit 2's core was renamed and widened in place rather than moved:
+`splitting::classify::plane_crossing_lane` (was
+`conic_plane_crossing_roots`) now answers every carrier kind —
+`PlaneCrossingLane::{Line, Conic(ConicPlaneMeet), Unlaned}` — so the
+boolean sweep reads its line / conic / no-lane dispatch from the split
+half too. The move this item asks for now carries that dispatch with
+the conic roots.
+
+## Parked behind INTENT stage 4's boolean rows (PIPE, 2026-10-10)
+
+This row is not on the D10 hold's ground; it is about where shared code
+lives. But D10 stage 4 is rewriting the ground it would move.
+`booleans-glue-on-zero` (dispatched, `intent/s4-e-glue-on-zero`) has a
+diff against main of +1609/−4830 over 56 `crates/topo/src` files. That
+includes `boolean/{join,reduce,mod}.rs`, `chord_join.rs` and
+`splitting/finish.rs`, and it deletes `source.rs` and
+`param_source.rs`. `declared-pairs-retire` then deletes the declared
+seats on the boolean. Extracting a shared core from code another lane
+is deleting half of would be a three-way merge for both sides, and the
+pipeline this row describes will look different once the declared
+rungs are gone. So the row waits on both. Once they land, it is
+re-read against the tree, and the two designers weigh the layering
+question before any lane moves a file (plan, Order).
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

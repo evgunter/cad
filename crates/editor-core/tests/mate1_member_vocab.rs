@@ -15,13 +15,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
-    Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, assemble, clusters,
+    Formula, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, assemble, groups,
 };
-use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
     ang, door_refusal, in_copy, insert, len, on_frame, relations, run, scl, solve, step,
 };
@@ -31,7 +33,29 @@ use geom_core::Tol;
 
 // ---- Documents ----
 
-fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> ProfileDoc {
+/// **Each of `pattern`'s `count` copies placed in the world**, in
+/// instance order: a `Part` per copy, each placed at the identity —
+/// the world a pattern's copies are in the product by (A10).
+fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDoc {
+    (0..count).fold(doc, |doc, i| {
+        let (doc, copy) = insert(
+            doc,
+            Node::Part {
+                of: pattern.into(),
+                select: editor_core::PartSelect::Instance(Formula::count(i)),
+            },
+        );
+        fixture::place(doc, copy).0
+    })
+}
+
+fn block_part(
+    label: &str,
+    x: (f64, f64),
+    y: (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, p) = on_frame(
         doc,
@@ -40,41 +64,33 @@ fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> Pr
         [0.0, 1.0, 0.0],
         vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
-    );
-    doc
+    )
 }
 
 /// The unit cube `[0,1]³` — the leg.
-fn leg_part(label: &str) -> ProfileDoc {
+fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    }
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 /// A determining `Rest` mate by frame coincidence: `b`'s bottom frame
 /// onto the `a`-side frame at `origin` (one coincidence, DETERMINED —
 /// the A11 rule-4 tree edge wants no residual).
-fn seat_mate(
-    a: StableName,
-    b: StableName,
-    origin: [f64; 3],
-    sense: AxisSense,
-) -> Node<editor_core::ProfileProgram> {
+fn seat_mate(a: StableName, b: StableName, origin: [f64; 3], sense: AxisSense) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -92,7 +108,7 @@ fn seat_mate(
 /// Returns (doc, leg, pattern, top, mate, store).
 fn four_legs(
     label: &str,
-    top_part: ProfileDoc,
+    top_part: (ProfileDoc, RecipeNodeId),
     spacing: f64,
     i: u32,
     sense: AxisSense,
@@ -105,31 +121,34 @@ fn four_legs(
     PartStore,
 ) {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part(&format!("{label}-leg")), Tol::witness());
-    let top_ref = store.insert(top_part, Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part(&format!("{label}-leg")), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(top_part, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
-            count: Expr::count(4),
+            input: leg.into(),
+            count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(spacing),
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let doc = place_copies(doc, pattern, 4);
+    let doc = fixture::place(doc, top).0;
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
-                in_copy(pattern, i, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+            node: Box::new(seat_mate(
+                in_copy(pattern, i, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 sense,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     (doc, leg, pattern, top, mate.expect("the mate mints"), store)
@@ -158,25 +177,25 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
         AxisSense::Opposed,
     );
 
-    // The reading edges: the pattern-member mate reads through the
-    // pattern's INPUT instance — the vertex that joins the top into
-    // the pattern's cluster.
+    // The mate's coupling edges: the pattern-member mate reads through
+    // the pattern's INPUT instance — the vertex that joins the top into
+    // the pattern's group.
     assert_eq!(
-        editor_core::reading_edges(&doc),
+        crate::fixture::mate_members(&doc),
         vec![(mate, leg), (mate, top)],
-        "a pattern-placed head contributes the reading edge at the pattern's input instance"
+        "a pattern-placed side lands on the pattern's input instance"
     );
     assert_eq!(
-        clusters(&doc),
+        groups(&doc),
         vec![vec![leg, top]],
-        "the mate joins the top into the pattern's cluster; the gauge is the leg (document-first)"
+        "the mate joins the top into the pattern's group; the root is the leg (document-first)"
     );
 
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the mate solves — no fault");
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
-    assert_eq!(poses.gauge(top), Some(leg));
+    assert_eq!(poses.root(top), Some(leg));
 
     // Hand-composed: copy 2 sits at `translation(spacing·2 · x̂)` (the
     // pattern's own parameters, nothing read back from the solve); the
@@ -218,8 +237,8 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
 #[test]
 fn a_circular_pattern_copy_rotates_the_solved_member() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("mate1-circ-leg"), Tol::witness());
-    let top_ref = store.insert(leg_part("mate1-circ-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-circ-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("mate1-circ-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-circ"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, axis) = insert(
@@ -233,24 +252,25 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
-            count: Expr::count(4),
+            input: leg.into(),
+            count: Formula::count(4),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(theta),
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+            node: Box::new(seat_mate(
+                in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.5, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -299,8 +319,8 @@ fn two_seats(
     top_x: (f64, f64),
 ) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], PartStore) {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part(&format!("{label}-leg")), Tol::witness());
-    let top_ref = store.insert(
+    let (leg_ref, leg_body) = store.insert_part(leg_part(&format!("{label}-leg")), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(
         block_part(&format!("{label}-top"), top_x, (0.0, 1.0), 0.0, 0.5),
         Tol::witness(),
     );
@@ -309,35 +329,39 @@ fn two_seats(
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
-            count: Expr::count(2),
+            input: leg.into(),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(spacing),
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let doc = place_copies(doc, pattern, 2);
+    let doc = fixture::place(doc, top).0;
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+            node: Box::new(seat_mate(
+                in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+            node: Box::new(seat_mate(
+                in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     (
@@ -459,7 +483,11 @@ fn mates_never_solve_pattern_parameters() {
         panic!("the pattern is live");
     };
     assert!(
-        spacing.bit_eq(&len(3.0)),
+        doc.written(&editor_core::Expr::var(
+            *spacing,
+            editor_core::Dimension::Length
+        ))
+        .bit_eq(&len(3.0)),
         "the spacing expression is untouched: {spacing:?}"
     );
 
@@ -471,7 +499,8 @@ fn mates_never_solve_pattern_parameters() {
         DocEdit::SetParam {
             node: pattern,
             slot: editor_core::SlotId::Spacing,
-            expr: len(1.5),
+            value: len(1.5).into(),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&repaired, &o);
@@ -494,26 +523,26 @@ fn mates_never_solve_pattern_parameters() {
 #[test]
 fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("mate1-contra-leg"), Tol::witness());
-    let top_ref = store.insert(leg_part("mate1-contra-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-contra-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("mate1-contra-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-contra"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
-            count: Expr::count(2),
+            input: leg.into(),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let seat = |origin| {
         seat_mate(
-            in_copy(pattern, 1, in_part(leg, CapEnd::End)),
-            in_part(top, CapEnd::Start),
+            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+            in_part(top, top_body, CapEnd::Start),
             origin,
             AxisSense::Aligned,
         )
@@ -521,13 +550,15 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat([0.0, 0.0, 1.0]),
+            node: Box::new(seat([0.0, 0.0, 1.0])),
+            fresh: Vec::new(),
         },
     );
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat([0.5, 0.0, 1.0]),
+            node: Box::new(seat([0.5, 0.0, 1.0])),
+            fresh: Vec::new(),
         },
     );
     let m0 = m0.expect("mate 0 mints");
@@ -552,66 +583,50 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
 /// INVARIANT (ratified pin): the pattern consumed its master's root,
 /// so the MASTER-NAME spelling of a seat still REFUSES at the gate —
 /// pinned as a refusal, not fixed. The canonical spelling is the
-/// `Instance(i)` head the other rows use. The refusal's word is the
-/// operand's: the name is spelled at `leg`, which is not a root of
-/// the product (`ReadBelowARoot { at: leg }`), rather than a name
-/// that vanished — the leg's face is there, under the pattern's row.
+/// `Instance(i)` head the other rows use. The side reads `leg`, which
+/// no placement places — the pattern's copies are what the world holds
+/// — so the mate mints nothing, rather than refuse a name that
+/// vanished: the leg's face is there, under the pattern's row.
 #[test]
-fn the_master_name_spelling_refuses_read_below_a_root() {
+fn the_master_name_spelling_mints_nothing() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("mate1-pin-master-leg"), Tol::witness());
-    let top_ref = store.insert(leg_part("mate1-pin-master-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-pin-master-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("mate1-pin-master-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-pin-master"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
-    let (doc, _pattern) = insert(
+    let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
-            count: Expr::count(2),
+            input: leg.into(),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let doc = place_copies(doc, pattern, 2);
+    let doc = fixture::place(doc, top).0;
     // The master's own name — the spelling the pattern consumed.
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
-                in_part(leg, CapEnd::End),
-                in_part(top, CapEnd::Start),
+            node: Box::new(seat_mate(
+                in_part(leg, leg_body, CapEnd::End),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
 
     let ev = run(&doc, &with_resolver(store));
-    let result = assemble(&doc, &ev, Tol::witness());
-    let Err(AssemblyError::Mint { refusals }) = &result else {
-        panic!("the master-name seat refuses at the gate, got {result:?}");
-    };
-    let [
-        editor_core::MintRefusal::Reference {
-            mate: named,
-            side,
-            why,
-            ..
-        },
-    ] = refusals.as_slice()
-    else {
-        panic!("one mate refused, so one row: {refusals:?}");
-    };
-    assert_eq!(*named, mate);
-    assert_eq!(*side, editor_core::MateSide::A);
-    assert_eq!(
-        *why,
-        editor_core::RefusedRef::ReadBelowARoot { at: leg },
-        "the consumed master's face is spelled at a node the product does not list: {why:?}"
-    );
+    // No placement reads the master the side is read at — the pattern
+    // places it again — so the mate has no world copy to mint on.
+    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
 }
 
 // ---- The fence: what the vocabulary still refuses ----
@@ -624,22 +639,22 @@ fn the_master_name_spelling_refuses_read_below_a_root() {
 #[test]
 fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("mate1-fence-leg"), Tol::witness());
-    let top_ref = store.insert(leg_part("mate1-fence-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-fence-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("mate1-fence-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-fence"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
-            count: Expr::count(2),
+            input: leg.into(),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // Copy 5 of a count-2 pattern: no such member. A head that
     // resolves to no member is a fact about the mate alone, so the
     // edit door refuses it where it is authored, with the solve's own
@@ -647,8 +662,8 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     let fault = door_refusal(
         &doc,
         seat_mate(
-            in_copy(pattern, 5, in_part(leg, CapEnd::End)),
-            in_part(top, CapEnd::Start),
+            in_copy(pattern, 5, in_part(leg, leg_body, CapEnd::End)),
+            in_part(top, top_body, CapEnd::Start),
             [0.0, 0.0, 1.0],
             AxisSense::Aligned,
         ),
@@ -664,13 +679,12 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
 
     // A pattern of a non-instance body (an extrude patterned in the
     // same document): its copies stand on no instance — no member.
-    let doc2 = block_part("mate1-fence-body", (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let extrude = PART_BODY;
+    let (doc2, extrude) = block_part("mate1-fence-body", (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc2, body_pattern) = insert(
         doc2,
         Node::Pattern {
-            input: extrude,
-            count: Expr::count(2),
+            input: extrude.into(),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -678,7 +692,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         },
     );
     let mut store2 = PartStore::default();
-    let other_ref = store2.insert(leg_part("mate1-fence-other"), Tol::witness());
+    let (other_ref, other_body) = store2.insert_part(leg_part("mate1-fence-other"), Tol::witness());
     let (doc2, other) = insert(doc2, Node::instantiate_part(other_ref));
     let master_face = StableName {
         kind: EntityKind::Face,
@@ -689,7 +703,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         &doc2,
         seat_mate(
             in_copy(body_pattern, 0, master_face),
-            in_part(other, CapEnd::Start),
+            in_part(other, other_body, CapEnd::Start),
             [0.0, 0.0, 1.0],
             AxisSense::Aligned,
         ),
@@ -714,14 +728,14 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
 #[test]
 fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("mate1-selfpair-leg"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-selfpair-leg"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-selfpair"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
-            count: Expr::count(3),
+            input: leg.into(),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(1.0),
@@ -733,12 +747,13 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
     let (doc, declared) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
-                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+            node: Box::new(seat_mate(
+                in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
+                in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let declared = declared.expect("the mate mints");
@@ -747,8 +762,8 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
     let fault = door_refusal(
         &doc,
         seat_mate(
-            in_copy(pattern, 2, in_part(leg, CapEnd::End)),
-            in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+            in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
+            in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
             [0.0, 0.0, 1.0],
             AxisSense::Aligned,
         ),

@@ -21,12 +21,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use crate::common::approx::band;
-use crate::common::oracles::chamfered_cube_volume;
+use crate::common::oracles::{bulge_loop_area, chamfered_cube_volume, eroded_bulge_loop};
 use geom::Surface;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, ChartMove, FaceKey, ReplaceFaceError, ShellError};
@@ -36,9 +38,16 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a polygon extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a polygon extrudes")
+    .body
 }
 
 /// The convex polygon inset by `t`: each edge's line moved inward,
@@ -94,15 +103,20 @@ fn shoelace(pts: &[(f64, f64)]) -> f64 {
 fn r2a_valence4_nonconcurring_corner_refuses_typed() {
     let tol = Tol::witness();
     let body = cube(1.0, tol);
-    let out = chamfer_edges(&body, &query::all_edges(&body), 0.2, tol)
-        .expect("a cube's twelve edges chamfer");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body, tol),
+        &query::all_edges(&body),
+        0.2,
+        tol,
+    )
+    .expect("a cube's twelve edges chamfer");
     let chamfered = out.body;
     assert_eq!(
         (chamfered.vertices().count(), chamfered.edges().count()),
         (24, 48),
         "every vertex 4-valent (2E/V = 4)"
     );
-    let e = topo::shell(&chamfered, 0.02, tol)
+    let e = topo::shell(&finished("the operand", chamfered.clone(), tol), 0.02, tol)
         .expect_err("a chamfered cube's corners do not concur under a uniform inset");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
@@ -139,19 +153,20 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     let (a, d, t, s) = (1.0, 0.2, 0.02, 0.02);
     let c = (2.0 * s * core::f64::consts::SQRT_2 - t) / 3.0_f64.sqrt();
     let body = cube(a, tol);
-    let out = chamfer_edges(&body, &query::all_edges(&body), d, tol)
-        .expect("a cube's twelve edges chamfer");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body, tol),
+        &query::all_edges(&body),
+        d,
+        tol,
+    )
+    .expect("a cube's twelve edges chamfer");
     let mut chamfered = out.body;
 
     // One ChartMove per face (each face its own plane), the distance
     // signed along the STORED normal so every plane moves INWARD.
     let centroid = {
         let (mut x, mut y, mut z, mut n) = (0.0, 0.0, 0.0, 0.0);
-        for (k, _) in chamfered.vertices() {
-            let p = chamfered
-                .get_vertex(k)
-                .and_then(|v| chamfered.get_point(v.point))
-                .unwrap();
+        for (_, p) in chamfered.vertex_points() {
             x += p.x;
             y += p.y;
             z += p.z;
@@ -164,10 +179,7 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
         let Some(Surface::Plane { origin, normal, .. }) = chamfered.get_surface(f.surface) else {
             panic!("a chamfered cube carries planes only");
         };
-        let nonzero = [normal.x, normal.y, normal.z]
-            .iter()
-            .filter(|v| v.abs() > 1e-9)
-            .count();
+        let nonzero = normal.to_array().iter().filter(|v| v.abs() > 1e-9).count();
         let dist = match nonzero {
             1 => t, // a shrunk cube face
             2 => s, // a strip
@@ -228,7 +240,7 @@ fn r2a_bevel_kite_triangle_walls_in_closed_form() {
         ),
     ] {
         let body = prism(&pts, h);
-        let hollow = topo::shell(&body, t, tol)
+        let hollow = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
             .unwrap_or_else(|e| panic!("{what} hollows, got {e}"))
             .body;
         let props = topo::mass_properties(&hollow, tol).expect("props");
@@ -280,7 +292,7 @@ fn r2a_a_face_named_twice_across_moves() {
     let before = topo::mass_properties(&body, tol).expect("props").volume;
     match topo::offset_planes_together(&mut body, &moves, band(), tol) {
         Err(e) => println!("[r2a] duplicate face: refused, {e}"),
-        Ok(()) => {
+        Ok(_) => {
             let tier3 = topo::validate_geometric(&body, tol);
             let vol = topo::mass_properties(&body, tol).map(|p| p.volume);
             println!(
@@ -291,11 +303,9 @@ fn r2a_a_face_named_twice_across_moves() {
     }
 }
 
-/// **`ChartMove.faces` docs say "they must share one surface key" —
-/// nothing checks it.** One move naming faces of TWO different planes
-/// re-points the second face at the first's minted surface in the
-/// mutation pass. This row measures whether anything downstream
-/// refuses before that body is adopted.
+/// **One move naming faces of TWO different planes refuses**
+/// (`TogetherChartMixed`): a move names one chart, and re-pointing the
+/// second face at the first's minted surface would be a wrong body.
 #[test]
 fn r2a_one_move_spanning_two_planes() {
     let tol = Tol::witness();
@@ -322,70 +332,77 @@ fn r2a_one_move_spanning_two_planes() {
             distance: d,
         });
     }
-    match topo::offset_planes_together(&mut body, &moves, band(), tol) {
-        Err(e) => println!("[r2a] two-plane ChartMove: refused, {e}"),
-        Ok(()) => {
-            let tier3 = topo::validate_geometric(&body, tol);
-            let vol = topo::mass_properties(&body, tol).map(|p| p.volume);
-            println!("[r2a] two-plane ChartMove: BUILT; tier3 = {tier3:?}, volume = {vol:?}");
-        }
-    }
+    let got = topo::offset_planes_together(&mut body, &moves, band(), tol);
+    assert!(
+        matches!(got, Err(ReplaceFaceError::TogetherChartMixed { .. })),
+        "a two-plane move refuses as a mixed chart: {got:?}"
+    );
 }
 
 // ---------------------------------------------------------------------
 // 5. Boundary rows: one curved face among planes; a drum stays put.
 // ---------------------------------------------------------------------
 
-/// **One curved face among planes takes the per-chart path and still
-/// refuses at the old door** — here an OBLIQUE-planar body wearing a
-/// cylindrical bore, so the planar corners the new door could solve
-/// coexist with a curved chart. The branch predicate is per-BODY, so
-/// the whole body must go the old way and refuse where it always did.
+/// **One curved face among oblique planes takes the AXIAL door** — an
+/// oblique-planar body wearing one cylindrical side: a hexagonal prism
+/// with ONE side bulged into an arc. Every flat side is parallel to the
+/// arc's cylinder axis and the ends are normal to it, so the body is
+/// axial in the gate's sense, and its hollow is the prism less its
+/// eroded profile's prism (`eroded_bulge_loop`): every oblique side
+/// corner solved against a station, the cylinder's line or a second
+/// side.
 #[test]
-fn r2a_one_curved_face_among_oblique_planes_refuses_at_the_old_door() {
+fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
     let tol = Tol::witness();
-    // A hexagonal prism with ONE side bulged into an arc: every flat
-    // side oblique to its neighbours (the class the new door fixed),
-    // one curved face (the bulged wall) putting the body outside the
-    // door.
-    let r = 0.2;
-    let hex: Vec<(f64, f64)> = (0..6)
+    let (r, depth, t) = (0.2, 0.25, 0.02);
+    let hex: Vec<(f64, f64, f64)> = (0..6)
         .map(|i| {
             let a = core::f64::consts::TAU * f64::from(i) / 6.0;
-            (r * a.cos(), r * a.sin())
+            (r * a.cos(), r * a.sin(), if i == 0 { 0.2 } else { 0.0 })
         })
         .collect();
     let outer = bulge_loop(
         hex.iter()
-            .enumerate()
-            .map(|(i, &(x, y))| (Point2::new(x, y), if i == 0 { 0.2 } else { 0.0 }))
+            .map(|&(x, y, b)| (Point2::new(x, y), b))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![outer])
         .validate(tol)
         .expect("a one-arc hexagon validates");
-    let body = extrude(&profile, Extrusion::Distance(0.25), tol)
-        .expect("a one-arc hexagon extrudes")
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("a one-arc hexagon extrudes")
+    .body;
     let curved = body
         .faces()
         .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
         .count();
-    assert!(curved > 0, "the bore is a curved chart");
-    let e = topo::shell(&body, 0.02, tol)
-        .expect_err("one curved face puts the whole body outside the simultaneous door");
-    println!("[r2a] one-arc hexagon: {e}");
-    if let ShellError::Face { ref error, .. } = e {
-        assert!(
-            !matches!(
-                **error,
-                ReplaceFaceError::TogetherNonPlanar { .. }
-                    | ReplaceFaceError::TogetherPartialSet { .. }
-                    | ReplaceFaceError::TogetherCorner { .. }
-            ),
-            "the new door's gates must not fire on the per-chart path: {error}"
-        );
-    }
+    assert_eq!(curved, 1, "the bulged side is the one curved chart");
+    assert!(
+        topo::is_axial(&body, band()).expect("the axis gate decides"),
+        "sides parallel to the arc's axis, ends normal to it"
+    );
+    let operand = topo::mass_properties(&body, tol).expect("props").volume;
+    let area = bulge_loop_area(&hex);
+    assert!(
+        (operand - area * depth).abs() <= 1e-15,
+        "the oracle's own profile area: {operand} against {}",
+        area * depth
+    );
+    let want = area * depth - bulge_loop_area(&eroded_bulge_loop(&hex, t)) * (depth - 2.0 * t);
+    let hollow = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+        .unwrap_or_else(|e| panic!("the one-arc hexagon hollows: {e}"))
+        .body;
+    assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
+    let got = topo::mass_properties(&hollow, tol).expect("props").volume;
+    println!("[r2a] one-arc hexagon hollow: {got}, closed form {want}");
+    assert!((got - want).abs() <= 1e-15, "hollow {got}, want {want}");
 }
 
 /// **The straight-footprint-vertex prism, through `shell` itself.**
@@ -405,7 +422,7 @@ fn r2a_straight_vertex_prism_through_shell_at_head() {
         &[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         0.4,
     );
-    match topo::shell(&body, 0.05, tol) {
+    match topo::shell(&finished("the operand", body.clone(), tol), 0.05, tol) {
         Ok(topo::Shelled { body: hollow, .. }) => {
             let props = topo::mass_properties(&hollow, tol).expect("props");
             println!(
@@ -440,14 +457,16 @@ fn r2a_zero_total_offset_reports_singular() {
         })
         .collect();
     let before: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point).map(|p| (p.x, p.y, p.z)))
+        .vertex_points()
+        .map(|(_, p)| p)
+        .map(|p| (p.x, p.y, p.z))
         .collect();
     topo::offset_planes_together(&mut body, &moves, band(), tol)
         .expect("a zero offset is a no-move, not a singular corner");
     let after: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point).map(|p| (p.x, p.y, p.z)))
+        .vertex_points()
+        .map(|(_, p)| p)
+        .map(|p| (p.x, p.y, p.z))
         .collect();
     println!("[r2a] all-zero distances: {} points, unmoved", after.len());
     assert_eq!(

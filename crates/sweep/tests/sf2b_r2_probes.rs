@@ -10,6 +10,7 @@ use crate::common::bulge;
 use geom::Surface;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
@@ -112,7 +113,7 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
         let body = frustum(r0, r1, h);
         describe_cones(what, &body);
         let v_out = topo::mass_properties(&body, tol).expect("props").volume;
-        match topo::shell(&body, T, tol) {
+        match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
             Ok(topo::Shelled { body: hollow, .. }) => {
                 assert_eq!(
                     topo::validate_geometric(&hollow, tol),
@@ -140,25 +141,15 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
 }
 
 /// **The per-chart door on both cone nappes at the wall thickness.**
-/// Both doors read one nappe now (`topo::group_nappe`), so the question
-/// this row asked — which way the single-chart verb actually went — has
-/// one answer to pin AT THIS `|d|`: nowhere. The cone's offset moves
-/// its rim off every unmoved neighbour by the action's own axial
-/// component `|d|·sin α`, and at `|d| = t` that is four million times ε,
-/// so the caps refuse first on both nappes and both signs.
-///
-/// **The gap this asserts is blind to the turn** (R2's `r2p1` measures
-/// exactly how blind: the two signs' gaps differ in the last bits, far
-/// under any tolerance a row could state), so nothing here is evidence
-/// about the nappe. It is evidence about the GATE — #1199's
-/// measurement, re-taken — and the turn is pinned where it is
-/// observable, in `shell6_nappe_home`: below `ε/sin α` this same door
-/// builds, and the cone it stores is the turned mint bit for bit.
+/// Both doors read one nappe (`topo::group_nappe`), and at `|d| = t`
+/// the per-chart door builds on both nappes and both signs: each rim is
+/// the moved cone's section with its unmoved cap, and each corner the
+/// root of the cap along the band seam meeting it, so the caps no
+/// longer stand in front of the cone chart.
 #[test]
 fn r2_per_chart_door_on_a_mirror_nappe_cone() {
     let tol = Tol::witness();
     let h = 8.0 / 64.0;
-    let alpha = (2.0f64 / 64.0 / h).atan();
     for (what, r0, r1) in [
         ("narrowing upward", 4.0 / 64.0, 2.0 / 64.0),
         ("widening upward", 2.0 / 64.0, 4.0 / 64.0),
@@ -167,27 +158,11 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
         let faces = cone_faces(&body);
         for signed in [-T, T] {
             let mut work = body.clone();
-            match topo::replace_faces_offset(&mut work, &faces, signed, tol) {
-                Ok(()) => panic!(
-                    "[r2] per-chart {what} d={signed}: BUILT — the caps' gate stopped standing \
-                     in front of the cone chart, which is the measurement this row carries"
-                ),
-                Err(topo::ReplaceFaceError::ReanchorOffCarrier { gap, .. }) => {
-                    println!("[r2] per-chart {what} d={signed}: REFUSED off-carrier by {gap}");
-                    assert!(
-                        (gap - T * alpha.sin()).abs() <= 1e-15,
-                        "{what} d={signed}: the gap is the action's axial component |d|·sin α \
-                         ({gap} vs {})",
-                        T * alpha.sin()
-                    );
-                    assert!(
-                        gap > band().zero(),
-                        "{what} d={signed}: and it is the ε comparison that refuses, so the \
-                         gap must stand above the band's zero ({gap} vs {})",
-                        band().zero()
-                    );
-                }
-                Err(e) => panic!("[r2] per-chart {what} d={signed}: REFUSED {e}"),
+            let got = topo::replace_faces_offset(&mut work, &faces, signed, tol);
+            // The caps no longer stand in front of the cone chart: each
+            // rim is the moved cone's section with its cap.
+            if let Err(e) = got {
+                panic!("[r2] per-chart {what} d={signed}: REFUSED {e}");
             }
         }
     }
@@ -215,7 +190,7 @@ fn r2_a_conical_wedge_meridian_edge() {
             Revolution::Partial(turn),
         );
         let v0 = topo::mass_properties(&body, tol).expect("props").volume;
-        match topo::shell(&body, T, tol) {
+        match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
             Ok(topo::Shelled { body: hollow, .. }) => {
                 let v = topo::mass_properties(&hollow, tol).expect("props").volume;
                 println!(
@@ -264,7 +239,7 @@ fn r2_wedge_at_degenerate_turns() {
             Revolution::Partial(turn),
         );
         let v0 = topo::mass_properties(&body, tol).expect("props").volume;
-        match topo::shell(&body, T, tol) {
+        match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
             Ok(topo::Shelled { body: hollow, .. }) => {
                 let v = topo::mass_properties(&hollow, tol).expect("props").volume;
                 let valid = topo::validate_geometric(&hollow, tol);
@@ -318,16 +293,16 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         r_foot * r_foot + (y_foot - y_c) * (y_foot - y_c) - r_belly * r_belly
     );
     let before: Vec<f64> = pot
-        .vertices()
-        .filter_map(|(_, vd)| pot.get_point(vd.point).copied())
+        .vertex_points()
+        .map(|(_, p)| p)
         .map(|p| p.z.atan2(p.x))
         .collect();
-    let hollow = topo::shell(&pot, T, tol)
+    let hollow = topo::shell(&finished("the operand", pot.clone(), tol), T, tol)
         .expect("the bellied pot hollows")
         .body;
     let after: Vec<f64> = hollow
-        .vertices()
-        .filter_map(|(_, vd)| hollow.get_point(vd.point).copied())
+        .vertex_points()
+        .map(|(_, p)| p)
         .filter(|p| (p.x * p.x + p.z * p.z).sqrt() > 1e-12)
         .map(|p| p.z.atan2(p.x))
         .collect();
@@ -348,7 +323,7 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         })
         .map(|(k, _)| k)
         .collect();
-    match topo::shell_open(&pot, T, &mouth, tol) {
+    match topo::shell_open(&finished("the operand", pot.clone(), tol), T, &mouth, tol) {
         Ok(topo::Shelled { body: cup, .. }) => {
             let props = topo::mass_properties(&cup, tol).expect("props");
             println!(
@@ -378,7 +353,7 @@ fn r2_stepped_vase_lift_branch() {
         ]),
         Revolution::Full,
     );
-    match topo::shell(&body, t, tol) {
+    match topo::shell(&finished("the operand", body.clone(), tol), t, tol) {
         Ok(_) => println!("[r2] stepped vase SEALED: ok"),
         Err(e) => println!("[r2] stepped vase SEALED: REFUSED {e}"),
     }
@@ -390,7 +365,7 @@ fn r2_stepped_vase_lift_branch() {
         })
         .map(|(k, _)| k)
         .collect();
-    match topo::shell_open(&body, t, &mouth, tol) {
+    match topo::shell_open(&finished("the operand", body.clone(), tol), t, &mouth, tol) {
         Ok(topo::Shelled { body: cup, .. }) => println!(
             "[r2] stepped vase OPENED: ok, shells {} tier3 {:?}",
             cup.shells().count(),

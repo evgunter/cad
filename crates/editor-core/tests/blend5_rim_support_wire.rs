@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     EntityKind, Node, PersistError, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg, StableName,
@@ -21,23 +22,16 @@ use editor_core::{
 use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
-/// The block a band trimline is carved out of: the extrude, which
-/// this document reaches after its sketch frame and the profile drawn
-/// on it.
-const BLOCK: RecipeNodeId = RecipeNodeId(2);
-
-/// The fillet over that block.
-const FILLET: RecipeNodeId = RecipeNodeId(3);
-
-/// A band trimline's name, on the support role `support`.
-fn trim_name(support: RimSupport) -> StableName {
+/// A band trimline's name on the block `block` (the extrude it is
+/// carved out of), on the support role `support`.
+fn trim_name(block: RecipeNodeId, support: RimSupport) -> StableName {
     StableName {
         kind: EntityKind::Edge,
-        node: BLOCK,
+        node: block,
         path: vec![RoleSeg::BandTrim {
             edge: StableName {
                 kind: EntityKind::Edge,
-                node: BLOCK,
+                node: block,
                 path: vec![RoleSeg::OutputBody],
             }
             .into(),
@@ -65,16 +59,22 @@ fn both_roles() -> ProfileDoc {
     let (doc, block) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _fillet) = insert(
         doc,
         Node::Fillet {
-            target: block,
             radius: len(0.05),
-            selection: vec![trim_name(RimSupport::Host), trim_name(RimSupport::Mate)],
+            selection: editor_core::Operand::select(
+                block,
+                vec![
+                    trim_name(block, RimSupport::Host),
+                    trim_name(block, RimSupport::Mate),
+                ],
+            ),
         },
     );
     doc
@@ -95,13 +95,22 @@ fn both_rim_roles_round_trip() {
         "the retired kind vocabulary is gone: {text}"
     );
     let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
-    let selection = match back.node(FILLET) {
-        Some(Node::Fillet { selection, .. }) => selection.clone(),
+    // Frame, profile, the block, then the fillet over it.
+    let (block, fillet) = (back.ids()[2], back.ids()[3]);
+    let selection = match back.node(fillet) {
+        Some(Node::Fillet { selection, .. }) => back
+            .selection(*selection)
+            .expect("the fillet reads a selection")
+            .names
+            .clone(),
         other => panic!("expected the fillet, got {other:?}"),
     };
     assert_eq!(
         selection,
-        vec![trim_name(RimSupport::Host), trim_name(RimSupport::Mate)],
+        vec![
+            trim_name(block, RimSupport::Host),
+            trim_name(block, RimSupport::Mate)
+        ],
         "both roles survive the round trip, and stay two distinct names"
     );
     let again = save(&back, &[], Tol::witness()).expect("the reloaded document saves");

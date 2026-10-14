@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
@@ -27,16 +28,29 @@ use editor_core::mc::{McConfig, McRefusal, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, Node, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym,
+    AssertionRelation, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram,
+    MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, VarName,
     save,
 };
 use geom_core::Tol;
 
 use fixture::{Recorder, ang, len, scl};
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+/// A variable as the free mass doors' refusals speak it.
+/// The variable `doc` declares as `name`, or an id it never minted.
+fn v(doc: &editor_core::ProfileDoc, name: &str) -> editor_core::VarId {
+    doc.var_named(name).unwrap_or(editor_core::VarId::new(0, 0))
+}
+
+fn sp(name: &'static str) -> editor_core::SpokenVar {
+    editor_core::SpokenVar::new(
+        editor_core::VarId::new(0, 0),
+        Some(editor_core::VarName::from_static(name)),
+    )
+}
+
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// The ε-scaled half-width the driver can certify over.
@@ -53,18 +67,18 @@ fn half() -> f64 {
 /// vary.
 fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("place"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(law),
-        },
+        }),
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                 .expect("finite corners"),
@@ -72,45 +86,46 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // Placed by the parameter, so the measured distance moves with it —
     // M10-5's finding that a rigid placement is what survives the
     // interval lane at a usable box.
-    let placed = r.insert(Node::Transform {
-        input: solid,
-        translation: [
-            Expr::param(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
-        ],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let placed = r.insert(Node::transform(
+        solid,
+        editor_core::Step::Rigid {
+            translation: [
+                Formula::named(name("place"), Dimension::Length),
+                len(0.0),
+                len(0.0),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     // distance(wall 0, wall 2) — two parallel walls of the prism, 2 m
     // apart, measured at the PLACED node.
-    let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(
-        Node::measure(
-            web,
-            vec![
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-            ],
-        )
-        .expect("both indices in range"),
+    let web = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let measured = r.measure(
+        &[web],
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+            ),
+        ],
     );
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(1.0),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }
@@ -151,21 +166,23 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
 
     let one = stackup(
         &doc,
-        measure,
+        crate::fixture::output(&doc, measure),
         &analyzed,
         &parallel,
         None,
         false,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
     let two = stackup(
         &doc,
-        measure,
+        crate::fixture::output(&doc, measure),
         &analyzed,
         &parallel,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -179,7 +196,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
     // The two doors are DIFFERENT: the goldening form carries bits, the
     // human form carries percentages and prose. Neither is the other's
     // substitute, which is what makes shipping both worth it.
-    let rendered = one.render(&analyzed);
+    let rendered = one.render(&doc, &analyzed);
     assert!(
         rendered.contains("CERTIFIED WORST CASE"),
         "the human form leads with the gating number: {rendered}"
@@ -214,11 +231,12 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         .expect("the nominal builds");
     let report = stackup(
         &doc,
-        measure,
+        crate::fixture::output(&doc, measure),
         &analyzed,
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -226,11 +244,12 @@ fn a_content_key_moves_exactly_when_the_report_does() {
     // The same report twice: equal bits, equal key.
     let again = stackup(
         &doc,
-        measure,
+        crate::fixture::output(&doc, measure),
         &analyzed,
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -249,11 +268,12 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         .expect("the nominal builds");
     let other = stackup(
         &wider_doc,
-        wider_measure,
+        crate::fixture::output(&wider_doc, wider_measure),
         &wider,
         &wider_verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -322,11 +342,12 @@ fn the_cache_serves_equal_keys_and_only_those() {
         .expect("the nominal builds");
     let report = stackup(
         &doc,
-        measure,
+        crate::fixture::output(&doc, measure),
         &analyzed,
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -402,7 +423,13 @@ fn the_histogram_joins_leaf_mass_to_the_measures_enclosure() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
         .expect("the nominal builds");
-    let histogram = leaf_histogram(&doc, &analyzed, &verdict, measure, Tol::witness());
+    let histogram = leaf_histogram(
+        &doc,
+        &analyzed,
+        &verdict,
+        crate::fixture::output(&doc, measure),
+        Tol::witness(),
+    );
     assert_eq!(
         histogram.rows.len(),
         verdict.certified().len(),
@@ -415,7 +442,7 @@ fn the_histogram_joins_leaf_mass_to_the_measures_enclosure() {
         );
         assert!(row.mass.is_ok(), "a uniform law prices every leaf");
     }
-    let rendered = histogram.render();
+    let rendered = histogram.render(&doc);
     assert!(
         rendered.contains("ADVISORY") && rendered.contains("Not a density"),
         "the advisory label and the E11.6 disclaimer are the first line: {rendered}"
@@ -490,9 +517,22 @@ fn the_mc_report_is_deterministic_and_labeled() {
     .expect("replays");
     assert_ne!(a.serialize(), other.serialize(), "the seed is the draw");
 
-    // Every advisory line carries the count and the seed.
-    let rendered = a.render();
-    for line in rendered.lines().filter(|l| l.contains("node")) {
+    // Every estimate line carries the count and the seed. Each one opens
+    // with its node as the document speaks it.
+    let rendered = a.render(&doc);
+    let nodes: Vec<String> = a
+        .measures
+        .iter()
+        .map(|m| m.node)
+        .chain(a.assertions.iter().map(|x| x.node))
+        .map(|n| doc.spoken(n).to_string())
+        .collect();
+    assert!(!nodes.is_empty(), "the report estimates at least one node");
+    for node in &nodes {
+        let line = rendered
+            .lines()
+            .find(|l| l.starts_with(&format!("  {node}: ")))
+            .unwrap_or_else(|| panic!("an estimate line for {node} in:\n{rendered}"));
         assert!(
             line.contains("64 samples") && line.contains("0x4d435f4531315f31"),
             "an estimate line carries its count and seed: {line}"
@@ -546,9 +586,9 @@ fn the_mc_tail_fraction_converges_on_the_accountings_tail() {
     let (doc, _, _) = plate(Distribution::Normal { sigma: half() });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let exact = editor_core::tail_mass(
-        &name("place"),
+        &sp("place"),
         &Distribution::Normal { sigma: half() },
-        &analyzed.get(&name("place")).expect("the axis").offsets,
+        &analyzed.get(v(&doc, "place")).expect("the axis").offsets,
     )
     .expect("a normal prices its tail");
     assert!(
@@ -598,7 +638,7 @@ fn the_budget_renders_its_tail_and_its_containment() {
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
         .expect("the nominal builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    let rendered = budget.render();
+    let rendered = budget.render(&doc);
     assert!(rendered.contains("tail"), "the tail has a line: {rendered}");
     assert!(
         rendered.contains("UNRESOLVED"),

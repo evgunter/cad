@@ -37,10 +37,10 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{BooleanOp, Dimension, MatePrimitive};
+use pncad::document::{Dimension, MatePrimitive};
 use pncad::profile::{ArcMode, TargetKind};
 use pncad::quantity::UnitDef;
-use pncad::select::SplitHalf;
+use pncad::topo::BooleanOp;
 
 use crate::props;
 use crate::session::DatumSpec;
@@ -73,9 +73,7 @@ vocabulary! {
 /// declaration publishes `BooleanOp::ALL`, and the form draws one
 /// button per entry of it. A fourth operation therefore arrives in
 /// this form with no MEMBERSHIP edit here — it gets its button from
-/// the kernel's list — and it cannot arrive silently either, because
-/// it has no word until this match is given one, which is a compile
-/// error and not a missing button.
+/// the kernel's list, and its word from this match.
 ///
 /// **The order is `ALL`'s**, which is the kernel's declaration order,
 /// and the type's own doc says that order carries no meaning. The form
@@ -93,18 +91,14 @@ pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
 vocabulary! {
     /// The add-datum form's kind choice — one form, and **every arm of
     /// [`crate::session::DatumSpec`]**. An enum rather than an index
-    /// into a label list, so every consumer matches exhaustively and a
-    /// new kind cannot leave a silent wildcard arm behind.
+    /// into a label list, because a consumer can match an enum and name
+    /// every kind, and cannot do that with an index.
     ///
-    /// Two kinds need a PICK as well as numbers, and they pick from
-    /// different places. `AxisInPlane`'s frame is a document node,
-    /// chosen from the frames the document holds, and its origin and
-    /// direction are that frame's own 2-D coordinates; it is the only
-    /// node the revolve tool's axis seat admits. `FaceFrame`'s picks
+    /// One kind needs a PICK as well as numbers: `FaceFrame`'s picks
     /// are a face in the VIEWPORT and the body-denoting node the ray
     /// met, which no combo can list, so its seat is the selection
     /// itself ([`crate::session::face_frame_seat`] is the gate above
-    /// it). Each states the sentence its own unmet seat reads, at
+    /// it). It states the sentence its unmet seat reads, at
     /// [`DatumKindChoice::unmet_seat`].
     ///
     /// **`Choice` because `viewer::DatumKind` is a different type** —
@@ -112,13 +106,9 @@ vocabulary! {
     /// DRAWN, which partitions the datum VALUES rather than selecting
     /// among the specs. This crate already spells a form's choice
     /// apart from the thing chosen among that way
-    /// ([`PatternKindChoice`], [`crate::blend::BlendKindChoice`]). The
-    /// two do not have the same members: an axis in a sketch is its
-    /// own choice here, because authoring one takes a frame pick, and
-    /// is drawn as the axis it is, so the draw tag has no member for
-    /// it. `ALL` is this side's alone in consequence: it is the radio
-    /// row's offering, in form order, and a drawing's tag claims no
-    /// such thing.
+    /// ([`PatternKindChoice`], [`crate::blend::BlendKindChoice`]).
+    /// `ALL` is this side's alone: it is the radio row's offering, in
+    /// form order, and a drawing's tag claims no such thing.
     ///
     /// **Held to `DatumSpec` by a roster.** The direction the compiler
     /// already held is kind-to-spec: `Drafts::datum_spec`'s lowering
@@ -141,8 +131,7 @@ vocabulary! {
     /// is projected in and therefore the order the radio row is drawn
     /// in: the frame sits next to the plane because that is the choice
     /// a reader is actually making — the same surface, with or without
-    /// a stated direction on it — and the axis in a sketch sits next to
-    /// the axis for the same reason. The frame on a face sits next to
+    /// a stated direction on it. The frame on a face sits next to
     /// the frame by the same rule one step on: a frame you type and a
     /// frame you pick are the same choice, differently sourced.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -155,8 +144,6 @@ vocabulary! {
         FaceFrame = "frame on face",
         /// An axis datum, in world coordinates.
         Axis = "axis",
-        /// An axis written in a picked sketch frame — a revolve's axis.
-        AxisInPlane = "axis in sketch",
         /// A point datum.
         Point = "point",
     }
@@ -170,11 +157,9 @@ impl DatumKindChoice {
     /// a pick — the sentence the add-datum form shows over a held
     /// button, and `None` for a kind that has no pick to wait for.
     ///
-    /// One sentence per kind rather than one for the form: the two
-    /// picking kinds want different things from different places (a
-    /// frame from the document, a face from the viewport), so a single
-    /// sentence over the button is false of whichever kind is not
-    /// showing.
+    /// One sentence per kind rather than one for the form: a single
+    /// sentence over the button would be false of every kind that has
+    /// no pick to wait for.
     ///
     /// **The `Some` half is exactly the set `Drafts::datum_spec`
     /// answers `Ok(None)` for**, which is a fact about two functions in
@@ -187,9 +172,23 @@ impl DatumKindChoice {
     /// string at its one home and cannot drift apart.
     pub(crate) fn unmet_seat(self) -> Option<&'static str> {
         match self {
-            Self::AxisInPlane => Some("pick a frame to write the axis in"),
             Self::FaceFrame => Some(crate::session::NO_FACE_PICKED),
             Self::Plane | Self::Frame | Self::Axis | Self::Point => None,
+        }
+    }
+
+    /// **The kind noun of the node this choice creates** —
+    /// `node_kind_noun`'s word for it, which the form's proposed label
+    /// counts by ([`crate::tree::proposed_label`]).
+    /// `drafts::tests::each_datum_choices_noun_is_the_kind_of_the_node_it_commits`
+    /// holds each to the node the form commits.
+    pub(crate) fn noun(self) -> &'static str {
+        match self {
+            Self::Plane => "Datum plane",
+            Self::Frame => "Datum frame",
+            Self::FaceFrame => "Datum frame (on face)",
+            Self::Axis => "Datum axis",
+            Self::Point => "Datum point",
         }
     }
 }
@@ -200,52 +199,13 @@ partial_mirror! {
         Plane { .. } => Plane,
         Axis { .. } => Axis,
         Point { .. } => Point,
-        AxisInPlane { .. } => AxisInPlane,
         Frame { .. } => Frame,
         FaceFrame { .. } => FaceFrame,
     ],
     absent [],
 }
 
-vocabulary! {
-    /// The part form's selector choice — which of
-    /// [`crate::session::PartSelectSpec`]'s two arms the commit button
-    /// authors, an enum for the reason [`PatternKindChoice`] is one.
-    ///
-    /// It also says which SEAT the commit reads: a half comes out of
-    /// the split seat and an index out of the pattern seat, so the
-    /// choice picks the door exactly as the pattern form's rule choice
-    /// does.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum PartSelectChoice {
-        /// A named half of the picked split.
-        Half = "half of a split",
-        /// One instance of the picked pattern, by index.
-        Instance = "instance of a pattern",
-    }
-
-    /// Both selectors with their radio labels, in form order.
-    pub(crate) const ALL;
-}
-
-/// The word the part form shows for a half of the KERNEL's
-/// [`SplitHalf`], whose `ALL` the radio row offers.
-///
-/// **A match, not a table**, for the reason [`boolean_op_label`] is:
-/// the enum is declared in `topo`, so no list written here can be
-/// projected from its declaration — but it publishes `SplitHalf::ALL`,
-/// and the form draws one button per entry. A third half would arrive
-/// with no membership edit here and could not arrive silently, because
-/// it has no word until this match gives it one.
-///
-/// The words are the kernel's own sides — the plane's normal decides
-/// which is which, and the form does not paraphrase that.
-pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
-    match half {
-        SplitHalf::Above => "above",
-        SplitHalf::Below => "below",
-    }
-}
+pub(crate) use crate::tree::split_half_label;
 
 vocabulary! {
     /// The add-profile form's loop choice: the two templates, or a PATH
@@ -275,8 +235,8 @@ vocabulary! {
 ///
 /// **A match, not a table**, for the reason [`boolean_op_label`] is
 /// one: a mode the vocabulary gains reaches the picker from
-/// `ArcMode::ALL` with no membership edit here, and has no word until
-/// this match gives it one — a compile error, not a missing option.
+/// `ArcMode::ALL` with no membership edit here, and its word from
+/// this match.
 /// The verbs need no such function: `profile::Verb`'s own `Display`
 /// is the authoring spelling, declared on the transition table's row.
 pub(crate) fn arc_mode_label(mode: ArcMode) -> &'static str {
@@ -299,39 +259,6 @@ pub(crate) fn target_kind_label(kind: TargetKind) -> &'static str {
         TargetKind::StartArriving => "Start, arriving tangent",
     }
 }
-
-/// **Whether a path editor may change its program's SHAPE** — the
-/// verbs, their order and number, each arc's mode, side and winding,
-/// each target's form, a split circle's count — or only its numbers.
-///
-/// The add-profile form's editor is one editor with two doors. Opened
-/// on nothing it authors a new node and every control is live
-/// ([`ShapeEdits::Free`]). Opened on a committed profile it commits as
-/// slot writes, and the document's edit vocabulary writes a program's
-/// ARGUMENTS and has no door that rewrites its shape, so the controls
-/// that would are shown and not taken ([`ShapeEdits::Locked`], said
-/// as [`SHAPE_LOCKED`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ShapeEdits {
-    /// Every control is live.
-    Free,
-    /// The shape controls are drawn disabled.
-    Locked,
-}
-
-impl ShapeEdits {
-    /// Whether the shape controls take input.
-    pub(crate) fn free(self) -> bool {
-        self == Self::Free
-    }
-}
-
-/// What a locked editor says about its greyed controls — above the
-/// list, and on the disabled hover of each step row's glyph controls,
-/// under what that control would have done.
-pub(crate) const SHAPE_LOCKED: &str = "the numbers are editable here; the shape (the steps, \
-     their verbs and order, arc modes, sides and targets) is not — the document has no edit that \
-     rewrites a committed profile's program";
 
 /// The fewest subdivisions the `circle_split` count field offers —
 /// the kernel's own floor (`profile::Step::CircleSplit`'s `n`, which
@@ -412,8 +339,8 @@ pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
 /// gesture made a thousand times coarser by a change of notation.
 ///
 /// **The two panel fields this answers for are the SLOT field
-/// (`ViewerBehavior::slot_value_ui`) and the DOCUMENT PARAMETER's
-/// (`ViewerBehavior::properties_ui`'s `Selection::Param` arm)** — the
+/// (`ViewerBehavior::slot_value_ui`) and the DOCUMENT VARIABLE's
+/// (`ViewerBehavior::properties_ui`'s `Selection::Variable` arm)** — the
 /// two a user drags to move the same kind of number. It is not the
 /// creation forms' answer: those hold canonical drafts and pick their
 /// tick from the four constants by hand at each field
@@ -437,10 +364,10 @@ pub struct FieldWriting {
 impl FieldWriting {
     /// How a field of `dimension` whose value remembers `stored` is
     /// written. `stored` is the row's own `unit` — the fact the
-    /// document carries, before [`props::rendering_unit`] chooses what
-    /// a value that remembers nothing reads as.
-    pub fn of(dimension: Dimension, stored: Option<UnitDef>) -> Self {
-        let unit = props::rendering_unit(dimension, stored);
+    /// document carries, before [`props::rendering_unit`] reads a value
+    /// that remembers nothing in the working `notation`.
+    pub fn of(dimension: Dimension, stored: Option<UnitDef>, notation: props::Notation) -> Self {
+        let unit = props::rendering_unit(dimension, stored, notation);
         // A COUNT field steps by one whatever it is written in: what it
         // holds is a count, and a tenth of an instance is not a value
         // it can take. Read off the dimension and not off a
@@ -490,8 +417,7 @@ impl FieldWriting {
 /// forces (`crates/viewer/src/vocab.rs` declares the macro) is that
 /// every [`MatePrimitive`] variant is either offered at a seat of this
 /// list or named below as deliberately absent, with the reason it is
-/// absent. A primitive added to the kernel enum is neither until
-/// someone writes one of the two, and the build says so.
+/// absent.
 pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
     (MatePrimitive::FrameCoincidence, "frame coincidence"),
     (MatePrimitive::Coaxial, "coaxial"),

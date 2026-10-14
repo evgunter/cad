@@ -1,12 +1,12 @@
 //! **G1's preview/commit machine, held once** — the three rules every
 //! gesture in this crate obeys, with each gesture's own refusal
-//! vocabulary as a parameter.
+//! vocabulary as a variable.
 //!
 //! `crates/viewer/GUI-DESIGN.md` G1 ratifies the shape: *a gesture
 //! emits preview edits against scratch state and exactly one committed
 //! value on release*. Two gestures implement it — the value drag
 //! ([`crate::session::DocSession`]'s, over a slot or a document
-//! parameter) and the free-move probe ([`crate::display::DisplayState`]'s,
+//! variable) and the free-move probe ([`crate::display::DisplayState`]'s,
 //! over an instance's frame) — and they own different value kinds,
 //! different validation and different side effects. They are NOT one
 //! type and a generic over their values would buy nothing; what they

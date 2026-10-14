@@ -9,34 +9,6 @@
 # exists exactly once and a second debug-only mechanism is a row here
 # rather than a second gate with a second reader.
 #
-#   * `crates/topo/src/source.rs` — the bit channel. Its calls may only
-#     appear inside `cfg(debug_assertions)` items, or inside a
-#     `debug_assert!` (which is itself compiled out of release). THIS
-#     GATE IS THAT FILE'S ONLY CONTROL — `bit-identity-consumer.sh`
-#     excludes it wholesale — so what it can and cannot see is the whole
-#     guarantee. The row pins the channel call (`bit_identity::`,
-#     `eq_bits`) AND the debug-only witnesses built on it —
-#     `plane_bits_witness`, `vec3_bits_witness`, `surface_bits_witness`
-#     with its helpers `nurbs_surface_bits_witness` and
-#     `joined`, and `bits_witness` — whose own gated `fn`
-#     heads name the channel nowhere. A ROW HOLDS THE
-#     ATTRIBUTES ON THE STATEMENTS THAT NAME ITS SPELLINGS AND NO
-#     OTHERS, so a mechanism's every spelling belongs on its row.
-#   * `crates/topo/src/boolean/plane_eq.rs`,
-#     `crates/topo/src/merge_faces.rs` and `crates/topo/src/body.rs`
-#     (`surface_bits_witness` at the stamp door) — the witnesses'
-#     CALLERS, a row
-#     each, because A SUBJECT IS A FILE and the row above pins the
-#     attributes on the DEFINITIONS only. Each caller stands under a
-#     STATEMENT-POSITION attribute over an `if let`, and names the
-#     witnesses its own file calls: `plane_bits_witness` at the
-#     same-source plane assertion, and both `plane_bits_witness` and
-#     `vec3_bits_witness` where the face merge compares two plane
-#     surfaces with their `u_ref`. Dropping either attribute compiles
-#     and passes every test HERE — the workspace's `[profile.release]`
-#     keeps debug assertions on — and the first build that refuses it
-#     is a consumer's, because the witnesses do not exist without
-#     `debug_assertions`.
 #   * `crates/editor-core/src/product.rs` — the gather counter: the
 #     `GATHERS` cell, the increment in `product_recorded`, and
 #     `gathers_on_this_thread`. A fourth site without the attribute, or
@@ -121,7 +93,7 @@
 # EVERY SUBJECT MUST EXIST, and every row is proved present before any
 # row is scanned, so a subject that moved cannot hide behind the ones
 # that stayed. The inherited form checked for none of it: on a missing
-# `crates/topo/src/source.rs` both counts were the empty string,
+# subject file both counts were the empty string,
 # `[ "" -gt 0 ]` raised "integer expression expected", `&&` read that as
 # false, and the gate exited 0 — GREEN exactly when its subject had
 # moved out from under it. `gate_require_file` turns that case into a
@@ -246,22 +218,18 @@ set -euo pipefail
 # to a file with no row — reds with the row named rather than lowering
 # the total in silence.
 SUBJECTS=(
-  'crates/topo/src/source.rs bit_identity::|eq_bits|plane_bits_witness|vec3_bits_witness|surface_bits_witness|nurbs_surface_bits_witness|joined|bits_witness 23 the bit channel'
-  'crates/topo/src/boolean/plane_eq.rs plane_bits_witness 1 the same-source plane witness on the bit channel'
-  'crates/topo/src/merge_faces.rs plane_bits_witness|vec3_bits_witness 2 the plane and u_ref witnesses on the bit channel'
-  'crates/topo/src/body.rs surface_bits_witness 1 the stamp door witness on the bit channel'
   'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread 4 the debug-only gather counter'
   'crates/mesh/src/curved.rs identified_ids|overused_identified_edge|overused_identified_edge_in 5 the identified-vertex census the sphere/torus emit pass re-derives'
   'crates/mesh/src/tessellate.rs unpaired_chord_segment 2 the chord-segment pairing census'
   'crates/mesh/src/walk.rs overused_identified_edge_in 1 the shared identified-vertex fan census'
   'crates/mesh/src/trimmed.rs overused_identified_edge_in 1 the trimmed lane call of the identified-vertex fan census'
   'crates/topo/src/euler.rs ArenaDelta|assert_euler_postcondition|arena_counts|ArenaCounts 21 the arena delta the euler operators declare'
-  'crates/topo/src/euler_ring.rs ArenaDelta|assert_euler_postcondition|arena_counts 17 the arena delta the ring operators declare'
-  'crates/topo/src/euler_kill.rs ArenaDelta|assert_euler_postcondition|arena_counts 17 the arena delta the kill-direction operators declare'
+  'crates/topo/src/euler_ring.rs ArenaDelta|assert_euler_postcondition|arena_counts 24 the arena delta the ring operators declare'
+  'crates/topo/src/euler_kill.rs ArenaDelta|assert_euler_postcondition|arena_counts 27 the arena delta the kill-direction operators declare'
   'crates/topo/src/null.rs ArenaDelta|assert_euler_postcondition|arena_counts 5 the arena delta the null-entity operators declare'
   'crates/topo/src/split.rs ArenaDelta|assert_euler_postcondition|arena_counts 5 the arena delta the split operators declare'
   'crates/topo/src/boolean/voids.rs ArenaDelta|assert_euler_postcondition|arena_counts 4 the arena delta the void transplant declares'
-  'crates/topo/src/movefac.rs ArenaDelta|assert_euler_postcondition|arena_counts 10 the arena delta the face-move and shell-move operators declare'
+  'crates/topo/src/movefac.rs ArenaDelta|assert_euler_postcondition|arena_counts 14 the arena delta the face-move, shell-move and solid-merge operators declare'
 )
 GATE_SCAN_NOUN='debug-only symbol use'
 
@@ -562,7 +530,7 @@ plant_nothing() { :; }
 # reader of that diagnosis is sent to a file with no line to look at.
 plant_colon_path_leak() {
   printf 'pub fn production_leak(a: f64, b: f64) -> bool { %s }\n' \
-    "$(spelling_use plane_bits_witness)" >> "$1/crates/planted/src/a:b.rs"
+    "$(spelling_use data_bits_witness)" >> "$1/crates/planted/src/a:b.rs"
 }
 
 # THE CASE THE COUNTING FORM PASSED, and the reason this gate was
@@ -1114,7 +1082,7 @@ gate_selftest() {
   # the leak case wants the PATH AND THE LINE the diagnosis carries,
   # which is the whole of what the record reading decides here.
   local saved_subjects=("${SUBJECTS[@]}")
-  export GATE_SELFTEST_EXTRA_SUBJECT='crates/planted/src/a:b.rs plane_bits_witness 1 the witness at a colon-carrying path'
+  export GATE_SELFTEST_EXTRA_SUBJECT='crates/planted/src/a:b.rs data_bits_witness 1 the witness at a colon-carrying path'
   SUBJECTS+=("$GATE_SELFTEST_EXTRA_SUBJECT")
   selftest_subject_paths_are_distinct
   gate_selftest_passes "a gated use in a subject whose path carries a colon" plant_nothing

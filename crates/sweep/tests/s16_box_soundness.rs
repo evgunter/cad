@@ -56,9 +56,9 @@ use crate::common::operands::{
     nested_box, rim_plate, rounded_plate, small_box, three_arc_cylinder, top_rim_plate,
 };
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
+use geom_core::{Point2, Vec3};
 use std::collections::BTreeSet;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use topo::{
     Body, BooleanError, BooleanResult, ContactRecords, EntityId, FaceKey, SweepStrategy,
     SweepTrace, ValidationError, sweep_traces, validate_pseudomanifold,
@@ -76,7 +76,7 @@ fn cylinder(z0: f64, height: f64) -> Body<f64> {
 /// The nested pair as one two-instance arena.
 fn assembly(outer: &Body<f64>, inner: &Body<f64>) -> Body<f64> {
     let mut out = outer.clone();
-    topo::graft_disjoint(&mut out, inner, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, inner).unwrap();
     out
 }
 
@@ -164,8 +164,12 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
 /// this row is what moves the day that ring lands.
 #[test]
 fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
-    let block = brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), Tol::witness());
-    let tool = cylinder(0.5, 1.0);
+    let block = finished(
+        "the block",
+        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let tool = finished("the tool", cylinder(0.5, 1.0), Tol::witness());
     let BooleanResult::Body(bored) = topo::subtract(&block, &tool, Tol::witness()).unwrap() else {
         panic!("the bore cuts a body");
     };
@@ -350,7 +354,8 @@ fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
         "the lofted operand carries NURBS FACES — the class the re-gate exists for"
     );
 
-    let b = nested_box(20.0, 0.5);
+    let a = finished("the lofted operand", a, Tol::witness());
+    let b = finished("the box", nested_box(20.0, 0.5), Tol::witness());
     let err = topo::boolean::union(&a, &b, Tol::witness())
         .expect_err("a NURBS operand must refuse typed");
     assert!(
@@ -379,7 +384,7 @@ fn top_rim_x_plate(x_max: f64) -> Body<f64> {
 fn cylinder_apart(gap: f64) -> Body<f64> {
     topo::transform_rigid(
         &cylinder(0.0, 1.0),
-        &Affine3::translation(Vec3::new(1.0 + gap, 0.0, 0.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(1.0 + gap, 0.0, 0.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap()

@@ -242,3 +242,17 @@ Do not close. Split the row's record: the `review_d18` half is done and
 should be marked so; the `review_gui0_r1` half is untouched and is the
 whole remaining ask, with `review_d18`'s `require_each` + exact-tally pair
 now available in-tree as the worked model.
+
+## Note: PR 4022 retired `SPENT_GRAFT_EXPOSURE` (2026-10-04)
+
+The graft now stages and commits (S14). So the spent-destination row and its
+`SPENT_GRAFT_*` table, which this row cites above as the landed
+deterministic remedy, are deleted along with their subject. Two things went
+with them (PR 4022's review, NOTE-1):
+- `mfkrh_plug`'s exposure count, which no other row pins (it is not in
+  `LINK_OPS`);
+- the many-faults-at-once body. `TEARS` keeps only single foreign and
+  dangling tears.
+
+The "deterministic row" remedy above therefore no longer exists in the tree.
+What still holds a floor is the sampling row's `require_each(&LINK_OPS, …)`.

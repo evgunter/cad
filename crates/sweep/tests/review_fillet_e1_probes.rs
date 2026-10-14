@@ -55,7 +55,7 @@ fn same_f64(a: f64, b: f64) -> bool {
 #[test]
 fn the_size_gate_runs_before_the_repeated_edge_gate_on_both_doors() {
     let t = Tol::witness();
-    let body = cube(1.0, t);
+    let body = sweep::test_support::finished("body", cube(1.0, t), t);
     let mut edges = all_edges(&body);
     edges.push(edges[0]);
     for size in NONPOSITIVE {
@@ -88,7 +88,7 @@ fn the_size_gate_runs_before_the_repeated_edge_gate_on_both_doors() {
 #[test]
 fn both_doors_mint_one_refusal_for_one_nonpositive_size() {
     let t = Tol::witness();
-    let body = cube(1.0, t);
+    let body = sweep::test_support::finished("body", cube(1.0, t), t);
     let edges = all_edges(&body);
     for size in NONPOSITIVE {
         let f = fillet_edges(&body, &edges, size, t).expect_err("a nonpositive radius refuses");
@@ -137,7 +137,7 @@ fn both_doors_mint_one_refusal_for_one_nonpositive_size() {
 #[test]
 fn a_positive_size_under_epsilon_reads_a_false_fact_at_both_doors_today() {
     let t = Tol::witness();
-    let body = cube(1.0, t);
+    let body = sweep::test_support::finished("body", cube(1.0, t), t);
     let edges = all_edges(&body);
     let size = 1e-12;
 
@@ -185,7 +185,7 @@ mod certified {
     #[test]
     fn a_not_definitely_positive_bracket_refuses_with_its_low_end() {
         let t = Tol::witness();
-        let body = cube(1.0, Tol::witness());
+        let body = sweep::test_support::finished("body", cube(1.0, Tol::witness()), t);
         let edges = all_edges(&body);
         let sizes = [
             iv(0.0),
@@ -215,7 +215,7 @@ mod certified {
     #[test]
     fn a_definitely_positive_bracket_passes_the_gate() {
         let t = Tol::witness();
-        let body = cube(1.0, Tol::witness());
+        let body = sweep::test_support::finished("body", cube(1.0, Tol::witness()), t);
         let edges = all_edges(&body);
         let size = Interval::from_bounds(0.1 - 1e-9, 0.1 + 1e-9);
         for (door, r) in [
@@ -250,7 +250,7 @@ mod recorded {
     #[test]
     fn a_nonpositive_size_meters_nothing_before_it_refuses() {
         let t = Tol::witness();
-        let body = cube(1.0, Tol::witness());
+        let body = sweep::test_support::finished("body", cube(1.0, Tol::witness()), t);
         let edges = all_edges(&body);
         for size in [0.0, -0.1, f64::NAN] {
             for door in ["fillet", "chamfer"] {

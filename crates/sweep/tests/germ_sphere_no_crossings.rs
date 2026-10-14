@@ -16,10 +16,11 @@
 //!   `point_in_solid`. A ball scraping the tube in an oval interior to
 //!   both faces refuses R-loop, typed as the fallback's extent refusal
 //!   naming the torus face.
-//! - **Sphere × cone** is examined by the pass, and refuses on reach
-//!   until the certificate's cone rows land: the rows run the path's
-//!   two certificates directly, since the operand gate keeps every cone
-//!   pair off the operations.
+//! - **Sphere × cone** is examined by the pass: a ball strictly inside
+//!   the cone is certified apart, and a ball meeting the lateral face in
+//!   a loop with no crossing refuses R-loop, naming the cone face. The
+//!   rows run the path's two certificates directly, since the operand
+//!   gate keeps every cone pair off the operations.
 //!
 //! The mutant is the scan stepping past the pair without the pass
 //! taking it up: then nothing examines the pair, the scraping ball's
@@ -34,12 +35,13 @@ use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, BooleanError, SolidContainment};
+use topo::{AtRestBody, Body, BooleanError, SolidContainment};
 
 /// A ball of radius `r` centred at `c`, poled along `y`: its seam
 /// meridians lie in the plane `z = c.z`.
-fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
+fn ball_at(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(0.0, -r), 1.0),
         (Point2::new(0.0, r), 0.0),
@@ -54,7 +56,13 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
+    let placed = topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
+    finished("the ball", placed, Tol::witness())
 }
 
 /// A ball of radius `r` centred at `c`, poled along `z`: its seam
@@ -63,24 +71,36 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
 /// torus residual bounds exactly; a `y`-poled ball's meridians pass
 /// through that axis, where the bound is honestly infinite and the
 /// circle rung refuses before the no-crossings path is reached.
-fn ball_poled_z(r: f64, c: Vec3<f64>) -> Body<f64> {
+fn ball_poled_z(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let ball = ball_at(r, Vec3::new(0.0, 0.0, 0.0));
     let turn = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::unit_x(), PI / 2.0);
-    let placed = topo::transform_rigid(&ball, &turn, Tol::witness()).unwrap();
-    topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap()
+    let placed = topo::transform_rigid(
+        &ball,
+        &geom_core::test_support::rigid(&turn, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
+    let placed = topo::transform_rigid(
+        &placed,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
+    finished("the z-poled ball", placed, Tol::witness())
 }
 
 /// The donut: `R = 2`, `r = 1/2` about `y`. Its seam meridians lie in
 /// the plane `z = 0`, and its two parallels at `y = ±1/2`.
-fn donut() -> Body<f64> {
-    revolve(
+fn donut() -> AtRestBody<f64> {
+    let donut = revolve(
         &validated(vec![revolve_common::donut_profile()]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the donut", donut, Tol::witness())
 }
 
 /// `2π²Rr²`.
@@ -111,8 +131,8 @@ fn pis(b: &Body<f64>, q: Point3<f64>) -> SolidContainment {
 /// The union's one body, its volume against `want`, and each named
 /// point's containment.
 fn union_answers(
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
     want: f64,
     points: &[(Point3<f64>, SolidContainment)],
     what: &str,
@@ -248,9 +268,9 @@ fn quarter_cone() -> Body<f64> {
     .body
 }
 
-/// The path's certificates refuse on reach, naming the cone face: the
-/// pass examined the pair and has no cone arm yet.
-fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &str) {
+/// The path's certificates refuse, naming the cone face, with the
+/// refusal whose sentence contains `why_has`.
+fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &str, why_has: &str) {
     for (a, b, operand) in [
         (cone, ball, topo::Operand::A),
         (ball, cone, topo::Operand::B),
@@ -269,7 +289,7 @@ fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &st
                     ),
                     "{what}: the refusal names the cone face"
                 );
-                assert!(why.contains("no section classification"), "{what}: {why}");
+                assert!(why.contains(why_has), "{what}: {why}");
             }
             other => panic!("{what}: {other:?}"),
         }
@@ -278,15 +298,39 @@ fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &st
 
 /// **A ball strictly inside the cone, and one meeting its lateral face
 /// in a loop with no crossing.** Both boxes meet the cone face's, so the
-/// scan refused both by the cone's kind. The pass takes both up now,
-/// and both refuse on reach until the certificate's cone rows land.
+/// pass takes both up. The ball inside meets the double cone nowhere
+/// (W0), and the path certifies it with no re-cut. The ball on the
+/// lateral face meets it in one null loop whose witness lies inside
+/// both faces, with no event: R-loop. The mutant reading that loop's arc
+/// of generators as the whole circle claims two essential curves, which
+/// W2 clears on the apex-closed face: the certificates pass, red.
 #[test]
 fn a_ball_against_a_cone_face_is_the_section_passs() {
     let cone = quarter_cone();
-    refused_by_the_pass_on_the_cone(
-        &cone,
-        &ball_at(0.05, Vec3::new(0.2, 0.3, -0.2)),
-        "the ball inside",
+    let inside = ball_at(0.05, Vec3::new(0.2, 0.3, -0.2));
+    for (a, b) in [(&cone, &*inside), (&*inside, &cone)] {
+        assert_eq!(
+            topo::test_support::no_crossings_certificates(a, b, Tol::witness()).unwrap(),
+            0,
+            "the ball inside is apart"
+        );
+    }
+    let cone_face = |f: topo::FaceKey| {
+        matches!(
+            cone.get_surface(cone.get_face(f).unwrap().surface),
+            Some(geom::Surface::Cone { .. })
+        )
+    };
+    let pairs: Vec<String> =
+        topo::test_support::no_crossings_section_report(&cone, &inside, Tol::witness())
+            .unwrap()
+            .into_iter()
+            .filter(|(fa, _, _)| cone_face(*fa))
+            .map(|(_, _, v)| v)
+            .collect();
+    assert!(
+        !pairs.is_empty() && pairs.iter().all(|v| v == "Ok([])"),
+        "the ball inside meets the double cone nowhere (W0): {pairs:?}"
     );
     // The foot `(0.45 cos φ, 0.55, 0.45 sin φ)` at `φ = −π/4`, and the
     // centre `0.045` out along the outward normal `(r̂ + ŷ)/√2`: the ball
@@ -299,5 +343,6 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
         &cone,
         &ball_at(0.05, centre),
         "the ball on the lateral face",
+        "the loop is certified",
     );
 }

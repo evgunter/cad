@@ -101,7 +101,7 @@ fn corners(b: &Aabb) -> Vec<Point3<f64>> {
 
 fn built(delta: f64) -> viewer::SceneMesh {
     let tol = Tol::witness();
-    let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
+    let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     let d = DisplayTolerance::new(delta).expect("a positive display tolerance");
     scene::scene_of(&doc, d, tol).expect("the plate tessellates")
 }

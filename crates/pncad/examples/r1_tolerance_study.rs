@@ -10,7 +10,7 @@
 
 use pncad::analysis::{AnalysisPolicy, analyzed_box, box_mass, tail_mass};
 use pncad::document::{
-    Dimension, Distribution, DocEdit, DocParam, ParamName, ProfileDoc, apply, load, save,
+    Dimension, Distribution, DocEdit, FreeVar, ProfileDoc, VarName, apply, load, save,
 };
 use pncad::geom_core::Tol;
 
@@ -26,10 +26,10 @@ fn main() {
     // is toleranced symmetric-ish but clipped by inspection (truncated
     // normal), and the fit allowance is uniform by assumption.
     let mut doc = ProfileDoc::empty_derived("r1-tolerance-study", tol);
-    let declare: &[(&str, DocParam)] = &[
+    let declare: &[(&str, FreeVar)] = &[
         (
             "bore_r",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Length,
                 0.004,
                 Distribution::Normal { sigma: 5e-6 },
@@ -37,7 +37,7 @@ fn main() {
         ),
         (
             "plate_t",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Length,
                 0.012,
                 Distribution::Band {
@@ -48,7 +48,7 @@ fn main() {
         ),
         (
             "web_w",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Length,
                 0.003,
                 Distribution::TruncatedNormal {
@@ -60,7 +60,7 @@ fn main() {
         ),
         (
             "fit",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Scalar,
                 1.0,
                 Distribution::Uniform {
@@ -69,14 +69,14 @@ fn main() {
                 },
             ),
         ),
-        ("holes", DocParam::Count { value: 4 }),
+        ("holes", FreeVar::Count { value: 4 }),
     ];
     for (name, value) in declare {
         doc = apply(
             &doc,
-            &DocEdit::SetDocParam {
-                name: ParamName::new(*name),
-                value: value.clone(),
+            &DocEdit::DeclareVar {
+                name: VarName::from_static(name),
+                def: pncad::document::VarDecl::Free(value.clone()),
             },
             tol,
             &pncad::document::RefusingReach,
@@ -92,17 +92,17 @@ fn main() {
     let doc = load(&std::fs::read_to_string(&out).expect("reads"), tol)
         .expect("loads")
         .doc;
-    println!("reloaded {out}: {} params", doc.params().len());
+    println!("reloaded {out}: {} variables", doc.vars().len());
 
     // The analyzed box under the default (±3σ) policy.
     let policy = AnalysisPolicy::default();
     let b = analyzed_box(&doc, &policy);
     println!("\nanalyzed box (quantile mass {}):", policy.quantile_mass());
-    for (name, axis) in b.params() {
+    for (&var, axis) in b.params() {
         let (lo, hi) = axis.absolute();
         println!(
             "  {:<8} nominal {:>8}  offsets [{:+.3e}, {:+.3e}]  absolute [{lo}, {hi}]{}",
-            format!("{:?}", name.0),
+            b.spoken(var).to_string(),
             axis.nominal,
             axis.offsets.lo,
             axis.offsets.hi,
@@ -116,19 +116,21 @@ fn main() {
 
     // The tail column, per varying axis.
     println!("\ntail mass outside the box:");
-    for (name, axis) in b.varying() {
+    for (var, axis) in b.varying() {
         let dist = axis.distribution.expect("varying implies annotated");
-        match tail_mass(name, &dist, &axis.offsets) {
-            Ok(t) => println!("  {:<8} {t:.3e}", format!("{:?}", name.0)),
-            Err(e) => println!("  {:<8} REFUSED: {e}", format!("{:?}", name.0)),
+        let name = b.spoken(var);
+        match tail_mass(&name, &dist, &axis.offsets) {
+            Ok(t) => println!("  {:<8} {t:.3e}", name.to_string()),
+            Err(e) => println!("  {:<8} REFUSED: {e}", name.to_string()),
         }
     }
 
     // Price a driver-leaf-shaped sub-box on the measured bore.
-    let bore = b.get(&ParamName::new("bore_r")).expect("axis");
+    let bore_r = doc.var_named("bore_r").expect("declared");
+    let bore = b.get(bore_r).expect("axis");
     let leaf = (0.0, bore.offsets.hi / 2.0);
     let m = box_mass(
-        &ParamName::new("bore_r"),
+        &b.spoken(bore_r),
         &bore.distribution.expect("annotated"),
         leaf,
     )
@@ -137,9 +139,10 @@ fn main() {
 
     // And the refusal a first-time user WILL hit: pricing a leaf over
     // the vendor band.
-    let plate = b.get(&ParamName::new("plate_t")).expect("axis");
+    let plate_t = doc.var_named("plate_t").expect("declared");
+    let plate = b.get(plate_t).expect("axis");
     match box_mass(
-        &ParamName::new("plate_t"),
+        &b.spoken(plate_t),
         &plate.distribution.expect("annotated"),
         (0.0, 1e-4),
     ) {

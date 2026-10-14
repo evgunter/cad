@@ -3,7 +3,7 @@
 //! ε the run committed.
 //!
 //! The door's promise is narrow and exact: no loop it emits carries a
-//! declared tangency `Profile::validate` contradicts. These rows push on
+//! constructed tangency `Profile::validate` contradicts. These rows push on
 //! the edges of that promise — a joint whose stored NEIGHBOUR is what
 //! loses the tangency (a leg between two fillets too short to hold its
 //! own direction), a fixed turn that sits inside the window on one ε
@@ -24,7 +24,8 @@ use common::tol;
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Tol};
 use profile::{
-    ArcSweep, Center, Open, PathError, Profile, ProfileError, ProfileLoop, SketchPlane, Start,
+    ArcSweep, Center, ConstructedLoop, ConstructedProfile, Open, PathError, ProfileError,
+    SketchPlane, Start,
 };
 
 /// The fillet radius every corner here is rounded with.
@@ -50,7 +51,7 @@ fn sagitta(radius: f64, theta: f64) -> f64 {
 // The unit's three corners, copied so a probe can vary the radius.
 // ------------------------------------------------------------------
 
-fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn line_line(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
@@ -66,7 +67,7 @@ fn line_arc_centre(theta: f64) -> Point2<f64> {
     Point2::new(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
 }
 
-fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn line_arc(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let c = line_arc_centre(theta);
     let start = c + (Point2::new(2.0 * theta.cos(), 2.0 * theta.sin()) - Point2::new(0.0, 0.0));
     Open.at(start)
@@ -84,7 +85,7 @@ fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>>
         .map(|c| c.loop_)
 }
 
-fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn arc_arc(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
             c: Point2::new(-theta, 0.0),
@@ -105,7 +106,7 @@ fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> 
 
 type Corner = (
     &'static str,
-    fn(f64, f64) -> Result<ProfileLoop<f64>, PathError<f64>>,
+    fn(f64, f64) -> Result<ConstructedLoop<f64>, PathError<f64>>,
 );
 
 fn corners() -> [Corner; 3] {
@@ -124,7 +125,10 @@ fn corners() -> [Corner; 3] {
 /// with `radius`, so close together that the straight leg left between
 /// the two fillet arcs is `gap` long. Rotated by 0.3 rad so every
 /// coordinate carries rounding, the way a real part's would.
-fn two_fillets_with_a_leg_of(gap: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn two_fillets_with_a_leg_of(
+    gap: f64,
+    radius: f64,
+) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let phi = 0.3_f64;
     let (s, c) = phi.sin_cos();
     let rot = |x: f64, y: f64| Point2::new(x * c - y * s, x * s + y * c);
@@ -151,7 +155,7 @@ fn two_fillets_with_a_leg_of(gap: f64, radius: f64) -> Result<ProfileLoop<f64>, 
 /// turned by `theta` off the entry ray, and closes with a seam fillet
 /// at the origin, whose arc becomes the closing segment and retrims
 /// the entry vertex.
-fn seam_fillet(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn seam_fillet(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let (s, c) = theta.sin_cos();
     Open.at(Point2::new(1.0, 0.0))
         .angle(0.0, tol())?
@@ -168,7 +172,7 @@ fn seam_fillet(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f6
 /// the origin, swept clockwise from (0, 2), meets the westbound line
 /// `y = −2cos θ` at a point where the circle's tangent is `theta` off
 /// the line.
-fn fused_incoming(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn fused_incoming(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let y = -2.0 * theta.cos();
     Open.arc_fillet(
         Center {
@@ -215,7 +219,7 @@ enum Outcome {
     RefusedElsewhere(String),
 }
 
-fn outcome(built: Result<ProfileLoop<f64>, PathError<f64>>) -> Outcome {
+fn outcome(built: Result<ConstructedLoop<f64>, PathError<f64>>) -> Outcome {
     match built {
         Err(PathError::FilletArcFlattenedInStorage {
             predicate, margin, ..
@@ -227,12 +231,11 @@ fn outcome(built: Result<ProfileLoop<f64>, PathError<f64>>) -> Outcome {
             Outcome::DoorEscalated(source.predicate.unwrap_or("?").to_string())
         }
         Err(e) => Outcome::DoorOther(e.to_string().chars().take(90).collect()),
-        Ok(lp) => match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+        Ok(lp) => match ConstructedProfile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
             Ok(_) => Outcome::Validates,
-            Err(
-                e @ (ProfileError::TangencyContradicted { .. }
-                | ProfileError::UndeclaredTangency { .. }),
-            ) => Outcome::Contradicted(e.to_string()),
+            Err(e @ ProfileError::TangencyContradicted { .. }) => {
+                Outcome::Contradicted(e.to_string())
+            }
             Err(e) => Outcome::RefusedElsewhere(e.to_string().chars().take(110).collect()),
         },
     }
@@ -345,43 +348,23 @@ fn the_recourse_followed_at_every_decade_and_the_spec_lever_reversed() {
             "c = {c}: larger turn: {turned:?}"
         );
         // Lever 2: the larger radius, sized from the law the sentence
-        // states: r(1 − cos(θ/2)) has to clear the band. The lever has
-        // a ceiling the sentence does not state: the stored bulge
-        // pins the carrier's radius only to a few ulps of the RADIUS,
-        // so once the radius the sagitta law asks for exceeds
-        // ε / (a few · ε_mach) the reconstructed carrier's clearance is
-        // itself in band and the door escalates `carrier_line_circle`
-        // instead. That happens for θ ≲ 3e-7 whatever ε is, i.e. at
-        // ε = 1e-12's 0.1·√ε decade.
+        // states: r(1 − cos(θ/2)) has to clear the band. The fillet arc
+        // stores the radius as authored, so the lever has no ceiling
+        // of its own: however large the radius the sagitta law asks
+        // for, the stored carrier is that radius, not one reconstructed
+        // from a chord to a few of its ulps.
         let bigger = 4.0 * band_top() / (1.0 - (theta * 0.5).cos());
         let widened = outcome(line_line(theta, bigger));
-        // The reconstruction error is a few ulps of the radius; where
-        // that is a decade clear of ε on either side the verdict is
-        // pinned, and in between it is recorded.
-        let ulp_of_radius = bigger * f64::EPSILON;
         println!(
             "RECOURSE eps={:e} c={c} theta={theta:e}: refused '{predicate}' at {margin:e}; \
-             larger radius needed = {bigger:e} m (setback {:e} m, ulp of the radius {:e}) \
-             -> {widened:?}",
+             larger radius needed = {bigger:e} m (setback {:e} m) -> {widened:?}",
             tol().eps(),
             bigger * (theta * 0.5).tan(),
-            ulp_of_radius
         );
-        if ulp_of_radius * 64.0 < tol().eps() {
-            assert!(
-                matches!(widened, Outcome::Validates),
-                "c = {c}: the larger radius {bigger:e} builds and validates: {widened:?}"
-            );
-        } else if ulp_of_radius > tol().eps() {
-            assert!(
-                matches!(
-                    widened,
-                    Outcome::DoorEscalated(_) | Outcome::DoorStoredForm(..)
-                ),
-                "c = {c}: a radius of {bigger:e} m cannot be reconstructed from its bulge \
-                 to eps, so the door refuses it too: {widened:?}"
-            );
-        }
+        assert!(
+            matches!(widened, Outcome::Validates),
+            "c = {c}: the larger radius {bigger:e} builds and validates: {widened:?}"
+        );
         never_contradicted("larger radius", &widened);
         // The spec's lever: a smaller radius at the same turn.
         let shrunk = outcome(line_line(theta, R * 0.25));
@@ -475,7 +458,7 @@ fn scaled_line_line(
     theta: f64,
     radius: f64,
     scale: f64,
-) -> Result<ProfileLoop<f64>, PathError<f64>> {
+) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let anchor = Point2::new(scale * (4.0 + 3.0 * theta.cos()), scale * 3.0 * theta.sin());
     Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
@@ -584,8 +567,8 @@ fn r2_k_count_per_fillet() {
 
 /// Validation's verdict on a loop, as a `Result` a row can read.
 #[allow(dead_code)]
-fn validates(lp: ProfileLoop<f64>, tol: Tol) -> Result<(), ProfileError> {
-    Profile::new(SketchPlane::xy(), vec![lp])
+fn validates(lp: ConstructedLoop<f64>, tol: Tol) -> Result<(), ProfileError> {
+    ConstructedProfile::new(SketchPlane::xy(), vec![lp])
         .validate(tol)
         .map(|_| ())
 }

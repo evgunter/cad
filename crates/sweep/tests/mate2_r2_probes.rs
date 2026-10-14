@@ -1,8 +1,7 @@
 //! MATE-2 R2 review probes (PR #1417, head c27ecb5a). NOT part of the
 //! unit under review — adversarial rows attacking the `Placement::
 //! Elsewhere` widening (claim 2), the narrower-class / full-period
-//! claim (claim 5), and the never-silent contract under partial or
-//! wrong declarations.
+//! claim (claim 5), and the never-silent contract.
 //!
 //! Every row's contract is the R1 probe's: a TYPED refusal or an
 //! exactly-additive, tier-3-valid union — never a silently wrong body.
@@ -12,24 +11,21 @@
 use crate::mate2_common;
 
 use crate::common::three_arc;
-use geom_core::{OrthoFrame, Point2, Point3, Tol, Vec2};
+use geom_core::{Point2, Point3, RigidMotion, Tol, Vec2};
 use mate2_common::*;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
-use sweep::test_support::extruded;
-use topo::{Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration};
+use sweep::test_support::{extruded, finished};
+use topo::{Body, BooleanResult};
 
 /// The never-silent contract, shared by every row here: refusal is
 /// fine (typed by the error enum's construction); an `Ok` body must be
 /// exactly additive (4-ULP relative, the unit's own oracle — tightened
 /// from 8 once these probes measured the real distance) AND tier-3
-/// valid AND pseudomanifold-clean.
-fn never_silent(
-    label: &str,
-    a: &Body<f64>,
-    b: &Body<f64>,
-    decls: &BooleanDeclarations,
-) -> Option<topo::BooleanError> {
-    match topo::union_with(a, b, decls, Tol::witness()) {
+/// valid AND pseudomanifold-clean. Each operand is finished once.
+fn never_silent(label: &str, a: &Body<f64>, b: &Body<f64>) -> Option<topo::BooleanError> {
+    let a = &finished(&format!("{label}: A"), a.clone(), Tol::witness());
+    let b = &finished(&format!("{label}: B"), b.clone(), Tol::witness());
+    match topo::union(a, b, Tol::witness()) {
         Ok(BooleanResult::Empty) => panic!("{label}: a threaded mate cannot be empty"),
         Ok(BooleanResult::Body(bb)) => {
             let v = volume(&bb.body);
@@ -55,71 +51,16 @@ fn never_silent(
     }
 }
 
-/// ATTACK (claim 2): the declaration names only a PARTIAL cover — one
-/// bore face is left out entirely. The seam endpoints of ITS rim arcs
-/// still land `Elsewhere` on the two covered neighbours; the widened
-/// arm must not let the uncovered pair's incidence vanish. Expect a
-/// typed refusal (the uncovered pair keeps both doors) — and above
-/// all, never a wrong body.
-#[test]
-fn r2_partial_cover_one_bore_face_undeclared_is_never_silent() {
-    let c = collar_at(0.0);
-    let p = peg_at(0.0, 0.5, 2.0);
-    let bore = walls_at(&c, 0.5);
-    let pegw = walls_at(&p, 0.5);
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &bore[..2] {
-        // one bore face dropped
-        for &fb in &pegw {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    let e = never_silent("partial cover (2 of 3 bore faces)", &c, &p, &decls);
-    assert!(e.is_some(), "an uncovered live pair must not union");
-}
-
-/// ATTACK (claim 2): a "diagonal" declaration — each bore face against
-/// exactly ONE peg face (3 pairs, not 9). Every seam endpoint's
-/// HOLDING face is declared against a different bore face than the arc
-/// being swept, so if coverage were consulted per holding-face the
-/// record could be dropped. Never silent is the bar.
-#[test]
-fn r2_diagonal_declaration_is_never_silent() {
-    let c = collar_at(0.0);
-    let p = peg_at(0.0, 0.5, 2.0);
-    let bore = walls_at(&c, 0.5);
-    let pegw = walls_at(&p, 0.5);
-    let mut decls = BooleanDeclarations::none();
-    for i in 0..3 {
-        decls.coincident_faces.push(FacePairDeclaration::new(
-            bore[i],
-            pegw[(i + 1) % 3],
-            ContactClass::Rest,
-        ));
-    }
-    never_silent("diagonal declaration (3 of 9)", &c, &p, &decls);
-}
-
 /// ATTACK (claim 2): seam MISMATCH — the peg's arc joints rotated 60°,
 /// so its seams fall in the interiors of the bore faces' windows and
 /// vice versa. Each rim-arc endpoint is now `OnEdge`-in-the-interior
 /// for one face and `Out` for its neighbours; the split-and-zip is the
-/// hard case for dropped events. Full 9-pair declaration.
+/// hard case for dropped events.
 #[test]
 fn r2_rotated_seams_partial_engagement_is_never_silent() {
     let c = collar_at(0.0);
     let p = peg_at(60.0, 0.5, 2.0);
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &walls_at(&c, 0.5) {
-        for &fb in &walls_at(&p, 0.5) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    never_silent("rotated seams (60°), partial engagement", &c, &p, &decls);
+    never_silent("rotated seams (60°), partial engagement", &c, &p);
 }
 
 /// ATTACK (claim 2): OFFSET engagement — the peg spans z ∈ [0.5, 1.5],
@@ -132,15 +73,7 @@ fn r2_rotated_seams_partial_engagement_is_never_silent() {
 fn r2_offset_engagement_rim_mid_face_is_never_silent() {
     let c = collar_at(0.0);
     let p = peg_at(0.0, 0.5, 1.0);
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &walls_at(&c, 0.5) {
-        for &fb in &walls_at(&p, 0.5) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    never_silent("offset engagement (peg ends mid-bore)", &c, &p, &decls);
+    never_silent("offset engagement (peg ends mid-bore)", &c, &p);
 }
 
 /// ATTACK (claim 2): proud at ONE end only — flush at the bottom
@@ -150,15 +83,7 @@ fn r2_offset_engagement_rim_mid_face_is_never_silent() {
 fn r2_proud_one_end_is_never_silent() {
     let c = collar_at(0.0);
     let p = peg_at(0.0, 1.0, 1.5);
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &walls_at(&c, 0.5) {
-        for &fb in &walls_at(&p, 0.5) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    never_silent("proud at the top only", &c, &p, &decls);
+    never_silent("proud at the top only", &c, &p);
 }
 
 // ---------------------------------------------------------------------
@@ -193,7 +118,7 @@ fn revolved_collar() -> Body<f64> {
 
 /// A three-arc peg along the world Y axis, y ∈ [y0, y0 + h].
 fn peg_along_y(y0: f64, h: f64) -> Body<f64> {
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(0.0, y0, 0.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_zx(Point3::new(0.0, y0, 0.0)));
     extruded(
         plane,
         vec![three_arc(Point2::new(0.0, 0.0), 0.5, 0.0)],
@@ -202,47 +127,26 @@ fn peg_along_y(y0: f64, h: f64) -> Body<f64> {
     )
 }
 
-/// Full-period BORE against a 3-arc peg: the PR's narrower-class claim
-/// says this must still refuse (the containment door's full-period
-/// remainder ⇒ `Undecided` ⇒ the frontier), even though the same mate
-/// with an arc-split bore now unions.
+/// Full-period BORE against a 3-arc peg: the bore is one face, the peg
+/// three, and two of the peg's seam rulings cross the bore's rims away
+/// from any vertex. `never_silent` holds the union to additivity, tier 3
+/// and the pseudomanifold census.
 #[test]
-fn r2_full_period_bore_still_refuses_typed() {
+fn r2_full_period_bore_unions() {
     let c = revolved_collar();
     let p = peg_along_y(0.5, 2.0);
     let bore = walls_at(&c, 0.5);
-    eprintln!("revolved collar: {} bore face(s) at r = 0.5", bore.len());
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &bore {
-        for &fb in &walls_at(&p, 0.5) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    let e = never_silent("full-period bore x 3-arc peg", &c, &p, &decls);
-    // HARDENED on adoption (MATE-2 fix pass): this row is now the
-    // unit's only `cargo test` guard that `Undecided` keeps the typed
-    // frontier — the behaviour's other live pin is the lily's tour
-    // probe, which does not run when the render lane is skipped, and a
-    // `reduce.rs`-only change skips it. So the KIND is asserted rather
-    // than noted: the no-verdict endpoint must keep the REDUCTION's
-    // door, not some door further downstream, because a refusal that
-    // moved downstream would mean the widening had swallowed the
-    // no-verdict case after all.
-    match e {
-        Some(topo::BooleanError::CurvedPierceUnsupported { .. }) => {}
-        Some(other) => panic!("refused, but not at the reduction's door: {other:?}"),
-        None => panic!("the narrower-class claim is FALSE: a full-period bore unioned"),
-    }
+    assert_eq!(bore.len(), 1, "the revolved collar's bore is one face");
+    let e = never_silent("full-period bore x 3-arc peg", &c, &p);
+    assert!(e.is_none(), "the full-period bore mate refused: {e:?}");
 }
 
-/// The mirror: arc-split collar against a FULL-REVOLVE peg (one
-/// full-period wall face on the peg side).
+/// The mirror: arc-split collar against a FULL-REVOLVE peg, held to
+/// the same `never_silent` checks as the bore row.
 #[test]
-fn r2_full_period_peg_still_refuses_typed() {
+fn r2_full_period_peg_unions() {
     // The collar along Y, arc-split (extruded on the peg's plane).
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(0.0, 1.0, 0.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_zx(Point3::new(0.0, 1.0, 0.0)));
     let o = Point2::new(0.0, 0.0);
     let c = extruded(
         plane,
@@ -271,32 +175,14 @@ fn r2_full_period_peg_still_refuses_typed() {
     )
     .unwrap()
     .body;
-    let pw = walls_at(&p, 0.5);
-    eprintln!("revolved peg: {} wall face(s) at r = 0.5", pw.len());
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &walls_at(&c, 0.5) {
-        for &fb in &pw {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    let e = never_silent("3-arc collar x full-period peg", &c, &p, &decls);
-    // **MEASURED ON ADOPTION, and the row's premise does not hold.**
-    // This scene never reaches the reduction at all: the full revolve
-    // leaves the peg's wall as TWO faces on one carrier, and the
-    // operand gate refuses `NonMaximalFaces` before any sweep runs. So
-    // this is not a full-period pin — the bore row above is the one
-    // that reaches the containment door's period guard — and asserting
-    // `CurvedPierceUnsupported` here would be pinning a door this
-    // configuration cannot get to. What the row does keep is the
-    // never-silent contract, which is unconditional and is exactly
-    // what `never_silent` already checked above.
-    match e {
-        Some(topo::BooleanError::CurvedPierceUnsupported { .. }) => {}
-        Some(other) => eprintln!("refused before the reduction, as measured: {other:?}"),
-        None => panic!("the narrower-class claim is FALSE: a full-period peg unioned"),
-    }
+    let join =
+        topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, &c, &p, Tol::witness());
+    assert!(
+        join.as_ref().is_ok_and(Option::is_none),
+        "the join homes the pierce rings at the peg's ruling azimuth and connects, got {join:?}"
+    );
+    let e = never_silent("3-arc collar x full-period peg", &c, &p);
+    assert!(e.is_none(), "the full-period peg mate refused: {e:?}");
 }
 
 /// Claim-7 measurement: how far from BITWISE is the unit's partial-
@@ -305,17 +191,9 @@ fn r2_full_period_peg_still_refuses_typed() {
 /// the π terms cannot cancel.)
 #[test]
 fn r2_measure_additivity_ulp_gap() {
-    let c = collar_at(0.0);
-    let p = peg_at(0.0, 0.5, 2.0);
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &walls_at(&c, 0.5) {
-        for &fb in &walls_at(&p, 0.5) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    let out = topo::union_with(&c, &p, &decls, Tol::witness()).unwrap();
+    let c = finished("the collar", collar_at(0.0), Tol::witness());
+    let p = finished("the peg", peg_at(0.0, 0.5, 2.0), Tol::witness());
+    let out = topo::union(&c, &p, Tol::witness()).unwrap();
     let BooleanResult::Body(bb) = out else {
         panic!()
     };

@@ -57,7 +57,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use pncad::document::EvalOptions;
-use pncad::profile::{ArcMode, TargetKind, Verb};
+use pncad::profile::{ArcMode, PieceRole, RoleList, TargetKind, TipState, Verb};
 use pncad::step_export::StepOptions;
 use pncad::step_import::ImportOptions;
 use pncad::stl::{AsciiOptions, BinaryOptions};
@@ -475,6 +475,46 @@ fn target_class(kind: TargetKind) -> Option<&'static str> {
     }
 }
 
+/// **The role roster.** How a Python caller spells each piece role:
+/// a `Role` value, and the `AuthoredStep` accessor that reads it off an
+/// authored step (installed from the kernel's role lists by
+/// `crate::py::step`, declared in the stub). A role `PieceRole` gains
+/// stops this function compiling.
+fn role_spelling(role: PieceRole) -> Spelling {
+    use Spelling::Bound;
+    match role {
+        PieceRole::Leg => Bound(&["Role.Leg", "AuthoredStep.leg"]),
+        PieceRole::RunIn => Bound(&["Role.RunIn", "AuthoredStep.run_in"]),
+        PieceRole::Arc => Bound(&["Role.Arc", "AuthoredStep.arc"]),
+        PieceRole::RunOut => Bound(&["Role.RunOut", "AuthoredStep.run_out"]),
+        PieceRole::Piece(_) => Bound(&["Role.piece", "AuthoredStep.piece", "CarrierPieces"]),
+    }
+}
+
+/// **The step-handle roster.** The Python class each lattice state
+/// is, which answers the handle of the step that produced it as
+/// `.step`; a state `TipState` gains stops this function compiling.
+fn state_step_spelling(state: TipState) -> Spelling {
+    use Spelling::Bound;
+    match state {
+        TipState::Entry => Spelling::NotBound {
+            would_be: &["Open.step"],
+            reason: "the entry token has recorded no step",
+        },
+        TipState::Open => Bound(&["PathOpen.step"]),
+        TipState::Angle => Bound(&["PathAngle.step"]),
+        TipState::PlainPoint => Bound(&["PathPoint.step"]),
+        TipState::DirectedPoint => Bound(&["PathDirectedPoint.step"]),
+        TipState::DirectedPlain | TipState::DirectedIncoming => Bound(&["PathDirected.step"]),
+        TipState::RadiusArrival => Bound(&["PathRadiusArrival.step"]),
+        TipState::RadiusArrivalAt => Bound(&["PathRadiusArrivalAt.step"]),
+        TipState::RadiusArrivalDir => Bound(&["PathRadiusArrivalDir.step"]),
+        TipState::ViaArrival => Bound(&["PathViaArrival.step"]),
+        TipState::ViaArrivalStart => Bound(&["PathViaArrivalStart.step"]),
+        TipState::Closed => Bound(&["ClosedLoop.step"]),
+    }
+}
+
 /// **Where one roster's spellings are looked for in the stub.**
 ///
 /// A verb is bound by being a DECLARED name; an options field is bound
@@ -573,7 +613,6 @@ fn options_doors() -> Vec<Roster> {
     let import = ImportOptions::default();
     let ImportOptions {
         eps_in: _,
-        declared_contacts: _,
         examine_chart_coherence: _,
     } = &import;
 
@@ -592,6 +631,7 @@ fn options_doors() -> Vec<Roster> {
         profile_lift: _,
         param_box: _,
         seed: _,
+        symbols: _,
     } = &eval;
 
     vec![
@@ -616,22 +656,6 @@ fn options_doors() -> Vec<Roster> {
             "import_step",
             vec![
                 ("eps_in", Bound(&["eps_in"])),
-                // The import-side declaration channel is a list of
-                // `ImportContact`, and that element type has no Python
-                // spelling: binding the field means minting a value
-                // class for the position anchor, which is its own
-                // surface work and its own row. Recorded here as
-                // ABSENT rather than left to be discovered, and the
-                // decay check below is what stops the reason
-                // outliving the fact.
-                (
-                    "declared_contacts",
-                    Spelling::NotBound {
-                        would_be: &["declared_contacts"],
-                        reason: "its element type `ImportContact` has no Python spelling, so \
-                                 the keyword would take a list of nothing a caller can build",
-                    },
-                ),
                 // The flag is a `bool` a Python keyword could carry
                 // trivially; what it cannot carry is the ANSWER. The
                 // field it turns on reports a `topo::CoherenceReport`
@@ -728,6 +752,17 @@ fn options_doors() -> Vec<Roster> {
                                  with no degenerate form that reaches f64 at all",
                     },
                 ),
+                (
+                    "symbols",
+                    Spelling::NotBound {
+                        would_be: &["symbols"],
+                        reason: "every variable a symbol is the coincidence door's replay, \
+                                 which needs the symbolic scalar; an f64 evaluation binds a \
+                                 symbol as its value, so the switch would change nothing \
+                                 this door can show. The door's answers reach Python as each \
+                                 row's rung",
+                    },
+                ),
             ],
         ),
     ]
@@ -797,12 +832,78 @@ fn verb_roster() -> Roster {
     }
 }
 
+/// The role and step-handle rosters, each derived from the kernel's own
+/// enumerations: the roles are every role the per-verb lists hold
+/// (`RoleList::ALL`, a carrier's indexed roles as one member), and the
+/// states are every state the transition table has a row at
+/// (`Verb::states` over `Verb::ALL`) plus `Closed`, the one state no row
+/// starts from. The spelling functions' matches are exhaustive, so a
+/// member either derivation gains has to be spelled there.
+fn handle_rosters() -> [Roster; 2] {
+    let mut roles: Vec<PieceRole> = Vec::new();
+    for list in RoleList::ALL {
+        let listed = match list {
+            RoleList::Carrier => vec![PieceRole::Piece(0)],
+            _ => list.named().to_vec(),
+        };
+        for role in listed {
+            if !roles.contains(&role) {
+                roles.push(role);
+            }
+        }
+    }
+    let mut states: Vec<TipState> = Vec::new();
+    for state in Verb::ALL
+        .iter()
+        .flat_map(|verb| verb.states().iter().copied())
+        .chain([TipState::Closed])
+    {
+        if !states.contains(&state) {
+            states.push(state);
+        }
+    }
+    [
+        Roster {
+            subject: "PieceRole",
+            alphabet: Alphabet::Declared,
+            entries: roles
+                .iter()
+                .map(|role| (format!("{role:?}"), role_spelling(*role)))
+                .collect(),
+        },
+        Roster {
+            subject: "TipState",
+            alphabet: Alphabet::Declared,
+            entries: states
+                .iter()
+                .map(|state| (format!("{state:?}"), state_step_spelling(*state)))
+                .collect(),
+        },
+    ]
+}
+
 /// Every roster in the file, each carrying its own alphabet — read
 /// together so a check cannot cover one and quietly skip another.
 fn every_roster() -> Vec<Roster> {
     std::iter::once(verb_roster())
+        .chain(handle_rosters())
         .chain(options_doors())
         .collect()
+}
+
+/// **The handle census.** Every piece role has a Python spelling, and
+/// every lattice state that has recorded a step answers its handle.
+#[test]
+fn every_role_and_state_handle_has_a_python_spelling() {
+    let stub = stub();
+    let missing: Vec<String> = handle_rosters()
+        .iter()
+        .flat_map(|roster| roster.missing(&stub))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "the roster claims Python spellings pncad.pyi does not declare: {missing:?}"
+    );
 }
 
 /// **The rosters decay.** A member listed as deliberately unbound

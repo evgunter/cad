@@ -85,7 +85,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Doc, Evaluation, Node, ProfileProgram, RecipeNodeId, ValuePayload,
+    Doc, Evaluation, Node, PoseValue, ProfileProgram, RecipeNodeId, ValuePayload,
 };
 use pncad::geom_core::{Point3, UnitVec3, Vec3};
 
@@ -573,21 +573,16 @@ const POINT_ARM_PX: f64 = 14.0;
 /// Which kind of datum a drawing came from — carried so a consumer can
 /// say what it is pointing at without re-reading the document.
 ///
-/// **A partition of the datum VALUES by how they are drawn**, which is
-/// why four members cover `DatumValue`'s five arms: `AxisInPlane` is a
-/// line in space and is drawn as the axis it is, so it carries this
-/// same tag as `Axis`. Growth is held at `draw_one`'s exhaustive match
-/// — a sixth datum value cannot reach a drawing without an arm
-/// saying which tag it draws under.
+/// **A partition of the datum VALUES by how they are drawn**: one
+/// member per value a datum node evaluates to. `draw_one` is where each
+/// datum value is given its tag.
 ///
 /// **Not the add-datum form's `forms::DatumKindChoice`**, which names
 /// what that form OFFERS rather than what a drawing IS, and which owns
-/// the radio row's words and its `ALL`. The two differ by
-/// `AxisInPlane` and by `FaceFrame`, and for one reason twice over:
-/// each is its own choice in the form because authoring it takes a
-/// PICK, and each is drawn here as the thing it evaluates to — the
-/// axis, and the frame. Neither side is required to move when the
-/// other does.
+/// the radio row's words and its `ALL`. The two differ by `FaceFrame`,
+/// its own choice in the form because authoring it takes a PICK, and
+/// drawn here as the frame it evaluates to. Neither side is required to
+/// move when the other does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatumKind {
     /// A plane: an outlined, gridded rectangle plus a normal tick.
@@ -698,7 +693,7 @@ impl DatumDraws {
 /// does a node this evaluation never reached.
 pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, view: View) -> DatumDraws {
     let mut out = Vec::new();
-    for &node in doc.order() {
+    for node in doc.ids() {
         // The NODE says it is a datum and the EVALUATION says what it
         // came to. Reading only the value would draw a datum for
         // anything that happens to evaluate to one; reading only the
@@ -720,37 +715,31 @@ pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, view: View) -> D
 }
 
 /// One datum value's wireframe.
-fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDraw {
+fn draw_one(node: RecipeNodeId, datum: &PoseValue<f64>, view: View) -> DatumDraw {
     match datum {
-        DatumValue::Plane { origin, normal } => DatumDraw {
+        PoseValue::Plane { origin, normal } => DatumDraw {
             node,
             kind: DatumKind::Plane,
             segments: plane_segments(*origin, *normal, view),
         },
-        DatumValue::Axis { origin, dir } => DatumDraw {
+        PoseValue::Axis { origin, dir } => DatumDraw {
             node,
             kind: DatumKind::Axis,
             segments: axis_segments(*origin, *dir, view),
         },
-        DatumValue::Point { position } => DatumDraw {
+        PoseValue::Point { position } => DatumDraw {
             node,
             kind: DatumKind::Point,
             segments: point_segments(*position, view),
         },
-        DatumValue::Frame(f) => DatumDraw {
+        PoseValue::Frame(f) => DatumDraw {
             node,
             kind: DatumKind::Frame,
             segments: frame_segments(f.origin(), f.u().get(), f.v().get(), view),
         },
-        // Drawn from the WORLD lift, and drawn as the axis it is: the
-        // sketch coordinates it was authored in are what a revolve
-        // reads, not what a viewport shows, and a line in space looks
-        // the same however it was written down.
-        DatumValue::AxisInPlane { origin, dir, .. } => DatumDraw {
-            node,
-            kind: DatumKind::Axis,
-            segments: axis_segments(*origin, *dir, view),
-        },
+        PoseValue::Direction { .. } => {
+            unreachable!("a datum node's value is a point, an axis, a plane or a frame")
+        }
     }
 }
 
@@ -799,30 +788,16 @@ fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -
     let Some(arm) = view.screen_metres_at(origin, FRAME_ARM_PX) else {
         return out;
     };
-    let o = [origin.x, origin.y, origin.z];
     let (back, wide) = (arm * FRAME_BARB_FRACTION, arm * FRAME_BARB_FRACTION * 0.5);
     for ((along, across), heads) in [(u, v), (v, u)].into_iter().zip(FRAME_HEADS) {
-        let at = |d: f64| {
-            [
-                origin.x + along.x * d,
-                origin.y + along.y * d,
-                origin.z + along.z * d,
-            ]
-        };
-        out.extend([o, at(arm)]);
+        let at = |d: f64| origin + along * d;
+        out.extend([origin.to_array(), at(arm).to_array()]);
         for head in 0..heads {
             let tip_at = arm - back * head as f64;
             let tip = at(tip_at);
             let root = at(tip_at - back);
             for side in [1.0_f64, -1.0] {
-                out.extend([
-                    tip,
-                    [
-                        root[0] + across.x * wide * side,
-                        root[1] + across.y * wide * side,
-                        root[2] + across.z * wide * side,
-                    ],
-                ]);
+                out.extend([tip.to_array(), (root + across * wide * side).to_array()]);
             }
         }
     }
@@ -882,14 +857,7 @@ fn grid(
     // not say which way the plane faces either — it says whatever the
     // substituted number happened to point at.
     if let Some(tick) = view.screen_metres_at(origin, NORMAL_TICK_PX) {
-        out.extend([
-            [origin.x, origin.y, origin.z],
-            [
-                origin.x + normal.x * tick,
-                origin.y + normal.y * tick,
-                origin.z + normal.z * tick,
-            ],
-        ]);
+        out.extend([origin.to_array(), (origin + normal * tick).to_array()]);
     }
     out
 }
@@ -1082,46 +1050,27 @@ fn axis_segments(origin: Point3<f64>, axis: UnitVec3<f64>, view: View) -> Vec<[f
     let dir = axis.get();
     // Centred and sized at the point of the axis the camera is
     // pointed at, for `plane_segments`' reason.
-    let to_target = Vec3::new(
-        view.look_at.x - origin.x,
-        view.look_at.y - origin.y,
-        view.look_at.z - origin.z,
-    );
-    let along = to_target.dot(dir);
-    let centre = Point3::new(
-        origin.x + dir.x * along,
-        origin.y + dir.y * along,
-        origin.z + dir.z * along,
-    );
+    let along = (view.look_at - origin).dot(dir);
+    let centre = origin + dir * along;
     // The segment IS the drawing here — there is no second mark to
     // fall back to — so a centre the view cannot scale draws nothing.
     let Some(half) = view.half_patch_at(centre, AXIS_COVER) else {
         return Vec::new();
     };
     let (u, _) = basis(axis);
-    let at = |t: f64| {
-        [
-            origin.x + dir.x * t,
-            origin.y + dir.y * t,
-            origin.z + dir.z * t,
-        ]
-    };
+    let at = |t: f64| origin + dir * t;
     // Centred on the looked-at point, not on the origin, so the
     // segment covers the window wherever along it the view is.
     let (lo, hi) = (along - half, along + half);
-    let mut out = vec![at(lo), at(hi)];
+    let mut out = vec![at(lo).to_array(), at(hi).to_array()];
     for end in [lo, hi] {
         let p = at(end);
         // Each tick is scaled at its own end of the segment, so each
         // refuses for itself the way a plane's tick does.
-        let Some(tick) = view.screen_metres_at(Point3::new(p[0], p[1], p[2]), AXIS_TICK_PX * 0.5)
-        else {
+        let Some(tick) = view.screen_metres_at(p, AXIS_TICK_PX * 0.5) else {
             continue;
         };
-        out.extend([
-            [p[0] - u.x * tick, p[1] - u.y * tick, p[2] - u.z * tick],
-            [p[0] + u.x * tick, p[1] + u.y * tick, p[2] + u.z * tick],
-        ]);
+        out.extend([(p - u * tick).to_array(), (p + u * tick).to_array()]);
     }
     out
 }
@@ -1135,7 +1084,7 @@ fn point_segments(position: Point3<f64>, view: View) -> Vec<[f64; 3]> {
     let Some(arm) = view.screen_metres_at(position, POINT_ARM_PX * 0.5) else {
         return Vec::new();
     };
-    let p = [position.x, position.y, position.z];
+    let p = position.to_array();
     let mut out = Vec::with_capacity(6);
     for axis in 0..3 {
         let (mut lo, mut hi) = (p, p);

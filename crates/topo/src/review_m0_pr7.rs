@@ -258,8 +258,7 @@ fn lone_edge_body_validates_with_expected_counts() {
 /// (bbox via componentwise min/max; pure value ops, no comparisons).
 fn bbox<T: Real>(body: &Body<T>) -> Option<(Point3<T>, Point3<T>)> {
     let mut corners: Option<(Point3<T>, Point3<T>)> = None;
-    for (_, v) in body.vertices() {
-        let p = *body.get_point(v.point)?; // demo: treat dangling as absent
+    for (_, p) in body.vertex_points() {
         corners = Some(match corners {
             None => (p, p),
             Some((lo, hi)) => (lo.min(p), hi.max(p)),

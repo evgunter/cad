@@ -80,7 +80,7 @@ fn arc_arc(
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())?;
-    Ok(closed.loop_)
+    Ok(closed.loop_.into_loop())
 }
 
 /// The two bracketing anchors of a grid-A authoring: the incoming

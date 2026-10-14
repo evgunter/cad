@@ -44,6 +44,7 @@
 use crate::common::approx::band;
 use crate::common::oracles::sigma;
 use geom::Surface;
+use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -158,8 +159,13 @@ fn the_sphere_sphere_equator_fillets_to_its_closed_form() {
     let source = lentil();
     let arcs = rim_arcs_at(&source, RIM_R, 0.0);
     assert_eq!(arcs.len(), 1, "the equator is ONE closed rim edge");
-    let out = fillet_edges(&source, &arcs, r, tol())
-        .unwrap_or_else(|e| panic!("the sphere-sphere equator fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the sphere-sphere equator fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one band face");
     let (center, major, minor) = band_torus(&out.body, out.band_faces[0]);
@@ -228,12 +234,17 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: Point3::new(RIM_R, 0.0, 0.0),
     };
-    let trace = |y: f64, side: bool| SupportTrace::Round {
+    let trace = |y: f64, side: SurfaceSide| SupportTrace::Round {
         center: Point3::new(0.0, y, 0.0),
         radius: SPHERE_R,
         side,
     };
-    for (side_a, side_b) in [(true, true), (false, false), (true, false), (false, true)] {
+    for (side_a, side_b) in [
+        (Inner, Inner),
+        (Outer, Outer),
+        (Inner, Outer),
+        (Outer, Inner),
+    ] {
         let (sa, sb) = (sigma(side_a), sigma(side_b));
         let center = sheet_center(
             sheet.rim,
@@ -292,7 +303,7 @@ fn mouth(body: &Body<f64>) -> (Vec<EdgeKey>, VertexKey) {
 /// `TangentialEdge` at margin exactly zero.
 #[test]
 fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
-    let body = lantern();
+    let body = sweep::test_support::finished("body", lantern(), tol());
     let (arcs, vertex) = mouth(&body);
     let mut edges = body.edges_of_vertex(vertex).unwrap();
     edges.sort_unstable();
@@ -315,7 +326,10 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     for seam in seams {
         match fillet_edges(&body, &[seam], 0.02, tol()).map_err(|r| r.error) {
             Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
-                (margin.predicate, margin.value()),
+                (
+                    margin.predicate,
+                    margin.reading.diagnostic_f64_for_error_text().value()
+                ),
                 ("fillet3_convexity_sign", Some(0.0)),
                 "a co-surface seam's dihedral is exactly zero, got {margin}"
             ),
@@ -332,7 +346,14 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
 fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
     let body = lantern();
     let (arcs, _) = mouth(&body);
-    match fillet_edges(&body, &arcs[..1], 0.02, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &arcs[..1],
+        0.02,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Err(
             e @ BlendError::UnsupportedCorner {
                 corner: CornerConfig::SeamVertex,
@@ -376,8 +397,13 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
 fn requesting_the_rim_whole_gets_past_the_seam() {
     let body = lantern();
     let (arcs, vertex) = mouth(&body);
-    let out = fillet_edges(&body, &arcs, 0.02, tol())
-        .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &arcs,
+        0.02,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     assert_eq!(
         out.band_faces.len(),
@@ -409,7 +435,7 @@ fn requesting_the_rim_whole_gets_past_the_seam() {
 /// chains, and closed chains reach no corner classifier at all.
 #[test]
 fn a_one_edge_rim_never_reaches_the_seam_tag() {
-    let source = lentil();
+    let source = sweep::test_support::finished("source", lentil(), tol());
     for (r, y) in [(RIM_R, 0.0), (0.6, 0.2), (0.6, -0.2)] {
         let arcs = rim_arcs_at(&source, r, y);
         assert_eq!(arcs.len(), 1, "an annular revolve's rim is ONE edge");

@@ -29,15 +29,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
-    select_where,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
@@ -46,8 +46,8 @@ use crate::fixture::{Recorder, len, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
-fn plen(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn plen(n: &'static str) -> Formula {
+    Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// M10-9's tier with the door shut — M10-8's. The rows here are
@@ -89,15 +89,15 @@ const BORE: f64 = 0.6e-3;
 /// ask for (±20 µm on the half-width, σ = 10 µm on the bores).
 pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::Continuous {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static(n),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     declare(
@@ -120,7 +120,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
 
     let plane = r.insert(xy_frame());
 
-    let neg_w = Expr::neg(plen("half_w"));
+    let neg_w = Formula::neg(plen("half_w")).expect("a shallow negation");
     // The chain's own idiom for a tangent arc between two tangent legs:
     // `.tangent()` before the arc and before the leg out of it, the
     // leg out authored as a LENGTH since it rides the inherited
@@ -136,17 +136,18 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         ProgramStep::TangentArcTo(ProgramTarget::StartArriving),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![outline],
         ids: Vec::new(),
     }));
     let thickness = len(1.0e-3);
     let body = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: thickness.clone(),
+        side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(HALF_L), len(0.0)],
             radius: plen("bore_r"),
@@ -154,8 +155,9 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_profile,
+        profile: bore_profile.into(),
         distance: thickness,
+        side: ExtrudeSide::Along,
     });
 
     let refs = {
@@ -166,14 +168,14 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId, which: usize| {
             let mut faces = select_where(
                 &ev,
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,
@@ -185,12 +187,13 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         };
         vec![wall(body, 0), wall(bore, 0)]
     };
-    let wall = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(Node::measure(wall, refs).expect("both indices in range"));
+    let wall = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let measured = r.measure(&[wall], &refs);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(0.5e-3),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }
@@ -242,8 +245,8 @@ pub(crate) fn fixtures(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
 /// **Claim 1 / claim 5 at document scale, on every fixture**: a drive
 /// with the door on and the same drive with it off serialize the SAME
 /// leaves, verdict-vector keys, witness vector, masses and refusals —
-/// only the receipt's `decisions` line may differ, and it may differ
-/// only by a `registered=` field.
+/// only the receipt's `decisions` line may differ, and only by
+/// decisions the door moves from `numeric=` to `symbolic=`.
 #[test]
 fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
     let tol = Tol::witness();
@@ -292,8 +295,7 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
             on_body, off_body,
             "{name}: every line but the receipt is byte-identical door on and off"
         );
-        // The receipt may differ ONLY by `registered=`, and numeric
-        // must shrink by exactly that count.
+        // The receipt may differ ONLY in `symbolic=` and `numeric=`.
         let fields = |l: &Option<String>| -> BTreeMap<String, u64> {
             l.as_deref()
                 .map(|l| {
@@ -308,18 +310,21 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
         };
         let (fon, foff) = (fields(&on_dec), fields(&off_dec));
         let g = |m: &BTreeMap<String, u64>, k: &str| m.get(k).copied().unwrap_or(0);
-        assert_eq!(
-            g(&foff, "registered"),
-            0,
-            "{name}: the door-off receipt registers nothing"
+        assert!(
+            on_dec.is_none() || fon.contains_key("symbolic"),
+            "{name}: the receipt line names its `symbolic=` column: {on_dec:?}"
         );
-        for k in ["symbolic_zero", "sign_gated"] {
-            assert_eq!(
-                g(&fon, k),
-                g(&foff, k),
-                "{name}: `{k}` is the door-off count"
-            );
-        }
+        let rest = |m: &BTreeMap<String, u64>| {
+            m.iter()
+                .filter(|(k, _)| !matches!(k.as_str(), "symbolic" | "numeric" | "frozen"))
+                .map(|(k, v)| (k.clone(), *v))
+                .collect::<BTreeMap<_, _>>()
+        };
+        assert_eq!(
+            rest(&fon),
+            rest(&foff),
+            "{name}: no column but `symbolic`, `numeric` and `frozen` moves with the door"
+        );
         // `frozen` is a plain-walk count and the two replays decide the
         // same population only when every leaf certifies (below).
         if g(&fon, "frozen") != g(&foff, "frozen") {
@@ -330,26 +335,26 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
             );
         }
         // On a drive whose leaves all certify, the two replays decide
-        // the same population and `numeric` shrinks by exactly the
-        // registered count. On a REFUSING drive the door-on replay
-        // gets past the discharged identity and decides more before it
-        // refuses, so only the inequalities hold (the unit's own pin
-        // says the same).
+        // the same population and the door moves decisions from
+        // `numeric` to `symbolic` one for one. On a REFUSING drive the
+        // door-on replay gets past the discharged identity and decides
+        // more before it refuses, so only the inequalities hold.
         let refused_leaves = on_body
             .first()
             .and_then(|l| l.split(' ').find_map(|w| w.strip_prefix("refused=")))
             .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(0);
+        let bought = g(&fon, "symbolic").saturating_sub(g(&foff, "symbolic"));
         if refused_leaves == 0 {
             assert_eq!(
-                g(&fon, "numeric") + g(&fon, "registered"),
-                g(&foff, "numeric"),
+                (g(&fon, "numeric") + bought, g(&fon, "symbolic")),
+                (g(&foff, "numeric"), g(&foff, "symbolic") + bought),
                 "{name}: the door moves decisions out of `numeric` and out of nothing else"
             );
         } else {
             assert!(
                 g(&fon, "numeric") <= g(&foff, "numeric")
-                    && g(&fon, "numeric") + g(&fon, "registered") >= g(&foff, "numeric"),
+                    && g(&fon, "symbolic") >= g(&foff, "symbolic"),
                 "{name}: refusing drive — {fon:?} vs {foff:?}"
             );
         }
@@ -467,7 +472,10 @@ fn r2_link_end_to_end_with_and_without_the_door() {
             tol,
         )
         .expect("the link builds");
-        println!("== link, real study, {label}:\n{}", v.render(&analyzed));
+        println!(
+            "== link, real study, {label}:\n{}",
+            v.render(&doc, &analyzed)
+        );
     }
 
     // The ceiling, both ways.
@@ -526,9 +534,15 @@ fn r2_link_end_to_end_with_and_without_the_door() {
         tol,
     );
     assert!(refusal.is_none(), "{refusal:?}");
+    let (_, _, shut_counts) = replay(
+        &certifying,
+        &ParamBox::of(&analyzed),
+        SymRules::shipped_without_the_door(),
+        tol,
+    );
     assert!(
-        counts.registered > 0,
-        "the door registers on the link: {counts:?}"
+        counts.symbolic > shut_counts.symbolic,
+        "the door discharges on the link: {counts:?} against {shut_counts:?}"
     );
     println!("   link at 0.5x its ceiling, door on: {counts:?}");
 }
@@ -560,10 +574,7 @@ fn envelopes(shapes: &[geom_core::sym::report::DecisionShape]) -> BTreeMap<&'sta
             numeric: 0,
         });
         e.n += 1;
-        if matches!(
-            s.outcome,
-            ShapeOutcome::Theorem | ShapeOutcome::SignGated | ShapeOutcome::Registered
-        ) {
+        if s.outcome == ShapeOutcome::Symbolic {
             continue;
         }
         e.numeric += 1;
@@ -834,7 +845,7 @@ fn r2_evidence_plate_enclosure_vs_scale() {
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
             let (shapes, refusal, _) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
             let table = envelopes(&shapes);
-            let pick = |p: &str| {
+            let pick = |p: &'static str| {
                 table
                     .get(p)
                     .map_or("-".to_owned(), |w| format!("[{:.4e},{:.4e}]", w.lo, w.hi))
@@ -868,13 +879,6 @@ fn r2_evidence_r1_bracket_frozen_moves_with_the_door() {
             *split.entry(format!("{:?}", s.outcome)).or_default() += 1;
         }
         println!("== r1 bracket 0.5mm {label}: {counts:?}\n   refusal {refusal:?}\n   {split:?}");
-        for s in shapes
-            .iter()
-            .filter(|s| matches!(s.outcome, ShapeOutcome::Registered))
-            .take(3)
-        {
-            println!("   registered: {}", s.predicate);
-        }
         let last: Vec<String> = shapes
             .iter()
             .rev()

@@ -10,9 +10,9 @@ use sweep::blend::naming::BlendNaming;
 use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
-    Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords, ShellDoor,
-    ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult, SweepStrategy,
-    boolean_op_with, split,
+    AtRestBody, Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind,
+    ContactRecords, GlueVerdict, ShellDoor, ShellError, ShellNaming, Shelled, SplitError,
+    SplitPart, SplitResult, SweepStrategy, boolean_op_with, split,
 };
 
 use crate::verb::{Arity, Verb, VerbKind};
@@ -34,11 +34,15 @@ use crate::verb::{Arity, Verb, VerbKind};
 /// directly; the lowering reads the body and the record, so those are
 /// what a verb result carries.
 #[derive(Debug)]
-pub struct VerbOut<T: Real> {
-    /// The operation's output body.
-    pub body: Body<T>,
+pub struct VerbOut<T: Real, B = Body<T>> {
+    /// The operation's output body: a finished one ([`AtRestBody`])
+    /// where the door gates what it returns, as the boolean's does.
+    pub body: B,
     /// The operation's own record of the result, per family.
     pub record: VerbRecord<T>,
+    /// The coincidences the operation decided from values, in decision
+    /// order and its operands' keys ([`topo::coincidence`]).
+    pub coincidences: Vec<topo::Coincidence>,
 }
 
 /// **The record channel, one variant per record family** — the
@@ -69,17 +73,21 @@ pub enum VerbRecord<T: Real> {
     /// which the document layer refuses as a kernel bug, and an empty
     /// struct would be refused by nothing.
     Blend(Option<BlendNaming>),
-    /// The boolean's non-body result, whole — the three fields of the
-    /// kernel's `BooleanBody` beside the body itself, each the
-    /// kernel's own type moved across by value.
+    /// The boolean's non-body result, whole — the fields of the
+    /// kernel's `BooleanBody` beside the body and its coincidences,
+    /// each the kernel's own type moved across by value.
     Boolean {
         /// How the result body came to be.
         kind: BooleanResultKind,
-        /// Declared contacts surviving into the result, result keys —
-        /// the tier-3′ currency the consuming layer carries onward.
+        /// Contact records surviving into the result, result keys, each
+        /// citing the coincidence that backs it — the tier-3′ currency
+        /// the consuming layer carries onward.
         contacts: ContactRecords,
         /// Mint-time naming facts the naming layer consumes.
         naming: BooleanNaming,
+        /// The face pairs the op glued on its own decision — what an
+        /// n-ary union's pairwise judgement hands its fold steps.
+        verdicts: Vec<GlueVerdict>,
     },
     /// The extrude door's whole bundle — body, solid, shell, caps,
     /// side walls per loop, struts per loop.
@@ -129,6 +137,9 @@ pub struct SplitOut<T: Real> {
     pub below: SplitPart<T>,
     /// The split's own record of what it minted, in its channel.
     pub record: VerbRecord<T>,
+    /// The coincidences the split decided from values (its pinches), in
+    /// the operand's keys ([`topo::coincidence`]).
+    pub coincidences: Vec<topo::Coincidence>,
 }
 
 /// **What a two-operand verb produced**: the typed empty success, or a
@@ -145,8 +156,8 @@ pub struct SplitOut<T: Real> {
 pub enum PairOut<T: Real> {
     /// The regularized result is empty.
     Empty,
-    /// A real result body and its record.
-    Out(VerbOut<T>),
+    /// A real result body, finished, and its record.
+    Out(VerbOut<T, AtRestBody<T>>),
 }
 
 /// **Why a verb refused**, carrying the op door's own typed refusal
@@ -234,10 +245,11 @@ impl<T: Real> fmt::Display for VerbError<T> {
 
 impl<T: Real> core::error::Error for VerbError<T> {}
 
-impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb<T> {
+impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// **Run this one-operand verb against its operand.**
     ///
-    /// The operand comes in borrowed, never in the payload. Every
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`AtRestBody`]), as at [`Verb::run_pair`]. Every
     /// check, every refusal and every minted entity is the op door's —
     /// this dispatches and re-wraps, and adds no decision of its own.
     ///
@@ -249,7 +261,7 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
     /// `sweep::blend::build::chamfer_edges`) enumerate the cases.
     /// [`VerbError::Arity`] if this verb answers another door — its
     /// operand is two bodies or a profile, or it hands back two sides.
-    pub fn run(&self, operand: &Body<T>, tol: Tol) -> Result<VerbOut<T>, VerbError<T>> {
+    pub fn run(&self, operand: &AtRestBody<T>, tol: Tol) -> Result<VerbOut<T>, VerbError<T>> {
         let blended = match self {
             Self::Fillet { edges, radius } => {
                 sweep::blend::build::fillet_edges(operand, edges, *radius, tol)
@@ -272,12 +284,15 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
         Ok(VerbOut {
             body: blended.body,
             record: VerbRecord::Blend(blended.naming),
+            coincidences: blended.coincidences,
         })
     }
 
     /// **Run this two-operand verb against its operands.**
     ///
-    /// Both bodies come in borrowed, in operand order. `sweep` is the
+    /// Both bodies come in borrowed, in operand order, finished
+    /// ([`AtRestBody`]: the door's operands are bodies that passed the
+    /// at-rest gate, and the result it hands back passed it too). `sweep` is the
     /// candidate-generation strategy — a property of the RUN, not of
     /// the operation (both strategies produce bit-identical results;
     /// the kernel's differential suite pins it), which is why it rides
@@ -291,14 +306,14 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
     /// operand is one body or a profile.
     pub fn run_pair(
         &self,
-        a: &Body<T>,
-        b: &Body<T>,
+        a: &AtRestBody<T>,
+        b: &AtRestBody<T>,
         sweep: SweepStrategy,
         tol: Tol,
     ) -> Result<PairOut<T>, VerbError<T>> {
         match self {
-            Self::Boolean { op, declare } => {
-                match boolean_op_with(*op, a, b, declare, sweep, tol).map_err(VerbError::Boolean)? {
+            Self::Boolean { op, inputs } => {
+                match boolean_op_with(*op, a, b, inputs, sweep, tol).map_err(VerbError::Boolean)? {
                     BooleanResult::Empty => Ok(PairOut::Empty),
                     BooleanResult::Body(bb) => {
                         // Exhaustive destructure, deliberately: a field
@@ -310,6 +325,8 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
                             kind,
                             contacts,
                             naming,
+                            coincidences,
+                            verdicts,
                         } = bb;
                         Ok(PairOut::Out(VerbOut {
                             body,
@@ -317,7 +334,9 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
                                 kind,
                                 contacts,
                                 naming,
+                                verdicts,
                             },
+                            coincidences,
                         }))
                     }
                 }
@@ -358,8 +377,12 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
         tol: Tol,
     ) -> Result<VerbRecord<T>, VerbError<T>> {
         match self {
-            Self::Extrude { distance } => {
-                sweep::extrude(operand, sweep::Extrusion::Distance(*distance), tol)
+            Self::Extrude { distance, side } => {
+                let extrusion = sweep::Extrusion::Distance {
+                    depth: *distance,
+                    side: *side,
+                };
+                sweep::extrude(operand, extrusion, tol)
                     .map(VerbRecord::Extrude)
                     .map_err(VerbError::Extrude)
             }
@@ -379,15 +402,14 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
 
     /// **Run this parting verb against its operand body.**
     ///
-    /// The operand comes in borrowed, never in the payload, exactly as
-    /// at [`Verb::run`]; what differs is what comes back. A split hands
-    /// back TWO sides, each a body or the typed empty, and the one-body
-    /// out-type cannot carry them — so this is the split's own door
-    /// with its own out-type ([`SplitOut`]), and the D7 pinch lane
-    /// inside the kernel door (`topo::split` reruns a one-sided pinch
-    /// mirrored and swaps the sides back) is the door's, reached here
-    /// unchanged: this dispatches and re-wraps, and adds no decision
-    /// of its own.
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`AtRestBody`]), as at [`Verb::run_pair`]; what differs is what
+    /// comes back. A split hands back TWO sides, each a body or the typed
+    /// empty, and the one-body out-type cannot carry them — so this is
+    /// the split's own door
+    /// with its own out-type ([`SplitOut`]). Every decision, the pinch's
+    /// copies included, is the kernel door's, reached here unchanged:
+    /// this dispatches and re-wraps, and adds no decision of its own.
     ///
     /// # Errors
     ///
@@ -395,7 +417,11 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
     /// verbatim (`topo::split` enumerates the cases — every stage's
     /// typed refusal passed through whole); [`VerbError::Arity`] if
     /// this verb answers another door.
-    pub fn run_split(&self, operand: &Body<T>, tol: Tol) -> Result<SplitOut<T>, VerbError<T>> {
+    pub fn run_split(
+        &self,
+        operand: &AtRestBody<T>,
+        tol: Tol,
+    ) -> Result<SplitOut<T>, VerbError<T>> {
         match self {
             Self::Split { plane } => {
                 // Exhaustive destructure, deliberately: a field grown
@@ -405,11 +431,13 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
                     above,
                     below,
                     naming,
+                    coincidences,
                 } = split(operand, plane, tol).map_err(VerbError::Split)?;
                 Ok(SplitOut {
                     above,
                     below,
                     record: VerbRecord::Split(naming),
+                    coincidences,
                 })
             }
             Self::Fillet { .. }
@@ -445,9 +473,12 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
     /// handed to [`Verb::run`], [`Verb::run_pair`],
     /// [`Verb::run_profile`] or [`Verb::run_split`] refuses by name.
     ///
-    /// The operand comes in borrowed, never in the payload, exactly as
-    /// at [`Verb::run`]; an EMPTY `open` is the sealed hollow, which is
-    /// the kernel door's own contract and not a case decided here.
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`AtRestBody`]). Unlike [`Verb::run_split`]'s door, the shell's
+    /// reads no verdict of its own: only a dual carries an operand with
+    /// none, and no dual holds the door. An EMPTY `open` is the sealed
+    /// hollow, which is the kernel door's own contract and not a case
+    /// decided here.
     /// Every check, every refusal and every minted entity is the
     /// door's — this dispatches and re-wraps, and adds no decision of
     /// its own; the tolerance witness travels down unaltered and no
@@ -463,7 +494,7 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
     /// door.
     pub fn run_shell(
         &self,
-        operand: &Body<T>,
+        operand: &AtRestBody<T>,
         tol: Tol,
         door: ShellDoor<T>,
     ) -> Result<VerbOut<T>, VerbError<T>> {
@@ -478,6 +509,8 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
                 Ok(VerbOut {
                     body,
                     record: VerbRecord::Shell(naming),
+                    // The shell's offsets glue nothing a margin decided.
+                    coincidences: Vec::new(),
                 })
             }
             Self::Fillet { .. }

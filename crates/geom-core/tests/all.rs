@@ -51,18 +51,24 @@
 //
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
+mod exact_q;
+mod refusal;
 mod span_fixtures;
 
 #[path = "ambiguity_k_env.rs"]
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "between_exact_fuzz.rs"]
+mod between_exact_fuzz;
 #[path = "bounds_census.rs"]
 mod bounds_census;
 #[path = "cert3r1_poison_detail.rs"]
 mod cert3r1_poison_detail;
 #[path = "cert3r1_probes.rs"]
 mod cert3r1_probes;
+#[path = "certification_door_differential.rs"]
+mod certification_door_differential;
 #[path = "certified_door.rs"]
 mod certified_door;
 #[path = "certified_endpoint_census.rs"]
@@ -79,6 +85,8 @@ mod coeffs_pair_identity;
 mod d290_r2_probes;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
+#[path = "decide_4_root_quotient_rows.rs"]
+mod decide_4_root_quotient_rows;
 #[path = "decoration_seam.rs"]
 mod decoration_seam;
 #[path = "eps_provenance.rs"]
@@ -101,8 +109,8 @@ mod knot_queries_differential;
 mod m10_7_r1_retag_probe;
 #[path = "m10_7_r1_sym_probes.rs"]
 mod m10_7_r1_sym_probes;
-#[path = "m5_pr1_poison_conservation.rs"]
-mod m5_pr1_poison_conservation;
+#[path = "m5_pr1_refusal_conservation.rs"]
+mod m5_pr1_refusal_conservation;
 #[path = "m5_pr7b_tensor_compose.rs"]
 mod m5_pr7b_tensor_compose;
 #[path = "review_m0_pr2.rs"]
@@ -145,8 +153,14 @@ mod spline_hull;
 mod sym11_witness_kind_interval_rows;
 #[path = "sym11_witness_kind_rows.rs"]
 mod sym11_witness_kind_rows;
+#[path = "sym_9_retry_rows.rs"]
+mod sym_9_retry_rows;
+#[path = "sym_deferred_rows.rs"]
+mod sym_deferred_rows;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
+#[path = "sym_root_rows.rs"]
+mod sym_root_rows;
 #[path = "sym_rule_e_rows.rs"]
 mod sym_rule_e_rows;
 #[path = "sym_rule_f_interval_rows.rs"]
@@ -176,9 +190,6 @@ mod rate_pair_doors;
 
 #[path = "cert3_evidence.rs"]
 mod cert3_evidence;
-
-#[path = "onb_signed_zero_evidence.rs"]
-mod onb_signed_zero_evidence;
 
 #[path = "m10_7_r2_sym_probes.rs"]
 mod m10_7_r2_sym_probes;

@@ -22,13 +22,14 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Datum, Dimension, EntityKind, EvalOptions,
-    GeomPred, NamePat, Node, ParamEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag, SelectRefusal,
-    Selector, SurfaceKindSet, evaluate, select, select_where,
+    GeomPred, NamePat, Node, NodeStanding, ProfileDoc, RecipeNodeId, SegPat, SegTag, SelectRefusal,
+    Selector, SurfaceKindSet, VarEnv, evaluate, select, select_where,
 };
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 
 use fixture::{ang, insert, len, on_frame};
 use geom_core::Tol;
@@ -57,8 +58,9 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, datum) = insert(
@@ -71,8 +73,8 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, cube, datum)
 }
 
-fn no_params() -> ParamEnv<f64> {
-    ProfileDoc::empty_derived("lib_sel1_geoselect", Tol::witness()).param_env::<f64>()
+fn no_params() -> VarEnv<f64> {
+    ProfileDoc::empty_derived("lib_sel1_geoselect", Tol::witness()).var_env::<f64>()
 }
 
 fn all(kind: EntityKind) -> Selector {
@@ -440,8 +442,9 @@ fn a_non_datum_reference_refuses() {
         }
         other => panic!("expected NotADatum, got {other:?}"),
     }
-    // An unevaluated node id, same door.
-    let ghost = at(RecipeNodeId(9999), Cmp::Approx, 0.0);
+    // An unevaluated node id, same door: a node with no value is its
+    // own refusal, carrying the standing rather than a word for it.
+    let ghost = at(RecipeNodeId::new(0, 9999), Cmp::Approx, 0.0);
     assert!(matches!(
         select_where(
             &ev,
@@ -451,7 +454,8 @@ fn a_non_datum_reference_refuses() {
             &no_params(),
             Tol::witness()
         ),
-        Err(SelectRefusal::NotADatum { .. })
+        Err(SelectRefusal::DatumHasNoValue(NodeStanding::NotInDocument { node }))
+            if node == RecipeNodeId::new(0, 9999)
     ));
 }
 
@@ -464,7 +468,7 @@ fn a_valueless_node_is_empty_not_an_error() {
     assert!(
         select_where(
             &ev,
-            RecipeNodeId(9999),
+            RecipeNodeId::new(0, 9999),
             &all(EntityKind::Edge),
             &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
             &no_params(),
@@ -483,17 +487,10 @@ fn a_valueless_node_is_empty_not_an_error() {
 /// document layer's re-export: a set built from the whole mirror holds
 /// every kind on it, the empty set holds none, and a singleton
 /// iterates back to the one kind it was built from.
-///
-/// **This does not pin the mirrors against their enums** — both sides
-/// of such an equality would be derived from the list under test, so a
-/// kind missing from the list would be missing from both. That census
-/// lives beside the lists, as the two `census!` invocations in
-/// `topo::query`'s test module — where it is the compiler, not an
-/// assertion, that reds when a list falls behind its enum.
 #[test]
 fn kind_sets_carry_exactly_their_members() {
-    let all = SurfaceKindSet::of(editor_core::ALL_SURFACE_KINDS);
-    for k in editor_core::ALL_SURFACE_KINDS {
+    let all = SurfaceKindSet::of(SurfaceKind::ALL);
+    for k in SurfaceKind::ALL {
         assert!(all.contains(k));
         assert!(!SurfaceKindSet::default().contains(k));
         assert_eq!(SurfaceKindSet::just(k).iter().next(), Some(k));
@@ -518,33 +515,29 @@ fn kind_sets_carry_exactly_their_members() {
 /// The composed die's fillet target and the two operand nodes, read
 /// out of the document itself (the `lib_u7_select` recovery, verbatim
 /// — nothing here restates an id the document already knows).
-fn composed_ids(
-    doc: &ProfileDoc,
-    ev: &editor_core::Evaluation<f64>,
-) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let (_, pipped) = doc
-        .order()
+        .ids()
         .iter()
         .find_map(|id| match doc.node(*id) {
-            Some(Node::Fillet { target, .. }) => Some((*id, *target)),
+            Some(Node::Fillet { selection, .. }) => Some((*id, doc.read_operation(*selection)?)),
             _ => None,
         })
         .expect("the composed die has a fillet node");
-    let operand = |pick: fn(&editor_core::RoleSeg) -> Option<&editor_core::StableName>| {
-        editor_core::all_edges(ev, pipped)
-            .iter()
-            .find_map(|n| n.path.first().and_then(pick).map(|inner| inner.node))
-            .expect("the target's table carries this operand")
+    let Some(Node::Subtract { from, tool, .. }) = doc.node(pipped) else {
+        panic!("the fillet's target is the die's subtract");
     };
-    let cube = operand(|s| match s {
-        editor_core::RoleSeg::FromA(inner) => Some(&**inner),
-        _ => None,
-    });
-    let ball = operand(|s| match s {
-        editor_core::RoleSeg::FromB(inner) => Some(&**inner),
-        _ => None,
-    });
-    (cube, ball, pipped)
+    let operand = |read| {
+        doc.operation_of(read)
+            .expect("an operand read has a producer")
+    };
+    // The tool is the pip, a Transform of the ball; the ball's names
+    // ride it through unchanged, so the names carry the revolve's id.
+    let ball = match doc.node(operand(tool.read)) {
+        Some(Node::Transform { input, .. }) => operand(*input),
+        other => panic!("the die's tool is the placed ball, got {other:?}"),
+    };
+    (operand(from.read), ball, pipped)
 }
 
 /// **THE ACCEPTANCE (LIB-SEL1 §2.4).** `die_composed`'s fourteen
@@ -582,7 +575,7 @@ fn composed_ids(
 fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
     let doc = corpus::die_composed::document();
     let ev = eval(&doc.doc);
-    let (cube, ball, pipped) = composed_ids(&doc.doc, &ev);
+    let (cube, ball, pipped) = composed_ids(&doc.doc);
 
     let edges = all(EntityKind::Edge);
     let straight = select_where(

@@ -18,7 +18,8 @@
 //!    face is a local quantity: a plane hands back its stored normal, a
 //!    cylinder its chart-outward radial at the vertex point, a sphere
 //!    the radial from its centre, a torus the offset from the vertex's
-//!    foot on its core circle.
+//!    foot on its core circle, a cone its chart normal off the
+//!    generator through the vertex.
 //!
 //! **Every arm folds in the face's `sense` bit** (S10) by minting an
 //! [`OutwardNormal`]: each reads a CHART normal and returns it as the
@@ -58,7 +59,8 @@
 //! — cannot host it at any price. The crate root is the deepest scope
 //! that can, and the two shared sector modules belong together.
 
-use geom_brep::{OutwardNormal, SurfaceKind};
+use geom::SurfaceKind;
+use geom_brep::OutwardNormal;
 use geom_core::Decide;
 
 use crate::body::Body;
@@ -83,6 +85,9 @@ pub(crate) enum SectorCarrier {
     /// A ring torus: the normal is the point minus its foot on the
     /// core circle.
     Torus,
+    /// A cone: the normal is the chart-outward one off the generator
+    /// through the vertex, on that vertex's nappe.
+    Cone,
 }
 
 /// The resolved sector face.
@@ -103,14 +108,6 @@ pub(crate) struct SectorFace<T: geom_core::Real> {
 /// `Operand`, which is why the adaptation stays with the callers.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum SectorFaceError {
-    /// A traversal or arena lookup returned nothing — the neighborhood
-    /// does not walk, the body is corrupt. The payload is the entity
-    /// that did not resolve, or (when the missing key was the geometry
-    /// hanging off one) the entity that carried it: the walk's own
-    /// half-edge, the mate, the parent loop, the face, or the base
-    /// vertex. Each lane maps it onto its own corruption arm, and the
-    /// payload is what makes that arm say WHERE.
-    Corrupt(EntityId),
     /// The face's surface has no wired sector arm.
     Unsupported {
         /// The face whose carrier has no arm.
@@ -129,25 +126,21 @@ pub(crate) enum SectorFaceError {
 /// so `sector_face` in prose means one thing per scope instead of
 /// three.
 ///
+/// `vertex` and `he` are the caller's orbit walk's — a vertex it
+/// resolved and a member of its orbit — so every hop from them is a
+/// link of a record, and a miss panics naming it (D2 row 4).
+///
 /// # Errors
 ///
-/// [`SectorFaceError`] — a corrupt traversal, or a carrier with no arm.
+/// [`SectorFaceError`] — a carrier with no arm.
+#[track_caller]
 pub(crate) fn resolve<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<SectorFace<T>, SectorFaceError> {
-    let mate = body
-        .mate(he)
-        .ok_or(SectorFaceError::Corrupt(EntityId::HalfEdge(he)))?;
-    let parent = body
-        .get_half_edge(mate)
-        .ok_or(SectorFaceError::Corrupt(EntityId::HalfEdge(mate)))?
-        .parent_loop;
-    let face = body
-        .get_loop(parent)
-        .ok_or(SectorFaceError::Corrupt(EntityId::Loop(parent)))?
-        .face;
+    let mate = body.proven_mate(he, crate::live::link(EntityId::Vertex(vertex), "orbit"));
+    let face = body.face_of_linked(mate.mate);
     // The planar arm goes through the crate's ONE sense-flip door
     // ([`crate::face_normal`]) rather than re-deriving the flip, and
     // reads nothing else: a plane's outward normal is a property of
@@ -160,18 +153,13 @@ pub(crate) fn resolve<T: Decide>(
         });
     }
     // The charted arms need the face's own chart and the base vertex.
-    let face_data = body
-        .get_face(face)
-        .ok_or(SectorFaceError::Corrupt(EntityId::Face(face)))?;
+    let face_data = crate::live::proven(&body.faces, face, EntityId::Face);
     let sense = face_data.sense;
     let point = || {
-        body.get_vertex(vertex)
-            .ok_or(SectorFaceError::Corrupt(EntityId::Vertex(vertex)))
-            .and_then(|v| {
-                body.get_point(v.point)
-                    .copied()
-                    .ok_or(SectorFaceError::Corrupt(EntityId::Vertex(vertex)))
-            })
+        body.point_of(
+            vertex,
+            crate::live::proven(&body.vertices, vertex, EntityId::Vertex),
+        )
     };
     let charted = |chart, carrier| {
         Ok(SectorFace {
@@ -180,19 +168,16 @@ pub(crate) fn resolve<T: Decide>(
             carrier,
         })
     };
-    match body
-        .get_surface(face_data.surface)
-        .ok_or(SectorFaceError::Corrupt(EntityId::Face(face)))?
-    {
+    match body.face_surface_linked(face, face_data) {
         geom::Surface::Cylinder { origin, axis, .. } => {
-            let w = point()? - *origin;
+            let w = point() - *origin;
             charted(
                 (w - *axis * w.dot(*axis)).normalize(),
                 SectorCarrier::Cylinder,
             )
         }
         geom::Surface::Sphere { center, .. } => {
-            charted((point()? - *center).normalize(), SectorCarrier::Sphere)
+            charted((point() - *center).normalize(), SectorCarrier::Sphere)
         }
         // The chart normal of a ring torus at `p` is `p` minus its foot
         // on the core circle, over `r` — the implicit gradient, read from
@@ -202,13 +187,21 @@ pub(crate) fn resolve<T: Decide>(
         // poison escalates typed at the first decide that reads it —
         // the same outcome `point_on_torus_in_face`'s banded check gives.
         s @ geom::Surface::Torus { .. } => charted(
-            geom_brep::implicit_gradient(s, point()?).normalize(),
+            geom_brep::implicit_gradient(s, point()).normalize(),
             SectorCarrier::Torus,
+        ),
+        // A cone's implicit gradient IS its chart normal, nappe sign
+        // included. It poisons on the axis — at the apex, where no
+        // tangent plane exists — and the poison escalates typed at the
+        // first decide that reads it.
+        s @ geom::Surface::Cone { .. } => charted(
+            geom_brep::implicit_gradient(s, point()).normalize(),
+            SectorCarrier::Cone,
         ),
         // The planar arm returned above; anything else has no arm.
         s => Err(SectorFaceError::Unsupported {
             face,
-            kind: SurfaceKind::of(s),
+            kind: s.kind(),
         }),
     }
 }
@@ -228,35 +221,49 @@ mod tests {
         let mut body = p.body;
         body.set_face_surface(
             face,
-            crate::FaceSurface::New(geom::Surface::Sphere {
-                center: geom_core::Point3::new(0.0, 0.0, 0.0),
-                radius: 2.0,
-                axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
-                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
-            }),
+            crate::FaceSurface::New {
+                surface: geom::Surface::Sphere {
+                    center: geom_core::Point3::new(0.0, 0.0, 0.0),
+                    radius: 2.0,
+                    axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
         (body, face)
     }
 
-    /// The corruption payload names WHAT did not resolve, which is the
-    /// whole point of it carrying one: a dangling half-edge reports
-    /// that half-edge, not the base vertex the lanes' public arms are
-    /// limited to.
+    /// A torn link panics naming the record that holds it: the orbit
+    /// member's `parent_loop`, not the base vertex the lanes' public
+    /// arms are limited to.
     #[test]
-    fn corrupt_names_the_entity_that_did_not_resolve() {
+    fn a_torn_link_panics_naming_its_record() {
         let p = raw_prism(3, Tol::witness());
-        let bogus = crate::entity::HalfEdgeKey::default();
-        match resolve(&p.body, p.t[0], bogus) {
-            Err(SectorFaceError::Corrupt(EntityId::HalfEdge(k))) => assert_eq!(k, bogus),
-            other => panic!("expected the dangling half-edge named, got {other:?}"),
-        }
+        let mut body = p.body;
+        let (orbit_he, _) = body.half_edges().next().expect("a half-edge");
+        let vertex = body.get_half_edge(orbit_he).unwrap().start;
+        let mate = body.mate(orbit_he).unwrap();
+        body.get_half_edge_mut(mate).unwrap().parent_loop = crate::entity::LoopKey::default();
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = resolve(&body, vertex, orbit_he);
+        }));
+        let premise = format!(
+            "{}'s parent_loop names {}, which does not resolve",
+            EntityId::HalfEdge(mate),
+            EntityId::Loop(crate::entity::LoopKey::default())
+        );
+        assert!(
+            report.contains(&premise) && report.contains(crate::live::NAMES_ONLY_LIVE),
+            "{report}"
+        );
     }
 
-    /// The charted arms read the base vertex, so a dangling VERTEX is
-    /// reported as the vertex — the same payload, a different entity.
+    /// The charted arms read the base vertex, which the caller's walk
+    /// resolved, so a vertex that does not resolve panics.
     #[test]
-    fn a_charted_arm_names_the_vertex_it_could_not_read() {
+    fn a_charted_arm_panics_on_a_vertex_that_does_not_resolve() {
         let (body, face) = sphere_sided_prism();
         let he = body
             .get_loop(body.get_face(face).unwrap().outer)
@@ -268,10 +275,16 @@ mod tests {
         // The sector CW-after `mate(he)` is this face's corner.
         let orbit_he = body.mate(he).unwrap();
         let bogus = crate::entity::VertexKey::default();
-        match resolve(&body, bogus, orbit_he) {
-            Err(SectorFaceError::Corrupt(EntityId::Vertex(k))) => assert_eq!(k, bogus),
-            other => panic!("expected the dangling vertex named, got {other:?}"),
-        }
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = resolve(&body, bogus, orbit_he);
+        }));
+        assert!(
+            report.contains(&format!(
+                "{}, which this call resolved or read out of a record, does not resolve",
+                EntityId::Vertex(bogus)
+            )),
+            "{report}"
+        );
     }
 
     /// The sphere arm is WIRED here (the boolean lane executes it) and
@@ -327,13 +340,16 @@ mod tests {
         let center = at - x * (big_r + r * cv) - z * (r * sv);
         body.set_face_surface(
             face,
-            crate::FaceSurface::New(geom::Surface::Torus {
-                center,
-                axis: z,
-                major_radius: big_r,
-                minor_radius: r,
-                u_ref: x,
-            }),
+            crate::FaceSurface::New {
+                surface: geom::Surface::Torus {
+                    center,
+                    axis: z,
+                    major_radius: big_r,
+                    minor_radius: r,
+                    u_ref: x,
+                },
+                sense: true,
+            },
         )
         .unwrap();
         let resolved = resolve(&body, vertex, orbit_he).expect("the torus arm resolves");

@@ -130,6 +130,22 @@ pub(crate) struct ArcFilletTrims<T: Real> {
     pub in_arc: Option<(Point2<T>, ArcSweep)>,
     /// The fillet arc's own carrier, for the §4 item 4 identity checks.
     pub arc: ArcData<T>,
+    /// What the offset construction proved of the centre
+    /// ([`crate::sugar::ArcFilletCandidate::centre_facts`]).
+    pub centre_facts: crate::Facts,
+}
+
+impl<T: Real> ArcFilletTrims<T> {
+    /// The fillet arc as this resolution built it, from `t1` — or from
+    /// the chain head the exact fit absorbed `t1` into — to `t2`
+    /// ([`super::fillet_arc`], [`super::fillet_facts`]).
+    pub(crate) fn fillet(&self) -> crate::BuiltArc<T> {
+        super::fillet_arc(
+            self.arc,
+            self.bulge,
+            super::fillet_facts(self.centre_facts, self.fit_in),
+        )
+    }
 }
 
 impl<T: Real> SideCarrier<T> {
@@ -171,10 +187,7 @@ impl<T: Real> FilletSide<T> {
         match self.carrier {
             SideCarrier::Ray(u) => ("path_corner_advance", (to - from).dot(u)),
             SideCarrier::Circle { centre, winding } => {
-                let turn = match winding {
-                    ArcSweep::Ccw => T::one(),
-                    ArcSweep::Cw => -T::one(),
-                };
+                let turn = winding.sign::<T>();
                 let r = (self.anchor - centre).norm_squared().sqrt();
                 (
                     arc_name,
@@ -908,7 +921,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             }
             // The RECORDED fits are what the emission branches read:
             // a fit sign decides whether a straight piece and its
-            // declared joint exist at all, so adopting this lane's
+            // constructed joint exist at all, so adopting this lane's
             // answer would be selecting structure at the lane.
             (picked, decision.fit_in, decision.fit_out)
         }
@@ -932,6 +945,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             center: c.center,
             radius,
         },
+        centre_facts: c.centre_facts,
     })
 }
 
@@ -1009,10 +1023,7 @@ pub(crate) fn carrier_tangent<T: Decide>(
         Ok(_) => return Err(PathError::DegenerateArcCenter { radius }),
         Err(source) => return Err(PathError::Escalated { source }),
     }
-    let turn = match winding {
-        ArcSweep::Ccw => T::one(),
-        ArcSweep::Cw => -T::one(),
-    };
+    let turn = winding.sign::<T>();
     Ok(Dir::from_unit(Vec2::new(-v.y, v.x) * (turn / radius)))
 }
 

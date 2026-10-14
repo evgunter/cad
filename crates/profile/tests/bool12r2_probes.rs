@@ -6,7 +6,7 @@
 //! the file means the same thing on every ε leg the battery walks.
 //!
 //! - the two pre-build MEASUREMENTS, re-taken on this head, including
-//!   the stored ORDER of the stadium's declared joints (the body states
+//!   the stored ORDER of the stadium's constructed joints (the body states
 //!   the sorted form);
 //! - the ESCALATION message at the two new funnel keys — §8 claims the
 //!   recourse direction is the authored-data one, and the escalated arm
@@ -98,13 +98,13 @@ fn r2_measurement_a_on_the_head() {
     println!("R2: undeclared stadium -> {refused:?}");
     assert!(matches!(refused, Err(PathError::SeamTangent { .. })));
 
-    let closed = stadium(true).expect("the declared tangent seam closes");
+    let closed = stadium(true).expect("the constructed tangent seam closes");
     println!(
         "R2: declared stadium joints (stored order) -> {:?}",
-        closed.loop_.tangent_joints()
+        closed.loop_.constructed_joints()
     );
     validate_ok(&closed.loop_);
-    let mut joints = closed.loop_.tangent_joints().to_vec();
+    let mut joints = closed.loop_.constructed_joints().to_vec();
     joints.sort_unstable();
     assert_eq!(joints, vec![0, 1, 2, 3]);
     assert_eq!(closed.loop_.vertices().len(), 4);
@@ -121,7 +121,7 @@ fn r2_the_declared_seams_hold_on_this_epsilon_leg() {
     let closed = d_shape_forward(true).expect("the declared D-shape closes");
     assert_eq!(closed.loop_.vertices().len(), 4);
     // The seam joint AND the interior continuation joint.
-    assert_eq!(closed.loop_.tangent_joints(), &[0, 3]);
+    assert_eq!(closed.loop_.constructed_joints(), &[0, 3]);
     validate_ok(&closed.loop_);
     assert!(matches!(
         d_shape_forward(false),
@@ -176,10 +176,13 @@ fn r2_the_new_keys_inherit_the_junction_escalation_template() {
     let escalated = tilted_close(3.0 * eps, 1.0).expect_err("in-band");
     let msg = escalated.to_string();
     println!("R2: escalated declared arrival -> {msg}");
-    assert!(msg.contains("path_seam_arrival_turn"), "{msg}");
+    assert!(
+        format!("{escalated:?}").contains("path_seam_arrival_turn"),
+        "{escalated:?}"
+    );
     // FIXED: the inherited junction template is gone and the recourse
     // is the authored-data one.
-    assert!(!msg.starts_with("path junction classification"), "{msg}");
+    assert!(!msg.contains("at this junction"), "{msg}");
     assert!(!msg.contains("declare the coincidence"), "{msg}");
     assert!(msg.contains("the declaration is the target"), "{msg}");
     // The DEFINITE arm, for contrast: it composes its own recourse.
@@ -408,14 +411,15 @@ fn r2_lily_lattice_table_is_bit_identical_to_the_raw_table() {
             assert!(
                 a.x.to_bits() == b.x.to_bits()
                     && a.y.to_bits() == b.y.to_bits()
-                    && lowered.bulges()[i].to_bits() == raw.bulges()[i].to_bits(),
+                    && crate::common::segment_bits(&lowered.segments()[i])
+                        == crate::common::segment_bits(&raw.segments()[i]),
                 "shoulder {shoulder} vertex {i}: {a:?} vs {b:?}"
             );
         }
         assert!(
-            !lowered.tangent_joints().is_empty(),
+            !lowered.constructed_joints().is_empty(),
             "shoulder {shoulder}: {:?}",
-            lowered.tangent_joints()
+            lowered.constructed_joints()
         );
         validate_ok(lowered);
         println!("R2: lily shoulder {shoulder} — lattice table bit-identical to the raw one");
@@ -473,7 +477,7 @@ fn r2_lily_near_kite_sections_are_where_the_demo_would_panic() {
 /// first side is a LINE. When it is an ARC, a straight closing leg
 /// arriving along the arc's start tangent is a G1 joint between
 /// DISTINCT carriers — exactly what the #101 discipline says must be
-/// DECLARED — and the straight arrival declares nothing (`declare_seam`
+/// DECLARED — and the straight arrival declares nothing (`construct_seam`
 /// runs only on the tangent-arc closer, `path.rs:3297`).
 ///
 /// So the lattice MINTS a loop the data gate then refuses
@@ -529,8 +533,8 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
     // consult the following carrier, so it closes declaring nothing and
     // the DATA gate — which owns materialized carriers — refuses.
     let closed = ring(true).expect("the declared arrival closes");
-    assert_eq!(closed.loop_.tangent_joints(), &[0]);
-    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_]).validate(t);
+    assert_eq!(closed.loop_.constructed_joints(), &[0]);
+    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_.into_loop()]).validate(t);
     println!("R2: arc-first-side, declared -> at the gate {verdict:?}");
     // RULED (2026-09-02, addendum 3): one token, and it declares the
     // joint TANGENT — which is what this joint is — so the gate accepts.
@@ -554,13 +558,13 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
         .unwrap()
         .line_to(Start.arrives_tangent(), t)
         .expect("a straight leg may declare a TANGENT seam joint");
-    assert_eq!(g1.loop_.tangent_joints(), &[0]);
+    assert_eq!(g1.loop_.constructed_joints(), &[0]);
     validate_ok(&g1.loop_);
 }
 
 /// The SIBLING of the row above, on the tangent member: a closing arc
 /// that arrives G1 at a seam whose first side is an arc on the SAME
-/// circle. `declare_seam` marks joint 0 tangent unconditionally, and a
+/// circle. `construct_seam` marks joint 0 tangent unconditionally, and a
 /// declaration on carrier IDENTITY is what `ProfileLoop::tangent_joints`
 /// says is contradicted. `tangent_arc_geom`'s identity refusal compares
 /// the closing arc against the PREVIOUS segment's carrier, not the
@@ -589,11 +593,11 @@ fn r2_a_declared_g1_seam_onto_a_cocircular_first_side() {
     // following carrier, so this closes and the DATA gate refuses the
     // declaration the carriers contradict.
     // RULED the other way (Ev, in-chat, 2026-09-02, addendum 3):
-    // every zero-turn joint is a declared tangent joint, so declaring
+    // every zero-turn joint is a tangent joint, so declaring
     // one onto an identical carrier is true rather than contradicted.
     let closed = built.expect("the declared G1 arrival closes");
-    assert!(closed.loop_.tangent_joints().contains(&0));
-    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_]).validate(t);
+    assert!(closed.loop_.constructed_joints().contains(&0));
+    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_.into_loop()]).validate(t);
     println!("R2: cocircular G1 seam, at the gate -> {verdict:?}");
     verdict.expect("the data gate accepts it: the directions agree");
 }

@@ -54,7 +54,7 @@ and its homeless lift rule; the tangent legs' folded over-full angle.
   closers. M each; one unit if the seam vocabulary is shared.
 - `sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary`
   and `sketch-plane-lift-choice-has-no-home` — the frame witness
-  (`OrthoFrame`, FRAME-WITNESS #2675) carried through `SketchPlane`,
+  (`RigidMotion`, FRAME-WITNESS #2675) carried through `SketchPlane`,
   and one home for the lift rule. M together.
 - `sweep-arclen-legs-fold-an-over-full-angle` — θ ≥ 2π refuses typed
   instead of folding (found at BOOL-10's review). S.

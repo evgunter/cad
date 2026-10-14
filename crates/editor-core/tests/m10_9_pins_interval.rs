@@ -38,124 +38,138 @@ use crate::m10_8_harness::dials;
 ///
 /// Every field is a MEASUREMENT, not a target: `certifies_at` and
 /// `refuses_at` are the two ends of the ceiling's bracket in multiples
-/// of ε, and `registered` is how many decisions the registered-identity
-/// door discharges on the document at `certifies_at` (ε-independent —
-/// the same at `1e-6`, `1e-9` and `1e-12`, and both reviews re-measured
-/// it). Every reader reads this array; a re-measured ceiling or a moved
+/// of ε, and `without_the_registry` is the document's receipt and
+/// verdict at `certifies_at` with the registered-identity door shut
+/// (ε-independent — the same at `1e-6`, `1e-9` and `1e-12`). Every reader reads this array; a re-measured ceiling or a moved
 /// count is edited once (R1 S1: it used to be typed out three times,
 /// magic constants and builders both).
 pub(crate) struct Study {
     pub(crate) name: &'static str,
-    /// A multiple of ε that certifies whole.
+    /// A multiple of ε that certified whole on M10-9's tier: the
+    /// certifying end of the bracket M10-9 measured. On the shipped
+    /// tree all five certify whole there (`refused_by`).
     pub(crate) certifies_at: f64,
-    /// A multiple of ε that refuses.
-    pub(crate) refuses_at: f64,
-    /// `SymCounts::registered` at `certifies_at`, shipped set.
-    pub(crate) registered: u64,
-    /// `SymCounts::symbolic_zero` at `certifies_at`, shipped set — the
-    /// THEOREM count beside the axiom count, pinned since SYM-8.
+    /// The predicate the whole-box replay refuses at, at
+    /// `certifies_at` on the shipped tree, or `None` where it certifies
+    /// whole there. Asserted, so the counts beside it are known to be
+    /// a truncated replay's where they are one.
+    pub(crate) refused_by: Option<&'static str>,
+    /// A multiple of ε that refuses — `None` where the bisection found
+    /// no refusal up to its top, `1e6·ε`.
+    pub(crate) refuses_at: Option<f64>,
+    /// The replay at `certifies_at` with the door shut
+    /// (`SymRules::shipped_without_the_door`): `(symbolic, numeric)`,
+    /// and the predicate it refuses at, `None` where it certifies.
+    /// `None` for a document the door discharges nothing on
+    /// (`m10_9_what_the_registry_buys`).
+    pub(crate) without_the_registry: Option<((u64, u64), Option<&'static str>)>,
+    /// `SymCounts::symbolic` at `certifies_at`, shipped set.
     ///
-    /// Why both: a rule that moves a decision from `symbolic_zero` to
-    /// `registered` leaves `registered` looking like a gain and moves
-    /// the claim from a theorem the tier proved to an axiom a
-    /// constructor stated. SYM-8's rule F did exactly that to four of
-    /// the pad's decisions, and with only `registered` pinned the
-    /// four lived in a comment (R1's `#651` shape: a claim resting on
-    /// a measurement with neither guard nor register). Pinned, a later
-    /// change that costs four more theorems reds here.
-    pub(crate) symbolic_zero: u64,
+    /// Per ε row (`1e-6`, `1e-9`, `1e-12`). A document that certifies
+    /// whole reads the same count at all three, as all five do now; a
+    /// refusing document's replay stops at its refusal, whose prefix can
+    /// differ by row, so the count is pinned per row rather than
+    /// averaged into one.
+    pub(crate) symbolic: [u64; 3],
     pub(crate) at: Box<dyn Fn(f64) -> ProfileDoc>,
 }
 
 /// The five, in the order every row here reports them.
+///
+/// The scales are M10-9's brackets, the link's lowered to its own
+/// ceiling, and all five certify whole at them. `refused_by` stays for
+/// the next document that refuses. How each count moved since SYM-11
+/// (2026-09-21), merge by merge, is the attribution table in
+/// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`;
+/// the earlier reasons (rule E's and rule F's trades, the must-carry
+/// derivation) are in this doc's git history (`git log -L`).
+///
+/// INTENT-LITERALS PR C: a formula written at a slot is an anonymous
+/// definition, bound through the non-finite door, so each written
+/// formula adds a theorem (plate +1, annulus +2, link +2, bracket +3;
+/// the pad holds). `registered` and the verdicts do not move, and an
+/// untoleranced variable binds as its nominal (VR8).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
             name: "two_hole_plate",
             certifies_at: 7.811e2,
-            refuses_at: 7.814e2,
-            registered: 140,
-            symbolic_zero: 803,
+            refuses_at: None,
+            refused_by: None,
+            // The circles store their authored carrier, the radius as
+            // `|r|`, so the rim at a vertex folds onto it in the tier's
+            // own algebra: every rim decision is a THEOREM, none reaches
+            // the door, and the plate refuses nowhere the bisection
+            // reaches.
+            without_the_registry: None,
+            symbolic: [1048, 1048, 1048],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
             name: "r1_annulus",
             certifies_at: 7.805e2,
-            refuses_at: 7.810e2,
-            registered: 140,
-            symbolic_zero: 328,
+            refuses_at: None,
+            refused_by: None,
+            // As the plate: the circles' stored carrier makes every rim
+            // decision a theorem.
+            without_the_registry: None,
+            symbolic: [566, 566, 566],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
             name: "r2_link",
-            certifies_at: 4.930e2,
-            refuses_at: 4.934e2,
-            registered: 90,
-            symbolic_zero: 515,
+            // The tangent arc stores Δθ = 4·atan(across / (|d| + along)),
+            // and the quarter-tangent of a half-turn whose chord is the
+            // parameter `half_w` reads `2w / |2w|`, a sign the tier does
+            // not hold. The rim identity the arc registers sits inside a
+            // frozen compound, the mapped-source residual is read
+            // numerically, and it leaves the band first at 3.030e2·ε.
+            certifies_at: 3.029e2,
+            refuses_at: Some(3.030e2),
+            refused_by: None,
+            // Door shut, the extrude's rim (half-edge 24v1) refuses at
+            // check 4. The refusal decides the terms in order up to the
+            // first one over the band alone, `Radius` (the class
+            // circle's radius and orientation read as one pair), so it
+            // decides 3 of the envelope's 9 terms on each of its two
+            // reads.
+            without_the_registry: Some(((815, 712), Some("pcurve_envelope"))),
+            symbolic: [862, 862, 862],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
             name: "r2_filleted_bracket",
             certifies_at: 3.870e2,
-            refuses_at: 3.873e2,
-            registered: 144,
-            symbolic_zero: 1083,
+            // Bounded by `arc_span`, in the profile's validation.
+            refuses_at: Some(7.624e2),
+            refused_by: None,
+            // The fillet's tangency is the registration
+            // `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
+            // centre's algebra, so eight `dihedral_wedge` decisions are
+            // registered rather than proved. The tangent certificate's
+            // gap rows on the fillet's contact edges added ten (47 → 57).
+            without_the_registry: Some(((1391, 1061), None)),
+            // One is the fillet run out read against its arrival carrier
+            // (`path_run_out_carrier`), a margin the tier proves zero.
+            // How many the tier reaches depends on the order the
+            // variables' symbols sort in
+            // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
+            symbolic: [1448, 1448, 1448],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
             name: "r2_rounded_pad",
             certifies_at: 2.083e3,
-            refuses_at: 2.084e3,
-            // 86 until SYM-5's rule E (`common_factor`). The pad is
-            // the one of the five whose `registered` the rule moves,
-            // and it moves it UP: with the dial off this replay reads
-            // `symbolic_zero: 695, registered: 86, numeric: 1172`, with
-            // it on `858 / 104 / 991` — 181 decisions leave `numeric`,
-            // 163 of them as theorems and 18 through the door, and
-            // `frozen` is 2750 either way. That is the SECOND cause
-            // the assertion below names (a changed fold rule that
-            // un-freezes a residual the door then recognises) and not
-            // the first: `registrations_refused` and
-            // `registrations_contradicted` are 0 at both dials, the
-            // registrants' own `debug_assert!` never fires, and no
-            // ceiling on this document moves. The other four are
-            // byte-identical at both dials except for `symbolic_zero`
-            // rising against `numeric` (link 485 → 515, bracket
-            // 1075 → 1083, plate and annulus unmoved).
-            //
-            // 104 until SYM-8's rule F (`manifest_sign`), which moves
-            // this same document and only this one again, and again
-            // the second cause: `without_rule_f` reads
-            // `symbolic_zero: 858, registered: 104, numeric: 991`
-            // here and the shipped set `854 / 128 / 971` — the same
-            // 1953 decisions, 24 of them moving INTO the door, 20 out
-            // of `numeric` and FOUR out of `symbolic_zero`. Those four
-            // are the unit's disclosed finding: opening an `abs` atom
-            // the early walk was cancelling over can cost that walk a
-            // theorem the registry then re-takes
-            // (`work/sym/coefficient-ring-width-is-not-monotone-in-reach`,
-            // the class). No decision is lost, `frozen` is 2750 at
-            // both dials, no per-predicate split at any document's
-            // nominal moves, and no ceiling on any of the eight
-            // measured documents moves by a digit.
-            //
-            // 854 until the must-carry rule gated each station
-            // first-order (`geom_brep::must_carry_over_edge` asks
-            // `classify_dihedral` before the second-order jet). That
-            // is none of the three causes above but a fourth: the
-            // document asks MORE decisions, and no decision moves.
-            // The pad reaches the rule on 16 edges, each read at the
-            // 7 interior stations, and every station's
-            // `dihedral_wedge` is one new decision — 112, of which
-            // 28 are theorems and 84 numeric; `registered` and
-            // `frozen` do not move, and with the gate's call removed
-            // this replay reads 854 again. The link (8 edges) and
-            // the bracket (4) take the same 7 per edge, all numeric,
-            // so their pins here hold. Every rule-reached edge on the
-            // five reads `JetDeterminate` with the gate and without,
-            // so the document the replay builds is the same one.
-            registered: 128,
-            symbolic_zero: 882,
+            // Bounded by `line_span`, in the profile's validation.
+            refuses_at: Some(2.7783e3),
+            refused_by: None,
+            // Rule F's differential on this document is
+            // `m10_9_the_pad_at_both_rule_f_dials`'s.
+            without_the_registry: Some(((1308, 1348), None)),
+            // Three are the fillet run outs read against their arrival
+            // carriers (`path_run_out_carrier`), margins the tier proves
+            // zero.
+            symbolic: [1372, 1372, 1372],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -194,7 +208,9 @@ fn replay_counts(
         let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
             evaluate(doc, None, &CancelToken::new(), &opts, tol);
         ev.order.iter().find_map(|id| match ev.result(*id) {
-            Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+            Some(NodeResult::Failed(e)) => {
+                Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+            }
             _ => None,
         })
     })
@@ -281,8 +297,7 @@ fn m10_9_the_door_is_inert_on_straight_geometry() {
 /// the door OPEN discharges through the registry — BOTH endpoint
 /// pinnings (the rim identity `‖q − c‖ = r` and the span identity
 /// `carrier.eval(param_end) = q_to`, the arc carrier's two same-object
-/// identities) — and only out of `numeric`: `symbolic_zero` and
-/// `sign_gated` are identical door open and shut.
+/// identities).
 ///
 /// The name the drive stops on is deliberately NOT read: past the
 /// ceiling several predicates are over the band at once and the name
@@ -301,15 +316,9 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
     println!(
         "   door shut {shut:?} -> {shut_refusal:?}\n   door open {open:?} -> {open_refusal:?}"
     );
-    assert_eq!(shut.registered, 0, "M10-8's tier registers nothing");
     assert!(
-        open.registered > 0,
-        "the rim registrant discharges on the plate: {open:?}"
-    );
-    assert_eq!(
-        (open.symbolic_zero, open.sign_gated),
-        (shut.symbolic_zero, shut.sign_gated),
-        "the door moves decisions out of `numeric` and out of nothing else: {open:?} vs {shut:?}"
+        open.symbolic > shut.symbolic,
+        "the rim registrant discharges on the plate: {open:?} vs {shut:?}"
     );
     // NOT "and `numeric` shrank": a REFUSING replay stops at its first
     // refusal, so the two runs do not decide the same population — the
@@ -317,8 +326,7 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
     // refusal are decisions the shut run never reached. The
     // out-of-`numeric`-and-nothing-else claim is pinned where every
     // site decides: at the scalar
-    // (`geom_core::sym`'s `a_registered_identity_decides_zero_and_is_counted_apart`)
-    // and at each document's nominal (the census's table).
+    // (`geom_core::sym`'s `a_registered_identity_decides_zero`).
     assert!(
         open.decisions() >= shut.decisions(),
         "the door can only carry a replay further, never less far: {open:?} vs {shut:?}"
@@ -375,8 +383,11 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 /// make it one.
 ///
 /// The five measured documents are replayed at `Sym<Interval>` with the
-/// shipped set, at the scale each certifies whole at
-/// (`measured_studies`). **The width the row reads at is the ANALYZED
+/// shipped set, at the certifying end of M10-9's bracket for each
+/// (`measured_studies`): the plate, the annulus and the link certify
+/// whole there, and the bracket and the pad refuse at
+/// `pcurve_envelope`, asserted (`Study::refused_by`), so their counts
+/// are over the decisions taken before it. **The width the row reads at is the ANALYZED
 /// BOX** — `analyzed_box(doc, AnalysisPolicy::default())`, the same box
 /// the driver replays over — and that width is what the exact witness
 /// tests against, so the claim below is about the door's answers over
@@ -385,19 +396,17 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 /// **What each assertion catches, because no one of them catches
 /// everything** (R2 MAJOR-1 / R1 MINOR-4 measured exactly this):
 ///
-/// - **`registered`, pinned PER DOCUMENT.** A registration the exact
+/// - **`symbolic`, pinned PER DOCUMENT**, and what the registry buys
+///   of it ([`m10_9_what_the_registry_buys`]). A registration the exact
 ///   witness ADMITS but should not is invisible to a refusal count: at
 ///   `Sym<Interval>` two certified enclosures that still MEET are
 ///   `Witnessed`, which is the door's contract and not a defect it can
 ///   see. R2 planted `‖q − c‖ ≡ r · (1 + 2ε)` in `register_rim_identity`
 ///   and the enclosures still met — but the registry stops discharging,
-///   so `registered` collapses (plate 140 → 16, annulus 140 → 16, link
-///   90 → 16, bracket 144 → 20, pad 86 → 24 — R2's measurement on the
-///   tier as it stood, whose pad base was 86; SYM-5's rule E has since
-///   moved that base and not the mechanism) and `numeric` rises
-///   (470 → 594 on the plate). **These counts are what a small lie
-///   moves**, so they are pinned, and they are ε-independent: the same
-///   five numbers at `1e-6`, `1e-9` and `1e-12`.
+///   so what it buys collapses and `numeric` rises. **These counts are
+///   what a small lie moves**, so they are pinned, and they are
+///   ε-independent: the same five numbers at `1e-6`, `1e-9` and
+///   `1e-12`.
 /// - **The registrants' own `debug_assert!`** (`swept::handle_registration`).
 ///   A GEOMETRIC lie separates the enclosures, the exact witness answers
 ///   `Contradicted`, and the registrant aborts — first, and in every CI
@@ -423,6 +432,10 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 fn m10_9_no_registrant_lies_on_any_measured_document() {
     let tol = Tol::witness();
     let eps = tol.eps();
+    let row = [1.0e-6, 1.0e-9, 1.0e-12]
+        .iter()
+        .position(|&e| (eps / e - 1.0).abs() < 1.0e-3)
+        .unwrap_or_else(|| panic!("no measured row at eps = {eps:e}: measure one and add it"));
     for study in measured_studies(tol) {
         let name = study.name;
         let doc = (study.at)(study.certifies_at * eps);
@@ -430,22 +443,22 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
         let (refusal, counts) =
             replay_counts(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
         println!("   {name} at eps={eps:e}: {counts:?} -> {refusal:?}");
+        match study.refused_by {
+            None => assert!(
+                refusal.is_none(),
+                "{name} at eps={eps:e}: certifies whole at M10-9's scale: {refusal:?}"
+            ),
+            Some(predicate) => assert!(
+                refusal.as_deref().is_some_and(|r| r.contains(predicate)),
+                "{name} at eps={eps:e}: refuses at `{predicate}` at M10-9's scale \
+                 (`work/pcert/fillet-meridian-radius-term-is-registered-only`): {refusal:?}"
+            ),
+        }
         assert_eq!(
-            counts.registered, study.registered,
-            "{name} at eps={eps:e}: the door discharges a DIFFERENT number of decisions \
-             than the measurement. The cause this pin exists for is a registrant that \
-             started stating something slightly false — it stops discharging without \
-             ever being refused — but the count moves for other reasons too: a changed \
-             fold rule, a new normal-form shortcut that discharges a residual earlier, \
+            counts.symbolic, study.symbolic[row],
+            "{name} at eps={eps:e}: the tier proves a DIFFERENT number of decisions than \
+             the measurement — a changed fold rule, a registrant that stopped discharging, \
              or a re-cut document. Decide which before re-baselining: {counts:?}"
-        );
-        assert_eq!(
-            counts.symbolic_zero, study.symbolic_zero,
-            "{name} at eps={eps:e}: the TIER's own theorems moved. Beside `registered` \
-             because the two trade: a rule that costs the early walk a theorem the \
-             registry then re-takes leaves `registered` up and this count down, which \
-             is a claim WEAKENED from a theorem to an axiom and not a gain. SYM-8's \
-             rule F did that to four of the pad's: {counts:?}"
         );
         assert_eq!(
             counts.registrations_refused, 0,
@@ -465,34 +478,109 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
     }
 }
 
-/// **THE PAD'S FOUR, AT BOTH DIALS** (adopted from SYM-8's review R2,
-/// `sym8_r2_the_pads_four_re_taken`). The row above pins the shipped
-/// side; this one is the DIFFERENTIAL that says what rule F
-/// (`SymRules::manifest_sign`) did to it. At the scale the pad
-/// certifies whole at, over its analyzed box, rule F off → on:
-/// `symbolic_zero` 886 → 882, `registered` 104 → 128, `numeric`
-/// 1075 → 1055, `frozen` 2750 either way — the same 2065 decisions, 24
-/// of them moving into the door, twenty out of `numeric` and FOUR out
-/// of `symbolic_zero`. Those are the STORED tuples; the replay
-/// currently measures `numeric` 8 higher and `frozen` 2722 at both
-/// dials, a drift that predates the stored values and is not yet
-/// attributed
-/// (`work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`),
-/// so this row is red until it is.
+/// **WHAT THE REGISTRY BUYS**, as a differential in decisions and
+/// verdicts: each measured document the door discharges on, replayed
+/// whole at its `certifies_at` with the door shut (`registered: false`,
+/// every other dial as shipped), against `Study::without_the_registry`.
+/// Where the door-shut replay certifies it decides what the shipped one
+/// does, and the door's decisions move from `symbolic` to `numeric`; on
+/// the link the door is load-bearing, and shut it refuses at
+/// `pcurve_envelope`. A registrant that started stating something
+/// slightly false stops discharging without ever being refused, and
+/// this is where that shows.
 ///
-/// No decision is lost and the document certifies whole at both dials,
-/// which is asserted here; what moved is the STRENGTH of four claims.
-/// The spec's Phase-1.3 stop clause reads on that, and shipping rule F
-/// on anyway is a ratified spec deviation, not a disclosure
-/// (`work/decide/SYM-8.md`).
-///
-/// `#[ignore]`d: it is two whole-box replays of the heaviest of the
-/// five documents (~2 min locally), on top of the one the gating row
-/// above already pays, and the shipped side of it is now pinned there
-/// by `Study::symbolic_zero`. Re-take it by running this row.
+/// **What runs it: the slow set** (`.config/nextest.toml`): two
+/// whole-box replays of the link, the bracket and the pad.
 #[test]
-#[ignore = "evidence-only: two whole-box pad replays; the shipped side is pinned by the row above"]
-fn m10_9_the_pads_four_at_both_dials() {
+fn m10_9_what_the_registry_buys() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let mut moved: Vec<String> = Vec::new();
+    for study in measured_studies(tol) {
+        let Some((want, want_refusal)) = study.without_the_registry else {
+            continue;
+        };
+        let name = study.name;
+        let doc = (study.at)(study.certifies_at * eps);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let box_ = ParamBox::of(&analyzed);
+        let (on_refusal, on) = replay_counts(&doc, &box_, SymRules::shipped(), tol);
+        let (off_refusal, off) =
+            replay_counts(&doc, &box_, SymRules::shipped_without_the_door(), tol);
+        println!("   {name} at eps={eps:e}: shipped {on:?} -> {on_refusal:?}");
+        println!("   {name} at eps={eps:e}: door shut {off:?} -> {off_refusal:?}");
+        assert!(
+            on_refusal.is_none(),
+            "{name}: certifies shipped: {on_refusal:?}"
+        );
+        let refused_at = |r: &Option<String>| {
+            r.as_deref().map(|r| {
+                want_refusal
+                    .filter(|p| r.contains(p))
+                    .unwrap_or("another predicate")
+            })
+        };
+        if (off.symbolic, off.numeric) != want || refused_at(&off_refusal) != want_refusal {
+            moved.push(format!(
+                "{name}: door shut {:?} refusing at {:?}, stored {want:?} refusing at \
+                 {want_refusal:?}: {off_refusal:?}",
+                (off.symbolic, off.numeric),
+                refused_at(&off_refusal)
+            ));
+        }
+        if off_refusal.is_none() && off.decisions() != on.decisions() {
+            moved.push(format!(
+                "{name}: both certify, so the door moves decisions between columns and \
+                 decides no others: {on:?} vs {off:?}"
+            ));
+        }
+    }
+    assert!(
+        moved.is_empty(),
+        "at eps={eps:e}, what the registry buys moved: {moved:?}"
+    );
+}
+
+/// **THE PAD AT BOTH RULE-F DIALS** (adopted from SYM-8's review R2,
+/// `sym8_r2_the_pads_four_re_taken`). The row above pins the shipped
+/// side; this one is the DIFFERENTIAL for rule F alone
+/// (`SymRules::without_rule_f`: both arms shut, every other rule as
+/// shipped). On Duff's basis rule F moved four of the pad's theorems
+/// into the door. The axis-order basis mints no `copysign` for rule F
+/// to fold, and at the scale the pad certifies whole at, over its
+/// analyzed box, the two dials read the same receipt at every ε row
+/// (`work/rules/the-negative-arm-lost-its-document-consumer`).
+///
+/// Re-taken on the tree that composes three changes: PCERT's
+/// chart-angle unit and the extrude's cap decide
+/// (`cap_plane_orientation`) set the decision columns, and an intrinsic
+/// edge description's surfaces becoming a set
+/// (`geom_brep::SurfacePair`) moves only the frozen count, which is
+/// 3232 composed (3171 without the set).
+/// The cause is the transversality wedge
+/// (`geom_brep::dihedral::wedge_decided`'s `n1.cross(n2)`), which the
+/// certificate reads in key order and the extrude's dihedral in builder
+/// order: symmetric in value up to sign, not in form, so mixed
+/// orientations build distinct hash-consed forms. No decision moved.
+/// Check 4 reading a `cos t`/`sin t` pair at its exact sup instead of
+/// its coefficient sum builds a longer form per envelope term: frozen
+/// 3280 → 3294, every decision column held.
+/// Check 4 reading one vector at its norm where it summed its parts,
+/// each site measured by reverting it alone: the turning cylinder's
+/// pair against its class circle +103 frozen and the cylinder class
+/// selector's radial circle at its exact sup (`radial_amplitude`) +56,
+/// 3294 → 3453; the fidelity channels' norm and the retired `Tilt` and
+/// `Orientation` slots move nothing here, and every decision column
+/// holds. The pcurve envelope's orthonormal chart squaring its frame by
+/// cross products (`geom::square_frame`) builds its frame terms in
+/// another form: frozen 3453 → 3426, every decision column held.
+///
+/// **What runs it: the slow set** (`.config/nextest.toml`), at the
+/// default ε on every PR whose diff seeds `editor-core`, and every night
+/// at every ε row. It is two whole-box pad replays on top of the gating
+/// row's, which keeps it off the per-PR fast set.
+#[test]
+fn m10_9_the_pad_at_both_rule_f_dials() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let study = measured_studies(tol)
@@ -504,8 +592,8 @@ fn m10_9_the_pads_four_at_both_dials() {
     let box_ = ParamBox::of(&analyzed);
     let mut got = Vec::new();
     for (label, rules) in [
-        ("F-off", SymRules::without_rule_f()),
-        ("F-on ", SymRules::shipped()),
+        ("rule F shut", SymRules::without_rule_f()),
+        ("shipped    ", SymRules::shipped()),
     ] {
         let t0 = std::time::Instant::now();
         let (refusal, c) = replay_counts(&doc, &box_, rules, tol);
@@ -517,15 +605,11 @@ fn m10_9_the_pads_four_at_both_dials() {
             refusal.is_none(),
             "{label}: the pad certifies whole at this scale: {refusal:?}"
         );
-        got.push((c.symbolic_zero, c.registered, c.numeric, c.frozen));
+        got.push((c.symbolic, c.numeric, c.frozen));
     }
-    // Each side carries +28 `symbolic_zero` and +84 `numeric` from the
-    // must-carry rule's per-station dihedral gate.
-    assert_eq!(got[0], (886, 104, 1075, 2750), "rule F off");
-    assert_eq!(got[1], (882, 128, 1055, 2750), "rule F on");
+    assert_eq!(got[0], (1372, 1284, 3426), "rule F shut: the pad's receipt");
     assert_eq!(
-        got[0].0 + got[0].1 + got[0].2,
-        got[1].0 + got[1].1 + got[1].2,
-        "the same decisions, re-attributed: no decision is lost"
+        got[1], got[0],
+        "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
     );
 }

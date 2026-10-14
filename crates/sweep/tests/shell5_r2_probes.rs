@@ -16,6 +16,7 @@ use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
 
 use crate::common::cavity::cut;
 use crate::common::shell_operands::{hollow_box, two_void_box};
+use sweep::test_support::finished;
 use sweep::test_support::{block, brick};
 
 fn void_shells(body: &Body<f64>) -> Vec<ShellKey> {
@@ -40,7 +41,7 @@ fn shell_box(body: &Body<f64>, shell: ShellKey) -> [(f64, f64); 3] {
                 let start = body.get_half_edge(he).expect("a half-edge").start;
                 let vertex = body.get_vertex(start).expect("a vertex");
                 let pt = *body.get_point(vertex.point).expect("a point");
-                for (i, c) in [pt.x, pt.y, pt.z].into_iter().enumerate() {
+                for (i, c) in pt.to_array().into_iter().enumerate() {
                     out[i].0 = out[i].0.min(c);
                     out[i].1 = out[i].1.max(c);
                 }
@@ -85,7 +86,8 @@ fn r2_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     // y; 2t = 0.6 exceeds both, so the grown footprints overlap and
     // the gap is short.
     let t = 0.3;
-    let e = topo::shell(&body, t, tol).expect_err("the diagonal pair is read as facing");
+    let e = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+        .expect_err("the diagonal pair is read as facing");
     let ShellError::WallClearance {
         face, other, gap, ..
     } = e
@@ -127,11 +129,13 @@ fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
     assert_eq!(body.shells().count(), 1, "notches, not voids");
 
     let t = 0.3;
-    let e = topo::shell(&body, t, tol).expect_err("the notches' concave faces are read as facing");
+    let e = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+        .expect_err("the notches' concave faces are read as facing");
     assert!(matches!(e, ShellError::WallClearance { .. }), "got {e}");
     // Below the wall it builds: at t = 0.1 the notch walls (0.4 apart
     // in x, footprints 0.5 apart in y) clear.
-    let s = topo::shell(&body, 0.1, tol).expect("clear of every wall");
+    let s = topo::shell(&finished("the operand", body.clone(), tol), 0.1, tol)
+        .expect("clear of every wall");
     assert_eq!(topo::validate_geometric(&s.body, tol), Ok(()));
     let props = topo::mass_properties(&s.body, tol).expect("props");
     // Erode every plane by t: the box to 5.8 × 3.8 × 3.8, each notch
@@ -210,12 +214,13 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
             })
             .collect(),
     };
-    topo::boolean::insert_void(&mut body, solid, cavity, &evidence, tol).expect("the void grafts");
+    topo::boolean::insert_void(&mut body, solid, cavity, &evidence).expect("the void grafts");
     assert_eq!(body.solids().count(), 1);
     assert_eq!(body.shells().count(), 2, "outer plus one cylindrical void");
 
     let t = 0.15; // 2t = 0.30 > 0.20, the radial wall.
-    let shelled = topo::shell(&body, t, tol).expect("MEASURED: it builds silently");
+    let shelled = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+        .expect("MEASURED: it builds silently");
     let out = &shelled.body;
     assert_eq!(topo::validate_geometric(out, tol), Ok(()), "tier 3 green");
     assert_eq!(out.solids().count(), 2);
@@ -261,40 +266,64 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
 }
 
 // ---------------------------------------------------------------------
-// Claim 5: is `OperandOuterShells { outer != 1 }` reachable?
+// Claim 5: two `Outer` shells under one solid are refused at the gate.
 // ---------------------------------------------------------------------
 
-/// **The PR's own §5 body, handed to the verb.** `subtract(box 6³,
-/// shell(box 2³, 0.25))` yields ONE solid with THREE shells that
-/// classify to two `Outer` and one `Void` — the island inside B's
-/// cavity filed as a shell of A's solid. The verb refuses it typed,
-/// so the variant is reachable from the public doors and is not dead
-/// code. (R2's row; R1's `r1p5` measured the same body.)
+/// **Two `Outer` shells under one solid, offered to the verb.** A cube
+/// filed into the cavity of a hollow box's solid (the `sweep-testing`
+/// merge door) is ONE solid with THREE shells that classify to two
+/// `Outer` and one `Void`. Tier 3's check 10 refuses it, so the verb is
+/// never handed it. The boolean's own product,
+/// `subtract(box 6³, shell(box 2³, 0.25))`, arrives sorted, one solid
+/// per piece, and shells.
 #[test]
-fn r2_the_hollow_b_subtraction_reaches_operand_outer_shells() {
+fn r2_an_island_under_its_walls_solid_is_refused_and_the_sorted_product_shells() {
     let tol = Tol::witness();
+    let mut body = hollow_box();
+    topo::graft_disjoint_all_keyed(
+        &mut body,
+        &brick((-0.25, 0.25), (-0.25, 0.25), (-0.25, 0.25), Tol::witness()),
+    )
+    .expect("the island grafts");
+    let body = body.with_solids_merged_for_tests();
+    assert_eq!(body.solids().count(), 1, "one solid");
+    assert_eq!(body.shells().count(), 3, "three shells in it");
+    let solid = body.solids().next().unwrap().0;
+    let errors = topo::AtRestBody::validate(body, tol)
+        .expect_err("two pieces under one solid is not a finished body");
+    assert_eq!(
+        errors,
+        vec![topo::ValidationError::SolidOuterShells { solid, outer: 2 }],
+        "the gate counts the solid's two pieces"
+    );
+
     let inner = topo::shell(
-        &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+        &finished(
+            "the operand",
+            brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+            tol,
+        ),
         0.25,
         tol,
     )
     .expect("the small box shells")
     .body;
-    let body = cut(
+    let cut_body = cut(
         "hollow inner box",
         &brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), Tol::witness()),
         &inner,
     );
-    assert_eq!(body.solids().count(), 1, "one solid");
-    assert_eq!(body.shells().count(), 3, "three shells in it");
-    let roles = topo::classify_shells(&body, tol).expect("classifies");
-    let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
-    assert_eq!(outer, 2, "two Outer shells under one solid");
-
-    let e = topo::shell(&body, 0.05, tol).expect_err("the verb refuses");
-    assert!(
-        matches!(e, topo::ShellError::OperandOuterShells { outer: 2, .. }),
-        "expected OperandOuterShells {{ outer: 2 }}, got {e}"
+    assert_eq!(
+        cut_body.solids().count(),
+        2,
+        "the island is a solid of its own"
+    );
+    let shelled = topo::shell(&finished("the operand", cut_body.clone(), tol), 0.05, tol)
+        .expect("each solid shells");
+    assert_eq!(
+        shelled.body.solids().count(),
+        3,
+        "the hollow wall's two thin solids and the island's one"
     );
 }
 
@@ -321,7 +350,8 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
     let voids = void_shells(&body);
     assert_eq!(voids.len(), 2);
 
-    let shelled = topo::shell(&body, 0.15, tol).expect("well clear of every wall");
+    let shelled = topo::shell(&finished("the operand", body.clone(), tol), 0.15, tol)
+        .expect("well clear of every wall");
     let out = &shelled.body;
     assert_eq!(out.solids().count(), 3);
     // `naming.inner` rows are (RESULT twin, SOURCE operand face).

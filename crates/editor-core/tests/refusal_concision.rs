@@ -9,47 +9,49 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::eval;
-use crate::fixture::{Recorder, ang, axis_in_plane, frame, len};
+use crate::fixture::{Recorder, ang, frame, len, revolve_about};
+use editor_core::ExtrudeSide;
 
-use editor_core::{BooleanOp, LoopProgram, Node, NodeResult, ProfileProgram};
+use editor_core::{LoopProgram, Node, NodeResult, ProfileProgram};
 
 /// A cone frustum (a full revolve about `y`) unioned with a block that
-/// straddles its slanted wall: a cone face against the block's plane
-/// faces. The cone is the curved kind the operand gate still has no
-/// arm for, so this is the pair refusal the sentence below is about.
+/// straddles its slanted wall: the block's faces along the axis cut the
+/// cone face in hyperbolas, which the Boolean refuses by decision, so
+/// this is the refusal the sentence below is about.
 fn cone_block_union_refusal() -> String {
     let mut r = Recorder::new();
     let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let cone_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.4, 1.0), (0.0, 1.0)]).unwrap(),
         ],
         ids: Vec::new(),
     }));
-    let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    let cone = r.insert(Node::Revolve {
-        profile: cone_p,
-        axis,
-        angle: ang(std::f64::consts::TAU),
-    });
+    let cone = r.insert(revolve_about(
+        cone_p,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::TAU),
+    ));
     let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let block_p = r.insert(Node::Profile(ProfileProgram {
-        plane: block_plane,
+        frame: block_plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.5, 0.4), (1.5, 0.4), (1.5, 0.6), (0.5, 0.6)]).unwrap(),
         ],
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
-        profile: block_p,
+        profile: block_p.into(),
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
-    let union = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: cone,
-        b: block,
-        declare: None,
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            editor_core::Operand::output(cone, 0).into(),
+            block.into(),
+        ]),
     });
     let ev = eval::<f64>(&r.doc);
     match ev.nodes.get(&union) {
@@ -60,31 +62,30 @@ fn cone_block_union_refusal() -> String {
 
 /// **The worked example**: two solids joined where a cone face meets a
 /// plane face, built through the public document doors. The sentence
-/// names the pair in the user's terms, keeps the box test's MAY ("may
-/// meet"), and ends on the recourse. The length claim is not pinned
-/// here but by [`every_rewritten_boolean_refusal_renders_within_the_budget`],
-/// over every arm.
+/// names the faces and the conic in the user's terms and ends on the
+/// recourse. The length claim is not pinned here but by
+/// [`every_rewritten_boolean_refusal_renders_within_the_budget`], over
+/// every arm.
 #[test]
-fn the_cone_plane_union_refusal_names_the_pair_and_ends_on_its_recourse() {
+fn the_cone_plane_union_refusal_names_the_conic_and_ends_on_its_recourse() {
     let msg = cone_block_union_refusal();
     assert!(
         msg.contains(
-            "the Boolean op refused: the first operand's cone face may meet the second \
-             operand's plane face"
+            "the Boolean op refused: a flat face of one part cuts a cone face of the other \
+             along a curve that never closes (a hyperbola)"
         ),
-        "the refusal names the pair by operand, as a may: {msg}"
+        "the refusal names the faces and the conic: {msg}"
     );
     assert!(
         msg.ends_with(
-            "Recourse: reshape the parts so they meet only where a plane face meets a \
-             plane, cylinder or sphere face, or move them so the cone face stays clear \
-             of the other solid"
+            "Recourse: tilt the parts so the flat face cuts the cone all the way round, or \
+             keep it clear of the cone face"
         ),
         "the refusal ends on its recourse: {msg}"
     );
     assert!(
         !msg.contains("coincidence"),
-        "a cone × plane pair is not a coincidence refusal, and the wrapper must not \
+        "a cone × plane section is not a coincidence refusal, and the wrapper must not \
          point the reader at that recourse: {msg}"
     );
     assert!(!msg.contains("FaceKey("), "no arena key dump: {msg}");
@@ -95,7 +96,7 @@ fn the_cone_plane_union_refusal_names_the_pair_and_ends_on_its_recourse() {
 /// the status line draw it (`NodeError`'s `Display`, the "node N failed:
 /// the Boolean op refused:" wrapper included), with a representative
 /// payload in every placeholder. 75 is what a person reads in one pass
-/// at the status line's wrapped width; the worked example is 65.
+/// at the status line's wrapped width; the worked example is 57.
 ///
 /// Every `topo::BooleanError` arm whose prose the concision pass wrote,
 /// and every `topo::PointInSolidError` arm as it arrives through
@@ -105,6 +106,11 @@ fn the_cone_plane_union_refusal_names_the_pair_and_ends_on_its_recourse() {
 #[test]
 fn every_rewritten_boolean_refusal_renders_within_the_budget() {
     const BUDGET: usize = 75;
+    // The zero-band row's margin is half the zero threshold; its offer
+    // is withheld where that over K lies at or below `EPS_MIN` (D4 ¶4),
+    // as at the 1e-12 row.
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band");
+    let zero_band_offers = band.offer_deciding(0.5 * band.zero()).is_some();
     let mut problems = Vec::new();
     for (name, text) in rendered_boolean_refusals() {
         let words = text.split_whitespace().count();
@@ -120,24 +126,63 @@ fn every_rewritten_boolean_refusal_renders_within_the_budget() {
         if text.contains("boolean_reduce:") || text.contains("point_in_solid:") {
             problems.push(format!("{name} carries a kernel stage prefix: {text}"));
         }
+        if NO_TOLERANCE_PASSES.contains(&name) && text.contains("tolerance below") {
+            problems.push(format!(
+                "{name} offers a tolerance no smaller one honours: {text}"
+            ));
+        }
+        if A_TOLERANCE_PASSES.contains(&name)
+            && text.contains("tolerance below") != zero_band_offers
+        {
+            problems.push(format!(
+                "{name} offers a tolerance exactly where one above EPS_MIN honours it \
+                 ({zero_band_offers}): {text}"
+            ));
+        }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
+/// The rows whose refusal no smaller tolerance passes, so a sentence
+/// that offers one spends words on a false offer: two spheres that
+/// definitely cross (`SpheresMeet`'s negative verdict) cross at every
+/// tolerance, and the Boolean cannot yet join them.
+const NO_TOLERANCE_PASSES: &[&str] = &["SpheresMeet"];
+
+/// The rows whose refusal a smaller tolerance passes, so the sentence
+/// owes the value where it lies above `EPS_MIN`: a nesting clearance
+/// within the zero band is decided nested below it (executed: `sweep`'s
+/// `offer_rows`, `nested_in_the_zero_band`).
+const A_TOLERANCE_PASSES: &[&str] = &["SpheresMeet (touching, nested within the zero band)"];
+
 /// Every rewritten arm, rendered the way the viewer renders a failed node.
 fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
-    use geom_brep::{MaterialWedge, RadiusEvidence, SurfaceKind};
+    use geom::SurfaceKind;
+    use geom_brep::MaterialWedge;
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     use topo::{
         BooleanError, BooleanOp, ContactClass, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
-        PlaneRelation, PointInSolidError, SolidKey, VertexKey,
+        PointInSolidError, SectorRead, SolidKey, VertexKey,
     };
 
     let band = Band::linear(Tol::witness()).expect("the witness band");
     let diag = Indeterminate {
-        margin: MarginDiag::Value(3.0e-10),
+        margin: MarginDiag::value(3.0e-10),
         band,
         predicate: Some("side_of_plane"),
+        terminal_sliver: false,
+    };
+    // An in-band margin with every digit a real one carries: the
+    // longest payload an escalation quotes.
+    let in_band = Indeterminate {
+        margin: MarginDiag::value(5.500000010982831e-9),
+        ..diag
+    };
+    // An in-band enclosure, which quotes two numbers where a point
+    // quotes one: the longest payload the interval lane reports.
+    let enclosed = Indeterminate {
+        margin: MarginDiag::enclosure(2.000000000000001e-9, 5.000000000000001e-9),
+        ..diag
     };
     let face = FaceKey::default();
     let edge = EdgeKey::default();
@@ -180,6 +225,18 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "DegenerateTorus",
+            BooleanError::DegenerateTorus {
+                operand: Operand::B,
+                face,
+                convention: topo::TorusConvention::Ring,
+                verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(5.0e-10),
+                    band,
+                }),
+            },
+        ),
+        (
             "CurvedPierceUnsupported",
             BooleanError::CurvedPierceUnsupported {
                 operand: Operand::A,
@@ -190,13 +247,25 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         ),
         (
             "CurvedSectorSideUnsupported",
-            BooleanError::CurvedSectorSideUnsupported { band },
+            BooleanError::CurvedSectorSideUnsupported {
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-3.0e-4),
+                },
+            },
         ),
         (
             "CurvedEdgeUnsupported",
             BooleanError::CurvedEdgeUnsupported {
                 operand: Operand::B,
                 edge,
+            },
+        ),
+        (
+            "CrossingCarrierUnsupported",
+            BooleanError::CrossingCarrierUnsupported {
+                operand: Operand::A,
+                edge,
+                face,
             },
         ),
         (
@@ -207,17 +276,71 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "GermEdgeCarrierUnsupported",
+            BooleanError::GermEdgeCarrierUnsupported {
+                operand: Operand::B,
+                edge,
+            },
+        ),
+        (
             "ArcLoopContainmentUnsupported",
             BooleanError::ArcLoopContainmentUnsupported {
                 operand: Operand::A,
-                r#loop: LoopKey::default(),
+                cause: topo::Uncrossable {
+                    r#loop: LoopKey::default(),
+                    edge,
+                    carrier: topo::UncrossableCarrier::Spiric,
+                },
+            },
+        ),
+        (
+            "PointInFaceRefused(EmptyLoop)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::ContainError::EmptyLoop(LoopKey::default()),
+            },
+        ),
+        (
+            "PointInFaceRefused(LoopUnreadable)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::ContainError::LoopUnreadable(LoopKey::default()),
+            },
+        ),
+        (
+            "PointInFaceRefused(RayExhausted)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::ContainError::RayExhausted,
+            },
+        ),
+        (
+            "PointInFaceRefused(Curved(CorruptFace))",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::A,
+                face,
+                refusal: topo::ContainError::Curved(PointInSolidError::CorruptFace { face }),
             },
         ),
         (
             "ScaffoldingOperand",
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
-                edge,
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex {
+                    vertex: topo::VertexKey::default(),
+                }],
+            },
+        ),
+        (
+            "InsideOutOperand",
+            BooleanError::InsideOutOperand {
+                operand: Operand::B,
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
             },
         ),
         (
@@ -225,6 +348,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::NonMaximalFaces {
                 operand: Operand::B,
                 edge,
+            },
+        ),
+        (
+            "CoplanarNeighbours",
+            BooleanError::CoplanarNeighbours {
+                operand: Operand::B,
+                faces: [face, face],
+                offset: diag,
             },
         ),
         (
@@ -254,11 +385,47 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "GermSectionOutsideInventory",
+            BooleanError::GermSectionOutsideInventory {
+                a_face: face,
+                a_kind: SurfaceKind::Plane,
+                b_face: face,
+                b_kind: SurfaceKind::Cone,
+                conic: geom_brep::OutsideConic::Hyperbola,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×cone",
+                    why: "the plane meets both nappes, so the section is a HYPERBOLA",
+                },
+            },
+        ),
+        (
+            "GermSectionSpiric",
+            BooleanError::GermSectionSpiric {
+                a_face: face,
+                a_kind: SurfaceKind::Plane,
+                b_face: face,
+                b_kind: SurfaceKind::Torus,
+                loops: topo::SpiricLoops::AroundTube,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×torus",
+                    why: "generic tilt cuts a spiric quartic",
+                },
+            },
+        ),
+        (
             "GermFrameCylinderPinch",
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
-                evidence: RadiusEvidence::None,
+                equal_radii: false,
+            },
+        ),
+        (
+            "GermFrameCylinderPinch (equal radii)",
+            BooleanError::GermFrameCylinderPinch {
+                a_face: face,
+                b_face: face,
+                equal_radii: true,
             },
         ),
         (
@@ -275,24 +442,247 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 face,
             },
         ),
-        ("Escalated", BooleanError::Escalated { diag }),
         (
-            "UndeclaredCoincidence",
-            BooleanError::UndeclaredCoincidence {
+            "Escalated",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(
+                    topo::Coincide::VertexOnFace,
+                    topo::DeclarationRead::Moot,
+                ),
                 diag,
-                pair: [(Operand::A, face), (Operand::B, face)],
-                relation: PlaneRelation::SameOpposite,
+            },
+        ),
+        // The longest escalations in band, with a point payload and with
+        // an enclosure (every decision is held under this budget by
+        // `topo`'s `every_escalation_renders_within_the_viewers_word_budget`).
+        (
+            "Escalated (PierceCurvature, in band)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::PierceCurvature,
+                diag: in_band,
             },
         ),
         (
-            "RimSeamNotDeclarable",
-            BooleanError::RimSeamNotDeclarable { declaration },
+            "Escalated (PierceCurvature, in-band enclosure)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::PierceCurvature,
+                diag: enclosed,
+            },
+        ),
+        (
+            "Escalated (Neighbours(Parallel), in-band enclosure)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Neighbours(topo::PlaneRung::Parallel),
+                diag: enclosed,
+            },
+        ),
+        (
+            "Escalated (LeverArm(Seam), in-band enclosure)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::LeverArm(topo::LeverArm::Seam),
+                diag: enclosed,
+            },
+        ),
+        (
+            "Escalated (TangentSide, declared, in-band enclosure)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(
+                    topo::Coincide::TangentSide,
+                    topo::DeclarationRead::Spent(topo::GlueClass::Tangent),
+                ),
+                diag: enclosed,
+            },
+        ),
+        (
+            "Escalated (Sphere(Nested), in-band enclosure)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Sphere(topo::SphereQuestion::Nested),
+                diag: enclosed,
+            },
+        ),
+        (
+            "SpheresMeet",
+            BooleanError::SpheresMeet {
+                operand: Operand::A,
+                face,
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-0.5),
+                },
+            },
+        ),
+        (
+            "SpheresMeet (touching, nested within the zero band)",
+            BooleanError::SpheresMeet {
+                operand: Operand::A,
+                face,
+                verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(0.5 * band.zero()),
+                    band,
+                }),
+            },
+        ),
+        (
+            "Escalated (LeverArm(Seam), in band)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::LeverArm(topo::LeverArm::Seam),
+                diag: in_band,
+            },
+        ),
+        (
+            "Escalated (EdgeOnPlane, no declaration read, in band)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(
+                    topo::Coincide::EdgeOnPlane,
+                    topo::DeclarationRead::Moot,
+                ),
+                diag: in_band,
+            },
+        ),
+        // The longest escalation of every decision in band, and the
+        // longest coincidence (rendered over `every_decision` in PR
+        // 3513's second fix pass: F7's in-band bend rendered 77).
+        (
+            "Escalated (Neighbours(Parallel), in band)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Neighbours(topo::PlaneRung::Parallel),
+                diag: in_band,
+            },
+        ),
+        (
+            "Escalated (TangentSide, declared, in band)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(
+                    topo::Coincide::TangentSide,
+                    topo::DeclarationRead::Spent(topo::GlueClass::Tangent),
+                ),
+                diag: in_band,
+            },
+        ),
+        (
+            "ShellWitnessExhausted",
+            BooleanError::ShellWitnessExhausted {
+                operand: Operand::B,
+                shell: topo::ShellKey::default(),
+                on_boundary: 26,
+                in_band: 0,
+                first_in_band: None,
+            },
+        ),
+        (
+            "ShellWitnessExhausted (in band)",
+            BooleanError::ShellWitnessExhausted {
+                operand: Operand::B,
+                shell: topo::ShellKey::default(),
+                on_boundary: 20,
+                in_band: 6,
+                first_in_band: Some(topo::PointInSolidError::RayExhausted),
+            },
+        ),
+        (
+            "CoincidentShell (unpaired)",
+            BooleanError::CoincidentShell {
+                operand: Operand::A,
+                shell: topo::ShellKey::default(),
+                orientation: topo::ShellOrientation::Unpaired { face },
+            },
+        ),
+        (
+            "CoincidentShell (mixed)",
+            BooleanError::CoincidentShell {
+                operand: Operand::B,
+                shell: topo::ShellKey::default(),
+                orientation: topo::ShellOrientation::Mixed,
+            },
+        ),
+        (
+            "CoincidentShell (not covered back)",
+            BooleanError::CoincidentShell {
+                operand: Operand::A,
+                shell: topo::ShellKey::default(),
+                orientation: topo::ShellOrientation::Same,
+            },
         ),
         (
             "RimCuspArmUnbuilt",
             BooleanError::RimCuspArmUnbuilt {
-                declaration,
+                pair: declaration,
                 wedge: MaterialWedge::Slit,
+            },
+        ),
+        (
+            "HeldPierceUnbuilt",
+            BooleanError::HeldPierceUnbuilt {
+                operand: Operand::A,
+                face: topo::FaceKey::default(),
+                pierced: topo::FaceKey::default(),
+                kind: SurfaceKind::Cylinder,
+                pierced_kind: SurfaceKind::Plane,
+                placed: false,
+            },
+        ),
+        (
+            "SharedVertexCrossings",
+            BooleanError::SharedVertexCrossings {
+                operand: Operand::B,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
+            },
+        ),
+        (
+            "CrossingsAlongAContactLine",
+            BooleanError::CrossingsAlongAContactLine {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+            },
+        ),
+        (
+            "PinchConesOnSeparateKeys",
+            BooleanError::PinchConesOnSeparateKeys {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+            },
+        ),
+        (
+            "PinchRaysInAFace",
+            BooleanError::PinchRaysInAFace {
+                operand: Operand::A,
+                face: FaceKey::default(),
+            },
+        ),
+        (
+            "VertexReadTwice",
+            BooleanError::VertexReadTwice {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                reads: [
+                    SectorRead::Pierce(FaceKey::default()),
+                    SectorRead::Pair(VertexKey::default()),
+                ],
+            },
+        ),
+        (
+            "PartnerAlongFace",
+            BooleanError::PartnerAlongFace {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                face: FaceKey::default(),
+                partner: VertexKey::default(),
+                along: topo::AlongFace::FacesInOnePlane,
+            },
+        ),
+        (
+            "NestingUnread",
+            BooleanError::NestingUnread {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
+            },
+        ),
+        (
+            "NonManifoldResult",
+            BooleanError::NonManifoldResult {
+                a_vertex: VertexKey::default(),
+                b_vertices: [VertexKey::default(); 2],
             },
         ),
     ];
@@ -335,21 +725,44 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         ),
         (
             "Containment(EdgeCarrierUnsupported)",
-            PointInSolidError::EdgeCarrierUnsupported { face },
+            PointInSolidError::EdgeCarrierUnsupported {
+                face,
+                cause: topo::Uncrossable {
+                    r#loop: Default::default(),
+                    edge: Default::default(),
+                    carrier: topo::UncrossableCarrier::Spiric,
+                },
+            },
         ),
         (
             "Containment(WallOutlineUnsupported)",
             PointInSolidError::WallOutlineUnsupported { face },
         ),
         (
+            "Containment(JunctionSidesDisagree)",
+            PointInSolidError::JunctionSidesDisagree {
+                face,
+                sides: (MarginDiag::value(2.0e-9), MarginDiag::value(-1.6e-9)),
+                band: Band::new(1e-9, 1.5e-9).unwrap(),
+            },
+        ),
+        (
+            "Containment(NarrowWindowUnread)",
+            PointInSolidError::NarrowWindowUnread { face, diag },
+        ),
+        (
+            "Containment(RootCountDisagrees)",
+            PointInSolidError::RootCountDisagrees {
+                face,
+                certified: 2,
+                constructed: 4,
+            },
+        ),
+        (
             "Containment(NoSuchSolid)",
             PointInSolidError::NoSuchSolid {
                 solid: SolidKey::default(),
             },
-        ),
-        (
-            "Containment(SurfaceSharedOutsideSolid)",
-            PointInSolidError::SurfaceSharedOutsideSolid { face, other: face },
         ),
     ];
     boolean
@@ -367,7 +780,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
 /// failed node's `NodeError` `Display`, wrapper included.
 fn as_the_viewer_shows_it(e: topo::BooleanError) -> String {
     editor_core::NodeError {
-        node: editor_core::RecipeNodeId(5),
+        node: editor_core::RecipeNodeId::new(0, 5),
         kind: editor_core::NodeErrorKind::Boolean(e),
         escalations: std::sync::Arc::new(Vec::new()),
     }

@@ -2,10 +2,12 @@
 id: an-unassigned-id-under-a-refused-ray-is-unsaid
 kind: issue
 title: An id the drawn index never assigned goes unsaid on a cursor where the ray path refuses
-status: open
+status: closed
 opened: 2026-09-25
 priority: P3
-cost: D
+cost: M
+branch: vnews/every-id-is-said
+closed: 2026-09-28
 ---
 
 Filed by `vnews/an-unnamed-id-is-not-nothing`, which closed
@@ -50,3 +52,31 @@ still sees the id everywhere the ray answers.
 `crates/viewer/src/idpass.rs` (CHROME, VGEOM) and `cursor_news` in
 `crates/viewer/src/pane/viewport.rs`. Nearest sibling:
 `rank-one-discards-the-frames-other-news`.
+
+## Closed
+
+Fixed on `vnews/every-id-is-said`. `crates/viewer/src/idpass.rs`'s
+comparison is now `compare`, and it returns an `IdNews`: the two
+paths' `Disagreement`, or `IdNews::BesideRefusal { id }` when the ray
+path refused and the id buffer answered an id no patch of this picture
+draws (`IdAnswer::Undrawn`). That arm says *"id buffer at the cursor:
+id N, which no patch of this picture draws"*, in `IdAnswer`'s own
+words, and leaves the refusal to the path that raised it.
+
+*Nothing*, a name, and an unnamed patch beside a refusal are still no
+verdict. Only a ray answer could contradict the first two. The third
+stays out because the refusal a ray meets over a drawn patch is the
+hit test's unnamed-entity arm, which already carries the same naming
+error, so saying the id too would say one fact twice.
+
+`crates/viewer/src/pane/viewport.rs`'s `cursor_news` returns every
+notice it has, in order: the refusal when the pick path did not say
+it, then the id news. The frame joins them into one line, and that
+line's subject is `Document`: evidence is on
+`one-line-one-subject-loses-a-mixed-frames-expiry`. Tests:
+
+- `an_unassigned_id_beside_a_refused_ray_is_said_as_that_id` and
+  `nothing_beside_a_refused_ray_is_no_verdict` drive both frames
+  through `cursor_news`.
+- `idpass::tests::beside_a_refusal_an_unnamed_patch_is_no_verdict_and_an_undrawn_id_is_news`
+  pins the unnamed arm. No document can plant that value.

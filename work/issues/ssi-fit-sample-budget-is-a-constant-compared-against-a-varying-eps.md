@@ -2,11 +2,14 @@
 id: ssi-fit-sample-budget-is-a-constant-compared-against-a-varying-eps
 kind: issue
 title: SSI_MAX_FIT_SAMPLES is a fixed cap on a sample count the marcher grows as epsilon shrinks, so a well-posed intersection refuses at fine eps
-status: open
+status: closed
 opened: 2026-09-15
 refs: [D70]
 priority: P1
 cost: D
+pr: 4028
+branch: ssi/retire-fit-budget
+closed: 2026-10-04
 ---
 
 
@@ -80,3 +83,19 @@ and S-TCOST's if it becomes one. This row asserts only that a constant
 is being compared against a quantity that varies by three decades across
 the CI matrix, and that nothing in the tree says which of the two
 readings above is intended.
+
+## Closed (2026-10-04, PR 4028)
+
+The cap is gone: `SSI_MAX_FIT_SAMPLES`, `SsiError::FitSampleBudget` and
+`RefineStop::FitBudget`. Its reason was the dense O(n³) collocation
+solve, which PR 4023 made banded. The fit-budget design fork
+(`work/ssi/log.md`, 2026-10-04) settled the reading: the count is a
+resource, so one named wall bounds it, `SSI_MAX_STEPS` (20 000 steps
+per branch, marched or inserted by refinement), documented as a
+resource wall and not a derivation. Refinement that meets it refuses
+`RefinementExhausted { stop: StepBudget }`, carrying every round's
+refused limb and margin. Measured: every curved-dome cut, and every
+rational wall of the near-side row, certifies at ε 1e-12 and 1e-13;
+the wall first refuses at 1e-14, where the margin is flat at the
+enclosure's width.
+

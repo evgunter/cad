@@ -60,6 +60,10 @@ profile = { path = "../profile" }
 topo = { path = "../topo" }
 
 [dev-dependencies]
+# The symbolic tier's re-valuation instrument (`geom_core::sym::revalue`,
+# test-only), for the rows that pin a computed value entered through
+# `Real::from_computed` rather than as a constant.
+geom-core = { path = "../geom-core", features = ["sym-revalue-testing"] }
 # Self dev-dependency: turns `test-support` on for THIS crate's own
 # integration tests without exposing it to production dependents. A
 # dev-dependency is in no consumer's build graph, and a flagless

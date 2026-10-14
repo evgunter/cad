@@ -1,0 +1,103 @@
+---
+id: a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere
+kind: issue
+title: A kept face's edge that lies wholly inside a dropped covered face, both ends at vertex-on-face contacts, is held by no discard row
+status: open
+opened: 2026-10-02
+priority: P3
+cost: M
+---
+
+
+## What
+
+Found while building PR 3753 (emit lane, 2026-10-02). The record is `DiscardRow::held` (`crates/topo/src/boolean/discard.rs`). It is read only where `recl::recl_sectors` meets a covered pair at a vertex both operands hold. The discarded fragment is identified by holding that vertex, or a null-edge copy of it (`HeldInto::stretches`).
+
+At a vertex-on-face contact (`vtxfac::classify_vertex_on_face`), the dropped face holds no vertex at the contact. That leaves nothing topological to tell its fragments apart, so the contact records no held edge.
+
+An edge of the kept face that reaches the dropped face's boundary is recorded where it does. An edge whose two ends both lie inside the dropped face is recorded nowhere. An example: the floor of a pocket in the kept body, lying inside the dropped face, with walls rising from it.
+
+`Obstacles` then sees the dropped face's lost region as bordering nothing along that edge. The obstacle may fail to join a neighbouring discard, so a piece may refuse (`a piece of a face held as several borders no recorded discard between them`) or be named apart from other orders.
+
+No corpus case reaches this. PR 4129's review 5 reached it in
+editor-core: the plate less the union of holes that notch its edge
+(`topo::test_support::meeting::notch_rows`, through
+`union_pinch_member_order.rs`'s `tilted_holes`) refuses
+`Naming(Emission)` "a piece of a face held as several borders…" for
+three notches, two notches and a wedge, and two notches and two
+wedges. Those P − U rows are not in editor-core's suite; topo builds
+them sound. The notch the slab cuts in `b`'s wall in `near` has its bottom edge at two vertex-on-face contacts, but the notch's x 0.501 edge is recorded at a vertex–vertex contact, and that joins the obstacles.
+
+## Next
+
+1. Build the pocket case and measure it.
+2. If it refuses or names by order, decide how a fragment is told at a vertex-on-face contact, for example by the pierce ring vertex where surgery inserts one. That is a design question if topology alone cannot say.
+
+## A second residue: attaching by the entry vertex alone
+
+Found in review of PR 3753 (re-review, 2026-10-02).
+
+**The gap.** `discard::HeldInto` gives a held stretch to any discarded fragment that holds the edge's entry vertex `at`, or a null-edge copy of it. A fragment can touch `at` without bordering the stretch.
+
+**Where it breaks.** At a reflex vertex, a kept sector of the dropped face can lie between the covered sector and a lost one (covered Q1 | kept Q2 | lost Q3). The lost Q3 fragment would then join the covered region's obstacle through the point `at` alone. That is the M1 failure, in miniature.
+
+**Why nothing hits it today.**
+- With axis-aligned boxes, at most three sectors meet at such a vertex, so the rule is exact.
+- The breaking shape tried was an L-shaped `a`, `b` = [.5,1]×[.5,1]×[0,1], and `H` = [.3,.7]×[.3,.5]×[.5,2]. The kernel refuses it with `ClassificationInvariant` ("edge-edge membership disagreement"), the reflex-wedge limit documented on `resolve_edge_edge`.
+
+**When to revisit.** Before that limit is lifted, or before non-axis-aligned planar covered pairs are admitted, the attach rule should test "borders the stretch", not "touches `at`". The probe source is in the reviewer's notes: `probe_l_vertex.rs`.
+
+## A corpus case reaches it (INTENT stage 4 PR E, 2026-10-10)
+
+PR E glues an undeclared flush contact. With that change, the probe
+corpus's `cross` (`a`, `b` flush, the slab `g`, and the bar
+x −1..2, y 0.9..1.1, z 0.5..3) refuses this `Emission` in
+`[0, 1, 2, 3]`, `[1, 0, 2, 3]`, `[1, 2, 0, 3]` and `[2, 1, 0, 3]` of
+`emit_shared_rim_several::no_order_of_the_probe_corpus_refuses_several_shared_rims`.
+Before PR E, those orders refused `UndeclaredCoincidence`. The test
+admits the refusal by name (`RESIDUES`), so this issue now has a
+corpus fixture to measure against.
+
+**A three-box reproducer** (both reviews of PR 4527, FORK-DM4 unit 1, measured
+on its head and on its base with identical results). `A = [0,1]³`,
+`C = [1,2]×[0,1]²` touching `A` at `x = 1` (the `A`–`C` pair declared from
+`find_flush_candidates`), and `M = [0.5,1.5]×[−0.5,1.5]²` covering that contact.
+A `Union` over the six member orders: `amc`, `mac`, `cma` and `mca` refuse
+`Naming(Emission { "a piece of a face held as several borders no recorded
+discard between them" })`, while `acm` and `cam` build. So the union decides by
+member order, against DM4's "in every member order", on three boxes and with no
+corpus document needed. It also blocks any fixture that wants a building union
+whose admission rests on a pair the fold never meets (a contact a third member
+covers), which is how both reviewers tried to exercise the pairwise verdicts.
+Worth re-weighing the priority.
+
+## `cross` no longer reaches it; the three-box reproducer still does (branch `emit/union-order`, 2026-10-13)
+
+`cross`'s 10 refusing orders were not this residue. They were a chase
+that stopped at a seam a later fold step had joined away: the join was
+not followed, and the joined-away edge's split lineage had left the
+finished body. `Obstacles` now follows both
+(`work/emit/a-merged-face-pieces-borders-in-a-union-depend-on-member-order.md`,
+closed). All 24 orders of `cross` fuse and publish one table, and the
+corpus pins (`emit_shared_rim_several`'s `RESIDUES`,
+`emit_union_flush_names`'s `KNOWN_REFUSING`,
+`union_member_orders_decide_alike`'s `EMIT_RESIDUES`) are gone. No
+corpus case reaches this row now.
+
+The three-box reproducer is unchanged on that branch. `[a, m, c]`,
+`[c, m, a]`, `[m, a, c]` and `[m, c, a]` still refuse "a piece of a
+face held as several borders...", and `[a, c, m]` and `[c, a, m]`
+build. Read in `[a, m, c]`, the parent is `a`'s top merged with `c`'s.
+The pairwise judgement of `a` and `c` links them. The fold loses the
+parent's region to two discards:
+- `a`'s top over x 0.5..1, discarded when `m` folds in;
+- `c`'s top over x 1..1.5, discarded when `c` folds in.
+
+The two meet along x = 1. Each dies with its own member's rim there,
+`a`'s and `c`'s, two distinct edges that no step ever glued, because
+`m` covered the contact before `c` arrived. Nothing in the rows joins
+the two discards. Each borders one piece, so neither divides.
+Linking them needs a reading of coincidence that the fold never
+performs: the `(a, c)` judgement's glue of those rims, or geometry.
+That choice is this row's open question.
+

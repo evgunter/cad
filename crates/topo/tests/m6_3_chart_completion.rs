@@ -1,6 +1,5 @@
 //! **M6-3 Leg E acceptance (walk row 4): the analytic-chart pcurve
-//! completion** — the sphere GENERAL-circle route through the fitted
-//! lane, at rest.
+//! completion** — the sphere GENERAL-circle route, at rest.
 //!
 //! The closed-form arms (cone rim/ruling, sphere polar/meridian,
 //! torus parallel/meridian) are exercised where they LIVE: every
@@ -10,34 +9,26 @@
 //! azimuth-NON-harmonic class — a circle neither polar nor meridian —
 //! and this file pins its whole route:
 //!
-//! - the CLOSED-FORM door refuses it typed (`UnsupportedCarrier`, the
-//!   class named in `chart_pcurve`'s sphere arm);
-//! - the FITTED door (`PcurveCache::certify_fitted`, M6-2) accepts
-//!   the exact `Curve3::Circle` carrier via its locus-exact
-//!   rational-quadratic chain, with the `OnLocusHull` envelope
-//!   statement — the image is fitted on the CARRIER'S OWN angular
-//!   parameter (OQ4), interpolated so every CERT-schedule sample is a
-//!   collocation point;
-//! - the cache survives AT REST: the tier-3 pcurve pass re-derives
-//!   the full C2 certificate, reading the MATE operand from the
-//!   edge's own intensional description
-//!   (`EdgeDescription::Intersection { sphere, plane }`);
-//! - the same body certifies at the INTERVAL scalar
-//!   (`certified` module), enclosure-asserted — the loud-skip pattern
-//!   is not needed here because no march budget is consulted (the
-//!   chain and the fit are closed-form structure).
+//! - the CLOSED-FORM door answers its routed image: the PROJECTED one
+//!   (`Pcurve::Projected`, the chart's inverse of the circle), which
+//!   certifies against the sphere alone with the `MapResidualProjected`
+//!   statement at every scalar;
+//! - the mint reaches that route at `f64` and at the interval scalar,
+//!   refuses an arc over a pole (`SectorRefused`) while minting an arc
+//!   of the same circle that avoids it, and tier 3 re-certifies it;
+//! - a stored row moved off its deck refuses.
 //!
 //! ε posture: no ε literal; every margin is the run's own band.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::sync::Arc;
-
+use geom::Curve3;
 use geom::Surface;
-use geom::{Curve3, NurbsCurve2};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, EnvelopeStatement, Pcurve, PcurveCache};
+use geom_brep::{
+    EdgeCurveSpec, EdgeDescriptionSpec, EnvelopeStatement, Pcurve, PcurveCache, SurfacePair,
+};
 use geom_core::Tol;
-use geom_core::{Band, Point2, Point3, Real, Vec3};
+use geom_core::{Band, Point3, Real, Vec3};
 use topo::Body;
 
 /// The chart sphere: unit-ish radius, polar axis +z.
@@ -76,91 +67,40 @@ fn general_circle<T: Real>() -> Curve3<T> {
 /// The traversed arc: a quarter turn away from the azimuth seam.
 const ARC: (f64, f64) = (0.3, 0.3 + core::f64::consts::FRAC_PI_2);
 
-/// The chart image, fitted at `f64` STRUCTURE (C6) on the carrier's
-/// own angle parameter: 33 collocation params (so all 9 CERT-schedule
-/// params are interpolation points), degree 3, branch-stable azimuth.
-fn fit_image() -> NurbsCurve2<f64> {
-    let carrier = general_circle::<f64>();
-    let (t0, t1) = ARC;
-    let n = 33usize;
-    let mut params = Vec::with_capacity(n);
-    let mut pts = Vec::with_capacity(n);
-    let mut prev_u: Option<f64> = None;
-    for i in 0..n {
-        #[allow(clippy::cast_precision_loss)]
-        let t = t0 + (t1 - t0) * (i as f64 / (n - 1) as f64);
-        let p = carrier.eval(t);
-        let mut u = p.y.atan2(p.x);
-        if let Some(pu) = prev_u {
-            // Structure-level branch continuation for the FIT (the
-            // certified one-branch statement is the certificate's).
-            while u - pu > core::f64::consts::PI {
-                u -= core::f64::consts::TAU;
-            }
-            while pu - u > core::f64::consts::PI {
-                u += core::f64::consts::TAU;
-            }
-        }
-        prev_u = Some(u);
-        let v = p.z.asin();
-        // The fitter's parameter contract is a clamped 0 → 1 run; the
-        // OQ4 identity is restored by the exact affine knot rescale
-        // below (a B-spline is invariant under affine knot maps).
-        params.push((t - t0) / (t1 - t0));
-        pts.push(Point2::new(u, v));
-    }
-    let fit = NurbsCurve2::interpolate_with_params(&pts, 3, &params).expect("the chart image fits");
-    let knots: Vec<f64> = fit
-        .knots()
-        .knots()
-        .iter()
-        .map(|k| t0 + (t1 - t0) * k)
-        .collect();
-    let kv = geom_core::spline::KnotVector::clamped(knots, fit.knots().degree())
-        .expect("affine knot rescale");
-    NurbsCurve2::new(kv, fit.control().to_vec(), fit.weights().to_vec()).expect("rescaled image")
-}
-
-fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
-}
-
-/// Build the at-rest body at `T`: a sphere face and a plane face
-/// joined by the general-circle edge whose DESCRIPTION names the pair,
-/// the sphere side carrying the fitted cache (the M6-2 fixture's
-/// public-door pattern).
-fn build<T>() -> (Body<T>, topo::HalfEdgeKey)
+/// The spur-edge body every row here builds: a sphere face whose loop
+/// carries one `carrier` edge over `arc` (both half-edges, the
+/// spur-edge shape), described as the intersection with `plane`, and
+/// storing NO pcurve row.
+fn spur_body<T>(
+    carrier: &Curve3<T>,
+    plane: Surface<T>,
+    (f0, f1): (f64, f64),
+) -> (Body<T>, topo::HalfEdgeKey, topo::HalfEdgeKey)
 where
-    T: geom_brep::PcurveFittedLane,
+    T: topo::AtRestPolicy,
 {
-    try_build::<T>().expect("the general circle certifies through the fitted door")
-}
-
-/// The same construction, with the fitted door's refusal RETURNED
-/// rather than panicked on. The certified hull bound this route
-/// produces is ε-independent, so at a tight enough ε it lands in the
-/// ambiguity band and the door escalates honestly — a caller that
-/// wants to assert that outcome needs the error, not a panic.
-fn try_build<T>() -> Result<(Body<T>, topo::HalfEdgeKey), geom_brep::PcurveCertifyError>
-where
-    T: geom_brep::PcurveFittedLane,
-{
-    let band = Band::linear(Tol::witness()).unwrap();
-    let carrier = general_circle::<T>();
-    let (f0, f1) = ARC;
     let (t0, t1) = (T::from_f64(f0), T::from_f64(f1));
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
-    let image = Arc::new(lift2::<T>(&fit_image()));
-
     let mut body = Body::<T>::new();
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let sph_key = body
-        .set_face_surface(seed.face, topo::FaceSurface::New(sphere::<T>()))
+        .set_face_surface(
+            seed.face,
+            topo::FaceSurface::New {
+                surface: sphere::<T>(),
+                sense: true,
+            },
+        )
         .unwrap();
-    let anchor = body.mvfs(p1).unwrap();
+    let anchor = body.mvfs(p1, true).unwrap();
     let pl_key = body
-        .set_face_surface(anchor.face, topo::FaceSurface::New(tilted_plane::<T>()))
+        .set_face_surface(
+            anchor.face,
+            topo::FaceSurface::New {
+                surface: plane,
+                sense: true,
+            },
+        )
         .unwrap();
     let mid = T::from_f64(0.5 * (f0 + f1));
     let made = body
@@ -171,8 +111,7 @@ where
             p1,
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: sph_key,
-                    s2: pl_key,
+                    pair: SurfacePair::new(sph_key, pl_key),
                     witness: carrier.eval(mid),
                 },
                 carrier: carrier.clone(),
@@ -184,179 +123,168 @@ where
         .expect("the general-circle edge certifies");
     let edge = body.get_edge(made.edge).expect("edge resolves");
     let (he_plus, he_minus) = (edge.he_plus, edge.he_minus);
-    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
-    // Both half-edges live in the sphere face's loop (the spur-edge
-    // shape), and a face with ANY cache must be complete — attach to
-    // both, exactly as the M6-2 fixture does.
+    (body, he_plus, he_minus)
+}
+
+/// The closed-form door answers the class's ROUTED image, the
+/// projected one, and it certifies at the closed-form door itself: a
+/// circle's projected row reads no fitted door.
+#[test]
+fn the_closed_form_door_answers_the_projected_image() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let (t0, t1) = ARC;
+    let image =
+        geom_brep::chart_pcurve_over(&general_circle::<f64>(), t0, t1, &sphere::<f64>(), band)
+            .expect("the general circle has a routed image");
+    assert!(matches!(image, Pcurve::Projected(_)), "{image:?}");
+    let cache = PcurveCache::certify(
+        image,
+        t0,
+        t1,
+        &general_circle::<f64>(),
+        &sphere::<f64>(),
+        band,
+    )
+    .expect("a circle's projected row certifies at the closed-form door");
+    assert_eq!(
+        cache.certificate().statement,
+        EnvelopeStatement::MapResidualProjected
+    );
+}
+
+/// **The MINT reaches the route**: the same spur-edge body, storing no
+/// row, minted by the public pass. Both half-edges come back
+/// `Projected`, certified against the chart alone, the face is
+/// complete, and the tier-3 pass re-certifies it clean. Red if the mint
+/// stops routing the class.
+fn the_mint_derives_and_certifies_a_general_circle_row<T: topo::AtRestPolicy>() {
+    let (mut body, he_plus, he_minus) = spur_body(&general_circle::<T>(), tilted_plane(), ARC);
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the general circle mints");
     for he in [he_plus, he_minus] {
-        let cache = PcurveCache::<T>::certify_fitted(
-            Arc::clone(&image),
-            t0,
-            t1,
-            &carrier,
-            &sphere::<T>(),
-            Some(&tilted_plane::<T>()),
-            window,
-            band,
-        )?;
-        body.attach_pcurve(he, cache);
+        let cache = body.pcurve(he).expect("the mint stored the row");
+        assert!(
+            matches!(cache.pcurve(), Pcurve::Projected(_)),
+            "a general circle's row is its projected image: {cache:?}"
+        );
+        assert_eq!(
+            cache.certificate().statement,
+            EnvelopeStatement::MapResidualProjected
+        );
     }
-    Ok((body, he_plus))
-}
-
-/// The closed-form door refuses the class typed — the fitted lane is
-/// the ONLY route (never a silent fallback, C5).
-#[test]
-fn a_general_circle_refuses_the_closed_form_sphere_door_typed() {
     let band = Band::linear(Tol::witness()).unwrap();
-    let err = geom_brep::chart_pcurve(&general_circle::<f64>(), &sphere::<f64>(), band)
-        .expect_err("azimuth-non-harmonic");
-    assert!(matches!(
-        err,
-        geom_brep::PcurveCertifyError::UnsupportedCarrier
-    ));
-}
-
-/// The at-rest row at `f64`: the cache is fitted, its statement is
-/// `OnLocusHull`, and the tier-3 pcurve pass RE-DERIVES the full
-/// certificate with the mate read from the edge's description.
-#[test]
-fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
-    let (body, he) = build::<f64>();
-    let cache = body.pcurve(he).expect("the cache is stored");
-    assert!(matches!(cache.pcurve(), Pcurve::Fitted(_)));
-    let cert = cache.certificate();
-    assert_eq!(cert.statement, EnvelopeStatement::OnLocusHull);
-    assert!(cert.ssi.is_some(), "the full C2 certificate is stored");
-    // Schedule residual: every CERT sample is a collocation point of
-    // the fit, so the sampled max sits at floating-point noise —
-    // asserted against the band, not a literal.
-    let band = Band::linear(Tol::witness()).unwrap();
-    assert!(cert.max_residual.abs() <= band.zero());
     let findings = topo::pcurves::validate_pcurves(&body, band);
     assert!(findings.is_empty(), "{findings:?}");
 }
 
-/// The interval row: the same body at the interval scalar. What the
-/// route DOES there depends on ε — it certifies, escalates honestly, or
-/// refuses definitely — so the row asserts whichever of the three the
-/// run's tolerance selects rather than claiming one unconditionally.
-/// Either way it is the evidence the lane genuinely left `f64`.
-mod certified {
-    use geom_core::Tol;
+#[test]
+fn the_mint_derives_and_certifies_a_general_circle_row_at_f64() {
+    the_mint_derives_and_certifies_a_general_circle_row::<f64>();
+}
+
+#[test]
+fn the_mint_derives_and_certifies_a_general_circle_row_at_the_interval_scalar() {
+    the_mint_derives_and_certifies_a_general_circle_row::<geom_core::interval::Interval>();
+}
+
+/// The small circle through the chart's north pole: the tilted plane
+/// moved to pass through the pole cuts the sphere in a circle neither
+/// polar nor meridian, with the pole at angle π on it
+/// (`pole − centre` is `−sin(tilt)·u_ref`). The cutting plane is its
+/// mate.
+fn pole_circle() -> (Curve3<f64>, Surface<f64>) {
+    let tilt = 0.6_f64;
+    let normal = Vec3::new(tilt.sin(), 0.0, tilt.cos());
+    let u_ref = Vec3::new(tilt.cos(), 0.0, -tilt.sin());
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 1.0),
+        normal,
+        u_ref,
+    };
+    let circle = Curve3::Circle {
+        center: Point3::origin() + normal * tilt.cos(),
+        axis: normal,
+        radius: tilt.sin(),
+        u_ref,
+    };
+    (circle, plane)
+}
+
+/// **The pole fence is the ARC's, and it is loud at the mint.** On the
+/// circle through the pole, an arc that crosses the pole has no
+/// one-branch image — the azimuth has no value there — so the
+/// derivation refuses `SectorRefused` and the mint propagates it rather
+/// than leaving the face uncached (red if the class's exemption comes
+/// back). An arc
+/// of the SAME circle that stays clear of the pole mints and
+/// re-certifies (red if the fence reads the circle's plane instead of
+/// the arc).
+#[test]
+fn the_pole_fence_refuses_the_arc_over_the_pole_and_mints_the_arc_clear_of_it() {
+    let pi = core::f64::consts::PI;
+    let (circle, plane) = pole_circle();
+    let (mut over, _, _) = spur_body(&circle, plane.clone(), (pi - 0.5, pi + 0.5));
+    let err = topo::mint_pcurves(&mut over, Tol::witness())
+        .expect_err("an arc over the pole has no one-branch image");
+    assert!(
+        matches!(
+            err,
+            topo::pcurves::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::SectorRefused {
+                    channel: geom_brep::SectorChannel::Azimuth,
+                    ..
+                },
+                ..
+            }
+        ),
+        "the refusal is the arc fence's, typed: {err:?}"
+    );
+    assert!(
+        err.to_string().contains("Recourse:"),
+        "the refusal carries a recourse: {err}"
+    );
+    let (mut clear, he_plus, _) = spur_body(&circle, plane, (0.2, 1.2));
+    topo::mint_pcurves(&mut clear, Tol::witness())
+        .expect("an arc of the same circle clear of the pole mints");
+    assert!(
+        matches!(
+            clear.pcurve(he_plus).map(|c| c.pcurve()),
+            Some(Pcurve::Projected(_))
+        ),
+        "the clear arc stores its projected row"
+    );
+    let band = Band::linear(Tol::witness()).unwrap();
+    let findings = topo::pcurves::validate_pcurves(&clear, band);
+    assert!(findings.is_empty(), "{findings:?}");
+}
+
+/// **A stored row off its deck refuses.** The minted row moved by a
+/// thousandth of a radian in azimuth — no whole period, no twin — names
+/// a different curve, and check 4 refuses it on the deck term. At the
+/// interval scalar, where the envelope is the whole certified statement
+/// and no schedule runs before it.
+#[test]
+fn a_projected_row_off_its_deck_refuses() {
     use geom_core::interval::Interval;
-
-    use super::*;
-
-    /// The `ssi_hull_sup` bound this route produces at the INTERVAL
-    /// scalar (metres). It is ε-INDEPENDENT — bit-identical at 1e-6 and
-    /// 1e-12 — because it is a ring-computed hull bound over the fitted
-    /// carrier's control data, not a tolerance-derived quantity: only
-    /// the band moves.
-    ///
-    /// It is **schedule-specific**, not a property of the geometry
-    /// alone: the bound is computed over the carrier refined to
-    /// [`geom_brep::SSI_CERT_SPANS`] spans, and refining further moves
-    /// it — measured, it falls about 36 % as the span divisor grows and
-    /// then plateaus near 1.140e-12, still inside the band at 1e-12. So
-    /// "re-measure and re-state" below means re-measure at THIS
-    /// schedule; a schedule change is expected to move the constant and
-    /// the pin is what makes that loud.
-    ///
-    /// It is also the interval lane's number specifically. The same
-    /// route at `f64` bounds the same limb well under 1e-12, which is
-    /// why the at-rest `f64` row is unaffected: the ring data widens
-    /// with the scalar the coefficients are held in.
-    /// **Re-measured when the C9 ring became a newtype over
-    /// `interval-transcendentals`' `DInterval`** (`1.7993939406448348e-12`
-    /// before): the ring padded one representable step outward on
-    /// every operation and the backend pads only where the operation
-    /// is inexact, so the hull limb's bound came in TIGHTER. The
-    /// route's honesty is what this row asserts and it is unmoved —
-    /// the bound still lands inside the open sliver band, and the
-    /// three arms below still partition ε the same way.
-    const HULL_SUP_AT_INTERVAL: f64 = 1.7985010297969555e-12;
-
-    /// This route is **honest at every ε**, and which of three things
-    /// that means depends on where ε sits relative to
-    /// [`HULL_SUP_AT_INTERVAL`] (#925):
-    ///
-    /// - **ε ≥ the bound**: the route certifies, and the row asserts
-    ///   the full at-rest statement.
-    /// - **the bound > ε > the bound / K**: the bound lands inside the
-    ///   open sliver band and the fitted door ESCALATES on
-    ///   `ssi_hull_sup`. Honest, and terminal:
-    ///   [`geom_core::MarginDiag::Enclosure`]'s own documentation says
-    ///   an enclosure lying wholly inside one open sliver band "is not
-    ///   refinable by subdivision at all (the band is semantically
-    ///   indeterminate at any width, even for a point)" and is
-    ///   escalated "as a genuine D4 ¶3 sliver, not a resolution
-    ///   failure". The margin here is degenerate — `lo == hi`, an exact
-    ///   point, not a straddle — so no amount of narrowing reaches a
-    ///   decision.
-    /// - **ε ≤ the bound / K**: the route refuses DEFINITELY rather
-    ///   than escalating, and not necessarily on this limb — at 1e-13
-    ///   an earlier check (`pcurve_map_residual`) refuses first. The row
-    ///   asserts a typed refusal and PRINTS it, because which door
-    ///   fires at a given ε is a measurement, not something this row
-    ///   should pretend to predict.
-    ///
-    /// This row previously read as a POISONED enclosure, which is what
-    /// #925 was filed as. It never was: the NaN was manufactured by the
-    /// fitted lane's error flattening, which projected every margin
-    /// onto one `f64` and reported `NaN` for anything that was not a
-    /// bare value. Escalations now carry the classifier's
-    /// `Indeterminate` whole, so the margin and the band it was judged
-    /// against arrive together.
-    #[test]
-    fn the_general_circle_route_is_honest_at_the_interval_scalar() {
-        let built = try_build::<Interval>();
-        let eps = Tol::witness().eps();
-        if eps >= HULL_SUP_AT_INTERVAL {
-            let (body, he) = built.expect("the general circle certifies through the fitted door");
-            let cache = body.pcurve(he).expect("the cache is stored");
-            let cert = cache.certificate();
-            assert_eq!(cert.statement, EnvelopeStatement::OnLocusHull);
-            let band = Band::linear(Tol::witness()).unwrap();
-            // Enclosure-style: the certified envelope's SUPREMUM is
-            // inside the band — a bracketing claim, never an equality.
-            assert!(geom_core::Bounds::hi(cert.envelope) <= band.zero());
-            let findings = topo::pcurves::validate_pcurves(&body, band);
-            assert!(findings.is_empty(), "{findings:?}");
-            return;
-        }
-        let Err(err) = built else {
-            panic!("below the hull bound the fitted door must refuse");
-        };
-        // Below one K-th of the bound the hull limb is DEFINITE, and an
-        // earlier check may refuse before it. Assert a typed refusal and
-        // SHOW it: the evidence belongs in the failure message, not in a
-        // probe someone has to write later to find out what fired.
-        let geom_brep::PcurveCertifyError::FittedEscalated { cause } = err else {
-            assert!(
-                eps * Tol::witness().k() <= HULL_SUP_AT_INTERVAL,
-                "above the escalate threshold the refusal must be an escalation, got {err:?}"
-            );
-            return;
-        };
-        assert_eq!(cause.predicate, Some("ssi_hull_sup"));
-        // The refusal carries the REAL margin. Before #925's fix this
-        // reported `NaN`, indistinguishable from a poisoned enclosure.
-        let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
-            panic!("the escalation must carry its enclosure, not a poison or a hole: {cause:?}");
-        };
-        assert!(
-            lo == HULL_SUP_AT_INTERVAL && hi == HULL_SUP_AT_INTERVAL,
-            "the hull bound is [{lo:e}, {hi:e}], not the measured degenerate enclosure at \
-             {HULL_SUP_AT_INTERVAL:e} — the fit or the refinement schedule moved; re-measure \
-             and re-state"
-        );
-        // Against the CLASSIFIER's own band, carried in the diagnostic —
-        // not a band this row rebuilds and hopes matches.
-        assert!(
-            hi > cause.band.zero() && hi < cause.band.escalate(),
-            "the bound must lie inside the OPEN sliver band, which is what makes this \
-             escalation terminal rather than refinable"
-        );
-    }
+    let (f0, f1) = ARC;
+    let (t0, t1) = (Interval::from_f64(f0), Interval::from_f64(f1));
+    let band = Band::linear(Tol::witness()).unwrap();
+    let carrier = general_circle::<Interval>();
+    let image =
+        geom_brep::chart_pcurve_over(&carrier, t0, t1, &sphere::<Interval>(), band).unwrap();
+    let moved = image.map_affine(
+        |p| geom_core::Point2::new(p.x + Interval::from_f64(1e-3), p.y),
+        |v| v,
+    );
+    let err = PcurveCache::certify(moved, t0, t1, &carrier, &sphere::<Interval>(), band)
+        .expect_err("a row off its deck does not certify");
+    assert!(
+        matches!(
+            err,
+            geom_brep::PcurveCertifyError::ResidualExceeded {
+                check: geom_brep::PcurveCheck::EnvelopeTerm(geom_brep::EnvelopeTerm::FidelityU),
+                ..
+            }
+        ),
+        "the refusal names the deck's term: {err:?}"
+    );
 }

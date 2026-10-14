@@ -62,6 +62,7 @@
 //! `m5_pr12_fillet_node.rs`'s `f64` row alongside validity (tier 1 +
 //! closed) and the face count.
 
+use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
 use crate::fixture::{len, prism_edges, xy_frame};
@@ -83,13 +84,14 @@ pub fn document() -> CorpusDoc {
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     // Every edge of the cube, AUTHORED: the recipe STATES the set
     // instead of meaning "whatever edges exist". The bump stretches
@@ -97,6 +99,8 @@ pub fn document() -> CorpusDoc {
     // selection still resolves, which is what makes this document a
     // covariance row as well as a shape row.
     let blank = r.insert(Node::fillet(cube, len(R), prism_edges(&r.doc, cube, 4)));
+
+    r.place(blank);
 
     CorpusDoc {
         name: "die_fillet",
@@ -113,7 +117,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: cube,
             slot: SlotId::Distance,
-            expr: len(L_BUMPED),
+            value: len(L_BUMPED).into(),
+            fresh: Vec::new(),
         },
         bump_root: cube,
     }

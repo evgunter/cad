@@ -18,17 +18,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use sweep::ExtrudeSide;
 
 use common::witness_bodies::one_circle_cut;
 use common::*;
 use core::f64::consts::{FRAC_PI_4, PI};
+use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::SurfaceKind;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use mesh::TessellateError;
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
-use topo::{Body, FaceKey};
+use topo::{AtRestBody, Body, FaceKey};
 
 fn z_axis() -> Vec3<f64> {
     Vec3::new(0.0, 0.0, 1.0)
@@ -75,7 +76,7 @@ fn unit_rim(z: f64) -> Curve3<f64> {
 /// `tessellate`'s fold answers for when several refuse.
 fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> FaceKey {
     body.faces()
-        .find(|(_, f)| SurfaceKind::of(body.get_surface(f.surface).unwrap()) == kind)
+        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
         .map(|(fk, _)| fk)
         .expect("the body carries a face of that kind")
 }
@@ -93,21 +94,36 @@ fn assert_refuses_meridian_free(name: &str, body: &Body<f64>, kind: SurfaceKind,
     );
 }
 
+/// Tier 3's verdict on a hand-built rim-only body: check 11 at each of
+/// its rim's vertices, and nothing else.
+fn rim_vertices(body: &Body<f64>) -> Vec<topo::ValidationError> {
+    body.vertices()
+        .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex })
+        .collect()
+}
+
 /// **The sphere cap closed by its disc, at both poles and four
 /// latitudes.** The cap ABOVE `z` holds the north pole in its interior,
 /// the ball BELOW `z` the south pole; the equator, a shallow cap and a
 /// cap past the equator all refuse alike, because nothing about the
 /// refusal reads the latitude.
 ///
-/// Each body passes tier 3 and measures its closed-form volume as the
-/// kernel stands, and both are asserted: that is why the mesh lane has
-/// to refuse the face itself — no door in front of it does yet.
+/// Each body passes tier 3 but for its rim's two vertices — the rim is
+/// two half arcs, which the join would take into one closed edge, so
+/// the hand-built body is construction state (check 11) — and measures
+/// its closed-form volume as the kernel stands, and both are asserted:
+/// that is why the mesh lane has to refuse the face itself — no door in
+/// front of it does yet.
 #[test]
 fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
     let tol = Tol::witness();
     for z in [0.0_f64, 0.5, 0.9, -0.9] {
         let above = one_circle_cut(&unit_rim(z), sphere(1.0), Some(plane(z, false)));
-        assert_eq!(topo::validate_geometric(&above, tol), Ok(()), "z = {z}");
+        assert_eq!(
+            topo::validate_geometric(&above, tol),
+            Err(rim_vertices(&above)),
+            "z = {z}"
+        );
         let exact = PI * (1.0 - z).powi(2) * (2.0 + z) / 3.0;
         let volume = topo::mass_properties(&above, tol).unwrap().volume;
         assert!(
@@ -123,7 +139,11 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
     }
     for z in [0.0_f64, 0.5, -0.9] {
         let below = one_circle_cut(&unit_rim(z), plane(z, true), Some(sphere(1.0)));
-        assert_eq!(topo::validate_geometric(&below, tol), Ok(()), "z = {z}");
+        assert_eq!(
+            topo::validate_geometric(&below, tol),
+            Err(rim_vertices(&below)),
+            "z = {z}"
+        );
         let exact = PI * (1.0 + z).powi(2) * (2.0 - z) / 3.0;
         let volume = topo::mass_properties(&below, tol).unwrap().volume;
         assert!(
@@ -208,7 +228,7 @@ fn dome() -> Body<f64> {
 }
 
 /// The block `|x|, |z| ≤ 2`, `−2 ≤ y ≤ y0`.
-fn slab_below_y(y0: f64) -> Body<f64> {
+fn slab_below_y(y0: f64) -> AtRestBody<f64> {
     let lp = ProfileLoop::polygon([
         Point2::new(-2.0, -2.0),
         Point2::new(2.0, -2.0),
@@ -217,17 +237,21 @@ fn slab_below_y(y0: f64) -> Body<f64> {
     ]);
     let block = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(4.0),
+        Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
     .body;
-    topo::transform_rigid(
+    let block = topo::transform_rigid(
         &block,
-        &geom_core::Affine3::translation(Vec3::new(0.0, 0.0, -2.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, -2.0)).unwrap(),
         Tol::witness(),
     )
-    .unwrap()
+    .unwrap();
+    topo::test_support::finished("the slab", block, Tol::witness())
 }
 
 /// **The positive control: the SEAMED statements of the same two solids
@@ -238,16 +262,17 @@ fn slab_below_y(y0: f64) -> Body<f64> {
 #[test]
 fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
     let tol = Tol::witness();
+    let ball = topo::test_support::finished("the ball", ball(), tol);
     let cut = topo::boolean_op_with(
         topo::BooleanOp::Intersect,
-        &ball(),
+        &ball,
         &slab_below_y(0.5),
-        &topo::BooleanDeclarations::default(),
+        &topo::BooleanInputs::default(),
         topo::SweepStrategy::Realized,
         tol,
     )
     .unwrap();
-    let cut = &cut.body().expect("the ball meets the slab").body;
+    let cut: &Body<f64> = &cut.body().expect("the ball meets the slab").body;
     for (name, seamed, rim_only, exact) in [
         (
             "dome",

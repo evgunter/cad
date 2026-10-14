@@ -8,32 +8,33 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
 use topo::{
-    Body, CarrierDesc, CarrierEqError, CarrierRelation, ContactClass, ContactRecords,
-    ContactRefusal, ContactVerdict, CurveContact, FacePairDeclaration, PatchContact,
-    ValidationError, carrier_eq, validate_pseudomanifold,
+    CarrierDesc, CarrierEqError, CarrierRelation, ContactRefusal, ContactVerdict, ValidationError,
+    carrier_eq, validate_pseudomanifold,
 };
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-fn declared() -> PlaneIdentity<'static> {
-    PlaneIdentity {
-        s1: None,
-        s2: None,
-        declared: true,
-    }
+/// A ball of radius `arm` about the origin, no point of either face
+/// known: the extent a bare arm names.
+fn at(arm: f64) -> topo::ConsumedExtent<'static, f64> {
+    topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), arm))
+}
+
+fn declared() -> PlaneIdentity {
+    PlaneIdentity::DECLARED
 }
 
 fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
     CarrierDesc::Sphere {
-        center: Point3::new(c[0], c[1], c[2]),
+        center: Point3::from_array(c),
         radius: r,
         outward,
     }
@@ -41,8 +42,8 @@ fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
 
 fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
     CarrierDesc::Cylinder {
-        origin: Point3::new(o[0], o[1], o[2]),
-        axis: Vec3::new(a[0], a[1], a[2]),
+        origin: Point3::from_array(o),
+        axis: Vec3::from_array(a),
         radius: r,
         outward,
     }
@@ -50,8 +51,8 @@ fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
 
 fn plane_s(o: [f64; 3], n: [f64; 3]) -> geom::Surface<f64> {
     geom::Surface::Plane {
-        origin: Point3::new(o[0], o[1], o[2]),
-        normal: Vec3::new(n[0], n[1], n[2]),
+        origin: Point3::from_array(o),
+        normal: Vec3::from_array(n),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
@@ -72,14 +73,21 @@ fn probe_sphere_length_margins_ignore_the_arm() {
     let off = sphere([1e-3, 0.0, 0.0], 2.0, false);
     for arm in [1e-3, 1.0, 1e3] {
         assert_eq!(
-            carrier_eq(&a, &off, PlaneIdentity::NONE, arm, band()).unwrap(),
+            carrier_eq(&a, &off, PlaneIdentity::NONE, &at(arm), band()).unwrap(),
             CarrierRelation::Distinct,
             "definite center offset must be Distinct at arm {arm}"
         );
+        // The point of `a` on the offset's far side stands the whole
+        // offset off it.
+        let on = [Point3::new(-2.0, 0.0, 0.0)];
+        let extent = topo::ConsumedExtent {
+            on: [&on, &[]],
+            ..at(arm)
+        };
         assert!(
             matches!(
-                carrier_eq(&a, &off, declared(), arm, band()),
-                Err(CarrierEqError::Contradicted(_))
+                carrier_eq(&a, &off, declared(), &extent, band()),
+                Err(CarrierEqError::Contradicted { .. })
             ),
             "declared, arm {arm}: contradicted"
         );
@@ -88,7 +96,7 @@ fn probe_sphere_length_margins_ignore_the_arm() {
     let near = sphere([1e-13, 0.0, 0.0], 2.0, false);
     for arm in [1e-3, 1e3] {
         assert_eq!(
-            carrier_eq(&a, &near, declared(), arm, band()).unwrap(),
+            carrier_eq(&a, &near, declared(), &at(arm), band()).unwrap(),
             CarrierRelation::SameOpposite,
             "in-band center offset bridges at arm {arm}"
         );
@@ -111,12 +119,18 @@ fn probe_cylinder_angular_margin_is_levered_at_the_arm() {
     };
     // Unit arm: in-band tilt bridges under the declaration.
     assert_eq!(
-        carrier_eq(&a, &b, declared(), 1.0, band()).unwrap(),
+        carrier_eq(&a, &b, declared(), &at(1.0), band()).unwrap(),
         CarrierRelation::SameOpposite
     );
-    // Large arm: the same tilt is a definite misalignment there.
-    match carrier_eq(&a, &b, declared(), 1e6, band()).unwrap_err() {
-        CarrierEqError::Contradicted(d) => {
+    // Large arm: the same tilt is a definite misalignment there, at a
+    // point of the face half the arm along the axis.
+    let on = [Point3::new(3.0, 0.0, 5e5)];
+    let extent = topo::ConsumedExtent {
+        on: [&on, &[]],
+        ..at(1e6)
+    };
+    match carrier_eq(&a, &b, declared(), &extent, band()).unwrap_err() {
+        CarrierEqError::Contradicted { diag: d, .. } => {
             assert_eq!(d.predicate, Some("carrier_cyl_axis_parallel"));
         }
         other => panic!("expected Contradicted at 1e6 arm, got {other:?}"),
@@ -135,8 +149,8 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
     let k1 = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3000.0, true);
     let k2 = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3001.0, false);
     for (a, b) in [(&m1, &m2), (&k1, &k2)] {
-        match carrier_eq(a, b, declared(), 1.0, band()).unwrap_err() {
-            CarrierEqError::Contradicted(d) => {
+        match carrier_eq(a, b, declared(), &at(1.0), band()).unwrap_err() {
+            CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(d.predicate, Some("carrier_cyl_radius"));
             }
             other => panic!("expected radius contradiction, got {other:?}"),
@@ -145,8 +159,8 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
     // Near-tie walk order: axis-offset in band, radius definite — the
     // ladder must walk PAST the in-band margin and name the radius.
     let near = cyl([1e-13, 0.0, 0.0], [0.0, 0.0, 1.0], 3.001, false);
-    match carrier_eq(&m1, &near, declared(), 1.0, band()).unwrap_err() {
-        CarrierEqError::Contradicted(d) => {
+    match carrier_eq(&m1, &near, declared(), &at(1.0), band()).unwrap_err() {
+        CarrierEqError::Contradicted { diag: d, .. } => {
             assert_eq!(d.predicate, Some("carrier_cyl_radius"));
         }
         other => panic!("expected radius contradiction, got {other:?}"),
@@ -155,7 +169,9 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
 
 /// CLAIM 2 — a DEFINITE separation must beat the declaration: two
 /// parallel planes a definite gap apart, declared tangent along a
-/// line lying on the first.
+/// line lying on the first. The pair's separation is read before the
+/// witness, so the refusal is the gap (positive: apart), not the
+/// witness's miss on the second plane.
 #[test]
 fn probe_tangent_definite_separation_contradicts() {
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
@@ -164,7 +180,12 @@ fn probe_tangent_definite_separation_contradicts() {
         .unwrap_err();
     match err {
         topo::ContactRefusal::Contradicted { diag, steer } => {
-            assert_eq!(diag.predicate, Some("contact_tangent_on_2"));
+            assert_eq!(diag.predicate, Some("contact_tangent_gap"));
+            let gap = diag.margin.diagnostic_f64_for_error_text().value();
+            assert!(
+                gap.is_some_and(|g| g > 0.0),
+                "apart, not crossing: {diag:?}"
+            );
             assert_eq!(steer, Some(topo::FIT_DEFERRAL));
         }
         other => panic!("expected Contradicted, got {other:?}"),
@@ -228,12 +249,11 @@ fn probe_tangent_bridges_inband_residual_beyond_the_stated_residue() {
     assert!(matches!(undeclared, ContactRefusal::Escalated { .. }));
 }
 
-/// CLAIM 4 — the at-rest gate fires `ValidationError::ContactContradicted`:
-/// a CurveContact record whose faces are definitely separated must be
-/// contradicted BY THE CENSUS, not just at use. (No test in the PR
-/// executes this arm; this probe does.)
+/// CLAIM 4 — the at-rest gate refuses a false edge–face record: a top
+/// edge of a brick recorded as touching its bottom face, a metre off
+/// its plane, is stale.
 #[test]
-fn probe_at_rest_gate_contradicts_a_false_curve_record() {
+fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let z_face = |z: f64| {
         body.faces()
@@ -252,39 +272,39 @@ fn probe_at_rest_gate_contradicts_a_false_curve_record() {
     let witness = body
         .edges()
         .map(|(k, _)| k)
-        .find(|_| true)
-        .expect("brick has edges");
-    let contacts = ContactRecords {
-        curves: vec![CurveContact {
-            face_a: top,
-            face_b: bottom,
-            witness,
-        }],
-        ..ContactRecords::default()
-    };
+        .find(|&e| {
+            topo::Contact::new(&body, topo::Cell::Edge(e), topo::Cell::Face(top)).is_err()
+                && topo::Contact::new(&body, topo::Cell::Edge(e), topo::Cell::Face(bottom)).is_ok()
+        })
+        .expect("an edge of the top");
+    let contacts = topo::test_support::records(
+        &body,
+        [(topo::Cell::Edge(witness), topo::Cell::Face(bottom))],
+    );
     let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
         .expect_err("false record must fail");
     assert!(
-        errs.iter()
-            .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
-        "the at-rest gate must fire ContactContradicted specifically: {errs:?}"
+        errs.contains(&ValidationError::StaleContactDeclaration {
+            declaration: topo::StaleDeclaration::EdgeFace {
+                edge: witness,
+                face: bottom,
+            },
+        }),
+        "the at-rest gate reads the record stale: {errs:?}"
     );
 }
 
-/// CLAIM 6 — nothing certifies a PatchContact: a body carrying a patch
+/// CLAIM 6 — nothing certifies a false patch: a body carrying a patch
 /// record is refused typed at rest (CensusUnsupported), never blessed.
 #[test]
 fn probe_patch_contact_is_never_certified_at_rest() {
     let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let mut it = body.faces().map(|(k, _)| k);
     let (fa, fb) = (it.next().unwrap(), it.next().unwrap());
-    let contacts = ContactRecords {
-        patches: vec![PatchContact {
-            face_a: fa,
-            face_b: fb,
-        }],
-        ..ContactRecords::default()
-    };
+    let contacts = topo::ContactRecords::from_iter(vec![topo::Cited::new(
+        topo::Contact::new(&body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
+        topo::Cites::decided(0),
+    )]);
     let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
         .expect_err("a patch record cannot be confirmed");
     // Since M9-2 the certifier EXISTS: two arbitrary brick faces are
@@ -304,87 +324,27 @@ fn probe_patch_contact_is_never_certified_at_rest() {
 /// fields).
 #[test]
 fn probe_records_partialeq_bites_on_mutation() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness());
-    let decls = flush_declarations(&a, &b, Tol::witness());
-    let topo::BooleanResult::Body(out) = topo::union_with(&a, &b, &decls, Tol::witness()).unwrap()
-    else {
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "b",
+        brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let topo::BooleanResult::Body(out) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("union is a body");
     };
     let mut mutated = out.contacts.clone();
-    let fa = a.faces().next().unwrap().0;
-    mutated.patches.push(PatchContact {
-        face_a: fa,
-        face_b: fa,
-    });
+    let mut faces = out.body.faces().map(|(k, _)| k);
+    let (fa, fb) = (faces.next().unwrap(), faces.next().unwrap());
+    mutated.extend([topo::Cited::new(
+        topo::Contact::new(&out.body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
+        topo::Cites::decided(0),
+    )]);
     assert_ne!(out.contacts, mutated, "PartialEq must see the new fields");
-    let mut curve_mutated = out.contacts.clone();
-    if let Some((e, _)) = a.edges().next() {
-        curve_mutated.curves.push(CurveContact {
-            face_a: fa,
-            face_b: fa,
-            witness: e,
-        });
-        assert_ne!(out.contacts, curve_mutated);
-    }
-}
-
-/// DEVIATION 8 — the C4 "silent no-op at the op" gap, CLOSED (M9-1 fix
-/// pass, F2; issue #539).
-///
-/// The fixture is the `m4_pr3_names_interval` corpus's shape (block top
-/// z = 1, slot top z = 1.5) declared as `Rest`. When this probe was
-/// written the subtract SUCCEEDED — the lie never met a verifier,
-/// because the only verify-at-use site was the REST lane, which is
-/// Union-only — while the carrier ladder, asked directly, contradicted
-/// it at `bool_plane_offset`. Red-then-green: the assertion below read
-/// `out.is_ok()` then; the op-door pass now refuses the same
-/// declaration before any classification runs, and the corpus that
-/// carried this shape no longer declares it.
-#[test]
-fn probe_dev8_false_declaration_is_a_silent_noop_at_the_op() {
-    let c = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness());
-    let slot = brick::<f64>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), Tol::witness());
-    let z_face = |body: &Body<f64>, z: f64| {
-        body.faces()
-            .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(&topo::Surface::Plane { origin, normal, .. }) => {
-                    normal.z.abs() > 0.5 && (origin.z - z).abs() < 1e-12
-                }
-                _ => false,
-            })
-            .map(|(k, _)| k)
-            .unwrap()
-    };
-    let c_top = z_face(&c, 1.0);
-    let slot_top = z_face(&slot, 1.5);
-    let mut decls = topo::BooleanDeclarations::default();
-    decls
-        .coincident_faces
-        .push(FacePairDeclaration::rest(c_top, slot_top));
-    // The lie is definite: the ladder, asked directly, contradicts.
-    let verdict =
-        topo::boolean::carrier_pair_relation(&c, c_top, &slot, slot_top, true, band()).unwrap();
-    assert!(
-        matches!(verdict, Err(CarrierEqError::Contradicted(_))),
-        "the declared caps are definitely offset: {verdict:?}"
-    );
-    // And the op refuses it too, at the door, naming the same margin —
-    // the gap is closed, and the two sites agree because they share a
-    // ladder rather than mirroring one.
-    let err = topo::subtract_with(&c, &slot, &decls, Tol::witness())
-        .expect_err("a false declaration is no longer a silent no-op at the op");
-    match &err {
-        topo::BooleanError::ContactContradicted {
-            declaration,
-            margin,
-            ..
-        } => {
-            assert_eq!(declaration.class, ContactClass::Rest);
-            assert_eq!(margin.predicate, Some("bool_plane_offset"));
-        }
-        other => panic!("expected ContactContradicted, got {other:?}"),
-    }
 }
 
 /// CLAIM 7 / AQ6 — the definite verdict beats the declaration in BOTH
@@ -396,7 +356,8 @@ fn probe_aq6_definite_beats_declaration_both_directions() {
     let a = sphere([0.0, 0.0, 0.0], 2.0, true);
     let b = sphere([0.0, 0.0, 0.0], 2.0, false);
     let (rel, verdict) =
-        topo::boolean::carrier_eq::carrier_eq_verdict(&a, &b, declared(), 1.0, band()).unwrap();
+        topo::boolean::carrier_eq::carrier_eq_verdict(&a, &b, declared(), &at(1.0), band())
+            .unwrap();
     assert_eq!(rel, CarrierRelation::SameOpposite);
     assert_eq!(
         verdict,
@@ -405,32 +366,7 @@ fn probe_aq6_definite_beats_declaration_both_directions() {
     );
     let off = sphere([0.0, 0.0, 0.0], 2.5, false);
     assert!(matches!(
-        carrier_eq(&a, &off, declared(), 1.0, band()),
-        Err(CarrierEqError::Contradicted(_))
+        carrier_eq(&a, &off, declared(), &at(1.0), band()),
+        Err(CarrierEqError::Contradicted { .. })
     ));
-}
-
-/// CLAIM 3 — DeclaredPairs keyed-map semantics: the old `contains`
-/// behaviour (symmetric across operands, same-operand always false)
-/// is preserved through the op door: a same-operand "declaration"
-/// cannot be expressed at all (the field is cross-operand by type),
-/// and the A/B orientation of a declared pair still verifies.
-#[test]
-fn probe_declared_pair_direction_still_normalized() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
-    let decls = flush_declarations(&a, &b, Tol::witness());
-    assert!(!decls.coincident_faces.is_empty());
-    assert!(
-        topo::union_with(&a, &b, &decls, Tol::witness()).is_ok(),
-        "declared flush pair verifies through the map exactly as through the set"
-    );
-    // Class mint honesty: every declaration built by the old helpers
-    // is Rest, spelled out — no silent default hides in the map.
-    assert!(
-        decls
-            .coincident_faces
-            .iter()
-            .all(|d| d.class == ContactClass::Rest)
-    );
 }

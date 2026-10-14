@@ -34,9 +34,8 @@
     clippy::approx_constant
 )]
 
-use geom_core::{
-    Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Point2, Real, Sign, Vec2,
-};
+use crate::refusal::refuses_as_invalid;
+use geom_core::{Band, Bounds, Decide, Interval, MarginDiag, Point2, Real, Sign, Vec2};
 
 // ---------------------------------------------------------------- helpers
 
@@ -47,16 +46,6 @@ fn band() -> Band {
 
 fn iv(lo: f64, hi: f64) -> Interval {
     Interval::from_bounds(lo, hi)
-}
-
-fn refuses_as_invalid(x: Interval) -> bool {
-    matches!(
-        x.sign_within(band()),
-        Err(Indeterminate {
-            margin: MarginDiag::Invalid,
-            ..
-        })
-    )
 }
 
 // ------------------------------------------------- demo 1: the Q1 replay
@@ -84,7 +73,7 @@ struct DriverStats {
 /// at Interval over a parameter box, bisecting on Indeterminate.
 fn subdivide(lo: f64, hi: f64, b: Band, depth: usize, stats: &mut DriverStats) {
     let t = Interval::from_bounds(lo, hi);
-    match circle_line_margin(t).sign_within(b) {
+    match circle_line_margin(t).sign_within(b).map(|d| d.sign) {
         Ok(Sign::Positive) => stats.positive += 1,
         Ok(Sign::Negative) => stats.negative += 1,
         Ok(Sign::Zero) => stats.zero += 1,
@@ -106,7 +95,7 @@ fn q1_replay_loop_in_miniature() {
 
     // Step 1: f64 evaluation + decision at a healthy point.
     assert_eq!(
-        circle_line_margin(2.0f64).sign_within(b),
+        circle_line_margin(2.0f64).sign_within(b).map(|d| d.sign),
         Ok(Sign::Positive)
     );
 
@@ -139,8 +128,13 @@ fn q1_replay_loop_in_miniature() {
     for k in 0..64u32 {
         let lo = 1.0 + 2.0 * (f64::from(k) / 64.0);
         let hi = 1.0 + 2.0 * (f64::from(k + 1) / 64.0);
-        if let Ok(sign) = circle_line_margin(Interval::from_bounds(lo, hi)).sign_within(b) {
-            let f = circle_line_margin(0.5 * (lo + hi)).sign_within(b);
+        if let Ok(sign) = circle_line_margin(Interval::from_bounds(lo, hi))
+            .sign_within(b)
+            .map(|d| d.sign)
+        {
+            let f = circle_line_margin(0.5 * (lo + hi))
+                .sign_within(b)
+                .map(|d| d.sign);
             assert_eq!(
                 f,
                 Ok(sign),
@@ -150,13 +144,13 @@ fn q1_replay_loop_in_miniature() {
     }
 }
 
-// ------------------------------------------- demo 2: poison-channel abuse
+// ------------------------------------------ demo 2: refusal-channel abuse
 
-/// Poison produced mid-stream in ordinary pipelines must refuse to
+/// A refusal produced mid-stream in ordinary pipelines must refuse to
 /// classify, and no arithmetic laundering attempt may wash it clean.
 #[test]
-fn poison_laundering_hunt() {
-    // Poison sources.
+fn refusal_laundering_hunt() {
+    // Refusal sources.
     let sources: Vec<(&str, Interval)> = vec![
         (
             "sqrt of straddling [-1,4] (clamped, Trv)",
@@ -232,12 +226,12 @@ fn poison_laundering_hunt() {
             "source '{sname}' did not refuse: bounds [{:e}, {:e}] -> {:?}",
             p.lo(),
             p.hi(),
-            p.sign_within(band())
+            p.sign_within(band()).map(|d| d.sign)
         );
         for (aname, f) in &attempts {
             let r = f(*p);
             // Push the value into decisively-positive territory; if the
-            // poison were laundered, this WOULD classify Positive.
+            // refusal were laundered, this WOULD classify Positive.
             let probe = r.abs() + Interval::from_f64(100.0);
             assert!(
                 refuses_as_invalid(probe),
@@ -247,7 +241,7 @@ fn poison_laundering_hunt() {
                 r.hi(),
                 probe.lo(),
                 probe.hi(),
-                probe.sign_within(band())
+                probe.sign_within(band()).map(|d| d.sign)
             );
         }
     }

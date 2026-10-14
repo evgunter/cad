@@ -13,10 +13,11 @@
 
 use crate::common;
 use crate::fixture;
+use pncad::document::ExtrudeSide;
 
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{
-    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Expr,
+    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
     MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, evaluate,
 };
@@ -26,20 +27,19 @@ use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
 use viewer::frame::Tone;
 use viewer::tree::{self, RowStatus};
 
-/// A small block, as a whole part document: frame, profile, extrude,
-/// so the extrude is `fixture::resolver::PART_BODY`.
-fn block(label: &str, tol: Tol) -> ProfileDoc {
+/// A small block, as a whole part document, and its body.
+fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let (doc, profile) = common::framed_square(&doc, 0.02, tol);
-    let (doc, _) = common::inserted(
+    common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.02),
+            side: ExtrudeSide::Along,
         },
         tol,
-    );
-    doc
+    )
 }
 
 /// **The finding's document, through the tree the chrome draws.**
@@ -50,16 +50,16 @@ fn block(label: &str, tol: Tol) -> ProfileDoc {
 fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let tol = Tol::witness();
     let mut store = PartStore::default();
-    let leg = store.insert(block("msolve3-view-leg", tol), tol);
-    let top = store.insert(block("msolve3-view-top", tol), tol);
+    let (leg, leg_body) = store.insert_part(block("msolve3-view-leg", tol), tol);
+    let (top, top_body) = store.insert_part(block("msolve3-view-top", tol), tol);
 
     let doc: Doc<ProfileProgram> = ProfileDoc::empty(DocumentId::derive("msolve3-view"), tol);
     let (doc, legs) = common::inserted(&doc, Node::instantiate_part(leg), tol);
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: legs,
-            count: Expr::count(4),
+            input: legs.into(),
+            count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [common::scl(1e200), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -68,23 +68,23 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         tol,
     );
     let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
-    let frame = |origin: [f64; 3], axis: [f64; 3]| MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
+    let frame = |origin: [f64; 3], axis: [f64; 3]| {
+        MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+            .expect("a definite frame")
     };
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {
-            a: common::head(StableName {
+            a: (common::head(StableName {
                 kind: EntityKind::Face,
                 node: pattern,
                 path: vec![RoleSeg::Instance {
                     i: 1,
-                    of: in_part(legs, CapEnd::End).into(),
+                    of: in_part(legs, leg_body, CapEnd::End).into(),
                 }],
-            }),
-            b: common::head(in_part(cap, CapEnd::Start)),
+            }))
+            .into(),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
@@ -99,11 +99,8 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
 
     let opts = with_resolver(store);
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
-    let rows = tree::rows(&doc, Some(&ev));
-    let row = rows
-        .iter()
-        .find(|r| r.id == mate)
-        .expect("the mate has a row");
+    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
+    let row = common::row_of(&rows, mate);
     let message = row
         .status
         .message()
@@ -115,28 +112,41 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     );
     // The WHOLE rendered cause, not a substring of it: a wrong role
     // word, a wrong refusal kind (a zero length instead of an
-    // unmeasurable one), or a wrong node all fail here.
+    // unmeasurable one), or a wrong node all fail here. The mate's own
+    // line names the placer and points; the placer's refusal is the
+    // line under it, as the placer's own row would draw it.
     assert_eq!(
         message,
         format!(
-            "node {} failed: the mate solve refused: mate {}'s a reference has no derived pose: \
-             node {} refuses — the pattern direction has no finite length (a component \
-             overflows the norm or is not a number). Recourse: {}",
-            mate.0,
-            mate.0,
-            pattern.0,
-            geom_core::RANGE_RECOURSE
+            "Mate {} failed: the mate solve refused: this mate's a reference has no \
+             derived pose: Pattern {p}, on its derivation, refuses. Recourse: repair \
+             Pattern {p}",
+            test_utils::refusal::tag(mate.0.digest()),
+            p = test_utils::refusal::tag(pattern.0.digest()),
         ),
-        "the row states the cause the evaluation typed"
+        "the row names the placer the evaluation typed"
+    );
+    let RowStatus::Failed { carried, .. } = &row.status else {
+        panic!("asserted Failed above");
+    };
+    assert_eq!(
+        carried,
+        &vec![viewer::tree::CarriedLine {
+            document: viewer::tree::THIS_DOCUMENT.to_owned(),
+            line: format!(
+                "Pattern {} failed: the pattern direction has no finite length (a component \
+                 overflows the norm or is not a number). Recourse: {}",
+                test_utils::refusal::tag(pattern.0.digest()),
+                geom_core::RANGE_RECOURSE
+            ),
+        }],
+        "the row carries the cause the evaluation typed, as its own line, in this document"
     );
 
     // The compensation the old design rested on, measured: the
     // pattern's own row cannot state the cause, because the mate
     // fault poisoned it.
-    let placer = rows
-        .iter()
-        .find(|r| r.id == pattern)
-        .expect("the pattern has a row");
+    let placer = common::row_of(&rows, pattern);
     assert!(
         matches!(placer.status, RowStatus::Poisoned { through, .. } if through == mate),
         "the pattern is poisoned through the mate: {:?}",
@@ -147,7 +157,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     // an author goes and fixes is one click from the words, and it is
     // the only link any row draws beside a `Poisoned` pointer.
     assert_eq!(
-        row.repair_at,
+        row.repair_at.as_ref().map(|at| at.id()),
         Some(pattern),
         "the mate's row links to the placer"
     );
@@ -181,16 +191,16 @@ struct Copies {
 
 fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies {
     let mut store = PartStore::default();
-    let leg = store.insert(block(&format!("{label}-leg"), tol), tol);
-    let top = store.insert(block(&format!("{label}-top"), tol), tol);
+    let (leg, leg_body) = store.insert_part(block(&format!("{label}-leg"), tol), tol);
+    let (top, top_body) = store.insert_part(block(&format!("{label}-top"), tol), tol);
 
     let doc: Doc<ProfileProgram> = ProfileDoc::empty(DocumentId::derive(label), tol);
     let (doc, legs) = common::inserted(&doc, Node::instantiate_part(leg), tol);
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: legs,
-            count: Expr::count(3),
+            input: legs.into(),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -203,8 +213,8 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
             let (doc, part) = common::inserted(
                 &doc,
                 Node::Part {
-                    of: pattern,
-                    select: PartSelect::Instance(Expr::count(i)),
+                    of: pattern.into(),
+                    select: PartSelect::Instance(Formula::count(i)),
                 },
                 tol,
             );
@@ -218,17 +228,16 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         node: pattern,
         path: vec![RoleSeg::Instance {
             i: copy,
-            of: in_part(legs, CapEnd::End).into(),
+            of: in_part(legs, leg_body, CapEnd::End).into(),
         }],
     };
     let a = match part {
         Some(part) => common::head_at(part, named),
         None => common::head(named),
     };
-    let frame = |origin: [f64; 3], axis: [f64; 3]| MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
+    let frame = |origin: [f64; 3], axis: [f64; 3]| {
+        MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+            .expect("a definite frame")
     };
     // The mate must MINT while its copy is there: a refusal here would
     // be a broken fixture, not the fault the rows below read once a
@@ -236,8 +245,8 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {
-            a,
-            b: common::head(in_part(cap, CapEnd::Start)),
+            a: a.into(),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
@@ -276,7 +285,7 @@ fn mate_fault(ev: &Evaluation<f64>, mate: RecipeNodeId) -> MateFault {
 fn assert_no_row_links(rows: &[tree::TreeRow]) {
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()
-        .filter_map(|row| row.repair_at.map(|at| (row.id, at)))
+        .filter_map(|row| row.repair_at.as_ref().map(|at| (row.id, at.id())))
         .collect();
     assert_eq!(linking, Vec::new(), "no row links to a node to repair");
 }
@@ -294,7 +303,7 @@ fn assert_the_mate_is_blamed(
     mate: RecipeNodeId,
     named: RecipeNodeId,
 ) {
-    let rows = tree::rows(doc, Some(ev));
+    let rows = tree::rows(doc, Some(ev), &viewer::parts::PartFiles::default());
     let mate_row = common::status_of(&rows, mate);
     let Some(NodeResult::Failed(error)) = ev.result(mate) else {
         panic!("the mate must be Failed in the evaluation");
@@ -302,7 +311,8 @@ fn assert_the_mate_is_blamed(
     assert_eq!(
         mate_row,
         RowStatus::Failed {
-            message: error.to_string()
+            message: error.spoken(doc, ev),
+            carried: Vec::new(),
         },
         "the mate's row is the cause and carries the payload's own words"
     );
@@ -337,7 +347,8 @@ fn a_stranded_copy_blames_the_mate_and_not_the_pattern_it_stopped_at() {
         DocEdit::SetStructuralParam {
             node: s.pattern,
             slot: SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -366,7 +377,8 @@ fn a_part_selecting_another_copy_blames_the_mate_and_not_the_part() {
         DocEdit::SetStructuralParam {
             node: part,
             slot: SlotId::Instance,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -392,7 +404,7 @@ fn assert_both_loud(
     mate: RecipeNodeId,
     named: RecipeNodeId,
 ) {
-    let rows = tree::rows(doc, Some(ev));
+    let rows = tree::rows(doc, Some(ev), &viewer::parts::PartFiles::default());
     for id in [mate, named] {
         let Some(NodeResult::Failed(error)) = ev.result(id) else {
             panic!("{id:?} must be Failed in the evaluation");
@@ -400,7 +412,8 @@ fn assert_both_loud(
         assert_eq!(
             common::status_of(&rows, id),
             RowStatus::Failed {
-                message: error.to_string()
+                message: error.spoken(doc, ev),
+                carried: Vec::new(),
             },
             "{id:?} carries its own words"
         );
@@ -418,8 +431,11 @@ fn assert_both_loud(
     );
 }
 
-/// A `Part` re-pointed PAST its pattern's count: the mate refuses with
-/// `PartSelectsAnotherCopy`, and the `Part` fails on its own.
+/// A `Part` re-pointed PAST its pattern's count: the index selects no
+/// copy, so the mate refuses as the evaluation does — the `Part`'s own
+/// `InstanceOutOfRange`, at the `Part` — and the `Part` fails on it in
+/// its own right. Both rows are loud, the refusal is drawn once, on the
+/// `Part`'s row, and the mate's row links there.
 #[test]
 fn a_part_past_its_patterns_count_fails_beside_the_mate() {
     let tol = Tol::witness();
@@ -430,17 +446,35 @@ fn a_part_past_its_patterns_count_fails_beside_the_mate() {
         DocEdit::SetStructuralParam {
             node: part,
             slot: SlotId::Instance,
-            expr: Expr::count(5),
+            expr: Formula::count(5),
+            fresh: Vec::new(),
         },
         tol,
     );
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &s.opts, tol);
     let fault = mate_fault(&ev, s.mate);
     assert!(
-        matches!(fault, MateFault::PartSelectsAnotherCopy { part: p, .. } if p == part),
+        matches!(fault, MateFault::PlacerRefused { placer, .. } if placer == part),
         "the fixture reaches the arm, naming the Part: {fault:?}"
     );
-    assert_both_loud(&ev, &doc, s.mate, part);
+    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
+    assert!(
+        matches!(common::status_of(&rows, part), RowStatus::Failed { .. }),
+        "the Part fails in its own right"
+    );
+    let RowStatus::Failed { carried, .. } = common::status_of(&rows, s.mate) else {
+        panic!("the mate's row is a failure");
+    };
+    assert!(carried.is_empty(), "the refusal is drawn once: {carried:?}");
+    let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
+        .iter()
+        .filter_map(|row| row.repair_at.as_ref().map(|at| (row.id, at.id())))
+        .collect();
+    assert_eq!(
+        linking,
+        vec![(s.mate, part)],
+        "the mate's row, and only it, links to the Part"
+    );
 }
 
 /// A pattern shrunk to ZERO copies: the mate refuses with
@@ -454,7 +488,8 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
         DocEdit::SetStructuralParam {
             node: s.pattern,
             slot: SlotId::Count,
-            expr: Expr::count(0),
+            expr: Formula::count(0),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -476,14 +511,15 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
 fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
     let tol = Tol::witness();
     let s = copies("msolve3-view-count-overflow", 1, None, tol);
-    let overflowing =
-        Expr::mul(Expr::count(i64::MAX), Expr::count(2)).expect("a count times a count is a count");
+    let overflowing = Formula::mul(Formula::count(i64::MAX), Formula::count(2))
+        .expect("a count times a count is a count");
     let (doc, _) = common::edited(
         &s.doc,
         DocEdit::SetStructuralParam {
             node: s.pattern,
             slot: SlotId::Count,
             expr: overflowing,
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -493,17 +529,27 @@ fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
         matches!(fault, MateFault::PlacerRefused { placer, .. } if placer == s.pattern),
         "the fixture reaches the arm, naming the pattern: {fault:?}"
     );
-    let rows = tree::rows(&doc, Some(&ev));
+    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
+    let RowStatus::Failed {
+        message: pattern_message,
+        ..
+    } = common::status_of(&rows, s.pattern)
+    else {
+        panic!("the pattern fails in its own right on this path");
+    };
+    // The pattern's own row states its refusal, so the mate's row points
+    // there and carries nothing: the refusal is drawn once.
+    let RowStatus::Failed { carried, .. } = common::status_of(&rows, s.mate) else {
+        panic!("the mate's row is a failure");
+    };
     assert!(
-        matches!(
-            common::status_of(&rows, s.pattern),
-            RowStatus::Failed { .. }
-        ),
-        "the pattern fails in its own right on this path"
+        carried.is_empty(),
+        "the mate carries no line where the placer's own row states it ({pattern_message}): \
+         {carried:?}"
     );
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()
-        .filter_map(|row| row.repair_at.map(|at| (row.id, at)))
+        .filter_map(|row| row.repair_at.as_ref().map(|at| (row.id, at.id())))
         .collect();
     assert_eq!(
         linking,

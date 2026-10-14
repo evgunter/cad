@@ -43,8 +43,10 @@ charts — so nothing is broken; the row is here so the budget question
 has a home when one does.
 
 `crates/sweep/tests/offd_r1_probes.rs`'s
-`the_fitted_obstruction_holds_on_a_curved_fit` pins both arms and
-carries `CURVED_FIT_REACH` as the measured boundary.
+`the_fitted_obstruction_holds_on_a_curved_fit` pins the structural
+arm. The fit's measured reach on that wall (1e-13) lies below ε's floor
+`geom_core::tolerance::EPS_MIN` (≈ 2.2e-13 m, D4 ¶4), so no admissible ε
+reaches its `Fit` arm, and the arm and `CURVED_FIT_REACH` are gone.
 
 ## 2. The mint's production cost at the default ε is unmeasured on a body
 
@@ -123,3 +125,9 @@ the face-replacement door's lanes. Filed on SHELL as
 `shell-refuses-every-lofted-body-at-a-wall-seam-carrier`; the
 public-API body and both of its boundaries are pinned in
 `crates/sweep/tests/encl_curved_loft_shell.rs`.
+
+## 2026-10-11 — the round budget is retired, and the cap is a total (SHELL, PR 4672)
+
+`OFFSET_FIT_BUDGET` and `BudgetExhausted` are gone: a loop whose bound still falls refines until it certifies, stalls, or meets `OFFSET_FIT_SAMPLE_CAP`. That cap is now `us.len() · vs.len() ≤ 48² = 2304`.
+- The saddle wall's `d = ±0.05` case above certifies at the default ε on 49×26, round 9.
+- `bowed()` at 1e-12 needed 49×49 = 2401 samples on the schedule measured above, which is still over the total cap. It is not re-measured on this branch.

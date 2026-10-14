@@ -33,10 +33,10 @@ fn dump<T: editor_core::EvalScalar>(
         Seen::FixtureLoop { i, vertices } => {
             println!("RSTRUCT {lane} fixture{i} ok {vertices}");
         }
-        Seen::FixtureVertex { i, j, x, y, bulge } => {
+        Seen::FixtureVertex { i, j, x, y, sweep } => {
             scalar(&format!("{lane} fixture{i} v{j} x"), x);
             scalar(&format!("{lane} fixture{i} v{j} y"), y);
-            scalar(&format!("{lane} fixture{i} v{j} b"), bulge);
+            scalar(&format!("{lane} fixture{i} v{j} sweep"), sweep);
         }
         Seen::FixtureRefused(i) => println!("RSTRUCT {lane} fixture{i} refused"),
         Seen::Node { doc, id, outcome } => match outcome {

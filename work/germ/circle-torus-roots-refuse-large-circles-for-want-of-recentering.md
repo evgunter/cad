@@ -24,8 +24,10 @@ band. Measured against a torus `R = 1, r = 0.25` at the default band
 taper from `ρ ≈ 10–15`, and at `ρ = 30` every grazing pose refuses. The
 threshold scales as `ρ⁴ ≲ 10ε·r·R²/(16u)`.
 
-The refusals are typed and sound. What they cost is circles passing
-NEAR the torus. Distant circles are still cleared earlier, by the
+The refusals are typed. They are not the whole story at large ρ: where
+the noise reading lands in the band's gap the ladder passes it, and
+certifies roots past the band (below). What the refusals cost is
+circles passing NEAR the torus. Distant circles are still cleared earlier, by the
 circle rung's enclosure clearance (`reduce.rs` `circle_clearance`).
 
 ## The fix
@@ -42,3 +44,13 @@ exact re-expression that keeps the magnitudes small.
 
 GERM, beside the circle × torus root lane.
 
+
+## Evidence (2026-10-02, the dual review of PR 3752): large circles on the shared ladder
+
+The ladder is shared with the circle × cylinder door
+(`crates/topo/src/boolean/circle_roots.rs`). On it, a circle of radius
+1500 tilted to a unit wall gets roots certified 1.09–1.23e-9 m off at
+ε = 1e-9, its noise reading in the gap (review 2, `topo_dr2_probe.rs`,
+`dr2_gap_noise_root_error`). Recentering would shrink the terms that
+put the reading there; the posture is
+`circle-torus-meters-accept-an-unreadable-reading`.

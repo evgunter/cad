@@ -49,8 +49,8 @@ fn face_fan(body: &topo::Body<f64>, fk: topo::FaceKey, o: Point3<f64>) -> f64 {
 fn r2_the_donut_fan_is_a_structural_zero() {
     let t = donut();
     let o = probe_anchor(&t.body);
-    let f0 = face_fan(&t.body, t.walls[0][0].unwrap(), o);
-    let f1 = face_fan(&t.body, t.walls[0][1].unwrap(), o);
+    let f0 = face_fan(&t.body, t.walls()[0][0].unwrap(), o);
+    let f1 = face_fan(&t.body, t.walls()[0][1].unwrap(), o);
     println!(
         "local anchor {o:?}: wall0 fan {f0:e}, wall1 fan {f1:e}, sum {:e}",
         f0 + f1
@@ -65,8 +65,8 @@ fn r2_the_donut_fan_is_a_structural_zero() {
         "signed_volume not structural zero: {total:e}"
     );
     // The old spelling, replicated: origin anchor.
-    let g0 = face_fan(&t.body, t.walls[0][0].unwrap(), Point3::origin());
-    let g1 = face_fan(&t.body, t.walls[0][1].unwrap(), Point3::origin());
+    let g0 = face_fan(&t.body, t.walls()[0][0].unwrap(), Point3::origin());
+    let g1 = face_fan(&t.body, t.walls()[0][1].unwrap(), Point3::origin());
     println!(
         "origin anchor: wall0 {g0:e}, wall1 {g1:e}, sum {:e}",
         g0 + g1
@@ -84,7 +84,7 @@ fn r2_the_donut_fan_is_a_structural_zero() {
 #[test]
 fn r2_the_lifted_oracle_is_sign_sensitive_and_lift_stable() {
     let t = donut();
-    let (w0, w1) = (t.walls[0][0].unwrap(), t.walls[0][1].unwrap());
+    let (w0, w1) = (t.walls()[0][0].unwrap(), t.walls()[0][1].unwrap());
     let pr_lifts = [
         (w0, Point3::new(0.0, 0.0, 1.5)),
         (w1, Point3::new(0.0, 1.0, 1.5)),
@@ -126,7 +126,7 @@ fn r2_the_lifted_oracle_is_sign_sensitive_and_lift_stable() {
 fn r2_the_walls_share_their_boundary() {
     let t = donut();
     for (w, lo, hi) in [(0usize, 0.0, 0.5), (1, 0.5, 1.0)] {
-        let face = t.body.get_face(t.walls[0][w].unwrap()).unwrap();
+        let face = t.body.get_face(t.walls()[0][w].unwrap()).unwrap();
         let mut ys: Vec<f64> = Vec::new();
         for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
             ys.extend(loop_probe_points(&t.body, lk).iter().map(|p| p.y));

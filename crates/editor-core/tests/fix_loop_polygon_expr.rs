@@ -31,7 +31,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{len, len2};
-use editor_core::{Dimension, Expr, LoopProgram, ParamName, ProgramStep, ProgramTarget};
+use editor_core::{Dimension, Formula, LoopProgram, ProgramStep, ProgramTarget, VarName};
 
 const CORNERS: [(f64, f64); 4] = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)];
 
@@ -79,7 +79,7 @@ fn both_doors_agree_at_the_degenerate_arities() {
 /// `At` … `LineTo(Start)` shape.
 #[test]
 fn parametric_corners_expand_to_the_same_shape() {
-    let w = Expr::param(ParamName::new("w"), Dimension::Length);
+    let w = Formula::named(VarName::from_static("w"), Dimension::Length);
     let zero = len(0.0);
     let program = LoopProgram::polygon_expr([
         [zero.clone(), zero.clone()],

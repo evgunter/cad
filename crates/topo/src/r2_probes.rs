@@ -1,5 +1,5 @@
 //! R2 REVIEW PROBES for MATE-3 (PR 1423). Not part of the unit under
-//! review; committed to the reviewer's own branch only.
+//! review; written on the reviewer's branch and since merged to main.
 //!
 //! The point of this module is that it does NOT call
 //! `classify_material_pairing` or `material_kappa_rel`. It re-derives
@@ -114,7 +114,7 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
         "inside the inner wall is void"
     );
     // Revert negates every outward normal, so every membership flips.
-    let r = p.body.revert().unwrap();
+    let r = p.body.revert();
     let r_inner = sense_of(&r, p.face_side[2]);
     let r_outer = sense_of(&r, p.face_side[0]);
     assert_eq!(r_inner, !s_inner);

@@ -8,10 +8,13 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Datum, Dimension, DimensionError, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::AuthoredNode;
+use pncad::document::{
+    Bodies, Datum, Dimension, DimensionError, Formula, Node, Operand, RecipeNodeId,
+};
 use pncad::prelude::StableName;
 use pncad::profile::SketchPlane;
-use pncad::select::SplitHalf;
+use pncad::topo::BooleanOp;
 
 /// The literal payload of one add-datum form (GAUTH-1): plain numbers
 /// in canonical units. The SESSION mints the `Expr` literals and
@@ -28,56 +31,37 @@ pub enum DatumSpec {
     /// A plane through `origin` with normal `normal`.
     Plane {
         /// Origin components (`Length`).
-        origin: [Expr; 3],
+        origin: [Formula; 3],
         /// Normal components (`Scalar`).
-        normal: [Expr; 3],
+        normal: [Formula; 3],
     },
     /// An axis through `origin` along `direction`.
     Axis {
         /// Origin components (`Length`).
-        origin: [Expr; 3],
+        origin: [Formula; 3],
         /// Direction components (`Scalar`).
-        direction: [Expr; 3],
+        direction: [Formula; 3],
     },
     /// A point at `position`.
     Point {
         /// Position components (`Length`).
-        position: [Expr; 3],
-    },
-    /// An axis written in a sketch frame — a revolve's axis of
-    /// revolution.
-    ///
-    /// `plane` is a PICK, not a field: it names the `Datum::Frame` the
-    /// two coordinate pairs are written against, and the pairs are
-    /// that frame's own 2-D coordinates. There is no third component,
-    /// which is the whole of why a revolve about one cannot leave the
-    /// sketch.
-    AxisInPlane {
-        /// The frame node the axis lives in.
-        plane: RecipeNodeId,
-        /// Origin components in the frame's coordinates (`Length`).
-        origin: [Expr; 2],
-        /// Direction components in the frame's coordinates (`Scalar`),
-        /// unnormalized — the kernel's `RevolveAxis` normalizes and
-        /// refuses a sliver at its own door.
-        direction: [Expr; 2],
+        position: [Formula; 3],
     },
     /// A sketch frame through `origin`, spanned by `u` and `v`.
     Frame {
         /// Origin components (`Length`).
-        origin: [Expr; 3],
+        origin: [Formula; 3],
         /// Sketch +x components (`Scalar`).
-        u: [Expr; 3],
+        u: [Formula; 3],
         /// Sketch +y components (`Scalar`), orthogonalized against
         /// `u` at evaluation.
-        v: [Expr; 3],
+        v: [Formula; 3],
     },
     /// A sketch frame read off a PICKED FACE: its origin and normal
     /// are the face's, and `spin` is the only number an author
     /// chooses.
     ///
-    /// Two PICKS and one field — [`Self::AxisInPlane`]'s shape, not
-    /// [`Self::Plane`]'s.
+    /// Two PICKS and one field, not [`Self::Plane`]'s shape.
     ///
     /// **`at` is the node whose BODY the ray met, never the feature
     /// that minted the face.** The name is read out of that body's own
@@ -90,8 +74,7 @@ pub enum DatumSpec {
     /// why it is said here.
     FaceFrame {
         /// The body-denoting node the face is read out of — a PICK,
-        /// and a DAG input exactly as [`Self::AxisInPlane`]'s `plane`
-        /// is.
+        /// and a DAG input.
         at: RecipeNodeId,
         /// The picked face, frozen — a PICK, resolved through `at`'s
         /// value under the N5 ladder.
@@ -99,7 +82,7 @@ pub enum DatumSpec {
         /// The rotation of sketch +x about the outward normal
         /// (`Angle`) — the node's only slot, because the origin and
         /// the normal are read off the face.
-        spin: Expr,
+        spin: Formula,
     },
 }
 
@@ -114,8 +97,8 @@ pub enum DatumSpec {
 /// so there is no pick to be wrong and nothing to gate. A second
 /// [`super::SessionOp`] would have re-declared `loops` and the whole
 /// insert-door refusal contract beside the one that has it, and would
-/// have had to answer the three exhaustive matches over the op
-/// vocabulary twice.
+/// have had to answer every exhaustive match over the op vocabulary
+/// twice.
 ///
 /// **What [`Self::NewXy`] must not become is an implicit frame.** It
 /// inserts an ordinary [`pncad::document::Datum::Frame`] node — visible
@@ -158,11 +141,7 @@ impl ProfilePlane {
     pub fn xy_numbers() -> ([f64; 3], [f64; 3], [f64; 3]) {
         let plane = Self::xy_placement();
         let (origin, u, v) = (plane.origin(), plane.u(), plane.v());
-        (
-            [origin.x, origin.y, origin.z],
-            [u.x, u.y, u.z],
-            [v.x, v.y, v.z],
-        )
+        (origin.to_array(), u.to_array(), v.to_array())
     }
 
     /// The world XY frame as [`Self::NewXy`] commits it: the numbers
@@ -176,23 +155,23 @@ impl ProfilePlane {
     /// # Errors
     ///
     /// Never, in practice: every component is `0.0` or `1.0`, and
-    /// [`Expr::literal`] refuses only a non-finite one. It is a
+    /// `Formula::literal` refuses only a non-finite one. It is a
     /// `Result` so that "is this number authorable" keeps ONE home,
     /// the expression door, rather than an `unwrap` here.
     pub fn world_xy() -> Result<DatumSpec, DimensionError> {
         let (origin, u, v) = Self::xy_numbers();
-        let lengths = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
+        let lengths = |v: [f64; 3]| -> Result<[Formula; 3], DimensionError> {
             Ok([
-                Expr::literal(v[0], Dimension::Length)?,
-                Expr::literal(v[1], Dimension::Length)?,
-                Expr::literal(v[2], Dimension::Length)?,
+                Formula::literal(v[0], Dimension::Length)?,
+                Formula::literal(v[1], Dimension::Length)?,
+                Formula::literal(v[2], Dimension::Length)?,
             ])
         };
-        let scalars = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
+        let scalars = |v: [f64; 3]| -> Result<[Formula; 3], DimensionError> {
             Ok([
-                Expr::literal(v[0], Dimension::Scalar)?,
-                Expr::literal(v[1], Dimension::Scalar)?,
-                Expr::literal(v[2], Dimension::Scalar)?,
+                Formula::literal(v[0], Dimension::Scalar)?,
+                Formula::literal(v[1], Dimension::Scalar)?,
+                Formula::literal(v[2], Dimension::Scalar)?,
             ])
         };
         Ok(DatumSpec::Frame {
@@ -228,20 +207,20 @@ pub enum PatternRuleSpec {
     /// Stepped along a direction (`PatternKind::Linear`).
     Linear {
         /// Step direction components (`Scalar`).
-        direction: [Expr; 3],
+        direction: [Formula; 3],
         /// Distance between instances (`Length`).
-        spacing: Expr,
+        spacing: Formula,
     },
     /// Stepped around a datum axis (`PatternKind::Circular`).
     Circular {
         /// The datum-axis node stepped around.
         axis: RecipeNodeId,
         /// Angular step between instances (`Angle`).
-        step: Expr,
+        step: Formula,
     },
 }
 
-/// **Which body of a multi-body value one part form selects** — the
+/// **Which copy of a pattern one part form selects** — the
 /// authoring counterpart of [`pncad::document::PartSelect`], beside
 /// [`PatternRuleSpec`] for its reason: it names what a form authors,
 /// in the numbers a form holds.
@@ -253,19 +232,77 @@ pub enum PatternRuleSpec {
 /// `SetStructuralParam` and never through the continuous door, so an
 /// authoring door that carried an `Expr` would be the one place a
 /// structural slot could be written continuously. The session mints
-/// the `Expr::count` literal ([`crate::combine::part_node`]), which is
+/// the `Formula::count` literal ([`crate::combine::part_node`]), which is
 /// the same division of labour [`super::SessionOp::AddPattern`]'s
 /// count already takes.
 ///
-/// One shape for BOTH selections rather than two ops, because the two
-/// arms differ in what is selected and in nothing else — the pick, the
-/// door and the node are one apiece.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PartSelectSpec {
-    /// The named half of a `Node::Split` value.
-    SplitHalf(SplitHalf),
     /// The `i`-th instance of a `Node::Pattern` value.
     Instance(i64),
+}
+
+/// **What one boolean authors**: the operation and its operands, in
+/// the shape the node it lowers to takes ([`BooleanSpec::node`]).
+///
+/// Union and intersect take a LIST — any count is a document the door
+/// accepts (one member builds that body, none the typed empty body,
+/// and a node spelled twice glues) — while subtract takes exactly two
+/// operands that are not interchangeable: `from` is the body KEPT and
+/// `tool` the body REMOVED. Three arms rather than an operation beside
+/// a list, so a subtraction of the wrong count has no spelling.
+#[derive(Clone, Debug, PartialEq)]
+pub enum BooleanSpec {
+    /// The material in any member, members in fold order.
+    Union(Vec<Operand>),
+    /// The material in every member, members in fold order.
+    Intersect(Vec<Operand>),
+    /// `from` with `tool` cut away.
+    Subtract {
+        /// The body kept.
+        from: Operand,
+        /// The body removed.
+        tool: Operand,
+    },
+}
+
+impl BooleanSpec {
+    /// The operation — the kernel's enum, the boolean form's choice.
+    pub fn op(&self) -> BooleanOp {
+        match self {
+            Self::Union(_) => BooleanOp::Union,
+            Self::Intersect(_) => BooleanOp::Intersect,
+            Self::Subtract { .. } => BooleanOp::Subtract,
+        }
+    }
+
+    /// Every operand, in the node's order: the members, or `from`
+    /// then `tool`.
+    pub fn operands(&self) -> Vec<Operand> {
+        match self {
+            Self::Union(members) | Self::Intersect(members) => members.clone(),
+            Self::Subtract { from, tool } => vec![from.clone(), tool.clone()],
+        }
+    }
+
+    /// Lower to the node.
+    pub fn node(&self) -> AuthoredNode {
+        let spelled = |members: &[Operand]| {
+            Bodies::Spelled(members.iter().cloned().map(Into::into).collect())
+        };
+        match self {
+            Self::Union(members) => Node::Union {
+                members: spelled(members),
+            },
+            Self::Intersect(members) => Node::Intersect {
+                members: spelled(members),
+            },
+            Self::Subtract { from, tool } => Node::Subtract {
+                from: from.clone().into(),
+                tool: tool.clone().into(),
+            },
+        }
+    }
 }
 
 /// Lower one datum spec to its node.
@@ -273,21 +310,15 @@ pub enum PartSelectSpec {
 /// Total, for [`crate::combine::pattern_node`]'s reason: the components arrive
 /// as `Expr`s that were checked at their own construction, and whether
 /// each suits the slot it lands in is the edit door's question.
-pub(crate) fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
+pub(crate) fn datum_node(spec: DatumSpec) -> AuthoredNode {
     Node::Datum(match spec {
         DatumSpec::Plane { origin, normal } => Datum::Plane { origin, normal },
         DatumSpec::Axis { origin, direction } => Datum::Axis { origin, direction },
         DatumSpec::Point { position } => Datum::Point { position },
         DatumSpec::Frame { origin, u, v } => Datum::Frame { origin, u, v },
-        DatumSpec::AxisInPlane {
-            plane,
-            origin,
-            direction,
-        } => Datum::AxisInPlane {
-            plane,
-            origin,
-            direction,
+        DatumSpec::FaceFrame { at, face, spin } => Datum::FaceFrame {
+            face: Operand::select(at, vec![face]),
+            spin,
         },
-        DatumSpec::FaceFrame { at, face, spin } => Datum::FaceFrame { at, face, spin },
     })
 }

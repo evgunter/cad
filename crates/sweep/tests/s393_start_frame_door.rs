@@ -11,8 +11,8 @@
 //! 1. the differential itself, over every path this corpus and the
 //!    demo tour sweep — bitwise equal outside the cone, and named
 //!    fixtures inside it;
-//! 2. what the disagreement costs on the one shipped fixture inside
-//!    the cone: the same station rings, a different solid;
+//! 2. the one shipped fixture inside the cone: the same station rings
+//!    under both frames;
 //! 3. why an identity placement is not an alternative on such a path.
 //!
 //! The retired recipe is transcribed here, and only here, because a
@@ -31,10 +31,10 @@ use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use sweep::skin::{segment_curve, sweep_places};
-use sweep::{Lofted, SketchSegment, sweep_body};
+use sweep::test_support::bulge_arc;
+use sweep::{Lofted, sweep_body};
 
 use crate::common;
-use common::orient::ring_centroid;
 use common::{normal_start_place, quad};
 
 /// The retired hand recipe, transcribed: the `0.9` cone picking the
@@ -58,11 +58,7 @@ fn cone_place(path: &NurbsCurve3<f64>) -> Affine3<f64> {
 
 /// The twelve stored numbers of a placement, as bits.
 fn bits12(a: &Affine3<f64>) -> [u64; 12] {
-    let (m, t) = (a.linear, a.translation);
-    [
-        m.c0.x, m.c0.y, m.c0.z, m.c1.x, m.c1.y, m.c1.z, m.c2.x, m.c2.y, m.c2.z, t.x, t.y, t.z,
-    ]
-    .map(f64::to_bits)
+    a.components().map(f64::to_bits)
 }
 
 const S_RADIUS: f64 = 2.0;
@@ -126,16 +122,15 @@ fn lily_spine() -> NurbsCurve3<f64> {
     NurbsCurve3::<f64>::interpolate(&pts, 3).unwrap()
 }
 
-/// The tour's sweep-cell path: one arc converted through the sketch
-/// door, which is how a user gets a path from a sketch segment.
+/// The tour's sweep-cell path: the arc from (0, 0) to (3, 3) with
+/// bulge 0.4, converted through the sketch door. `bulge_arc` lowers it
+/// through the same `arc_to(Bulge)` lowering the tour's lattice-authored
+/// loop does (`demos/tour/src/skinned.rs`), so it is the tour's
+/// segment bit for bit.
 fn tour_arc_path() -> NurbsCurve3<f64> {
     segment_curve(
         0,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(3.0, 3.0),
-            bulge: 0.4,
-        },
+        bulge_arc(Point2::new(0.0, 0.0), Point2::new(3.0, 3.0), 0.4),
         Affine3::identity(),
     )
     .unwrap()
@@ -229,22 +224,17 @@ fn the_door_is_the_retired_cone_recipe_outside_the_cone_and_not_inside() {
     );
 }
 
-/// **The two frames place the same rings and build a different
-/// solid** — the one shipped fixture inside the cone, measured.
+/// **The two frames place the same rings** — the one shipped fixture
+/// inside the cone, measured.
 ///
 /// The retired frame is the door's turned by `R_z(−90°)` about the
 /// start tangent, exactly in the stored bits, and a centred square is
 /// invariant under that turn: every station's ring is the same set of
-/// world points. The body still moves, because the loft's
-/// v-parameterization is the FIRST STRIP's and the turn changes which
-/// profile edge that is — and the kernel's frame lands closer to the
-/// continuum `A·L`.
-///
-/// ANTI-VACUITY: the ring identity and the volume difference are
-/// asserted together. Either alone is satisfiable by a change that did
-/// nothing (identical frames) or by one that moved the material.
+/// world points. That they build the same solid is
+/// `turning_orientation::the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll`,
+/// on exactly this pair of frames.
 #[test]
-fn the_ducts_two_frames_place_the_same_rings_and_build_a_different_body() {
+fn the_ducts_two_frames_place_the_same_rings() {
     let path = inflecting_path();
     let door = normal_start_place(&path);
     let cone = cone_place(&path);
@@ -286,33 +276,6 @@ fn the_ducts_two_frames_place_the_same_rings_and_build_a_different_body() {
         worst < 1e-15,
         "every station's ring must be the SAME set of world points under both \
          frames; worst corner is {worst:e} away from its partner"
-    );
-
-    let (vc, vd) = (
-        volume(&swept_square(&path, cone, stations)),
-        volume(&swept_square(&path, door, stations)),
-    );
-    let a_l = (2.0 * H) * (2.0 * H) * (2.0 * S_RADIUS * FRAC_PI_2);
-    println!("volume: retired {vc:.15}  door {vd:.15}  A.L {a_l:.15}");
-    assert!(
-        (vd - vc).abs() > 1e-6,
-        "the same rings must still build a different solid (the loft's v comes from \
-         the first strip): the two volumes differ by only {:e}",
-        (vd - vc).abs()
-    );
-    assert!(
-        (a_l - vd).abs() < (a_l - vc).abs(),
-        "the kernel's frame must land closer to the continuum A.L = {a_l}: door {vd}, \
-         retired {vc}"
-    );
-    let (cc, cd) = (
-        ring_centroid(&swept_square(&path, cone, stations), 0.5),
-        ring_centroid(&swept_square(&path, door, stations), 0.5),
-    );
-    println!("ring centroid at v = 0.5: retired {cc:?}  door {cd:?}");
-    assert!(
-        (cd - cc).norm() > 1e-3,
-        "v = 0.5 must land somewhere else on the spine under the re-parameterization"
     );
 }
 

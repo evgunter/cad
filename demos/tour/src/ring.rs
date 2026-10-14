@@ -103,16 +103,16 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p2, validated};
-use pncad::document::RefusingReach;
+use pncad::document::{Operand, RefusingReach};
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, MM, Node,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
     PI as HALF_TURN, ProfileProgram, RecipeNodeId, ValuePayload, apply, evaluate,
 };
 // The prefix data lives with the unit TABLE, one hop away from the
 // prelude — the scene converts its own constants with the same factor
 // the table pairs with `mm`, so the two cannot drift.
-use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::quantity::MILLI;
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
@@ -143,7 +143,7 @@ const RI_MM: f64 = 50.0;
 const RI: f64 = RI_MM * MILLI;
 
 /// One concentric circle of the section, centred on the tube axis.
-fn section(radius: f64, tol: Tol) -> ProfileLoop<f64> {
+fn section(radius: f64, tol: Tol) -> ConstructedLoop<f64> {
     pncad::profile::circle(p2(R, 0.0), radius, tol)
         .expect("a positive section radius")
         .into()
@@ -174,23 +174,40 @@ fn through_the_document(tol: Tol) -> Body<f64> {
     }
 }
 
-/// This scene's recipe, as a document the GUI can open.
+/// This scene's recipe, as a document the GUI can open: the revolve,
+/// placed in the world.
 ///
 /// The same document `through_the_document` evaluates — the gallery
 /// hands a reader exactly the recipe this scene's claim rests on.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
-    document(tol).0
+    let (doc, revolved) = document(tol);
+    apply(
+        &doc,
+        &DocEdit::place(Operand::output(revolved, 0), None),
+        tol,
+        &RefusingReach,
+    )
+    .expect("the revolve places")
+    .doc
 }
 
 /// The ring's recipe and its revolve node.
 fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     // Written in millimetres: the value crosses in canonical metres,
     // and the literal keeps the notation it was authored in.
-    let mm = |v: f64| Expr::length_in(v, MM).expect("a length in millimetres");
+    let mm = |v: f64| Formula::length_in(v, MM).expect("a length in millimetres");
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("hollow-ring", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
-            .expect("the edit applies");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode {
+                node,
+                fresh: Vec::new(),
+            },
+            tol,
+            &RefusingReach,
+        )
+        .expect("the edit applies");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };
@@ -198,50 +215,43 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         centre: [mm(R_MM), mm(0.0)],
         radius: mm(r_mm),
     };
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
     let plane = insert(
         &mut doc,
-        Node::Datum(Datum::Frame {
+        Box::new(Node::Datum(Datum::Frame {
             origin: [mm(0.0), mm(0.0), mm(0.0)],
             u: [scl(1.0), scl(0.0), scl(0.0)],
             v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        })),
     );
     let profile = insert(
         &mut doc,
-        Node::Profile(ProfileProgram {
-            plane,
+        Box::new(Node::Profile(ProfileProgram {
+            frame: plane.into(),
             // Outer first, then the holes: the list IS the hole
             // vocabulary, and nothing else here mentions one.
             loops: vec![circle(RO_MM), circle(RI_MM)],
             ids: Vec::new(),
-        }),
-    );
-    // The axis of revolution, written in the sketch it turns: the
-    // frame's v is world +Y, so this is its own +y through (0, 0).
-    // Four numbers in the frame's coordinates rather than six in the
-    // world's — and no way to write one that leaves the plane.
-    let axis = insert(
-        &mut doc,
-        Node::Datum(Datum::AxisInPlane {
-            plane,
-            origin: [mm(0.0), mm(0.0)],
-            direction: [
-                Expr::literal(0.0, Dimension::Scalar).expect("a scalar"),
-                Expr::literal(1.0, Dimension::Scalar).expect("a scalar"),
-            ],
-        }),
+        })),
     );
     let revolved = insert(
         &mut doc,
-        Node::Revolve {
-            profile,
-            axis,
+        Box::new(Node::Revolve {
+            profile: profile.into(),
+            // The axis of revolution, written in the sketch it turns:
+            // the frame's v is world +Y, so this is its own +y through
+            // (0, 0). Four numbers in the sketch's coordinates, with no
+            // way to write one that leaves its plane.
+            axis_origin: [mm(0.0), mm(0.0)],
+            axis_direction: [
+                Formula::literal(0.0, Dimension::Scalar).expect("a scalar"),
+                Formula::literal(1.0, Dimension::Scalar).expect("a scalar"),
+            ],
             // A full turn, written as one: the half-turn row is a
             // NOTATION carried as a unit, so the recipe says `2 pi rad`
             // where it would otherwise say `6.283185307179586 rad`.
-            angle: Expr::angle_in(2.0, HALF_TURN).expect("a full turn"),
-        },
+            angle: Formula::angle_in(2.0, HALF_TURN).expect("a full turn"),
+        }),
     );
     (doc, revolved)
 }

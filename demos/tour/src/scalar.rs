@@ -18,10 +18,12 @@ use pncad::geom_core::Decide;
 #[cfg(feature = "probe")]
 use pncad::geom_core::Probe;
 
-/// The K funnel name the tour's authored frame axes are decided under.
+/// The K funnel name the tour's authored frame axes and cut directions
+/// are decided under.
 ///
-/// A scene that wants a sketch plane off the three world frames has to
-/// mint the frame witness, and the mint asks for a funnel name — which
+/// A scene that wants a sketch plane off the three world frames, or a
+/// split plane, has to mint a witness, and the mint asks for a funnel
+/// name — which
 /// a demo, as an outside consumer, has to invent. One name for the
 /// whole tour, because which scene asked is not what a K reader is
 /// after.
@@ -31,7 +33,7 @@ pub const TOUR_FRAME_AXIS: &str = "tour_frame_axis";
 /// the run's band.
 ///
 /// The library's decision-free frames are the three world ones
-/// (`OrthoFrame::axes_xy` and its siblings); anything else — a plane
+/// (`RigidMotion::axes_xy` and its siblings); anything else — a plane
 /// spanned by x̂ and ẑ, a plane rolled about a stem — goes through the
 /// Gram–Schmidt mint, which IS a decision and so wants a band and a
 /// funnel name. This is the tour writing that out once instead of at
@@ -63,8 +65,8 @@ pub fn authored_frame<S: Scalar>(
     u: pncad::geom_core::Vec3<S>,
     v: pncad::geom_core::Vec3<S>,
     tol: pncad::geom_core::Tol,
-) -> pncad::geom_core::OrthoFrame<S> {
-    pncad::geom_core::OrthoFrame::gram_schmidt(
+) -> pncad::geom_core::RigidMotion<S> {
+    pncad::geom_core::RigidMotion::gram_schmidt(
         origin,
         u,
         v,
@@ -83,7 +85,7 @@ pub fn authored_frame<S: Scalar>(
 /// verbatim — and the reference yields whatever component of it lies
 /// along the axis, so a scene states the roll it means rather than a
 /// vector it has had to make perpendicular by hand. That is the whole
-/// helper: one call to `OrthoFrame::from_axis_and_reference`, wearing
+/// helper: one call to `RigidMotion::from_axis_and_reference`, wearing
 /// the tour's band and funnel name.
 ///
 /// # Panics
@@ -95,8 +97,8 @@ pub fn axis_frame<S: Scalar>(
     axis: pncad::geom_core::Vec3<S>,
     u_ref: pncad::geom_core::Vec3<S>,
     tol: pncad::geom_core::Tol,
-) -> pncad::geom_core::OrthoFrame<S> {
-    pncad::geom_core::OrthoFrame::from_axis_and_reference(
+) -> pncad::geom_core::RigidMotion<S> {
+    pncad::geom_core::RigidMotion::from_axis_and_reference(
         center,
         axis,
         u_ref,
@@ -104,6 +106,31 @@ pub fn axis_frame<S: Scalar>(
         pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band"),
     )
     .expect("the scene's spine axis has a direction and its reference radial is off it")
+}
+
+/// **A split plane through `origin` across the authored direction
+/// `dir`**, the direction's length decided at the run's band.
+///
+/// `SplitPlane` takes a `UnitVec3`, and the kernel has no door from a
+/// point and a direction, so a scene that cuts writes the mint — band,
+/// funnel name and all — itself; this is the tour writing it once. The
+/// friction is recorded at `work/issues/kernel-split-plane-has-no-direction-door.md`.
+///
+/// # Panics
+///
+/// If the band cannot be formed, or if `dir` has no length — every
+/// scene here authors one that does.
+pub fn split_plane<S: Scalar>(
+    origin: pncad::geom_core::Point3<S>,
+    dir: pncad::geom_core::Vec3<S>,
+    tol: pncad::geom_core::Tol,
+) -> pncad::topo::splitting::SplitPlane<S> {
+    let band = pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band");
+    pncad::topo::splitting::SplitPlane {
+        origin,
+        normal: pncad::geom_core::UnitVec3::new(dir, TOUR_FRAME_AXIS, band)
+            .expect("the scene's cut direction has a length"),
+    }
 }
 
 /// A scalar the tour can build scenes at: kernel-decidable, certifying

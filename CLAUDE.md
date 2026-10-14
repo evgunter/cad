@@ -20,7 +20,8 @@ client over the API), functional style, fail-loud.
   `docs/prompts/reviewer-style-lane.md` and
   `docs/prompts/designer.md` — the standing discipline handed
   to every implementer, reviewer and designer lane by path.
-  **Orchestrators read all three in full**: they are the rules the orchestrator adjudicates
+  **Orchestrators read all three in full, and again after every
+  compaction**: they are the rules the orchestrator adjudicates
   against, and they bind the orchestrator's own judgement too (e.g. a
   golden or stored bit that changes is never a cost to weigh against a
   change that makes the code right — re-baseline and say what moved).
@@ -63,6 +64,11 @@ sets `needs_ev: true` ("Ev's channel" in `work/README.md`).
 - Ev answers in the PR's comments, so arrange to be woken by them (a PR
   subscription on a remote box, the away-channel monitor locally).
   Never ask on a merged PR: Ev does not scan them.
+- **A blocking question about an open PR goes on that PR** (Ev,
+  2026-10-13): add `[ev]` to its title and put the one question at
+  the top of its body, then take the `[ev]` off again once Ev has
+  answered. A question asked only in a session's chat is not seen
+  promptly.
 - **No status scaffolding in the diff** (Ev, 2026-09-21): "proposed",
   "pending sign-off" or "awaits ratification" only has to come out
   again before merging. The title, the PR body and `needs_ev:` carry
@@ -92,6 +98,12 @@ sets `needs_ev: true` ("Ev's channel" in `work/README.md`).
 Design decisions get discussed in chat, refined through Ev's pushback,
 then ratified into `docs/DESIGN.md` and committed — keep the doc synced.
 Details: `memories/cad-working-style.md`, `memories/ev-profile.md`.
+
+**Ignore 7-day usage warnings.** They currently fire when 20% of the
+weekly usage remains, which is about enough for an entire program, so
+a warning is no reason to stop, shrink or hand back work. If there is
+evidence they no longer fire at 20% remaining, open an `[ev]` PR
+changing this note.
 
 ## Git workflow
 

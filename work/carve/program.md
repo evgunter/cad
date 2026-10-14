@@ -13,22 +13,30 @@ keep_out: [OPENED 2026-09-17 in BLEND's cut as its one successor on BLEND's grou
 priority: P1
 ---
 
-**The loft and sweep path's own bodies, after the 2026-09-20 cut**, and
-specifically the ones it builds when it should refuse. A loft or sweep
-whose spine revisits itself — a planar arc past a full turn — builds
-and validates. A two-section loft whose top section's plane normal
-points DOWN, against the sweep, builds. `loft_geometry` takes the whole
-surface's `v` from the first strip, so a section authored rolled
-relative to the first changes the body rather than being rejected or
-normalised. `skin.rs` refuses coincident sections by a bare `f64`
-strict comparison, which is the unmargined predicate Q1 forbids.
+**The loft and sweep path's own bodies**, and specifically the ones
+it builds when it should refuse. The 2026-10-06 sitting closed six of
+the seven P0 rows on that charter (the loft's v, its coincident
+sections, its far normal, the cap winding, the surface pair's order,
+the self-closed link). The seventh, a spine that revisits itself,
+waits on the clearance certificate.
+
+What is left is what those units' reviews found behind them:
+
+- a reflected section frame that passes both stacking decides;
+- a wall pinned between two sections that refuses at the wrong door;
+- the sweep frame law, which spins a section near anti-parallel;
+- the loft's caps and rational corner rows, which are not yet free of
+  the authored spelling;
+- the sweep verbs' arm escalations, which still read as the wedge's
+  sliver.
 
 These are the expensive failures: not a refusal a user can work
 around, but a body they will carry downstream believing it sound.
 
 CARVE was cut on 2026-09-20 (Ev, in chat) from 73 budget points into
 three tracks meant to run in parallel: BAND (the blend and rim bands),
-STRUT (one sweep rule with several homes) and this remainder. CARVE
-keeps its band 5600-5699.
+STRUT (one sweep rule with several homes) and this remainder. Its
+later priority-seam cuts opened CARVETAIL (2026-10-06) and CARVEREST
+(2026-10-10). CARVE keeps its band 5600-5699.
 
 Charter and order: `work/carve/plan.md`; narrative in `work/carve/log.md`.

@@ -50,3 +50,7 @@ diff added a hardcoded per-kind sentence twelve lines away**. That is
 exactly where it says it lands, and only a reader who did not write
 the fix caught it. Where else to look, per the reviewer:
 `add_profile_ui`'s `blocked` strings in the same file.
+
+## Note (INTENT stage 3 A, 2026-10-10)
+
+The `AxisInPlane` arm is gone: INTENT stage 3 A removed the axis-in-sketch datum kind from the add-datum form, since a revolve writes its axis on itself.

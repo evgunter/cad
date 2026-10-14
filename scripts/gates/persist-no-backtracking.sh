@@ -45,14 +45,17 @@
 # green. A gate that reddened on its own explanation would be deleted
 # within a week.
 #
-# THE ALLOWLIST is one `deserialize_with`: `persist::wire`'s
-# `plane_ref`, a single `deserialize_u64` with one `visit_u64` and no
-# fallback of any kind. It is allowed by its FULL PATH, the spelling
-# `program.rs` uses (`crate::persist::wire::plane_ref`), so a second
-# `deserialize_with` — including a bare `"plane_ref"` naming some other
-# module's function — reds and wants a human, as does a `plane_ref`
-# rewritten to try something else. Widening this list is a decision
-# about the refusal channel's soundness, not a formatting fix.
+# THE ALLOWLIST is two `deserialize_with`s: `persist::wire`'s
+# `plane_ref`, a single `deserialize_u64` with one `visit_u64`, and its
+# `present`, a single `Option::deserialize` that makes an `Option`
+# field's KEY required (an instance's `gauge` and `offset`) — neither
+# with a fallback of any kind. Each is allowed by its FULL PATH, the
+# spelling its field uses (`crate::persist::wire::plane_ref`,
+# `crate::persist::wire::present`), so a third `deserialize_with` —
+# including a bare `"plane_ref"` naming some other module's function —
+# reds and wants a human, as does either rewritten to try something
+# else. Widening this list is a decision about the refusal channel's
+# soundness, not a formatting fix.
 #
 # WHAT IT STILL CANNOT SEE (stated because a sweep whose blind spot is
 # unstated is an unverified claim, §C15):
@@ -81,8 +84,8 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 SCAN_DIR=crates/editor-core/src
-# The one sanctioned `deserialize_with`, by the full path it names.
-ALLOWED_WITH='deserialize_with[[:space:]]*=[[:space:]]*"crate::persist::wire::plane_ref"'
+# The two sanctioned `deserialize_with`s, by the full paths they name.
+ALLOWED_WITH='deserialize_with[[:space:]]*=[[:space:]]*"crate::persist::wire::(plane_ref|present)"'
 
 PAT_UNTAGGED='#\[serde\([^]]*untagged'
 PAT_OTHER='#\[serde\([^]]*other[[:space:]]*[,)]'

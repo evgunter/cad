@@ -5,7 +5,7 @@
 use crate::corpus;
 use crate::fixture;
 
-use corpus::{body_of, cup, eval, failures, vessel};
+use corpus::{body_of, cup, eval, failures};
 use editor_core::{
     DocEdit, EntityKind, Node, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName,
     apply, evaluate,
@@ -13,7 +13,7 @@ use editor_core::{
 use geom_core::Tol;
 
 fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -40,6 +40,7 @@ fn a_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
     let out = apply(
         &doc,
         &DocEdit::Rebind {
+            body: doc.output(blank, 0),
             from: bottom.clone(),
             to: top.clone(),
         },
@@ -50,12 +51,17 @@ fn a_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
     let Some(Node::Shell { open, .. }) = out.doc.node(shell) else {
         panic!("shell gone")
     };
-    assert_eq!(open, &vec![top.clone()], "shrank to the earlier position");
+    assert_eq!(
+        fixture::selected(&out.doc, *open),
+        vec![top.clone()],
+        "shrank to the earlier position"
+    );
 
     // And the other direction: rebind the FIRST onto the SECOND.
     let out2 = apply(
         &doc,
         &DocEdit::Rebind {
+            body: doc.output(blank, 0),
             from: top.clone(),
             to: bottom.clone(),
         },
@@ -67,72 +73,10 @@ fn a_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
         panic!("shell gone")
     };
     // Both entries become `bottom`; first occurrence kept => position 0.
-    assert_eq!(open, &vec![bottom.clone()], "collapsed at position 0");
-}
-
-/// DISPATCHER: is the rim identity really ONLY the first name's?
-/// Swap the order and compare everything else observable.
-#[test]
-fn an_order_swap_changes_only_the_rim_name() {
-    let a = vessel::document();
-    let b = vessel::document_with_open(|doc, pot| {
-        [
-            editor_core::band_pi(pot, vessel::mouth(doc, pot)),
-            editor_core::band(pot, vessel::mouth(doc, pot)),
-        ]
-    });
-    let (sa, sb) = (a.result.unwrap(), b.result.unwrap());
-    let (ea, eb) = (eval::<f64>(&a.doc), eval::<f64>(&b.doc));
-    assert!(failures(&ea).is_empty());
-    assert!(failures(&eb).is_empty());
-    let (ba, bb) = (body_of(&ea, sa), body_of(&eb, sb));
-    let ma = topo::mass_properties(ba, Tol::witness()).unwrap();
-    let mb = topo::mass_properties(bb, Tol::witness()).unwrap();
-    assert_eq!(ma.volume, mb.volume, "volume must not move");
-    assert_eq!(ma.surface_area, mb.surface_area, "area must not move");
-    assert_eq!(ba.faces().count(), bb.faces().count());
-    assert_eq!(ba.edges().count(), bb.edges().count());
-    assert_eq!(ba.vertices().count(), bb.vertices().count());
-    // Every OTHER name: the two tables must agree except on the rim.
-    let names_a: std::collections::BTreeSet<String> = ea
-        .value(sa)
-        .unwrap()
-        .name_table
-        .iter()
-        .map(|(n, _)| format!("{n:?}"))
-        .collect();
-    let names_b: std::collections::BTreeSet<String> = eb
-        .value(sb)
-        .unwrap()
-        .name_table
-        .iter()
-        .map(|(n, _)| format!("{n:?}"))
-        .collect();
-    let only_a: Vec<_> = names_a.difference(&names_b).collect();
-    let only_b: Vec<_> = names_b.difference(&names_a).collect();
-    assert_eq!(only_a.len(), 1, "exactly one name differs");
-    assert_eq!(only_b.len(), 1, "exactly one name differs");
-    // And the one name that differs is the rim, named for the FIRST
-    // designated half under either order.
-    let pot = a.doc.node(sa).map(|n| n.inputs()[0]).unwrap();
-    let rim = |shell, half: StableName| StableName {
-        kind: EntityKind::Face,
-        node: shell,
-        path: vec![RoleSeg::Rim(half.into())],
-    };
     assert_eq!(
-        only_a,
-        vec![&format!(
-            "{:?}",
-            rim(sa, editor_core::band(pot, vessel::mouth(&a.doc, pot)))
-        )]
-    );
-    assert_eq!(
-        only_b,
-        vec![&format!(
-            "{:?}",
-            rim(sb, editor_core::band_pi(pot, vessel::mouth(&b.doc, pot)))
-        )]
+        fixture::selected(&out2.doc, *open),
+        vec![bottom.clone()],
+        "collapsed at position 0"
     );
 }
 
@@ -150,7 +94,8 @@ fn a_thick_wall_bump_builds_below_half_the_side_and_refuses_at_it() {
             &DocEdit::SetParam {
                 node: shell,
                 slot: SlotId::ShellThickness,
-                expr: fixture::len(t),
+                value: fixture::len(t).into(),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -240,6 +185,7 @@ fn the_rim_follows_a_rebound_designation() {
     let out = apply(
         &d.doc,
         &DocEdit::Rebind {
+            body: d.doc.output(blank, 0),
             from: cup::top(blank),
             to: cup::bottom(blank),
         },
@@ -278,7 +224,8 @@ fn a_thickness_only_edit_moves_the_content_key_and_the_memo() {
         &DocEdit::SetParam {
             node: shell,
             slot: SlotId::ShellThickness,
-            expr: fixture::len(cup::T_BUMPED),
+            value: fixture::len(cup::T_BUMPED).into(),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
