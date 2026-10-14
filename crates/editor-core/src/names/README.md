@@ -231,7 +231,10 @@ The qualifier depends on what was split:
 - **A face piece of a boolean or union** takes `Qualifier::Borders`: the sorted
   set of the piece's divider walls, the faces across its seam edges where it
   meets an obstacle that divides the parent, each cited by its parent's name.
-  An obstacle is a connected part of the parent's region that no piece holds;
+  An obstacle is a connected part of the parent's region that no piece holds,
+  connected through its closure: two lost regions that meet only at a point
+  are one obstacle, whether that point survives as a vertex or the output
+  stage joins it away, so a name reads nothing off where a dead vertex sat;
   it divides the parent when it borders two or more pieces, so a boss or notch
   on one piece is never cited and nothing in a piece's name lies beyond its
   own boundary. Pieces with equal sets are N4's tie.

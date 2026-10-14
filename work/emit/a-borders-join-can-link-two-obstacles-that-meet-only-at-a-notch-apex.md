@@ -7,6 +7,7 @@ opened: 2026-10-13
 priority: P3
 cost: M
 design: true
+needs_ev: true
 ---
 
 
@@ -45,10 +46,11 @@ every member order and pin today's reading.
   - the plate notched at (1.5, 1.2);
   - `m` = [−1, 2] × [1.2, 3] × [0.5, 1.5];
   - `s` = [0.6, 0.8] × [−1, 1.3] × [0.47, 1.53].
-- The kernel discards the top's two regions beyond `m`'s wall as **one
-  face**. Its record borders (2, 1.2)→apex and apex→(0, 1.2), both
-  through the join, and the `x = 2` seam. So no join chase is involved:
-  the over-join is inside one `DiscardRow`.
+- The kernel discards the top's two regions beyond `m`'s wall as **two
+  faces** in every member order, neither loop passing the apex twice
+  (re-measured by both designers of fork-log row 142, 2026-10-14). What
+  links them is the output stage's join at the apex: both regions'
+  stretches settle on the one joined edge.
 - The top's right piece reads {`m:x=2.00`, `m:y=1.20`, `s:x=0.80`}.
   With the two regions read as two obstacles it would be
   {`m:y=1.20`, `s:x=0.80`}.
@@ -66,10 +68,7 @@ every member order and pin today's reading.
 
 **What a fix needs, either way.** Reading the two regions as two
 obstacles takes both of:
-1. A discarded face pinched at a vertex of its own boundary, recorded
-   per connected part: its bordered stretches and chains grouped by the
-   side of the pinch they lie on. This is a topo record; the loop walk
-   knows it.
+1. (Moot: the kernel never discards the regions as one pinched face.)
 2. A joined edge's stretches kept apart after the join: where on the
    kept edge the joined-away vertex lay, so that a later piece of that
    edge is attributed to the stretch it lies along. The vertex is dead
@@ -77,23 +76,31 @@ obstacles takes both of:
    already read one, along a line by its own parameter) or a topo
    record of the vertex's point carried through later splits.
 
-## The question
+## The question (to Ev, fork-log row 142)
 
-N2: "An obstacle is a connected part of the parent's region that no
-piece holds." Does a region that meets itself only at a point count
-as connected?
+N2 says "an obstacle is a connected part of the parent's region that no
+piece holds". Is a region that meets another only at a point connected
+to it? The `[ev]` PR proposes "connected through its closure", which
+the designer pair converged on, and states it in N2.
 
-- **(a) Yes, the closure is connected.**
-  - Today's names are right, and the two fixtures above are the pins.
-  - N2's text says "connected through its closure", or "meeting at a
-    point counts".
-  - Cost: a piece cites the walls of a region that meets the divider
-    only at a point.
-- **(b) No, interior-connected.**
-  - Both steps above are needed. Step 2 puts a parameter read or a
-    point record into the naming record.
-  - The two fixtures flip to `{m:y=1.20, s:x=0.80}`.
+**A wall through the apex** (measured by both designers): a splitter
+`s2` whose wall ends at the apex makes today's names depend on member
+order. The left piece reads {`m:y=1.20`, `s2:x=1.50`} in 2 of 6 orders
+(the apex is joined away, so the join chase links the two regions) and
+{`s2:x=1.50`} in the other 4 (the apex stays a live vertex, and nothing
+links two discards that share only a live vertex). So "keep today's
+names" is not a coherent option under either reading.
 
-This row's other premise has the same answer as the question. That
-premise is the `touches` walk, which links a later chain edge to an
-earlier discard through a joined edge.
+**What closure needs** (prototyped in `borders.rs` only, by one
+designer): each `Discard` keeps its stretch-end vertices, canonicalised
+through the step's `null_copies`, `cone_splits` and `graft_vertices`,
+and `walls` joins discards that share one. All six `s2` orders then
+read left {`m:y=1.20`, `s2:x=1.50`}, right {`m:x=2.00`, `m:y=1.20`,
+`s2:x=1.70`}. The notch fixtures do not move. `emit_union_borders`,
+`name_words_corpus`, `emit_union_rim_piece_ranks`,
+`emit_union_flush_names`, `emit_shared_rim_several` and
+`union_member_orders_decide_alike` stay green. No new kernel record,
+no parameter read, nothing refuses.
+
+**The cost of closure:** a boss whose corner exactly touches a divider
+becomes part of it, and is cited.
