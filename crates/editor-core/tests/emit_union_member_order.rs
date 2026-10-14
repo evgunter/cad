@@ -498,7 +498,7 @@ fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
 /// to `a`'s top, −0.1 sinks it, 0.1 lifts it clear), and `c` rising
 /// through `a`'s top across `b`'s far end, its x = 1.2 wall cutting
 /// `b`'s y = 0.25 bottom rim.
-fn glued_rim(lift: f64) -> impl Fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn glued_rim(lift: f64) -> impl Fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     move |doc| {
         let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 1.0 + lift, 0.5);
