@@ -1,17 +1,22 @@
-//! **The carve that takes a feature wholly inside a convex straight
-//! band's material** — the ruled band's or the plane–plane band's, cut
-//! off at its two end faces: predicate 2's inside verdict
-//! (`reach::Consumed`), built.
+//! **The carve that takes a feature wholly inside a straight band's
+//! material** — the ruled band's or the plane–plane band's, cut off at
+//! its two end faces: predicate 2's inside verdict (`reach::Consumed`),
+//! built.
 //!
 //! A feature is a connected set of faces, joined by the edges they
 //! share. The carve takes each whole, as a Boolean takes a feature
 //! wholly inside its tool, or refuses the request `WhollyInside` before
 //! any mutation ([`plan`]). The shape it builds is a through-feature
 //! between the band's two caps: faces read inside the prism the band
-//! removes, bounded only by each other and by one cycle on each cap that
-//! the cap's meter read inside its sliver. Its faces, edges and vertices
-//! go; the two cycles leave their caps, and the slivers they lay in go
-//! with the cut-off.
+//! removes (convex) or fills (concave), bounded only by each other and
+//! by one cycle on each cap that the cap's meter read inside its sliver
+//! — a bore under a convex band, a bar under a concave one. Its faces,
+//! edges and vertices go; the two cycles leave their caps, and the
+//! slivers they lay in go with the cut-off, cut away or buried. The
+//! walk reads no material side: the feature's faces, closed by the two
+//! discs its cycles bound, enclose a region inside the prism (whose
+//! complement is connected), so `S − M` and `S ∪ F` are the same with
+//! the feature taken first.
 //!
 //! The walk, per feature, on the clone before the band is carved
 //! ([`consume`]): the cycle on one cap is promoted to a plug face

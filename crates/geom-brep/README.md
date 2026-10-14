@@ -693,10 +693,11 @@ does not blend), which needs the plan's feet: it runs in the surgery
 after predicate 6 and before any mutation. Face clearance reads each face
 three ways, not two: clear of the band's material, wholly inside it (the
 face goes with that material, as a face wholly inside a Boolean's tool
-does), or crossing it (refused). At a convex straight band's cut-off
-(the ruled fillet's, the plane–plane fillet's and chamfer's) the carve
-takes a through-feature wholly inside the material, between the band's
-two caps; a feature read wholly inside anywhere else (a void or an
+does), or crossing it (refused). At a straight band's cut-off (the
+ruled fillet's, the plane–plane fillet's and chamfer's) the carve takes
+a through-feature wholly inside the material the band removes or fills,
+between the band's two caps: a bore under a convex band, a bar under a
+concave one; a feature read wholly inside anywhere else (a void or an
 island with no cap cycle) refuses `WhollyInside`, and a hole whose
 mouth a concave fill covers, which is not wholly inside, refuses as a
 bound where its wall meets the end face's plane. Every constant-radius arm
