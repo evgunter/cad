@@ -80,8 +80,8 @@ fn ders1_meter() {
             Curve3::Ellipse {
                 center,
                 axis,
-                major: 2.5,
-                minor: 1.0,
+                semi_u: 2.5,
+                semi_v: 1.0,
                 u_ref,
             },
         ),

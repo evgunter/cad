@@ -193,17 +193,20 @@ fn overlapping_pairs<T: Decide + Bounds>(
     Ok(out)
 }
 
-/// **The coaxial cylinder×sphere pairs of the two operands**, one row
-/// each: the sphere's centre decided on the cylinder's axis by its
-/// margin (`geom_brep::cylinder_sphere_section`), the classification
-/// the join's germ frame reads for the pair. In A's face order and B's
-/// within each; none where the operation's verdicts are given.
+/// **The coincidences the join's germ frames read, per face pair of
+/// the two operands**: a coaxial cylinder×sphere pair's one row, the
+/// sphere's centre decided on the cylinder's axis by its margin
+/// (`geom_brep::cylinder_sphere_section`); and a crossing cylinder
+/// pair's two rows, its radii decided equal and its axes decided
+/// meeting ([`super::join::crossing_cylinder_margins`]), the
+/// classification the join's bisector lane reads. In A's face order and
+/// B's within each; none where the operation's verdicts are given.
 ///
 /// # Errors
 ///
 /// A face box's own refusal; [`BooleanError::ClassificationInvariant`]
 /// where the face tree returns an index past its input.
-pub(crate) fn coaxial_rows<T: Decide + Bounds>(
+pub(crate) fn frame_rows<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &Glue,
@@ -223,6 +226,16 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
             geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
         )
     };
+    let row = |(fa, fb), relation, site, margin| crate::Coincidence {
+        cells: [
+            crate::RowCell::face(Operand::A, fa),
+            crate::RowCell::face(Operand::B, fb),
+        ],
+        relation,
+        site,
+        margin,
+        discharge: crate::Discharge::of(margin),
+    };
     let mut rows = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, curved, band)? {
         let (Some(sa), Some(sb)) = (surface(a, fa), surface(b, fb)) else {
@@ -235,21 +248,27 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
             (geom::Surface::Sphere { .. }, geom::Surface::Cylinder { .. }) => {
                 geom_brep::cylinder_sphere_section(&sb, &sa, band)
             }
+            (geom::Surface::Cylinder { .. }, geom::Surface::Cylinder { .. }) => {
+                if let Some([radii, meet]) =
+                    super::join::crossing_cylinder_margins((a, fa), (b, fb), band)
+                {
+                    let site = crate::DecisionSite::CrossingCylinders;
+                    rows.push(row((fa, fb), crate::Relation::SameRadius, site, radii));
+                    rows.push(row((fa, fb), crate::Relation::AxesMeet, site, meet));
+                }
+                continue;
+            }
             _ => continue,
         };
         // A refusal adds no row: where the faces meet, a later decision
         // refuses (`hone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         if let Ok((_, margin)) = section {
-            rows.push(crate::Coincidence {
-                cells: [
-                    crate::RowCell::face(Operand::A, fa),
-                    crate::RowCell::face(Operand::B, fb),
-                ],
-                relation: crate::Relation::OnCarrier,
-                site: crate::DecisionSite::CoaxialSphere,
+            rows.push(row(
+                (fa, fb),
+                crate::Relation::OnCarrier,
+                crate::DecisionSite::CoaxialSphere,
                 margin,
-                discharge: crate::Discharge::of(margin),
-            });
+            ));
         }
     }
     Ok(rows)

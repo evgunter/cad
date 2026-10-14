@@ -1548,3 +1548,30 @@ coincidence is now a margined verdict (no declarations), checked by the
   - The ssiarith fuzz red `rigid-map-chart-readings-fuzz-reds-past-its-rounding-bound` reproduces on main.
   - The review and fix pass went through a takeover lane after a container restart.
   (ENCL orchestrator)
+- 2026-10-14 — **Seam (NURBS): PR 5034 merged at `67a9bb4e`.** It touches `crates/geom-brep/src/patch_bound.rs`, in the meter row `the_meter_sups_bound_every_sampled_magnitude` only.
+  - **`SPEED_CEILING` is `1 + 1e-12` (was a measured slack).** Each coefficient vector lies in the cell's box on both arms: the integral arm's derived control vectors and the rational arm's ratios `ã_k/b_k`. So the vector sup is never above the box reading in ℝ (measured at most `1 + 4.5e-16`).
+  - **Witness:** a `1e-9` loosening of `certified_sup` or `window_norm_sup` turns the row red; a `1e-13` one does not.
+  - **`M_CEILING` stays `1.13`.** The integral `m_sup` measures `1.024`.
+  - **Not taken from `encl/one-chart-speed`:**
+    - the f64 `screened_max`/`vectors_sup` screen and its fuzz: the window norms it speeds up are now a few percent of the integral arm, where the area floor is 87%;
+    - the subnormal carry row: no `pair_norm_sup` exists on main.
+  - **Closed:** `work/nurbs/other-rational-speed-readings-read-relaxed-quotient-recipes.md`.
+  (NURBS build A)
+- 2026-10-14 — **Merged PR 5101.** One definite reading now ends one way at rest, whichever arm routes it.
+  - Lever decisions end in the lever plus the note.
+  - Contradiction decisions end in the defect ending, at rest and at the door past ε_in.
+  - geom-core `SizedWords` gains `refused: RefusedReading { AsShown, ContradictsStoredData }`, a closed choice; geom-core spells the defect ending itself.
+  - `reporting-margin-door.sh` allows `ContradictsStoredData` and `sign_certain_recourse` only in `geom-brep/src/recourse.rs`.
+  - The door within ε_in ignores the choice (pinned).
+  - Filed:
+    - encl `a-proven-zero-is-definite-yet-ends-as-no-size-at-rest` (design);
+    - encl `pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache`;
+    - encl `a-definite-reading-within-eps-in-ends-two-ways-at-the-import-door`;
+    - restfront `an-at-rest-certify-lead-calls-a-gates-definite-rejection-undecided`;
+    - guard `loop-boundary-discards-selftest-fails-on-a-clean-tree`, which is red on main and not ours.
+  (ENCL orchestrator)
+- 2026-10-14 — **Design fork on the proven zero** (`a-proven-zero-is-definite-yet-ends-as-no-size-at-rest`). One designer pair ran three rounds: they disagreed, crossed, then converged. The converged answer is a three-valued kind per sized decision (lever / stored contradiction / unminted), read by both the no-size and the refused class. It clarifies D4 ¶1 (iv), so it went to Ev as `[ev]` PR 5134 (fork-log row 142). Code waits for Ev's answer.
+  - The blinding byte and every report are on `analysis/design-fork/proven-zero`.
+  - The designer A dispatch was lost to a container restart and re-dispatched with the same brief.
+  - Found on the way: PR 5101's body was wrong that `NotTransverse` at rest "was already the defect ending". A Transversality or TangentSecondOrder zero verdict at rest still ends in the lever alone.
+  (ENCL orchestrator)

@@ -1192,7 +1192,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
 /// flankers' arm `arm`: the membership tie on a curved flank (the
 /// review's probe, undeclared).
 fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
-    use super::super::recl::resolve_edge_edge;
+    use super::super::recl::{Wedge, resolve_edge_edge};
     use super::super::sectors::BoolSector;
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
@@ -1239,16 +1239,18 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
     };
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
+    let (sa, sb) = (corner(fca), corner(fcb));
     resolve_edge_edge(
-        &corner(fca),
-        &corner(fcb),
+        &sa,
+        &sb,
         &ca,
         &cb,
         super::super::BooleanOp::Union,
         &declared,
         band(),
-        0,
-        0,
+        Wedge::at_bound(&sa, 0),
+        Wedge::at_bound(&sb, 0),
+        None,
     )
     .map(|_| ())
 }
@@ -1551,8 +1553,8 @@ fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
     let ellipse = geom::Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let half = D / (2.0 * minor);
@@ -1717,6 +1719,7 @@ fn germ_facing(lean: f64) -> Result<(), BooleanError> {
         a_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
         b_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
         dir,
+        branch: super::super::Branch::Only,
     };
     let (p1, p2) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     let g1 = germ(Vec3::new(lean, 1.0, 0.0).normalize());
@@ -1734,7 +1737,7 @@ fn planar_flank_membership(against: bool, rest: bool) -> Result<(), BooleanError
 
 /// [`planar_flank_membership`] at the flankers' arm `arm`.
 fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(), BooleanError> {
-    use super::super::recl::resolve_edge_edge;
+    use super::super::recl::{Wedge, resolve_edge_edge};
     use super::super::sectors::BoolSector;
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
@@ -1774,16 +1777,19 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     };
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
     let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, band())?;
+    let sa = [sector(z, x, fa), sector(x, z, fa)];
+    let sb = [sector(z, flank, fb), sector(flank, z, fb)];
     resolve_edge_edge(
-        &[sector(z, x, fa), sector(x, z, fa)],
-        &[sector(z, flank, fb), sector(flank, z, fb)],
+        &sa,
+        &sb,
         &pa.body,
         &pb.body,
         super::super::BooleanOp::Union,
         &declared,
         band(),
-        0,
-        0,
+        Wedge::at_bound(&sa, 0),
+        Wedge::at_bound(&sb, 0),
+        None,
     )
     .map(|_| ())
 }
@@ -2641,7 +2647,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
-    ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
+    (
+        "circle_torus.rs",
+        "circle_torus_roots",
+        "BooleanDecision::ArcTorusRoots",
+        1,
+    ),
     (
         "circle_torus.rs",
         "escalated",

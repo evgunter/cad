@@ -87,10 +87,10 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
-        } => arc(center, u_ref * major, axis.cross(u_ref) * minor, (t0, t1)),
+        } => arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1)),
         _ => unreachable!("the rows twin a line, a circle or an ellipse"),
     }
     .unwrap();
@@ -144,8 +144,8 @@ fn ellipse() -> (Curve3<f64>, Surface<f64>) {
         Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.4),
             axis,
-            major: s,
-            minor: 1.0,
+            semi_u: s,
+            semi_v: 1.0,
             u_ref: Vec3::new(1.0 / s, 0.0, k / s),
         },
         Surface::Plane {

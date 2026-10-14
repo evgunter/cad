@@ -19,11 +19,12 @@ use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use super::{ball_off_face, clusters, edge_clear_of_ball, reach, speed_bound};
+use super::{ball_off_face, clusters, edge_clear_of_ball, reach};
 use crate::body::Body;
 use crate::entity::EdgeKey;
 use crate::euler::MevSite;
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+use geom_brep::carrier_speed::speed_and_curvature_hi;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -50,8 +51,8 @@ fn ellipse_in(
     Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     }
 }
@@ -101,7 +102,7 @@ fn an_ellipse_keeps_its_crossings_in_either_storage() {
                 let found = clusters(
                     &s,
                     &c,
-                    speed_bound(&c).unwrap(),
+                    speed_and_curvature_hi(&c).unwrap(),
                     reach(&s).unwrap(),
                     span,
                     band(),
@@ -138,7 +139,7 @@ fn a_span_whose_middle_is_on_the_torus_axis_localizes_both_touches() {
     let found = clusters(
         &s,
         &c,
-        speed_bound(&c).unwrap(),
+        speed_and_curvature_hi(&c).unwrap(),
         reach(&s).unwrap(),
         (-3.0, 3.0),
         band(),

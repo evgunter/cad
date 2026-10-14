@@ -241,7 +241,9 @@
 //!   `|δ₀| + r_min < r_max` gives two loops encircling the thinner
 //!   axis; `|r₁ − r₂| < |δ₀| < r₁ + r₂` a single null saddle loop,
 //!   witnessed on the arc's middle ruling; parallel axes give rulings
-//!   (lines).
+//!   (lines). Equal radii with meeting axes (`δ₀` and `r₁ − r₂` both
+//!   `Zero`) give the two bisector-plane ellipses, which cross at two
+//!   nodes: one component, essential on both walls, witnessed at a node.
 //! - **Cylinder × plane**: an ellipse encircling the wall, or rulings.
 //!   Either way the section cannot lie in a wall that describes. The
 //!   count is not certified (two rulings, or one ellipse), so W4 is
@@ -2105,8 +2107,8 @@ fn cone_plane_pair<T: Decide>(
 }
 
 /// The subdivision rows every ruling chart walks under.
-const RULING_WALK: crate::boolean::circle_roots::SubdivisionRows =
-    crate::boolean::circle_roots::SubdivisionRows {
+const RULING_WALK: geom_brep::half_angle::SubdivisionRows =
+    geom_brep::half_angle::SubdivisionRows {
         clear: "section_ruling_clear",
         monotone: "section_ruling_monotone",
         side: "section_ruling_side",
@@ -2429,13 +2431,15 @@ fn cylinder_cylinder<T: Decide>(
         // point when they cross, which the half-turn about that line (it
         // maps each wall to itself) fixes inside the loop. Touching
         // inside (the nest margin) is a pinch: the thinner wall leaves
-        // the fatter one on both sides of the touch.
+        // the fatter one on both sides of the touch — unless the radii
+        // are equal and the axes meet ([`equal_crossing_axes`]).
+        Err(tan) if tan.name == "section_cylinder_pair_nest" && tan.undecided.is_none() => {
+            return equal_crossing_axes((o1, d1, r1), (o2, d2, r2), (m, delta), band)
+                .unwrap_or_else(|| tan.into());
+        }
         Err(tan) => {
             return tan.touch(&[REACH], || {
-                let w = o1 - o2;
-                let b = d1.dot(d2);
-                let foot = o1 + d1 * ((b * d2.dot(w) - d1.dot(w)) / sin.powi(2));
-                foot + m * (delta * r1 / (r1 + r2))
+                axis_foot((o1, d1), (o2, d2), sin.powi(2)) + m * (delta * r1 / (r1 + r2))
             });
         }
     };
@@ -2464,6 +2468,53 @@ fn cylinder_cylinder<T: Decide>(
             lone(q + d2 * t)
         }
     }
+}
+
+/// **Two equal cylinders whose axes meet**: the nest margin
+/// `|δ₀| − |r₁ − r₂|` decided `Zero` because both terms are, the radii
+/// equal (`section_cylinder_pair_equal`) and the axes coplanar
+/// (`section_cylinder_pair_meet`, `δ₀` itself). The section is the two
+/// bisector-plane ellipses, crossing at the nodes `p ± r·n̂` (`p` the
+/// axes' meeting point, `n̂` along `m`, the common perpendicular): ONE
+/// connected component, essential on both walls, since each ellipse is
+/// a plane section encircling each axis. Witnessed at a node. `None`
+/// where either margin is not `Zero`: a nest pinch at unequal radii
+/// (the thinner wall inside the fatter, touching), refused R-tan by the
+/// caller.
+fn equal_crossing_axes<T: Decide>(
+    (o1, d1, r1): (Point3<T>, Vec3<T>, T),
+    (o2, d2, r2): (Point3<T>, Vec3<T>, T),
+    (m, delta): (Vec3<T>, T),
+    band: Band,
+) -> Option<Section<T>> {
+    let zero = |name, m| sign(name, Margin::of(m), band) == Some(Sign::Zero);
+    if !(zero("section_cylinder_pair_equal", r1 - r2) && zero("section_cylinder_pair_meet", delta))
+    {
+        return None;
+    }
+    let p = axis_foot((o1, d1), (o2, d2), d1.cross(d2).norm_squared());
+    Some(Section::Components {
+        parts: vec![Component {
+            unbounded: false,
+            essential_f: true,
+            essential_g: true,
+            witness: Some(p + m * r1.abs()),
+        }],
+        single: true,
+    })
+}
+
+/// The foot on axis 1 `(o1, d1)` of its common perpendicular with the
+/// non-parallel axis 2 `(o2, d2)`, both directions unit and `sin2` the
+/// squared sine between them: where the axes meet, when they do.
+fn axis_foot<T: geom_core::Real>(
+    (o1, d1): (Point3<T>, Vec3<T>),
+    (o2, d2): (Point3<T>, Vec3<T>),
+    sin2: T,
+) -> Point3<T> {
+    let w = o1 - o2;
+    let b = d1.dot(d2);
+    o1 + d1 * ((b * d2.dot(w) - d1.dot(w)) / sin2)
 }
 
 /// **Cylinder × plane**: an ellipse encircling the wall, or rulings.

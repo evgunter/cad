@@ -118,6 +118,7 @@
 
 pub mod boundary;
 pub mod certify;
+mod compensated;
 pub mod enclose;
 mod ends;
 pub mod exhaust;
