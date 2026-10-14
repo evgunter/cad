@@ -4042,6 +4042,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SliverInsideOut": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",
     "ValidationError::VolumeSignUnresolved": "ValidationFinding.variant",
+    "ValidationError::OrientationUndecided": "ValidationFinding.variant",
     "ValidationError::Pcurve": "ValidationFinding.variant",
     "ValidationError::RingMeetsOuter": "ValidationFinding.variant",
     "ValidationError::RingContactEscalated": "ValidationFinding.variant",
