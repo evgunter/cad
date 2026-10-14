@@ -50,11 +50,12 @@
 //!     from the circle, `|E(θ) − c| − r`, whose square less `r²` is of
 //!     degree two in the ellipse's angle, goes to the certified
 //!     subdivision ([`crate::half_angle::certified_subdivision`]);
-//!   - **two ellipses**: one curve when the frames' bound
-//!     `|Δc| + min_Q ‖L₁ − L₂Q‖`, `L = [a·û, b·v̂]` over the eight signed
-//!     permutations `Q`, plus the slant reads zero. Two ellipses in one
-//!     plane that are not one curve have no metre residual here, and
-//!     refuse typed ([`MeetFault::Unsupported`]).
+//!   - **two ellipses**: one curve when the bound on the Hausdorff
+//!     distance between the two loci ([`Conic::locus_gap`]), its rounding
+//!     charged, reads zero. It is a bound in space, so the slant is in
+//!     it, and it is zero for one locus at any rotation of the frames.
+//!     Two ellipses in one plane that are not one curve have no metre
+//!     residual here, and refuse typed ([`MeetFault::Unsupported`]).
 //!
 //! # A first harmonic's roots, and a double root
 //!
@@ -732,11 +733,9 @@ fn conic_conic<T: Decide>(
             coplanar_ellipse_circle(a, &ka, &kb, &place, band)
         }
         Coplanar::Ellipses => {
-            if !definite(
-                row::ONE_CURVE,
-                Margin::of(frame_gap(&ka, &kb) + slant),
-                band,
-            )? {
+            let gap = ka.locus_gap(&kb);
+            let charged = gap + crate::rounding_charge(ka.speed_hi() + kb.speed_hi() + gap);
+            if !definite(row::ONE_CURVE, Margin::of(charged), band)? {
                 return coincident();
             }
             Err(MeetFault::Unsupported {
@@ -744,30 +743,6 @@ fn conic_conic<T: Decide>(
             })
         }
     }
-}
-
-/// A bound on how far a point of one coplanar ellipse lies from the
-/// other: the centres' gap plus the least, over the eight signed
-/// permutations `Q` of the frame, Frobenius norm of `L₁ − L₂Q`,
-/// `L = [a·û, b·v̂]`, which pairs each point `c₁ + L₁x` of the first with
-/// the point `c₂ + L₂Qx` of the second.
-fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
-    let (e1, e2) = (e.u_ref * e.semi_u, e.v_ref() * e.semi_v);
-    let (f1, f2) = (f.u_ref * f.semi_u, f.v_ref() * f.semi_v);
-    let pair = |p: Vec3<T>, q: Vec3<T>| ((e1 - p).norm_squared() + (e2 - q).norm_squared()).sqrt();
-    let neg = |v: Vec3<T>| v * (T::zero() - T::one());
-    let gaps = [
-        pair(f1, f2),
-        pair(neg(f1), neg(f2)),
-        pair(f1, neg(f2)),
-        pair(neg(f1), f2),
-        pair(f2, f1),
-        pair(neg(f2), neg(f1)),
-        pair(f2, neg(f1)),
-        pair(neg(f2), f1),
-    ];
-    let least = gaps.into_iter().fold(gaps[0], |x, y| x.min(y));
-    (e.center - f.center).norm() + least
 }
 
 /// `ka`'s height above `kb`'s plane, `(c0, cp, sp)` with the swing read

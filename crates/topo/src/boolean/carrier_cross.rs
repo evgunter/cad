@@ -371,7 +371,7 @@ fn meetings<T: Decide>(
 }
 
 /// Whether two conics whose planes read parallel are, within the band,
-/// one curve ([`one_curve_gap`]).
+/// one curve ([`geom_brep::Conic::locus_gap`]).
 fn one_curve<T: Decide>(
     e: &geom_brep::Conic<T>,
     f: &geom_brep::Conic<T>,
@@ -379,49 +379,13 @@ fn one_curve<T: Decide>(
 ) -> Result<bool, BooleanError> {
     match decide(
         "bool_carrier_cross_one_curve",
-        Margin::of(one_curve_gap(e, f)),
+        Margin::of(e.locus_gap(f)),
         band,
     ) {
         Ok(Sign::Zero) => Ok(true),
         Ok(Sign::Positive | Sign::Negative) => Ok(false),
         Err(diag) => Err(escalated(diag)),
     }
-}
-
-/// A bound on how far a point of either conic lies from the other,
-/// tilt out of the plane included. Each conic is
-/// `c + L·x` over the unit circle's `x`, with `L = [a·û, b·v̂]`. For any
-/// orthogonal `Q`, pairing `c_e + L_e·x` with `c_f + L_f·Q·x` pairs every
-/// point of each with a point of the other within
-/// `|c_e − c_f| + ‖L_e − L_f·Q‖` ([`frame_gap`]). The stored order and
-/// signs of the semi-axes change `L` by an orthogonal factor, which `Q`
-/// absorbs. The gap read from either side is the same but for rounding,
-/// and the larger is taken, so the gap does not depend on the order of
-/// the pair.
-fn one_curve_gap<T: Decide>(e: &geom_brep::Conic<T>, f: &geom_brep::Conic<T>) -> T {
-    (e.center - f.center).norm() + frame_gap(e, f).max(frame_gap(f, e))
-}
-
-/// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
-/// frame the way up `e`'s is (the sign of `(a·b·n̂)_e · (a·b·n̂)_f`,
-/// near `±a·b·a′·b′` where the planes are parallel) and then by the
-/// rotation that best matches the two, which maximizes
-/// `tr(Qᵀ·L_fᵀ·L_e)`.
-fn frame_gap<T: Decide>(e: &geom_brep::Conic<T>, f: &geom_brep::Conic<T>) -> T {
-    let ((e1, e2), (f1, f2)) = (e.semi_axis_vectors(), f.semi_axis_vectors());
-    let up = e1.cross(e2).dot(f1.cross(f2));
-    let f2 = f2 * (up / up.abs());
-    let (x, y) = (f1.dot(e1) + f2.dot(e2), f2.dot(e1) - f1.dot(e2));
-    let h = (x.powi(2) + y.powi(2)).sqrt();
-    let (cos, sin) = (x / h, y / h);
-    let d1 = e1 - (f1 * cos + f2 * sin);
-    let d2 = e2 - (f2 * cos - f1 * sin);
-    let half = T::from_f64(0.5);
-    let (mid, off) = (
-        (d1.dot(d1) + d2.dot(d2)) * half,
-        (d1.dot(d1) - d2.dot(d2)) * half,
-    );
-    (mid + (off.powi(2) + d1.dot(d2).powi(2)).sqrt()).sqrt()
 }
 
 /// Whether `p` lies definitely off the plane through `on` with unit
@@ -586,7 +550,7 @@ mod meetings_rows {
     //! of two carriers is among the candidates, a pair that meets only
     //! along a stretch or nowhere has none, and a pair with no closed
     //! form says so.
-    use super::{Span, meetings, one_curve, one_curve_gap};
+    use super::{Span, meetings, one_curve};
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -974,8 +938,8 @@ mod meetings_rows {
         let v = n.cross(u);
         let read = |e: &Conic<f64>, f: &Conic<f64>| {
             assert_eq!(
-                one_curve_gap(e, f).to_bits(),
-                one_curve_gap(f, e).to_bits(),
+                e.locus_gap(f).to_bits(),
+                f.locus_gap(e).to_bits(),
                 "the gap is the same either way round: {e:?} {f:?}"
             );
             let (ef, fe) = (one_curve(e, f, b), one_curve(f, e, b));
