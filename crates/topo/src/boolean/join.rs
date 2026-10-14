@@ -131,8 +131,11 @@
 //! deterministic scan order until quiescent (each match consumes its
 //! germs, so the next round ranks only the germs still free). The criterion
 //! reads only record data — loci, senses, site points, section
-//! frames — none of which the surgery changes, so the segments are
-//! decided before any chord is minted. A record left whole whose two
+//! frames — and the segments are decided before any chord is minted.
+//! Surgery moves no site, but a chord dividing a face moves the
+//! boundary vertices a section frame is levered at ([`frame_lever`]),
+//! so every frame and kind arm the join reads is read in that
+//! pre-surgery state ([`SegmentPair`]). A record left whole whose two
 //! germs are one closed conic through a wrap edge is one more segment
 //! ([`wrap_site_segments`]), read with the matched ones
 //! ([`join_segments`]). The sweep then joins them in that order. Joins,
@@ -293,31 +296,107 @@ fn kind_arm(a: geom::SurfaceKind, b: geom::SurfaceKind) -> KindArm {
     }
 }
 
-/// **The kind arm of a segment's germ face pair** ([`kind_arm`]), read
-/// in [`bool_connect`] before any segment's surgery divides a face: a
-/// cylinder pair keeps [`KindArm::Cylinders`] only where its axes read
-/// parallel ([`cylinder_pair_axes`]), at the point and lever the frame
-/// dispatch reads that face pair at ([`frame_lever`]). Walls whose axes
-/// are not parallel meet in no ruling. A germ inside a face of each
-/// operand reads the pair's section there ([`cylinder_pair_frame`]),
-/// and takes [`KindArm::Bisector`] where it is the two bisector-plane
-/// ellipses; every other such pair, and a germ along an edge, falls
-/// through to the edge-plane lane. A reading in the band is the walls'
-/// coincidence undecided ([`frame_refusal`]).
+/// **A face's surface, with its key in `body`**: the join's walk from a
+/// face to its surface, whether the face is one a germ was recorded
+/// against or one a segment's halves lie on now. It is the crate's one
+/// walk ([`crate::readback::carrier_surface`]), its refusal a desync: a
+/// live face's surface key resolves (tier 1), so the one refusal is a
+/// face key that no longer resolves.
+///
+/// That no other walk reads a surface in this file is held by
+/// `face_surface_tests::the_join_walks_to_a_faces_surface_in_one_place`,
+/// which counts the reads in this file's source.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where `face` does not resolve.
+fn face_surface<T: geom_core::Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<(crate::geometry::SurfaceKey, &geom::Surface<T>), BooleanError> {
+    let (key, surface, _sense) =
+        crate::readback::carrier_surface(body, face).map_err(|_| BooleanError::JoinDesync {
+            what: "a face the join reads no longer resolves",
+        })?;
+    Ok((key, surface))
+}
+
+/// **A segment's germ face pair, as [`bool_connect`] reads it** before
+/// any segment's surgery divides a face: each face's surface with its
+/// key, A's first, the pair's kind arm ([`segment_arm`]), which a
+/// segment along an edge of both solids takes none of, and, for a
+/// segment whose two ends are one record, the germ's own loop of the
+/// pair's section ([`germ_section_frame`]).
+struct SegmentPair<T: geom_core::Real> {
+    a: (crate::geometry::SurfaceKey, geom::Surface<T>),
+    b: (crate::geometry::SurfaceKey, geom::Surface<T>),
+    arm: Option<KindArm>,
+    site_loop: Option<SectionLoop<T>>,
+}
+
+impl<T: Decide> SegmentPair<T> {
+    /// The pair `seg`'s germ was recorded against, read in `red`.
+    fn read(
+        red: &BooleanReduction<T>,
+        seg: &SectionSegment<T>,
+        band: Band,
+    ) -> Result<Self, BooleanError> {
+        let germ = &seg.germ;
+        let owned = |(key, surface): (_, &geom::Surface<T>)| (key, surface.clone());
+        let (a, b) = (
+            owned(face_surface(&red.a, germ.a_face)?),
+            owned(face_surface(&red.b, germ.b_face)?),
+        );
+        let arm = match seg.lane {
+            SegmentLane::AlongEdge => None,
+            SegmentLane::Section => Some(segment_arm(red, germ, (&a.1, &b.1), band)?),
+        };
+        let [(entry, _), (cand, _)] = seg.ends;
+        let site_loop = if entry == cand {
+            Some(
+                germ_section_frame(red, germ, band)?.ok_or(BooleanError::JoinDesync {
+                    what: "a one-site section loop has no conic frame",
+                })?,
+            )
+        } else {
+            None
+        };
+        Ok(Self {
+            a,
+            b,
+            arm,
+            site_loop,
+        })
+    }
+}
+
+/// **The kind arm of a segment's germ face pair** ([`kind_arm`]), whose
+/// faces' surfaces are `sa` and `sb`: a cylinder pair keeps
+/// [`KindArm::Cylinders`] only where its axes read parallel
+/// ([`cylinder_pair_axes`]), at the point and lever the frame dispatch
+/// reads that face pair at ([`frame_lever`]). Walls whose axes are not
+/// parallel meet in no ruling. A germ inside a face of each operand
+/// reads the pair's section there ([`cylinder_pair_frame`]), and takes
+/// [`KindArm::Bisector`] where it is the two bisector-plane ellipses;
+/// every other such pair, and a germ along an edge, falls through to the
+/// edge-plane lane. A reading in the band is refused by
+/// [`frame_refusal`].
+///
+/// Read before any segment's surgery, in the state the segments were
+/// matched in: the frame lever reads the faces' boundary vertices,
+/// which a chord dividing a face moves, so every segment of one face
+/// pair takes the one arm that pair reads. Nothing pins that order: no
+/// pose found reads differently after an earlier segment's surgery (the
+/// first segment reads the matched state; an in-band or apart reading
+/// refuses there, before any surgery; a parallel one stays parallel at a
+/// later segment unless a chord's end lands outside both walls' vertex
+/// ball), so the argument above is what holds it.
 fn segment_arm<T: Decide>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
+    (sa, sb): (&geom::Surface<T>, &geom::Surface<T>),
     band: Band,
 ) -> Result<KindArm, BooleanError> {
-    let surf = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
-        body.get_face(f)
-            .and_then(|fd| body.get_surface(fd.surface))
-            .cloned()
-            .ok_or(BooleanError::JoinDesync {
-                what: "germ face surface no longer resolves",
-            })
-    };
-    let (sa, sb) = (surf(&red.a, germ.a_face)?, surf(&red.b, germ.b_face)?);
     let arm = kind_arm(sa.kind(), sb.kind());
     let (
         KindArm::Cylinders,
@@ -333,12 +412,12 @@ fn segment_arm<T: Decide>(
             radius: r2,
             ..
         },
-    ) = (arm, &sa, &sb)
+    ) = (arm, sa, sb)
     else {
         return Ok(arm);
     };
-    let (at, extent) = frame_lever((&sa, &red.a, germ.a_face), (&sb, &red.b, germ.b_face), band)?;
-    let refusal = |e| frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb));
+    let (at, extent) = frame_lever((sa, &red.a, germ.a_face), (sb, &red.b, germ.b_face), band)?;
+    let refusal = |e| frame_refusal(e, (germ.a_face, sa), (germ.b_face, sb));
     match cylinder_pair_axes((*o1, *a1), (*o2, *a2), (*r1, *r2), at, extent.clone(), band) {
         Ok(CylinderAxes::Parallel) => return Ok(KindArm::Cylinders),
         Ok(CylinderAxes::Apart(_)) => {}
@@ -347,7 +426,7 @@ fn segment_arm<T: Decide>(
     if germ.a_locus.edge().is_some() || germ.b_locus.edge().is_some() {
         return Ok(KindArm::None);
     }
-    match cylinder_pair_frame(&sa, &sb, at, extent, band) {
+    match cylinder_pair_frame(sa, sb, at, extent, band) {
         Ok(Some(SectionLoops::Two { .. })) => Ok(KindArm::Bisector),
         Ok(_) | Err(FrameError::NoArm) => Ok(KindArm::None),
         Err(e) => Err(refusal(e)),
@@ -831,10 +910,7 @@ fn wrap_site_segments<T: Decide>(
     let desync = |what| BooleanError::JoinDesync { what };
     let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
     let planar = |body: &Body<T>, f: FaceKey| {
-        matches!(
-            body.get_face(f).and_then(|d| body.get_surface(d.surface)),
-            Some(geom::Surface::Plane { .. })
-        )
+        face_surface(body, f).map(|(_, s)| matches!(s, geom::Surface::Plane { .. }))
     };
     let mut out = Vec::new();
     for (r, rec) in open.iter().enumerate() {
@@ -848,8 +924,8 @@ fn wrap_site_segments<T: Decide>(
             site_cell(&red.a, fa, g0.he)?,
             site_cell(&red.b, fb, rec.b[0].0.he)?,
         ) {
-            (SiteCell::Wrap, SiteCell::Pierce) => planar(&red.b, fb),
-            (SiteCell::Pierce, SiteCell::Wrap) => planar(&red.a, fa),
+            (SiteCell::Wrap, SiteCell::Pierce) => planar(&red.b, fb)?,
+            (SiteCell::Pierce, SiteCell::Wrap) => planar(&red.a, fa)?,
             _ => false,
         };
         if !crossed {
@@ -999,25 +1075,33 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     let desync = |what| BooleanError::JoinDesync { what };
     crossing_germs_have_their_reading(red, (a_pristine, b_pristine), band)?;
     let segments = join_segments(red, band)?;
-    // A segment along an edge of both solids is that edge in both: each
-    // solid's chord copies its own edge and no section is read (the
-    // germ's two faces may share one carrier), so it takes no kind arm.
-    let arms = segments
+    let pairs = segments
         .iter()
-        .map(|seg| match seg.lane {
-            SegmentLane::AlongEdge => Ok(None),
-            SegmentLane::Section => segment_arm(red, &seg.germ, band).map(Some),
-        })
+        .map(|seg| SegmentPair::read(red, seg, band))
         .collect::<Result<Vec<_>, BooleanError>>()?;
     // The bisector lane's planes, read once per wall pair before any
     // surgery, so every segment on one branch rides one plane.
-    let bisectors = bisector_planes(red, &segments, &arms, band)?;
+    let bisectors = bisector_planes(red, &segments, &pairs, band)?;
     let mut sa = SolidJoin::new(red, Operand::A, band);
     let mut sb = SolidJoin::new(red, Operand::B, band);
     let mut completed: Vec<UnresolvedPair> = Vec::new();
     let mut open = open_records(red)?;
+    // A one-site record no segment takes is a closed section loop the
+    // join does not build. Its section is read here, in the state the
+    // segments were matched in, and refused once the segments are
+    // joined, before the loose ends are counted.
+    let taken: std::collections::BTreeSet<usize> = segments
+        .iter()
+        .flat_map(|s| s.ends.map(|(r, _)| r))
+        .collect();
+    let mut single_site = 0;
+    for (r, rec) in open.iter().enumerate() {
+        if !taken.contains(&r) && one_site(red, rec, band)?.is_some() {
+            single_site += 1;
+        }
+    }
 
-    for (seg, arm) in segments.iter().zip(arms) {
+    for (seg, pair) in segments.iter().zip(pairs) {
         let [(entry, entry_slot), (cand, cand_slot)] = seg.ends;
         let (ea, ra) = (open[entry].a[entry_slot].0.he, open[cand].a[cand_slot].0.he);
         let (eb, rb) = (open[entry].b[entry_slot].0.he, open[cand].b[cand_slot].0.he);
@@ -1044,14 +1128,12 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // edge of one solid in a curved face of the other, and the rest
         // refuse typed citing their C5 routing (per-arm, C12.1).
         let germ = seg.germ;
-        let surf_of =
-            |body: &Body<T>,
-             f: FaceKey|
-             -> Result<(crate::geometry::SurfaceKey, geom::Surface<T>), BooleanError> {
-                body.get_face(f)
-                    .and_then(|fd| Some((fd.surface, body.get_surface(fd.surface)?.clone())))
-                    .ok_or(desync("germ face surface no longer resolves"))
-            };
+        let SegmentPair {
+            a: (ka, ga),
+            b: (kb, gb),
+            arm,
+            site_loop,
+        } = pair;
         // The germ faces' SURFACES, deliberately unoriented (S10): what
         // the curved lanes below take from a plane germ is a point and
         // a chart normal — a section datum, an operation input whose
@@ -1078,9 +1160,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // site's antipode through a conic's centre, a point of the conic
         // too, or a loop's own ball where its centre is no centre of
         // symmetry.
-        let antipode = if entry == cand {
-            let lp = germ_section_frame(red, &germ, band)?
-                .ok_or(desync("a one-site section loop has no conic frame"))?;
+        let antipode = if let Some(lp) = site_loop {
             let p = red
                 .a
                 .half_edge_start_point(ea)
@@ -1110,8 +1190,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 |_| desync("a germ plane's normal has no decided length (a broken plane carrier)"),
             )
         };
-        let (ka, ga) = surf_of(&red.a, germ.a_face)?;
-        let (kb, gb) = surf_of(&red.b, germ.b_face)?;
         // Each solid's adjacency skip asks whether the edge between its
         // two halves is the one the segment's locus on that solid names.
         let (seg_a, seg_b) = (germ.a_locus.edge(), germ.b_locus.edge());
@@ -1132,16 +1210,13 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Ok(face) => face,
                 Err(e) => return BooleanError::from(e),
             };
-            match body
-                .get_face(face)
-                .and_then(|f| body.get_surface(f.surface))
-            {
-                Some(s) => BooleanError::CurvedBooleanUnsupported {
+            match face_surface(body, face) {
+                Ok((_, s)) => BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
                     kind: s.kind(),
                 },
-                None => desync("a segment's face holds no surface"),
+                Err(e) => e,
             }
         };
         // A segment along a conic edge of one solid, inside the other's
@@ -1491,15 +1566,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         }
     }
 
-    // ---- A one-site record [`wrap_site_segments`] did not take is a
-    // closed section loop the join does not build: refused typed before
-    // the loose ends are counted. ----
-    let mut single_site = 0;
-    for r in &open {
-        if one_site(red, r, band)?.is_some() {
-            single_site += 1;
-        }
-    }
     if single_site != 0 {
         return Err(BooleanError::from(SplitJoinError::SingleSiteSectionLoop {
             count: single_site,
@@ -1586,25 +1652,20 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
 fn bisector_planes<T: Decide>(
     red: &BooleanReduction<T>,
     segments: &[SectionSegment<T>],
-    arms: &[Option<KindArm>],
+    pairs: &[SegmentPair<T>],
     band: Band,
 ) -> Result<
     BTreeMap<(crate::geometry::SurfaceKey, crate::geometry::SurfaceKey), SectionLoops<T>>,
     BooleanError,
 > {
     let desync = |what| BooleanError::JoinDesync { what };
-    let surface = |body: &Body<T>, f: FaceKey| {
-        body.get_face(f)
-            .map(|fd| fd.surface)
-            .ok_or(desync("germ face surface no longer resolves"))
-    };
     let mut planes = BTreeMap::new();
-    for (seg, arm) in segments.iter().zip(arms) {
-        if *arm != Some(KindArm::Bisector) {
+    for (seg, pair) in segments.iter().zip(pairs) {
+        if pair.arm != Some(KindArm::Bisector) {
             continue;
         }
         let (fa, fb) = (seg.germ.a_face, seg.germ.b_face);
-        let key = (surface(&red.a, fa)?, surface(&red.b, fb)?);
+        let key = (pair.a.0, pair.b.0);
         if let std::collections::btree_map::Entry::Vacant(slot) = planes.entry(key) {
             let loops = face_pair_section_loops((&red.a, fa), (&red.b, fb), band)?.ok_or(
                 desync("a bisector segment's face pair has no section loops"),
@@ -1633,9 +1694,7 @@ fn crossing_germs_have_their_reading<T: Decide>(
     band: Band,
 ) -> Result<(), BooleanError> {
     let wall = |body: &Body<T>, f: FaceKey| {
-        body.get_face(f)
-            .and_then(|fd| body.get_surface(fd.surface))
-            .is_some_and(super::node::is_wall)
+        face_surface(body, f).is_ok_and(|(_, s)| super::node::is_wall(s))
     };
     let mut read = std::collections::BTreeSet::new();
     for germ in red.null_edges_of(Operand::A).flat_map(|r| r.germs) {
@@ -2407,17 +2466,10 @@ pub(super) fn face_pair_section_loops<T: Decide>(
     (body_b, face_b): (&Body<T>, FaceKey),
     band: Band,
 ) -> Result<Option<SectionLoops<T>>, BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
-    let surf = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
-        body.get_face(f)
-            .and_then(|fd| body.get_surface(fd.surface))
-            .cloned()
-            .ok_or(desync("germ face surface no longer resolves"))
-    };
-    let (sa, sb) = (surf(body_a, face_a)?, surf(body_b, face_b)?);
-    let (at, extent) = frame_lever((&sa, body_a, face_a), (&sb, body_b, face_b), band)?;
-    pair_section_frame_at(&sa, &sb, at, extent, band)
-        .map_err(|e| frame_refusal(e, (face_a, &sa), (face_b, &sb)))
+    let ((_, sa), (_, sb)) = (face_surface(body_a, face_a)?, face_surface(body_b, face_b)?);
+    let (at, extent) = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
+    pair_section_frame_at(sa, sb, at, extent, band)
+        .map_err(|e| frame_refusal(e, (face_a, sa), (face_b, sb)))
 }
 
 /// **Where a face pair's frame is read, and what it is levered at**:
@@ -2772,24 +2824,16 @@ pub(super) fn parallel_radical_plane<T: Decide>(
 }
 
 /// The Boolean's refusal for a germ pair's frame refusal, the pair
-/// being the A face `a` and the B face `b` with their surfaces: a
-/// section pose's escalation is a coincidence between the two walls,
-/// asked on no face-pair declaration, and an operand guard's is that
-/// radius's own decision.
-/// No declaration settles either.
+/// being the A face `a` and the B face `b` with their surfaces: an
+/// escalation refuses as the decision its reading carries
+/// ([`FrameError::Escalated`]), which no declaration settles.
 pub(super) fn frame_refusal<T: geom_core::Real>(
     e: FrameError,
     a: (FaceKey, &geom::Surface<T>),
     b: (FaceKey, &geom::Surface<T>),
 ) -> BooleanError {
     match e {
-        FrameError::Escalated(diag) => {
-            BooleanError::coincidence(Coincide::Section, DeclarationRead::Moot, diag)
-        }
-        FrameError::RadiusEscalated { radius, diag } => BooleanError::Escalated {
-            decision: BooleanDecision::Radius(radius),
-            diag,
-        },
+        FrameError::Escalated { decision, diag } => BooleanError::Escalated { decision, diag },
         FrameError::Desync(what) => BooleanError::JoinDesync { what },
         FrameError::NoArm => BooleanError::GermFrameUnsupported {
             a_face: a.0,
@@ -2823,14 +2867,16 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
 /// dispatch is a statement about the two surfaces, never about the
 /// arenas.
 pub(super) enum FrameError {
-    /// A section predicate landed in the sliver band.
-    Escalated(geom_core::Indeterminate),
-    /// An operand's radius guard landed in the sliver band
+    /// A reading landed in the sliver band, refused as `decision`: a
+    /// section predicate as the faces' section undecided
+    /// ([`FrameError::section`]), a cylinder pair's axes as
+    /// [`BooleanDecision::CylinderAxes`] ([`cylinder_pair_axes`]), an
+    /// operand's radius guard as [`BooleanDecision::Radius`]
     /// ([`geom_brep::SectionError::RadiusEscalated`]).
-    RadiusEscalated {
-        /// Whose radius the guard read.
-        radius: geom_brep::SectionRadius,
-        /// The guard's diagnostics.
+    Escalated {
+        /// The decision the reading refuses as.
+        decision: BooleanDecision,
+        /// The reading's diagnostics.
         diag: geom_core::Indeterminate,
     },
     /// The classification contradicted the germ that was minted from
@@ -2856,6 +2902,17 @@ pub(super) enum FrameError {
         /// The table's refusal.
         section: geom_brep::SectionError,
     },
+}
+
+impl FrameError {
+    /// A section predicate's in-band reading: where the two faces'
+    /// surfaces meet, undecided, which no declaration settles.
+    fn section(diag: geom_core::Indeterminate) -> Self {
+        Self::Escalated {
+            decision: BooleanDecision::Coincidence(Coincide::Section, DeclarationRead::Moot),
+            diag,
+        }
+    }
 }
 
 /// [`pair_section_frame_at`] for a pair handed without its faces: the
@@ -3036,11 +3093,7 @@ pub(super) fn germ_branch<T: Decide>(
     if locus_a.edge().is_some() || locus_b.edge().is_some() {
         return Ok(super::Branch::Only);
     }
-    let kind = |body: &Body<T>, f: FaceKey| {
-        body.get_face(f)
-            .and_then(|fd| body.get_surface(fd.surface))
-            .map(geom::Surface::kind)
-    };
+    let kind = |body: &Body<T>, f: FaceKey| face_surface(body, f).ok().map(|(_, s)| s.kind());
     // A face that does not resolve reads no section here; the join
     // refuses it where it reads the pair.
     match (kind(body_a, face_a), kind(body_b, face_b)) {
@@ -3156,7 +3209,7 @@ fn cylinder_pair_frame<T: Decide>(
     match geom_brep::cylinder_axes_coplanar(&reach, l1, l2, band) {
         Ok(Sign::Zero) => intersecting_cylinder_axes(sa, sb, &reach, band).map(Some),
         Ok(Sign::Positive | Sign::Negative) => Err(FrameError::NoArm),
-        Err(diag) => Err(FrameError::Escalated(diag)),
+        Err(diag) => Err(FrameError::section(diag)),
     }
 }
 
@@ -3206,7 +3259,7 @@ fn conic_section_frame_at<T: Decide>(
                 ) => Err(FrameError::Desync(
                     "germ pair's plane×sphere section is not a locus",
                 )),
-                Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
+                Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::section(diag)),
                 Err(_) => Err(FrameError::Desync(
                     "germ pair's section refused at match time",
                 )),
@@ -3242,7 +3295,7 @@ fn conic_section_frame_at<T: Decide>(
                 ) => Err(FrameError::Desync(
                     "germ pair's sphere×sphere section is not a locus",
                 )),
-                Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
+                Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::section(diag)),
                 Err(_) => Err(FrameError::Desync(
                     "germ pair's section refused at match time",
                 )),
@@ -3328,7 +3381,8 @@ enum CylinderAxes<T: geom_core::Real> {
 ///
 /// # Errors
 ///
-/// [`FrameError::Escalated`] where the reading is in the band, and a
+/// [`FrameError::Escalated`] as [`BooleanDecision::CylinderAxes`] where
+/// the reading is in the band, and a
 /// desync for an extent a cylinder pair is never levered at.
 fn cylinder_pair_axes<T: Decide>(
     line1: (geom_core::Point3<T>, geom_core::Vec3<T>),
@@ -3349,7 +3403,10 @@ fn cylinder_pair_axes<T: Decide>(
     match geom_brep::cylinder_axes_parallel(&reach, line1, line2, band) {
         Ok(Sign::Zero) => Ok(CylinderAxes::Parallel),
         Ok(Sign::Positive | Sign::Negative) => Ok(CylinderAxes::Apart(reach)),
-        Err(diag) => Err(FrameError::Escalated(diag)),
+        Err(diag) => Err(FrameError::Escalated {
+            decision: BooleanDecision::CylinderAxes,
+            diag,
+        }),
     }
 }
 
@@ -3368,7 +3425,7 @@ fn section_refusal(e: geom_brep::SectionError) -> FrameError {
     match e {
         geom_brep::SectionError::Escalated(diag)
         | geom_brep::SectionError::Carrier(Ei::Escalated(diag) | Ei::CircularAxes(diag)) => {
-            FrameError::Escalated(diag)
+            FrameError::section(diag)
         }
         _ => FrameError::Desync("germ pair's section refused at match time"),
     }
@@ -3563,11 +3620,11 @@ fn pt_germ_frame<T: Decide>(
         Err(e @ geom_brep::SectionError::RoutesToGeneralRung { .. }) => {
             match super::section_cert::torus_plane_loops((c, a, big_r, r), (q, n), band) {
                 Ok(Some(loops)) => Err(FrameError::Spiric { loops, section: e }),
-                Ok(None) => Err(FrameError::Escalated(crate::invalid_margin::invalid(
+                Ok(None) => Err(FrameError::section(crate::invalid_margin::invalid(
                     band,
                     PT_TOUCHING_UNDER_A_GERM,
                 ))),
-                Err(diag) => Err(FrameError::Escalated(diag)),
+                Err(diag) => Err(FrameError::section(diag)),
             }
         }
         Err(e) => Err(section_refusal(e)),
@@ -3607,10 +3664,8 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
     (body_b, face_b): (&Body<T>, FaceKey),
     band: Band,
 ) -> Result<Option<CrossingSection<T>>, BooleanError> {
-    fn surf<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Option<&geom::Surface<T>> {
-        body.get_face(f).and_then(|fd| body.get_surface(fd.surface))
-    }
-    let (Some(sa), Some(sb)) = (surf(body_a, face_a), surf(body_b, face_b)) else {
+    let (Ok((_, sa)), Ok((_, sb))) = (face_surface(body_a, face_a), face_surface(body_b, face_b))
+    else {
         return Ok(None);
     };
     let (
@@ -3652,7 +3707,10 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             )),
         ) => Err(refused(section_refusal(e))),
         Err(geom_brep::SectionError::RadiusEscalated { radius, diag }) => {
-            Err(refused(FrameError::RadiusEscalated { radius, diag }))
+            Err(refused(FrameError::Escalated {
+                decision: BooleanDecision::Radius(radius),
+                diag,
+            }))
         }
         // Decided: not the crossing family. The parallel-axes loci (the
         // table's own parallelism reading the other way on this margin),
@@ -3899,7 +3957,7 @@ fn cs_transverse_frame<T: Decide>(
         // germ minted from a crossing elsewhere on the figure-eight is
         // real, and only the frame is missing.
         Ok(Sign::Zero) => Err(FrameError::NoArm),
-        Err(diag) => Err(FrameError::Escalated(diag)),
+        Err(diag) => Err(FrameError::section(diag)),
     }
 }
 
@@ -3944,9 +4002,12 @@ pub(super) fn cs_pair_frame<T: Decide>(
         )) => Err(FrameError::Desync(
             "germ pair's cylinder×sphere section is not a locus",
         )),
-        Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
+        Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::section(diag)),
         Err(geom_brep::SectionError::RadiusEscalated { radius, diag }) => {
-            Err(FrameError::RadiusEscalated { radius, diag })
+            Err(FrameError::Escalated {
+                decision: BooleanDecision::Radius(radius),
+                diag,
+            })
         }
         // The non-coaxial pose. NOT a desync: nothing is contradicted,
         // the pair simply has no exact arm at this door and marches one
@@ -4166,13 +4227,12 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
         Wall((Point3<T>, UnitVec3<T>)),
         Quadric,
     }
-    let on_quadric = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .is_some_and(|s| crate::ring_path::Quadric::of(s).is_some());
+    let surface = || face_surface(body, face).map(|(_, s)| s);
     let ring = match closure {
-        RingClosure::Wall(_) if on_quadric => RingFace::Quadric,
-        RingClosure::Wall(section) => RingFace::Wall(section),
+        RingClosure::Wall(section) => match crate::ring_path::Quadric::of(surface()?) {
+            Some(_) => RingFace::Quadric,
+            None => RingFace::Wall(section),
+        },
         RingClosure::Planar => RingFace::Plane(
             face_outward_normal(body, face)
                 .ok_or(desync(
@@ -4183,15 +4243,10 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
         RingClosure::AlongEdge(operand) => match face_outward_normal(body, face) {
             Some(normal) => RingFace::Plane(normal.vec()),
             None => {
-                let kind = body
-                    .get_face(face)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .map(geom::Surface::kind)
-                    .ok_or(desync("ring-lane face no longer resolves"))?;
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
-                    kind,
+                    kind: surface()?.kind(),
                 });
             }
         },
@@ -5116,7 +5171,7 @@ mod frame_dispatch_tests {
                 matches!(got, Ok(None)),
                 "({label}): the tangent ruling's frame, got {:?}",
                 got.as_ref().map_err(|e| match e {
-                    FrameError::Escalated(d) => d.predicate.unwrap_or("unnamed"),
+                    FrameError::Escalated { diag: d, .. } => d.predicate.unwrap_or("unnamed"),
                     _ => "a refusal",
                 })
             );
@@ -5129,8 +5184,8 @@ mod frame_dispatch_tests {
     /// Across the walls' span ([`super::frame_reading`]: the diameter of
     /// their vertices' ball) the tilt reads `1.5·zero`, in the band, and
     /// the frame escalates on the table's `cc_axes_parallel` in both
-    /// orders. At half the span it reads `0.75·zero` and at the radius
-    /// `0.15·zero`, both Zero.
+    /// orders, refused as the axes' own decision. At half the span it
+    /// reads `0.75·zero` and at the radius `0.15·zero`, both Zero.
     #[test]
     fn the_germ_frame_levers_a_cylinder_pair_at_its_walls_span() {
         let theta = 0.15 * Tol::witness().eps();
@@ -5150,13 +5205,31 @@ mod frame_dispatch_tests {
             assert!(
                 matches!(
                     got,
-                    Err(FrameError::Escalated(ref d)) if d.predicate == Some("cc_axes_parallel")
+                    Err(FrameError::Escalated {
+                        decision: crate::boolean::BooleanDecision::CylinderAxes,
+                        diag: ref d,
+                    }) if d.predicate == Some("cc_axes_parallel")
                 ),
                 "({label}): the tilt across the walls is in band, got {:?}",
                 got.as_ref().map_err(|e| match e {
-                    FrameError::Escalated(d) => d.predicate.unwrap_or("unnamed"),
+                    FrameError::Escalated { diag: d, .. } => {
+                        d.predicate.unwrap_or("unnamed")
+                    }
                     _ => "a refusal",
                 })
+            );
+            let Err(e) = got else { unreachable!() };
+            let face = crate::entity::FaceKey::default();
+            let err = frame_refusal(e, (face, a), (face, b));
+            assert!(
+                matches!(
+                    err,
+                    crate::boolean::BooleanError::Escalated {
+                        decision: crate::boolean::BooleanDecision::CylinderAxes,
+                        ..
+                    }
+                ),
+                "({label}): the axes' angle is its own decision, got {err:?}"
             );
         }
     }
@@ -5180,9 +5253,10 @@ mod frame_dispatch_tests {
             |other, extent| match cylinder_pair_axes(x, other, (1.0, 1.0), at(), extent, band()) {
                 Ok(CylinderAxes::Parallel) => "parallel",
                 Ok(CylinderAxes::Apart(_)) => "apart",
-                Err(FrameError::Escalated(d)) if d.predicate == Some("cc_axes_parallel") => {
-                    "in band"
-                }
+                Err(FrameError::Escalated {
+                    decision: crate::boolean::BooleanDecision::CylinderAxes,
+                    diag: d,
+                }) if d.predicate == Some("cc_axes_parallel") => "in band",
                 Err(_) => "another refusal",
             };
         for (other, extent, want, what) in [
@@ -5259,7 +5333,7 @@ mod frame_dispatch_tests {
                     matches!(got, Ok(None)),
                     "stored {along} m along ({label}): the tangent ruling's frame, got {:?}",
                     got.as_ref().map_err(|e| match e {
-                        FrameError::Escalated(d) => d.predicate.unwrap_or("unnamed"),
+                        FrameError::Escalated { diag: d, .. } => d.predicate.unwrap_or("unnamed"),
                         _ => "a refusal",
                     })
                 );
@@ -5302,11 +5376,10 @@ mod frame_dispatch_tests {
             normal,
             u_ref: Vec3::new(0.0, 1.0, 0.0).cross(normal).normalize(),
         };
-        let wall = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .cloned()
-            .unwrap();
+        let wall = crate::boolean::join::face_surface(body, face)
+            .unwrap()
+            .1
+            .clone();
         let on = super::super::carrier_pair::face_witnesses(body, face).unwrap();
         [
             ("plane, wall", &plane, &wall),
@@ -5356,7 +5429,7 @@ mod frame_dispatch_tests {
     fn verdict(got: &Frame) -> &'static str {
         match got {
             Ok(_) => "served",
-            Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("unnamed"),
+            Err(FrameError::Escalated { diag: d, .. }) => d.predicate.unwrap_or("unnamed"),
             Err(_) => "a refusal",
         }
     }
@@ -5712,7 +5785,7 @@ mod frame_dispatch_tests {
                     "pc_axis_plane_parallel_straddle",
                     "k = {k} ({label}): the span's rulings against the whole turn's conic"
                 );
-                let Err(FrameError::Escalated(diag)) = got else {
+                let Err(FrameError::Escalated { diag, .. }) = got else {
                     unreachable!("named as an escalation")
                 };
                 // The Boolean's ending: the section question's lever alone,
@@ -5827,11 +5900,11 @@ mod frame_dispatch_tests {
                 assert!(
                     matches!(
                         got,
-                        Err(FrameError::Escalated(ref d)) if d.predicate == Some("pc_axis_plane_parallel")
+                        Err(FrameError::Escalated { diag: ref d, .. }) if d.predicate == Some("pc_axis_plane_parallel")
                     ),
                     "k = {k} ({label}): an in-band tilt must escalate, got {:?}",
                     got.as_ref().map_err(|e| match e {
-                        FrameError::Escalated(d) => d.predicate.unwrap_or("unnamed"),
+                        FrameError::Escalated { diag: d, .. } => d.predicate.unwrap_or("unnamed"),
                         _ => "a refusal",
                     })
                 );
@@ -6165,7 +6238,7 @@ mod frame_dispatch_tests {
                 band(),
             );
             assert!(
-                matches!(&got, Err(FrameError::Escalated(diag))
+                matches!(&got, Err(FrameError::Escalated { diag, .. })
                     if diag.predicate == Some("cc_radius_equality")),
                 "partner {partner:?}, r = 1 + 2·zero: the radius margin is in band and must \
                  escalate, got {}",
@@ -6433,8 +6506,7 @@ mod frame_dispatch_tests {
             Ok(None) => "the straight-chord verdict",
             Err(FrameError::NoArm) => "NoArm",
             Err(FrameError::Desync(_)) => "a desync",
-            Err(FrameError::Escalated(_)) => "an escalation",
-            Err(FrameError::RadiusEscalated { .. }) => "a radius escalation",
+            Err(FrameError::Escalated { .. }) => "an escalation",
             Err(FrameError::OutsideInventory { .. }) => "a conic outside the inventory",
             Err(FrameError::Spiric { .. }) => "a general spiric",
         }
@@ -6594,7 +6666,7 @@ mod frame_dispatch_tests {
             // rows, every one of which escalates through
             // `FrameError::Escalated`, so the variant alone would not
             // say which one this fixture is ill-conditioned at.
-            let Err(FrameError::Escalated(diag)) = got else {
+            let Err(FrameError::Escalated { diag, .. }) = got else {
                 panic!("{label}: expected an escalation, got {}", outcome(&got));
             };
             assert_eq!(diag.predicate, Some("cs_wall_reach"), "{label}");
@@ -7024,7 +7096,7 @@ mod transverse_cs_frame_rows {
             let read = match got {
                 Err(FrameError::NoArm) => "NoArm",
                 Ok(Some(_)) => "a frame",
-                Err(FrameError::Escalated(diag)) => diag.predicate.unwrap_or("unnamed"),
+                Err(FrameError::Escalated { diag, .. }) => diag.predicate.unwrap_or("unnamed"),
                 _ => "another answer",
             };
             assert_eq!(read, want, "{label}");
@@ -7581,6 +7653,40 @@ mod first_pair_rows {
             escalated_mutual.get(),
             Some(true),
             "the escalating round is all mutual and straight, so the K gate is what reads it"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod face_surface_tests {
+    /// **The join walks to a face's surface in one place**
+    /// ([`super::face_surface`]): every read of a surface in this file's
+    /// code, a face's or a key's, is that function's one.
+    #[test]
+    fn the_join_walks_to_a_faces_surface_in_one_place() {
+        let code = test_utils::source::code_only(include_str!("join.rs"));
+        let reads: Vec<usize> = ["get_surface(", "face_surface_linked(", "carrier_surface("]
+            .iter()
+            .flat_map(|needle| code.match_indices(needle).map(|(at, _)| at))
+            .collect();
+        let homes: Vec<usize> = code
+            .match_indices("fn face_surface<")
+            .map(|(at, _)| at)
+            .collect();
+        assert_eq!(homes.len(), 1, "one home");
+        let home = homes[0];
+        let open = home + code[home..].find('{').expect("the home's body");
+        let body_end = test_utils::source::balanced_end(&code, open).expect("a closed body");
+        let elsewhere: Vec<usize> = reads
+            .iter()
+            .filter(|&&at| !(home..body_end).contains(&at))
+            .map(|&at| test_utils::source::line(&code, at))
+            .collect();
+        assert!(
+            reads.len() == 1 && elsewhere.is_empty(),
+            "a surface read outside `face_surface`, at lines {elsewhere:?} ({} reads in all)",
+            reads.len()
         );
     }
 }

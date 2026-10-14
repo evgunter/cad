@@ -869,9 +869,9 @@ mod tests {
             ),
         ];
         let file = ReadAt::File(FileCoincidence::new(1e-9));
-        let span = "Recourse: move the geometry so this edge is not vanishingly short; an edge of \
-                    no length, or a reversed one, is one no kernel construction mints, so this \
-                    is a kernel defect";
+        let span = "Recourse: move the geometry so this edge runs forward over a clear length; an \
+                    edge of no length, or a reversed one, is one no kernel construction mints, so \
+                    this is a kernel defect";
         let meter = "Recourse: move the geometry so this spline edge runs steadily forward, never \
                      stalling or turning back; if it does neither, the speed floor has reached \
                      its limit, which is worth reporting";

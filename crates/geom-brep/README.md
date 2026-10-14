@@ -26,7 +26,7 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
 | C6 f64 structure, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
@@ -735,9 +735,10 @@ the face `F` covers is sealed, a through-hole turning blind and a blind
 hole a void; and a feature crossing the band surface has a result too.
 What is built of it: face clearance reads each face three ways (clear
 of the region, wholly inside it, or crossing it), and the carve takes a
-through-feature wholly inside the material a convex straight band's
-cut-off removes (the ruled fillet's, the plane–plane fillet's and
-chamfer's), between the band's two caps. Every other case refuses, a
+through-feature wholly inside the material a straight band's cut-off
+removes or fills (the ruled fillet's, the plane–plane fillet's and
+chamfer's), between the band's two caps: a bore under a convex band, a
+bar between the end walls under a concave one. Every other case refuses, a
 case the rule defines and the surgery does not build, and it refuses
 at the meter that reads it, not by which case it is. The clearance
 screen and the exact ring meters read the supports' own boundary

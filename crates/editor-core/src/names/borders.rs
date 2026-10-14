@@ -65,15 +65,22 @@ pub(crate) struct Obstacles<K> {
     /// `parents_of` named each a fragment of).
     by_parent: BTreeMap<K, Vec<usize>>,
     /// Edge → the edge it was split from, as each recorded result's
-    /// provenance and each discard's chains state it, so an edge a later
-    /// step killed — with a discarded face, or by joining it into
-    /// another — still leads to its parent.
+    /// provenance, each step's joined lineage and each discard's chains
+    /// state it, so an edge a step killed — with a discarded face, or by
+    /// joining it into another — still leads to its parent.
     split_from: BTreeMap<EdgeKey, EdgeKey>,
     /// Edge → the edges an output stage's join made it out of, besides
     /// itself.
     joined_from: BTreeMap<EdgeKey, Vec<EdgeKey>>,
     /// The booleans recorded so far.
     records: usize,
+}
+
+/// Records that `edge` was split from `from`. Every source copies the
+/// one record a body held for `edge`, so a second write agrees.
+fn note_split(split_from: &mut BTreeMap<EdgeKey, EdgeKey>, edge: EdgeKey, from: EdgeKey) {
+    let held = *split_from.entry(edge).or_insert(from);
+    debug_assert_eq!(held, from, "{edge:?} recorded with two parents");
 }
 
 /// The emission error this module refuses with.
@@ -142,8 +149,13 @@ impl<K: Ord + Clone> Obstacles<K> {
         }
         for (k, _) in body.edges() {
             if let Some(Provenance::SplitEdge { edge }) = body.edge_provenance_of(k) {
-                self.split_from.insert(k, *edge);
+                note_split(&mut self.split_from, k, *edge);
             }
+        }
+        // An edge this step split and its join killed lost its record
+        // with the kill; the boolean copied it out first.
+        for (&g, &f) in &naming.joined_lineage {
+            note_split(&mut self.split_from, g, f);
         }
         let earlier: BTreeSet<EdgeKey> = self
             .discards
@@ -220,7 +232,7 @@ impl<K: Ord + Clone> Obstacles<K> {
             }
             for chain in &chains {
                 for w in chain.windows(2) {
-                    self.split_from.insert(w[0], w[1]);
+                    note_split(&mut self.split_from, w[0], w[1]);
                 }
             }
             // A chain edge an earlier seam was split into since that

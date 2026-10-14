@@ -90,3 +90,29 @@ profile too. Filed:
 `work/ssiarith/a-rigid-map-moves-an-enclose-chart-margin-past-its-rounding-allowance.md`.
 
 — build-time lane (NURBS), 2026-10-14
+
+## Hosted, after #5104 (2026-10-14)
+
+The `test` job's `build` step, in ci.yml pull_request runs from 07:07Z to
+14:43Z. "Before" means created before main's cache-prime for the new key
+finished (push run 38555354191, 11:32Z, full dependency build). "After" means created after it. Runs
+whose build step was cut short by a cancel are excluded.
+
+| scope | before: n, median | after: n, median | Δ |
+|---|---|---|---|
+| `--workspace` | 30, 1246 s | 13, 820 s | **−426 s** |
+| T11 + geom-brep | 11, 1185 s | 10, 904 s | −282 s |
+| T11 (editor-core … topo) | 11, 1137 s | 5, 671 s | −466 s |
+| all scopes | 60, 1206 s | 31, 871 s | **−335 s** |
+
+These are medians over different PRs at different trees, so runner
+variance and the day's merges ride in them. The direction and size match
+the local pair (−291 / −302 s).
+
+Two branches have a `--workspace` run on each side, so the whole `test` job can be compared:
+- pcert/spline-pair-any-carrier: 3339 s → 1821 s;
+- band/concave-bar: 2716 s → 2051 s.
+
+Their test steps got *faster*, not about 9% slower as the local pair
+predicts. Each pair's two runs test different trees, so the test-step
+cost of lto off is not resolvable from hosted data. The build saving is.
