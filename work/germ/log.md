@@ -1305,3 +1305,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Row `PR-5043.md` last: sequential, M, byte 35, tallied 0, major false.
   - r5066a and r5066b are still reviewing.
 - 2026-10-14 06:10 — Dispatched the torus-circle-arc far-frame item (measure first): session_01PHep6zneg9Yvyc69Heeg5d, branch germ/torus-circle-arc-far-frames.
+- 2026-10-14 06:31 — Check-in. **r5066b in**: 0 MAJOR, 4 MINOR, 4 NIT. Its own oracle found 0 violations of the length bound and 0 wrong winding signs; no face-lane gate moved. MINORs: an undisclosed widening (the cap lane can now answer faces it used to refuse); the `min` over `apart` unguarded; the fuzz weak at default effort; the winding refuses at the first count that has no term. It disclosed that one `ps` listing showed another lane's command line, unused. r5066a is still reviewing. The torus-circle-arc lane is working. Re-armed for 07:31.
