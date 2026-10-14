@@ -4621,12 +4621,19 @@ fn chart_edge<T: Decide>(
         // A projected image is the chart's inverse of its carrier, exact
         // like the closed forms, so its slack is zero too. Its enclosure
         // is its own chart box, the sector hull's ranges per piece, and
-        // not `eval` over the span as the closed forms read: the spline's
-        // interval evaluation loses the correlation between its rational
-        // quotient's numerator and denominator, so over a whole edge the
-        // denominator encloses zero and the image is poison, and between
-        // the ends it is several times too wide
-        // (`trim_3_chart_bound::t9b_…`).
+        // not `eval` over the span as the closed forms read. The spline's
+        // interval evaluation encloses each basis function on its own, so
+        // its sums lose the partition of unity: over a whole span the
+        // denominator `Σ Nⱼ·wⱼ` of a unit-weight net encloses `[0, 2]`
+        // and the image is the entire line (decoration `Trv`), and inside
+        // it the numerator and the denominator are each loose, several
+        // times the true width (`trim_3_chart_bound::t9b_…`, and
+        // `work/knot/nurbs-curve-interval-eval-loses-the-partition-of-unity-over-a-wide-t.md`).
+        // The box is the image's exact hull when the walked interval is
+        // the whole net; over a strict sub-range of it, the box reads
+        // the whole pieces the sub-range meets: looser than the image by
+        // the pieces' overhang, and on `t9c_…`'s net still several times
+        // tighter than eval's finite enclosure there.
         Pcurve::Projected(_) => {
             let hull = walked.pcurve.chart_box(walked.t0, walked.t1);
             Ok(ChartEdge::Envelope {
