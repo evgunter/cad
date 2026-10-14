@@ -1,0 +1,2 @@
+(B = Fable, round 1)
+B (first report): one door each way. Up: embed through from_computed (keep name embed); embed_computed goes. Down: point_value; pin retired. UnitVec3 doors crate-private. Change ratified text (agent-written, 'sounds good!'). Premise: no from_f64 caller holds a constant frame. Confidence likely. Off-question: loft enclosure arm regression; SpanLocate bound on RigidMotion outgrown (file); lift_onto same argument (inlane).
