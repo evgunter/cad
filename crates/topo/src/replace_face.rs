@@ -2619,8 +2619,9 @@ fn plan_edge<T: Decide>(
                 geom_brep::SectionError::DegenerateTorus(refusal) => {
                     ReplaceFaceError::DegenerateTorus { edge, refusal }
                 }
-                // `route_pose` returns only an escalation or a
-                // dispatch naming the wrong arm or seat — this
+                // `route_pose` returns only an escalation, a torus off
+                // its ring convention, or a dispatch naming the wrong
+                // arm or seat — this
                 // kernel's own bug, not the body's (its `# Errors`);
                 // every other variant is answered inside it and
                 // never returned.
@@ -2632,7 +2633,7 @@ fn plan_edge<T: Decide>(
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
                 | geom_brep::SectionError::Carrier(_)
                 | geom_brep::SectionError::Spiric(_)) => unreachable!(
-                    "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and \
+                    "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and \
                  returned {other:?}"
                 ),
             },
@@ -3041,7 +3042,7 @@ fn derive_edge<T: Decide>(
         | geom_brep::SectionError::RoutesToGeneralRung { .. }
         | geom_brep::SectionError::Carrier(_)
         | geom_brep::SectionError::Spiric(_)) => unreachable!(
-            "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and returned \
+            "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and returned \
              {other:?}"
         ),
     })?;

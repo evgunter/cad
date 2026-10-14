@@ -646,11 +646,9 @@ pub enum SectionError {
     /// `R > r > 0`, in band or decided, a half at a time
     /// ([`TorusRefusal`]): a horn or spindle torus's meridian circles
     /// meet or cross on the axis, so no closed form here is well-posed.
-    /// A body at rest holds the ring half on the same band (tier 3's
-    /// `DegenerateTorus`), but a door that reads a body it has not
-    /// validated (`topo::replace_face_offset`) hands this arm whatever
-    /// torus the body carries, so the refusal ends in the half's lever
-    /// as tier 3's does.
+    /// Doors that read unvalidated bodies (`topo::replace_face_offset`)
+    /// reach it, so it ends in the half's lever, as tier 3's
+    /// `DegenerateTorus` does.
     DegenerateTorus(TorusRefusal),
     /// The conic carrier constructor refused (near-circular tilt or a
     /// degenerate axis) — the constructor is the one deciding door for
