@@ -1323,9 +1323,18 @@ impl CellFirstQuotients<crate::interval::Interval> {
     /// coefficient it restricts.
     #[must_use]
     pub fn restrict(&self, cuts: (Option<AxisCut>, Option<AxisCut>)) -> Self {
+        // `S_u` and `S_v` share `W²` (`Homogeneous::first_raised`), so
+        // it is restricted once.
+        let denom = self.u.denom.restricted(cuts);
         Self {
-            u: self.u.restricted(cuts),
-            v: self.v.restricted(cuts),
+            u: Raised {
+                numer: self.u.numer.restricted(cuts),
+                denom: denom.clone(),
+            },
+            v: Raised {
+                numer: self.v.numer.restricted(cuts),
+                denom,
+            },
         }
     }
 }
@@ -1333,15 +1342,6 @@ impl CellFirstQuotients<crate::interval::Interval> {
 /// One axis's cut: the span `(s0, s1)` the block covers and the part
 /// `(a, b)` of it to keep.
 pub type AxisCut = ((f64, f64), (f64, f64));
-
-impl<const D: usize> Raised<crate::interval::Interval, D> {
-    fn restricted(&self, cuts: (Option<AxisCut>, Option<AxisCut>)) -> Self {
-        Self {
-            numer: self.numer.restricted(cuts),
-            denom: self.denom.restricted(cuts),
-        }
-    }
-}
 
 impl<const D: usize> Grid<crate::interval::Interval, D> {
     /// The grid restricted along each axis given a cut.
