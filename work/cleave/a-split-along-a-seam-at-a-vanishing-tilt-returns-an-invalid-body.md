@@ -2,11 +2,12 @@
 id: a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body
 kind: issue
 title: A split through a cylinder's seam vertex at a vanishing tilt returns Ok bodies that fail validate_geometric (VolumeUncomputable)
-status: review
+status: closed
 opened: 2026-10-13
 priority: P1
 cost: M
 branch: cleave/seam-split-invalid-ok
+closed: 2026-10-14
 ---
 
 

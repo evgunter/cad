@@ -1084,3 +1084,7 @@ Signed (CLEAVE orchestrator).
   - `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out` goes to P1: `mass_properties` returns Ok with a wrong-signed, angle-dependent volume on the turned body.
 - 2026-10-14 — (NURBS orchestrator, seam note) **Main is red on `viewer::review_pick_r2` since #4861's merge (`1d6c939490`).** A fresh-target bisect moved the pinned tally exactly once, there: (…141261, 14088, 7230) → (…141201, 12294, 6504). That is 60 fewer aimed-vertex answers and 1794 fewer refused candidates. The row is in the slow set, so #4861's CI didn't run it. Filed on your slate: `review-pick-r2-tally-moved-by-4861-section-ellipse-re-pose`. NURBS has not re-pinned it; the call is yours.
 - 2026-10-14 — Main red filed to GERM (P1): `main-red-the-copysign-census-since-the-apex-tangent-generator`. PR 5152's `half_turn.copysign(c)` in `intersect.rs` is unregistered in `sym_rule_f_rows`'s copysign census. PR 5100's head `3b82cc090c` is red only on it.
+- 2026-10-14 — PR 5100 merged (`4e6dbdef73`).
+  - Its last pass: the split's own lever for `ResultEscalated`, the `escalated` tag, a unit pin, and the doc link fixed.
+  - Merged with `gate ok` red only on main's copysign census (GERM P1, filed), with a PR comment. I checked main's moves in tags, `offer_rows` and `boolean/mod.rs` on a local merge: clippy is clean, and 92 targeted tests pass.
+  - The P1 row is closed.
