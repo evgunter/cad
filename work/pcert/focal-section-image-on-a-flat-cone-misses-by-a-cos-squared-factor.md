@@ -51,3 +51,5 @@ re-derive it from the carrier where it does not have to divide by
 `cos α`.
 
 **Not touched by the vertex-azimuth fix** (`focal-section-vertex-azimuth-is-read-off-a-cancelling-sum`, closed 2026-10-13): at `α = 1.55` it moves the whole-turn miss at most 3× (generic pose, `f = 0.9999`: 3.6e-6 → 8.8e-7), so the `1/cos²α` mechanism stands.
+
+**Moved 28× by the `β` fix** (`cone-section-interval-mint-escalates-on-a-beta-enclosure-of-u-over-k-levered-near-a-parabola`, closed 2026-10-13): at `α = 1.55`, `f = 0.9999`, scale 1, the generic-pose whole-turn miss goes 8.8e-7 → 3.1e-8, and `f = 0.999` 3.6e-8 → 2.4e-9; both still refuse or escalate, about 4000× the `α = 1` miss at the same `k`, so a flat-cone factor stands.

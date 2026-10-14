@@ -1670,14 +1670,9 @@ pub(crate) fn carrier_ball<T: Decide>(
         // The arc from its midpoint: no point of it lies further from
         // `P(mid)` than the oval's speed bound times half the parameter
         // width.
-        geom::Curve3::Spiric {
-            major_radius,
-            minor_radius,
-            offset,
-            ..
-        } => Some((
+        geom::Curve3::Spiric { .. } => Some((
             carrier.mid_point(t0, t1),
-            spiric_speed(major_radius, minor_radius, offset) * (t1 - t0).abs() * T::from_f64(0.5),
+            crate::bisect::reach(crate::carrier_speed::speed_range(carrier).1, (t0, t1)),
         )),
         // Positive weights put a NURBS curve inside its control
         // hull, so inside any ball holding every control point: the
@@ -1699,13 +1694,6 @@ pub(crate) fn carrier_ball<T: Decide>(
             Some((center, reach))
         }
     }
-}
-
-/// **A spiric's speed bound**, metres per radian of its parameter:
-/// [`geom::spiric_rate_bounds`] over the whole oval of the torus
-/// `(major, minor)` cut at `offset`.
-pub(crate) fn spiric_speed<T: geom_core::Real>(major: T, minor: T, offset: T) -> T {
-    geom::spiric_rate_bounds(minor, offset, (major - minor, major + minor), T::one()).0
 }
 
 /// **How far from `q` the loop reaches**: the radius of a ball about
