@@ -338,16 +338,11 @@ impl SplitNaming {
         split_from: &std::collections::BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>,
         joins: Vec<crate::boolean::EdgeJoin>,
     ) {
-        for j in &joins {
-            if let Some(&from) = split_from.get(&j.gone) {
-                let earlier = self.joined_lineage.insert(j.gone, from);
-                debug_assert!(
-                    earlier.is_none_or(|e| e == from),
-                    "{:?} recorded with two parents ({earlier:?}, {from:?})",
-                    j.gone
-                );
-            }
-        }
+        crate::boolean::edge_join::record_joined_lineage(
+            &mut self.joined_lineage,
+            split_from,
+            &joins,
+        );
         self.edge_joins.extend(joins.into_iter().map(|j| (side, j)));
     }
 }
