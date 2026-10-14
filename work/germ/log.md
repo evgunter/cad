@@ -1285,3 +1285,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Row `PR-5012.md` last: sequential, M, byte 118, tallied 0, major false.
   - The fix-pass lane reported three slow-set reds at 1e-6/1e-12 that are also red on main and unfiled. Confirming on main `e9e5df7c8a` (scratchpad/vmain.sh); I'll file them if confirmed.
 - 2026-10-14 01:25 — Check-in. r5043 is still reviewing (last write 01:19). The main-branch check of the three slow-set reds is waiting for a build slot. The spiric-lever lane is working. Re-armed for 02:25.
+- 2026-10-14 02:15 — **r5043 in**: sequential, the only review. 0 MAJOR, 2 MINOR, 2 NIT.
+  - Its own 50-digit oracle over 8 families × 3 ε: every served ellipse within 5.84 u·size post-fix; pre-fix up to 3.9e6.
+  - Outcome diff pose by pose: only refused → served (2 poses at unset, 6 at 1e-12), each within 1.55 u·size. geom-brep 1309, topo 2994 and sweep 2651 at three ε.
+  - MINORs: the rows never draw c<0, so two |c| mutants stay green; two old cancelling centre copies remain, in cone_frame_rows and reach_cone_split.
+  - Fix pass dispatched: session_01Swy8zgyJ1niNJoPexkaghB (4 items). Row at merge: sequential, M, byte 35, tallied 0, major false.
