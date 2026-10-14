@@ -77,7 +77,7 @@ not the sweep.
 ## Added by FRAME-WITNESS's §4 sweep (2026-09-15)
 
 The two hand-rolled FRAME dodges this crate pair carries — the ladder
-the unit's own `OrthoFrame::gram_schmidt` now writes once, with both
+the unit's own `RigidMotion::gram_schmidt` now writes once, with both
 lengths decided and a typed refusal naming which axis:
 
 - `crates/step-import/src/adopt.rs`, `line_frame` (`:1031-1058`): a

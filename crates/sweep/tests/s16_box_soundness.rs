@@ -56,7 +56,7 @@ use crate::common::operands::{
     nested_box, rim_plate, rounded_plate, small_box, three_arc_cylinder, top_rim_plate,
 };
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
+use geom_core::{Point2, Vec3};
 use std::collections::BTreeSet;
 use sweep::test_support::{brick, finished};
 use topo::{
@@ -384,7 +384,7 @@ fn top_rim_x_plate(x_max: f64) -> Body<f64> {
 fn cylinder_apart(gap: f64) -> Body<f64> {
     topo::transform_rigid(
         &cylinder(0.0, 1.0),
-        &Affine3::translation(Vec3::new(1.0 + gap, 0.0, 0.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(1.0 + gap, 0.0, 0.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap()

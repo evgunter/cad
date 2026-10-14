@@ -1303,11 +1303,13 @@ pub enum EulerOpError {
     /// [`Body::split_edge`]: the one joint decision
     /// (`crate::pcurves::decide_joint`) decided no element for the joint
     /// between the two children of a half-edge's row. The gap there is
-    /// exactly zero, so what refused is the split point's lever: a mark
-    /// at it escalated (`diag` is `Some`), or the lever is so short that
-    /// the zero gap reads on a mark (`None`), as on a narrow cone near
-    /// its apex. The split writes no element nothing decided. Raised
-    /// before any mutation, so the body is untouched.
+    /// zero, and a zero gap meets the image's own orbit point at any
+    /// lever (the near-pole read, `crate::pcurves::lever_periods`), so a
+    /// short lever alone no longer refuses: what refuses is a reading
+    /// the band cannot decide (`diag` is `Some`), or a decided miss
+    /// (`None`) of a channel the near-pole read does not serve. The
+    /// split writes no element nothing decided. Raised before any
+    /// mutation, so the body is untouched.
     SplitJointUndecided {
         /// The edge being split.
         edge: EdgeKey,
@@ -1322,9 +1324,9 @@ pub enum EulerOpError {
     /// joint the kill bridges across it has no element to write. Either
     /// whether the half's ends meet escalated, or they meet and the
     /// joint decision there missed: a mark at the vertex escalated, or
-    /// its lever is so short that the gap reads on a mark, or the
-    /// periods lie past the branch reach. Raised in the plan phase, so
-    /// the body is untouched.
+    /// the gap reads on a mark and meets no orbit point the near-pole
+    /// read tries at the vertex's lever, or the periods lie past the
+    /// branch reach. Raised in the plan phase, so the body is untouched.
     KillTurnUndecided {
         /// The killed half-edge whose turn was not decided.
         half_edge: HalfEdgeKey,
@@ -5954,8 +5956,9 @@ mod tests {
                     finding: crate::PcurveMintError::Certify {
                         half_edge: spline_half,
                         error: geom_brep::PcurveCertifyError::IsoUnsupported {
-                            what: "the carrier's start point lies on neither chart boundary — \
-                                   not a boundary iso of this face's chart",
+                            what: "no boundary row of this chart, in either u direction, \
+                                   holds the circle at the interior probe — not an arc rim \
+                                   spanning the chart's u domain",
                         },
                     },
                 },

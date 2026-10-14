@@ -2266,3 +2266,39 @@ Filed:
   - `a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces` (design);
   - `a-union-edge-in-a-face-whose-member-face-glued-is-a-seam-not-a-member-edge-piece` (design);
   - `the-cone-split-relation-has-two-homes-and-the-vertex-pass-two-ladders` (P4).
+
+## 2026-10-13 — the glued-rim fork goes to Ev
+
+A designer pair weighed whether a union edge lying on a member edge whose own face was glued away is a seam or a piece of that rim. They also weighed the unspelled pair-boolean shape of one line meeting several faces.
+
+The pair converged after one round:
+- the glued-rim edge is a seam, and the README defines "lies within" by the two-face test, with no code change;
+- the one-line shape moves to the `Emission` residue, and its row closes as unreached.
+
+This is fork-log row 131 (renumbered at merge; Ev: "sounds good!"). Also filed: `a-run-of-seams-says-every-seam-after-the-first-as-an-edge`.
+
+## 2026-10-13 — the glued-rim ruling built (branch `emit/glued-rim-build`)
+
+- The three-block glued-rim fixture is pinned over all 6 member orders, along with its sunk and lifted variants. Glued and sunk publish the same seam and seam-run names. Lifted names the edge as a piece of `b`'s rim.
+- One line meeting several faces is now an `Emission` refusal in both emitters, with the planar link argument beside each. `SeamVertexParentage` keeps one raiser, the pair emitter's A-side lone-edge arm, and its doc and message now describe that arm.
+- Closed:
+  - `a-union-edge-in-a-face-whose-member-face-glued-is-a-seam-not-a-member-edge-piece`;
+  - `a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces` (unreached).
+- Filed on CIW: `the-ci-slow-set-names-tests-that-no-longer-exist`.
+
+## 2026-10-14 — PR 5039: two naming refusals on sound bodies
+
+**The prism bridging two wedges** (closed). A union seam between two distinct faces of one operand is now named as their `Seam`, and the arm guards on `BooleanOp::Union`. This covers both a seam that shares no edge and a chord off every rim the two faces share. `borders.rs` follows split lineage for touches through one loud walk.
+- Pinned in every building order, with a fast subset run in per-PR CI.
+- The orders that fold the bridge last still refuse in topo (TANG's row).
+
+**The sphere cut-in cap** (closed, P2). Topo's `apply_cut_ins` now records its divisions and chart cuts (record only), so the cap no longer refuses `MissingUpstream`. What remains is the typed `ConventionalVertex` refusal (FUSE's row).
+
+**Filed:**
+- FUSE: the unglued cut in the lens ∪ brick;
+- EMIT: a whole ball cut by a tilted brick refuses `UNCLASSIFIED_SIDE`;
+- CIW: loop-boundary-discards loses a fn whose signature holds a `;`;
+- ORBIT: the re-cut graft keys carry no record;
+- NURBS (#5044): the lily-leaf tessellation table drift on main, found on this PR's demos run.
+
+The PR merged with `demos` red on that drift alone.

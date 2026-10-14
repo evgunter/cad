@@ -375,7 +375,7 @@ mod tie_tests {
 
     use std::sync::Arc;
 
-    use geom_core::{OrthoFrame, Point2, Tol};
+    use geom_core::{Point2, RigidMotion, Tol};
     use topo::Body;
 
     use super::*;
@@ -385,7 +385,7 @@ mod tie_tests {
 
     /// A unit cube and the extrude table that names it.
     fn cube() -> (Body<f64>, Arc<NameTable>) {
-        let plane = profile::SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
+        let plane = profile::SketchPlane::from_frame(RigidMotion::axes_xy(geom_core::Point3::new(
             0.0, 0.0, 0.0,
         )));
         let square = profile::ProfileLoop::polygon(

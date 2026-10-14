@@ -69,7 +69,10 @@ fn cyl(r: f64, h: f64) -> Body<Interval> {
 fn spin(b: &Body<Interval>, axis: Vec3<Interval>, angle: f64) -> Body<Interval> {
     topo::transform_rigid(
         b,
-        &Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), axis, iv(angle)),
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), axis, iv(angle)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
@@ -91,7 +94,10 @@ fn repose(b: &Body<Interval>) -> Body<Interval> {
     let r = Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), v3(1.0, 2.0, 3.0).normalize(), iv(0.7));
     topo::transform_rigid(
         b,
-        &Affine3::from_parts(r.linear, r.translation + v3(0.3, -0.45, 0.6)),
+        &geom_core::test_support::rigid(
+            &Affine3::from_parts(r.linear, r.translation + v3(0.3, -0.45, 0.6)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
@@ -215,7 +221,7 @@ fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), x_axis(), PI / 2.0),
-        &Affine3::translation(v3(0.375, 0.0, 0.0)),
+        &geom_core::RigidMotion::translation(v3(0.375, 0.0, 0.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap();

@@ -2853,7 +2853,7 @@ pub(in crate::boolean) mod tests {
                 source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
             };
             let split = crate::SplitError::Join(join()).to_string();
-            let boolean = BooleanError::Join(join()).to_string();
+            let boolean = BooleanError::from(join()).to_string();
             for text in [&split, &boolean] {
                 let problems = short_of_the_guard(text, &[]);
                 assert!(problems.is_empty(), "{predicate}: {problems:?}: {text}");
@@ -3155,7 +3155,7 @@ pub(in crate::boolean) mod tests {
                  parallel, and the merge never glues a lie. {CONTRADICTED}"
             )
         );
-        let wrapped = BooleanError::Merge(err).to_string();
+        let wrapped = BooleanError::from(err).to_string();
         let problems = short_of_the_guard(&wrapped, &[]);
         assert!(problems.is_empty(), "{problems:?}: {wrapped}");
     }
@@ -3425,7 +3425,7 @@ pub(in crate::boolean) mod tests {
                 let offer = (!definite && sign > 0.0).then_some(reach);
                 assert_eq!(offered_below(&text), offer_at(offer), "{label}: {text}");
                 assert_eq!(
-                    BooleanError::Merge(err).to_string(),
+                    BooleanError::from(err).to_string(),
                     format!("coplanar-merge output stage refused: {text}"),
                     "{label}: the Boolean's merge stage forwards the sentence"
                 );
@@ -3525,7 +3525,7 @@ pub(in crate::boolean) mod tests {
             ] {
                 let moved = crate::transform::transform_rigid(
                     &body,
-                    &geom_core::Affine3::translation(shift),
+                    &geom_core::RigidMotion::translation(shift).unwrap(),
                     tol,
                 )
                 .expect("a translation is rigid");

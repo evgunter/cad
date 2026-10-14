@@ -12,18 +12,19 @@
 //! azimuth) and an arc of a parallel, in either order, after a segment
 //! that moves the start onto the tube through the end, so the pieces
 //! meet exactly. Every loop arc is a plane section of the surface (a
-//! circle or an ellipse: no lane mints another conic) or, on a cone, a
-//! ruling. So a piece meets a section arc only where it crosses the
-//! arc's plane, which a circle piece does at most twice and a segment
-//! once, and it meets a ruling only where the ruling crosses a
-//! parallel's plane. Two rulings meet only at the apex, which no piece
-//! reaches.
+//! circle or an ellipse: no lane mints another conic; on a torus, also
+//! a spiric oval) or, on a cone, a ruling. So a piece meets a section
+//! arc only where it crosses the arc's plane, which a circle piece does
+//! at most twice and a segment once, and it meets a ruling only where
+//! the ruling crosses a parallel's plane. Two rulings meet only at the
+//! apex, which no piece reaches.
 //!
 //! A plane cuts a torus in up to two loops, so on a torus a crossing of
-//! an arc's plane lies on the arc's own circle only on that circle's
-//! side of the split between the two ([`ArcLoop`]): a loop arc on a
-//! torus is a meridian or a parallel, whose plane's other loop is the
-//! meridian across the axis or the parallel across the tube. The split
+//! an arc's plane lies on the arc's own loop only on that loop's side
+//! of the split between the two ([`ArcLoop`]): a loop arc on a torus is
+//! a meridian, a parallel or a spiric oval, whose plane's other loop is
+//! the meridian across the axis, the parallel across the tube or the
+//! oval across the axis's trace. The split
 //! is decided at the crossing, **`split_ring_path_torus_loop`**, as the
 //! boolean join's section loops are told apart.
 //!
@@ -189,8 +190,8 @@ impl<T: Decide> Quadric<T> {
     }
 
     /// Whether `p` is decided off a cone's apex or a torus's axis (its
-    /// distance from the axis, **`split_ring_path_off_apex`**): always on
-    /// a sphere.
+    /// distance from the axis, **`split_ring_path_off_apex`**, charged
+    /// the two points' [`resolution`]): always on a sphere.
     pub(crate) fn off_apex(&self, p: Point3<T>, band: Band) -> Result<bool, Indeterminate> {
         match *self {
             Self::Sphere { .. } => Ok(true),
@@ -199,14 +200,19 @@ impl<T: Decide> Quadric<T> {
                 centre: apex, axis, ..
             } => Ok(decide(
                 "split_ring_path_off_apex",
-                Margin::of(Self::axial(apex, axis, p).1.norm()),
+                Margin::of(charge(
+                    Self::axial(apex, axis, p).1.norm(),
+                    resolution(&[apex, p]),
+                )),
                 band,
             )? == Sign::Positive),
         }
     }
 
     /// **The paths from `from` to `to`** this quadric reads, in the order
-    /// they are asked; none where no path is decided to exist.
+    /// they are asked; none where no path is decided to exist. Each
+    /// reading below is charged the [`resolution`] of the ends and the
+    /// quadric's centre or apex ([`charge`]).
     ///
     /// - A sphere's is the short great-circle arc, which exists when the
     ///   ends are decided neither equal nor antipodal
@@ -238,12 +244,16 @@ impl<T: Decide> Quadric<T> {
     ) -> Result<Vec<Path<T>>, Indeterminate> {
         match *self {
             Self::Sphere { centre, radius } => {
+                let slack = resolution(&[from, to, centre]);
                 let a = (from - centre) / radius;
                 let b = (to - centre) / radius;
                 let m = a.cross(b);
                 let sine = m.norm();
-                if decide("split_ring_path_span", Margin::levered(sine, radius), band)?
-                    != Sign::Positive
+                if decide(
+                    "split_ring_path_span",
+                    Margin::levered(charge(sine, slack / radius), radius),
+                    band,
+                )? != Sign::Positive
                 {
                     return Ok(Vec::new());
                 }
@@ -264,9 +274,10 @@ impl<T: Decide> Quadric<T> {
                 if !self.off_apex(from, band)? || !self.off_apex(to, band)? {
                     return Ok(Vec::new());
                 }
+                let slack = resolution(&[from, to, apex]);
                 let (ha, ra) = Self::axial(apex, axis, from);
                 let (hb, rb) = Self::axial(apex, axis, to);
-                let nappe = |h| decide("split_ring_path_nappe", Margin::of(h), band);
+                let nappe = |h| decide("split_ring_path_nappe", Margin::of(charge(h, slack)), band);
                 let side = nappe(ha)?;
                 if side == Sign::Zero || nappe(hb)? != side {
                     return Ok(Vec::new());
@@ -306,7 +317,11 @@ impl<T: Decide> Quadric<T> {
                 let (e, slant) = ruling(to);
                 let below = apex + axis * ha + ub * ra.norm();
                 let rise = slant - (below - apex).norm();
-                let along = decide("split_ring_path_rise", Margin::of(rise), band)?;
+                let along = decide(
+                    "split_ring_path_rise",
+                    Margin::of(charge(rise, slack)),
+                    band,
+                )?;
                 if along != Sign::Zero {
                     let round = parallel(apex + axis * ha, axis, ra.norm(), from, below);
                     paths.push(Path {
@@ -336,8 +351,13 @@ impl<T: Decide> Quadric<T> {
                 let core = |p| Self::core(centre, axis, major, p);
                 let (kf, kt) = (core(from), core(to));
                 let (off_f, off_t) = ((from - kf).norm(), (to - kt).norm());
+                let slack = resolution(&[from, to, centre]);
                 for off in [off_f, off_t] {
-                    if decide("split_ring_path_off_core", Margin::of(off), band)? != Sign::Positive
+                    if decide(
+                        "split_ring_path_off_core",
+                        Margin::of(charge(off, slack)),
+                        band,
+                    )? != Sign::Positive
                     {
                         return Ok(Vec::new());
                     }
@@ -527,8 +547,30 @@ pub(crate) struct Conic<T: Real> {
     own: Option<ArcLoop<T>>,
 }
 
+/// An arc of a spiric oval on a torus over its increasing span
+/// (`centre + u_ref·offset + m·f(t) + axis·minor·sin t`,
+/// `m = axis × u_ref`, `f = √((major + minor·cos t)² − offset²)`, the
+/// carrier's own form): one of the two loops its plane parallel to the
+/// axis cuts, on the `+m` side of the axis's trace (`own`). Its
+/// parameter is the torus's minor angle at a point, and its speed in it
+/// is at least `minor`.
+#[derive(Clone, Copy)]
+pub(crate) struct Oval<T: Real> {
+    centre: Point3<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    major: T,
+    minor: T,
+    offset: T,
+    span: (T, T),
+    /// The side of its plane's two loops the oval's own lies on; `None`
+    /// only where a row strips it to show what it guards.
+    own: Option<ArcLoop<T>>,
+}
+
 /// An arc of a loop on a sphere, cone or torus face, over its
-/// increasing span: a section conic or a ruling (`origin + dir·t`).
+/// increasing span: a section conic, a spiric oval or a ruling
+/// (`origin + dir·t`).
 #[derive(Clone, Copy)]
 pub(crate) enum LoopArc<T: Real> {
     Conic(Conic<T>),
@@ -537,6 +579,7 @@ pub(crate) enum LoopArc<T: Real> {
         dir: Vec3<T>,
         span: (T, T),
     },
+    Oval(Oval<T>),
     /// An arc of a torus's top or bottom circle, the parallel of radius
     /// `R` (`centre + (u_ref·cos t + (axis × u_ref)·sin t)·radius`),
     /// whose plane touches the torus along it. A path meets it only where
@@ -606,6 +649,80 @@ impl<T: Real> LoopArc<T> {
             span: (T::zero(), length),
         }
     }
+}
+
+impl<T: Decide> LoopArc<T> {
+    /// **A section arc's plane and its reading at a point of it**, for
+    /// a conic or a spiric oval: the plane (a point of it and its unit
+    /// normal), the arc's span, the least speed of its parameter (metres
+    /// per radian: a conic's minor semi-axis, an oval's tube radius),
+    /// which levers an in-span reading, and the side of its plane's two
+    /// loops its own lies on. `None` for a ruling or a crest.
+    fn plane(&self) -> Option<SectionArc<T>> {
+        match *self {
+            Self::Conic(c) => Some(SectionArc {
+                origin: c.centre,
+                normal: c.axis,
+                span: c.span,
+                speed: c.b,
+                own: c.own,
+            }),
+            Self::Oval(o) => Some(SectionArc {
+                origin: o.centre + o.u_ref * o.offset,
+                normal: o.u_ref,
+                span: o.span,
+                speed: o.minor,
+                own: o.own,
+            }),
+            Self::Line { .. } | Self::Crest { .. } => None,
+        }
+    }
+
+    /// The parameter of `x`, a point of a section arc's plane, on the
+    /// branch of its span's middle ([`Conic::param`], [`Oval::param`]).
+    /// A ruling or a crest has none.
+    fn param_at(&self, x: Point3<T>) -> Option<T> {
+        match *self {
+            Self::Conic(c) => Some(c.param(x)),
+            Self::Oval(o) => Some(o.param(x)),
+            Self::Line { .. } | Self::Crest { .. } => None,
+        }
+    }
+}
+
+impl<T: Decide> Oval<T> {
+    /// The oval's carrier.
+    fn carrier(&self) -> geom::Curve3<T> {
+        geom::Curve3::Spiric {
+            center: self.centre,
+            axis: self.axis,
+            u_ref: self.u_ref,
+            major_radius: self.major,
+            minor_radius: self.minor,
+            offset: self.offset,
+        }
+    }
+
+    /// The parameter of `x`, a point of the oval's plane, on the branch
+    /// of its span's middle: the carrier's own reading.
+    fn param(&self, x: Point3<T>) -> T {
+        let mid = (self.span.0 + self.span.1) * T::from_f64(0.5);
+        match self.carrier().param_near(x, mid) {
+            Some(t) => t,
+            None => unreachable!("a spiric carrier reads every point's parameter"),
+        }
+    }
+}
+
+/// A section arc's plane and the length its in-span readings are
+/// levered by ([`LoopArc::plane`]).
+#[derive(Clone, Copy)]
+struct SectionArc<T: Real> {
+    origin: Point3<T>,
+    normal: Vec3<T>,
+    span: (T, T),
+    speed: T,
+    own: Option<ArcLoop<T>>,
 }
 
 /// **Which of two loops of one plane section a point lies on**: the sign
@@ -707,18 +824,60 @@ pub(crate) struct ArcLoop<T: Real> {
 
 impl<T: Decide> ArcLoop<T> {
     /// **`split_ring_path_torus_loop`** at `p`: positive on the arc's
-    /// own loop.
-    fn read(&self, p: Point3<T>, band: Band) -> Result<Sign, Indeterminate> {
+    /// own loop, the margin charged `slack` ([`charge`]).
+    fn read(&self, p: Point3<T>, slack: T, band: Band) -> Result<Sign, Indeterminate> {
         let m = self.split.margin(p);
         decide(
             "split_ring_path_torus_loop",
-            Margin::of(if self.positive { m } else { -m }),
+            Margin::of(charge(if self.positive { m } else { -m }, slack)),
             band,
         )
     }
 }
 
 impl<T: Decide> Quadric<T> {
+    /// **The loop arc of a spiric oval on this torus**, over `params`;
+    /// `None` for any other carrier, and on a sphere or a cone. The
+    /// oval's plane, parallel to the axis, cuts the torus in it and the
+    /// oval across the axis's trace: its own loop is on the carrier's
+    /// `+m` side of that trace.
+    pub(crate) fn torus_spiric_arc(
+        &self,
+        carrier: &geom::Curve3<T>,
+        (t0, t1): (T, T),
+    ) -> Option<LoopArc<T>> {
+        let (
+            Self::Torus { .. },
+            &geom::Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            },
+        ) = (*self, carrier)
+        else {
+            return None;
+        };
+        Some(LoopArc::Oval(Oval {
+            centre: center,
+            axis,
+            u_ref,
+            major: major_radius,
+            minor: minor_radius,
+            offset,
+            span: (t0.min(t1), t0.max(t1)),
+            own: Some(ArcLoop {
+                split: LoopSplit::Side {
+                    origin: center,
+                    dir: axis.cross(u_ref),
+                },
+                positive: true,
+            }),
+        }))
+    }
+
     /// **The loop arc of a circle on this torus**, over `params`: a
     /// meridian or a parallel, with its [`ArcLoop`]; `Ok(None)` for any
     /// other circle (no plane section of a torus outside the touching
@@ -851,11 +1010,11 @@ impl<T: Decide> Quadric<T> {
 /// interior point; its crossing there is the arrival and is not
 /// counted. `None` when a reading of a crossing not passed over lands
 /// in the zero band; `Err` when one lands in the escalation band, which
-/// says nothing about the parity either: the caller asks another path. A crossing is passed
-/// over when any of its in-span readings is decided out of span, though
-/// another escalate.
+/// says nothing about the parity either: the caller asks another path.
+/// A crossing is passed over when any of its in-span readings is
+/// decided out of span, even where another escalates.
 ///
-/// - A circle piece meets a conic's plane where
+/// - A circle piece meets a conic's or an oval's plane where
 ///   `A cos θ + B sin θ = −D/r` (`A`, `B` the plane normal's components
 ///   on the piece's frame, `D` the piece's centre's offset from the
 ///   plane): at two parameters when `r·√(A² + B²) > |D|`
@@ -863,27 +1022,43 @@ impl<T: Decide> Quadric<T> {
 ///   in metres: moving the plane by it flips the meeting). A graze inside
 ///   the gap's band escalates, and the caller asks the next path. On the
 ///   arrival arc, the root nearer the piece's end is the arrival. A gap
-///   in the zero band is a piece along the plane, which meets no arc it
-///   is decided apart from ([`misses_in_plane`]): a path's meridian or
-///   parallel through a point of an arc's carrier, or of its plane's
-///   other loop, runs so.
-/// - A segment meets a conic's plane where its ends' offsets from it
-///   (**`split_ring_path_segment_side`**) differ in sign. An end on the
-///   plane says nothing unless the segment is decided apart from the arc
-///   ([`segment_misses`]), as a torus path's lead from a point on an
-///   arc's plane is.
+///   in the zero band is a piece along the plane, which meets no conic
+///   arc it is decided apart from ([`misses_in_plane`]): a path's
+///   meridian or parallel through a point of an arc's carrier, or of its
+///   plane's other loop, runs so.
+/// - A segment meets a conic's or an oval's plane where its ends'
+///   offsets from it (**`split_ring_path_segment_side`**) differ in
+///   sign. An end on the plane says nothing unless the segment is
+///   decided apart from a conic arc ([`segment_misses`]), as a torus
+///   path's lead from a point on an arc's plane is, or its length is in
+///   the band (**`split_ring_path_lead_point`**: a lead from a point
+///   already on its tube) and that point is decided off the arc (on the
+///   plane's other loop, or out of the arc's span).
 /// - A ruling meets a circle piece's plane once (it is decided across
 ///   it, **`split_ring_path_line_across`**: the cosine between the
 ///   plane's normal and the ruling, levered at the piece's radius), and
 ///   another ruling nowhere off the apex (the two are decided apart,
 ///   **`split_ring_path_rulings_apart`**: the sine between them,
-///   levered at the segment's distance from the apex).
+///   levered at the segment's distance from the apex, and charged each
+///   direction's rounding: the resolution over that distance and over
+///   the arc's length).
 /// - On a torus, a meeting point counts only on the arc's own loop of
 ///   its plane ([`ArcLoop`], **`split_ring_path_torus_loop`**).
+/// - Every reading above is charged the [`resolution`] of the path's
+///   points and the arcs' centres ([`charge`]), but the cosine across,
+///   read between two directions, and two readings whose zero only hands
+///   the case to charged readings, so that a charge would only widen it:
+///   the lead's length, and [`misses_in_plane`]'s
+///   **`split_ring_path_same_circle`**, whose zero hands the arcs' ends
+///   to the in-span readings. In a frame far from the
+///   origin, points that should lie on one plane or one circle are
+///   stored further apart than the band, and a margin inside their
+///   rounding stands down rather than decide.
 /// - Each meeting point counts when it lies strictly inside the piece's
 ///   span and the arc's (**`split_ring_path_in_span`**: the distance
 ///   along the piece or the arc to a span end — a parameter levered at a
-///   circle's radius or a conic's minor semi-axis, or a line's length —
+///   circle's radius, a conic's minor semi-axis or an oval's tube radius
+///   (each the least speed of its parameter), or a line's length —
 ///   times the slope the piece crosses the other's plane at. That is the
 ///   carrier displacement that moves the root past the end: near a graze
 ///   a root moves by the displacement over the slope, so a span end a
@@ -895,14 +1070,26 @@ pub(crate) fn path_parity<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, Indeterminate> {
     let decide_m = |name, margin| decide(name, margin, band);
+    let slack = path_resolution(path, arcs);
     // A crossing's in-span readings are kept whole, escalations included:
     // one decided out of span passes the crossing over whatever the
     // others read.
-    let in_span = |t: T, span: (T, T), arm: T| span_readings(t, span, arm, band);
+    let in_span = |t: T, span: (T, T), arm: T| span_readings(t, span, arm, slack, band);
     let inside = Ok(Sign::Positive);
     // A crossing of a torus arc's plane on the plane's other loop is no
     // crossing of the arc: its side is one more reading of the crossing.
-    let on_own = |own: Option<ArcLoop<T>>, x: Point3<T>| own.map_or(inside, |l| l.read(x, band));
+    let on_own =
+        |own: Option<ArcLoop<T>>, x: Point3<T>| own.map_or(inside, |l| l.read(x, slack, band));
+    // The arms below that read a section arc match only a conic or an
+    // oval, which both have a plane and a parameter.
+    let section = |arc: &LoopArc<T>| match arc.plane() {
+        Some(sec) => sec,
+        None => unreachable!("only a conic or an oval arc is read as a section arc"),
+    };
+    let param = |arc: &LoopArc<T>, x: Point3<T>| match arc.param_at(x) {
+        Some(t) => t,
+        None => unreachable!("only a conic or an oval arc is read as a section arc"),
+    };
     let mut odd = false;
     let last = path.pieces.len().saturating_sub(1);
     for (i, piece) in path.pieces.iter().enumerate() {
@@ -910,18 +1097,23 @@ pub(crate) fn path_parity<T: Decide>(
             let arrival = i == last && arrives_on == Some(j);
             let mut readings: Vec<[Result<Sign, Indeterminate>; 5]> = Vec::with_capacity(2);
             match (*piece, *arc) {
-                (Piece::Arc(p) | Piece::Meridian(p), LoopArc::Conic(conic)) => {
-                    let Some(roots) = plane_roots(&p, (conic.centre, conic.axis), arrival, band)?
+                (Piece::Arc(p) | Piece::Meridian(p), LoopArc::Conic(_) | LoopArc::Oval(_)) => {
+                    let sec = section(arc);
+                    let Some(roots) =
+                        plane_roots(&p, (sec.origin, sec.normal), arrival, slack, band)?
                     else {
-                        if !arrival && misses_in_plane(&p, &conic, band)? {
+                        if let LoopArc::Conic(conic) = arc
+                            && !arrival
+                            && misses_in_plane(&p, conic, slack, band)?
+                        {
                             continue;
                         }
                         return Ok(None);
                     };
                     for (t, slope) in roots {
                         let [p0, p1] = in_span(t, p.span, p.radius * slope);
-                        let [a0, a1] = in_span(conic.param(p.at(t)), conic.span, conic.b * slope);
-                        readings.push([p0, p1, a0, a1, on_own(conic.own, p.at(t))]);
+                        let [a0, a1] = in_span(param(arc, p.at(t)), sec.span, sec.speed * slope);
+                        readings.push([p0, p1, a0, a1, on_own(sec.own, p.at(t))]);
                     }
                 }
                 // A crest is a torus's, whose paths' arcs are parallels
@@ -935,8 +1127,10 @@ pub(crate) fn path_parity<T: Decide>(
                         core: (.., major), ..
                     },
                 ) => {
-                    if decide_m("split_ring_path_crest_graze", Margin::of(p.radius - major))?
-                        == Sign::Zero
+                    if decide_m(
+                        "split_ring_path_crest_graze",
+                        Margin::of(charge(p.radius - major, slack)),
+                    )? == Sign::Zero
                     {
                         return Ok(None);
                     }
@@ -961,7 +1155,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let w = p.centre - c;
                     let e = w - a * w.dot(a);
                     let e = e / e.norm();
-                    let Some(roots) = plane_roots(&p, (p.centre, e), arrival, band)? else {
+                    let Some(roots) = plane_roots(&p, (p.centre, e), arrival, slack, band)? else {
                         return Ok(None);
                     };
                     let v_ref = axis.cross(u_ref);
@@ -970,7 +1164,7 @@ pub(crate) fn path_parity<T: Decide>(
                         let s = branch(w.dot(v_ref).atan2(w.dot(u_ref)), span);
                         let [p0, p1] = in_span(t, p.span, p.radius * slope);
                         let [a0, a1] = in_span(s, span, radius * slope);
-                        readings.push([p0, p1, a0, a1, own.read(p.at(t), band)]);
+                        readings.push([p0, p1, a0, a1, own.read(p.at(t), slack, band)]);
                     }
                 }
                 // The torus's one segment is the lead along a tube radius,
@@ -993,8 +1187,13 @@ pub(crate) fn path_parity<T: Decide>(
                         let w = p - c;
                         (w - a * w.dot(a)).norm() - major
                     };
-                    let s0 = decide_m("split_ring_path_crest_side", Margin::of(rho_less(from)))?;
-                    let s1 = decide_m("split_ring_path_crest_side", Margin::of(rho_less(to)))?;
+                    let side = |p| {
+                        decide_m(
+                            "split_ring_path_crest_side",
+                            Margin::of(charge(rho_less(p), slack)),
+                        )
+                    };
+                    let (s0, s1) = (side(from)?, side(to)?);
                     if s0 == Sign::Zero || s1 == Sign::Zero || s0 != s1 {
                         return Ok(None);
                     }
@@ -1020,17 +1219,45 @@ pub(crate) fn path_parity<T: Decide>(
                     let [a0, a1] = in_span(s, span, slope);
                     readings.push([p0, p1, a0, a1, inside]);
                 }
-                (Piece::Segment { from, to, .. }, LoopArc::Conic(conic)) => {
+                (Piece::Segment { from, to, .. }, LoopArc::Conic(_) | LoopArc::Oval(_)) => {
                     if arrival {
                         continue;
                     }
-                    let offset = |x: Point3<T>| conic.axis.dot(x - conic.centre);
+                    let sec = section(arc);
+                    let offset = |x: Point3<T>| sec.normal.dot(x - sec.origin);
                     let (d0, d1) = (offset(from), offset(to));
-                    let s0 = decide_m("split_ring_path_segment_side", Margin::of(d0))?;
-                    let s1 = decide_m("split_ring_path_segment_side", Margin::of(d1))?;
+                    let side =
+                        |d| decide_m("split_ring_path_segment_side", Margin::of(charge(d, slack)));
+                    let (s0, s1) = (side(d0)?, side(d1)?);
+                    // An end on the plane says nothing unless the segment
+                    // is decided apart from a conic arc, or its length is
+                    // in the band: the lead from a point already on the
+                    // tube it moves onto, which meets the arc nowhere
+                    // where that point is decided off it (on the plane's
+                    // other loop, or out of the arc's span, read at the
+                    // arc's least speed).
                     if s0 == Sign::Zero || s1 == Sign::Zero {
-                        if segment_misses((from, to), &conic, band)? {
+                        if let LoopArc::Conic(conic) = arc
+                            && segment_misses((from, to), conic, slack, band)?
+                        {
                             continue;
+                        }
+                        let point = s0 == Sign::Zero
+                            && s1 == Sign::Zero
+                            && decide_m(
+                                "split_ring_path_lead_point",
+                                Margin::of((to - from).norm()),
+                            )? == Sign::Zero;
+                        if !point {
+                            return Ok(None);
+                        }
+                        let [a0, a1] = in_span(param(arc, from), sec.span, sec.speed);
+                        let reading = [a0, a1, on_own(sec.own, from)];
+                        if reading.contains(&Ok(Sign::Negative)) {
+                            continue;
+                        }
+                        if let Some(&Err(diag)) = reading.iter().find(|r| r.is_err()) {
+                            return Err(diag);
                         }
                         return Ok(None);
                     }
@@ -1041,16 +1268,20 @@ pub(crate) fn path_parity<T: Decide>(
                     // The plane moved by δ moves the root by δ over the
                     // slope the segment crosses it at, `|n̂·d̂|`.
                     let slope = ((d0 - d1) / (to - from).norm()).abs();
-                    let [a0, a1] = in_span(conic.param(x), conic.span, conic.b * slope);
-                    readings.push([inside, inside, a0, a1, on_own(conic.own, x)]);
+                    let [a0, a1] = in_span(param(arc, x), sec.span, sec.speed * slope);
+                    readings.push([inside, inside, a0, a1, on_own(sec.own, x)]);
                 }
-                (Piece::Segment { ruling, lever, .. }, LoopArc::Line { dir, .. }) => {
+                (Piece::Segment { ruling, lever, .. }, LoopArc::Line { dir, span, .. }) => {
                     if arrival {
                         continue;
                     }
+                    // Each direction's sine carries its ends' rounding
+                    // over their distance: the ruling's over the lever,
+                    // the arc's over its length.
+                    let rounding = slack / lever + slack / (span.1 - span.0);
                     if decide_m(
                         "split_ring_path_rulings_apart",
-                        Margin::levered(ruling.cross(dir).norm(), lever),
+                        Margin::levered(charge(ruling.cross(dir).norm(), rounding), lever),
                     )? != Sign::Positive
                     {
                         return Ok(None);
@@ -1113,33 +1344,48 @@ impl<T: Decide> Conic<T> {
 
 /// **Whether `t` lies inside `span`**, read at each end
 /// (**`split_ring_path_in_span`**: the parameter's distance from the
-/// end, levered at `arm`), each reading kept whole, escalations
+/// end, levered at `arm`, charged `slack` metres: `slack / arm` in the
+/// parameter, [`charge`]), each reading kept whole, escalations
 /// included.
 fn span_readings<T: Decide>(
     t: T,
     (lo, hi): (T, T),
     arm: T,
+    slack: T,
     band: Band,
 ) -> [Result<Sign, Indeterminate>; 2] {
-    [
+    let read = |m: T| {
         decide(
             "split_ring_path_in_span",
-            Margin::levered(t - lo, arm),
+            Margin::levered(charge(m, slack / arm), arm),
             band,
-        ),
-        decide(
-            "split_ring_path_in_span",
-            Margin::levered(hi - t, arm),
-            band,
-        ),
-    ]
+        )
+    };
+    [read(t - lo), read(hi - t)]
+}
+
+/// **`m` shrunk toward zero by `slack`**, to zero inside it: a margin
+/// charged with the rounding it may carry, so that its sign is decided
+/// only past that rounding.
+fn charge<T: Real>(m: T, slack: T) -> T {
+    (m - slack).max(T::zero()) + (m + slack).min(T::zero())
 }
 
 /// **How far apart points stored at `points`' distances from the
-/// origin may lie where they should coincide**: a few roundings of the
-/// farthest. A reading between such points charges it to its margin, so
-/// that where coordinates cannot resolve the band it stands down rather
-/// than deciding on their rounding.
+/// origin may lie where they should coincide**: `4ε` times the farthest
+/// distance `far`. A rounding to the grid moves a coordinate of a point
+/// within `far` of the origin by at most half an ulp, `ε·far/2`. Each of
+/// two points that should coincide is rounded at most twice: when it is
+/// stored, and in the one step that places it from stored points (a
+/// centre moved along an axis, a point placed round a circle, a lead's
+/// end moved along a tube radius). So they part by at most `2ε·far` in
+/// each coordinate, and by at most `2√3·ε·far` as a vector, which
+/// `4ε·far` bounds. A margin's own arithmetic adds nothing at that
+/// scale: its subtraction of stored coordinates rounds relative to
+/// their difference, and the rest relative to the margin. A reading
+/// between such points charges the resolution to its margin, so that
+/// where coordinates cannot resolve the band it stands down rather than
+/// deciding on their rounding.
 fn resolution<T: Real>(points: &[Point3<T>]) -> T {
     let far = points
         .iter()
@@ -1147,22 +1393,44 @@ fn resolution<T: Real>(points: &[Point3<T>]) -> T {
     far * T::from_f64(4.0 * f64::EPSILON)
 }
 
+/// **The [`resolution`] of a reading between `path` and `arcs`**: of
+/// every piece's ends and centre and every arc's centre.
+fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
+    let mut points = Vec::with_capacity(3 * path.pieces.len() + arcs.len());
+    for piece in &path.pieces {
+        match *piece {
+            Piece::Arc(p) | Piece::Meridian(p) => {
+                points.extend([p.centre, p.at(p.span.0), p.at(p.span.1)]);
+            }
+            Piece::Segment { from, to, .. } => points.extend([from, to]),
+        }
+    }
+    points.extend(arcs.iter().map(|arc| match *arc {
+        LoopArc::Conic(Conic { centre, .. })
+        | LoopArc::Oval(Oval { centre, .. })
+        | LoopArc::Crest { centre, .. } => centre,
+        LoopArc::Line { origin, .. } => origin,
+    }));
+    resolution(&points)
+}
+
 /// **Whether the segment `from → to`, an end of which lies on
 /// `conic`'s plane, misses the arc**
 /// (**`split_ring_path_segment_apart`**): its midpoint is decided
 /// farther from the arc ([`Conic::distance_floor`]) than half its
-/// length, within which every point of it lies of the midpoint.
+/// length, within which every point of it lies of the midpoint,
+/// charged `slack` ([`charge`]).
 fn segment_misses<T: Decide>(
     (from, to): (Point3<T>, Point3<T>),
     conic: &Conic<T>,
+    slack: T,
     band: Band,
 ) -> Result<bool, Indeterminate> {
     let half = (to - from).norm() * T::from_f64(0.5);
     let mid = from + (to - from) * T::from_f64(0.5);
-    let slack = resolution(&[from, to, conic.centre]);
     Ok(decide(
         "split_ring_path_segment_apart",
-        Margin::of(conic.distance_floor(mid) - half - slack),
+        Margin::of(charge(conic.distance_floor(mid) - half, slack)),
         band,
     )? == Sign::Positive)
 }
@@ -1187,13 +1455,14 @@ fn segment_misses<T: Decide>(
 ///   ([`span_readings`]). Two arcs of one circle overlap only where one
 ///   holds an end of the other.
 ///
-/// `Ok(false)` where neither is decided.
+/// `Ok(false)` where neither is decided. The apart and in-span readings
+/// are charged `slack` ([`charge`]).
 fn misses_in_plane<T: Decide>(
     p: &CircleArc<T>,
     conic: &Conic<T>,
+    slack: T,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let slack = resolution(&[p.centre, conic.centre]);
     let apart = (p.centre - conic.centre).norm();
     let (inner, outer) = (conic.a.min(conic.b), conic.a.max(conic.b));
     let gap = (apart - p.radius - outer)
@@ -1201,7 +1470,7 @@ fn misses_in_plane<T: Decide>(
         .max(p.radius - outer - apart);
     if decide(
         "split_ring_path_coplanar_apart",
-        Margin::of(gap - slack),
+        Margin::of(charge(gap, slack)),
         band,
     )? == Sign::Positive
     {
@@ -1215,9 +1484,8 @@ fn misses_in_plane<T: Decide>(
     }
     // An end lies outside a span when either of its two readings is
     // decided outside; an escalation counts only where neither is.
-    let outside = |t: T, (lo, hi): (T, T), arm: T| -> Result<bool, Indeterminate> {
-        let widen = slack / arm;
-        let readings = span_readings(t, (lo - widen, hi + widen), arm, band);
+    let outside = |t: T, span: (T, T), arm: T| -> Result<bool, Indeterminate> {
+        let readings = span_readings(t, span, arm, slack, band);
         if readings.contains(&Ok(Sign::Negative)) {
             return Ok(true);
         }
@@ -1245,13 +1513,15 @@ fn misses_in_plane<T: Decide>(
 /// centre's offset from the plane) holds at two parameters when
 /// `r·√(A² + B²) > |D|` (**`split_ring_path_meets_plane`**, on the gap
 /// `r·√(A² + B²) − |D|` in metres: moving the plane by it flips the
-/// meeting); none when it is decided short, and `None` when it grazes in
-/// the band. On the arrival arc (`arrival`), the root nearer the piece's
-/// end is the arrival and only the other is read.
+/// meeting, charged `slack`, [`charge`]); none when it is decided short,
+/// and `None` when it grazes in the band. On the arrival arc
+/// (`arrival`), the root nearer the piece's end is the arrival and only
+/// the other is read.
 fn plane_roots<T: Decide>(
     p: &CircleArc<T>,
     (o, n): (Point3<T>, Vec3<T>),
     arrival: bool,
+    slack: T,
     band: Band,
 ) -> Result<Option<Vec<(T, T)>>, Indeterminate> {
     let (ca, cb) = (n.dot(p.u_ref), n.dot(p.v_ref()));
@@ -1261,7 +1531,7 @@ fn plane_roots<T: Decide>(
     // it is the deviation the sign rests on.
     match decide(
         "split_ring_path_meets_plane",
-        Margin::of(p.radius * rho - d.abs()),
+        Margin::of(charge(p.radius * rho - d.abs(), slack)),
         band,
     )? {
         Sign::Negative => return Ok(Some(Vec::new())),
@@ -1280,12 +1550,10 @@ fn plane_roots<T: Decide>(
     // roots lie `2rω` apart along the arc, so the root error against
     // their separation is `δ/(2rρ·sin ω·ω) ≈ δ/(4g)` for the gap
     // `g = rρ − |D| ≈ rρω²/2`. The pick holds while that is under a half.
-    // A decided gap is `g ≥ Kε`, and the rounding is `δ ≤ ε` wherever the
-    // coordinates resolve the band at all, so the ratio is at most
-    // `1/(4K)`: `2K` times inside the half (about 150× at ε 1e-12, offset
-    // 1e3, where δ is well under ε). No row guards the margin, because a
-    // fixture with `δ ≥ 2g` would have coordinates that cannot resolve
-    // the band. The bound is the guard.
+    // The gap is charged the coordinates' resolution `s`, so a decided
+    // gap is `g > Kε + s`, and the rounding is `δ ≤ ε + s`: the ratio is
+    // under a quarter wherever the frame lies, and at most `1/(4K)` where
+    // the coordinates resolve the band (`s ≪ ε`). The bound is the guard.
     let roots = if arrival {
         let nearer = (r0 - p.span.1).abs() - (r1 - p.span.1).abs();
         vec![nearer.select_le_zero(r1, r0)]
@@ -1314,6 +1582,10 @@ pub(crate) mod cone_islands;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_path_grid;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod far_frame_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -1450,9 +1722,13 @@ mod tests {
             .iter()
             .map(|e| {
                 quadric
-                    .torus_circle_arc(&e.carrier, e.params, band())
-                    .unwrap()
-                    .expect("a meridian or a parallel")
+                    .torus_spiric_arc(&e.carrier, e.params)
+                    .or_else(|| {
+                        quadric
+                            .torus_circle_arc(&e.carrier, e.params, band())
+                            .unwrap()
+                    })
+                    .expect("a meridian, a parallel or an oval")
             })
             .collect()
     }
@@ -1478,22 +1754,28 @@ mod tests {
     /// of the whole torus taken pairwise, every path [`Quadric::paths`]
     /// offers between them, against islands on the outer side, on the
     /// inner side, over the tube's top, between one plane's two
-    /// parallels, and wider than half a turn, and islands bounded by the
-    /// tube's top or bottom circle, read across the cylinder `ρ = R`. The paths run round the
+    /// parallels, and wider than half a turn, islands bounded by the
+    /// tube's top or bottom circle, read across the cylinder `ρ = R`, and
+    /// islands bounded by spiric ovals on either side of the axis's trace.
+    /// The paths run round the
     /// back of the tube and the far side of the axis, so they cross the
     /// islands' planes on each plane's other loop: those crossings are
     /// passed over by the arc's loop side. Nearly every pair is decided,
     /// and both parities are read.
     #[test]
     fn a_torus_path_crosses_an_island_by_the_oracle_parity() {
-        use super::torus_islands::{crest_islands, islands, torus};
-        let mut far = 0usize;
+        use super::torus_islands::{crest_islands, islands, spiric_islands, torus};
+        let (mut far, mut far_oval) = (0usize, 0usize);
         for f in frames() {
             for mirror in [false, true] {
                 let surface = torus(f, mirror);
                 let quadric = Quadric::of(&surface).unwrap();
                 let points = torus_grid(f);
-                for (name, island) in islands(f).into_iter().chain(crest_islands(f)) {
+                for (name, island) in islands(f)
+                    .into_iter()
+                    .chain(crest_islands(f))
+                    .chain(spiric_islands(f))
+                {
                     let arcs = torus_arcs(&quadric, &island);
                     let (mut decided, mut asked, mut odd) = (0usize, 0usize, 0usize);
                     for (i, &a) in points.iter().enumerate() {
@@ -1516,12 +1798,18 @@ mod tests {
                                         LoopArc::Conic(conic) => {
                                             LoopArc::Conic(Conic { own: None, ..conic })
                                         }
+                                        LoopArc::Oval(oval) => {
+                                            LoopArc::Oval(Oval { own: None, ..oval })
+                                        }
                                         other => other,
                                     })
                                     .collect();
                                 if path_parity(&path, &blind, None, band()).unwrap() == Some(!want)
                                 {
                                     far += 1;
+                                    if arcs.iter().any(|a| matches!(a, LoopArc::Oval(_))) {
+                                        far_oval += 1;
+                                    }
                                 }
                             }
                         }
@@ -1534,8 +1822,9 @@ mod tests {
             }
         }
         assert!(
-            far > 1000,
-            "the rows cross the islands' planes on their other loops: {far} paths would miscount"
+            far > 1000 && far_oval > 1000,
+            "the rows cross the islands' planes on their other loops: {far} paths would \
+             miscount, {far_oval} of them across an oval's"
         );
     }
 
@@ -1597,7 +1886,7 @@ mod tests {
     /// (`π − v`), at chart coordinates off the island's; and where two
     /// of those meet, as a box's edge pierces a torus on two box faces'
     /// planes.
-    fn on_carriers((u0, u1): (f64, f64), (v0, v1): (f64, f64)) -> Vec<(f64, f64)> {
+    pub(super) fn on_carriers((u0, u1): (f64, f64), (v0, v1): (f64, f64)) -> Vec<(f64, f64)> {
         let us = [u0, u1, u0 + PI, u1 + PI];
         let vs = [v0, v1, PI - v0, PI - v1];
         let off_u = [u0 - 0.37, u1 + 0.41, u0 + 2.3, u1 - 2.9];
@@ -1774,7 +2063,13 @@ mod tests {
                 ("the meridian across the axis", across, true),
             ] {
                 assert_eq!(
-                    misses_in_plane(&piece, &conic, band()).unwrap(),
+                    misses_in_plane(
+                        &piece,
+                        &conic,
+                        resolution(&[piece.centre, conic.centre]),
+                        band()
+                    )
+                    .unwrap(),
                     misses,
                     "{what}, scale {}",
                     f.s
@@ -1829,7 +2124,13 @@ mod tests {
                 "and on both arcs"
             );
             assert!(
-                !misses_in_plane(&piece, &conic, band()).unwrap(),
+                !misses_in_plane(
+                    &piece,
+                    &conic,
+                    resolution(&[piece.centre, conic.centre]),
+                    band()
+                )
+                .unwrap(),
                 "crossing arcs read apart, scale {}",
                 f.s
             );
@@ -1950,7 +2251,8 @@ mod tests {
                     "{what}: the oracle reads {truth}"
                 );
                 assert_eq!(
-                    segment_misses(ends, &c, band()).unwrap(),
+                    segment_misses(ends, &c, resolution(&[ends.0, ends.1, c.centre]), band())
+                        .unwrap(),
                     misses,
                     "{what}, scale {}",
                     f.s
@@ -1974,7 +2276,12 @@ mod tests {
                             if (to - from).norm() < 1e-9 * f.s {
                                 continue;
                             }
-                            let Ok(true) = segment_misses((from, to), &c, band()) else {
+                            let Ok(true) = segment_misses(
+                                (from, to),
+                                &c,
+                                resolution(&[from, to, c.centre]),
+                                band(),
+                            ) else {
                                 continue;
                             };
                             apart += 1;
@@ -2030,8 +2337,18 @@ mod tests {
             };
             let lead = (at(1.0 + 2.0 * ulp), at(2.0 + 2.0 * ulp));
             let read = (
-                misses_in_plane(&piece, &conic, band()),
-                segment_misses(lead, &conic, band()),
+                misses_in_plane(
+                    &piece,
+                    &conic,
+                    resolution(&[piece.centre, conic.centre]),
+                    band(),
+                ),
+                segment_misses(
+                    lead,
+                    &conic,
+                    resolution(&[lead.0, lead.1, conic.centre]),
+                    band(),
+                ),
             );
             if o == 0.0 {
                 assert_eq!(read, (Ok(true), Ok(true)), "about the origin");

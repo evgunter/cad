@@ -2,13 +2,14 @@
 id: the-rational-chart-speed-is-read-twice-in-patch-bound-and-enclose
 kind: issue
 title: the rational chart speed is read twice, by patch_bound's rational cells and ssi::enclose's speed_sup, and enclose's reading costs 1.57× at the meters' first rung and 1.25× at the second
-status: dispatched
+status: closed
 opened: 2026-10-11
 priority: P3
 cost: M
 design: true
 refs: [the-meters-sup-side-still-reads-boxes-where-the-cell-carries-no-coefficient-form]
 branch: encl/one-chart-speed
+closed: 2026-10-13
 ---
 
 
@@ -77,3 +78,11 @@ Follow-ups are for the lane to file:
 - the two rational-cell substrates: `CellGrid::refined` vs `refine_equal_split`, and `pair_terms`/`pair_scales` re-spelling `TensorCoeffs::diff_u`;
 - `topo/src/shell.rs` `spline_speed`'s relaxed quotient rule;
 - `props/quad.rs`'s rational cross as a candidate consumer.
+
+## Closed: superseded by NURBS's quotient ruling (2026-10-13)
+
+NURBS ruled at 03:00Z on 10-13 (`work/nurbs/log.md`) that every rational derivative bound reads one Bernstein quotient bound on exact dyadic pieces:
+- PR 4954 moved `ssi::enclose` onto it;
+- PR 4984 (unit 2) moves `patch_bound` `rational_cells`.
+
+That gives one home for the chart speed. It replaces this row's joint pair-term reduction, which PR 4891 had built. PR 4891 is closed unmerged. The findings it had filed are handed to NURBS on `work/nurbs/log.md`.

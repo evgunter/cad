@@ -32,7 +32,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
+use geom_core::{Point2, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -61,7 +61,12 @@ fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> AtRestBody<f64> {
         dir: Vec2::new(0.0, 1.0),
     };
     let ball = revolve(&vp, axis, Revolution::Full, tol).unwrap().body;
-    let ball = topo::transform_rigid(&ball, &Affine3::translation(centre), tol).unwrap();
+    let ball = topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(centre).unwrap(),
+        tol,
+    )
+    .unwrap();
     finished("the ball", ball, tol)
 }
 

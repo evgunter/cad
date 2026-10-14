@@ -345,8 +345,15 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      either**: a census finding with no backing record is never
      silently blessed ((iii) below); a record with no geometric witness
      is stale and refuses typed. Structural sharing (same surface or
-     point key) needs no record: an op that cuts one vertex into copies hands each copy the
-     original's point, as it hands a cut face's fragments one surface.
+     point key) needs no record. Vertices an op knows or decides to be
+     one point share one point key, whether they stay in one solid or
+     lie in two: an op that cuts one vertex into copies hands each copy
+     the original's point, as it hands a cut face's fragments one
+     surface; vertices whose gap an op decided Zero share the key it
+     keeps, and the op records that decision (a `VertexFusion` row,
+     cited by the pair's vertex-vertex record) for the lint, not for
+     the census. A Zero-gap vertex pair on two point keys in a finished
+     body is its producer's defect.
    - A contact record is a pair of cells, one from each touching
      shell (or each side of a shell's pinch, whose two sides touch
      within one shell, recorded as between shells), whose interiors meet, plus its backing: a
@@ -374,9 +381,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      face, a join's edge, a seam); divided, into its pieces and the
      cells the op minted between them, the division exhaustive or with
      its remainder removed; or removed. One carry, for the boolean and
-     every surgery verb alike, puts each pair drawn from a record's two
-     cells' images to the census's record confirm, and the record lands
-     on every pair whose interiors meet, each landing citing it. Two
+     every surgery verb alike, lands a record whose two cells the op kept
+     or substituted on their images by lineage, unread, their geometry
+     unchanged and the record read where it was minted; it puts each
+     pair drawn from a divided cell's images to the census's record
+     confirm, and the record lands on every such pair whose interiors
+     meet, each landing citing it. Two
      cells an op minted on a record's two cells and that meet at a point
      meet where the record puts them when one cut made both, as the
      split's one plane does, and the landing cites the record alone; an
@@ -782,13 +792,12 @@ edge must carry `Intersection` (`TransverseNotIntrinsic` otherwise); a
 jet-determinate tangency must carry `TangentIntersection`
 (`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
 admits the class); a second-order-underdetermined join keeps its
-conventional form by the predicate itself. The check reads the edge's
-authority record, so a declared conventional description is exempt by
-its own declaration; escalated dihedrals, seam edges and
-NURBS/`Approx`-adjacent edges are exempt too, so ε-tightening can
-escalate but never flip a valid body to invalid. An unenforced
-preference drifts silently — exactly the failure shape this document
-exists to kill.
+conventional form by the predicate itself. The check refuses a declared
+conventional description on a definitely-transverse edge. Escalated
+dihedrals, seam edges and NURBS/`Approx`-adjacent edges are exempt, so
+ε-tightening can escalate but never flip a valid body to invalid. An
+unenforced preference drifts silently — exactly the failure shape this
+document exists to kill.
 
 **Witness contract.** "Selected by the witness point" is verifiable only
 if the witness is *pinned*: the stored witness IS the carrier's

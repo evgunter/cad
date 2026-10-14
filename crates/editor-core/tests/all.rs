@@ -175,6 +175,8 @@ mod edit_pair_apply_names;
 mod edit_placement_corpus_bits;
 #[path = "edit_placement_type.rs"]
 mod edit_placement_type;
+#[path = "edit_planar_carve.rs"]
+mod edit_planar_carve;
 #[path = "edit_recorded_notation.rs"]
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
@@ -740,6 +742,8 @@ mod emit_seam_edge_merged;
 mod emit_seam_junction;
 #[path = "emit_shared_rim_several.rs"]
 mod emit_shared_rim_several;
+#[path = "emit_sphere_cut_in_cap.rs"]
+mod emit_sphere_cut_in_cap;
 #[path = "emit_split_duplicate.rs"]
 mod emit_split_duplicate;
 #[path = "emit_split_edge_lineage.rs"]

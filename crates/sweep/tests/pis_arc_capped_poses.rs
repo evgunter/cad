@@ -284,7 +284,12 @@ fn every_arc_capped_kind_reads_its_truth_at_every_pose() {
             case.name
         );
         for (pose, map) in poses() {
-            let posed = transform_rigid(&case.body, &map, tol()).unwrap();
+            let posed = transform_rigid(
+                &case.body,
+                &geom_core::test_support::rigid(&map, tol()),
+                tol(),
+            )
+            .unwrap();
             let mut refused = 0;
             for &(p, t) in &probes {
                 let want = if t {
@@ -618,7 +623,7 @@ fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
     // The ball the arc lies in: about its midpoint, its speed bound times
     // half its window.
     let centre = carrier.eval(0.5 * (t0 + t1));
-    let (speed, _) = geom::spiric_rate_bounds(r, offset, (big - r, big + r), 1.0);
+    let (speed, _) = geom::spiric_period_rate_bounds(big, r, offset);
     let reach = speed * 0.5 * (t1 - t0).abs();
     let planar = |p: Point3<f64>| ((p - centre).dot(across), (p - centre).dot(up));
     let segments: Vec<_> = segments
@@ -802,7 +807,8 @@ fn the_cut_cylinders_ellipse_face_takes_nothing_away() {
     for above in [true, false] {
         let half = tilted_cut_cylinder(above);
         for (pose, map) in poses() {
-            let posed = transform_rigid(&half, &map, tol()).unwrap();
+            let posed = transform_rigid(&half, &geom_core::test_support::rigid(&map, tol()), tol())
+                .unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {
@@ -839,7 +845,8 @@ fn the_cut_cylinder_reads_its_truth() {
     for above in [true, false] {
         let half = tilted_cut_cylinder(above);
         for (pose, map) in poses() {
-            let posed = transform_rigid(&half, &map, tol()).unwrap();
+            let posed = transform_rigid(&half, &geom_core::test_support::rigid(&map, tol()), tol())
+                .unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {
@@ -881,7 +888,8 @@ fn a_wall_point_across_the_section_is_not_on_the_upper_half() {
     let half = tilted_cut_cylinder(true);
     let at = |h: f64| Point3::new(2.8f64.cos(), 2.8f64.sin(), h);
     for (pose, map) in poses() {
-        let posed = transform_rigid(&half, &map, tol()).unwrap();
+        let posed =
+            transform_rigid(&half, &geom_core::test_support::rigid(&map, tol()), tol()).unwrap();
         let below = point_in_solid(&posed, map.transform_point(at(1.2)), band, tol());
         assert!(
             !matches!(
@@ -942,7 +950,8 @@ fn iso_bounded_walls_answer_through_their_rectangle() {
     {
         let mut answered = 0;
         for (pose, map) in poses() {
-            let posed = transform_rigid(&body, &map, tol()).unwrap();
+            let posed = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
+                .unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {
@@ -1274,7 +1283,12 @@ fn every_tilted_cut_wall_reads_its_truth() {
     for case in tilted_cut_cases() {
         let (mut answered, mut wrong, mut escalated) = (0, 0, 0);
         for (pose, map) in poses() {
-            let posed = transform_rigid(&case.body, &map, tol()).unwrap();
+            let posed = transform_rigid(
+                &case.body,
+                &geom_core::test_support::rigid(&map, tol()),
+                tol(),
+            )
+            .unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {

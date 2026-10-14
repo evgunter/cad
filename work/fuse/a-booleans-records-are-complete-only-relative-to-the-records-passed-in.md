@@ -77,3 +77,18 @@ caller who gave it none.
   marker on `BooleanBody` set when `BooleanInputs` carried none for an
   operand that is itself a boolean result, so the currency claim cannot
   be overstated.
+
+## The other direction: a caller can pass records no op decided
+
+Added by FLUSH's given-gate lane (`flush/given-gate`, 2026-10-13). The
+same channel admits too much as well as too little.
+`OperandRecords`' fields are public (`crates/topo/src/boolean/mod.rs`),
+and so is each `CarriedRecord`'s, so a Rust caller can hand
+`boolean_op_with` an operand record that no operation ever decided.
+The door checks only that its keys are live (`validate_declarations`'s
+`carried`), and the result carries it as a `Backing::Carried` contact.
+`BooleanInputs::given` had the same shape and is now minted only from a
+kernel verdict (`GlueVerdict::given_at`). A fix that has the kernel
+carry an operand's records itself (option (c), or records that ride on
+the body) would close both directions; minting `OperandRecords` only
+from `ContactRecords::carried` would close this one.

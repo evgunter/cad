@@ -470,8 +470,9 @@ pub enum CertifyError {
         /// door's words on a definite miss.
         margin: MarginDiag,
     },
-    /// `Intersection` only: the tangent planes coincide at a sample —
-    /// the transversality precondition fails, so the locus is not an
+    /// `Intersection` only: the levered angle between the tangent planes
+    /// did not classify positive at a sample — the transversality
+    /// precondition fails, so the locus is not an
     /// `Intersection` (a tangential contact is `TangentIntersection`
     /// territory; a seam is `Seam`).
     NotTransverse {
@@ -499,8 +500,8 @@ pub enum CertifyError {
     },
     /// `TangentIntersection` only: the second-order margin (relative
     /// transverse normal curvature, metered at the folded lever arm)
-    /// is exactly zero at a sample — the surfaces under-determine the
-    /// locus there (a G2 conventional join's zero-side margin, or an
+    /// did not classify positive at a sample — the surfaces
+    /// under-determine the locus there (a G2 conventional join's zero-side margin, or an
     /// osculating patch), so the intrinsic tangent description is not
     /// certifiable; the honest description is conventional
     /// (`MappedCurve`), exactly D2's G2-join split. The **definite**
@@ -606,11 +607,10 @@ impl core::fmt::Display for CertifyError {
                  chart closes in no direction)"
             ),
             Self::IntervalNotForward {
-                verdict: Refused::Zero(_),
+                verdict: Refused::Zero(Classified { margin, .. }),
             } => write!(
                 f,
-                "the stored parameter interval spans no length at this tolerance — a \
-                 degenerate zero-span interval, which the forward gate refuses"
+                "the stored parameter interval is not shown to run forward (margin {margin:e} m)"
             ),
             Self::IntervalNotForward {
                 verdict: Refused::Negative { .. },
@@ -619,15 +619,18 @@ impl core::fmt::Display for CertifyError {
                 "the stored parameter interval runs backwards — increasing parameter must \
                  run from the edge's start vertex to its end vertex"
             ),
-            Self::SpanMeterCollapsed { .. } => write!(
+            Self::SpanMeterCollapsed { verdict } => write!(
                 f,
                 "the spline carrier's knot domain, metered at its certified speed floor, is not \
-                 above zero at this tolerance, so its stored interval cannot be measured in metres"
+                 shown above zero (margin {:e} m), so its stored interval has no certified \
+                 metre scale",
+                verdict.margin()
             ),
-            Self::ArmCollapsed { sample, .. } => write!(
+            Self::ArmCollapsed { sample, verdict } => write!(
                 f,
-                "at sample {sample} the edge is not {}",
-                crate::DIHEDRAL_ARM_CLAUSE
+                "at sample {sample} the edge is not shown {} (margin {:e} m)",
+                crate::DIHEDRAL_ARM_CLAUSE,
+                verdict.margin()
             ),
             Self::WindingExceeded => write!(
                 f,
@@ -660,33 +663,45 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "the analytic Intersection's rung-3 certificate refused — {refusal}"
             ),
-            Self::NotTransverse { sample, lever, .. } => {
-                write!(f, "the faces meet tangentially at sample {sample}")?;
+            Self::NotTransverse {
+                sample,
+                lever,
+                verdict,
+            } => {
+                write!(
+                    f,
+                    "at sample {sample} the faces are not shown to cross (margin {:e} m",
+                    verdict.margin()
+                )?;
                 if let Some(lever) = lever {
                     write!(f, ", their angle levered by {lever}")?;
                 }
-                write!(f, ", where the edge's description says they cross")
+                write!(f, "), where the edge's description says they cross")
             }
-            Self::NotSecondOrderSeparated { sample, .. } => write!(
+            Self::NotSecondOrderSeparated { sample, verdict } => write!(
                 f,
-                "the faces agree to second order at sample {sample}, so they \
-                 do not fix where the edge runs, which its description says they do"
+                "at sample {sample} the faces are not shown to curve apart at second order \
+                 (margin {:e} m), so they are not shown to fix where the edge runs, which its \
+                 description says they do",
+                verdict.margin()
             ),
             Self::TubeNotSeparated {
-                verdict: Refused::Zero(_),
+                verdict: verdict @ Refused::Zero(_),
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
-                 is zero at this tolerance, so the certificate cannot prove they fix where \
-                 the edge runs, which its description says they do"
+                 is not shown above zero (margin {:e} m), so the certificate cannot prove they \
+                 fix where the edge runs, which its description says they do",
+                verdict.margin()
             ),
             Self::TubeNotSeparated {
-                verdict: Refused::Negative { .. },
+                verdict: verdict @ Refused::Negative { .. },
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
-                 is below zero, so the certificate cannot prove they fix where the edge \
-                 runs, which its description says they do"
+                 is below zero (margin {:e} m), so the certificate cannot prove they fix where \
+                 the edge runs, which its description says they do",
+                verdict.margin()
             ),
             Self::TangentCertificateUnsupported => write!(
                 f,
@@ -1085,9 +1100,11 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// carrier's own axis by the swept angle
     /// ([`crate::MappedSource::RevolvedPoint`], the same
     /// geometry-derived posture as [`Self::line_between`]'s
-    /// `ExtrudedPoint`). This is the conventional description for a
-    /// circular locus the adjacent surfaces UNDER-determine (D2's
-    /// split — e.g. a seam between coplanar faces).
+    /// `ExtrudedPoint`). Like every scaffold it describes a TRANSIENT
+    /// edge: one that comes to rest is restated in a chart
+    /// ([`Self::at_rest_in_chart`]), and an edge already at rest is
+    /// re-homed by [`EdgeCurve::restated_in_chart`], which declares
+    /// nothing the edge did not.
     ///
     /// `None` for a non-circle carrier: no other kind has this
     /// rotation pushforward, and the caller owns its own honest
@@ -2009,6 +2026,41 @@ impl<T: Real> EdgeCurve<T> {
             carrier: self.carrier.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
+        }
+    }
+
+    /// This edge re-homed in `surface`'s chart: an image the door
+    /// derives from the carrier, carrier and interval verbatim, and the
+    /// authority record as it was. A declared locus stays declared; a
+    /// derived one is not given a declaration. The conventional
+    /// restatement for an edge at rest whose description no longer
+    /// names a chart it lies in.
+    #[must_use]
+    pub fn restated_in_chart(&self, surface: SurfaceKey) -> EdgeCurveSpec<T> {
+        let chart = EdgeDescriptionSpec::chart(surface);
+        EdgeCurveSpec {
+            description: match self.authority {
+                EdgeAuthority::Declared(mc) => chart.declared_by(mc),
+                EdgeAuthority::Derived => chart,
+            },
+            ..self.restated_spec()
+        }
+    }
+
+    /// This edge re-stated as the pair `pair` under-determines
+    /// (`OnPair`): carrier and interval verbatim, and the authority
+    /// record as it was. The conventional restatement for an edge at
+    /// rest between two distinct surfaces whose description no longer
+    /// names them.
+    #[must_use]
+    pub fn restated_on_pair(&self, pair: crate::SurfacePair) -> EdgeCurveSpec<T> {
+        let declared = match self.authority {
+            EdgeAuthority::Declared(mc) => Some(mc),
+            EdgeAuthority::Derived => None,
+        };
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::OnPair { pair, declared },
+            ..self.restated_spec()
         }
     }
 
@@ -5791,16 +5843,16 @@ mod tests {
     /// **The import door reads certification as at rest, with its ε_in
     /// words** (D4 ¶1), over every check and every arm: the door's ending
     /// is the at-rest one, except that a band-decided arm of a sized
-    /// decision whose margin's nearer end lies at or below ε_in ends in
-    /// one sentence, whichever arm the run's band placed it on: the file
-    /// does not state the size, and keeping it takes declaring the file's
-    /// uncertainty below it and tightening, together, or else the lever
-    /// alone, with no decision's note, an enclosure across zero's
-    /// included — and a residual's
-    /// miss within ε_in but beyond ε, or a certified bound on it wholly
-    /// within ε_in, names setting ε to ε_in as a stopgap. An ε_in below every margin leaves every ending at rest
-    /// but a reading at zero's. No ending at the door blames the kernel
-    /// alone, or carries a second recourse.
+    /// decision whose margin's nearer end lies within ε_in ends in one
+    /// sentence, whichever arm the run's band placed it on: the file
+    /// cannot tell the size from zero, and keeping it takes declaring the
+    /// file's uncertainty below it and tightening, together, or else the
+    /// lever alone, with no decision's note, an enclosure across zero's
+    /// included — and a residual's miss within ε_in but beyond ε, or a
+    /// certified bound on it wholly within ε_in, names setting ε to ε_in
+    /// as a stopgap. An ε_in below every margin leaves every ending at
+    /// rest but a reading at zero's. No ending at the door blames the
+    /// kernel alone, or carries a second recourse.
     #[test]
     fn the_import_door_reads_at_rest_with_its_eps_in_words() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -5852,10 +5904,10 @@ mod tests {
                     RefusedArm::Zero(Classified { margin, .. }) => Some(margin),
                     RefusedArm::SignCertain(_) | RefusedArm::Straddle => None,
                 };
-                // A reading at or across zero has its nearer end below
+                // A reading at or across zero has its nearer end within
                 // every ε_in, so even the narrow one reads it in the door's
-                // sentence: "is below" where the whole reading is, "may lie
-                // below" where only that end is, then the lever alone. The
+                // sentence: "is within" where the whole reading is, "may lie
+                // within" where only that end is, then the lever alone. The
                 // door cannot tell a zero the file stores from a rounded
                 // one, so no decision's note rides there.
                 let reaches_zero = match banded.map(MarginDiag::diagnostic_f64_for_error_text) {
@@ -5872,16 +5924,16 @@ mod tests {
                     (Ending::Sized(sized), Some(far))
                         if !(sized.passes.passes_zero() && matches!(arm, RefusedArm::Zero(_))) =>
                     {
-                        let (lies, states) = if far <= narrow.eps_in() {
-                            ("is below", "does not state")
+                        let (lies, tells) = if far <= narrow.eps_in() {
+                            ("is within", "cannot tell")
                         } else {
-                            ("may lie below", "may not state")
+                            ("may lie within", "might not tell")
                         };
                         assert_eq!(
                             narrow_door,
                             format!(
                                 "This {} {lies} the file's declared coincidence distance ε_in = \
-                                 {:e} m, so the file {states} it. Recourse: {}",
+                                 {:e} m, so the file {tells} it from zero. Recourse: {}",
                                 sized.size,
                                 narrow.eps_in(),
                                 sized.lever
@@ -5910,8 +5962,9 @@ mod tests {
                         // One sentence for every band-decided arm, the
                         // run's placement of it picking no other words.
                         assert!(
-                            door.starts_with(&format!("This {} is below the file's", sized.size))
-                                && door.contains("so the file does not state it. Recourse: "),
+                            door.starts_with(&format!("This {} is within the file's", sized.size))
+                                && door
+                                    .contains("so the file cannot tell it from zero. Recourse: "),
                             "{check:?} {arm:?}: {door}"
                         );
                         if at_rest.contains("tighten") {
@@ -6155,8 +6208,8 @@ mod tests {
     /// **The collapsed-arm gates' definite refusals read the import door
     /// like every sized decision's** (D4 ¶1): a collapsed transversality
     /// arm and a collapsed span meter end through [`recourse`] at the door, so
-    /// a zero within the file's ε_in is a size the file does not state,
-    /// not the at-rest offer to tighten alone.
+    /// a zero within the file's ε_in is a size the file cannot tell from
+    /// zero, not the at-rest offer to tighten alone.
     #[test]
     fn the_collapsed_arm_gates_read_the_import_door() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -6182,7 +6235,7 @@ mod tests {
                 "{check:?}: the door's ending is the decision's"
             );
             assert!(
-                door.contains("so the file does not state it. Recourse: ")
+                door.contains("so the file cannot tell it from zero. Recourse: ")
                     && door.contains(" m and tighten the tolerance below 5e-11 m"),
                 "{check:?}: {door}"
             );
@@ -6251,11 +6304,166 @@ mod tests {
         let text = err.render(Reading::Build);
         assert_eq!(
             text,
-            "at sample 4 the edge is not long enough, for how its faces curve, to measure their \
-             angle. Recourse: move the geometry so that edge is clearly longer and no face curves \
-             tightly there; an edge of no length, or a face curving to a point as a cone does, \
-             leaves no angle to measure",
+            "at sample 4 the edge is not shown long enough, for how its faces curve, to measure \
+             their angle (margin 0e0 m). Recourse: move the geometry so that edge is clearly \
+             longer and no face curves tightly there; an edge of no length, or a face curving to \
+             a point as a cone does, leaves no angle to measure",
         );
+    }
+
+    /// **A zero verdict's payload prints its reading and claims no size**:
+    /// whether the reading shows none is the ending's to say, from the
+    /// reading's class, so a positive span and an enclosure across zero
+    /// render no such claim anywhere, and a reading that does show none
+    /// says so once, in the ending. Each payload says "not shown" of its
+    /// reading, which holds of every class a zero verdict carries — a
+    /// symbolic-tier proved zero whose rounded number lies outside the
+    /// zero band included — and prints it as `(margin … m)`.
+    #[test]
+    fn each_zero_arm_payload_prints_its_reading_and_claims_no_size() {
+        use geom_core::sym::with_session;
+        use geom_core::{Margin, ParamSymbol, Sym, SymBudget};
+
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let zero = |margin| Refused::Zero(Classified { margin, band });
+        let (sized, across, none) = (
+            MarginDiag::value(5e-10),
+            MarginDiag::enclosure(-2e-10, 3e-10),
+            MarginDiag::value(0.0),
+        );
+        // `x·3/3 − x` at this `x` rounds to 3.7e-9 m, past the zero
+        // band's 1e-9 m; the symbolic tier proves it zero.
+        let (proved, _) = with_session(
+            SymBudget {
+                max_terms: 64,
+                max_degree: 8,
+            },
+            || {
+                let x = Sym::param(ParamSymbol::new(0xa8), 23_456_789.1_f64);
+                let three = Sym::from_f64(3.0);
+                crate::dihedral::decide_positive("pin", Margin::of(x * three / three - x), band)
+                    .unwrap_err()
+            },
+        );
+        let proved = Refused::rejected(&proved).unwrap();
+        assert!(
+            matches!(proved, Refused::Zero(Classified { margin, .. }) if margin.proven()),
+            "the fixture is a proved zero: {proved:?}"
+        );
+        let forward = |verdict| CertifyError::IntervalNotForward { verdict };
+        let meter = |verdict| CertifyError::SpanMeterCollapsed { verdict };
+        let arm = |verdict| CertifyError::ArmCollapsed { sample: 4, verdict };
+        let crossing = |lever, verdict| CertifyError::NotTransverse {
+            sample: 4,
+            lever,
+            verdict,
+        };
+        let second = |verdict| CertifyError::NotSecondOrderSeparated { sample: 4, verdict };
+        let tube = |verdict| CertifyError::TubeNotSeparated { verdict };
+        let below = Refused::Negative {
+            margin: MarginDiag::value(-5e-9),
+        };
+        let rows = [
+            (
+                forward(zero(sized)),
+                "the stored parameter interval is not shown to run forward (margin 5e-10 m)",
+            ),
+            (
+                forward(zero(across)),
+                "the stored parameter interval is not shown to run forward (margin [-2e-10, \
+                 3e-10] m)",
+            ),
+            (
+                forward(proved),
+                "the stored parameter interval is not shown to run forward (margin \
+                 3.725290298461914e-9 m)",
+            ),
+            (
+                meter(zero(sized)),
+                "the spline carrier's knot domain, metered at its certified speed floor, is not \
+                 shown above zero (margin 5e-10 m), so its stored interval has no certified \
+                 metre scale",
+            ),
+            (
+                arm(zero(across)),
+                "at sample 4 the edge is not shown long enough, for how its faces curve, to \
+                 measure their angle (margin [-2e-10, 3e-10] m)",
+            ),
+            (
+                crossing(None, zero(sized)),
+                "at sample 4 the faces are not shown to cross (margin 5e-10 m), where the edge's \
+                 description says they cross",
+            ),
+            (
+                crossing(Some(crate::ssi::PointLever::Extent), zero(sized)),
+                "at sample 4 the faces are not shown to cross (margin 5e-10 m, their angle \
+                 levered by the feature extent), where the edge's description says they cross",
+            ),
+            (
+                crossing(None, below),
+                "at sample 4 the faces are not shown to cross (margin -5e-9 m), where the edge's \
+                 description says they cross",
+            ),
+            (
+                second(zero(sized)),
+                "at sample 4 the faces are not shown to curve apart at second order (margin \
+                 5e-10 m), so they are not shown to fix where the edge runs, which its \
+                 description says they do",
+            ),
+            (
+                tube(zero(sized)),
+                "the certified lower bound on how far the faces curve apart along the edge is \
+                 not shown above zero (margin 5e-10 m), so the certificate cannot prove they \
+                 fix where the edge runs, which its description says they do",
+            ),
+            (
+                tube(below),
+                "the certified lower bound on how far the faces curve apart along the edge is \
+                 below zero (margin -5e-9 m), so the certificate cannot prove they fix where the \
+                 edge runs, which its description says they do",
+            ),
+        ];
+        let claims = [
+            "no length",
+            "not long enough",
+            "not above zero",
+            "spans no",
+            "is zero",
+            "within the tolerance",
+        ];
+        for (error, payload) in rows {
+            assert_eq!(error.to_string(), payload, "{error:?}");
+            // A proved zero shows no size, so its ending says so.
+            if matches!(error, CertifyError::IntervalNotForward { verdict } if verdict == proved) {
+                continue;
+            }
+            for reading in [Reading::Build, Reading::AtRest] {
+                let text = error.render(reading);
+                for claim in claims {
+                    assert!(
+                        !text.contains(claim),
+                        "{reading:?} claims {claim:?}: {text}"
+                    );
+                }
+            }
+        }
+        for (error, note) in [
+            (forward(zero(none)), "an edge of no length"),
+            (meter(zero(none)), "a vanishing speed floor"),
+            (arm(zero(none)), "an edge of no length"),
+        ] {
+            let text = error.render(Reading::Build);
+            assert!(
+                error.to_string().contains("(margin 0e0 m)"),
+                "the payload prints its zero: {text}"
+            );
+            assert_eq!(
+                text.matches(note).count(),
+                1,
+                "a reading of no size says so once, in its ending: {text}"
+            );
+            assert!(!error.to_string().contains(note), "{text}");
+        }
     }
 
     /// **An undecided arm stays undecided when the wedge it quotes reads

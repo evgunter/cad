@@ -245,8 +245,14 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
         ))),
         "the cavity fails nothing but check 7: {verdict:?}"
     );
-    let posed_after = transform_rigid(&cavity, &map, tol()).expect("the cavity re-poses");
-    let posed_first = transform_rigid(&quarter, &map, tol()).expect("the operand re-poses");
+    let posed_after = transform_rigid(&cavity, &geom_core::test_support::rigid(&map, tol()), tol())
+        .expect("the cavity re-poses");
+    let posed_first = transform_rigid(
+        &quarter,
+        &geom_core::test_support::rigid(&map, tol()),
+        tol(),
+    )
+    .expect("the operand re-poses");
     let mut offset_after = posed_first.clone();
     let band = Band::linear(tol()).expect("band");
     topo::offset_charts_together(

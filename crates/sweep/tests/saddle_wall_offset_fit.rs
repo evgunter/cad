@@ -13,7 +13,12 @@ use geom_core::Tol;
 /// `d = ±0.05` and 1e-9 the wall certifies on a 49 x 26 grid, round 9:
 /// 49 samples in `u` alone, which a per-direction cap at
 /// `sqrt(OFFSET_FIT_SAMPLE_CAP)` refuses on the grid before (41 x 26,
-/// 1.008e-9 m, 0.8% over the tolerance).
+/// 1.008e-9 m, 0.8% over the tolerance). The certified bound is
+/// `3.8503e-10`: `3.8534e-10` before the regularity floor became the
+/// area quotient's inf (PR 4984), which floors this integral wall at
+/// `1.97751` on the 64-rung cells against a sampled least
+/// `‖S_u × S_v‖` of `1.97754` (`1.97616` before), and the
+/// tangential term divides by that floor.
 #[test]
 fn a_saddle_wall_certifies_on_a_grid_longer_in_one_direction_than_a_square_cap() {
     let walls = nurbs_walls(&twisted_loft(0.3));
@@ -28,7 +33,7 @@ fn a_saddle_wall_certifies_on_a_grid_longer_in_one_direction_than_a_square_cap()
             "d = {d}: the grid {grid:?} no longer outgrows a square of the cap in one direction"
         );
         assert!(
-            (cert.hull_sup - 3.8534e-10).abs() < 1e-13,
+            (cert.hull_sup - 3.8503e-10).abs() < 1e-13,
             "d = {d}: the wall certifies at {:e}",
             cert.hull_sup
         );

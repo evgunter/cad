@@ -158,14 +158,16 @@ pub mod surfaces;
 #[doc(hidden)]
 pub mod test_support;
 
-pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin};
+pub use convention::{
+    ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame, square_frame,
+};
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
     Collocation, ComposeError, Curve3, CurveData, CurveDatum, CurveKind, CurveWindow2,
     CurveWindow3, EllipseInvalid, FIT_REMOVAL_BUDGET, FitError, FitOutcome, NurbsCurve2,
     NurbsCurve3, Projection2, Projection3, ProjectionInconclusive, RefitSkip, SeamSide,
-    SpiricInvalid, compose_chain, spiric_curvature_sup, spiric_f_range, spiric_radial,
-    spiric_rate_bounds,
+    SpiricInvalid, compose_chain, spiric_curvature_sup, spiric_f_range, spiric_period_rate_bounds,
+    spiric_radial, spiric_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use param::mid_param;

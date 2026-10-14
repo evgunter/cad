@@ -497,8 +497,11 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     let n = segs.len();
     let k = n - run.len;
     let half = theta * T::from_f64(0.5);
-    let far = crate::swept::Placing::turned(place, frame.o3, frame.a3, half);
-    let n_pi = geom_core::Affine3::rotation_about_axis(frame.o3, frame.a3, half).linear * frame.n3;
+    let far = crate::swept::Placing::turned(place, frame.o3, frame.axis, half)
+        .map_err(RevolveError::Turn)?;
+    let Some(n_pi) = far.turn_vec(frame.n3) else {
+        unreachable!("a turned placing has a turn")
+    };
     // Wire segment i is swept segment (run.start + run.len + i) mod n;
     // wire vertex i is wire segment i's start; wire vertex k is the
     // run's start vertex (both tips pinned).

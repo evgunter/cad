@@ -30,7 +30,7 @@ is in band may be refused earlier by an operand gate.
 
 ## Shape
 
-`UnitVec3::levered` (or `OrthoFrame::from_aim_and_reference` against
+`UnitVec3::levered` (or `RigidMotion::from_aim_and_reference` against
 the axis) under a `split_`/`bool_`-shared K name, levered by the
 radius, refusing through `SectorFaceError`. Found by the
 `recl-flanker-representative-normalizes-an-undecided-residual` sweep

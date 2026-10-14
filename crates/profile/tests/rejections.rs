@@ -420,6 +420,122 @@ fn holes_touching_at_a_vertex_between_two_tangent_arcs_are_non_simple() {
     }
 }
 
+/// Two unit circles crossing at the origin at the angle `phi`, both
+/// heading +x there clockwise: a dome whose left leg runs down the
+/// first to `end` (arc length) short of the crossing, a connector to
+/// the point `end` past it on the second, the right leg down the
+/// second, and a chord closing underneath. The legs are non-adjacent
+/// and stand ≈ 2·`end` apart across the crossing. It is `seg`'s
+/// `in_band_rows` crossing read as a whole profile; a `tests/` binary
+/// cannot name that module's builders.
+fn dome_across_a_shallow_crossing(phi: f64, end: f64) -> profile::Profile<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let quarter = std::f64::consts::FRAC_PI_2;
+    let first = Point2::new(0.0, -1.0);
+    let second = Point2::new(phi.sin(), -phi.cos());
+    let on = |c: Point2<f64>, angle: f64| Point2::new(c.x + angle.cos(), c.y + angle.sin());
+    let arc = |centre, sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius: 1.0,
+            sweep,
+        })
+    };
+    profile(vec![ProfileLoop::new([
+        (on(first, 2.0 * quarter), arc(first, -(quarter - end))),
+        (on(first, quarter + end), Segment::Line),
+        (
+            on(second, quarter + phi - end),
+            arc(second, -(quarter - end)),
+        ),
+        (on(second, phi), Segment::Line),
+    ])])
+}
+
+/// **Two legs whose carriers cross at a shallow angle, stopping short
+/// of the crossing on opposite sides, validate** at `f64` and at
+/// `Interval`, at every ε. The legs stand 1.6Kε apart; each span reads
+/// the crossing in band, 0.8Kε past its end, and each leg's end stands
+/// within ε of the other's carrier (the turn is 0.03 rad), so the ends
+/// settle the pair. This is the arc × arc fillet corner at a small
+/// turn, its fillet replaced by its chord.
+#[test]
+fn legs_stopping_short_either_side_of_a_shallow_crossing_validate() {
+    let t = tol().get();
+    let p = dome_across_a_shallow_crossing(0.03, 0.8 * t.k * t.eps);
+    p.validate(tol())
+        .unwrap_or_else(|e| panic!("f64: the dome validates, got {e}"));
+    common::lift::<geom_core::Interval>(&p)
+        .validate(tol())
+        .unwrap_or_else(|e| panic!("Interval: the dome validates, got {e}"));
+}
+
+/// A figure-eight: a near-full arc (2π − 0.011 rad) and a small arc
+/// whose carriers cross twice, both ends of the near-full arc lying
+/// within ε of the small arc's carrier beside the crossing the arcs do
+/// not hold, while the arcs themselves cross at the other, 2.7e-3
+/// inside the large arc and 1.3e-3 inside the small one, where the
+/// large arc's compressed `arc_span` reads it in band. Lines join the
+/// ends: E1₀ → arc1 → E1₁ → E2₁ → arc2 reversed → E2₀ → W → E1₀. The
+/// figure is drawn for ε = 1e-6 and scaled with ε, so every row reads
+/// the same figure.
+fn figure_eight_across_the_other_crossing(scale: f64) -> profile::Profile<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let pt = |x: f64, y: f64| Point2::new(x * scale, y * scale);
+    let (c1, r1) = (
+        pt(-1.872513274081899, 2.577825301309983),
+        1.6092706295113095,
+    );
+    let (start1, sweep1) = (-1.0062495826666513, -6.272141383775728);
+    let (c2, r2) = (
+        pt(-0.970460427436857, 1.1507809548491568),
+        0.07898190310093273,
+    );
+    let (start2, sweep2) = (2.1355617127241118, 3.9727669712056928);
+    let on = |c: Point2<f64>, r: f64, angle: f64| {
+        Point2::new(c.x + r * scale * angle.cos(), c.y + r * scale * angle.sin())
+    };
+    let arc = |centre, radius: f64, sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius: radius * scale,
+            sweep,
+        })
+    };
+    let (e10, e11) = (on(c1, r1, start1), on(c1, r1, start1 + sweep1));
+    let (e20, e21) = (on(c2, r2, start2), on(c2, r2, start2 + sweep2));
+    let w = Point2::new(0.5 * (e20.x + e10.x) - 1e-3 * scale, 0.5 * (e20.y + e10.y));
+    profile(vec![ProfileLoop::new([
+        (e10, arc(c1, r1, sweep1)),
+        (e11, Segment::Line),
+        (e21, arc(c2, r2, -sweep2)),
+        (e20, Segment::Line),
+        (w, Segment::Line),
+    ])])
+}
+
+/// **A figure-eight whose crossing a near-full arc reads in band does
+/// not validate**, at `f64` and at `Interval`, at every ε. The large
+/// arc's end nearest the crossing lies within ε of the small arc's
+/// carrier, but beside the carriers' other crossing, so it stands in
+/// that crossing's stretch, not this one's, and cannot settle it.
+#[test]
+fn a_crossing_read_in_band_is_not_settled_by_an_end_beside_the_other_crossing() {
+    let p = figure_eight_across_the_other_crossing(tol().eps() / 1e-6);
+    let f64_read = p.validate(tol()).map(|_| ());
+    let interval_read = common::lift::<geom_core::Interval>(&p)
+        .validate(tol())
+        .map(|_| ());
+    println!("f64: {f64_read:?}\nInterval: {interval_read:?}");
+    assert!(f64_read.is_err(), "f64: the figure-eight must not validate");
+    assert!(
+        interval_read.is_err(),
+        "Interval: the figure-eight must not validate"
+    );
+}
+
 #[test]
 fn near_tangent_hole_escalates_on_the_internal_clearance() {
     match err(&near_tangent_hole(tol().eps())) {
@@ -715,4 +831,50 @@ fn a_table_arc_off_its_vertex_below_the_scene_resolution_is_unreadable_not_incon
         }
         other => panic!("expected a real inconsistency at r = 1, got {other:?}"),
     }
+}
+
+/// **A small arc crossing a large one is a crossing, at any ratio of
+/// their radii.** A half disc of radius 100, from whose left corner a
+/// chord runs up to a short arc of radius 1000ε centred on the half
+/// disc's arc. The short arc spans 0.4 rad about the crossing of the
+/// two carriers, so it crosses the half disc's arc once, deep inside
+/// both, while its ends stand a fifth of its radius either side of
+/// it; two lines outside the disc close the loop at the right corner.
+/// The radius ratio is 10⁸ at ε = 1e-9 and 10¹¹ at 1e-12.
+#[test]
+fn a_small_arc_crossing_a_large_one_is_non_simple() {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let (big, small) = (100.0, 1e3 * tol().eps());
+    let centre = Point2::new(0.0, big);
+    let at = |t: f64| Point2::new(small * t.cos(), big + small * t.sin());
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new([
+        (
+            Point2::new(big, 0.0),
+            Segment::Arc(Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: big,
+                sweep: std::f64::consts::PI,
+            }),
+        ),
+        (Point2::new(-big, 0.0), Segment::Line),
+        (
+            at(-0.2),
+            Segment::Arc(Arc2 {
+                centre,
+                radius: small,
+                sweep: 0.4,
+            }),
+        ),
+        (at(0.2), Segment::Line),
+        (Point2::new(2.0 * big, 2.0 * big), Segment::Line),
+    ]);
+    assert_eq!(
+        err(&profile(vec![lp])),
+        ProfileError::NonSimple {
+            first: sref(0, 0),
+            second: sref(0, 2),
+            kind: ContactKind::Crossing,
+        }
+    );
 }

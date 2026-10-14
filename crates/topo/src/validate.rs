@@ -1133,9 +1133,10 @@ pub enum ValidationError {
     /// prefer-intrinsic rule with teeth (D2; ratified with Ev
     /// 2026-07-19, M2 PR 4 fix pass). Enforced only when the dihedral
     /// pass classified **every** interior sample definitely Transverse:
-    /// definitely-smooth edges keep their conventional descriptions (the
-    /// D2 conventional split), `Seam` edges are exempt by kind, and
-    /// escalated dihedrals already report
+    /// definitely-smooth edges, a seam between two faces of one surface
+    /// among them, keep their conventional descriptions (the D2
+    /// conventional split); NURBS- and `Approx`-adjacent edges are
+    /// exempt by kind; and escalated dihedrals already report
     /// [`ValidationError::SliverDihedral`]. A sample set that is neither
     /// is [`ValidationError::MixedDihedral`]. A smooth reading can turn
     /// transverse as ε tightens, so a conventional edge built smooth at
@@ -6951,15 +6952,17 @@ pub(crate) fn tier3_local_checks_marked<
         // and check 4's second-order walk.
         let samples: Vec<_> = geom_brep::interior_stations(curve.carrier(), t0, t1).collect();
         // Check 4: dihedral — plus the prefer-intrinsic enforcement
-        // (D2; ratified 2026-07-19): reusing the SAME per-sample
-        // classifications (never classifying twice), an edge whose
-        // every interior sample is definitely Transverse must carry an
-        // `Intersection` description at rest. `Seam` is exempt by
-        // kind, definitely-smooth keeps its conventional description
-        // (the D2 conventional split), an escalation reports
-        // `SliverDihedral` and exempts the edge, and a mixed sample set is
-        // refused (`MixedDihedral`). A definitely-transverse edge reads
-        // so at every tighter ε too; a smooth reading does not, so a
+        // (D2; ratified 2026-07-19): an edge whose every interior
+        // sample is definitely Transverse carries `Intersection` at
+        // rest. Reusing the SAME per-sample classifications (never
+        // classifying twice), this check refuses a declared
+        // conventional description, or an `OnPair`, there. A
+        // definitely-smooth edge, a seam between two faces of one
+        // surface among them, keeps its conventional description (the
+        // D2 conventional split), an escalation reports `SliverDihedral`
+        // and exempts the edge, and a mixed sample set is refused
+        // (`MixedDihedral`). A definitely-transverse edge reads so at
+        // every tighter ε too; a smooth reading does not, so a
         // conventional edge whose stations read transverse at a tighter
         // ε than it was built at is refused here
         // (`work/tang/a-declared-tangent-seam-flips-invalid-when-eps-tightens.md`).
@@ -7310,8 +7313,9 @@ pub(crate) fn tier3_local_checks_marked<
             } else {
                 Sign::Positive
             };
-            // Line, Circle and Ellipse carriers (banner); an empty
-            // ring and a loop riding a spiric or NURBS edge are not
+            // Line, Circle, Ellipse and Spiric carriers (banner); an
+            // empty ring and a loop the sum does not wind (a NURBS edge,
+            // or a spiric at a scalar that does not certify) are not
             // asked. Tier 3 runs on a body tier 1 cleared.
             let Some(winding) = body.planar_loop_winding(l, outward, band) else {
                 continue;
@@ -11853,8 +11857,9 @@ mod tests {
                         band,
                     }),
                 },
-                "a torus face's tube radius equals its ring radius at this tolerance (a horn \
-                 torus). Recourse: make the tube radius clearly smaller than the ring radius"
+                "a torus face's tube radius is not shown smaller than its ring radius \
+                 (margin 0e0 m). Recourse: make the tube radius clearly smaller than \
+                 the ring radius"
                     .to_owned(),
             ),
             (
