@@ -205,8 +205,9 @@ fn offset_square_prism() -> topo::Body<f64> {
 /// * **the seam** — our own writer emits every seam carrier
 ///   bit-identical to the wall's boundary column, so the bitwise
 ///   `IsoCurve` rung answers first and declare-and-check is never
-///   reached (measured here: with our own bytes NO seam takes the
-///   `Intersection` rung). State the same seam in a foreign form —
+///   reached for a seam (measured here: with our own bytes NO seam
+///   takes the `Intersection` rung; the bowed walls' four straight cap
+///   rims do, the plane × NURBS certificate taking their line). State the same seam in a foreign form —
 ///   this restates one control point one ULP up in `z`, the smallest
 ///   difference a decimal round-trip can make — and the seam certifies
 ///   through the declare-and-check plane × NURBS rung and CHARTS on
@@ -271,6 +272,16 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
         plane_nurbs_seams(own_body).is_empty(),
         "our own writer's carriers are bit-identical to the walls' columns, \
          so every seam takes the IsoCurve rung"
+    );
+    // The cap rims of the two bowed walls are straight, and the plane ×
+    // NURBS certificate takes their line carrier: they adopt at the
+    // `Intersection` rung, which the ladder offers before the
+    // conventional one.
+    let rims = plane_nurbs_intersections(own_body);
+    assert!(
+        rims.len() == 4 && rims.iter().all(|(_, plane, _)| is_cap(plane)),
+        "the plane × NURBS Intersections with our own bytes are the bowed walls' four \
+         cap rims: {rims:?}"
     );
 
     // ---- The half the Intersection arm opened: a foreign
@@ -564,6 +575,28 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
 /// M7-8 class, located by DESCRIPTION rather than by key so the pin
 /// survives arena renumbering.
 fn plane_nurbs_seams(
+    body: &topo::Body<f64>,
+) -> Vec<(
+    geom_brep::keys::CurveKey,
+    geom::Surface<f64>,
+    geom::NurbsSurface<f64>,
+)> {
+    plane_nurbs_intersections(body)
+        .into_iter()
+        .filter(|(_, plane, _)| !is_cap(plane))
+        .collect()
+}
+
+/// Whether a plane is one of the prisms' two caps, `z` constant: a
+/// plane × NURBS `Intersection` on a cap is a cap RIM, which the plane ×
+/// NURBS certificate takes for the line it is, not a wall–wall seam.
+fn is_cap(plane: &geom::Surface<f64>) -> bool {
+    matches!(plane, geom::Surface::Plane { normal, .. } if normal.z.abs() > 0.5)
+}
+
+/// Every plane × described-NURBS `Intersection` edge: the seams of
+/// [`plane_nurbs_seams`] and the cap rims beside them.
+fn plane_nurbs_intersections(
     body: &topo::Body<f64>,
 ) -> Vec<(
     geom_brep::keys::CurveKey,

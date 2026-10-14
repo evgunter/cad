@@ -130,6 +130,15 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/geom-brep/src/carrier_net.rs",
+        subject: "carrier_span",
+        why: Payload(
+            "an edge interval's outer bracket ends become the f64 span a closed-form \
+             carrier's chart-image schedule and enclosing net are built over, lifted back \
+             through `from_computed`; nothing branches on them",
+        ),
+    },
+    Site {
         path: "crates/geom-brep/src/ssi/certify.rs",
         subject: "composite_form",
         why: HandedOff("Track Q's; a private helper S88's census names"),

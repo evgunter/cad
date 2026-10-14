@@ -269,6 +269,19 @@ const HOLDERS: &[&str] = &[
 /// reds this row learns what the numbers were for.
 const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
+        "crates/geom-brep/src/carrier_net.rs",
+        2,
+        0,
+        "both are `T: Bounds` reads of an edge interval's evaluation bracket \
+         (blind spot 1), not a certification bracket: `carrier_span` takes the \
+         interval's outer ends as the `f64` span a closed-form carrier's schedule \
+         and net are built over, and branches on nothing. Its callers are the \
+         general image's producer and the spline-pair edge certificate, each behind \
+         `run_fitted_checks`' or `run_checks`' check 2, which has decided `t1 - t0` \
+         through `decide` and so refused an uncertified parameter; a NaN end that \
+         reached it anyway is refused by `chart_image`'s domain door",
+    ),
+    (
         "crates/geom-brep/src/offset_fit.rs",
         10,
         9,
@@ -297,18 +310,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/pcurve_cache.rs",
-        5,
+        3,
         2,
-        "the remaining 3 are `T: Bounds` reads of an edge interval's evaluation \
+        "the remaining 1 is a `T: Bounds` read of an edge interval's evaluation \
          bracket (blind spot 1), not a certification bracket. The fitted door's \
-         domain gate (`fitted_lane`) branches on them, the interval's outer ends \
+         domain gate (`fitted_lane`) branches on it, the interval's outer ends \
          against the image's stored `f64` knot domain: it is reached only through \
          `run_fitted_checks`, whose check 2 has already decided `t1 - t0` through \
          `decide`, which refuses an uncertified parameter, so a refused bracket \
-         stops at check 2 before this gate (at `f64` its NaN fails the gate). The \
-         general image's schedule ends for a closed-form carrier \
-         (`general_image_lane`) take no branch: they size an evidence schedule \
-         that `run_fitted_checks` re-checks with the original parameters",
+         stops at check 2 before this gate (at `f64` its NaN fails the gate)",
     ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     ("crates/geom-brep/src/props/bracket.rs", 4, 4, ""),
