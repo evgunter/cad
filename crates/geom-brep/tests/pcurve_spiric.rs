@@ -623,3 +623,74 @@ fn a_wall_image_names_one_torus_and_is_refused_on_the_other() {
         );
     }
 }
+
+/// **A chart gate decided apart answers past an earlier in-band one**
+/// (`geom_brep::ladder`'s rule on the wall's chart ladders). Each pose
+/// puts one gate `2ε` off, inside the band, ahead of another `3·K·ε`
+/// off, past it; the chart is then neither torus that holds the oval,
+/// and refuses as off it, where a ladder returning on its first in-band
+/// gate escalates:
+///
+/// - the own torus, its centre in band and its major radius apart;
+/// - the mirror torus (centre apart from the own), its minor radius in
+///   band and its axis tilted apart — the other torus's ladder;
+/// - the mirror torus moved apart from the mirror, its major radius in
+///   band — the other torus's ladder, answered by its last datum.
+///
+/// The control is the mirror torus with its major radius in band and
+/// nothing else apart: no datum decides, so the in-band one refuses.
+#[test]
+fn a_chart_gate_decided_apart_answers_past_an_in_band_one() {
+    let (eps, k) = (tol().eps(), tol().k());
+    let (inside, past) = (2.0 * eps, 3.0 * k * eps);
+    let chart = |center: Point3<f64>, axis: Vec3<f64>, major: f64, minor: f64| Surface::Torus {
+        center,
+        axis,
+        major_radius: major,
+        minor_radius: minor,
+        u_ref: Vec3::unit_x(),
+    };
+    let mirror = Point3::new(2.0 * D, 0.0, 0.0);
+    let tilted = (Vec3::unit_y() + Vec3::unit_z() * (past / ARM)).normalize();
+    for (what, surface) in [
+        (
+            "own: centre in band, major apart",
+            chart(Point3::new(0.0, 0.0, inside), Vec3::unit_y(), R + past, RR),
+        ),
+        (
+            "mirror: minor in band, tilt apart",
+            chart(mirror, tilted, R, RR + inside),
+        ),
+        (
+            "mirror moved apart: major in band",
+            chart(
+                mirror + Vec3::unit_z() * past,
+                Vec3::unit_y(),
+                R + inside,
+                RR,
+            ),
+        ),
+    ] {
+        let e = certify(wall(1.0, 0.0), &surface, band()).unwrap_err_or_else_msg(what);
+        assert!(
+            matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
+            "{what}: a definite gate answers: {e:?}"
+        );
+    }
+    let control = chart(mirror, Vec3::unit_y(), R + inside, RR);
+    let e = certify(wall(1.0, 0.0), &control, band()).unwrap_err_or_else_msg("control");
+    assert!(
+        matches!(
+            e,
+            PcurveCertifyError::Escalated {
+                check: geom_brep::PcurveCheck::ChartWinding,
+                cause: geom_core::Indeterminate {
+                    predicate: Some("pcurve_spiric_chart_major"),
+                    ..
+                },
+                ..
+            }
+        ),
+        "the mirror with only its major radius in band refuses on it: {e:?}"
+    );
+}

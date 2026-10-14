@@ -180,6 +180,7 @@ use geom_core::{
 
 use crate::certify::{CERT_SAMPLES, CertCheck, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
+use crate::ladder::{IdentityLadder, read_identity, refusing_cause};
 use crate::recourse::{Reading, RefusedArm, Unsized};
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -5430,48 +5431,50 @@ fn run_spiric_checks<T: Decide>(
                 ("pcurve_spiric_chart_minor", Margin::of(s_minor - r_minor)),
                 ("pcurve_spiric_chart_tilt", Margin::levered(sin_tilt, arm)),
             ];
-            for (i, (name, margin)) in gates.into_iter().enumerate() {
-                match decide(name, margin, band).map_err(winding_escalated)? {
-                    Sign::Zero => {}
-                    Sign::Positive | Sign::Negative => {
-                        // Not the named torus. Only a CENTRE that fails
-                        // can leave the chart the OTHER torus that holds
-                        // the oval, and the gates after it, not yet
-                        // decided, must hold for that.
-                        let mut other = i == 0;
-                        if other {
-                            let d_other = s_center
-                                - torus_center(match torus {
-                                    WallTorus::Own => WallTorus::Mirror,
-                                    WallTorus::Mirror => WallTorus::Own,
-                                });
-                            for (name, margin) in gates
-                                .into_iter()
-                                .skip(1)
-                                .chain([("pcurve_spiric_chart_other", Margin::norm3(d_other))])
-                            {
-                                if decide(name, margin, band).map_err(winding_escalated)?
-                                    != Sign::Zero
-                                {
-                                    other = false;
-                                    break;
-                                }
+            // Read as an identity ladder (`crate::ladder`): a gate
+            // decided apart answers past an earlier in-band one.
+            let reader = |name, margin| geom_core::k_stats::decide_reported(name, margin, band);
+            match read_identity(gates, reader) {
+                IdentityLadder::Zero(_) => {}
+                IdentityLadder::Undecided(kept) => {
+                    return Err(winding_escalated(refusing_cause(kept)));
+                }
+                IdentityLadder::Apart { at, .. } => {
+                    // Not the named torus. Only a CENTRE apart can leave
+                    // the chart the OTHER torus that holds the oval: a
+                    // radius or tilt apart is apart from both, so the
+                    // other torus's ladder is read only on the centre.
+                    let other = at == 0 && {
+                        let d_other = s_center
+                            - torus_center(match torus {
+                                WallTorus::Own => WallTorus::Mirror,
+                                WallTorus::Mirror => WallTorus::Own,
+                            });
+                        let data = gates
+                            .into_iter()
+                            .skip(1)
+                            .chain([("pcurve_spiric_chart_other", Margin::norm3(d_other))]);
+                        match read_identity(data, reader) {
+                            IdentityLadder::Zero(_) => true,
+                            IdentityLadder::Apart { .. } => false,
+                            IdentityLadder::Undecided(kept) => {
+                                return Err(winding_escalated(refusing_cause(kept)));
                             }
                         }
-                        if other {
-                            return Err(PcurveCertifyError::ImageMismatch {
-                                image: PcurveKind::Spiric,
-                                why: "the wall image names one of the two tori that hold the \
-                                      oval, and the chart is the other",
-                            });
-                        }
-                        return Err(spiric_off_own_chart(
-                            "the chart torus is neither the carrier's own nor its mirror \
-                             through the cutting plane, and a spiric oval lies on no other \
-                             torus",
-                        )
-                        .refusal(surface, carrier));
+                    };
+                    if other {
+                        return Err(PcurveCertifyError::ImageMismatch {
+                            image: PcurveKind::Spiric,
+                            why: "the wall image names one of the two tori that hold the \
+                                  oval, and the chart is the other",
+                        });
                     }
+                    return Err(spiric_off_own_chart(
+                        "the chart torus is neither the carrier's own nor its mirror \
+                         through the cutting plane, and a spiric oval lies on no other \
+                         torus",
+                    )
+                    .refusal(surface, carrier));
                 }
             }
             // Each residue at its own arm, in metres: a moved centre
@@ -8126,20 +8129,36 @@ fn torus_oblique_circle<T: Decide>(
         ),
         ("pcurve_torus_villarceau_radius", Margin::of(radius - big)),
     ];
-    for (name, margin) in gates {
-        match decide(name, margin, band).map_err(incidence_escalated)? {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => {
-                return Err(grazes(surface, carrier, Grazer::TorusCircle));
-            }
+    // Read as an identity ladder (`crate::ladder`), the spiric chart's
+    // rule: a gate decided apart answers past an earlier in-band one.
+    // Through `chart_pcurve` that order is not met at the run's K: a
+    // circle's first-order departure from the torus at the 64 incidence
+    // samples has a one-dimensional null space (a turn about the axis,
+    // which moves no gate), and the least-squares move putting any one
+    // gate at `m` departs `1.02·m` to `1.18·m` at its farthest sample, so
+    // a circle with a gate at `K·ε` or past it is refused, or escalated,
+    // by the incidence test before a gate is read. Only `K` under about
+    // `1/0.9` leaves the window open (measured on `R = 2`, `r = 0.7`;
+    // `ladder`'s rows hold the rule itself).
+    match read_identity(gates, |name, margin| {
+        geom_core::k_stats::decide_reported(name, margin, band)
+    }) {
+        IdentityLadder::Zero(_) => {}
+        IdentityLadder::Apart { .. } => {
+            return Err(grazes(surface, carrier, Grazer::TorusCircle));
         }
+        IdentityLadder::Undecided(kept) => return Err(incidence_escalated(refusing_cause(kept))),
     }
     let d = w_r / w_r.norm();
     let tangent = n.cross(d);
     // The tangent's two parts are `±r` and `±√(R² − r²)` on a Villarceau
-    // circle, so neither is in the band unless the tube, or `R − r`, is
-    // at the band's own scale: there the class is undecided at this
-    // tolerance, and the magnitude's gate escalates.
+    // circle, levered at `R`: the very numbers the router's
+    // `pcurve_torus_chart_axial` and `pcurve_torus_chart_meridian` gates
+    // decided apart on this band before routing here, so a tube or a
+    // `√(R² − r²)` at the band's scale escalates there. Each magnitude's
+    // gate is a fail-loud backstop: a Zero or in-band reading here is
+    // two readings of one number disagreeing, a kernel defect, which is
+    // the ending `ChartIncidence` gives it.
     let unit_sign = |name, along: Vec3<T>| {
         let part = tangent.dot(along);
         geom_core::k_stats::decide_positive(name, Margin::levered(part.abs(), big), band)
