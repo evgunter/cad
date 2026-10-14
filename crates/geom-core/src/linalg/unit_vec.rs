@@ -17,8 +17,7 @@
 //! - at `f64`, the normalized value;
 //! - at `Interval`, an enclosure of a unit vector — the widths interval
 //!   arithmetic carries are the enclosure's, and the normalization ran
-//!   on an enclosure whose length decided positive — or, for a witness
-//!   embedded from `f64`, the point interval of that `f64` decision;
+//!   on an enclosure whose length decided positive;
 //! - at `Dual`, a unit value channel with the quotient rule's tangent
 //!   carried alongside.
 //!
@@ -42,13 +41,11 @@
 //!   [`RigidMotion`](super::RigidMotion) can build its axes and act on
 //!   a direction, and they are documented on their own doors.
 //!
-//! A witness crosses scalars as an axis of its frame, through
-//! [`RigidMotion::embed`](super::RigidMotion::embed) (or its
-//! `embed_computed`) and
-//! [`RigidMotion::point_value`](super::RigidMotion::point_value)
-//! (their module's "Crossing scalars"): exact and closure-free, and
-//! an embedded witness is the `f64` decision carried, not one made at
-//! the target scalar.
+//! A witness exists at a scalar only by being minted there, and has no
+//! public crossing. It crosses down as an axis of its frame, through
+//! [`RigidMotion::point_value`](super::RigidMotion::point_value) (its
+//! module's "Crossing scalars"), and never up (Ev on #5068,
+//! 2026-10-14).
 //!
 //! The deciding ladders in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto
@@ -421,18 +418,6 @@ impl<T: Real> UnitVec3<T> {
     #[must_use]
     pub fn exact_z() -> Self {
         Self(Vec3::unit_z())
-    }
-}
-
-impl UnitVec3<f64> {
-    /// The same witness at `U`, each component through `enter` — one
-    /// of [`Real::from_f64`] and [`Real::from_computed`], both exact in
-    /// value: the `f64` decision carried, not one made at `U`. The
-    /// frame's [`embed`](super::RigidMotion::embed) and
-    /// [`embed_computed`](super::RigidMotion::embed_computed)
-    /// crossings carry each axis here.
-    pub(in crate::linalg) fn embed_by<U: Real>(self, enter: fn(f64) -> U) -> UnitVec3<U> {
-        UnitVec3(self.0.map(enter))
     }
 }
 

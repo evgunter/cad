@@ -1,7 +1,7 @@
 //! **The door's symbolic rungs** (D10, FORK-S4F): the document replayed
 //! in the `Sym` lane with every continuous variable a symbol of its own
 //! ([`crate::analysis::var_env_symbolic`]), profile geometry elaborated
-//! in that lane ([`crate::ProfileLift::Guided`]), and each row read
+//! in that lane ([`crate::ProfileLane`]), and each row read
 //! twice off the replay.
 //!
 //! - **The carrier-pair verdict** ([`Rung::CarrierVerdict`]): for a row
@@ -45,7 +45,7 @@ use geom_core::{Band, Sym, SymBudget, SymRules, Tol};
 use topo::{Body, CarrierRelation, FaceKey};
 
 use super::{Canceled, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
-use crate::eval::{BooleanValue, EvalOptions, EvalOutcome, Evaluation, ProfileLift, ValuePayload};
+use crate::eval::{BooleanValue, EvalOptions, EvalOutcome, Evaluation, ValuePayload};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
@@ -81,7 +81,6 @@ pub(super) fn rungs(
 ) -> Result<Vec<Vec<Result<Rung, Left>>>, Canceled> {
     let opts = EvalOptions {
         symbols: true,
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     let (out, _) = deferred::with_deferred_session(

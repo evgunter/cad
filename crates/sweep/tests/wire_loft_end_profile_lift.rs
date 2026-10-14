@@ -200,7 +200,12 @@ mod interval {
 
     fn interval_escalates(raw: &Profile<f64>) -> bool {
         matches!(
-            raw.embed::<Interval>().validate(Tol::witness()),
+            Profile::new(
+                sweep::test_support::lift_places::<Interval>(&[raw.plane])[0],
+                sweep::test_support::lift_sections::<Interval>(core::slice::from_ref(&raw.loops))
+                    .remove(0),
+            )
+            .validate(Tol::witness()),
             Err(profile::ProfileError::Escalated { .. })
         )
     }

@@ -107,19 +107,19 @@
 //!
 //! # Crossing scalars
 //!
-//! A motion crosses between scalars through two exact doors and no
-//! closure: an arbitrary map of its twelve numbers could unmake the
-//! witness (negating every component leaves `w` opposed to `u × v`).
+//! A frame exists at a scalar only by being minted there: by an exact
+//! mint, a decided mint or the decided door, over inputs held at that
+//! scalar. No door carries a frame up from `f64`. Every frame that
+//! would cross is the product of a decision, so at `Sym` it would
+//! enter either as literals, a theorem about its rounding (E12), or as
+//! unknowns, over which nothing is proved; minted at the scalar, it
+//! carries its inputs' dependence on the variables instead (Ev on
+//! #5068, 2026-10-14).
 //!
-//! - [`RigidMotion::embed`] — `f64` to any scalar, every component
-//!   through [`Real::from_f64`], whose contract is exactness. What it
-//!   hands out means at `U` the `f64` decision carried, not one made at
-//!   `U`: at `Interval` the axes are point intervals of the `f64` axes,
-//!   not an enclosure of the unit vectors the inputs determine. A frame
-//!   whose inputs are held at `U` is minted at `U` instead.
-//!   [`RigidMotion::embed_computed`] is the same crossing for a frame
-//!   the kernel computed, through [`Real::from_computed`]: the same
-//!   values, an unknown per component at `Sym`.
+//! The one crossing is downward, closure-free: an arbitrary map of the
+//! twelve numbers could unmake the witness (negating every component
+//! leaves `w` opposed to `u × v`).
+//!
 //! - [`RigidMotion::point_value`] — any scalar to `f64`, every
 //!   component through [`SpanLocate::point_value`], `None` where one
 //!   has no single finite `f64`: the read a structure selected at
@@ -682,48 +682,11 @@ impl<T: Real> RigidMotion<T> {
     }
 }
 
-impl RigidMotion<f64> {
-    /// **The same motion at `U`, exactly**: every component through
-    /// [`Real::from_f64`], whose contract is exactness, so nothing is
-    /// decided or rounded and [`Self::to_affine`] at `U` holds the
-    /// `f64` map's bits. One of the two crossings between scalars
-    /// ([module docs](self)); the witness it hands out is the `f64`
-    /// decision carried, not one made at `U`.
-    ///
-    /// For a frame that is a constant of the model (an authored
-    /// placement); a frame the kernel COMPUTED crosses through
-    /// [`Self::embed_computed`].
-    #[must_use]
-    pub fn embed<U: Real>(self) -> RigidMotion<U> {
-        self.embed_by(U::from_f64)
-    }
-
-    /// **[`Self::embed`] for a frame the kernel computed** (a path's
-    /// start frame, a station frame): every component through
-    /// [`Real::from_computed`] — the same values, so the same bits
-    /// wherever `from_f64` and `from_computed` agree, and an unknown
-    /// per component at `Sym`, so no identity is proved over the
-    /// rounding the `f64` frame carries.
-    #[must_use]
-    pub fn embed_computed<U: Real>(self) -> RigidMotion<U> {
-        self.embed_by(U::from_computed)
-    }
-
-    fn embed_by<U: Real>(self, enter: fn(f64) -> U) -> RigidMotion<U> {
-        RigidMotion {
-            origin: self.origin.map(enter),
-            u: self.u.embed_by(enter),
-            v: self.v.embed_by(enter),
-            w: self.w.embed_by(enter),
-        }
-    }
-}
-
 impl<T: SpanLocate> RigidMotion<T> {
     /// **The `f64` motion this one's value channel holds**: every
     /// component through [`SpanLocate::point_value`], or `None` when a
     /// component has no single finite `f64` — poison, or an enclosure
-    /// wider than a point. The other crossing between scalars
+    /// wider than a point. The one crossing between scalars
     /// ([module docs](self)), and the read a structure selected at
     /// `f64` makes of a placement held at a lane scalar.
     #[must_use]
@@ -1878,8 +1841,6 @@ mod crossing_and_turn_rows {
     use super::tests::{SITE, band, bits12};
     use super::*;
     use crate::interval::Interval;
-    use crate::spline::SpanLocate;
-    use crate::sym::Sym;
 
     fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
         UnitVec3::new(v, SITE, band()).unwrap()
@@ -2015,10 +1976,13 @@ mod crossing_and_turn_rows {
                     RigidMotion::check_rigid(&m.to_affine(), band()).is_ok(),
                     "{at}: the rigidity door admits the f64 turn"
                 );
-                let (ai, bi) = (
-                    a.embed_by(Interval::from_f64),
-                    b.embed_by(Interval::from_f64),
-                );
+                // The same two directions minted at `Interval`, from
+                // the `f64` witnesses' values as point inputs.
+                let at_interval = |d: UnitVec3<f64>| {
+                    UnitVec3::new(d.get().map(Interval::from_f64), SITE, band())
+                        .unwrap_or_else(|e| panic!("{at}: a unit input mints at Interval: {e:?}"))
+                };
+                let (ai, bi) = (at_interval(a), at_interval(b));
                 let mi = RigidMotion::turned_between(ai, bi, Point3::origin(), SITE, band())
                     .unwrap_or_else(|e| panic!("{at}, Interval: {e}"));
                 assert!(
@@ -2062,10 +2026,13 @@ mod crossing_and_turn_rows {
         );
     }
 
-    /// **`embed` and `point_value` are inverse crossings, bit for bit**,
-    /// and `point_value` refuses a motion whose components are boxes.
+    /// **`point_value` reads a frame minted at `Interval` from point
+    /// inputs back to the `f64` frame, bit for bit**, and refuses a
+    /// motion whose components are boxes. The decided door admits the
+    /// map verbatim, so the frame it mints at `Interval` from the `f64`
+    /// frame's point entries is that frame's point enclosure.
     #[test]
-    fn embed_and_point_value_round_trip_and_a_box_has_no_point() {
+    fn point_value_reads_a_point_frame_and_a_box_has_no_point() {
         let m = RigidMotion::gram_schmidt(
             Point3::new(-0.0, 1e-300, 7.5),
             Vec3::new(1.0, 1.0, 0.0),
@@ -2074,17 +2041,13 @@ mod crossing_and_turn_rows {
             band(),
         )
         .unwrap();
-        let lifted: RigidMotion<Interval> = m.embed();
-        let back = lifted
+        let at_interval: RigidMotion<Interval> =
+            RigidMotion::check_rigid(&m.to_affine().map(Interval::from_f64), band())
+                .expect("a rigid f64 map is rigid as point intervals");
+        let back = at_interval
             .point_value()
             .expect("a point motion has its f64 back");
         assert_eq!(bits12(&back.to_affine()), bits12(&m.to_affine()));
-        let computed: RigidMotion<Interval> = m.embed_computed();
-        assert_eq!(
-            bits12(&computed.point_value().unwrap().to_affine()),
-            bits12(&m.to_affine()),
-            "at a scalar where the two entries agree, so do the two crossings"
-        );
         let wide = RigidMotion::axes_xy(Point3::new(
             Interval::from_bounds(0.0, 1.0),
             Interval::from_f64(0.0),
@@ -2093,31 +2056,6 @@ mod crossing_and_turn_rows {
         assert!(
             wide.point_value().is_none(),
             "a box has no single f64 point"
-        );
-    }
-
-    /// **`embed` enters constants and `embed_computed` unknowns** at the
-    /// symbolic scalar, where the two entries differ: the first is a
-    /// literal per component, the second is not.
-    #[test]
-    fn embed_computed_enters_each_component_as_an_unknown_at_sym() {
-        let m = RigidMotion::rotation(unit(Vec3::new(0.3, -0.7, 0.2)), 0.4).unwrap();
-        let constant: RigidMotion<Sym<f64>> = m.embed();
-        let computed: RigidMotion<Sym<f64>> = m.embed_computed();
-        fn twelve<T: Real>(f: RigidMotion<T>) -> [T; 12] {
-            let (o, u, v, w) = (f.origin(), f.u().get(), f.v().get(), f.w().get());
-            [o.x, o.y, o.z, u.x, u.y, u.z, v.x, v.y, v.z, w.x, w.y, w.z]
-        }
-        let read =
-            |f: RigidMotion<Sym<f64>>| twelve(f).map(|c| c.plain_constant().map(f64::to_bits));
-        assert_eq!(
-            read(constant),
-            twelve(m).map(|c| Some(c.to_bits())),
-            "embed carries each component as the literal it is"
-        );
-        assert!(
-            read(computed).iter().all(Option::is_none),
-            "embed_computed carries none of them as a literal"
         );
     }
 }

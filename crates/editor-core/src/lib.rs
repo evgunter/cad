@@ -138,7 +138,7 @@ pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
     Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, PoseValue, ProfileLift,
+    NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, PoseValue, ProfileLane,
     ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate, mate_reach,
 };
 pub use refusal::Refusal;

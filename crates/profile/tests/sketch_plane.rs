@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use geom_core::{Affine3, Bounds, Dual64, Interval, Mat3, Point2, Point3, Real, RigidMotion, Vec3};
+use geom_core::{Affine3, Dual64, Interval, Mat3, Point2, Point3, Real, RigidMotion, Vec3};
 use profile::SketchPlane;
 
 use crate::common::frame_of;
@@ -227,33 +227,26 @@ fn the_placement_is_the_witness_conversion_bit_for_bit() {
 }
 
 #[test]
-fn embed_and_point_value_carry_the_frame_across_scalars_bit_for_bit() {
-    // `embed` is twelve exact `from_f64`s and `point_value` reads each
-    // back, so the round trip through `Interval` and `Dual64` returns
-    // every bit, the signed-zero frame included; and at `Interval` each
-    // embedded component is the POINT interval of the `f64` one — the
-    // `f64` cross product carried, not one taken at the target scalar,
-    // which would round outward.
+fn point_value_reads_a_plane_minted_at_a_lane_scalar_back_bit_for_bit() {
+    // A plane exists at a lane scalar only by being minted there. Minted
+    // at the decided door from the `f64` plane's twelve entries as point
+    // values, it holds those entries verbatim, so `point_value` returns
+    // every bit at `Interval` and through `Dual64`'s value channel, the
+    // signed-zero frame included.
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
     for (o, u, v) in FRAMES {
         let plane = SketchPlane::from_frame(frame_of(o, u, v));
-        assert!(plane.embed::<f64>().bit_eq(&plane), "embed at f64 at {o:?}");
-        let at_interval = plane.embed::<Interval>();
-        for (got, want) in at_interval
-            .placement()
-            .components()
-            .iter()
-            .zip(plane.placement().components())
-        {
-            assert_eq!(
-                (got.lo().to_bits(), got.hi().to_bits()),
-                (want.to_bits(), want.to_bits()),
-                "a point interval of the f64 component at {o:?}"
-            );
-        }
+        let at_interval = SketchPlane::from_frame(
+            RigidMotion::check_rigid(&plane.placement().map(Interval::from_f64), band)
+                .expect("a rigid f64 frame is rigid as point intervals"),
+        );
         let back = at_interval.point_value().expect("a point plane reads back");
         assert!(back.bit_eq(&plane), "Interval round trip at {o:?}");
-        let back = plane
-            .embed::<Dual64>()
+        let at_dual = SketchPlane::from_frame(
+            RigidMotion::check_rigid(&plane.placement().map(Dual64::from_f64), band)
+                .expect("a rigid f64 frame is rigid at Dual64"),
+        );
+        let back = at_dual
             .point_value()
             .expect("a dual plane's value channel reads back");
         assert!(back.bit_eq(&plane), "Dual64 round trip at {o:?}");
@@ -287,7 +280,7 @@ fn point_value_refuses_a_plane_wider_than_a_point() {
     )
     .expect("a wide pair that spans a plane");
     assert!(SketchPlane::from_frame(wide).point_value().is_none());
-    let point = SketchPlane::<f64>::xy().embed::<Interval>();
+    let point = SketchPlane::<Interval>::xy();
     assert!(
         point.point_value().is_some(),
         "the control: a point plane reads"

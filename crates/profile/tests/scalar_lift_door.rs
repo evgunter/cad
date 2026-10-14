@@ -1,5 +1,4 @@
-//! **The raw scalar-lift door, rung by rung**:
-//! `ProfileLoop::map_scalar`, `Profile::embed`.
+//! **The raw scalar-lift door**: `ProfileLoop::map_scalar`.
 //!
 //! The claim under test is that the lift is STRUCTURAL — every stored
 //! scalar goes through `f` and nothing is computed, every count and
@@ -13,8 +12,8 @@
 //! the door does.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Arc2, Dual64, Point2, Point3, Real};
-use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
+use geom_core::{Arc2, Dual64, Point2, Real};
+use profile::{ProfileLoop, RawLoop, Segment};
 
 /// The fixture's vertices as `(x, y, arc)`, authored here and read by
 /// every row as the source of truth: `arc` is the leaving segment's
@@ -40,9 +39,6 @@ fn arc_fields<T: Real>(lifted: &Segment<T>, k: usize) -> Option<([T; 4], [f64; 4
     }
 }
 
-/// The fixture plane's translation, authored here.
-const ORIGIN: (f64, f64, f64) = (-1.5, 0.25, 3.0);
-
 fn source_loop() -> ProfileLoop<f64> {
     <ProfileLoop<f64> as RawLoop<f64>>::new(VERTS.iter().map(|&(x, y, arc)| {
         let segment = match arc {
@@ -55,13 +51,6 @@ fn source_loop() -> ProfileLoop<f64> {
         };
         (Point2::new(x, y), segment)
     }))
-}
-
-fn source_profile() -> Profile<f64> {
-    Profile::new(
-        SketchPlane::xy_at(Point3::new(ORIGIN.0, ORIGIN.1, ORIGIN.2)),
-        vec![source_loop(), source_loop()],
-    )
 }
 
 /// A `Dual64` that is `from_f64(want)`: the value channel's bits are
@@ -96,45 +85,18 @@ fn the_loop_rung_carries_the_vertex_order() {
 }
 
 #[test]
-fn the_profile_rung_carries_the_plane_and_the_loop_order() {
-    let lifted: Profile<Dual64> = source_profile().embed::<Dual64>();
-    assert_eq!(lifted.loops.len(), 2, "the loop list is carried in order");
-    let m = lifted.plane.placement();
-    is_lift_of(m.translation.x, ORIGIN.0, "origin x");
-    is_lift_of(m.translation.y, ORIGIN.1, "origin y");
-    is_lift_of(m.translation.z, ORIGIN.2, "origin z");
-    is_lift_of(m.linear.c0.x, 1.0, "u x");
-    is_lift_of(m.linear.c1.y, 1.0, "v y");
-    is_lift_of(m.linear.c2.z, 1.0, "n z");
-    for lp in &lifted.loops {
-        assert_eq!(lp.vertices().len(), VERTS.len());
-        for (k, (v, &(x, y, _))) in lp.vertices().iter().zip(VERTS.iter()).enumerate() {
-            is_lift_of(v.x, x, "x");
-            is_lift_of(v.y, y, "y");
-            if let Some((got, want)) = arc_fields(&lp.segments()[k], k) {
-                for (g, w) in got.into_iter().zip(want) {
-                    is_lift_of(g, w, "arc field");
-                }
-            }
-        }
-    }
-}
-
-#[test]
 fn the_lift_to_f64_is_the_identity_down_to_the_sign_of_a_zero() {
-    let lifted: Profile<f64> = source_profile().embed::<f64>();
-    for lp in &lifted.loops {
-        for (k, (v, &(x, y, _))) in lp.vertices().iter().zip(VERTS.iter()).enumerate() {
-            assert!(v.x.to_bits() == x.to_bits(), "x");
-            assert!(
-                v.y.to_bits() == y.to_bits(),
-                "the signed zero survives: got {}, want {y}",
-                v.y
-            );
-            if let Some((got, want)) = arc_fields(&lp.segments()[k], k) {
-                for (g, w) in got.into_iter().zip(want) {
-                    assert!(g.to_bits() == w.to_bits(), "arc field {g} vs {w}");
-                }
+    let lp: ProfileLoop<f64> = source_loop().map_scalar(f64::from_f64);
+    for (k, (v, &(x, y, _))) in lp.vertices().iter().zip(VERTS.iter()).enumerate() {
+        assert!(v.x.to_bits() == x.to_bits(), "x");
+        assert!(
+            v.y.to_bits() == y.to_bits(),
+            "the signed zero survives: got {}, want {y}",
+            v.y
+        );
+        if let Some((got, want)) = arc_fields(&lp.segments()[k], k) {
+            for (g, w) in got.into_iter().zip(want) {
+                assert!(g.to_bits() == w.to_bits(), "arc field {g} vs {w}");
             }
         }
     }
@@ -146,21 +108,19 @@ fn the_lift_to_f64_is_the_identity_down_to_the_sign_of_a_zero() {
 #[test]
 fn the_lift_to_interval_is_point_wide() {
     use geom_core::{Bounds, Interval};
-    let lifted: Profile<Interval> = source_profile().embed::<Interval>();
-    for lp in &lifted.loops {
-        for (k, (v, &(x, y, _))) in lp.vertices().iter().zip(VERTS.iter()).enumerate() {
-            let mut pairs = vec![(v.x, x), (v.y, y)];
-            if let Some((got, want)) = arc_fields(&lp.segments()[k], k) {
-                pairs.extend(got.into_iter().zip(want));
-            }
-            for (got, want) in pairs {
-                assert!(
-                    got.lo().to_bits() == want.to_bits() && got.hi().to_bits() == want.to_bits(),
-                    "[{}, {}] is not the point enclosure of {want}",
-                    got.lo(),
-                    got.hi()
-                );
-            }
+    let lp: ProfileLoop<Interval> = source_loop().map_scalar(Interval::from_f64);
+    for (k, (v, &(x, y, _))) in lp.vertices().iter().zip(VERTS.iter()).enumerate() {
+        let mut pairs = vec![(v.x, x), (v.y, y)];
+        if let Some((got, want)) = arc_fields(&lp.segments()[k], k) {
+            pairs.extend(got.into_iter().zip(want));
+        }
+        for (got, want) in pairs {
+            assert!(
+                got.lo().to_bits() == want.to_bits() && got.hi().to_bits() == want.to_bits(),
+                "[{}, {}] is not the point enclosure of {want}",
+                got.lo(),
+                got.hi()
+            );
         }
     }
 }

@@ -164,8 +164,8 @@ pub fn quarter_bulge() -> f64 {
 /// Lifts an `f64` profile to any scalar (exact embedding per
 /// `Real::from_f64`).
 ///
-/// `Profile::embed` except for the plane: this mints `xy` at `T`
-/// rather than lifting `p`'s, and every caller's profile is on `xy`.
+/// The plane is minted `xy` at `T`, not carried from `p`'s: every
+/// caller's profile is on `xy`.
 pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
     Profile::new(
         SketchPlane::xy(),
@@ -210,8 +210,19 @@ pub fn replayed<T: profile::ArcCarrierScalar>(
     }
     (
         profile::ConstructedProfile::new(p.plane, recorded),
-        profile::ConstructedProfile::new(p.plane.embed(), guided),
+        profile::ConstructedProfile::new(plane_at(p.plane), guided),
     )
+}
+
+/// **An `f64` fixture plane minted at `T`**: its placement's twelve
+/// entries, as point values at `T`, admitted at the decided door
+/// ([`geom_core::RigidMotion::check_rigid`]). A frame crosses no
+/// scalar upward; a fixture holding one as numbers mints it again.
+pub fn plane_at<T: geom_core::Decide>(plane: SketchPlane<f64>) -> SketchPlane<T> {
+    let band = geom_core::Band::linear(tol()).expect("the suite tolerance forms a band");
+    let frame = geom_core::RigidMotion::check_rigid(&plane.placement().map(T::from_f64), band)
+        .unwrap_or_else(|e| panic!("the fixture plane is rigid at the lane scalar: {e}"));
+    SketchPlane::from_frame(frame)
 }
 
 /// Replays a recorded `f64` program at `T`, at the suite tolerance: each

@@ -86,17 +86,16 @@ says which old step each new step keeps by its minted id, and reports
 every name on a step it drops (`crates/editor-core/REFERENCES.md` DM7).
 
 Evaluation resolves the program at f64 (`ProfileProgram::resolve`),
-replays it, embeds the loops into the lane scalar and validates there.
-Structure — junction classes, fillet fits and candidate picks, loop
-orientation, loop roles — is selected once, at f64, identically for
-every scalar lane (the rule the code cites as C6). That is why profile
-expressions are f64-pinned while node magnitude slots are lane-live.
-Under `ProfileLift::Guided` the same program is also resolved at the
-lane scalar and replayed through `replay_guided`, which consumes and
+replays it and validates it there. Structure — junction classes, fillet
+fits and candidate picks, loop orientation, loop roles — is selected
+once, at f64, identically for every scalar lane (the rule the code
+cites as C6). Every evaluation then resolves the same program at its
+lane scalar and replays it through `replay_guided`, which consumes and
 re-verifies the f64 pass's `ReplayStructure` instead of re-deciding it
-(the profile-parameter lift, `crates/editor-core/README.md`). Junction
-checks re-run under every binding, and every constructed tangency is
-re-verified by `validate`, never trusted.
+(the profile-parameter lift, `crates/editor-core/README.md`); at f64
+the lane is the first pass itself. Junction checks re-run under every
+binding, and every constructed tangency is re-verified by `validate`,
+never trusted.
 
 `ProfileProgram::check` runs resolve + replay + validate under the
 current parameter environment at the edit door
@@ -192,7 +191,8 @@ recorded; same-carrier continuation is a tangent joint, constructed or
 decided; fit gating. A `ValidatedProfile` is minted on segments by the validate doors
 (`validate` and `validate_recording` on a `Profile` or a
 `ConstructedProfile`, and `validate_guided` on a `ConstructedProfile`)
-and by `ValidatedProfile::lift_onto` from an `f64` one;
+by `ValidatedProfile::lift_onto` from an `f64` one, and by
+`ValidatedProfile::on_plane` from one on another plane;
 extrude/revolve/fillet/loft/sweep never see a program. Junction
 predicates classify at replay exactly as at typed authoring. Replay is
 deterministic (libm-pure, no ordering effects). A chain's seam still

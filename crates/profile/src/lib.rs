@@ -95,11 +95,12 @@
 //!   derived from the frame, never stored. Rigidity — u, v, normal
 //!   orthonormal and right-handed — is the frame's type, so every
 //!   sweep door that takes the plane reads a witnessed normal. No door
-//!   takes a bare [`geom_core::Affine3`]; the plane crosses scalars only
-//!   through the frame's exact crossings, [`SketchPlane::embed`] and
-//!   [`SketchPlane::point_value`] (geom-core's `linalg::rigid_motion`,
-//!   "Crossing scalars"). Validation is purely
-//!   2-D (the plane is passed through untouched).
+//!   takes a bare [`geom_core::Affine3`]. A plane exists at a scalar
+//!   only by being minted there, from its frame; its one crossing is
+//!   down, [`SketchPlane::point_value`] (geom-core's
+//!   `linalg::rigid_motion`, "Crossing scalars"; Ev on #5068,
+//!   2026-10-14). Validation is purely 2-D (the plane is passed through
+//!   untouched).
 //!
 //! # Validation and canonical form
 //!
@@ -394,8 +395,7 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 /// - **the materialization door** — [`ProfileLoop::map_scalar`]: a
 ///   table that already exists, read at another scalar. It authors
 ///   nothing; there is no table it can make that did not exist a moment
-///   earlier. [`Profile::embed`] is that same door run over a
-///   profile's loops, not a second one.
+///   earlier.
 /// - **fixtures** — `RawLoop` (unlinked deliberately: in a shipped
 ///   build it is a crate-private item, so a link from this public page
 ///   would name something the page's reader does not have), which
@@ -566,9 +566,7 @@ impl<T: Real> ProfileLoop<T> {
     /// **A materialization door**: the same loop read at another
     /// scalar.
     ///
-    /// The lower rung of this crate's scalar lift, below
-    /// [`Profile::embed`], and named by
-    /// `geom`'s `scalar_lift` convention: `map` on every leaf
+    /// Named by `geom`'s `scalar_lift` convention: `map` on every leaf
     /// ([`Point2::map`](geom_core::Point2::map),
     /// [`Vec2::map`](geom_core::Vec2::map),
     /// [`Affine3::map`](geom_core::Affine3::map) — a fixed tuple of scalars),
@@ -784,22 +782,6 @@ impl<T: Real> SketchPlane<T> {
 }
 
 impl SketchPlane<f64> {
-    /// The same plane at `U`, exactly: the frame's
-    /// [`RigidMotion::embed`]. Its normal at `U` is the `f64` cross
-    /// product carried, not one taken at `U`; a plane whose frame
-    /// inputs are held at `U` is minted at `U` instead.
-    #[must_use]
-    pub fn embed<U: Real>(self) -> SketchPlane<U> {
-        SketchPlane::from_frame(self.frame.embed())
-    }
-
-    /// [`Self::embed`] for a plane the kernel computed (a path's start
-    /// frame): the frame's [`RigidMotion::embed_computed`].
-    #[must_use]
-    pub fn embed_computed<U: Real>(self) -> SketchPlane<U> {
-        SketchPlane::from_frame(self.frame.embed_computed())
-    }
-
     /// Bit-exact frame equality (the `Doc::bit_eq` precedent, spec
     /// D7): every one of the placement's twelve components compared
     /// by BITS, so `0.0` and `-0.0` are different planes here.
@@ -878,39 +860,6 @@ impl<T: Real> Profile<T> {
     /// Builds a profile from a plane and loops.
     pub fn new(plane: SketchPlane<T>, loops: Vec<ProfileLoop<T>>) -> Self {
         Self { plane, loops }
-    }
-}
-
-impl Profile<f64> {
-    /// **The top rung of this crate's scalar lift**: the same RAW
-    /// profile at `U`, exactly — the plane through
-    /// [`SketchPlane::embed`], every loop through
-    /// [`ProfileLoop::map_scalar`] with `U::from_f64`, the loop order
-    /// carried.
-    ///
-    /// Structural, not arithmetic: nothing is computed, so the lift is
-    /// bit-identical for any `U` whose `from_f64` is exact on `f64`.
-    /// Nothing here is decided: a raw profile carries no verdict, and
-    /// the loops that come out still owe [`Profile::validate`] at `U`.
-    ///
-    /// **This is the raw door, and it is rarely the one a build wants.**
-    /// Lifting a raw profile and validating the result at `U` decides
-    /// the profile's structure a second time, in `U`'s arithmetic, over
-    /// data that is an exact embedding of the `f64` data a validation
-    /// already ran on — where `U` is certified that second opinion can
-    /// only agree or escalate, never disagree. A build that already
-    /// holds the `f64` verdict lifts THAT, through
-    /// [`ValidatedProfile::lift_onto`], which carries the decisions
-    /// instead of remaking them.
-    #[must_use]
-    pub fn embed<U: Real>(&self) -> Profile<U> {
-        Profile::new(
-            self.plane.embed(),
-            self.loops
-                .iter()
-                .map(|lp| lp.map_scalar(U::from_f64))
-                .collect(),
-        )
     }
 }
 

@@ -1052,9 +1052,24 @@ pub fn lift_sections<T: Real>(sections: &[Section]) -> Vec<Section<ProfileLoop<T
         .collect()
 }
 
-/// [`lift_sections`]' placements: each a fixture's constant.
-pub fn lift_places<T: Real>(places: &[SketchPlane<f64>]) -> Vec<SketchPlane<T>> {
-    places.iter().map(|p| p.embed()).collect()
+/// [`lift_sections`]' placements, each minted at `T`: a frame crosses
+/// no scalar upward, so the fixture's twelve placement constants are
+/// admitted again at the decided door at `T`
+/// ([`RigidMotion::check_rigid`], at the run's linear band).
+///
+/// # Panics
+///
+/// When a placement is not admitted at `T`.
+pub fn lift_places<T: Decide>(places: &[SketchPlane<f64>]) -> Vec<SketchPlane<T>> {
+    let band = Band::linear(Tol::witness()).expect("the run's tolerance forms a band");
+    places
+        .iter()
+        .map(|p| {
+            let frame = RigidMotion::check_rigid(&p.placement().map(T::from_f64), band)
+                .unwrap_or_else(|e| panic!("a fixture placement is rigid at the lane scalar: {e}"));
+            SketchPlane::from_frame(frame)
+        })
+        .collect()
 }
 
 /// [`loft_prism`] with its sections placed at `zs` instead of
