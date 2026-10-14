@@ -41,7 +41,7 @@ ended at none.
 - Find why `carve` kills this edge outside the chains `discard.rs`
   writes. It may be interior to the discarded region, or a chain may
   stop short of it. Either copy its hop into the boundary chains or add
-  a carve-killed lineage beside `BooleanNaming::joined_lineage`, which
+  a carve-killed lineage beside `BooleanNaming::killed_lineage`, which
   `KilledSplits` already reads.
 - `discard.rs` is fenced while PR 5107 works there, so this waits for
   it or goes through it.

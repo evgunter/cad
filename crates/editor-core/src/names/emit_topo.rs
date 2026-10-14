@@ -66,7 +66,7 @@ struct Side<'a, T: Decide> {
 ///
 /// **The kills' hops are copies of the same records.** `killed` comes
 /// from `BooleanNaming::discards`' boundary chains and
-/// `BooleanNaming::joined_lineage` ([`KilledSplits`]), which copy the
+/// `BooleanNaming::killed_lineage` ([`KilledSplits`]), which copy the
 /// clone's `SplitEdge` records before the kills drop them, so as the
 /// kernel writes them they are as acyclic as the records
 /// (`topo::Provenance::SplitEdge`). They are public fields a caller can
@@ -107,7 +107,7 @@ fn chase_edge_to_table<T: Decide>(
 /// record, so a live piece split off a killed one has a lineage that
 /// stops at the killed key; the discard rows keep each such edge's
 /// chain ([`topo::DiscardRow::boundary_chains`]) and the output stage
-/// its hop (`topo::BooleanNaming::joined_lineage`), and these are its
+/// its hop (`topo::BooleanNaming::killed_lineage`), and these are its
 /// hops. `arena` holds the hops in result keys (the output stage's, and
 /// the rows of an operand whose clone is the result arena); `graft_b` a
 /// grafted B's, in B's clone keys.
@@ -137,7 +137,7 @@ impl KilledSplits {
                 }
             }
         }
-        out.arena.extend(&naming.joined_lineage);
+        out.arena.extend(&naming.killed_lineage);
         out
     }
 }

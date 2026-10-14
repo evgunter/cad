@@ -626,9 +626,10 @@ pub(crate) fn joinable_at_rest<T: Decide>(
 /// after the merge and its re-description, before the records are
 /// carried.
 ///
-/// Also returns, for each `gone` edge that held a `SplitEdge` record,
-/// the edge it was split from, read before the kills drop the record
-/// ([`super::BooleanNaming::joined_lineage`]).
+/// Also writes into `lineage`, for each `gone` edge that held a record
+/// in `split_from` (the output stage's one snapshot, taken before the
+/// merge), the edge it was split from
+/// ([`super::BooleanNaming::killed_lineage`]).
 ///
 /// # Errors
 ///
@@ -637,15 +638,15 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
     recorded: &BTreeSet<VertexKey>,
+    split_from: &BTreeMap<EdgeKey, EdgeKey>,
+    lineage: &mut BTreeMap<EdgeKey, EdgeKey>,
     band: Band,
     tol: Tol,
-) -> Result<(Vec<EdgeJoin>, BTreeMap<EdgeKey, EdgeKey>), BooleanError> {
-    let split_from = split_records(body);
+) -> Result<Vec<EdgeJoin>, BooleanError> {
     // The boolean's own surgery body, re-minted whole after the carry:
     // no staging and no re-mint here.
     let free = free_vertices(body, recorded);
     let (joined, _) = join_all(body, band, tol, &|_| true, &free)?;
-    let mut lineage = BTreeMap::new();
     for j in &joined {
         desc.substitute((Cell::Vertex(j.vertex), Cell::Edge(j.kept)))?;
         desc.substitute((Cell::Edge(j.gone), Cell::Edge(j.kept)))?;
@@ -653,13 +654,13 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
             desc.substitute((Cell::Vertex(v), Cell::Edge(j.kept)))?;
         }
     }
-    record_joined_lineage(&mut lineage, &split_from, joined.iter().map(|j| j.gone));
-    Ok((joined, lineage))
+    record_killed_lineage(lineage, split_from, joined.iter().map(|j| j.gone));
+    Ok(joined)
 }
 
 /// Each edge of `body` with a `SplitEdge` record → the edge it was
-/// split from: the records as they stand, taken before a join's kills
-/// drop the killed edges' ([`record_joined_lineage`]).
+/// split from: the records as they stand, taken before a kill (a merge's
+/// or a join's) drops the killed edges' ([`record_killed_lineage`]).
 pub(crate) fn split_records<T: Real>(body: &Body<T>) -> BTreeMap<EdgeKey, EdgeKey> {
     body.edges()
         .filter_map(|(e, _)| match body.edge_provenance_of(e) {
@@ -673,7 +674,7 @@ pub(crate) fn split_records<T: Real>(body: &Body<T>) -> BTreeMap<EdgeKey, EdgeKe
 /// in `split_from` ([`split_records`], taken before the kills), with the
 /// edge it was split from. An edge recorded twice names one parent: a
 /// body holds one record per edge.
-pub(crate) fn record_joined_lineage(
+pub(crate) fn record_killed_lineage(
     lineage: &mut BTreeMap<EdgeKey, EdgeKey>,
     split_from: &BTreeMap<EdgeKey, EdgeKey>,
     killed: impl IntoIterator<Item = EdgeKey>,

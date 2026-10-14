@@ -150,7 +150,7 @@ fn a_through_slot_records_the_strip_it_discards_between_two_kept_pieces() {
 }
 
 /// **An edge the boolean split and its own join killed keeps its
-/// parent** (`BooleanNaming::joined_lineage`): two bricks overlapping
+/// parent** (`BooleanNaming::killed_lineage`): two bricks overlapping
 /// along x, flush on their other four sides, union into one brick. Each
 /// operand's long edges are cut where the other's end face crosses
 /// them, and the join makes each long edge of the result again, killing
@@ -168,25 +168,30 @@ fn an_edge_split_and_joined_away_in_one_step_records_its_parent() {
     };
     let naming = &out.naming;
     let gone: BTreeSet<EdgeKey> = naming.edge_joins.iter().map(|j| j.gone).collect();
+    // The join's entries; the merge's own are the next test's.
+    let joined: Vec<(&EdgeKey, &EdgeKey)> = naming
+        .killed_lineage
+        .iter()
+        .filter(|(g, _)| gone.contains(g))
+        .collect();
     assert!(
-        !naming.joined_lineage.is_empty(),
+        !joined.is_empty(),
         "a piece the cut minted is joined away: {:?}",
         naming.edge_joins
     );
     assert_eq!(out.body.edges().count(), 12, "the union is one brick");
-    for (g, from) in &naming.joined_lineage {
-        assert!(gone.contains(g), "{g:?} is a joined-away edge");
+    for (g, from) in joined {
         assert!(out.body.get_edge(*g).is_none(), "{g:?} is dead");
         // The parent, followed through any parent the join also
         // killed, lies on the result edge `g` was joined into: the long
         // edge the cut divided.
         let mut up = *from;
         let mut hops = 0;
-        while let Some(&p) = naming.joined_lineage.get(&up) {
+        while let Some(&p) = naming.killed_lineage.get(&up) {
             up = p;
             hops += 1;
             assert!(
-                hops <= naming.joined_lineage.len(),
+                hops <= naming.killed_lineage.len(),
                 "{g:?}'s lineage cycles"
             );
         }
@@ -199,7 +204,7 @@ fn an_edge_split_and_joined_away_in_one_step_records_its_parent() {
 }
 
 /// **An edge the boolean split and its own merge killed keeps its
-/// parent** (`BooleanNaming::joined_lineage`): a pocket is cut into a
+/// parent** (`BooleanNaming::killed_lineage`): a pocket is cut into a
 /// plate, then a slot whose floor is flush with the pocket's runs out
 /// through the pocket's wall. The slot cuts the pocket's bottom rim
 /// under that wall; the stretch between the slot's sides lies between
@@ -227,7 +232,7 @@ fn an_edge_split_and_merged_away_in_one_step_records_its_parent() {
     let naming = &out.naming;
     let gone: BTreeSet<EdgeKey> = naming.edge_joins.iter().map(|j| j.gone).collect();
     let merged: Vec<(EdgeKey, EdgeKey)> = naming
-        .joined_lineage
+        .killed_lineage
         .iter()
         .filter(|(g, _)| !gone.contains(g))
         .map(|(&g, &f)| (g, f))
@@ -235,7 +240,7 @@ fn an_edge_split_and_merged_away_in_one_step_records_its_parent() {
     assert!(
         !merged.is_empty(),
         "a rim stretch the slot cut lies between the merged floors: {:?}",
-        naming.joined_lineage
+        naming.killed_lineage
     );
     for (g, from) in merged {
         assert!(out.body.get_edge(g).is_none(), "{g:?} is dead");
@@ -243,17 +248,32 @@ fn an_edge_split_and_merged_away_in_one_step_records_its_parent() {
         // killed, is a live edge: the rim stretch the merge kept.
         let mut up = from;
         let mut hops = 0;
-        while let Some(&p) = naming.joined_lineage.get(&up) {
+        while let Some(&p) = naming.killed_lineage.get(&up) {
             up = p;
             hops += 1;
             assert!(
-                hops <= naming.joined_lineage.len(),
+                hops <= naming.killed_lineage.len(),
                 "{g:?}'s lineage cycles"
             );
         }
-        assert!(
-            out.body.get_edge(naming.joined_edge(up)).is_some(),
-            "{g:?}'s lineage reaches a live edge, not {up:?}"
-        );
+        let live = naming.joined_edge(up);
+        let edge = out
+            .body
+            .get_edge(live)
+            .unwrap_or_else(|| panic!("{g:?}'s lineage reaches a live edge, not {up:?}"));
+        // It lies on the pocket's bottom rim under the wall the slot runs
+        // through: both ends on the line x = 3, z = 0.5.
+        let ends = [
+            out.body.get_half_edge(edge.he_plus).unwrap().start,
+            out.body.half_edge_end(edge.he_plus).unwrap(),
+        ];
+        let points: BTreeMap<VertexKey, _> = out.body.vertex_points().collect();
+        for v in ends {
+            let p = points[&v];
+            assert!(
+                (p.x - 3.0).abs() < 1e-9 && (p.z - 0.5).abs() < 1e-9,
+                "{g:?}'s lineage reaches {live:?}, which ends at {p:?}, off the pocket's rim"
+            );
+        }
     }
 }

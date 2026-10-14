@@ -350,9 +350,10 @@ pub struct BooleanNaming {
     /// merge of coplanar faces killed, and each `gone` edge of
     /// [`Self::edge_joins`]. A kill takes its edge's birth record with
     /// it, so an edge this op split and then merged or joined away leads
-    /// to its parent only through this copy, taken before the kills (as
-    /// the Split's `SplitNaming::joined_lineage`).
-    pub joined_lineage: BTreeMap<EdgeKey, EdgeKey>,
+    /// to its parent only through this copy, taken before the kills. The
+    /// Split, which runs no merge, keeps the same copy of its join kills
+    /// alone (`SplitNaming::joined_lineage`).
+    pub killed_lineage: BTreeMap<EdgeKey, EdgeKey>,
 }
 
 impl Default for BooleanNaming {
@@ -386,7 +387,7 @@ impl Default for BooleanNaming {
             null_copies: Default::default(),
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
             edge_joins: Default::default(),
-            joined_lineage: Default::default(),
+            killed_lineage: Default::default(),
         }
     }
 }
@@ -827,7 +828,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let OutputStage {
         merged,
         edge_joins,
-        joined_lineage,
+        killed_lineage,
     } = finish_output(
         &mut body,
         &mut desc,
@@ -887,7 +888,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         null_copies,
         cone_splits,
         edge_joins,
-        joined_lineage,
+        killed_lineage,
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,
@@ -2370,8 +2371,8 @@ pub(super) struct OutputStage {
     /// The joins, in the order made ([`BooleanNaming::edge_joins`]).
     pub(super) edge_joins: Vec<super::EdgeJoin>,
     /// The parents of the edges the merge and the join killed
-    /// ([`BooleanNaming::joined_lineage`]).
-    pub(super) joined_lineage: BTreeMap<EdgeKey, EdgeKey>,
+    /// ([`BooleanNaming::killed_lineage`]).
+    pub(super) killed_lineage: BTreeMap<EdgeKey, EdgeKey>,
 }
 
 /// **The boolean's output stage**, the one every result path takes
@@ -2409,25 +2410,34 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
             );
         }
     });
+    // One snapshot of the records serves both stages: nothing between
+    // the merge and the join mints an edge.
     let split_from = super::edge_join::split_records(body);
     let merged = body.merge_coplanar_faces_unjoined(declared, tol)?;
     let mut killed_lineage = BTreeMap::new();
-    super::edge_join::record_joined_lineage(
+    super::edge_join::record_killed_lineage(
         &mut killed_lineage,
         &split_from,
-        split_from
-            .keys()
-            .copied()
-            .filter(|&e| body.get_edge(e).is_none()),
+        merged
+            .groups
+            .iter()
+            .flat_map(|g| g.killed_edges.iter().copied()),
     );
     desc.absorb_merge(&merged)?;
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
-    let (edge_joins, mut joined_lineage) = join_stage(body, desc, recorded, band, tol)?;
-    joined_lineage.extend(killed_lineage);
+    let edge_joins = join_stage(
+        body,
+        desc,
+        recorded,
+        &split_from,
+        &mut killed_lineage,
+        band,
+        tol,
+    )?;
     Ok(OutputStage {
         merged,
         edge_joins,
-        joined_lineage,
+        killed_lineage,
     })
 }
 
@@ -6860,7 +6870,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let OutputStage {
                 merged,
                 edge_joins,
-                joined_lineage,
+                killed_lineage,
             } = finish_output(
                 &mut body,
                 &mut desc,
@@ -6900,7 +6910,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 edge_classes: red.edge_classes.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
-                joined_lineage,
+                killed_lineage,
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -6968,7 +6978,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     let OutputStage {
         merged,
         edge_joins,
-        joined_lineage,
+        killed_lineage,
     } = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
     let output = output_substitutions(&merged, &edge_joins)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
@@ -6996,7 +7006,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             edge_classes: red.edge_classes.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
-            joined_lineage: joined_lineage.clone(),
+            killed_lineage: killed_lineage.clone(),
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -7011,7 +7021,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             edge_classes: red.edge_classes.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
-            joined_lineage: joined_lineage.clone(),
+            killed_lineage: killed_lineage.clone(),
             ..BooleanNaming::default()
         },
     };

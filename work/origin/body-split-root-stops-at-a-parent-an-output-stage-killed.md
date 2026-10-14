@@ -22,7 +22,7 @@ the child's lineage in the body ends at a dead key:
 - the shell's closing join (`shell.rs`, `join_edges_within`).
 
 The naming readers now step past such a key through the copies in
-`BooleanNaming::joined_lineage`. `Body::split_root`
+`BooleanNaming::killed_lineage`. `Body::split_root`
 (`crates/topo/src/provenance.rs`) reads the body alone, so two of its
 callers in `topo` stop at the dead parent:
 - `props::run_edges` (`props.rs`, the `carrier_id` stamp): two pieces
@@ -45,6 +45,31 @@ suite.
 What each reader does wrong with the short root is not measured. The
 `props.rs` comment says the fold declines rather than mis-folds, so it
 may cost a fold and nothing else.
+
+## The sibling finishers (sweep, 2026-10-14)
+
+None of these copies the records its kills drop:
+- **The public `merge_coplanar_faces` door** (`merge_faces.rs`, merge
+  then `join_edges`). `MergeCoplanarOutcome` reports
+  `groups[].killed_edges` and `joins`, but not the dropped records. Its
+  only callers are `census.rs` and tests, and no naming layer reads
+  them.
+- **The blend's closing join** (`sweep/src/blend/surgery.rs`,
+  `join_edges_within`). `Blended::lineage`
+  (`sweep/src/blend/build.rs`) builds `topo::Lineage` from
+  `through_joins` and the blend's own division rows, and never reads a
+  `SplitEdge` record. Neither does `emit_blend`. So only `split_root`'s
+  readers on a later body can see the loss.
+- **The shell's closing join** (`shell.rs`), measured above: no naming
+  reader walks its records.
+
+The blind-spot pass recorded the records every kill drops (`kev`,
+`kef`, `kemr`, and the split's bulk kill), which covers these joins.
+Across the editor-core suite it found one naming walk that stops short,
+and that one is the boolean's carve
+(`work/emit/a-booleans-carve-kills-a-split-record-its-discard-rows-do-not-copy.md`).
+So these siblings reach only `split_root`'s body-level readers listed
+above.
 
 ## Next
 

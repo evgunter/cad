@@ -177,7 +177,7 @@ fn sans_epsilon(t: &str) -> String {
 /// other row moved; the persisted text did not move.
 /// **Re-pinned for the output stage's killed lineage** (`topo`'s
 /// output stage copies the records of the edges its merge kills into
-/// `BooleanNaming::joined_lineage`, which `KilledSplits` reads):
+/// `BooleanNaming::killed_lineage`, which `KilledSplits` reads):
 /// `crossing_slots` only. The second subtract's merge of the two flush
 /// floors kills one stretch of the first cavity's bottom rim and keeps
 /// the next, whose lineage stopped at the stretch killed, so it was

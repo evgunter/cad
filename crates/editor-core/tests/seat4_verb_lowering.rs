@@ -402,7 +402,7 @@ fn a_boolean_document_round_trips_byte_identical() {
 ///
 /// RE-BLESSED, `crossing_slots` only, for the output stage's killed
 /// lineage (the records of the edges the merge kills, copied into
-/// `BooleanNaming::joined_lineage`): a stretch of the first cavity's
+/// `BooleanNaming::killed_lineage`): a stretch of the first cavity's
 /// bottom rim the merge left is named as a piece of that rim rather
 /// than as a seam, and one floor corner moved from a touch to a
 /// crossing of the two rims. The digest feeds the name table. No body

@@ -77,11 +77,16 @@ shell's lineage: `emit_shell` names a joined edge through
 
 **Fixed** (records only): `finish_output` takes `split_records` before
 the merge and writes each edge the merge killed into
-`BooleanNaming::joined_lineage` through `record_joined_lineage`, which
-now takes the killed edges rather than the joins.
-`emit_topo::KilledSplits` reads `joined_lineage` into its arena hops,
+`BooleanNaming::killed_lineage` (renamed from `joined_lineage`) through
+`record_killed_lineage` (renamed from `record_joined_lineage`). One
+snapshot of the records, taken before the merge, serves the merge's
+kill list (`MergedGroup::killed_edges`) and the join's, and both are
+written into one map by the writer that asserts one parent per edge.
+`emit_topo::KilledSplits` reads `killed_lineage` into its arena hops,
 so the boolean's chase steps through output-stage kills as it does
-through discards; `borders.rs` already read the table.
+through discards; `borders.rs` already read the table. The fix covers operands keyed in the result
+arena. A grafted B piece is chased by `chase_b`, which reads no
+result-key hops, so it is filed separately (below).
 
 **What moved:** `crossing_slots` only. A stretch of the first cavity's
 bottom rim, kept where the second slot's flush floor merged the
@@ -99,6 +104,8 @@ Re-pinned: `lib_g16_corpus_name_digests` and
 which fails with the merge's copy removed.
 
 **Filed:**
+- `work/emit/a-grafted-b-piece-whose-parent-the-merge-killed-chases-short.md`:
+  the grafted-B lane of the chase.
 - `work/origin/body-split-root-stops-at-a-parent-an-output-stage-killed.md`:
   `split_root` reads the body alone, and the shell's dropped records
   reach only its readers.

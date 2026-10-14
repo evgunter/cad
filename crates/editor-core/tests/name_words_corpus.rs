@@ -127,7 +127,7 @@ const UNMARKED_RECOURSE: &[&str] = &[
 ///
 /// The full total rose by 154 with the output stage's killed lineage
 /// (the records of the edges the merge kills, copied into
-/// `BooleanNaming::joined_lineage`). In `crossing_slots` and its world
+/// `BooleanNaming::killed_lineage`). In `crossing_slots` and its world
 /// copy, a stretch of the first cavity's rim said as a seam of two faces
 /// is said as the piece of that rim it is, and a floor corner said as a
 /// touch of a wall is said as a crossing of two rims, as are the pieces
