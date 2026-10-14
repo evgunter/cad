@@ -145,12 +145,16 @@ fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
     (doc, [lens, brick, out])
 }
 
-/// **The lens and the brick name, and every op over them names every
-/// lens entity it asks for**: the cap and the brick minus the lens
-/// refuse only at the circle's conventional vertex, and the union and
-/// the lens minus the brick at the cut they keep ([`CUT_LEFT`]).
+/// **The lens and the brick name, and every op over them refuses only
+/// where a row is filed**: the cap and the brick minus the lens at the
+/// circle's conventional vertex, which the totality check reaches only
+/// once every face and edge is named, and the union and the lens minus
+/// the brick at the cut they keep ([`CUT_LEFT`]). No op over them
+/// publishes a table yet, so none is read here for the lens entities
+/// its names cite; the conventional-vertex row's fix makes the first
+/// three name, and asserts that here.
 #[test]
-fn a_sphere_cut_in_names_the_lens_entities_it_divides() {
+fn a_sphere_cut_in_refuses_only_where_its_rows_are_filed() {
     for (op, lens_first, want) in [
         ("intersect", true, "ConventionalVertex"),
         ("intersect", false, "ConventionalVertex"),

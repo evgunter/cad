@@ -42,8 +42,11 @@ lens face. No name reads it, so `emit_topo` refuses it as
 it refused at the vertex where the circle crosses it on one main
 (`Emission("a crossing's edge has no piece the boolean classified at the crossing")`)
 and `SharedRim { face, other: face, .. }` on the next.
-`emit_sphere_cut_in_cap::a_sphere_cut_in_names_the_lens_entities_it_divides`
-pins that refusal under this row's path (`CUT_LEFT`). If the join
+`emit_sphere_cut_in_cap::a_sphere_cut_in_refuses_only_where_its_rows_are_filed`
+pins that refusal under this row's path (`CUT_LEFT`). That refusal is an
+untyped `NamingError::Emission`, the shape of an emitter bug, on a body
+a document reaches: until the join glues the cut, a typed refusal
+citing this row is what the result should carry. If the join
 glues the cut, those orders reach the conventional vertex as the cap
 does, and the pin moves.
 

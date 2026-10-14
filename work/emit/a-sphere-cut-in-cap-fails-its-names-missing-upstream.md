@@ -76,7 +76,7 @@ between two pieces of one face. `emit_topo` refuses that edge
 explicitly (`Emission("a chart cut survives in the result")`). Filed as
 `work/fuse/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick`.
 All six are pinned in
-`a_sphere_cut_in_names_the_lens_entities_it_divides`.
+`a_sphere_cut_in_refuses_only_where_its_rows_are_filed`.
 
 Not covered: a cut-in end inside a boundary arc splits that arc
 (`split_edge`), and the piece's key is read in the cut operand's keys
