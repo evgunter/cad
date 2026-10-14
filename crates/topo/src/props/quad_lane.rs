@@ -580,7 +580,7 @@ fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
         Curve3::Spiric { .. } => spiric_edge_q(e, Point3::origin(), None)
             .and_then(|q| spiric::spiric_length_bound(&q, spiric::LENGTH_PIECES))
             .ok_or(PropsError::QuadratureUnsupported {
-                what: "a spiric edge whose span's rate window has no certified positive f",
+                what: "a spiric edge with a piece whose f is not certified positive",
             })?,
         Curve3::Nurbs(_) => {
             return Err(PropsError::QuadratureUnsupported {

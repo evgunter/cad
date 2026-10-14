@@ -130,8 +130,9 @@ pub(crate) enum Unwound {
     /// A spiric edge whose bulge has no certified enclosure: at a
     /// scalar that does not certify
     /// ([`crate::props::AtRestPolicy::quad_lane`]), or over a span the
-    /// enclosure does not read ([`spiric_segment_term`]'s `None`: a
-    /// descending span, or one with no certified positive `f`). Its
+    /// enclosure does not read at any piece count
+    /// ([`spiric_segment_term`]'s `None`: a descending span, or one with
+    /// a piece whose `f` is not certified positive). Its
     /// bulge is read only through the certified enclosure, never as its
     /// chord.
     Uncertified,
@@ -188,8 +189,8 @@ const SPIRIC_PIECES: [usize; 4] = [16, 128, 1024, 8192];
 /// ([`spiric::spiric_vector_area`], the face lane's own term) at
 /// `pieces`. The length is [`spiric::spiric_length_bound`] at the same
 /// `pieces`, so a refinement tightens the lever too. `None` for
-/// any other carrier, and for a span whose rate window has no certified
-/// positive `f`.
+/// any other carrier, and for a span with a piece whose `f` is not
+/// certified positive at `pieces`.
 fn spiric_segment_term(
     (carrier, (t0, t1)): (&Curve3<Interval>, (Interval, Interval)),
     forward: bool,
@@ -584,8 +585,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// spiric's bulge its certified enclosure ([`spiric_segment_term`])
     /// at [`SPIRIC_PIECES`]' counts in turn, until the winding is decided
     /// (**`planar_winding_spiric_refine`**: the same margin, read where
-    /// a finer enclosure may yet decide it). An enclosure still undecided
-    /// at the finest count escalates. A scalar with no certified lane (a
+    /// a finer enclosure may yet decide it). A count at which a spiric
+    /// has no term (a piece whose `f` is not certified positive) reads
+    /// nothing, and the next is tried; with none at the finest the cycle
+    /// is [`Unwound::Uncertified`]. An enclosure still undecided at the
+    /// finest count escalates. A scalar with no certified lane (a
     /// dual) has no winding here.
     fn spiric_winding(
         walked: &[Step<'_, T>],
@@ -618,7 +622,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             unreachable!("the piece counts are a non-empty constant")
         };
         // A spiric with no term at `pieces` would be summed as its
-        // chord: refuse it rather than wind it so.
+        // chord: that count reads nothing, and the finest refuses.
         let margin = |pieces| {
             let term = |(c, span, fwd): &(Curve3<Interval>, (Interval, Interval), bool)| {
                 match conic_segment_term((c, *span), *fwd)
@@ -637,7 +641,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             Ok::<_, Unwound>(Margin::over_lever(area, perimeter))
         };
         for &pieces in coarser {
-            let read = margin(pieces)?;
+            let Ok(read) = margin(pieces) else {
+                continue;
+            };
             if crate::validate::decide("planar_winding_spiric_refine", read, band).is_ok() {
                 return Ok(crate::validate::decide_reported(
                     WINDING_PREDICATE,

@@ -185,41 +185,68 @@ fn trig_of(x: Interval) -> (Interval, Interval) {
     trig_range(x.lo(), x.hi())
 }
 
-/// **The one home of a spiric edge's rate bounds over its span**: the
-/// speed `|P′| ≤ S` and the wall image's azimuth rate
-/// `|u′| = |d|·r·|sin t|/(ρ·f) ≤ √(S² − r²)/ρ_lo` (since
-/// `S² = r²(1 + d²sin²/f²)` at the window's worst point), both from
-/// [`geom::spiric_rate_bounds`] over the window the span actually
-/// covers — `ρ` and `|sin t|` read off [`trig_range`] over
-/// `[t₀.lo, t₁.hi]`. A cut whose plane passes the tube's hole
-/// (`|d| > R − r`) has `f` real on its own arc though not on the whole
-/// circle, and is bounded here by that arc. `None` when the window's
-/// `f` is not certified positive.
-pub fn span_rates(e: &SpiricEdgeQ) -> Option<(Interval, Interval)> {
-    if !(e.t0.is_certified() && e.t1.is_certified() && e.minor.is_certified()) {
+/// **The one home of a spiric edge's rate bounds over a window `[lo, hi]`
+/// of its parameter**, `sup|sin t|` and `inf f` read apart:
+/// [`geom::spiric_rate_bounds`] over `ρ = R + r·cos t` and `|sin t|` off
+/// [`trig_range`]. Returns the window's `cos t`, its `ρ` and the speed
+/// bound `|P′| ≤ S`. `None` when the window's `f` is not certified
+/// positive (`ρ_lo ≤ |d|`).
+fn window_rates(e: &SpiricEdgeQ, lo: f64, hi: f64) -> Option<(Interval, Interval, Interval)> {
+    if !(e.minor.is_certified() && e.major.is_certified() && e.offset.is_certified()) {
         return None;
     }
-    let (c, s) = trig_range(e.t0.lo(), e.t1.hi());
+    let (c, s) = trig_range(lo, hi);
     let rho = e.major + e.minor * c;
     if !(rho.is_certified() && s.is_certified()) {
         return None;
     }
-    let rho_lo = pt(rho.lo());
+    let reach = rho.lo() - e.offset.mag();
+    if reach.is_nan() || reach <= 0.0 {
+        return None;
+    }
     let (speed, _) =
-        geom::spiric_rate_bounds(e.minor, e.offset, (rho_lo, pt(rho.hi())), pt(s.mag()));
-    let reach = rho_lo.lo() - e.offset.mag();
-    if !speed.is_certified() || reach.is_nan() || reach <= 0.0 {
+        geom::spiric_rate_bounds(e.minor, e.offset, (pt(rho.lo()), pt(rho.hi())), pt(s.mag()));
+    Some((c, rho, speed))
+}
+
+/// A spiric edge's rate bounds over its whole span `[t₀.lo, t₁.hi]`
+/// ([`window_rates`]): the speed `|P′| ≤ S` and the wall image's azimuth
+/// rate `|u′| = |d|·r·|sin t|/(ρ·f) ≤ √(S² − r²)/ρ_lo` (since
+/// `S² = r²(1 + d²sin²/f²)` at the window's worst point). A cut whose
+/// plane passes the tube's hole (`|d| > R − r`) has `f` real on its own
+/// arc though not on the whole circle, and is bounded here by that arc.
+/// `None` when the window's `f` is not certified positive.
+pub fn span_rates(e: &SpiricEdgeQ) -> Option<(Interval, Interval)> {
+    if !(e.t0.is_certified() && e.t1.is_certified()) {
+        return None;
+    }
+    let (_, rho, speed) = window_rates(e, e.t0.lo(), e.t1.hi())?;
+    if !speed.is_certified() {
         return None;
     }
     let du = (speed.sqr() - e.minor.sqr())
         .clamped_to(0.0, f64::INFINITY)
         .sqrt()
-        / rho_lo;
+        / pt(rho.lo());
     du.is_certified().then_some((speed, du))
 }
 
+/// The `i`-th of `pieces + 1` equally spaced nodes from `a` to `b`, the
+/// last exactly `b`.
+#[allow(clippy::cast_precision_loss)]
+fn node(a: f64, b: f64, pieces: usize, i: usize) -> f64 {
+    if i == pieces {
+        b
+    } else {
+        a + (b - a) * (i as f64 / pieces as f64)
+    }
+}
+
 /// The piece count a face's perimeter reads its spiric edges' lengths
-/// at ([`spiric_length_bound`]).
+/// at ([`spiric_length_bound`]). The perimeter is only the extent
+/// gate's lever, read once per face with no refinement of its own, so
+/// it takes one fixed count: four times the 16 pieces at which the
+/// bound already holds within `1.1×` the arc at the pinch.
 pub const LENGTH_PIECES: usize = 64;
 
 /// **An upper bound on a spiric edge's length**: `[t₀.lo, t₁.hi]` in
@@ -233,26 +260,19 @@ pub fn spiric_length_bound(e: &SpiricEdgeQ, pieces: usize) -> Option<f64> {
         return None;
     }
     let (a, b) = (e.t0.lo(), e.t1.hi());
-    let span = b - a;
-    if !(span.is_finite() && span >= 0.0) {
+    if !((b - a).is_finite() && b >= a) {
         return None;
     }
-    #[allow(clippy::cast_precision_loss)]
-    let node = |i: usize| {
-        if i == pieces {
-            b
-        } else {
-            a + span * (i as f64 / pieces as f64)
-        }
-    };
     (0..pieces).try_fold(0.0, |len, i| {
-        let (p, q) = (node(i), node(i + 1));
+        let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
         let piece = (pt(piece_speed(e, p, q)?) * (pt(q) - pt(p))).hi();
         Some(certified_hi(pt(len) + pt(piece)))
     })
 }
 
-/// **`sup|P′|` over `t ∈ [p, q]`**, reading `sin t` and `f` together.
+/// **`sup|P′|` over `t ∈ [p, q]`**, the smaller of two readings: the
+/// window's own, `sup|sin t|` and `inf f` apart ([`window_rates`]), and
+/// one with `sin t` and `f` together.
 /// `|P′|² = r²(1 + d²sin²t/f²)` ([`geom::spiric_rate_bounds`]); with
 /// `x = 1 + cos t`, `sin²t = x(2 − x)` and
 /// `f² = (ρ − |d|)(ρ + |d|)`, `ρ − |d| = δ + r·x`, `δ = R − r − |d|`:
@@ -264,25 +284,15 @@ pub fn spiric_length_bound(e: &SpiricEdgeQ, pieces: usize) -> Option<f64> {
 /// `φ` is monotone in `x` wherever `δ + r·x > 0` (its derivative has
 /// `δ`'s sign), so its sup over the piece is at one end of the piece's
 /// `x`. Near the pinch (`ρ → |d|` as `x → 0`) the factor `x` cancels
-/// the vanishing `f²` — `φ ≤ 1/r` for `δ ≥ 0` — where sup `|sin|` over
-/// inf `f` read apart grows like `1/f`. The smaller of the two
-/// readings is the bound. `None` when the piece's `f` is not
-/// certified positive.
+/// the vanishing `f²` — `φ ≤ 1/r` for `δ ≥ 0` — where the apart reading
+/// grows like `1/f`. Away from it the together reading pairs
+/// `(2 − x)`'s sup with `φ`'s, up to 4 times `sin²t` over a wide piece,
+/// where the apart reading is near exact. The same derivation for
+/// [`geom::spiric_rate_bounds`] itself is CURVED's
+/// `the-whole-period-spiric-speed-bound-reads-sin-and-f-apart`. `None`
+/// when the piece's `f` is not certified positive.
 fn piece_speed(e: &SpiricEdgeQ, p: f64, q: f64) -> Option<f64> {
-    if !(e.minor.is_certified() && e.major.is_certified() && e.offset.is_certified()) {
-        return None;
-    }
-    let (c, s) = trig_range(p, q);
-    let rho = e.major + e.minor * c;
-    if !(rho.is_certified() && s.is_certified()) {
-        return None;
-    }
-    let reach = rho.lo() - e.offset.mag();
-    if reach.is_nan() || reach <= 0.0 {
-        return None;
-    }
-    let (apart, _) =
-        geom::spiric_rate_bounds(e.minor, e.offset, (pt(rho.lo()), pt(rho.hi())), pt(s.mag()));
+    let (c, rho, apart) = window_rates(e, p, q)?;
     let d_abs = e.offset.sqr().sqrt();
     let x = (Interval::one() + c).clamped_to(0.0, 2.0);
     let delta = e.major - e.minor - d_abs;
@@ -318,16 +328,8 @@ fn composite<const N: usize>(
         return [Interval::refused(); N];
     }
     let mut total = [Interval::zero(); N];
-    #[allow(clippy::cast_precision_loss)]
-    let node = |i: usize| {
-        if i == pieces {
-            b
-        } else {
-            a + span * (i as f64 / pieces as f64)
-        }
-    };
     for i in 0..pieces {
-        let (p, q) = (node(i), node(i + 1));
+        let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
         let x = p + (q - p) * 0.5;
         let (ri, le) = (pt(q) - pt(x), pt(p) - pt(x));
         // `∫_p^q (t − x)ᵏ dt`, `k = 0..=4`.
@@ -1280,6 +1282,35 @@ mod tests {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /// **The smaller reading is the bound**: a thin tube's generic cut,
+    /// `(1, 10⁻³)` at `0.9`, where `f` barely moves and the apart reading
+    /// is within `1.35×` the arc over a whole period at one or two pieces.
+    /// The together reading pairs `(2 − x)`'s sup with `φ`'s there, `2.47×`
+    /// the arc; the bound holds `1.4×`.
+    #[test]
+    fn a_thin_tubes_generic_cut_is_bounded_within_its_apart_reading() {
+        let (big, r, d) = (1.0, 1e-3, 0.9);
+        for span in [(0.0, 2.0 * PI), (-PI, PI)] {
+            let (e, _) = framed(
+                (big, r, d),
+                [0.0, 1.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0; 3],
+                [0.0; 3],
+                span,
+                true,
+            );
+            let arc = walked((big, r, d), span, 4000);
+            for pieces in [1, 2] {
+                let bound = spiric_length_bound(&e, pieces).unwrap();
+                assert!(
+                    arc <= bound && bound <= 1.4 * arc,
+                    "{span:?}, {pieces} pieces: bound {bound} against the arc's {arc}"
+                );
             }
         }
     }

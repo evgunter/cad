@@ -55,4 +55,6 @@ No reader is measured to refuse or mis-size because of it yet.
 The speed term (and, if it pays, the acceleration term) reads `sin`
 and `f` together, or each reader that needs a tight bound moves to a
 piecewise reading like `piece_speed`; and a near-tangent row shows the
-whole-period bound within a small factor of the true sup.
+whole-period bound within a small factor of the true sup. If the
+reading lands in `spiric_rate_bounds` itself, `piece_speed`'s together
+half becomes a call to it.
