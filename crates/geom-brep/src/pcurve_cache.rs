@@ -9167,6 +9167,51 @@ mod tests {
         );
     }
 
+    /// REVIEW 5041 PROBE: a definite loose envelope through the public
+    /// door. The stored azimuth is `δ(1 − cos t)` off the derived one, so
+    /// over `[0, s]` it strays at most `r·δ·(1 − cos s)`, while the
+    /// envelope reads `r·(δ + δ)`.
+    #[test]
+    fn review_5041_a_definite_loose_envelope() {
+        use crate::recourse::Reading;
+        let r = 0.5;
+        let cyl = cylinder(r);
+        let carrier = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap()
+        else {
+            panic!("harmonic")
+        };
+        let eps = Tol::witness().eps();
+        // An axial drift `l·(t − t_mid)` over `[t0, t0 + w]`: the true
+        // miss is at most `|l|·w/2`, and the envelope reads
+        // `|c| + |l|·reach`.
+        for (l, t0, w) in [(1e-8, 100.0, 0.1), (1e-8, 10.0, 0.1), (2e-9, 0.0, 1.0)] {
+            let mid = t0 + w / 2.0;
+            let stored = Pcurve::Harmonic {
+                p0: Point2::new(p0.x, p0.y - l * mid),
+                pa,
+                pb,
+                pl: Vec2::new(pl.x, pl.y + l),
+            };
+            let true_sup = l * w / 2.0;
+            let out = PcurveCache::certify(stored, t0, t0 + w, &carrier, &cyl, band());
+            match &out {
+                Err(e) => eprintln!(
+                    "l={l} t0={t0} w={w} true_sup/eps={:.3e}: {e:?}\n  at rest: {:?}\n  build: {e}",
+                    true_sup / eps,
+                    e.ending(Reading::AtRest)
+                ),
+                Ok(_) => eprintln!("l={l} t0={t0}: certified"),
+            }
+        }
+        panic!("probe output above");
+    }
+
     /// **A refused envelope names the incidence that failed.** Each row
     /// moves the carrier off the cylinder, or the stored image off the
     /// one derived from it, in exactly one respect, and the term the
