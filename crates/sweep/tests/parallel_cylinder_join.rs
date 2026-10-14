@@ -521,3 +521,35 @@ fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
         );
     }
 }
+
+/// **A tipped rod's refusal does not hang on the operand order.** At
+/// the half-length 50 and the larger tip, the drum's seam vertex lies on
+/// the rod's tipped cap with its ruling a tip off the cap's plane, an
+/// honest in-band reading, while the rod's own rim vertex on the drum's
+/// wall reads the pair's definite skew frame. Whichever operand's
+/// vertices are read first, the definite refusal is the answer: every
+/// op of the pose, in both orders, refuses alike.
+#[test]
+fn a_tipped_rod_refuses_alike_in_both_operand_orders() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    for half in [50.0, 200.0] {
+        for drift in [2.0 * band.escalate(), 20.0 * band.escalate()] {
+            for (r, c) in [(0.2, 0.5), (0.3, 0.6)] {
+                let pose = tipped(r, c, half, drift / (2.0 * half));
+                let kinds: Vec<_> = pose
+                    .runs()
+                    .into_iter()
+                    .map(|(op, res, _)| match res {
+                        Err(e) => (op, e.kind()),
+                        Ok(_) => panic!("{} | {op}: refuses", pose.label),
+                    })
+                    .collect();
+                assert!(
+                    kinds.iter().all(|(_, k)| *k == kinds[0].1),
+                    "{}: every op in both orders refuses alike: {kinds:?}",
+                    pose.label
+                );
+            }
+        }
+    }
+}

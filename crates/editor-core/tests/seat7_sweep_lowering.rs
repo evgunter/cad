@@ -779,9 +779,9 @@ fn decided_equal_radii(err: &BooleanError) -> bool {
 /// the charts and not the surfaces.
 ///
 /// What the union RETURNS is a refusal: the equal-radius
-/// intersecting-axes locus is two ellipses crossing at two valence-4
-/// pinch vertices, which is not one conic and therefore has no frame
-/// to hand over. The refusal names which locus it is.
+/// intersecting-axes locus is two ellipses crossing at two nodes, each
+/// in a face of both walls here, and the Boolean does not yet build a
+/// node. The refusal names which locus it is.
 #[test]
 fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
     let doc = doc_with_r("seat7-germ");

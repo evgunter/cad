@@ -45,3 +45,20 @@ Measure the two sides of the gate's endpoint residual at these poses
 carrier at its stored end parameter), then fix whichever carries it.
 The cylinder's and the near-parabolic cone's endpoint refusals in the
 parent row are `u·A`-scale and are not this.
+
+## Evidence from PCERT (2026-10-14): both rows split after #5043
+
+PCERT re-ran this item's table rows through
+`sweep/examples/conic_past_band_probe.rs` (cone family, `f = 0.5`, so
+`φ = 0.5·(π/2 − α)`, ε = 1e-12) on main after #5043. Both rows **split**:
+
+| α | S | before | after: split, whole-turn map residual, carrier miss |
+|---|---|---|---|
+| 1.3 | 100 | `Join(Euler(Certification { Escalated { EndpointStart } }))`, margin 6.0e-12 | splits; 4.2e-13; 4.0e-14 |
+| 1.55 | 1 | the same, margin 1.2e-12 | splits; 3.6e-14; 4.7e-16 |
+
+PR 5128's second review measured the same split. Its residuals read
+7.3e-14 and 7.4e-15, on its own metric.
+
+This looks fixed by #5043's `K = −D·M` and its apex-foot centre. PCERT
+leaves the status to GERM.

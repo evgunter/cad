@@ -515,7 +515,14 @@ fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
     }
 }
 
-/// The locus parameter of a point on (or decided at) the locus.
+/// The locus parameter of a point on (or decided at) the locus. On a
+/// rim it is reduced into `[0, τ)` up to rounding, so a point at the seam
+/// reads `0` or, where its angle comes back a hair negative, a hair
+/// under `τ`. The readers are invariant under which: the cuts partition
+/// the rim cyclically (the last piece wraps to the first cut a turn on,
+/// and a piece of no length is dropped), and a ride is looked up one
+/// turn either side of the piece's midpoint. A riding arc's whole turn is
+/// its own parameter span `t1 − t0`, carried as the ride's length.
 fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
     match locus {
         Locus::Line { origin, dir } => (p - origin).dot(dir),
