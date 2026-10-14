@@ -455,8 +455,35 @@ gate_exact_skip --statements \
 BOUNDS_ALLOWLIST=(
   # 2026-07-29 (M5 PR 8), the driver amendment: the boolean-sweep and
   # evaluation-service seams, and `separation` under the same entry.
-  'crates/topo/src/boolean/boxes.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
+  # boxes.rs's three are the box builders (`face_box`, `boundary_hull`,
+  # `edge_box`); its point read needs no `Bounds` and is `Real`-bound.
+  'crates/topo/src/boolean/boxes.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  # carrier_touch.rs's four are the crossing layer's touch reading:
+  # `clusters`, the subdivision driver (a piece's half-length bracket
+  # stops the bisection); `edge_clear_of_ball`, which prunes a boundary
+  # edge by its certified box against the touch's ball before deciding a
+  # distance bound (a box miss is a terminal clear, the disjointness
+  # direction #571 allows); and `off_face` and `ball_off_face`, which
+  # carry the bound to call those two and read no bracket themselves.
+  # Why not `Decide + CertifiedBounds`: the public boolean is
+  # instantiated at `Dual64` (`crates/topo/tests/inside_out_operand.rs`),
+  # which has no certified enclosure (`real.rs`'s entry).
+  'crates/topo/src/boolean/carrier_touch.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
+  # mod.rs's four are the reduction's doors: `boolean_reduce`, the
+  # strategy driver it and the ops call (`boolean_reduce_declared_strategy`),
+  # and the two trace doors (`sweep_traces`, `sweep_traces_with_pad`).
+  # Each sweeps through the certified face boxes the driver reads. The
+  # fifth, `boolean_reduce_declared`, went with the declaration channel
+  # (INTENT stage 4 F), its body now `boolean_reduce`'s.
+  'crates/topo/src/boolean/mod.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
+  # glue.rs's three are the glue door's box sweep, the amendment's
+  # funnel shape: `overlapping_pairs` builds each face's certified box
+  # (`boxes::face_box`) and walks the box-overlapping cross pairs, and
+  # its two readers carry the bound to call it: `decided_declarations`,
+  # which hands each pair to the carrier ladder, and `coaxial_rows`,
+  # which decides the cylinder × sphere pairs' coaxial frame. None
+  # reads a bracket of its own beyond the box builders'.
+  'crates/topo/src/boolean/glue.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard
   # are one driver seam: each reads the certified face boxes the sweep
   # built and decides on them, the amendment's funnel shape. The
@@ -465,13 +492,37 @@ BOUNDS_ALLOWLIST=(
   # callers, `interior_loop_verdict` (crossings) and
   # `section_extent_pass` (no crossings), which replaced the torus and
   # cylinder extent gates; and `section_report`, the test door over the
-  # same scan. With `sphere_extent_scan` and the rest of the file's
-  # pre-existing seams the count is 14. `section_cert.rs` itself, the
+  # same scan. With the eight pre-existing seams (the six public and
+  # pipeline doors, `sphere_extent_scan` and `apply_recuts`; the three
+  # declaring doors `union_with`, `intersect_with` and `subtract_with`
+  # went with the declaration channel, INTENT stage 4 F) the count is
+  # 12. Four more ride the same seam: `face_rows`, which builds each
+  # face's certified box once; `walk_pairs`, the one walker over
+  # box-overlapping row pairs that `section_pairs` and the extent
+  # scan's face-scoped reading both take; `pair_verdict`, the per-pair
+  # rule's driver, which builds the pair's reach from the two boxes;
+  # and `sphere_faces_apart`, that face-scoped reading of a crossing
+  # or touching sphere pair. 12 + 4 = 16. One more reads the edge boxes
+  # of one face against a region and decides on them:
+  # `face_boundary_meets`, the walk the plane arm's whole-circle
+  # membership takes. 16 + 1 = 17. `section_cert.rs` itself, the
   # classifier and the per-pair rule, reads no box and carries no
-  # compound bound.
-  'crates/topo/src/boolean/ops.rs 14 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/reduce.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
+  # compound bound. Four more carry the result gate's box read (the
+  # finished-body door, PR 3987): `gate`, which sorts the result into
+  # pieces through each face's certified box (`boxes::face_box`) before
+  # tier 3 finishes it; `fallback` and `finish_fallback`, the two
+  # fallback sites that build a result and hand it to `gate`; and
+  # `boolean_door`, the front door's body, split from `boolean_op_with`
+  # so the door can time and meter the call around it. 17 + 4 = 21.
+  'crates/topo/src/boolean/ops.rs 21 2026-07-29 (M5 PR 8), the driver amendment'
+  # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
+  # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
+  # `sweep_and_settle`, is the one driver every boolean sweeps through,
+  # and rides the same seam: it forwards to `sweep_direction` twice and
+  # reads no bracket of its own (`Decide` alone does not compile there).
+  # Three more ride to `carrier_touch::off_face` the same way:
+  # `curved_face_arm`, `wall_crossing` and `settle_deferred`. 5 + 3 = 8.
+  'crates/topo/src/boolean/reduce.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
   # (`Separation::of`, `Separation::certify`, `image`). The fourth,
   # `SolidSeparation::of`, is argued in that struct's own doc as
@@ -484,12 +535,17 @@ BOUNDS_ALLOWLIST=(
   # 15 -> 16: `wire_shell` joined its nine sibling lowerings on the
   # same header. The shell's seat door stopped being a trait method
   # of its own and became `Verb::run_shell` on the seat's general
-  # `impl` block, whose header is `Decide + Bounds +
-  # PcurveFittedLane + AtRestPolicy` — the header every other verb
+  # `impl` block, whose header is `Decide + Bounds + AtRestPolicy`
+  # — the header every other verb
   # in this file already reaches through, ratified for the same
   # seam. The added occurrence is the caller spelling that header,
   # not a new bracket read: nothing in `wire_shell` reads a bound.
-  'crates/editor-core/src/eval/wire.rs 16 2026-07-29 (M5 PR 8), the driver amendment'
+  # 17 -> 14: the loft section seam left. `section_of`, `wire_loft`
+  # and `wire_sweep` spelled `Decide + Bounds + SectionScalar`; a loft
+  # now reads its sections' profile values
+  # (`a-loft-is-the-nominal-surface-in-every-generic-lane`), and none of
+  # the three read a bound, so the headers go with the seam.
+  'crates/editor-core/src/eval/wire.rs 14 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is
@@ -544,53 +600,170 @@ BOUNDS_ALLOWLIST=(
   # that one pointer over the whole schedule. The seam itself is
   # unmoved: `QuadLane::certified` and the `quad_lane` module still
   # carry the certification right, at the same headers.
-  'crates/topo/src/props.rs 23 M5 PR 11, the certified-quadrature plumbing'
+  # 23 -> 9 + 14: `quad_lane` lives in its own file,
+  # `props/quad_lane.rs`, and its fourteen occurrences are there under
+  # the same ruling; `props.rs` keeps the assemblers, `QuadLane`,
+  # `ShellDoor` and the wiring rows.
+  'crates/topo/src/props.rs 9 M5 PR 11, the certified-quadrature plumbing'
+  # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
+  # face's flux at the interval scalar, lifting the face's geometry
+  # through `Interval::from_certified` (`Decide + CertifiedBounds`), and
+  # the volume backstop's sign arm decides a refusal on the bracket it
+  # returns. That is a certification act, which is this seam's right:
+  # the function is reached only through `QuadLane::certified`'s second
+  # field, the same door `cut_face_rounds` is, so it is never formed at
+  # a dual.
+  # 15 -> 16: `spiric_face` assembles a spiric-bounded plane cap or
+  # torus wall for `geom_brep::props::spiric`, lifting the face's loops,
+  # lifted images and envelopes through `Interval::from_certified`
+  # (`Decide + CertifiedBounds`). It is reached only from
+  # `cut_face_rounds`, under `QuadLane::certified`'s first field, so it
+  # is the same plumbing at the same door and is never formed at a
+  # dual; it reads no bracket of `T` itself.
+  'crates/topo/src/props/quad_lane.rs 16 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
-  'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
+  # `run_battery_for` whole (its junction-end pick the one bracket read,
+  # as before), and `face_clearance_margin` is `face_clearance` with its
+  # margin formed by the caller, the door the surgery's strip meter
+  # refuses through; both decide only through `classify`.
+  # 18 -> 20: `turn_at` picks a fillet overrun's far-band section through
+  # `cut_off_section`, which a chain end's cut-off picks its section
+  # through too: both reach `cap_transverse`, the cut-off's own
+  # kind-picker (`classify` and the ellipse door), and read no bracket of
+  # their own.
+  'crates/sweep/src/blend/battery.rs 20 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/surgery.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/open/planar.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/open/ruled.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
+  # carry-through pass's support-boundary arm split into its own
+  # function — the same edge-blend seam, reading brackets only where
+  # `ring_clearance` and the piece meters already do, plus one
+  # selection definite by a setback (which side of the trim the rim
+  # lies on; DL5(b), as `CircleFrame::misses`), the precedent
+  # `seam_split_param` set in this file.
+  # 15 -> 17: `split_param_in_span` is `seam_split_param`'s read split
+  # off with its window test returned as the answer (the same DL5(b)
+  # representation pick, now read by a plan to word its own refusal),
+  # and `strip_clearance` is the ring carry-through pass's planar-strip
+  # arm, reading brackets only where `ring_clearance`, `piece_along` and
+  # `boxed_reach` already do, as `support_boundary_clearance` does.
+  'crates/sweep/src/blend/surgery.rs 17 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # reach.rs 9 -> 14: `sign` decides a reference point's side of a
+  # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
+  # where not), replacing the self-division `x/|x|` that gave the
+  # poison interval at a zero; `side`, `half_space` and `sheet_fn` are
+  # the bound constructors that call it (the last picks either sign of
+  # a plane by decision, both enclosing); `screened` is the reach's
+  # check of the support screen's premise, one bracket of a strip bound
+  # against `escalate`, as `Least::read` reads a cell's. Each decides
+  # only the meter's own question, and refuses loudly or not at all.
+  'crates/sweep/src/blend/reach.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # planar.rs 3 -> 4, ruled.rs 3 -> 2, end_face.rs new at 5: the
+  # cut-off both open bands end in left `ruled.rs` for its own file when
+  # the plane–plane band took it too — the sliver meter's two
+  # constructors and its rim reader, the rim split and the cut-off's
+  # first step, each reading brackets only through the piece meters and
+  # `seam_split_param`'s window test as before — and the planar band's
+  # `cut_off_plan` calls the shared plan. The same seam, and the same
+  # reads, moved and shared; no new decision reads a bracket.
+  # `turn_plan` plans a chamfer overrun's far band through
+  # `cut_off_plan`, for its sliver, and reads no bracket of its own.
+  'crates/sweep/src/blend/open/planar.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  'crates/sweep/src/blend/open/ruled.rs 2 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # end_face.rs 5 -> 7: `foot_param` is the one read of where a foot
+  # lands on its rim (`split_param_in_span`'s window test, worded as the
+  # run-out), and `shared_rims_clear` meters two cut-offs' feet on one
+  # rim, deciding only through `classify` over a span metered as the
+  # split meters it; the two sliver constructors became one.
+  'crates/sweep/src/blend/open/end_face.rs 7 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
-  'crates/geom-brep/src/pcurve_cache.rs 7 M6-2, the SSI rung-3 certificate'
+  # The fitted door's fourth body is `projected_hull_lane` (`Decide +
+  # Bounds + CertifiedEnclosure`, the bound its three siblings carry):
+  # a net's projected row's piece hulls and its canonical-composite span
+  # bounds, every value crossing into certification arithmetic through
+  # `Interval::from_certified`. It took the seat of
+  # `sphere_circle_image_lane`, retired with the Hermite image, so the
+  # count is unmoved. Same seam, reached only through
+  # `FittedLane::certified`.
+  'crates/geom-brep/src/pcurve_cache.rs 8 M6-2, the SSI rung-3 certificate'
+  # The fitted lane's door value, beside the bodies it holds:
+  # `FittedLane::certified`'s block (`Decide + CertifiedBounds`) is the
+  # certification RIGHT the value stands for, so the type cannot be
+  # written at a scalar without it, and no bracket is read here — the
+  # door holds four `pcurve_cache` function pointers and hands its
+  # arguments on. The second is `wiring_rows::
+  # holds_the_certified_fitted_lane`, which forms that constructor at
+  # each certifying scalar and so restates its bound and nothing wider,
+  # in a `#[cfg(test)]` module that reads no bracket.
+  'crates/geom-brep/src/fitted_lane.rs 2 M6-2, the SSI rung-3 certificate; the fitted door value `FittedLane::certified` and its wiring row at the same bound'
   'crates/geom-brep/src/ssi.rs 2 M6-2, the SSI rung-3 certificate'
-  'crates/geom-brep/src/ssi/certify.rs 16 M6-2, the SSI rung-3 certificate'
+  # 16 -> 14: the rung-3 witness helper `witness` (`Decide + Bounds +
+  # CertifiedEnclosure`, two occurrences) went: it evaluated the carrier
+  # at its domain middle and read no bracket, and its callers in
+  # `ssi.rs` now take `Curve3::mid_point`, the witness pin's own point.
+  # The seam is unmoved: the branch certificate keeps its bounds.
+  'crates/geom-brep/src/ssi/certify.rs 16 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound'
   # M7-8, the declare-and-check edge lane.
-  'crates/geom-brep/src/edge_nurbs.rs 6 M7-8, the declare-and-check edge lane'
-  # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the two
-  # DOORS that name the certified body `plane_nurbs_limbs`.
-  'crates/geom-brep/src/certify.rs 1 M7-8 2026-09-02, the lane split as a BOUND'
-  'crates/topo/src/euler.rs 1 M7-8 2026-09-02, the lane split as a BOUND'
+  # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
+  # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
+  # occurrences): the analytic rung-3 carrier's C2 limbs checked at the
+  # edge certificate — its offset from each operand (limbs 1–2, through
+  # `pcurve_cache::projected::net_offset_sup`) and the uniqueness tube
+  # (limb 3). It reads no bracket. It hands the carrier and the two
+  # analytic operands to `ssi::certify::certify_branch` (M6-2's seam,
+  # ratified at this bound) with `Limbs::Tube`, and its bound is its
+  # callee's: nothing weaker compiles. The kernel reaches it only through `NurbsLane::certified`;
+  # it is public so the at-rest rows can run the limb directly.
+  'crates/geom-brep/src/edge_nurbs.rs 10 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound'
+  # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
+  # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
+  # door value `NurbsLane::certified`'s block (`Decide +
+  # CertifiedBounds`) — the shape `FittedLane::certified` has: the
+  # certification RIGHT the value stands for, so the type cannot be
+  # written at a scalar without it; it holds one function pointer to
+  # `plane_nurbs_limbs` and reads no bracket. The second is
+  # `wiring_rows::holds_the_certified_nurbs_lane`, which forms that
+  # constructor at each certifying scalar and so restates its bound and
+  # nothing wider, in a `#[cfg(test)]` module that reads no bracket.
+  'crates/geom-brep/src/certify.rs 2 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound'
   # M9-2 PR-1, the chart-region overlap predicate.
   'crates/topo/src/chart_region.rs 28 M9-2 PR-1, the chart-region overlap predicate; the region door value `RegionLane::certified` and its wiring row at the same bound'
-  # 2026-08-29, the advisory-check registry.
-  'crates/editor-core/src/checks.rs 4 2026-08-29, the advisory-check registry'
+  # 2026-08-29, the advisory-check registry. Its fifth bound is the same
+  # registry's door with the coincidence door split off to run at rest
+  # (`run_checks_at_rest_on`): `run_checks_on` is that door with the job
+  # run at once, so the two doors are one registry body at one bound.
+  'crates/editor-core/src/checks.rs 5 2026-08-29, the advisory-check registry; its at-rest door'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  # `validate.rs` carries the at-rest validator's bounds, 21 of them:
+  # `validate.rs` carries the at-rest validator's bounds, 23 of them:
   # the 10 public doors of the module doc's door roster (5 at
   # `CertifiedBounds`, their 5 `_structural` twins at `Bounds`); the 2
   # `AtRestBody` methods beside the roster (`validate`, which is
   # `validate_geometric` keeping its verdict, and
   # `validate_pseudomanifold`, the tier-3′ door reading it), each at its
-  # door's own `CertifiedBounds` bound; the 7 private passes they share
-  # (`structural_via`, `validate_geometric_certified`,
+  # door's own `CertifiedBounds` bound; the 8 private passes they share
+  # (`validate_geometric_kept`, the composed door keeping check 7's
+  # slivers for `AtRestBody::validate`, `structural_via`,
+  # `validate_geometric_certified`,
   # `tier3_local_checks`, `tier3_local_checks_marked`,
   # `contact_marks_via`, `pseudomanifold_certificate_via`, and
   # `census_verdict`, the census tail both tier-3′ paths end in, at the
   # census's own `Bounds`); `CertifiedLanes::held`, the one spelling of
-  # the certified lanes those doors hold, at `CertifiedBounds`; and one
-  # test helper (`check1`).
+  # the certified lanes those doors hold, at `CertifiedBounds`; one
+  # test helper (`check1`); and `ring_pairs`, check 9's broad phase over
+  # a face's rings, at `Decide + Bounds` under the driver amendment
+  # (argued beside `topo::census` in `geom-core/src/real.rs`).
   # The tier-3′ ones among them reach `census::census_and_certify`, which
   # is why the census took the C10 tree as its pre-filter — the driver
   # amendment's seam, argued in the ledger under 2026-07-29 beside
   # `separation`.
-  'crates/topo/src/validate.rs 21 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/validate.rs 23 2026-09-02, the certified at-rest validator; the three census doors and ring_pairs under 2026-07-29 (M5 PR 8), the driver amendment'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
   # `census_traces`, `census_with`) and the backstop's own tree over its
   # reach boxes (`sweep_cross_solid_backstop`) — spatial-index driver
   # code over the C10 tree, under the driver amendment like `separation`.
   'crates/topo/src/census.rs 6 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/face_boxes.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides
@@ -1373,7 +1546,8 @@ plant_sole_bracket_bounds() {
 # `where` clause is where the widening could most easily forget that;
 # two DIFFERENT parameters bounded one each are two bounds and not one
 # compound; and a wrapper type bounded beside its own parameter is the
-# shape three ratified files write today — `Sym<T>` decides, `T` is
+# shape the tree writes today (`topo`'s `AtRestPolicy` impl for
+# `Sym<T>`) — `Sym<T>` decides, `T` is
 # handed brackets, and reading the trailing identifier of the first
 # target instead of the whole expression collapses them into one
 # parameter that does both.
@@ -1382,7 +1556,7 @@ plant_where_clause_near_misses() {
   {
     printf 'pub fn a<T>(_t: T) where T: CertifiedBounds {}\n'
     printf 'pub fn b<T, U>(_t: T, _u: U) where T: Decide, U: Bounds {}\n'
-    printf 'impl<T> PcurveFittedLane for geom_core::Sym<T>\n'
+    printf 'impl<T> AtRestPolicy for geom_core::Sym<T>\n'
     printf 'where\n'
     printf '    geom_core::Sym<T>: Decide,\n'
     printf '    T: geom_core::CertifiedBounds,\n'
@@ -1778,7 +1952,7 @@ gate_selftest() {
     plant_ratified_file_swaps_a_bound
   gate_selftest_passes "a SOLE bracket bound in a file whose path carries a colon and ends in a bracket door's name, where a text half cut at the first colon hands the path itself to the walk" \
     plant_colon_path_sole_bound
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+CertifiedEnclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on that same obligation written beside a lifetime and beside a relaxed ?Sized bound, neither of which is a bound term, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through gate_exact_skip_subject), and on the equivalent spelling of dual.rs Bounds impl (GAP 2), on a compound bound in a file whose PATH carries a colon beside a ratified entry (boxes.rs:x.rs), which is a different file from the entry whose path it begins with, and on one in a colon-carrying path that ends in a bracket door name (a:Bounds.rs), named whole in both diagnoses; fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a bracket bound beside a lifetime and one beside a ?Sized, which are SOLE bounds because neither is a bound term, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), a SOLE bracket bound in a colon-carrying path that ends in a bracket door name, where the file column ending at the first `:LINE:` is what keeps the path out of the text the walk reads, and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+CertifiedEnclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on that same obligation written beside a lifetime and beside a relaxed ?Sized bound, neither of which is a bound term, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through gate_exact_skip_subject), and on the equivalent spelling of dual.rs Bounds impl (GAP 2), on a compound bound in a file whose PATH carries a colon beside a ratified entry (boxes.rs:x.rs), which is a different file from the entry whose path it begins with, and on one in a colon-carrying path that ends in a bracket door name (a:Bounds.rs), named whole in both diagnoses; fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a bracket bound beside a lifetime and one beside a ?Sized, which are SOLE bounds because neither is a bound term, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and a shape the tree writes), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), a SOLE bracket bound in a colon-carrying path that ends in a bracket door name, where the file column ending at the first `:LINE:` is what keeps the path out of the text the walk reads, and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

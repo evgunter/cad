@@ -29,7 +29,7 @@ use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::Bounds;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Interval, MarginDiag};
+use geom_core::{ErrorTextReading, Interval};
 
 use crate::shared::patch::{dbasis_over, dense_over};
 use crate::shared::ring::p3 as p;
@@ -504,7 +504,7 @@ fn probe(
                     println!("FLOOR {name} {width_len:.12e} target {target_len:.6e}");
                     Posture::Budget(width_len)
                 }
-                PropsError::Escalated { cause } => {
+                PropsError::Escalated { cause, .. } => {
                     assert_eq!(
                         cause.predicate,
                         Some("props_quad_converged"),
@@ -512,7 +512,7 @@ fn probe(
                          {cause:?}"
                     );
                     assert!(
-                        matches!(cause.margin, MarginDiag::Value(m) if m.is_finite()),
+                        matches!(cause.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(m) if m.is_finite()),
                         "{name}: the escalation must carry a finite in-band margin: \
                          {cause:?}"
                     );
@@ -877,7 +877,9 @@ fn probe_c0_kink_area() {
         &net,
         &weights,
         2.0 * 5.0 + 2.0,
-        None,
+        // `S·(S_u × S_v)` is `y·dx = 0` on the y = 0 leg and
+        // `x·dy = 1·4` on the x = 1 leg: flux 4, exactly.
+        Some(4.0),
         Some(5.0),
     );
     pin_floor("c0-kink-wall", posture, C0_KINK_FLOOR);
@@ -890,7 +892,7 @@ fn probe_c0_kink_area() {
 /// with the independent evaluator.
 #[test]
 fn diag_refine_half_circle() {
-    use geom_core::spline::algebra::{GridSkip, domain_grid_points, refine_plan_homogeneous};
+    use geom_core::spline::algebra::{domain_grid_points, refine_plan_homogeneous};
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
     let pts = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (-1.0, 1.0), (-1.0, 0.0)];
     let ws = [1.0, W2, 1.0, W2, 1.0];
@@ -900,11 +902,11 @@ fn diag_refine_half_circle() {
         .zip(&ws)
         .map(|((x, y), w)| [x * w, y * w, *w])
         .collect();
-    let add = domain_grid_points(&kv, 16, GridSkip::BitEqual);
+    let add = domain_grid_points(&kv, 16);
     let plans = refine_plan_homogeneous(&kv, &add).unwrap();
     let mut cur_kv = kv.clone();
     for plan in &plans {
-        hom = plan.apply_points(&hom, [f64::NAN; 3], |x, y, l| {
+        hom = plan.apply_points(&hom, [f64::NAN; 3], |x, y, l: f64| {
             [
                 x[0] + (y[0] - x[0]) * l,
                 x[1] + (y[1] - x[1]) * l,

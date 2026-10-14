@@ -80,9 +80,7 @@ fn findings_fail_with_the_discipline_message() {
     // The flags themselves still print, in full, on stdout.
     let so = stdout(&out);
     assert!(
-        so.contains(
-            "2 samples (0 symbolic_zero, 0 sign_gated, 0 registered, 2 classified), 2 flagged"
-        ),
+        so.contains("2 samples (0 symbolic, 2 classified), 2 flagged"),
         "summary line: {so}"
     );
     assert!(so.contains("FLAG demo/bracket:carrier_line_circle"), "{so}");
@@ -157,7 +155,7 @@ fn missing_input_is_harness_breakage() {
 /// **A driver population is LINTED, and its symbolic column is
 /// reported** — the row that would have caught the E6 gate going dark.
 ///
-/// The symbolic identity tier writes `symbolic_zero` rows; this lint
+/// The symbolic identity tier writes `symbolic` rows; this lint
 /// refused that token as harness breakage and exited 1 on the first one,
 /// so every driver CSV was rejected unread while the CI row still
 /// reported success (a separate `PIPESTATUS` defect, fixed in ci.yml).
@@ -170,10 +168,9 @@ fn a_symbolic_population_lints_clean_and_says_how_much_of_it_was_symbolic() {
         "driver-symbolic.csv",
         &format!(
             "{HEADER}\n\
-             driver/slab_narrow,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic_zero\n\
-             driver/slab_narrow,carrier_endpoint_start,0e0,1e-100,1e-50,symbolic_zero\n\
-             driver/plate,carrier_endpoint_start,0e0,1e-100,1e-50,sign_gated\n\
-             driver/plate,carrier_endpoint_end,0e0,1e-100,1e-50,registered\n\
+             driver/slab_narrow,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic\n\
+             driver/slab_narrow,carrier_endpoint_start,0e0,1e-100,1e-50,symbolic\n\
+             driver/plate,carrier_endpoint_end,0e0,1e-100,1e-50,symbolic\n\
              driver/slab_narrow,volume_backstop,2.0,1e-9,1e-8,positive\n"
         ),
     );
@@ -186,15 +183,11 @@ fn a_symbolic_population_lints_clean_and_says_how_much_of_it_was_symbolic() {
     );
     let so = stdout(&out);
     assert!(
-        so.contains(
-            "5 samples (2 symbolic_zero, 1 sign_gated, 1 registered, 1 classified), 0 flagged"
-        ),
-        "the per-file line separates the four populations: {so}"
+        so.contains("4 samples (3 symbolic, 1 classified), 0 flagged"),
+        "the per-file line separates the two populations: {so}"
     );
     assert!(
-        so.contains(
-            "TOTAL over 1 file(s): 5 samples (2 symbolic_zero, 1 sign_gated, 1 registered, 1 classified)"
-        ),
+        so.contains("TOTAL over 1 file(s): 4 samples (3 symbolic, 1 classified)"),
         "and so does the TOTAL: {so}"
     );
 }
@@ -217,10 +210,8 @@ fn findings_in_any_file_fail_the_run() {
     assert_eq!(out.status.code(), Some(2));
     let so = stdout(&out);
     assert_eq!(
-        so.matches(
-            "1 samples (0 symbolic_zero, 0 sign_gated, 0 registered, 1 classified), 0 flagged"
-        )
-        .count(),
+        so.matches("1 samples (0 symbolic, 1 classified), 0 flagged")
+            .count(),
         2,
         "both clean files were scanned and reported: {so}"
     );
@@ -312,5 +303,78 @@ fn an_unruled_eps_coupled_row_is_demotable_but_never_silent() {
     assert!(
         !so.contains("clean — no margin crowds"),
         "a run carrying an expired ruling must not report itself clean: {so}"
+    );
+}
+
+/// Rule (2)'s ZERO arm is a tally, never a finding: a zero-classified
+/// margin above `band_zero / 10²` prints per predicate with the
+/// largest `|m| / band_zero` and the row it came from, and the run
+/// exits 0. The rows are the lily's at 1e-12, where a root slack is the
+/// arithmetic's own rounding and sits in the window by construction.
+#[test]
+fn the_zero_arm_is_tallied_and_does_not_gate() {
+    let path = csv(
+        "zero-arm.csv",
+        &format!(
+            "{HEADER}\n\
+             demo/lily_walls,bool_circle_torus_root_slack,1.9291935961799184e-14,1e-12,1e-11,zero\n\
+             demo/lily_walls,bool_circle_torus_root_slack,3.14912307142162e-13,1e-12,1e-11,zero\n\
+             demo/lily_walls,bool_circle_torus_meridian,1.0416e-14,1e-12,1e-11,zero\n\
+             demo/az,pm_census_ee_span,5.3e-15,1e-12,1e-11,zero\n"
+        ),
+    );
+    let out = run(&[&path]);
+    let (so, se) = (stdout(&out), stderr(&out));
+    assert_eq!(out.status.code(), Some(0), "the zero arm never gates: {se}");
+    assert!(se.is_empty(), "no verdict to print: {se}");
+    assert!(
+        so.contains("4 classified), 0 flagged"),
+        "a zero-arm sample is not a flag: {so}"
+    );
+    for pin in [
+        "rule 2 zero arm (tallied, not gating): 3 zero-classified margin(s) above band_zero/10^2",
+        "bool_circle_torus_root_slack: 2, largest |m|/band_zero = 3.149e-1 — the margin uses 31% \
+         of eps here (demo/lily_walls line 3, |m|=3.14912307142162e-13, band_zero=1e-12)",
+        "bool_circle_torus_meridian: 1, largest |m|/band_zero = 1.042e-2",
+        "rule 2 zero arm (tallied, not gating) 3",
+    ] {
+        assert!(so.contains(pin), "tally missing {pin:?}: {so}");
+    }
+    assert!(
+        !so.contains("pm_census_ee_span"),
+        "a zero margin under band_zero/10^2 is not tallied: {so}"
+    );
+    assert!(
+        so.contains("k-lint: clean on every gating rule — 3 zero-arm margin(s) tallied"),
+        "the verdict line says what was tallied rather than reporting a bare clean: {so}"
+    );
+}
+
+/// Rule (2)'s DEFINITE arm still gates beside a zero-arm tally: the
+/// tally neither fails the run nor hides the finding next to it.
+#[test]
+fn the_definite_arm_still_fails_beside_a_zero_arm_tally() {
+    let path = csv(
+        "definite-arm.csv",
+        &format!(
+            "{HEADER}\n\
+             demo/lily_walls,bool_circle_torus_root_slack,3.14912307142162e-13,1e-12,1e-11,zero\n\
+             demo/x,volume_backstop,3e-7,1e-9,1e-8,positive\n"
+        ),
+    );
+    let out = run(&[&path]);
+    let (so, se) = (stdout(&out), stderr(&out));
+    assert_eq!(out.status.code(), Some(2), "the definite arm gates: {so}");
+    assert!(
+        so.contains("rule 2 — definite within 10^2 of the escalation threshold: 1"),
+        "{so}"
+    );
+    assert!(
+        so.contains("rule 2 zero arm (tallied, not gating): 1 zero-classified"),
+        "{so}"
+    );
+    assert!(
+        se.contains("1 margin(s)"),
+        "only the definite sample gates: {se}"
     );
 }

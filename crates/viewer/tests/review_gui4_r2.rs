@@ -34,7 +34,7 @@ use crate::common;
 
 use common::asm;
 use pncad::document::{CancelToken, EvalOptions, Frame, PartResolver, evaluate};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::display::AdmissionFault;
@@ -53,19 +53,22 @@ use viewer::tree::RowStatus;
 fn proposal_frames_agree_with_the_standalone_part_documents() {
     let tol = Tol::witness();
     let bench = asm::bench("r2oracle", tol);
-    let session = asm::open_bench(&bench, tol);
+    let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(a);
-    tool.pick(b);
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("the seat proposes");
 
     // The oracle: resolve each pinned part from the store (the same
     // door the evaluator uses), evaluate it STANDALONE, and read the
-    // same cap's frame in the part's own coordinates.
+    // named cap's frame in the part's own coordinates — the pose the
+    // solve resolves the side to. What the proposal carries is that
+    // face's NAME, in the part's own spelling: the row the standalone
+    // evaluation answers, and no number beside it.
     let store = Workspace::open(&bench.dir).expect("the store opens");
     let oracle = |doc_ref, local: &pncad::prelude::StableName| {
         let part = PartResolver::resolve(&store, doc_ref, tol).expect("the part resolves");
@@ -76,49 +79,51 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
             &EvalOptions::default(),
             tol,
         );
-        let tip = *part.roots().first().expect("the part has a root");
+        let tip = *part.placements().first().expect("the part places its body");
         pncad::select::face_frame(&ev, tip, local).expect("the cap has a frame")
     };
-    let close = |got: [f64; 3], want: Point3<f64>, label: &str| {
-        assert!(
-            (got[0] - want.x).abs() < 1e-9
-                && (got[1] - want.y).abs() < 1e-9
-                && (got[2] - want.z).abs() < 1e-9,
-            "{label}: {got:?} vs {want:?}"
-        );
-    };
-    let close_v = |got: [f64; 3], want: Vec3<f64>, label: &str| {
-        assert!(
-            (got[0] - want.x).abs() < 1e-9
-                && (got[1] - want.y).abs() < 1e-9
-                && (got[2] - want.z).abs() < 1e-9,
-            "{label}: {got:?} vs {want:?}"
-        );
-    };
     let post = oracle(&bench.post, &bench.post_top);
-    close(
-        proposal.alignment.a.origin,
-        post.origin,
-        "a.origin is the part's own cap origin",
-    );
-    close_v(proposal.alignment.a.axis, post.axis, "a.axis");
-    close_v(
-        proposal.alignment.a.reference,
-        post.u_ref.expect("the cap fixes a reference"),
-        "a.reference",
+    assert!(post.u_ref.is_some(), "the cap fixes a reference of its own");
+    assert_eq!(
+        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
+        Some(bench.post_top.clone()),
+        "a names the post's own cap, the row the standalone part answers"
     );
     let shelf = oracle(&bench.shelf, &bench.shelf_bottom);
-    close(
-        proposal.alignment.b.origin,
-        shelf.origin,
-        "b.origin is the part's own cap origin (the shelf placement's \
-         0.08 m y-translation was divided out, not applied)",
+    assert!(
+        shelf.u_ref.is_some(),
+        "the cap fixes a reference of its own"
     );
-    close_v(proposal.alignment.b.axis, shelf.axis, "b.axis");
-    close_v(
-        proposal.alignment.b.reference,
-        shelf.u_ref.expect("the cap fixes a reference"),
-        "b.reference",
+    assert_eq!(
+        asm::face_side(doc, &proposal.alignment.b, &proposal.b),
+        Some(bench.shelf_bottom.clone()),
+        "b names the shelf's own underside (the shelf placement's 0.08 m \
+         y-translation is the solve's, applied to the resolved pose, never \
+         baked into the frame)"
+    );
+    // The solved state agrees with the oracle: the placed post's cap,
+    // read off the landed evaluation, is the standalone pose carried
+    // by the post's solved placement.
+    session.perform(proposal.op());
+    session.pump();
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let placed = common::solve(&session, doc, tol)
+        .placement(doc, bench.post_b)
+        .expect("post_b is solved")
+        .affine::<f64>();
+    let world = pncad::select::face_frame(
+        eval,
+        bench.post_b,
+        &asm::in_part(bench.post_b, &bench.post_top),
+    )
+    .expect("the placed cap has a pose");
+    let want = placed.transform_point(post.origin);
+    assert!(
+        (world.origin.x - want.x).abs() < 1e-9
+            && (world.origin.y - want.y).abs() < 1e-9
+            && (world.origin.z - want.z).abs() < 1e-9,
+        "the placed cap is the standalone pose under the solved placement: {:?} vs {want:?}",
+        world.origin
     );
 }
 
@@ -136,11 +141,11 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(a);
-    tool.pick(b);
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op());
 
@@ -157,7 +162,10 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
         .pick_for(eval, &up, &view)
         .expect("the pick answers")
         .expect("something hangs under the shelf");
-    assert_eq!(under.node, bench.post_b, "the post seated under the shelf");
+    assert_eq!(
+        under.node, bench.post_b_copy,
+        "the post seated under the shelf"
+    );
     assert!(
         (under.point.z - (-asm::POST_HEIGHT)).abs() < 1e-9,
         "its bottom cap sits one post-height below the shelf's \
@@ -170,7 +178,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
         .pick_for(eval, &asm::down_at(centre[0], centre[1]), &view)
         .expect("the pick answers")
         .expect("the shelf is still there");
-    assert_eq!(over.node, bench.shelf_i);
+    assert_eq!(over.node, bench.shelf_copy);
     assert!(
         (over.point.z - asm::SHELF_THICKNESS).abs() < 1e-9,
         "the shelf's top face is untouched: z = {}",
@@ -225,7 +233,7 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
         .pick_for(eval, &asm::down_at(0.11, 0.07), &view)
         .expect("the pick answers")
         .expect("the rotated probe is under the drawn-position ray");
-    assert_eq!(hit.node, bench.post_b);
+    assert_eq!(hit.node, bench.post_b_copy);
     assert!(
         (hit.point.x - 0.11).abs() < 1e-9
             && (hit.point.y - 0.07).abs() < 1e-9
@@ -256,17 +264,17 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
         &session,
         &common::along_x(-1.0, asm::POST_B_AT[1] + asm::POST_SECTION / 2.0, 0.025),
     );
-    assert_eq!(side.node, bench.post_b, "the side ray hit post_b");
+    assert_eq!(side.node, bench.post_b_copy, "the side ray hit post_b");
     assert_ne!(side.name, top.name, "two different faces");
     let mut tool = MateTool::new();
-    tool.pick(top);
-    tool.pick(side);
+    tool.pick(session.doc(), top);
+    tool.pick(session.doc(), side);
     let (doc, eval) = session.landed_pair().expect("landed");
     assert!(
         matches!(
-            tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice()),
+            tool.proposal(doc, eval, asm::seat_choice()),
             Err(viewer::matetool::MateToolError::SamePick { head })
-                if head == bench.post_b
+                if head.id() == bench.post_b_copy
         ),
         "a mate needs a PAIR of instances"
     );
@@ -284,21 +292,40 @@ fn a_contradictory_second_mate_fails_typed_and_undo_recovers() {
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(a.clone());
-    tool.pick(b.clone());
+    tool.pick(session.doc(), a.clone());
+    tool.pick(session.doc(), b.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
 
-    // The same pair again, at a DIFFERENT alignment: shift the b-side
-    // origin so the two frame coincidences cannot both hold.
-    let mut shifted = proposal.alignment;
-    shifted.b.origin[0] += 0.01;
+    // The same pair again, at a DIFFERENT alignment: the b side
+    // authored as vectors — the shelf's underside pose read off the
+    // landed evaluation and pulled back through the shelf's placement
+    // — with its origin shifted, so the two frame coincidences cannot
+    // both hold.
+    let mut shifted = proposal.alignment.clone();
+    shifted.b = {
+        let (doc, eval) = session.landed_pair().expect("landed");
+        let placed = common::solve(&session, doc, tol)
+            .placement(doc, bench.shelf_i)
+            .expect("the shelf is placed")
+            .affine::<f64>();
+        let pose =
+            pncad::select::face_frame(eval, b.node, &b.name).expect("the underside has a pose");
+        let [mut origin, axis, reference] = asm::vectors_from_world(
+            &placed,
+            &pose,
+            pose.u_ref.expect("the cap fixes a reference"),
+        );
+        origin[0] += 0.01;
+        pncad::document::MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
+            .expect("a definite frame")
+    };
     let outcome = session.perform(SessionOp::AddMate {
         a: proposal.a.clone(),
         b: proposal.b.clone(),
@@ -321,7 +348,7 @@ fn a_contradictory_second_mate_fails_typed_and_undo_recovers() {
         "a contradictory pair must fail SOME row typed; all rows: {rows:?}"
     );
     for row in &failed {
-        if let RowStatus::Failed { message } = &row.status {
+        if let RowStatus::Failed { message, .. } = &row.status {
             assert!(!message.is_empty(), "the fault carries a message");
         }
     }
@@ -347,11 +374,11 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(a);
-    tool.pick(b);
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove {
@@ -393,11 +420,11 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(a);
-    tool.pick(b);
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove {
@@ -451,7 +478,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == bench.post_b && !mates.is_empty()
+                if instance.id() == bench.post_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -469,7 +496,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     // upward ray finds the SHELF's underside, not the seated post.
     let under = asm::shelf_underside(&session);
     assert_eq!(
-        under.node, bench.shelf_i,
+        under.node, bench.shelf_copy,
         "the seated post stays hidden at its new placement"
     );
 }
@@ -504,7 +531,7 @@ fn save_as_rebinds_the_resolver_and_a_fresh_open_enforces_the_rule() {
     let outcome = fresh.perform(SessionOp::Open(moved));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     fresh.pump();
-    for row in fresh.tree_rows() {
+    for row in asm::instance_rows(&fresh) {
         assert!(
             matches!(row.status, RowStatus::Failed { .. }),
             "the moved document must not resolve against the old \
@@ -537,7 +564,7 @@ fn the_threaded_seam_resolves_the_assembly_too() {
     }
     assert!(!session.busy(), "the threaded run lands");
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 3);
+    assert_eq!(rows.len(), 6, "three instances and their placements");
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
@@ -616,8 +643,7 @@ fn save_as_into_the_store_recovers_a_failed_resolution() {
     session.perform(SessionOp::Open(moved));
     session.pump();
     assert!(
-        session
-            .tree_rows()
+        asm::instance_rows(&session)
             .iter()
             .all(|row| matches!(row.status, RowStatus::Failed { .. })),
         "opened beside no parts: every instance refuses"

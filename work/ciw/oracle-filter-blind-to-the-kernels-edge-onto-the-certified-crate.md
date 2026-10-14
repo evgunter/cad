@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-21
 priority: P3
 cost: E
-refs: [ring-1-interval-type-ungated]
 ---
 
 

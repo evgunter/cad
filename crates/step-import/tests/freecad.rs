@@ -89,13 +89,10 @@ fn expect(name: &str) -> Expect {
             normalizations: 1,
             ..plain((1, 1, 2, 2, 2), 4.0 * PI / 3.0)
         },
-        // makeTorus(1, 0.25): one fundamental-polygon face in the file;
-        // the kernel's two half-faces after normalization.
+        // makeTorus(1, 0.25): one fundamental-polygon face, adopted as
+        // stated — one face, its two wrap edges, one vertex (D1).
         // V = 2π² R r².
-        "torus" => Expect {
-            normalizations: 1,
-            ..plain((1, 1, 2, 4, 2), 2.0 * PI * PI * 0.0625)
-        },
+        "torus" => plain((1, 1, 1, 2, 1), 2.0 * PI * PI * 0.0625),
         // makeBox(2,2,1) cut by makeCylinder(0.5,1) through the centre:
         // 4 walls + 2 rings + the bore = 7 faces. V = 2·2·1 − π r² h.
         "box_hole" => plain((1, 1, 7, 15, 10), 4.0 - PI * 0.25),
@@ -428,14 +425,6 @@ fn structure_normalizations_are_reported_with_their_census_mapping() {
             (1, 2, 2),
             (2, 4, 3),
         ),
-        // torus.step #17: the fundamental-polygon face — 1 face, 2
-        // edges (each used twice), 1 vertex.
-        (
-            "torus",
-            NormalizationKind::FullPeriodTorus,
-            (1, 2, 1),
-            (2, 4, 2),
-        ),
     ];
     let cens = |(faces, edges, vertices)| FaceCensus {
         faces,
@@ -615,9 +604,8 @@ fn mutated(name: &str, from: &str, to: &str) -> String {
 fn millimetre_lengths_scale_by_one_rounded_multiply() {
     let (body, _, _) = freecad_body("box");
     let mut coords: Vec<f64> = body
-        .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point).map(|p| [p.x, p.y, p.z]))
-        .flatten()
+        .vertex_points()
+        .flat_map(|(_, p)| p.to_array())
         .collect();
     coords.sort_by(f64::total_cmp);
     coords.dedup();

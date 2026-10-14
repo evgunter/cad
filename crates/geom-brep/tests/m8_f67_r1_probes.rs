@@ -10,32 +10,35 @@
 //! - The pcurve gate's own reparametrization invariance, sampled at
 //!   `Probe` through the iso lane.
 //!
-//! **CI EXECUTES THIS SUITE.** It is rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
-//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
-//! by `--check-executed`, so every assertion below is a gate and a red here
-//! fails the merge. By hand:
+//! **The nightly executes this suite; the PR gate only builds it.** It is
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! under the DEFAULT selection by `scripts/k_probe_sweep.sh` in the
+//! nightly's dev-probe row, whose tally is floored by `--check-executed`,
+//! so a red here reds the nightly. The PR gate compiles it (`clippy
+//! --all-features`) and runs none of it, so a PR can merge green over a red
+//! here. By hand:
 //! `cargo test -p geom-brep --features probe --test all -- m8_f67_r1_probes::`.
 
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::FRAC_1_SQRT_2;
+use geom_core::Real;
+use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use crate::shared::fixture;
-use crate::shared::fixture::wide_window as window;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache,
-    PcurveCertifyError, PcurveCheck,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, NurbsLane, Pcurve,
+    PcurveCache, PcurveCertifyError, PcurveCheck, SurfacePair,
 };
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
-use geom_core::{MarginDiag, Point2, Point3, Vec2, Vec3};
+use geom_core::{Point2, Point3, Vec2, Vec3};
 use slotmap::SlotMap;
 
 /// Chord-sum arc length of a `Curve3<f64>` over `[d0, d1]` — a LOWER
@@ -60,7 +63,7 @@ fn chord_sum(c: &Curve3<f64>, d0: f64, d1: f64, n: usize) -> f64 {
 fn quarter_circle(s: f64) -> Curve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, s, s, s], 2).expect("knots");
     let n = NurbsCurve3::new(
-        k,
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(2.0, 0.0, 0.0),
             Point3::new(2.0, 2.0, 0.0),
@@ -77,14 +80,14 @@ fn wiggle(s: f64) -> Curve3<f64> {
     let k =
         KnotVector::clamped(vec![0.0, 0.0, 0.0, s, 2.0 * s, 2.0 * s, 2.0 * s], 2).expect("knots");
     let n = NurbsCurve3::new(
-        k,
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(0.0, 0.0, 0.0),
             Point3::new(1.0, 1.0, 0.0),
             Point3::new(2.0, -0.5, 0.5),
             Point3::new(3.0, 0.5, 0.0),
         ],
-        vec![1.0; 4],
+        vec![Real::one(); 4],
     )
     .expect("the net builds");
     Curve3::Nurbs(Arc::new(n))
@@ -167,16 +170,21 @@ fn axis_planes_f64() -> (Surface<f64>, Surface<f64>) {
 fn degenerate_net() -> Curve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
     let p = Point3::new(0.0, 0.0, 1.0);
-    let n = NurbsCurve3::new(k, vec![p, p], vec![1.0, 1.0]).expect("the degenerate net builds");
+    let n = NurbsCurve3::new(
+        Knots::from(k).lift(geom_core::Real::from_f64),
+        vec![p, p],
+        vec![Real::one(); 2],
+    )
+    .expect("the degenerate net builds");
     Curve3::Nurbs(Arc::new(n))
 }
 
 fn axis_segment_f64(length: f64) -> Curve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
     let n = NurbsCurve3::new(
-        k,
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, length)],
-        vec![1.0, 1.0],
+        vec![Real::one(); 2],
     )
     .expect("the carrier builds");
     Curve3::Nurbs(Arc::new(n))
@@ -190,12 +198,22 @@ fn certify_axis(carrier: Curve3<f64>, t0: f64, t1: f64) -> Result<EdgeCurve<f64>
     let witness = carrier.eval((t0 + t1) * 0.5);
     let (start, end) = (carrier.eval(t0), carrier.eval(t1));
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(s1, s2),
+            witness,
+        },
         carrier,
         param_start: t0,
         param_end: t1,
     };
-    EdgeCurve::certify(spec, start, end, |k| arena.get(k).cloned(), band())
+    EdgeCurve::certify_via(
+        spec,
+        start,
+        end,
+        |k| arena.get(k).cloned(),
+        band(),
+        Some(NurbsLane::certified()),
+    )
 }
 
 /// CLAIM 2, certify gate: a poison meter escalates `Invalid` naming
@@ -205,7 +223,7 @@ fn certify_poison_meter_escalates_invalid_at_the_meter() {
     match certify_axis(degenerate_net(), 0.0, 1.0) {
         Err(CertifyError::Escalated { cause, .. }) => {
             assert_eq!(cause.predicate, Some("nurbs_span_meter"), "{cause:?}");
-            assert!(matches!(cause.margin, MarginDiag::Invalid), "{cause:?}");
+            assert!(cause.margin.is_invalid(), "{cause:?}");
         }
         other => panic!("a poison meter must escalate at the meter: {other:?}"),
     }
@@ -217,7 +235,7 @@ fn certify_poison_meter_escalates_invalid_at_the_meter() {
 fn certify_backwards_span_stays_interval_not_forward() {
     match certify_axis(axis_segment_f64(1.0), 1.0, 0.0) {
         Err(CertifyError::IntervalNotForward {
-            verdict: geom_brep::recourse::Definite::Negative,
+            verdict: geom_brep::recourse::Refused::Negative { .. },
         }) => {}
         other => panic!("a backwards span must stay IntervalNotForward: {other:?}"),
     }
@@ -243,7 +261,6 @@ fn iso_lane_poison_meter_escalates_invalid_end_to_end() {
         1.0,
         &degenerate_net(),
         &quarter_cylinder_wall(),
-        window(),
         band(),
     );
     match got {
@@ -253,7 +270,7 @@ fn iso_lane_poison_meter_escalates_invalid_end_to_end() {
             ..
         }) => {
             assert_eq!(cause.predicate, Some("pcurve_interval_meter"), "{cause:?}");
-            assert!(matches!(cause.margin, MarginDiag::Invalid), "{cause:?}");
+            assert!(cause.margin.is_invalid(), "{cause:?}");
         }
         other => panic!("the iso lane must refuse a poison meter at the meter: {other:?}"),
     }
@@ -273,7 +290,6 @@ fn iso_lane_backwards_span_stays_interval_not_forward() {
         0.0,
         &axis_segment_f64(1.0),
         &quarter_cylinder_wall(),
-        window(),
         band(),
     );
     match got {
@@ -283,8 +299,8 @@ fn iso_lane_backwards_span_stays_interval_not_forward() {
 }
 
 /// CLAIM 2, fitted lane: the poison meter refuses at the meter through
-/// `PcurveCache::certify_fitted` (check 1 is passed with a mate so
-/// check 2's gate is the deciding site).
+/// `PcurveCache::certify_fitted` (check 1 passes on the spline chart,
+/// so check 2's gate is the deciding site).
 #[test]
 fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
     let ik = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("image knots");
@@ -292,11 +308,10 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
         NurbsCurve2::new(
             ik,
             vec![Point2::new(0.0, 0.0), Point2::new(0.0, 1.0)],
-            vec![1.0, 1.0],
+            vec![Real::one(); 2],
         )
         .expect("the image builds"),
     );
-    let (px, _) = axis_planes_f64();
     let wall = quarter_cylinder_wall();
     let got = PcurveCache::certify_fitted(
         image,
@@ -304,9 +319,8 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
         1.0,
         &degenerate_net(),
         &wall,
-        Some(&px),
-        window(),
         band(),
+        FittedLane::certified(),
     );
     match got {
         Err(PcurveCertifyError::Escalated {
@@ -315,7 +329,7 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
             ..
         }) => {
             assert_eq!(cause.predicate, Some("pcurve_interval_meter"), "{cause:?}");
-            assert!(matches!(cause.margin, MarginDiag::Invalid), "{cause:?}");
+            assert!(cause.margin.is_invalid(), "{cause:?}");
         }
         other => panic!("the fitted lane must refuse a poison meter at the meter: {other:?}"),
     }
@@ -326,12 +340,12 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
 fn probe_segment(length: f64, domain: f64) -> Curve3<Probe> {
     let k = KnotVector::clamped(vec![0.0, 0.0, domain, domain], 1).expect("knots");
     let n = NurbsCurve3::new(
-        k,
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(Probe(0.0), Probe(0.0), Probe(0.0)),
             Point3::new(Probe(0.0), Probe(0.0), Probe(length)),
         ],
-        vec![1.0, 1.0],
+        vec![Real::one(); 2],
     )
     .expect("the carrier builds");
     Curve3::Nurbs(Arc::new(n))
@@ -358,14 +372,14 @@ fn iso_lane_gate_and_span_margins_are_reparametrization_invariant() {
         .collect();
         let w = FRAC_1_SQRT_2;
         Surface::Nurbs(Arc::new(
-            NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).expect("wall"),
+            NurbsSurface::new(
+                Knots::from(ku).lift(geom_core::Real::from_f64),
+                Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                [1.0, 1.0, w, w, 1.0, 1.0].map(Probe).to_vec(),
+            )
+            .expect("wall"),
         ))
-    };
-    let win = ChartWindow {
-        u_min: Probe(-10.0),
-        u_max: Probe(10.0),
-        v_min: Probe(-10.0),
-        v_max: Probe(10.0),
     };
     let margins = |domain: f64| {
         let iso = Pcurve::IsoLine {
@@ -382,7 +396,6 @@ fn iso_lane_gate_and_span_margins_are_reparametrization_invariant() {
             Probe(domain),
             &probe_segment(1.0, domain),
             &wall,
-            win,
             band(),
         );
         let samples = k_stats::take_samples();

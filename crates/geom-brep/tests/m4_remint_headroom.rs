@@ -10,7 +10,7 @@ use crate::shared::surf::table;
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
 use geom_core::{Affine3, Mat3, Point3, Vec3};
 
@@ -41,14 +41,13 @@ fn marginal_witness_slack_vs_remint_freshness() {
     };
     let (t0, t1) = (0.0, 2.0);
     let mid_i = (CERT_SAMPLES - 1) / 2;
-    let mid_t = t0 + (t1 - t0) * (f64::from(mid_i) / f64::from(CERT_SAMPLES - 1));
+    let mid_t = geom_brep::sample_param(t0, t1, mid_i);
     let true_mid = carrier.eval(mid_t);
     let offset = eps * 0.9;
     let marginal = Point3::new(true_mid.x + offset, 0.0, 0.0);
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: keys[1],
+            pair: SurfacePair::new(keys[0], keys[1]),
             witness: marginal,
         },
         carrier,
@@ -83,8 +82,7 @@ fn marginal_witness_slack_vs_remint_freshness() {
     // crates/topo/tests/m4_remint_transform.rs).
     let fresh_spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: keys[1],
+            pair: SurfacePair::new(keys[0], keys[1]),
             witness: ec.carrier().eval(ec.sample_param(mid_i)),
         },
         carrier: ec.carrier().clone(),

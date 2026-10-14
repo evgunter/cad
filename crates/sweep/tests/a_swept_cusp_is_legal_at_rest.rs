@@ -16,7 +16,8 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::test_support::bulge_loop;
-use profile::{Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start, ValidatedProfile};
+use profile::{Open, Profile, ProfileLoop, SketchPlane, Start, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
 use topo::{Body, ContactMark, EdgeKey};
 
@@ -142,10 +143,10 @@ fn on_the_rim(p: &Point3<f64>) -> bool {
 fn a_cusp_extrude_is_legal_either_way_it_extrudes() {
     let profile = validated(vec![lune()]);
     for d in [1.0, -1.0] {
-        let built = extrude(&profile, Extrusion::Distance(d), Tol::witness()).unwrap();
+        let built = extrude(&profile, crate::common::to_offset(d), Tol::witness()).unwrap();
         let cusps = tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
         assert!(
-            built.strut_edges[0].contains(&cusps[0]),
+            built.strut_edges()[0].contains(&Some(cusps[0])),
             "the tangency is the strut the cusp joint swept"
         );
     }
@@ -160,9 +161,20 @@ fn a_hole_cusp_extrudes_to_a_legal_slit() {
         (Point2::new(-1.0, 5.0), 0.0),
     ]);
     let profile = validated(vec![plate, lune()]);
-    let built = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let built = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let cusps = tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
-    assert!(built.strut_edges[1].contains(&cusps[0]), "the hole's strut");
+    assert!(
+        built.strut_edges()[1].contains(&Some(cusps[0])),
+        "the hole's strut"
+    );
 }
 
 #[test]
@@ -221,23 +233,34 @@ fn a_cusp_loft_passes_with_its_nurbs_seam_unjudged_by_kind() {
     );
 }
 
-/// The lune authored RAW (bulges + `with_tangent_joints`), not through
-/// the `.cusp()` door: the joint sweeps the same legal cusp.
+/// The lune authored RAW (bulges only), not through the `.cusp()` door:
+/// the profile door decides the joint a cusp from its carriers, and it
+/// sweeps the same legal cusp.
 fn raw_lune() -> ProfileLoop<f64> {
     bulge_loop(vec![
         (Point2::new(0.0, 4.0), 0.0),
         (Point2::new(0.0, 2.0), -1.0),
         (Point2::new(0.0, 0.0), 1.0),
     ])
-    .with_tangent_joints(vec![2])
 }
 
 #[test]
 fn a_raw_authored_cusp_is_legal_like_the_door() {
     let profile = validated(vec![raw_lune()]);
     assert_eq!(profile.loops()[0].tangent_joints(), &[2]);
+    assert_eq!(profile.loops()[0].cusp_joints(), &[2]);
+    let decided: Vec<usize> = profile.loops()[0]
+        .decided_joints()
+        .iter()
+        .map(|d| d.joint)
+        .collect();
+    assert_eq!(
+        decided,
+        vec![2],
+        "no constructor made the cusp: it is recorded"
+    );
     for d in [1.0, -1.0] {
-        let built = extrude(&profile, Extrusion::Distance(d), Tol::witness()).unwrap();
+        let built = extrude(&profile, crate::common::to_offset(d), Tol::witness()).unwrap();
         tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
     }
 }
@@ -254,24 +277,19 @@ fn a_hole_cusp_is_a_legal_slit_at_either_sign_and_either_winding() {
     for hole in [lune(), raw_lune()] {
         let profile = validated(vec![plate.clone(), hole]);
         for d in [1.0, -1.0] {
-            let built = extrude(&profile, Extrusion::Distance(d), Tol::witness()).unwrap();
+            let built = extrude(&profile, crate::common::to_offset(d), Tol::witness()).unwrap();
             tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
         }
     }
 }
 
-fn crescent_raw(far: Point2<f64>, declared: bool) -> ProfileLoop<f64> {
+fn crescent_raw(far: Point2<f64>) -> ProfileLoop<f64> {
     let h = std::f64::consts::FRAC_1_SQRT_2;
-    let lp = bulge_loop(vec![
+    bulge_loop(vec![
         (Point2::new(1.0, 0.0), (std::f64::consts::PI / 16.0).tan()),
         (Point2::new(h, h), 0.0),
         (far, 0.0),
-    ]);
-    if declared {
-        lp.with_tangent_joints(vec![1])
-    } else {
-        lp
-    }
+    ])
 }
 
 /// Sections that DISAGREE at one joint: a cusp in one, a corner in the
@@ -281,8 +299,8 @@ fn crescent_raw(far: Point2<f64>, declared: bool) -> ProfileLoop<f64> {
 #[test]
 fn a_loft_whose_sections_disagree_passes_with_the_seam_unjudged_by_kind() {
     let h = std::f64::consts::FRAC_1_SQRT_2;
-    let a = crescent_raw(Point2::new(2.0 * h, 0.0), true);
-    let b = crescent_raw(Point2::new(1.5, 0.2), false);
+    let a = crescent_raw(Point2::new(2.0 * h, 0.0));
+    let b = crescent_raw(Point2::new(1.5, 0.2));
     let va = validated(vec![a.clone()]);
     let vb = validated(vec![b.clone()]);
     assert_eq!(

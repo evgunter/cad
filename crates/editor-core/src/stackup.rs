@@ -50,13 +50,10 @@
 //!
 //! **The lift's limits are not staleness.** A pass runs the guided
 //! lift and the anchor runs the build path, and there are nodes the
-//! lift refuses that the build path builds: a loft's or a sweep's
-//! section is C6/D9-pinned to `f64` (the skinned surface's structure
-//! must be lane-identical), so a seed on a parameter that section
-//! reads has nowhere to go — and a guided elaboration can refuse a
-//! decision it cannot re-confirm. Those refusals are typed at the
-//! node (`NodeErrorKind::SeedPinnedSection`, `ProfileLaneReplay`) and
-//! the pairing recognises them BY KIND: the entry becomes
+//! lift refuses that the build path builds: a guided elaboration can
+//! refuse a decision it cannot re-confirm. That refusal is typed at
+//! the node (`NodeErrorKind::ProfileLaneReplay`) and
+//! the pairing recognises it BY KIND: the entry becomes
 //! [`SensitivityOutcome::Unliftable`] — the spec's typed valve, never a
 //! finite zero and never a `PairingViolation` — and every node poisoned
 //! through that refusal is accounted to it. Any other disagreement
@@ -134,16 +131,20 @@ use geom_core::{Dual64, Readable, Tol};
 use topo::Body;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, DocParam, ParamName};
+use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
+use crate::eval::measure::Observed;
 use crate::eval::{
-    BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
-    NodeErrorKind, NodeResult, ProfileLift, SplitSide, ValuePayload, evaluate,
+    BooleanValue, CancelToken, ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind,
+    NodeResult, PoseValue, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
-use crate::node::{Node, RecipeNodeId};
+use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
 use crate::resolve::VerdictVectorKey;
+use crate::spoken::SpokenNode;
+use crate::spoken::SpokenVar;
+use crate::var::VarId;
 
 /// The E4 semantics-honesty mark: what a reported ∂m/∂pᵢ is valid
 /// over. Two variants and no third — a sensitivity is chamber-scoped
@@ -173,16 +174,6 @@ pub enum Chamber {
 /// lift's typed limits (module docs), never a finite wrong number.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiftRefusal {
-    /// The seeded parameter feeds a loft's or a sweep's SECTION, which
-    /// stays `f64` by C6/D9 (the skinned surface's knots, degrees and
-    /// control bits must be identical in every lane), so the seed has
-    /// no lane to ride in. The valve the spec's grounding names.
-    PinnedSection {
-        /// The section profile node the seed reaches and stops at.
-        section: RecipeNodeId,
-        /// The seeded parameter.
-        param: ParamName,
-    },
     /// The guided elaboration at the pass's scalar could not
     /// re-confirm a structure decision the build path made (a lift
     /// limitation, not a build difference: the value channel is the
@@ -223,9 +214,10 @@ pub enum SensitivityOutcome {
     /// error itself (`NodeErrorKind` is neither `Clone` nor
     /// `PartialEq`, so this entry carries its node and its rendering).
     MeasureRefused {
-        /// The refusing node — the measure, or the failed ancestor it
-        /// was poisoned through.
-        node: RecipeNodeId,
+        /// The refusing node — a measure under the value, or the
+        /// failed ancestor it was poisoned through; `None` for a value
+        /// no measure is under, whose own definition refused.
+        node: Option<RecipeNodeId>,
         /// The node error, rendered.
         cause: String,
     },
@@ -244,8 +236,11 @@ pub enum SensitivityOutcome {
 /// One continuous parameter's sensitivity entry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sensitivity {
-    /// The parameter.
-    pub param: ParamName,
+    /// The document this was taken of, the one document its human
+    /// form speaks from. Outside the goldening form and its content key.
+    pub document: crate::DocumentId,
+    /// The variable.
+    pub param: VarId,
     /// The pass's reading, marked.
     pub outcome: SensitivityOutcome,
 }
@@ -266,8 +261,9 @@ pub enum PairingViolation {
     /// different input bits than the document's build — the exact
     /// silent state DL3's availability argument leans on excluding.
     ContentKey {
-        /// The first differing node, in evaluation order.
-        node: RecipeNodeId,
+        /// The first differing node, in evaluation order, spoken from
+        /// the document asked about.
+        node: SpokenNode,
         /// The handed evaluation's key there.
         handed: ContentKey,
         /// The document's own build's key there.
@@ -277,8 +273,9 @@ pub enum PairingViolation {
     /// they disagree about which nodes evaluate — and the difference
     /// is not one of the lift's typed limits (module docs).
     ResultArm {
-        /// The first disagreeing node, in evaluation order.
-        node: RecipeNodeId,
+        /// The first disagreeing node, in evaluation order, spoken
+        /// from the document asked about.
+        node: SpokenNode,
         /// The arm in the evaluation being checked.
         found: &'static str,
         /// The arm in the build of record.
@@ -287,8 +284,9 @@ pub enum PairingViolation {
     /// A seeded pass's value channel at this node is not the anchor's,
     /// bit for bit, over the whole payload — the dual contract broken.
     ValueChannel {
-        /// The first diverging node, in evaluation order.
-        node: RecipeNodeId,
+        /// The first diverging node, in evaluation order, spoken from
+        /// the document asked about.
+        node: SpokenNode,
     },
 }
 
@@ -306,10 +304,9 @@ impl core::fmt::Display for PairingViolation {
             ),
             Self::ContentKey { node, .. } => write!(
                 f,
-                "the paired f64 evaluation is STALE at node {}: its content key is not \
+                "the paired f64 evaluation is STALE at {node}: its content key is not \
                  the document's own build's, so differentiating now would report a \
-                 sensitivity of a build nobody validated",
-                node.0
+                 sensitivity of a build nobody validated"
             ),
             Self::ResultArm {
                 node,
@@ -317,16 +314,14 @@ impl core::fmt::Display for PairingViolation {
                 expected,
             } => write!(
                 f,
-                "node {} is {found} where the build of record has it {expected} — the \
+                "{node} is {found} where the build of record has it {expected} — the \
                  two runs disagree about which nodes evaluate, and not by one of the \
-                 lift's typed limits",
-                node.0
+                 lift's typed limits"
             ),
             Self::ValueChannel { node } => write!(
                 f,
-                "the seeded pass's value channel at node {} is not the validated \
-                 build's, bit for bit — the dual contract is broken there",
-                node.0
+                "the seeded pass's value channel at {node} is not the validated \
+                 build's, bit for bit — the dual contract is broken there"
             ),
         }
     }
@@ -339,10 +334,10 @@ impl core::error::Error for PairingViolation {}
 /// entries, not this.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SensitivityRefusal {
-    /// The named node is not a `Measure` node.
-    NotAMeasure {
-        /// The node that was asked about.
-        node: RecipeNodeId,
+    /// The variable asked about is not a live scalar variable.
+    NotAScalar {
+        /// The variable, spoken from the document asked about.
+        var: crate::SpokenVar,
     },
     /// The chamber verdict's root box does not even name this
     /// document's continuous parameters — driven over a different
@@ -353,11 +348,12 @@ pub enum SensitivityRefusal {
     /// over this document (module docs — the document was edited
     /// since the drive, or the verdict is another document's).
     VerdictNotOfThisBuild {
-        /// The leaf that was replayed.
-        leaf: ParamBox,
+        /// The leaf that was replayed, boxed so the refusal stays a
+        /// small `Err`.
+        leaf: Box<ParamBox>,
         /// The first node whose key differs (or is missing on one
-        /// side), in evaluation order.
-        node: RecipeNodeId,
+        /// side), in evaluation order; boxed for the same reason.
+        node: Box<DivergedAt>,
         /// The drive's recorded key there, if the record has one.
         recorded: Option<ContentKey>,
         /// This document's replay key there, if the replay built it.
@@ -368,10 +364,46 @@ pub enum SensitivityRefusal {
     Pairing(PairingViolation),
 }
 
+/// **Where a stale verdict's replay first parts from its record**, said
+/// by what is known of that node.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DivergedAt {
+    /// A node this document's replay holds, spoken from this document.
+    Replayed(SpokenNode),
+    /// A node only the drive's record names. The record is spelled in
+    /// the document the drive ran on, which may be another one, so the
+    /// node is said by tag as the record's, never looked up here.
+    Recorded(RecipeNodeId),
+}
+
+impl DivergedAt {
+    /// The node's full id, whichever side named it.
+    #[must_use]
+    pub fn id(&self) -> RecipeNodeId {
+        match self {
+            Self::Replayed(node) => node.id(),
+            Self::Recorded(id) => *id,
+        }
+    }
+}
+
+impl core::fmt::Display for DivergedAt {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Replayed(node) => write!(f, "{node}"),
+            Self::Recorded(id) => write!(f, "the drive record's node {id}"),
+        }
+    }
+}
+
 impl core::fmt::Display for SensitivityRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAMeasure { node } => write!(f, "node {} is not a Measure node", node.0),
+            Self::NotAScalar { var } => write!(
+                f,
+                "{var} is not a scalar variable of this document: a stackup is over a value, \
+                 typically a measure's output or a definition over measures' outputs"
+            ),
             Self::ForeignVerdict => f.write_str(
                 "the chamber verdict's root box does not span this document's continuous \
                  parameters — it was driven over a different parameter set and certifies \
@@ -380,9 +412,8 @@ impl core::fmt::Display for SensitivityRefusal {
             Self::VerdictNotOfThisBuild { node, .. } => write!(
                 f,
                 "the chamber verdict is not of this build: its certified leaf replays with \
-                 a different content key at node {} — the document changed since the \
-                 drive, or the verdict is another document's; drive again",
-                node.0
+                 a different content key at {node} — the document changed since the \
+                 drive, or the verdict is another document's; drive again"
             ),
             Self::Pairing(v) => write!(f, "pairing violation: {v}"),
         }
@@ -391,11 +422,11 @@ impl core::fmt::Display for SensitivityRefusal {
 
 impl core::error::Error for SensitivityRefusal {}
 
-/// **The n-pass E4 driver.** One entry per continuous document
-/// parameter, in name order — a parameter without a distribution still
-/// gets its ∂m/∂pᵢ (the fixed-parameter typed spelling: distributions
-/// matter to the report's mass and spread columns, not to the
-/// derivative).
+/// **The n-pass E4 driver.** One entry per analysis axis of the
+/// document — a toleranced variable ([`crate::analysis::is_axis`]) —
+/// in declaration order. A variable with no tolerance is a constant of
+/// the analysis and has no entry: nobody asks a sensitivity to a value
+/// that carries no tolerance (VR8).
 ///
 /// `paired` is the caller's validated f64 build of record — a
 /// build-path evaluation (`EvalOptions::default()`) of `doc` — gated as
@@ -409,6 +440,12 @@ impl core::error::Error for SensitivityRefusal {}
 /// itself — and pairing a box's spreads with a verdict's leaves is
 /// [`stackup()`]'s, which checks it. `parallel` runs the passes under
 /// rayon idiom 1 — the result is bit-identical in either schedule (D9).
+/// `resolver` resolves the parts a document instantiates, in every pass
+/// and replay, as [`EvalOptions::resolver`] does an evaluation's: an
+/// assembly's mates solve at each pass's own scalar (`ASSEMBLY.md` A11
+/// (5)), so ∂m/∂pᵢ crosses a mate. A `paired` build over another
+/// resolver, or none, fails the pairing gate: its instances' arms or
+/// content keys are not the anchor's.
 ///
 /// Pure: `doc` is shared, the result is a value, nothing on this path
 /// writes. Cost: one f64 anchor, one unseeded and n seeded `Dual64`
@@ -420,13 +457,14 @@ impl core::error::Error for SensitivityRefusal {}
 /// foreign or not of this build, or the pairing gate fired.
 pub fn sensitivities(
     doc: &Doc<ProfileProgram>,
-    measure: RecipeNodeId,
+    value: VarId,
     paired: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Vec<Sensitivity>, SensitivityRefusal> {
-    driver(doc, measure, paired, chamber, parallel, tol).map(|d| d.entries)
+    driver(doc, value, paired, chamber, parallel, resolver, tol).map(|d| d.entries)
 }
 
 /// What the driver's shared core hands back: the anchored f64 build,
@@ -440,20 +478,23 @@ struct Driven {
 
 fn driver(
     doc: &Doc<ProfileProgram>,
-    measure: RecipeNodeId,
+    value: VarId,
     paired: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Driven, SensitivityRefusal> {
-    if !matches!(doc.node(measure), Some(Node::Measure { .. })) {
-        return Err(SensitivityRefusal::NotAMeasure { node: measure });
+    if doc.var(value).and_then(|v| v.kind().dimension()).is_none() {
+        return Err(SensitivityRefusal::NotAScalar {
+            var: doc.spoken_var(value),
+        });
     }
     // The mark is a property of the nominal's leaf — one chamber for
     // the whole entry set, tied to this build once.
     let chamber = match chamber {
         None => Chamber::LocalOnly,
-        Some(verdict) => bind_verdict(doc, verdict, tol)?,
+        Some(verdict) => bind_verdict(doc, verdict, resolver, tol)?,
     };
 
     // The anchor: the document's own build-path f64 evaluation,
@@ -464,15 +505,18 @@ fn driver(
         doc,
         paired,
         &CancelToken::new(),
-        &EvalOptions::default(),
+        &EvalOptions {
+            resolver: resolver.cloned(),
+            ..EvalOptions::default()
+        },
         tol,
     );
     if let Some(handed) = paired {
-        pair_record(handed, &anchor).map_err(SensitivityRefusal::Pairing)?;
+        pair_record(doc, handed, &anchor).map_err(SensitivityRefusal::Pairing)?;
     }
 
-    // The names, in name order (deterministic in both schedules).
-    let names: Vec<ParamName> = continuous_params(doc).cloned().collect();
+    // The variables, in declaration order (deterministic in both schedules).
+    let names: Vec<VarId> = toleranced_params(doc).collect();
 
     // One UNSEEDED dual base, threaded into every pass as the memo
     // prior: a node outside a pass's seeded cone carries identical
@@ -481,26 +525,33 @@ fn driver(
     // cross-pass reuse, bought through the front door. Shared
     // read-only, so the parallel schedule sees exactly what the
     // sequential one does.
-    let base: Evaluation<Dual64> = evaluate(doc, None, &CancelToken::new(), &pass_opts(None), tol);
+    let base: Evaluation<Dual64> = evaluate(
+        doc,
+        None,
+        &CancelToken::new(),
+        &pass_opts(None, resolver),
+        tol,
+    );
 
-    let one = |name: &ParamName| -> Result<Sensitivity, PairingViolation> {
+    let one = |name: &VarId| -> Result<Sensitivity, PairingViolation> {
         let pass: Evaluation<Dual64> = evaluate(
             doc,
             Some(&base),
             &CancelToken::new(),
-            &pass_opts(Some(name.clone())),
+            &pass_opts(Some(*name), resolver),
             tol,
         );
         // DL3, per pass: the pass evaluates exactly the nodes the
         // anchor does with the anchor's value channel, or it is not a
         // sensitivity of the anchor's build — unless the lift refused
         // typed, which is the entry's own state.
-        let outcome = match pair_pass(&anchor, &pass)? {
+        let outcome = match pair_pass(doc, &anchor, &pass)? {
             Some((node, refusal)) => SensitivityOutcome::Unliftable { node, refusal },
-            None => read_pass(&pass, measure, &chamber),
+            None => read_pass(doc, &pass, value, &chamber),
         };
         Ok(Sensitivity {
-            param: name.clone(),
+            document: doc.id(),
+            param: *name,
             outcome,
         })
     };
@@ -523,97 +574,91 @@ fn driver(
 /// The pass options: the profile lift GUIDED (a seed on a profile
 /// dimension must move profile geometry — the exact silent zero
 /// `ProfileLift`'s docs warn about), sequential inside (the driver's
-/// parallelism is per pass), the seed as given.
-fn pass_opts(seed: Option<ParamName>) -> EvalOptions {
+/// parallelism is per pass), the seed and the parts' resolver as
+/// given.
+fn pass_opts(
+    seed: Option<VarId>,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+) -> EvalOptions {
     EvalOptions {
         profile_lift: ProfileLift::Guided,
         seed,
+        resolver: resolver.cloned(),
         ..EvalOptions::default()
     }
 }
 
 /// The options a leaf is replayed with — the drive's own, so the
-/// replay's content keys are the drive's record bit for bit.
-fn leaf_opts(box_: ParamBox) -> EvalOptions {
+/// replay's content keys are the drive's record bit for bit — over the
+/// parts' resolver.
+fn leaf_opts(box_: ParamBox, resolver: Option<&Arc<dyn crate::part::PartResolver>>) -> EvalOptions {
     EvalOptions {
         profile_lift: ProfileLift::Guided,
         param_box: Some(Arc::new(box_)),
+        resolver: resolver.cloned(),
         ..EvalOptions::default()
     }
 }
 
-/// The measured value at `id`, or the refusal rendered with the node
-/// it came from (the measure itself, or the failed ancestor a poisoned
-/// measure names) — the one ladder every reader of a measure payload
-/// takes.
 /// The stackup's NOMINAL column: the f64 value, or the typed reason
-/// there is none — distinguished from a measure node that genuinely
-/// failed, which stays an error.
+/// there is none — distinguished from a measure that genuinely failed,
+/// which stays an error.
 ///
 /// [`measure_of`] folds both into one `Err` because its other callers
 /// want that; this one is the report's advisory column and has to tell
 /// a forfeit from a fault.
 fn nominal_of(
+    doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
-    id: RecipeNodeId,
-) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (RecipeNodeId, String)> {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => Ok(Ok(*value)),
-            ValuePayload::MeasureUnavailable { reason, .. } => Ok(Err(*reason)),
-            other => Err((id, format!("node is a {}", other.kind_name()))),
-        },
-        other => Err((id, format!("the measure did not evaluate: {other:?}"))),
+    value: VarId,
+) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (Option<RecipeNodeId>, String)> {
+    match ev.reading_spoken(doc, value)? {
+        Observed::Value(v) => Ok(Ok(v)),
+        Observed::Unavailable(reason) => Ok(Err(reason)),
     }
 }
 
+/// The measured value of `value`, or the refusal rendered with the node
+/// it came from ([`Evaluation::reading`]).
+///
+/// **A measure with no value at this scalar reads as a refusal HERE**,
+/// carrying its own reason, and that is the honest shape rather than a
+/// gap in this report: E5's nominal is the f64 build's number, its
+/// per-param table is a `Dual` pass's, and a `min_clearance` has
+/// neither. So a stackup over one refuses `MeasureRefusedAtNominal`
+/// naming the scalar and the door, and the certified answer for such a
+/// measure is the per-leaf enclosure table
+/// ([`crate::report::LeafHistogram`]) rather than a nominal with
+/// contributions around it.
 fn measure_of<T: geom_core::Decide + Copy>(
+    doc: &Doc<ProfileProgram>,
     ev: &Evaluation<T>,
-    id: RecipeNodeId,
-) -> Result<T, (RecipeNodeId, String)> {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => Ok(*value),
-            // **A measure with no value at this scalar reads as a
-            // refusal HERE**, carrying its own reason, and that is the
-            // honest shape rather than a gap in this report: E5's
-            // nominal is the f64 build's number, its per-param table is
-            // a `Dual` pass's, and a `min_clearance` has neither. So a
-            // stackup over one refuses `MeasureRefusedAtNominal` naming
-            // the scalar and the door, and the certified answer for
-            // such a measure is the per-leaf enclosure table
-            // ([`crate::report::LeafHistogram`]) rather than a nominal
-            // with contributions around it.
-            ValuePayload::MeasureUnavailable { reason, .. } => Err((id, format!("{reason}"))),
-            // Unreachable while the driver's front check holds (the
-            // node IS a measure and it evaluated Ok); answered as the
-            // node's own refusal rather than panicking.
-            other => Err((
-                id,
-                format!("node evaluated to a {}, not a measure", other.kind_name()),
-            )),
-        },
-        _ => Err(ev.node_error(id).map_or_else(
-            || (id, "not evaluated".to_owned()),
-            |e| (e.node, e.kind.to_string()),
+    value: VarId,
+) -> Result<T, (Option<RecipeNodeId>, String)> {
+    match ev.reading_spoken(doc, value)? {
+        Observed::Value(v) => Ok(v),
+        Observed::Unavailable(reason) => Err((
+            Some(crate::eval::measure::unavailable_at(doc, value)),
+            format!("{reason}"),
         )),
     }
 }
 
-/// One pass's reading at the measure node (E9 lives here): the tangent
-/// off the payload's public field; a non-finite tangent under a finite
-/// value is the forfeiture state, NEVER a refusal — the only refusals
-/// are the measure's own doors, carried per entry.
+/// One pass's reading of the measured value (E9 lives here): the
+/// tangent off the value's public field; a non-finite tangent under a
+/// finite value is the forfeiture state, NEVER a refusal — the only
+/// refusals are the measures' own doors, carried per entry.
 ///
 /// The finiteness test is tangent-channel float classification in the
 /// driver lane — E9's explicit reading of derivative-channel
 /// degradation. It consults no ε and decides no topology.
 fn read_pass(
+    doc: &Doc<ProfileProgram>,
     pass: &Evaluation<Dual64>,
-    measure: RecipeNodeId,
+    value: VarId,
     chamber: &Chamber,
 ) -> SensitivityOutcome {
-    match measure_of(pass, measure) {
+    match measure_of(doc, pass, value) {
         Ok(value) => {
             let tangent = value.deriv;
             if tangent.is_finite() {
@@ -636,6 +681,7 @@ fn read_pass(
 /// sensitivity is read from a failed subgraph, and every `Ok` node's
 /// inputs are certified transitively by its own key.
 fn pair_record(
+    doc: &Doc<ProfileProgram>,
     handed: &Evaluation<f64>,
     rebuilt: &Evaluation<f64>,
 ) -> Result<(), PairingViolation> {
@@ -650,13 +696,13 @@ fn pair_record(
             (Some(NodeResult::Ok(h)), Some(NodeResult::Ok(r))) => {
                 if h.content_key != r.content_key {
                     return Err(PairingViolation::ContentKey {
-                        node: id,
+                        node: doc.spoken(id),
                         handed: h.content_key,
                         rebuilt: r.content_key,
                     });
                 }
             }
-            (h, r) => same_arm(id, h, r)?,
+            (h, r) => same_arm(doc, id, h, r)?,
         }
     }
     Ok(())
@@ -670,6 +716,7 @@ fn pair_record(
 /// Total: every node is compared, and a node both runs built is
 /// compared on its whole payload.
 fn pair_pass(
+    doc: &Doc<ProfileProgram>,
     anchor: &Evaluation<f64>,
     pass: &Evaluation<Dual64>,
 ) -> Result<Option<(RecipeNodeId, LiftRefusal)>, PairingViolation> {
@@ -682,20 +729,12 @@ fn pair_pass(
         match (anchor.result(id), pass.result(id)) {
             (Some(NodeResult::Ok(a)), Some(NodeResult::Ok(p))) => {
                 if payload_digest(&a.payload) != payload_digest(&p.payload) {
-                    return Err(PairingViolation::ValueChannel { node: id });
+                    return Err(PairingViolation::ValueChannel {
+                        node: doc.spoken(id),
+                    });
                 }
             }
             (Some(NodeResult::Ok(_)), Some(NodeResult::Failed(e))) => match &e.kind {
-                NodeErrorKind::SeedPinnedSection { section, param } => {
-                    unlifted.insert(id);
-                    valve.get_or_insert((
-                        id,
-                        LiftRefusal::PinnedSection {
-                            section: *section,
-                            param: param.clone(),
-                        },
-                    ));
-                }
                 NodeErrorKind::ProfileLaneReplay { loop_, step, .. } => {
                     unlifted.insert(id);
                     valve.get_or_insert((
@@ -706,14 +745,14 @@ fn pair_pass(
                         },
                     ));
                 }
-                _ => same_arm(id, anchor.result(id), pass.result(id))?,
+                _ => same_arm(doc, id, anchor.result(id), pass.result(id))?,
             },
             (Some(NodeResult::Ok(_)), Some(NodeResult::Poisoned { through }))
                 if unlifted.contains(through) =>
             {
                 unlifted.insert(id);
             }
-            (a, p) => same_arm(id, a, p)?,
+            (a, p) => same_arm(doc, id, a, p)?,
         }
     }
     Ok(valve)
@@ -722,6 +761,7 @@ fn pair_pass(
 /// The arm comparison both halves share: `Ok`/`Failed`/`Poisoned` (same
 /// poison source)/absent, the RECORD's arm being the expected one.
 fn same_arm<T: geom_core::Decide, U: geom_core::Decide>(
+    doc: &Doc<ProfileProgram>,
     id: RecipeNodeId,
     record: Option<&NodeResult<T>>,
     checked: Option<&NodeResult<U>>,
@@ -736,7 +776,7 @@ fn same_arm<T: geom_core::Decide, U: geom_core::Decide>(
         Ok(())
     } else {
         Err(PairingViolation::ResultArm {
-            node: id,
+            node: doc.spoken(id),
             found: arm(checked),
             expected: arm(record),
         })
@@ -829,65 +869,62 @@ impl Digest {
 
 /// The value-channel digest of one payload: its arm, its counts, and
 /// every scalar it stores — body points, datum frames, profile
-/// vertices and bulges, measured values, verdict numbers — through the
+/// vertices and arc carriers, measured values, verdict numbers — through the
 /// scalar's own value bracket, so an `f64` build and a `Dual64` pass
 /// digest identically exactly when their value channels agree.
 fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
     let mut d = Digest::new();
+    // VALUE-DIGEST-ARMS BEGIN — the sentinels
+    // `value_digest_tags_reuse_no_retired_number` reads: each arm's
+    // first `d.u64` after its `=>` is its tag.
     match payload {
-        ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
+        ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
             d.u64(10);
             d.point3(*origin);
             d.vec3(normal.get());
         }
-        ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
+        ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
             d.u64(11);
             d.point3(*origin);
             d.vec3(dir.get());
         }
-        ValuePayload::Datum(DatumValue::Point { position }) => {
+        ValuePayload::Datum(PoseValue::Point { position }) => {
             d.u64(12);
             d.point3(*position);
         }
-        ValuePayload::Datum(DatumValue::Frame(f)) => {
+        ValuePayload::Datum(PoseValue::Frame(f)) => {
             d.u64(13);
             d.point3(f.origin());
             d.vec3(f.u().get());
             d.vec3(f.v().get());
         }
-        ValuePayload::Datum(DatumValue::AxisInPlane {
-            plane_origin,
-            plane_dir,
-            origin,
-            dir,
-        }) => {
-            // 24, not a number among the datum arms above: the tags
-            // are the digest's wire and renumbering one would move
-            // every pinned digest that carries a later arm.
-            d.u64(24);
-            // All four fields, not just the world pair. The authored
-            // 2-D numbers are what a revolve actually reads, and this
-            // digest's contract is every scalar the payload stores —
-            // so the lift being derived from them is a reason they
-            // agree, not a reason to digest only one of the two.
-            d.scalar(plane_origin.x);
-            d.scalar(plane_origin.y);
-            d.scalar(plane_dir.x);
-            d.scalar(plane_dir.y);
-            d.point3(*origin);
+        ValuePayload::Datum(PoseValue::Direction { dir }) => {
+            d.u64(27);
             d.vec3(dir.get());
         }
         ValuePayload::Profile(p) => {
             d.u64(14);
             for lp in p.validated.loops() {
                 d.u64(lp.vertices().len() as u64);
-                // Each vertex with the bulge its segment was lowered
-                // from: an arc's carrier and sweep are functions of
-                // these, so they are digested through them.
+                // Each vertex with its leaving segment's classified
+                // carrier: a kind tag, and an arc's centre, radius and
+                // sweep — every scalar the segment stores.
                 for (v, s) in lp.vertices().iter().zip(lp.segments()) {
                     d.scalar(v.x);
                     d.scalar(v.y);
-                    d.scalar(s.bulge);
+                    match s.kind {
+                        profile::SegmentKind::Line => d.u64(0),
+                        profile::SegmentKind::Arc { arc, turn } => {
+                            d.u64(match turn {
+                                geom_core::Sign::Negative => 2,
+                                geom_core::Sign::Zero | geom_core::Sign::Positive => 1,
+                            });
+                            d.scalar(arc.centre.x);
+                            d.scalar(arc.centre.y);
+                            d.scalar(arc.radius);
+                            d.scalar(arc.sweep);
+                        }
+                    }
                 }
             }
         }
@@ -919,11 +956,9 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
                 d.body(b);
             }
         }
-        ValuePayload::Declarations(pairs) => {
-            d.u64(20);
-            d.u64(pairs.len() as u64);
-        }
+        // 20 is retired (`RETIRED_VALUE_DIGEST_TAGS`).
         ValuePayload::Mate(_) => d.u64(21),
+        ValuePayload::Gauge => d.u64(26),
         ValuePayload::Measure { value, .. } => {
             d.u64(22);
             d.scalar(*value);
@@ -951,24 +986,31 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             }
         }
     }
+    // VALUE-DIGEST-ARMS END
     d.0
 }
 
+/// The tag numbers [`payload_digest`]'s arms may not use: retired with
+/// the payloads that held them, and dead for good.
+#[cfg(test)]
+const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
+
 // ------------------------------------------------- the verdict's tie
 
-/// The document's continuous parameters, in name order — the entry
-/// set of every driver call.
-fn continuous_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = &ParamName> {
-    doc.params()
-        .iter()
-        .filter(|(_, p)| matches!(p, DocParam::Continuous { .. }))
-        .map(|(n, _)| n)
+/// The document's analysis axes ([`crate::analysis::is_axis`]: its
+/// toleranced variables), in declaration order — the entry set of
+/// every driver call.
+fn toleranced_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = VarId> + '_ {
+    doc.free_vars()
+        .filter(|(_, free)| crate::analysis::is_axis(free))
+        .map(|(id, _)| id)
 }
 
 /// Whether a verdict's root box spans exactly this document's
-/// continuous parameters — the cheap pre-check before the content tie.
+/// analysis axes ([`toleranced_params`]) — the cheap pre-check before
+/// the content tie.
 fn box_spans_doc_params(root: &ParamBox, doc: &Doc<ProfileProgram>) -> bool {
-    let doc_names: Vec<&ParamName> = continuous_params(doc).collect();
+    let doc_names: Vec<VarId> = toleranced_params(doc).collect();
     root.axes().len() == doc_names.len() && doc_names.into_iter().all(|n| root.get(n).is_some())
 }
 
@@ -985,6 +1027,7 @@ fn box_spans_doc_params(root: &ParamBox, doc: &Doc<ProfileProgram>) -> bool {
 fn bind_verdict(
     doc: &Doc<ProfileProgram>,
     verdict: &ParamBoxVerdict,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Chamber, SensitivityRefusal> {
     if !box_spans_doc_params(verdict.root(), doc) {
@@ -1003,7 +1046,7 @@ fn bind_verdict(
     // perfectly good build as "not of this build".
     let readback = crate::eval::replay_leaf(
         doc,
-        &leaf_opts(tied.box_.clone()),
+        &leaf_opts(tied.box_.clone(), resolver),
         verdict.lane(),
         &crate::eval::LeafPrior::None,
         crate::eval::LeafRequest {
@@ -1012,7 +1055,7 @@ fn bind_verdict(
         },
         tol,
     );
-    tie(tied, &readback.keys)?;
+    tie(doc, tied, &readback.keys)?;
     Ok(
         chamber.map_or(Chamber::LocalOnly, |leaf| Chamber::ChamberCertified {
             leaf: leaf.box_.clone(),
@@ -1024,6 +1067,7 @@ fn bind_verdict(
 /// The tie itself: the leaf's recorded per-node keys against its
 /// replay's, in evaluation order, the first difference named.
 fn tie(
+    doc: &Doc<ProfileProgram>,
     leaf: &CertifiedLeaf,
     replayed: &[(RecipeNodeId, ContentKey)],
 ) -> Result<(), SensitivityRefusal> {
@@ -1033,10 +1077,19 @@ fn tie(
         let r = recorded.get(i).copied();
         let p = replayed.get(i).copied();
         if r != p {
-            let node = r.or(p).map_or(RecipeNodeId(0), |(id, _)| id);
+            // The replay is of `doc`; the record is of whichever
+            // document the drive ran on.
+            let node = match (r, p) {
+                (Some((recorded, _)), Some((replayed, _))) if recorded == replayed => {
+                    DivergedAt::Replayed(doc.spoken(replayed))
+                }
+                (None, Some((replayed, _))) => DivergedAt::Replayed(doc.spoken(replayed)),
+                (Some((recorded, _)), _) => DivergedAt::Recorded(recorded),
+                (None, None) => unreachable!("two absent keys are equal"),
+            };
             return Err(SensitivityRefusal::VerdictNotOfThisBuild {
-                leaf: leaf.box_.clone(),
-                node,
+                leaf: Box::new(leaf.box_.clone()),
+                node: Box::new(node),
                 recorded: r.map(|(_, k)| k),
                 replayed: p.map(|(_, k)| k),
             });
@@ -1055,60 +1108,75 @@ fn tie(
 pub enum Unavailable {
     /// E9 forfeiture: the parameter's tangent degraded at the nominal.
     TangentDegraded {
-        /// The parameter.
-        param: ParamName,
+        /// The variable.
+        var: SpokenVar,
     },
     /// The parameter's pass could not read the measure (its doors
     /// refused).
     MeasureRefused {
-        /// The parameter.
-        param: ParamName,
+        /// The variable.
+        var: SpokenVar,
     },
     /// The parameter's seed could not reach the measure — the lift's
     /// typed limit ([`SensitivityOutcome::Unliftable`]).
     Unliftable {
-        /// The parameter.
-        param: ParamName,
+        /// The variable.
+        var: SpokenVar,
     },
     /// The parameter carries a [`crate::Distribution::Band`]: limits
     /// without a shape have no σ, and a partial RSS is still a lie
     /// (E5) — so the RSS names it and refuses whole.
     BandHasNoMeasure {
-        /// The parameter.
-        param: ParamName,
+        /// The variable.
+        var: SpokenVar,
     },
 }
 
 impl Unavailable {
-    /// The blocked parameter.
-    pub fn param(&self) -> &ParamName {
+    /// The blocked variable.
+    pub fn var(&self) -> &SpokenVar {
         match self {
-            Self::TangentDegraded { param }
-            | Self::MeasureRefused { param }
-            | Self::Unliftable { param }
-            | Self::BandHasNoMeasure { param } => param,
+            Self::TangentDegraded { var }
+            | Self::MeasureRefused { var }
+            | Self::Unliftable { var }
+            | Self::BandHasNoMeasure { var } => var,
         }
+    }
+
+    /// This blocker with its variable spoken again from `doc`, a later
+    /// version of the document the stackup was taken of
+    /// ([`SpokenVar::respoken`]).
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        let mut again = self.clone();
+        match &mut again {
+            Self::TangentDegraded { var }
+            | Self::MeasureRefused { var }
+            | Self::Unliftable { var }
+            | Self::BandHasNoMeasure { var } => *var = var.respoken(doc),
+        }
+        again
     }
 }
 
 impl core::fmt::Display for Unavailable {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::TangentDegraded { param } => write!(
+            Self::TangentDegraded { var } => write!(
                 f,
-                "parameter {param}'s tangent degraded at the nominal (E9: forfeits its \
+                "parameter {var}'s tangent degraded at the nominal (E9: forfeits its \
                  advisory uses, refuses nothing)"
             ),
-            Self::MeasureRefused { param } => {
-                write!(f, "parameter {param}'s pass could not read the measure")
+            Self::MeasureRefused { var } => {
+                write!(f, "parameter {var}'s pass could not read the measure")
             }
-            Self::Unliftable { param } => write!(
+            Self::Unliftable { var } => write!(
                 f,
-                "parameter {param}'s seed could not reach the measure: the lift refused typed"
+                "parameter {var}'s seed could not reach the measure: the lift refused typed"
             ),
-            Self::BandHasNoMeasure { param } => write!(
+            Self::BandHasNoMeasure { var } => write!(
                 f,
-                "parameter {param} carries a band: worst-case limits with no shape have \
+                "parameter {var} carries a band: worst-case limits with no shape have \
                  no σ, and a partial RSS is still a lie"
             ),
         }
@@ -1130,8 +1198,8 @@ pub struct ChamberSpan {
 /// One row of the advisory `per_param` table.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PerParam {
-    /// The parameter.
-    pub param: ParamName,
+    /// The variable.
+    pub param: VarId,
     /// Its E4-marked sensitivity reading.
     pub sensitivity: SensitivityOutcome,
     /// `|∂m/∂pᵢ| · Δpᵢ`, `Δpᵢ` the ANALYZED box's half-width on this
@@ -1199,8 +1267,11 @@ pub struct WorstCase {
 /// accounting — M10-3's, verbatim — plus the mark, once, at the top.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stackup {
-    /// The `Measure` node the report is about.
-    pub measurement: RecipeNodeId,
+    /// The document this was taken of, the one document its human
+    /// form speaks from. Outside the goldening form and its content key.
+    pub document: crate::DocumentId,
+    /// The measured value the report is about ([`crate::Doc::observed`]).
+    pub measurement: VarId,
     /// The f64 build's measured value — re-derived from the anchored
     /// evaluation, never handed in — or the typed reason there is none.
     ///
@@ -1259,7 +1330,7 @@ impl Stackup {
         let _ = writeln!(
             s,
             "stackup measure={} nominal={} chamber={}",
-            self.measurement.0,
+            self.measurement.full(),
             match &self.nominal {
                 Ok(v) => format!("{:016x}", v.to_bits()),
                 Err(why) => format!("unavailable:{}", why.verb()),
@@ -1267,7 +1338,7 @@ impl Stackup {
             match &self.chamber {
                 Chamber::ChamberCertified {
                     verdict_vector_key, ..
-                } => format!("certified:{:032x}", verdict_vector_key.0),
+                } => format!("certified:{verdict_vector_key:032x}"),
                 Chamber::LocalOnly => "local_only".to_owned(),
             }
         );
@@ -1282,11 +1353,11 @@ impl Stackup {
             let _ = writeln!(
                 s,
                 "param {} sensitivity={} contribution={} chamber_span={}",
-                row.param.0,
-                render_sensitivity(&row.sensitivity),
+                row.param.full(),
+                sensitivity_text(&row.sensitivity, |id| format!("node {}", id.full()),),
                 match &row.contribution {
                     Ok(v) => format!("{:016x}", v.to_bits()),
-                    Err(u) => format!("unavailable:{}", u.param().0),
+                    Err(u) => format!("unavailable:{}", u.var().id().full()),
                 },
                 match &row.chamber_span {
                     Some(c) => format!(
@@ -1307,7 +1378,7 @@ impl Stackup {
                     "unavailable:{}",
                     blockers
                         .iter()
-                        .map(|b| b.param().0.clone())
+                        .map(|b| b.var().id().full().to_string())
                         .collect::<Vec<_>>()
                         .join(",")
                 ),
@@ -1319,7 +1390,7 @@ impl Stackup {
         let _ = writeln!(s, "basis {}", self.basis.word());
         if let crate::report::MassBasis::Forced { by } = &self.basis {
             for p in by {
-                let _ = writeln!(s, "  forced_by {}", p.0);
+                let _ = writeln!(s, "  forced_by {}", p.full());
             }
         }
         let _ = write!(s, "{}", coverage_bits(&self.coverage));
@@ -1345,10 +1416,22 @@ impl Stackup {
     /// omission"): an engineer who reads only the first two lines has
     /// read the certified answer, and the RSS cannot be met before the
     /// number that gates.
-    pub fn render(&self, analyzed: &crate::analysis::AnalyzedBox) -> String {
+    ///
+    /// Each node it names is spoken from `doc`, the document the
+    /// stackup was taken of.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the stackup was taken of.
+    pub fn render<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        analyzed: &crate::analysis::AnalyzedBox,
+    ) -> String {
         use core::fmt::Write as _;
+        crate::spoken::assert_taken_of("this stackup", self.document, doc);
         let mut s = String::new();
-        let _ = writeln!(s, "stackup of measure node {}", self.measurement.0);
+        let _ = writeln!(s, "stackup of {}", doc.spoken_value(self.measurement));
         let _ = writeln!(
             s,
             "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \
@@ -1381,30 +1464,30 @@ impl Stackup {
             }
         }
         let _ = writeln!(s, "  ADVISORY, never gating:");
-        let _ = write!(s, "{}", render_rss(&self.rss));
+        let _ = write!(s, "{}", render_rss(&self.rss, doc));
         for row in &self.per_param {
             let _ = writeln!(
                 s,
                 "    ∂m/∂{}: {}   contribution {}",
-                row.param.0,
-                render_sensitivity(&row.sensitivity),
+                doc.spoken_var(row.param),
+                sensitivity_text(&row.sensitivity, |id| doc.spoken(id).to_string(),),
                 match &row.contribution {
                     Ok(v) => Readable(*v).to_string(),
-                    Err(u) => format!("[{u}]"),
+                    Err(u) => format!("[{}]", u.respoken(doc)),
                 }
             );
         }
         let _ = write!(
             s,
             "{}",
-            crate::report::MassBudget::of(&self.coverage, analyzed).render()
+            crate::report::MassBudget::of(&self.coverage, analyzed).render(doc)
         );
         s
     }
 }
 
 /// The human form's rss row; under a refused column, a count and then
-/// one line per blocker.
+/// one line per blocker, each blocker's variable spoken from `doc`.
 ///
 /// The boundary between blockers is the line break, not punctuation a
 /// blocker's sentence may itself write. No [`Unavailable`] arm writes
@@ -1413,7 +1496,7 @@ impl Stackup {
 /// (`a_refused_rss_splits_back_into_its_blockers`). The parameter name
 /// a blocker frames is the document's, not the arm's; what a name may
 /// contain is the declaration door's to decide.
-fn render_rss(rss: &Rss) -> String {
+fn render_rss<P>(rss: &Rss, doc: &Doc<P>) -> String {
     use core::fmt::Write as _;
     let mut s = String::new();
     match rss {
@@ -1436,7 +1519,7 @@ fn render_rss(rss: &Rss) -> String {
                 }
             );
             for b in blockers {
-                let _ = writeln!(s, "{RSS_BLOCKER_LEAD}{b}");
+                let _ = writeln!(s, "{RSS_BLOCKER_LEAD}{}", b.respoken(doc));
             }
         }
     }
@@ -1446,9 +1529,9 @@ fn render_rss(rss: &Rss) -> String {
 /// What opens each blocker's line under a refused rss row.
 const RSS_BLOCKER_LEAD: &str = "      - ";
 
-/// One sensitivity reading, in one spelling shared by the goldening
-/// form and the human one — the number and its E4 mark, never the
-/// number alone.
+/// One sensitivity reading as a person reads it — the number and its
+/// E4 mark, never the number alone. The goldening form writes the same
+/// sentence with each node's full id.
 ///
 /// **Public since M10-6's review**: a `NothingCertified` refusal hands
 /// a consumer its `sensitivities` and nothing to print them with, so
@@ -1458,7 +1541,21 @@ const RSS_BLOCKER_LEAD: &str = "      - ";
 /// own chamber is not a derivative over the box — and it deserves
 /// better than a struct dump, in ONE spelling rather than a second one
 /// per consumer.
-pub fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
+///
+/// A node it names is spoken from `doc`, the document the entry was
+/// taken of.
+///
+/// # Panics
+///
+/// When `doc` is not the document the entry was taken of.
+pub fn render_sensitivity<P>(entry: &Sensitivity, doc: &Doc<P>) -> String {
+    crate::spoken::assert_taken_of("this sensitivity", entry.document, doc);
+    sensitivity_text(&entry.outcome, |id| doc.spoken(id).to_string())
+}
+
+/// One sensitivity reading, each node it names written by `node`:
+/// spoken in the human form, the full id in the goldening form.
+fn sensitivity_text(outcome: &SensitivityOutcome, node: impl Fn(RecipeNodeId) -> String) -> String {
     match outcome {
         SensitivityOutcome::Derivative { value, chamber } => format!(
             "{value} ({})",
@@ -1470,20 +1567,20 @@ pub fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
         SensitivityOutcome::TangentDegraded { tangent } => {
             format!("degraded tangent ({tangent})")
         }
-        SensitivityOutcome::MeasureRefused { node, cause } => {
-            format!("refused at node {}: {cause}", node.0)
+        SensitivityOutcome::MeasureRefused {
+            node: Some(id),
+            cause,
+        } => {
+            format!("refused at {}: {cause}", node(*id))
         }
+        SensitivityOutcome::MeasureRefused { node: None, cause } => format!("refused: {cause}"),
         // Spelled out rather than `Debug`-printed: this string is read
         // by a person in `render` and compared by a golden in
         // `serialize`, and `Debug` is a form neither of those wants.
-        SensitivityOutcome::Unliftable { node, refusal } => format!(
-            "unliftable at node {}: {}",
-            node.0,
+        SensitivityOutcome::Unliftable { node: id, refusal } => format!(
+            "unliftable at {}: {}",
+            node(*id),
             match refusal {
-                LiftRefusal::PinnedSection { section, param } => format!(
-                    "{} feeds the section of node {}, which stays f64 (C6/D9)",
-                    param.0, section.0
-                ),
                 LiftRefusal::GuidedReplay { loop_, step } => format!(
                     "the guided elaboration could not re-confirm loop {loop_} step {step} \
                      at this pass's scalar"
@@ -1537,9 +1634,10 @@ pub enum StackupRefusal {
     /// and nothing to report. The cause is the measure door's own,
     /// rendered.
     MeasureRefusedAtNominal {
-        /// The refusing node (the measure, or the ancestor it was
-        /// poisoned through).
-        node: RecipeNodeId,
+        /// The refusing node (a measure under the value, or the
+        /// ancestor it was poisoned through), spoken from the document
+        /// asked about; `None` for a value no measure is under.
+        node: Option<SpokenNode>,
         /// The node error, rendered.
         cause: String,
     },
@@ -1569,10 +1667,11 @@ pub enum StackupRefusal {
     /// swallowed. (A foreign or edited document is caught before this
     /// by the tie, as [`SensitivityRefusal::VerdictNotOfThisBuild`].)
     LeafDiverged {
-        /// The leaf's box.
-        leaf: ParamBox,
-        /// The refusing node.
-        node: RecipeNodeId,
+        /// The leaf's box, boxed so the refusal stays a small `Err`.
+        leaf: Box<ParamBox>,
+        /// The refusing node, spoken from the document asked about;
+        /// `None` for a value no measure is under.
+        node: Option<SpokenNode>,
         /// The node error, rendered.
         cause: String,
     },
@@ -1597,9 +1696,9 @@ impl core::fmt::Display for StackupRefusal {
             ),
             Self::MeasureRefusedAtNominal { node, cause } => write!(
                 f,
-                "the measure refuses at the nominal build (node {}), so there is no \
-                 nominal to report: {cause}",
-                node.0
+                "{} refuses at the nominal build, so there is no nominal to report: {cause}",
+                node.as_ref()
+                    .map_or_else(|| "the value".to_owned(), ToString::to_string)
             ),
             Self::NothingCertified { receipt, .. } => write!(
                 f,
@@ -1610,10 +1709,11 @@ impl core::fmt::Display for StackupRefusal {
             ),
             Self::LeafDiverged { node, cause, .. } => write!(
                 f,
-                "a certified leaf tied to this build by its content keys refused at node {} \
-                 on replay — same inputs, a different result (a D9 replay-identity \
-                 break): {cause}",
-                node.0
+                "a certified leaf tied to this build by its content keys refused at {} on \
+                 replay — same inputs, a different result (a D9 replay-identity break): \
+                 {cause}",
+                node.as_ref()
+                    .map_or_else(|| "the value".to_owned(), ToString::to_string)
             ),
             Self::WorstCaseUncertified { .. } => f.write_str(
                 "a certified leaf's measure enclosure carries a domain violation — a \
@@ -1652,13 +1752,18 @@ impl core::error::Error for StackupRefusal {}
 /// [`StackupRefusal`] — a driver refusal, a foreign box, a nominal
 /// that does not measure, nothing certified (with everything the run
 /// did produce), or a broken leaf replay.
+// Eight inputs, each read and none written: the box, its verdict and
+// the record build are three distinct pairings the door checks, so a
+// bundle would be a struct that exists to satisfy a count.
+#[allow(clippy::too_many_arguments)]
 pub fn stackup(
     doc: &Doc<ProfileProgram>,
-    measure: RecipeNodeId,
+    value: VarId,
     analyzed: &AnalyzedBox,
     verdict: &ParamBoxVerdict,
     paired: Option<&Evaluation<f64>>,
     parallel: bool,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Stackup, StackupRefusal> {
     if ParamBox::of(analyzed) != *verdict.root() {
@@ -1668,7 +1773,7 @@ pub fn stackup(
         anchor,
         chamber,
         entries,
-    } = driver(doc, measure, paired, Some(verdict), parallel, tol)
+    } = driver(doc, value, paired, Some(verdict), parallel, resolver, tol)
         .map_err(StackupRefusal::Sensitivity)?;
 
     // **The nominal, re-derived from the anchored build — and
@@ -1682,10 +1787,13 @@ pub fn stackup(
     // A measure that FAILED for any other reason is still fatal here:
     // `measure_of`'s other error arms mean the node did not evaluate,
     // which is a broken report and not a forfeited column.
-    let nominal = match nominal_of(&anchor, measure) {
+    let nominal = match nominal_of(doc, &anchor, value) {
         Ok(n) => n,
         Err((node, cause)) => {
-            return Err(StackupRefusal::MeasureRefusedAtNominal { node, cause });
+            return Err(StackupRefusal::MeasureRefusedAtNominal {
+                node: node.map(|node| doc.spoken(node)),
+                cause,
+            });
         }
     };
 
@@ -1697,7 +1805,7 @@ pub fn stackup(
             receipt: verdict.receipt(),
         });
     }
-    let worst_case = worst_case(doc, measure, verdict, parallel, tol)?;
+    let worst_case = worst_case(doc, value, verdict, parallel, resolver, tol)?;
 
     // The advisory columns. Half-widths and σ come off the analyzed
     // box's own axes (the pairing-safe doors), derivatives off the
@@ -1708,25 +1816,29 @@ pub fn stackup(
     let mut blockers: Vec<Unavailable> = Vec::new();
     let mut sum_sq = 0.0_f64;
     for entry in entries {
-        let param = entry.param.clone();
+        let param = entry.param;
+        // Spoken from `doc`, not the box: a box taken before a rename
+        // compares equal after it, and the row says the name `doc`
+        // holds now.
+        let spoken = doc.spoken_var(param);
         // Every entry names a continuous parameter of `doc`, and the
         // ForeignBox check above made `analyzed` span exactly those;
         // an axis missing here is a broken pairing, refused as one.
-        let axis = analyzed.get(&param).ok_or(StackupRefusal::ForeignBox)?;
+        let axis = analyzed.get(param).ok_or(StackupRefusal::ForeignBox)?;
         let half_width = 0.5 * axis.offsets.width();
         let sigma = analyzed
-            .axis_std_deviation(&param)
+            .axis_std_deviation(param)
             .ok_or(StackupRefusal::ForeignBox)?;
         let derivative = match &entry.outcome {
             SensitivityOutcome::Derivative { value, chamber } => Ok((*value, chamber)),
             SensitivityOutcome::TangentDegraded { .. } => Err(Unavailable::TangentDegraded {
-                param: param.clone(),
+                var: spoken.clone(),
             }),
             SensitivityOutcome::MeasureRefused { .. } => Err(Unavailable::MeasureRefused {
-                param: param.clone(),
+                var: spoken.clone(),
             }),
             SensitivityOutcome::Unliftable { .. } => Err(Unavailable::Unliftable {
-                param: param.clone(),
+                var: spoken.clone(),
             }),
         };
         let contribution = derivative
@@ -1734,7 +1846,7 @@ pub fn stackup(
             .map(|(value, _)| value.abs() * half_width)
             .map_err(Clone::clone);
         let chamber_span = match &derivative {
-            Ok((value, Chamber::ChamberCertified { leaf, .. })) => leaf.get(&param).map(|axis| {
+            Ok((value, Chamber::ChamberCertified { leaf, .. })) => leaf.get(param).map(|axis| {
                 let (lo, hi) = axis.span();
                 let half = 0.5 * (hi - lo);
                 ChamberSpan {
@@ -1750,10 +1862,8 @@ pub fn stackup(
                 if let Err(why) = derivative {
                     blockers.push(why.clone());
                 }
-                if let Err(MeasureUnavailable::BandHasNoMeasure { param }) = sigma {
-                    blockers.push(Unavailable::BandHasNoMeasure {
-                        param: param.clone(),
-                    });
+                if let Err(MeasureUnavailable::BandHasNoMeasure { .. }) = sigma {
+                    blockers.push(Unavailable::BandHasNoMeasure { var: spoken });
                 }
             }
         }
@@ -1773,7 +1883,8 @@ pub fn stackup(
     };
 
     Ok(Stackup {
-        measurement: measure,
+        document: doc.id(),
+        measurement: value,
         nominal,
         chamber,
         per_param,
@@ -1790,13 +1901,14 @@ pub fn stackup(
 /// [`geom_core::Interval`], which has no tangent channel, and the
 /// bracket is read through
 /// [`geom_core::CertifiedEnclosure::certified_bracket`] — the
-/// domain-honest door, so a poisoned enclosure refuses named instead of
+/// domain-honest door, so a refused enclosure refuses named instead of
 /// hulling a NaN.
 fn worst_case(
     doc: &Doc<ProfileProgram>,
-    measure: RecipeNodeId,
+    value: VarId,
     verdict: &ParamBoxVerdict,
     parallel: bool,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<WorstCase, StackupRefusal> {
     let leaves = verdict.certified();
@@ -1809,13 +1921,14 @@ fn worst_case(
     // Read-only and shared, so the parallel schedule sees exactly what
     // the sequential one does; the memo serves bit-equal inputs only,
     // so the hull is the same with or without it.
-    let nominal_box = ParamBox::from_axes(
+    let nominal_box = ParamBox::from_axes_in(
         verdict
             .root()
             .axes()
             .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
+            .map(|n| (*n, BoxAxis::Fixed))
             .collect(),
+        verdict.root().order(),
     );
     // The hull runs on the lane the drive ran on
     // (`ParamBoxVerdict::symbolic`), for the tie's reason: a leaf the
@@ -1824,27 +1937,27 @@ fn worst_case(
     // one's, verbatim, so the BRACKETS are the same bits either way —
     // only which leaves have one changes. The prior is the numeric
     // lane's alone; `LeafPrior` states why the symbolic lane has none.
-    let prior = crate::eval::LeafPrior::of(doc, &leaf_opts(nominal_box), lane, tol);
+    let prior = crate::eval::LeafPrior::of(doc, &leaf_opts(nominal_box, resolver), lane, tol);
     let one = |leaf: &CertifiedLeaf| -> Result<(f64, f64), StackupRefusal> {
         let readback = crate::eval::replay_leaf(
             doc,
-            &leaf_opts(leaf.box_.clone()),
+            &leaf_opts(leaf.box_.clone(), resolver),
             lane,
             &prior,
             crate::eval::LeafRequest {
                 keys: true,
-                measure: Some(measure),
+                measure: Some(value),
                 ..crate::eval::LeafRequest::default()
             },
             tol,
         );
-        tie(leaf, &readback.keys).map_err(StackupRefusal::Sensitivity)?;
+        tie(doc, leaf, &readback.keys).map_err(StackupRefusal::Sensitivity)?;
         readback
             .measure
             .unwrap_or(Ok(None))
             .map_err(|(node, cause)| StackupRefusal::LeafDiverged {
-                leaf: leaf.box_.clone(),
-                node,
+                leaf: Box::new(leaf.box_.clone()),
+                node: node.map(|node| doc.spoken(node)),
                 cause,
             })?
             .ok_or_else(|| StackupRefusal::WorstCaseUncertified {
@@ -1878,8 +1991,61 @@ fn worst_case(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{RSS_BLOCKER_LEAD, Rss, Unavailable, render_rss};
-    use crate::ParamName;
+    use super::{RETIRED_VALUE_DIGEST_TAGS, RSS_BLOCKER_LEAD, Rss, Unavailable, render_rss};
+    use crate::VarName;
+
+    /// **No arm of [`super::payload_digest`] re-uses a retired tag.**
+    /// A source census, for the reason `node_kind_vocabulary_is_injective`
+    /// gives: the tags live in a match over a payload, and constructing
+    /// one of every payload would be a fixture larger than the property.
+    /// An arm is a line at the match's own indent opening on
+    /// `ValuePayload::`; its tag is the first `d.u64(<number>)` after the
+    /// arm's `=>`. A nested match's numbers sit after that one, so they
+    /// are never read. What it cannot see: an arm whose tag is computed
+    /// rather than written. None exists.
+    #[test]
+    fn value_digest_tags_reuse_no_retired_number() {
+        const SOURCE: &str = include_str!("stackup.rs");
+        let region = test_utils::source::sentinel_region(
+            SOURCE,
+            "stackup.rs",
+            "VALUE-DIGEST-ARMS BEGIN",
+            "VALUE-DIGEST-ARMS END",
+        );
+        let code = test_utils::source::code_and_literals(SOURCE);
+        let code = &code[region];
+        let starts: Vec<usize> = code
+            .match_indices("\n        ValuePayload::")
+            .map(|(at, _)| at + 1)
+            .collect();
+        // A census that read nothing would pass vacuously.
+        assert!(
+            starts.len() >= 10,
+            "the arm census found only {} arms — the sentinels or the scan have drifted from \
+             the match they are supposed to read",
+            starts.len()
+        );
+        for (i, &at) in starts.iter().enumerate() {
+            let arm = &code[at..starts.get(i + 1).copied().unwrap_or(code.len())];
+            let head = arm.lines().next().unwrap_or_default().trim();
+            let body = &arm[arm
+                .find("=>")
+                .unwrap_or_else(|| panic!("`{head}` has no `=>`"))..];
+            let digits: String = body
+                .split_once("d.u64(")
+                .unwrap_or_else(|| panic!("`{head}` writes no tag"))
+                .1
+                .chars()
+                .take_while(char::is_ascii_digit)
+                .collect();
+            let tag: u64 = digits
+                .parse()
+                .unwrap_or_else(|_| panic!("`{head}`'s tag is not a number literal"));
+            if let Some((_, held_by)) = RETIRED_VALUE_DIGEST_TAGS.iter().find(|(t, _)| *t == tag) {
+                panic!("`{head}` re-uses value-digest tag {tag}, retired with {held_by}");
+            }
+        }
+    }
 
     test_utils::f6_variants! {
         /// Every [`Unavailable`] arm, welded to the enum by the match
@@ -1895,19 +2061,14 @@ mod tests {
     /// One blocker of every arm, for `param` — checked against the
     /// weld, so an arm with no example here fails every row that reads
     /// this.
-    fn every_arm(param: &str) -> Vec<Unavailable> {
-        let param = ParamName::new(param);
+    fn every_arm(param: &'static str) -> Vec<Unavailable> {
+        let param =
+            crate::SpokenVar::new(crate::VarId::new(0, 1), Some(VarName::from_static(param)));
         let all = vec![
-            Unavailable::TangentDegraded {
-                param: param.clone(),
-            },
-            Unavailable::MeasureRefused {
-                param: param.clone(),
-            },
-            Unavailable::Unliftable {
-                param: param.clone(),
-            },
-            Unavailable::BandHasNoMeasure { param },
+            Unavailable::TangentDegraded { var: param.clone() },
+            Unavailable::MeasureRefused { var: param.clone() },
+            Unavailable::Unliftable { var: param.clone() },
+            Unavailable::BandHasNoMeasure { var: param },
         ];
         let mut made: Vec<String> = all.iter().map(test_utils::f6::variant_identifier).collect();
         made.sort();
@@ -1934,14 +2095,19 @@ mod tests {
     /// A refused rss row splits back into exactly the blockers it was
     /// made from, in order — including blockers whose sentences carry
     /// the punctuation a flat join would have split on, which a
-    /// sentence is free to write and a name can carry.
+    /// sentence is free to write. A NAME cannot carry it: a `VarName`
+    /// is one identifier by construction, so the second batch is a
+    /// second identifier and the sentences alone carry the separators.
     #[test]
     fn a_refused_rss_splits_back_into_its_blockers() {
         let mut blockers = every_arm("width");
-        blockers.extend(every_arm("a; b, c"));
-        let rendered = render_rss(&Rss::UnavailableBecause {
-            blockers: blockers.clone(),
-        });
+        blockers.extend(every_arm("depth"));
+        let rendered = render_rss(
+            &Rss::UnavailableBecause {
+                blockers: blockers.clone(),
+            },
+            &no_vars(),
+        );
         let mut lines = rendered.lines();
         assert_eq!(
             lines.next(),
@@ -1960,15 +2126,27 @@ mod tests {
 
     #[test]
     fn a_single_blocker_is_counted_in_the_singular() {
-        let rendered = render_rss(&Rss::UnavailableBecause {
-            blockers: vec![Unavailable::Unliftable {
-                param: ParamName::new("w"),
-            }],
-        });
+        let rendered = render_rss(
+            &Rss::UnavailableBecause {
+                blockers: vec![Unavailable::Unliftable {
+                    var: crate::SpokenVar::new(
+                        crate::VarId::new(0, 1),
+                        Some(VarName::from_static("w")),
+                    ),
+                }],
+            },
+            &no_vars(),
+        );
         assert_eq!(
             rendered,
             "    rss UNAVAILABLE — 1 blocker:\n      - parameter w's seed could not reach the \
              measure: the lift refused typed\n"
         );
+    }
+
+    /// A document holding no variable, so a blocker is said as it was
+    /// spoken.
+    fn no_vars() -> crate::doc::Doc<crate::program::ProfileProgram> {
+        crate::doc::Doc::empty_derived("stackup-render-rows", geom_core::Tol::witness())
     }
 }

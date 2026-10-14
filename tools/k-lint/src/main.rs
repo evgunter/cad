@@ -13,23 +13,28 @@
 //!
 //! # Which findings gate (M10-6)
 //!
-//! By default all three rules gate: findings fail the run. That is the
+//! By default every rule gates: findings fail the run. That is the
 //! corpus rows' setting and nothing about it changed.
 //!
 //! `--gate-rule-1-only` narrows the GATE to rule 1 — `indeterminate`
-//! and `invalid` margins — while rules 2 and 3 still print, still
+//! and `invalid` margins — while rules 2, 3 and 5 still print, still
 //! tally, and no longer fail the run. It exists for ONE caller, the E6
 //! driver's own K population, whose subdivision refines margins toward
 //! zero by construction and therefore crowds the escalation band in
 //! bulk without anything being wrong; `docs/K-REPORT.md`'s recourse 2
-//! is the demotion this implements, and ci.yml's step carries the
-//! recorded justification.
+//! is the demotion this implements, and nightly.yml's step carries
+//! the recorded justification.
 //!
 //! It is deliberately NOT `--advisory`: rule 1 is the trigger E6 names
 //! for re-opening the K question, so a flag the caller cannot demote
 //! is exactly the point. A per-rule TALLY prints on every run, gated
 //! or not, so "zero rule-1 flags" is a reported number rather than an
 //! inference from a green.
+//!
+//! Rule (2)'s zero arm gates under neither setting: it is a tally
+//! (`k_lint::zero_arm_usage`), printed per file and per predicate with
+//! the largest `|m| / band_zero` and its row, and counted in the TOTAL
+//! line.
 //!
 //! Thresholds + baseline provenance: `lib.rs` module docs.
 
@@ -135,8 +140,7 @@ fn main() {
     // subject of the failure message's own paragraph.
     let mut unruled_total: Vec<(&'static str, usize)> = Vec::new();
     let mut total_symbolic = 0usize;
-    let mut total_gated = 0usize;
-    let mut total_registered = 0usize;
+    let mut total_zero_arm = 0usize;
     for path in &paths {
         let text = match std::fs::read_to_string(path) {
             Ok(t) => t,
@@ -156,6 +160,8 @@ fn main() {
             }
         };
         let (scanned, flags) = (scan.scanned, scan.flags);
+        let zero_arm: usize = scan.zero_arm.iter().map(|t| t.count).sum();
+        total_zero_arm += zero_arm;
         // The per-file tally, by rule and then by reason. A FLAG can
         // carry several reasons; each is counted, so the reason counts
         // sum to at least the flag count and the two are labelled
@@ -177,16 +183,12 @@ fn main() {
         }
         total_scanned += scanned;
         total_symbolic += scan.symbolic;
-        total_gated += scan.sign_gated;
-        total_registered += scan.registered;
         say(format_args!(
-            "k-lint: {path}: {scanned} samples ({} symbolic_zero, {} sign_gated, {} registered, \
-             {} classified), {} flagged — rule 1 (undecided/invalid): {}, rule 2 (near a \
-             threshold): {}, rule 3 (below a floor): {}",
+            "k-lint: {path}: {scanned} samples ({} symbolic, {} classified), {} flagged \
+             — rule 1 (undecided/invalid): {}, rule 2 (near a threshold): {}, rule 3 (below \
+             a floor): {}; rule 2 zero arm (tallied, not gating): {zero_arm}",
             scan.symbolic,
-            scan.sign_gated,
-            scan.registered,
-            scanned - scan.symbolic - scan.sign_gated - scan.registered,
+            scanned - scan.symbolic,
             flags.len(),
             file_rule[1],
             file_rule[2],
@@ -196,6 +198,27 @@ fn main() {
             if c > 0 {
                 say(format_args!("    rule {} — {r}: {c}", r.rule()));
             }
+        }
+        if zero_arm > 0 {
+            say(format_args!(
+                "  rule 2 zero arm (tallied, not gating): {zero_arm} zero-classified \
+                 margin(s) above band_zero/10^2"
+            ));
+        }
+        for t in &scan.zero_arm {
+            let w = &t.worst;
+            say(format_args!(
+                "    {}: {}, largest |m|/band_zero = {:.3e} — the margin uses {:.0}% of eps \
+                 here ({} line {}, |m|={:e}, band_zero={:e})",
+                t.predicate,
+                t.count,
+                w.usage,
+                w.usage * 100.0,
+                w.shape,
+                w.line,
+                w.margin.abs(),
+                w.band_zero
+            ));
         }
         // Never a silent exemption: say it whenever rule (2)'s definite
         // arm ran capped at the baseline floor (lib.rs, "Rule (2)'s
@@ -257,11 +280,10 @@ fn main() {
     }
     say(format_args!(
         "k-lint: TOTAL over {} file(s): {total_scanned} samples ({total_symbolic} \
-         symbolic_zero, {total_gated} sign_gated, {total_registered} registered, {} \
-         classified), rule 1 (undecided/invalid) {}, rule 2 (near a threshold) {}, rule 3 \
-         (below a floor) {}",
+         symbolic, {} classified), rule 1 (undecided/invalid) {}, rule 2 (near a threshold) {}, rule 3 \
+         (below a floor) {}, rule 2 zero arm (tallied, not gating) {total_zero_arm}",
         paths.len(),
-        total_scanned - total_symbolic - total_gated - total_registered,
+        total_scanned - total_symbolic,
         per_rule[1],
         per_rule[2],
         per_rule[3]
@@ -313,6 +335,13 @@ fn main() {
         return;
     }
     if !unruled_total.is_empty() {
+        return;
+    }
+    if total_zero_arm > 0 {
+        say(format_args!(
+            "k-lint: clean on every gating rule — {total_zero_arm} zero-arm margin(s) \
+             tallied above, which do not gate"
+        ));
         return;
     }
     say(format_args!(

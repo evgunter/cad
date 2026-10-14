@@ -2,10 +2,13 @@
 id: the-exhaustive-on-purpose-argument-is-restated-twenty-times
 kind: issue
 title: The 'a subset pattern answers false for everything it does not name' argument is restated bespoke in ~20 places across crates/viewer/src
-status: open
+status: closed
 opened: 2026-09-22
 priority: P4
 cost: E
+closed: 2026-09-24
+branch: chrome/subset-policy
+pr: 3140
 ---
 
 
@@ -71,3 +74,23 @@ it to nothing — the badge match twelve lines up carries the argument
 for both. The site is an instance of the construct this row counts,
 with no comment of its own, which is the shape this row wants the
 others to end in.
+
+## Closed 2026-09-24 (`chrome/subset-policy`)
+
+The argument has one home: `crates/viewer/README.md`, **A policy over
+an enum names every variant**, beside *Closed vocabularies are declared
+once*. It sits there rather than in `lib.rs`'s module doc because it is
+about how the crate's code is written, and the README's Architecture
+half is where the crate's other cross-cutting rules already live. The
+section also names the four shapes that keep a wildcard and the one-home
+functions.
+
+The sites were cut to nothing, not to a pointer. Each keeps its local
+half, and the generic half is gone. Some 36 sites across 17 files were
+cut; the PR body names them. What `grep -rniE 'exhaustive|wildcard'`
+still returns under `src/` is listed there too, one line per reason: the
+destructuring rule (which has its own home), `vocab.rs`'s macro
+mechanism, and the pointer-button theorem.
+
+The suites' copies were outside this lane's fence, and are filed as
+`the-exhaustive-argument-is-restated-in-the-viewer-suites`.

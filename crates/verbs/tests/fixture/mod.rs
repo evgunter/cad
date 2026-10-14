@@ -57,20 +57,19 @@ pub fn x_axis() -> RevolveAxis<f64> {
 /// A horizontal plane at height `z`, normal `+z` — through the unit
 /// cube at `z = 0.5`, clear of it above `z = 1`.
 pub fn z_plane(z: f64) -> SplitPlane<f64> {
-    SplitPlane {
-        origin: Point3::new(0.0, 0.0, z),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-    }
+    topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// **The touching-wedge prism** — the kernel split's own D7 fixture
 /// (`topo`'s acceptance suite calls it MIRRORED): a slab over three
 /// floor pieces that touch the slab's underside at `y = 1` along tip
 /// lines only, extruded 1 along `+z`. Split at [`pinch_plane`] with
-/// `+y` up, the pinched pieces are BELOW, and the direct run refuses
-/// the one-sided pinch; the kernel door reruns it mirrored and swaps
-/// the sides back. A dispatch row that agrees with the door on THIS
-/// operand is agreeing through that lane, not around it.
+/// `+y` up, the pinched pieces are BELOW, so the kernel mints their tip
+/// copies on the Below side.
 pub fn pinch_prism() -> Body<f64> {
     let verts = [
         (0.0, 0.0),
@@ -92,8 +91,9 @@ pub fn pinch_prism() -> Body<f64> {
 /// The plane through [`pinch_prism`]'s tip lines: `y = 1`, normal
 /// `+y`.
 pub fn pinch_plane() -> SplitPlane<f64> {
-    SplitPlane {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-    }
+    topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        geom_core::Tol::witness(),
+    )
 }

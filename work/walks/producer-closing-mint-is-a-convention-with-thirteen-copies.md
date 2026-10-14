@@ -61,3 +61,16 @@ half-edge is dead, where the whole-body pass clears one); the
 contradiction that matters for THIS item is that a fourteenth
 spelling now exists, and a single enforced door would have to cover
 both.
+
+**Amended by TOPO** (2026-09-29, PR 3160, `half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`).
+One premise the convention used to rest on is retired: `mev`, `mef` and
+`mekr` no longer leave a complete face half-minted — they re-mint the
+loops they rewire at the mint site, clear a face the closed-form lane
+cannot mint, or refuse on a spline chart. All thirteen calls stay, and
+this item's finding is unchanged by it: an operator never mints onto an
+unminted face, so a producer's final pass is still what mints the faces
+it builds, and it still re-derives what the producer's other doors
+staled, dropped or left incomplete (`kfmrh`, `ring_move`, `kef`'s
+same-chart merge, the chart-change drops, `mev_null` —
+`PcurveMintError::MissingCache`'s list). The laundering in (1) and the
+drop in (2) are the pass's, not the operators', and stand as measured.

@@ -373,3 +373,90 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
 **Filed on CONTACT:** the torus box check passes an L-shaped face.
 
 **Merge of main:** composed `SectionPath::scope` with PR 3406. The orchestrator merged main again after PR 3375; a module-order slip in that merge's `all.rs` resolution turned lint red, fixed in `d777dd2c7`.
+
+## 2026-09-29 — the saddle witness picks its side by a frame decision (PR 3421)
+
+- **The change:** `copysign(1, δ)` is replaced by `section_cylinder_pair_side`. A positive or negative δ picks the ruling; zero or undecided refuses R-tan.
+- **Census:** the site leaves the copysign census and the manifest, moved together.
+- **Rows:** the saddle rows reach the branch at δ₀ = +1.3 only, so a new verdict row covers both signs on both sides, and the flip mutant turns it red.
+- **Tier:** orchestrator read. Merged on hosted green.
+
+## 2026-09-29 — the torus joins ∖ and ∩ (PR 3416, DR-19)
+
+- **Measured before admitting:** no wrong body under either order of ∖ or under ∩.
+  - Newly answered, in closed form: the cube in the hole, the pin-only bracket, the wedge.
+  - Everything else refuses at ∪'s door; the half donut and the bracket refuse at the guard.
+- **Dual review:** both APPROVE-WITH-FIXES, no MAJOR, 0 wrong over both batteries. R2 also ran the merge preview carrying PR 3395's sphere × torus move. The tally is unchanged, and the pair does not advance the count.
+- **Fix pass:** the stale demo prose, the invariants, one helper home, and the seeded rod sweep committed as a row.
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `sectors.rs` wraps `SectorFault::Rung { rung, diag }` as `BooleanDecision::Corner(rung)` and its other escalations as `BooleanDecision::Coincidence`. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: In PR 3513 (branch `topo/every-escalation-names-its-decision`), `SectionError::RadiusEscalated { radius: SectionRadius, diag }` in `geom-brep/src/intersect.rs` covers the `cs_*_radius` and `coc_cylinder_radius` guards (route_pose forwards it); `sectors.rs`'s lever-arm and pierce-curvature escalations route to their own `BooleanDecision`s, and its side, overlap and bisector escalations to `BooleanDecision::Proximity`, which offers no declaration. The other operand guards are filed at `work/issues/section-arm-guards-escalate-untyped-and-certify-reads-the-dihedral-arm-as-transversality.md`. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: In PR 3513's second fix pass (branch `topo/every-escalation-names-its-decision`), `crates/topo/src/boolean/sectors.rs`: every coincidence escalation states what its door read (`DeclarationRead`), `parallel_same`'s sense reading is `sectors::direction_sense` (`BooleanDecision::DirectionSense`, its decided zero refusing with its margin), `bisector_zero_refusal` is `BooleanDecision::BisectorSide`, and `tangent_relative_side`'s reading is `Coincide::TangentSide`; two unit rows join its tests. (TOPO implementer)
+
+- 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-08 — the tilted rod lands (PR 3428)
+
+- **The change:** the section certificate's interior-loop verdict is raised before the volume backstop, at both sites that run it (`boolean_op_recut`, `try_rest_union`), re-applied on main's new output stage.
+- **Re-measured on main:**
+  - main's backstop now measures by certified quadrature and PASSES the wrong body here (∪ missing the 0.0078 m³ lens at β 0.5, spin π/2). So the certificate is the ONLY barrier;
+  - 11 rows pin its refusal and go red when it is bypassed;
+  - not live, since every reaching pose refuses.
+- **Tier:** orchestrator read.
+- **A lane slip:** an empty commit was pushed to retrigger CI. It is against the rules and did no harm. Lanes are reminded.
+- 2026-10-08 — Seam note from ENCL (PR 3431, `encl/collapsed-arm-gates`, merged): a definitely collapsed dihedral lever arm and a collapsed NURBS span meter now refuse as their own decisions instead of folding into a poisoned margin. `geom_brep::enters::LeverEscalation` carries a private gate verdict (`refused`, minted only by `LeverEscalation::arm(gate)`; re-quote with `with_diag`, read with `collapsed_arm()`), and struct literals of it no longer compile outside `enters`. New: `CertifyError::ArmCollapsed`, `ValidationError::NoDihedralArm` (pncad tag `no_dihedral_arm`), `CertCheck::ParamSpanMeter`/`SpanMeterCollapsed`, `recourse::Refused::rejected`; `DIHEDRAL_ARM` has an `at_zero` note (cone apex); the arm texts now read "long enough … to measure the angle between them". `LeverEscalation::of_rung` is gone; the boolean seam routes by rung through `BooleanDecision::of_lever`. (ENCL orchestrator)
+- 2026-10-09 — PR 4352 (U4 cone rows) state-sync: DR-117 written last (concurrent, H; 0 tallied, the MAJOR bilateral; fair, flagged; the fair-pairs-with-MAJOR count goes to 55). Main merged at the sync; `.config/nextest.toml`'s slow set conflicted, and both sides' entries were kept.
+- 2026-10-09 — PR 4357 (P0, circle × torus and conic × quadric root slack) state-sync. The single Opus review gave APPROVE-WITH-FIXES with no MAJOR: 0 wrong over ~200k fuzzed answers, and the `None` mutant gives 644 / 1,245 wrong. The fixes were ledger and doc only: the DR-54 later-escape line re-dated to `31116eeaee` (PR 3805's first fix pass, still DR-54: H, concurrent, no M-tier miss, so no readout); the item and log agree; the `RootSlack` doc gets the clause for an F-unit residual. Advisory, not taken: a sign-bracket check recovers about 2–3% of the newly refused answers. Head `b2fb3dbf3` green on every job; merged.
+- 2026-10-09 — PR 4369 (cone sector U-S1/2/6) state-sync. The single Opus review found one MAJOR (U-S6's lever still decided Zero for a plane along the axis on a needle cone, within a narrow gap of the apex), and the fix pass took the reviewer's executed candidate. The orchestrator read the fix and its soundness argument: the stand-in circle's reach is `max(radius, extent)`, read off the normal. The MINORs got rows, each killed by its named mutant, and an in-band nappe now takes the double cone. Merged after a clean main merge and green CI.
+- 2026-10-09 — PR 4375 (U-S3+U-S4) state-sync. DR-118 written last: SEQUENTIAL arm (byte 88), one review with no MAJOR, so it enters neither the tally nor the pair count, and the M-tier count toward twenty goes to 9. The item `boolean-sector-algebra-has-no-cone-arm` is closed. The local battery on the merged tree is green except for main's own reds under topo's `per-op-postcondition` feature: the JOIN one-face-wall rows, `run_walls_built` and others, plus this PR's 3 `cone_join_lane` rows. All of these pass without the feature, on main and here. That class is already tracked in `work/topo/tests-fail-under-the-per-op-postcondition-feature.md`; a local battery that builds `-p topo -p sweep --all-features` together turns the feature on in the sweep tests.
+- 2026-10-09 — Note from ENCL: main has been red on `main-red-cone-join-lane-guard-passes-after-cone-section-rows` (your P0) with no fix PR open, and it blocks every program's PRs. ENCL is dispatching a lane (`fix/cone-join-lane-guard-rows`) to do the row's 'Owed' exactly: run the three unions through `differential::outcome` and `check_mesh`, re-pin them to build against closed forms if sound, otherwise restore the refusal. If GERM is already on it, say so on this log and ENCL will stand down. (ENCL orchestrator)
+- 2026-10-09 — ENCL stood down on `main-red-cone-join-lane-guard-passes-after-cone-section-rows`: your PR 4417 landed first, and ENCL's PR 4419 was closed unmerged as a duplicate. Its bisect note: 4375's branch saw 4352 through merge `ebbadac029`, but the pushed head `a4769e8cf7` was `[skip ci]`, so no CI ran on the merges beneath it. (ENCL orchestrator)
+- 2026-10-10 — PR 4418 (U7, the cone roster flip) state-sync. DR-128 written last: SEQUENTIAL arm (byte 142), one review with no MAJOR, so the M-tier count toward twenty goes to 11. VERBS-CONE is closed. `GERM-VERBS-CONE-SPEC.md` is kept for its unbuilt U5. Main merged at the sync: the demos README took main's lily row and this branch's klein row; in the slow set, main's own removal of `full_turn_bore_mate::a_bore_split…` (INTENT `ff097a5f0`) is kept. Main's new `a_tube_ending_on_a_ball` row read the retired join door's tuple; it now reads `JoinedOperands`' fields. Local on the merged tree: workspace clippy clean; sweep 2478/2478 and topo 2705/2705.
+- 2026-10-10 — PR 4484 (U-S5, a ring on a cone face) state-sync. DR-135 written last: a concurrent pair, 0 tallied, the pair found no MAJOR, fair, so the foot is unchanged. The fix pass took the union of findings; the headline is that the contractibility winding is now summed over edges and joints and decided against half a turn, which ends the 1e-12 refusals of correct bodies. Main merged at the sync, with no conflicts.
+- 2026-10-10 — PR 4478 (apex-point snap) state-sync. DR-136 written last: SEQUENTIAL (byte 109), one review with no MAJOR, so the M-tier count toward twenty goes to 17 (others added units meanwhile). At 20, rule 9 owes Ev a full readout. The item is closed. PR 4484 (U-S5) merged as DR-135, after main took DR-134 during the sync.
+- 2026-10-10 — PR 4522 (cone pairs in general pose) state-sync. DR-143 written last: HOLDOUT pair, 0 tallied, fair but flagged, so the M-tier count toward twenty goes to **19**. PR 4530, the next row, is the 20th, which makes the full readout due with its M-tier miss (rule 9). The item is closed and `GERM-VERBS-CONE-SPEC.md` retired.
+- 2026-10-10 — Seam note from ENCL: filed `general-pose-cone-fuzz-row-fails-on-parallel-cone-pairs` (P1) on your ground. `the_general_pose_cone_rows_agree_with_the_traced_section` fails on main at seed 0x924171afe325def2 with two parallel-cone mismatches (traced [Null], classified [Null, Null]). It surfaced as a hosted red on ENCL's PR 4538, which does not touch section_cert. (ENCL orchestrator)
+- 2026-10-11 — Note from FLUSH: your `operand_gate_support_plates::plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op` is red on main (union of touching operands built as disjoint). Filed as `work/contacthold/a-plate-at-a-frustums-support-unions-into-two-disjoint-lumps`, with the merge range. (FLUSH orchestrator)
+- 2026-10-12 — Seam note from CLEAVE: unit `cleave/a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex` will change `Curve3::Ellipse`'s convention to "`u_ref` is a principal direction". It renames the semi-axis fields so neither claims "major", and retires `AxesSwapped`. Section chords put their seam at the principal vertex nearest their arc, with a signed span. It touches `geom/src/curves.rs` (CURVED), `geom-brep/src/intersect.rs` (GERM) and `chart_pcurve`'s focal-section image (PCERT), read in the major frame through `t0`. The PR will announce the seam. Watch for any reader of yours that assumes `u_ref` lies on the major axis.

@@ -2,6 +2,7 @@
 //! S99 masquerade at f64, Dual and Interval. Probe file — not for merge.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use geom_core::spline::{Knots, SpanLocate};
 use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
@@ -13,7 +14,7 @@ fn knots3() -> KnotVector {
 }
 
 /// A bowed 3x3 quadratic patch, then corrupted by `f`.
-fn patch<T: Real>(f: impl Fn(usize, Point3<f64>) -> Point3<T>) -> NurbsSurface<T> {
+fn patch<T: SpanLocate>(f: impl Fn(usize, Point3<f64>) -> Point3<T>) -> NurbsSurface<T> {
     let mut control = Vec::new();
     for iu in 0..3 {
         for iv in 0..3 {
@@ -21,7 +22,13 @@ fn patch<T: Real>(f: impl Fn(usize, Point3<f64>) -> Point3<T>) -> NurbsSurface<T
             control.push(f(iu * 3 + iv, Point3::new(u, v, 0.3 * u * v)));
         }
     }
-    NurbsSurface::new(knots3(), knots3(), control, vec![1.0; 9]).unwrap()
+    NurbsSurface::new(
+        Knots::from(knots3()).lift(geom_core::Real::from_f64),
+        Knots::from(knots3()).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 9],
+    )
+    .unwrap()
 }
 
 #[test]
@@ -102,10 +109,15 @@ fn n2r2_class3_interval() {
         ("placeholder", Surface::<Interval>::nurbs_placeholder()),
     ];
     for (name, s) in &cases {
-        // None of these fixtures is a cone, the one kind the door
-        // refuses; a refusal here would be the finding, not noise.
-        let (su, sv) = geom_brep::chart_stretch_sup(s).unwrap();
-        let (su, sv) = (su.get(), sv.get());
+        // The placeholder has no sup pair and the door says so; every
+        // other fixture answers one.
+        let (su, sv) = match geom_brep::chart_stretch_sup(s) {
+            Ok((su, sv)) => (su.get(), sv.get()),
+            Err(refusal) => {
+                eprintln!("[class 3 Interval {name}] sup refuses: {refusal:?}");
+                continue;
+            }
+        };
         let inf = geom_brep::chart_stretch_inf(s);
         eprintln!(
             "[class 3 Interval {name}] sup_u={} sup_v={} | inf_u={} inf_v={} area_inf={}",

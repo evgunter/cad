@@ -16,11 +16,12 @@
 #![allow(dead_code)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, select_where,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Selector, SitedRef,
+    SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::Tol;
 
@@ -33,8 +34,8 @@ pub(crate) const RADIUS: f64 = 1.25e-3;
 /// The nominal web: `SPACING − 2·RADIUS` = 0.6 mm.
 pub(crate) const WEB: f64 = SPACING - 2.0 * RADIUS;
 
-fn param(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn param(n: &'static str) -> Formula {
+    Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The plate, its two holes, the web measure and its assertion.
@@ -46,17 +47,17 @@ pub(crate) fn plate(
     spacing_half_width: f64,
     radius_sigma: f64,
     tol: Tol,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::Continuous {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static(n),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     declare(
@@ -81,7 +82,7 @@ pub(crate) fn plate(
 
     let plane = r.insert(xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (-4.0e-3, -2.0e-3),
@@ -94,13 +95,14 @@ pub(crate) fn plate(
         ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
-        profile: plate_profile,
+        profile: plate_profile.into(),
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
 
-    let hole = |r: &mut Recorder, centre: Expr, radius: &str| {
+    let hole = |r: &mut Recorder, centre: Formula, radius: &'static str| {
         let profile = r.insert(Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [centre, len(0.0)],
                 radius: param(radius),
@@ -108,13 +110,14 @@ pub(crate) fn plate(
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0e-3),
+            side: ExtrudeSide::Along,
         })
     };
     let hole_a = hole(
         &mut r,
-        Expr::sub(len(0.0), param("half_spacing")).expect("a length"),
+        Formula::sub(len(0.0), param("half_spacing")).expect("a length"),
         "hole_a_r",
     );
     let hole_b = hole(&mut r, param("half_spacing"), "hole_b_r");
@@ -128,14 +131,14 @@ pub(crate) fn plate(
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,
@@ -149,18 +152,19 @@ pub(crate) fn plate(
     };
 
     // web = distance(wall_a, wall_b) - r_a - r_b.
-    let radius_of = |n: &str| MeasureExpr::value(param(n));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("Length + Length"),
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let radius_of = |n: &'static str| param(n);
+    let web = Formula::sub(
+        r.len_of(measured.outputs[0]),
+        Formula::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("Length + Length"),
     )
     .expect("Length - Length");
 
-    let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: web,
         bound: len(WEB - 1.0e-4),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
+    let measure = fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
 }

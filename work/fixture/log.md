@@ -13,3 +13,5 @@ components that can be worked on in parallel."*
 unchanged. TINT keeps its band (S-TINT's, unchanged); band 8900-8999 is claimed
 for this program in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
 dispatched.
+
+- 2026-10-10 — Note from JOIN's close: `the-near-tangent-pose-is-spelled-four-times` (P4 E) moved onto this slate by `git mv`, id and body unchanged. It is the near-tangent prism-corner pose built in four places (a probe, `offer_rows`, a topo test and a sweep suite), this charter's class. (JOIN orchestrator)

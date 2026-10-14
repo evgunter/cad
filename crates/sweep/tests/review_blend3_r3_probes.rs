@@ -50,7 +50,7 @@ fn surfaces_of(body: &Body<f64>, e: EdgeKey) -> (Surface<f64>, Surface<f64>) {
 /// so the refusal and the recourse agree.
 #[test]
 fn the_spine_kind_sentence_refuses_the_coaxial_torus_rim_on_kind() {
-    let s = spool(Revolution::Full, tol());
+    let s = sweep::test_support::finished("s", spool(Revolution::Full, tol()), tol());
     let rims: Vec<EdgeKey> = query::all_edges(&s)
         .into_iter()
         .filter(|&e| {
@@ -137,8 +137,13 @@ fn the_ruled_crease_carves_and_all_three_sentences_name_it() {
             "a cylinder–plane crease"
         );
     }
-    let out = fillet_edges(&rod, &creases, ROD_FILLET, tol())
-        .unwrap_or_else(|e| panic!("the ruled crease carves, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&rod, tol()),
+        &creases,
+        ROD_FILLET,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the ruled crease carves, got {e}"));
     validate_geometric(&out.body, tol()).expect("tier 3");
     // The assembly sentence's OPEN clause — its first `;`-delimited
     // segment — must name this termination, not only the plane–plane

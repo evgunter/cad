@@ -63,3 +63,14 @@ meet it: the header and the edge-count assert message of
 `crates/step-import/tests/meridian_free_cap.rs`, the comment over the
 two `rim-only-cap` rows of `tier_gate.rs`'s corpus table, and the
 generator's docstring.
+
+**What props reads of the cap now (FLUX `flux/sphere-arm`,
+2026-10-10).** The sphere arm reads every face by Gauss–Bonnet, and its
+side reader reads a one-loop face as the side of its loop holding no
+chart pole. A rim-only cap has a pole on each side, so the reader
+answers `Unencoded` and the cap measures under its bit, as before; the
+refusal stays validity's
+(`work/restfront/validity-refuses-an-interior-chart-singularity.md`).
+Which pole the re-minted half-caps meet at no longer needs
+`rim_interior_side`, which is gone: it is the pole on the side of the
+rim the face's bit names.

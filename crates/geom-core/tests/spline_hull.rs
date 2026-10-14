@@ -37,6 +37,7 @@ test_utils::gated_to![
 use core::num::NonZeroUsize;
 use geom_core::Bounds;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::{KnotVector, basis};
 use test_utils::fuzz;
 
@@ -54,7 +55,7 @@ fn random_kv(rng: &mut fuzz::Rng, degree: usize, interior: usize) -> KnotVector 
 /// Value of the scalar B-spline with the given `f64` coefficients —
 /// the sampling oracle, independent of the hull machinery.
 fn eval_poly(kv: &KnotVector, coeffs: &[f64], t: f64) -> f64 {
-    let span = kv.span_at(t);
+    let span = kv.span_at(t).expect("a numeric parameter");
     let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let mut acc = 0.0;
@@ -66,7 +67,7 @@ fn eval_poly(kv: &KnotVector, coeffs: &[f64], t: f64) -> f64 {
 
 /// Value of the rational scalar spline (positive weights).
 fn eval_rational(kv: &KnotVector, coeffs: &[f64], weights: &[f64], t: f64) -> f64 {
-    let span = kv.span_at(t);
+    let span = kv.span_at(t).expect("a numeric parameter");
     let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let (mut num, mut den) = (0.0, 0.0);
@@ -431,23 +432,23 @@ fn bounds_are_bit_identical_across_repeats_and_coefficient_types() {
 }
 
 #[test]
-fn structural_errors_poison_rather_than_panic() {
+fn structural_errors_refuse_rather_than_panic() {
     let kv = KnotVector::unit_segment(const { NonZeroUsize::new(3).expect("3 is nonzero") });
     let n = kv.control_count();
     let coeffs: Vec<f64> = (0..n).map(|i| i as f64).collect();
     // Wrong coefficient count — the ONE structural relation a length
     // can state, and it is refused at the mint: there is no door to
-    // answer poison, because there is no pair.
+    // answer a refusal, because there is no pair.
     assert!(kv.with_coeffs(&coeffs[..n - 1]).is_none());
     assert!(kv.with_coeffs(&coeffs).is_some());
     // An out-of-range span is not constructible (`KnotVector::span`
     // refuses it), nor is a span of another vector beside these
     // coefficients (the `compile_fail` rows on `SplineCoeffs`), so
-    // neither has a poison row here.
-    // A poisoned coefficient poisons every bound it participates in.
-    let mut poisoned: Vec<Interval> = coeffs.iter().map(|c| Interval::point(*c)).collect();
-    poisoned[0] = Interval::poison();
-    let pp = kv.with_coeffs(&poisoned).expect("its own vector");
+    // neither has a refusal row here.
+    // A refused coefficient refuses every bound it participates in.
+    let mut refused: Vec<Interval> = coeffs.iter().map(|c| Interval::point(*c)).collect();
+    refused[0] = Interval::refused();
+    let pp = kv.with_coeffs(&refused).expect("its own vector");
     assert!(!pp.domain_hull().is_certified());
     assert!(
         !pp.span(kv.first_span())
@@ -463,7 +464,7 @@ fn structural_errors_poison_rather_than_panic() {
     assert!(pn.sup_norm_bound().is_nan());
     // Weight-count mismatch is refused at the rational mint too, and a
     // valid weight vector mints. A rational claim on a pair minted
-    // WITHOUT weights is not a poison row: it has no spelling (row (d)
+    // WITHOUT weights is not a refusal row: it has no spelling (row (d)
     // on `SplineCoeffs`, a `compile_fail` doctest with its twin).
     let ones = vec![1.0; n];
     assert!(kv.with_rational_coeffs(&coeffs, &ones[..n - 1]).is_none());

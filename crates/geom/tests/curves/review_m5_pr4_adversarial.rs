@@ -31,8 +31,9 @@ test_utils::gated_to![
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
+use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
 use geom_core::{Interval, Point2, Point3};
 use test_utils::fuzz;
 
@@ -267,8 +268,8 @@ fn f2_projection_fuzz_no_silent_wrong_answers() {
                 );
                 let (lo, hi) = curve.domain();
                 let at_end = proj.t == lo || proj.t == hi;
-                let speed = curve.deriv(proj.t).norm();
-                let cosine = proj.orthogonality / (speed * proj.distance).max(1e-300);
+                let (_, d1, _) = curve.ders(proj.t);
+                let cosine = d1.dot(proj.foot - p).abs() / (d1.norm() * proj.distance).max(1e-300);
                 let near_global = proj.distance <= dmin + sample_slack + 1e-6 * dmin.max(1.0);
                 if !near_global {
                     // A non-global foot: stationary-point contract says
@@ -312,12 +313,12 @@ fn f2_poisoned_control_point_refuses() {
             // If it accepted it must NOT be through a NaN-laundered path:
             // the accepted foot must carry finite honest residuals.
             assert!(
-                pr.distance.is_finite() && pr.orthogonality.is_finite(),
-                "accepted a poisoned foot with non-finite residuals"
+                pr.distance.is_finite(),
+                "accepted a poisoned foot with a non-finite distance"
             );
             println!(
-                "[F2 poison] accepted at t={} (NaN support avoided): d={:e} orth={:e}",
-                pr.t, pr.distance, pr.orthogonality
+                "[F2 poison] accepted at t={} (NaN support avoided): d={:e}",
+                pr.t, pr.distance
             );
         }
     }
@@ -357,8 +358,8 @@ fn f2_stagnation_plateau_probe() {
                 dmin = dmin.min(curve.eval(t).distance(p));
             }
             println!(
-                "[F2 plateau] accepted t={} d={:e} (dense min {dmin:e}) orth={:e} speed={:e} iters={}",
-                pr.t, pr.distance, pr.orthogonality, speed, pr.iterations
+                "[F2 plateau] accepted t={} d={:e} (dense min {dmin:e}) speed={:e} iters={}",
+                pr.t, pr.distance, speed, pr.iterations
             );
             assert!(
                 pr.distance >= dmin - 1e-7,
@@ -615,8 +616,8 @@ fn f4_compose_exactness_and_containment_all_surfaces() {
             .collect();
         let weights: Vec<f64> = (0..nctrl).map(|_| rng.range(0.5, 2.0)).collect();
         let curve = NurbsCurve3::new(kv.clone(), control, weights.clone()).unwrap();
-        let coords = curve.ring_coords();
-        let data = CurveRingData::new(curve.knots(), curve.weights(), &coords).unwrap();
+        let coords = curve.certified_coords();
+        let data = CurveCertData::new(curve.knots(), curve.weights(), &coords).unwrap();
         let surfaces = [
             ImplicitSurface::Plane {
                 point: [rng.range(-1.0, 1.0), 0.3, -0.2],
@@ -648,7 +649,7 @@ fn f4_compose_exactness_and_containment_all_surfaces() {
             let bound = form.sup_bound();
             assert!(
                 bound.is_finite(),
-                "case {case}: poisoned bound for {surface:?} — {}",
+                "case {case}: refused bound for {surface:?} — {}",
                 fuzz::replay()
             );
             // Exactness: num/den midpoint evaluation == f(C(t)).
@@ -656,7 +657,7 @@ fn f4_compose_exactness_and_containment_all_surfaces() {
             for k in 0..=grid {
                 let t = k as f64 / grid as f64;
                 let p = curve.eval(t);
-                let direct = implicit_value(surface, &[p.x, p.y, p.z]);
+                let direct = implicit_value(surface, &p.to_array());
                 let composed = eval_form(&form, t.min(1.0 - 1e-12));
                 let scale = direct.abs().max(bound).max(1e-9);
                 let rel = (direct - composed).abs() / scale;
@@ -695,7 +696,7 @@ fn f4_sphere_composite_hand_check_degree1() {
         vec![Interval::point(a[2]), Interval::point(b[2])],
     ];
     let w = [1.0, 1.0];
-    let data = CurveRingData::new(&kv, &w, &coords).unwrap();
+    let data = CurveCertData::new(&kv, &w, &coords).unwrap();
     let form = compose::implicit_composite(
         &data,
         &ImplicitSurface::Sphere {
@@ -753,7 +754,7 @@ fn f4_binomial_row_exactness_probe() {
     // The MINOR-1 pin: the recurrence is exact through n = 54 and
     // FIRST inexact at n = 55 (the intermediate product exceeds 2^53
     // although C(55, 26) is representable) — which is why
-    // compose::binom_row documents BINOM_EXACT_MAX = 54 and poisons
+    // compose::binom_row documents BINOM_EXACT_MAX = 54 and refuses
     // beyond it rather than serving a rounded weight.
     match first_bad {
         None => panic!("[F4] recurrence unexpectedly exact through n = 60"),
@@ -881,8 +882,8 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
     for (px, py, pz) in [(1.5, 0.2, 0.0), (0.0, 1.4, 0.15), (0.9, 0.9, 0.05)] {
         let p = Point3::new(px, py, pz);
         let proj = fit.curve.project(p).unwrap();
-        let speed = fit.curve.deriv(proj.t).norm();
-        let cosine = proj.orthogonality / (speed * proj.distance).max(1e-300);
+        let (_, d1, _) = fit.curve.ders(proj.t);
+        let cosine = d1.dot(proj.foot - p).abs() / (d1.norm() * proj.distance).max(1e-300);
         let (lo, hi) = fit.curve.domain();
         let interior = proj.t > lo && proj.t < hi;
         println!(
@@ -892,8 +893,8 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
         assert!(!interior || cosine < 1e-9, "interior foot with bad cosine");
     }
     // Compose the cylinder residual of the FIT and hull-bound it.
-    let coords = fit.curve.ring_coords();
-    let data = CurveRingData::new(fit.curve.knots(), fit.curve.weights(), &coords).unwrap();
+    let coords = fit.curve.certified_coords();
+    let data = CurveCertData::new(fit.curve.knots(), fit.curve.weights(), &coords).unwrap();
     let cyl = ImplicitSurface::Cylinder {
         point: [0.0, 0.0, 0.0],
         axis: [0.0, 0.0, 1.0],
@@ -935,8 +936,8 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
     let rn = radial.norm();
     control[idx] = control[idx] + radial * (0.05 / rn);
     let corrupted = NurbsCurve3::new(kv.clone(), control, fit.curve.weights().to_vec()).unwrap();
-    let coords_c = corrupted.ring_coords();
-    let data_c = CurveRingData::new(corrupted.knots(), corrupted.weights(), &coords_c).unwrap();
+    let coords_c = corrupted.certified_coords();
+    let data_c = CurveCertData::new(corrupted.knots(), corrupted.weights(), &coords_c).unwrap();
     let hull_c = compose::implicit_composite(&data_c, &cyl)
         .unwrap()
         .sup_bound();

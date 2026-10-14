@@ -17,6 +17,7 @@ use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_a
 use topo::{Body, EdgeKey};
 
 use super::shell7_common::*;
+use sweep::test_support::finished;
 use sweep::test_support::tube_frame;
 
 const R: f64 = 2.0;
@@ -55,7 +56,7 @@ fn try_revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Option<Body<f64>
 fn p2_the_torus_at_a_thickness_approaching_its_minor_radius() {
     for t in [0.4, 0.49, 0.499_999, SMALL_R, 0.6] {
         let body = tube_torus(R, SMALL_R);
-        match topo::shell(&body, t, tol()) {
+        match topo::shell(&finished("the operand", body.clone(), tol()), t, tol()) {
             Ok(out) => {
                 let props = topo::mass_properties(&out.body, tol()).expect("props");
                 let want = 2.0 * PI * PI * R * (SMALL_R * SMALL_R - (SMALL_R - t) * (SMALL_R - t));
@@ -113,7 +114,11 @@ fn p3b_a_band_scale_major_radius_through_the_revolve_door() {
             eprintln!("[p3b] R = {major:e}: the revolve door refuses");
             continue;
         };
-        match topo::shell(&rev.body, minor * 0.1, tol()) {
+        match topo::shell(
+            &finished("the operand", rev.body.clone(), tol()),
+            minor * 0.1,
+            tol(),
+        ) {
             Ok(out) => {
                 let props = topo::mass_properties(&out.body, tol());
                 eprintln!("[p3b] R = {major:e}: SHELLS — volume {props:?}");
@@ -149,7 +154,7 @@ fn p3_the_seam_decide_at_small_major_radii() {
             continue;
         };
         let t = minor * 0.1;
-        match topo::shell(&rev.body, t, tol()) {
+        match topo::shell(&finished("the operand", rev.body.clone(), tol()), t, tol()) {
             Ok(out) => {
                 let props = topo::mass_properties(&out.body, tol()).expect("props");
                 let want = 2.0 * PI * PI * major * (minor * minor - (minor - t) * (minor - t));
@@ -232,12 +237,16 @@ fn p4_split_edge_carries_its_childrens_pcurves() {
         })
         .map(|(e, _)| e)
         .expect("the drum seam");
-    split_mid(&mut d, seam);
+    let split = split_mid(&mut d, seam);
     let after_seam = topo::validate_geometric(&d, tol());
     eprintln!("[p4b] drum cylinder seam, tier 3 after split_edge: {after_seam:?}");
+    // Nothing but check 11, which names the split vertex: a split seam
+    // is construction state until the join takes it back.
     assert_eq!(
         after_seam,
-        Ok(()),
+        Err(vec![topo::ValidationError::JoinableVertexAtRest {
+            vertex: split
+        }]),
         "a split on a CURVED chart carries the parent's rows to both children"
     );
     // And the whole-body pass is idempotent over what the op left: the
@@ -254,7 +263,12 @@ fn p4_split_edge_carries_its_childrens_pcurves() {
         carried,
         "the op's rows are the mint pass's rows"
     );
-    assert_eq!(topo::validate_geometric(&d, tol()), Ok(()));
+    assert_eq!(
+        topo::validate_geometric(&d, tol()),
+        Err(vec![topo::ValidationError::JoinableVertexAtRest {
+            vertex: split
+        }])
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -303,7 +317,8 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
 
     // 1. The SOLID torus.
     let solid = tube_torus(R, SMALL_R);
-    let shelled = topo::shell(&solid, t, tol()).expect("the solid torus shells");
+    let shelled = topo::shell(&finished("the operand", solid.clone(), tol()), t, tol())
+        .expect("the solid torus shells");
     assert_eq!(topo::validate_geometric(&shelled.body, tol()), Ok(()));
     let cls = topo::classify_shells(&shelled.body, tol()).expect("shells classify");
     let roles: Vec<String> = cls.iter().map(|c| format!("{:?}", c.role)).collect();
@@ -343,7 +358,8 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
     .expect("the hollow torus builds")
     .body;
     assert_eq!(hollow.solids().count(), 1, "one solid, two shells");
-    let hs = topo::shell(&hollow, t, tol()).expect("the hollow torus shells");
+    let hs = topo::shell(&finished("the operand", hollow.clone(), tol()), t, tol())
+        .expect("the hollow torus shells");
     assert_eq!(topo::validate_geometric(&hs.body, tol()), Ok(()));
     let hp = topo::mass_properties(&hs.body, tol()).expect("props");
     let hwant = 2.0
@@ -363,7 +379,11 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
 
     // 3. Hollow the hollow one AGAIN — SHELL-5's semantics from a
     // consumer's seat.
-    match topo::shell(&hs.body, 0.01, tol()) {
+    match topo::shell(
+        &finished("the operand", hs.body.clone(), tol()),
+        0.01,
+        tol(),
+    ) {
         Ok(_) => eprintln!("[e2e] the twice-shelled hollow torus shells again"),
         Err(e) => eprintln!("[e2e] shelling the shelled hollow torus refuses — {e}"),
     }
@@ -376,7 +396,12 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
         faces.len()
     );
     let any = *faces.first().expect("a face");
-    match topo::shell_open(&solid, t, &[any], tol()) {
+    match topo::shell_open(
+        &finished("the operand", solid.clone(), tol()),
+        t,
+        &[any],
+        tol(),
+    ) {
         Ok(out) => eprintln!(
             "[e2e] shell_open on a torus face: {} shells, {} rims",
             out.body.shells().count(),
@@ -437,7 +462,7 @@ fn p6_an_independent_corpus_differential() {
             Revolution::Full,
         );
         dump(&format!("frustum {r0}/{r1}/{h}, operand"), &body);
-        match topo::shell(&body, 0.05, tol()) {
+        match topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol()) {
             Ok(out) => dump(&format!("frustum {r0}/{r1}/{h}, shelled"), &out.body),
             Err(e) => println!("[r2dump] frustum {r0}/{r1}/{h}, shelled | refuses {e}"),
         }
@@ -446,7 +471,7 @@ fn p6_an_independent_corpus_differential() {
     for turn in [PI / 2.0, PI, 1.75 * PI] {
         let body = wedge(1.0, 2.0, turn);
         dump(&format!("wedge {turn:.3}, operand"), &body);
-        match topo::shell(&body, 0.05, tol()) {
+        match topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol()) {
             Ok(out) => dump(&format!("wedge {turn:.3}, shelled"), &out.body),
             Err(e) => println!("[r2dump] wedge {turn:.3}, shelled | refuses {e}"),
         }
@@ -467,7 +492,7 @@ fn p6_an_independent_corpus_differential() {
             continue;
         };
         dump(&format!("vase {bulge}, operand"), &vase);
-        match topo::shell(&vase, 0.05, tol()) {
+        match topo::shell(&finished("the operand", vase.clone(), tol()), 0.05, tol()) {
             Ok(out) => dump(&format!("vase {bulge}, shelled"), &out.body),
             Err(e) => println!("[r2dump] vase {bulge}, shelled | refuses {e}"),
         }
@@ -491,7 +516,7 @@ fn p6_an_independent_corpus_differential() {
     .expect("the elbow builds")
     .body;
     dump("elbow, operand", &elbow);
-    match topo::shell(&elbow, 0.05, tol()) {
+    match topo::shell(&finished("the operand", elbow.clone(), tol()), 0.05, tol()) {
         Ok(out) => dump("elbow, shelled", &out.body),
         Err(e) => println!("[r2dump] elbow, shelled | refuses {e}"),
     }
@@ -512,7 +537,7 @@ fn p6_an_independent_corpus_differential() {
     .expect("hollow torus")
     .body;
     dump("hollow torus, operand", &hollow);
-    match topo::shell(&hollow, 0.05, tol()) {
+    match topo::shell(&finished("the operand", hollow.clone(), tol()), 0.05, tol()) {
         Ok(out) => dump("hollow torus, shelled", &out.body),
         Err(e) => println!("[r2dump] hollow torus, shelled | refuses {e}"),
     }

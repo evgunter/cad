@@ -75,9 +75,8 @@
 //! `stood_down` is for a mode that is *unreachable in this
 //! configuration*, never for one that merely did not happen to come up.
 //! The second case is what the floor is for. And a stand-down states why
-//! it is entitled to one — see `m5_pr7_ssi`'s fit-budget arms, which
-//! assert the budget is D9's, genuinely overrun, at a finer-than-default
-//! ε before they announce.
+//! it is entitled to one, and asserts what it can of that reason before
+//! it announces.
 //!
 //! **The hand-rolled in-row `println!`s a sweep found were converted;
 //! that every in-row stand-down in `crates/` goes through this door is

@@ -8,6 +8,7 @@ use geom_core::Tol;
 use geom_core::{COINCIDENCE_RECOURSE, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, extrude};
 
 fn square() -> ValidatedProfile<f64> {
@@ -48,7 +49,15 @@ fn probe_extrusion_pair_e2e() {
 
     // Escalated arm: sliver distance strictly inside the band.
     let eps = Tol::witness().get().eps;
-    let err = extrude(&vp, Extrusion::Distance(3.0 * eps), Tol::witness()).unwrap_err();
+    let err = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 3.0 * eps,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap_err();
     let msg = err.to_string();
     eprintln!("[probe] extrude in-band:\n  {msg}\n");
     assert!(

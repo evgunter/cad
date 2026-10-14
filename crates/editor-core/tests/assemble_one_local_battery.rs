@@ -12,7 +12,7 @@
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::two_blocks_and_their_union;
+use crate::fixture::{place, two_blocks_and_their_union};
 
 use editor_core::{CancelToken, EvalOptions, assemble_gathered, evaluate, product_recorded};
 use geom_core::Tol;
@@ -44,7 +44,8 @@ fn recorded<R>(f: impl FnOnce() -> R) -> (R, Vec<Bits>) {
 #[test]
 fn the_assembly_gate_runs_the_census_over_the_gathers_verdict() {
     let tol = Tol::witness();
-    let (doc, _) = two_blocks_and_their_union("assemble-one-local-battery");
+    let (doc, union) = two_blocks_and_their_union("assemble-one-local-battery");
+    let (doc, _) = place(doc, union);
     let ev = evaluate::<Probe>(
         &doc,
         None,

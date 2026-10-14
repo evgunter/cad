@@ -11,22 +11,23 @@
 //! **Stop 1 is what a user gets today, and E12 turned it from a
 //! refusal into an ANSWER.** ±0.05 mm on the hole spacing and σ =
 //! 0.01 mm on each radius — a real study — and the driver now certifies
-//! it. At the cell's 512-leaf budget (release, default ε): 193 leaves
-//! certified, 319 refused at the budget and none for any other reason,
-//! 83.4% of the study's mass certified; the certified worst case on the
-//! web is `[0.419, 0.845]` mm against the asserted floor of 0.500 mm,
+//! it. At the cell's 512-leaf budget (default ε): 211 leaves
+//! certified, 301 refused at the budget and none for any other reason,
+//! 94.9% of the study's mass certified; the certified worst case on the
+//! web is `[0.440, 0.760]` mm against the asserted floor of 0.500 mm,
 //! the nominal 0.600 mm sits in a certified chamber, and the
 //! requirement — read off the ASSERTION NODE over each certified leaf,
 //! the way stop 2 reads it — is MIXED, with its masses: it HOLDS on
-//! 0.8337 of the study's mass and is VIOLATED on 0.0002, certified —
+//! 0.9387 of the study's mass and is VIOLATED on 0.0104, certified —
 //! the corner where the spacing is short and both holes are large —
-//! with 0.1661 in leaves the budget left unresolved. That is the
-//! study's answer, and it is a gating one: "with probability 2·10⁻⁴
+//! with 0.0509 in leaves the budget left unresolved. That is the
+//! study's answer, and it is a gating one: "with probability 1·10⁻²
 //! the web is under the floor" is now a sentence the kernel says.
-//! The hull `[0.4188, 0.8450]` mm pads the exact affine range over the
-//! certified leaves, `[0.4400, 0.7600]` mm, by 0.021 mm below and
-//! 0.085 mm above — the interval lane's dependency widening, pinned
-//! at both ends by the cell's row. Every sensitivity is
+//! The hull is the exact affine range over the certified leaves,
+//! `[0.4400, 0.7600]` mm, to rounding: its padding was 0.021 mm below
+//! and 0.085 mm above at 193 certified leaves, and since the PATHS
+//! lattice stores the carriers it builds (PR 3774) it is ~1e-18 m at
+//! both ends, which the cell's row pins as a ceiling. Every sensitivity is
 //! chamber-certified (`∂web/∂spacing = 2`, `∂web/∂r = −1` each).
 //!
 //! The symbolic identity tier (`geom_core::sym`, ERROR-DESIGN E12)
@@ -42,8 +43,9 @@
 //! of the reals with no value read — and rules A/B per node close the
 //! ring, so the carrier against its scaffold pushforward
 //! (`carrier_matches_mapped_source`, 72 decisions), the cylinder
-//! residual at the carrier's samples (`carrier_on_surface_2`, 72) and
-//! at the strut witness (`witness_on_surface_2`, 8) go; and M10-10's
+//! residual at the carrier's samples (`carrier_on_surface_1` and `_2`,
+//! 72 between them) and at the strut witness (`witness_on_surface_1`
+//! and `_2`, 8 between them) go; and M10-10's
 //! amendment A1 folds the chart's own phase — `atan2(0, r²/sqrt(r²))`
 //! from the cylinder chart derivation is `atan2` of the zero form over
 //! a form non-negative BY SYNTAX, so it is the zero form, and on the
@@ -54,7 +56,7 @@
 //! of ε any more (it was `1.25e3 · ε` before A1, and `7.81e2 · ε` under
 //! M10-7's, M10-8's and M10-9's tiers alike). What bounds that CEILING
 //! is `assert_bound`'s ENCLOSURE straddling zero — dependency widening
-//! of a real margin, not a flip (`work/sym/real-margin-dependency-widening`):
+//! of a real margin, not a flip (`work/tier/real-margin-dependency-widening`):
 //! the margin `web − floor = 1e-4 + 2·Δhs − Δr_a − Δr_b` is affine, its
 //! true range at the ceiling is `[5.8e-5, 1.4e-4]` m, positive
 //! everywhere, and the real flip first enters the box at 0.625 of the
@@ -81,20 +83,36 @@
 //! cap is a cost wall, not a reach: raising it leaves the link
 //! byte-identical), so the scaffold residual stands there and their
 //! answers are still ε-scale, waiting on that residual's retirement
-//! (PCURVE/D3). And the mechanism's reach is the UNIT bulge — this
-//! plate's circles: a parameter bulge is entirely outside it and a
-//! literal bulge other than 1 leaves residue
-//! (`work/sym/rule-d-reaches-the-unit-bulge-only`). So the honest
-//! general statement is: **a real study on circle-authored geometry
-//! certifies up to its real flips, and a study whose arcs carry a
-//! frame the budget freezes, or a bulge that is not 1, still gets an
-//! ε-scale answer.** `work/sym/symbolic-tier-census` carries what
-//! bounds each document, with numbers.
+//! (PCURVE/D3). And the mechanism folds whole at the UNIT bulge — this
+//! plate's circles. At any other bulge, a document parameter's
+//! included, the carrier's span meets the pushforward's through the
+//! arc's decided turn (the stored sweep signed by it, one `atan b`
+//! atom on both sides), and what stands is the
+//! coefficient ring (a bulge like `fl(0.4)`), the term budget and the
+//! sign of the apothem (`work/decide/rule-d-reaches-the-unit-bulge-only`).
+//! So the honest general statement is: **a real study on
+//! circle-authored geometry certifies up to its real flips, and a study
+//! whose arcs carry a frame the budget freezes, or a bulge whose forms
+//! the ring or the budget freezes, still gets an ε-scale answer.**
+//! `work/tier/symbolic-tier-census` carries what bounds each document,
+//! with numbers.
 //!
 //! Where a leaf refuses it is not silence: the receipt says how many
 //! and why (here, all at the leaf budget), and the coverage says where
 //! the mass went. Beside it the Monte-Carlo lane answers the same
 //! question advisorily, labeled, with its count and seed.
+//!
+//! **The plate with its holes cut is a wall.** The study's document
+//! reads the web off the hole extrudes and never subtracts them
+//! ([`crate::plate`]); [`crate::plate::cut_plate`] cuts them and reads
+//! the cut part's bore walls, and the drive certifies no box of it:
+//! each hole lies wholly inside the blank, so the subtract's volume
+//! bound `vol(A ∖ B) ≥ vol(A) − vol(B)` is a tie whose enclosure
+//! straddles zero at every width
+//! (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
+//! [`cut_wall`] pins it at `1e-9` of the study, a box the study's own
+//! document certifies whole. The Monte-Carlo lane answers on the cut
+//! plate; only the certified lane, and the stackup over it, refuse.
 //!
 //! **Stop 2 is the MVP's reason to exist, at the scale where it
 //! works.** The same plate with every tolerance scaled to the box the
@@ -176,7 +194,26 @@ use pncad::analysis::{
 use pncad::document::{ProfileDoc, RecipeNodeId};
 use pncad::geom_core::Tol;
 
-use crate::plate::{Plate, WEB, plate};
+use crate::plate::{Plate, RADIUS_SIGMA, SPACING_HALF_WIDTH, WEB, WEB_BOUND, plate};
+
+/// The hull's padding below and above the true range over the
+/// certified leaves at stop 1's budget (512 leaves, 211 certified),
+/// MEASURED at the default ε in metres: `9.76e-19` below and `8.67e-19`
+/// above the exact affine range `[4.400e-4, 7.600e-4]`, rounding of a
+/// sub-millimetre length. Pinned at the CI row as a ceiling at
+/// rounding, so a hull that padded again would fail. Before PR 3774 it
+/// was `2.125e-5` and `8.500e-5` at 193 certified leaves, which stay
+/// the ceiling at the other ε rows.
+const HULL_SLACK_AT_ROUNDING: f64 = 1e-15;
+const HULL_SLACK_BELOW: f64 = 2.125e-5;
+const HULL_SLACK_ABOVE: f64 = 8.500e-5;
+
+/// Whether this run is the CI row (the default ε), where the cell's
+/// MEASURED numbers — stop 1's leaf counts and hull padding — are
+/// pinned exactly rather than as ceilings.
+pub(crate) fn at_the_ci_row(tol: Tol) -> bool {
+    (tol.eps() / 1.0e-9 - 1.0).abs() < 1.0e-3
+}
 
 /// **Stop 1's leaf budget, and why it is not the default.**
 ///
@@ -186,34 +223,21 @@ use crate::plate::{Plate, WEB, plate};
 /// refining a boundary the answer does not depend on. 512 leaves
 /// certify 83% of the study's mass in about three and a half minutes
 /// and already reach the violating corner (256 leaves certify 79% and
-/// do not; 1024 certify 89%, measured in
-/// `editor-core/tests/m10_10_evidence_interval`). The cell caps it and
-/// says so, which is a statement about the COST rather than a thumb
-/// on the answer: a reader who doubts it can raise the number and
-/// watch the certified mass grow and the verdict not change.
+/// do not; 384 reach it with 7e-6 of the study's mass violated against
+/// 512's 1.75e-4, a corner a shift in the split order could lose; 1024
+/// certify 89%, measured in `editor-core/tests/m10_10_evidence_interval`
+/// and, for 128–512, by a probe on this cell on 2026-09-24). At 256 and
+/// below the requirement reads `Holds` and every stop-1 assertion on the
+/// violated corner fails, so the budget is not a dial for CI time:
+/// halving it loses the stop's finding. The cell caps it and says so,
+/// which is a statement about the COST rather than a thumb on the
+/// answer: a reader who doubts it can raise the number and watch the
+/// certified mass grow and the verdict not change.
 ///
 /// **Parallel**, because those leaves are independent replays and the
 /// driver's two schedules give bit-identical verdicts
 /// ([`DriveConfig::parallel`]): the drive is the cell's cost, and the
 /// serial one was most of `demo-tour certified`'s wall time.
-/// The hull's padding below and above the true range over the
-/// certified leaves at stop 1's budget (512 leaves, 193 certified),
-/// MEASURED at the default ε in metres — `2.125e-5` below and
-/// `8.500e-5` above the exact affine range `[4.400e-4, 7.600e-4]`
-/// — and pinned at BOTH ends within 2% at the CI row (a hull that
-/// padded more would fail, and so would one whose leaves narrowed:
-/// the widening is proportional to the leaf's width), as a ceiling
-/// at the other ε rows.
-const HULL_SLACK_BELOW: f64 = 2.125e-5;
-const HULL_SLACK_ABOVE: f64 = 8.500e-5;
-
-/// Whether this run is the CI row (the default ε), where the cell's
-/// MEASURED numbers — stop 1's leaf counts and hull padding — are
-/// pinned exactly rather than as ceilings.
-fn at_the_ci_row(tol: Tol) -> bool {
-    (tol.eps() / 1.0e-9 - 1.0).abs() < 1.0e-3
-}
-
 fn starved() -> DriveConfig {
     DriveConfig {
         max_leaves: 512,
@@ -234,35 +258,109 @@ fn parallel() -> DriveConfig {
 pub fn narration(tol: Tol) {
     real_study(tol);
     certified_study(tol);
+    cut_wall(tol);
+}
+
+/// **The wall: the plate with its holes cut certifies on no box.**
+///
+/// [`crate::plate::cut_plate`] is the natural spelling — the holes
+/// subtracted from the blank, the web read off the cut part's bore
+/// walls. Each hole lies wholly inside the blank, so
+/// `vol(A ∖ B) ≥ vol(A) − vol(B)` holds with equality, and the
+/// backstop's `volume_backstop_violation` enclosure straddles zero at
+/// every box width (measured to `1e-12` of the study). The probe is the
+/// whole box at `1e-9` of the study, one leaf: a box that narrow
+/// certifies whole on the study's own document.
+fn cut_wall(tol: Tol) {
+    let s = 1.0e-9;
+    let whole = DriveConfig {
+        max_leaves: 1,
+        ..DriveConfig::default()
+    };
+    let uncut = plate(SPACING_HALF_WIDTH * s, RADIUS_SIGMA * s, WEB_BOUND, tol);
+    let uncut_box = analyzed_box(&uncut.doc, &AnalysisPolicy::default());
+    let receipt = drive(&uncut.doc, &uncut_box, &whole, tol)
+        .expect("the study's nominal builds")
+        .receipt();
+    assert_eq!(
+        receipt.certified, 1,
+        "the study's own document certifies this box whole, so the wall is the cut's: {receipt:?}"
+    );
+    let Plate { doc, web, .. } =
+        crate::plate::cut_plate(SPACING_HALF_WIDTH * s, RADIUS_SIGMA * s, WEB_BOUND, tol);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let verdict = drive(&doc, &analyzed, &whole, tol).expect("the cut plate's nominal builds");
+    crate::walls::wall(
+        "two-hole plate",
+        1,
+        "the holes cut from the blank, the web read off the cut part's bore walls, \
+         over 1e-9 of the study",
+        stackup(&doc, web, &analyzed, &verdict, None, true, None, tol).map_err(|r| match r {
+            StackupRefusal::NothingCertified { receipt, .. } => Ok(receipt),
+            other => Err(Box::new(other)),
+        }),
+        |r| matches!(r, Ok(receipt) if receipt.certified == 0),
+        "re-author crate::plate::plate as the cut (work/tally/\
+         a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md)",
+    );
+    // The advisory lane is not walled: it samples the cut plate over
+    // the real study, and the web it reads off the cut part's bores is
+    // the study's bit for bit: the same draws (one seed, the same three
+    // laws) measured between the same cylinder axes.
+    let row = |p: &Plate| {
+        let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
+        let mc = monte_carlo(&p.doc, &analyzed, &McConfig::default(), tol)
+            .expect("the Monte-Carlo lane answers");
+        let m = mc
+            .values
+            .iter()
+            .find(|v| v.var == p.web)
+            .expect("the web an assertion reads has a row");
+        (m.measured, m.mean, m.min, m.max)
+    };
+    let cut = row(&crate::plate::cut_plate(
+        SPACING_HALF_WIDTH,
+        RADIUS_SIGMA,
+        WEB_BOUND,
+        tol,
+    ));
+    let study = row(&crate::plate::real_study(tol));
+    assert!(
+        cut.0 == study.0
+            && [(cut.1, study.1), (cut.2, study.2), (cut.3, study.3)]
+                .iter()
+                .all(|(a, b)| a.to_bits() == b.to_bits()),
+        "the cut plate's sampled web (measured, mean, min, max) is the study's bit for bit: \
+         {cut:?} against {study:?}"
+    );
 }
 
 /// **Stop 1 — the study a user actually has.** ±0.05 mm on the
 /// spacing, σ = 0.01 mm on each radius.
 fn real_study(tol: Tol) {
-    let bound = WEB - 1.0e-4;
     let Plate {
         doc,
-        measure,
+        web,
         assertion,
         ..
-    } = plate(5.0e-5, 1.0e-5, bound, tol);
+    } = crate::plate::real_study(tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     println!(
         "   the real study: web nominal {:.4} mm, asserted >= {:.4} mm, over ±0.05 mm of \
          spacing and σ = 0.01 mm on each radius",
         WEB * 1e3,
-        bound * 1e3
+        WEB_BOUND * 1e3
     );
 
     let verdict = drive(&doc, &analyzed, &starved(), tol).expect("the nominal builds");
-    println!("{}", indent(&verdict.render(&analyzed)));
+    println!("{}", indent(&verdict.render(&doc, &analyzed)));
     // The verdict on the requirement, read off the ASSERTION NODE over
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
     let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
-    match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
+    match stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => {
-            println!("{}", indent(&report.render(&analyzed)));
+            println!("{}", indent(&report.render(&doc, &analyzed)));
             // What the captions below claim, asserted here — the cell panics
             // when the kernel stops doing what it narrates, the posture every
             // tour cell keeps. (A stackup that answered implies a leaf
@@ -297,14 +395,14 @@ fn real_study(tol: Tol) {
             if at_the_ci_row(tol) {
                 assert_eq!(
                     (verdict.certified().len(), verdict.refused().len()),
-                    (193, 319),
+                    (211, 301),
                     "the header's leaf counts at 512 leaves: {:?}",
                     verdict.receipt()
                 );
             }
             assert!(
-                report.worst_case.lo < bound && bound < report.worst_case.hi,
-                "the certified worst case straddles the floor: {:?} against {bound:e}",
+                report.worst_case.lo < WEB_BOUND && WEB_BOUND < report.worst_case.hi,
+                "the certified worst case straddles the floor: {:?} against {WEB_BOUND:e}",
                 report.worst_case
             );
             println!(
@@ -313,15 +411,15 @@ fn real_study(tol: Tol) {
                  {:.4} of the study's mass, is VIOLATED on {:.4} (the web is under \
                  {:.4} mm there, certified), and is undecided on {:.4}; {:.4} of the mass \
                  is in leaves the budget left unresolved",
-                assertion.0,
+                assertion,
                 describe(&decided),
                 masses.holds,
                 masses.violated,
-                bound * 1e3,
+                WEB_BOUND * 1e3,
                 masses.unevaluated,
                 1.0 - masses.holds - masses.violated - masses.unevaluated
             );
-            let slack = hull_slack(&verdict, (report.worst_case.lo, report.worst_case.hi));
+            let slack = hull_slack(&doc, &verdict, (report.worst_case.lo, report.worst_case.hi));
             // The straddle beside its padding (R2's Q3): the hull
             // ENCLOSES the true range over the certified leaves and
             // exceeds it by a padding proportional to the leaf's width
@@ -338,13 +436,13 @@ fn real_study(tol: Tol) {
                 "the hull is over every certified leaf"
             );
             assert!(
-                slack.true_lo < bound,
+                slack.true_lo < WEB_BOUND,
                 "the TRUE range over the certified leaves reaches under the floor — the \
-                 straddle is the study's, not the padding's: {slack:?} against {bound:e}"
+                 straddle is the study's, not the padding's: {slack:?} against {WEB_BOUND:e}"
             );
             let within = |got: f64, want: f64| {
                 if at_the_ci_row(tol) {
-                    (got - want).abs() <= 0.02 * want
+                    got <= HULL_SLACK_AT_ROUNDING
                 } else {
                     got <= 1.05 * want
                 }
@@ -358,8 +456,8 @@ fn real_study(tol: Tol) {
                 "   the certified hull [{:.4e}, {:.4e}] m against the TRUE range over the \
                  certified leaves [{:.4e}, {:.4e}] m (the web is affine in the parameters, \
                  so that range is exact): padding {:.2e} m below and {:.2e} m above — the \
-                 interval lane's dependency widening, proportional to the leaf's width \
-                 (work/props/certified-hull-padding-is-the-leaf-width-not-the-lane)",
+                 interval lane's dependency widening, at rounding on these leaves \
+                 (work/stack/certified-hull-padding-is-the-leaf-width-not-the-lane)",
                 report.worst_case.lo,
                 report.worst_case.hi,
                 slack.true_lo,
@@ -380,21 +478,23 @@ fn real_study(tol: Tol) {
                  web − floor = 1e-4 + 2·Δhs − Δr_a − Δr_b is affine, its true range at the \
                  ceiling is [5.8e-5, 1.4e-4] m > 0 everywhere while the enclosure is \
                  [−2.1e-9, 2.0e-4], and the real flip first enters the box at 0.625 of \
-                 the study (work/sym/real-margin-dependency-widening). The LEAVES certify \
+                 the study (work/tier/real-margin-dependency-widening). The LEAVES certify \
                  up to that flip: every refusal above is the leaf budget, sitting along \
                  the surface where the web crosses the floor, and refining a refused leaf \
                  leaves assert_bound alone over the band. What moved it: M10-9's door \
-                 registers the rim ‖q − c‖ = r and the span carrier.eval(4·atan|b|) = \
+                 registers the rim ‖q − c‖ = r and the span carrier.eval(|Δθ|) = \
                  q_to; M10-10's rule D writes sin/cos of q·atan(bulge) in closed form and \
                  rules A/B per node close the ring (carrier_matches_mapped_source 72, \
-                 carrier_on_surface_2 72, witness_on_surface_2 8 decisions); A1 folds the \
+                 carrier_on_surface_1/_2 72, witness_on_surface_1/_2 8 decisions); A1 folds the \
                  chart's phase atan2(0, r²/sqrt(r²)) to the zero form and cos π to −1 \
                  (pcurve_map_residual 36). No value was read by any of them. The reach: \
-                 the unit bulge (this plate's circles) — a parameter bulge is outside the \
-                 mechanism and a literal bulge other than 1 leaves residue \
-                 (work/sym/rule-d-reaches-the-unit-bulge-only); what still bounds R2's \
+                 the unit bulge (this plate's circles) folds whole; at any other bulge, a \
+                 parameter's included, the carrier's span meets the pushforward's through \
+                 the arc's decided turn, and what stands is the coefficient ring (a bulge \
+                 like fl(0.4)), the term budget and the sign of the apothem \
+                 (work/decide/rule-d-reaches-the-unit-bulge-only); what still bounds R2's \
                  bracket and link is the term budget freezing their carrier frames' \
-                 squared components (work/sym/symbolic-tier-census)."
+                 squared components (work/tier/symbolic-tier-census)."
             );
         }
         Err(StackupRefusal::NothingCertified {
@@ -415,15 +515,18 @@ fn real_study(tol: Tol) {
                 // it. `render_sensitivity` was made public for this.
                 println!(
                     "     ∂web/∂{}: {}",
-                    s.param.0,
-                    render_sensitivity(&s.outcome)
+                    doc.spoken_var(s.param),
+                    render_sensitivity(s, &doc)
                 );
             }
             println!(
                 "     the drive: {} certified, {} refused",
                 receipt.certified, receipt.refused
             );
-            println!("{}", indent(&MassBudget::of(&coverage, &analyzed).render()));
+            println!(
+                "{}",
+                indent(&MassBudget::of(&coverage, &analyzed).render(&doc))
+            );
             println!(
                 "     This is NOT the expected answer any more: under M10-10's tier this \
                  study certifies (the module header carries the numbers). A refusal \
@@ -439,9 +542,9 @@ fn real_study(tol: Tol) {
     // The advisory lane, which CAN answer at this box — and says what
     // it is on every line.
     let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("the nominal builds");
-    println!("{}", indent(&mc.render()));
+    println!("{}", indent(&mc.render(&doc)));
     assert!(
-        mc.render().contains("ADVISORY"),
+        mc.render(&doc).contains("ADVISORY"),
         "the advisory lane's label rides it"
     );
     assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
@@ -485,13 +588,13 @@ fn certified_study(tol: Tol) {
     );
     let Plate {
         doc,
-        measure,
+        web,
         assertion,
         ..
     } = plate(spacing_half_width, radius_sigma, bound, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &parallel(), tol).expect("the nominal builds");
-    println!("{}", indent(&verdict.render(&analyzed)));
+    println!("{}", indent(&verdict.render(&doc, &analyzed)));
     // **The verdict the CI row gates on, read off the ASSERTION NODE**
     // — not off a comparison this cell makes for itself. That is the
     // whole correction R1 forced (see the module header's finding on
@@ -500,7 +603,7 @@ fn certified_study(tol: Tol) {
     // threshold, and a demo that decides on it is claiming a certainty
     // the kernel refuses to claim one line away.
     let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol).0;
-    let report = match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
+    let report = match stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => report,
         Err(refusal) => panic!(
             "the certifiable box did not certify: {refusal}. That is a finding about the \
@@ -508,15 +611,15 @@ fn certified_study(tol: Tol) {
              regression, since this box is the one the cell exists to show certifying."
         ),
     };
-    println!("{}", indent(&report.render(&analyzed)));
+    println!("{}", indent(&report.render(&doc, &analyzed)));
     print_divergence(&report, bound, worst, &decided, tol);
     // The E11.6 datum: where each certified leaf's mass lands.
-    let histogram = leaf_histogram(&doc, &analyzed, &verdict, measure, tol);
-    println!("{}", indent(&histogram.render()));
+    let histogram = leaf_histogram(&doc, &analyzed, &verdict, web, tol);
+    println!("{}", indent(&histogram.render(&doc)));
     println!(
         "   the assertion node {} is the recorded requirement, and THIS is what the CI \
          row gates on: {}",
-        assertion.0,
+        assertion,
         describe(&decided)
     );
     // What the captions above claim, asserted (stop 1 says why). The
@@ -559,7 +662,7 @@ fn certified_study(tol: Tol) {
         tol.k() * tol.eps()
     );
     let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("the nominal builds");
-    println!("{}", indent(&mc.render()));
+    println!("{}", indent(&mc.render(&doc)));
     assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
     // The advisory lane's own number, READ OFF THE REPORT rather than
     // asserted in prose. The first pass printed "0%" as a literal, so
@@ -681,12 +784,12 @@ fn requirement_over_leaves(
 /// its varying axes.
 fn leaf_mass(analyzed: &AnalyzedBox, box_: &pncad::analysis::ParamBox) -> f64 {
     let mut m = 1.0;
-    for (name, axis) in box_.axes() {
-        let Some(dist) = analyzed.get(name).and_then(|p| p.distribution.as_ref()) else {
+    for (&var, axis) in box_.axes() {
+        let Some(dist) = analyzed.get(var).and_then(|p| p.distribution.as_ref()) else {
             continue;
         };
         if let BoxAxis::Varying { lo, hi } = axis {
-            m *= box_mass(name, dist, (*lo, *hi)).unwrap_or(f64::NAN);
+            m *= box_mass(&analyzed.spoken(var), dist, (*lo, *hi)).unwrap_or(f64::NAN);
         }
     }
     m
@@ -709,13 +812,14 @@ struct HullSlack {
     above: f64,
 }
 
-fn hull_slack(verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
+fn hull_slack(doc: &ProfileDoc, verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
     let (mut true_lo, mut true_hi) = (f64::INFINITY, f64::NEG_INFINITY);
     for leaf in verdict.certified() {
-        let span = |n: &str| match leaf.box_.axes().get(&pncad::document::ParamName::new(n)) {
-            Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
-            _ => (0.0, 0.0),
-        };
+        let span =
+            |n: &'static str| match doc.var_named(n).and_then(|var| leaf.box_.axes().get(&var)) {
+                Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
+                _ => (0.0, 0.0),
+            };
         let (hs_lo, hs_hi) = span("half_spacing");
         let (a_lo, a_hi) = span("hole_a_r");
         let (b_lo, b_hi) = span("hole_b_r");
@@ -861,4 +965,108 @@ fn indent(text: &str) -> String {
         .map(|l| format!("     {l}"))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pncad::document::{CancelToken, EvalOptions, ValuePayload, evaluate};
+
+    /// The verdict bits a plate's assertion lands on: its nominal `f64`
+    /// verdict, the Monte Carlo lane's verdict tally and its population
+    /// of the asserted web, and — at the certifiable box — what the
+    /// requirement decides over the certified leaves, with its masses.
+    const PINNED: &str = "real: nominal Holds Holds { measured: 4558673246493684320, bound: 4557750909289998842 }; mc holds=499 violated=13 unevaluated=0 web 3f438e85babb60ac 3f0e4e721371c0fa 3f3fb4c4f36116c8 3f47f8928a0e25e4 512\n\
+cut: nominal Holds Holds { measured: 4558673246493684320, bound: 4557750909289998842 }; mc holds=499 violated=13 unevaluated=0 web 3f438e85babb60ac 3f0e4e721371c0fa 3f3fb4c4f36116c8 3f47f8928a0e25e4 512\n\
+certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673246337605741 }; mc holds=512 violated=0 unevaluated=0 web 3f43a92a303c9eb1 3d93f96572a381d8 3f43a92a291e92cc 3f43a92a382a5808 512; leaves HOLDS over every certified leaf holds 3fefd3d2aadd38d5 violated 0000000000000000 unevaluated 0000000000000000";
+
+    fn verdict_bits(name: &str, p: &Plate, leaves: bool, tol: Tol) -> String {
+        let ev = evaluate::<f64>(
+            &p.doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let nominal = match ev.value(p.assertion).map(|v| &v.payload) {
+            Some(ValuePayload::Assertion(v)) => {
+                format!("{} {:?}", v.label(), v.clone().map(f64::to_bits))
+            }
+            other => panic!("{name}: the assertion has a verdict, got {other:?}"),
+        };
+        let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
+        let mc = monte_carlo(&p.doc, &analyzed, &McConfig::default(), tol)
+            .expect("the Monte-Carlo lane answers");
+        let tally = mc
+            .assertions
+            .iter()
+            .find(|a| a.node == p.assertion)
+            .expect("the assertion has a row");
+        let web = {
+            let v = mc
+                .values
+                .iter()
+                .find(|v| v.var == p.web)
+                .expect("the web has a row");
+            (v.mean, v.sigma, v.min, v.max, v.measured)
+        };
+        let mut line = format!(
+            "{name}: nominal {nominal}; mc holds={} violated={} unevaluated={} web \
+             {:016x} {:016x} {:016x} {:016x} {}",
+            tally.holds,
+            tally.violated,
+            tally.unevaluated,
+            web.0.to_bits(),
+            web.1.to_bits(),
+            web.2.to_bits(),
+            web.3.to_bits(),
+            web.4
+        );
+        if leaves {
+            let verdict = drive(&p.doc, &analyzed, &parallel(), tol).expect("the nominal builds");
+            let (decided, masses) =
+                requirement_over_leaves(&p.doc, &analyzed, &verdict, p.assertion, tol);
+            line.push_str(&format!(
+                "; leaves {} holds {:016x} violated {:016x} unevaluated {:016x}",
+                describe(&decided),
+                masses.holds.to_bits(),
+                masses.violated.to_bits(),
+                masses.unevaluated.to_bits()
+            ));
+        }
+        line
+    }
+
+    /// **The plate's verdicts are the bits they were before a measure
+    /// became one primitive** (INTENT stage 2 test 13): the web is a
+    /// definition over the distance measure now, and every verdict
+    /// over it — nominal, Monte Carlo and per leaf — lands where the
+    /// measure's own arithmetic landed. The pin was taken on the tree
+    /// before that change.
+    #[test]
+    fn the_plate_verdicts_hold_their_bits() {
+        let tol = Tol::witness();
+        let spread = tol.eps() / 64.0;
+        let (half, sigma) = (0.05 * spread, 0.2 * spread);
+        let worst = 2.0 * half + 2.0 * (3.0 * sigma);
+        let rss3 = 3.0 * ((2.0 * half / 3.0_f64.sqrt()).powi(2) + 2.0 * sigma.powi(2)).sqrt();
+        let lines = [
+            verdict_bits("real", &crate::plate::real_study(tol), false, tol),
+            verdict_bits(
+                "cut",
+                &crate::plate::cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol),
+                false,
+                tol,
+            ),
+            verdict_bits(
+                "certifiable",
+                &plate(half, sigma, WEB - 0.5 * (worst + rss3), tol),
+                true,
+                tol,
+            ),
+        ]
+        .join("\n");
+        println!("{lines}");
+        assert_eq!(lines, PINNED, "a plate verdict moved");
+    }
 }

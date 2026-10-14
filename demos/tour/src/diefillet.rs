@@ -38,18 +38,18 @@
 // carries two units and a dimensionless axis in the same recipe.
 //
 // It also shows the OTHER authoring door. `ring` types its numbers in
-// the unit it means (`Expr::length_in(300.0, MM)`); every length
+// the unit it means (`Formula::length_in(300.0, MM)`); every length
 // here is DERIVED from the die's geometry, already in canonical metres,
 // and only its notation is being chosen — which is `canonical_in`, and
 // is exactly the shape a GUI form has, where the draft is canonical
 // whatever the picker shows.
 
-use core::f64::consts::PI;
-
-use pncad::document::{BooleanOp, BooleanValue, LoggedEdit, RefusingReach, save};
+use pncad::document::ExtrudeSide;
+use pncad::document::{Bodies, BooleanValue, RefusingReach, save};
+use pncad::prelude::AuthoredNode;
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
-    EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
+    EvalOptions, Evaluation, Formula, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind,
     SurfaceKindSet, ValuePayload, WrittenLength, all_edges, apply, evaluate, select_where,
 };
@@ -73,16 +73,16 @@ const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
 
 /// A length, written in the millimetres this document is authored in.
-fn len(v: f64) -> Expr {
-    Expr::written_length(WrittenLength::canonical_in(v, MM)).expect("a length")
+fn len(v: f64) -> Formula {
+    Formula::written_length(WrittenLength::canonical_in(v, MM)).expect("a length")
 }
 /// An angle the face table states IN DEGREES — a quarter turn is `90`,
 /// and the recipe says so.
-fn ang(degrees: f64) -> Expr {
-    Expr::angle_in(degrees, DEG).expect("an angle")
+fn ang(degrees: f64) -> Formula {
+    Formula::angle_in(degrees, DEG).expect("an angle")
 }
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("a scalar")
 }
 
 fn layout(n: u32) -> Vec<(f64, f64)> {
@@ -163,7 +163,7 @@ fn placements() -> Vec<Placement> {
 /// axis, which is what a sphere's meridian IS — the revolve names its
 /// poles from the sweep's construction record (M9-D1), so the natural
 /// three-step program is what the document authors.
-fn half_disc() -> LoopProgram {
+fn half_disc() -> LoopProgram<Formula> {
     let p = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
         ProgramStep::At(p(0.0, -PIP_R)),
@@ -191,9 +191,17 @@ fn eval(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
 }
 
-fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied =
-        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the edit applies");
+fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+        tol,
+        &RefusingReach,
+    )
+    .expect("the edit applies");
     *doc = applied.doc;
     applied.record.minted.expect("insert mints an id")
 }
@@ -217,7 +225,7 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     let cube_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: cube_plane,
+            frame: cube_plane.into(),
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
             ids: Vec::new(),
         }),
@@ -226,8 +234,9 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     insert(
         doc,
         Node::Extrude {
-            profile: cube_p,
+            profile: cube_p.into(),
             distance: len(L),
+            side: ExtrudeSide::Along,
         },
         tol,
     )
@@ -248,22 +257,10 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         }),
         tol,
     );
-    // The pole axis, written in the meridian frame: that frame's v IS
-    // world +Z, so the axis is its own +y through (0, 0). Minted after
-    // the frame, which it names.
-    let axis = insert(
-        doc,
-        Node::Datum(Datum::AxisInPlane {
-            plane: ball_plane,
-            origin: [len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0)],
-        }),
-        tol,
-    );
     let ball_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: ball_plane,
+            frame: ball_plane.into(),
             loops: vec![half_disc()],
             ids: Vec::new(),
         }),
@@ -272,8 +269,12 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     let ball = insert(
         doc,
         Node::Revolve {
-            profile: ball_p,
-            axis,
+            profile: ball_p.into(),
+            // The pole axis, in the meridian frame's own coordinates:
+            // that frame's v IS world +Z, so the axis is its +y through
+            // (0, 0).
+            axis_origin: [len(0.0), len(0.0)],
+            axis_direction: [scl(0.0), scl(1.0)],
             // A full turn, in the degrees this document is written in.
             angle: ang(360.0),
         },
@@ -301,12 +302,14 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         .map(|p| {
             insert(
                 doc,
-                Node::Transform {
-                    input: ball,
-                    translation: p.centre.map(len),
-                    rotation_axis: p.axis.map(scl),
-                    rotation_angle: ang(p.angle),
-                },
+                Node::transform(
+                    pncad::document::Operand::output(ball, 0),
+                    pncad::document::Step::Rigid {
+                        translation: p.centre.map(len),
+                        axis: p.axis.map(scl),
+                        angle: ang(p.angle),
+                    },
+                ),
                 tol,
             )
         })
@@ -314,18 +317,15 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     let tool = insert(
         doc,
         Node::Union {
-            members,
-            declare: None,
+            members: Bodies::Spelled(members.into_iter().map(Into::into).collect()),
         },
         tol,
     );
     insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: cube,
-            b: tool,
-            declare: None,
+        Node::Subtract {
+            from: cube.into(),
+            tool: tool.into(),
         },
         tol,
     )
@@ -376,7 +376,7 @@ fn build(tol: Tol) -> Die {
     // CALLS (SELECT-DESIGN §§1-2). Both atoms are EXACT — they read the
     // carrier's enum tag — so they are total: no funnel, no margin, and
     // `expect` here is a statement about the atoms, not optimism.
-    let params = doc.param_env::<f64>();
+    let params = doc.var_env::<f64>();
 
     // The twelve box edges: the only LINES in the pipped cube. Every
     // pip cavity contributes circles (two rim arcs, two meridian
@@ -443,16 +443,6 @@ fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
     }
 }
 
-/// The blank's closed-form volume: core + 6 slabs + 12
-/// quarter-cylinders + 8 octants (which sum to one whole ball).
-fn blank_volume() -> f64 {
-    let core = L - 2.0 * R;
-    core.powi(3)
-        + 6.0 * R * core.powi(2)
-        + 12.0 * (PI * R * R / 4.0) * core
-        + (4.0 / 3.0) * PI * R.powi(3)
-}
-
 /// The document label [`build`] authors under, and therefore the
 /// identity the exported save file replays from.
 const DOC_LABEL: &str = "die";
@@ -476,118 +466,126 @@ const DOC_LABEL: &str = "die";
 /// recipe at every ε row.
 ///
 /// The exported document is [`gallery_document`]'s — the scene as a
-/// DOCUMENT, blank fillet deleted — and for that function's own
-/// reason, which does not stop being true when the consumer is a test
-/// corpus instead of a viewer. A corpus evaluates, gathers and
-/// round-trips its documents; a second root sitting exactly on the
-/// first is the #1162 defect there too.
+/// DOCUMENT, the composed die placed and the blank left unplaced — for
+/// that function's own reason, which does not stop being true when the
+/// consumer is a test corpus instead of a viewer: a corpus evaluates,
+/// gathers and round-trips its documents, and its product is the die.
 ///
 /// The log is DERIVED from the built document rather than recorded
 /// beside it, and the derivation is exact because [`build`] mints every
 /// node through one `InsertNode` against the empty document: ids are
-/// minted in insertion order, so replaying `order()`'s nodes and then
-/// the same deletion rebuilds the document — ids and all, hole
-/// included, and the profiles' step ids with them, minted afresh in
-/// the same order. That is asserted here rather than assumed: a `build` that
+/// minted in insertion order, so replaying the built nodes and then
+/// the one placement rebuilds the document — ids and all, and the
+/// profiles' step ids with them, minted afresh in the same order. That is asserted here rather than assumed: a `build` that
 /// grows a non-insert edit fails this door instead of quietly
 /// exporting a document that is not the one the scene renders.
 pub fn corpus_text(tol: Tol) -> String {
     let die = build(tol);
+    // Re-inserting as written reproduces the document only where no
+    // anonymous variable is read twice by its formula or toleranced
+    // (`Node::written`'s precondition); the replay's ids, compared
+    // below, rule out a value edited after its insert.
+    assert_eq!(
+        die.doc.written_would_not_reproduce(),
+        Vec::new(),
+        "the die's anonymous variables are each read once and untoleranced"
+    );
     let empty: Doc<ProfileProgram> = Doc::empty_derived(DOC_LABEL, tol);
     let mut edits: Vec<DocEdit<ProfileProgram>> = die
         .doc
-        .order()
+        .ids()
         .iter()
         .map(|id| {
-            let mut node = die.doc.node(*id).expect("an ordered node exists").clone();
+            let mut node = die
+                .doc
+                .node(*id)
+                .expect("an ordered node exists")
+                .written(&die.doc);
             // A program enters the document without step ids: the
             // insert door mints them, in the same order it did here.
             if let Node::Profile(program) = &mut node {
                 program.ids = Vec::new();
             }
-            DocEdit::InsertNode { node }
+            DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            }
         })
         .collect();
-    edits.push(DocEdit::DeleteNode { id: die.blank });
+    edits.push(DocEdit::place(die.composed, None));
     let mut replay = empty.clone();
     for edit in &edits {
         replay = apply(&replay, edit, tol, &RefusingReach)
             .expect("the derived log replays")
             .doc;
     }
+    let published = gallery_document(tol);
+    assert_eq!(
+        replay.ids(),
+        published.ids(),
+        "the replay re-mints every node id `build` minted, then the placement's"
+    );
     // The ids were cleared on the strength of the insert door minting
     // them again in the same order; that precondition is checked
     // profile by profile, so a `build` that mints a step any other way
     // fails here by name.
-    for id in die.doc.order() {
+    for id in &die.doc.ids() {
         if let (Some(Node::Profile(built)), Some(Node::Profile(replayed))) =
             (die.doc.node(*id), replay.node(*id))
         {
             assert_eq!(
                 built.ids, replayed.ids,
                 "profile node {} re-mints its step ids exactly as `build` minted them",
-                id.0
+                id
             );
         }
     }
     assert_eq!(
-        replay,
-        gallery_document(tol),
+        replay, published,
         "the derived log must reproduce the document this scene publishes"
     );
-    save(&empty, &LoggedEdit::bare_all(&edits), tol).expect("the die document saves")
+    save(&empty, &edits, tol).expect("the die document saves")
 }
 
 /// This scene's recipe, as a document the GUI can open — **the
-/// composed die, and only it**.
+/// composed die, placed in the world**.
 ///
 /// The same `build` the stops walk, geometric selections and all: what
 /// a reader opens in the viewer is the document this scene renders,
-/// not a re-authoring of it. One node is then DELETED, and the reason
-/// is the difference between a tour and a document.
+/// not a re-authoring of it, plus the one edit that says which of its
+/// bodies the document is about.
 ///
-/// # Why the blank is not in the file
+/// # Why the blank is not in the product
 ///
 /// The scene has three stops and `build` authors all three, because a
 /// stop renders ONE named body and three stops need three of them.
 /// [`Die::blank`] is a second fillet of the same cube, consumed by
-/// nothing — a narration body, and a DAG sink.
+/// nothing — a narration body.
 ///
-/// A document is not a tour. Its product is the gather of every root,
-/// the root set is exactly the sink set (`editor_core::roots`:
-/// coverage plus ancestor-freedom), so a sink authored for narration
-/// is a product root whether or not the scene means it as one. The
-/// blank is the composed die's own outer shape with no pips cut, so
-/// the two roots sit exactly on each other: the blank's material plugs
-/// every pip cavity, the outer faces z-fight, and the product's volume
-/// counts the same material twice (115 faces, V = 1.918146 ≈ 2 ×
-/// 0.952915). That is the gallery bug #1162 diagnosed. What #1162
-/// landed is the separation resident that REPORTS it — deliberately,
-/// because a viewer must keep drawing a document a modeller is trying
-/// to fix. Nothing was ever going to make this file draw the die.
+/// A document's product is the world: the copies its placements
+/// define, and nothing else (A10). The file places the scene's
+/// SUBJECT — "the composed die, which remains the sheet's die" (Ev's
+/// montage curation, #218 follow-up, which ruled the two partial dice
+/// out of the sheet for reading as near-duplicates) — and nothing
+/// places the blank, so the blank stays a value in the file, outside
+/// the product. It is the composed die's own outer shape with no pips
+/// cut; placed beside the die it would plug every pip cavity and
+/// count the same material twice (the #1162 defect, which the
+/// separation resident reports).
 ///
-/// So the file carries the scene's SUBJECT — "the composed die, which
-/// remains the sheet's die" (Ev's montage curation, #218 follow-up,
-/// which already ruled the two partial dice out of the sheet for
-/// reading as near-duplicates). The blank keeps its stop, its
-/// narration and its render; what it loses is a second root in one
-/// `.pncad`, where it could only ever be an obstruction.
-///
-/// The deletion goes through the ordinary edit door, so the root list
-/// is maintained by `roots::on_delete` rather than asserted here, and
-/// the remaining document is exactly the recipe that builds the die:
-/// 32 nodes, one root, 89 faces, V = 0.952915, no separation finding.
-/// The 21 pips are the members of ONE `Node::Union`, so the node count
-/// is the pips, the blank and the two blends — not a chain length.
+/// The product is one copy of the die: 89 faces, V = 0.952915, no
+/// separation finding. The 21 pips are the members of ONE
+/// `Node::Union`, so the node count is the pips, the blank, the two
+/// blends and the placement — not a chain length.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
     apply(
         &die.doc,
-        &DocEdit::DeleteNode { id: die.blank },
+        &DocEdit::place(die.composed, None),
         tol,
         &RefusingReach,
     )
-    .expect("the blank is a sink: deleting it drops a root and uncovers nothing")
+    .expect("the composed die places")
     .doc
 }
 
@@ -616,7 +614,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     let blank = body_at(&ev, die.blank);
     let vol = pncad::topo::mass_properties(&blank, tol).unwrap().volume;
-    let want = blank_volume();
+    let want = crate::oracles::rounded_box_volume([L; 3], R);
     assert!(
         (vol - want).abs() < 1e-9 * want,
         "the blank's volume is a closed form: {vol} vs {want}"
@@ -641,7 +639,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         composed.edges().count(),
         composed.vertices().count(),
     );
-    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 7, 24 + 21 * 5));
+    // On each pip's planar trimline, the foot its band's slit does not
+    // reach has valence two and is joined away: one vertex and one edge.
+    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 6, 24 + 21 * 4));
 
     vec![
         Stop {

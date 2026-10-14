@@ -18,20 +18,23 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::{ang, len};
+use editor_core::PoseValue;
 use editor_core::persist::{load, save};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, DocEdit, EditError, EntityKey, EntityKind, Entry,
-    EvalOptions, Expr, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
+    EvalOptions, Formula, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
     ProfileProgram, RecipeNodeId, ResolveError, RoleSeg, SlotId, StableName, ValuePayload,
     all_edges, all_faces, apply, edge_carrier_kind, edge_frame, evaluate, face_carrier_kind,
     face_frame,
 };
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Tol, UnitVec3, Vec3};
+use topo::CurveKind;
 use topo::readback;
-use topo::{CurveKind, DatumValue};
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(
@@ -55,8 +58,9 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -64,21 +68,21 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
 /// A washer: a rectangle off the axis, revolved a full turn — two
 /// cylinder bands and two plane annuli.
 fn washer_doc() -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane, p) = fixture::on_frame_keeping(
+    let (doc, p) = fixture::on_frame(
         ProfileDoc::empty_derived("docm1_washer", Tol::witness()),
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
-    let (doc, axis) = fixture::insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     fixture::insert(
         doc,
-        Node::Revolve {
-            profile: p,
-            axis,
-            angle: fixture::ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(
+            p,
+            (0.0, 0.0),
+            (0.0, 1.0),
+            fixture::ang(std::f64::consts::TAU),
+        ),
     )
 }
 
@@ -90,22 +94,22 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
         doc,
         fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     );
-    let (doc, axis) = fixture::insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![corpus::die_pips::half_disc_program()],
             ids: Vec::new(),
         }),
     );
     fixture::insert(
         doc,
-        Node::Revolve {
-            profile: p,
-            axis,
-            angle: fixture::ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(
+            p,
+            (0.0, 0.0),
+            (0.0, 1.0),
+            fixture::ang(std::f64::consts::TAU),
+        ),
     )
 }
 
@@ -416,7 +420,7 @@ fn frame_of(
     ev: &editor_core::Evaluation<f64>,
     node: RecipeNodeId,
 ) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
-    let ValuePayload::Datum(DatumValue::Frame(f)) =
+    let ValuePayload::Datum(PoseValue::Frame(f)) =
         &ev.value(node).expect("the frame evaluated").payload
     else {
         panic!("a frame value");
@@ -447,12 +451,14 @@ fn name_of_key(
         .expect("every face of a corpus body is named")
 }
 
-fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> Node<ProfileProgram> {
-    Node::Datum(Datum::FaceFrame {
-        at,
+fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> AuthoredNode {
+    // Port 0: the body, whether `at` is a revolve (body and axis) or a
+    // node with one output.
+    Node::Datum(Datum::face_frame(
+        editor_core::Operand::output(at, 0),
         face,
-        spin: ang(spin),
-    })
+        ang(spin),
+    ))
 }
 
 fn top_cap(cube: RecipeNodeId) -> StableName {
@@ -475,7 +481,7 @@ fn a1_the_frame_moves_with_the_face_and_the_memo_recomputes_the_cone() {
     );
     let frame = cd
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
@@ -584,15 +590,16 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
 
     let node = doc.node(frame).expect("live");
     assert_eq!(node.slots(), vec![SlotId::Spin]);
-    assert_eq!(SlotId::Spin.dimension(), Dimension::Angle);
+    assert_eq!(SlotId::Spin.dimension(), Some(Dimension::Angle));
     assert!(!SlotId::Spin.is_structural());
-    let set = |expr: Expr| {
+    let set = |expr: Formula| {
         apply(
             &doc,
             &DocEdit::SetParam {
                 node: frame,
                 slot: SlotId::Spin,
-                expr,
+                value: expr.into(),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -652,7 +659,7 @@ fn a3b_spin_turns_right_handed_about_the_outward_normal_on_a_reversed_face() {
 }
 
 /// **A4 — the fillet's failure mode.** `Rebind` the face to a name the
-/// table lacks: the frame refuses `FaceFrameResolve { Vanished }`,
+/// table lacks: the frame refuses `SelectResolve { Vanished }`,
 /// the profile and the extrude above it are POISONED through the
 /// frame, never re-anchored; `Rebind` to a live face repairs all of it.
 #[test]
@@ -666,19 +673,27 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
     let (doc, boss) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.3),
+            side: ExtrudeSide::Along,
         },
     );
     assert!(corpus::failures(&eval(&doc)).is_empty());
 
     // A lateral face a 4-gon does not have: the name is well-formed,
     // its node is live, and the table lacks it — N5's `Vanished`.
-    let gone = fixture::fname(cube, editor_core::RoleSeg::Lateral(fixture::no_piece()));
+    let gone = fixture::fname(
+        cube,
+        editor_core::RoleSeg::Lateral(fixture::no_piece_of(&doc).into()),
+    );
     let rebind = |doc: &ProfileDoc, from: StableName, to: StableName| {
         apply(
             doc,
-            &DocEdit::Rebind { from, to },
+            &DocEdit::Rebind {
+                body: doc.output(cube, 0),
+                from,
+                to,
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
@@ -689,7 +704,7 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
     let ev = eval(&broken);
     match ev.nodes.get(&frame) {
         Some(NodeResult::Failed(NodeError {
-            kind: NodeErrorKind::FaceFrameResolve { error },
+            kind: NodeErrorKind::SelectResolve { error, .. },
             ..
         })) => assert!(
             matches!(**error, ResolveError::Vanished { .. }),
@@ -741,11 +756,11 @@ fn a5_a_non_planar_face_refuses_naming_its_carrier() {
     }
 }
 
-/// **A7 — by value.** A derived frame is the plane of a profile AND
-/// the `plane` of an `AxisInPlane`, and a revolve about that axis
-/// evaluates to a closed body sitting on the box's top face.
+/// **A7 — by value.** A derived frame is the plane of a profile, and
+/// a revolve about an axis line in that profile's plane evaluates to a
+/// closed body sitting on the box's top face.
 #[test]
-fn a7_a_derived_frame_serves_a_profile_and_an_in_plane_axis_by_value() {
+fn a7_a_derived_frame_serves_a_revolved_profile_by_value() {
     let (doc, cube) = box_doc();
     let (doc, frame) = fixture::insert(doc, face_frame_node(cube, top_cap(cube), 0.0));
     // A square off the axis, so the revolve is a washer standing on
@@ -754,14 +769,9 @@ fn a7_a_derived_frame_serves_a_profile_and_an_in_plane_axis_by_value() {
         doc,
         Node::Profile(fixture::desc(frame, vec![fixture::square(0.35, 0.0, 0.1)])),
     );
-    let (doc, axis) = fixture::insert(doc, fixture::axis_in_plane(frame, (0.0, 0.0), (0.0, 1.0)));
     let (doc, ring) = fixture::insert(
         doc,
-        Node::Revolve {
-            profile,
-            axis,
-            angle: ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     let ev = eval(&doc);
     assert!(
@@ -796,19 +806,21 @@ fn a8_a_document_with_a_derived_frame_round_trips_bit_identical() {
     assert_eq!(text, again, "save ∘ load is a fixpoint, byte for byte");
     let frames: Vec<_> = loaded
         .doc
-        .order()
+        .ids()
         .iter()
         .filter_map(|id| match loaded.doc.node(*id) {
-            Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((*at, face.clone())),
+            Some(Node::Datum(Datum::FaceFrame { face, .. })) => {
+                loaded.doc.selection(*face).cloned()
+            }
             _ => None,
         })
         .collect();
     let original: Vec<_> = cd
         .doc
-        .order()
+        .ids()
         .iter()
         .filter_map(|id| match cd.doc.node(*id) {
-            Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((*at, face.clone())),
+            Some(Node::Datum(Datum::FaceFrame { face, .. })) => cd.doc.selection(*face).cloned(),
             _ => None,
         })
         .collect();
@@ -853,8 +865,8 @@ pub(crate) fn lofted_on_face_frame() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Loft {
-            profiles: vec![lower, upper],
-            v_degree: Expr::count(1),
+            profiles: vec![lower.into(), upper.into()],
+            v_degree: Formula::count(1),
         },
     )
 }

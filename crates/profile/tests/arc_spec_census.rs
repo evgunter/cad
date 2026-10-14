@@ -18,69 +18,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
+use profile::test_support::{every_state, prefix, way_in};
 use profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, ReplayError, ReplayErrorKind, SpecForms, Step, Target,
     TargetKind, TipState, Verb, arc_specs_at, replay,
 };
-
-/// A program that leaves the tip in `state` — exhaustive, so a state
-/// the lattice gains has to be given a way in before this compiles.
-fn prefix(state: TipState) -> Vec<Step<f64>> {
-    let at = Step::At(Point2::new(0.0, 0.0));
-    let open = || vec![at, Step::Angle(0.0), Step::Fillet { radius: 1.0 }];
-    let arrival = |spec| vec![at, Step::Angle(0.0), Step::FilletArc { radius: 1.0, spec }];
-    let radius = ArcData::Radius {
-        r: 3.0,
-        side: ArcSide::Left,
-    };
-    match state {
-        TipState::Entry => vec![],
-        TipState::Open => open(),
-        TipState::Angle => [open(), vec![Step::Angle(1.5)]].concat(),
-        TipState::PlainPoint => vec![at],
-        TipState::DirectedPoint => vec![at, Step::LineTo(Target::Point(Point2::new(10.0, 0.0)))],
-        TipState::DirectedPlain => vec![at, Step::Angle(0.0)],
-        TipState::DirectedIncoming => vec![
-            at,
-            Step::LineTo(Target::Point(Point2::new(10.0, 0.0))),
-            Step::Turn(0.5),
-        ],
-        TipState::RadiusArrival => arrival(radius),
-        TipState::RadiusArrivalAt => {
-            [arrival(radius), vec![Step::At(Point2::new(10.0, 10.0))]].concat()
-        }
-        TipState::RadiusArrivalDir => [arrival(radius), vec![Step::Angle(1.5)]].concat(),
-        TipState::ViaArrival => arrival(ArcData::Via {
-            q: Point2::new(8.0, 6.0),
-            target: Target::Point(Point2::new(10.0, 10.0)),
-        }),
-        TipState::ViaArrivalStart => arrival(ArcData::Via {
-            q: Point2::new(8.0, 6.0),
-            target: Target::Start,
-        }),
-        TipState::Closed => vec![
-            at,
-            Step::LineTo(Target::Point(Point2::new(10.0, 0.0))),
-            Step::LineTo(Target::Point(Point2::new(0.0, 10.0))),
-            Step::LineTo(Target::Start),
-        ],
-    }
-}
-
-/// Every state some verb has a row at, plus `Closed` (which none has):
-/// read off the table rather than listed, so a state the table gains
-/// is walked here without an edit.
-fn every_state() -> Vec<TipState> {
-    let mut states = vec![TipState::Closed];
-    for &verb in Verb::ALL {
-        for &state in verb.states() {
-            if !states.contains(&state) {
-                states.push(state);
-            }
-        }
-    }
-    states
-}
 
 /// One step of `verb` with numbers that are not degenerate anywhere in
 /// [`prefix`]'s frame; `None` for the arc-spec verbs, which
@@ -201,19 +143,34 @@ fn lattice_refuses(steps: &[Step<f64>]) -> bool {
     )
 }
 
+/// The state `steps` leave the tip in, or a panic naming `what` when
+/// they refuse before the end.
+fn reached(steps: &[Step<f64>], what: &str) -> TipState {
+    match replay(steps, Tol::witness()) {
+        Ok(_) => TipState::Closed,
+        Err(ReplayError {
+            step,
+            kind: ReplayErrorKind::Transition { state, verb: None },
+        }) if step == steps.len() => state,
+        other => panic!("{what} did not replay to a tip: {other:?}"),
+    }
+}
+
+/// Every prefix reaches its state, and so does every way in taken from
+/// a leg end.
 #[test]
 fn every_prefix_reaches_its_state() {
     for state in every_state() {
-        let steps = prefix(state);
-        let reached = match replay(&steps, Tol::witness()) {
-            Ok(_) => TipState::Closed,
-            Err(ReplayError {
-                step,
-                kind: ReplayErrorKind::Transition { state, verb: None },
-            }) if step == steps.len() => state,
-            other => panic!("prefix for {state:?} did not replay to a tip: {other:?}"),
+        assert_eq!(
+            reached(&prefix(state), &format!("prefix for {state:?}")),
+            state
+        );
+        let Some(way_in) = way_in(state) else {
+            assert_eq!(state, TipState::Entry, "only the entry has no way in");
+            continue;
         };
-        assert_eq!(reached, state);
+        let steps = [prefix(TipState::DirectedPoint), way_in].concat();
+        assert_eq!(reached(&steps, &format!("the way into {state:?}")), state);
     }
 }
 

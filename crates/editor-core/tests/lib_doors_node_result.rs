@@ -10,39 +10,46 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use test_utils::refusal::tagged;
 
 use crate::fixture::len;
 use editor_core::{
-    BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Expr, LoopProgram, Node, NodeResult,
+    CancelToken, Dimension, DocEdit, EvalOptions, Formula, LoopProgram, Node, NodeResult,
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
 };
 use geom_core::Tol;
 
-/// A square profile `[0,s]²` on `plane`, as a loop program.
-fn square(plane: RecipeNodeId, s: f64) -> Node<ProfileProgram> {
+/// A square profile `[o,s]²` on `plane`, as a loop program.
+fn square(plane: RecipeNodeId, o: f64, s: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
-            ProgramStep::At([len(0.0), len(0.0)]),
-            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
+            ProgramStep::At([len(o), len(o)]),
+            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(o)])),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(s)])),
-            ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(s)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(o), len(s)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
     })
 }
 
-/// Two boxes SHARING the z=0 plane (and the x=0 / y=0 side planes),
-/// subtracted: the kernel never infers coincidence, so the Boolean
-/// node FAILS — and a node downstream of it is POISONED. Returns the
-/// document plus the failing and poisoned ids.
+/// Two boxes sharing the z=0 plane, the inner one's x and y side
+/// planes off the outer's by a gap strictly inside the ambiguity band,
+/// subtracted: the margins decide neither plane pair one carrier nor
+/// two, so the Boolean node FAILS — and a node downstream of it is
+/// POISONED. Returns the document plus the failing and poisoned ids.
 fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived("lib_doors_node_result", Tol::witness());
     let insert = |doc: &mut ProfileDoc, node| {
         let applied = doc
             .apply(
-                &DocEdit::InsertNode { node },
+                &DocEdit::InsertNode {
+                    node,
+                    fresh: Vec::new(),
+                },
                 Tol::witness(),
                 &editor_core::RefusingReach,
             )
@@ -52,40 +59,40 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     };
     // Both boxes are sketched on the same plane — that is the whole
     // point of the row — so they name ONE frame between them.
-    let plane = insert(&mut doc, fixture::xy_frame());
-    let outer_profile = insert(&mut doc, square(plane, 2.0));
+    let plane = insert(&mut doc, Box::new(fixture::xy_frame()));
+    let tol = Tol::witness().get();
+    // The band's midpoint: strictly inside (eps, k·eps) for any k > 1.
+    let gap = 0.5 * (tol.eps + tol.k * tol.eps);
+    let outer_profile = insert(&mut doc, Box::new(square(plane, 0.0, 2.0)));
     let outer = insert(
         &mut doc,
-        Node::Extrude {
-            profile: outer_profile,
+        Box::new(Node::Extrude {
+            profile: outer_profile.into(),
             distance: len(2.0),
-        },
+            side: ExtrudeSide::Along,
+        }),
     );
-    let inner_profile = insert(&mut doc, square(plane, 1.0));
+    let inner_profile = insert(&mut doc, Box::new(square(plane, gap, 1.0)));
     let inner = insert(
         &mut doc,
-        Node::Extrude {
-            profile: inner_profile,
+        Box::new(Node::Extrude {
+            profile: inner_profile.into(),
             distance: len(1.0),
-        },
+            side: ExtrudeSide::Along,
+        }),
     );
     let cut = insert(
         &mut doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: outer,
-            b: inner,
-            declare: None,
-        },
+        Box::new(Node::Subtract {
+            from: outer.into(),
+            tool: inner.into(),
+        }),
     );
     let downstream = insert(
         &mut doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: cut,
-            b: outer,
-            declare: None,
-        },
+        Box::new(Node::Union {
+            members: editor_core::Bodies::Spelled(vec![cut.into(), outer.into()]),
+        }),
     );
     (doc, cut, downstream)
 }
@@ -141,7 +148,7 @@ fn ok_and_absent_nodes_answer_none() {
     assert!(ev.value(ok_node).is_some());
     assert!(matches!(ev.result(ok_node), Some(NodeResult::Ok(_))));
     assert!(ev.node_error(ok_node).is_none());
-    let absent = RecipeNodeId(u64::MAX);
+    let absent = RecipeNodeId::new(0, u64::MAX);
     assert!(ev.result(absent).is_none());
     assert!(ev.node_error(absent).is_none());
 }
@@ -159,15 +166,18 @@ fn refusals_render_as_prose_not_debug_guts() {
     use editor_core::{DimensionError, EditError};
 
     let edit = EditError::UnknownNode {
-        id: RecipeNodeId(7),
+        id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
     };
     // No `edit: ` opening: the frame belongs to whoever received the
     // refusal (the viewer composes "the edit was refused: …", the
     // bindings raise it under an error class that already says Edit),
-    // so the sentence states the problem and nothing else.
-    assert_eq!(edit.to_string(), "node 7 is not live");
+    // so the sentence states the problem and its recourse, nothing else.
+    assert_eq!(
+        edit.to_string(),
+        "node 000000000007 is not live. Recourse: aim the edit at a node the document holds"
+    );
 
-    let literal = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
+    let literal = Formula::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
     assert!(matches!(literal, DimensionError::NonFiniteLiteral));
     assert_eq!(literal.to_string(), "a literal value must be finite");
 
@@ -183,29 +193,30 @@ fn refusals_render_as_prose_not_debug_guts() {
         )
     );
 
-    // The live failure: the coincident Boolean's message states the
-    // problem and the two-armed recourse (since R3 the refusal is the
-    // typed menu variant); the enum's structure (variant names,
+    // The live failure: the in-band Boolean's message states the
+    // problem and its recourse; the enum's structure (variant names,
     // braces) stays OUT of the prose.
     let (doc, cut, _) = doc_with_failure();
     let ev = run(&doc);
     let error = ev.node_error(cut).expect("the Boolean failed");
     let message = error.to_string();
     assert!(
-        message.starts_with(&format!("node {} failed: ", cut.0)),
+        message.starts_with(&format!(
+            "node {} failed: the Boolean op refused: ",
+            test_utils::refusal::tag(cut.0.digest())
+        )),
         "{message}"
     );
     assert!(
-        message.contains("Boolean refused an undeclared contact"),
+        message.contains("inside the ambiguity band") && message.contains("Recourse: "),
         "{message}"
     );
-    assert!(message.contains("declare the candidate pair"), "{message}");
     for guts in [
-        "UndeclaredCoincidence",
-        "UndeclaredContact",
-        "FlushFinding",
+        "Escalated",
+        "BooleanDecision",
         "{",
         "Indeterminate",
+        "MarginDiag",
     ] {
         assert!(!message.contains(guts), "Debug guts leaked: {message}");
     }
@@ -242,11 +253,11 @@ fn refusals_render_as_prose_not_debug_guts() {
         ),
     ] {
         let message = EditError::MetaUnversioned {
-            name: editor_core::StableName {
+            name: editor_core::SpokenName::absent(editor_core::StableName {
                 kind: editor_core::EntityKind::Body,
-                node: RecipeNodeId(1),
+                node: RecipeNodeId::new(0, tagged(1)),
                 path: vec![editor_core::RoleSeg::OutputBody],
-            },
+            }),
             key: "provenance".to_string(),
             error,
         }
@@ -269,7 +280,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
     use editor_core::NodeErrorKind as K;
     let name = |kind| editor_core::StableName {
         kind,
-        node: RecipeNodeId(3),
+        node: RecipeNodeId::new(0, tagged(3)),
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     vec![
@@ -278,25 +289,19 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             slot: editor_core::SlotId::Distance,
             source: editor_core::EvalError::NonFiniteResult,
         },
-        K::DeclareResolve {
-            error: Box::new(editor_core::ResolveError::NodeGone {
-                name: name(editor_core::EntityKind::Face),
-                edit: editor_core::RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(3),
-                },
-            }),
-        },
-        K::BlendSelectionResolve {
-            verb: sweep::blend::BlendKind::Fillet,
+        K::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var: editor_core::VarId::new(0, 7),
             error: Box::new(editor_core::ResolveError::Ambiguous {
                 name: name(editor_core::EntityKind::Edge),
                 candidates: vec![],
                 tie: editor_core::TieWitness {
-                    node: RecipeNodeId(3),
+                    node: RecipeNodeId::new(0, tagged(3)),
                     at: name(editor_core::EntityKind::Edge),
                     width: 2,
                 },
             }),
+            reference: 0,
         },
         K::WitnessBifurcation(editor_core::WitnessBifurcation {
             kind: editor_core::BifurcationKind::FoldProximity,
@@ -364,8 +369,7 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
         let payload = match &kind {
             K::Profile(e) => e.to_string(),
             K::Expr { source, .. } => source.to_string(),
-            K::DeclareResolve { error } => error.to_string(),
-            K::BlendSelectionResolve { error, .. } => error.to_string(),
+            K::SelectResolve { error, .. } => error.to_string(),
             K::WitnessBifurcation(e) => e.to_string(),
             K::PlacementRule(e) => e.to_string(),
             K::Extrude(e) => e.to_string(),
@@ -421,9 +425,10 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
         expected: 4,
     };
     let escalation = geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::Value(2e-10),
+        margin: geom_core::MarginDiag::value(2e-10),
         band: geom_core::Band::linear(geom_core::Tol::witness()).expect("a witness band forms"),
         predicate: Some("loft_stacking"),
+        terminal_sliver: false,
     };
     let band = geom_core::BandError::Empty {
         zero: 1.0,
@@ -442,7 +447,13 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
                 slab: 1,
                 source: escalation,
             }),
-            escalation.to_string(),
+            // An undecided refusal carries its escalation's payload, then
+            // the sized ending the stacking decision takes.
+            format!(
+                "{}. {}",
+                escalation.payload(),
+                escalation.ending(geom_core::COINCIDENCE_RECOURSE)
+            ),
         ),
         (
             K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(band))),
@@ -493,23 +504,26 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
 #[test]
 fn the_document_layers_own_payloads_render_their_own_stories() {
     use editor_core::{
-        BifurcationKind, BranchMarginEvidence, Diagnosis, EntityKind, EvalError, ParamName,
+        BifurcationKind, BranchMarginEvidence, Diagnosis, EntityKind, EvalError,
         PlacementRuleFault, RecipeEditRef, ResolveError, RoleSeg, StableName, WitnessAge,
         WitnessBifurcation,
     };
 
     let name = |kind| StableName {
         kind,
-        node: RecipeNodeId(5),
+        node: RecipeNodeId::new(0, tagged(5)),
         path: vec![RoleSeg::OutputBody],
     };
     let cases: Vec<(String, &[&str])> = vec![
         (
-            EvalError::UnknownParam(ParamName::new("width")).to_string(),
+            EvalError::UnresolvedVar {
+                var: editor_core::VarId::new(0, tagged(7)),
+            }
+            .to_string(),
             &[
-                "parameter width",
+                "variable #0:0000000000070000",
                 "has no binding",
-                "declare the document parameter",
+                "point the reader at a live variable",
             ],
         ),
         (
@@ -520,29 +534,33 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ResolveError::Vanished {
                 name: name(EntityKind::Face),
                 diagnosis: Diagnosis::PredicateFlip {
-                    predicate: "coincidence",
+                    predicate: "name_frag_order_along",
                     from: geom_core::Sign::Zero,
                     to: geom_core::Sign::Positive,
-                    source: editor_core::FlipSource::VerdictLog,
                 },
                 last_good: None,
             }
             .to_string(),
             &[
-                "face name minted by node 5",
+                "the output body of node 000000000005",
                 "no longer resolves",
-                "predicate coincidence flipped",
+                "the margin deciding the order of two crossings along an edge flipped from zero to \
+                 positive",
             ],
         ),
         (
             ResolveError::NodeGone {
                 name: name(EntityKind::Vertex),
                 edit: RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(5),
+                    node: RecipeNodeId::new(0, tagged(5)),
                 },
             }
             .to_string(),
-            &["vertex name", "node 5 was deleted", "explicit rebind"],
+            &[
+                "the output body of node 000000000005",
+                "is stranded: node 000000000005 was deleted",
+                "Recourse: rebind it",
+            ],
         ),
         (
             WitnessBifurcation {
@@ -566,7 +584,10 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ],
         ),
         (
-            PlacementRuleFault::CountSpelling.to_string(),
+            PlacementRuleFault::CountSpelling {
+                shape: editor_core::CountMismatch::ListedOnPattern,
+            }
+            .to_string(),
             &["disagree about how many placements"],
         ),
         (

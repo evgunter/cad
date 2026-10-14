@@ -14,8 +14,9 @@
 #![allow(clippy::needless_range_loop)]
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
+use geom_core::spline::Knots;
 use geom_core::spline::{KnotVector, SplineError};
-use geom_core::{Dual64, Point2, Point3, Vec3};
+use geom_core::{Dual64, Interval, Point2, Point3, Real, Vec3};
 
 const SQRT2_2: f64 = core::f64::consts::FRAC_1_SQRT_2;
 
@@ -154,14 +155,8 @@ fn rational_quadratic_circle_matches_analytic_circle() {
         let (p, p1, p2) = oracle_cd(&n, t);
         let d = Vec3::new(p[0] - c.x, p[1] - c.y, p[2] - c.z); // (P − center)
         let (px, py) = (d.dot(x), d.dot(y));
-        let (vx, vy) = (
-            Vec3::new(p1[0], p1[1], p1[2]).dot(x),
-            Vec3::new(p1[0], p1[1], p1[2]).dot(y),
-        );
-        let (axx, ayy) = (
-            Vec3::new(p2[0], p2[1], p2[2]).dot(x),
-            Vec3::new(p2[0], p2[1], p2[2]).dot(y),
-        );
+        let (vx, vy) = (Vec3::from_array(p1).dot(x), Vec3::from_array(p1).dot(y));
+        let (axx, ayy) = (Vec3::from_array(p2).dot(x), Vec3::from_array(p2).dot(y));
         let theta = py.atan2(px);
         let denom = px * px + py * py;
         let num = px * vy - py * vx;
@@ -229,16 +224,11 @@ fn bezier_special_case_matches_binomial_closed_form() {
         let p = c3.eval(t);
         close3(
             p - Point3::origin(),
-            Vec3::new(e[0], e[1], e[2]),
+            Vec3::from_array(e),
             1e-13,
             "bezier eval",
         );
-        close3(
-            c3.deriv(t),
-            Vec3::new(de[0], de[1], de[2]),
-            1e-12,
-            "bezier deriv",
-        );
+        close3(c3.deriv(t), Vec3::from_array(de), 1e-12, "bezier deriv");
         let p2 = c2.eval(t);
         close(p2.x, e[0], 1e-13, "bezier2 x");
         close(p2.y, e[1], 1e-13, "bezier2 y");
@@ -294,6 +284,49 @@ fn determinism_bitwise() {
     };
     assert_eq!(pbits(&r1.0), pbits(&r2.0));
     assert_eq!(r1.1.to_bits(), r2.1.to_bits());
+}
+
+/// **A knot operation that would write a weight out of the positive
+/// regime is refused, not admitted.** On a net of the least subnormal
+/// weight a half-and-half blend rounds each half to zero, so a midpoint
+/// insertion, the same point as a refinement, and a degree-1 elevation
+/// (coefficient `½`) would each write a zero weight the constructor
+/// refuses. Each answers `WeightCollapse` at the slot instead.
+#[test]
+fn a_knot_operation_that_would_write_a_zero_weight_is_refused() {
+    let w = f64::from_bits(1);
+    let collapse = geom_core::spline::KnotAlgebraError::WeightCollapse { index: 1 };
+    let quad = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+        ],
+        vec![w, w, w],
+    )
+    .expect("a least-subnormal weight is positive and finite");
+    assert_eq!(
+        quad.insert_knot(0.5, 1).unwrap_err(),
+        collapse,
+        "insert_knot"
+    );
+    assert_eq!(
+        quad.refine_knots(&[0.5]).unwrap_err(),
+        collapse,
+        "refine_knots"
+    );
+    let line = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+        vec![w, w],
+    )
+    .unwrap();
+    assert_eq!(
+        line.elevate_degree(1).unwrap_err(),
+        collapse,
+        "elevate_degree"
+    );
 }
 
 /// Spec row 3: refusals pinned — typed errors, exact variants.
@@ -428,7 +461,12 @@ fn dual_channels_are_consistent_with_derivatives() {
         .iter()
         .map(|p| p.map(Dual64::constant))
         .collect();
-    let nd = NurbsCurve3::new(n64.knots().clone(), ctrl, n64.weights().to_vec()).unwrap();
+    let nd = NurbsCurve3::new(
+        n64.knot_values().lift(Dual64::constant),
+        ctrl,
+        n64.weights().iter().map(|w| Dual64::constant(*w)).collect(),
+    )
+    .unwrap();
     for i in 0..=100usize {
         let t = i as f64 / 100.0;
         let p = nd.eval(Dual64::variable(t));
@@ -468,9 +506,14 @@ fn dual_kink_convention_at_knot_follows_the_tie_break() {
     ];
     let n64 = NurbsCurve3::new(kv.clone(), ctrl64.clone(), vec![1.0; 5]).unwrap();
     let ctrl: Vec<Point3<Dual64>> = ctrl64.iter().map(|p| p.map(Dual64::constant)).collect();
-    let nd = NurbsCurve3::new(kv, ctrl, vec![1.0; 5]).unwrap();
+    let nd = NurbsCurve3::new(
+        Knots::from(kv).lift(geom_core::Real::from_f64),
+        ctrl,
+        vec![Dual64::constant(1.0); 5],
+    )
+    .unwrap();
     let t = 0.5;
-    let span_right = n64.span_at(t); // the span starting at 0.5
+    let span_right = n64.span_at(t).expect("a numeric parameter"); // the span starting at 0.5
     // The [0, 0.5) span (mult-2 knot between).
     let span_left = n64
         .span(span_right.index() - 2)
@@ -500,5 +543,52 @@ fn dual_kink_convention_at_knot_follows_the_tie_break() {
         d_right.z,
         1e-12,
         "kink deriv = right-span deriv",
+    );
+}
+
+/// A poison parameter has no span, so the evaluators answer poison in
+/// every channel rather than evaluating the first span. At `Dual` the
+/// derivative channel is the sharp half: a bare `from_f64(NaN)` is a
+/// dual CONSTANT, whose derivative is a certified-looking zero.
+#[test]
+fn a_poison_parameter_evaluates_to_poison_in_every_channel() {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let ctrl64 = [
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(1.0, 2.0, 0.0),
+        Point3::new(2.0, 0.0, 0.0),
+        Point3::new(3.0, 2.0, 1.0),
+    ];
+    let ctrl: Vec<Point3<Dual64>> = ctrl64.iter().map(|p| p.map(Dual64::constant)).collect();
+    let nd = NurbsCurve3::new(
+        Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+        ctrl,
+        vec![Dual64::constant(1.0); 4],
+    )
+    .unwrap();
+    let t = Dual64::variable(f64::NAN);
+    let all_nan = |p: [Dual64; 3]| p.iter().all(|c| c.value.is_nan() && c.deriv.is_nan());
+    let p = nd.eval(t);
+    assert!(all_nan([p.x, p.y, p.z]), "eval at NaN: {p:?}");
+    let d = nd.deriv(t);
+    assert!(all_nan([d.x, d.y, d.z]), "deriv at NaN: {d:?}");
+    let (q, q1, q2) = nd.ders(t);
+    for (name, v) in [
+        ("point", [q.x, q.y, q.z]),
+        ("d1", [q1.x, q1.y, q1.z]),
+        ("d2", [q2.x, q2.y, q2.z]),
+    ] {
+        assert!(all_nan(v), "ders at NaN, {name}: {v:?}");
+    }
+    let ci = NurbsCurve3::new(
+        Knots::from(kv).lift(geom_core::Real::from_f64),
+        ctrl64.iter().map(|p| p.map(Interval::from_f64)).collect(),
+        vec![Interval::from_f64(1.0); 4],
+    )
+    .unwrap();
+    let pi = ci.eval(Interval::from_f64(f64::NAN));
+    assert!(
+        pi.x.is_poison() && pi.y.is_poison() && pi.z.is_poison(),
+        "eval at NaI: {pi:?}"
     );
 }

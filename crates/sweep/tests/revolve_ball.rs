@@ -48,11 +48,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     assert!(center.distance(geom_core::Point3::origin()).abs() < 1e-12);
     assert!((radius - 1.0).abs() < 1e-12);
     // The two vertices are the poles (0, ±1, 0).
-    let mut ys: Vec<f64> = t
-        .body
-        .vertices()
-        .map(|(_, v)| t.body.get_point(v.point).unwrap().y)
-        .collect();
+    let mut ys: Vec<f64> = t.body.vertex_points().map(|(_, p)| p.y).collect();
     ys.sort_by(f64::total_cmp);
     assert!((ys[0] + 1.0).abs() < 1e-12 && (ys[1] - 1.0).abs() < 1e-12);
     // Key bundle: the axis segment is omitted; the arc survives as the
@@ -62,6 +58,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
         pi_walls,
         pi_meridians,
         pi_rims,
+        ..
     } = &t.kind
     else {
         panic!("full revolve");
@@ -72,11 +69,13 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     assert!(meridians[1].is_none(), "axis segment omitted");
     // The sphere key both bands share — the chart both meridians below
     // are images in.
-    let sphere = t.body.get_face(t.walls[0][0].unwrap()).unwrap().surface;
-    // The angle-0 meridian IS the sphere's parameterization seam:
-    // derived by the kernel, carrying D1's seam obligation.
-    assert_seam_of(&t.body, arc_edge, sphere);
-    assert_eq!(t.walls[0][1], None);
+    let sphere = t.body.get_face(t.walls()[0][0].unwrap()).unwrap().surface;
+    // The angle-0 meridian parts the two π-bands, so it is no wrap
+    // edge of either (D1: a wrap edge's halves bound one face): it is
+    // an image at rest in the sphere's chart, the profile's arc its
+    // declaring authority, as the angle-π copy is.
+    assert_declared_image_in(&t.body, arc_edge, sphere);
+    assert_eq!(t.walls()[0][1], None);
     assert!(t.rims[0].iter().all(Option::is_none));
     // Both poles are EXPORTED (M9-D1), in canonical vertex order —
     // this body's only two vertices, south first.
@@ -116,7 +115,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
         &t.body,
         &[
             (
-                t.walls[0][0].unwrap(),
+                t.walls()[0][0].unwrap(),
                 geom_core::Point3::new(0.0, 0.0, -1.0),
             ),
             (pi_walls[0].unwrap(), geom_core::Point3::new(0.0, 0.0, 1.0)),

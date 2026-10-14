@@ -19,9 +19,8 @@ import unittest
 
 import pncad
 from pncad import (
-    BooleanOp,
     Doc,
-    Expr,
+    Formula,
     Node,
     NodePick,
     Open,
@@ -92,7 +91,7 @@ def box(doc, width, depth, height):
         .line_to((0 * m, depth * m))
         .line_to(Start)
     )
-    return doc.insert(Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), Expr.length_in(height, m)))
+    return doc.insert(Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), Formula.length_in(height, m)))
 
 
 def body_of(doc, node):
@@ -258,17 +257,21 @@ class TestBoundaryPolylines(unittest.TestCase):
             self.assertNotEqual(line[0], line[-1])
 
         doc = Doc()
-        spine = doc.insert(Node.datum_axis((
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
+        frame = doc.insert(Node.datum_frame((
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
         ), (
-            Expr.literal(0.0),
-            Expr.literal(0.0),
-            Expr.literal(1.0),
+            Formula.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(0.0),
+        ), (
+            Formula.literal(0.0),
+            Formula.literal(1.0),
+            Formula.literal(0.0),
         )))
         ring = doc.insert(
-            Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(0.5, m), TubeWindow.full(), Expr.length_in(0.1, m))
+            Node.tube(frame, Formula.length_in(0.5, m), TubeWindow.full(), Formula.length_in(0.1, m))
         )
         lines = body_of(doc, ring).tessellate(20 * mm).boundaries
         closed = [line for line in lines if line[0] == line[-1]]
@@ -304,7 +307,7 @@ class TestWatertight(unittest.TestCase):
         repair pass."""
         doc = Doc()
         disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame()))
-        cyl = doc.insert(Node.extrude(disc, Expr.length_in(2, m)))
+        cyl = doc.insert(Node.extrude(disc, Formula.length_in(2, m)))
         self.assertEqual(unmatched_half_edges(body_of(doc, cyl).tessellate(5 * mm)), [])
 
     def test_a_body_with_a_hole_is_watertight(self):
@@ -318,7 +321,7 @@ class TestWatertight(unittest.TestCase):
         )
         hole = circle((0 * m, 0 * m), 0.7 * m)
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile([outer, hole], plane=doc.sketch_frame())), Expr.length_in(0.6, m))
+            Node.extrude(doc.insert(Node.profile([outer, hole], plane=doc.sketch_frame())), Formula.length_in(0.6, m))
         )
         self.assertEqual(unmatched_half_edges(body_of(doc, plate).tessellate(5 * mm)), [])
 
@@ -329,7 +332,7 @@ class TestBudget(unittest.TestCase):
     def test_a_finer_budget_buys_more_triangles_on_a_curve(self):
         doc = Doc()
         disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame()))
-        body = body_of(doc, doc.insert(Node.extrude(disc, Expr.length_in(2, m))))
+        body = body_of(doc, doc.insert(Node.extrude(disc, Formula.length_in(2, m))))
         coarse = body.tessellate(20 * mm)
         fine = body.tessellate(1 * mm)
         self.assertLess(coarse.triangle_count, fine.triangle_count)
@@ -446,16 +449,16 @@ class TestCrossCheckOnBooleanGeometry(unittest.TestCase):
         tool_p = doc.insert(
             Node.polygon(
                 [
-                    (Expr.length_in(1, m), Expr.length_in(1, m)),
-                    (Expr.length_in(3, m), Expr.length_in(1, m)),
-                    (Expr.length_in(3, m), Expr.length_in(3, m)),
-                    (Expr.length_in(1, m), Expr.length_in(3, m)),
+                    (Formula.length_in(1, m), Formula.length_in(1, m)),
+                    (Formula.length_in(3, m), Formula.length_in(1, m)),
+                    (Formula.length_in(3, m), Formula.length_in(3, m)),
+                    (Formula.length_in(1, m), Formula.length_in(3, m)),
                 ],
-                plane=doc.sketch_frame(elevation=Expr.length_in(0.5, m)),
+                plane=doc.sketch_frame(elevation=Formula.length_in(0.5, m)),
             )
         )
-        tool = doc.insert(Node.extrude(tool_p, Expr.length_in(1, m)))
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, base, tool))
+        tool = doc.insert(Node.extrude(tool_p, Formula.length_in(1, m)))
+        cut = doc.insert(Node.subtract(base, tool))
         body = body_of(doc, cut)
         body.validate()
 
@@ -481,15 +484,15 @@ class TestCrossCheckOnASketchPlane(unittest.TestCase):
         sketch = doc.insert(
             Node.polygon(
                 [
-                    (Expr.length_in(0, m), Expr.length_in(0, m)),
-                    (Expr.length_in(2, m), Expr.length_in(0, m)),
-                    (Expr.length_in(2, m), Expr.length_in(1, m)),
-                    (Expr.length_in(0, m), Expr.length_in(1, m)),
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(2, m), Formula.length_in(0, m)),
+                    (Formula.length_in(2, m), Formula.length_in(1, m)),
+                    (Formula.length_in(0, m), Formula.length_in(1, m)),
                 ],
                 plane=doc.sketch_frame(plane=plane),
             )
         )
-        prism = doc.insert(Node.extrude(sketch, Expr.length_in(3, m)))
+        prism = doc.insert(Node.extrude(sketch, Formula.length_in(3, m)))
         body = body_of(doc, prism)
         body.validate()
 
@@ -517,15 +520,12 @@ class TestCrossCheckConverges(unittest.TestCase):
         frame = doc.sketch_frame()
         # The axis in the sketch's own coordinates: the frame's v is
         # world +y, so the world y axis IS its own +y through (0, 0).
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
-        ), (
-            Expr.literal(0.0),
-            Expr.literal(1.0),
-        )))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
         ring = doc.insert(
-            Node.revolve(doc.insert(Node.profile(outline, plane=frame)), axis, Expr.angle_in(360, deg))
+            Node.revolve(doc.insert(Node.profile(outline, plane=frame)), *axis, Formula.angle_in(360, deg))
         )
         body = body_of(doc, ring)
         body.validate()

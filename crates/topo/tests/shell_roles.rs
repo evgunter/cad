@@ -16,7 +16,7 @@
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::{Sign, Tol};
 use topo::{
     Body, BooleanResult, BooleanResultKind, ShellRole, classify_shells, mass_properties, subtract,
@@ -25,14 +25,23 @@ use topo::{
 /// `A ∖ B` with `B` strictly inside `A`: the void birth — one solid,
 /// two shells (outer + reverted interior).
 fn voided() -> Body<f64> {
-    let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
-    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
+    let tol = Tol::witness();
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), tol),
+        tol,
+    );
+    let b = finished(
+        "b",
+        brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), tol),
+        tol,
+    );
     let r = subtract(&a, &b, Tol::witness()).unwrap();
     let BooleanResult::Body(bb) = r else {
         panic!("the strict-containment subtract yields a voided body")
     };
     assert_eq!(bb.kind, BooleanResultKind::Voided);
-    bb.body
+    bb.body.into_body()
 }
 
 #[test]

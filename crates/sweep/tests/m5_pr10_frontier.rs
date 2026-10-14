@@ -20,7 +20,8 @@ use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
-use sweep::skin::loft_geometry;
+use sweep::ExtrudeSide;
+use sweep::skin::{loft_geometry, loft_parameters};
 use sweep::{Extrusion, extrude};
 use topo::{FaceSurface, validate_geometric};
 
@@ -31,13 +32,10 @@ use crate::common;
 fn geometry() -> sweep::LoftGeometry {
     let chain = common::chain;
     let places = [0.0, 1.0, 2.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
-    loft_geometry(
-        &[chain(1.0), chain(1.6), chain(1.0)],
-        &places,
-        2,
-        Tol::witness(),
-    )
-    .expect("the loft skins")
+    let sections = [chain(1.0), chain(1.6), chain(1.0)];
+    let params =
+        loft_parameters(&sections, &places, 2, Tol::witness()).expect("the loft parameterizes");
+    loft_geometry(&sections, &places, 2, &params, Tol::witness()).expect("the loft skins")
 }
 
 /// The walls exist, are real NURBS (not the placeholder), and carry
@@ -80,16 +78,31 @@ fn tier_three_certifies_the_kind_and_refuses_the_geometry() {
     )
     .validate(Tol::witness())
     .expect("the square validates");
-    let built = extrude(&profile, Extrusion::Distance(2.0), Tol::witness()).expect("extrudes");
+    let built = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("extrudes");
+    let face = built.side_faces()[0][1];
     let mut body = built.body;
     // The baseline is a genuine tier-3 solid.
     validate_geometric(&body, Tol::witness()).expect("the extrusion validates at tier 3");
 
     let g = geometry();
     let wall = g.walls[0][1].as_ref().clone();
-    let face = built.side_faces[0][1];
-    body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(wall.into())))
-        .expect("the arena takes a real NURBS surface");
+    // Lifts RechartStrandsDescriptions: tier 3's verdict on a genuine NURBS wall is the row.
+    body.set_face_surface_unvouched_for_tests(
+        face,
+        FaceSurface::New {
+            surface: Surface::Nurbs(wall.into()),
+            sense: true,
+        },
+    )
+    .expect("the arena takes a real NURBS surface");
 
     let errors = validate_geometric(&body, Tol::witness())
         .expect_err("tier 3 must refuse the mismatched geometry");

@@ -1,81 +1,91 @@
 //! The parametric heat-sink strip (#91 C5): the tour's first M4-layer
-//! showcase. ONE editor-core recipe document (base extrude + fin
-//! extrude + `LinearPattern`), evaluated three times with the fin
-//! count edited 5 → 7 → 9 through `SetStructuralParam` — each re-eval
-//! feeds the PRIOR evaluation as the memo, so the caption's recompute
-//! counters are the ratified downstream-only-recompute story (the
-//! count edit re-runs exactly ONE node, the pattern; everything
-//! upstream is reused by content key). Stable names (N1
-//! `Instance(i)` wrapping) survive the edits — counted live.
+//! showcase. ONE editor-core recipe document — base extrude, a fin
+//! extrude, a `PlacedUnion` of the fin along a `Linear` rule, a
+//! `Boolean(Union)` folding the group into the base, and a `Fillet`
+//! rounding the base's twelve edges on the unioned part — evaluated
+//! three times with the fin count edited 5 → 7 → 9 through
+//! `SetStructuralParam`. Each re-eval feeds the PRIOR evaluation as the
+//! memo, so the caption's recompute counters are the ratified
+//! downstream-only-recompute story: the count edit re-runs the group,
+//! the union and the fillet below it, and the six nodes upstream of the
+//! edited slot — both frames, both profiles, both extrudes — are reused
+//! by content key. Stable names
+//! (N1 `Instance(i)` wrapping) survive the edits, counted live.
 //!
-//! **The whole part is IN the document** (#1344): a `PlacedUnion` over
-//! the fin, and a `Boolean(Union)` folding the group into the base.
+//! The fin group is a `PlacedUnion`, not a `Pattern`: a `Boolean`
+//! recipe node refuses a `Pattern`'s `Instances` payload typed, because
+//! Pattern's N-bodies-unfused contract is the ASSEMBLY product's
+//! currency (`benchlayout` wants that). `PlacedUnion` (GROUP-BOOLEAN-
+//! DESIGN, ratified A′) is one prototype, a placement rule and ONE BODY
+//! out, `Instance(i)` naming preserved and `SlotId::Count` the
+//! structural slot the edit drives.
 //!
-//! A `Boolean` recipe node cannot consume a `Pattern`'s `Instances`
-//! payload, and that is by design: `body_operand`
-//! refuses `ValuePayload::Instances` typed, because Pattern's
-//! N-bodies-unfused contract is deliberate — its instances are the
-//! ASSEMBLY product's currency, gathered per-instance by
-//! `product::sources_of`, which is what `benchlayout` needs. What
-//! So the fin group is not a `Pattern`.
-//! `Node::PlacedUnion` (GROUP-BOOLEAN-DESIGN, ratified A′) is the node
-//! this shape wants: one prototype, a placement rule, ONE BODY out,
-//! disjointness CERTIFIED through `topo::Separation`, `Instance(i)`
-//! naming preserved, and `SlotId::Count` still the structural slot the
-//! fin-count edit drives. Its output is an ordinary `Body`, so the
-//! union into the base is an ordinary `Boolean` node beside it. That is
-//! the shape GROUP-BOOLEAN-DESIGN's acceptance names for this scene:
-//! *"the heatsink's out-of-document union moves INTO the document"*.
+//! # Sunk fins, and flush ones ([`flush_fins`], run live)
 //!
-//! # The 1/16 overlap is still a dodge, and still here (#1344)
+//! **The fins sit 1/16 inside the base rather than flush on it** — "the
+//! table-leg pattern", a transversal union instead of a face contact.
+//! A real extruded heat sink's fins are flush with its base, and the
+//! flush document builds: fins sketched ON the base top, the union
+//! glues the five base-face contacts on their decided zero (D10,
+//! Booleans), and the union against the five-shell `PlacedUnion`
+//! operand comes out at the closed-form volume of the rounded base + 5
+//! fins.
 //!
-//! The fins are sketched 1/16 INSIDE the base rather than sitting flush
-//! on it, "the table-leg pattern". What that dodges is the
-//! undeclared-coincidence refusal, and `bool_bodies::table` runs the
-//! experiment live next door: a leg whose top face is EXACTLY coplanar
-//! with the tabletop's underside, undeclared, refuses at the
-//! coincidence door (rung (b) — value equality never classifies), while
-//! the same leg overlapped 0.05 into the top unions as an ordinary
-//! transversal intersection.
+//! The count EDIT builds in one step too: the edit to 7 leaves
+//! `Instance(5)` and `Instance(6)` flush with the base, and the union
+//! glues them alike, at the closed-form volume of 7 fins with the
+//! union keeping its id. The
+//! scene keeps the sunk fins as its subject, and measures the flush
+//! document's edit beside them.
 //!
-//! A real extruded heat sink's fins ARE flush with its base; the 1/16
-//! embedment is a modelling fiction the part does not have. The honest
-//! version declares the contacts instead — which only became
-//! practical with `PlacedUnion`, since per-fin declarations against
-//! bit-identical `StableName`s had no per-instance discriminator before
-//! `Instance(i)`. Recorded, not fixed here: it is #1344's own
-//! follow-up, and it wants the recipe layer's `Node::Declare` path.
+//! # The base is rounded after the union
+//!
+//! **The fillet is the last node**, so the count edit re-runs it on the
+//! part it changed. Its twelve edges are the union's edges that came
+//! through from the plate's read, selected once at five fins and
+//! stored by name. The fins' feet are rectangular rings of the plate's
+//! top face, and the blend meters each ring edge against each band's
+//! trimline before it carves: the fins stand 1/8 inside the long edges
+//! and 1/4 inside the near end, so at r = 1/32 every foot clears every
+//! trimline.
+//!
+//! The radius is under 1/16 because the ninth fin's outer wall stands
+//! 1/16 inside the base's end face: at r = 1/16 that wall's foot lies on
+//! the end band's trimline, and the nine-fin fillet refuses
+//! `FaceClearanceUncertified` at a margin of zero (the sampled screen
+//! answers before the exact ring meter, because the foot's edge runs
+//! parallel to the band).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
+use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
-    Expr, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach, SlotId,
-    ValuePayload, apply, evaluate, parse_expr,
+    Bodies, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
+    LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach, SlotId,
+    ValuePayload, apply, evaluate, parse_formula,
 };
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
 #[cfg(feature = "probe")]
 use pncad::geom_core::Probe;
+use pncad::select::{EntityKind, NamePat, SegPat, SegTag, Selector, select};
 
 use crate::scalar::Scalar;
 
 /// The U8a text door, no params in scope: the tour's expressions are
 /// authored the way a user would type them (`250 mm`, `5`) and go
-/// through the checking parser. The canonical-meter BITS are unchanged
-/// (250·10⁻³ lands on the same dyadic 0.25 the tour used to hand-write
-/// — pinned in editor-core's u8a_parse suite), so this is a SAID
-/// change: exports stay byte-identical.
+/// through the checking parser.
 /// **Authored CANONICALLY, deliberately**: this scene and `checks` are
 /// the default half of the units exhibit, against `ring` (millimetres
 /// and half-turns) and `diefillet` (millimetres and degrees). Nothing
 /// here names a unit, so every literal stores the canonical row for
 /// its dimension and the panel opens on `m` because the document SAYS
 /// `m` — not because a reader had to pick a fallback.
-fn pe(src: &str) -> Expr {
-    parse_expr(src, &BTreeMap::new()).expect("tour expression")
+fn pe(src: &str) -> Formula {
+    parse_formula(src, &BTreeMap::new()).expect("tour expression")
 }
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
@@ -86,25 +96,91 @@ use pncad::geom_core::Tol;
 /// something this scene can compute. Moving it is a deliberate act —
 /// see the assertion below.
 const HEATSINK_NAMES_AT_5: usize = 131;
-const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
-/// Per-fin material gain: 0.1875 x 0.75 footprint, 0.8125 tall, minus
-/// the 1/16 slice overlapping into the base.
-const FIN_GAIN: f64 = 0.1875 * 0.75 * (0.8125 - 0.0625);
+/// The base plate, `3 × 1 × 0.25`.
+const BASE: [f64; 3] = [3.0, 1.0, 0.25];
+/// The base fillet's radius, as authored (`R` below is the same value).
+const RADIUS: &str = "31.25 mm";
+const R: f64 = 0.03125;
+/// Per-fin material gain: a 0.1875 × 0.75 footprint standing 0.75 above
+/// the base top. A sunk fin is 0.8125 tall with its bottom 1/16 inside
+/// the base, a flush one 0.75 tall on the top face: the same gain.
+const FIN_GAIN: f64 = 0.1875 * 0.75 * 0.75;
+
+/// How a fin meets the base.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Seat {
+    /// 1/16 inside the base: a transversal union.
+    Sunk,
+    /// On the base top, every foot a flush contact the union glues.
+    Flush,
+}
 
 struct Recipe {
     doc: Doc<ProfileProgram>,
     /// The `PlacedUnion` over the fin — the fin count's structural
     /// slot, and what `SetStructuralParam` edits.
     group: RecipeNodeId,
-    /// The `Boolean(Union)` that folds the fin group into the base:
-    /// the node that used to be a chain of unions in demo code.
+    /// The `Fillet` that rounds the plate's edges on the unioned part:
+    /// the document's final body.
     solid: RecipeNodeId,
 }
 
-fn build_doc(tol: Tol) -> Recipe {
-    // v4 (LIB-SWITCH): the document stores the PROGRAM — the polygon
-    // chain (`At`, `LineTo`…, `LineTo(Start)`), replayed through the
-    // driver at every evaluation.
+fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+        tol,
+        &RefusingReach,
+    )
+    .expect("insert node");
+    *doc = applied.doc;
+    applied.record.minted.expect("insert mints an id")
+}
+
+fn eval(doc: &Doc<ProfileProgram>, prior: Option<&Evaluation<f64>>, tol: Tol) -> Evaluation<f64> {
+    evaluate::<f64>(
+        doc,
+        prior,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    )
+}
+
+/// The fin-count edit, the one the tour's story is about.
+fn set_count(
+    doc: &Doc<ProfileProgram>,
+    group: RecipeNodeId,
+    n: usize,
+    tol: Tol,
+) -> Doc<ProfileProgram> {
+    apply(
+        doc,
+        &DocEdit::SetStructuralParam {
+            node: group,
+            slot: SlotId::Count,
+            expr: pe(&format!("{n}")),
+            fresh: Vec::new(),
+        },
+        tol,
+        &RefusingReach,
+    )
+    .expect("count edit")
+    .doc
+}
+
+/// The scene's own document: fins sunk.
+fn scene_doc(tol: Tol) -> Recipe {
+    build_doc(tol, Seat::Sunk)
+}
+
+/// Builds the heat sink at five fins. Where a stored selection is
+/// needed — the fillet's edges — it is taken
+/// from an evaluation of the document so far: evaluate, select, store.
+fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let base_loops = vec![
         LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (0.0, 1.0)])
             .expect("finite corners"),
@@ -119,14 +195,8 @@ fn build_doc(tol: Tol) -> Recipe {
         .expect("finite corners"),
     ];
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("heatsink", tol);
-    let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied =
-            apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("insert node");
-        *doc = applied.doc;
-        applied.record.minted.expect("insert mints an id")
-    };
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let len = |v: f64| Formula::literal(v, Dimension::Length).expect("finite");
+    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
     let frame_at = |z: f64| {
         Node::Datum(Datum::Frame {
             origin: [len(0.0), len(0.0), len(z)],
@@ -134,44 +204,50 @@ fn build_doc(tol: Tol) -> Recipe {
             v: [scl(0.0), scl(1.0), scl(0.0)],
         })
     };
-    let base_plane = insert(&mut doc, frame_at(0.0));
+    let base_plane = insert(&mut doc, frame_at(0.0), tol);
     let base_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: base_plane,
+            frame: base_plane.into(),
             loops: base_loops,
             ids: Vec::new(),
         }),
+        tol,
     );
-    let base_e = insert(
+    let base = insert(
         &mut doc,
         Node::Extrude {
-            profile: base_p,
+            profile: base_p.into(),
             distance: pe("250 mm"),
+            side: ExtrudeSide::Along,
         },
+        tol,
     );
-    // Fin sketch sits at z = 0.1875 — 1/16 INSIDE the 0.25-thick base:
-    // its own plane, so its own frame.
-    let fin_plane = insert(&mut doc, frame_at(0.1875));
+    let (fin_z, fin_height) = match seat {
+        Seat::Sunk => (0.1875, "812.5 mm"),
+        Seat::Flush => (0.25, "750 mm"),
+    };
+    let fin_plane = insert(&mut doc, frame_at(fin_z), tol);
     let fin_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: fin_plane,
+            frame: fin_plane.into(),
             loops: fin_loops,
             ids: Vec::new(),
         }),
+        tol,
     );
     let fin_e = insert(
         &mut doc,
         Node::Extrude {
-            profile: fin_p,
-            distance: pe("812.5 mm"),
+            profile: fin_p.into(),
+            distance: pe(fin_height),
+            side: ExtrudeSide::Along,
         },
+        tol,
     );
-    // The fin group: ONE node, ONE body out. `placed_union` is the
-    // PARAMETRIC-rule constructor, so the count stays a structural slot
-    // and the tour's 5 -> 7 -> 9 edit drives it exactly as it drove
-    // Pattern's.
+    // `placed_union` is the PARAMETRIC-rule constructor, so the count
+    // is a structural slot.
     let group = insert(
         &mut doc,
         Node::placed_union(
@@ -183,56 +259,60 @@ fn build_doc(tol: Tol) -> Recipe {
             },
         )
         .expect("a Linear rule is parametric, so it carries a count"),
+        tol,
     );
-    // ... and the fold into the base, in the document rather than
-    // beside it. No declarations: the fins overlap the base by 1/16, so
-    // this is an ordinary transversal union (see the module docs for
-    // why that overlap is a dodge and what retires it).
-    let solid = insert(
+    let union = insert(
         &mut doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: base_e,
-            b: group,
-            declare: None,
+        Node::Union {
+            members: Bodies::Spelled(vec![base.into(), group.into()]),
         },
+        tol,
     );
+    // The plate's twelve edges on the unioned part: the union's edges
+    // that came through from the plate's read.
+    let edges = select(
+        &eval(&doc, None, tol),
+        union,
+        &Selector::of(
+            NamePat::of_kind(EntityKind::Edge)
+                .seg(SegPat::tag(SegTag::From).of([NamePat::any().node(base)])),
+        ),
+    );
+    assert_eq!(edges.len(), 12, "the plate's edges: {edges:#?}");
+    let solid = insert(&mut doc, Node::fillet(union, pe(RADIUS), edges), tol);
     Recipe { doc, group, solid }
 }
 
-/// The document's OWN final body, read back — no demo-side boolean.
-///
-/// The volume gate rides with the read: the exact dyadic oracle has to
-/// hold of the union node's answer, or the group has quietly changed
-/// what it builds. One gate on the finished solid rather than the
-/// per-step chain the demo-side union ran, because there is now one op
-/// where there were N.
-fn solidify<S: Scalar>(
-    r: &Recipe,
-    ev: &Evaluation<S>,
-    n: usize,
-    tol: Tol,
-) -> (pncad::topo::Body<S>, pncad::topo::ContactRecords) {
-    let value = ev.value(r.solid).expect("the union node evaluated");
-    let ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) = &value.payload else {
-        panic!("union payload: {:?}", value.payload);
+/// The document's OWN final body, read back, gated on the exact
+/// volume: the rounded plate's closed form plus `n` fins.
+fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize, tol: Tol) -> pncad::topo::Body<S> {
+    let value = ev.value(r.solid).expect("the fillet node evaluated");
+    let ValuePayload::Body(body) = &value.payload else {
+        panic!("fillet payload: {:?}", value.payload);
     };
-    let want = BASE_VOL + n as f64 * FIN_GAIN;
+    let want = volume(n);
     let got = pncad::topo::mass_properties(body, tol)
         .expect("mass properties")
         .volume
         .f();
     assert!(
         (got - want).abs() <= 1e-9,
-        "the {n}-fin solid measures {got}, and base + {n} fins is {want}"
+        "the {n}-fin solid measures {got}, and the rounded base + {n} fins is {want}"
     );
-    ((**body).clone(), (**contacts).clone())
+    pncad::topo::validate_geometric(body, tol)
+        .unwrap_or_else(|e| panic!("the {n}-fin solid is tier-3 valid, got {e:?}"));
+    (**body).clone()
+}
+
+/// The rounded plate's closed form plus `n` fins.
+fn volume(n: usize) -> f64 {
+    crate::oracles::rounded_box_volume(BASE, R) + n as f64 * FIN_GAIN
 }
 
 /// The recipe evaluated + solidified at every fin count the tour
 /// shows (5 → 7 → 9, each re-eval fed the prior as memo) — the Probe
 /// sweep records the document-evaluation predicates AND the union
-/// chain at every count.
+/// at every count.
 /// Only `crate::probe` calls this, so it rides the `probe` feature with
 /// it — otherwise a default build trips `dead_code` under CI's
 /// `-D warnings`.
@@ -252,10 +332,8 @@ fn solidify<S: Scalar>(
 /// name the evaluation contract's own bound is a design question for
 /// that census, not something to settle from here.
 #[cfg(feature = "probe")]
-pub(crate) fn probe_solids(
-    tol: Tol,
-) -> Vec<(pncad::topo::Body<Probe>, pncad::topo::ContactRecords)> {
-    let r = build_doc(tol);
+pub(crate) fn probe_solids(tol: Tol) -> Vec<pncad::topo::Body<Probe>> {
+    let r = scene_doc(tol);
     let cancel = CancelToken::new();
     let opts = EvalOptions::default();
     let ev5 = evaluate::<Probe>(&r.doc, None, &cancel, &opts, tol);
@@ -263,18 +341,7 @@ pub(crate) fn probe_solids(
     let mut doc = r.doc.clone();
     let mut prior = ev5;
     for n in [7usize, 9] {
-        let applied = apply(
-            &doc,
-            &DocEdit::SetStructuralParam {
-                node: r.group,
-                slot: SlotId::Count,
-                expr: pe(&format!("{n}")),
-            },
-            tol,
-            &RefusingReach,
-        )
-        .expect("count edit");
-        doc = applied.doc;
+        doc = set_count(&doc, r.group, n, tol);
         let ev = evaluate::<Probe>(&doc, Some(&prior), &cancel, &opts, tol);
         out.push(solidify(&r, &ev, n, tol));
         prior = ev;
@@ -282,23 +349,50 @@ pub(crate) fn probe_solids(
     out
 }
 
-/// This scene's recipe, as a document the GUI can open.
+/// This scene's recipe, as a document the GUI can open: the finished
+/// heat sink, placed in the world.
 ///
 /// The same `build_doc` the stops walk — the gallery must not be a
 /// second authoring of the scene, or it would stop being evidence
 /// about this one.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
-    build_doc(tol).doc
+    let r = scene_doc(tol);
+    apply(&r.doc, &DocEdit::place(r.solid, None), tol, &RefusingReach)
+        .expect("the heat sink places")
+        .doc
+}
+
+/// Flush fins, measured live — the module docs' first section: the
+/// count edit builds the flush document in one edit.
+fn flush_fins(tol: Tol) {
+    let flush = build_doc(tol, Seat::Flush);
+    let ev5 = eval(&flush.doc, None, tol);
+    solidify(&flush, &ev5, 5, tol);
+    println!(
+        "   flush fins, 5 Rest contacts: the union glues them and builds, volume {} (gated 1e-9)",
+        volume(5)
+    );
+
+    let doc7 = set_count(&flush.doc, flush.group, 7, tol);
+    let ev7 = eval(&doc7, Some(&ev5), tol);
+    let edited = Recipe { doc: doc7, ..flush };
+    solidify(&edited, &ev7, 7, tol);
+    println!(
+        "   flush fins, count edited 5 -> 7: the union glues the two new feet and \
+         builds, volume {} (one edit; recomputed {}, reused {}; the union keeps its id)",
+        volume(7),
+        ev7.recomputed,
+        ev7.reused
+    );
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let r = build_doc(tol);
-    let cancel = CancelToken::new();
-    let opts = EvalOptions::default();
+    let r = scene_doc(tol);
 
     // Evaluate at 5, then EDIT the structural count and re-evaluate
     // against the prior — the memo counters are the demo.
-    let ev5 = evaluate::<f64>(&r.doc, None, &cancel, &opts, tol);
+    let ev5 = eval(&r.doc, None, tol);
+    assert_eq!(ev5.recomputed, 9, "a cold evaluation computes every node");
     let names5 = ev5
         .value(r.group)
         .expect("the fin group @ 5")
@@ -307,42 +401,23 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     let mut doc = r.doc.clone();
     let mut evs: Vec<(usize, Evaluation<f64>, String)> = Vec::new();
-    evs.push((5, ev5, "cold evaluation: all 6 nodes computed".to_string()));
+    let cold = format!("cold evaluation: all {} nodes computed", ev5.recomputed);
+    evs.push((5, ev5, cold));
     for (prior_idx, n) in [7usize, 9].into_iter().enumerate() {
-        let applied = apply(
-            &doc,
-            &DocEdit::SetStructuralParam {
-                node: r.group,
-                slot: SlotId::Count,
-                expr: pe(&format!("{n}")),
-            },
-            tol,
-            &RefusingReach,
-        )
-        .expect("count edit");
-        doc = applied.doc;
-        let ev = evaluate::<f64>(&doc, Some(&evs[prior_idx].1), &cancel, &opts, tol);
+        doc = set_count(&doc, r.group, n, tol);
+        let ev = eval(&doc, Some(&evs[prior_idx].1), tol);
         let caption = format!(
             "count edit -> {n}: recomputed {} node(s), reused {} (downstream-only recompute)",
             ev.recomputed, ev.reused
         );
-        // TWO nodes, not one, and the second is the point: the count
-        // edit re-runs the fin group AND the union that consumes it —
-        // which is what it means for the whole part to live in the
-        // document now (#1344). Everything upstream of the edited slot
-        // — both sketch frames, both profiles and both extrudes — is
-        // still reused by content key, so this is the same
-        // downstream-only-recompute claim measured over a chain that is
-        // one node longer, not a weaker one. It read 1 while the union
-        // lived in demo code.
+        // The fin group, the union that consumes it and the fillet on
+        // the union re-run; both frames, both profiles and both
+        // extrudes are upstream of the edited slot and reuse by content
+        // key.
         assert_eq!(
-            ev.recomputed, 2,
-            "a count edit re-runs exactly the fin group and the union below it"
+            ev.recomputed, 3,
+            "a count edit re-runs exactly the fin group, the union and the fillet below it"
         );
-        // SIX since a profile is drawn on a frame NODE: the two frames
-        // are upstream of the edited slot like the profiles that name
-        // them, so they reuse for the same reason and the number that
-        // counts reuse has to count them.
         assert_eq!(ev.reused, 6, "everything upstream reuses by content key");
         evs.push((n, ev, caption));
     }
@@ -374,14 +449,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          after both edits (N1 Instance(i) wrapping)",
         names5.len()
     );
+    flush_fins(tol);
 
     let recipe_ops = "ONE recipe doc: Profile -> Extrude (base), Profile -> Extrude (fin) -> \
-         LinearPattern(count); count edited via SetStructuralParam";
+         PlacedUnion(Linear count) -> Boolean(Union) -> Fillet (the base's edges); count edited \
+         via SetStructuralParam";
     let colors = [[0.45, 0.62, 0.62], [0.38, 0.58, 0.68], [0.32, 0.54, 0.74]];
     evs.into_iter()
         .zip(colors)
         .map(|((n, ev, recompute_story), color)| {
-            let (body, contacts) = solidify(&r, &ev, n, tol);
+            let body = solidify(&r, &ev, n, tol);
             let name: &'static str = match n {
                 5 => "heatsink5",
                 7 => "heatsink7",
@@ -390,37 +467,30 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             Stop {
                 name,
                 caption: format!("heat sink ({n} fins)"),
-                // Montage cell RETIRED in favour of `impeller12`,
-                // which makes this scene's claim — one recipe
-                // document, a pattern COUNT edited, the instances'
-                // names surviving the edit — and makes it better in
-                // two ways this scene cannot. Its count and its
-                // angular step read the SAME parameter, so the edit
-                // has to hold a relation rather than move one number;
-                // and its instances are fused into one body BY THE
-                // RECIPE (`Node::placed_union`), where this scene must
-                // still union them demo-side because a Boolean node
-                // cannot consume Pattern Instances (F4, the note
-                // below). What is NOT lost with the cell is the LINEAR
-                // pattern itself: `bench` carries one on the sheet
-                // already. All three counts stay in the tour and keep
-                // their standalone renders, and the stable-name
-                // assertion above is untouched — it is this scene's.
+                // Montage cell held by `impeller12`, which makes this
+                // scene's claim with a relation rather than one number:
+                // its count and its angular step read the SAME
+                // parameter. `bench` carries a linear pattern on the
+                // sheet already; all three counts here keep their
+                // standalone renders.
                 montage: false,
                 story: "parametric heat-sink strip from ONE recipe document — fin count \
                         is a structural parameter; this render is one evaluation",
                 ops: recipe_ops,
                 delta: 1e-2,
                 note: Some(format!(
-                    "{recompute_story}; fins union-inset into the base (1/16 overlap, \
-                     volume {} — observed bit-exact, gated 1e-9); the union-to-solid step is demo-side — a \
-                     Boolean recipe node cannot consume Pattern Instances today (F4)",
-                    BASE_VOL + n as f64 * FIN_GAIN
+                    "{recompute_story}; fins sunk 1/16 into a base rounded at r = 1/32 \
+                     after the union (volume {} = the rounded plate's closed form + {n} fins, \
+                     gated 1e-9); flush fins build too, and a count edit's new feet glue \
+                     on their decided zero",
+                    volume(n)
                 )),
-                view: View { elev: 24.0, azim: -62.0, up: 'z' },
-                bodies: vec![
-                    SceneBody::seamed(name, color, body, contacts).named(&ev, r.solid),
-                ],
+                view: View {
+                    elev: 24.0,
+                    azim: -62.0,
+                    up: 'z',
+                },
+                bodies: vec![SceneBody::plain(name, color, body).named(&ev, r.solid)],
             }
         })
         .collect()
@@ -453,7 +523,7 @@ mod name_column {
     //! this scene is what the door does not check, which is that the
     //! rendering means ONE face and is reversible.
 
-    use super::build_doc;
+    use super::scene_doc;
     use pncad::document::{CancelToken, EvalOptions, evaluate};
     use pncad::geom_core::Tol;
     use pncad::prelude::StableName;
@@ -462,7 +532,7 @@ mod name_column {
     /// `crate::face_names` renders them for the CSV.
     fn tokens() -> Vec<(String, StableName)> {
         let tol = Tol::witness();
-        let r = build_doc(tol);
+        let r = scene_doc(tol);
         let ev = evaluate::<f64>(
             &r.doc,
             None,
@@ -470,7 +540,7 @@ mod name_column {
             &EvalOptions::default(),
             tol,
         );
-        let (body, _) = super::solidify(&r, &ev, 5, tol);
+        let body = super::solidify(&r, &ev, 5, tol);
         let rendered = crate::face_names(&ev, r.solid, &body);
         let rows = body
             .faces()
@@ -520,5 +590,18 @@ mod name_column {
                 serde_json::from_str(&json).expect("the swapped token is the name's own JSON");
             assert_eq!(back, name, "round trip through {token:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod scene {
+    //! The PR gate runs the tour's tests, not the tour: this is where the
+    //! scene's own assertions — the recompute and reuse counts, the
+    //! surviving names, the volume at every count, and the flush fins'
+    //! build — run on every PR that touches the tour.
+
+    #[test]
+    fn the_scene_holds() {
+        super::stops(pncad::geom_core::Tol::witness());
     }
 }

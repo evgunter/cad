@@ -8,10 +8,10 @@
 //!    `pncad::topo`, …), so a consumer's manifest names `pncad` and
 //!    nothing else — including the *payload types of error enums*,
 //!    which are otherwise the leak that forces a second `path`
-//!    dependency: `topo::BooleanError::CurvedBooleanUnsupported`
-//!    carries a `geom_brep::SurfaceKind` that `topo` does not
-//!    re-export, so a `topo`-only consumer can receive the error and
-//!    not spell its payload. Re-exporting the owning crates closes
+//!    dependency: `topo::BooleanError::Escalated` carries a
+//!    `geom_core::Indeterminate` that `topo` does not re-export, so a
+//!    `topo`-only consumer can receive the error and not spell its
+//!    payload. Re-exporting the owning crates closes
 //!    that whole class rather than one case, at the cost of a longer
 //!    path for the few payloads that sit below their owner's root
 //!    (`geom_core::spline::KnotAlgebraError`,
@@ -135,7 +135,7 @@
 //!     .line_to(p2(0.0, 1.0), tol)?
 //!     .line_to(Start, tol)?;
 //! let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()], tol)?;
-//! let body = extrude(&profile, Extrusion::Distance(real(1.0)), tol)?;
+//! let body = extrude(&profile, Extrusion::Distance { depth: real(1.0), side: ExtrudeSide::Along }, tol)?;
 //! let props = mass_properties(&body.body, tol)?;
 //! assert!((props.volume - 1.0).abs() < 1e-12);
 //! # Ok::<(), Box<dyn std::error::Error>>(())

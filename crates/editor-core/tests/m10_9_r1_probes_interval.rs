@@ -12,14 +12,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
+use editor_core::ExtrudeSide;
 use std::time::Instant;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, select_where,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Selector, SitedRef,
+    SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::{SymRules, Tol};
 
@@ -119,8 +120,8 @@ fn r1_the_refusal_walk_past_the_plates_ceiling() {
         for (label, r) in rows() {
             let (shapes, _, counts) = replay(&doc, &box_, r, tol);
             println!(
-                "   x{mult:<7} {label}: reg={} num={}\n{}",
-                counts.registered,
+                "   x{mult:<7} {label}: sym={} num={}\n{}",
+                counts.symbolic,
                 counts.numeric,
                 crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(
                     &shapes
@@ -160,17 +161,17 @@ fn r1_the_plate_ceiling_bisected_both_ways() {
 /// radius Uniform (±), all scaled together, so a ceiling is a multiple
 /// of a study a user would ask for.
 pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let plen = |n: &str| Expr::param(ParamName::new(n), Dimension::Length);
+    let plen = |n: &'static str| Formula::named(VarName::from_static(n), Dimension::Length);
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::Continuous {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static(n),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     declare(
@@ -200,9 +201,9 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
         },
     );
     let plane = r.insert(xy_frame());
-    let thickness = Expr::div(plen("outer_r"), scl(4.0)).expect("Length / Scalar");
+    let thickness = Formula::div(plen("outer_r"), scl(4.0)).expect("Length / Scalar");
     let disc_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: plen("outer_r"),
@@ -210,11 +211,12 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
         ids: Vec::new(),
     }));
     let disc = r.insert(Node::Extrude {
-        profile: disc_profile,
+        profile: disc_profile.into(),
         distance: thickness.clone(),
+        side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::CircleSplit {
             centre: [plen("offset"), len(0.0)],
             radius: plen("bore_r"),
@@ -224,8 +226,9 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_profile,
+        profile: bore_profile.into(),
         distance: thickness,
+        side: ExtrudeSide::Along,
     });
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
@@ -235,14 +238,14 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,
@@ -254,12 +257,13 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
         };
         vec![wall(disc), wall(bore)]
     };
-    let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
+    let web = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let measured = r.measure(&[web], &refs);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(2.0e-3),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }
@@ -297,13 +301,20 @@ fn r1_split_bore_disc_end_to_end() {
                         v.receipt(),
                         v.decisions()
                     );
-                    for line in v.render(&analyzed).lines().filter(|l| {
+                    for line in v.render(&doc, &analyzed).lines().filter(|l| {
                         l.contains("registered") || l.contains("symbolic") || l.contains("certif")
                     }) {
                         println!("      render| {line}");
                     }
                     let stack = editor_core::stackup::stackup(
-                        &doc, measure, &analyzed, &v, None, false, tol,
+                        &doc,
+                        crate::fixture::output(&doc, measure),
+                        &analyzed,
+                        &v,
+                        None,
+                        false,
+                        None,
+                        tol,
                     );
                     println!("      stackup {stack:?}");
                     let a =
@@ -408,8 +419,8 @@ fn r1_the_pads_over_band_set_at_multiples_of_its_ceiling() {
         for (label, r) in rows() {
             let (shapes, _, counts) = replay(&doc, &ParamBox::of(&analyzed), r, tol);
             println!(
-                "   pad x{mult} {label}: reg={}\n{}",
-                counts.registered,
+                "   pad x{mult} {label}: sym={}\n{}",
+                counts.symbolic,
                 crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(
                     &shapes
                 ))

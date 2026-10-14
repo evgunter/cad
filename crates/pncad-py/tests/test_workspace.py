@@ -31,7 +31,7 @@ from pncad import (
     ContentPin,
     Doc,
     DocRef,
-    Expr,
+    Formula,
     Node,
     PersistError,
     Workspace,
@@ -51,15 +51,15 @@ def box(doc, width, depth, height):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(0, m), Expr.length_in(0, m)),
-                (Expr.literal(width), Expr.length_in(0, m)),
-                (Expr.literal(width), Expr.literal(depth)),
-                (Expr.length_in(0, m), Expr.literal(depth)),
+                (Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.literal(width), Formula.length_in(0, m)),
+                (Formula.literal(width), Formula.literal(depth)),
+                (Formula.length_in(0, m), Formula.literal(depth)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.length_in(0, m)),
+            plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.literal(height)))
+    return doc.insert(Node.extrude(profile, Formula.literal(height)))
 
 
 class StoreCase(unittest.TestCase):

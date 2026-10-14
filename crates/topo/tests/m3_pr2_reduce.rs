@@ -19,10 +19,11 @@ use topo::{
 
 /// The split plane y = 1, Above = +y (the fixtures' tool).
 fn plane_y1<T: geom_core::Decide>() -> SplitPlane<T> {
-    SplitPlane {
-        origin: Point3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
-        normal: Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
-    }
+    topo::test_support::split_plane(
+        Point3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
+        Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// Fig. 14.2 analogue (profile in x–y, extruded along z, split y = 1):
@@ -61,9 +62,9 @@ const MIRRORED: &[(f64, f64)] = &[
 /// coordinates are exact; a reduced body holds coincident null-edge
 /// copies at ON positions).
 fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> Vec<VertexKey> {
-    body.vertices()
-        .filter(|(_, v)| {
-            let p = *body.get_point(v.point).unwrap();
+    body.vertex_points()
+        .filter(|(_, p)| {
+            let p = *p;
             p.x == x && p.y == y && p.z == z
         })
         .map(|(k, _)| k)
@@ -82,12 +83,13 @@ fn vertex_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> VertexKey {
 #[test]
 fn notched_block_reduction() {
     let fixture = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fixture.body.clone(), Tol::witness());
     let operand_counts = (
         fixture.body.vertices().count(),
         fixture.body.edges().count(),
         fixture.body.faces().count(),
     );
-    let red = split_reduce(&fixture.body, &plane_y1(), Tol::witness()).unwrap();
+    let red = split_reduce(&operand, &plane_y1(), Tol::witness()).unwrap();
 
     // Functional: the operand is untouched.
     assert_eq!(
@@ -161,7 +163,7 @@ fn notched_block_reduction() {
     }
 
     // Determinism (D9): a second run reproduces the records exactly.
-    let red2 = split_reduce(&fixture.body, &plane_y1(), Tol::witness()).unwrap();
+    let red2 = split_reduce(&operand, &plane_y1(), Tol::witness()).unwrap();
     assert_eq!(red.null_edges, red2.null_edges);
     assert_eq!(red.on_vertices, red2.on_vertices);
 }
@@ -170,7 +172,7 @@ fn notched_block_reduction() {
 /// edge ends: (classes of edges ending at `other`, classes of the
 /// remaining edge entries, classes of bisector duplicates).
 fn bucket_entries(
-    body: &Body<f64>,
+    body: &topo::AtRestBody<f64>,
     plane: &SplitPlane<f64>,
     vertex: VertexKey,
     other: VertexKey,
@@ -210,13 +212,14 @@ fn bucket_entries(
 #[test]
 fn tangent_edge_aoa_goes_below() {
     let fixture = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fixture.body.clone(), Tol::witness());
     let plane = plane_y1();
     let (tip_b, tip_t) = (
         vertex_at(&fixture.body, 4.0, 1.0, 0.0),
         vertex_at(&fixture.body, 4.0, 1.0, 1.0),
     );
     // Classification level: [slant: A, tip: ON→B, slant: A, cap dup: B].
-    let (to_other, edges, dups) = bucket_entries(&fixture.body, &plane, tip_b, tip_t);
+    let (to_other, edges, dups) = bucket_entries(&operand, &plane, tip_b, tip_t);
     assert_eq!(to_other, vec![PlaneSide::Below]); // the adjudicated AOA verdict
     assert_eq!(edges, vec![PlaneSide::Above, PlaneSide::Above]);
     assert_eq!(dups, vec![PlaneSide::Below]);
@@ -224,7 +227,7 @@ fn tangent_edge_aoa_goes_below() {
     // Surgery level: two runs ⇒ two copies; the slant half-edges start
     // at distinct new vertices; the tip edge keeps the old (Below-side)
     // vertices at both ends.
-    let red = split_reduce(&fixture.body, &plane, Tol::witness()).unwrap();
+    let red = split_reduce(&operand, &plane, Tol::witness()).unwrap();
     for tip in [tip_b, tip_t] {
         let copies: Vec<_> = red
             .null_edges
@@ -254,31 +257,49 @@ fn tangent_edge_aoa_goes_below() {
 /// Rule (b), touching-wedge fixture (the BOB mirror): the Λ tip edge is
 /// flanked BELOW-ON-BELOW with a wide ABOVE cap bisector — adjudicated
 /// **ABOVE** (book; the paper's BOB→BELOW would leave the two Below
-/// wedges pinned through it). Consequence: the tip edge is isolated
-/// into its own run (its halves move to Above copies) and the cap
-/// bisector run becomes a **dangling** null edge.
+/// wedges pinned through it). Consequence: the tip edge and the cap's
+/// span between the wedges are one piece above the plane, and each
+/// Below wedge a piece of its own, so the tip's null edges are a path:
+/// the tip keeps one wedge, an Above copy takes the tip edge and the
+/// cap, and a Below copy hung there the other wedge. No strut dangles.
 #[test]
 fn touching_wedge_bob_goes_above() {
     let fixture = prism::<f64>(MIRRORED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fixture.body.clone(), Tol::witness());
     let plane = plane_y1();
     let (tip_b, tip_t) = (
         vertex_at(&fixture.body, 4.0, 1.0, 0.0),
         vertex_at(&fixture.body, 4.0, 1.0, 1.0),
     );
-    let (to_other, edges, dups) = bucket_entries(&fixture.body, &plane, tip_b, tip_t);
+    let (to_other, edges, dups) = bucket_entries(&operand, &plane, tip_b, tip_t);
     assert_eq!(to_other, vec![PlaneSide::Above]); // the adjudicated BOB verdict
     assert_eq!(edges, vec![PlaneSide::Below, PlaneSide::Below]);
     assert_eq!(dups, vec![PlaneSide::Above]);
 
-    let red = split_reduce(&fixture.body, &plane, Tol::witness()).unwrap();
+    let red = split_reduce(&operand, &plane, Tol::witness()).unwrap();
     for tip in [tip_b, tip_t] {
         let at_tip: Vec<_> = red
             .null_edges
             .iter()
             .filter(|r| r.at_vertex == tip)
             .collect();
-        assert_eq!(at_tip.len(), 2);
-        assert_eq!(at_tip.iter().filter(|r| r.dangling).count(), 1);
+        assert_eq!(at_tip.len(), 1, "one null edge hangs at the tip");
+        let above = at_tip[0].attr.above_end;
+        assert_eq!(at_tip[0].attr.below_end, tip);
+        let at_above: Vec<_> = red
+            .null_edges
+            .iter()
+            .filter(|r| r.at_vertex == above)
+            .collect();
+        assert_eq!(at_above.len(), 1, "one hangs at the tip's Above copy");
+        assert_ne!(
+            at_above[0].attr.below_end, tip,
+            "the other wedge's own copy"
+        );
+        assert!(
+            !at_tip[0].dangling && !at_above[0].dangling,
+            "no strut dangles"
+        );
     }
     // The tip edge's halves left the original vertices for Above copies.
     let moved: Vec<_> = red
@@ -304,20 +325,22 @@ fn touching_wedge_bob_goes_above() {
 fn rule_a_mirror_senses() {
     // Notched: floor face outward +y — flanking entries BELOW.
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     let (a, b) = (
         vertex_at(&fx.body, 7.0, 1.0, 0.0),
         vertex_at(&fx.body, 6.0, 1.0, 0.0),
     );
-    let (to_other, _, _) = bucket_entries(&fx.body, &plane_y1(), a, b);
+    let (to_other, _, _) = bucket_entries(&operand, &plane_y1(), a, b);
     assert_eq!(to_other, vec![PlaneSide::Below]);
 
     // Mirrored: ceiling face outward −y — flanking entries ABOVE.
     let fx = prism::<f64>(MIRRORED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     let (a, b) = (
         vertex_at(&fx.body, 6.0, 1.0, 0.0),
         vertex_at(&fx.body, 7.0, 1.0, 0.0),
     );
-    let (to_other, _, _) = bucket_entries(&fx.body, &plane_y1(), a, b);
+    let (to_other, _, _) = bucket_entries(&operand, &plane_y1(), a, b);
     assert_eq!(to_other, vec![PlaneSide::Above]);
 }
 
@@ -366,26 +389,29 @@ fn orbit_sector_adjacency_mirror() {
 /// side).
 #[test]
 fn cube_coplanar_top_both_senses() {
-    let cube = common::geometric_cube::<f64>(Tol::witness());
+    let mut described = common::geometric_cube::<f64>(Tol::witness()).body;
+    common::describe_as_intersections(&mut described, Tol::witness());
+    let operand = common::finished("the cube", described, Tol::witness());
     for (nz, expect) in [(1.0, PlaneSide::Below), (-1.0, PlaneSide::Above)] {
-        let plane = SplitPlane {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            normal: Vec3::new(0.0, 0.0, nz),
-        };
-        let red = split_reduce(&cube.body, &plane, Tol::witness()).unwrap();
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, nz),
+            geom_core::Tol::witness(),
+        );
+        let red = split_reduce(&operand, &plane, Tol::witness()).unwrap();
         assert_eq!(red.on_vertices.len(), 4);
         assert!(red.null_edges.is_empty(), "one-sided: no separation");
         // Every non-ON vertex is on the material side.
-        for (v, _) in cube.body.vertices() {
+        for (v, _) in operand.vertices() {
             if !red.on_vertices.contains(&v) {
                 assert_eq!(red.sides[v], expect);
             }
         }
         // Entry-level: a top corner's entries all carry the rule-(a)
         // sense; convex corners mint no bisector duplicates.
-        let (sides, on) = topo::vertex_sides(&cube.body, &plane, Tol::witness()).unwrap();
+        let (sides, on) = topo::vertex_sides(&operand, &plane, Tol::witness()).unwrap();
         let entries = classify_neighborhood(
-            &cube.body,
+            &operand,
             &plane,
             &sides,
             on[0],
@@ -399,7 +425,7 @@ fn cube_coplanar_top_both_senses() {
                 .all(|e| e.kind == topo::SectorEntryKind::Edge)
         );
         for e in &entries {
-            let end_side = sides[cube.body.half_edge_end(e.he).unwrap()];
+            let end_side = sides[operand.half_edge_end(e.he).unwrap()];
             if end_side == PlaneSide::On {
                 assert_eq!(e.class, expect, "rule (a) sense for n_z = {nz}");
             }
@@ -420,56 +446,10 @@ fn sliver_vertex_escalates() {
         (0.0, 1.0 + 3.0 * eps),
     ];
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
-    match split_reduce(&fx.body, &plane_y1(), Tol::witness()) {
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    match split_reduce(&operand, &plane_y1(), Tol::witness()) {
         Err(SplitReduceError::SliverVertex { .. }) => {}
         other => panic!("expected SliverVertex, got {other:?}"),
-    }
-}
-
-/// F5 teeth: any non-Plane face refuses with the typed
-/// curved-unsupported error before any classification.
-#[test]
-fn curved_face_refuses() {
-    // Since M5 PR 5 the gate consults THE C5 table: cylinder faces
-    // PASS (the rung-2 arm landed); a torus face still refuses, typed,
-    // citing its rung routing (per-arm retirement, C12.1).
-    let mut cube = common::geometric_cube::<f64>(Tol::witness());
-    cube.body
-        .set_face_surface(
-            cube.seed.face,
-            topo::FaceSurface::New(geom::Surface::Torus {
-                center: Point3::new(0.0, 0.0, 1.0),
-                axis: Vec3::new(1.0, 0.0, 0.0),
-                major_radius: 2.0,
-                minor_radius: 0.5,
-                u_ref: Vec3::new(0.0, 0.0, 1.0),
-            }),
-        )
-        .unwrap();
-    let plane = plane_y1();
-    match split_reduce(&cube.body, &plane, Tol::witness()) {
-        Err(
-            e @ SplitReduceError::CurvedBooleanUnsupported {
-                face,
-                kind: geom_brep::SurfaceKind::Torus,
-            },
-        ) => {
-            assert_eq!(face, cube.seed.face);
-            let msg = e.to_string();
-            // The operand gate refuses a torus face ANYWHERE in the
-            // body, before the plane is read: the sentence must not
-            // claim the plane crosses it, nor offer a plane placement
-            // as the way through.
-            assert!(
-                msg.contains("the body has a torus face") && msg.contains("no way through"),
-                "{msg}"
-            );
-            assert!(
-                !msg.contains("cross") && !msg.contains("Recourse"),
-                "the gate's refusal claims a crossing or a plane recourse: {msg}"
-            );
-        }
-        other => panic!("expected CurvedBooleanUnsupported(Torus), got {other:?}"),
     }
 }
 
@@ -480,7 +460,8 @@ fn curved_face_refuses() {
 #[test]
 fn crossing_split_arrangement() {
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
-    let red = split_reduce(&fx.body, &plane_y1(), Tol::witness()).unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let red = split_reduce(&operand, &plane_y1(), Tol::witness()).unwrap();
     let crossing = *red
         .on_vertices
         .iter()
@@ -521,14 +502,16 @@ fn crossing_split_arrangement() {
 /// the dyadic fixture values, so every verdict is definite and the
 /// census matches the f64 lane exactly (Q1's replay promise). The
 /// rule-(b) discriminating fixture is exercised at Interval through the
-/// tip-vertex census (2 null edges, distinct copies), per the F4
-/// requirement.
+/// tip-vertex census, per the F4 requirement: two null edges at the V
+/// tip, distinct copies; one at the Λ tip, with the second hung at its
+/// copy ([`touching_wedge_bob_goes_above`]).
 #[test]
 fn interval_lane_notched_and_wedge() {
     use geom_core::Interval;
-    for (profile, tip_expected) in [(NOTCHED, 2usize), (MIRRORED, 2usize)] {
+    for (profile, tip_expected) in [(NOTCHED, 2usize), (MIRRORED, 1usize)] {
         let fx = prism::<Interval>(profile, 1.0, geom_core::Tol::witness());
-        let red = split_reduce(&fx.body, &plane_y1::<Interval>(), Tol::witness()).unwrap();
+        let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+        let red = split_reduce(&operand, &plane_y1::<Interval>(), Tol::witness()).unwrap();
         assert_eq!(red.on_vertices.len(), 10);
         assert_eq!(red.null_edges.len(), 12);
         // The V/Λ tip (profile corner index: NOTCHED 6, MIRRORED 2).
@@ -545,17 +528,30 @@ fn interval_lane_notched_and_wedge() {
                 .filter(|r| r.at_vertex == tip)
                 .collect();
             assert_eq!(at_tip.len(), tip_expected);
-            assert_ne!(at_tip[0].attr.above_end, at_tip[1].attr.above_end);
+            let copies: Vec<_> = at_tip
+                .iter()
+                .map(|r| {
+                    if r.attr.above_end == tip {
+                        r.attr.below_end
+                    } else {
+                        r.attr.above_end
+                    }
+                })
+                .collect();
+            // Each tip's null edges, with those hung at its copies.
+            let hung = red
+                .null_edges
+                .iter()
+                .filter(|r| r.at_vertex == tip || copies.contains(&r.at_vertex))
+                .count();
+            assert_eq!(hung, 2, "two null edges at each tip");
+            if tip_expected == 2 {
+                assert_ne!(at_tip[0].attr.above_end, at_tip[1].attr.above_end);
+            }
         }
-        // Dangling census: none for the notch (tangent edge), one per
-        // Λ-tip vertex for the wedge.
-        let dangling = red.null_edges.iter().filter(|r| r.dangling).count();
-        let expected_dangling = if core::ptr::eq(profile, NOTCHED) {
-            0
-        } else {
-            2
-        };
-        assert_eq!(dangling, expected_dangling);
+        // No strut dangles: the notch's tip edge and the wedge's cap
+        // span each stand in a piece with real edges.
+        assert_eq!(red.null_edges.iter().filter(|r| r.dangling).count(), 0);
     }
 }
 

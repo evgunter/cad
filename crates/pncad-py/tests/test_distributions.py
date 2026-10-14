@@ -14,20 +14,20 @@ and not annotate one: `Distribution` had no spelling, so a document
 built here declared nothing about spread, and one read back from a
 file carried an annotation no Python caller could see, restate or
 price. Four doors close it — the `Distribution` value class, the
-`distribution=` argument on the three continuous `DocParam`
-constructors, `DocParam.distribution` reading the annotation back off
+`distribution=` argument on the three continuous `FreeVar`
+constructors, `FreeVar.distribution` reading the annotation back off
 the declaration `Doc.params` answers with, and `analyzed_box` with the
 two mass columns on the box it derives.
 
-THE SHARP EDGE, and what "closing" it means. `DocEdit.set_doc_param`
-is create-or-REPLACE: a `DocParam` rebuilt from a dimension and a
-number replaces the declaration, and any distribution the parameter
-carried is deleted with no refusal and no diagnostic.
+THE SHARP EDGE, and what "closing" it means. `DocEdit.define_var`
+replaces the WHOLE definition: a `FreeVar` rebuilt from a dimension
+and a number replaces it, and any distribution the variable carried
+is deleted with no refusal and no diagnostic.
 `TestTheSharpEdge` pins that as it still stands — the deletion is the
 kernel's semantics and this unit invents no edit to change it — and
 then pins the two ways a Python caller now has out of it, which is
 what did not exist before: restate the annotation on the rebuilt
-`DocParam`, or move the number through `set_doc_param_value`, which
+`FreeVar`, or move the number through `set_var_value`, which
 carries the whole declaration forward. `Doc.params` — LIB-B-NOTATION's
 read door — is what makes the difference VISIBLE from Python at all.
 
@@ -59,12 +59,12 @@ from pncad import (
     DistributionFault,
     Doc,
     DocEdit,
-    DocParam,
-    DocParamValue,
-    Expr,
+    FreeVar,
+    FreeValue,
+    Formula,
     MeasureUnavailable,
     Node,
-    ParamName,
+    VarName,
     QuantityOpMismatch,
     analyzed_box,
     deg,
@@ -79,12 +79,12 @@ def declared(**params):
     """A document declaring `params`, by name."""
     doc = Doc("distributions")
     for name, value in params.items():
-        doc.apply(DocEdit.set_doc_param(ParamName(name), value))
+        doc.apply(DocEdit.declare_var(VarName(name), value))
     return doc
 
 
 def axis(doc, name, policy=None):
-    return analyzed_box(doc, policy).get(ParamName(name))
+    return analyzed_box(doc, policy).get(VarName(name))
 
 
 #: One of each form, on one dimension, so the rows below can say "each
@@ -105,8 +105,8 @@ class TestTheFourForms(unittest.TestCase):
     def test_every_form_authors_and_reads_back_identically(self):
         for name, dist in FORMS.items():
             with self.subTest(form=dist.kind):
-                doc = declared(**{name: DocParam.length(4 * mm, dist)})
-                back = doc.params.get(ParamName(name))
+                doc = declared(**{name: FreeVar.length(4 * mm, dist)})
+                back = doc.params.get(VarName(name))
                 self.assertEqual(back.distribution, dist)
                 self.assertEqual(back.distribution.kind, dist.kind)
                 self.assertEqual(back.dimension, "length")
@@ -133,29 +133,29 @@ class TestTheFourForms(unittest.TestCase):
         self.assertEqual(window.hi, 0.2 * mm)
 
     def test_an_unannotated_parameter_declares_none(self):
-        doc = declared(plain=DocParam.length(4 * mm))
-        self.assertIsNone(doc.params.get(ParamName("plain")).distribution)
-        self.assertIsNone(doc.params.get(ParamName("nope")))
+        doc = declared(plain=FreeVar.length(4 * mm))
+        self.assertIsNone(doc.params.get(VarName("plain")).distribution)
+        self.assertIsNone(doc.params.get(VarName("nope")))
 
     def test_a_count_parameter_carries_no_annotation_and_has_no_door(self):
         """A structural count is fixed under any error analysis, so
-        `DocParam.count` takes no distribution and the parameter reads
+        `FreeVar.count` takes no distribution and the parameter reads
         back with none."""
-        doc = declared(holes=DocParam.count(4))
-        self.assertIsNone(doc.params.get(ParamName("holes")).distribution)
-        self.assertEqual(doc.params.get(ParamName("holes")).dimension, "count")
+        doc = declared(holes=FreeVar.count(4))
+        self.assertIsNone(doc.params.get(VarName("holes")).distribution)
+        self.assertEqual(doc.params.get(VarName("holes")).dimension, "count")
         with self.assertRaises(TypeError):
-            DocParam.count(4, Distribution.normal(1.0))
+            FreeVar.count(4, Distribution.normal(1.0))
 
     def test_the_annotation_is_part_of_the_parameter(self):
         """Equality and hashing see it, so two parameters differing
         only in their annotation are two parameters."""
-        plain = DocParam.length(4 * mm)
-        annotated = DocParam.length(4 * mm, FORMS["measured"])
+        plain = FreeVar.length(4 * mm)
+        annotated = FreeVar.length(4 * mm, FORMS["measured"])
         self.assertNotEqual(plain, annotated)
-        self.assertEqual(annotated, DocParam.length(4 * mm, FORMS["measured"]))
+        self.assertEqual(annotated, FreeVar.length(4 * mm, FORMS["measured"]))
         self.assertEqual(
-            hash(annotated), hash(DocParam.length(4 * mm, FORMS["measured"]))
+            hash(annotated), hash(FreeVar.length(4 * mm, FORMS["measured"]))
         )
         self.assertEqual(len({plain, annotated}), 2)
 
@@ -170,7 +170,7 @@ class TestTheFourForms(unittest.TestCase):
         """The kernel's `Distribution` derives `PartialEq` and no
         `Hash`, and this class mirrors its derives: `__hash__` is
         `None`, so Python itself refuses the set the annotation is not
-        for. `DocParam` is the authored record that keys."""
+        for. `FreeVar` is the authored record that keys."""
         self.assertIsNone(Distribution.__hash__)
         with self.assertRaises(TypeError):
             {Distribution.band(-0.0 * mm, 0.0 * mm)}
@@ -178,7 +178,7 @@ class TestTheFourForms(unittest.TestCase):
     def test_the_dimension_is_part_of_the_value(self):
         """A Length band and a Scalar band of the same numbers are
         different annotations, exactly as a Length 1 and a Scalar 1 are
-        different `DocParam`s."""
+        different `FreeVar`s."""
         self.assertNotEqual(
             Distribution.band(-1 * m, 1 * m), Distribution.band(-1.0, 1.0)
         )
@@ -295,21 +295,21 @@ class TestTheConstructorRefuses(unittest.TestCase):
             Distribution.normal("wide")
 
     def test_the_declaration_and_the_annotation_must_agree(self):
-        """The seam the constructor cannot check and the `DocParam`
+        """The seam the constructor cannot check and the `FreeVar`
         door can: an Angle spread on a Length parameter."""
         with self.assertRaises(QuantityOpMismatch) as ctx:
-            DocParam.length(4 * mm, Distribution.normal(1 * deg))
-        self.assertEqual(ctx.exception.op, "DocParam.length")
+            FreeVar.length(4 * mm, Distribution.normal(1 * deg))
+        self.assertEqual(ctx.exception.op, "FreeVar.length")
         self.assertEqual(ctx.exception.left, "length")
         self.assertEqual(ctx.exception.right, "angle")
         with self.assertRaises(QuantityOpMismatch):
-            DocParam.scalar(0.5, Distribution.normal(1 * mm))
+            FreeVar.scalar(0.5, Distribution.normal(1 * mm))
         with self.assertRaises(QuantityOpMismatch):
-            DocParam.angle(1 * rad, Distribution.band(-1 * mm, 1 * mm))
+            FreeVar.angle(1 * rad, Distribution.band(-1 * mm, 1 * mm))
         # And the agreeing spellings all pass.
-        DocParam.length(4 * mm, Distribution.normal(1 * mm))
-        DocParam.angle(1 * rad, Distribution.normal(1 * deg))
-        DocParam.scalar(0.5, Distribution.normal(0.01))
+        FreeVar.length(4 * mm, Distribution.normal(1 * mm))
+        FreeVar.angle(1 * rad, Distribution.normal(1 * deg))
+        FreeVar.scalar(0.5, Distribution.normal(0.01))
 
 
 class TestTheAnalyzedBox(unittest.TestCase):
@@ -317,7 +317,7 @@ class TestTheAnalyzedBox(unittest.TestCase):
 
     def test_the_default_policy_is_the_three_sigma_convention(self):
         self.assertEqual(AnalysisPolicy().quantile_mass, DEFAULT_QUANTILE_MASS)
-        doc = declared(n=DocParam.length(1 * m, Distribution.normal(0.01 * m)))
+        doc = declared(n=FreeVar.length(1 * m, Distribution.normal(0.01 * m)))
         n = axis(doc, "n")
         self.assertAlmostEqual(n.offsets[1].meters, 0.03, delta=5e-6)
         self.assertEqual(n.offsets[0], -n.offsets[1], "symmetric by construction")
@@ -329,7 +329,7 @@ class TestTheAnalyzedBox(unittest.TestCase):
     def test_the_quantile_mass_is_a_checked_request_knob(self):
         """The knob is the ANALYSIS's: a wider requested mass widens
         the box monotonically, and it is checked into `(0, 1)`."""
-        doc = declared(n=DocParam.length(0 * m, Distribution.normal(1 * m)))
+        doc = declared(n=FreeVar.length(0 * m, Distribution.normal(1 * m)))
 
         def width(mass):
             return axis(doc, "n", AnalysisPolicy(mass)).width.meters
@@ -350,24 +350,20 @@ class TestTheAnalyzedBox(unittest.TestCase):
         self.assertTrue(math.isnan(ctx.exception.mass))
 
     def test_opt_in_means_an_unannotated_param_is_fixed(self):
-        """A parameter with NO distribution is FIXED, and a `Count`
-        parameter is not an axis at all: the analysis varies exactly
-        what the author declared variable."""
+        """A parameter with NO distribution is no axis at all — a
+        constant of the analysis (VR8) — and neither is a `Count`
+        parameter: the analysis varies exactly what the author declared
+        variable."""
         doc = declared(
-            plain=DocParam.length(2 * m),
-            holes=DocParam.count(4),
-            varies=DocParam.length(1 * m, Distribution.band(-0.1 * m, 0.1 * m)),
+            plain=FreeVar.length(2 * m),
+            holes=FreeVar.count(4),
+            varies=FreeVar.length(1 * m, Distribution.band(-0.1 * m, 0.1 * m)),
         )
         boxed = analyzed_box(doc)
-        self.assertEqual(len(boxed), 2, "Count is not a box axis")
-        self.assertIsNone(boxed.get(ParamName("holes")))
-        self.assertEqual(
-            sorted(n.name for n in boxed.names), ["plain", "varies"]
-        )
-        fixed = boxed.get(ParamName("plain"))
-        self.assertTrue(fixed.is_fixed)
-        self.assertEqual(fixed.absolute(), (2 * m, 2 * m), "width zero AT the nominal")
-        self.assertIsNone(fixed.distribution)
+        self.assertEqual(len(boxed), 1, "only the toleranced parameter is an axis")
+        self.assertIsNone(boxed.get(VarName("holes")), "Count is not a box axis")
+        self.assertIsNone(boxed.get(VarName("plain")), "an untoleranced one is a constant")
+        self.assertEqual(sorted(n.name for n in boxed.names), ["varies"])
         self.assertEqual(
             [n.name for n in boxed.varying], ["varies"], "only the declared axis varies"
         )
@@ -382,30 +378,30 @@ class TestTheAnalyzedBox(unittest.TestCase):
             Distribution.truncated_normal(0.05 * m, -0.1 * m, 0.2 * m),
         ):
             with self.subTest(form=dist.kind):
-                doc = declared(b=DocParam.length(1 * m, dist))
+                doc = declared(b=FreeVar.length(1 * m, dist))
                 boxed = analyzed_box(doc)
                 self.assertEqual(
-                    boxed.get(ParamName("b")).offsets, (-0.1 * m, 0.2 * m)
+                    boxed.get(VarName("b")).offsets, (-0.1 * m, 0.2 * m)
                 )
-                self.assertEqual(boxed.tail_mass(ParamName("b")), 0.0)
+                self.assertEqual(boxed.tail_mass(VarName("b")), 0.0)
 
     def test_a_name_the_document_does_not_declare_is_not_an_axis(self):
-        doc = declared(n=DocParam.length(1 * m, Distribution.normal(0.01 * m)))
+        doc = declared(n=FreeVar.length(1 * m, Distribution.normal(0.01 * m)))
         boxed = analyzed_box(doc)
-        self.assertIsNone(boxed.get(ParamName("nope")))
-        self.assertIsNone(boxed.tail_mass(ParamName("nope")))
-        self.assertIsNone(boxed.box_mass(ParamName("nope"), -1 * m, 1 * m))
+        self.assertIsNone(boxed.get(VarName("nope")))
+        self.assertIsNone(boxed.tail_mass(VarName("nope")))
+        self.assertIsNone(boxed.box_mass(VarName("nope"), -1 * m, 1 * m))
 
     def test_a_distribution_reaches_no_evaluation(self):
         """A distribution is inert document metadata: the number an
         expression sees is the nominal alone, annotated or not."""
-        plain = declared(d=DocParam.length(0.75 * m))
+        plain = declared(d=FreeVar.length(0.75 * m))
         annotated = declared(
-            d=DocParam.length(0.75 * m, Distribution.normal(0.01 * m))
+            d=FreeVar.length(0.75 * m, Distribution.normal(0.01 * m))
         )
         self.assertEqual(
-            plain.eval(plain.parse_expr("d")).meters,
-            annotated.eval(annotated.parse_expr("d")).meters,
+            plain.eval(plain.parse_formula("d")).meters,
+            annotated.eval(annotated.parse_formula("d")).meters,
         )
 
 
@@ -414,15 +410,15 @@ class TestTheMassColumns(unittest.TestCase):
     neither."""
 
     def test_the_box_holds_the_mass_the_policy_asked_for(self):
-        doc = declared(n=DocParam.length(1 * m, Distribution.normal(0.01 * m)))
+        doc = declared(n=FreeVar.length(1 * m, Distribution.normal(0.01 * m)))
         for mass in (0.5, 0.9, DEFAULT_QUANTILE_MASS, 0.999999):
             with self.subTest(mass=mass):
                 boxed = analyzed_box(doc, AnalysisPolicy(mass))
-                lo, hi = boxed.get(ParamName("n")).offsets
-                inside = boxed.box_mass(ParamName("n"), lo, hi)
+                lo, hi = boxed.get(VarName("n")).offsets
+                inside = boxed.box_mass(VarName("n"), lo, hi)
                 self.assertAlmostEqual(inside, mass, delta=1e-12)
                 self.assertGreater(
-                    boxed.tail_mass(ParamName("n")),
+                    boxed.tail_mass(VarName("n")),
                     0.0,
                     "a normal always leaves something outside",
                 )
@@ -441,15 +437,15 @@ class TestTheMassColumns(unittest.TestCase):
             (-0.3 * m, 0.0 * m),
         )
         for dist in forms:
-            doc = declared(x=DocParam.length(1 * m, dist))
+            doc = declared(x=FreeVar.length(1 * m, dist))
             boxed = analyzed_box(doc)
             for lo, hi in boxes:
                 with self.subTest(form=dist.kind, box=(lo.meters, hi.meters)):
-                    inside = boxed.box_mass(ParamName("x"), lo, hi)
+                    inside = boxed.box_mass(VarName("x"), lo, hi)
                     self.assertGreaterEqual(inside, 0.0)
                     self.assertLessEqual(inside, 1.0)
-            self.assertGreaterEqual(boxed.tail_mass(ParamName("x")), 0.0)
-            self.assertLessEqual(boxed.tail_mass(ParamName("x")), 1.0)
+            self.assertGreaterEqual(boxed.tail_mass(VarName("x")), 0.0)
+            self.assertLessEqual(boxed.tail_mass(VarName("x")), 1.0)
 
     def test_a_truncated_normal_is_renormalized(self):
         """Renormalized, not merely clipped: its own support holds ALL
@@ -458,15 +454,15 @@ class TestTheMassColumns(unittest.TestCase):
         sigma = 0.1 * m
         window = (-0.05 * m, 0.05 * m)
         doc = declared(
-            t=DocParam.length(1 * m, Distribution.truncated_normal(sigma, *window)),
-            n=DocParam.length(1 * m, Distribution.normal(sigma)),
+            t=FreeVar.length(1 * m, Distribution.truncated_normal(sigma, *window)),
+            n=FreeVar.length(1 * m, Distribution.normal(sigma)),
         )
         boxed = analyzed_box(doc)
-        self.assertEqual(boxed.box_mass(ParamName("t"), *window), 1.0)
-        self.assertEqual(boxed.tail_mass(ParamName("t")), 0.0)
-        half = boxed.box_mass(ParamName("t"), 0.0 * m, 0.05 * m)
+        self.assertEqual(boxed.box_mass(VarName("t"), *window), 1.0)
+        self.assertEqual(boxed.tail_mass(VarName("t")), 0.0)
+        half = boxed.box_mass(VarName("t"), 0.0 * m, 0.05 * m)
         self.assertAlmostEqual(half, 0.5, delta=1e-12, msg="symmetric truncation halves")
-        untruncated = boxed.box_mass(ParamName("n"), 0.0 * m, 0.05 * m)
+        untruncated = boxed.box_mass(VarName("n"), 0.0 * m, 0.05 * m)
         self.assertGreater(half, untruncated, "renormalization concentrates mass")
 
     def test_a_band_refuses_to_be_priced_and_names_the_parameter(self):
@@ -474,10 +470,10 @@ class TestTheMassColumns(unittest.TestCase):
         NAMING the parameter, wherever the answer would depend on a
         shape it does not state — and answers only where every measure
         on the band agrees."""
-        doc = declared(bore=DocParam.length(1 * m, Distribution.band(-0.1 * m, 0.1 * m)))
+        doc = declared(bore=FreeVar.length(1 * m, Distribution.band(-0.1 * m, 0.1 * m)))
         boxed = analyzed_box(doc)
         with self.assertRaises(MeasureUnavailable) as ctx:
-            boxed.box_mass(ParamName("bore"), -0.05 * m, 0.05 * m)
+            boxed.box_mass(VarName("bore"), -0.05 * m, 0.05 * m)
         self.assertEqual(ctx.exception.variant, "band_has_no_measure")
         self.assertEqual(ctx.exception.param, "bore")
         self.assertIn("bore", str(ctx.exception))
@@ -485,52 +481,53 @@ class TestTheMassColumns(unittest.TestCase):
         # A partial overlap is refused from either side.
         for lo, hi in ((-1.0 * m, 0.05 * m), (-0.05 * m, 1.0 * m)):
             with self.assertRaises(MeasureUnavailable):
-                boxed.box_mass(ParamName("bore"), lo, hi)
+                boxed.box_mass(VarName("bore"), lo, hi)
         # The two answers every measure on the band agrees on.
-        self.assertEqual(boxed.box_mass(ParamName("bore"), -0.5 * m, 0.5 * m), 1.0)
-        self.assertEqual(boxed.box_mass(ParamName("bore"), 0.5 * m, 0.6 * m), 0.0)
+        self.assertEqual(boxed.box_mass(VarName("bore"), -0.5 * m, 0.5 * m), 1.0)
+        self.assertEqual(boxed.box_mass(VarName("bore"), 0.5 * m, 0.6 * m), 0.0)
         # And a box containing the whole band leaves nothing outside,
         # whatever the shape.
-        self.assertEqual(boxed.tail_mass(ParamName("bore")), 0.0)
+        self.assertEqual(boxed.tail_mass(VarName("bore")), 0.0)
 
     def test_a_uniform_answers_exactly_where_the_band_refuses(self):
         """The point of keeping the two forms apart: the same limits
         under `uniform` answer where `band` refuses."""
         limits = (-0.1 * m, 0.1 * m)
         doc = declared(
-            u=DocParam.length(1 * m, Distribution.uniform(*limits)),
-            b=DocParam.length(1 * m, Distribution.band(*limits)),
+            u=FreeVar.length(1 * m, Distribution.uniform(*limits)),
+            b=FreeVar.length(1 * m, Distribution.band(*limits)),
         )
         boxed = analyzed_box(doc)
         sub = (-0.05 * m, 0.05 * m)
-        self.assertAlmostEqual(boxed.box_mass(ParamName("u"), *sub), 0.5, delta=1e-12)
+        self.assertAlmostEqual(boxed.box_mass(VarName("u"), *sub), 0.5, delta=1e-12)
         with self.assertRaises(MeasureUnavailable):
-            boxed.box_mass(ParamName("b"), *sub)
+            boxed.box_mass(VarName("b"), *sub)
 
-    def test_a_fixed_axis_is_a_point_mass_at_its_nominal(self):
-        doc = declared(fixed=DocParam.length(1 * m))
+    def test_an_untoleranced_parameter_is_no_axis(self):
+        """VR8: a parameter with no tolerance is a constant of the
+        analysis, so the box carries no axis for it to price."""
+        doc = declared(fixed=FreeVar.length(1 * m))
         boxed = analyzed_box(doc)
-        self.assertEqual(boxed.tail_mass(ParamName("fixed")), 0.0)
-        self.assertEqual(boxed.box_mass(ParamName("fixed"), -1 * m, 1 * m), 1.0)
-        self.assertEqual(boxed.box_mass(ParamName("fixed"), 0.5 * m, 1 * m), 0.0)
+        self.assertEqual(len(boxed), 0)
+        self.assertIsNone(boxed.get(VarName("fixed")))
 
     def test_the_leaf_interval_is_in_the_axis_own_dimension(self):
         """The mispairing the box-keyed door forecloses one rung out
         from the kernel's: an interval in another dimension is a
         refusal, not a plausible number."""
-        doc = declared(n=DocParam.length(1 * m, Distribution.normal(0.01 * m)))
+        doc = declared(n=FreeVar.length(1 * m, Distribution.normal(0.01 * m)))
         boxed = analyzed_box(doc)
         with self.assertRaises(QuantityOpMismatch) as ctx:
-            boxed.box_mass(ParamName("n"), -1 * deg, 1 * deg)
+            boxed.box_mass(VarName("n"), -1 * deg, 1 * deg)
         self.assertEqual(ctx.exception.op, "AnalyzedBox.box_mass")
         self.assertEqual(ctx.exception.left, "length")
         self.assertEqual(ctx.exception.right, "angle")
         with self.assertRaises(QuantityOpMismatch):
-            boxed.box_mass(ParamName("n"), -1 * m, 1 * deg)
+            boxed.box_mass(VarName("n"), -1 * m, 1 * deg)
 
 
 class TestTheSharpEdge(unittest.TestCase):
-    """`set_doc_param` is create-or-replace, and what that costs.
+    """`define_var` replaces the whole definition, and what that costs.
 
     The deletion is the kernel's semantics and this unit invents no
     edit to change it. What changed is that Python can now SEE the
@@ -539,22 +536,22 @@ class TestTheSharpEdge(unittest.TestCase):
     SPREAD = Distribution.normal(5e-6 * m)
 
     def annotated(self):
-        return declared(bore_r=DocParam.length(4 * mm, self.SPREAD))
+        return declared(bore_r=FreeVar.length(4 * mm, self.SPREAD))
 
     def test_before_a_rebuilt_docparam_deletes_the_annotation(self):
         """The edge, as it stands: the natural spelling of a value
         change — rebuild the parameter from a dimension and a number —
         applies cleanly and silently drops the spread."""
         doc = self.annotated()
-        self.assertEqual(doc.params.get(ParamName("bore_r")).distribution, self.SPREAD)
-        doc.apply(DocEdit.set_doc_param(ParamName("bore_r"), DocParam.length(4.5 * mm)))
+        self.assertEqual(doc.params.get(VarName("bore_r")).distribution, self.SPREAD)
+        doc.apply(DocEdit.define_var(VarName("bore_r"), FreeVar.length(4.5 * mm)))
         self.assertIsNone(
-            doc.params.get(ParamName("bore_r")).distribution,
-            "create-or-replace replaced the whole declaration",
+            doc.params.get(VarName("bore_r")).distribution,
+            "define_var replaced the whole definition",
         )
-        self.assertTrue(
-            analyzed_box(doc).get(ParamName("bore_r")).is_fixed,
-            "and the analysis now varies nothing",
+        self.assertIsNone(
+            analyzed_box(doc).get(VarName("bore_r")),
+            "and the analysis now varies nothing: no axis, a constant",
         )
 
     def test_after_the_value_door_carries_the_declaration_forward(self):
@@ -563,24 +560,24 @@ class TestTheSharpEdge(unittest.TestCase):
         cannot replace one."""
         doc = self.annotated()
         doc.apply(
-            DocEdit.set_doc_param_value(ParamName("bore_r"), DocParamValue.length(4.5 * mm))
+            DocEdit.set_var_value(VarName("bore_r"), FreeValue.length(4.5 * mm))
         )
-        back = doc.params.get(ParamName("bore_r"))
+        back = doc.params.get(VarName("bore_r"))
         self.assertEqual(back.distribution, self.SPREAD)
-        self.assertEqual(analyzed_box(doc).get(ParamName("bore_r")).nominal, 4.5 * mm)
+        self.assertEqual(analyzed_box(doc).get(VarName("bore_r")).nominal, 4.5 * mm)
 
     def test_after_a_redeclaration_can_restate_the_annotation(self):
-        """The half this family adds: a `DocParam` that CARRIES the
+        """The half this family adds: a `FreeVar` that CARRIES the
         distribution, so a caller who really is redeclaring — a new
         dimension, a new spread — can say the whole thing."""
         doc = self.annotated()
-        carried = doc.params.get(ParamName("bore_r")).distribution
+        carried = doc.params.get(VarName("bore_r")).distribution
         doc.apply(
-            DocEdit.set_doc_param(
-                ParamName("bore_r"), DocParam.length(4.5 * mm, carried)
+            DocEdit.define_var(
+                VarName("bore_r"), FreeVar.length(4.5 * mm, carried)
             )
         )
-        self.assertEqual(doc.params.get(ParamName("bore_r")).distribution, self.SPREAD)
+        self.assertEqual(doc.params.get(VarName("bore_r")).distribution, self.SPREAD)
 
     def test_the_edit_door_refuses_a_broken_annotation_typed(self):
         """`Distribution`'s constructors run the kernel's check, so the
@@ -588,8 +585,8 @@ class TestTheSharpEdge(unittest.TestCase):
         refuses one under its own tag either way."""
         doc = self.annotated()
         with self.assertRaises(DistributionFault):
-            DocParam.length(4 * mm, Distribution.normal(0 * m))
-        self.assertEqual(doc.params.get(ParamName("bore_r")).distribution, self.SPREAD)
+            FreeVar.length(4 * mm, Distribution.normal(0 * m))
+        self.assertEqual(doc.params.get(VarName("bore_r")).distribution, self.SPREAD)
 
 
 class TestTheRoundTrip(unittest.TestCase):
@@ -598,19 +595,19 @@ class TestTheRoundTrip(unittest.TestCase):
 
     def test_the_annotation_survives_save_and_load_bit_for_bit(self):
         doc = declared(
-            bore_r=DocParam.length(4 * mm, Distribution.normal(5e-6 * m)),
-            plate_t=DocParam.length(12 * mm, Distribution.band(-2e-4 * m, 2e-4 * m)),
+            bore_r=FreeVar.length(4 * mm, Distribution.normal(5e-6 * m)),
+            plate_t=FreeVar.length(12 * mm, Distribution.band(-2e-4 * m, 2e-4 * m)),
         )
         back = load(doc.save()).doc
         self.assertTrue(back.bit_eq(doc), "the annotation round-trips bit for bit")
         self.assertEqual(
-            back.params.get(ParamName("bore_r")).distribution,
-            doc.params.get(ParamName("bore_r")).distribution,
+            back.params.get(VarName("bore_r")).distribution,
+            doc.params.get(VarName("bore_r")).distribution,
         )
 
         boxed = analyzed_box(back)
-        bore = boxed.get(ParamName("bore_r"))
-        plate = boxed.get(ParamName("plate_t"))
+        bore = boxed.get(VarName("bore_r"))
+        plate = boxed.get(VarName("plate_t"))
         # The normal's box is the ±3σ quantile box; the band's IS its
         # support.
         self.assertAlmostEqual(bore.offsets[1].meters, 15e-6, delta=1e-8)
@@ -619,28 +616,28 @@ class TestTheRoundTrip(unittest.TestCase):
 
         # The tail column: the normal leaves a little outside its box,
         # the band leaves nothing outside its own support.
-        tail = boxed.tail_mass(ParamName("bore_r"))
+        tail = boxed.tail_mass(VarName("bore_r"))
         self.assertAlmostEqual(tail, 1.0 - DEFAULT_QUANTILE_MASS, delta=1e-12)
-        self.assertEqual(boxed.tail_mass(ParamName("plate_t")), 0.0)
+        self.assertEqual(boxed.tail_mass(VarName("plate_t")), 0.0)
 
         # Pricing a sub-box: the normal answers, the band refuses BY
         # NAME.
-        half = boxed.box_mass(ParamName("bore_r"), 0 * m, bore.offsets[1])
+        half = boxed.box_mass(VarName("bore_r"), 0 * m, bore.offsets[1])
         self.assertAlmostEqual(half, 0.5 * (1.0 - tail), delta=1e-9)
         with self.assertRaises(MeasureUnavailable) as ctx:
-            boxed.box_mass(ParamName("plate_t"), 0 * m, 1e-4 * m)
+            boxed.box_mass(VarName("plate_t"), 0 * m, 1e-4 * m)
         self.assertEqual(ctx.exception.param, "plate_t")
 
     def test_an_angle_parameter_carries_an_angle_spread(self):
         """The annotation is in the PARAMETER's dimension, whichever
         that is — the offsets read back as the quantities they were
         written as, through a save and a load."""
-        doc = declared(draft=DocParam.angle(2 * deg, Distribution.normal(0.1 * deg)))
+        doc = declared(draft=FreeVar.angle(2 * deg, Distribution.normal(0.1 * deg)))
         back = load(doc.save()).doc
-        spread = back.params.get(ParamName("draft")).distribution
+        spread = back.params.get(VarName("draft")).distribution
         self.assertEqual(spread.dimension, "angle")
         self.assertAlmostEqual(spread.sigma.in_unit(deg), 0.1, delta=1e-12)
-        drafted = analyzed_box(back).get(ParamName("draft"))
+        drafted = analyzed_box(back).get(VarName("draft"))
         self.assertEqual(drafted.dimension, "angle")
         self.assertAlmostEqual(drafted.offsets[1].in_unit(deg), 0.3, delta=5e-5)
 
@@ -651,24 +648,24 @@ class TestTheAnnotationDoesNotMoveGeometry(unittest.TestCase):
 
     def build(self, param):
         doc = Doc("annotated-solid")
-        doc.apply(DocEdit.set_doc_param(ParamName("h"), param))
+        doc.apply(DocEdit.declare_var(VarName("h"), param))
         profile = doc.insert(
             Node.polygon(
                 [
-                    (Expr.length_in(0, m), Expr.length_in(0, m)),
-                    (Expr.length_in(1, m), Expr.length_in(0, m)),
-                    (Expr.length_in(1, m), Expr.length_in(1, m)),
-                    (Expr.length_in(0, m), Expr.length_in(1, m)),
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(1, m)),
+                    (Formula.length_in(0, m), Formula.length_in(1, m)),
                 ],
                 plane=doc.sketch_frame(),
             )
         )
-        return doc, doc.insert(Node.extrude(profile, Expr.length_in(2, m)))
+        return doc, doc.insert(Node.extrude(profile, Formula.length_in(2, m)))
 
     def test_the_solid_is_the_same_annotated_or_not(self):
-        plain_doc, plain_solid = self.build(DocParam.length(2 * m))
+        plain_doc, plain_solid = self.build(FreeVar.length(2 * m))
         marked_doc, marked_solid = self.build(
-            DocParam.length(2 * m, Distribution.normal(0.01 * m))
+            FreeVar.length(2 * m, Distribution.normal(0.01 * m))
         )
         plain = pncad.evaluate(plain_doc).value(plain_solid).body()
         marked = pncad.evaluate(marked_doc).value(marked_solid).body()

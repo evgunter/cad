@@ -144,12 +144,15 @@ fn washer() -> Body<f64> {
 
 /// An axis-aligned box [x0,x1]x[y0,y1]x[z0,z1], built by extrusion.
 fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![rect(x, y).into()], Tol::witness())
         .expect("the slab profile validates");
     extrude(
         &profile,
-        Extrusion::Distance(real(z.1 - z.0)),
+        Extrusion::Distance {
+            depth: real(z.1 - z.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("the slab extrudes")
@@ -237,6 +240,11 @@ fn kernel_ops(c: &mut Criterion) {
     // genuinely interpenetrate and NO pair of faces is coincident, so this
     // is the plain seamed path rather than a declared-contact union.
     let post = slab((0.5, 1.5), (0.5, 1.5), (0.5, 2.0));
+    // The boolean's operands, finished once outside the timed loop.
+    let finished = |body| {
+        pncad::topo::AtRestBody::validate(body, Tol::witness()).expect("a brick is a finished body")
+    };
+    let (base, post) = (finished(base), finished(post));
 
     let mut group = c.benchmark_group("kernel");
     group

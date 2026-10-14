@@ -33,7 +33,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
 
 /// Post under the shelf's SIDE edge (y = 0.30), overhanging it: the
 /// cap has positive-area overlap with the shelf's underside on the
@@ -65,7 +65,7 @@ fn overhang_seat() -> (Body<f64>, FaceKey, FaceKey, FaceKey) {
         Tol::witness(),
     );
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
     let shelf_top = keys.face(shelf.top_face).unwrap();
     (body, post.top_face, shelf_bottom, shelf_top)
@@ -87,20 +87,17 @@ fn flush_seat() -> (Body<f64>, FaceKey, FaceKey, FaceKey) {
         Tol::witness(),
     );
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
     let shelf_top = keys.face(shelf.top_face).unwrap();
     (body, post.top_face, shelf_bottom, shelf_top)
 }
 
-fn declared(a: FaceKey, b: FaceKey) -> ContactRecords {
-    ContactRecords {
-        patches: vec![PatchContact {
-            face_a: a,
-            face_b: b,
-        }],
-        ..ContactRecords::default()
-    }
+fn declared(body: &Body<f64>, a: FaceKey, b: FaceKey) -> ContactRecords {
+    topo::ContactRecords::from_iter(vec![topo::Cited::new(
+        topo::Contact::new(body, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
+        topo::Cites::decided(0),
+    )])
 }
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -114,7 +111,7 @@ fn undeclared(errors: &[ValidationError]) -> Vec<CensusContact> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact { contact, .. } => Some(*contact),
+            ValidationError::UnrecordedContact { contact, .. } => Some(*contact),
             _ => None,
         })
         .collect()
@@ -172,7 +169,7 @@ fn the_lemma_probe_undeclared_baseline() {
 #[test]
 fn the_lemma_probe_declared() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
-    let all = errors(&body, &declared(post_top, shelf_bottom));
+    let all = errors(&body, &declared(&body, post_top, shelf_bottom));
     let found = undeclared(&all);
     assert_eq!(
         count(&found, |c| matches!(c, CensusContact::VertexOnEdge { .. })),
@@ -206,7 +203,7 @@ fn the_lemma_probe_declared() {
 fn a_wrong_pair_backs_nothing() {
     let (body, post_top, _, shelf_top) = flush_seat();
     let bare = undeclared(&errors(&body, &ContactRecords::default()));
-    let wrong = undeclared(&errors(&body, &declared(post_top, shelf_top)));
+    let wrong = undeclared(&errors(&body, &declared(&body, post_top, shelf_top)));
     assert_eq!(
         count(&wrong, |c| matches!(c, CensusContact::VertexOnEdge { .. })),
         2,
@@ -246,9 +243,12 @@ fn the_swapped_graft_order_flush_seat_exercises_the_other_arm() {
         Tol::witness(),
     );
     let mut body = shelf.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &post.body, Tol::witness()).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &post.body).unwrap();
     let post_top = keys.face(post.top_face).unwrap();
-    let found = undeclared(&errors(&body, &declared(post_top, shelf.bottom_face)));
+    let found = undeclared(&errors(
+        &body,
+        &declared(&body, post_top, shelf.bottom_face),
+    ));
     assert!(
         found.is_empty(),
         "backing must not depend on which body was grafted first: {found:?}"

@@ -142,15 +142,18 @@ fn pole_crossing_three_faces() -> (Body<f64>, [FaceKey; 3]) {
     }
     let t_end = g.param_near(a, 0.0).unwrap();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
-            radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e_rim = body
@@ -264,15 +267,18 @@ fn pole_crossing_three_faces_with_seam() -> (Body<f64>, [FaceKey; 3]) {
     let t_pole = gd.param_near(s_pole, 0.0).unwrap();
     assert!(t_pole > 0.0 && (gd.eval(t_pole) - s_pole).norm() < 1e-9);
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
-            radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e_rim = body
@@ -455,19 +461,17 @@ fn a_pole_crossing_arc_is_refused_by_the_branch_door_not_the_shape_door() {
     let tol = Tol::witness();
     assert_eq!(door_verdict(&body, cap), Ok(()));
     assert_eq!(door_verdict(&body, rest), Ok(()));
-    // Issue 1598 is closed at the closed form's own premise, not at
-    // either door: the complement's rim traversal says its interior
-    // lies below the extent the levels fold, so the face refuses by
-    // name and the body no longer answers 0.0 for a closed sphere.
+    // Issue 1598 is closed at the closed form's side reader, not at
+    // either door: the complement holds the south pole, which no face
+    // may hold inside it, so the face refuses by name and the body no
+    // longer answers 0.0 for a closed sphere.
     let mp = topo::mass_properties(&body, tol);
     assert!(
         matches!(
             mp,
             Err(topo::MassPropsError::Face {
                 face,
-                source: geom_brep::props::PropsError::NotIsoRectangle {
-                    what: "props_rim_interior_side"
-                }
+                source: geom_brep::props::PropsError::SenseContradicted,
             }) if face == rest
         ),
         "issue 1598: the complement refuses typed; got {mp:?}"

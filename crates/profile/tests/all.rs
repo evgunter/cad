@@ -55,12 +55,16 @@ mod common;
 
 #[path = "arc_fillet.rs"]
 mod arc_fillet;
+#[path = "arc_leg_full_turn.rs"]
+mod arc_leg_full_turn;
 #[path = "arc_spec_census.rs"]
 mod arc_spec_census;
 #[path = "blend7_review_probes.rs"]
 mod blend7_review_probes;
 #[path = "bool11_probes.rs"]
 mod bool11_probes;
+#[path = "fillet_decided_tangency.rs"]
+mod fillet_decided_tangency;
 #[path = "fillet_refusal_envelope.rs"]
 mod fillet_refusal_envelope;
 #[path = "review_fillet_attr_r1_probes.rs"]
@@ -94,8 +98,6 @@ mod cert4r1_e2e;
 mod cert4r2_e2e;
 #[path = "cusp_joints.rs"]
 mod cusp_joints;
-#[path = "declared_tangency.rs"]
-mod declared_tangency;
 #[path = "enclose_refusal_r2_probes.rs"]
 mod enclose_refusal_r2_probes;
 #[path = "fillet_overrun_nearest_fit.rs"]
@@ -114,6 +116,8 @@ mod interval_lane;
 mod lift_census;
 #[path = "onarc_probe.rs"]
 mod onarc_probe;
+#[path = "one_segment_loop.rs"]
+mod one_segment_loop;
 #[path = "path_differential.rs"]
 mod path_differential;
 #[path = "path_program.rs"]
@@ -166,6 +170,12 @@ mod scalar_lift_door;
 mod seal;
 #[path = "sketch_plane.rs"]
 mod sketch_plane;
+#[path = "table_arcs_inside_scene_resolution.rs"]
+mod table_arcs_inside_scene_resolution;
+#[path = "table_guided_validation.rs"]
+mod table_guided_validation;
+#[path = "tangent_joints.rs"]
+mod tangent_joints;
 #[path = "validate_ok.rs"]
 mod validate_ok;
 #[path = "validate_ok_probe.rs"]

@@ -8,7 +8,7 @@ it sat. These are the door-level rows for the four that now do —
 the vocabulary they answer in.
 
 `test_assembly_author.py::TestBenchLayout` is the scene-scale row: the
-audit's row 47, where an instance's cap frame is read on the layout
+audit's row 44, where an instance's cap frame is read on the layout
 evaluation and checked against the placement arithmetic. What is here
 is the behavior of the doors themselves, and above all their
 REFUSALS: a read-back that cannot answer says which invariant broke,
@@ -28,7 +28,7 @@ from pncad import (
     Denotation,
     Doc,
     EntityKind,
-    Expr,
+    Formula,
     NamePat,
     Node,
     PncadError,
@@ -46,13 +46,13 @@ def unit_cube(doc):
     """A 1 m cube on the ground plane, rooted at the origin."""
     square = doc.insert(
         Node.polygon([
-            (Expr.length_in(0, m), Expr.length_in(0, m)),
-            (Expr.length_in(1, m), Expr.length_in(0, m)),
-            (Expr.length_in(1, m), Expr.length_in(1, m)),
-            (Expr.length_in(0, m), Expr.length_in(1, m)),
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.length_in(1, m), Formula.length_in(0, m)),
+            (Formula.length_in(1, m), Formula.length_in(1, m)),
+            (Formula.length_in(0, m), Formula.length_in(1, m)),
         ], plane=doc.sketch_frame())
     )
-    return doc.insert(Node.extrude(square, Expr.length_in(1, m)))
+    return doc.insert(Node.extrude(square, Formula.length_in(1, m)))
 
 
 def one(found):
@@ -158,13 +158,10 @@ class TestTheDoorsRefuseTyped(unittest.TestCase):
     row per arm, asserted on the `variant` tag and the payload.
 
     WHICH ARMS ARE NOT HERE, measured rather than assumed:
-    `dangling_entity`, `dangling_geometry` and `no_such_body` are
-    kernel-bug arms — a stale handle, a live entity naming geometry
-    the body no longer has, an emission that disagrees with its own
-    value — and nothing a caller can author reaches one. The two
-    dangling lanes are separate tags because they are separate facts;
-    their texts are pinned in the Rust tag suite, which is the only
-    place either arm can be constructed.
+    `dangling_entity` and `no_such_body` are not reachable from an
+    authored document — a stale handle, an emission that disagrees
+    with its own value — and their texts are pinned in the Rust tag
+    suite, which is the only place either arm can be constructed.
     `no_carrier` needs an edge carrying M3 null-edge scaffolding,
     which is a transient state no evaluated value is in.
     `no_canonical_frame` needs a NURBS carrier, which no bound node

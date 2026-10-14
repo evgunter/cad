@@ -15,12 +15,13 @@ use crate::shared::surf::table;
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::recourse::Definite;
+use geom_brep::recourse::{Classified, Refused};
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
-    MappedCurve, NewellError, SketchSegment, classify_dihedral, newell_plane,
+    MappedCurve, MappedSource, NewellError, SketchSegment, SurfacePair, classify_dihedral,
+    newell_plane,
 };
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 
 // =====================================================================
 // Target 1 — certification aliasing: is the 9-sample schedule enough?
@@ -48,15 +49,19 @@ use geom_core::{Affine3, Point2, Point3, Vec3};
 /// winding within the period.
 #[test]
 fn fixed_winding_aliased_arc_interval_refused() {
-    let bulge = (PI / 8.0).tan(); // quarter arc, CCW, unit circle
-    let desc = MappedCurve::PlacedSegment {
+    // The quarter arc, counterclockwise, on the unit circle.
+    let desc = MappedCurve::whole(MappedSource::PlacedSegment {
         segment: SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
-            bulge,
+            arc: Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: 1.0,
+                sweep: FRAC_PI_2,
+            },
         },
         place: Affine3::identity(),
-    };
+    });
     let mk = |t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Scaffold(desc),
         carrier: Curve3::Circle {
@@ -89,13 +94,15 @@ fn fixed_winding_aliased_full_period_refused() {
     let center = Point3::new(1.0, 2.0, 3.0);
     let p = Point3::new(2.0, 2.0, 3.0);
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
-            point: Point2::new(2.0, 2.0),
-            place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
-            axis_origin: center,
-            axis_dir: Vec3::unit_z(),
-            angle: TAU,
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::RevolvedPoint {
+                point: Point2::new(2.0, 2.0),
+                place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
+                axis_origin: center,
+                axis_dir: Vec3::unit_z(),
+                angle: TAU,
+            },
+        )),
         carrier: Curve3::Circle {
             center,
             axis: Vec3::unit_z(),
@@ -119,15 +126,18 @@ fn fixed_winding_aliased_full_period_refused() {
 /// schedule only aliases at 8k·tau).
 #[test]
 fn survives_wrong_carriers_are_rejected() {
-    let bulge = (PI / 8.0).tan();
-    let arc = MappedCurve::PlacedSegment {
+    let arc = MappedCurve::whole(MappedSource::PlacedSegment {
         segment: SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
-            bulge,
+            arc: Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: 1.0,
+                sweep: FRAC_PI_2,
+            },
         },
         place: Affine3::identity(),
-    };
+    });
     let p0 = Point3::new(1.0, 0.0, 0.0);
     let p1 = Point3::new(0.0, 1.0, 0.0);
     let base = |carrier, t0: f64, t1: f64| EdgeCurveSpec {
@@ -234,8 +244,7 @@ fn survives_plane_cylinder_partial_rim_certifies() {
     let p1 = Point3::new(-1.0, 0.0, 0.0);
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: keys[1],
+            pair: SurfacePair::new(keys[0], keys[1]),
             witness: Point3::new(0.0, 1.0, 0.0),
         },
         carrier: Curve3::Circle {
@@ -284,8 +293,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     let p1 = Point3::new(-1.0, 0.0, 0.0);
     let mk = |t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: keys[1],
+            pair: SurfacePair::new(keys[0], keys[1]),
             witness: Point3::new(0.0, 1.0, 0.0),
         },
         carrier: Curve3::Circle {
@@ -299,12 +307,12 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     };
     // The complementary (lower) arc: t runs 0 -> −pi — a decreasing
     // interval, refused by the forward gate (N1).
-    assert_eq!(
+    assert!(matches!(
         EdgeCurve::certify(mk(-PI), p0, p1, &lookup, band()).unwrap_err(),
         CertifyError::IntervalNotForward {
-            verdict: Definite::Negative,
+            verdict: Refused::Negative { .. },
         }
-    );
+    ));
     // An extra 1.5 windings: t runs 0 -> 3·pi — over one period,
     // refused by the winding bound (S1).
     assert_eq!(
@@ -318,20 +326,24 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     // by the mid-parameter pin (S2): witness at the lower arc's
     // midpoint, interval traversing the upper arc.
     let mut wrong_side = mk(PI);
-    let EdgeDescriptionSpec::Intersection { s1, s2, .. } = wrong_side.description else {
+    let EdgeDescriptionSpec::Intersection { pair, .. } = wrong_side.description else {
         panic!("mk builds an Intersection description");
     };
     wrong_side.description = EdgeDescriptionSpec::Intersection {
-        s1,
-        s2,
+        pair,
         witness: Point3::new(0.0, -1.0, 0.0),
     };
-    assert_eq!(
-        EdgeCurve::certify(wrong_side, p0, p1, &lookup, band()).unwrap_err(),
-        CertifyError::ResidualExceeded {
-            check: CertCheck::WitnessMidpoint,
-            sample: 4
-        }
+    let refusal = EdgeCurve::certify(wrong_side, p0, p1, &lookup, band()).unwrap_err();
+    assert!(
+        matches!(
+            refusal,
+            CertifyError::ResidualExceeded {
+                check: CertCheck::WitnessMidpoint,
+                sample: 4,
+                ..
+            }
+        ),
+        "{refusal:?}"
     );
 }
 
@@ -366,8 +378,7 @@ fn fixed_full_period_rim_intersection_certifies() {
     let p = Point3::new(1.0, 0.0, 0.0);
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: keys[1],
+            pair: SurfacePair::new(keys[0], keys[1]),
             // The mid-parameter point of t: 0 → tau is carrier(pi).
             witness: Point3::new(-1.0, 0.0, 0.0),
         },
@@ -455,10 +466,27 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     let p = at(3.0 * eps());
     assert!(classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).is_err());
     // Collapsed arm: now an honest escalation naming the arm gate —
-    // never a definite classification.
+    // never a definite classification. It quotes the wedge the arm
+    // meters (PR 3513's fifth fix pass), under that reading's own name.
     let p = at(0.5 * eps());
     let err = classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"));
+    assert_eq!(
+        (err.rung(), err.diag().predicate),
+        (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes()))
+    );
+}
+
+/// The reading a sub-ε arm's escalation quotes: the wedge it meters,
+/// where the arm offers a tolerance to decide both; its own name where
+/// that tolerance, half ε over K, lies at or below `EPS_MIN` and is
+/// withheld (D4 ¶4), as at CI's 1e-12 row.
+fn sub_eps_arm_quotes() -> &'static str {
+    let b = band();
+    if b.offer_deciding(0.5 * eps()).is_some() {
+        "dihedral_arm_wedge"
+    } else {
+        "dihedral_arm"
+    }
 }
 
 /// (c) FIXED (was `finding_sub_epsilon_chord_true_corner_reads_smooth`):
@@ -481,10 +509,135 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
         normal: Vec3::unit_x(),
         u_ref: Vec3::unit_y(),
     };
+    // The arm gate escalates, quoting the wedge it meters where that is
+    // nonzero and the arm offers a tolerance, and its own decided zero
+    // where the arm is exactly zero.
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.5 * eps(), band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"), "sub-eps extent");
+    assert_eq!(
+        (err.rung(), err.diag().predicate),
+        (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes())),
+        "sub-eps extent"
+    );
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.0, band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"), "zero extent");
+    assert_eq!(
+        (err.rung(), err.diag().predicate),
+        (geom_brep::LeverRung::Arm, Some("dihedral_arm")),
+        "zero extent"
+    );
+}
+
+/// **A collapsed spline meter refuses as the meter's decision**, not as
+/// an unreadable span margin. A degree-2 net along the z axis (the
+/// intersection of the planes x = 0 and y = 0) that stalls at its end —
+/// its last two control points coincide — has a speed floor of exactly
+/// zero, and one that turns back on itself a floor below zero: neither
+/// has a metre scale for its stored interval. Each carries the meter's
+/// own verdict and ends in its lever, the stall with what a vanishing
+/// floor means, and never in the poisoned-margin note; a poisoned net
+/// keeps the note, under the meter's own check.
+#[test]
+fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
+    use std::sync::Arc;
+
+    use geom::NurbsCurve3;
+    use geom_brep::certify::NOT_A_SAMPLE;
+    use geom_brep::keys::SurfaceKey;
+    use geom_brep::recourse::Reading;
+    use geom_core::spline::KnotVector;
+    const LEVER: &str = "Recourse: move the geometry so this spline edge runs steadily forward, \
+                         never stalling or turning back";
+    let net = |degree: usize, control: &[f64]| {
+        let n = control.len();
+        let knots = [vec![0.0; degree + 1], vec![1.0; degree + 1]].concat();
+        assert_eq!(knots.len(), n + degree + 1, "a single-span clamped net");
+        let knots = KnotVector::clamped(knots, degree).expect("knots");
+        let control = control.iter().map(|&z| Point3::new(0.0, 0.0, z)).collect();
+        let net = NurbsCurve3::new(knots, control, vec![1.0; n]).expect("the net builds");
+        Curve3::Nurbs(Arc::new(net))
+    };
+    let certify = |carrier: Curve3<f64>| {
+        let mut arena: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
+        let s1 = arena.insert(Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        });
+        let s2 = arena.insert(Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_y(),
+            u_ref: Vec3::unit_x(),
+        });
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(s1, s2),
+                witness: carrier.eval(0.5),
+            },
+            carrier: carrier.clone(),
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        let (start, end) = (carrier.eval(0.0), carrier.eval(1.0));
+        EdgeCurve::certify_via(
+            spec,
+            start,
+            end,
+            |k| arena.get(k).cloned(),
+            band(),
+            Some(geom_brep::NurbsLane::certified()),
+        )
+        .unwrap_err()
+    };
+    for (name, control, zero) in [
+        ("stalls", [0.0, 1.0, 1.0], true),
+        ("turns back", [0.0, 1.0, 0.5], false),
+    ] {
+        let err = certify(net(2, &control));
+        match err {
+            CertifyError::SpanMeterCollapsed {
+                verdict: Refused::Zero(_),
+            } => assert!(zero, "{name}: {err:?}"),
+            CertifyError::SpanMeterCollapsed {
+                verdict: Refused::Negative { .. },
+            } => assert!(!zero, "{name}: {err:?}"),
+            other => panic!("{name}: the meter must refuse as its own decision: {other:?}"),
+        }
+        assert_eq!(
+            err.decision().map(|(check, _)| check),
+            Some(CertCheck::ParamSpanMeter),
+            "{name}"
+        );
+        let text = err.render(Reading::Build);
+        assert!(!text.contains("unreadable"), "{name}: {text}");
+        let want = if zero {
+            format!(
+                "{LEVER}; a vanishing speed floor means the spline stalls or turns back, or that \
+                 the floor has reached its limit, which is worth reporting"
+            )
+        } else {
+            LEVER.to_owned()
+        };
+        assert!(text.ends_with(&want), "{name}: {text}");
+    }
+    // A net whose control points all coincide has no chord to project
+    // on: its floor is poison, which stays undecided under the meter's
+    // own check and keeps the note.
+    let err = certify(net(1, &[1.0, 1.0]));
+    assert!(
+        matches!(
+            err,
+            CertifyError::Escalated {
+                check: CertCheck::ParamSpanMeter,
+                sample: NOT_A_SAMPLE,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    let text = err.render(Reading::Build);
+    assert!(
+        text.ends_with(&format!("{LEVER}; {}", geom_core::UNREADABLE_MARGIN_NOTE)),
+        "{text}"
+    );
 }
 
 /// (c) SURVIVES: huge edges on tiny features — the curvature arm caps
@@ -530,11 +683,13 @@ fn fixed_reversed_interval_refused() {
     let p1 = Point3::new(1.0, 0.0, 0.0);
     let spec = EdgeCurveSpec {
         // Description runs p1 -> p0 over s in [0,1].
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
-            point: Point2::new(0.0, 0.0),
-            place: Affine3::translation(p1 - Point3::origin()),
-            vec: p0 - p1,
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::ExtrudedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: Affine3::translation(p1 - Point3::origin()),
+                vec: p0 - p1,
+            },
+        )),
         // Carrier parameterized from p0, walked BACKWARD: t: 1 -> 0.
         carrier: Curve3::Line {
             origin: p0,
@@ -543,12 +698,12 @@ fn fixed_reversed_interval_refused() {
         param_start: 1.0,
         param_end: 0.0,
     };
-    assert_eq!(
+    assert!(matches!(
         EdgeCurve::certify(spec, p1, p0, |_| None, band()).unwrap_err(),
         CertifyError::IntervalNotForward {
-            verdict: Definite::Negative,
+            verdict: Refused::Negative { .. },
         }
-    );
+    ));
 }
 
 /// FIXED (was `finding_zero_length_edge_certifies`): a ZERO-LENGTH
@@ -564,11 +719,13 @@ fn fixed_reversed_interval_refused() {
 fn fixed_zero_length_edge_refused() {
     let p = Point3::new(2.0, -1.0, 5.0);
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
-            point: Point2::new(0.0, 0.0),
-            place: Affine3::translation(p - Point3::origin()),
-            vec: Vec3::zero(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::ExtrudedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: Affine3::translation(p - Point3::origin()),
+                vec: Vec3::zero(),
+            },
+        )),
         carrier: Curve3::Line {
             origin: p,
             dir: Vec3::unit_x(),
@@ -579,7 +736,10 @@ fn fixed_zero_length_edge_refused() {
     assert_eq!(
         EdgeCurve::certify(spec, p, p, |_| None, band()).unwrap_err(),
         CertifyError::IntervalNotForward {
-            verdict: Definite::Zero,
+            verdict: Refused::Zero(Classified {
+                margin: geom_core::MarginDiag::value(0.0),
+                band: band(),
+            }),
         }
     );
 }
@@ -746,8 +906,8 @@ mod interval_lane {
     /// FIXED (was
     /// `finding_interval_winding_alias_refused_only_by_the_poison`):
     /// the interval lane used to refuse the 9-revolution alias only via
-    /// the blanket norm-sqrt-clamp poison (every inexact distance
-    /// enclosure degraded to Trv). With the poison fixed (B1: tight
+    /// the blanket norm-sqrt-clamp refusal (every inexact distance
+    /// enclosure degraded to Trv). With that refusal fixed (B1: tight
     /// per-component squares in `norm_squared`), the alias must STILL
     /// be refused — and now it is, by DETECTION: the circle winding
     /// bound classifies `(tau − 9·tau)·r` definitely negative through
@@ -758,13 +918,15 @@ mod interval_lane {
         let center = p3(1.0, 2.0, 3.0);
         let p = p3(2.0, 2.0, 3.0);
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
-                point: Point2::new(Interval::from_f64(2.0), Interval::from_f64(2.0)),
-                place: Affine3::translation(v3(0.0, 0.0, 3.0)),
-                axis_origin: center,
-                axis_dir: v3(0.0, 0.0, 1.0),
-                angle: Interval::from_f64(core::f64::consts::TAU),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+                MappedSource::RevolvedPoint {
+                    point: Point2::new(Interval::from_f64(2.0), Interval::from_f64(2.0)),
+                    place: Affine3::translation(v3(0.0, 0.0, 3.0)),
+                    axis_origin: center,
+                    axis_dir: v3(0.0, 0.0, 1.0),
+                    angle: Interval::from_f64(core::f64::consts::TAU),
+                },
+            )),
             carrier: Curve3::Circle {
                 center,
                 axis: v3(0.0, 0.0, 1.0),
@@ -778,7 +940,7 @@ mod interval_lane {
         assert_eq!(
             err,
             CertifyError::WindingExceeded,
-            "the fixed lane must refuse the alias by detection, not poison"
+            "the fixed lane must refuse the alias by detection, not by a blanket Trv refusal"
         );
     }
 
@@ -791,7 +953,7 @@ mod interval_lane {
     /// enclosure straddles zero, and `norm`'s old `sqrt(dot(v, v))`
     /// squared the straddle through plain interval `Mul` (negative
     /// lo), so the sqrt clamped, degraded the decoration to Trv, and
-    /// every decision downstream read poison. The fix: `norm_squared`
+    /// every decision downstream was refused. The fix: `norm_squared`
     /// sums tight per-component squares (`powi(2)` — the interval
     /// backend's dedicated integer power),
     /// whose enclosures are `[0, hi]` with decoration preserved, so

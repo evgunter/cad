@@ -139,3 +139,12 @@ builds those with `Message::new`, which is what it meant.
 
 The sibling left: `frame::startup_notices(&[String])`, filed as
 `work/vnews/startup-notices-door-takes-text`.
+
+**After `vnews/batch-2` brought main in (2026-10-13):** main had added
+three `tool_news` sites, all the label field's refusal (`"label: …"`),
+in `pane/create.rs`'s `push_labelled` (two) and `pane/properties.rs`'s
+`label_ui` (one). They take `FormKind::Label`, added for them, and the
+profile editor's two sites moved with main into `edit_door_ui`. Main also
+made `ToolKind::label` a bare noun; the " tool" suffix of a tool's
+sentence is now written once, in `tools::Panel::name`, which
+`ToolKind::says` and `PanelRefusal` share.

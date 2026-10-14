@@ -30,11 +30,10 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString};
 
 use crate::errors::ErrorClass;
-use crate::py::doc::NodeId;
 use crate::py::quantity::Length;
 use crate::py::select::entity_kind;
-use crate::py::typed_err;
 use crate::py::value::lengths;
+use crate::py::{standing_fields, typed_err};
 use crate::tags::interrogate_error_tag;
 use pncad::select as s;
 
@@ -201,12 +200,17 @@ impl Denotation {
 /// Raise `ReadbackError` carrying the refusal's stable tag and the
 /// arm's payload.
 ///
-/// The message is the kernel's own `Display` — the read-back doors
+/// The message is the kernel's own sentence, its nodes spoken from the
+/// evaluated document — the read-back doors
 /// and the name doors both have one, and the wrapping arm forwards
 /// the kernel's words rather than paraphrasing a layer it does not
 /// own — and the machine payload is `variant` plus the fields, each
 /// present on every arm and `None` where that arm does not carry it.
-pub(crate) fn readback_err(py: Python<'_>, err: &s::InterrogateError) -> PyErr {
+pub(crate) fn readback_err(
+    py: Python<'_>,
+    err: &s::InterrogateError,
+    doc: &pncad::document::ProfileDoc,
+) -> PyErr {
     use s::{InterrogateError as E, ReadbackError as R};
 
     let none = || py.None();
@@ -222,7 +226,6 @@ pub(crate) fn readback_err(py: Python<'_>, err: &s::InterrogateError) -> PyErr {
             Ok(value) => value.into_any().unbind(),
         }
     };
-    let node = |n: pncad::document::RecipeNodeId| obj(Py::new(py, NodeId(n)).map(|v| v.into_any()));
     let kind = |k: s::EntityKind| obj(Py::new(py, entity_kind(k)).map(|v| v.into_any()));
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
 
@@ -233,26 +236,19 @@ pub(crate) fn readback_err(py: Python<'_>, err: &s::InterrogateError) -> PyErr {
     // added kernel-side arrives here as a compile error rather than
     // as a silently unprojected payload.
     let (which, through, candidates, wanted, found, index, payload, carrier) = match err {
-        E::NodeNotEvaluated { node: n } | E::NodeFailed { node: n } => (
-            node(*n),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        E::NodePoisoned { node: n, through } => (
-            node(*n),
-            node(*through),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
+        E::Standing(standing) => {
+            let [which, through] = standing_fields(py, *standing);
+            (
+                which,
+                through,
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+            )
+        }
         E::Ambiguous { candidates } => (
             none(),
             none(),
@@ -325,7 +321,7 @@ pub(crate) fn readback_err(py: Python<'_>, err: &s::InterrogateError) -> PyErr {
         ("payload", payload),
         ("carrier", carrier),
     ];
-    typed_err(py, ErrorClass::Readback, err.to_string(), &fields)
+    typed_err(py, ErrorClass::Readback, err.spoken(doc), &fields)
 }
 
 /// Register the read-back vocabulary on the module.

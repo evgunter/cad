@@ -29,6 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::spline::{Knots, SpanLocate};
 use std::sync::Arc;
 
 use bvh::{Aabb, Axis};
@@ -51,7 +52,7 @@ fn knots2() -> KnotVector {
 /// The masquerade, curve half: every control point carries a poisoned
 /// `x` and a finite `y`/`z`. Structurally valid — the constructor
 /// validates counts and weights, and a coordinate is data.
-fn masquerading_curve<T: Real>() -> NurbsCurve3<T> {
+fn masquerading_curve<T: SpanLocate>() -> NurbsCurve3<T> {
     let control: Vec<Point3<T>> = (0..5)
         .map(|i| {
             Point3::new(
@@ -61,11 +62,16 @@ fn masquerading_curve<T: Real>() -> NurbsCurve3<T> {
             )
         })
         .collect();
-    NurbsCurve3::new(knots5(), control, vec![1.0; 5]).unwrap()
+    NurbsCurve3::new(
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 5],
+    )
+    .unwrap()
 }
 
 /// The masquerade, surface half: the same shape on a bilinear net.
-fn masquerading_surface<T: Real>() -> NurbsSurface<T> {
+fn masquerading_surface<T: SpanLocate>() -> NurbsSurface<T> {
     let control: Vec<Point3<T>> = (0..4)
         .map(|i| {
             Point3::new(
@@ -75,11 +81,17 @@ fn masquerading_surface<T: Real>() -> NurbsSurface<T> {
             )
         })
         .collect();
-    NurbsSurface::new(knots2(), knots2(), control, vec![1.0; 4]).unwrap()
+    NurbsSurface::new(
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 4],
+    )
+    .unwrap()
 }
 
 /// The mirror: a FINITE first channel over a poisoned rest.
-fn mirrored_curve<T: Real>() -> NurbsCurve3<T> {
+fn mirrored_curve<T: SpanLocate>() -> NurbsCurve3<T> {
     let control: Vec<Point3<T>> = (0..5)
         .map(|i| {
             Point3::new(
@@ -89,7 +101,12 @@ fn mirrored_curve<T: Real>() -> NurbsCurve3<T> {
             )
         })
         .collect();
-    NurbsCurve3::new(knots5(), control, vec![1.0; 5]).unwrap()
+    NurbsCurve3::new(
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
+        control,
+        vec![Real::one(); 5],
+    )
+    .unwrap()
 }
 
 /// The row the narrow predicate fails: a described net whose every
@@ -153,11 +170,11 @@ fn the_minted_placeholder_still_reads_as_the_placeholder() {
 #[test]
 fn the_widened_predicate_implies_the_narrow_one() {
     let described = NurbsCurve3::new(
-        knots5(),
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
         (0..5)
             .map(|i| Point3::new(f64::from(i), 1.0, 0.0))
             .collect(),
-        vec![1.0; 5],
+        vec![Real::one(); 5],
     )
     .unwrap();
     let mut one_point_poisoned = described.control().to_vec();
@@ -167,7 +184,12 @@ fn the_widened_predicate_implies_the_narrow_one() {
         masquerading_curve::<f64>(),
         mirrored_curve::<f64>(),
         described,
-        NurbsCurve3::new(knots5(), one_point_poisoned, vec![1.0; 5]).unwrap(),
+        NurbsCurve3::new(
+            Knots::from(knots5()).lift(geom_core::Real::from_f64),
+            one_point_poisoned,
+            vec![Real::one(); 5],
+        )
+        .unwrap(),
     ];
     for c in &battery {
         if c.is_placeholder() {
@@ -267,12 +289,12 @@ fn a_net_poisoned_in_one_channel_yields_the_poison_box_on_every_axis() {
 
     // And a fully described net still gets its real, pruning box.
     let described = NurbsSurface::new(
-        knots2(),
-        knots2(),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+        Knots::from(knots2()).lift(geom_core::Real::from_f64),
         (0..4)
             .map(|i| Point3::new(f64::from(i), 1.0, 2.0))
             .collect(),
-        vec![1.0; 4],
+        vec![Real::one(); 4],
     )
     .unwrap();
     assert!(
@@ -292,9 +314,9 @@ fn the_placeholder_set_differs_in_extension_between_scalars() {
     // file CAN spell, `1.E999` overflowing on read — is DESCRIBED, not
     // a placeholder, and its every channel is non-finite.
     let inf = NurbsCurve3::new(
-        knots5(),
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
         vec![Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY); 5],
-        vec![1.0; 5],
+        vec![Real::one(); 5],
     )
     .unwrap();
     assert!(
@@ -305,7 +327,7 @@ fn the_placeholder_set_differs_in_extension_between_scalars() {
     // At `Dual` the question is the VALUE channel only: a poisoned
     // value over a finite derivative reads as the placeholder.
     let d = NurbsCurve3::new(
-        knots5(),
+        Knots::from(knots5()).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(
                 Dual::new(f64::NAN, 1.0),
@@ -314,7 +336,7 @@ fn the_placeholder_set_differs_in_extension_between_scalars() {
             );
             5
         ],
-        vec![1.0; 5],
+        vec![Real::one(); 5],
     )
     .unwrap();
     assert!(

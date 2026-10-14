@@ -2,11 +2,12 @@
 id: body-seat-reads-through-the-placer-chain
 kind: issue
 title: viewer::combine::denotes_body judges a body seat by node kind, and after ruling 2137 a Transform's value is a body iff its input's is and a Pattern's never is — the gate must read through the placer chain, and the two combine_ops pins re-pin
-status: open
+status: closed
 opened: 2026-09-08
 refs: [2173, 2137]
 priority: P1
 cost: D
+closed: 2026-10-08
 ---
 
 (EVAL orchestrator) From EVAL-6 (PR 2173), which built ruling 2137
@@ -98,3 +99,20 @@ Why AUTH-4 did not take it: `admits` is a node-only predicate
 of bare nodes — and changing the classification changes what the BODY
 seat admits at five shipped ops. That is this row's work, not a
 drive-by inside a unit about a new door.
+
+## Closed
+
+By INTENT stage 2 unit B (`operands-are-reads`, branch
+`intent/s2-b-reads`), which made the seat the operand door's own
+question rather than a walk by node kind. A placer's output kind is
+fixed at minting off its operand, so `combine::denotes_body` asks the
+kind of the variable a node named alone reads (`Doc::read_of_node`):
+a transform of a pattern defines `Bodies` and the body seat refuses
+it, the `Instances` seat takes it. `admits` takes the document and the
+node at every call site. Both named exceptions retired:
+`combine_ops::the_body_seat_is_the_operand_doors_body_slot` and
+`::the_part_seats_track_the_part_door` assert the seat and the door
+agree, every candidate, as one equality. The prose sites this row
+lists (`tools.rs`, `combine.rs`, `pane/create.rs`, `session/op.rs`)
+describe the tool's seat, which now admits exactly one body, so they
+stand.

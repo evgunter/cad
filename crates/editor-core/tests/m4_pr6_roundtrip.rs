@@ -63,7 +63,7 @@ fn eval_fingerprint(label: &str, doc: &ProfileDoc) -> String {
 type Fixture = (
     String,
     ProfileDoc,
-    Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    Vec<editor_core::DocEdit<ProfileProgram>>,
     bool,
 );
 
@@ -87,7 +87,7 @@ fn save_load_replay_identity() {
         // The expected current state: snapshot + edits.
         let mut expected = snapshot.clone();
         for edit in &edits {
-            expected = editor_core::apply_logged(&expected, edit, Tol::witness())
+            expected = editor_core::apply_replayed(&expected, edit, Tol::witness())
                 .expect("corpus edit")
                 .doc;
         }

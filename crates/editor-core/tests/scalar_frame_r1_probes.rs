@@ -12,9 +12,9 @@
 
 use crate::fixture;
 
-use editor_core::{CancelToken, DatumValue, EvalOptions, ProfileDoc, ValuePayload, evaluate};
+use editor_core::{CancelToken, EvalOptions, PoseValue, ProfileDoc, ValuePayload, evaluate};
 use geom_core::linalg::frame::{path_start_frame, point_at};
-use geom_core::{Affine3, Band, Mat3, OrthoFrame, Point3, Tol, Vec3};
+use geom_core::{Affine3, Band, Mat3, Point3, RigidMotion, Tol, Vec3};
 use profile::SketchPlane;
 use sweep::{TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use topo::Surface;
@@ -26,26 +26,11 @@ fn band() -> Band {
 }
 
 fn bits3(v: Vec3<f64>) -> [u64; 3] {
-    [v.x, v.y, v.z].map(f64::to_bits)
+    v.to_array().map(f64::to_bits)
 }
 
 fn bits12(a: &Affine3<f64>) -> [u64; 12] {
-    let l = a.linear;
-    [
-        l.c0.x,
-        l.c0.y,
-        l.c0.z,
-        l.c1.x,
-        l.c1.y,
-        l.c1.z,
-        l.c2.x,
-        l.c2.y,
-        l.c2.z,
-        a.translation.x,
-        a.translation.y,
-        a.translation.z,
-    ]
-    .map(f64::to_bits)
+    a.components().map(f64::to_bits)
 }
 
 // ---------------------------------------------------------------
@@ -65,7 +50,7 @@ fn old_recipe(origin: Point3<f64>, aim: Vec3<f64>, reference: Vec3<f64>) -> Affi
 }
 
 /// **The two aiming doors return the retired recipe bit for bit.**
-/// Both are now `OrthoFrame::from_aim` plus `to_affine`, and the claim
+/// Both are now `RigidMotion::from_aim` plus `to_affine`, and the claim
 /// that costs nothing is that the twelve stored components did not
 /// move: the spelling changed, the arithmetic did not. Asserted from
 /// OUTSIDE `geom-core`, over a sweep of eyes, targets, references and
@@ -104,7 +89,7 @@ fn point_at_and_path_start_frame_are_the_retired_recipe_bit_for_bit() {
 /// out is the exact `(x̂, ŷ)` pair the geometry deserves.
 #[test]
 fn a_tube_from_a_minted_frame_stores_the_frames_axes_verbatim() {
-    let frame = OrthoFrame::from_axis_and_reference(
+    let frame = RigidMotion::from_axis_and_reference(
         Point3::origin(),
         Vec3::new(0.0, 2.0, 0.0),
         Vec3::new(3.0, 1.0, 0.0),
@@ -166,9 +151,9 @@ fn a_tube_from_a_minted_frame_stores_the_frames_axes_verbatim() {
 /// mint in `geom-core` and is not restated here.)
 #[test]
 fn a_skewed_pair_is_repaired_at_the_sketch_plane_door() {
-    let exact = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(1.0, 2.0, 3.0)));
+    let exact = SketchPlane::from_frame(RigidMotion::axes_zx(Point3::new(1.0, 2.0, 3.0)));
     assert_eq!(bits3(exact.normal()), bits3(Vec3::unit_y()));
-    let skewed = OrthoFrame::gram_schmidt(
+    let skewed = RigidMotion::gram_schmidt(
         Point3::origin(),
         Vec3::new(2.0, 0.0, 0.0),
         Vec3::new(1.0, 1.0, 0.0),
@@ -189,7 +174,7 @@ fn a_skewed_pair_is_repaired_at_the_sketch_plane_door() {
 /// **A frame datum evaluates to the witness, and the fixture's plane
 /// is the evaluator's** — the two roads to a sketch plane off a frame
 /// node agree bit for bit, which is what carrying the witness through
-/// `DatumValue::Frame` buys. The node's literals are deliberately
+/// `PoseValue::Frame` buys. The node's literals are deliberately
 /// neither unit nor perpendicular.
 #[test]
 fn a_datum_frame_node_evaluates_to_the_witness_and_the_fixture_plane_agrees() {
@@ -205,7 +190,7 @@ fn a_datum_frame_node_evaluates_to_the_witness_and_the_fixture_plane_agrees() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let ValuePayload::Datum(DatumValue::Frame(f)) = &ev.value(plane).expect("evaluated").payload
+    let ValuePayload::Datum(PoseValue::Frame(f)) = &ev.value(plane).expect("evaluated").payload
     else {
         panic!("not a frame")
     };

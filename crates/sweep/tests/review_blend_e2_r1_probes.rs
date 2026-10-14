@@ -152,7 +152,7 @@ fn cap_chain(t: &Extruded<f64>, plane: &SketchPlane<f64>, lp: LoopKey) -> Vec<Po
 /// Both doors reaching the same signed `w · n`.
 fn doors(plane: &SketchPlane<f64>, d: f64) -> Vec<(&'static str, Extrusion<f64>)> {
     vec![
-        ("Distance", Extrusion::Distance(d)),
+        ("Distance", crate::common::to_offset(d)),
         ("Vector", Extrusion::Vector(plane.normal() * d)),
     ]
 }

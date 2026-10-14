@@ -11,7 +11,9 @@
 //! the file as HARNESS BREAKAGE — deliberately, so that a sweep-format
 //! drift cannot score a population silently CLEAN — so from that commit
 //! on every driver CSV was refused at its first sample row and the E6
-//! driver population was linted zero times, at every ε.
+//! driver population was linted zero times, at every ε. (DECIDE-10
+//! later renamed the variant `Symbolic`, serialized as `symbolic`; the
+//! old tokens are now refused, and the rows below pin that too.)
 //!
 //! Nobody saw it, because the CI row that reports the lint's status
 //! could not fail (a `PIPESTATUS` capture taken after the variable it
@@ -80,16 +82,16 @@ fn the_two_vocabularies_are_the_same_size() {
     );
 }
 
-/// **A `symbolic_zero` row parses, counts in its own column, and
+/// **A `symbolic` row parses, counts in its own column, and
 /// answers to no rule.** The regression this file exists for, stated as
 /// behaviour rather than as a list comparison.
 #[test]
-fn a_symbolic_zero_row_is_linted_rather_than_refused() {
+fn a_symbolic_row_is_linted_rather_than_refused() {
     let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
-               driver/slab_narrow,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic_zero\n\
+               driver/slab_narrow,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic\n\
                driver/slab_narrow,carrier_endpoint_start,1e-3,1e-9,1e-8,positive\n";
     let scan = k_lint::lint_csv(csv).expect(
-        "a `symbolic_zero` row is a row this lint understands; refusing it as harness \
+        "a `symbolic` row is a row this lint understands; refusing it as harness \
          breakage is what disarmed the E6 driver gate",
     );
     assert_eq!(scan.scanned, 2, "both rows counted");
@@ -105,52 +107,22 @@ fn a_symbolic_zero_row_is_linted_rather_than_refused() {
     );
 }
 
-/// **A `registered` row parses, counts in ITS OWN column — neither the
-/// `symbolic_zero` one nor the `sign_gated` one — and answers to no
-/// rule.** The registered-identity door's token (M10-9, ERROR-DESIGN
-/// E12's provenance reserve), pinned across the same boundary the first
-/// one drifted over.
+/// **The retired tokens are no longer a sweep's vocabulary.** The
+/// symbolic tier answers one fact, that a margin is zero, and writes it
+/// as `symbolic` however it reached the zero; `symbolic_zero`,
+/// `sign_gated` and `registered` are tokens no recorder writes, so a
+/// file carrying one is a sweep this lint does not understand and is
+/// refused as harness breakage, as any unknown token is.
 #[test]
-fn a_registered_row_is_linted_in_its_own_column() {
-    let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
-               driver/plate,carrier_endpoint_start,0e0,1e-100,1e-50,registered\n\
-               driver/plate,carrier_endpoint_start,0e0,1e-100,1e-50,sign_gated\n\
-               driver/plate,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic_zero\n\
-               driver/plate,volume_backstop,1e-3,1e-9,1e-8,positive\n";
-    let scan = k_lint::lint_csv(csv).expect("a `registered` row is a row this lint understands");
-    assert_eq!(scan.scanned, 4, "all four rows counted");
-    assert_eq!(scan.registered, 1, "the registered row in its own column");
-    assert_eq!(scan.sign_gated, 1, "and not in the clause-3 one");
-    assert_eq!(
-        scan.symbolic, 1,
-        "and not in the unconditional one — an axiom is not a theorem"
-    );
-    assert!(
-        scan.flags.is_empty(),
-        "a registered zero was never classified against the band either: {:?}",
-        scan.flags
-    );
-}
-
-/// **A `sign_gated` row parses, counts in ITS OWN column — not the
-/// `symbolic_zero` one — and answers to no rule.** The clause-3 fold's
-/// token, pinned across the same boundary the first one drifted over.
-#[test]
-fn a_sign_gated_row_is_linted_in_its_own_column() {
-    let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
-               driver/plate,carrier_endpoint_start,0e0,1e-100,1e-50,sign_gated\n\
-               driver/plate,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic_zero\n\
-               driver/plate,volume_backstop,1e-3,1e-9,1e-8,positive\n";
-    let scan = k_lint::lint_csv(csv).expect("a `sign_gated` row is a row this lint understands");
-    assert_eq!(scan.scanned, 3, "all three rows counted");
-    assert_eq!(scan.sign_gated, 1, "the gated row in its own column");
-    assert_eq!(
-        scan.symbolic, 1,
-        "and not in the unconditional one — the two claims differ in kind"
-    );
-    assert!(
-        scan.flags.is_empty(),
-        "a sign-gated zero was never classified against the band either: {:?}",
-        scan.flags
-    );
+fn the_retired_discharge_tokens_are_refused() {
+    for token in ["symbolic_zero", "sign_gated", "registered"] {
+        let csv = format!(
+            "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+             driver/plate,carrier_endpoint_start,0e0,1e-100,1e-50,{token}\n"
+        );
+        assert!(
+            k_lint::lint_csv(&csv).is_err(),
+            "`{token}` is not a token the recorder writes"
+        );
+    }
 }

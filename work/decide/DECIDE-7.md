@@ -54,7 +54,7 @@ and `m10_10_pins` in dev 339 → 174 s. The pad's peak memory goes
 the reduction's outcome tables) ships with it.
 
 **Filed.**
-- `work/sym/the-substituted-numerator-is-built-before-the-quotients-pre-bound-refuses-it`
+- `work/rules/the-substituted-numerator-is-built-before-the-quotients-pre-bound-refuses-it`
   (P3): 10.6 s of what rule G still costs on the pad.
 - `work/decide/rule-gs-magnitude-door-never-asks-rule-c` (P3).
 

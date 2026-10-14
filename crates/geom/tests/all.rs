@@ -15,7 +15,7 @@
 //! mirroring the crate's two modules — the two halves were separate
 //! crates and their suite names collide (`boxes.rs`,
 //! `span_window_pairing.rs`, `review_m5_pr3_attack*.rs`,
-//! `decoration_ring_coords.rs`). A suite does NOT carry a
+//! `decoration_certified_coords.rs`). A suite does NOT carry a
 //! `mod <helper>;` line of its own: the shared helper trees are declared
 //! once, below, as modules of THIS root, and a suite that wants one says
 //! `use crate::<group>::<helper>;`. One declaration means one parse, one
@@ -73,14 +73,16 @@ mod curves_boxes;
 mod curves_compose;
 #[path = "curves/curvo_oracle.rs"]
 mod curves_curvo_oracle;
-#[path = "curves/decoration_ring_coords.rs"]
-mod curves_decoration_ring_coords;
+#[path = "curves/decoration_certified_coords.rs"]
+mod curves_decoration_certified_coords;
 #[path = "curves/domain_door.rs"]
 mod curves_domain_door;
 #[path = "curves/fit_certify.rs"]
 mod curves_fit_certify;
 #[path = "curves/fitting.rs"]
 mod curves_fitting;
+#[path = "curves/held_weights_and_knots.rs"]
+mod curves_held_weights_and_knots;
 #[path = "curves/hull_circle_rehearsal.rs"]
 mod curves_hull_circle_rehearsal;
 #[path = "curves/lt_r1_probes.rs"]
@@ -95,6 +97,8 @@ mod curves_n1r1_c24_dump;
 // without a `#[path]` line.
 #[path = "cert_n2r2_probes.rs"]
 mod cert_n2r2_probes;
+#[path = "curves/accel_upper_bound.rs"]
+mod curves_accel_upper_bound;
 #[path = "curves/curve3_r1_probes.rs"]
 mod curves_curve3_r1_probes;
 #[path = "curves/ders1_meter.rs"]
@@ -121,8 +125,12 @@ mod curves_nurbs_interval;
 mod curves_param_near;
 #[path = "curves/param_near_interval.rs"]
 mod curves_param_near_interval;
+#[path = "curves/piece_coverage_meter.rs"]
+mod curves_piece_coverage_meter;
 #[path = "curves/projection.rs"]
 mod curves_projection;
+#[path = "curves/quotient_bound.rs"]
+mod curves_quotient_bound;
 #[path = "curves/r2_lt_probes.rs"]
 mod curves_r2_lt_probes;
 #[path = "curves/review_m5_pr2_e2e.rs"]
@@ -133,10 +141,16 @@ mod curves_review_m5_pr3_attack;
 mod curves_review_m5_pr3_attack_interval;
 #[path = "curves/review_m5_pr4_adversarial.rs"]
 mod curves_review_m5_pr4_adversarial;
+#[path = "curves/second_derivative.rs"]
+mod curves_second_derivative;
 #[path = "curves/span_window_pairing.rs"]
 mod curves_span_window_pairing;
+#[path = "curves/speed_upper_bound.rs"]
+mod curves_speed_upper_bound;
 #[path = "curves/split_at.rs"]
 mod curves_split_at;
+#[path = "curves/swaying_corner_meter.rs"]
+mod curves_swaying_corner_meter;
 #[path = "dual_foot_tangent.rs"]
 mod dual_foot_tangent;
 #[path = "n2r1_probes.rs"]
@@ -153,8 +167,8 @@ mod span_bit_identity_ext;
 // ---- surfaces ----
 #[path = "surfaces/boxes.rs"]
 mod surfaces_boxes;
-#[path = "surfaces/decoration_ring_coords.rs"]
-mod surfaces_decoration_ring_coords;
+#[path = "surfaces/decoration_certified_coords.rs"]
+mod surfaces_decoration_certified_coords;
 #[path = "surfaces/m5_pr7_ders3.rs"]
 mod surfaces_m5_pr7_ders3;
 #[path = "surfaces/m5_pr7_surface_projection.rs"]
@@ -163,6 +177,8 @@ mod surfaces_m5_pr7_surface_projection;
 mod surfaces_nurbs_surface;
 #[path = "surfaces/nurbs_surface_interval.rs"]
 mod surfaces_nurbs_surface_interval;
+#[path = "surfaces/poison_parameter.rs"]
+mod surfaces_poison_parameter;
 #[path = "surfaces/review_m2_pr1.rs"]
 mod surfaces_review_m2_pr1;
 #[path = "surfaces/review_m2_pr1_interval.rs"]
@@ -173,8 +189,14 @@ mod surfaces_review_m5_pr3_attack;
 mod surfaces_review_m5_pr3_attack_interval;
 #[path = "surfaces/s32_jet_projection.rs"]
 mod surfaces_s32_jet_projection;
+#[path = "surfaces/second_quotients.rs"]
+mod surfaces_second_quotients;
 #[path = "surfaces/span_window_pairing.rs"]
 mod surfaces_span_window_pairing;
+#[path = "surfaces/stretch_floor.rs"]
+mod surfaces_stretch_floor;
+#[path = "surfaces/stretch_sup.rs"]
+mod surfaces_stretch_sup;
 
 test_utils::every_suite_file_is_aggregated!();
 #[path = "curves/n3r2_c24_meter.rs"]

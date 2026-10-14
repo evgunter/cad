@@ -204,8 +204,13 @@ fn n1r2_composed_lift_is_the_hand_re_spelling_bit_for_bit() {
                 )
             })
             .collect();
-        let hand: NurbsCurve3<Dual<Interval>> =
-            NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap();
+        let lift = |x: f64| Dual::constant(Interval::from_f64(x));
+        let hand: NurbsCurve3<Dual<Interval>> = NurbsCurve3::new(
+            c.knot_values().lift(lift),
+            ctrl,
+            c.weights().iter().map(|w| lift(*w)).collect(),
+        )
+        .unwrap();
         for t in params(c.knots()) {
             let tt = Dual::variable(Interval::from_f64(t));
             let a = composed.eval(tt);

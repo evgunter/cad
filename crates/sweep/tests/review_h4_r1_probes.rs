@@ -367,7 +367,7 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
 
     // The carve, and the fill by Pappus.
     let v0 = mass_properties(&body, tol()).expect("props").volume;
-    let out = fillet_edges(&body, &arcs, r, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
         .unwrap_or_else(|e| panic!("the floor rim carves, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one band");
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));

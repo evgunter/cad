@@ -501,7 +501,7 @@ mod tests {
     /// mef(Chords) — two vertices at x = 0 and x = 1.
     fn pillow_via_segment() -> Body<f64> {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -528,7 +528,7 @@ mod tests {
     /// on different halves.
     fn pillow_via_mirrored_chord() -> Body<f64> {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -558,7 +558,7 @@ mod tests {
     #[test]
     fn the_circle_route_to_the_pillow_moved_an_edge_off_its_carrier() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let circle = body
             .mef_chord(
                 MefSite::Lone {
@@ -619,7 +619,7 @@ mod tests {
         // Bitwise coordinate comparison is part of the relation.
         let a = pillow_via_segment();
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -694,7 +694,7 @@ mod tests {
         // header cannot tell them apart; the structural emission must.
         let build = |split: bool| {
             let mut body = Body::<f64>::new();
-            let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+            let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
             let seg = body
                 .mev_line(
                     MevSite::Lone {
@@ -753,7 +753,7 @@ mod tests {
         // permute the list (retain + push). Permuting it by hand must
         // not change the form.
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {

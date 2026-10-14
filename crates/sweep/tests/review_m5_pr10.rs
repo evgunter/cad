@@ -12,12 +12,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
-use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3};
 use profile::{RawLoop, test_support::bulge_loop};
 use sweep::skin::{SkinError, make_compatible, segment_curve, skin_on, skin_parameters};
+use sweep::test_support::bulge_arc;
 
 fn ring() -> f64 {
     Band::linear(Tol::witness()).expect("band").zero()
@@ -45,8 +45,7 @@ fn review_arc_exactness_dense_and_signed_turn() {
         // chord endpoint at angle theta from a.
         let theta = 4.0 * f64::atan(bulge);
         let b = Point2::new(theta.cos(), theta.sin());
-        let c = segment_curve(0, SketchSegment::Arc { a, b, bulge }, Affine3::identity())
-            .expect("converts");
+        let c = segment_curve(0, bulge_arc(a, b, bulge), Affine3::identity()).expect("converts");
         let n = 4096usize;
         let mut prev = f64::atan2(0.0, 1.0);
         let mut turn = 0.0f64;
@@ -297,17 +296,19 @@ fn review_skin_on_refuses_unclamped_params() {
 /// frame choice a named angular predicate with a real margin (see
 /// `sweep_geometry`'s C6 note for why this fix pass declined to
 /// invent one), this row flips to the refusal and says so loudly.
+///
+/// A consumer stands on this executed behaviour: the `demos/tour`
+/// klein bottle's top loop is a half-turn sweep that builds only off
+/// it, and its exact spine refuses (klein's wall 9,
+/// `work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`).
+/// Flip this row and that scene refuses with it.
 #[test]
 fn review_half_turn_path_builds_on_the_float_knife_edge() {
     use sweep::skin::sweep_geometry;
     // Half-turn arc: bulge = tan(pi/4) = 1.
     let path = segment_curve(
         0,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(0.0, 2.0),
-            bulge: 1.0,
-        },
+        bulge_arc(Point2::new(0.0, 0.0), Point2::new(0.0, 2.0), 1.0),
         Affine3::identity(),
     )
     .expect("path");
@@ -386,7 +387,10 @@ fn review_open_chains_are_unrepresentable_and_close_by_construction() {
         Affine3::identity(),
         Affine3::translation(geom_core::Vec3::new(0.0, 0.0, 1.0)),
     ];
-    let g = sweep::skin::loft_geometry(&[was_open.clone(), was_open], &places, 1, Tol::witness())
+    let sections = [was_open.clone(), was_open];
+    let params = sweep::loft_parameters(&sections, &places, 1, Tol::witness())
+        .expect("the closed-by-construction pair parameterizes");
+    let g = sweep::skin::loft_geometry(&sections, &places, 1, &params, Tol::witness())
         .expect("the closed-by-construction pair skins to a tube");
     assert_eq!(g.walls[0].len(), 4, "four vertices, four walls — closed");
 }
@@ -438,7 +442,10 @@ fn a_sub_tolerance_arc_lofts_as_a_line() {
         Affine3::identity(),
         Affine3::translation(geom_core::Vec3::new(0.0, 0.0, 1.0)),
     ];
-    let geometry = sweep::skin::loft_geometry(&[section(), section()], &places, 1, Tol::witness())
+    let sections = [section(), section()];
+    let params = sweep::loft_parameters(&sections, &places, 1, Tol::witness())
+        .expect("the square parameterizes");
+    let geometry = sweep::skin::loft_geometry(&sections, &places, 1, &params, Tol::witness())
         .expect("the square lofts");
     for (i, place) in places.iter().enumerate() {
         let curve = &geometry.sections[0][0][i];
@@ -450,8 +457,8 @@ fn a_sub_tolerance_arc_lofts_as_a_line() {
         ];
         for (got, want) in [(control[0], want[0]), (control[control.len() - 1], want[1])] {
             assert_eq!(
-                [got.x, got.y, got.z].map(f64::to_bits),
-                [want.x, want.y, want.z].map(f64::to_bits),
+                got.to_array().map(f64::to_bits),
+                want.to_array().map(f64::to_bits),
                 "section {i}: {got:?} vs {want:?}"
             );
         }

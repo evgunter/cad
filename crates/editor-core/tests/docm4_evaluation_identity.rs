@@ -2,9 +2,10 @@
 //! of, and every door taking a (document, evaluation) pair refuses a
 //! mismatch typed (`crates/editor-core/IDENTITY.md` DI3).
 //!
-//! The defect these rows close is silent: node ids are minted per
-//! document by a per-document counter, so two documents built from one
-//! recipe carry the SAME ids with the SAME content keys. A gather, an
+//! The defect these rows close is silent: node ids are minted from the
+//! edits that inserted them and not from the document's identity, so
+//! two documents built from one recipe carry the SAME ids with the SAME
+//! content keys. A gather, an
 //! at-rest gate or a memo lookup handed the wrong evaluation therefore
 //! misses nothing — it answers, in full, about other geometry. The
 //! collision rows below are built to be that case rather than to hope
@@ -13,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     AssemblyError, CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, EvalOutcome, Evaluation,
@@ -26,7 +28,7 @@ use geom_core::Tol;
 // ---- Fixtures ----
 
 /// A one-solid part document under `label`'s derived id: a `side`-wide
-/// square extruded 1 tall.
+/// square extruded 1 tall, placed in its world.
 fn part(label: &str, side: f64) -> ProfileDoc {
     part_of(DocumentId::derive(label), side)
 }
@@ -42,30 +44,34 @@ fn part_of(id: DocumentId, side: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, side / 2.0)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
-    doc
+    fixture::place(doc, body).0
 }
 
 /// An assembly-shaped document under `id`: two instances of `part_ref`,
-/// the second translated.
+/// the second translated, both placed in the world.
 fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty(id, Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(part_ref));
     let (doc, b) = insert(doc, Node::instantiate_part(part_ref));
     let (doc, _) = fixture::step(
         doc,
-        DocEdit::SetPlacement {
-            node: b,
-            frame: Frame::translation([4.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: b,
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                4.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
-    (doc, vec![a, b])
+    (fixture::place_all(doc, &[a, b]), vec![a, b])
 }
 
 fn run(
@@ -392,8 +398,13 @@ fn solved_poses_placement_refuses_another_document() {
         .placement(&a, ids_a[1])
         .expect("its own document places");
 
-    match *poses.placement(&b, ids_a[1]).expect_err("refuses") {
-        MateFault::PosesOfAnotherDocument { expected, found } => {
+    match poses.placement(&b, ids_a[1]).expect_err("refuses") {
+        editor_core::PoseRefusal::Mate(fault)
+            if matches!(*fault, MateFault::PosesOfAnotherDocument { .. }) =>
+        {
+            let MateFault::PosesOfAnotherDocument { expected, found } = *fault else {
+                unreachable!("matched above")
+            };
             assert_eq!((expected, found), (b.id(), a.id()));
         }
         other => panic!("expected the pairing refusal, got {other:?}"),
@@ -460,12 +471,18 @@ fn the_memo_still_serves_a_same_document_re_evaluation() {
 
     let (moved, _) = fixture::step(
         asm.clone(),
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([9.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                9.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let after = run(&moved, Some(&warm), &opts);
-    assert_eq!(after.recomputed, 1, "the moved instance re-keys");
-    assert_eq!(after.reused, moved.len() - 1, "and nothing else does");
+    assert_eq!(
+        after.recomputed, 2,
+        "the moved instance re-keys, and the world placement reading it"
+    );
+    assert_eq!(after.reused, moved.len() - 2, "and nothing else does");
 }

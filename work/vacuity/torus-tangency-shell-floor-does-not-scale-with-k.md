@@ -137,3 +137,14 @@ rows `D70` closed onto are asking for one level down
 (`work/trim/plane-nurbs-certificate-bound-does-not-refine-with-eps`).
 A fixed number compared against a varying one is one defect with three
 carriers on this slate, and this row is the test-side instance.
+
+## Dissolved on branch `cleave/ray-walk`
+
+CLEAVE's ray-walk driver unit made an in-band root count a reading of
+that one ray: `point_in_solid` sets the ray aside and another answers.
+The shell above the tube's top circle is then the residual one, linear
+in `K·ε` (9.69e-9 at the default row), and the row, renamed
+`the_clamp_floor_clears_the_shell_about_the_top_circle`, pins that: the
+shell is no wider than the band, its ε-exponent is linear, and the
+fixed floor clears it by five orders, so it scales with K as the band
+does. Closing the row is VACUITY's call once that branch merges.

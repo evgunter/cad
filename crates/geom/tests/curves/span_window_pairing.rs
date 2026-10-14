@@ -150,7 +150,7 @@ fn degree_one_and_degree_five_read_exactly_their_windows() {
 // with a legal twin; the row below is the curve-side half.
 
 /// **A curve's own coordinate channels mint against its own vector, and
-/// the windows they mint are the curve's windows.** `ring_coords()` and
+/// the windows they mint are the curve's windows.** `certified_coords()` and
 /// `knots()` are read from one curve, so every channel mints (`Some`),
 /// every window the pair mints selects the span the curve mints at that
 /// index and refuses the indices the curve refuses, and the window's
@@ -164,7 +164,7 @@ fn a_curves_channels_mint_against_its_own_vector() {
     for (knots, degree) in span_families() {
         let c = curve(knots, degree);
         let k = c.knots();
-        let coords = c.ring_coords();
+        let coords = c.certified_coords();
         for (ch, coeffs) in coords.iter().enumerate() {
             let pair = k
                 .with_coeffs(coeffs)
@@ -206,7 +206,7 @@ fn a_curves_channels_mint_against_its_own_vector() {
         vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 1.0, 1.0, 1.0, 1.0],
         3,
     );
-    let theirs = longer.ring_coords();
+    let theirs = longer.certified_coords();
     assert!(mine.knots().with_coeffs(&theirs[0]).is_none());
     assert!(longer.knots().with_coeffs(&theirs[0]).is_some());
 }
@@ -249,8 +249,14 @@ fn every_window_a_curve_mints_evaluates_that_curve() {
         let (lo, hi) = kv.domain();
         for t in [lo, hi, f64::NAN, lo - 1.0, hi + 1.0, 0.5 * (lo + hi)] {
             let w = c.span_at(t);
+            assert_eq!(
+                w.is_none(),
+                t.is_nan(),
+                "the window refuses exactly NaN, at {t}"
+            );
+            let Some(w) = w else { continue };
             assert!(core::ptr::eq(w.curve(), &c));
-            assert_eq!(w.index(), kv.find_span(t));
+            assert_eq!(Some(w.index()), kv.span_at(t).map(|s| s.index()));
             checked += 1;
         }
     }

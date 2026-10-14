@@ -623,6 +623,11 @@ lookups. Minimum viable: make `description_surfaces` return a
 is free to remove. D9-safe: identical outcome, unchanged removal order.
 Effort M (refcounts) / S (the allocation).
 
+*Annotation (2026-10-05):* `description_surfaces` is gone; the surface
+scan now reads each curve's keys through `Named::of(curve).keys()`, an
+iterator, so the per-curve allocation (the "minimum viable" fix) no
+longer applies. The O(arena) scans, and the refcount fix, still do.
+
 #### 10. CI: shard the default archive build
 
 `ci.yml:344-481` — renumbered by #626, and already misaimed: that span

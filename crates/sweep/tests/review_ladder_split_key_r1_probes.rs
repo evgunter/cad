@@ -25,7 +25,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Tol, Vec3};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
@@ -134,8 +134,13 @@ fn r1_a_pip_and_a_boss_on_the_slabs_underside_carve_naming_total() {
              door — the underside pip keeps the half whose `he_plus` ENDS at the rim \
              vertex and the underside boss the half whose `he_plus` STARTS there"
         );
-        let out = fillet_edges(&source, &rim, 0.02, tol())
-            .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&source, tol()),
+            &rim,
+            0.02,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} is tier-3 valid, got {e:?}"));
         assert_naming_totality(&source, &out, &rim, name);
@@ -161,8 +166,13 @@ fn r1_the_bosss_sequential_recourse_is_naming_total_at_both_steps() {
             .expect("the pole-split caps repair");
         let ladder = rim_arcs_at(&source, 0.5, 1.0);
         assert_eq!(ladder.len(), 2, "{name}: the dome rim is two arcs");
-        let first = fillet_edges(&source, &ladder, 0.1, tol())
-            .unwrap_or_else(|e| panic!("{name}: the dome rim carves, got {e:?}"));
+        let first = fillet_edges(
+            &sweep::test_support::at_rest(&source, tol()),
+            &ladder,
+            0.1,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name}: the dome rim carves, got {e:?}"));
         assert_naming_totality(&source, &first, &ladder, &format!("{name}: the dome rim"));
         let mid = first.body.clone();
         let annulus = rim_arcs_at(&mid, 1.0, 1.0);
@@ -170,8 +180,13 @@ fn r1_the_bosss_sequential_recourse_is_naming_total_at_both_steps() {
             !annulus.is_empty(),
             "{name}: the top outer rim survives the first carve"
         );
-        let second = fillet_edges(&mid, &annulus, 0.1, tol())
-            .unwrap_or_else(|e| panic!("{name}: the top rim carves second, got {e:?}"));
+        let second = fillet_edges(
+            &sweep::test_support::at_rest(&mid, tol()),
+            &annulus,
+            0.1,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name}: the top rim carves second, got {e:?}"));
         validate_geometric(&second.body, tol())
             .unwrap_or_else(|e| panic!("{name}: the composed body is tier-3 valid, got {e:?}"));
         assert_naming_totality(&mid, &second, &annulus, &format!("{name}: the top rim"));

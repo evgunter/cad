@@ -27,6 +27,7 @@ use crate::common::shell_operands::{hollow_box, vessel};
 use crate::shell8_common::{
     beside, bits, deep_dump, edge_rows, outer_and_void_of, points, solid_of, tol, top_chart, volume,
 };
+use sweep::test_support::finished;
 
 // ---------------------------------------------------------------------
 // Row 2 — two disjoint boxes in one body
@@ -50,7 +51,8 @@ fn two_disjoint_boxes_each_shell_and_the_gap_between_them_never_gates() {
             dx,
         );
         assert_eq!(pair.solids().count(), 2);
-        let s = topo::shell(&pair, t, tol()).expect("both solids shell");
+        let s = topo::shell(&finished("the operand", pair.clone(), tol()), t, tol())
+            .expect("both solids shell");
         let body = &s.body;
         println!(
             "[8] two boxes at dx={dx}: solids={} shells={} volume={} want={}",
@@ -71,22 +73,24 @@ fn two_disjoint_boxes_each_shell_and_the_gap_between_them_never_gates() {
 // Row 3 — the door is decided per solid
 // ---------------------------------------------------------------------
 
-/// **A box beside a vessel.** The body is neither all-planar nor a body
-/// of revolution, so a whole-body door reading would put both on the
-/// per-chart door and refuse the vessel's corners it solves alone.
-/// Read per solid, the box takes the planar simultaneous door and the
-/// vessel the axial one, and both closed forms come out.
+/// **A box beside a vessel.** The body is not all-planar, and since the
+/// box's faces stand normal and parallel to the vessel's axis the
+/// whole body is AXIAL in the gate's sense. Read per solid, the box
+/// still takes the planar simultaneous door and the vessel the axial
+/// one, and both closed forms come out.
 #[test]
 fn a_box_beside_a_vessel_takes_one_door_each() {
     let t = 0.05;
     let (r, h) = (1.0, 2.0);
     let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &vessel(r, h), 10.0);
-    // The whole-body reading, measured: not all-planar, not axial.
+    // The whole-body reading, measured: not all-planar, but axial —
+    // every box face is normal or parallel to the vessel's axis.
     assert!(
-        !topo::is_axial(&pair, band()).expect("the axis gate decides"),
-        "the pair is not one body of revolution"
+        topo::is_axial(&pair, band()).expect("the axis gate decides"),
+        "the pair is expressible in the vessel's axial frame"
     );
-    let s = topo::shell(&pair, t, tol()).expect("each solid takes its own door");
+    let s = topo::shell(&finished("the operand", pair.clone(), tol()), t, tol())
+        .expect("each solid takes its own door");
     let body = &s.body;
     let want = (box_volume(2.0, 3.0, 4.0)
         - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
@@ -124,7 +128,8 @@ fn a_box_beside_a_full_torus_takes_one_door_each() {
     .expect("the solid torus builds")
     .body;
     let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &torus, 20.0);
-    let s = topo::shell(&pair, t, tol()).expect("each solid takes its own door");
+    let s = topo::shell(&finished("the operand", pair.clone(), tol()), t, tol())
+        .expect("each solid takes its own door");
     let body = &s.body;
     let want = (box_volume(2.0, 3.0, 4.0)
         - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
@@ -158,7 +163,8 @@ fn a_hollow_solid_beside_a_plain_one_gives_three_thin_solids() {
         3,
         "outer, its void, and the plain box"
     );
-    let s = topo::shell(&pair, t, tol()).expect("both solids shell");
+    let s = topo::shell(&finished("the operand", pair.clone(), tol()), t, tol())
+        .expect("both solids shell");
     let body = &s.body;
     let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
         + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
@@ -203,7 +209,13 @@ fn designations_land_on_whichever_solid_carries_them() {
     // Both lids, one call.
     let mut both = lid(0);
     both.extend(lid(1));
-    let s = topo::shell_open(&pair, t, &both, tol()).expect("both lids open");
+    let s = topo::shell_open(
+        &finished("the operand", pair.clone(), tol()),
+        t,
+        &both,
+        tol(),
+    )
+    .expect("both lids open");
     println!(
         "[8] both lids: solids={} shells={} rims={} volume={} want={}",
         s.body.solids().count(),
@@ -219,7 +231,13 @@ fn designations_land_on_whichever_solid_carries_them() {
     assert!((volume(&s.body) - 2.0 * (one_wall - one_lid)).abs() < 1e-12);
 
     // One lid: the other solid stays sealed.
-    let s = topo::shell_open(&pair, t, &lid(0), tol()).expect("one lid opens");
+    let s = topo::shell_open(
+        &finished("the operand", pair.clone(), tol()),
+        t,
+        &lid(0),
+        tol(),
+    )
+    .expect("one lid opens");
     println!(
         "[8] one lid: solids={} shells={} volume={} want={}",
         s.body.solids().count(),
@@ -303,7 +321,8 @@ fn a_simultaneous_door_moves_one_solid_and_leaves_the_other_bitwise() {
 #[test]
 fn a_body_with_no_solid_refuses_typed() {
     let empty: Body<f64> = Body::new();
-    let e = topo::shell(&empty, 0.05, tol()).expect_err("nothing to thicken");
+    let e = topo::shell(&finished("the operand", empty.clone(), tol()), 0.05, tol())
+        .expect_err("nothing to thicken");
     println!("[8] empty operand: {e}");
     assert!(matches!(e, ShellError::NoSolid), "{e}");
 }
@@ -332,14 +351,19 @@ fn a_body_with_no_solid_refuses_typed() {
 #[test]
 fn the_lift_re_authors_only_the_designated_faces_solid() {
     let t = 0.02;
-    let hollow = topo::shell(&vessel(1.0, 2.0), 0.1, tol())
-        .expect("the vessel hollows")
-        .body;
+    let hollow = topo::shell(
+        &finished("the operand", vessel(1.0, 2.0), tol()),
+        0.1,
+        tol(),
+    )
+    .expect("the vessel hollows")
+    .body;
     let (hollow_solid, _) = hollow.solids().next().expect("one solid");
     let (outer, void) = outer_and_void_of(&hollow, hollow_solid);
     let y = Vec3::new(0.0, 1.0, 0.0);
 
-    let sealed = topo::shell(&hollow, t, tol()).expect("sealed");
+    let sealed =
+        topo::shell(&finished("the operand", hollow.clone(), tol()), t, tol()).expect("sealed");
     for (label, designation) in [
         (
             "outer lid",
@@ -350,7 +374,13 @@ fn the_lift_re_authors_only_the_designated_faces_solid() {
             crate::shell8_common::cap(&hollow, void, y, 1.9),
         ),
     ] {
-        let opened = topo::shell_open(&hollow, t, &designation, tol()).expect("opens");
+        let opened = topo::shell_open(
+            &finished("the operand", hollow.clone(), tol()),
+            t,
+            &designation,
+            tol(),
+        )
+        .expect("opens");
         // The solid the surgery ran in, read off the rim the record
         // reports rather than guessed from geometry.
         let rim = opened.naming.rims[0].rim;

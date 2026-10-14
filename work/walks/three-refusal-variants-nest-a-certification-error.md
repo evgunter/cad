@@ -27,8 +27,8 @@ Four shapes for one sentence — *this certification did not hold, and
 here is what it was about*. Three name an entity, one names a static
 site string; two nest `CertifyError`, two nest a pcurve error. A reader
 matching on "the operation refused for a geometric reason" matches four
-patterns, and `reports_tier1_corruption`, `merge_faces`' `OpPlacement`
-and every `every_*_error_once` table list them one by one.
+patterns, and `merge_faces`' `OpPlacement` and every
+`every_*_error_once` table list them one by one.
 
 ## Why it is a row and not a fix
 
@@ -48,7 +48,7 @@ the S93 unit that surfaced it had no mandate to restructure error types
   be nested as a second arm of the payload, not collapsed into it.
 - **Leave the variants and unify the READERS**: a
   `EulerOpError::certification_failure(&self) -> Option<…>` accessor
-  that the three classifiers call instead of listing arms. Cheaper, and
+  that the classifiers call instead of listing arms. Cheaper, and
   it does not touch a public shape.
 - **Do nothing, and say so once**: the four are genuinely four
   operations and the cost is only that a reader lists them. Then the
@@ -56,3 +56,13 @@ the S93 unit that surfaced it had no mandate to restructure error types
 
 The second is the smallest and buys the most of what the class costs
 today (the arm-listing). Deciding is a later unit's.
+
+## Evidence: a fourth `EulerOpError` spelling (PR 3580)
+
+`RechartFalsifies { edge, error }` (`crates/topo/src/euler.rs`), raised
+by `Body::set_face_surfaces_describing` when a listed re-description
+does not certify on the moved charts, is the same shape as
+`RebasedCarrier { edge, error }`: an `EdgeKey` plus a nested
+`CertifyError`. It adds one more arm to every list above
+(`merge_faces`' placement match, the `every_*_error_once` table). PR 3580 left the shape alone, as this row
+asks.

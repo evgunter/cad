@@ -21,10 +21,10 @@
 //!    verb is called by, so its `Display` is the row's too.
 //! 2. [`Step`] — the step vocabulary: one variant per authoring verb,
 //!    storing **authored data only**. `ArcVia`/`ArcCenter` keep the
-//!    points the author wrote; their bulges are DERIVED at replay, by
-//!    the same binders the typed surface calls. Storing a derived bulge
-//!    would re-type a computed value as authored and kill its
-//!    parametricity (PROFILES-V2 §V1/§V2).
+//!    points the author wrote; their arcs are DERIVED at replay, by the
+//!    same binders the typed surface calls. Storing a derived arc would
+//!    re-type a computed value as authored and kill its parametricity
+//!    (PROFILES-V2 §V1/§V2).
 //! 3. [`ClosedLoop`] — what a closing verb now returns: the lowered
 //!    [`ProfileLoop`] *and* the program that produced it. One authoring
 //!    surface, two consumers; no second spelling of any verb.
@@ -1010,7 +1010,7 @@ transition_table! {
         row {
             /// Consumes a **directed point only**: re-uses the incoming end
             /// tangent as the departure — exact by construction, nothing for
-            /// verification to contradict — and emits the DECLARED flag on
+            /// verification to contradict — and constructs the joint on
             /// lowering. Ill-typed on plain points (no direction to inherit),
             /// which is what makes "fillets sit between defined geometry"
             /// structural rather than a rule.
@@ -1033,8 +1033,8 @@ transition_table! {
             /// [`tangent`](Self::tangent) does, and departs along the
             /// REVERSE of the incoming end tangent — the ray negated, so the
             /// junction is exactly reverse-tangent by construction and
-            /// nothing is left for verification to contradict — emitting the
-            /// same DECLARED flag on lowering.
+            /// nothing is left for verification to contradict — constructing
+            /// the joint on lowering as `.tangent()` does.
             ///
             /// This is the wedge-0/2π authoring door (D1's tier-3 ruling):
             /// a solid swept from a loop with such a joint carries a cusp
@@ -1086,13 +1086,13 @@ transition_table! {
             /// the arrival side's one leg past its anchor (no collinear
             /// neighbor is minted — §4 item 4's by-construction exemption).
             ///
-            /// A declared straight continuation of a straight leg
+            /// A tangent straight continuation of a straight leg
             /// (`.tangent().line(len)` after a line) IS the same carrier, and
             /// since 2026-09-02 that is legal: every zero-turn joint is a
-            /// declared tangent joint, so the joint is declared and the leg
+            /// tangent joint (D1), so the joint is constructed and the leg
             /// emitted. The straight-continuation row below says the same
             /// thing without the explicit `.tangent()` — `line(len)` off the
-            /// directed point declares the joint it mints.
+            /// directed point constructs the joint it mints.
             ///
             /// `len` must classify definitely positive
             /// ([`PathError::NonpositiveLeg`] otherwise): a negative length
@@ -1122,20 +1122,18 @@ transition_table! {
             /// than on two a round trip through the angle put a bit apart.
             /// (The ray is what is exact; the vertices it lands are ordinary
             /// sums and round like ordinary sums.) Binding bits
-            /// only: there is NO junction here (no authored direction exists to
-            /// classify, so nothing reaches the §4 item 1 check) and NOTHING is
-            /// declared. The minted vertex is a structural subdivision of the
-            /// carrier the binding bits already determine — a straight run said
-            /// on more vertices than it has corners, which is the loft
-            /// vertex-budget shape.
+            /// only: there is NO junction here to classify (no authored
+            /// direction exists, so nothing reaches the §4 item 1 check), and
+            /// the joint the leg mints is constructed tangent. The minted
+            /// vertex is a structural subdivision of the carrier the binding
+            /// bits already determine — a straight run said on more vertices
+            /// than it has corners, which is the loft vertex-budget shape.
             ///
             /// The row is carrier-blind, as the §2c axiom requires: it reads
             /// the tangent and nothing about the leg that produced it. Off an
             /// ARC-carrier point the same spelling therefore authors a line
-            /// tangent to that arc and declares nothing, which is a tangency
-            /// between DISTINCT carriers — legal to write here, refused at the
-            /// data gate ([`crate::ProfileError::UndeclaredTangency`]); declare
-            /// it with `.tangent()` instead.
+            /// tangent to that arc, a tangency between DISTINCT carriers the
+            /// row constructs exactly as it constructs a collinear one.
             ///
             /// `len` is gated definitely positive exactly as the directed row's
             /// is ([`PathError::NonpositiveLeg`]).
@@ -1225,10 +1223,8 @@ transition_table! {
             /// departure gets.
             ///
             /// Carrier-blind, as the §2c axiom requires — off an ARC-carrier
-            /// point this authors a line tangent to that arc and declares
-            /// nothing, legal to write and refused at the data gate
-            /// ([`crate::ProfileError::UndeclaredTangency`]), exactly as the
-            /// length form is.
+            /// point this authors a line tangent to that arc and constructs
+            /// the joint, exactly as the length form does.
             on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
             fn continue_to [<Tgt: super::ContinueTarget<T>>(
                 self,
@@ -1252,11 +1248,11 @@ transition_table! {
             /// `Via{q, p}` through a point, `Center{c, winding, p}` about a
             /// centre). `p: Start` is the sharp arc seam.
             ///
-            /// Each mode's authored data is stored VERBATIM and its bulge
-            /// derived by the one closed form the raw chain uses
-            /// ([`crate::bulge_from_via`] / [`crate::bulge_from_center`]), so
-            /// the doors emit the same bits. On a directed point the §4 item 1
-            /// junction check runs on the arc's START TANGENT.
+            /// Each mode's authored data is stored VERBATIM and its arc
+            /// built by the mode's one conversion: `Bulge` and `Via` lowered
+            /// from the chord, `Center` about the authored centre. On a
+            /// directed point the §4 item 1 junction check runs on the arc's
+            /// START TANGENT.
             ///
             /// Refusals: a through-point within ε_input of the chord LINE
             /// ([`PathError::ArcViaCollinear`] — the whole collinear class);
@@ -1355,8 +1351,8 @@ transition_table! {
             /// **§2c round 10 — RAY EXTENSION**: bare `fillet(r)` directly on a
             /// leg end. The incoming contact sits on the TANGENT RAY ahead of
             /// the directed point, as new path: the surviving ray piece is a
-            /// genuine line leg extending from the leg's end (declared tangent
-            /// by construction — the ray IS the tangent), whatever leg came
+            /// genuine line leg extending from the leg's end (tangent by
+            /// construction — the ray IS the tangent), whatever leg came
             /// before. Line arrival.
             on [T: ArcCarrierScalar] PartialPath<T, HasPos<WithIncoming>, NoAng>;
             fn fillet [(
@@ -1767,9 +1763,9 @@ transition_table! {
             /// **Exact trim fit** — the fillet arc reaching `anchor` with no
             /// straight run left — is not an error. The side simply IS the arc:
             /// no degenerate segment is emitted, the tip carries the arc as its
-            /// incoming carrier, the arc's outgoing joint is left UNDECLARED
-            /// (the side ends here, so the next direction is free — declaring
-            /// would be a claim, not a construction), and the authored anchor is
+            /// incoming carrier, the arc's outgoing joint is left unconstructed
+            /// (the side ends here, so the next direction is free — a joint
+            /// there would be a claim, not a construction), and the authored anchor is
             /// ABSORBED into the tangent point the fit gate just classified as
             /// coincident with it, rather than emitted as a second vertex a
             /// hair away. That absorption is the hand door's behaviour too, and
@@ -1825,7 +1821,7 @@ transition_table! {
     } = "circle" bind { centre, radius } rows {
         free {
             /// The circle primitive (G1 constructor 1): a **one-step complete-loop
-            /// program form**, not a chain — `circle(center, r)` IS the whole loop,
+            /// program form**, not a chain — `circle(centre, r)` IS the whole loop,
             /// so it returns the lowered [`ProfileLoop`] directly and there is
             /// nothing to continue, close, or bind.
             ///
@@ -1836,9 +1832,9 @@ transition_table! {
             /// at all. The conventional split — two semicircles at the ±x poles,
             /// counterclockwise — is the primitive's PRIVATE lowering, exactly the
             /// M2 closed-carrier precedent: a detail of how a closed carrier
-            /// reaches a vertex+bulge document, not a junction anyone said. The two
-            /// joints are same-carrier identities, so nothing is declared tangent
-            /// (there is no tangency to declare — it is one circle).
+            /// reaches a vertex-and-segment document, not a junction anyone said. The two
+            /// joints are same-carrier identities the form constructs, so
+            /// validation verifies them and records neither (it is one circle).
             ///
             /// `radius` must classify definitely positive
             /// ([`PathError::NonpositiveCircleRadius`]), through the same funnel as
@@ -1846,22 +1842,20 @@ transition_table! {
             /// mix circle loops and chain loops freely (per-loop wholesale, which
             /// is the mixed-authoring rule of §6 read at loop granularity).
             fn circle [<T: Decide>(
-                center: Point2<T>,
+                centre: Point2<T>,
                 radius: T,
                 tol: Tol,
             ) -> Result<ClosedLoop<T>, PathError<T>>] {
-                let loop_ = super::circle_kernel(center, radius, tol)?;
+                let loop_ = super::circle_kernel(centre, radius, tol)?;
                 Ok(ClosedLoop {
                     // A closed carrier resolves no fillet: no gate, no
                     // ladder, nothing discrete to record but the one
                     // step's reach, which is the whole loop.
                     structure: ReplayStructure::carrier(loop_.vertices.len())?,
-                    loop_,
-                    program: vec![Step::Circle {
-                        centre: center,
-                        radius,
-                    }],
+                    loop_: ConstructedLoop::carrier(loop_),
+                    program: vec![Step::Circle { centre, radius }],
                 })
+                .inspect(|closed| closed.structure.check_role_lists(&closed.program))
             }
             arms {
                 Entry => Ok(Applied::Closed(circle(centre, radius, tol)?)),
@@ -1886,44 +1880,47 @@ transition_table! {
             /// equal sweep, the first vertex at angle `phase` from the +x axis,
             /// counterclockwise. Like [`circle`] it is a **one-step complete-loop
             /// program form**, not a chain, so PQ4 is untouched: the vertices are
-            /// STRUCTURAL subdivisions of one carrier (same-carrier identities,
-            /// nothing declared tangent), not junctions anyone claimed — the
+            /// STRUCTURAL subdivisions of one carrier (same-carrier identities
+            /// the form constructs, none recorded), not junctions anyone claimed — the
             /// difference from [`circle`] is only that here the subdivision COUNT
             /// and PHASE are authored data rather than a private lowering detail,
             /// for the loops whose downstream naming depends on the seam count
             /// (the boss corpus document is the recorded use case).
             ///
             /// Numerics, stated plainly: vertex `k` sits at
-            /// `center + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
-            /// every bulge is `tan(π/(2n))` — all through the scalar's libm-pure
+            /// `centre + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
+            /// every arc sweeps `4·atan(tan(π/(2n)))` about the authored centre at
+            /// the authored radius — all through the scalar's libm-pure
             /// trig (D9-deterministic; no exactness promise at axis crossings, the
             /// same posture as `.angle(θ)` directors).
             ///
             /// `radius` must classify definitely positive (the [`circle`] gate,
             /// same funnel row); `n` must lie in `2..=u32::MAX` ([`PathError::CircleSplitCount`]
-            /// — a one-vertex full turn has no bulge representation). `n` is
+            /// — a one-vertex full turn's quarter-tangent, `tan(π/2)`, is the
+            /// pole). `n` is
             /// structural (a count, never a value); `phase` is continuous.
             fn circle_split [<T: Decide>(
-                center: Point2<T>,
+                centre: Point2<T>,
                 radius: T,
                 n: usize,
                 phase: T,
                 tol: Tol,
             ) -> Result<ClosedLoop<T>, PathError<T>>] {
-                let loop_ = super::circle_split_kernel(center, radius, n, phase, tol)?;
+                let loop_ = super::circle_split_kernel(centre, radius, n, phase, tol)?;
                 Ok(ClosedLoop {
                     // Structural subdivisions of one carrier: still no
                     // fillet resolution anywhere in the form, and the
                     // one step reaches every subdivision.
                     structure: ReplayStructure::carrier(loop_.vertices.len())?,
-                    loop_,
+                    loop_: ConstructedLoop::carrier(loop_),
                     program: vec![Step::CircleSplit {
-                        centre: center,
+                        centre,
                         radius,
                         n,
                         phase,
                     }],
                 })
+                .inspect(|closed| closed.structure.check_role_lists(&closed.program))
             }
             arms {
                 Entry => Ok(Applied::Closed(
@@ -2068,8 +2065,8 @@ impl<T: Real> ArcData<T> {
 /// [`From`]/`.into()` or by reading [`ClosedLoop::loop_`].
 #[derive(Clone, Debug)]
 pub struct ClosedLoop<T: Real> {
-    /// The lowered loop.
-    pub loop_: ProfileLoop<T>,
+    /// The lowered loop, carrying the provenance of its construction.
+    pub loop_: ConstructedLoop<T>,
     /// The recorded program: replaying it reproduces `loop_` exactly.
     pub program: Vec<Step<T>>,
     /// The discrete choices this lowering made — the third value one
@@ -2079,9 +2076,17 @@ pub struct ClosedLoop<T: Real> {
     pub structure: crate::structure::ReplayStructure,
 }
 
-impl<T: Real> From<ClosedLoop<T>> for ProfileLoop<T> {
+impl<T: Real> From<ClosedLoop<T>> for ConstructedLoop<T> {
     fn from(closed: ClosedLoop<T>) -> Self {
         closed.loop_
+    }
+}
+
+/// The loop, giving up the provenance ([`ConstructedLoop::into_loop`]):
+/// a `ProfileLoop` validates as a table.
+impl<T: Real> From<ClosedLoop<T>> for ProfileLoop<T> {
+    fn from(closed: ClosedLoop<T>) -> Self {
+        closed.loop_.into_loop()
     }
 }
 
@@ -2665,13 +2670,18 @@ spec_dispatch! {
 /// (`common::pinned`), and per-verb reachability by the
 /// replay-coverage census (see the module docs).
 ///
+/// The loop comes back as a [`ConstructedLoop`]: its arcs are the ones
+/// this replay constructed, verified at their construction (D1), and
+/// [`crate::ConstructedProfile`] validates it without deciding their
+/// consistency checks again.
+///
 /// # Errors
 ///
 /// [`ReplayError`], carrying the offending step index.
 pub fn replay<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
-) -> Result<ProfileLoop<T>, ReplayError<T>> {
+) -> Result<ConstructedLoop<T>, ReplayError<T>> {
     drive(steps, tol, Guide::recording()).map(|closed| closed.loop_)
 }
 
@@ -2690,7 +2700,7 @@ pub fn replay<T: ArcCarrierScalar>(
 pub fn replay_recording<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
-) -> Result<(ProfileLoop<T>, ReplayStructure), ReplayError<T>> {
+) -> Result<(ConstructedLoop<T>, ReplayStructure), ReplayError<T>> {
     drive(steps, tol, Guide::recording()).map(|closed| (closed.loop_, closed.structure))
 }
 
@@ -2725,7 +2735,7 @@ pub fn replay_guided<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     structure: &ReplayStructure,
     tol: Tol,
-) -> Result<ProfileLoop<T>, ReplayError<T>> {
+) -> Result<ConstructedLoop<T>, ReplayError<T>> {
     let want = structure.fillets.len();
     let closed = drive(steps, tol, Guide::guided(structure.clone()))?;
     // Reaching FEWER resolutions than the record describes is not a
@@ -2815,6 +2825,123 @@ pub fn replay_guided<T: ArcCarrierScalar>(
         }
     }
     Ok(closed.loop_)
+}
+
+/// A loop the path lattice constructed: the loop, the fact that every
+/// arc in it was verified at its construction, at this scalar (D1) —
+/// each by the mode's one conversion that built it, which registers the
+/// endpoint identities its algebra proves and decides the rest inline
+/// (a `Center` arc's `path_arc_center_equidistant`, a fillet's offset
+/// tangency or exact fit) — and the joints its constructors made
+/// tangent ([`Self::constructed_joints`]).
+///
+/// Minted only at the lattice's closing — a chain's `finish` and the
+/// `circle` and `circle_split` forms — which the builder and every
+/// replay ([`replay`], [`replay_recording`], [`replay_guided`]) go
+/// through; the fields are private to the `path` module. It crosses
+/// scalars only by two doors that keep the points its facts were
+/// verified at: [`ConstructedLoop::value_channel`] (its `f64` value
+/// channel) and [`ConstructedLoop::lift_computed`] (an `f64` loop
+/// entered at another scalar as the computed values it is). It is the loop
+/// [`crate::ConstructedProfile`] is built from, so a table cannot reach
+/// the validation that consumes those facts. It reads as its loop
+/// ([`Deref`](core::ops::Deref)), and gives the provenance up only by
+/// [`ConstructedLoop::into_loop`].
+#[derive(Clone, Debug)]
+pub struct ConstructedLoop<T: Real> {
+    pub(in crate::path) loop_: ProfileLoop<T>,
+    pub(in crate::path) joints: Vec<usize>,
+}
+
+impl<T: Real> ConstructedLoop<T> {
+    /// A closed carrier's loop (`circle`, `circle_split`): every vertex
+    /// is a subdivision of the one carrier the form constructs, so
+    /// every joint is constructed, and tangent.
+    pub(in crate::path) fn carrier(loop_: ProfileLoop<T>) -> Self {
+        let n = loop_.vertices().len();
+        // A full turn's one vertex joins the carrier to itself: no joint.
+        let joints = if n < 2 { Vec::new() } else { (0..n).collect() };
+        Self { loop_, joints }
+    }
+
+    /// The loop.
+    pub fn as_loop(&self) -> &ProfileLoop<T> {
+        &self.loop_
+    }
+
+    /// **The joints this loop's constructors made tangent**, as vertex
+    /// indices, ascending: a fillet's two, a tangent continuation's or
+    /// `.cusp()`'s one, a declared seam arrival's joint 0, and every
+    /// joint of a closed carrier. Validation verifies each
+    /// ([`crate::ProfileError::TangencyContradicted`]) and records
+    /// none: a constructed tangency is not decided from values.
+    pub fn constructed_joints(&self) -> &[usize] {
+        &self.joints
+    }
+
+    /// The loop, giving up the provenance.
+    pub fn into_loop(self) -> ProfileLoop<T> {
+        self.loop_
+    }
+}
+
+impl<T: geom_core::spline::SpanLocate> ConstructedLoop<T> {
+    /// This loop's value channel: each value's one `f64`
+    /// ([`SpanLocate::value_channel`](geom_core::spline::SpanLocate::value_channel),
+    /// NaN where there is none, which validation refuses), the
+    /// constructed joints kept. The facts were verified at these
+    /// values' points, so they hold of the channel as they hold of the
+    /// loop.
+    #[must_use]
+    pub fn value_channel(&self) -> ConstructedLoop<f64> {
+        ConstructedLoop {
+            loop_: self
+                .loop_
+                .map_scalar(geom_core::spline::SpanLocate::value_channel),
+            joints: self.joints.clone(),
+        }
+    }
+}
+
+impl ConstructedLoop<f64> {
+    /// This loop at the scalar `U`, every value entered as the computed
+    /// value it is ([`Real::from_computed`](geom_core::Real::from_computed):
+    /// the same point, an unknown at `Sym`), the constructed joints
+    /// kept, which hold of the points they were verified at.
+    #[must_use]
+    pub fn lift_computed<U: Real>(&self) -> ConstructedLoop<U> {
+        ConstructedLoop {
+            loop_: self.loop_.map_scalar(U::from_computed),
+            joints: self.joints.clone(),
+        }
+    }
+}
+
+/// **The fixture door for a constructed loop**: a table read as if the
+/// lattice had built it, its constructors having made `joints` tangent.
+/// It exists for the rows that pin what validation does with a
+/// constructor's joint the geometry contradicts, which the lattice
+/// itself never builds. Absent from every shipped build.
+#[cfg(any(test, feature = "test-support"))]
+impl<T: Real> ConstructedLoop<T> {
+    /// The fixture (type docs).
+    pub fn fixture(loop_: ProfileLoop<T>, joints: Vec<usize>) -> Self {
+        Self { loop_, joints }
+    }
+}
+
+impl<T: Real> core::borrow::Borrow<ProfileLoop<T>> for ConstructedLoop<T> {
+    fn borrow(&self) -> &ProfileLoop<T> {
+        &self.loop_
+    }
+}
+
+impl<T: Real> core::ops::Deref for ConstructedLoop<T> {
+    type Target = ProfileLoop<T>;
+
+    fn deref(&self) -> &ProfileLoop<T> {
+        &self.loop_
+    }
 }
 
 /// The driver proper: one walk over the steps, one guide, one chain.

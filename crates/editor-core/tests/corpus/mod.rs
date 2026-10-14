@@ -37,9 +37,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node,
-    NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow,
-    ValuePayload, apply, evaluate,
+    BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node, NodeResult,
+    PartSelect, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload,
+    apply, evaluate,
 };
 use geom_core::Decide;
 use geom_core::Tol;
@@ -77,6 +77,62 @@ pub mod vessel;
 
 pub use super::fixture::Recorder;
 
+/// **Each of a pattern's `count` copies placed in the world**, in
+/// instance order: a `Part` per instance, each placed at the identity.
+pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
+    for i in 0..count {
+        let copy = r.insert(Node::Part {
+            of: pattern.into(),
+            select: PartSelect::Instance(editor_core::Formula::count(i)),
+        });
+        r.place(copy);
+    }
+}
+
+/// **`doc` with copies `0..count` of its one pattern placed**: the
+/// copies a placement already picks stay, and each further one is
+/// picked and placed. Driving a pattern's count moves no placement, so
+/// a document whose count was driven places the new copies this way.
+pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
+    let pattern = doc
+        .ids()
+        .into_iter()
+        .find(|&id| matches!(doc.node(id), Some(Node::Pattern { .. })))
+        .expect("the document holds a pattern");
+    let placed = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| match doc.node(p) {
+            Some(Node::PlaceInWorld { body, .. }) => doc
+                .operation_of(body.read)
+                .and_then(|picked| doc.node(picked))
+                .is_some_and(|picked| {
+                    matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
+                }),
+            _ => false,
+        })
+        .count();
+    let mut doc = doc;
+    for i in i64::try_from(placed).expect("a count")..count {
+        let (next, copy) = crate::fixture::insert(
+            doc,
+            Node::Part {
+                of: pattern.into(),
+                select: PartSelect::Instance(editor_core::Formula::count(i)),
+            },
+        );
+        doc = crate::fixture::place(next, copy).0;
+    }
+    doc
+}
+
+/// **A split's two halves placed in the world**, above then below:
+/// each half is its port.
+pub fn place_halves(r: &mut Recorder, split: RecipeNodeId) {
+    r.place(editor_core::Operand::output(split, 0));
+    r.place(editor_core::Operand::output(split, 1));
+}
+
 /// An exact mass-property oracle (dyadic dimensions only — see each
 /// document's derivation comment).
 #[derive(Debug, Clone, Copy)]
@@ -96,7 +152,7 @@ pub struct CorpusDoc {
     /// One-line description (printed in the latency table).
     pub about: &'static str,
     /// The recorded edit log (applied to the empty snapshot).
-    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     /// The replayed current state (empty snapshot + `edits`).
     pub doc: ProfileDoc,
     /// The node carrying the document's headline solid, if it has one
@@ -187,11 +243,10 @@ pub fn documents() -> Vec<CorpusDoc> {
         // registry, so the derived frame carries the standard rows
         // (every ε, the Interval lane under DM1c, persistence, latency).
         face_sketch::document(),
-        // `part_select` (DOCM-2): a split's two halves and a pattern's
-        // middle instance each selected by a `Node::Part` and consumed
-        // downstream, so the census counts both selectors and every
-        // standard row (every ε, the Interval lane, persistence,
-        // latency) runs the projection.
+        // `part_select` (DOCM-2): a split's two halves read by port and
+        // a pattern's middle instance selected by a `Node::Part`, each
+        // consumed downstream, so every standard row (every ε, the
+        // Interval lane, persistence, latency) runs both.
         part_select::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
@@ -226,9 +281,8 @@ pub fn documents() -> Vec<CorpusDoc> {
         plate_param::document(),
         // `kiss_carry` (SEAT-5): the one corpus boolean whose result
         // carries NON-EMPTY surviving contacts — the discovered
-        // corner kiss, then the same record re-entered by name through
-        // a Declare (the carried v-v arm of `resolve_declarations`,
-        // reached nowhere else in the corpus). Registered so a pin can
+        // corner kiss, then the same record carried from the operand
+        // into the next union. Registered so a pin can
         // tell a lowering that carries the tier-3′ records from one
         // that drops them.
         kiss_carry::document(),
@@ -271,11 +325,10 @@ pub fn documents() -> Vec<CorpusDoc> {
 pub fn cone(doc: &editor_core::ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let mut set = BTreeSet::new();
     set.insert(root);
-    // `order` is insertion order and inputs must pre-exist, so one
-    // forward sweep suffices.
-    for &id in doc.order() {
-        let node = doc.node(id).expect("ordered node exists");
-        if node.inputs().iter().any(|i| set.contains(i)) {
+    // The corpus writes no forward read, so one sweep in insertion
+    // order suffices.
+    for id in doc.ids() {
+        if doc.upstream(id).iter().any(|i| set.contains(i)) {
             set.insert(id);
         }
     }
@@ -317,6 +370,24 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
     }
 }
 
+/// The single body a read holds: its output's body
+/// ([`ValuePayload::output_body`]), a split's port that half.
+pub fn read_body<'e, T: Decide>(
+    ev: &'e Evaluation<T>,
+    doc: &ProfileDoc,
+    read: editor_core::VarId,
+) -> &'e Body<T> {
+    let (node, port) = doc
+        .var(read)
+        .and_then(|var| var.def().output())
+        .expect("a read of a live output");
+    ev.value(node)
+        .expect("node evaluated to a value")
+        .payload
+        .output_body(u32::from(port))
+        .unwrap_or_else(|e| panic!("the read holds one body: {e}"))
+}
+
 /// **The node kinds no document can evaluate to a value** — the
 /// evaluation frontier, read by every suite that requires each kind
 /// evaluated somewhere (`m4_pr8_corpus`, `names_verbatim_edge_evaluator`).
@@ -344,7 +415,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 21] = [
+pub const NODE_KINDS: [&str; 22] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -359,13 +430,11 @@ pub const NODE_KINDS: [&str; 21] = [
     // document.
     "Chamfer",
     "Split",
-    "Boolean",
-    // DOCM-3's n-ary union — COVERED, by `die_composed_tour`, whose
-    // cutting tool is one union over 21 pips. Listed as its own row
-    // beside `Boolean` because they are two nodes: a pair union keeps
-    // its `declare` input and its `FromA`/`FromB` naming, and a
-    // document that carries one carries nothing about the other.
+    // The three booleans are three nodes: a union and an intersect over
+    // a `Bodies` argument, a subtract over its binary `from`/`tool`.
     "Union",
+    "Intersect",
+    "Subtract",
     "Transform",
     "Pattern",
     // DOCM-2's projection node — COVERED, by `part_select`.
@@ -396,7 +465,6 @@ pub const NODE_KINDS: [&str; 21] = [
     // pretending coverage — the `Sweep` disposition, for a different
     // reason.
     "Shell",
-    "Declare",
     // M10-2's measurement sinks. Listed because `measured_web` now
     // registers them: the hold-out that kept them off this roster was
     // correct only while no corpus document carried one, and a
@@ -404,15 +472,18 @@ pub const NODE_KINDS: [&str; 21] = [
     // direction.
     "Measure",
     "Assertion",
+    // The world placement: every document's product is its copies.
+    "PlaceInWorld",
 ];
 
 /// The edit kinds the corpus is required to exercise — the coverage
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
-/// It is a SUBSET, deliberately and visibly: `SetMembers`, `SetRoots`,
-/// `SetPlacement` and `UpdateReference` are arms of `DocEdit` that no
-/// corpus document authors, and listing them here would report four
-/// permanent misses rather than covering anything. `SetProgram` is
+/// It is a SUBSET, deliberately and visibly: `SetMembers`,
+/// `SetOffset`, `SetGauge`, `Promote`, `Fold` and `UpdateReference`
+/// are arms of `DocEdit` that no corpus document authors, and listing
+/// them here would report six permanent misses rather
+/// than covering anything. `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
 /// vocabulary itself is not this list but [`edit_kind`]'s match, which
@@ -423,17 +494,19 @@ pub const NODE_KINDS: [&str; 21] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 18] = [
+pub const EDIT_KINDS: [&str; 21] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
     "SetParam",
     "SetStructuralParam",
+    "SetExtrudeSide",
     "SetExpression",
-    "SetDocParam",
-    "SetDocParamValue",
-    "SetDocParamUnit",
-    "SetDocParamDistribution",
+    "DeclareVar",
+    "DefineVar",
+    "SetVarValue",
+    "SetVarUnit",
+    "SetVarDistribution",
     "Rebind",
     "ReWitness",
     "ReWitnessBulk",
@@ -442,27 +515,21 @@ pub const EDIT_KINDS: [&str; 18] = [
     "SetTolerance",
     "SetAppearanceMeta",
     "ClearAppearanceMeta",
+    "SetLabel",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: every datum
-/// flavour, every boolean operator (and the declared boolean), and
-/// both pattern kinds.
-pub const SUB_KINDS: [&str; 20] = [
+/// flavour and both pattern kinds.
+pub const SUB_KINDS: [&str; 14] = [
     "Datum::Plane",
     "Datum::Axis",
-    "Datum::AxisInPlane",
     "Datum::Point",
     "Datum::Frame",
     "Datum::FaceFrame",
-    "Boolean::Union",
-    "Boolean::Intersect",
-    "Boolean::Subtract",
-    "Boolean+Declare",
     "Pattern::Linear",
     "Pattern::Circular",
-    // Both selectors of the projection node: `part_select` reads a
-    // split's two halves and a pattern's middle instance.
-    "Part::SplitHalf",
+    // The projection node: `part_select` reads a pattern's middle
+    // instance.
     "Part::Instance",
     // LIB-PLACEDUNION's two register payoffs. `PlacedUnion::Circular`
     // is deliberately NOT listed: no corpus document needs one, and a
@@ -486,7 +553,7 @@ pub const SUB_KINDS: [&str; 20] = [
 ];
 
 /// The sub-kind tally names a node contributes (possibly none).
-pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
+pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str> {
     match node {
         Node::Datum(Datum::Plane { .. }) => vec!["Datum::Plane"],
         Node::Datum(Datum::Axis { .. }) => vec!["Datum::Axis"],
@@ -497,23 +564,7 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
         // Listed: `face_sketch` draws on a frame derived from a face.
         Node::Datum(Datum::FaceFrame { .. }) => vec!["Datum::FaceFrame"],
-        // Listed: four corpus documents revolve, and a revolve's axis
-        // is written in the profile's frame. `kitchen_sink` carries
-        // BOTH axis kinds — a world line for its circular pattern, an
-        // in-plane axis for its revolve — which is the whole reason
-        // they are two sub-kinds to count.
-        Node::Datum(Datum::AxisInPlane { .. }) => vec!["Datum::AxisInPlane"],
-        Node::Boolean { op, declare, .. } => {
-            let mut v = vec![match op {
-                BooleanOp::Union => "Boolean::Union",
-                BooleanOp::Intersect => "Boolean::Intersect",
-                BooleanOp::Subtract => "Boolean::Subtract",
-            }];
-            if declare.is_some() {
-                v.push("Boolean+Declare");
-            }
-            v
-        }
+        Node::Union { .. } | Node::Intersect { .. } | Node::Subtract { .. } => Vec::new(),
         Node::Pattern { kind, .. } => vec![match kind {
             PatternKind::Linear { .. } => "Pattern::Linear",
             PatternKind::Circular { .. } => "Pattern::Circular",
@@ -527,15 +578,12 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
             PatternKind::Circular { .. } => "PlacedUnion::Circular",
             PatternKind::Explicit(_) => "PlacedUnion::Explicit",
         }],
-        // The two selectors are two sub-kinds: which value kind the
-        // node reads, and so which refusals it can meet, follows the
-        // selector.
-        Node::Part { select, .. } => vec![match select {
-            PartSelect::SplitHalf(_) => "Part::SplitHalf",
-            PartSelect::Instance(_) => "Part::Instance",
-        }],
+        Node::Part {
+            select: PartSelect::Instance(_),
+            ..
+        } => vec!["Part::Instance"],
         // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
-        // new `Node` variant — or a new `Datum`/`BooleanOp`/
+        // new `Node` variant — or a new `Datum`/
         // `PatternKind` flavour above — is a COMPILE error here rather
         // than a silently uncovered sub-kind, matching the
         // compile-time totality `node_kind`/`edit_kind` already have.
@@ -563,20 +611,23 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         // payload's emptiness, which no other kind counts either.
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Union { .. }
         | Node::Transform { .. }
+        | Node::PlaceInWorld { .. }
         | Node::Loft { .. }
         | Node::Sweep { .. }
-        | Node::Declare { .. }
         | Node::Mate { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. }
-        | Node::InstantiatePart { .. } => Vec::new(),
+        | Node::InstantiatePart { .. }
+        | Node::Gauge { .. } => Vec::new(),
     }
 }
 
-/// The node kind's tally name.
-pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
+/// The node kind's tally name: one per [`Node`] VARIANT, which is what
+/// the census counts. Not `editor_core::node_kind_noun`, whose words
+/// split `Datum` by flavour — a split this tally's sub-kind half
+/// (`sub_kinds`) already counts on its own.
+pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
     match node {
         Node::Datum(_) => "Datum",
         Node::Profile(_) => "Profile",
@@ -588,19 +639,21 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Tube { .. } => "Tube",
         Node::HollowTube { .. } => "HollowTube",
         Node::Split { .. } => "Split",
-        Node::Boolean { .. } => "Boolean",
         Node::Union { .. } => "Union",
+        Node::Intersect { .. } => "Intersect",
+        Node::Subtract { .. } => "Subtract",
         Node::Transform { .. } => "Transform",
+        Node::PlaceInWorld { .. } => "PlaceInWorld",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
-        Node::Declare { .. } => "Declare",
         Node::Mate { .. } => "Mate",
         Node::Measure { .. } => "Measure",
         Node::Assertion { .. } => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
+        Node::Gauge { .. } => "Gauge",
     }
 }
 
@@ -613,11 +666,15 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetProgram { .. } => "SetProgram",
         DocEdit::SetParam { .. } => "SetParam",
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",
+        DocEdit::SetExtrudeSide { .. } => "SetExtrudeSide",
         DocEdit::SetExpression { .. } => "SetExpression",
-        DocEdit::SetDocParam { .. } => "SetDocParam",
-        DocEdit::SetDocParamValue { .. } => "SetDocParamValue",
-        DocEdit::SetDocParamUnit { .. } => "SetDocParamUnit",
-        DocEdit::SetDocParamDistribution { .. } => "SetDocParamDistribution",
+        DocEdit::DeclareVar { .. } => "DeclareVar",
+        DocEdit::DefineVar { .. } => "DefineVar",
+        DocEdit::SetVarValue { .. } => "SetVarValue",
+        DocEdit::SetVarUnit { .. } => "SetVarUnit",
+        DocEdit::SetVarDistribution { .. } => "SetVarDistribution",
+        DocEdit::RenameVar { .. } => "RenameVar",
+        DocEdit::DeleteVar { .. } => "DeleteVar",
         DocEdit::Rebind { .. } => "Rebind",
         DocEdit::ReWitness { .. } => "ReWitness",
         DocEdit::ReWitnessBulk { .. } => "ReWitnessBulk",
@@ -626,9 +683,12 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetTolerance { .. } => "SetTolerance",
         DocEdit::SetAppearanceMeta { .. } => "SetAppearanceMeta",
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
-        DocEdit::SetRoots { .. } => "SetRoots",
-        DocEdit::SetPlacement { .. } => "SetPlacement",
+        DocEdit::SetOffset { .. } => "SetOffset",
+        DocEdit::SetGauge { .. } => "SetGauge",
+        DocEdit::Promote { .. } => "Promote",
+        DocEdit::Fold { .. } => "Fold",
         DocEdit::UpdateReference { .. } => "UpdateReference",
+        DocEdit::SetLabel { .. } => "SetLabel",
     }
 }
 
@@ -648,13 +708,13 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
     for d in documents() {
         let mut seen_n = BTreeSet::new();
         let mut seen_s = BTreeSet::new();
-        let note = |n: &Node<ProfileProgram>,
+        let note = |n: &editor_core::Node<editor_core::ProfileProgram>,
                     seen_n: &mut BTreeSet<&'static str>,
                     seen_s: &mut BTreeSet<&'static str>| {
             seen_n.insert(node_kind(n));
             seen_s.extend(sub_kinds(n));
         };
-        for &id in d.doc.order() {
+        for id in d.doc.ids() {
             note(
                 d.doc.node(id).expect("ordered node exists"),
                 &mut seen_n,
@@ -662,15 +722,11 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
             );
         }
         let mut seen_e = BTreeSet::new();
-        for e in d
-            .edits
-            .iter()
-            .map(|e| &e.edit)
-            .chain(std::iter::once(&d.bump))
-        {
+        for e in d.edits.iter().chain(std::iter::once(&d.bump)) {
             seen_e.insert(edit_kind(e));
-            if let DocEdit::InsertNode { node } = e {
-                note(node, &mut seen_n, &mut seen_s);
+            if let DocEdit::InsertNode { node, .. } = e {
+                seen_n.insert(node_kind(node));
+                seen_s.extend(sub_kinds(node));
             }
         }
         for k in seen_n {
