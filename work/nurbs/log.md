@@ -1437,3 +1437,11 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Still red on main and not ours (pre-4984): the 1e-6 rows `cone_operand_rows`, `r1_lane0_e2e` and `three_solids_on_one_line`, and the 1e-12 `encl_curved_loft_shell` pin. Build A is bisecting the shelling pin.
   - #5059 (`rect_box` midpoint enclosure, build C) is up. CI is red across lint and test, so the FULL reviewer waits for green.
 - 2026-10-14 03:22Z — **#5011 answered and merged** (b8c3aa52). Ev took (A): the CI bar is 15 min, or 25 min for a PR seeding geom-core, geom, geom-brep or topo. Ev asked for an agent to look into the build time for easy wins. Dispatched a build-time lane (session_01QnnUqrMpoZHtXT1LbBth4W, base 41660715). Its findings go in a `work/ciw/` issue, with one PR per measured win of 2 min or more that drops no gate row.
+- 2026-10-14 04:40Z — **Correction to the 02:05Z triage** (build A). Those bisects shared one `CARGO_TARGET_DIR` across worktrees, which serves stale libraries (the hazard `bitdump.rs:29` documents). Re-run with a fresh target per commit:
+  - **#4984 flips three 1e-12 rows, so they are ours:**
+    - `encl_curved_loft_shell::shelling_the_curved_loft_refuses_at_a_walls_fit` (cap reach 1.3958e-10 → 1.39486e-10, the same floor mechanism as the saddle);
+    - both `rigid_map_near_eps_approx` rows, which are ENCL's open `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main.md`.
+    - Build A fixes them on `nurbs/fix-shelling-pin-after-4984`, root cause only, and closes ENCL's issue.
+  - **Still base red when re-run fresh at a71403e3:** the three 1e-6 rows, plus at 1e-12 `cone_operand_rows`, `a_moved_curved_fitted_cap` and the `shell_general_door` cap.
+  - **The digest passes fresh at 2639b944**, so it is not 4984's. #4952's attribution is being re-confirmed fresh.
+  - **Class finding:** a bisect needs a fresh target directory per commit. A shared one gives wrong attributions both ways.
