@@ -405,7 +405,7 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     let (cone_a, cone_b) = cones(&sigma_a, &sigma_b);
     let mut a_sections: Vec<FaceKey> = seams.iter().map(|&(a, _)| a).collect();
     let mut b_sections: Vec<FaceKey> = seams.iter().map(|&(_, b)| b).collect();
-    let mut splits = Vec::new();
+    let mut splits = crate::lineage::ConeCopies::default();
     split_side(
         body,
         &runs_a,
@@ -461,16 +461,15 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
 /// past it is one whose pinches the boolean's carry reads
 /// (`ops::Zipped`). Only [`split_cones`] builds one.
 pub(super) struct ConesSplit {
-    /// Each split `(split, new)` in the order made, keys of the body
-    /// split: the vertex split and the vertex its moved cone now holds,
-    /// on the split vertex's point key
-    /// (`BooleanNaming::cone_splits`).
-    splits: Vec<(VertexKey, VertexKey)>,
+    /// Each split `(new, split)` in the order made, keys of the body
+    /// split: the vertex its moved cone now holds, on the split vertex's
+    /// point key, and the vertex split (`BooleanNaming::cone_splits`).
+    splits: crate::lineage::ConeCopies,
 }
 
 impl ConesSplit {
-    /// The splits made, `(split, new)` in the order made.
-    pub(super) fn splits(&self) -> &[(VertexKey, VertexKey)] {
+    /// The splits made, checked as each was made.
+    pub(super) fn splits(&self) -> &crate::lineage::ConeCopies {
         &self.splits
     }
 }
@@ -541,7 +540,7 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 /// Splits each of one side's vertices per cone, its first cone's runs
 /// staying, one cone at a time: a cone whose runs lie together round the
 /// vertex, first in orbit order. Each split is pushed to `splits` as
-/// `(split, new)`.
+/// `(new, split)`, checked where it is pushed.
 ///
 /// The null edge each `mev_null` leaves lies between two section
 /// corners, on the section faces the zips consume, and is killed there:
@@ -557,14 +556,15 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 /// split takes a cone whose runs lie together, which nesting always
 /// leaves, so only two cones' runs alternating, their boundary cycles
 /// crossing there, refuse. No battery line reaches that.
-/// The Euler operators' refusals, typed.
+/// The Euler operators' refusals, typed. [`BooleanError::LineageRow`]
+/// where a split's copy is not one its `mev_null` minted.
 fn split_side<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     runs: &RunsAt,
     cone_of: &[usize],
     he_of: &dyn Fn(usize) -> HalfEdgeKey,
     sections: &mut Vec<FaceKey>,
-    splits: &mut Vec<(VertexKey, VertexKey)>,
+    splits: &mut crate::lineage::ConeCopies,
     tol: Tol,
 ) -> Result<(), BooleanError> {
     for at in runs.values() {
@@ -580,7 +580,7 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
                 crate::NewVertexSide::Above,
             )?;
             let split = proven(&body.half_edges, made.he_plus, EntityId::HalfEdge).start;
-            splits.push((split, made.vertex));
+            splits.push((made.vertex, split))?;
             let loop_of =
                 |he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
             let (lp, lm) = (loop_of(made.he_plus), loop_of(made.he_minus));

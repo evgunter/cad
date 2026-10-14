@@ -623,7 +623,7 @@ fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
     // The ball the arc lies in: about its midpoint, its speed bound times
     // half its window.
     let centre = carrier.eval(0.5 * (t0 + t1));
-    let (speed, _) = geom::spiric_rate_bounds(r, offset, (big - r, big + r), 1.0);
+    let (speed, _) = geom::spiric_period_rate_bounds(big, r, offset);
     let reach = speed * 0.5 * (t1 - t0).abs();
     let planar = |p: Point3<f64>| ((p - centre).dot(across), (p - centre).dot(up));
     let segments: Vec<_> = segments

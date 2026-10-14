@@ -314,6 +314,18 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    /// **Restates the surface at `key`** as `surface`: a row that needs
+    /// a datum no construction mints (a cone's seam off square to its
+    /// axis) builds the body and then restates its carrier. Returns
+    /// whether `key` was live.
+    pub fn restate_surface<T: Real>(
+        body: &mut Body<T>,
+        key: crate::SurfaceKey,
+        surface: geom::Surface<T>,
+    ) -> bool {
+        body.surfaces.get_mut(key).map(|s| *s = surface).is_some()
+    }
+
     /// A test's hand-built contact records: each pair of `body`'s cells
     /// as a record citing row 0 of the producing op's coincidences.
     ///
@@ -854,8 +866,8 @@ pub use boolean::{
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
-    Division, FaceDivisions, Fate, Lineage, LineageError, LineageRows, Remainder, RowDefect,
-    RowRefusal, Substitutions,
+    ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageRows, Remainder,
+    RowDefect, RowRefusal, Substitutions,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate

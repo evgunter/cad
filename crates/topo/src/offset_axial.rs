@@ -280,7 +280,9 @@ use geom::SurfaceKind;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::k_stats::decide;
-use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{
+    Arc2, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SpanLocate, Tol, Vec3,
+};
 
 use crate::attach::Rechart;
 use crate::body::Body;
@@ -2488,29 +2490,18 @@ fn forward_window<T: Decide>(
 }
 
 /// A periodic carrier's speed bounds `(floor, ceiling)` in metres per
-/// radian — the one spelling of the parameter-to-metre lever per kind.
-/// A circle's is its radius both ways; a spiric's runs from its minor
-/// radius to `r(R − r)/√((R − r)² − d²)` at the inner equator
-/// ([`geom::spiric_rate_bounds`] over a whole period). A decision whose
-/// Zero admits — two reads are one point — levers at the ceiling; one
-/// whose Positive admits — a span is forward — at the floor, so each
-/// errs conservative. `None` for a carrier whose parameter is a length.
-fn param_speeds<T: Real>(carrier: &Curve3<T>) -> Option<(T, T)> {
+/// radian, [`crate::carrier_speed::speed_range`]'s on the kinds the axial
+/// offset moves an arc of: a circle's radius both ways, a spiric's minor
+/// radius to its whole-period bound. A decision whose Zero admits — two
+/// reads are one point — levers at the ceiling; one whose Positive
+/// admits — a span is forward — at the floor, so each errs
+/// conservative. `None` for a line, whose parameter is a length, and for
+/// an ellipse or a spline, whose windows here decide unlevered.
+fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
     match carrier {
-        Curve3::Circle { radius, .. } => Some((*radius, *radius)),
-        Curve3::Spiric {
-            major_radius,
-            minor_radius,
-            offset,
-            ..
-        } => {
-            let (ceiling, _) = geom::spiric_rate_bounds(
-                *minor_radius,
-                *offset,
-                (*major_radius - *minor_radius, *major_radius + *minor_radius),
-                T::one(),
-            );
-            Some((*minor_radius, ceiling))
+        Curve3::Circle { .. } | Curve3::Spiric { .. } => {
+            let (floor, ceiling) = crate::carrier_speed::speed_range(carrier);
+            Some((floor.get(), ceiling.get()))
         }
         Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
     }

@@ -258,6 +258,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "split_edge",
         "calls `split_edge_minting` with the carrier's own point — same body, same assertion",
     ),
+    // ---- A datum write that moves no cell. ----
+    (
+        "restate_surface",
+        "a test-support door that overwrites one surface datum in place; no vertex, edge, \
+         loop, face or shell is touched, so tier 1 holds as it found it",
+    ),
     // ---- Pipelines composed of asserting operators. ----
     (
         "merge_coplanar_faces",

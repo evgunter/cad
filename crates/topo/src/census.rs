@@ -9673,7 +9673,7 @@ mod tests {
         let (start, end) = (spiric.eval(v0), spiric.eval(v1));
         let tangent = (spiric.eval(v1 + 1e-6) - spiric.eval(v1 - 1e-6)).normalize();
         let mid = spiric.eval(0.5 * (v0 + v1));
-        let reach = geom::spiric_rate_bounds(1.0, 5.0, (9.0, 11.0), 1.0).0 * 0.1;
+        let reach = geom::spiric_period_rate_bounds(10.0, 1.0, 5.0).0 * 0.1;
         let q = end + tangent * 0.003;
         let chord = end - start;
         assert!(
