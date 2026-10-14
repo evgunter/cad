@@ -320,9 +320,9 @@ fn sweep_of(rng: &mut fuzz::Rng, small: f64) -> f64 {
 
 /// A circle, and a line or a second circle tangent to it to within ε,
 /// or cutting it by 1.5 to 6 Kε (externally, internally, or nearly
-/// concentric inside it), each segment reaching up to four times the
-/// near stretch either side of the closest point, or sweeping up to
-/// 10⁻³ short of a full turn.
+/// concentric inside it, the centres from Kε to 10⁻²·r apart), each
+/// segment reaching up to four times the near stretch either side of
+/// the closest point, or sweeping up to 10⁻³ short of a full turn.
 fn near(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
     let c = (rng.range(-2.0, 2.0), rng.range(-2.0, 2.0));
     let r = 10f64.powf(rng.range(-1.0, 0.5));
@@ -334,7 +334,22 @@ fn near(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
         -k * eps * rng.range(1.5, 6.0)
     };
     let tangency = at(c, r, toward);
-    let reach = (2.0 * r * (eps - gap)).sqrt().max(k * eps);
+    let family = rng.below(4);
+    // A nearly concentric second circle, its centre as little as Kε
+    // off: the carriers stay within ε for an angle of about
+    // √(2(ε − gap)/off) either side of the tangency, up to a radian.
+    let off = (family == 3).then(|| {
+        if rng.unit() < 0.5 {
+            r * 10f64.powf(rng.range(-7.0, -2.0))
+        } else {
+            (-gap).max(0.0) + k * eps * 10f64.powf(rng.range(0.0, 3.0))
+        }
+    });
+    let reach = match off {
+        Some(off) => r * (2.0 * (eps - gap) / off).sqrt().min(1.0),
+        None => (2.0 * r * (eps - gap)).sqrt(),
+    }
+    .max(k * eps);
     // An arc on the first circle around the tangency point.
     let arc_near = |rng: &mut fuzz::Rng, c: P, r: f64, toward: f64| Shape::Arc {
         c,
@@ -343,7 +358,7 @@ fn near(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
         sweep: sweep_of(rng, reach / r),
     };
     let s1 = arc_near(rng, c, r, toward);
-    let s2 = match rng.below(4) {
+    let s2 = match family {
         0 => {
             // A line tangent to the circle at `tangency`, `gap` outside.
             let n = (toward.cos(), toward.sin());
@@ -369,9 +384,9 @@ fn near(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
                     let r2 = r2.min(0.9 * r);
                     (r2, r - r2 + gap)
                 }
-                // Inside it, its centre as little as 10⁻⁷·r off.
+                // Inside it, nearly concentric.
                 _ => {
-                    let off = r * 10f64.powf(rng.range(-7.0, -2.0));
+                    let off = off.expect("the concentric family draws an offset");
                     (r - off, off + gap)
                 }
             };
