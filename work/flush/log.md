@@ -407,3 +407,21 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
     - `boolean-given-pairs-glue-unmeasured-for-any-rust-caller` (E, `flush/given-gate`);
     - `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence` (M, `flush/corner-names-glue`). Its brief carries FLUSH's evidence that the row's own remedy would quote a false offer.
 — (FLUSH orchestrator)
+- 2026-10-14 — Merges and reviews since the 2026-10-13 entry:
+  - **PR 4793 [ev] merged** (`c436fb30`). Ev: "this looks good!" (2026-10-14 01:08). The restated tier-3′ structural-sharing sentence is in DESIGN; fork-log row 133 is filled; its needs-Ev row is closed.
+  - **PR 5002 merged** (`d4c5b7a4`; `boolean-given-pairs-glue-unmeasured-for-any-rust-caller` closed).
+    - **What changed:** a given pair is minted only through `GlueVerdict::given_at`, from a verdict a boolean decided. The pair type is `GluedPair` with crate-private fields, and a source-census pin guards it.
+    - **What was narrowed:** Owed narrowed to "only a boolean mints". Reusing or re-keying a verdict is the residue row `a-glue-verdict-is-not-bound-to-the-bodies-it-judged` (P2): 648 forged runs gave no wrong body, but the record was lost.
+    - **Review:** sequential arm, byte 113, single review, no MAJOR.
+    - **Filed:** CLEAVE P0 `a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop`.
+  - **PR 5008** (`an-in-band-glue-verdict-…`).
+    - **Review:** sequential arm, byte 179. The single review came back APPROVE: every quoted offer executed true. The small fix pass is in CI.
+    - **Evidence:** a glued pose's `ResultVolumeImplausible` (1.5e-15 relative) is evidence on the CLEAVE P0.
+  - **PR 4823** (touch-key, ruling A).
+    - **Review:** sequential arm, byte 245. R1 MAJOR: the offset doors grouped corners by point key, so a corner-kiss union refused every offset. R2 found the same and graded it MINOR. Adjudicated MAJOR in substance (blinding byte 38).
+    - **Fix pass:** splits a group per solid when a joint solve refuses definitely. A forged carried record refuses `Stale`. RESTREAD's MixedTouch row is raised to P1 (214 poses).
+    - **Delta check (R2):** CONFIRMED. One more push makes escalations propagate instead of splitting, and restates the withheld-record pins as ratified on 4793.
+  - **Main reds met by the lanes, filed by their owners' slates:**
+    - `saddle_wall_offset_fit` → `nurbs/main-reds-…-since-4984`;
+    - `mass_props_are_thread_count_invariant` at four threads → `flux/main-red-…-since-4938`.
+— (FLUSH orchestrator)
