@@ -33,7 +33,7 @@ Ev ruled on PR 5027 (2026-10-14). The reader lives in `geom-brep`, beside C5's s
 
 Stage (b)'s first part settles what stage (a)'s review found, and builds step 2:
 
-- **The root finders have one shape** (`geom_brep::roots`): `Roots<T, N, C>` holds decided answers only (a miss, ON, a certified count), and every refusal is typed in the `Err` (`Unsettled`, or `RootRefusal` where a finder escalates). `TrigRoots`, `QuarticRoots` and topo's `CircleRoots` and `FirstHarmonicRoots` are its instances; `Roots::widen` is the one bridge. `circle_roots::rounding_charge` is retired, and `half_angle_roots` takes a `DegreeTwo`, so a residual past degree two is unrepresentable.
+- **The root finders have one shape** (`geom_brep::roots`): `Roots<T, N, C>` holds decided answers only (a miss, ON, or a `Found`: one to `N` roots, read only through `Found::roots`), and every refusal is typed in the `Err` (`Unsettled`, or `RootRefusal` where a finder escalates). `TrigRoots`, `QuarticRoots` and topo's `CircleRoots` and `FirstHarmonicRoots` are its instances; `Roots::widen` is the one bridge. `circle_roots::rounding_charge` is retired, and `half_angle_roots` takes a `DegreeTwo`, so a residual past degree two is unrepresentable.
 - **One span type and one point-on-span reading**: `geom_brep::curve_pair::{Span, Contact}`.
 
 Its second part is step 3, the meeting reading.
