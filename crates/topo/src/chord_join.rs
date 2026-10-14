@@ -6889,7 +6889,7 @@ mod nearest_branch_rows {
                 "π·lever 1.01·escalate, gap {turns}τ: decided off: {got:?}"
             );
         }
-        for (turns, k) in [(2.0, 2.0), (-2.0, -2.0)] {
+        for (turns, k) in [(2.0, 2), (-2.0, -2)] {
             let got = at(0.75 * esc / pi, turns * tau);
             assert!(
                 matches!(got, Ok(b) if b == k),
@@ -6946,7 +6946,7 @@ mod nearest_branch_rows {
             let pi_lever = core::f64::consts::PI * lever;
             let got = nearest_branch(&cone, FaceKey::default(), vertex, 0.5 * tau, band);
             let read = if pi_lever < band.zero() {
-                matches!(got, Ok(k) if k == 0.0)
+                matches!(got, Ok(0))
             } else if pi_lever < band.escalate() {
                 matches!(got, Err(SplitJoinError::Escalated { .. }))
             } else {
