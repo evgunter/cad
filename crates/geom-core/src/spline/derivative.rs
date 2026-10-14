@@ -130,15 +130,20 @@
 //! builders refuse (`None`). At `Interval` each factor is a point and
 //! every product and quotient rounds outward; at `f64` the same
 //! expression rounds to nearest, and the reading can sit past the
-//! bound by more than an ulp: measured up to `5.3e-12` relative at a
-//! weight spread of `10³`, growing with the spread. `Interval` is the
-//! certified lane.
+//! bound by more than an ulp, growing with the weight spread (PR 4954
+//! measured up to `5.3e-12` relative at a spread of `10³` on the
+//! exact-weight cut the halving replaced; nothing re-measures it).
+//! `Interval` is the certified lane.
 //!
-//! **The practical ceiling sits lower on a wide weight spread.** The
-//! weight power's coefficients are products of interval weights, and at
-//! degree 17 and above a spread near `10⁶` lets their enclosures reach
-//! zero: the ratios then do not certify and the reading is a refusal,
-//! not a bound. The second order (`3p`) meets it first.
+//! **The practical ceiling can sit lower on a wide weight spread.** The
+//! weight power's coefficients are products of interval weights, and a
+//! spread wide enough at a high enough degree lets their enclosures
+//! reach zero: the ratios then do not certify and the reading is a
+//! refusal, not a bound. The second order (`3p`) meets it first. Where
+//! it falls is not pinned: PR 4954 placed it at degree 17 and a spread
+//! near `10⁶`, but PR 5081's review probe there (degrees 17 and 18,
+//! weights from 1 to `10⁶`) kept every `W³` coefficient certified
+//! positive.
 //!
 //! **No zero knot difference is reachable.** A span is walked only when
 //! it is nonempty, and its active pairs are `i ∈ [s − p, s − 1]`

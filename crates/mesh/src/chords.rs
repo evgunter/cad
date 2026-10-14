@@ -299,9 +299,10 @@ fn nurbs_chord_count(
 ///
 /// [`TessellateError::UnsupportedCurve`] — a degree above 18 (`C″`'s
 /// quotient sits at `3p`, past [`geom_core::spline::QUOTIENT_MAX_DEGREE`]),
-/// or a bound that does not certify: at degree 17 and above a weight
-/// spread near `1e6` lets the weight power's coefficient enclosures
-/// reach zero.
+/// or a bound that does not certify: a weight spread wide enough at a
+/// high enough degree lets the weight power's coefficient enclosures
+/// reach zero (`geom_core::spline::derivative`'s module docs, "The
+/// practical ceiling").
 fn rational_carrier_m_bound(
     n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
