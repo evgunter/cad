@@ -4990,3 +4990,39 @@ mod from_computed_rows {
         );
     }
 }
+
+/// Scratch probe (branch `flush/needle-design-y`, not for merge): the
+/// volume of every face of `body` as the role walk's round 0 reads it,
+/// beside its interval re-derivation about the body's own corner:
+/// `(sums volume, sums area, enclosure lo, enclosure hi, recentred)`.
+#[doc(hidden)]
+pub fn volume_enclosure_probe<T: Decide + geom_core::CertifiedBounds>(
+    body: &Body<T>,
+    tol: Tol,
+) -> Result<(T, T, f64, f64, bool), MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let faces = crate::query::all_faces(body);
+    let lane = QuadLane::<T>::certified();
+    let (out, _) = sign_walk(
+        body,
+        &faces,
+        band,
+        tol,
+        Some(lane),
+        Some(lane),
+        |round| {
+            let (volume, _, lever) = round.reading().ends();
+            Some(
+                rederived(round.body, round.band, round.tol, lane, round.runs, true).map(
+                    |(enclosure, recentred)| {
+                        use geom_core::Bounds as _;
+                        let (lo, hi, _) = enclosure.ends();
+                        (volume, lever, lo.lo(), hi.hi(), recentred)
+                    },
+                ),
+            )
+        },
+        |refused| Err(refused.unwrap_or(MassPropsError::RingOnCurvedFace { face: faces[0] })),
+    )?;
+    out
+}

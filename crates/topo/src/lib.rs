@@ -974,6 +974,7 @@ pub use props::{
     ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate,
     TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells, classify_shells_of,
     classify_shells_structural, mass_properties, mass_properties_structural,
+    volume_enclosure_probe,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
