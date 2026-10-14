@@ -1077,3 +1077,16 @@ against a skew bore refusing at the Boolean (`GermFrameUnsupported
 `work/doctail/an-editor-action-moves-a-node-after-another.md`; the
 lint item carries Ev's op-agnostic ruling. Cost M, full review
 APPROVE-WITH-FIXES (two README sentences named the wrong arm or row).
+
+## 2026-10-14 — blend refusals say what their site met (PR 5116)
+
+`Breach` gains `Scaffolding` (with topo's own recourse, "finish that
+edit first", shared through one literal with `Unfinished`'s door
+sentence) and `Degenerate`; null-edge and lone-vertex sites leave
+`UnsupportedGeometry`'s shape recourse; folded `None`s refuse per cause
+through one `surgery::certified_curve` read (`stored_piece` and
+`battery::carrier_of` its `Result` forms). `Scaffolding` is reachable
+through the public `run_battery_for` on a raw body (a row pins it);
+`Degenerate` only crate-internally. Cost M, full review
+APPROVE-WITH-FIXES. Filed `blend-two-geometry-refusals-meet-no-shape`
+and `blend-reach-may-refuse-a-valid-thin-cylinder-as-degenerate`.

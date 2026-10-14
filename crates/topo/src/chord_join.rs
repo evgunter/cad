@@ -412,6 +412,10 @@ pub enum SplitJoinError {
     TangentChordRefuted {
         /// The curved face the ruling divides.
         face: FaceKey,
+        /// The two neighbouring stations that disagree, where the ruling
+        /// reads smooth at one ([`geom_brep::MustCarryRefusal::Mixed`]);
+        /// `None` where every station reads a corner.
+        mixed: Option<geom_brep::MixedStations>,
     },
     /// A curved face crossed more than twice could not have its
     /// crossings paired along its section conic, or along each ruling
@@ -643,10 +647,18 @@ impl core::fmt::Display for SplitJoinError {
                     diag.ending(JOIN_RECOURSE)
                 )
             ),
-            Self::TangentChordRefuted { .. } => write!(
+            Self::TangentChordRefuted {
+                mixed: Some(stations),
+                ..
+            } => write!(
                 f,
-                "a cut reads tangent to a curved face along a ruling but at a corner \
-                 elsewhere along it, so what that ruling is cannot be said. Recourse: \
+                "along a cut's tangent ruling of a curved face, {stations}. Recourse: \
+                 {JOIN_RECOURSE}"
+            ),
+            Self::TangentChordRefuted { mixed: None, .. } => write!(
+                f,
+                "a cut reads tangent to a curved face along a ruling but a corner at every \
+                 station along it, so what that ruling is cannot be said. Recourse: \
                  {JOIN_RECOURSE}"
             ),
             Self::SectionCrossings { case, band, .. } => write!(
@@ -1919,15 +1931,24 @@ fn chord_spec<T: Decide>(
             let witness = carrier.mid_point(s1, s2);
             // Jet-determinate ⇒ the intrinsic tangency; under-determined
             // (a sagitta decided Zero over a short ruling, or a carrier
-            // outside the tangent certificate's lane) ⇒ an image in the
-            // section chart, the one `describe_section_boundary` restates
-            // a smooth section-boundary edge into.
+            // outside the tangent certificate's lane) ⇒ the conventional
+            // pair, as `describe_section_boundary` restates a smooth
+            // section-boundary edge.
             let plane = body.get_surface(plane_key).unwrap_or_else(|| {
                 unreachable!(
                     "{plane_key:?} is the section plane this split minted into the body it is \
                      dividing, and no operator removes a surface a later chord still names"
                 )
             });
+            // The section face is not minted yet: only the face the
+            // ruling divides names its region.
+            let rest = crate::rest_locus(
+                body,
+                [(wall_key, Some(face)), (plane_key, None)],
+                &carrier,
+                (s1, s2),
+                band,
+            );
             let description = geom_brep::must_carry_description(
                 geom_brep::SmoothJoin {
                     surfaces: [(wall_key, &wall), (plane_key, plane)],
@@ -1937,18 +1958,11 @@ fn chord_spec<T: Decide>(
                     witness,
                 },
                 band,
-                || plane_key,
                 |_, diag| SplitJoinError::TangentChordEscalated { face, diag },
                 |_, diag| SplitJoinError::TangentChordBendEscalated { face, diag },
-                || SplitJoinError::TangentChordRefuted { face },
-                |chart| {
-                    unreachable!(
-                        "{chart:?} is the section plane this chord's pair was built with, so it \
-                         is one of the pair's surfaces"
-                    )
-                },
+                |mixed| SplitJoinError::TangentChordRefuted { face, mixed },
             )?
-            .spec();
+            .spec(rest);
             return Ok(Some(EdgeCurveSpec {
                 description,
                 carrier,
@@ -2348,6 +2362,7 @@ impl<T: Decide> SegmentCurve<T> {
         match &spec.description {
             geom_brep::EdgeDescriptionSpec::Intersection { .. }
             | geom_brep::EdgeDescriptionSpec::TangentIntersection { .. }
+            | geom_brep::EdgeDescriptionSpec::OnPair { declared: None, .. }
             | geom_brep::EdgeDescriptionSpec::Chart {
                 image: None,
                 wrap: false,
@@ -2367,6 +2382,9 @@ impl<T: Decide> SegmentCurve<T> {
                         "a scaffold segment curve that is neither a line nor a circle",
                     )),
             },
+            geom_brep::EdgeDescriptionSpec::OnPair { .. } => Err(invariant(
+                "a segment curve stating a declaration on a pair (no chord lane states one)",
+            )),
             // A chord bounds two faces, so it is never a wrap edge (D1).
             geom_brep::EdgeDescriptionSpec::Chart { .. } => Err(invariant(
                 "a segment curve stating a chart image, a declaration or a wrap (no chord lane \

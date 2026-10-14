@@ -46,7 +46,8 @@ use super::arms::{
 };
 use super::build::fan_at;
 use super::surgery::{
-    CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_geometry, unresolved, unwalked,
+    CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, unbuilt_geometry,
+    unresolved, unwalked,
 };
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
@@ -510,12 +511,15 @@ pub(super) fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) ->
     Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
-/// The sample parameters of a link, and its carrier.
-pub(super) fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T, T)> {
-    let e = body.get_edge(edge)?;
-    let c = body.get_curve_geom(e.curve)?.certified()?;
+/// The sample parameters of an edge, and its carrier
+/// ([`certified_curve`]).
+pub(super) fn carrier_of<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Result<(Curve3<T>, T, T), BlendError> {
+    let c = certified_curve(body, edge)?;
     let (t0, t1) = c.params();
-    Some((c.carrier().clone(), t0, t1))
+    Ok((c.carrier().clone(), t0, t1))
 }
 
 /// Sample `i` of the battery's per-link parameter schedule — the
@@ -1013,7 +1017,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (face_a, face_b) = sides.faces();
     let start = body.get_half_edge(he_plus).ok_or_else(broken)?.start;
     let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
-    let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
+    let (carrier, t0, t1) = carrier_of(body, edge)?;
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
@@ -1597,11 +1601,8 @@ fn chain_turns<T: Decide + Bounds>(
             [a, b].iter().all(|l| l.start == *v || l.end == *v),
             "a junction's two links both touch it: {j:?}"
         );
-        let (Some((ca, ta0, ta1)), Some((cb, tb0, tb1))) =
-            (carrier_of(body, a.edge), carrier_of(body, b.edge))
-        else {
-            return Err(BlendError::ChainNotConnected { edge: a.edge });
-        };
+        let (ca, ta0, ta1) = carrier_of(body, a.edge)?;
+        let (cb, tb0, tb1) = carrier_of(body, b.edge)?;
         // Tangents taken at the junction END of each carrier, so
         // "not G1" means a genuine kink and not a parameterization
         // artefact: on each side pick the parameter whose point is
@@ -1666,9 +1667,7 @@ fn chain_turns<T: Decide + Bounds>(
     if matches!(chain.closure, ChainClosure::Closed) && chain.junctions.is_empty() {
         let l = chain.first();
         if l.start == l.end {
-            let Some((c, t0, t1)) = carrier_of(body, l.edge) else {
-                return Err(BlendError::ChainNotConnected { edge: l.edge });
-            };
+            let (c, t0, t1) = carrier_of(body, l.edge)?;
             // One cell meeting itself is not a coincidence of two, so
             // its Zero records no row.
             chain_g1(c.deriv(t1), c.deriv(t0), l.arm_len, l.start, band)?;
@@ -1830,9 +1829,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
     if rolling_ball {
         for chain in &chains {
             for link in chain.links() {
-                let Some((carrier, t0, t1)) = carrier_of(body, link.edge) else {
-                    return Err(BlendError::ChainNotConnected { edge: link.edge });
-                };
+                let (carrier, t0, t1) = carrier_of(body, link.edge)?;
                 for i in 0..CHAIN_SAMPLES {
                     let p = carrier.eval(chain_sample_at(t0, t1, i));
                     radius_headroom(body, link.face_a, link.convexity, p, r, band)?;
@@ -3124,10 +3121,9 @@ fn screened_loop<T: Decide>(
         .get_loop(lp)
         .ok_or_else(|| unresolved(EntityId::Loop(lp), "a support face's loop"))?;
     let topo::LoopBoundary::Cycle { first } = l.boundary else {
-        return Err(unbuilt_geometry(
+        return Err(scaffolding(
             EntityId::Loop(lp),
-            "a support face carries a lone-vertex cycle, which the face-clearance screen does \
-             not cover",
+            "a support face carries a lone-vertex cycle",
         ));
     };
     let cycle = body
@@ -3140,21 +3136,7 @@ fn screened_loop<T: Decide>(
                 .get_half_edge(he)
                 .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a support face's boundary"))?
                 .edge;
-            let e = body.get_edge(edge).ok_or_else(|| {
-                unresolved(EntityId::Edge(edge), "a support face's boundary edge")
-            })?;
-            let c = body
-                .get_curve_geom(e.curve)
-                .ok_or_else(|| {
-                    unresolved(EntityId::Edge(edge), "a support boundary edge's curve row")
-                })?
-                .certified()
-                .ok_or_else(|| {
-                    unbuilt_geometry(
-                        EntityId::Edge(edge),
-                        "a support face's boundary edge carries no certified carrier",
-                    )
-                })?;
+            let c = certified_curve(body, edge)?;
             let (t0, t1) = c.params();
             let pts = core::array::from_fn(|i| c.carrier().eval(chain_sample_at(t0, t1, i as u32)));
             Ok((edge, c.carrier().clone(), pts))
