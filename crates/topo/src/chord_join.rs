@@ -4285,15 +4285,23 @@ impl<T: Decide + crate::props::AtRestPolicy> RimSide<T> {
                         band,
                     )
                 });
+                // The first point read definitely off the plane decides;
+                // an escalation escalates only where none does.
+                let mut first_escalation = None;
                 let outer_side = loop {
                     match reads.next() {
                         Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => break sign,
                         Some(Ok(Sign::Zero)) => {}
-                        Some(Err(diag)) => return Err(escalated(diag)),
+                        Some(Err(diag)) => {
+                            first_escalation.get_or_insert(diag);
+                        }
                         None => {
-                            return Err(invariant(
-                                "the old face's outer loop lies on its pierce ring's plane",
-                            ));
+                            return Err(match first_escalation {
+                                Some(diag) => escalated(diag),
+                                None => invariant(
+                                    "the old face's outer loop lies on its pierce ring's plane",
+                                ),
+                            });
                         }
                     }
                 };
