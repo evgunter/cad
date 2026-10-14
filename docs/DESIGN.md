@@ -803,10 +803,16 @@ edge must carry `Intersection` (`TransverseNotIntrinsic` otherwise); a
 jet-determinate tangency must carry `TangentIntersection`
 (`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
 admits the class); a second-order-underdetermined join keeps its
-conventional form by the predicate itself. The check refuses a declared
-conventional description on a definitely-transverse edge. Escalated
-dihedrals, seam edges and NURBS/`Approx`-adjacent edges are exempt, so
-ε-tightening can escalate but never flip a valid body to invalid. An
+conventional form by the predicate itself. The check reads the
+description's form, not who declared the locus: a conventional
+description (`OnPair`, or a `Chart` that is not a wrap) on an edge the
+must-carry rule reads determinate is a wrong description, declared or
+derived. Escalated dihedrals, wrap edges and NURBS/`Approx`-adjacent
+edges are exempt. A body is validated at the ε it was built at and only
+there (D4 ¶1); a change of ε replays the recipe (`SetTolerance`), and
+since every door describes its edges by this rule at the run's ε, a
+tighter ε can escalate at a door or turn a conventional form intrinsic,
+but never yields a body this check refuses. An
 unenforced preference drifts silently — exactly the failure shape this
 document exists to kill.
 
