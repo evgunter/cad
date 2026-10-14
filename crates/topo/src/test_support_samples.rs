@@ -1209,6 +1209,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 smooth: 4,
             },
         },
+        ValidationError::PairTangencyDetermined { edge },
         ValidationError::ScaffoldAtRest { edge },
         ValidationError::JoinableVertexAtRest { vertex },
         ValidationError::JoinUndecidedAtRest {

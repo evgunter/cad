@@ -2779,10 +2779,10 @@ pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> Boo
 ///   the seam is smooth at its witness and a corner elsewhere, so the
 ///   dihedral passes through the band at a point no station read, and
 ///   the seam is certifiable as neither (D2);
-/// - every station a corner is unreachable: the witness is the
-///   carrier's midpoint, the schedule's middle station (`mid_param` both),
-///   read over the same extent, and one point cannot read definitely
-///   smooth and definitely a corner — the band lies between the two;
+/// - every station a corner ⇒ [`BooleanError::MixedSeam`] with no
+///   stations: the corner refutes the smooth reading at the witness,
+///   which is not a station on every carrier (a line's is its vertices'
+///   midpoint), as the smooth-premise doors refuse it;
 /// - in band at a station ⇒ the typed escalation of the reading that
 ///   raised it: the seam's first-order arm or wedge, by rung, as
 ///   [`seam_class`] ends it, or its second-order bend
@@ -2814,7 +2814,7 @@ pub(super) fn seam_must_carry<T: Decide>(
 #[derive(Clone, Copy, Debug)]
 enum SeamRefusal {
     Undecided(DihedralReading, Indeterminate),
-    Mixed(geom_brep::MixedStations),
+    Mixed(Option<geom_brep::MixedStations>),
 }
 
 /// What a seam smooth at its witness stores ([`seam_must_carry`]).
@@ -2840,11 +2840,8 @@ fn must_carry_reading<T: Decide>(
     match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, extent, band) {
         MustCarryVerdict::JetDeterminate => Ok(SeamReading::Intrinsic),
         MustCarryVerdict::UnderDetermined => Ok(SeamReading::Conventional),
-        MustCarryVerdict::Transverse => unreachable!(
-            "a seam read smooth at its witness reads a corner at every station, the middle \
-             one included: the witness is the middle station, read over the same extent"
-        ),
-        MustCarryVerdict::Mixed(stations) => Err(SeamRefusal::Mixed(stations)),
+        MustCarryVerdict::Transverse => Err(SeamRefusal::Mixed(None)),
+        MustCarryVerdict::Mixed(stations) => Err(SeamRefusal::Mixed(Some(stations))),
         MustCarryVerdict::InBand(escalation) => {
             let (reading, diag) = DihedralReading::of_must_carry(escalation);
             Err(SeamRefusal::Undecided(reading, diag))
@@ -5119,6 +5116,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         | V::PlanarBoundaryEscalated { .. }
         | V::SliverDihedral { .. }
         | V::MixedDihedral { .. }
+        | V::PairTangencyDetermined { .. }
         | V::JoinUndecidedAtRest { .. }
         | V::VolumeSignUnresolved { .. }
         | V::RingContactEscalated { .. }
@@ -8574,6 +8572,36 @@ mod tests {
         }
     }
 
+    /// **A seam that reads a corner at every station refuses typed, with
+    /// no stations**: the floor and a plane through its ruling at 45°
+    /// meet at a clear corner all along it. The describe pass asks the
+    /// rule of a seam it read smooth at the witness, which is not a
+    /// station on every carrier (a line's is its vertices' midpoint), so
+    /// the corner everywhere refutes that reading, as the smooth-premise
+    /// doors refuse it, rather than being assumed away.
+    #[test]
+    fn a_seam_a_corner_at_every_station_refuses_typed() {
+        let (floor, _, ruling) = resting();
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let tilted = geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(s, 0.0, s),
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        for (a, b) in [(&floor, &tilted), (&tilted, &floor)] {
+            let got = seam_must_carry(a, b, &ruling, 0.0, 1.0, 1.0, band());
+            assert!(
+                matches!(got, Err(BooleanError::MixedSeam { stations: None, .. })),
+                "a corner at every station refuses typed, got {got:?}"
+            );
+            let text = got.unwrap_err().to_string();
+            assert!(
+                text.contains("a corner at every station"),
+                "the refusal says so: {text}"
+            );
+        }
+    }
+
     /// A torus (`R = 2`, `r = 1`) about `z`, its bitangent plane, and the
     /// Villarceau circle they share through the plane's point of
     /// tangency, which is the circle's `θ = 0`: the plane touches the
@@ -8651,10 +8679,10 @@ mod tests {
                 matches!(
                     got,
                     Err(BooleanError::MixedSeam {
-                        stations: geom_brep::MixedStations {
+                        stations: Some(geom_brep::MixedStations {
                             transverse: 3,
                             smooth: 4
-                        },
+                        }),
                         ..
                     })
                 ),

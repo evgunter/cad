@@ -1136,10 +1136,11 @@ pub enum ValidationError {
     /// definitely-smooth edges keep their conventional descriptions (the
     /// D2 conventional split), `Seam` edges are exempt by kind, and
     /// escalated dihedrals already report
-    /// [`ValidationError::SliverDihedral`] — so ε-tightening can
-    /// escalate an edge but never flips a valid body to invalid through
-    /// this check. A sample set that is neither is
-    /// [`ValidationError::MixedDihedral`].
+    /// [`ValidationError::SliverDihedral`]. A sample set that is neither
+    /// is [`ValidationError::MixedDihedral`]. A smooth reading can turn
+    /// transverse as ε tightens, so a conventional edge built smooth at
+    /// a looser ε can refuse here at a tighter one
+    /// (`work/tang/a-declared-tangent-seam-flips-invalid-when-eps-tightens.md`).
     TransverseNotIntrinsic {
         /// The definitely-transverse edge.
         edge: EdgeKey,
@@ -1212,9 +1213,12 @@ pub enum ValidationError {
     /// exactly as today; in-band second order escalates as
     /// [`ValidationError::SliverDihedral`] with the
     /// `tangent_second_order` cause (F6 — an osculating pair is a
-    /// sliver at this ε), which exempts the edge here — so
-    /// ε-tightening can escalate but never flips a valid body to
-    /// invalid THROUGH THIS CHECK. Enforcement is scoped by
+    /// sliver at this ε), which exempts the edge here. A zero-side
+    /// reading turns definite as ε tightens: an `OnPair` that does
+    /// escalates ([`ValidationError::PairTangencyDetermined`]), and a
+    /// declared `Chart` refuses here
+    /// (`work/tang/a-declared-tangent-seam-flips-invalid-when-eps-tightens.md`).
+    /// Enforcement is scoped by
     /// [`geom_brep::tangent_certificate_lane`] — the ONE home of the
     /// jet certificate's per-class boundary (C12.1: `Line` carriers
     /// on `Plane`/`Cylinder`/`Sphere` pairs), so the demanded set and
@@ -1223,6 +1227,26 @@ pub enum ValidationError {
     TangentNotIntrinsic {
         /// The jet-determinate tangent edge whose description is
         /// conventional.
+        edge: EdgeKey,
+    },
+    /// Tier 3, the must-carry's escalation for a pair: an edge stored
+    /// as `OnPair` — the join its two surfaces under-determine at the
+    /// ε it was built at — reads, at this run's ε, as a jet-determinate
+    /// tangency (every station definitely smooth, the second order
+    /// definitely positive) inside
+    /// [`geom_brep::tangent_certificate_lane`].
+    ///
+    /// The under-determined reading is zero-side at the build's ε, and
+    /// a zero-side second-order margin turns definite as ε tightens: a
+    /// short tangent seam (sagitta below ε) the build could not resolve
+    /// is one this tolerance can. So the stored pair is the build's
+    /// honest answer and this run's question is finer than it: an
+    /// escalation, never a defect (D2: ε-tightening escalates, never
+    /// flips a valid body invalid), and not
+    /// [`ValidationError::TangentNotIntrinsic`], which a declared
+    /// `Chart` still refuses.
+    PairTangencyDetermined {
+        /// The pair edge this tolerance reads as a determinate tangency.
         edge: EdgeKey,
     },
     /// Tier 3 (check 4, material arm): the edge's two faces have
@@ -3794,6 +3818,13 @@ impl fmt::Display for ValidationError {
                 f,
                 "an edge where two faces meet tangentially is stored as a conventional \
                  curve, though their surfaces determine it. {DEFECT}"
+            ),
+            Self::PairTangencyDetermined { .. } => write!(
+                f,
+                "an edge stored as a smooth join its two surfaces leave undetermined reads, \
+                 at this tolerance, as a tangency they determine, so the body was built at a \
+                 looser tolerance than this. Recourse: rebuild the body at this tolerance, or \
+                 check it at the tolerance it was built at"
             ),
             Self::NoDihedralArm { verdict, .. } => write!(
                 f,
@@ -6926,9 +6957,12 @@ pub(crate) fn tier3_local_checks_marked<
         // `Intersection` description at rest. `Seam` is exempt by
         // kind, definitely-smooth keeps its conventional description
         // (the D2 conventional split), an escalation reports
-        // `SliverDihedral` and exempts the edge (ε-tightening escalates,
-        // it never flips valid → invalid), and a mixed sample set is
-        // refused (`MixedDihedral`).
+        // `SliverDihedral` and exempts the edge, and a mixed sample set is
+        // refused (`MixedDihedral`). A definitely-transverse edge reads
+        // so at every tighter ε too; a smooth reading does not, so a
+        // conventional edge whose stations read transverse at a tighter
+        // ε than it was built at is refused here
+        // (`work/tang/a-declared-tangent-seam-flips-invalid-when-eps-tightens.md`).
         //
         // **Nurbs-adjacent edges are exempt BY KIND** (M6-3 flip B —
         // the `Seam` exemption idiom, one shelf over): implicit-form
@@ -7000,8 +7034,11 @@ pub(crate) fn tier3_local_checks_marked<
         // a zero-side sample ⇒ under-determined (G2 conventional —
         // exempt BY THE PREDICATE); in-band ⇒ SliverDihedral with the
         // `tangent_second_order` cause (F6), which exempts the edge
-        // here so ε-tightening never flips valid→invalid through the
-        // must-carry. `Seam` edges are exempt by kind, as always —
+        // here. A zero-side reading turns definite as ε tightens, so a
+        // pair stated under-determined at a looser ε escalates here
+        // (`PairTangencyDetermined`) rather than flipping invalid; a
+        // declared `Chart` still refuses `TangentNotIntrinsic`
+        // (`work/tang/a-declared-tangent-seam-flips-invalid-when-eps-tightens.md`). `Seam` edges are exempt by kind, as always —
         // and Nurbs-adjacent edges likewise (flip B above): no jet is
         // derivable from a poison implicit form, so they carry
         // `Unmarked`.
@@ -7138,7 +7175,19 @@ pub(crate) fn tier3_local_checks_marked<
             // demanded set equals the certifiable set by construction
             // — a Line-on-Cone tangency, say, is neither certifiable
             // nor demanded (fix pass, dev 7).
-            errors.push(ValidationError::TangentNotIntrinsic { edge: edge_key });
+            //
+            // An `OnPair` was stated where the rule read the join
+            // under-determined, and that reading turns determinate as
+            // ε tightens: at this ε the pair is a tangency the
+            // surfaces determine, which a looser build ε could not
+            // resolve. That escalates (D2: ε-tightening escalates, never
+            // flips a valid body invalid); a declared `Chart` is the
+            // modeler's own claim and refuses as before.
+            errors.push(if on_pair {
+                ValidationError::PairTangencyDetermined { edge: edge_key }
+            } else {
+                ValidationError::TangentNotIntrinsic { edge: edge_key }
+            });
         }
         marks.insert(edge_key, mark);
         // Check 5: planar-boundary containment against each distinct

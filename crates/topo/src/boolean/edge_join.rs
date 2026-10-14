@@ -939,7 +939,7 @@ fn joined_spec<T: Decide>(
                 }
                 geom_brep::PairRefusal::Mixed(stations) => BooleanError::MixedSeam {
                     edge: join.kept,
-                    stations,
+                    stations: Some(stations),
                 },
             })?
         }

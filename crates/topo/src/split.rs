@@ -48,10 +48,10 @@ pub(crate) const CROSSING_INTERIOR: &str = "whether a crossing lands strictly in
 pub(crate) const CROSSING_LEVER: &str =
     "move the geometry so the crossing lands clearly away from the edge's ends";
 
-/// The lever a split of a tangent edge has where the must-carry rule
+/// The lever a split of a smooth edge (a tangency or a pair) has where the must-carry rule
 /// over a piece is in band: the piece's length decides its sagitta.
-pub(crate) const TANGENT_PIECE_LEVER: &str =
-    "move the geometry so the crossing cuts a longer or a shorter piece off the tangent edge";
+pub(crate) const SMOOTH_PIECE_LEVER: &str =
+    "move the geometry so the crossing cuts a longer or a shorter piece off the smooth edge";
 
 /// What a crossing's interiority margin measures.
 pub(crate) const CROSSING_SIZE: &str = "distance from the edge's end";
@@ -159,9 +159,9 @@ impl<T: Decide> Body<T> {
     /// is certified ([`EulerOpError::NullScaffoldCurve`] — null
     /// scaffolding has nothing to split); the interiority trilean
     /// (above); a tangent child's description by the must-carry rule
-    /// over the child ([`EulerOpError::SplitTangentEscalated`],
-    /// [`EulerOpError::SplitTangentBendEscalated`],
-    /// [`EulerOpError::SplitTangentRefuted`]); both child specs certify
+    /// over the child ([`EulerOpError::SplitSmoothEscalated`],
+    /// [`EulerOpError::SplitSmoothBendEscalated`],
+    /// [`EulerOpError::SplitSmoothRefuted`]); both child specs certify
     /// ([`EulerOpError::Certification`] — endpoints
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
     /// forward order on each child; the plane × NURBS lane is the
@@ -295,14 +295,14 @@ impl<T: Decide> Body<T> {
                 .map_err(|refusal| match refusal {
                     geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::FirstOrder(
                         escalation,
-                    )) => EulerOpError::SplitTangentEscalated {
+                    )) => EulerOpError::SplitSmoothEscalated {
                         edge,
                         diag: escalation.diag(),
                     },
                     geom_brep::PairRefusal::InBand(
                         geom_brep::MustCarryEscalation::SecondOrder(diag),
-                    ) => EulerOpError::SplitTangentBendEscalated { edge, diag },
-                    geom_brep::PairRefusal::Mixed(stations) => EulerOpError::SplitTangentRefuted {
+                    ) => EulerOpError::SplitSmoothBendEscalated { edge, diag },
+                    geom_brep::PairRefusal::Mixed(stations) => EulerOpError::SplitSmoothRefuted {
                         edge,
                         mixed: Some(stations),
                     },
@@ -326,9 +326,9 @@ impl<T: Decide> Body<T> {
                 witness,
             },
             band,
-            |_, diag| EulerOpError::SplitTangentEscalated { edge, diag },
-            |_, diag| EulerOpError::SplitTangentBendEscalated { edge, diag },
-            |mixed| EulerOpError::SplitTangentRefuted { edge, mixed },
+            |_, diag| EulerOpError::SplitSmoothEscalated { edge, diag },
+            |_, diag| EulerOpError::SplitSmoothBendEscalated { edge, diag },
+            |mixed| EulerOpError::SplitSmoothRefuted { edge, mixed },
         )?
         .spec(pair);
         Ok(EdgeCurveSpec {

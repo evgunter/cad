@@ -466,7 +466,7 @@ fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
                         source,
                         ..
                     })) => match *source {
-                        topo::EulerOpError::SplitTangentBendEscalated { diag, .. } => assert_eq!(
+                        topo::EulerOpError::SplitSmoothBendEscalated { diag, .. } => assert_eq!(
                             diag.predicate,
                             Some("tangent_second_order"),
                             "{label}: the rule's sagitta decides"
@@ -1066,5 +1066,44 @@ fn a_nested_aligned_touch_answers_every_op() {
             (Ok(topo::BooleanResult::Empty), None) => {}
             (other, want) => panic!("{name}: want {want:?}, got {other:?}"),
         }
+    }
+}
+
+/// **A pair read at a tighter ε escalates; it never turns invalid**
+/// (D2's ε-stability). The wall piece of a shoulder `c·√(2ε)` deep
+/// (`c ≤ 1`, under-determined at the run's ε) stores its seam as
+/// `OnPair` and is clean at the run's ε. Read at `ε / 1000`, the
+/// seam's sagitta `c²ε` is far above `K·ε/1000`, so the rule reads the
+/// tangency determinate: tier 3 escalates it
+/// (`PairTangencyDetermined`), never `TangentNotIntrinsic`, the
+/// refusal it raised before.
+#[test]
+fn a_pair_read_at_a_tighter_eps_escalates_rather_than_turning_invalid() {
+    let eps = tol().eps();
+    for c in [0.25, 0.5, 0.8] {
+        let wall = topo::split(&shoulder(c * (2.0 * eps).sqrt()), &shoulder_cut(), tol())
+            .expect("the thin shoulder cuts at its seam")
+            .above
+            .body()
+            .expect("material on the wall's side")
+            .clone();
+        assert_eq!(
+            shoulder_seam(&wall).0,
+            "OnPair",
+            "c = {c}: the seam is the pair"
+        );
+        assert_eq!(
+            topo::test_support::tier3_at(&wall, eps, tol()),
+            vec![],
+            "c = {c}: clean at the ε it was built at"
+        );
+        let tighter = topo::test_support::tier3_at(&wall, eps / 1000.0, tol());
+        assert!(
+            matches!(
+                tighter[..],
+                [topo::ValidationError::PairTangencyDetermined { .. }]
+            ),
+            "c = {c}: at ε / 1000 the pair escalates, got {tighter:?}"
+        );
     }
 }

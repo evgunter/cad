@@ -2958,16 +2958,19 @@ pub enum BooleanError {
         /// carrier.
         fitted: bool,
     },
-    /// A seam of the result reads its two faces meeting at a corner at
-    /// one station and smoothly at its neighbour: the dihedral passes
-    /// through the ambiguous band between them, at a point no station
-    /// read, so the seam is certifiable as neither a corner nor a smooth
-    /// join (D2's mixed edge).
+    /// A seam of the result read smooth at its witness reads its two
+    /// faces meeting at a corner at one station and smoothly at its
+    /// neighbour: the dihedral passes through the ambiguous band between
+    /// them, at a point no station read, so the seam is certifiable as
+    /// neither a corner nor a smooth join (D2's mixed edge). Or it reads
+    /// a corner at every station, refuting the smooth reading at its
+    /// witness.
     MixedSeam {
         /// The seam, diagnostic only: the result is never returned.
         edge: EdgeKey,
-        /// The two stations that disagree.
-        stations: geom_brep::MixedStations,
+        /// The two stations that disagree; `None` where every station
+        /// reads a corner.
+        stations: Option<geom_brep::MixedStations>,
     },
     /// One distributed component carries section faces of both sides
     /// (kernel bug, loudly).
@@ -4141,13 +4144,22 @@ impl core::fmt::Display for BooleanError {
                     crate::merge_faces::undescribed_ending(cause.as_deref(), *fitted)
                 )
             }
-            Self::MixedSeam { stations, .. } => {
+            Self::MixedSeam {
+                stations: Some(stations),
+                ..
+            } => {
                 write!(
                     f,
                     "along a seam of the result, {stations}. Recourse: {}",
                     refusal_routes::SEAM_WEDGE.lever
                 )
             }
+            Self::MixedSeam { stations: None, .. } => write!(
+                f,
+                "a seam of the result reads smooth at its witness but a corner at every \
+                 station along it. Recourse: {}",
+                refusal_routes::SEAM_WEDGE.lever
+            ),
             Self::TornComponent { operand, shell } => write!(
                 f,
                 "component {shell:?} of the {} operand carries section faces \
@@ -7434,10 +7446,14 @@ mod tests {
             },
             BooleanError::MixedSeam {
                 edge: EdgeKey::default(),
-                stations: geom_brep::MixedStations {
+                stations: Some(geom_brep::MixedStations {
                     transverse: 3,
                     smooth: 4,
-                },
+                }),
+            },
+            BooleanError::MixedSeam {
+                edge: EdgeKey::default(),
+                stations: None,
             },
             BooleanError::TornComponent {
                 operand: Operand::A,

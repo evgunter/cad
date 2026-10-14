@@ -314,6 +314,23 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    /// Tier 3's local checks on `body` at the band of `eps` rather than
+    /// the run's: `Tol` is committed once per process, so this is how
+    /// one test reads a body built at the run's ε at a tighter one.
+    ///
+    /// # Panics
+    ///
+    /// Where `eps` forms no band with the run's K.
+    #[allow(clippy::expect_used)]
+    pub fn tier3_at(
+        body: &Body<f64>,
+        eps: f64,
+        tol: geom_core::Tol,
+    ) -> Vec<crate::ValidationError> {
+        let band = geom_core::Band::linear_at(tol, eps).expect("a band at eps");
+        crate::validate::tier3_local_checks(body, band, tol, None, None).0
+    }
+
     /// A test's hand-built contact records: each pair of `body`'s cells
     /// as a record citing row 0 of the producing op's coincidences.
     ///

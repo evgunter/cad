@@ -664,9 +664,12 @@ only when both move one reading, as a residual and its span sag do. Tier 3 has t
 definitely-tangent edge carries a recorded `ContactMark` (`Tangent` when
 jet-determinate, `SmoothUnderdetermined` when the surfaces
 under-determine the locus, e.g. a G2 sketch join), and the must-carry
-rule `TangentNotIntrinsic` fires only on `ContactMark::Tangent`, on a
-declared locus or an `OnPair` (whose claim is that the pair
-under-determines it). An edge whose stations read definitely
+rule fires only on `ContactMark::Tangent`: a declared locus there
+refuses `TangentNotIntrinsic`, and an `OnPair` (whose claim is that the
+pair under-determines it) escalates `PairTangencyDetermined`. Its
+under-determined reading was zero-side at the ε it was built at, and
+that reading turns definite as ε tightens, so the pair escalates rather
+than flipping invalid. An edge whose stations read definitely
 transverse at one and definitely smooth at its neighbour brackets an
 unsampled in-band point and is refused (`MixedDihedral`, naming the two
 stations); `must_carry_over_edge` answers it `MustCarryVerdict::Mixed`,

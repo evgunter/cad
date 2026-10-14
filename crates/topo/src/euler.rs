@@ -1232,44 +1232,49 @@ pub enum EulerOpError {
         /// The in-band/poisoned margin diagnostics.
         diag: geom_core::Indeterminate,
     },
-    /// [`Body::split_edge`] of a tangent edge: whether a child stays
-    /// tangent along its own span is in band, at a station of the
-    /// must-carry rule over the child
+    /// [`Body::split_edge`] of a smooth edge — a tangency, or a pair its
+    /// faces under-determine (`OnPair`): whether a child stays smooth
+    /// along its own span is in band, at a station of the must-carry
+    /// rule over the child
     /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
     ///
-    /// Unreached: the dihedral escalates on its arm only over a child
-    /// whose extent lies inside the band, and the interiority gate
-    /// refuses such a child first; along a ruling, the tangent edge the
-    /// kernel's doors mint, both normals are constant, so a child
-    /// station reads the dihedral the parent's certificate read.
-    SplitTangentEscalated {
+    /// Unreached for a tangency: the dihedral escalates on its arm only
+    /// over a child whose extent lies inside the band, and the
+    /// interiority gate refuses such a child first; along a ruling, the
+    /// tangent edge the kernel's doors mint, both normals are constant,
+    /// so a child station reads the dihedral the parent's certificate
+    /// read. A pair's certificate is incidence alone, so over a pair's
+    /// child this is the rule's own answer.
+    SplitSmoothEscalated {
         /// The edge being split.
         edge: EdgeKey,
         /// The deciding station's diagnostic.
         diag: geom_core::Indeterminate,
     },
-    /// [`Body::split_edge`] of a tangent edge: whether the two faces
-    /// curve apart along a child or share their curvature there is in
-    /// band (`"tangent_second_order"`,
+    /// [`Body::split_edge`] of a smooth edge (a tangency or a pair):
+    /// whether the two faces curve apart along a child or share their
+    /// curvature there is in band (`"tangent_second_order"`,
     /// [`geom_brep::MustCarryEscalation::SecondOrder`]). The rule meters
     /// the sagitta over the child's own extent, so a short child can be
     /// in band where its parent was jet-determinate: the child is
-    /// certifiable as neither the tangency nor a chart image (D4 ¶3).
-    SplitTangentBendEscalated {
+    /// certifiable as neither the tangency nor the pair (D4 ¶3).
+    SplitSmoothBendEscalated {
         /// The edge being split.
         edge: EdgeKey,
         /// The sagitta's diagnostic.
         diag: geom_core::Indeterminate,
     },
-    /// [`Body::split_edge`] of a tangent edge: a station of the
-    /// must-carry rule over a child reads the two faces at a corner
-    /// ([`geom_brep::MustCarryRefusal::Refuted`]), against the tangency
-    /// the parent's certificate holds along the whole edge.
+    /// [`Body::split_edge`] of a smooth edge (a tangency or a pair): a
+    /// station of the must-carry rule over a child reads the two faces
+    /// at a corner ([`geom_brep::MustCarryRefusal::Refuted`]), against
+    /// the smooth join the parent's description states.
     ///
-    /// Unreached, for the reason [`Self::SplitTangentEscalated`] is: a
-    /// child's arm is no longer than its parent's, so a station the
-    /// certified parent holds smooth cannot read definitely transverse.
-    SplitTangentRefuted {
+    /// Unreached for a tangency, for the reason
+    /// [`Self::SplitSmoothEscalated`] is: a child's arm is no longer
+    /// than its parent's, so a station the certified parent holds smooth
+    /// cannot read definitely transverse. Over a pair's child, whose
+    /// parent certified incidence alone, it is the rule's own answer.
+    SplitSmoothRefuted {
         /// The edge being split.
         edge: EdgeKey,
         /// The two neighbouring stations that disagree, where a child
@@ -1588,31 +1593,31 @@ impl EulerOpError {
                     )),
                 )
                 .to_string(),
-            Self::SplitTangentEscalated { diag, .. } => diag
+            Self::SplitSmoothEscalated { diag, .. } => diag
                 .undecided(
-                    "whether a piece of a split tangent edge stays tangent along its span",
-                    diag.ending(crate::split::TANGENT_PIECE_LEVER),
+                    "whether a piece of a split smooth edge stays smooth along its span",
+                    diag.ending(crate::split::SMOOTH_PIECE_LEVER),
                 )
                 .to_string(),
-            Self::SplitTangentBendEscalated { diag, .. } => diag
+            Self::SplitSmoothBendEscalated { diag, .. } => diag
                 .undecided(
-                    "whether the faces of a piece of a split tangent edge curve apart along it \
+                    "whether the faces of a piece of a split smooth edge curve apart along it \
                      or share their curvature there",
-                    diag.ending(crate::split::TANGENT_PIECE_LEVER),
+                    diag.ending(crate::split::SMOOTH_PIECE_LEVER),
                 )
                 .to_string(),
-            Self::SplitTangentRefuted {
+            Self::SplitSmoothRefuted {
                 mixed: Some(stations),
                 ..
             } => format!(
-                "along a piece of a split tangent edge, {stations}. Recourse: {}",
-                crate::split::TANGENT_PIECE_LEVER
+                "along a piece of a split smooth edge, {stations}. Recourse: {}",
+                crate::split::SMOOTH_PIECE_LEVER
             ),
-            Self::SplitTangentRefuted { mixed: None, .. } => format!(
-                "a piece of a split tangent edge reads a corner at every station along it, against \
-                 the tangency the edge certified, so what that piece is cannot be said. \
+            Self::SplitSmoothRefuted { mixed: None, .. } => format!(
+                "a piece of a split smooth edge reads a corner at every station along it, against \
+                 the smooth join the edge states, so what that piece is cannot be said. \
                  Recourse: {}",
-                crate::split::TANGENT_PIECE_LEVER
+                crate::split::SMOOTH_PIECE_LEVER
             ),
             Self::PcurveSplit {
                 edge,
@@ -1897,7 +1902,7 @@ pub(crate) fn every_euler_op_error_once()
                 terminal_sliver: false,
             },
         },
-        EulerOpError::SplitTangentEscalated {
+        EulerOpError::SplitSmoothEscalated {
             edge: ek,
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
@@ -1906,7 +1911,7 @@ pub(crate) fn every_euler_op_error_once()
                 terminal_sliver: false,
             },
         },
-        EulerOpError::SplitTangentBendEscalated {
+        EulerOpError::SplitSmoothBendEscalated {
             edge: ek,
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
@@ -1915,7 +1920,7 @@ pub(crate) fn every_euler_op_error_once()
                 terminal_sliver: false,
             },
         },
-        EulerOpError::SplitTangentRefuted {
+        EulerOpError::SplitSmoothRefuted {
             edge: ek,
             mixed: Some(geom_brep::MixedStations {
                 transverse: 3,
