@@ -165,9 +165,22 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
         },
     )
     .unwrap();
-    // The map re-mint may itself refuse on the moved chart; the claim
-    // under test is tier 3's, so run it whatever the mint said.
-    let _ = topo::mint_pcurves(&mut body, Tol::witness());
+    // The re-mint refuses on the degraded chart: its rows' images no
+    // longer map onto their carriers. Tier 3's claim is checked after.
+    let minted = topo::mint_pcurves(&mut body, Tol::witness());
+    assert!(
+        matches!(
+            minted,
+            Err(topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
+                    ..
+                },
+                ..
+            })
+        ),
+        "the re-mint refuses the degraded chart's rows at the map residual: {minted:?}"
+    );
     let errors = topo::validate_geometric(&body, Tol::witness())
         .expect_err("a degraded fit must not validate");
     assert!(
