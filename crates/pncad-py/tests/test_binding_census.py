@@ -4190,10 +4190,6 @@ MEMBERS_BOUND_AS = {
     "SegPat::args": "SegPat.of",
     # The alternatives, named for the door that takes them.
     "Selector::alts": "Selector.any_of",
-    # The frame crosses as its four readers rather than as an `Affine3`,
-    # which is `different-shape` in `NOT_BOUND`; this points at the
-    # first of them.
-    "SketchPlane::placement": "SketchPlane.origin",
     # As `InlineOutcome` below: the maintenance rides the document each
     # half is handed back on.
     "SplitOutcome::remainder_maintenance": "Doc.last_maintenance",
