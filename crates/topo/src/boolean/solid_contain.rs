@@ -5951,7 +5951,13 @@ fn aim_at<T: Decide>(
     let (u, v) = match face_geo(body, face, &sel.charts, band) {
         Ok(FaceGeo::Cylinder { az, h, .. }) => (mid(az), mid(h)),
         Ok(FaceGeo::Cone { az, v, .. }) => (az.map_or_else(T::pi, mid), mid(v)),
-        Ok(FaceGeo::Torus { u, v, .. }) => (u.map_or_else(T::pi, mid), v.map_or_else(T::pi, mid)),
+        Ok(FaceGeo::Torus { u, v, .. }) => (
+            u.map_or_else(T::pi, mid),
+            match std::env::var("R1_TORUS_V").ok().and_then(|x| x.parse::<f64>().ok()) {
+                Some(x) => T::from_f64(x),
+                None => v.map_or_else(T::pi, mid),
+            },
+        ),
         Ok(FaceGeo::Sphere { .. }) => (T::from_f64(1.0), T::from_f64(0.3)),
         Ok(_) => return Ok(None),
         Err(PointInSolidError::CorruptFace { face }) => {
@@ -6056,11 +6062,21 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     band: Band,
     volume: impl FnOnce() -> Result<SolidContainment, V>,
 ) -> Result<Result<SolidContainment, SideUnread<V>>, PointInSolidError> {
+    if std::env::var_os("NDX").is_some() {
+        let r = ndx_side(body, sel, band);
+        eprintln!("NDX side_at_infinity -> {r:?}");
+        if let Some(side) = r {
+            return Ok(Ok(side));
+        }
+    }
     let faces = sel.faces();
     let (mut in_band, mut at_a_corner, mut limit) = (None, None, None);
-    let (along, across) = AIM_INCIDENCE;
+    let (along, across) = if std::env::var_os("R1_AIM_NORMAL").is_some() { (1.0, 0.0) } else { AIM_INCIDENCE };
     for &face in faces {
         let Some((aim, normal)) = aim_at(body, sel, face, band)? else {
+            if std::env::var_os("R1_TRACE").is_some() {
+                eprintln!("R1 aim face {face:?}: no aim");
+            }
             continue;
         };
         let shell = body
@@ -6080,7 +6096,12 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
                 limit.get_or_insert(e);
                 continue;
             }
-            Err(RayFault::InBand(_) | RayFault::Graze | RayFault::Unread) => continue,
+            Err(f @ (RayFault::InBand(_) | RayFault::Graze | RayFault::Unread)) => {
+                if std::env::var_os("R1_TRACE").is_some() {
+                    eprintln!("R1 aim face {face:?}: set aside in walk: {}", match f { RayFault::InBand(e) => format!("inband {e}"), RayFault::Graze => "graze".into(), _ => "unread".into() });
+                }
+                continue;
+            }
         };
         // The pair's gap is read as a magnitude, the distance between the
         // two crossings whichever the scan met first.
@@ -6100,7 +6121,11 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
                 gap,
             }
         };
-        match crossings.closest(AIMED_ROWS.order, band, pair) {
+        let r1 = crossings.closest(AIMED_ROWS.order, band, pair);
+        if std::env::var_os("R1_TRACE").is_some() {
+            eprintln!("R1 aim face {face:?}: {:?}", r1.as_ref().map(|o| o.as_ref().map(|h| (h.0, h.1))).map_err(|e| match e { RayFault::InBand(p) => format!("inband near {:?} far {:?} meet {} gap {:?}", p.near, p.far, meet(body, p.near, p.far), p.gap.margin), RayFault::Graze => "graze".into(), RayFault::Unread => "unread".into(), _ => "other".into() }));
+        }
+        match r1 {
             Ok(Some((outward, _, _))) => return Ok(Ok(side_before(outward))),
             // Two faces that meet at a vertex are no pair: their gap closes
             // at the cell they share, and a ray crossing a sharp corner
@@ -6697,4 +6722,138 @@ mod joint_branch_rows {
             "the walk does not meet on either branch: {joint:?}"
         );
     }
+}
+
+/// NEEDLE-DESIGN-X probe (not for merge): an all-planar side reader that
+/// decides each edge's side of the ray ONCE, shared by its two faces (a
+/// tie broken to `+` on the edge's canonical direction), and reads the
+/// side off the signed crossing count after the first definite gap,
+/// summing crossings in band of each other instead of ordering them.
+/// Convex faces without rings only. `None`: not applicable or no aim read.
+pub(crate) fn ndx_side<T: Decide>(
+    body: &Body<T>,
+    sel: &SolidFaces,
+    band: Band,
+) -> Option<SolidContainment> {
+    use std::collections::HashMap;
+    let trace = std::env::var_os("NDX_TRACE").is_some();
+    let tilt: f64 = std::env::var("NDX_TILT_DEG").ok().and_then(|x| x.parse().ok()).unwrap_or(10.0);
+    let faces = sel.faces();
+    // Each face: outward normal, its loop's (vertex, point) cycle.
+    let mut geo = Vec::new();
+    for &face in faces {
+        let (_, n) = face_plane(body, face).ok()?;
+        let f = body.get_face(face)?;
+        if !f.rings.is_empty() {
+            return None;
+        }
+        let LoopBoundary::Cycle { first } = body.get_loop(f.outer)?.boundary else {
+            return None;
+        };
+        let mut vs = Vec::new();
+        for h in body.loop_walk(first).closed("loop", first) {
+            let v = body.get_half_edge(h)?.start;
+            let p = *body.get_point(body.get_vertex(v)?.point)?;
+            vs.push((v, p));
+        }
+        geo.push((face, n.normalize(), vs));
+    }
+    let sign = |x: T| -> Option<Sign> { x.sign_within(band).ok().map(|d| d.sign) };
+    for (aim_face, n, vs) in &geo {
+        let k = T::from_f64(1.0 / vs.len() as f64);
+        let mut c = Vec3::zero();
+        for (_, p) in vs {
+            c = c + (*p - Point3::new(T::zero(), T::zero(), T::zero()));
+        }
+        let q = Point3::new(T::zero(), T::zero(), T::zero()) + c * k;
+        let (b1, b2) = n.orthonormal_basis();
+        let (ts, tc) = AIM_TURN;
+        let tangent = b1 * T::from_f64(tc) + b2 * T::from_f64(ts);
+        let (st, ct) = tilt.to_radians().sin_cos();
+        let d = (*n * T::from_f64(-ct) + tangent * T::from_f64(-st)).normalize();
+        let reach = selection_reach(body, faces, q).ok()?;
+        // Each canonical edge's side of the ray line, decided once.
+        let mut edge_side: HashMap<(crate::entity::VertexKey, crate::entity::VertexKey), bool> =
+            HashMap::new();
+        let mut side_of = |a: (crate::entity::VertexKey, Point3<T>), b: (crate::entity::VertexKey, Point3<T>)| -> bool {
+            let (lo, hi, flip) = if a.0 < b.0 { (a, b, false) } else { (b, a, true) };
+            let s = *edge_side.entry((lo.0, hi.0)).or_insert_with(|| {
+                let m = d.dot((lo.1 - q).cross(hi.1 - q)) / (hi.1 - lo.1).norm();
+                // A tie (in band or Zero) is broken to `+`, once for both faces.
+                // NDX_RAW: decide at rounding level (a band of 1e-300), still once.
+                let s = if std::env::var_os("NDX_RAW").is_some() {
+                    m.sign_within(Band::new(1e-300, 2e-300).expect("band")).ok().map(|d| d.sign)
+                } else {
+                    sign(m)
+                };
+                !matches!(s, Some(Sign::Negative))
+            });
+            s ^ flip
+        };
+        let mut crossings: Vec<(T, i32, FaceKey)> = Vec::new();
+        let mut abandoned = false;
+        for (g, ng, gv) in &geo {
+            let denom = d.dot(*ng);
+            let dir = match sign(denom * reach) {
+                Some(Sign::Positive) => 1,
+                Some(Sign::Negative) => -1,
+                _ => {
+                    abandoned = true;
+                    break;
+                }
+            };
+            let sides: Vec<bool> =
+                (0..gv.len()).map(|i| side_of(gv[i], gv[(i + 1) % gv.len()])).collect();
+            if sides.iter().all(|&s| s) || sides.iter().all(|&s| !s) {
+                let t = ng.dot(gv[0].1 - q) / denom;
+                crossings.push((t, dir, *g));
+            }
+        }
+        if abandoned {
+            if trace {
+                eprintln!("NDX aim {aim_face:?}: grazes");
+            }
+            continue;
+        }
+        // Insertion sort on decided order; in-band pairs keep scan order.
+        for i in 1..crossings.len() {
+            let mut j = i;
+            while j > 0 && matches!(sign(crossings[j].0 - crossings[j - 1].0), Some(Sign::Negative)) {
+                crossings.swap(j, j - 1);
+                j -= 1;
+            }
+        }
+        let mut sum = 0;
+        let mut read = None;
+        let mut clusters = Vec::new();
+        let mut size = 0;
+        for i in 0..crossings.len() {
+            sum += crossings[i].1;
+            size += 1;
+            let closes = i + 1 == crossings.len()
+                || matches!(sign(crossings[i + 1].0 - crossings[i].0), Some(Sign::Positive));
+            if closes {
+                clusters.push((size, sum));
+                size = 0;
+                if read.is_none() && sum != 0 && i + 1 < crossings.len() {
+                    read = Some(sum);
+                }
+            }
+        }
+        if trace {
+            eprintln!(
+                "NDX aim {aim_face:?}: {} crossings, clusters (size, running sum) {clusters:?}, read {read:?}",
+                crossings.len()
+            );
+        }
+        match read {
+            Some(-1) => return Some(SolidContainment::Out),
+            Some(1) => return Some(SolidContainment::In),
+            Some(_) => {
+                eprintln!("NDX aim {aim_face:?}: INCONSISTENT count {read:?}");
+            }
+            None => {}
+        }
+    }
+    None
 }
