@@ -504,8 +504,13 @@ pub enum SplitFinishError {
     },
     /// A side fails the at-rest gate only on shells whose role it
     /// certified in band: the Boolean's [`crate::BooleanError::Escalated`]
-    /// on [`crate::BooleanDecision::ShellRole`], at this door. `side` is in
-    /// the caller's orientation.
+    /// on [`crate::BooleanDecision::ShellRole`], at this door and in its
+    /// lever ([`crate::BooleanDecision::render_at_split`]). `side` is in
+    /// the caller's orientation. No split is known to reach it: the
+    /// reduction's input readings refuse an in-band sliver first
+    /// ([`super::SplitReduceError::SliverVertex`], the section's area
+    /// certificate), so the typing's own row (`at_rest_rows`) is its
+    /// guard.
     ResultEscalated {
         /// The side whose body failed.
         side: PlaneSide,
@@ -522,6 +527,25 @@ pub enum SplitFinishError {
         /// Why the join refused, typed and keyless.
         refusal: crate::boolean::JoinRefusal,
     },
+}
+
+impl SplitFinishError {
+    /// The refusal of `side`, whose body the at-rest gate refused on
+    /// `errors`, typed as the Boolean types its result
+    /// ([`crate::boolean::at_rest_refusal`]).
+    pub(crate) fn not_at_rest(
+        side: PlaneSide,
+        errors: Vec<crate::validate::ValidationError>,
+    ) -> Self {
+        match crate::boolean::at_rest_refusal(errors) {
+            crate::boolean::AtRestRefusal::InBand { decision, diag } => Self::ResultEscalated {
+                side,
+                decision,
+                diag,
+            },
+            crate::boolean::AtRestRefusal::Kernel(errors) => Self::ResultNotAtRest { side, errors },
+        }
+    }
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -675,7 +699,7 @@ impl core::fmt::Display for SplitFinishError {
                 f,
                 "the piece on the {} side of the plane: {}",
                 side.word(),
-                decision.render(diag)
+                decision.render_at_split(diag)
             ),
             Self::ResultInvalid { side, errors } => match errors.as_slice() {
                 [first, ..] => write!(
@@ -2175,6 +2199,80 @@ mod joined_lineage_rows {
                 .map(|j| (PlaneSide::Above, j))
                 .collect::<Vec<_>>(),
             "every join, with its side"
+        );
+    }
+}
+
+/// **The split types its at-rest refusal as the Boolean does, in its own
+/// lever.** A side refused only on a shell certified in band is
+/// `ResultEscalated` on that shell, ending in the split's lever; beside a
+/// definite finding it is the kernel's, `ResultNotAtRest`.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod at_rest_rows {
+    use super::{PlaneSide, SplitFinishError};
+    use crate::entity::{ShellKey, SolidKey};
+    use crate::props::CertifiedSliver;
+    use crate::{BooleanDecision, ShellClassifyError, ValidationError};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    #[test]
+    fn an_in_band_shell_escalates_in_the_splits_lever() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = |margin, terminal_sliver| Indeterminate {
+            margin,
+            band,
+            predicate: Some("positive_volume"),
+            terminal_sliver,
+        };
+        let thin = CertifiedSliver::of(read(MarginDiag::enclosure(-3.29e-9, -3.28e-9), true))
+            .expect("in band");
+        let shell: ShellKey = slotmap::KeyData::from_ffi((1 << 32) | 1).into();
+        let role = ValidationError::ShellRoleUndecided {
+            solid: SolidKey::default(),
+            error: ShellClassifyError::Escalated {
+                shell,
+                source: read(MarginDiag::value(3.05e-9), false),
+            },
+            sliver: Some(Box::new(thin)),
+        };
+        let refusal = SplitFinishError::not_at_rest(PlaneSide::Below, vec![role.clone()]);
+        assert!(
+            matches!(
+                &refusal,
+                SplitFinishError::ResultEscalated {
+                    side: PlaneSide::Below,
+                    decision: BooleanDecision::ShellRole { shell: s, others: 0, .. },
+                    diag,
+                } if *s == shell && diag == thin.reading()
+            ),
+            "an in-band shell alone escalates on it: {refusal:?}"
+        );
+        let msg = refusal.to_string();
+        assert!(
+            msg.starts_with("the piece on the below side of the plane: ")
+                && msg.contains("whether a shell of the result bounds material or a cavity")
+                && msg.contains(
+                    "move the split plane or the geometry so each piece it leaves is clearly thick"
+                )
+                && !msg.contains("move the parts"),
+            "the split's lever, not the Boolean's: {msg}"
+        );
+        let beside = SplitFinishError::not_at_rest(
+            PlaneSide::Above,
+            vec![
+                role,
+                ValidationError::NegativeVolume {
+                    solid: SolidKey::default(),
+                },
+            ],
+        );
+        assert!(
+            matches!(
+                &beside,
+                SplitFinishError::ResultNotAtRest { side: PlaneSide::Above, errors } if errors.len() == 2
+            ),
+            "beside a definite finding it is the kernel's: {beside:?}"
         );
     }
 }

@@ -1147,20 +1147,8 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
         if let finish::SplitPart::Body(body) = part {
             crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), None)
                 .map_err(SplitError::Pieces)?;
-            T::gate_at_rest(body, tol).map_err(|errors| {
-                match crate::boolean::at_rest_refusal(errors) {
-                    crate::boolean::AtRestRefusal::InBand { decision, diag } => {
-                        SplitFinishError::ResultEscalated {
-                            side,
-                            decision,
-                            diag,
-                        }
-                    }
-                    crate::boolean::AtRestRefusal::Kernel(errors) => {
-                        SplitFinishError::ResultNotAtRest { side, errors }
-                    }
-                }
-            })?;
+            T::gate_at_rest(body, tol)
+                .map_err(|errors| SplitFinishError::not_at_rest(side, errors))?;
         }
     }
     Ok(result)

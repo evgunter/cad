@@ -5169,8 +5169,11 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 }
 
 /// **How the at-rest gate's refusal of a door's result is typed** (D10,
-/// Booleans; one home for every door that gates its result at rest: the
-/// Boolean's [`gate`] and [`crate::splitting::split`]): a result holds no in-band pair or shell, and one that does is the
+/// Booleans), for the two doors that share it: the Boolean's [`gate`]
+/// and [`crate::splitting::split`]. The other doors that gate at rest
+/// type on their own
+/// (`work/cleave/the-at-rest-result-gate-and-its-typing-live-in-five-homes.md`).
+/// A result holds no in-band pair or shell, and one that does is the
 /// operands' ill-conditioning, which definite cuts can compose.
 #[derive(Debug)]
 pub(crate) enum AtRestRefusal {

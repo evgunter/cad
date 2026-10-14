@@ -5876,7 +5876,8 @@ pub(crate) struct InBandShell {
 }
 
 /// **The one spelling of a result the at-rest gate refused for the
-/// kernel's findings** ([`AtRestRefusal::Kernel`]), at every door:
+/// kernel's findings** ([`crate::boolean::AtRestRefusal::Kernel`]), at the
+/// Boolean and the split:
 /// `subject` names the result, and the first finding renders with its
 /// own ending.
 pub(crate) fn write_result_not_at_rest(
