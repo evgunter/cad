@@ -78,9 +78,10 @@ offset's cause) if any offset was in band, else `Off`. The offsets it
 tries are the joint's `Orbit` offsets about the image, then the two
 branches astride the mark the marks' walk stopped on
 (`geom_brep::whole_period_walk`'s `WalkStop::astride`). Where the walk
-stops on a mark decided Zero, those two are the gap's own nearest orbit
-points, so `Off` there means the joint's nearest orbit points are
-decided off, at any number of turns out.
+stops on a mark decided Zero and the read decides both branches astride
+it off, the gap lies between them, so `π·ℓ ≥ escalate` and every other
+orbit point is at least `3π·ℓ − ε` off: `Off` there means no orbit
+point is within the band, at any `K > 1`.
 
 `lever_periods` answers an in-band read over the marks' decided
 `OnMark` with `BranchMiss::Undecided(cause)`; an undecided mark keeps

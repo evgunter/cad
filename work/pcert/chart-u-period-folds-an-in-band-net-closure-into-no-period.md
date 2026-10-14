@@ -13,7 +13,7 @@ Found by PR 5071's second review (MINOR-2); filed in that PR. The same
 class as its parent: an undecided reading folded into a decided answer.
 
 **The fold.** `topo::pcurves::chart_u_period`
-(`crates/topo/src/pcurves.rs`, near `:1844`) decides whether a spline
+(`crates/topo/src/pcurves.rs`) decides whether a spline
 chart's net closes in `u` by `pcurve_chart_u_closed` on each seam pair
 of control points, and takes `Ok(Sign::Zero) => {}`, `_ => return None`.
 An in-band seam distance is folded into "no period", the same answer as

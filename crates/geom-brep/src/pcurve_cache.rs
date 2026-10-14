@@ -4837,8 +4837,8 @@ pub struct WalkStop {
 /// every mark it crosses is decided on the side it crosses, so the mark
 /// it stops on is the first, from `0`, that the gap does not clear.
 /// Where that mark decides Zero ([`BranchMiss::OnMark`]) the gap is
-/// within the band's zero of it in the meter's units, so the two
-/// branches astride it are the gap's own nearest.
+/// within the band's zero of it in the meter's units; the branches
+/// astride it are the orbit points either side of that mark.
 ///
 /// # Errors
 ///

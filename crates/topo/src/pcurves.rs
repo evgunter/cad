@@ -4414,13 +4414,15 @@ fn near_pole_gap_closes<T: Decide>(
 /// the two chart points are apart. Where an offset is in band, they may
 /// be one point, and the answer is an escalation.
 ///
-/// **The read tries the gap's own nearest orbit points.** Besides the
-/// orbit's offsets about the image, it tries the two branches astride
-/// the mark the walk stopped on ([`geom_brep::WalkStop`]). Where the
-/// marks miss as `OnMark`, that mark decided Zero, so the gap is within
-/// the band's zero of it and those two branches are its nearest orbit
-/// points, at any number of turns out. A decided miss therefore stands
-/// only where the gap's nearest orbit points are decided off.
+/// **A decided miss stands only where no orbit point is within the
+/// band.** Besides the orbit's offsets about the image, the read tries
+/// the two branches astride the mark the walk stopped on
+/// ([`geom_brep::WalkStop`]). Where the marks miss as `OnMark`, that
+/// mark decided Zero, so the gap is within the band's zero of it; where
+/// the read then decides both branches astride it off, the gap lies
+/// between them (past either, that branch would be within ε), so
+/// `π·lever ≥ escalate`, and every other orbit point is at least
+/// `3π·lever − ε` off, past the band too, at any `K > 1`.
 ///
 /// At a lever with room nothing moves: the read is asked only where a
 /// mark missed, so where the gap is within the band of a mark, and a
@@ -6299,6 +6301,42 @@ mod stretch_meter {
                 at(lever, 2.0 * tau),
                 "Escalated",
                 "lever {lever:e}, gap 2τ: the walk's first mark is undecided"
+            );
+        }
+    }
+
+    /// **Each branch astride the walk's mark is tried.** A gap just off
+    /// a half-turn mark sits unequally far from the two branches astride
+    /// it: at `π·lever = escalate + ε/2`, a gap `(k + ½)·τ ± 0.8·ε/lever`
+    /// leaves the nearer branch in band and the farther one decided off.
+    /// The read must reach whichever is the nearer: the escalation is
+    /// its own, at either side of the mark and at every `k`.
+    #[test]
+    fn each_branch_astride_the_walks_mark_is_tried() {
+        let (pi, tau) = (core::f64::consts::PI, core::f64::consts::TAU);
+        let (zero, esc) = (band().zero(), band().escalate());
+        let lever = (esc + 0.5 * zero) / pi;
+        for (turns, side) in [
+            (2.5, 1.0),
+            (2.5, -1.0),
+            (-2.5, 1.0),
+            (-2.5, -1.0),
+            (0.5, 1.0),
+            (0.5, -1.0),
+        ] {
+            let gap = turns * tau + side * 0.8 * zero / lever;
+            let out = super::lever_periods(
+                "each_branch_row",
+                ChartArm::Angular(lever),
+                gap,
+                tau,
+                super::Orbit::Periods,
+                band(),
+            );
+            assert!(
+                matches!(&out, Err(geom_brep::BranchMiss::Undecided(cause))
+                    if cause.predicate == Some("pcurve_loop_pole_gap")),
+                "gap {turns}τ {side:+}·0.8ε/lever: the nearer branch is in band: {out:?}"
             );
         }
     }
