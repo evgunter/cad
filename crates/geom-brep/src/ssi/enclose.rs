@@ -947,6 +947,13 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         let bu = basis_funs_in(su, Interval::point(u));
         let bv = basis_funs_in(sv, Interval::point(v));
         let (control, weights) = (self.surface.control(), self.surface.weights());
+        // Read about the window's corner control point `o`, a point:
+        // `S − o = Σ bw·(P − o) / Σ bw` in ℝ, and each `P − o` is a
+        // difference of nearby numbers, so the sum's rounding scales
+        // with the window's extent rather than with its distance from
+        // the origin. Adding `o` back costs one outward rounding.
+        let corner = control[win.row(0)];
+        let o = [corner.x, corner.y, corner.z].map(|c| Interval::point(Bounds::lo(c)));
         let zero = Interval::point(0.0);
         let (mut x, mut y, mut z, mut w) = (zero, zero, zero, zero);
         for (i, bui) in bu.iter().enumerate() {
@@ -955,13 +962,13 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 let idx = row + j;
                 let cw = (*bui * *bvj) * Interval::from_certified(weights[idx]);
                 let pt = control[idx];
-                x = x + cw * Interval::from_certified(pt.x);
-                y = y + cw * Interval::from_certified(pt.y);
-                z = z + cw * Interval::from_certified(pt.z);
+                x = x + cw * (Interval::from_certified(pt.x) - o[0]);
+                y = y + cw * (Interval::from_certified(pt.y) - o[1]);
+                z = z + cw * (Interval::from_certified(pt.z) - o[2]);
                 w = w + cw;
             }
         }
-        Point3::new(x / w, y / w, z / w)
+        Point3::new(o[0] + x / w, o[1] + y / w, o[2] + z / w)
     }
 }
 
