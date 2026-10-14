@@ -27,4 +27,4 @@ Over the one box that is the whole domain, `face_roots` gives `None` and `one_ar
 
 ## What is open
 
-A corner root needs a reading of its own: the edge where the two faces meet, held at two coordinates, is two equations short of the root's three. Equivalently, the walk can count a root on a shared edge once rather than failing on both faces. Whether this is worth building waits on a consumer; no current row reaches a corner end.
+A corner root needs a reading of its own. On the edge where the two faces meet, two coordinates are held, which leaves three equations in two unknowns: overdetermined, so no square Krawczyk test applies there either. The reading could be the edge's own: a root certified on the edge, by a least-squares or one-equation-dropped test whose third residual is then checked. Or the walk could count a root on a shared edge once, rather than failing on both faces. Whether this is worth building waits on a consumer; no current row reaches a corner end.
