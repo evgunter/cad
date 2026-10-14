@@ -3118,11 +3118,13 @@ mod tests {
             Point3::new(0.0, 0.0, -7.0),
             Point3::new(0.49, 0.49, 1.0),
         ];
-        fn read<T: Bounds>(c: Option<Clip<T>>) -> Option<(&'static str, f64, f64)> {
-            c.map(|c| match c {
-                Clip::Z(lo, hi) => ("Z", lo.lo(), hi.hi()),
-                Clip::Rho(lo, hi) => ("Rho", lo.lo(), hi.hi()),
-            })
+        macro_rules! read {
+            ($c:expr) => {
+                $c.map(|c| match c {
+                    Clip::Z(lo, hi) => ("Z", lo.lo(), hi.hi()),
+                    Clip::Rho(lo, hi) => ("Rho", lo.lo(), hi.hi()),
+                })
+            };
         }
         #[allow(clippy::expect_used)]
         fn surface<T: geom_core::Real>(b: &topo::Body<T>, k: topo::FaceKey) -> geom::Surface<T> {
@@ -3158,8 +3160,8 @@ mod tests {
                         for o in origins {
                             let oi = Point3::new(iv(o.x), iv(o.y), iv(o.z));
                             for (scalar, clip) in [
-                                ("f64", read(sheet_clip(&body, f, &s, o, a, band))),
-                                ("Interval", read(sheet_clip(&ibody, fi, &si, oi, ai, band))),
+                                ("f64", read!(sheet_clip(&body, f, &s, o, a, band))),
+                                ("Interval", read!(sheet_clip(&ibody, fi, &si, oi, ai, band))),
                             ] {
                                 let Some((kind, lo, hi)) = clip else {
                                     continue;
