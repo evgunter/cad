@@ -1483,3 +1483,6 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Job re-run is 403 ("Resource not accessible by integration"); the log blob URL is proxy-blocked; the annotations say only "exit code 100".
   - Locally at the same head and profile: 13972/13972. Suspected cause: the seed-varying enclose fuzzer filed on SSIARITH.
   - Re-running via a legitimate main merge.
+- 2026-10-14 10:24Z — **Correction:** I wrote at 08:11 that #5104's TIER=all run had passed the slow set. It did not: at TIER=all the slow-set step is **skipped**, because its seed list is empty. The slow-set evidence for lto=off is the lane's local three-ε run, which matches main's nightly reds exactly.
+  - **Finding:** a ci.yml diff runs every row except the slow set. Noted for CIW.
+  - In the same hosted job, 1e-6 and 1e-12 ran the whole suite at 13972/13972. So the default-ε red points to a seed-varying row, not to lto=off.
