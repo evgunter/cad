@@ -174,12 +174,17 @@ impl<'a> Section<'a> {
 impl<'a> PairLane<'a> {
     /// The pair's boxes.
     fn boxes(&self) -> PairBoxes<'a, f64> {
-        PairBoxes::new(self.a.surface(), self.b.surface(), self.speeds)
+        PairBoxes::new(&self.a, &self.b, self.speeds)
     }
 
     /// The ends' reader over this pair.
     fn ends(&self) -> Ends<'_> {
-        Ends::pair(&self.sys, self.ctx, (self.a, self.b), self.band)
+        Ends::pair(
+            &self.sys,
+            self.ctx,
+            (self.a.clone(), self.b.clone()),
+            self.band,
+        )
     }
 
     /// The boundary pass (module docs): every crossing, in face order

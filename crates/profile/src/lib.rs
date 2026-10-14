@@ -141,6 +141,9 @@
 //! overflows its radius, which is a sub-tolerance arc that validation
 //! classifies a line before any carrier is checked.
 
+// Double-double residuals for the test oracles.
+#[cfg(test)]
+mod dd;
 mod fillet_select;
 pub mod lift;
 pub mod path;

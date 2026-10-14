@@ -206,8 +206,8 @@ impl<T: Real> SplitResult<T> {
             let at = Cell::Vertex(original);
             lineage = stated(lineage, at, Fate::Kept { at, copies });
         }
-        for root in roots(&self.naming.edge_pieces) {
-            let pieces: Vec<EdgeKey> = Descent::of(root, &self.naming.edge_pieces)
+        for root in roots(self.naming.edge_pieces.rows()) {
+            let pieces: Vec<EdgeKey> = Descent::of(root, self.naming.edge_pieces.rows())
                 .cells()
                 .collect();
             let mut minted = Vec::new();
@@ -285,7 +285,7 @@ impl<T: Real> SplitResult<T> {
 /// so a key resolves in whichever side kept the entity (and only
 /// there). Rows are historical: entries whose entity survived in
 /// neither side (discarded scaffolding) simply resolve nowhere.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SplitNaming {
     /// The section faces each side keeps, with their side, in section
     /// completion order (the join's sweep order and its per-face line
@@ -302,8 +302,9 @@ pub struct SplitNaming {
     pub face_fragments: crate::lineage::FaceDivisions,
     /// Crossing-split piece rows: `(new edge, divided-from edge)` in
     /// mint order, call-time keys ([`crate::Body::split_edge`] keeps the
-    /// divided edge's key on the piece from its start).
-    pub edge_pieces: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
+    /// divided edge's key on the piece from its start), each checked as
+    /// it was minted.
+    pub edge_pieces: crate::lineage::SplitEdgeDivisions,
     /// Null-edge vertex pairs `(copy, original)` from the reduction's
     /// F9 records, in record order: each coincident copy with the
     /// vertex it was minted at (the naming layer derives the copy's
@@ -324,6 +325,24 @@ pub struct SplitNaming {
     /// joined edge's cover is read through to the operand edges it lies
     /// along.
     pub joined_lineage: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
+}
+
+impl Default for SplitNaming {
+    // Each lineage list names itself where it is made (`LineageRows`).
+    fn default() -> Self {
+        Self {
+            sections: Default::default(),
+            face_fragments: crate::lineage::FaceDivisions::new(
+                crate::lineage::LineageRows::FaceDivisions,
+            ),
+            edge_pieces: crate::lineage::SplitEdgeDivisions::new(
+                crate::lineage::LineageRows::EdgeDivisions(None),
+            ),
+            vertex_pairs: Default::default(),
+            edge_joins: Default::default(),
+            joined_lineage: Default::default(),
+        }
+    }
 }
 
 /// Typed failure of the finish step.

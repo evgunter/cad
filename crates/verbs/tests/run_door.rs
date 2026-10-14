@@ -206,6 +206,7 @@ fn the_boolean_dispatch_is_the_boolean_door() {
         kind,
         contacts,
         naming,
+        verdicts: _,
     } = via.record
     else {
         panic!("a boolean run produced another family's record");
