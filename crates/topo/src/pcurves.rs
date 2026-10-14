@@ -1205,6 +1205,18 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // direction — are judged together at a quarter of the arc,
         // where the directions are a half-period apart. A selection,
         // checked: the full arc-rim certification still follows.
+        //
+        // **The row is also a SIDE.** On a chart closed in `v` the two
+        // boundary rows are one 3-D curve, so both hold the carrier at
+        // the probe, and the rim is a seam the face meets from both
+        // sides. Each half-edge then takes the row on its own side: the
+        // face lies left of the half-edge about its outward normal, and
+        // left of `+u` about the chart normal is `+v`. So the `v₀` row
+        // (face above it) is this half's where its walk runs `+u`
+        // exactly when the face's normal is the chart's, and the `v₁`
+        // row otherwise. Those two candidates go first; the other two
+        // follow, so a chart open in `v`, where one row holds, picks as
+        // before.
         let image = |v: T, p0x: T, sign: T| Pcurve::IsoArc {
             p0: Point2::new(p0x, v),
             pd: Vec2::new(sign, T::zero()),
@@ -1212,9 +1224,15 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             angle: span,
             breaks: breaks.clone(),
         };
-        let candidates = [cv0, cv1].into_iter().flat_map(|v| {
-            [(cu0, cu1 - cu0), (cu1, cu0 - cu1)].map(|(p0x, sign)| image(v, p0x, sign))
-        });
+        let walks_up = is_plus(body, half_edge) == half_edge_face(body, half_edge).1.sense;
+        let rows = [(cv0, true), (cv1, false)]
+            .into_iter()
+            .flat_map(|(v, low)| {
+                [(cu0, cu1 - cu0, true), (cu1, cu0 - cu1, false)]
+                    .map(|(p0x, sign, forward)| (low == (forward == walks_up), image(v, p0x, sign)))
+            });
+        let (own_side, far_side): (Vec<_>, Vec<_>) = rows.partition(|(own, _)| *own);
+        let candidates = own_side.into_iter().chain(far_side).map(|(_, image)| image);
         match probe_pick(
             "pcurve_iso_arc_row_direction",
             &carrier,

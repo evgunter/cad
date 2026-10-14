@@ -8,16 +8,24 @@
 //! same surface, `reversed_u`) leaves each rim running AGAINST the
 //! chart's `u`, as an imported wall's rim may: its start is the chart's
 //! `u₁` corner, not its `u₀` one.
+//!
+//! A second fixture closes the chart in `v`: a quarter tube whose wall
+//! is ONE face on the exact rational torus net, its outer equator a
+//! seam the face meets from both sides. There both rows hold the seam's
+//! circle, and each half takes the row on its own side.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::Surface;
+use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2};
+use geom::{NurbsSurface, Surface};
 use geom_brep::{
     CertifyError, EdgeDescriptionSpec, PcurveCertifyError, PlaneNurbsRefusal, SurfacePair,
 };
-use geom_core::{Band, Point2, Tol};
+use geom_core::spline::{KnotVector, Knots};
+use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
-use sweep::test_support::stacked_at;
+use sweep::test_support::{stacked_at, tube_frame};
+use sweep::{TubeWindow, tube_along_arc};
 use topo::pcurves::PcurveMintError;
 use topo::{Body, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, Pcurve};
 
@@ -214,4 +222,177 @@ fn an_intersection_circle_on_a_spline_wall_is_refused_at_the_door() {
         "the rim's circle is refused as a plane × NURBS Intersection: {refused:?}"
     );
     assert_eq!(format!("{body:?}"), before, "the body is untouched");
+}
+
+/// The quarter tube's major and minor radii.
+const MAJOR: f64 = 1.0;
+const MINOR: f64 = 0.25;
+
+/// The exact torus of the quarter tube as one rational biquadratic
+/// net: `u` the azimuth over the window (one span from `+x` to `+z`
+/// about `−y`), `v` the whole tube circle (four quarter spans) from the
+/// outer equator back to it. Its first and last control rows are the
+/// same points, so the chart is closed in `v`.
+fn torus_net() -> NurbsSurface<f64> {
+    let radial = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    let wu = [1.0, FRAC_1_SQRT_2, 1.0];
+    let (outer, inner) = (MAJOR + MINOR, MAJOR - MINOR);
+    let section = [
+        (outer, 0.0),
+        (outer, MINOR),
+        (MAJOR, MINOR),
+        (inner, MINOR),
+        (inner, 0.0),
+        (inner, -MINOR),
+        (MAJOR, -MINOR),
+        (outer, -MINOR),
+        (outer, 0.0),
+    ];
+    let wv = [1.0, FRAC_1_SQRT_2].repeat(4).into_iter().chain([1.0]);
+    let wv: Vec<f64> = wv.collect();
+    let mut points = Vec::new();
+    let mut weights = Vec::new();
+    for ((x, z), a) in radial.into_iter().zip(wu) {
+        for (&(rho, h), &b) in section.iter().zip(&wv) {
+            points.push(Point3::new(rho * x, -h, rho * z));
+            weights.push(a * b);
+        }
+    }
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let kv = KnotVector::clamped(
+        vec![
+            0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+        ],
+        2,
+    )
+    .unwrap();
+    NurbsSurface::new(Knots::from(ku), Knots::from(kv), points, weights).unwrap()
+}
+
+/// The quarter tube with its wall made one face closed in `v`, and the
+/// two halves of its seam. The tube door builds the wall as two torus
+/// faces split at both equators; killing the inner equator joins them,
+/// and the outer one is left a seam whose two halves bound the one
+/// face. The wall is then re-charted on [`torus_net`].
+fn seam_tube() -> (Body<f64>, FaceKey, [HalfEdgeKey; 2]) {
+    let mut body = tube_along_arc(
+        tube_frame(
+            Point3::origin(),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            tol(),
+        ),
+        MAJOR,
+        TubeWindow::Arc {
+            t0: 0.0,
+            t1: FRAC_PI_2,
+        },
+        MINOR,
+        tol(),
+    )
+    .expect("the quarter tube builds")
+    .body;
+    let on_torus = |body: &Body<f64>, h: HalfEdgeKey| {
+        let face = body.get_face(body.face_of_half_edge(h).unwrap()).unwrap();
+        matches!(body.get_surface(face.surface), Some(Surface::Torus { .. }))
+    };
+    let equators: Vec<_> = body
+        .edges()
+        .filter(|(_, e)| on_torus(&body, e.he_plus) && on_torus(&body, e.he_minus))
+        .map(|(k, e)| {
+            let curve = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
+            let geom::Curve3::Circle { radius, .. } = *curve.carrier() else {
+                panic!("an equator is a circle")
+            };
+            (radius, k)
+        })
+        .collect();
+    let [(r0, e0), (r1, e1)] = equators.as_slice() else {
+        panic!("the wall's two faces share its two equators: {equators:?}")
+    };
+    let ((_, inner), (_, outer)) = if r0 < r1 {
+        ((r0, *e0), (r1, *e1))
+    } else {
+        ((r1, *e1), (r0, *e0))
+    };
+    body.kef(body.get_edge(inner).unwrap().he_plus)
+        .expect("killing the inner equator joins the wall");
+    let seam = body.get_edge(outer).unwrap();
+    let halves = [seam.he_plus, seam.he_minus];
+    let wall = body.face_of_half_edge(halves[0]).unwrap();
+    assert_eq!(body.face_of_half_edge(halves[1]), Some(wall), "a seam");
+    let sense = body.get_face(wall).unwrap().sense;
+    // Lifts RechartStrandsDescriptions: the wall re-charted onto the
+    // net with its edges' descriptions left naming the torus is the
+    // row's premise, and it is what routes the seam to the arc rim.
+    body.set_face_surface_unvouched_for_tests(
+        wall,
+        FaceSurface::New {
+            surface: Surface::Nurbs(std::sync::Arc::new(torus_net())),
+            sense,
+        },
+    )
+    .unwrap();
+    (body, wall, halves)
+}
+
+/// Whether the face lies on `image`'s side of `h`: the chart's step
+/// into the face from the image's row (`+v` off `v = 0`, `−v` off
+/// `v = 1`) points left of `h` about the face's outward normal, at the
+/// middle of the edge. Read in 3-D off the net and the carrier, not off
+/// the pick's own algebra.
+fn face_is_on_the_rows_side(body: &Body<f64>, h: HalfEdgeKey, image: &Pcurve<f64>) -> bool {
+    let face = body.get_face(body.face_of_half_edge(h).unwrap()).unwrap();
+    let surface = body.get_surface(face.surface).unwrap();
+    let edge = body.get_edge(body.get_half_edge(h).unwrap().edge).unwrap();
+    let curve = body
+        .get_curve_geom(edge.curve)
+        .unwrap()
+        .certified()
+        .unwrap();
+    let (t0, t1) = curve.params();
+    let (mid, step) = (0.5 * (t0 + t1), 1e-4);
+    let along = if edge.he_plus == h { 1.0 } else { -1.0 };
+    let tangent = (curve.carrier().eval(mid + step) - curve.carrier().eval(mid - step)) * along;
+    let uv = image.eval(mid);
+    let outward = surface.normal(uv.x, uv.y) * if face.sense { 1.0 } else { -1.0 };
+    let into = if uv.y < 0.5 { step } else { -step };
+    let inward = surface.eval(uv.x, uv.y + into) - surface.eval(uv.x, uv.y);
+    outward.cross(tangent).dot(inward) > 0.0
+}
+
+/// **A seam circle on a chart closed in `v` takes the row on each
+/// half's own side.** Both boundary rows hold the circle, so the probe
+/// alone would hand both halves the first row offered; each half takes
+/// the row the face lies against from it instead: one `v = 0`, the
+/// other `v = 1`, both running with the chart's `u`.
+///
+/// The loop walk is not read: the wall's cap arcs, circles along `v`,
+/// take `General` images whose foot at the seam vertex lands on the
+/// `v = 0` branch, so the walk refuses there
+/// (`work/iso/a-general-image-ending-on-a-closed-charts-seam-takes-its-foot-on-the-first-branch`).
+#[test]
+fn a_seam_circle_on_a_chart_closed_in_v_takes_the_row_on_each_halfs_side() {
+    let (body, _, halves) = seam_tube();
+    let mut rows = Vec::new();
+    for h in halves {
+        let image = derived(&body, h).unwrap();
+        let (u0, du, row, dv) = arc(&image);
+        assert_eq!(
+            (u0, du, dv),
+            (0.0, 1.0, 0.0),
+            "{h:?}: the seam runs with the chart's u"
+        );
+        assert!(
+            face_is_on_the_rows_side(&body, h, &image),
+            "{h:?}: the face lies on the side of its row v = {row}"
+        );
+        rows.push(row);
+    }
+    rows.sort_by(f64::total_cmp);
+    assert_eq!(
+        rows,
+        [0.0, 1.0],
+        "the seam's two halves take the chart's two rows"
+    );
 }
