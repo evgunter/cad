@@ -1003,3 +1003,10 @@ Signed (CLEAVE orchestrator).
   - the public `edge_pose` u_ref is read through `major_frame`;
   - `semi_axes_by_size`/`quarter_turned_where` are the one home; the `Conic` fields are renamed; seat7/8 history is cut.
   Filed: RESTFRONT P2 `tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis`; CLEAVE P3 `a-split-leaves-an-in-band-sliver-wall-face-that-refuses-only-at-rest` and `a-joined-section-arc-runs-its-kept-carrier-without-re-seaming`. Closed RESTFRONT's minor-over-major row. Narrow re-review resumed. The render lane's `render_gui.py` int-parse failure is main's, and CIW has it filed twice.
+- 2026-10-14 — PR 5061 review: APPROVE-WITH-FIXES, no MAJOR. Across 240 probe runs the 'clearly not parallel' half of the new lever never builds, so the lever is to name only the parallel side (the house convention: `RIM_LEVER` names both sides because both pass, `WallRoots(AxisParallel)` only its passing side). The two new loud refusals are unreachable; nothing that built now refuses. Fix pass sent:
+  - one-site segments still re-read their frame after surgery, contradicting the module doc;
+  - the `carrier_cyl_axis_parallel` subject is a near-twin wording of the new decision;
+  - the visible-tilt endings carry ε-sized margins (real coincidence or amplified error?);
+  - a fresh surface closure in `choose_roles`, out of a class of about 19 inline chains across boolean/;
+  - unify the FrameError variants;
+  - docs.
