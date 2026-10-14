@@ -906,3 +906,17 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **CI:** red only on #5045's remaining lily row. Main fixed the other two.
   - **Before merge:** compiled merged with main.
   - **Filed:** `an-unrecorded-curved-edge-meeting-is-unseen-at-tier-three-prime` (waits on the reader).
+- 2026-10-14: PR 5078 (the pair-question audit) had already merged. It filed ten gap rows across hone, tang, restread, roots, inside, shell and chart.
+- 2026-10-14: PR 5083 ("one reading per question") merges at 18741dbd.
+  - **Ev's ruling:** the agreed D3 paragraph, the D4 line and the Layering edits stand. Derivation is preferred over pinning by test.
+  - **How it is written:** readings compose. A reading that is asked at kind level dispatches through its own description (`route`), so the description is derived.
+  - **Bookkeeping:** fork-log row 141 is filled in (A = Opus, B = Fable, byte 210). `every-pair-question-has-one-total-table` is closed.
+  - **Next:** the gap rows are being re-aimed on `fuse/reaim-pair-gap-rows`.
+- 2026-10-14: the curve-pair reader lane would not start.
+  - **Why:** its session refused every session-to-session go-ahead and waited for a human.
+  - **What changed:** the lane was archived. Stage (a), which moves `bisect`, the rate bounds and the half-angle ladder down a layer, now runs as an in-session subagent on `fuse/curve-pair-reader-a`.
+  - **Lesson:** a lane started by `send_message` can refuse its whole brief. Prefer an in-session subagent for implementer work.
+- 2026-10-14: PR 5082 (merge_faces: a declared unread pair refuses typed) is in a fix pass.
+  - **Review:** found it mergeable, with two MINORs: a declared mixed-kind pair gets two refusals, and glue's `Extent` drop is undispositioned.
+- 2026-10-14: PR 5086 (joined_lineage checked at write) is in a fix pass.
+  - **Review:** found a MAJOR. `Minted::push`'s freshness check refuses a valid, acyclic, kill-ordered table (a child killed before its parent).
