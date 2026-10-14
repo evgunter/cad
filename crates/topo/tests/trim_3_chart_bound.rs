@@ -826,3 +826,58 @@ fn t11_the_metred_hull_is_widened_by_every_envelope_slack() {
         h.v_min.lo()
     );
 }
+
+// ---------------- review 5070 probes (not for merge) ---------------- //
+fn r5070_net(deg: usize, pts: &[(f64, f64)], w: &[f64]) -> NurbsCurve3<Interval> {
+    let n = pts.len();
+    let mut k = vec![0.0; deg + 1];
+    for i in 1..(n - deg) {
+        k.push(i as f64 / (n - deg) as f64);
+    }
+    k.extend(vec![1.0; deg + 1]);
+    let knots = KnotVector::clamped(k, deg).unwrap();
+    NurbsCurve3::new(
+        Knots::from(knots).lift(Real::from_f64),
+        pts.iter().map(|&(x, y)| Point3::new(iv(x), iv(y), iv(0.0))).collect(),
+        w.iter().map(|&w| iv(w)).collect(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn r5070_p1_cause() {
+    let chord = r5070_net(1, &[(0.5, -0.5), (0.5, 0.5)], &[1.0, 1.0]);
+    for (a, b) in [(0.0, 1.0), (0.0, 0.5), (0.1, 0.9), (0.4, 0.6), (0.49, 0.51), (1e-9, 1.0 - 1e-9)] {
+        let t = iv(a).enclosure_hull(iv(b));
+        let loc = chord.knot_values().locate(t).map(|(f, l)| (f.span().index(), l.span().index()));
+        let basis = chord.knot_values().locate(t).map(|(f, _)| geom_core::spline::basis::basis_funs_in(f, t));
+        let p = chord.eval(t);
+        eprintln!("P1 t=[{a},{b}] locate={loc:?} basis={basis:?} eval={p:?} cert={}", p.x.is_certified());
+    }
+    // poison seed for comparison
+    let pz = geom_core::spline::poison_from(iv(0.5));
+    eprintln!("P1 poison_from = {pz:?} hi={} cert={}", pz.hi(), pz.is_certified());
+    // second shapes: equal non-unit weights; degree 2; real rational
+    for (name, c) in [
+        ("w=2,2", r5070_net(1, &[(0.5, -0.5), (0.5, 0.5)], &[2.0, 2.0])),
+        ("deg2", r5070_net(2, &[(0.5, -0.5), (0.5, 0.0), (0.5, 0.5)], &[1.0, 1.0, 1.0])),
+        ("deg2 rational", r5070_net(2, &[(0.5, -0.5), (0.5, 0.0), (0.5, 0.5)], &[1.0, 0.7, 1.0])),
+        ("deg1 2 spans", r5070_net(1, &[(0.5, -0.5), (0.5, 0.0), (0.5, 0.5)], &[1.0, 1.0, 1.0])),
+    ] {
+        for (a, b) in [(0.0, 1.0), (0.1, 0.9)] {
+            let t = iv(a).enclosure_hull(iv(b));
+            eprintln!("P1 {name} t=[{a},{b}] eval={:?}", c.eval(t));
+        }
+    }
+}
+
+#[test]
+fn r5070_p3_box_inside() {
+    let chord = r5070_net(1, &[(0.5, -0.5), (0.5, 0.5)], &[1.0, 1.0]);
+    let image = geom_brep::chart_pcurve(&Curve3::Nurbs(Arc::new(chord)), &base_plane(), band()).unwrap();
+    for (a, b) in [(0.0, 1.0), (0.1, 0.9)] {
+        let h = image.chart_box(iv(a), iv(b));
+        eprintln!("P3 box [{a},{b}] = {h:?}");
+        eprintln!("P3 eval [{a},{b}] = {:?}", image.eval(iv(a).enclosure_hull(iv(b))));
+    }
+}
