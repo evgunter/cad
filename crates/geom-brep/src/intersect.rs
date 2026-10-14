@@ -2419,13 +2419,6 @@ pub fn plane_cone_section<T: Decide>(
             let v_ref = a.cross(cone_u);
             let (nu, nv) = (cone_u.dot(n), v_ref.dot(n));
             let phi = nv.atan2(nu);
-            // Clamped acos argument (outward-rounding can push
-            // it a hair past ±1 at the tangency boundary —
-            // min/max are Real lattice ops, evaluation-legal).
-            let arg = ((T::zero() - cos_a * c) / (sin_a * s))
-                .min(T::one())
-                .max(T::zero() - T::one());
-            let delta = arg.acos();
             let gen_at = |u: T| -> Curve3<T> {
                 let (su, cu) = u.sin_cos();
                 Curve3::Line {
@@ -2434,8 +2427,23 @@ pub fn plane_cone_section<T: Decide>(
                 }
             };
             return Ok(if verdict == Sign::Zero {
-                PlaneConeSection::ApexTangentLine(gen_at(phi + delta))
+                // A graze's one root is the extremum of g·n over the
+                // azimuth: φ where the normal leans down the axis
+                // (c < 0), φ + π where it leans up. The residue's
+                // quotient sits up to the band off ∓1 here, and its acos
+                // √(2·band) off the extremum. `c` is definite on this
+                // arm: D Zero puts |c| at tan α·s, and the aperture
+                // guard decided sin α.
+                let half_turn = T::pi() * T::from_f64(0.5);
+                PlaneConeSection::ApexTangentLine(gen_at(phi + half_turn.copysign(c) + half_turn))
             } else {
+                // Clamped acos argument (outward-rounding can push
+                // it a hair past ±1 at the tangency boundary —
+                // min/max are Real lattice ops, evaluation-legal).
+                let delta = ((T::zero() - cos_a * c) / (sin_a * s))
+                    .min(T::one())
+                    .max(T::zero() - T::one())
+                    .acos();
                 PlaneConeSection::ApexLinePair {
                     l1: gen_at(phi + delta),
                     l2: gen_at(phi - delta),

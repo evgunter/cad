@@ -46,3 +46,11 @@ crossing lane's arm is the reference, and its rows
 ## Found by
 
 CLEAVE's review of PR 4179 (MUST 1), from `cleave/inband-graze`'s sweep.
+
+## Since filed
+
+The apex lane's copy has its graze arm fixed (branch
+`germ/pn-apex-tangent-generator`). On `pn_apex_section` `Zero` it returns
+the extremum generator, `φ` or `φ + π` by the sign of `c`, and no longer
+reads the residue's ratio. The line pair's clamped `acos` is unchanged.
+

@@ -82,3 +82,11 @@ land whole. Probe: `zz_probe_near` in the lane's scratch (not committed); the po
 ## Found by
 
 CLEAVE DR-51's review of PR 3892, `review-tests/dr51` (74e151b6).
+
+Measured on `germ/pn-apex-tangent-generator`, which makes the apex lane
+return the grazed generator itself. A cylinder with a conical pit
+(α = π/6, apex vertex), split through the apex along the grazed ruling
+(τ ∈ {−0.5, −0.1, 0, 0.1, 0.5}·ε at four spins, ε 1e-9), still refuses
+`SliverSector` on `sector_straight` at the apex vertex. The tangent
+line plays no part in this refusal.
+
