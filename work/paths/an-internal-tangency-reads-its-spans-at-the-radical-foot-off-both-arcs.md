@@ -2,7 +2,8 @@
 id: an-internal-tangency-reads-its-spans-at-the-radical-foot-off-both-arcs
 kind: issue
 title: arc_arc's internal-tangent arm reads both spans at the radical-line foot, which near-concentric carriers put far off both arcs, so arcs 1-3 cm apart refuse as a TangentialContact
-status: dispatched
+status: closed
+closed: 2026-10-15
 opened: 2026-10-07
 priority: P2
 cost: E
@@ -70,3 +71,42 @@ midway between the circles' nearest points on the centre line carries
 `g/2` to each (`decided-tangent-point-is-the-radical-foot`), which
 keeps `arc_span`'s chordal reading honest. A row should pin the table
 above, including the cases that validate, at both scalars.
+
+## Outcome
+
+`crates/profile/src/seg.rs` `arc_arc`: a decided tangency's spans each
+read the candidate's radial projection onto their own carrier
+(`radial_foot`, the projection `touches` already took), the carrier's
+point nearest the other circle. The internal arm's contact is the
+midpoint of the foot's two projections, `g/2` off each carrier, so
+`end_in_stretch`'s `nearer_end` and the shared-vertex discount read a
+point beside both arcs rather than centimetres inside or outside them.
+The external arm keeps its point `c₁ + û·r₁`, which is on circle 1
+and `|g|` off circle 2 (no amplification: over 2·10⁵ draws of radii
+0.1–3 at ε = 1e-9 the radical foot's offset is at most 1.02·|g| and
+the arm's point 1.03·|g|, both rounding), and reads its spans through
+the same projection, so both arms read a carrier point.
+
+The arm cannot read "no contact" for arcs within ε by this change: a
+span's definite miss of its own carrier's nearest point still settles
+only through the end reads (`end_touches`), and that argument
+(`end_touches`'s doc) assumes the candidate is each carrier's point of
+least distance to the other, which the projection now is exactly.
+
+Pinned by `rejections::near_concentric_arcs_read_their_tangency_on_each_carrier`
+at f64 and Interval: the reproduction table above (all six rows
+validate; the first four refused `TangentialContact` on main at ε =
+1e-9, 1e-6 and 1e-12) and seven near-concentric pairs whose arcs come
+within ε along the wide stretch where such carriers stay within the
+band (to about `√(2(ε + g)/d)` rad either side), holding the tangency
+direction or not: they refuse `TangentialContact`, `NonSimple Touch`,
+or (nested carriers) escalate on `circle_side`, as on main. A mutant
+that skips the end reads for an arc × arc tangency turns that row red,
+and `seg_reach_fuzz` (1,558 misses at EFFORT = 1). The fuzz's
+near-concentric family now draws centres from Kε to 10⁻²·r apart, with
+arcs reaching across the wide stretch.
+
+Sweep and the class row's other sites: appended to
+`decided-tangent-point-is-the-radical-foot`. Filed RESTFRONT
+`check-9-reads-an-internal-tangencys-trims-at-the-radical-foot` (P3).
+

@@ -106,3 +106,52 @@ the other sites as `circle-pair-edge-candidates-cancel-at-unequal-radii`
 (RESTFRONT), `circle-crossing-closed-forms-cancel-at-unequal-radii`
 (HONE) and `sphere-sphere-section-radius-cancels-at-unequal-radii`
 (ROOTS).
+
+## The arc/arc pair pass's instance, closed (PATHS, 2026-10-15)
+
+`an-internal-tangency-reads-its-spans-at-the-radical-foot-off-both-arcs`
+closes the `seg.rs` hit: both tangent arms of `arc_arc` read each span
+at the candidate's radial projection onto that arc's own carrier, and
+the internal arm's contact is the midpoint of the foot's two
+projections, `g/2` off each. That is also the point the shared-vertex
+discount (`validate.rs` `judge_pair`) now reads, so its radial error is
+`g/2` rather than `g·r/d`; its angle is the link's, as before.
+
+Its sweep grepped `\.foot()`, `\.radical()`, `radical_foot(`,
+`chord_ends(` and the `(d² + r₁² − r₂²)/2d` spellings
+(`powi(2) + … .powi(2) - … .powi(2)) / (`, `d * d + r1 * r1 - r2 * r2`)
+under `crates/`, src only, and read every hit for whether a span or a
+trim is decided at the point:
+
+- `crates/topo/src/validate.rs` `segments_meet` circle × circle
+  (`placed.foot()`, `chord_ends`): **reads both trims at the foot**
+  (`window` → `containment::arc_trim`, chordal). Same defect, a false
+  `Meet`; filed RESTFRONT
+  `check-9-reads-an-internal-tangencys-trims-at-the-radical-foot` (P3),
+  with the margin measured and the silent-acceptance direction argued
+  closed by arms 1–3.
+- `crates/topo/src/boolean/carrier_cross.rs` `parallel_circles`: the
+  foot is a candidate that `boundary_crossing` projects onto the swept
+  carrier by parameter (`param_near`) before reading the span
+  (`strictly_inside`), so only its angle is read. Not this defect.
+- `crates/topo/src/boolean/section_cert.rs` `sphere_sphere`: the
+  `tan.touch` place; no span or trim read. Stays a hit of this row.
+  Its secant arm and `torus_sphere`'s `along` place crossings, not a
+  decided tangency.
+- `crates/geom-brep/src/intersect.rs` `sphere_sphere_section`: as
+  above; no span read.
+- `crates/topo/src/boolean/join.rs` `parallel_radical_plane`: a plane,
+  no span. Its two other hits are test oracles.
+- `crates/sweep/src/blend/arms.rs` (round × round rail point) places a
+  crossing with its half-chord, not a decided tangency; not a hit.
+- `crates/profile/src/sugar.rs` `offset_circles`: already midway.
+- `crates/profile/src/seg.rs` `line_arc`'s tangent arm reads the arc's
+  span at the line's foot, which is on the line and `|g| ≤ ε` off the
+  circle: no amplification, left as is.
+
+What the grep could not match: a foot spelled through another helper
+or built by hand from `a` (`c₁ + û·a` with `a` named otherwise), and
+trims read at a point the caller computed elsewhere. A second pass
+grepped the trim and span readers (`arc_trim(`, `arc_span(`,
+`window(`, `strictly_inside(`) for their call sites and read what
+point each is handed; none beyond the above is handed a tangency foot.
