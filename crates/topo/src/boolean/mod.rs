@@ -3421,17 +3421,18 @@ pub enum BooleanError {
 ///
 /// One variant per [`BooleanError`] arm, and [`BooleanError::kind`]
 /// matches exhaustively — an arm added to the error reds `kind` itself,
-/// here in this crate. It reds nothing downstream, because no consumer
-/// maps this enum yet: today it appears only as a field type on
-/// `editor_core::CheckEvidence` and in this module's tests.
+/// here in this crate. Its consumer is pncad-py's `boolean_error_tag`,
+/// which maps every variant to an FFI word and reads the class through
+/// [`BooleanError::kind`], off the evaluation ladder's error and off the
+/// `Refusal` an advisory check's separation finding shares whole.
 ///
 /// A variant HERE with no arm behind it is a phantom: nothing
-/// constructs it, so no test can reach it. Since there is no
-/// downstream map to red, this module's tests carry the visit that
-/// does — an exhaustive match over this enum, which names the phantom
-/// at compile time. The fix at that red is to delete the phantom,
-/// never to give it a tag: a tag minted for a phantom publishes a name
-/// no refusal can ever carry.
+/// constructs it, so no test can reach it, and a downstream map gives
+/// it a word as readily as any other, so the red is this module's
+/// tests': an exhaustive match over this enum names the phantom at
+/// compile time. The fix at that red is to delete the phantom, never
+/// to give it a tag: a tag minted for a phantom publishes a name no
+/// refusal can ever carry.
 ///
 /// Deliberately NOT `Ord`. The declaration order mirrors
 /// [`BooleanError`]'s for reading, and nothing depends on it.
