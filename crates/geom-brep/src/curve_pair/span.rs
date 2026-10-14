@@ -208,8 +208,8 @@ impl<'a, T: Decide> Span<'a, T> {
         if !self.ended {
             return Ok(Contact::On { t, margin });
         }
-        let from_start = self.end_side(q, t - self.t0, self.t0, band)?;
-        let from_end = self.end_side(q, self.t1 - t, self.t1, band)?;
+        let from_start = self.end_side(q, t - self.t0, self.t0, None, band)?;
+        let from_end = self.end_side(q, self.t1 - t, self.t1, None, band)?;
         Ok(match (from_start, from_end) {
             (EndSide::At, _) | (_, EndSide::At) => Contact::End,
             (EndSide::Past, _) | (_, EndSide::Past) => Contact::Carrier,
@@ -219,28 +219,14 @@ impl<'a, T: Decide> Span<'a, T> {
 
     /// Whether `q`, within `gap` of the carrier's point at `t` but not
     /// decided on it, lies definitely past the span and clear of both its
-    /// ends (module docs): each end read as [`Self::end_side`] reads it,
-    /// its chord less `gap`. An end the band does not decide abstains.
+    /// ends (module docs): each end read by [`Self::end_side`] with its
+    /// chord less `gap`. An end that reads at the point, or that the band
+    /// does not decide, abstains.
     fn past(&self, q: Point3<T>, gap: T, t: T, band: Band) -> bool {
         if !self.ended {
             return false;
         }
-        let side = |m: T, end: T| {
-            let chord = (q - self.carrier.eval(end)).norm() - gap;
-            match decide("curve_pair_span_end_chord", Margin::of(chord), band) {
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Zero | Sign::Negative) | Err(_) => return None,
-            }
-            match decide(
-                "curve_pair_span_end_side",
-                Margin::metered_sup(m, self.hi),
-                band,
-            ) {
-                Ok(Sign::Positive) => Some(EndSide::Clear),
-                Ok(Sign::Negative) => Some(EndSide::Past),
-                Ok(Sign::Zero) | Err(_) => None,
-            }
-        };
+        let side = |m: T, end: T| self.end_side(q, m, end, Some(gap), band).ok();
         matches!(
             (side(t - self.t0, self.t0), side(self.t1 - t, self.t1)),
             (Some(EndSide::Past), Some(EndSide::Clear | EndSide::Past))
@@ -248,10 +234,23 @@ impl<'a, T: Decide> Span<'a, T> {
         )
     }
 
-    /// `q`, on the carrier at the parameter distance `m` inside the span
-    /// from its end at `end`, against that end (module docs).
-    fn end_side(&self, q: Point3<T>, m: T, end: T, band: Band) -> Result<EndSide, Indeterminate> {
-        let chord = Margin::norm3(q - self.carrier.eval(end));
+    /// `q`, at the parameter distance `m` inside the span from its end at
+    /// `end`, against that end (module docs): first its chord to the end's
+    /// point, less `gap` where `q` is only known within `gap` of the
+    /// carrier, then its side, metered by the greatest speed.
+    fn end_side(
+        &self,
+        q: Point3<T>,
+        m: T,
+        end: T,
+        gap: Option<T>,
+        band: Band,
+    ) -> Result<EndSide, Indeterminate> {
+        let to_end = q - self.carrier.eval(end);
+        let chord = match gap {
+            None => Margin::norm3(to_end),
+            Some(gap) => Margin::of(to_end.norm() - gap),
+        };
         match decide("curve_pair_span_end_chord", chord, band)? {
             Sign::Zero => return Ok(EndSide::At),
             Sign::Positive | Sign::Negative => {}

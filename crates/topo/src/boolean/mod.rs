@@ -281,6 +281,21 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
             CrossingDecision::OnEdge.subject()
         }
         "split_conic_root_order" => CrossingDecision::Order.subject(),
+        // `geom_brep::curve_pair`'s readings, which the on-carrier
+        // crossing reads its meetings by.
+        "curve_pair_span_end_chord" | "curve_pair_span_end_side" => {
+            CrossingDecision::OnEdge.subject()
+        }
+        "curve_pair_span_gap" => "whether a point lies on an edge's carrier",
+        "curve_pair_pose_tilt"
+        | "curve_pair_pose_offset"
+        | "curve_pair_pose_sense"
+        | "curve_pair_pose_swing"
+        | "curve_pair_pose_extreme"
+        | "curve_pair_pose_root_gap"
+        | "curve_pair_pose_centres"
+        | "curve_pair_pose_radii"
+        | "curve_pair_pose_one_curve" => "how two edges' carriers meet",
         "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"

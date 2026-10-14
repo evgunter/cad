@@ -158,7 +158,8 @@ fn an_endless_span_reads_its_end_point_on_it() {
 
 /// **An end is the end's point**, on a slow stretch too: where the
 /// ellipse runs at its minor semi-axis, half a zero of arc past the end
-/// reads at it and thirty zeros past it reads clear of it.
+/// reads at it and thirty zeros past it reads clear of it; one in the
+/// band's gap off the carrier and five zeros past is not read past.
 #[test]
 fn an_end_is_read_by_its_chord_on_a_slow_stretch() {
     let b = band();
@@ -169,4 +170,11 @@ fn an_end_is_read_by_its_chord_on_a_slow_stretch() {
     assert_eq!(name(span.contact(carrier.eval(t), t, b)), "end");
     let t = 30.0 * ZERO / 0.5;
     assert_eq!(name(span.contact(carrier.eval(t), t, b)), "carrier");
+    // Five zeros of arc past the end and three off the carrier: the
+    // greatest speed meters the parameter thirty zeros past, but the
+    // chord less the gap is two zeros, in the band's gap, so whether it
+    // is past is not read. Red where `Past` reads the side alone.
+    let t = 5.0 * ZERO / 0.5;
+    let q = carrier.eval(t) + Vec3::unit_z() * (3.0 * ZERO);
+    assert_eq!(name(span.contact(q, t, b)), "escalated");
 }

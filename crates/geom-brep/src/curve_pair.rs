@@ -126,6 +126,13 @@ pub enum MeetFault {
     },
     /// A carrier is not of the kind its arm reads.
     Desync,
+    /// Two readings of the pose contradict each other, which their
+    /// definitions rule out but for rounding: a kernel fault, never a
+    /// pose.
+    Contradiction {
+        /// The readings.
+        readings: &'static str,
+    },
 }
 
 impl From<Indeterminate> for MeetFault {

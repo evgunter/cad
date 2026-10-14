@@ -32,7 +32,7 @@
 //! boundary vertex the point-on-span reading ([`Span::contact`]) puts on
 //! the edge's interior is a crossing too. Each crossing is then placed on
 //! the boundary entity it lands on by the face's boundary pre-pass, which
-//! names that entity; a meeting the pre-pass puts off every boundary
+//! names that entity; a crossing the pre-pass puts off every boundary
 //! entity is two readings that disagree, and answers
 //! [`BoundaryCrossing::Unread`]. So does every refusal `meet` types past
 //! the band's own escalation, and a face holding a lone vertex (a pierce
@@ -101,9 +101,8 @@ pub(super) fn boundary_crossing<T: Decide>(
         .ok_or(BooleanError::ClassificationInvariant {
             what: "on-carrier crossing: face lost",
         })?;
-    // Each crossing's parameter on the edge, and whether a reading other
-    // than the pre-pass already put it on the boundary.
-    let mut crossings: Vec<(T, bool)> = Vec::new();
+    // Each crossing's parameter on the edge.
+    let mut crossings: Vec<T> = Vec::new();
     for member in y.face_boundary_linked(face, face_data) {
         let BoundaryMember::Edge { he, half, ek, edge } = member else {
             return Ok(BoundaryCrossing::Unread);
@@ -113,7 +112,7 @@ pub(super) fn boundary_crossing<T: Decide>(
             return Ok(BoundaryCrossing::Unread);
         };
         match swept.contact(vertex, t, band).map_err(escalated)? {
-            Contact::On { t, .. } => crossings.push((t, false)),
+            Contact::On { t, .. } => crossings.push(t),
             Contact::Off | Contact::Carrier | Contact::Past | Contact::End => {}
         }
         let CurveGeom::Certified(other) = y.edge_curve_linked(ek, edge) else {
@@ -130,6 +129,9 @@ pub(super) fn boundary_crossing<T: Decide>(
                     MeetFault::Desync => Err(BooleanError::ClassificationInvariant {
                         what: "on-carrier crossing: a carrier the meeting table misread",
                     }),
+                    MeetFault::Contradiction { .. } => Err(BooleanError::ClassificationInvariant {
+                        what: "on-carrier crossing: two readings of the meeting pose contradict",
+                    }),
                 };
             }
         };
@@ -138,7 +140,7 @@ pub(super) fn boundary_crossing<T: Decide>(
         }
         for m in met.points {
             match m.on_a {
-                Hit::On { t, .. } => crossings.push((t, true)),
+                Hit::On { t, .. } => crossings.push(t),
                 Hit::End => {}
             }
         }
@@ -146,17 +148,18 @@ pub(super) fn boundary_crossing<T: Decide>(
     // The first crossing in the boundary's walk order: the sweep splits
     // there and re-examines both fragments against this face, so every
     // other one is found again on them.
-    for (t, met) in crossings {
-        let p = carrier.eval(t);
+    let Some(&t) = crossings.first() else {
+        return Ok(BoundaryCrossing::Clear);
+    };
+    let p = carrier.eval(t);
+    Ok(
         match super::contain::curved_boundary_containment(y, face, p, band)
             .map_err(|e| super::reduce::esc(e, y_is, face))?
         {
-            Some((at, margin)) => return Ok(BoundaryCrossing::At { t, p, at, margin }),
-            None if met => return Ok(BoundaryCrossing::Unread),
-            None => {}
-        }
-    }
-    Ok(BoundaryCrossing::Clear)
+            Some((at, margin)) => BoundaryCrossing::At { t, p, at, margin },
+            None => BoundaryCrossing::Unread,
+        },
+    )
 }
 
 /// An in-band decision of this module: where a crossing lands along its
@@ -285,10 +288,10 @@ mod crossing_rows {
     /// `400` (the major), and is about `20` at `θ*`, where it crosses the
     /// wall sheet's ruling. With `z` the band's zero, a span starting
     /// `0.8·z` of parameter before `θ*` carries the meeting a chord of
-    /// `16·z` inside it, and finds it; read at the minor semi-axis that
-    /// gap is `0.8·z`, the span's end. A span starting `0.04·z` before
-    /// `θ*` carries it a chord of `0.8·z` in, at its end, and is clear;
-    /// read at the major semi-axis that gap is `16·z`, inside.
+    /// `16·z` inside it, and finds it. A span starting `0.04·z` before
+    /// `θ*` carries it a chord of `0.8·z` in, at its end, and is clear.
+    /// Read by the parameter at either semi-axis, each would be the
+    /// other's answer.
     #[test]
     fn a_swept_spans_end_is_read_by_its_chord_to_the_meeting() {
         let tol = Tol::witness();
@@ -312,8 +315,6 @@ mod crossing_rows {
             semi_v: 1.0,
             u_ref: Vec3::new(1.0, 0.0, m) * (1.0 / k),
         };
-        let speed = geom_brep::carrier_speed::speed_at(&section, theta).unwrap();
-        assert!((speed - 20.0).abs() < 0.1, "about 20 at θ*: {speed}");
         let read = |gap: f64| {
             boundary_crossing(
                 &body,

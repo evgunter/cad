@@ -7,6 +7,7 @@ opened: 2026-10-14
 priority: P1
 cost: H
 refs: [two-curve-curve-meeting-finders, 5027]
+needs_ev: true
 ---
 
 
@@ -64,8 +65,8 @@ Stage (c) also owes the split of `roots::Unsettled` by what its consumers act on
 
 `reduce::wall_crossing` reads `AtApex` by name, and the line × torus door and `solid_contain::torus_crossings` read `CountDisagrees`; every other consumer treats them alike. The split moves `AtApex` and `Degenerate` into topo's cone door and the contradictions into an arm consumers cannot fold into a graze. It touches every root-finder row, so it was left out of stage (b).
 
-These four readings still decide the point-on-span question themselves, and move onto `Span::contact`:
-- `carrier_cross::strictly_inside`;
+These four readings decided the point-on-span question themselves, and move onto `Span::contact`:
+- `carrier_cross::strictly_inside` (moved in PR 5154);
 - `census::curved::interior_at` and `clear_of_end`;
 - the census line lane's `on_edge_interior`;
 - `LoopEdge::contact`'s conic rows (`ConicArc::hit`), which read the distance to the conic rather than at a parameter. Its spiric row carries a refusal inside its value (`SpiricHit::Unsettled`, read as `EdgeContact::Unread`), which the move types.

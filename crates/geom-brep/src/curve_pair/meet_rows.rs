@@ -219,7 +219,8 @@ fn a_line_meets_a_circle_through_its_plane_or_in_it() {
 
 /// **Two circles cut from one sphere**, their planes tilted by `θ`, built
 /// to meet: they cross at an angle of about `θ`. Above the tangency floor
-/// (`√(κ·e)`, about `10⁻⁴` here) every meeting lands on both circles;
+/// (the basin meter's, about `√(8κe)`, `2.4·10⁻⁴` here) every meeting
+/// lands on both circles;
 /// below it the circles stay within the band's escalation `e` of each
 /// other over a run of about `e/θ`, the polish's basin meter refuses
 /// (`Unsettled::Meter`) rather than place one point on it; and in one
