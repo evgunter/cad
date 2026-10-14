@@ -19,6 +19,8 @@ use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query;
 
 /// The oblique clip `m5_pr12_fix_pass`'s f4 row fillets, at `Dual64`.
+/// Deliberately NOT `common::oblique::f4`: every literal lifts through
+/// `Dual::constant`, which the shared `f64` fixture does not carry.
 fn oblique_clip() -> Body<Dual64> {
     let lift = Dual::constant;
     let prism = |pts: &[(f64, f64)], h: f64| -> Body<Dual64> {
