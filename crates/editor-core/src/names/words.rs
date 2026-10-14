@@ -890,6 +890,9 @@ fn role<'n, 's>(
             text(format!(" {} the body of ", sense_verb(*sense))),
             cites.one(face),
         ],
+        // A seam of this node in the run is said by its two faces, each
+        // a citation of the run's own; a seam another node minted is
+        // cited whole, as any other line is.
         RoleSeg::EdgeCrossing(run) => {
             let senses: Vec<_> = run.iter().filter_map(|l| l.sense).collect();
             let mut out = vec![text(meeting(&senses))];
@@ -897,11 +900,23 @@ fn role<'n, 's>(
                 if i > 0 {
                     out.push(text(if i + 1 == run.len() { " and " } else { ", " }));
                 }
-                out.push(cites.one(&l.line));
-                out.push(text(match l.sense {
-                    Some(sense) => format!(" {} the rest", sense_verb(sense)),
-                    None => " runs through".to_owned(),
-                }));
+                match (l.sense, l.line.path.as_slice()) {
+                    (Some(sense), _) => {
+                        out.push(cites.one(&l.line));
+                        out.push(text(format!(" {} the rest", sense_verb(sense))));
+                    }
+                    (None, [RoleSeg::Seam { a, b }]) if l.line.node == f => {
+                        out.push(text("the seam of "));
+                        out.push(cites.one(a));
+                        out.push(text(" and "));
+                        out.push(cites.one(b));
+                        out.push(text(" runs through"));
+                    }
+                    (None, _) => {
+                        out.push(cites.one(&l.line));
+                        out.push(text(" runs through"));
+                    }
+                }
             }
             out
         }
