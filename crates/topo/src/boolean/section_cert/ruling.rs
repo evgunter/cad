@@ -103,9 +103,9 @@ use geom_core::running::{self, Rounded};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use super::sign;
-use crate::boolean::circle_roots::{
-    CircleRoots, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
-    rounding_charge,
+use crate::boolean::circle_roots::rounding_charge;
+use geom_brep::half_angle::{
+    RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, TrigRoots, certified_subdivision,
 };
 
 /// A vector `x₀ + x₁ cos θ + x₂ sin θ`; `turning` false, a constant
@@ -535,9 +535,9 @@ fn roots<T: Decide>(
         charged.then_some(&slack),
         band,
     ) {
-        Ok(CircleRoots::Miss) => Vec::new(),
-        Ok(CircleRoots::Certified { count, thetas }) => thetas[..count].to_vec(),
-        _ => return Err(walk.row),
+        TrigRoots::Miss => Vec::new(),
+        TrigRoots::Certified { count, thetas } => thetas[..count].to_vec(),
+        TrigRoots::Uncertain => return Err(walk.row),
     };
     let slacks = slacks(charged, band);
     let mut out: Vec<T> = Vec::with_capacity(found.len());
