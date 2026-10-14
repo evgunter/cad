@@ -7,6 +7,7 @@ opened: 2026-10-02
 priority: P3
 cost: M
 design: true
+needs_ev: true
 ---
 
 
@@ -143,3 +144,35 @@ rule: the fragment the classification dropped as inside the other
 operand, as against the covered copy. That is step 2 of **Next**,
 still open, and the three-box reproducer's question above is the same
 one.
+
+## The designer pair's answer (to Ev, fork-log row 142)
+
+**The premise above is wrong** (dumped by both designers). In the pair
+union and `[a, b]` the kernel does not carve `b`'s top along the
+floor's outline: the contacts are tangential and `vtxfac` does no
+surgery, so `b`'s top under the plate is **one** discarded fragment
+holding nothing. `[b, a]` names only because Eq. 15.3 keeps operand
+A's copy of a same-oriented coplanar pair: with `b` as A, `b`'s copy is
+kept and carved, and the outline is recorded as `bordered`.
+
+**Recommended:** name it, do not refuse. At a vertex-on-face covered
+contact (`vtxfac::classify_vertex_on_face`, where `covered` is already
+pushed), the kernel records `HeldEdge`s for the kept face's edges that
+lie in the dropped face (`HeldAt::Inside`), attached to the one dropped
+fragment that contains the contact point by the kernel's own `contfp`
+(`boolean/contain.rs`), refusing typed only in band. Records only; the
+emitter does not change.
+
+- With the record emulated, the pocket fixture names alike in the pair
+  union, `[a, b]` and `[b, a]`, matching `[b, a]`'s names today.
+- The fragment matters: in a tunnel-with-pillar variant, giving the
+  edges to every dropped fragment makes the tunnel piece cite the
+  pillar's four walls. Attaching only where the dropped face is one
+  fragment, and refusing otherwise, refuses a slot variant in two
+  orders that `[b, a]` names.
+- topo `boolean_covered::a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it`
+  re-baselines: it gains the slab notch's bottom edge, the edge this
+  row says is recorded nowhere.
+
+No N2 text changes for this one; it asks only whether the record is the
+right home.
