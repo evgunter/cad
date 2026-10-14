@@ -669,11 +669,10 @@ fn circle_validates_and_refuses_nonpositive_radius() {
     let c = profile::circle(Point2::new(1.0, 2.0), 0.75, Tol::witness()).unwrap();
     let c = pinned_constructed(c);
     validate_ok(&c);
-    assert_eq!(c.vertices().len(), 2);
-    assert_eq!(
-        c.constructed_joints(),
-        &[0, 1],
-        "a circle constructs its two joints, one carrier continuing"
+    assert_eq!(c.vertices().len(), 1);
+    assert!(
+        c.constructed_joints().is_empty(),
+        "a circle is one full turn, and constructs no joint"
     );
     for r in [-1.0, 0.0] {
         assert!(

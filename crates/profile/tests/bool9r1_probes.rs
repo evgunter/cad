@@ -225,7 +225,8 @@ fn r1_the_all_tangent_loop_lifts_at_every_seam() {
 
 /// A two-arc circle: both joints are one carrier continuing, so both
 /// are tangent, and the lift reads it as the closed carrier it is — the
-/// `circle` form, seamed at its +x pole.
+/// split circle of two arcs, since `circle` is one. A one-vertex full
+/// turn at the +x point is the `circle` form, bit for bit.
 #[test]
 fn r1_a_two_arc_circle_lifts_as_the_circle_form() {
     let circle = bulge_loop(vec![
@@ -233,16 +234,33 @@ fn r1_a_two_arc_circle_lifts_as_the_circle_form() {
         (Point2::new(2.0, 0.0), 1.0),
     ]);
     match lift_checked(&circle, Tol::witness()) {
+        LiftOutcome::Lifted { program, .. } => {
+            assert!(
+                matches!(program.as_slice(), [Step::CircleSplit { n: 2, .. }]),
+                "{program:?}"
+            );
+        }
+        other => panic!("the two-arc circle must lift: {other:?}"),
+    }
+    let one = profile::circle(Point2::new(1.0, 0.0), 1.0, Tol::witness())
+        .expect("circle")
+        .loop_
+        .into_loop();
+    match lift_checked(&one, Tol::witness()) {
         LiftOutcome::Lifted {
-            program, rotation, ..
+            program,
+            rotation,
+            fidelity,
+            ..
         } => {
-            assert_eq!(rotation, 1, "the circle form seams at the +x pole");
+            assert_eq!(rotation, 0, "one vertex");
+            assert_eq!(fidelity, Fidelity::BitIdentical, "{program:?}");
             assert!(
                 matches!(program.as_slice(), [Step::Circle { .. }]),
                 "{program:?}"
             );
         }
-        other => panic!("the two-arc circle must lift: {other:?}"),
+        other => panic!("the one-segment circle must lift: {other:?}"),
     }
 }
 

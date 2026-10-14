@@ -706,14 +706,16 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// `ConstructedProfile`, which verifies them rather than re-deciding
 /// the stored arcs' consistency; five rows' joint lists re-ordered, the
 /// two circle forms joined the corpus (`shared coverage corpus 14`,
-/// `15`), and no vertex, arc field or verdict moved.
-const GOLDEN_DEFAULT: u64 = 0xe1b3_65a1_364f_8e39;
+/// `15`), and no vertex, arc field or verdict moved. Then `circle`
+/// became one full turn, which constructs no joint, so `shared coverage
+/// corpus 14` left the corpus at every ε row; no other row moved.
+const GOLDEN_DEFAULT: u64 = 0xd293_18a3_d013_54ce;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`, where `arc x arc c=0.3
 /// r=0.05` validates: its legs stand ≈ 1.5Kε apart across the carriers'
 /// shallow crossing, which their ends settle.
-const GOLDEN_1E6: u64 = 0xe3d1_677d_641b_b92e;
+const GOLDEN_1E6: u64 = 0xcb98_0a1f_8c9e_91c7;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x91bf_eae3_1d8f_d451;
+const GOLDEN_1E12: u64 = 0x1f19_6011_97ae_6a36;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the

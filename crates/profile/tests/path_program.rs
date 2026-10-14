@@ -436,12 +436,12 @@ fn a_partial_path_reports_the_prefix_of_the_program_it_publishes() {
     validate_ok(&pinned(closed));
 }
 
-/// **`circle`'s two-pole lowering.** The primitive is a ONE-STEP
-/// complete-loop program; the ±x poles and the unit bulges are its
-/// private lowering, and the replay reproduces them from `(centre, r)`
-/// alone.
+/// **`circle`'s one-segment lowering.** The primitive is a ONE-STEP
+/// complete-loop program; the +x vertex and the full turn are its
+/// lowering (`circle_split` at one arc, phase 0), and the replay
+/// reproduces them from `(centre, r)` alone.
 #[test]
-fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
+fn circle_is_a_one_step_program_that_replays_to_one_full_turn() {
     let closed = profile::circle(Point2::new(1.5, -2.25), 0.75, Tol::witness()).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::Circle]);
     assert_eq!(
@@ -450,18 +450,17 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
         "a circle program is exactly one step"
     );
     let lowered = pinned_constructed(closed);
-    assert_eq!(lowered.vertices().len(), 2);
+    assert_eq!(lowered.vertices().len(), 1);
     assert_eq!(lowered.vertices()[0].x.to_bits(), 2.25_f64.to_bits());
-    assert_eq!(lowered.vertices()[1].x.to_bits(), 0.75_f64.to_bits());
+    assert_eq!(lowered.vertices()[0].y.to_bits(), (-2.25_f64).to_bits());
     assert_eq!(
         sweep_of(&lowered, 0).to_bits(),
-        (4.0 * geom_core::Real::atan(1.0_f64)).to_bits(),
-        "a semicircle, lowered from the bulge 1"
+        std::f64::consts::TAU.to_bits(),
+        "a full turn"
     );
-    assert_eq!(
-        lowered.constructed_joints(),
-        &[0, 1],
-        "the form constructs its two joints: one carrier continuing through each"
+    assert!(
+        lowered.constructed_joints().is_empty(),
+        "a full turn's vertex joins the carrier to itself: no joint"
     );
     validate_ok(&lowered);
 }
@@ -503,8 +502,9 @@ fn circle_split_is_a_one_step_program_with_structural_seams() {
 }
 
 /// `circle_split` refusals: the radius gate is `circle`'s own (funnel
-/// row `path_circle_radius`), and n < 2 is the structural
-/// [`PathError::CircleSplitCount`] class.
+/// row `path_circle_radius`), and n = 0 is the structural
+/// [`PathError::CircleSplitCount`] class. n = 1 is the full turn, at
+/// any phase.
 #[test]
 fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
     let _tol = Tol::witness().get();
@@ -512,13 +512,21 @@ fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
         Err(PathError::NonpositiveCircleRadius { .. }) => {}
         other => panic!("r = 0 must refuse as NonpositiveCircleRadius, got {other:?}"),
     }
-    match profile::circle_split(Point2::new(0.0, 0.0), 1.0, 1, 0.0, Tol::witness()) {
-        Err(PathError::CircleSplitCount { n: 1 }) => {}
-        other => panic!("n = 1 must refuse as CircleSplitCount, got {other:?}"),
+    match profile::circle_split(Point2::new(0.0, 0.0), 1.0, 0, 0.0, Tol::witness()) {
+        Err(PathError::CircleSplitCount { n: 0 }) => {}
+        other => panic!("n = 0 must refuse as CircleSplitCount, got {other:?}"),
     }
-    // n = 2 is legal — the smallest subdivision, circle's own count.
-    let two = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 2, 0.0, Tol::witness()).unwrap();
-    assert_eq!(pinned(two).vertices().len(), 2);
+    // n = 1 is legal — the smallest subdivision, circle's own count.
+    let one = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 1, 0.5, Tol::witness()).unwrap();
+    let one = pinned_constructed(one);
+    assert_eq!(one.vertices().len(), 1);
+    let (s, c) = geom_core::Real::sin_cos(0.5_f64);
+    assert_eq!(
+        (one.vertices()[0].x.to_bits(), one.vertices()[0].y.to_bits()),
+        (c.to_bits(), s.to_bits()),
+        "the one vertex at the phase"
+    );
+    validate_ok(&one);
 }
 
 /// **The half-disc equator through the lattice's own spelling** (the
@@ -1665,14 +1673,14 @@ fn a_fused_verbs_incoming_arc_is_its_run_in() {
     pinned(closed);
 }
 
-/// **A circle is two pieces, a `circle_split` is `n`**: the one step's
+/// **A circle is one piece, a `circle_split` is `n`**: the one step's
 /// `Piece(k)` for its segment `k`.
 #[test]
 fn a_carrier_form_draws_piece_k_for_its_segment_k() {
     use profile::PieceRole::Piece;
     let t = Tol::witness();
     let circle = profile::circle(Point2::new(0.0, 0.0), 1.0, t).unwrap();
-    assert_eq!(pieces_of(&circle), vec![(0, Piece(0)), (0, Piece(1))]);
+    assert_eq!(pieces_of(&circle), vec![(0, Piece(0))]);
     let split = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 3, 0.0, t).unwrap();
     assert_eq!(
         pieces_of(&split),
@@ -1712,7 +1720,7 @@ fn a_role_list_admits_its_verbs_roles_only() {
         "piece 3 of 3"
     );
     assert!(
-        !RoleList::of(Verb::Circle).admits(Leg, 2),
+        !RoleList::of(Verb::Circle).admits(Leg, 1),
         "a carrier draws no leg"
     );
     let answered: Vec<RoleList> = Verb::ALL.iter().map(|v| RoleList::of(*v)).collect();
@@ -1734,7 +1742,7 @@ fn a_role_list_admits_its_verbs_roles_only() {
 fn a_record_off_its_role_list_fails_loud() {
     let t = Tol::witness();
     let mut circle = profile::circle(Point2::new(0.0, 0.0), 1.0, t).unwrap();
-    circle.structure.pieces[1].role = profile::PieceRole::Piece(2);
+    circle.structure.pieces[0].role = profile::PieceRole::Piece(1);
     circle.structure.check_role_lists(&circle.program);
 }
 

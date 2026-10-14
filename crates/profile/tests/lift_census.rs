@@ -104,6 +104,14 @@ fn thirds() -> ProfileLoop<f64> {
         .into_loop()
 }
 
+/// A one-segment circle seamed at `phase`: `circle_split` with one arc.
+fn one_arc_at(phase: f64) -> ProfileLoop<f64> {
+    circle_split(Point2::new(0.5, -0.25), 1.5, 1, phase, Tol::witness())
+        .expect("one arc")
+        .loop_
+        .into_loop()
+}
+
 /// A plain arc chain: no constructed joints, no same-carrier run.
 fn arc_chain() -> ProfileLoop<f64> {
     chain(&[(0.0, 0.0, 0.3), (2.0, 0.0, -0.2), (2.0, 2.0, 0.1)])
@@ -136,7 +144,7 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
         ("l_profile", l_profile(), Class::Bits),
         ("arc_chain", arc_chain(), Class::Value),
         ("lens", lens(), Class::Value),
-        ("circle_h", circle_h(0.0, 0.0, 1.0), Class::Bits),
+        ("circle_h", circle_h(0.0, 0.0, 1.0), Class::Value),
         ("circle_v", circle_v(0.0, 0.0, 1.0), Class::Value),
         (
             "circle_primitive",
@@ -147,6 +155,7 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
             Class::Bits,
         ),
         ("circle_split_3", thirds(), Class::Bits),
+        ("circle_split_1", one_arc_at(0.4), Class::Bits),
         ("half_disc", half_disc(), Class::Value),
         ("bracket", bracket(), Class::Value),
         ("rounded_rect", rounded_rect(4.0, 3.0, 0.5), Class::Value),
@@ -185,7 +194,7 @@ fn the_census() {
     // The tally of record. A vocabulary change that moves a loop
     // between buckets must move these numbers deliberately.
     assert_eq!(tally[Class::Bits as usize], 6, "bit-identical lifts");
-    assert_eq!(tally[Class::Value as usize], 7, "value-equal lifts");
+    assert_eq!(tally[Class::Value as usize], 8, "value-equal lifts");
     assert_eq!(tally[Class::Refused as usize], 0, "structural walls");
     assert_eq!(tally[Class::Wall as usize], 0, "geometric walls");
     assert_eq!(tally[Class::Mismatch as usize], 0, "mismatches");
@@ -299,10 +308,12 @@ fn the_carrier_phase_is_the_surviving_angle_residue() {
             describe(&other)
         ),
     }
-    // The +x-seamed twin is exact, which is what makes the diagnosis
-    // "the angle", not "the carrier form".
+    // The one-segment circle is exact, which is what makes the
+    // diagnosis "the angle", not "the carrier form": its one vertex was
+    // placed by the same `sin_cos` the replay reads its phase back
+    // through, while the vertical split's south pole was written down.
     assert_eq!(
-        classify(&lift_checked(&circle_h(0.0, 0.0, 1.0), Tol::witness())),
+        classify(&lift_checked(&one_arc_at(0.0), Tol::witness())),
         Class::Bits
     );
 }
@@ -323,11 +334,18 @@ fn vert(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
 
 #[test]
 fn structural_walls_are_named() {
-    // Too few vertices.
-    let one = bulge_loop(vec![vert(0.0, 0.0, 0.0)]);
+    // Too few vertices: none at all.
     assert_eq!(
-        refusal(&one),
-        Some(LiftRefusal::TooFewVertices { vertices: 1 })
+        refusal(&bulge_loop(vec![])),
+        Some(LiftRefusal::TooFewVertices { vertices: 0 })
+    );
+    // One vertex is read like any other, and a line at one vertex is
+    // validation's zero chord.
+    let one = bulge_loop(vec![vert(0.0, 0.0, 0.0)]);
+    assert!(
+        matches!(refusal(&one), Some(LiftRefusal::Unclassified(_))),
+        "{:?}",
+        refusal(&one)
     );
 
     // Non-finite authored data.
