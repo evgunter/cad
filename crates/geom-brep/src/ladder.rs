@@ -13,11 +13,7 @@
 //! the recording: a kept datum's run is held, and spliced as superseded
 //! ([`geom_core::k_stats::splice_superseded`]) when a later datum
 //! answers, so its escalation does not read as one the answer rests on.
-//! Readers today: `pcurve_cache`'s spiric chart and other-torus ladders
-//! and its Villarceau gates. `topo::boolean::carrier_eq::identity_data`
-//! carries its own copy of the rule, which
-//! `work/cleave/identity-data-reads-its-ladder-from-geom-brep.md`
-//! retires onto this one.
+//! Its readers are the callers of [`read_identity`].
 
 use geom_core::k_stats::{Detached, detached, splice, splice_superseded};
 use geom_core::predicate::{Decided, Indeterminate};
@@ -39,7 +35,53 @@ pub enum IdentityLadder<E> {
     Zero(Option<MarginDiag>),
     /// No datum decided definitely and at least one decided nothing:
     /// the readings that did not decide, in data order.
-    Undecided(Vec<E>),
+    Undecided(Kept<E>),
+}
+
+/// The readings an [`IdentityLadder::Undecided`] kept, in data order:
+/// never empty.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Kept<E> {
+    /// The first reading kept.
+    pub first: E,
+    /// The ones kept after it.
+    pub rest: Vec<E>,
+}
+
+impl<E> Kept<E> {
+    /// How many readings were kept.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        1 + self.rest.len()
+    }
+
+    /// Never: a ladder that kept nothing is not undecided.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        false
+    }
+
+    /// The kept readings, in data order.
+    #[must_use]
+    pub fn into_vec(self) -> Vec<E> {
+        let mut all = vec![self.first];
+        all.extend(self.rest);
+        all
+    }
+}
+
+impl Kept<Indeterminate> {
+    /// The one cause a ladder of [`geom_core::k_stats::decide_reported`]
+    /// readings refuses on: the first unreadable (poisoned) margin, a
+    /// limit no tolerance moves, ahead of the first in-band one.
+    #[must_use]
+    pub fn refusing_cause(self) -> Indeterminate {
+        let first = self.first;
+        core::iter::once(first)
+            .chain(self.rest)
+            .find(|cause| cause.margin.is_invalid())
+            .unwrap_or(first)
+    }
 }
 
 /// Reads `data` in order through `read` under the identity ladder's
@@ -54,7 +96,7 @@ pub fn read_identity<T, E>(
     mut read: impl FnMut(&'static str, Margin<T>) -> Result<Decided, E>,
 ) -> IdentityLadder<E> {
     let mut joined: Option<MarginDiag> = None;
-    let mut kept = Vec::new();
+    let mut kept: Vec<E> = Vec::new();
     // The runs read since the first kept one, in data order, each with
     // whether it was kept: held so the order survives the splice.
     let mut held: Vec<(Detached, bool)> = Vec::new();
@@ -93,30 +135,14 @@ pub fn read_identity<T, E>(
         }
     }
     held.into_iter().for_each(|(run, _)| splice(run));
-    if kept.is_empty() {
-        IdentityLadder::Zero(joined)
-    } else {
-        IdentityLadder::Undecided(kept)
+    let mut kept = kept.into_iter();
+    match kept.next() {
+        None => IdentityLadder::Zero(joined),
+        Some(first) => IdentityLadder::Undecided(Kept {
+            first,
+            rest: kept.collect(),
+        }),
     }
-}
-
-/// The one cause an [`IdentityLadder::Undecided`] of [`decide`]
-/// readings refuses on: the first unreadable (poisoned) margin, a limit
-/// no tolerance moves, ahead of the first in-band one.
-///
-/// [`decide`]: geom_core::k_stats::decide_reported
-///
-/// # Panics
-///
-/// On an empty list, which [`read_identity`] never returns as
-/// `Undecided`.
-#[must_use]
-pub fn refusing_cause(kept: Vec<Indeterminate>) -> Indeterminate {
-    let first = kept.first().copied();
-    kept.into_iter()
-        .find(|cause| cause.margin.is_invalid())
-        .or(first)
-        .unwrap_or_else(|| unreachable!("refusing_cause: an undecided ladder keeps a reading"))
 }
 
 #[cfg(test)]
@@ -126,7 +152,7 @@ mod tests {
     use geom_core::predicate::Band;
     use geom_core::{Margin, Sign};
 
-    use super::{IdentityLadder, read_identity, refusing_cause};
+    use super::{IdentityLadder, read_identity};
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).expect("a valid band")
@@ -193,7 +219,7 @@ mod tests {
             panic!("undecided: {got:?}")
         };
         assert_eq!(kept.len(), 1);
-        assert_eq!(refusing_cause(kept).predicate, Some("b"));
+        assert_eq!(kept.refusing_cause().predicate, Some("b"));
         assert_eq!(verdicts, ["a", "c"]);
         assert_eq!(escalations, ["b"]);
     }
@@ -227,6 +253,6 @@ mod tests {
             panic!("undecided: {got:?}")
         };
         assert_eq!(kept.len(), 2);
-        assert_eq!(refusing_cause(kept).predicate, Some("b"));
+        assert_eq!(kept.refusing_cause().predicate, Some("b"));
     }
 }

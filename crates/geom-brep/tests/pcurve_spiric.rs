@@ -639,6 +639,10 @@ fn a_wall_image_names_one_torus_and_is_refused_on_the_other() {
 ///
 /// The control is the mirror torus with its major radius in band and
 /// nothing else apart: no datum decides, so the in-band one refuses.
+///
+/// The poses are multiples of `Tol::witness`'s own ε and K, so the row
+/// reads the same at every ε row by design. Every pose is read before
+/// any assertion, so a regression names all of them.
 #[test]
 fn a_chart_gate_decided_apart_answers_past_an_in_band_one() {
     let (eps, k) = (tol().eps(), tol().k());
@@ -652,6 +656,7 @@ fn a_chart_gate_decided_apart_answers_past_an_in_band_one() {
     };
     let mirror = Point3::new(2.0 * D, 0.0, 0.0);
     let tilted = (Vec3::unit_y() + Vec3::unit_z() * (past / ARM)).normalize();
+    let mut wrong = Vec::new();
     for (what, surface) in [
         (
             "own: centre in band, major apart",
@@ -671,26 +676,34 @@ fn a_chart_gate_decided_apart_answers_past_an_in_band_one() {
             ),
         ),
     ] {
-        let e = certify(wall(1.0, 0.0), &surface, band()).unwrap_err_or_else_msg(what);
-        assert!(
-            matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
-            "{what}: a definite gate answers: {e:?}"
+        let got = certify(wall(1.0, 0.0), &surface, band());
+        let neither = matches!(
+            &got,
+            Err(PcurveCertifyError::CarrierOffChart { why, .. })
+                if why.starts_with("the chart torus is neither the carrier's own nor its mirror")
         );
+        if !neither {
+            wrong.push(format!(
+                "{what}: a definite gate answers neither torus: {got:?}"
+            ));
+        }
     }
     let control = chart(mirror, Vec3::unit_y(), R + inside, RR);
-    let e = certify(wall(1.0, 0.0), &control, band()).unwrap_err_or_else_msg("control");
-    assert!(
-        matches!(
-            e,
-            PcurveCertifyError::Escalated {
-                check: geom_brep::PcurveCheck::ChartWinding,
-                cause: geom_core::Indeterminate {
-                    predicate: Some("pcurve_spiric_chart_major"),
-                    ..
-                },
+    let got = certify(wall(1.0, 0.0), &control, band());
+    if !matches!(
+        got,
+        Err(PcurveCertifyError::Escalated {
+            check: geom_brep::PcurveCheck::ChartWinding,
+            cause: geom_core::Indeterminate {
+                predicate: Some("pcurve_spiric_chart_major"),
                 ..
-            }
-        ),
-        "the mirror with only its major radius in band refuses on it: {e:?}"
-    );
+            },
+            ..
+        })
+    ) {
+        wrong.push(format!(
+            "control: the mirror with only its major radius in band refuses on it: {got:?}"
+        ));
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
 }
