@@ -1142,7 +1142,12 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Operand::A => ((s.face, contact.face), (own, pierced)),
             Operand::B => ((contact.face, s.face), (pierced, own)),
         };
-        Ok((cells, pierce_germ_dir(s, n_pierced.vec(), out, band)?))
+        let dir = pierce_germ_dir(s, n_pierced.vec(), out, band)?;
+        Ok((
+            cells,
+            dir,
+            germ_branch((&*piercing_body, pierced_body), piercing, cells, p, band)?,
+        ))
     };
     let run_germs = runs
         .iter()
@@ -1231,7 +1236,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     "prev",
                 )
                 .edge;
-                let germ = |t: usize, (cells, dir): Germ<T>| (t, cells, dir);
+                let germ = |t: usize, (cells, dir, _): Germ<T>| (t, cells, dir);
                 let facing = super::insert::strut_faces_first(
                     piercing_body,
                     (piercing, &sectors),
@@ -1775,7 +1780,8 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 (super::Locus::InFace(pierced), super::Locus::InFace(face)),
             ),
         };
-        let germs: (Germ<T>, Germ<T>) = ((cells, d), (cells, -d));
+        let branch = germ_branch((&*piercing_body, pierced_body), piercing, cells, p, band)?;
+        let germs: (Germ<T>, Germ<T>) = ((cells, d, branch), (cells, -d, branch));
         let mint = piercing_body.mev_null_run(
             MevSite::Lone { r#loop: ring_loop },
             w,
@@ -2136,18 +2142,38 @@ pub(super) enum OutBound {
 }
 
 /// A pierce germ as a run reads it: `(A face, B face)` and
-/// `(A locus, B locus)`, then its direction.
+/// `(A locus, B locus)`, then its direction and its branch.
 type Germ<T> = (
     (
         (crate::entity::FaceKey, crate::entity::FaceKey),
         (super::Locus, super::Locus),
     ),
     geom_core::Vec3<T>,
+    super::Branch,
 );
+
+/// A pierce germ's branch ([`super::join::germ_branch`]), read at the
+/// pierce point `p` with the piercing and pierced bodies in that order.
+fn germ_branch<T: Decide>(
+    (piercing_body, pierced_body): (&Body<T>, &Body<T>),
+    piercing: Operand,
+    (faces, loci): (
+        (crate::entity::FaceKey, crate::entity::FaceKey),
+        (super::Locus, super::Locus),
+    ),
+    p: geom_core::Point3<T>,
+    band: Band,
+) -> Result<super::Branch, BooleanError> {
+    let (a, b) = match piercing {
+        Operand::A => (piercing_body, pierced_body),
+        Operand::B => (pierced_body, piercing_body),
+    };
+    super::join::germ_branch((a, faces.0), (b, faces.1), loci, p, band)
+}
 
 fn half_germ<T: geom_core::Real>(
     he: HalfEdgeKey,
-    ((faces, loci), dir): Germ<T>,
+    ((faces, loci), dir, branch): Germ<T>,
 ) -> super::HalfGerm<T> {
     super::HalfGerm {
         he,
@@ -2156,6 +2182,7 @@ fn half_germ<T: geom_core::Real>(
         a_locus: loci.0,
         b_locus: loci.1,
         dir,
+        branch,
     }
 }
 
