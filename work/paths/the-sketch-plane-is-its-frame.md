@@ -6,6 +6,7 @@ status: closed
 opened: 2026-10-02
 priority: P0
 cost: M
+needs_ev: true
 branch: paths/sketch-plane-is-its-frame
 pr: 5068
 closed: 2026-10-14
