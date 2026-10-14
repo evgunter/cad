@@ -520,14 +520,20 @@ fn overrun_arc(source: &Body<f64>, edges: [EdgeKey; 2], out: &Blended<f64>, what
             (radius - D).abs() < 1e-15 && (major - minor).abs() < 1e-6 * D,
             "{what}: a circle where the probe reads ({minor}, {major}), radius {radius}"
         ),
-        Curve3::Ellipse {
-            major: got_major,
-            minor: got_minor,
-            ..
-        } => assert!(
-            (got_minor - D).abs() < 1e-15 && (got_major - major).abs() < 1e-9,
-            "{what}: the ellipse ({got_minor}, {got_major}) against the probe's ({minor}, {major})"
-        ),
+        ref ellipse @ Curve3::Ellipse { .. } => {
+            let Some(geom::MajorFrame {
+                major: got_major,
+                minor: got_minor,
+                ..
+            }) = ellipse.major_frame()
+            else {
+                unreachable!("an Ellipse carrier has a major frame")
+            };
+            assert!(
+                (got_minor - D).abs() < 1e-15 && (got_major - major).abs() < 1e-9,
+                "{what}: the ellipse ({got_minor}, {got_major}) against the probe's ({minor}, {major})"
+            );
+        }
         other => panic!("{what}: the overrun arc is a circle or an ellipse, got {other:?}"),
     }
     // G1: the arc continues the mitre at `q`, and leaves `L` along it.

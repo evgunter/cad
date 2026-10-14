@@ -419,10 +419,10 @@ fn line_meetings<T: Decide>(
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
-        } => conic(center, axis, u_ref, major, minor),
+        } => conic(center, axis, u_ref, semi_u, semi_v),
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => Vec::new(),
     }
 }

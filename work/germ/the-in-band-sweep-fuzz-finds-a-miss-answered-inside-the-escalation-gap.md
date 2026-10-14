@@ -191,3 +191,13 @@ reshuffled the stream from there on (seed `11` at effort 10 went green
 under the pre-fix door with the judge alone changed). Moving the draw
 reshuffles it once more, so the seeds above are not replays of their
 poses on this branch. `GAP_WITNESSES` is what pins those poses.
+
+## Another seed (CLEAVE, PR 4861's CI, run 38272226876, 2026-10-13)
+
+`CAD_FUZZ_SEED=0xc15ec3dfe26134a8 CAD_FUZZ_EFFORT=1` at ε = 1e-6
+answers `Ok(Miss)` for a circle `9.660e-6` clear of the wall (`r`
+32.836, `ρ` 0.0226, 0 true roots), again inside the escalation gap.
+It reproduces locally on the branch, whose diff on this path is the
+`Curve3::Ellipse` field rename alone.
+It was found before the root-cause fixes above and has not been
+replayed against them.
