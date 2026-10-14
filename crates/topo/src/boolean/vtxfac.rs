@@ -1671,84 +1671,120 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         .map(|he| piercing_body.face_of_linked(he))
         .collect();
     let extent = super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(p, arm));
+    // The pierced face's bend at the point, which a held run on a
+    // curved face, or over one, is charged for (below).
+    let pierced_lever = PierceLever::of(
+        pierced_body.face_surface_linked(
+            pierced,
+            proven(&pierced_body.faces, pierced, EntityId::Face),
+        ),
+        p,
+    )
+    .within(arm);
     for face in faces {
         if own.contains(&face) {
             continue;
         }
-        let Some(plane) = face_plane(piercing_body, face) else {
-            // A curved face is read only where its box can hold the
-            // point, as a plane is only where the point is on it.
-            if !box_holds(face, p) {
-                continue;
-            }
-            // Off the carrier, the face holds nothing: decided first, as
-            // the plane arm decides its plane first. A spline face has no
-            // residual, and its trim is asked.
-            let surface = piercing_body
-                .face_surface_linked(face, proven(&piercing_body.faces, face, EntityId::Face));
-            if !matches!(
-                surface.kind(),
-                geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
-            ) && matches!(
-                decide(
-                    "bool_curved_contain_carrier",
-                    Margin::of(geom_brep::implicit_residual(surface, p)),
-                    band,
-                ),
-                Ok(Sign::Positive | Sign::Negative)
-            ) {
-                continue;
-            }
-            // A face on one of their carriers is their sibling there,
-            // which a valid body never lets overlap them: it holds the
-            // point outside.
-            if own
-                .iter()
-                .any(|&o| one_carrier(piercing_body, o, face, &extent, band))
-            {
-                continue;
-            }
-            let (placement, _) =
-                super::contain::curved_face_placement_decided(piercing_body, face, p, band)
-                    .map_err(|e| super::reduce::esc(e, piercing, face))?;
-            let kind = kind_of(piercing_body, face);
-            match placement {
-                super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) => {
+        // The face's outward normal at the point, its bend there (`None`
+        // on a plane), and the margin that put the point on it.
+        let (held_normal, held_lever, on) = match face_plane(piercing_body, face) {
+            None => {
+                // A curved face is read only where its box can hold the
+                // point, as a plane is only where the point is on it.
+                if !box_holds(face, p) {
+                    continue;
+                }
+                // Off the carrier, the face holds nothing: decided first,
+                // as the plane arm decides its plane first. A spline face
+                // has no residual, and its trim is asked.
+                let surface = piercing_body.face_surface_linked(
+                    face,
+                    proven(&piercing_body.faces, face, EntityId::Face),
+                );
+                let side = (!matches!(
+                    surface.kind(),
+                    geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
+                ))
+                .then(|| {
+                    geom_core::k_stats::decide_reported(
+                        "bool_curved_contain_carrier",
+                        Margin::of(geom_brep::implicit_residual(surface, p)),
+                        band,
+                    )
+                });
+                if matches!(side, Some(Ok(ref d)) if d.sign != Sign::Zero) {
+                    continue;
+                }
+                let held_lever = PierceLever::of(surface, p).within(arm);
+                // A face on one of their carriers is their sibling there,
+                // which a valid body never lets overlap them: it holds
+                // the point outside.
+                if own
+                    .iter()
+                    .any(|&o| one_carrier(piercing_body, o, face, &extent, band))
+                {
+                    continue;
+                }
+                let (placement, _) =
+                    super::contain::curved_face_placement_decided(piercing_body, face, p, band)
+                        .map_err(|e| super::reduce::esc(e, piercing, face))?;
+                let kind = kind_of(piercing_body, face);
+                match placement {
+                    super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) => {}
+                    // Where the trim cannot say, nothing is guessed: the
+                    // face may hold the point (D4).
+                    super::contain::CurvedPlacement::Trim(None) => {
+                        return Err(unbuilt(face, kind, false));
+                    }
+                    // Off the face, or on its boundary, which the sweep's
+                    // pierces and splits hold.
+                    super::contain::CurvedPlacement::OffCarrier
+                    | super::contain::CurvedPlacement::Trim(Some(_)) => continue,
+                }
+                // A spline face's trim never places a point In; were one
+                // to, the face has no residual and no normal to build on.
+                let Some(side) = side else {
                     return Err(unbuilt(face, kind, true));
+                };
+                let side = side.map_err(|diag| {
+                    BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
+                })?;
+                let normal =
+                    match crate::face_normal::face_outward_normal_at(piercing_body, face, p, band) {
+                        Ok(Some(n)) => n.vec(),
+                        Ok(None) => return Err(unbuilt(face, kind, true)),
+                        Err(refusal) => {
+                            return Err(BooleanError::of_pierced_normal(refusal, piercing, face));
+                        }
+                    };
+                (normal, Some(held_lever), side.margin)
+            }
+            Some(plane) => {
+                let side = geom_core::k_stats::decide_reported(
+                    "bool_vertex_face_side",
+                    Margin::of((p - plane.origin).dot(plane.normal)),
+                    band,
+                );
+                if matches!(side, Ok(ref d) if d.sign != Sign::Zero) {
+                    continue;
                 }
-                super::contain::CurvedPlacement::Trim(None) => {
-                    return Err(unbuilt(face, kind, false));
+                // A plane the point is in band of matters only where the
+                // point lies in the face. On the face's boundary the point
+                // is a vertex or an edge of the piercing body: the sweep's
+                // pierces and splits hold it.
+                let (at, _) =
+                    super::contain::contfp_decided(piercing_body, face, plane.normal, p, band)
+                        .map_err(|e| super::reduce::esc(e, piercing, face))?;
+                if at != FaceContainment::In {
+                    continue;
                 }
-                // Off the face, or on its boundary, which the sweep's
-                // pierces and splits hold.
-                super::contain::CurvedPlacement::OffCarrier
-                | super::contain::CurvedPlacement::Trim(Some(_)) => continue,
+                let side = side.map_err(|diag| {
+                    BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
+                })?;
+                (plane.normal, None, side.margin)
             }
         };
-        let side = geom_core::k_stats::decide_reported(
-            "bool_vertex_face_side",
-            Margin::of((p - plane.origin).dot(plane.normal)),
-            band,
-        );
-        if matches!(side, Ok(ref d) if d.sign != Sign::Zero) {
-            continue;
-        }
-        // A plane the point is in band of matters only where the point
-        // lies in the face. On the face's boundary the point is a vertex
-        // or an edge of the piercing body: the sweep's pierces and
-        // splits hold it.
-        let (at, _) = super::contain::contfp_decided(piercing_body, face, plane.normal, p, band)
-            .map_err(|e| super::reduce::esc(e, piercing, face))?;
-        if at != FaceContainment::In {
-            continue;
-        }
-        let side = side.map_err(|diag| {
-            BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
-        })?;
-        if face_plane(pierced_body, pierced).is_none() {
-            return Err(unbuilt(face, geom::SurfaceKind::Plane, true));
-        }
-        let int = plane.normal.cross(plan.normal);
+        let int = held_normal.cross(plan.normal);
         match decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
@@ -1763,6 +1799,35 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                     DeclarationRead::Moot,
                     diag,
                 ));
+            }
+        }
+        // **The run's half, charged for the bends.** The face's half
+        // above the pierced face leaves it at the sine `|n × n_pierced|`
+        // along the face's direction across the section. Past the two
+        // faces' sagittas, each `l²/ρ` at `l` (`sectors::sagitta_charge`
+        // carries why without the ½), it stands at least
+        // `sin·l − l²·(1/ρ + 1/ρ_pierced)` off the pierced face: the
+        // charge at the combined bend, read where it peaks within the
+        // pierce's arm. Two planes have no bend, and are not charged.
+        if held_lever.is_some() || face_plane(pierced_body, pierced).is_none() {
+            let held = held_lever.unwrap_or_else(super::sectors::NO_CURVATURE);
+            let lever = T::one() / (T::one() / held + T::one() / pierced_lever);
+            match crate::validate::decide_reported(
+                "bool_held_pierce_curved",
+                Margin::of(super::sectors::sagitta_charge(int.norm(), lever, arm)),
+                band,
+            ) {
+                Ok(decided) => {
+                    if let Some(refused) = geom_brep::recourse::Refused::of(decided, band) {
+                        return Err(BooleanError::CurvedSectorSideUnsupported { verdict: refused });
+                    }
+                }
+                Err(diag) => {
+                    return Err(BooleanError::Escalated {
+                        decision: super::BooleanDecision::PierceCurvature,
+                        diag,
+                    });
+                }
             }
         }
         let (w, ring_loop) = ring_vertex_in(piercing_body, face, p, tol)?;
@@ -1799,7 +1864,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         };
         out.push(HeldPierce {
             strut: rec,
-            on: side.margin,
+            on,
             plan: RingPlan {
                 contact: VfContact {
                     vertex: w,
