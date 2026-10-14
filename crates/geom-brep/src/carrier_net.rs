@@ -368,10 +368,7 @@ pub(crate) fn carrier_net<T: CertifiedBounds>(
 /// bracket's, so the span covers the edge's interval at every scalar),
 /// held there. The edge certificate and the mint's image read this one
 /// rule, so the image one certifies is the image the other stores.
-pub(crate) fn carrier_span<T: Bounds>(
-    carrier: &Curve3<T>,
-    params: (T, T),
-) -> ((f64, f64), (T, T)) {
+pub(crate) fn carrier_span<T: Bounds>(carrier: &Curve3<T>, params: (T, T)) -> ((f64, f64), (T, T)) {
     if let Curve3::Nurbs(net) = carrier {
         return (net.domain(), net.knot_values().domain());
     }
