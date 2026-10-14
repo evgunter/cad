@@ -2001,8 +2001,10 @@ fn section_end_reading<T: Real>(curve: &SectionCurve<T>) -> Option<SectionEndRea
 ///   `ρ`, reads Zero is the carrier's rounding: a kernel limitation
 ///   too. Any other definite miss keeps the gate's refusal.
 ///
-/// Every other check, a margin nobody could read, and a carrier with no
-/// bound keep the gate's refusal.
+/// Every other check, a carrier with no bound, and an escalation that is
+/// no statement about the input keep the gate's refusal: a margin nobody
+/// could read, or an enclosure that straddles a boundary, which
+/// subdividing may still decide (D9 row 1).
 fn section_pin_refusal<T: Decide>(
     reading: SectionEndReading,
     face: FaceKey,
@@ -2020,7 +2022,9 @@ fn section_pin_refusal<T: Decide>(
         return refusal.into();
     };
     match *error {
-        geom_brep::CertifyError::Escalated { check, cause, .. } if !cause.margin.is_invalid() => {
+        geom_brep::CertifyError::Escalated { check, cause, .. }
+            if cause.margin.kind() == geom_core::MarginKind::Value || cause.terminal_sliver =>
+        {
             let typed = match check {
                 C::EndpointStart | C::EndpointEnd => Some(reading),
                 C::SurfaceResidual { .. } | C::WitnessSurfaceResidual { .. } => {

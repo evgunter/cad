@@ -264,8 +264,9 @@ fn a_definite_miss_within_the_resolution_is_the_carriers() {
 /// carrier that resolves it: a residual off the surfaces on the plane's
 /// own section, a witness missed, and a definite residual. On one that
 /// does not, an in-band residual or witness is the carrier's limitation.
-/// A pin whose margin nobody could read, and any pin on a carrier with no
-/// bound (a spiric), keep the gate's.
+/// A pin whose margin nobody could read, one whose enclosure straddles
+/// the zero band's edge (subdividing may decide it), and any pin on a
+/// carrier with no bound (a spiric), keep the gate's.
 #[test]
 fn what_no_reading_explains_stays_the_gates() {
     let gates = |got: &SplitJoinError| matches!(got, SplitJoinError::Euler(_));
@@ -321,6 +322,18 @@ fn what_no_reading_explains_stays_the_gates() {
     };
     let got = read(SectionEndReading::OnPlane, &far, far_ends(&far), unreadable);
     assert!(gates(&got), "an unreadable margin: {got:?}");
+    let straddle = EulerOpError::Certification {
+        error: CertifyError::Escalated {
+            check: CertCheck::EndpointStart,
+            sample: 0,
+            cause: Indeterminate {
+                margin: MarginDiag::enclosure(0.0, 2.0 * EPS),
+                ..cause()
+            },
+        },
+    };
+    let got = read(SectionEndReading::OnPlane, &arc(), arc_ends(), straddle);
+    assert!(gates(&got), "a straddling enclosure: {got:?}");
     let spiric = EdgeCurveSpec {
         carrier: geom::Curve3::Spiric {
             center: Point3::origin(),
