@@ -9,6 +9,7 @@ cost: M
 refs: [validity-refuses-an-interior-chart-singularity]
 branch: band/corner-patch-chart-pole
 closed: 2026-10-14
+pr: 5048
 ---
 
 
