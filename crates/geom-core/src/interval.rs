@@ -709,6 +709,16 @@ impl Real for Interval {
         Self(self.0.powi(n))
     }
 
+    /// `[lo·k, hi·k]` unpadded where both results are normal and `k` is
+    /// a positive normal power of two; the general product everywhere
+    /// else ([`DInterval::scale_pow2`] states each case). Bit for bit
+    /// the general product wherever that product is itself exact, and
+    /// inside its one-step pad between the smallest normal and the 2Prod
+    /// floor, where it cannot certify the exact value.
+    fn scale_pow2(self, k: f64) -> Self {
+        Self(self.0.scale_pow2(k))
+    }
+
     /// The pair `(sin(self), cos(self))`, each component an outward-padded
     /// enclosure of its own. No paired/fused override could do
     /// better: at interval type the two components are independent
@@ -1242,6 +1252,29 @@ mod tests {
     /// Shorthand: the enclosure [lo, hi].
     fn iv(lo: f64, hi: f64) -> Interval {
         Interval::from_bounds(lo, hi)
+    }
+
+    /// **The interval scalar's `scale_pow2` is the backend's exact
+    /// scale, not the trait's default product.** Just above the
+    /// smallest normal the general product cannot certify an exact
+    /// halving (it is under the backend's 2Prod floor) and pads it one
+    /// step; the override returns the exact half, so a lost override
+    /// reds here. Above the floor the two agree bit for bit, and at
+    /// `f64` the door is the product.
+    #[test]
+    fn the_power_of_two_scale_is_the_backends_exact_scale() {
+        let least = f64::MIN_POSITIVE;
+        let x = iv(4.0 * least, 8.0 * least);
+        let got = x.scale_pow2(0.5);
+        assert_eq!((got.lo(), got.hi()), (2.0 * least, 4.0 * least));
+        let general = x * Interval::from_f64(0.5);
+        assert!(general.lo() < got.lo() && got.hi() < general.hi());
+        let x = iv(-3.0, 0.375);
+        assert_eq!(
+            x.scale_pow2(0.25).repr_bits(),
+            (x * Interval::from_f64(0.25)).repr_bits()
+        );
+        assert_eq!(Real::scale_pow2(0.375_f64, 0.25), 0.375 * 0.25);
     }
 
     /// A named unary trait operation (for the monotonicity tables).

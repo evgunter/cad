@@ -53,6 +53,56 @@ impl Mul for DInterval {
     }
 }
 
+impl DInterval {
+    /// **`self · k` for `k` a positive normal power of two**, exact
+    /// wherever the result is normal, without the general product's
+    /// corner fold or its exactness witnesses.
+    ///
+    /// Scaling a finite `x` by a power of two only moves its exponent,
+    /// so `x·k` is exact whenever the result is normal, and the
+    /// shortcut returns `[lo·k, hi·k]` unpadded when both endpoints land
+    /// there (or are zero). Against the general product
+    /// `self * DInterval::point(k)`:
+    ///
+    /// - at `|x·k| >= TWO_PROD_VALID_MIN` that product certifies the
+    ///   same exact `x·k` through its 2Prod witness, so the two agree
+    ///   bit for bit;
+    /// - between the smallest normal and that floor the witness cannot
+    ///   certify, so the general product pads one step outward and the
+    ///   shortcut is the exact value inside it;
+    /// - every other case — an endpoint scaled into the subnormal range,
+    ///   where round-to-nearest would not be outward; an overflow; an
+    ///   infinite endpoint; a poisoned or empty operand; a `k` that is
+    ///   not a positive normal power of two — IS the general product.
+    #[must_use]
+    pub fn scale_pow2(self, k: f64) -> Self {
+        if Self::propagate1(&self).is_none()
+            && is_normal_pow2(k)
+            && let (Some(lo), Some(hi)) = (exact_scale(self.lo, k), exact_scale(self.hi, k))
+        {
+            return Self::make(lo, hi, self.dec);
+        }
+        self * Self::point(k)
+    }
+}
+
+/// `k > 0` with an all-zero significand at a normal exponent.
+fn is_normal_pow2(k: f64) -> bool {
+    const SIGNIFICAND: u64 = (1 << 52) - 1;
+    k > 0.0 && k.is_normal() && k.to_bits() & SIGNIFICAND == 0
+}
+
+/// `x·k` when it is exact for `k` a power of two: an exact zero (as
+/// `+0.0`, which is what [`mul_lo`]/[`mul_hi`] return for a zero
+/// factor), or a finite normal product.
+fn exact_scale(x: f64, k: f64) -> Option<f64> {
+    if x == 0.0 {
+        return Some(0.0);
+    }
+    let r = x * k;
+    (r.is_finite() && r.abs() >= f64::MIN_POSITIVE).then_some(r)
+}
+
 /// A directed corner operation: the lower and the upper bound of one
 /// corner value `x ∘ y`, one type per operation so the two bounds come
 /// as a pair and cannot be swapped.
@@ -291,5 +341,120 @@ mod tests {
             points > 1000,
             "the table reaches the point paths: {points} quotients"
         );
+    }
+
+    /// The scales [`DInterval::scale_pow2`] is read at: the extremes of
+    /// the normal powers of two, the halvings the quotient pieces use,
+    /// and — through the general product — values that are not
+    /// positive normal powers of two.
+    const SCALES: [f64; 14] = [
+        2.2250738585072014e-308,
+        9.313225746154785e-10,
+        0.0078125,
+        0.25,
+        0.5,
+        1.0,
+        2.0,
+        1024.0,
+        8.98846567431158e307,
+        3.0,
+        0.1,
+        -0.5,
+        5e-324,
+        0.0,
+    ];
+
+    /// **A power-of-two scale is the general product wherever that
+    /// product is exact, and inside it where it pads.** Every interval
+    /// over [`intervals`] at every scale in [`SCALES`], against
+    /// `x * DInterval::point(k)`: where the general product's endpoints
+    /// are its unpadded corners `x·k` (zero, or at or above the 2Prod
+    /// floor) the two agree bit for bit, decoration included; between
+    /// the smallest normal and that floor the shortcut is `x·k` itself,
+    /// inside the general product's padded step; everywhere else — the
+    /// subnormal range, overflow, infinite endpoints, a `k` that is not
+    /// a positive normal power of two — it is the general product.
+    #[test]
+    fn a_power_of_two_scale_is_the_general_product_where_that_is_exact() {
+        let (mut agreed, mut inside) = (0, 0);
+        let floor = |v: f64| v == 0.0 || v.abs() >= TWO_PROD_VALID_MIN;
+        for &x in &intervals() {
+            for &k in &SCALES {
+                let (got, want) = (x.scale_pow2(k), x * DInterval::point(k));
+                let shortcut = is_normal_pow2(k)
+                    && exact_scale(x.lo, k).is_some()
+                    && exact_scale(x.hi, k).is_some();
+                if !shortcut || (floor(x.lo * k) && floor(x.hi * k)) {
+                    assert_eq!(bits(got), bits(want), "{x:?} scaled by {k:e}");
+                    agreed += 1;
+                } else {
+                    let exact = |v: f64| if v == 0.0 { 0.0 } else { v * k };
+                    assert_eq!(
+                        (got.lo.to_bits(), got.hi.to_bits(), got.dec),
+                        (exact(x.lo).to_bits(), exact(x.hi).to_bits(), want.dec),
+                        "{x:?} scaled by {k:e}"
+                    );
+                    assert!(want.lo <= got.lo && got.hi <= want.hi, "{x:?} by {k:e}");
+                    inside += 1;
+                }
+            }
+        }
+        assert!(
+            agreed > 500 && inside > 10,
+            "{agreed} agreed, {inside} inside"
+        );
+    }
+
+    /// **In the normal range the scale is exact**: no pad, so halving
+    /// and doubling back returns the operand's own endpoints — down to
+    /// the smallest normal, under the 2Prod floor where the general
+    /// product pads.
+    #[test]
+    fn a_normal_range_scale_encloses_exactly() {
+        let least = f64::MIN_POSITIVE;
+        for (lo, hi) in [
+            (-3.0, 0.375),
+            (1e-300, 1e300),
+            (-f64::MAX / 4.0, -1e-200),
+            (4.0 * least, 4.0 * least),
+        ] {
+            let x = DInterval::from_bounds(lo, hi);
+            for k in [0.5, 0.25, 2.0] {
+                let y = x.scale_pow2(k);
+                assert_eq!((y.lo, y.hi), (lo * k, hi * k), "[{lo:e}, {hi:e}] by {k}");
+                let back = y.scale_pow2(1.0 / k);
+                assert_eq!(
+                    (back.lo, back.hi),
+                    (lo, hi),
+                    "[{lo:e}, {hi:e}] by {k} and back"
+                );
+            }
+        }
+    }
+
+    /// **Scaled into the subnormal range it still encloses.** `3` and
+    /// `5` subnormal steps halved are `1.5` and `2.5` steps, which round
+    /// to `2` under round-to-nearest-even: a lower bound above the true
+    /// value and an upper bound below it. The result, doubled back
+    /// (exact at these magnitudes), must still bracket the operand; so
+    /// must the smallest normal halved, which lands on a subnormal.
+    #[test]
+    fn a_scale_into_the_subnormal_range_still_encloses() {
+        let step = 5e-324;
+        let least = f64::MIN_POSITIVE;
+        for (lo, hi) in [
+            (3.0 * step, 5.0 * step),
+            (-5.0 * step, -3.0 * step),
+            (least + step, least + 3.0 * step),
+        ] {
+            let x = DInterval::from_bounds(lo, hi);
+            let y = x.scale_pow2(0.5);
+            assert!(
+                y.lo * 2.0 <= lo && y.hi * 2.0 >= hi,
+                "[{lo:e}, {hi:e}] halved reads [{:e}, {:e}]",
+                y.lo,
+                y.hi
+            );
+        }
     }
 }
