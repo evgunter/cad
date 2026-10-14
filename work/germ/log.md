@@ -1317,3 +1317,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Blinding byte 90 (even → Opus = A), committed to `analysis/design-fork/pt-section-gaps`.
   - Designers A and B dispatched concurrently as local subagents, lane dirs `germ-fork-ptgap-{a,b}`.
   - r5066a is still reviewing.
+- 2026-10-14 08:45 — **r5066a in**: 0 MAJOR, 2 MINOR, 2 NIT.
+  - Bound fuzz: ~66k readings, 0 below the arc. Winding: 7 000 reads, 0 wrong signs. No face-lane gate moved.
+  - MINORs: the topo pinch row is not red on pre-fix code at 1e-12; the `min` is unguarded.
+  - It shared one target dir across trees early on, then discarded and redid those runs; noted in the fair-pair column.
+  - **The 5066 pair is complete: no MAJOR either side** (tallied 0, major false). Coding byte 190, even → A = r5066a.
+  - Bilateral: the `min` unguarded; the fuzz weak on hole cuts; the tightness scope.
+  - Fix pass dispatched with the union (7 items): session_01NoyMieyyQZPrM4LRe5zzGx. Adjudication is in scratchpad/dr5066/adjudication.md.
