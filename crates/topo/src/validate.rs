@@ -6428,7 +6428,7 @@ fn is_finite_point<T: Real>(p: &geom_core::Point3<T>) -> bool {
 /// too: not unit, but a direction. Unit-ness and orthogonality are the
 /// frame's convention, read by the representability question at check 1
 /// ([`geom::Surface::representability_margins`]), not poison.
-fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
+pub(crate) fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
     use geom_core::is_finite_length as finite;
     let components = finite(v.x) && finite(v.y) && finite(v.z);
     let len = v.norm();
