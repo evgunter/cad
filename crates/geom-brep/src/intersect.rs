@@ -2645,7 +2645,7 @@ pub enum PlaneTorusSection<T: Real> {
         c2: Curve3<T>,
     },
     /// Axis-parallel plane OFF the axis, short of the inner equator
-    /// (`0 < |d| < R − r` for the stand-off `d = n·q − n·c`): the
+    /// (`0 < |d| < R − r` for the stand-off `d = n·(q − c)`): the
     /// spiric's TWO ovals, each the [`Curve3::Spiric`]
     /// [`Curve3::spiric`] mints from the torus and the plane's normal. Zero-residual-by-construction
     /// against both implicit forms in ℝ.
@@ -2708,9 +2708,9 @@ pub enum PlaneTorusSection<T: Real> {
 /// 2. `pt_axis_in_plane` — margin `(a·n)·extent` (the axis' angle off
 ///    the plane, metered at the operand extent): Zero ⇒ the axis
 ///    DIRECTION lies in the plane; then `pt_axis_plane_gap` — margin
-///    the stand-off `d = n·q − n·c` (meters, the plane's constant less
-///    the centre's), read with the meridian circles' lean `r·(a·n)`
-///    beside it ([`decide_across`]): Zero ⇒ the plane CONTAINS the
+///    the stand-off `d = n·(q − c)` (meters, the plane's origin less
+///    the centre, read along the normal), read with the meridian
+///    circles' lean `r·(a·n)` beside it ([`decide_across`]): Zero ⇒ the plane CONTAINS the
 ///    axis ⇒ [`PlaneTorusSection::MeridianCircles`], each standing at
 ///    most that sum off the plane; definite (`pt_axis_plane_gap_floor`) ⇒ the
 ///    axis-parallel plane OFF the axis, and then `pt_spiric_two_ovals`
@@ -2804,7 +2804,7 @@ pub fn plane_torus_section<T: Decide>(
             // `r·|a·n|` more, so the two are decided as one sum. An oval
             // is minted in a plane that the tilt moves off the real one
             // by up to the levered tilt, read beside its own gap.
-            let d = n.dot(q - Point3::origin()) - n.dot(c - Point3::origin());
+            let d = n.dot(q - c);
             match decide_across(
                 ["pt_axis_plane_gap", "pt_axis_plane_gap_floor"],
                 d,
@@ -2883,7 +2883,7 @@ pub fn plane_torus_section<T: Decide>(
                     // and the plane's depth into the tube moves by at
                     // most as much across them: the cap gap is decided
                     // beside it.
-                    let h = (n.dot(q - Point3::origin()) - n.dot(c - Point3::origin())) / a.dot(n);
+                    let h = n.dot(q - c) / a.dot(n);
                     let center = c + a * h;
                     match decide_across(
                         ["pt_cap_gap", "pt_cap_gap_floor"],

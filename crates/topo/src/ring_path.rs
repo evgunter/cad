@@ -896,7 +896,7 @@ impl<T: Decide> Quadric<T> {
     /// coordinate resolution: a section lane mints a circle's axis and
     /// radius from the plane's and the torus's stored directions and
     /// radii, never from a difference of far points
-    /// (`far_frame_rows::a_torus_circle_the_section_lane_mints_far_reads_its_kind_at_the_origin`).
+    /// (`far_frame_rows::a_torus_circle_the_section_lane_mints_in_the_box_reads_its_kind_at_the_origin`).
     pub(crate) fn torus_circle_arc(
         &self,
         carrier: &geom::Curve3<T>,
