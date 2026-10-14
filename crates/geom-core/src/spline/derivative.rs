@@ -574,6 +574,8 @@ fn product<T: Real, const A: usize, const B: usize, const C: usize>(
     b: &Grid<T, B>,
     mul: impl Fn([T; A], [T; B]) -> [T; C],
 ) -> Option<Grid<T, C>> {
+    #[cfg(test)]
+    tests::PRODUCTS.with(|n| n.set(n.get() + 1));
     let ((ma, na), (mb, nb)) = (a.degree(), b.degree());
     let (mu, mv) = (ma + mb, na + nb);
     if mu > QUOTIENT_MAX_DEGREE || mv > QUOTIENT_MAX_DEGREE {
@@ -1694,6 +1696,63 @@ mod tests {
                 .chain(&accel)
                 .all(|s| s.denom().iter().all(|&b| b > 0.0)),
             "a piece's weight power is not positive"
+        );
+    }
+
+    std::thread_local! {
+        /// How many Bernstein products this thread has formed.
+        pub(super) static PRODUCTS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+    }
+
+    /// **A cut forms no product.** A cell's first-order quotients are
+    /// formed once ([`super::cell_first_quotients`], which forms its
+    /// products), and every cut of them after that is a restriction and
+    /// halving of those products alone: red if a cut re-forms the
+    /// quotients from the cut block.
+    #[test]
+    fn a_cut_of_formed_quotients_forms_no_product() {
+        let (p, q) = (3, 2);
+        let n = (p + 1) * (q + 1);
+        let a: Vec<[Interval; 3]> = (0..n)
+            .map(|k| {
+                let (i, j) = ((k / (q + 1)) as f64, (k % (q + 1)) as f64);
+                [i, j, 0.1 * i * j].map(Interval::from_f64)
+            })
+            .collect();
+        let w: Vec<Interval> = (0..n)
+            .map(|k| Interval::from_f64(1.0 + 0.25 * ((k * 7) % 5) as f64))
+            .collect();
+        let knots_u = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0].map(Interval::from_f64);
+        let knots_v = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0].map(Interval::from_f64);
+        let ku = super::super::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], p)
+            .expect("a Bézier vector");
+        let kv = super::super::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], q)
+            .expect("a Bézier vector");
+        let axes = (
+            super::CellAxis::Span(ku.span(p).expect("the span"), &knots_u),
+            super::CellAxis::Span(kv.span(q).expect("the span"), &knots_v),
+        );
+        let formed = PRODUCTS.with(core::cell::Cell::get);
+        let whole =
+            super::cell_first_quotients(axes, super::CellBlock::Homogeneous { a: &a, w: &w })
+                .expect("a block under the ceiling");
+        assert!(
+            PRODUCTS.with(core::cell::Cell::get) > formed,
+            "forming the quotients forms products"
+        );
+        let before = PRODUCTS.with(core::cell::Cell::get);
+        let pieces = whole
+            .restrict((
+                Some(((0.0, 1.0), (0.25, 0.5))),
+                Some(((0.0, 1.0), (0.5, 0.75))),
+            ))
+            .pieces((2, 2))
+            .expect("the cut's pieces");
+        assert_eq!(pieces.len(), 4, "a cut's 2×2 pieces");
+        assert_eq!(
+            PRODUCTS.with(core::cell::Cell::get),
+            before,
+            "a cut formed a product"
         );
     }
 

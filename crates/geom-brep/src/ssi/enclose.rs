@@ -76,8 +76,8 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellFirstQuotients, CellQuotients, KnotVector, Knots,
-    ParamRange, RingRefinement, Span, TensorNet, basis::basis_funs_in, cell_first_quotients,
+    AxisCut, CellAxis, CellBlock, CellFirstQuotients, CellQuotients, KnotVector, Knots, ParamRange,
+    RingRefinement, Span, TensorNet, basis::basis_funs_in, cell_first_quotients,
 };
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
