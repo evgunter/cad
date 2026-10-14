@@ -15165,23 +15165,28 @@ mod tests {
     /// `Interval`, escalates).
     ///
     /// The second half pins the backstop a secant's unclamped
-    /// half-chord relies on: a candidate that is the poison is read
-    /// unsure by both trims, never apart.
+    /// half-chord relies on: a candidate that is the poison (NaN at
+    /// `f64`; at `Interval` the empty `√−1` and the partial
+    /// `√[−10⁻³, 10⁻³]`) is read unsure by both trims, never apart.
+    /// That behaviour predates the unclamped read; this half guards
+    /// [`window`] against reading an escalated trim as `Out`.
     #[test]
     fn arcs_crossing_at_unequal_radii_read_meeting() {
         use geom_core::Interval;
         type Arc = (f64, f64, f64, f64, f64);
-        fn read<T: Decide>(first: Arc, second: Arc, band: Band) -> &'static str {
-            let seg = |(x, y, r, t0, t1): Arc| MeetSegment::Arc {
+        fn seg<T: Real>((x, y, r, t0, t1): Arc) -> MeetSegment<T> {
+            MeetSegment::Arc {
                 center: Point3::new(T::from_f64(x), T::from_f64(y), T::zero()),
                 axis: geom_core::Vec3::new(T::zero(), T::zero(), T::one()),
                 radius: T::from_f64(r),
                 u_ref: geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
                 t0: T::from_f64(t0),
                 t1: T::from_f64(t1),
-            };
+            }
+        }
+        fn read<T: Decide>(first: Arc, second: Arc, band: Band) -> &'static str {
             let n = geom_core::Vec3::new(T::zero(), T::zero(), T::one());
-            match segments_meet(seg(first), seg(second), n, band) {
+            match segments_meet(seg::<T>(first), seg::<T>(second), n, band) {
                 EdgePair::Apart => "Apart",
                 EdgePair::Meet => "Meet",
                 EdgePair::Unsure(_) => "Unsure",
@@ -15237,19 +15242,78 @@ mod tests {
             }
         }
         let poison = Point3::new(f64::NAN, f64::NAN, 0.0);
-        let arc = |(x, y, r, t0, t1): Arc| MeetSegment::Arc {
-            center: Point3::new(x, y, 0.0),
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            radius: r,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
-            t0,
-            t1,
-        };
         if !matches!(
-            meet_at(None, &[poison], arc(second_big), arc(second_small), band),
+            meet_at(None, &[poison], seg(second_big), seg(second_small), band),
             EdgePair::Unsure(_)
         ) {
-            wrong.push("a poisoned candidate is not read unsure".to_owned());
+            wrong.push("f64: a NaN candidate is not read unsure".to_owned());
+        }
+        for (name, root) in [
+            ("an empty", Interval::from_f64(-1.0).sqrt()),
+            ("a partial", Interval::from_bounds(-1e-3, 1e-3).sqrt()),
+        ] {
+            let poison = Point3::new(root, root, Interval::zero());
+            if !matches!(
+                meet_at(None, &[poison], seg(second_big), seg(second_small), band),
+                EdgePair::Unsure(_)
+            ) {
+                wrong.push(format!(
+                    "Interval: {name} root's candidate is not read unsure"
+                ));
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    /// **A tangency's half-chord is read clamped**: two unit circles
+    /// that stand apart by `ε/4`, externally tangent within the band,
+    /// have a negative half-chord square. The tangent branch reads its
+    /// root as zero, so every candidate is the touching point, and with
+    /// both trims on the far sides of their circles the pair reads
+    /// `Apart`, at `f64` and at `Interval`. Read unclamped, the root is
+    /// the poison and the pair escalates.
+    #[test]
+    fn arcs_tangent_apart_in_the_band_read_apart_off_their_trims() {
+        use geom_core::Interval;
+        fn read<T: Decide>(band: Band) -> (Result<CirclePair, Indeterminate>, &'static str) {
+            let gap = T::from_f64(Tol::witness().eps() / 4.0);
+            let (c1, c2) = (
+                Point3::new(T::zero(), T::zero(), T::zero()),
+                Point3::new(T::from_f64(2.0) + gap, T::zero(), T::zero()),
+            );
+            let n = geom_core::Vec3::new(T::zero(), T::zero(), T::one());
+            let arc = |center, from: f64, to: f64| MeetSegment::Arc {
+                center,
+                axis: n,
+                radius: T::one(),
+                u_ref: geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
+                t0: T::from_f64(from.to_radians()),
+                t1: T::from_f64(to.to_radians()),
+            };
+            let pair = circle_pair(circles_of(c1, T::one(), c2, T::one()), band);
+            let got = match segments_meet(arc(c1, 90.0, 270.0), arc(c2, -90.0, 90.0), n, band) {
+                EdgePair::Apart => "Apart",
+                EdgePair::Meet => "Meet",
+                EdgePair::Unsure(_) => "Unsure",
+            };
+            (pair, got)
+        }
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mut wrong = Vec::new();
+        for (scalar, (pair, got)) in [
+            ("f64", read::<f64>(band)),
+            ("Interval", read::<Interval>(band)),
+        ] {
+            if !matches!(pair, Ok(CirclePair::ExternallyTangent) | Err(_)) {
+                wrong.push(format!(
+                    "{scalar}: the pair is not in the tangency's band: {pair:?}"
+                ));
+            }
+            if got != "Apart" {
+                wrong.push(format!(
+                    "{scalar}: the touching point lies off both trims, yet the pair read {got}"
+                ));
+            }
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
