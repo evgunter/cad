@@ -33,9 +33,10 @@
 //!   extremes under the `bool_conic_quadric_first_*` rows. The arm is
 //!   REQUIRED, for two poses the ladder cannot answer truthfully: a
 //!   CONSTANT residual (`F·(1 + t²)²`, which the ladder cannot read; the
-//!   extremes answer on-surface or miss), and a TANGENCY, which the
-//!   extremes put in the zero band and escalate, where the ladder can
-//!   certify a miss
+//!   extremes answer on-surface or miss), and a TANGENCY, whose extreme
+//!   reads in the zero band and answers `Uncertain` (escalating only where
+//!   an end of that extreme's error interval lies in the gap), where the
+//!   ladder can certify a miss
 //!   (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
 //!   Its poses:
 //!   - a circle square to a wall's axis, or within `2√(r·zero)` of
@@ -275,11 +276,11 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
         frame,
         &ladder_rows(decision),
-        Some(&RootSlack {
+        &RootSlack {
             row: LADDER_ROOT_SLACK,
             residual: &|theta| geom_brep::conic_quadric_residual(&conic, quadric, theta),
             f_per_metre_hi: T::one(),
-        }),
+        },
         band,
     )
 }
@@ -438,7 +439,7 @@ fn cone_roots<T: Decide>(
             |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
             ladder_frame(conic, (t0, t1), noise, h.floor),
             &ladder_rows(BooleanDecision::ArcConeRoots),
-            Some(&meter),
+            &meter,
             band,
         )?
     };

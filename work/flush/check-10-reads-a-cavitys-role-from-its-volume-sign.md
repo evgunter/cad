@@ -7,6 +7,8 @@ opened: 2026-10-11
 priority: P2
 cost: M
 design: true
+branch: flush/ev-shell-role
+pr: 4990
 ---
 
 
@@ -40,3 +42,33 @@ components check (`checks.rs`, `classify_shells`) therefore refuses a
 thin body it could count. The readers that share it are
 `props::shell_role_read` (`stands::ShellRead`), the result sort
 (`pieces.rs`), `shell.rs`'s void read, and the census's `gate_role`.
+
+## Measured (FLUSH `flush/thinness-by-pairs`, 2026-10-12)
+
+With PR 4636's sole-shell gate retired (Ev, PR 4690), this row's reader
+is the one thing that still refuses a slab whose pairs are all
+definite, at ε 1e-9 for every `t ∈ {10, 12, 15, 19}ε`:
+- `brick (−1,2)³ ∖ slab(t)` refuses `Escalated { ShellRole }` on the
+  cavity, as before.
+- `slab(t) ∪ brick (5,6)³`, in either order, refuses
+  `Escalated { ShellRole }` on the slab. The union assembles both
+  shells in one solid. The pieces sort (`pieces.rs` `pieces_of`) moves
+  a shell out only on a decided `Outer`, and the slab's role reads off
+  its in-band `V/A`. So the slab stays in the brick's solid, and check 10
+  refuses it there. `topo/tests/missed_ray_side.rs`
+  `a_thin_slab_is_a_legal_operand_against_a_brick_far_away_and_its_union_with_it_refuses`
+  pins it.
+
+At 21ε all three build. A role read off a crossing ray would let both
+build.
+
+## Ruling
+
+Ev approved the shell-role fork on PR 4990 (2026-10-14: "the recommendation sounds good"), including check 7 on the same reader ("three readers of one fact become one … an extremely good reason"). The design is in DESIGN D10 and D1, and fork-log row 138 records the answer.
+
+The implementation is this row's remaining work:
+- one role reader: aimed rays first, the certified volume only where no face offers an aim;
+- it serves check 10, the pieces sort, `shell`'s cavity read, the census's `gate_role`, `classify_shells`/`classify_shells_of`, `solid_contain`'s missed-ray side and check 7;
+- curved aim points as a second step.
+
+The aim's incidence is the implementer's, with a probe: fixed ~60°, or along the normal with advances measured from the aim point. See the 2026-10-13 log entry and `analysis/flush-shell-role-reports`.

@@ -44,9 +44,50 @@ vector area is their difference. The sphere's Gauss–Bonnet shares it.
 R1 of the same review (`review/4696-GdHo7F`, `overlapping_holes`) found
 the same overlap case.
 
-## The question
+## The question for Ev
 
-Whether the closed-form lane should decide containment itself (a
-point-in-loop test of each ring against the outer loop on the chart,
-pairwise ring disjointness, edge-edge crossing), or leave it to tier 3's
-deferred check and say so at the door. (FLUX cone-vector-area lane)
+Which layer guarantees that a face's loops bound one region of its
+surface before a closed-form measurement trusts them?
+
+Two designers weighed this independently and agree. Both say tier 3
+owns the statement "a face's loops bound one region" on every surface
+kind, as an arm of check 9. The measuring lanes read the loops as such
+a boundary and stop half-deciding it. The public measurement door
+(`mass_properties`, `classify_shells`) takes `&AtRestBody`.
+
+They differ only in detail:
+- A names the instrument: the face's chart polygon (`ChartBound`),
+  which the pcurve pass already builds.
+- B offers a variant (A′): a proof type at face level in `geom-brep`.
+
+The class is wider than the cone. It covers:
+- the sphere's overlapping holes;
+- the planar lane, which decides none of these premises;
+- `tier3-never-checks-a-planar-loop-is-simple`;
+- `check-9-meeting-arms-silent-off-a-plane`.
+
+The work then sits mostly on RESTFRONT's ground
+(`validate-tier3-curved-boundary-containment`). FLUX keeps three
+parts: the lane docs, retiring the cone's region guards once check 9
+covers them, and typing the door.
+
+## Ev's answer (2026-10-12, PR 4822)
+
+Ev approved the recommendation ("i think this sounds good!") and skipped
+the face-level proof type ("cool let's skip A' then"). So:
+- tier 3's check 9 owns "a face's loops bound one region" on every
+  surface kind, through a chart-polygon arm;
+- the closed-form lanes read their loops as such a boundary, and
+  document what they compute otherwise: an integral over what the loops
+  enclose, with multiplicity;
+- the cone's region guards (`HolesExceedFace`, contractibility, the
+  vertex-distinct decide, the once-round bound) retire once the arm
+  covers them, never before;
+- `mass_properties` and `classify_shells` take `&AtRestBody`.
+
+Design-fork log row 122.
+
+The check-9 arm is RESTFRONT's (`validate-tier3-curved-boundary-containment`).
+FLUX's part waits on it, apart from typing the door and the lane docs,
+which can land first.
+

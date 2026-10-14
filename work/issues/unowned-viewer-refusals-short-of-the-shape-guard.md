@@ -28,10 +28,12 @@ on that ground.
    `crates/editor-core/tests/refusal_concision_chains.rs`
    `FILED_NO_RECOURSE`, under the comment naming this file.
 2. **Name lineage refusals open with a label.** `Naming/SplitLineage`
-   and `Naming/FragmentLineage` render `… does not hold: split lineage of
-   edge EdgeKey(…) cycles: …`, which the guard reads as a label (it has
-   no word only a sentence has). Both rows are kernel-keyed, so the key
-   stands. They are admitted by `FILED`.
+   renders `… does not hold: split lineage of edge EdgeKey(…) cycles: …`,
+   which the guard reads as a label (it has no word only a sentence has).
+   The row is kernel-keyed, so the key stands. It is admitted by `FILED`.
+   (`Naming/FragmentLineage` was its sibling until
+   `fuse/face-lineage-at-append` retired it: face division rows are
+   checked where they are added, so no reader meets a cycle.)
 3. **A reversed interval ends on a short-edge lever.**
    `CertifyError::IntervalNotForward` with a definite `Negative`
    verdict, read at a build, renders "the stored parameter interval runs

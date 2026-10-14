@@ -30,7 +30,7 @@
 //! run's band.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::linalg::OrthoFrame;
+use geom_core::linalg::RigidMotion;
 use geom_core::sym::with_session_rules;
 use geom_core::{
     Decide, ParamSymbol, Point2, Point3, Real, Sym, SymBudget, SymCounts, SymRules, Tol, Vec2,
@@ -52,7 +52,7 @@ fn budget() -> SymBudget {
 /// {rim, span}) plus the side walls'.
 fn stadium_extrude<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(d, d, d)));
     let lp = bulge_loop(vec![
         (Point2::new(lit(-1.0), lit(0.0) - r), lit(0.0)),
         (Point2::new(lit(1.0), lit(0.0) - r), lit(0.5)),
@@ -81,7 +81,7 @@ fn stadium_extrude<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, 
 /// `revolve::surfaces` register.
 fn washer_revolve<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(d, d, d)));
     let lp = ProfileLoop::polygon([
         Point2::new(r, lit(0.0)),
         Point2::new(lit(2.0), lit(0.0)),
@@ -109,7 +109,7 @@ fn washer_revolve<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, S
 /// which is why its column moves independently of the other two.
 fn triangle_extrude<T: Decide + topo::AtRestPolicy>(d: T, _r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(d, d, d)));
     let lp = ProfileLoop::polygon([
         Point2::new(lit(0.0), lit(0.0)),
         Point2::new(lit(1.0), lit(0.0)),

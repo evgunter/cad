@@ -55,3 +55,26 @@ poses answers moves with rounding in the pose's construction. The gate
 (`crates/sweep/tests/split_through_a_ruling.rs`) takes every one of these poses and asserts
 what the split promises: tiers 1 and 2, and no wrong certified volume. Gating the sides at
 tier 3 would turn these ten into refusals.
+
+## Evidence: a cut at the zero-band edge of a tangency (PR 4394's review)
+
+The rounded shoulder (`crates/sweep/tests/wedge_end_doors.rs`, `shoulder(h)`: unit quarter arc
+below a 2 × 2 block, extruded `h`), cut by `y = 1 − δ`, normal `−y`. The cut is tangent to the
+wall to within the zero band, so the section table answers `TangentLine` and the split mints the
+seam on the cut plane, `|δ|` off the cylinder. At `δ = −ε`, or a hair inside it, the split returns
+`Ok` with a side that tier 3 refuses (the `y < 1` side):
+
+| ε | δ | h = c·√(2ε) | seam stored | tier 3 on that side |
+|---|---|---|---|---|
+| 1e-6 | −1.0·ε | c ∈ {0.5, 0.9} | `Chart` on the cut plane | `VolumeUncomputable` on the wall: `props_meridian_on_surface` enclosure [9.99999999947e-7, 1.0000000001e-6] |
+| 1e-12 | −0.9999·ε | c ∈ {0.5, 0.9, 8} | `Chart` (c < 1), `TangentIntersection` (c = 8) | `VolumeUncomputable` on the wall: `props_loop_closed` enclosure [9.9964e-13, 1.0002e-12] |
+
+The 1e-12, c = 8 row (the intrinsic route) does the same on main before PR 4394. The `Chart` rows
+are PR 4394's: that PR routes the tangent chord through the must-carry rule, and a chart image is
+metered against the plane it is charted on only, so the carrier's ε offset from the wall shows up
+first at the props walk. At 1e-6 the intrinsic route (c = 8) refuses typed instead
+(`Join(Euler(Certification { Escalated { TangentGap } }))`, which meters both surfaces); at
+`|δ| ≥ 1.0001·ε` the reduction refuses `SliverVertex`, and every other `|δ| ≤ 0.9999·ε` row is
+tier-3 valid. Gating the sides at tier 3 would turn these rows into typed refusals. The reviewer's
+probe is `probe_band_edge_offsets` on branch `tang/split-chord-review-probes`
+(`crates/sweep/tests/tang_split_chord_review_probes.rs`).

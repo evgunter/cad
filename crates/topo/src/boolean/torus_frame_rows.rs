@@ -420,7 +420,7 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
     );
     let torus = donut();
     for extent in [FrameExtent::Radii, FrameExtent::Span(REACH)] {
-        let got = pair_section_frame_at(&p, &torus, Point3::origin(), extent, b);
+        let got = pair_section_frame_at(&p, &torus, Point3::origin(), extent.clone(), b);
         assert!(
             matches!(got, Err(FrameError::Desync(_))),
             "plane×torus under {extent:?}: got {}",

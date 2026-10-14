@@ -5922,8 +5922,13 @@ fn bent_path_flat_wall(alpha: f64, width: f64, kappa: f64, mu: f64) -> NurbsSurf
 /// state's arm is the extent, and the march answers the line; a
 /// parameter line's own radius, about 9 mm here, would put `sin θ` times
 /// it inside the band at ε 1e-9, where the chart's reading refuses. One
-/// branch on the line at ε 1e-9 and 1e-12; at 1e-6 the angle is itself
-/// inside the band. (`μ` 0.1 refuses on limb 3 at ε 1e-12:
+/// branch on the line at ε 1e-12. At 1e-6 the angle is itself inside the
+/// band, and at 1e-9 the slope across the `v = 0` side is: the wall's
+/// `v` direction runs along `y`, in the plane, and the strip's
+/// derivative box reads that slope's margin exactly, `8e-9 m`, so the
+/// side refuses as possibly tangent
+/// (`work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md`).
+/// (`μ` 0.1 refuses on limb 3 at ε 1e-12:
 /// `work/ssimarch/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`.)
 #[test]
 fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
@@ -5948,6 +5953,29 @@ fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
             Ok(out) => out,
             Err(e) if eps >= 1e-6 => {
                 vacuity::stood_down(&at, &format!("α is inside the band: {e}"));
+                return;
+            }
+            // The side's slope margin, read exactly at `8e-9`, lies in
+            // `(1e-9, 1e-8)`: the refusal names the `v = 0` side and that
+            // margin, and any other refusal is red.
+            Err(SsiError::BoundaryTangent {
+                side:
+                    ChartSide {
+                        fixed: ChartAxis::V,
+                        end: ChartEnd::Low,
+                    },
+                verdict: ssi::BandVerdict::Undecided(cause),
+            }) if eps >= 1e-9 => {
+                let geom_core::ErrorTextReading::Value(m) =
+                    cause.margin.diagnostic_f64_for_error_text()
+                else {
+                    panic!("{at}: the side's margin was not read: {cause:?}");
+                };
+                assert!(
+                    (1e-9..1e-8).contains(&m) && (m - 8e-9).abs() <= 1e-14,
+                    "{at}: the v = 0 side's slope margin {m:e}, expected 8e-9 inside the band"
+                );
+                vacuity::stood_down(&at, "the slope across the v = 0 side is inside the band");
                 return;
             }
             Err(e) => panic!("{at}: expected the line, got {e}"),

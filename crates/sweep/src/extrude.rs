@@ -520,7 +520,11 @@ impl fmt::Display for ExtrudeError {
             ),
             Self::ExtrusionEscalated { source } => write!(
                 f,
-                "whether the extrusion leaves the sketch plane is too close to call: {source}"
+                "{}",
+                source.undecided(
+                    "whether the extrusion leaves the sketch plane",
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::CosurfaceEscalated {
                 loop_index,
@@ -528,8 +532,14 @@ impl fmt::Display for ExtrudeError {
                 source,
             } => write!(
                 f,
-                "whether the walls meeting at loop {loop_index} vertex {vertex_index} share \
-                 one surface is too close to call: {source}"
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether the walls meeting at loop {loop_index} vertex {vertex_index} \
+                         share one surface"
+                    ),
+                    source.lever_ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::SliverJoin {
                 loop_index,
@@ -1256,33 +1266,32 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 // smooth refutes this arm's premise, and the strut
                 // refuses rather than store a description neither
                 // reading chose.
-                let refused = |refusal| match refusal {
-                    geom_brep::MustCarryRefusal::InBand(escalation) => {
-                        let (reading, source) = DihedralReading::of_must_carry(escalation);
-                        ExtrudeError::SliverJoin {
-                            loop_index,
-                            vertex_index: segs[j].chord.canonical_vertex,
-                            reading,
-                            source,
-                        }
-                    }
-                    geom_brep::MustCarryRefusal::Refuted => {
-                        ExtrudeError::SmoothJoinRefuted { edge: strut.edge }
-                    }
+                let vertex_index = segs[j].chord.canonical_vertex;
+                let sliver = |reading, source| ExtrudeError::SliverJoin {
+                    loop_index,
+                    vertex_index,
+                    reading,
+                    source,
                 };
-                let (pair, [sa, sb]) = SurfacePair::sorted(k_prev, &s_prev, k_next, &s_next);
-                match geom_brep::must_carry_over_edge(
-                    sa,
-                    sb,
-                    &carrier,
-                    T::zero(),
-                    w_norm,
-                    w_norm,
+                match geom_brep::must_carry_description(
+                    geom_brep::SmoothJoin {
+                        surfaces: [(k_prev, &s_prev), (k_next, &s_next)],
+                        carrier: &carrier,
+                        interval: (T::zero(), w_norm),
+                        chord: w_norm,
+                        witness: mid,
+                    },
                     band,
-                )
-                .description(pair, mid)
-                .map_err(refused)?
-                {
+                    || k_prev,
+                    sliver,
+                    sliver,
+                    || ExtrudeError::SmoothJoinRefuted { edge: strut.edge },
+                    |chart| {
+                        unreachable!(
+                            "{chart:?} is the previous wall's surface, one of the strut's pair"
+                        )
+                    },
+                )? {
                     geom_brep::MustCarryDescription::Intrinsic(description) => {
                         let spec = EdgeCurveSpec {
                             description,
@@ -1292,7 +1301,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         };
                         body.set_edge_curve(strut.edge, spec, tol)?;
                     }
-                    geom_brep::MustCarryDescription::Conventional => {
+                    geom_brep::MustCarryDescription::Conventional(chart) => {
                         // No intrinsic tangency is demanded: a station
                         // read the second order zero-side (the surfaces
                         // under-determine the locus), or every station
@@ -1343,7 +1352,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         // strut against `k_next` — and it is benign
                         // here only because of the ruling argument
                         // above.
-                        body.describe_at_rest(strut.edge, k_prev, tol)?;
+                        body.describe_at_rest(strut.edge, chart, tol)?;
                     }
                 }
             }
@@ -1645,23 +1654,27 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         // choice). The at-rest gate then refuses the body, because a
         // smooth cap–wall pair has no material side.
         Ok(DihedralClass::Smooth) => {
-            let refused = |refusal| match refusal {
-                geom_brep::MustCarryRefusal::InBand(escalation) => {
-                    let (reading, source) = DihedralReading::of_must_carry(escalation);
-                    ExtrudeError::SliverRim {
-                        loop_index,
-                        segment_index,
-                        reading,
-                        source,
-                    }
-                }
-                geom_brep::MustCarryRefusal::Refuted => ExtrudeError::SmoothJoinRefuted { edge },
+            let sliver = |reading, source| ExtrudeError::SliverRim {
+                loop_index,
+                segment_index,
+                reading,
+                source,
             };
-            let (pair, [sa, sb]) = SurfacePair::sorted(cap, &s_cap, wall, &s_wall);
-            match geom_brep::must_carry_over_edge(sa, sb, &carrier, t0, t1, extent, band)
-                .description(pair, witness)
-                .map_err(refused)?
-            {
+            match geom_brep::must_carry_description(
+                geom_brep::SmoothJoin {
+                    surfaces: [(cap, &s_cap), (wall, &s_wall)],
+                    carrier: &carrier,
+                    interval: (t0, t1),
+                    chord: q_from.distance(q_to),
+                    witness,
+                },
+                band,
+                || wall,
+                sliver,
+                sliver,
+                || ExtrudeError::SmoothJoinRefuted { edge },
+                |chart| unreachable!("{chart:?} is the wall's surface, one of the rim's pair"),
+            )? {
                 geom_brep::MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {
                         description,
@@ -1671,8 +1684,8 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
                     };
                     body.set_edge_curve(edge, spec, tol)?;
                 }
-                geom_brep::MustCarryDescription::Conventional => {
-                    body.describe_at_rest(edge, wall, tol)?;
+                geom_brep::MustCarryDescription::Conventional(chart) => {
+                    body.describe_at_rest(edge, chart, tol)?;
                 }
             }
             Ok(())
@@ -1693,6 +1706,37 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **An extrude escalation ends by its decision's kind.** The
+    /// extrusion's components are lengths, and offer the tolerance a
+    /// value gives; the cosurface distance selects whether two walls
+    /// merge, and ends in the lever alone.
+    #[test]
+    fn an_extrude_escalation_ends_by_its_decisions_kind() {
+        use crate::swept::undecided_fixtures::{LEVER, SIZED, expected, readings};
+        for name in ["extrusion_normal_component", "extrusion_obliquity"] {
+            for (source, text) in readings(name).into_iter().zip(expected(
+                "whether the extrusion leaves the sketch plane",
+                SIZED,
+            )) {
+                assert_eq!(
+                    ExtrudeError::ExtrusionEscalated { source }.to_string(),
+                    text
+                );
+            }
+        }
+        for (source, text) in readings("side_planes_cosurface").into_iter().zip(expected(
+            "whether the walls meeting at loop 0 vertex 4 share one surface",
+            LEVER,
+        )) {
+            let err = ExtrudeError::CosurfaceEscalated {
+                loop_index: 0,
+                vertex_index: 4,
+                source,
+            };
+            assert_eq!(err.to_string(), text);
+        }
+    }
 
     /// **A smooth strut or cap rim's must-carry escalation says which question
     /// escalated**: a first-order station is the sliver, neither corner

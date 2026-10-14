@@ -2847,8 +2847,8 @@ fn plain_runs(x: &AtRestBody<f64>, y: &AtRestBody<f64>, vx: f64, vy: f64, common
 ///   (`work/flush/an-l-prism-top-edge-exactly-in-the-cube-face-plane-ships-an-undeclared-contact.md`).
 ///
 /// Red when a vertex-on-face record follows its face's key through the
-/// division instead of the piece that holds the vertex
-/// (`boolean::ops::Descendants::holder`): `ab U` of each wedge pair and
+/// division instead of the pieces whose interiors the census confirms
+/// it meets (`boolean::ops::place_found`): `ab U` of each wedge pair and
 /// `ba U` of `w350-w200` fail tier 3′, and so do the L-prism's `ab U`,
 /// `ab S` and `ba U`.
 #[test]
@@ -2890,4 +2890,53 @@ fn an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_t
         .filter(|l| !l.contains(": OK SOUND") && !l.contains(": EMPTY ok"))
         .collect();
     assert!(bad.is_empty(), "every run SOUND:\n{}", bad.join("\n"));
+}
+
+/// **A cube less a pinched operand whose splits cross the seams' faces
+/// zips them as one seam** (`zip::zip_split`). Three of [`dbl`]'s poses
+/// (`asym 268 100`, `Ltop 2296 50`, `asym 15 40`): at `v` the cube holds
+/// two ring vertices and the operand its two vertices, each vertex
+/// holding corners of both cones of the difference, and each operand
+/// pairing those corners differently. Each split merges or divides its
+/// own section faces at its own corners, so one cube face's edges pair
+/// with three of the operand's. The cube less the operand builds
+/// `SOUND` at the clipped volume, one vertex per cone at `v`, and
+/// meshes, also with the split seam glued from the operand's side
+/// (`topo::swap_split_roles`), where several faces of the hosting side
+/// pair with one of the other. Red if the zips pair faces only one to
+/// one (the op refuses `ZipCorrespondence`), or if a joint between two
+/// loops absorbs the host's outer loop as a ring (it refuses
+/// `Euler(RingIsOuter)`, the other side only).
+#[test]
+fn a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds() {
+    let poses = [
+        (asym as fn() -> Corner, "asym", 268, 100),
+        (ltop, "Ltop", 2296, 50),
+        (asym, "asym", 15, 40),
+    ];
+    for ((corner, first, seed, fib), swap) in
+        poses.into_iter().flat_map(|p| [(p, false), (p, true)])
+    {
+        let a = corner();
+        let pose = format!("{first} seed={seed} fib{fib} yx S, roles swapped {swap}");
+        let d = dbl((&a, &asym()), seed, fib);
+        let want = SIDE.powi(3) - d.common;
+        topo::swap_split_roles(swap);
+        let r = topo::subtract(&d.cube, &d.pinched, tol());
+        topo::swap_split_roles(false);
+        let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+            let cones = tag_cones("yx S", "xy", (&d.pieces, std::slice::from_ref(&d.planes)));
+            cone_finding(&bb.body, a.v, cones).or_else(|| {
+                match mesh::tessellate(&bb.body, 0.05, tol())
+                    .map(|m| mesh::validate::check_mesh(&m))
+                {
+                    Ok(Ok(())) => None,
+                    other => Some(format!("the body does not mesh: {other:?}")),
+                }
+            })
+        });
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK SOUND"), "{pose}: {line}");
+        assert_eq!(finding, Some(None), "{pose}: one vertex per cone, meshing");
+    }
 }

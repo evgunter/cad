@@ -275,7 +275,8 @@ mod tests {
             }
         }
 
-        // `×` and `÷` fold four corner bounds. A zero factor or numerator
+        // `×` folds one, two or four corner bounds (a point operand's
+        // corners repeat) and `÷` four. A zero factor or numerator
         // gives an upper corner of `+0`; a product or quotient of
         // `-2^-1074`, inexact by the witness's floor, pads up to `-0`.
         // The operand orders put the `+0` corners first, last and

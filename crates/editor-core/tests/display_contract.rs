@@ -514,8 +514,8 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec![
                 "the end cap",
                 "node 000000000007",
-                "the query cannot decide whether",
-                "is in or out",
+                "whether the face (",
+                "is in or out of the selection is undecided",
                 "ambiguity band",
             ],
         ),
@@ -1394,7 +1394,11 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::EpsilonInvalid { value: 0.0 },
-            vec!["recorded ε", "finite and strictly positive"],
+            vec![
+                "recorded ε",
+                "is not admissible",
+                "at least 2.220446049250313e-13 m",
+            ],
         ),
         (
             SnapshotError::NotAGauge {
@@ -2568,7 +2572,7 @@ test_utils::f6_variants! {
         MissingUpstream,
         Emission,
         SplitLineage,
-        FragmentLineage,
+        Settle,
         SeamVertexParentage,
         SeamVertexPartners,
         SharedRim,
@@ -2652,10 +2656,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["split lineage of edge"],
         ),
         (
-            NamingError::FragmentLineage { face },
-            vec!["fragment lineage of face"],
-        ),
-        (
             NamingError::SeamVertexParentage { vertex },
             vec!["seam vertex", "half-decided"],
         ),
@@ -2724,6 +2724,13 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["closed on its", "no period"],
         ),
         (
+            NamingError::Settle(topo::SettleError::Dead {
+                vertex: topo::VertexKey::default(),
+                reached: topo::Cell::Vertex(topo::VertexKey::default()),
+            }),
+            vec!["a vertex of a Boolean's result settles on a cell the result does not hold"],
+        ),
+        (
             NamingError::ConventionalVertex {
                 vertex: topo::VertexKey::default(),
                 body: 3,
@@ -2769,10 +2776,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     terminal_sliver: false,
                 },
             },
-            vec![
-                "the order of two crossings along an edge",
-                "too close to call",
-            ],
+            vec!["the order of two crossings along an edge, which a name rests on, is undecided"],
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);

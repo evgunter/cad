@@ -28,7 +28,7 @@ use editor_core::{
     CancelToken, Datum, Dimension, DirectionRefusal, DocEdit, EvalOptions, Formula, FramePlacement,
     FreeVar, Node, ProfileDoc, RecipeNodeId, ValuePayload, VarName, evaluate,
 };
-use geom_core::{OrthoFrame, Tol};
+use geom_core::{RigidMotion, Tol};
 
 fn eval(
     doc: &ProfileDoc,
@@ -221,7 +221,9 @@ fn an_authored_frames_value_carries_its_f64_placement() {
 /// by hand: the oracle for a frame whose origin is a PARAMETER, which
 /// `fixture::plane_of` (literals only) cannot read.
 fn shared_frame_plane(lift: f64) -> profile::SketchPlane<f64> {
-    profile::SketchPlane::from_frame(OrthoFrame::axes_yz(geom_core::Point3::new(2.0, -3.0, lift)))
+    profile::SketchPlane::from_frame(RigidMotion::axes_yz(geom_core::Point3::new(
+        2.0, -3.0, lift,
+    )))
 }
 
 /// Row 2 — the carry follows the parameter that drives the frame, and
@@ -430,7 +432,7 @@ fn a_frame_whose_v_is_not_perpendicular_carries_the_orthonormalized_pair() {
     let ev = eval(&doc, None);
     assert_same_plane(
         &authored(&ev, frame),
-        &profile::SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
+        &profile::SketchPlane::from_frame(RigidMotion::axes_xy(geom_core::Point3::new(
             0.0, 0.0, 0.0,
         ))),
         "v yields its component along u",
@@ -664,5 +666,83 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
         ),
         "and the profile reads the same axis back, off the same frame: {:?}",
         ev.result(profile)
+    );
+}
+
+/// **A frame whose axis is undecided at the nominal keeps its held
+/// sentence on both roads** (D10's pose ground is held). Row 7's
+/// document, with `u`'s length inside the band at the nominal rather
+/// than zero: the carried refusal raises
+/// `NodeErrorKind::PoseDirectionEscalated`, said "too close to call"
+/// with the bare escalation's tail, and the profile's `FrameDirection`
+/// carries that sentence after "and the frame refused its own
+/// direction".
+#[test]
+fn a_frame_undecided_at_the_nominal_keeps_its_held_sentence() {
+    let tol = Tol::witness();
+    let in_band = tol.eps() * tol.k().sqrt();
+    let doc = ProfileDoc::empty_derived("wire_frame_placement_carry_held", tol);
+    let doc = doc
+        .apply(
+            &DocEdit::DeclareVar {
+                name: span(),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, in_band)),
+            },
+            tol,
+            &editor_core::RefusingReach,
+        )
+        .expect("the parameter declares")
+        .doc;
+    let (doc, frame) = fixture::insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [0.0, 0.0, 0.0].map(fixture::len),
+            u: [
+                Formula::named(span(), Dimension::Scalar),
+                fixture::scl(0.0),
+                fixture::scl(0.0),
+            ],
+            v: [0.0, 1.0, 0.0].map(fixture::scl),
+        }),
+    );
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(fixture::desc(frame, vec![fixture::square(0.0, 0.0, 0.5)])),
+    );
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            param_box: boxed_at(doc.var_named(span().as_str()).expect("declared"), 1.0),
+            ..EvalOptions::default()
+        },
+        tol,
+    );
+    let raised = unreadable(&ev, frame).node_error();
+    let editor_core::NodeErrorKind::PoseDirectionEscalated { predicate, source } = &raised else {
+        panic!("a frame axis inside the band escalates in the held arm: {raised:?}");
+    };
+    assert_eq!(*predicate, "datum_unit_norm");
+    let held = format!("whether a direction has any length is too close to call: {source}");
+    assert_eq!(raised.to_string(), held, "the frame door's held sentence");
+    assert!(
+        held.contains(" — a near-coincidence; Recourse: move the geometry"),
+        "the bare escalation's tail: {held}"
+    );
+    let shown = ev
+        .node_error(profile)
+        .expect("the profile refused")
+        .kind
+        .to_string();
+    assert_eq!(
+        shown,
+        format!(
+            "profile node {} is drawn on datum frame node {}, and the frame refused its own \
+             direction: {held}",
+            test_utils::refusal::tag(profile.0.digest()),
+            test_utils::refusal::tag(frame.0.digest())
+        ),
+        "the profile carries the frame's held sentence"
     );
 }

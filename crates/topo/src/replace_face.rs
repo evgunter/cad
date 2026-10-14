@@ -1289,6 +1289,10 @@ struct EdgePlan<T: Real> {
     /// a move that runs past an edge's end more precisely than the
     /// section that then has no branch.
     refused: Option<ReplaceFaceError<T>>,
+    /// The `(plane, cone)` a derived line was served off as a line pair
+    /// through the apex: read again over the edge's own span once its
+    /// ends are ([`pair_over_its_span`]).
+    apex_pair: Option<(Surface<T>, Surface<T>)>,
 }
 
 /// Replaces `face`'s surface with its certified offset at signed
@@ -1618,21 +1622,28 @@ pub struct OffsetOutcome {
 
 impl OffsetOutcome {
     /// `records`, the moved body's before the door, carried onto
-    /// `result`, the body after it: the door keeps every key and kills
-    /// only what its joins name, so each cell is itself or the edge a
-    /// join made of it ([`crate::ContactRecords::carried_through`]).
+    /// `result`, the body after it, through [`Self::lineage`]
+    /// ([`crate::ContactRecords::carried_through`], at `band` through `region`).
     ///
     /// # Errors
     ///
     /// As [`crate::ContactRecords::carried_through`].
-    pub fn carry_contacts<T: Real>(
+    pub fn carry_contacts<T: Decide>(
         &self,
         records: &crate::boolean::ContactRecords,
         result: &Body<T>,
+        band: Band,
+        region: Option<crate::RegionLane<T>>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
-        records.carried_through(0, result, |c| {
-            Some(crate::boolean::joined_cell(&self.joins, c))
-        })
+        records.carried_through(0, &self.lineage(), result, band, region)
+    }
+
+    /// **What the door made of each cell** (D1): it keeps every key and
+    /// kills only what its joins name, so each cell is itself or the
+    /// edge a join made of it.
+    #[must_use]
+    pub fn lineage(&self) -> crate::Lineage {
+        crate::Lineage::new().through_joins(&self.joins)
     }
 }
 
@@ -1905,6 +1916,7 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         let rooted = |v| corners.rooted.contains(&v);
         if plan.ends.is_none() {
             read_ends(plan, &moved, None, band, tol, T::nurbs_lane())?;
+            pair_over_its_span(plan, band)?;
         } else if rooted(plan.start) || rooted(plan.end) {
             // A transported edge whose corner a root placed ends there.
             let seeds = (plan.spec.param_start, plan.spec.param_end);
@@ -2434,6 +2446,7 @@ fn plan_edge<T: Decide>(
                 ends,
                 sides,
                 refused: None,
+                apex_pair: None,
             });
         }
     }
@@ -2733,6 +2746,7 @@ fn plan_edge<T: Decide>(
         ends: Some((carrier.eval(t0), carrier.eval(t1))),
         sides,
         refused: None,
+        apex_pair: None,
     })
 }
 
@@ -2804,6 +2818,7 @@ fn plan_between_moved<T: Decide>(
             ends: Some((carrier.eval(t0), carrier.eval(t1))),
             sides,
             refused: None,
+            apex_pair: None,
         });
     }
     let extent = geom_brep::edge_extent(old, t0, t1, old.eval(t0).distance(old.eval(t1)));
@@ -2992,6 +3007,16 @@ fn derive_edge<T: Decide>(
         Ok(carrier) => (carrier, None),
         Err(verdict) => (old.clone(), Some(refused(verdict))),
     };
+    // The plane×cone arm serves a line only as the pair through the apex,
+    // read over the old edge's span; the new edge's is read once its ends
+    // are known.
+    let apex_pair = match (&carrier, &refused, new_surface, neighbour) {
+        (Curve3::Line { .. }, None, plane @ Surface::Plane { .. }, cone @ Surface::Cone { .. })
+        | (Curve3::Line { .. }, None, cone @ Surface::Cone { .. }, plane @ Surface::Plane { .. }) => {
+            Some((plane.clone(), cone.clone()))
+        }
+        _ => None,
+    };
     // A derived spline section is a new curve on its own domain, running
     // with the old carrier: the old edge's parameters name nothing on
     // it, so it spans that domain until `read_ends` reads its feet. A
@@ -3017,6 +3042,7 @@ fn derive_edge<T: Decide>(
         ends: None,
         sides,
         refused,
+        apex_pair,
     })
 }
 
@@ -3080,10 +3106,16 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
                     pm,
                     pa,
                 },
-                geom_brep::SpiricImage::Wall { u0, v0, sense } => geom_brep::SpiricImage::Wall {
+                geom_brep::SpiricImage::Wall {
+                    u0,
+                    v0,
+                    sense,
+                    torus,
+                } => geom_brep::SpiricImage::Wall {
                     u0,
                     v0: v0 + shift,
                     sense,
+                    torus,
                 },
             },
         },
@@ -4169,6 +4201,47 @@ fn read_ends<T: Decide>(
     Ok(())
 }
 
+/// **A line pair through a cone's apex, read over the edge it became.**
+/// [`derive_edge`] asks the plane×cone arm over the OLD edge's span,
+/// which picks the line; the new edge ends at its corners, which move
+/// with the moved face where a neighbour there is not across the cone's
+/// axis, so the old span can stand farther from the apex than the new
+/// one and overstate how far the pair stands within the section. Once
+/// [`read_ends`] has put the edge's ends, the arm is asked again over
+/// the edge's own span, and the line stands only where it serves the
+/// pair there too.
+fn pair_over_its_span<T: Decide>(
+    plan: &mut EdgePlan<T>,
+    band: Band,
+) -> Result<(), ReplaceFaceError<T>> {
+    let Some((plane, cone)) = plan.apex_pair.take() else {
+        return Ok(());
+    };
+    let reach = geom_brep::Reach::Span {
+        carrier: plan.spec.carrier.clone(),
+        t0: plan.spec.param_start,
+        t1: plan.spec.param_end,
+    };
+    let refused = |verdict| ReplaceFaceError::EdgeSection {
+        edge: plan.edge,
+        kind: plane.kind(),
+        other_kind: cone.kind(),
+        verdict,
+    };
+    match geom_brep::plane_cone_section(&plane, &cone, &reach, band) {
+        Ok(geom_brep::PlaneConeSection::ApexLinePair { .. }) => Ok(()),
+        Ok(_) => Err(refused(crate::offset_derive::SectionVerdict::Unsupported {
+            what: "the plane meets the cone in a line pair over the old edge but not over \
+                   the new one",
+        })),
+        Err(
+            geom_brep::SectionError::Escalated(source)
+            | geom_brep::SectionError::RadiusEscalated { diag: source, .. },
+        ) => Err(ReplaceFaceError::Escalated { source }),
+        Err(e) => Err(refused(crate::offset_derive::SectionVerdict::Closed(e))),
+    }
+}
+
 /// `mapped` with the sketch endpoint that images `is_start` moved to
 /// `point` — the authoritative sketch datum re-stated, not the carrier
 /// patched around it. `None` for anything but a placed line segment.
@@ -4798,6 +4871,7 @@ mod read_ends_rows {
             ends: None,
             sides: [SurfaceKey::default(); 2],
             refused: None,
+            apex_pair: None,
         }
     }
 
@@ -4834,6 +4908,174 @@ mod read_ends_rows {
         read_ends(&mut p, &[(VertexKey::default(), on)], None, band, tol, None)
             .expect("a corner on the carrier reads");
         assert_eq!((p.spec.param_start, p.spec.param_end), (0.5, 0.5));
+    }
+}
+
+/// [`pair_over_its_span`]: a line pair through a cone's apex served over
+/// an old edge's span is read again over the new edge's.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod pair_over_its_span_rows {
+    use geom::{Curve3, Surface};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, OutsideConic, SurfacePair};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::{EdgePlan, ReplaceFaceError, pair_over_its_span};
+    use crate::entity::{EdgeKey, VertexKey};
+    use crate::geometry::SurfaceKey;
+    use crate::offset_derive::SectionVerdict;
+
+    /// **A new edge reaching nearer the apex than its section starts is
+    /// refused.** The plane along the axis of the needle `sin α = 1/64`,
+    /// `0.4·ε` off its apex, starts both branches of its hyperbola
+    /// `25.6·ε` out. A line of the pair it serves over a span from twice
+    /// that start stands within ε of the section there, and the edge
+    /// keeps it; the same line over a span from the apex holds points
+    /// `25.6·ε` short of the section, and the edge refuses it naming the
+    /// hyperbola. Reading the old span, or any window narrower than the
+    /// new edge's, keeps the line there too.
+    #[test]
+    fn a_new_edge_reaching_the_apex_reads_the_start() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let eps = band.zero();
+        let alpha = (1.0_f64 / 64.0).asin();
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: alpha,
+            u_ref: Vec3::unit_x(),
+        };
+        let plane = Surface::Plane {
+            origin: Point3::new(-0.4 * eps, 0.0, 0.0),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        };
+        let start = 0.4 * eps * 64.0;
+        let old = geom_brep::Reach::Measured {
+            at: Point3::new(0.0, 0.0, 0.5),
+            lever: 0.5 - 2.0 * start,
+        };
+        let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
+            geom_brep::plane_cone_section(&plane, &cone, &old, band)
+        else {
+            panic!("the old edge's span, clear of the start, is served the pair");
+        };
+        let Curve3::Line { dir, .. } = l1 else {
+            unreachable!("a line of the pair")
+        };
+        let to = 1.0 / dir.z;
+        for (label, from, kept) in [
+            ("from twice the start", 2.0 * start, true),
+            ("from the apex", 0.0, false),
+        ] {
+            let mut plan = EdgePlan {
+                edge: EdgeKey::default(),
+                spec: EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
+                        witness: Point3::origin(),
+                    },
+                    carrier: l1.clone(),
+                    param_start: from,
+                    param_end: to,
+                },
+                start: VertexKey::default(),
+                end: VertexKey::default(),
+                ends: None,
+                sides: [SurfaceKey::default(); 2],
+                refused: None,
+                apex_pair: Some((plane.clone(), cone.clone())),
+            };
+            let got = pair_over_its_span(&mut plan, band);
+            match (&got, kept) {
+                (Ok(()), true) => {}
+                (
+                    Err(ReplaceFaceError::EdgeSection {
+                        verdict: SectionVerdict::Closed(e),
+                        ..
+                    }),
+                    false,
+                ) if e.outside_conic() == Some(OutsideConic::Hyperbola) => {}
+                _ => panic!("{label}: kept {kept}, got {got:?}"),
+            }
+        }
+    }
+
+    /// **A new edge from the apex reads the start on its own nappe.** The
+    /// cone of half-angle `π/12` about `z`, cut by a plane leaning to
+    /// `D = 1/512` (`M ≈ 0.52`) `0.04·ε` off the apex: its section starts
+    /// `≈ 0.08·ε` out on the nappe its gap and lean put nearest and
+    /// `≈ 20·ε` out on the other. A line of the pair served over a span
+    /// clear of the apex, then ending at the apex on the cone's `+z`
+    /// nappe, is kept where that nappe is the near one and refused naming
+    /// the hyperbola where it is the far one: the gap's sign, decided well
+    /// past its rounding, names the nappe.
+    #[test]
+    fn a_new_edge_from_the_apex_reads_its_own_nappe() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let eps = band.zero();
+        let alpha = core::f64::consts::PI / 12.0;
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: alpha,
+            u_ref: Vec3::unit_x(),
+        };
+        let lean = (-1.0_f64 / 512.0).acos() - alpha;
+        let n = Vec3::new(lean.sin(), 0.0, lean.cos());
+        // `δ = (apex − origin)·n`: the `+z` nappe is the near one where
+        // `δ·(axis·n) < 0`, so where `δ < 0`.
+        for (delta, kept) in [(-0.04 * eps, true), (0.04 * eps, false)] {
+            let plane = Surface::Plane {
+                origin: Point3::origin() - n * delta,
+                normal: n,
+                u_ref: Vec3::unit_y(),
+            };
+            let old = geom_brep::Reach::Measured {
+                at: Point3::new(0.0, 0.0, 0.75),
+                lever: 0.25,
+            };
+            let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
+                geom_brep::plane_cone_section(&plane, &cone, &old, band)
+            else {
+                panic!("δ = {delta:e}: a span clear of the apex is served the pair");
+            };
+            let Curve3::Line { dir, .. } = l1 else {
+                unreachable!("a line of the pair")
+            };
+            let mut plan = EdgePlan {
+                edge: EdgeKey::default(),
+                spec: EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
+                        witness: Point3::origin(),
+                    },
+                    carrier: l1.clone(),
+                    param_start: 0.0,
+                    param_end: 1.0 / dir.z,
+                },
+                start: VertexKey::default(),
+                end: VertexKey::default(),
+                ends: None,
+                sides: [SurfaceKey::default(); 2],
+                refused: None,
+                apex_pair: Some((plane, cone.clone())),
+            };
+            let got = pair_over_its_span(&mut plan, band);
+            match (&got, kept) {
+                (Ok(()), true) => {}
+                (
+                    Err(ReplaceFaceError::EdgeSection {
+                        verdict: SectionVerdict::Closed(e),
+                        ..
+                    }),
+                    false,
+                ) if e.outside_conic() == Some(OutsideConic::Hyperbola) => {}
+                _ => panic!("δ = {delta:e}: kept {kept}, got {got:?}"),
+            }
+        }
     }
 }
 

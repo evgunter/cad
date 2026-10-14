@@ -84,6 +84,7 @@ use geom::Surface;
 use geom_core::{Point3, Real, Rounded, Vec3};
 
 use crate::enters::OutwardNormal;
+use crate::harmonic::harmonic_sup_scalar;
 
 /// The scalar's poison value (NaN at `f64`, NaI at the interval scalar).
 fn poison<T: Real>() -> T {
@@ -111,8 +112,8 @@ pub(crate) fn axial_radial<T: Real>(
     (h, w)
 }
 
-/// **A point's elevation off a cone, in metres — the ONE home of the
-/// cone's residual.** `ρ·cos α − s·sin α`, with `ρ` the point's distance
+/// **A point's elevation off a cone, in metres** — the cone's residual
+/// ([`cone_offset`]) at a point. `ρ·cos α − s·sin α`, with `ρ` the point's distance
 /// from the axis and `s` its axial height above the apex taken toward
 /// the nappe asked about:
 ///
@@ -145,7 +146,16 @@ pub fn cone_elevation<T: Real>(
         Some(crate::Nappe::Opening) => h,
         Some(crate::Nappe::Mirror) => T::zero() - h,
     };
-    w.norm() * c_a - s * s_a
+    cone_offset(w.norm(), s, s_a, c_a)
+}
+
+/// The cone residual itself, from a point's distance `rho` from the axis
+/// and its height `s` toward the nappe asked about, at `(sin α, cos α)`:
+/// `rho·cos α − s·sin α` ([`cone_elevation`]'s arithmetic, for a caller
+/// that holds `rho` and `s` already — a coaxial circle's radius and
+/// height, or a unit direction's two components).
+pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
+    rho * cos_a - s * sin_a
 }
 
 /// The linearized implicit residual of `p` against `s`, in meters (the
@@ -1216,7 +1226,6 @@ pub fn conic_cone_harmonics<T: Real>(
 ) -> ConicHarmonics<T> {
     let two = T::from_f64(2.0);
     let half = T::from_f64(0.5);
-    let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let (sin_a, cos_a) = half_angle.sin_cos();
     let (cc, ss) = (cos_a.powi(2), sin_a.powi(2));
     let (a, b) = (conic.major, conic.minor);
@@ -1253,8 +1262,8 @@ pub fn conic_cone_harmonics<T: Real>(
     // `|q|²`'s least value, from its own harmonics, less their rounding.
     let (uu, vv) = (a.powi(2) * u.norm_squared(), b.powi(2) * v.norm_squared());
     let near_sq = d.norm_squared() + (uu + vv) * half
-        - hypot(two * a * d.dot(u), two * b * d.dot(v))
-        - hypot((uu - vv) * half, a * b * u.dot(v))
+        - harmonic_sup_scalar(two * a * d.dot(u), two * b * d.dot(v))
+        - harmonic_sup_scalar((uu - vv) * half, a * b * u.dot(v))
         - rounding_charge(terms);
     let near = near_sq.max(T::zero()).sqrt();
     ConicHarmonics {

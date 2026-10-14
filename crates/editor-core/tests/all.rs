@@ -175,6 +175,8 @@ mod edit_pair_apply_names;
 mod edit_placement_corpus_bits;
 #[path = "edit_placement_type.rs"]
 mod edit_placement_type;
+#[path = "edit_planar_carve.rs"]
+mod edit_planar_carve;
 #[path = "edit_recorded_notation.rs"]
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
@@ -183,6 +185,8 @@ mod edit_ruled_carve;
 mod edit_set_program;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
+#[path = "emit_ball_cut_by_brick.rs"]
+mod emit_ball_cut_by_brick;
 #[path = "emit_boolean_vertex_keys.rs"]
 mod emit_boolean_vertex_keys;
 #[path = "emit_union_member_order.rs"]
@@ -197,6 +201,8 @@ mod eval6_placers_over_instances;
 mod eval6_placers_over_instances_interval;
 #[path = "eval9_nominal_in_the_key.rs"]
 mod eval9_nominal_in_the_key;
+#[path = "face_face_touch_carry.rs"]
+mod face_face_touch_carry;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
@@ -724,6 +730,8 @@ mod decide_7_rule_g_cost_interval;
 mod edit_refusal_recourse;
 #[path = "emit_crossing_sense.rs"]
 mod emit_crossing_sense;
+#[path = "emit_curved_rim_chord.rs"]
+mod emit_curved_rim_chord;
 #[path = "emit_edge_piece_locality.rs"]
 mod emit_edge_piece_locality;
 #[path = "emit_nested_union_flat.rs"]
@@ -736,6 +744,8 @@ mod emit_seam_edge_merged;
 mod emit_seam_junction;
 #[path = "emit_shared_rim_several.rs"]
 mod emit_shared_rim_several;
+#[path = "emit_sphere_cut_in_cap.rs"]
+mod emit_sphere_cut_in_cap;
 #[path = "emit_split_duplicate.rs"]
 mod emit_split_duplicate;
 #[path = "emit_split_edge_lineage.rs"]

@@ -391,8 +391,8 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             // own radius on a rim or a torus parallel, reads Zero) to
             // well clear of it; the plane tilted off ⊥ by an angle the
             // axial decision still reads Zero at the radius drawn, so a
-            // turning class's two radial coefficients disagree
-            // (`Orientation`).
+            // turning class's two radial coefficients disagree (its
+            // `Radius` pair).
             let rho = band().zero() * 10f64.powf(s.range(-1.5, 4.0));
             let theta = (band().zero() / rho).min(1.0) * s.range(0.0, 0.9);
             let normal = (axis + tang * theta).normalize();
@@ -541,8 +541,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
             let center = center + nudge(s, 1);
             // Half the size moves stretch the circle into an ellipse, so
-            // its two radial coefficients disagree (what `Orientation`
-            // meters on a turning class).
+            // its two radial coefficients disagree (what a turning
+            // class's `Radius` pair meters).
             if (which == 0 || which == 2) && s.below(2) == 0 {
                 let (major, minor) = (scaled(s, radius), scaled(s, radius));
                 let (major, minor, u_ref) = if major >= minor {
@@ -658,16 +658,10 @@ fn arm(derivation: Derivation) -> &'static str {
 /// carrier the arm admits has a linear term; the term is defence, zero
 /// on every input that reaches it, and a table that drops it is not a
 /// table that under-states anything.
-///
-/// Left out too: `Orientation` on a turning sphere parallel. Its axial
-/// gate reads the plane's tilt at the circle's radius `ρ` (`θ ≲ ε/ρ`),
-/// and its winding reads the circle's area at the sphere's radius
-/// (`ρ ≳ √(εR)`), so the orientation defect `ρ·(1 − cos θ) ≲ ε²/ρ` is
-/// under the rounding of every row that reaches the arm.
 fn arm_terms() -> Vec<(&'static str, Vec<EnvelopeTerm>)> {
-    use EnvelopeTerm::{Centre, Drift, Line, Orientation, Radius, Tilt};
+    use EnvelopeTerm::{Centre, Drift, Line, Radius};
     let cases: [(&str, &[EnvelopeTerm]); 14] = [
-        ("cylinder moving", &[Centre, Radius, Orientation]),
+        ("cylinder moving", &[Centre, Radius]),
         (
             "cylinder moving, zero winding",
             &[Line, Centre, Radius, Drift],
@@ -675,24 +669,15 @@ fn arm_terms() -> Vec<(&'static str, Vec<EnvelopeTerm>)> {
         ("cylinder meridian", &[Line, Radius, Drift]),
         ("cone ruling, by direction", &[Radius, Line]),
         ("cone ruling, anchored", &[Radius, Line]),
-        ("cone rim", &[Centre, Tilt, Radius, Orientation]),
-        ("cone rim, zero winding", &[Centre, Tilt, Radius, Drift]),
-        ("sphere parallel", &[Centre, Tilt, Radius]),
-        (
-            "sphere parallel, zero winding",
-            &[Centre, Tilt, Radius, Drift],
-        ),
-        ("sphere meridian", &[Centre, Radius, Orientation]),
-        (
-            "sphere meridian, pole start",
-            &[Centre, Radius, Drift, Orientation],
-        ),
-        ("torus parallel", &[Centre, Tilt, Radius, Orientation]),
-        (
-            "torus parallel, zero winding",
-            &[Centre, Tilt, Radius, Drift],
-        ),
-        ("torus meridian", &[Centre, Radius, Tilt, Orientation]),
+        ("cone rim", &[Centre, Radius]),
+        ("cone rim, zero winding", &[Centre, Radius, Drift]),
+        ("sphere parallel", &[Centre, Radius]),
+        ("sphere parallel, zero winding", &[Centre, Radius, Drift]),
+        ("sphere meridian", &[Centre, Radius]),
+        ("sphere meridian, pole start", &[Centre, Radius]),
+        ("torus parallel", &[Radius]),
+        ("torus parallel, zero winding", &[Centre, Radius, Drift]),
+        ("torus meridian", &[Centre, Radius]),
     ];
     cases
         .into_iter()
@@ -903,6 +888,156 @@ fn the_envelope_dominates_the_stored_images_residual_on_every_periodic_arm() {
     println!("[fuzz] envelope_lemma::dominates: {checked} rows checked");
 }
 
+/// **The lemma, swept where no circle reaches** (a counterexample
+/// search: the seed varies). Two sites the circle sweep above cannot
+/// load: a sphere meridian's incidence over pairs no circle has (the
+/// pole start's orientation is second order on a circle), read off
+/// `incidence` against its image `r·(cos v·d̂ + sin v·e)`, `v = δ + σt`,
+/// written out here; and a cone rim's stored image moved up to a radian
+/// in azimuth and its own slant along the ruling, where the channels'
+/// legs meet at an acute angle. Each total is never under the sampled
+/// sup, at `f64` or at `Interval`.
+#[test]
+fn the_envelope_dominates_where_no_circle_reaches() {
+    let mut s = fuzz::start("pcurve_cache::envelope_lemma::off_circle");
+    let z = band().zero();
+    let f = Interval::from_f64;
+    let lift3 = |v: Vec3<f64>| Vec3::new(f(v.x), f(v.y), f(v.z));
+    let unit = |s: &mut fuzz::Rng| {
+        Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0)).normalize()
+    };
+    for trial in 0..fuzz::scaled(200) {
+        // The meridian: `e` the axis, `d̂` the azimuth read, `a` within
+        // the band of a pole start (or `d̂`'s own direction), `b` a
+        // quarter turn off it, both moved up to the band.
+        let r = s.range(0.5, 2.0);
+        let e = unit(&mut s);
+        let d = unit(&mut s);
+        let d = (d - e * d.dot(e)).normalize();
+        let pole = s.below(2) == 0;
+        let sigma: Winding = if s.below(2) == 0 {
+            Winding::Pos
+        } else {
+            Winding::Neg
+        };
+        let delta = if pole {
+            FRAC_PI_2 * if s.below(2) == 0 { 1.0 } else { -1.0 }
+        } else {
+            s.range(-1.2, 1.2)
+        };
+        let moved = |s: &mut fuzz::Rng| unit(s) * (z * s.range(0.0, 0.9));
+        let a0 = (d * delta.cos() + e * delta.sin()) * r;
+        let b0 = (e * delta.cos() - d * delta.sin()) * (r * sigma.value::<f64>());
+        let (a, b) = (a0 + moved(&mut s), b0 + moved(&mut s));
+        // The derivation's own reading of `a` decides the pole; a draw it
+        // would read the other way is not this arm's.
+        let a_r = a - e * a.dot(e);
+        if pole != (a_r.norm() < z) {
+            continue;
+        }
+        let d_read = if pole {
+            (b - e * b.dot(e)).normalize()
+        } else {
+            a_r.normalize()
+        };
+        let v0 = a.dot(e).atan2(a_r.norm());
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: r,
+            axis: e,
+            u_ref: d_read,
+        };
+        let form = super::Harmonic3 {
+            c: Point3::origin(),
+            a,
+            b,
+            l: Vec3::zero(),
+        };
+        let derivation = Derivation::SphereMeridian { pole, sigma };
+        let sup = (0..=4096)
+            .map(|i| {
+                let t = -PI + TAU * f64::from(i) / 4096.0;
+                let v = v0 + sigma.value::<f64>() * t;
+                let image = (d_read * v.cos() + e * v.sin()) * r;
+                (image - (a * t.cos() + b * t.sin())).norm()
+            })
+            .fold(0.0, f64::max);
+        let mut terms = EnvelopeTerms::new();
+        incidence(form, &sphere, derivation, PI, &mut terms);
+        let mut terms_i = EnvelopeTerms::new();
+        let form_i = super::Harmonic3 {
+            c: Point3::new(f(0.0), f(0.0), f(0.0)),
+            a: lift3(a),
+            b: lift3(b),
+            l: lift3(Vec3::zero()),
+        };
+        incidence(
+            form_i,
+            &sphere.map_scalar(f),
+            derivation,
+            f(PI),
+            &mut terms_i,
+        );
+        let noise = 64.0 * f64::EPSILON * (r + 1.0);
+        assert!(
+            terms.total() >= sup - noise && terms_i.total().hi() >= sup - noise,
+            "trial {trial}: meridian (pole {pole}) incidence {:e} / {:e} under the sampled sup {sup:e} — {}",
+            terms.total(),
+            terms_i.total().hi(),
+            fuzz::replay()
+        );
+
+        // The cone: a rim at slant `v`, its stored image a long way off.
+        let alpha = s.range(0.2, 1.3);
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: alpha,
+            u_ref: Vec3::unit_x(),
+        };
+        let v = z * 10f64.powf(s.range(2.0, 4.0));
+        let carrier = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, v * alpha.cos()),
+            axis: Vec3::unit_z(),
+            radius: v * alpha.sin(),
+            u_ref: Vec3::unit_x(),
+        };
+        let Ok(Pcurve::Harmonic { p0, pa, pb, pl }) = chart_pcurve(&carrier, &cone, band()) else {
+            continue;
+        };
+        let stored = Pcurve::Harmonic {
+            p0: Point2::new(p0.x + s.range(-1.0, 1.0), p0.y + v * s.range(-0.5, 1.0)),
+            pa,
+            pb,
+            pl,
+        };
+        let sup = sampled_sup(&stored, &cone, &carrier, 0.0, TAU);
+        let form = carrier_harmonic(&carrier).unwrap();
+        let Ok(at_f64) = periodic_envelope(&stored, &carrier, form, &cone, (0.0, TAU), TAU, band())
+        else {
+            continue;
+        };
+        let carrier_i = carrier.map_scalar(f);
+        let at_iv = periodic_envelope(
+            &lift_harmonic(&stored),
+            &carrier_i,
+            carrier_harmonic(&carrier_i).unwrap(),
+            &cone.map_scalar(f),
+            (f(0.0), f(TAU)),
+            f(TAU),
+            band(),
+        )
+        .map(|t| t.total().hi());
+        let noise = 64.0 * f64::EPSILON * (v + 1.0);
+        assert!(
+            at_f64.total() >= sup - noise && at_iv.as_ref().is_ok_and(|&hi| hi >= sup - noise),
+            "trial {trial}: cone (α {alpha}, v {v:e}) envelope {:e} / {at_iv:?} under the sampled sup {sup:e} — {}",
+            at_f64.total(),
+            fuzz::replay()
+        );
+    }
+}
+
 /// **Every arm's every term carries some row** (a coverage claim: the
 /// seed is pinned, so this row cannot pass on a lucky draw or fail on
 /// an unlucky one). On a pinned stream of rows of every class, each
@@ -932,23 +1067,10 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
             }
         }
     }
-    // On an arm only circles reach, `Orientation` is second order in an
-    // in-band tilt of the circle's plane (`ρ·(1 − cos θ)` with `θ ≲ ε/ρ`,
-    // so `≲ ε²/ρ`): at a band this narrow that is under the f64 rounding
-    // every row is read to, at any radius the arm admits. The sphere
-    // parallel's is under it at every ε row (`arm_terms`).
-    let second_order = |arm: &str, t: EnvelopeTerm| {
-        band().zero() < 1e-10
-            && t == EnvelopeTerm::Orientation
-            && matches!(
-                arm,
-                "cone rim" | "sphere meridian, pole start" | "torus parallel"
-            )
-    };
     let missing: Vec<(&str, EnvelopeTerm)> = arm_terms()
         .into_iter()
         .flat_map(|(arm, terms)| terms.into_iter().map(move |t| (arm, t)))
-        .filter(|&(arm, t)| !seen.contains(&(arm, t.slot())) && !second_order(arm, t))
+        .filter(|&(arm, t)| !seen.contains(&(arm, t.slot())))
         .collect();
     assert!(
         missing.is_empty(),
@@ -1232,7 +1354,11 @@ fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
         normal,
         u_ref: unit(s).cross(normal).normalize(),
     };
-    match crate::intersect::plane_cone_section(&plane, &cone, 4.0, band()) {
+    let reach = crate::Reach::Measured {
+        at: apex,
+        lever: 4.0,
+    };
+    match crate::intersect::plane_cone_section(&plane, &cone, &reach, band()) {
         Ok(crate::intersect::PlaneConeSection::TiltedEllipse(e)) => Some((cone, e)),
         _ => None,
     }

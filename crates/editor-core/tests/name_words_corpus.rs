@@ -108,9 +108,25 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// a member said as a port says the split and the half ("from Split
 /// …'s above"), where a `Part` was said by its one tag. The percentiles
 /// and maxima held.
+///
+/// The full total rose by 22 with the killed-lineage chase (`emit_topo`'s
+/// `KilledSplits`). In `crossing_slots` and its world copy, an edge read
+/// as a seam of two faces is now said as the piece of a rim it is,
+/// between its two ends. Its end vertices are said by the edges they lie
+/// on, not as a junction of seam lines. The longer sentences are the
+/// right names, not a regression. The percentiles, the maxima and the
+/// scoped row held.
+///
+/// The full total fell by 102 and its p99 by one with the vertex run
+/// (N2: an `EdgeCrossing` is a run of lines): each edge of a run is said
+/// against "the rest", where a pair was said "the other body" and "the
+/// first", in `corner_table`'s and `crossing_slots`' edge × edge vertices
+/// and the pieces whose ends cite them. No name moved: read as a set of
+/// (line, sense), every run is the pair it replaced. The maxima and the
+/// scoped row held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 43, 57, 55_705]),
-    ("full", [19, 123, 196, 411_418]),
+    ("full", [19, 122, 196, 411_498]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -168,7 +184,18 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// INTENT stage 4 PR F: a boolean node lost its `declare` field, so the
 /// nodes minted after the first boolean took new tags.
-const SAID_DIGEST: u64 = 0x4078_ef92_e7f0_953e;
+///
+/// The killed-lineage chase moved it with [`NAME_WORDS`]: in
+/// `crossing_slots`, a rim piece named as a seam, two floor corners and
+/// the pieces ending at them say other words. No other document's words
+/// moved (`lib_g16_corpus_name_digests` moved that row alone).
+///
+/// Re-pinned for the vertex run: the words that moved are an
+/// `EdgeCrossing`'s, each line now "… the rest" where the pair said "…
+/// the other body and … the first", in `corner_table` and
+/// `crossing_slots`, the two documents whose pair booleans meet edge to
+/// edge (`lib_g16_corpus_name_digests` moved those two rows alone).
+const SAID_DIGEST: u64 = 0x825d_ab47_ca34_6a4c;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

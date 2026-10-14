@@ -2,10 +2,13 @@
 id: census-curved-record-lanes-read-circles-only
 kind: issue
 title: The census confirms vertex-on-edge and edge-edge records on line and circle edges only; an ellipse, spiric or spline edge refuses CensusUnsupported
-status: open
+status: closed
 opened: 2026-10-07
 priority: P1
 cost: H
+branch: fuse/census-reads-every-curved-edge
+pr: 4946
+closed: 2026-10-13
 ---
 
 ## The finding
@@ -27,3 +30,11 @@ other's ends for an overlap (`curved_interiors_meet`).
 
 The point-on-carrier and crossing readings for the conic and spiric
 kinds (`Curve3::param_near` already inverts them), and a spline foot.
+
+## 2026-10-13, closed: PR 4946
+
+Reproduced through the boolean in `crates/sweep/tests/census_reads_conic_records.rs`
+(a cube corner, and a box edge, on the tilted drum's ellipse rim). The
+lanes now read every carrier kind: `carrier_speed::speed_range` bounds
+the speed, the foot is `param_near`'s or the search's, and
+`census::curved::meetings` replaces the circle-only crossing finder.

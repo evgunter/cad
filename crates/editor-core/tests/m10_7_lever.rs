@@ -102,6 +102,20 @@ fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: CapEnd) -> SitedRef {
 /// "these normals differ" — which is what makes each row a statement
 /// about the measure and not about the predicate.
 fn measures(half: f64, theta: f64) -> Result<f64, String> {
+    let (ev, measure) = measured(half, theta);
+    match ev.result(measure) {
+        Some(NodeResult::Ok(v)) => match &v.payload {
+            ValuePayload::Measure { value, .. } => Ok(*value),
+            other => Err(format!("not a measure: {}", other.kind_name())),
+        },
+        _ => Err(ev
+            .node_error(measure)
+            .map_or_else(|| "not evaluated".to_owned(), |e| e.kind.to_string())),
+    }
+}
+
+/// [`measures`]' document, evaluated, and its measure node.
+fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-7-lever"), Tol::witness());
     let (c, s) = (theta.cos(), theta.sin());
     let square = LoopProgram::polygon([(-half, -half), (half, -half), (half, half), (-half, half)])
@@ -162,15 +176,7 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    match ev.result(measure) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => Ok(*value),
-            other => Err(format!("not a measure: {}", other.kind_name())),
-        },
-        _ => Err(ev
-            .node_error(measure)
-            .map_or_else(|| "not evaluated".to_owned(), |e| e.kind.to_string())),
-    }
+    (ev, measure)
 }
 
 /// **The amendment's own example, and the row the old arm failed.**
@@ -283,5 +289,32 @@ fn a_tilt_only_the_extent_can_decide_is_decided() {
     assert!(
         e.contains("bool_plane_parallel"),
         "the refusal names the predicate that decided it: {e}"
+    );
+}
+
+/// **An undecided parallelism keeps the measure door's held sentence**
+/// (D10's Measure ground is held). A tilt whose levered sine lands
+/// inside the band, at the geometric middle of `(ε, K·ε)`, escalates;
+/// the measure door raises it as `NodeErrorKind::MeasureEscalated`,
+/// said "too close to call" with the bare escalation's tail.
+#[test]
+fn an_undecided_parallelism_keeps_the_measure_doors_sentence() {
+    let tol = Tol::witness();
+    let theta = tol.eps() * tol.k().sqrt() / arm_of(10.0e-3);
+    let (ev, measure) = measured(10.0e-3, theta);
+    let kind = &ev.node_error(measure).expect("the measure refused").kind;
+    let editor_core::NodeErrorKind::MeasureEscalated { predicate, source } = kind else {
+        panic!("a tilt inside the band escalates at the measure door: {kind:?}");
+    };
+    assert_eq!(*predicate, "bool_plane_parallel");
+    let shown = kind.to_string();
+    assert_eq!(
+        shown,
+        format!("whether the two planes are parallel is too close to call: {source}"),
+        "the measure door's held sentence"
+    );
+    assert!(
+        shown.contains(" — a near-coincidence; Recourse: move the geometry"),
+        "the bare escalation's tail: {shown}"
     );
 }

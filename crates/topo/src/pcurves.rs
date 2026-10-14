@@ -46,11 +46,8 @@
 //!   derived and certified by [`geom_brep::chart_pcurve_over`]
 //!   (`analytic_derive`). A cone's tilted section and a torus's
 //!   Villarceau circle take their exact focal-section image
-//!   ([`geom_brep::Pcurve::FocalSection`]). Any other carrier outside
-//!   every route that can still lie on the chart refuses
-//!   [`PcurveCertifyError::UnsupportedCarrier`] with the class named,
-//!   and its face stays uncached, excused by C4's exemption
-//!   ([`not_owed`]) until the class's route lands. A carrier that
+//!   ([`geom_brep::Pcurve::FocalSection`]). Every carrier that can lie
+//!   on an analytic chart has one of these routes. A carrier that
 //!   cannot lie on its face ([`PcurveCertifyError::CarrierOffChart`]),
 //!   or that grazes a cone or torus as none of its circles
 //!   ([`PcurveCertifyError::CarrierGrazesChart`]), is a defect, and the
@@ -201,16 +198,18 @@
 //! to the child's sub-interval. The op re-certifies both restrictions
 //! before it mutates ([`split_cache`]) and writes them onto the parent
 //! halves and the two new halves, deriving nothing and minting nothing
-//! where there was nothing (a projected row restricts like the rest).
-//! Two frontiers ride with it, both stated at [`split_cache`]: a
-//! `Fitted` or `General` row is left exactly as found, and
-//! on a SPLINE chart the carry is exact but [`mint_pcurves`] — the
-//! recovery step this module's caveats name for a face left rowless —
-//! refuses on the split body, because [`nurbs_iso_derive`]'s rim arms
-//! map an edge's whole carrier interval onto the chart's whole `u`
-//! domain, which a sub-edge no longer spans. So the claim that a
-//! carried row is the row the pass would derive is a claim about the
-//! ANALYTIC charts, where the pass runs.
+//! where there was nothing (projected and fitted-grade rows restrict
+//! like the rest). The carry is exact on every chart; two readers of
+//! the split body are narrower, both stated at [`split_cache`]. On a
+//! described-NURBS wall [`mint_pcurves`] — the recovery step this
+//! module's caveats name for a face left rowless — refuses, because
+//! [`nurbs_iso_derive`]'s rim arms map an edge's whole carrier
+//! interval onto the chart's whole `u` domain, which a sub-edge no
+//! longer spans; so the claim that a carried row is the row the pass
+//! would derive does not reach the iso rows there (it does reach a
+//! carried `General` row, which the pass re-derives bit for bit). And
+//! the trimmed quadrature lane refuses a carried `General` child's
+//! sub-range typed.
 //!
 //! **[`crate::Body::revert`] carries the map, re-stated with the
 //! frames.** Not a fifth posture: the four this section names classify the
@@ -385,9 +384,9 @@ use std::borrow::Cow;
 
 use crate::body::Body;
 use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
-use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, LoopKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopKey};
 use crate::joint::{Deck, JointElement, Winding};
-use crate::live::{dangling_link, linked, proven};
+use crate::live::{linked, proven};
 use crate::props::AtRestPolicy;
 
 /// Typed refusal of the pcurve minting pass (D4 ¶3).
@@ -518,9 +517,8 @@ pub enum PcurveMintError {
     /// carries some: the face's cache set is incomplete, a defect. A
     /// face that stores none is [`PcurveMintError::Unminted`], or the
     /// refusal its derivation meets; a planar face stores none by
-    /// construction, and a face of an uncovered class
-    /// ([`PcurveCertifyError::UnsupportedCarrier`]) none until its
-    /// route lands.
+    /// construction, and at a scalar with no fitted door a face only
+    /// that door can image stores none ([`not_owed`]).
     ///
     /// **On the output of `mev`, `mef` and `mekr`, and of the doors
     /// that move a loop or run onto a face (`kfmrh`, `ring_move`,
@@ -546,8 +544,6 @@ pub enum PcurveMintError {
     ///   [`crate::Body::kev_describing`] that lists it), or the band kill
     ///   of the edge ([`crate::Body::plan_released_rows`]) — mints it
     ///   whole, except on a spline chart;
-    /// - `split_edge`'s `Fitted`/`General` frontier ([`split_cache`]),
-    ///   past the sphere's general circle;
     /// - a caller's own [`crate::Body::detach_pcurve`];
     ///
     /// and a face that arrives half-minted any of these ways, but for a
@@ -590,8 +586,8 @@ pub enum PcurveMintError {
     /// image against its carrier: the description refuses rather than
     /// claim a bound it does not hold. The face is either unminted
     /// (tier 3's [`PcurveMintError::Unminted`]) or one the mint leaves
-    /// uncached for a pair no lane covers yet
-    /// ([`PcurveCertifyError::UnsupportedCarrier`]). A face that stores
+    /// uncached at a scalar with no fitted door
+    /// ([`PcurveCertifyError::FittedLaneUnsupported`]). A face that stores
     /// OTHER rows refuses [`PcurveMintError::MissingCache`] instead.
     UncertifiedImage {
         /// The half-edge whose image has no stored certificate.
@@ -1031,41 +1027,6 @@ fn half_edge_carrier<T: Decide>(
     Ok((curve.carrier().clone(), t0, t1))
 }
 
-/// The **mate operand** a fitted (rung-3) pcurve's certificate needs:
-/// the other surface of the pair whose intersection minted the carrier
-/// (`geom_brep::PcurveCache::certify_fitted` — the uniqueness tube is a
-/// statement about the PAIR, so one surface cannot produce one).
-///
-/// It is read from the edge's **intensional description**, not from the
-/// topology, and that is the D2 answer rather than a convenience: the
-/// description is what is authoritative about which two surfaces the
-/// locus belongs to (`EdgeDescription::Intersection { pair, .. }` names them
-/// by key), while "the face across the edge" is a derived fact that a
-/// mid-construction body, a spur edge or a seam can perfectly well have
-/// wrong. Re-read from the body at rest, never stored with the cache,
-/// so it cannot drift from the body's own geometry.
-///
-/// `None` when the edge is not an intersection edge (null scaffolding
-/// has no description at all), or when the face's own surface is
-/// neither of the pair — both of which the fitted lane then refuses
-/// typed rather than inventing a second operand.
-#[track_caller]
-fn mate_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Option<Surface<T>> {
-    let curve = half_edge_curve(body, half_edge).ok()?;
-    let geom_brep::EdgeDescription::Intersection { pair, .. } = *curve.description() else {
-        return None;
-    };
-    let other = pair.other(half_edge_face(body, half_edge).1.surface)?;
-    let surface = body.get_surface(other).unwrap_or_else(|| {
-        dangling_link(
-            EntityId::Edge(edge_record(body, half_edge).0),
-            "curve's description",
-            GeomRef::Surface(other),
-        )
-    });
-    Some(surface.clone())
-}
-
 /// The surface of the face `half_edge` bounds.
 #[track_caller]
 fn half_edge_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Surface<T> {
@@ -1155,10 +1116,6 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 ///   the column its certified chart foot measures (a chart wider than
 ///   the face it trims), and then CERTIFIED by the full iso lane — a
 ///   wrong pick fails loudly, never silently.
-/// - A cap–wall rim over a LINE carrier maps as `(u(t), v)` with `u` affine
-///   (`t0 ↦ u₀`, `t1 ↦ u₁` — the wall's u IS the segment parameter by
-///   construction, up to the chart's own affine scale) and
-///   `v ∈ {v₀, v₁}` by the same endpoint selection.
 ///
 /// **The chart's own domain, not the unit square (#327).** Every
 /// boundary above is the payload's KNOT domain end. A chart the kernel
@@ -1169,19 +1126,28 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 /// answers about the wrong locus.
 /// - A cap–wall rim over a CIRCLE carrier maps to the same boundary
 ///   line through the chart's own rational-quadratic parameter
-///   ([`Pcurve::IsoArc`], M8-3). Both mapped description forms the
-///   kernel mints for a circle reach it — see the arm's own note.
-/// - An [`geom_brep::EdgeDescription::Intersection`] over a SPLINE carrier
-///   that lies on a boundary column maps as that column: the same iso
-///   line the `IsoCurve` arm mints, recovered from the carrier because
-///   the intrinsic description names no chart coordinate; one on a
-///   boundary row (a cap–wall rim) maps as that row. The residency is a
-///   pick over the columns and rows and their two directions, definite
-///   or escalated, then over the interior row the carrier's end feet
-///   measure (a cap rim an offset moved). Any other locus — an INTERIOR
-///   column is the executed case (#498) — takes U2's `General`
+///   ([`Pcurve::IsoArc`], M8-3), its boundary row and `u` direction
+///   picked together at the interior probe ([`probe_pick`]). Both mapped
+///   description forms the kernel mints for a circle reach it — see the
+///   arm's own note.
+/// - An [`geom_brep::EdgeDescription::Intersection`] over a spline or
+///   line carrier, and a LINE carrier in any other form, that lies on a
+///   boundary column maps as that column: the same iso line the
+///   `IsoCurve` arm mints, recovered from the carrier because the
+///   description names no chart coordinate; one on a boundary row (a
+///   cap–wall rim) maps as that row. The residency is a pick over the
+///   columns and rows and their two directions, each judged a quarter
+///   span in ([`probe_pick`]), definite or escalated; then over the
+///   row, and for a line the column, whose moving map the carrier's
+///   end feet measure (a sub-edge, a cap rim an offset moved, and for
+///   a line an interior column). An Intersection circle is offered to
+///   the arc rim. Any other locus or carrier — a SPLINE on an interior
+///   column is the executed case (#498), an off-iso straight edge
+///   another — takes U2's `General`
 ///   curve-in-UV arm at the honest Fitted grade, derived from the
-///   wall's own foot schedule.
+///   wall's own foot schedule at degree 1: it certifies where the foot
+///   path is straight to ε and refuses at the hull
+///   (`FittedCertificate`) where a curved carrier bends it.
 /// - Everything else on a NURBS chart refuses typed with the class
 ///   named.
 fn nurbs_iso_derive<T: AtRestPolicy>(
@@ -1213,41 +1179,219 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         }
         None => (T::zero(), T::one(), T::zero(), T::one()),
     };
-    // A definite endpoint-side selection: which of the two candidate
-    // chart values places the carrier's START on the surface. The
-    // selection is structure (a two-way pick), the CHECK is the full
-    // iso-lane certification that follows every derivation.
-    //
-    // `None` is "no candidate is definitely it", NOT a refusal: a
-    // caller may have a wider candidate to offer (the rim arms measure
-    // one when the chart is wider than the face it trims). The refusal
-    // text lives at the call sites that have nothing left to try, so
-    // three arms can no longer share one message for three different
-    // situations.
-    let side_pick = |eval_at: &dyn Fn(T) -> geom_core::Point3<T>,
-                     cands: &[T]|
-     -> Result<Option<T>, PcurveMintError> {
-        let start = carrier.eval(t0);
-        for cand in cands {
-            match decide(
-                "pcurve_iso_side",
-                Margin::of(start.distance(eval_at(*cand))),
-                band,
-            ) {
-                Ok(Sign::Zero) => return Ok(Some(*cand)),
-                Ok(Sign::Positive | Sign::Negative) => {}
-                Err(cause) => {
-                    return Err(PcurveMintError::Escalated { half_edge, cause });
+    // The ARC-RIM class: a circle on one of the chart's boundary rows,
+    // its image the row on the chart's own rational-quadratic parameter
+    // (`Pcurve::IsoArc`). An IsoUnsupported refusal says this carrier
+    // is not such a rim.
+    let arc_rim = || -> Result<Pcurve<T>, PcurveMintError> {
+        let Some(payload) = surface.spline_chart() else {
+            return Err(refuse("an arc cap rim on a non-spline chart"));
+        };
+        let ku = payload.knots_u();
+        let (d0, d1) = ku.domain();
+        let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
+        let breaks = uniform_breaks(spans)
+            .ok_or_else(|| refuse("an arc rim whose chart has no usable sub-arc structure"))?;
+        // **The row and the u DIRECTION are one pick.** A rim the
+        // kernel built runs with the chart's increasing `u`; one it
+        // imported need not (#327: a promoted rim circle's `axis` comes
+        // from the file's own winding, and a cylinder wall's two rims
+        // routinely wind oppositely). A rim against `u` starts at the
+        // `u₁` corner, so neither the start nor a fixed corner can name
+        // its row, and on a FULL-PERIOD rim the two `u` boundaries are
+        // one 3-D point. So the four images — each boundary row, each
+        // direction — are judged together at a quarter of the arc,
+        // where the directions are a half-period apart. A selection,
+        // checked: the full arc-rim certification still follows.
+        let image = |v: T, p0x: T, sign: T| Pcurve::IsoArc {
+            p0: Point2::new(p0x, v),
+            pd: Vec2::new(sign, T::zero()),
+            t0,
+            angle: span,
+            breaks: breaks.clone(),
+        };
+        let candidates = [cv0, cv1].into_iter().flat_map(|v| {
+            [(cu0, cu1 - cu0), (cu1, cu0 - cu1)].map(|(p0x, sign)| image(v, p0x, sign))
+        });
+        match probe_pick(
+            "pcurve_iso_arc_row_direction",
+            &carrier,
+            (t0, span),
+            surface,
+            band,
+            candidates,
+        ) {
+            Ok(Some(cand)) => Ok(cand),
+            Err(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
+            Ok(None) => Err(refuse(
+                "no boundary row of this chart, in either u direction, holds the circle \
+                 at the interior probe — not an arc rim spanning the chart's u domain",
+            )),
+        }
+    };
+
+    // The boundary-iso schedule (the arms' own note, below), named by
+    // the probe's predicate label.
+    let iso_schedule = |what: &'static str| -> Result<Pcurve<T>, PcurveMintError> {
+        let Some(wall) = surface.spline_chart() else {
+            unreachable!(
+                "nurbs_iso_derive: both callers route only a chart with a spline payload \
+                 here"
+            )
+        };
+        let line = matches!(carrier, geom::Curve3::Line { .. });
+        // The iso candidates are offered to the carriers the iso
+        // class certifies: a spline and a line. A circle's exact
+        // class is the arc rim, tried below; an ellipse or a spiric
+        // has none on a spline chart.
+        let iso = line || matches!(carrier, geom::Curve3::Nurbs(_));
+        let columns = [cu0, cu1].into_iter().filter(|_| iso).flat_map(|x| {
+            [(cv0, cv1), (cv1, cv0)].map(|(v_at_t0, v_at_t1)| {
+                let slope = (v_at_t1 - v_at_t0) / span;
+                Pcurve::IsoLine {
+                    p0: Point2::new(x, v_at_t0 - slope * t0),
+                    pl: Vec2::new(T::zero(), slope),
                 }
+            })
+        });
+        // A cap–wall rim traverses a boundary ROW, `u` moving —
+        // offered to a spline only in a direction whose carrier is in
+        // the row's own spline space (`RowSpace`: the row class
+        // compares control nets over it), and to a line in both, whose
+        // class reads no net.
+        let row_space = match &carrier {
+            geom::Curve3::Nurbs(spline) => RowSpace::of(spline.knots(), wall.knots_u()),
+            geom::Curve3::Line { .. } => RowSpace {
+                forward: true,
+                backward: true,
+            },
+            _ => RowSpace {
+                forward: false,
+                backward: false,
+            },
+        };
+        let directions: Vec<(T, T)> = [(true, (cu0, cu1)), (false, (cu1, cu0))]
+            .into_iter()
+            .filter_map(|(rising, ends)| row_space.admits(rising).then_some(ends))
+            .collect();
+        let rows = [cv0, cv1].into_iter().flat_map(|y| {
+            directions.iter().map(move |&(u_at_t0, u_at_t1)| {
+                let slope = (u_at_t1 - u_at_t0) / span;
+                Pcurve::IsoLine {
+                    p0: Point2::new(u_at_t0 - slope * t0, y),
+                    pl: Vec2::new(slope, T::zero()),
+                }
+            })
+        });
+        let mut deferred = match probe_pick(
+            what,
+            &carrier,
+            (t0, span),
+            surface,
+            band,
+            columns.chain(rows),
+        ) {
+            Ok(Some(cand)) => return Ok(cand),
+            Ok(None) => None,
+            Err(cause) => Some(cause),
+        };
+        // ---- The fixed schedule found nothing: MEASURE the map. ----
+        // The candidates above assume the carrier traverses the chart's
+        // WHOLE domain along its moving axis, because that is what a
+        // natively built wall's seam or rim does. An edge that covers
+        // PART of a chart does not — a sub-edge a split left, a cap rim
+        // an offset moved into the chart's interior, a chart wider than
+        // the face it trims — so the carrier's two end feet measure the
+        // moving channel's map, and the fixed channel is a boundary
+        // where it is definitely one, else the value the start's foot
+        // measures. Offered to the same metre-valued probe, so no UV
+        // quantity reaches ε (D4 ¶1).
+        //
+        // A measured ROW is offered to every carrier the row space
+        // admits in its direction. A measured COLUMN only to a line,
+        // and the `filter` below is that decision: a spline's seam
+        // class compares the image against the chart's own boundary
+        // net over ONE spline space, and a partial or interior column
+        // is not a control-net copy of it and cannot be made one. So
+        // the certifier would refuse it structurally, and the mint
+        // would fail with text about a boundary for a locus that is
+        // not one — the defect the wall–wall seam arm was once
+        // reverted for. A spline's interior column takes `General`
+        // below (#498). A line's class reads no net.
+        if deferred.is_none()
+            && (row_space.forward || row_space.backward)
+            && let (Some(f0), Some(f1)) = (
+                derive_chart_foot(carrier.eval(t0), surface, half_edge)?,
+                derive_chart_foot(carrier.eval(t1), surface, half_edge)?,
+            )
+        {
+            let rising = f1.x > f0.x;
+            let (f0, f1) = (computed_foot::<T>(f0), computed_foot::<T>(f1));
+            let (su, sv) = ((f1.x - f0.x) / span, (f1.y - f0.y) / span);
+            let rows = [cv0, cv1, f0.y]
+                .into_iter()
+                .filter(|_| row_space.admits(rising))
+                .map(|y| Pcurve::IsoLine {
+                    p0: Point2::new(f0.x - su * t0, y),
+                    pl: Vec2::new(su, T::zero()),
+                });
+            let columns = [cu0, cu1, f0.x]
+                .into_iter()
+                .filter(|_| line)
+                .map(|x| Pcurve::IsoLine {
+                    p0: Point2::new(x, f0.y - sv * t0),
+                    pl: Vec2::new(T::zero(), sv),
+                });
+            match probe_pick(
+                what,
+                &carrier,
+                (t0, span),
+                surface,
+                band,
+                rows.chain(columns),
+            ) {
+                Ok(Some(cand)) => return Ok(cand),
+                Ok(None) => {}
+                Err(cause) => deferred = Some(cause),
             }
         }
-        Ok(None)
-    };
-    let no_boundary = || {
-        refuse(
-            "the carrier's start point lies on neither chart boundary — not a boundary \
-             iso of this face's chart",
-        )
+        // A circle on a boundary row is the arc rim's; any other
+        // circle, an IsoUnsupported answer, is not. A pick the arc-rim
+        // certification would then refuse does not fall through to
+        // `General`, and need not: no door certifies an `Intersection`
+        // circle on a spline chart (the plane × NURBS certificate takes a
+        // spline carrier, the spline-pair ones no closed form).
+        if deferred.is_none() && matches!(carrier, geom::Curve3::Circle { .. }) {
+            match arc_rim() {
+                Err(PcurveMintError::Certify {
+                    error: PcurveCertifyError::IsoUnsupported { .. },
+                    ..
+                }) => {}
+                found => return found,
+            }
+        }
+        // ---- Nothing exact holds. Store the image as it is. ----
+        // A `General` curve in UV at the honest Fitted grade (U2): a
+        // SPLINE on an interior column has no exact class (the measured
+        // column above is a line's alone), and a DIAGONAL locus — an
+        // off-iso straight edge among them — has none either. Its image is the chart image the edge
+        // certificate itself derives (`edge_nurbs::chart_image`, at
+        // `PXN_IMAGE_DEGREE`), so it certifies wherever the foot path
+        // is straight to ε. A closed-form carrier reaches here only
+        // through the doors today (the spline-pair edge certificates
+        // refuse it first:
+        // `work/pcert/the-spline-pair-edge-certificates-refuse-a-closed-form-carrier.md`);
+        // its degree-1 image refuses at the hull where a circle or
+        // ellipse bends the foot path.
+        //
+        // An escalated candidate outranks the image and its refusal
+        // alike: a candidate that escalates keeps escalating, and the
+        // derived image only ever speaks on a DEFINITE fall-through.
+        if let Some(cause) = deferred {
+            return Err(PcurveMintError::Escalated { half_edge, cause });
+        }
+        derive_general_image(&carrier, (t0, t1), wall, half_edge)
+            .map(|image| Pcurve::General(std::sync::Arc::new(image)))
     };
     let own = half_edge_surface_key(body, half_edge);
     match half_edge_description(body, half_edge)? {
@@ -1279,6 +1423,30 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             // a knot: the certifier collapses the chart at exactly the
             // value it is handed, and any error in that value is what
             // its hull meters.
+            // A definite endpoint-side selection: which candidate
+            // column places the carrier's START on the surface. `None`
+            // is "no candidate is definitely it", not a refusal: the
+            // start's measured foot is offered next. The CHECK is the
+            // full iso-lane certification that follows.
+            let side_pick = |eval_at: &dyn Fn(T) -> geom_core::Point3<T>,
+                             cands: &[T]|
+             -> Result<Option<T>, PcurveMintError> {
+                let start = carrier.eval(t0);
+                for cand in cands {
+                    match decide(
+                        "pcurve_iso_side",
+                        Margin::of(start.distance(eval_at(*cand))),
+                        band,
+                    ) {
+                        Ok(Sign::Zero) => return Ok(Some(*cand)),
+                        Ok(Sign::Positive | Sign::Negative) => {}
+                        Err(cause) => {
+                            return Err(PcurveMintError::Escalated { half_edge, cause });
+                        }
+                    }
+                }
+                Ok(None)
+            };
             let x = match side_pick(&column, &[cu0, cu1])? {
                 Some(x) => x,
                 None => {
@@ -1319,130 +1487,24 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // The sub-arc count is read off the chart's u structure (one
         // span per sub-arc, by the loft's construction); that read is
         // a SELECTION, and the CHECK is the full arc-rim certification
-        // that follows, which compares the chart's boundary column
+        // that follows, which compares the chart's boundary row
         // against the carrier circle's own rational-quadratic form and
         // refuses a chart that is not this construction.
         geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
             if matches!(carrier, geom::Curve3::Circle { .. }) =>
         {
-            let Some(payload) = surface.spline_chart() else {
-                return Err(refuse("an arc cap rim on a non-spline chart"));
-            };
-            let ku = payload.knots_u();
-            let (d0, d1) = ku.domain();
-            let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
-            let breaks = uniform_breaks(spans)
-                .ok_or_else(|| refuse("an arc rim whose chart has no usable sub-arc structure"))?;
-            let v =
-                side_pick(&|cand| surface.eval(cu0, cand), &[cv0, cv1])?.ok_or_else(no_boundary)?;
-            // **The u-DIRECTION pick (#327).** M8-3's arm assumed the
-            // rim's increasing carrier parameter runs with the chart's
-            // increasing `u` — true by construction for a wall the
-            // kernel BUILT, and false in general for one it IMPORTED:
-            // a promoted rim circle's `axis` is derived from the
-            // file's own NURBS winding, and a cylinder wall's two rims
-            // routinely wind oppositely in the file, so exactly one of
-            // them runs against the chart. Assuming `+u` there does not
-            // refuse — it mints a chart image that traverses the wall
-            // BACKWARDS, and the loop walk reports it as a chart
-            // discontinuity or a double-period closure, naming a
-            // symptom two steps from the cause.
-            //
-            // The pick is the `side_pick` idiom on the other axis: the
-            // two candidate images (`u: 0 → 1` and `u: 1 → 0`),
-            // evaluated at a fixed interior probe of the arc and
-            // metered against the carrier there. The start point
-            // cannot decide it — on a FULL-PERIOD rim the chart's two
-            // u-boundaries are the same 3-D point — so the probe sits
-            // at a quarter of the arc, where the two candidates are a
-            // half-period apart. A selection, checked: the full
-            // arc-rim certification still follows.
-            let probe_t = t0 + span * T::from_f64(0.25);
-            let probe = carrier.eval(probe_t);
-            let image = |p0x: T, sign: T| Pcurve::IsoArc {
-                p0: Point2::new(p0x, v),
-                pd: Vec2::new(sign, T::zero()),
-                t0,
-                angle: span,
-                breaks: breaks.clone(),
-            };
-            // Escalations are DEFERRED per candidate (the loop walk's
-            // posture): an indeterminate first candidate must not rob
-            // the second of its turn.
-            let mut deferred: Option<Indeterminate> = None;
-            for (p0x, sign) in [(cu0, cu1 - cu0), (cu1, cu0 - cu1)] {
-                let cand = image(p0x, sign);
-                let uv = cand.eval(probe_t);
-                let gap = probe.distance(surface.eval(uv.x, uv.y));
-                match decide("pcurve_iso_arc_direction", Margin::of(gap), band) {
-                    Ok(Sign::Zero) => return Ok(cand),
-                    Ok(Sign::Positive | Sign::Negative) => {}
-                    Err(cause) => {
-                        if deferred.is_none() {
-                            deferred = Some(cause);
-                        }
-                    }
-                }
-            }
-            match deferred {
-                Some(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
-                None => Err(refuse(
-                    "an arc rim whose chart image runs in neither u direction — the \
-                     rim does not lie on this chart's boundary column",
-                )),
-            }
+            arc_rim()
         }
-        geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
-            if matches!(carrier, geom::Curve3::Line { .. }) =>
-        {
-            // The closed form: the rim spans the chart's whole `u`
-            // domain, which is true for every wall the kernel BUILT.
-            let plx = (cu1 - cu0) / span;
-            let p0x = cu0 - (cu1 - cu0) * t0 / span;
-            let row = |p0x: T, plx: T| move |cand: T| surface.eval(p0x + plx * t0, cand);
-            match side_pick(&row(p0x, plx), &[cv0, cv1])? {
-                Some(v) => Ok(Pcurve::IsoLine {
-                    p0: Point2::new(p0x, v),
-                    pl: Vec2::new(plx, T::zero()),
-                }),
-                // **The rim does not span this chart.** Same cause as
-                // the wall-seam arm above: a chart wider than the face
-                // it trims. The `u` MAP is what the closed form got
-                // wrong (the `v` side is still a boundary), so measure
-                // the rim's two endpoints and build the map from them.
-                // Same certified foot producer, same metre-valued check
-                // on the `v` side, and the full iso certification still
-                // follows every derivation.
-                None => {
-                    let (f0, f1) = (
-                        derive_chart_foot(carrier.eval(t0), surface, half_edge)?,
-                        derive_chart_foot(carrier.eval(t1), surface, half_edge)?,
-                    );
-                    let (Some(f0), Some(f1)) = (f0, f1) else {
-                        return Err(no_boundary());
-                    };
-                    let (f0, f1) = (computed_foot::<T>(f0), computed_foot::<T>(f1));
-                    let plx = (f1.x - f0.x) / span;
-                    let p0x = f0.x - plx * t0;
-                    // The row: a boundary one where it is definitely that,
-                    // else the row the start's foot measures — a cap rim
-                    // an offset moved into the chart's interior.
-                    let v =
-                        side_pick(&row(p0x, plx), &[cv0, cv1, f0.y])?.ok_or_else(no_boundary)?;
-                    Ok(Pcurve::IsoLine {
-                        p0: Point2::new(p0x, v),
-                        pl: Vec2::new(plx, T::zero()),
-                    })
-                }
-            }
-        }
-        // **The boundary-iso INTERSECTION arm.** The same wall–wall
-        // seam the `IsoCurve` arm maps, stated INTRINSICALLY: the locus
-        // is `S₁ ∩ S₂`, and where that locus IS this chart's own
-        // `u = u₀`/`u = u₁` boundary column its chart image is the same
-        // iso line. The description carries no chart coordinates at all
-        // — it names two surfaces and a witness — so the image is
-        // recovered from the CARRIER against the chart's own domain.
+        // **The boundary-iso arms: an INTERSECTION seam, and a LINE rim
+        // in any other form.** The same wall–wall seam the `IsoCurve`
+        // arm maps, stated INTRINSICALLY: the locus is `S₁ ∩ S₂`, and
+        // where that locus IS this chart's own `u = u₀`/`u = u₁`
+        // boundary column its chart image is the same iso line. The
+        // description carries no chart coordinates at all — it names
+        // two surfaces and a witness — so the image is recovered from
+        // the CARRIER against the chart's own domain. A straight edge
+        // described as a chart image or a scaffold is the same question
+        // about the same carrier, and takes the same schedule.
         //
         // Keyed on the carrier and on BOUNDARY RESIDENCY, never on the
         // description form or the operand order: which of `s1`/`s2` is
@@ -1451,12 +1513,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         //
         // The pick is ONE fixed schedule (D9): the chart's two boundary
         // columns and two boundary rows × the two directions the
-        // carrier can traverse each, each candidate image evaluated at an interior
-        // probe and metered against the carrier there in METRES. The
-        // start point cannot decide it alone — it fixes a chart CORNER,
-        // and a column and a direction both pass through one — so the
-        // probe sits a quarter span in, where the candidates separate.
-        // A SELECTION, checked: the full seam-class certification
+        // carrier can traverse each, each candidate judged by the
+        // interior probe ([`probe_pick`]): the start point fixes a
+        // chart CORNER, and a column, a row and a direction all pass
+        // through one. A SELECTION, checked: the full iso certification
         // follows every derivation.
         //
         // **What the schedule selects is wider than what the seam class
@@ -1471,154 +1531,14 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // forward image that fits the class by construction and states
         // the wrong traversal.
         //
-        // An `Intersection` whose carrier traverses NEITHER boundary
-        // column under the chart's own parameterization refuses typed
-        // and permanently (C5).
-        geom_brep::EdgeDescription::Intersection { .. } => {
-            let geom::Curve3::Nurbs(spline) = &carrier else {
-                return Err(refuse(
-                    "an Intersection carrier that is not a spline — the certified \
-                     boundary-column class compares the carrier against the chart's own \
-                     boundary ROW, which is a spline",
-                ));
-            };
-            let Some(wall) = surface.spline_chart() else {
-                unreachable!(
-                    "nurbs_iso_derive: both callers route only a chart with a spline payload \
-                     here"
-                )
-            };
-            let probe_t = t0 + span * T::from_f64(0.25);
-            let probe = carrier.eval(probe_t);
-            // Escalations are DEFERRED per candidate: an indeterminate
-            // first candidate must not rob the rest of their turn.
-            let mut deferred: Option<Indeterminate> = None;
-            let columns = [cu0, cu1].into_iter().flat_map(|x| {
-                [(cv0, cv1), (cv1, cv0)].map(|(v_at_t0, v_at_t1)| {
-                    let slope = (v_at_t1 - v_at_t0) / span;
-                    Pcurve::IsoLine {
-                        p0: Point2::new(x, v_at_t0 - slope * t0),
-                        pl: Vec2::new(T::zero(), slope),
-                    }
-                })
-            });
-            // A cap–wall rim stated intrinsically traverses a boundary
-            // ROW, `u` moving — offered only in a direction whose
-            // carrier is in the row's own spline space (`RowSpace`:
-            // the row class compares control nets over it).
-            let row_space = RowSpace::of(spline.knots(), wall.knots_u());
-            let directions: Vec<(T, T)> = [(true, (cu0, cu1)), (false, (cu1, cu0))]
-                .into_iter()
-                .filter_map(|(rising, ends)| row_space.admits(rising).then_some(ends))
-                .collect();
-            let rows = [cv0, cv1].into_iter().flat_map(|y| {
-                directions.iter().map(move |&(u_at_t0, u_at_t1)| {
-                    let slope = (u_at_t1 - u_at_t0) / span;
-                    Pcurve::IsoLine {
-                        p0: Point2::new(u_at_t0 - slope * t0, y),
-                        pl: Vec2::new(slope, T::zero()),
-                    }
-                })
-            });
-            for cand in columns.chain(rows) {
-                let uv = cand.eval(probe_t);
-                let gap = probe.distance(surface.eval(uv.x, uv.y));
-                match decide("pcurve_iso_seam_column", Margin::of(gap), band) {
-                    Ok(Sign::Zero) => return Ok(cand),
-                    Ok(Sign::Positive | Sign::Negative) => {}
-                    Err(cause) => {
-                        if deferred.is_none() {
-                            deferred = Some(cause);
-                        }
-                    }
-                }
-            }
-            // ---- The fixed schedule found nothing. Derive the image. ----
-            // The candidates above assume the carrier traverses the
-            // chart's WHOLE domain along its moving axis, because that
-            // is what a natively built wall's seam or rim does. The foot schedule
-            // measures the image instead of assuming it, and what it
-            // measures decides the class (P-2):
-            //
-            // * offered back as the two boundary columns with the v map
-            //   the image MEASURED, which is what a partial or affinely
-            //   reparameterized restatement of a column looks like —
-            //   still judged by the same metre-valued probe, so the
-            //   exact class is preferred wherever it applies and no UV
-            //   quantity reaches ε (D4 ¶1);
-            // * otherwise stored as it is, a `General` curve in UV at
-            //   the honest Fitted grade (U2), which is where an
-            //   INTERIOR column lands: it has no boundary-row closed
-            //   form and never will, and `General` is #498's home for
-            //   it rather than a refusal.
-            //
-            // A DIAGONAL locus reaches here too and is not this unit's:
-            // it refuses earlier, at edge certification, on
-            // `PXN_IMAGE_DEGREE` (`geom-brep/src/edge_nurbs.rs`, banked
-            // to #264), so no body carrying one reaches this pass.
-            // ---- An interior ROW: the rim of a cap an offset moved
-            // into the chart. Its row and `u` map are the ones the
-            // carrier's two end feet measure, offered to the same
-            // metre-valued probe. ----
-            if deferred.is_none()
-                && (row_space.forward || row_space.backward)
-                && let (Some(f0), Some(f1)) = (
-                    derive_chart_foot(carrier.eval(t0), surface, half_edge)?,
-                    derive_chart_foot(carrier.eval(t1), surface, half_edge)?,
-                )
-                && row_space.admits(f1.x > f0.x)
-            {
-                let (f0, f1) = (computed_foot::<T>(f0), computed_foot::<T>(f1));
-                let slope = (f1.x - f0.x) / span;
-                let cand = Pcurve::IsoLine {
-                    p0: Point2::new(f0.x - slope * t0, f0.y),
-                    pl: Vec2::new(slope, T::zero()),
-                };
-                let uv = cand.eval(probe_t);
-                let gap = probe.distance(surface.eval(uv.x, uv.y));
-                match decide("pcurve_iso_seam_column", Margin::of(gap), band) {
-                    Ok(Sign::Zero) => return Ok(cand),
-                    Ok(Sign::Positive | Sign::Negative) => {}
-                    Err(cause) => return Err(PcurveMintError::Escalated { half_edge, cause }),
-                }
-            }
-            let image = match derive_general_image(spline, wall, half_edge) {
-                Ok(image) => image,
-                // An escalated candidate still outranks a derivation
-                // refusal: a row that escalates today keeps escalating,
-                // and the new path only ever speaks on a DEFINITE
-                // fall-through.
-                Err(e) => match deferred {
-                    Some(cause) => return Err(PcurveMintError::Escalated { half_edge, cause }),
-                    None => return Err(e),
-                },
-            };
-            // **No re-offer of the exact class here, and the spec was
-            // wrong to ask for one.** Item 7 read "a partial or
-            // reparameterized restatement of a column" off the refusal
-            // payload and inferred the exact class applies to it. It
-            // does not: the seam class's hull limb compares the image
-            // against the chart's own boundary ROW, and that comparison
-            // needs ONE spline space — a partial column is not a
-            // control-net copy of the boundary row and cannot be made
-            // into one. Offering it here would hand the certifier an
-            // image it must structurally refuse, and the mint would
-            // then fail with text about a boundary row for a locus that
-            // is not one. That is the same defect this arm's sibling
-            // (the wall–wall seam arm) was reverted for.
-            //
-            // So the fixed schedule above IS the exact class's whole
-            // reach — a boundary column traversed end to end, in either
-            // direction — and everything it does not claim goes to
-            // `General`, which certifies against the operand pair and
-            // has no boundary-row hypothesis to violate. `General` is
-            // not a downgrade for these loci; it is the only grade that
-            // can state anything true about them.
-            match deferred {
-                Some(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
-                None => Ok(Pcurve::General(std::sync::Arc::new(image))),
-            }
+        // A carrier the exact candidates do not claim stores its
+        // `General` image.
+        geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
+            if matches!(carrier, geom::Curve3::Line { .. }) =>
+        {
+            iso_schedule("pcurve_iso_line_rim")
         }
+        geom_brep::EdgeDescription::Intersection { .. } => iso_schedule("pcurve_iso_seam_column"),
         _ => Err(refuse(
             "no iso derivation for this locus on a NURBS chart — only chart images of \
              this chart, iso-line images of the neighbouring wall, boundary-iso \
@@ -1628,8 +1548,45 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     }
 }
 
-/// The **general curve-in-UV image** of a spline carrier on this face's
-/// own spline chart — U2's `General` arm, at the honest Fitted grade.
+/// **The interior probe**: the first candidate chart image that holds
+/// the carrier a quarter of the edge's span in, metered in METRES
+/// against the chart at the image's own point (D4 ¶1). The start point
+/// cannot decide a pick: every candidate the iso arms build passes
+/// through the start's foot or a chart corner, and a quarter span in is
+/// where they separate. A SELECTION, checked: the full certification
+/// follows every derivation.
+///
+/// Escalations are DEFERRED per candidate, so an indeterminate one does
+/// not rob the rest of their turn; the first is answered only when no
+/// candidate holds.
+fn probe_pick<T: AtRestPolicy>(
+    what: &'static str,
+    carrier: &geom::Curve3<T>,
+    (t0, span): (T, T),
+    surface: &Surface<T>,
+    band: Band,
+    candidates: impl IntoIterator<Item = Pcurve<T>>,
+) -> Result<Option<Pcurve<T>>, Indeterminate> {
+    let probe_t = t0 + span * T::from_f64(0.25);
+    let probe = carrier.eval(probe_t);
+    let mut deferred = None;
+    for cand in candidates {
+        let uv = cand.eval(probe_t);
+        let gap = probe.distance(surface.eval(uv.x, uv.y));
+        match decide(what, Margin::of(gap), band) {
+            Ok(Sign::Zero) => return Ok(Some(cand)),
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Err(cause) => {
+                deferred.get_or_insert(cause);
+            }
+        }
+    }
+    deferred.map_or(Ok(None), Err)
+}
+
+/// The **general curve-in-UV image** of a carrier on this face's own
+/// spline chart over the edge's interval `params` — U2's `General`
+/// arm, at the honest Fitted grade.
 ///
 /// The producer is `geom_brep`'s one derivation of this object
 /// ([`geom_brep::FittedLane::general_image`], whose body is the same
@@ -1637,7 +1594,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
 /// at adopt time). Nothing is certified here: this returns EVIDENCE,
 /// and the mint's next move is `PcurveCache::certify_general`, which
 /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span against the
-/// operand pair the edge's own description names.
+/// chart.
 ///
 /// # Errors
 ///
@@ -1646,7 +1603,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
 /// certified lane (a dual body may not certify — D1), or the
 /// derivation's own typed refusal.
 fn derive_general_image<T: AtRestPolicy>(
-    spline: &geom::NurbsCurve3<T>,
+    carrier: &geom::Curve3<T>,
+    params: (T, T),
     wall: &geom::NurbsSurface<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<geom::NurbsCurve2<T>, PcurveMintError> {
@@ -1656,7 +1614,7 @@ fn derive_general_image<T: AtRestPolicy>(
             scalar: T::NAME,
         }));
     };
-    lane.general_image(spline, wall).map_err(certify)
+    lane.general_image(carrier, params, wall).map_err(certify)
 }
 
 /// The **certified chart foot** of one model-space point on this face's
@@ -2393,12 +2351,12 @@ pub(crate) enum SplitRefusal {
     /// covered lane that refuses here is a genuine defect.
     Certify(PcurveCertifyError),
     /// The one decider decided no element for the joint between the
-    /// two children ([`decide_joint`]). The gap there is exactly zero,
-    /// so what refused is the split point's lever: a mark at it
-    /// escalated (`Some`, with its cause), or the lever is so short
-    /// that the zero gap reads on a mark (`None`) — a point off the
-    /// singular set by more than the band can still sit closer than
-    /// that to the axis, on a narrow cone near its apex.
+    /// two children ([`decide_joint`]). The gap there is zero, and a
+    /// zero gap meets the image's own orbit point at any lever
+    /// ([`lever_periods`]), even a point off a narrow cone's apex by
+    /// more than the band whose lever is under it: what refuses is a
+    /// reading the band cannot decide (`Some`, with its cause), or a
+    /// decided miss (`None`) of a channel that read does not serve.
     Joint(Option<Indeterminate>),
 }
 
@@ -2414,9 +2372,28 @@ pub(crate) enum SplitRefusal {
 /// [`geom_brep::EdgeCurve`]'s carrier does: the children of a split at
 /// `t` have the parent's chart image, restricted to `[t₀, t]` and
 /// `[t, t₁]`. So this re-certifies the parent's own image over each
-/// sub-interval, through the image's own door ([`restate`], with
-/// `fitted`, the scalar's [`crate::AtRestPolicy::fitted_lane`], for a
-/// projected row's hull terms), rather than deriving anything.
+/// sub-interval, through the image's own door ([`restate`], with the
+/// scalar's [`crate::AtRestPolicy::fitted_lane`] for a projected row's
+/// hull terms and a fitted-grade row's check 4), rather than deriving
+/// anything.
+///
+/// **A fitted-grade row's check 4 reads the WHOLE carrier**, not the
+/// child's span: its hull bounds the image's whole domain against the
+/// chart. Its inputs (carrier, image, surface, band) are the parent's,
+/// so at the band the parent's
+/// row was certified at, each child's certificate IS the parent's. The
+/// statement is conservative for a child, and such a split never
+/// refuses a child at check 4 unless the parent's own row already
+/// fails it. At a TIGHTER band than the parent's, check 4 can refuse a
+/// child: a typed refusal ([`SplitRefusal::Certify`]), never a false
+/// certificate.
+///
+/// **The joint between the children** is decided at `t`, where both
+/// children's images hold one chart point, so its gap is zero and no
+/// period is crossed. Off the chart's singular set it decides the
+/// identity shift; it writes a reset at a split point on that set, or
+/// on a `u`-closed spline chart whose whole `u` stretch is within the
+/// band ([`decide_joint`]).
 ///
 /// **`t₀` and `t₁` are the EDGE's certified interval**, read from the
 /// carrier through [`half_edge_carrier`] — the same interval
@@ -2430,37 +2407,39 @@ pub(crate) enum SplitRefusal {
 /// Read-only, so a refusal reaches `split_edge` before any mutation
 /// and the op's "untouched on `Err`" contract is unaffected.
 ///
-/// # `None`, and what it does NOT claim
+/// # `None`
 ///
-/// - `half_edge` carries no row (an all-planar body, a face of an
-///   uncovered class, or one a door has left rowless for its
-///   producer's closing mint);
-/// - the row's image is [`Pcurve::General`] or [`Pcurve::Fitted`]:
-///   neither restricts (each certifies over its own knot domain) and no
-///   route derives the child's afresh, so a split leaves that face
-///   exactly as it found it — tracked on PCERT's slate as
-///   `split-edge-cannot-carry-a-fitted-or-general-pcurve-row`.
-///
-/// In both cases the caller writes nothing, so the map is left exactly
+/// `half_edge` carries no row (an all-planar body, a face of an
+/// uncovered class, or one a door has left rowless for its producer's
+/// closing mint). The caller writes nothing, so the map is left exactly
 /// as found. A key that does not resolve is NOT one of them: it
 /// panics (below).
 ///
-/// # The SPLINE-chart frontier
+/// # What still reads a split body short
 ///
-/// The carry is exact on every kind it covers, spline charts included
-/// (a described-NURBS wall's `IsoLine` and `IsoArc` rows restrict like
-/// any other, and tier 3 reads `Ok` after the split). What a spline
-/// chart does not have is the RECOVERY step: [`mint_pcurves`], the
-/// pass a rowless face's caveat names, refuses on the body such a
-/// split produces, because [`nurbs_iso_derive`]'s rim arms map an
-/// edge's WHOLE carrier interval onto the chart's whole `u` domain,
-/// which a sub-edge no longer spans (`IsoUnsupported` on an arc rim, a
-/// loop-continuity finding on a line rim). Pre-existing and untouched
-/// here — the split now leaves nothing for that pass to do — and filed
-/// on TRIM's slate as
-/// `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`.
-/// So "the carried rows are the mint pass's rows" is a claim about the
-/// ANALYTIC charts (cylinder, sphere, torus), where the pass runs.
+/// The carry is exact on every kind it covers, spline charts included.
+/// Two readers downstream of it are narrower:
+///
+/// - **The iso rim arms.** On a described-NURBS wall the carried
+///   `IsoLine` and `IsoArc` rows restrict like any other, and tier 3
+///   reads `Ok` after the split. But [`mint_pcurves`], the pass a
+///   rowless face's caveat names, refuses on that body, because
+///   [`nurbs_iso_derive`]'s rim arms map an edge's WHOLE carrier
+///   interval onto the chart's whole `u` domain, which a sub-edge no
+///   longer spans (`IsoUnsupported` on an arc rim, a loop-continuity
+///   finding on a line rim). That is pre-existing, and filed as
+///   `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`.
+///   A carried fitted-grade row is not in it: the pass re-derives the
+///   split body's `General` rows bit for bit
+///   (`sweep`'s `split_edge_fitted_rows`).
+/// - **The trimmed quadrature lane.** It subdivides a `General` image
+///   over its whole knot domain, so it refuses a carried child's
+///   sub-range typed rather than integrate chart the face does not
+///   bound. A split of a seam that holds a `General` row is a standing
+///   producer of that shape, filed as
+///   `work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`.
+///   No regression: before this carry the split left the face
+///   rowless, which the lane refuses too.
 ///
 /// # Errors
 ///
@@ -2477,12 +2456,11 @@ pub(crate) enum SplitRefusal {
 /// scaffolding: `halves` are the live halves of an edge whose curve
 /// [`crate::Body::split_edge`] resolved `Certified`.
 #[track_caller]
-pub(crate) fn split_cache<T: Decide>(
+pub(crate) fn split_cache<T: AtRestPolicy>(
     body: &Body<T>,
     halves: [HalfEdgeKey; 2],
     t: T,
     band: Band,
-    fitted: Option<geom_brep::FittedLane<T>>,
 ) -> Result<[Option<CarriedRows<T>>; 2], SplitRowError> {
     let mut rows = [None, None];
     for (slot, half_edge) in halves.into_iter().enumerate() {
@@ -2494,22 +2472,12 @@ pub(crate) fn split_cache<T: Decide>(
         });
         let surface = half_edge_surface(body, half_edge);
         let image = cache.pcurve().clone();
-        let mate = mate_surface(body, half_edge);
         let refused = |error| SplitRowError {
             half_edge,
             refusal: SplitRefusal::Certify(error),
         };
         let certify = |a: T, b: T, image: Pcurve<T>| {
-            restate(
-                &image,
-                (a, b),
-                &carrier,
-                &surface,
-                mate.as_ref(),
-                band,
-                fitted,
-            )
-            .map_err(refused)
+            restate(&image, (a, b), &carrier, &surface, band, T::fitted_lane()).map_err(refused)
         };
         let Some(chart) = DescribedChart::of(&surface) else {
             unreachable!(
@@ -2529,15 +2497,10 @@ pub(crate) fn split_cache<T: Decide>(
                 }
             })
         };
-        // Every image but a fitted-grade one is a function of the
-        // carrier's parameter, and each child's is the parent's
-        // restricted: the same net or coefficients and pieces, over a
-        // sub-interval. A fitted-grade image certifies over its own knot
-        // domain, so no restriction carries it.
-        let (first, second) = match &image {
-            Pcurve::Fitted(_) | Pcurve::General(_) => continue,
-            _ => (image.clone(), image.clone()),
-        };
+        // Every image is a function of the carrier's parameter, and the
+        // children keep the parent's carrier, so each child's image is
+        // the parent's restricted to its sub-interval.
+        let (first, second) = (image.clone(), image);
         // The children meet at the first's point at `t`, so the joint is
         // decided there as every joint is, which reads whether the split
         // point is on the chart's singular set.
@@ -2669,8 +2632,7 @@ pub fn mint_pcurves_of<T: AtRestPolicy>(
 /// refusal, or a panic on a torn record, leaves the body as found.
 ///
 /// A face whose rows are not owed ([`not_owed`]: a pair the chart can
-/// hold but no route covers yet — a spline carrier on an analytic
-/// chart, a mirror-torus spiric, a line, ellipse or spiric offered a
+/// hold but no route covers yet — a line, ellipse or spiric offered a
 /// fitted image — or a fitted face at a scalar with no fitted door; the
 /// at-rest pass excuses exactly these, by the same predicate)
 /// contributes the rows it held, carried ([`carry_rows`]), so the mint
@@ -2731,13 +2693,11 @@ fn carry_rows<T: AtRestPolicy>(
         // refuses here, not later at tier 3.
         row_interval(body, he, row, &carrier, band)?;
         let (t0, t1) = row.params();
-        let mate = mate_surface(body, he);
         let restated = restate(
             row.pcurve(),
             (t0, t1),
             &carrier,
             surface,
-            mate.as_ref(),
             band,
             T::fitted_lane(),
         )
@@ -2753,13 +2713,12 @@ fn carry_rows<T: AtRestPolicy>(
 /// A stored chart image re-certified over `[t0, t1]` through its own
 /// door: the closed-form door for every image it covers, the fitted
 /// door (`fitted`, the scalar's [`crate::AtRestPolicy::fitted_lane`])
-/// for a `Fitted` or `General` one, which also reads the mate surface.
+/// for a `Fitted`, `General` or `Projected` one.
 fn restate<T: Decide>(
     image: &Pcurve<T>,
     (t0, t1): (T, T),
     carrier: &geom::Curve3<T>,
     surface: &Surface<T>,
-    mate: Option<&Surface<T>>,
     band: Band,
     fitted: Option<geom_brep::FittedLane<T>>,
 ) -> Result<PcurveCache<T>, PcurveCertifyError> {
@@ -2771,7 +2730,6 @@ fn restate<T: Decide>(
                 t1,
                 carrier,
                 surface,
-                mate,
                 band,
                 lane,
             ),
@@ -2783,7 +2741,6 @@ fn restate<T: Decide>(
             t1,
             carrier,
             surface,
-            mate,
             band,
             fitted,
         ),
@@ -2803,26 +2760,21 @@ fn restate<T: Decide>(
 /// **Whether a face's refusal means its rows are not owed**: the one
 /// reading, shared by the minting pass ([`mint_rows`]), which leaves
 /// such a face storing nothing, and the at-rest pass
-/// ([`validate_pcurves`]), which reports nothing about it. Two arms, and
-/// only these:
-///
-/// - **an uncovered class** — a pair the chart can hold but no lane
-///   covers yet ([`PcurveCertifyError::UnsupportedCarrier`], whose
-///   `class` names it); each class leaves this arm in the change that
-///   wires its route;
-/// - **a scalar with no fitted door** ([`AtRestPolicy::fitted_lane`]
-///   answers `None`, as a dual's does) refusing a face only the fitted
-///   lane can image ([`PcurveCertifyError::FittedLaneUnsupported`]):
-///   that scalar certifies nothing fitted, so it owes no fitted row. The
-///   rule is the scalar's, not a class's — at every scalar that holds
-///   the door, a fitted refusal is a finding.
+/// ([`validate_pcurves`]), which reports nothing about it. One arm, and
+/// only this: **a scalar with no fitted door**
+/// ([`AtRestPolicy::fitted_lane`] answers `None`, as a dual's does)
+/// refusing a face only the fitted lane can image
+/// ([`PcurveCertifyError::FittedLaneUnsupported`]): that scalar
+/// certifies nothing fitted, so it owes no fitted row. The rule is the
+/// scalar's, not a class's — at every scalar that holds the door, a
+/// fitted refusal is a finding. Every (chart, carrier) class a chart
+/// can hold has a route, so no class is excused.
 fn not_owed<T: AtRestPolicy>(e: &PcurveMintError) -> bool {
     match e {
-        PcurveMintError::Certify { error, .. } => match error {
-            PcurveCertifyError::UnsupportedCarrier { .. } => true,
-            PcurveCertifyError::FittedLaneUnsupported { .. } => T::fitted_lane().is_none(),
-            _ => false,
-        },
+        PcurveMintError::Certify {
+            error: PcurveCertifyError::FittedLaneUnsupported { .. },
+            ..
+        } => T::fitted_lane().is_none(),
         _ => false,
     }
 }
@@ -2864,56 +2816,15 @@ fn derive_face<T: AtRestPolicy>(
             broken.push(lp);
         }
     }
-    // U2's `General` arm certifies at the FITTED grade: the same four
-    // checks in the same order, but check 4 is the full C2 certificate
-    // against the operand PAIR, so it needs the mate the edge's own
-    // description names (D2 — read from the description, never from the
-    // topology, and re-read from the body rather than stored). The
-    // certificate is the fitted door's, read off the scalar's policy,
-    // and the image is not always one this pass derived: the own-chart
-    // arm of `nurbs_iso_derive` hands a construction's STATED `General`
-    // image here at every scalar, a dual included. So the door goes in
-    // as the policy answers it, `None` and all, and an absent one
-    // refuses at check 4 — an image that fails checks 1–3 draws those
-    // checks' verdict at every scalar.
-    //
-    // No derivation in this pass yields a `Fitted` image (an analytic
-    // chart's image of a carrier with no closed form is the projected
-    // one); one reaches here only as a stated row, and certifies at the
-    // scalar's door or refuses naming the scalar that lacks it.
+    // The fitted door goes in as the scalar's policy answers it, `None`
+    // and all: the own-chart arm of `nurbs_iso_derive` hands a
+    // construction's STATED `General` image here at every scalar, a dual
+    // included, and an absent door refuses at check 4, so an image that
+    // fails checks 1–3 draws those checks' verdict at every scalar.
     let fitted = |w: &Walked<T>| match &w.pcurve {
-        Pcurve::General(image) => PcurveCache::certify_general(
-            std::sync::Arc::clone(image),
-            w.t0,
-            w.t1,
-            &w.carrier,
-            surface,
-            mate_surface(body, w.key).as_ref(),
-            band,
-            T::fitted_lane(),
-        ),
-        Pcurve::Fitted(image) => {
-            let lane = T::fitted_lane()
-                .ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
-            PcurveCache::certify_fitted(
-                std::sync::Arc::clone(image),
-                w.t0,
-                w.t1,
-                &w.carrier,
-                surface,
-                mate_surface(body, w.key).as_ref(),
-                band,
-                lane,
-            )
-        }
-        // A spline carrier's projected row reads its hull terms through
-        // the door; a circle's reads nothing from it. At a scalar with
-        // no door a net's row refuses at check 4, which `not_owed`
-        // excuses there.
-        Pcurve::Projected(image) => PcurveCache::certify_projected(
-            (**image).clone(),
-            w.t0,
-            w.t1,
+        Pcurve::Fitted(_) | Pcurve::General(_) | Pcurve::Projected(_) => restate(
+            &w.pcurve,
+            (w.t0, w.t1),
             &w.carrier,
             surface,
             band,
@@ -4064,7 +3975,10 @@ fn singular_at<T: Decide>(
 /// point rather than from a stored latitude. On a plane or a spline
 /// chart the first channel is not an angle, and the arm is
 /// [`chart_u_arm`]'s rate.
-fn joint_arm<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point3<T>) -> ChartArm<T> {
+pub(crate) fn joint_arm<T: Real>(
+    chart: DescribedChart<'_, T>,
+    vertex: geom_core::Point3<T>,
+) -> ChartArm<T> {
     let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
         let w = vertex - origin;
         (w - axis * w.dot(axis)).norm()
@@ -4105,11 +4019,24 @@ enum AzimuthRule {
     /// chart's undecided incidence takes [`AzimuthRule::MarksNearPole`]
     /// instead.
     SplineUndecided,
-    /// The integer, by the marks.
+    /// The integer by the marks, and where they miss, an orbit point
+    /// whose gap is decided within ε at the vertex's lever
+    /// ([`lever_periods`]): a vertex decided off the singular set can
+    /// still have a band-sized lever (near a narrow cone's apex, where
+    /// the incidence reads `|p − apex|` and the lever is that times
+    /// `sin α`). Where neither closes, the marks' own miss: a gap on a
+    /// mark answers a decided discontinuity, even where the near-pole
+    /// read was in band rather than decided off (filed in
+    /// `work/pcert/an-in-band-near-pole-read-is-dropped-so-a-half-turn-joint-misses-as-decided`).
     Marks,
-    /// The integer by the marks; where they are undecided too, the
-    /// unshifted gap at the vertex's lever ([`near_pole_gap_closes`]),
-    /// and otherwise the incidence's escalation.
+    /// The same read as [`AzimuthRule::Marks`], with one difference: a
+    /// miss is the incidence's escalation, never the marks' own. The
+    /// vertex may be ON the set, where every azimuth names the point, so
+    /// no miss there is a decided discontinuity or a decided reach. The
+    /// two differ in that error alone, and its readers read it: a
+    /// discontinuity refuses as decided ([`turn_element`]'s `Err(None)`,
+    /// [`PcurveMintError::LoopDiscontinuity`]), an escalation as
+    /// undecided.
     MarksNearPole(Indeterminate),
 }
 
@@ -4164,12 +4091,22 @@ impl AzimuthRule {
 /// other than the true one, but only one equally near the joint: every
 /// orbit point is a lift of the SAME 3-D point, and two that are both
 /// within the joint bound are within it of each other, so the lift
-/// stays continuous in metres to that bound. Otherwise a mark decides
-/// Zero (the gap is on it: a refusal) or escalates. No branch is ever
-/// decided that names a different point. What such a pick can move is
-/// the loop's winding by one orbit step, so a reader of the winding as a
-/// region checks each joint's room first: [`chart_boundary`] refuses a
-/// joint whose room is not past the joint bound ([`joint_has_room`]).
+/// stays continuous in metres to that bound. Where a mark misses there
+/// (the gap on it, or in its band), the orbit point the gap meets within
+/// ε at the vertex's lever is taken ([`lever_periods`]): at a sub-band
+/// lever every mark reads Zero, and a continuous joint whose gap is
+/// within ε of an offset the read tries decides a lift of its own
+/// point. Where the read decides no offset, the marks' own miss is
+/// returned: a gap on a mark refuses as decided even where the read's
+/// nearest offsets sat in band, so a joint half a turn round at such a
+/// lever, which can be continuous in metres, misses as a decided
+/// discontinuity (filed in
+/// `work/pcert/an-in-band-near-pole-read-is-dropped-so-a-half-turn-joint-misses-as-decided`).
+/// No branch is ever decided that names a different point. What such a
+/// pick can move is the loop's winding by one orbit step, so a reader of
+/// the winding as a region checks each joint's room first:
+/// [`chart_boundary`] refuses a joint whose room is not past the joint
+/// bound ([`joint_has_room`]).
 ///
 /// **The joint's 3-D coincidence is not decided again here**, and needs
 /// no chart margin: it follows from two certified bounds. Each row's
@@ -4189,9 +4126,9 @@ impl AzimuthRule {
 /// is a reset, and that skip rests on the 3-D decision alone. Where the
 /// incidence is UNDECIDED nothing is skipped on an analytic chart: the
 /// integer is decided as at any other joint, which is sound either way
-/// (a deck transformation moves no point), and where its marks cannot
-/// be decided either, the unshifted gap must be decided within ε at the
-/// vertex's own lever ([`near_pole_gap_closes`]). A spline chart has no
+/// (a deck transformation moves no point), with the same near-pole read
+/// where its marks miss ([`lever_periods`]), and any miss left
+/// escalates with the incidence's cause. A spline chart has no
 /// injectivity lemma (a net can fold, so a 3-D coincidence does not
 /// name the sheet), and each of its joints states its chart-space gap
 /// as well ([`spline_gap_closes`]), which is what keeps its net-level
@@ -4239,27 +4176,19 @@ fn decide_joint<T: Decide>(
     let arm = joint_arm(chart, vertex);
     let whole = |k: i32| T::from_f64(f64::from(k));
     let twin = sphere_twin(surface, image);
-    // The orbit's azimuth step: half a period where the image has a
-    // twin, a whole one elsewhere.
-    let step = u_period.map(|p| {
-        if twin.is_some() {
-            p * T::from_f64(0.5)
-        } else {
-            p
-        }
-    });
+    let orbit = if twin.is_some() {
+        Orbit::HalfPeriodsWithTwin
+    } else {
+        Orbit::Periods
+    };
     let gap = prev.x - image.eval(entry_t).x;
-    let marks = |s: T| whole_period_count("pcurve_loop_branch", gap, s, |g| arm.meter(g), band);
-    let rule = AzimuthRule::of(step.is_some(), singular_at(chart, vertex, band), spline);
-    let m = match (rule, step) {
-        (AzimuthRule::Marks, Some(s)) => marks(s).map_err(PinMiss::from)?,
-        (AzimuthRule::MarksNearPole(cause), Some(s)) => match marks(s) {
-            Err(BranchMiss::Undecided(_) | BranchMiss::OnMark) => {
-                near_pole_gap_closes(arm, gap, s, twin.is_some(), band)
-                    .ok_or(PinMiss::Escalated(cause))?
-            }
-            decided => decided.map_err(|_| PinMiss::Escalated(cause))?,
-        },
+    let marks = |p: T| lever_periods("pcurve_loop_branch", arm, gap, p, orbit, band);
+    let rule = AzimuthRule::of(u_period.is_some(), singular_at(chart, vertex, band), spline);
+    let m = match (rule, u_period) {
+        (AzimuthRule::Marks, Some(p)) => marks(p).map_err(PinMiss::from)?,
+        (AzimuthRule::MarksNearPole(cause), Some(p)) => {
+            marks(p).map_err(|_| PinMiss::Escalated(cause))?
+        }
         _ => 0,
     };
     let (is_twin, ku) = match twin {
@@ -4318,10 +4247,10 @@ fn decide_joint<T: Decide>(
 ///
 /// Whether the ends meet escalated at `band` (`Some`, its cause), or
 /// they meet and the turn's joint decision there missed: it escalated
-/// (`Some`), or decided a miss (`None`) — the vertex's lever so short
-/// that the gap reads on a mark, or periods past the branch reach. The
-/// ends are one point, so neither is "no turn"; a kill writes no element
-/// through any of them.
+/// (`Some`), or decided a miss (`None`) — the gap on a mark and off
+/// every orbit point the near-pole read tries at the vertex's lever, or
+/// periods past the branch reach. The ends are one point, so neither is
+/// "no turn"; a kill writes no element through any of them.
 ///
 /// # Panics
 ///
@@ -4380,16 +4309,59 @@ impl From<BranchMiss> for PinMiss {
     }
 }
 
-/// The branch of a joint whose vertex's incidence on the singular set
-/// is undecided, where the orbit's marks are undecided too: the vertex
-/// sits within the band of a pole or an apex, so its own lever `arm` is
-/// band-sized and no mark reads definitely. An orbit point is taken
-/// only where the gap to it, metered at that lever, is decided within ε
-/// (`pcurve_loop_pole_gap`): the image itself (`m = 0`) or, where the
-/// image has a twin, the twin either way round (`m = ±1`, a `step` of
-/// half a period off). The two chart points then agree in metres at the
-/// vertex, and no branch is asserted that a margin did not see. `None`
-/// otherwise; the caller escalates with the incidence's cause.
+/// **A joint's orbit**: the step its marks count in, and the offsets
+/// the near-pole read tries ([`near_pole_gap_closes`]), in that step,
+/// first to last. The two travel together, so an offset is never read
+/// in the other orbit's step.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Orbit {
+    /// No twin: whole periods. The image itself, then the image one
+    /// period either way round.
+    Periods,
+    /// A sphere twin half a period over: half periods. The image, the
+    /// twin either way round, then the image one period either way
+    /// round. The twin a period over (`±3`) is not tried: a twin is a
+    /// sphere's, and a continuous joint's marks miss on a sphere only
+    /// within the band of a pole. A vertex decided off one has a lever
+    /// past the band's escalate edge, a quarter turn of which clears
+    /// the band to every mark, so there the incidence is undecided
+    /// ([`AzimuthRule::MarksNearPole`]) and a miss escalates, never
+    /// decides.
+    HalfPeriodsWithTwin,
+}
+
+impl Orbit {
+    /// The offsets tried, first to last, in [`Orbit::step`]s.
+    pub(crate) fn offsets(self) -> &'static [i32] {
+        match self {
+            Self::Periods => &[0, 1, -1],
+            Self::HalfPeriodsWithTwin => &[0, 1, -1, 2, -2],
+        }
+    }
+
+    /// The step of `period` this orbit counts in.
+    pub(crate) fn step<T: Real>(self, period: T) -> T {
+        match self {
+            Self::Periods => period,
+            Self::HalfPeriodsWithTwin => period * T::from_f64(0.5),
+        }
+    }
+}
+
+/// The branch of a joint whose orbit's marks missed at a band-sized
+/// lever `arm` ([`lever_periods`]): the vertex sits within the band of
+/// a pole or an apex (its incidence undecided), or off a narrow cone's
+/// apex by more than the band while its lever `|p − apex|·sin α` is not,
+/// so no mark reads definitely. The first offset `m` of `orbit`
+/// ([`Orbit::offsets`], in its steps of `period`) whose gap, metered at
+/// that lever, is decided within ε (`pcurve_loop_pole_gap`) is taken.
+/// The two chart points then agree in metres at the vertex, and no
+/// branch is asserted that a margin did not see. Every offset tried is
+/// a lift of the one point: a whole period is a deck transformation of
+/// the chart, and a half step lands on the twin, which names the point
+/// once the caller's second-channel count on it decides. `None`
+/// otherwise, an offset in band included; the caller answers with the
+/// marks' miss.
 ///
 /// A vertex ON the axis but off the surface (within the band of a pole)
 /// has lever 0, so any gap decides Zero there and the image itself is
@@ -4400,18 +4372,80 @@ impl From<BranchMiss> for PinMiss {
 fn near_pole_gap_closes<T: Decide>(
     arm: ChartArm<T>,
     gap: T,
-    step: T,
-    twin: bool,
+    period: T,
+    orbit: Orbit,
     band: Band,
 ) -> Option<i32> {
-    let orbit: &[i32] = if twin { &[0, 1, -1] } else { &[0] };
-    orbit.iter().copied().find(|&m| {
+    let step = orbit.step(period);
+    orbit.offsets().iter().copied().find(|&m| {
         let off = gap - T::from_f64(f64::from(m)) * step;
         matches!(
             decide("pcurve_loop_pole_gap", arm.meter(off), band),
             Ok(Sign::Zero)
         )
     })
+}
+
+/// **A joint's whole orbit steps by the marks, with the near-pole
+/// read**: [`geom_brep::whole_period_count`] of `gap` in `orbit`'s
+/// steps of `period`, metered at the vertex's lever `arm`. Where a mark
+/// misses (undecided, or the gap on it), an orbit point whose gap is
+/// decided within ε at that lever is taken ([`near_pole_gap_closes`],
+/// trying `orbit`'s offsets in order). A band-sized lever reads every
+/// mark as Zero: a vertex near a pole, and a vertex
+/// near a narrow cone's apex, whose incidence decides it OFF the apex
+/// ([`singular_at`] reads `|p − apex|`) while its lever `|p − apex|·sin α`
+/// is under the band. The two chart points then agree in metres at the
+/// vertex. A whole-period offset is a lift of the joint's own point;
+/// an odd offset of [`Orbit::HalfPeriodsWithTwin`] is a half step onto
+/// the twin, which
+/// names the joint's point only once the caller's second-channel count
+/// on the twin decides ([`decide_joint`]).
+///
+/// At a lever with room nothing moves: the read is asked only where a
+/// mark missed, so where the gap is within the band of a mark, and a
+/// gap within ε of an orbit point is that near a mark only where half a
+/// step at the lever is itself band-sized, whichever orbit point it is.
+///
+/// # Errors
+///
+/// The marks' [`BranchMiss`] where the near-pole read does not close.
+pub(crate) fn lever_periods<T: Decide>(
+    name: &'static str,
+    arm: ChartArm<T>,
+    gap: T,
+    period: T,
+    orbit: Orbit,
+    band: Band,
+) -> Result<i32, BranchMiss> {
+    let step = orbit.step(period);
+    match whole_period_count(name, gap, step, |g| arm.meter(g), band) {
+        Err(miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark)) => {
+            near_pole_gap_closes(arm, gap, period, orbit, band).ok_or(miss)
+        }
+        decided => decided,
+    }
+}
+
+/// **The two branches astride a half-period mark**: where `gap` sits on
+/// or near the mark between `j` and `j + 1` periods, `[j, j + 1]`, with
+/// `j` decided by the marks of `gap` less half a period, which then sits
+/// near `j` periods, half a period from either of its own marks. A caller
+/// whose marks missed asks its question on both and keeps an answer only
+/// where the two agree.
+///
+/// # Errors
+///
+/// [`BranchMiss`] where `j`'s own marks miss.
+pub(crate) fn branches_astride<T: Decide>(
+    name: &'static str,
+    gap: T,
+    period: T,
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<[i32; 2], BranchMiss> {
+    let j = whole_period_count(name, gap - period * T::from_f64(0.5), period, meter, band)?;
+    Ok([j, j + 1])
 }
 
 /// **A spline chart's joint gap**: the entry `entry` and the
@@ -4547,7 +4581,7 @@ fn chart_edge<T: Decide>(
             matches!(chart, Surface::Plane { .. })
                 && matches!(walked.carrier, geom::Curve3::Line { .. })
         }
-        // A spiric image is curved on BOTH charts it lives on — the
+        // A spiric image is curved on EVERY chart it lives on — the
         // cap's `pm·f(t) + pa·sin t` and the wall's `atan2(f, d)`
         // azimuth — so it takes the envelope door below, which the
         // `_` arm there already answers from `eval` over the span
@@ -4690,8 +4724,8 @@ pub(crate) fn chart_period<T: AtRestPolicy>(chart: &Surface<T>, band: Band) -> O
 /// placeholder, both before any loop is walked;
 /// [`PcurveMintError`] — the loop walk's own refusals (a half of a null
 /// edge, a typed chart refusal such as
-/// [`PcurveCertifyError::UnsupportedCarrier`] for a `Nurbs` carrier on
-/// an analytic chart, a discontinuous or unclosed walk);
+/// [`PcurveCertifyError::CarrierOffChart`] for a carrier that cannot
+/// lie on its chart, a discontinuous or unclosed walk);
 /// [`PcurveMintError::EmptyOuter`] for a face whose outer loop is a
 /// lone vertex; [`PcurveMintError::UncertifiedImage`] for a fitted
 /// or general image on a face that stores no rows, and
@@ -4968,8 +5002,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 if let Err(e) = row_interval(body, he, cache, &carrier, band) {
                     findings.push(e);
                 }
-                let mate = mate_surface(body, he);
-                if let Err(error) = cache.recertify(&carrier, surface, mate.as_ref(), band, lane) {
+                if let Err(error) = cache.recertify(&carrier, surface, band, lane) {
                     findings.push(PcurveMintError::Certify {
                         half_edge: he,
                         error,
@@ -5270,6 +5303,12 @@ pub(crate) mod staleness_posture {
                 Neither,
                 "a fixture builder composed of `Neither` operators, minting no row of its \
              own; `cyl_wall_sheet` is the door that runs the pass over what it grew",
+            ),
+            (
+                "restate_surface",
+                Neither,
+                "a test-support door that overwrites one surface datum and leaves every row \
+                 as found; a row the new datum stales is the tier-3 pass's to report",
             ),
             ("mvfs", Neither, "Euler operator"),
             (
@@ -5976,6 +6015,140 @@ mod stretch_meter {
         }
     }
 
+    /// **A joint clear of the apex, or within the band of a pole, takes
+    /// a lift of its own point at any gap on its orbit.** At `α = 0.01`
+    /// a vertex `d` from the apex is decided `Off` the singular set from
+    /// `d` past the band's escalate edge on, while its lever is `d·sin α`,
+    /// a hundredth of that: under the band until `d` is a hundred times
+    /// the edge. A continuous joint there (gap 0, a thousandth of a
+    /// radian, a whole turn) reads every mark Zero or in band, and takes
+    /// the orbit point its gap meets at that lever by the near-pole read
+    /// ([`super::lever_periods`]): the image itself, or the image a
+    /// period over. On a sphere, a vertex within the band of a pole reads
+    /// the same way in half periods, and a whole turn's gap meets the
+    /// image a period over, two half steps off.
+    #[test]
+    fn a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
+        use super::{Deck, JointElement, Orbit, decide_joint, near_pole_gap_closes};
+        use geom_brep::Pcurve;
+        use geom_core::{Point2, Vec2};
+        let zero = Vec2::new(0.0, 0.0);
+        let tau = std::f64::consts::TAU;
+        let at_gap = |surface: &Surface<f64>, vertex, v: f64, gap: f64| {
+            let image = Pcurve::Harmonic {
+                p0: Point2::new(0.0, v),
+                pa: zero,
+                pb: zero,
+                pl: zero,
+            };
+            let prev = Point2::new(gap, v);
+            decide_joint(chart(surface), &image, 0.0, prev, vertex, Some(tau), band())
+        };
+        let read = |out: Result<JointElement, super::PinMiss>| match out {
+            Ok(element) => format!("{element:?}"),
+            Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
+            Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
+            Err(super::PinMiss::OutOfReach) => "OutOfReach".into(),
+        };
+        let lift = |u| {
+            format!(
+                "{:?}",
+                JointElement::Shift(Deck {
+                    u,
+                    v: 0,
+                    twin: false,
+                })
+            )
+        };
+        let alpha = 0.01f64;
+        let cone: Surface<f64> = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for d in [2.0, 5.0, 10.0, 100.0, 1000.0].map(|m| m * band().escalate()) {
+            let vertex = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
+            assert!(
+                matches!(singular_at(chart(&cone), vertex, band()), Singular::Off),
+                "d = {d:e}: the vertex is decided clear of the apex"
+            );
+            for (gap, turns) in [(0.0, 0), (1e-3, 0), (tau, 1), (-tau, -1)] {
+                assert_eq!(
+                    read(at_gap(&cone, vertex, d, gap)),
+                    lift(turns),
+                    "d = {d:e} (lever {:e}), gap {gap}: the image {turns} periods over",
+                    d * alpha.sin()
+                );
+            }
+            // Half a turn round, the read's nearest offsets sit `π·lever`
+            // off. Where that is in band they are dropped and the marks'
+            // decided miss answers, though the two chart points are only
+            // `2·lever` apart in metres (filed in
+            // `work/pcert/an-in-band-near-pole-read-is-dropped-so-a-half-turn-joint-misses-as-decided`).
+            let lever = d * alpha.sin();
+            let pi_lever = core::f64::consts::PI * lever;
+            if band().zero() < pi_lever && pi_lever < band().escalate() {
+                assert_eq!(
+                    read(at_gap(&cone, vertex, d, 0.5 * tau)),
+                    "Discontinuity",
+                    "d = {d:e} (lever {lever:e}), gap π: the in-band read is dropped today"
+                );
+            }
+        }
+        let sphere: Surface<f64> = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let near_pole = Point3::new(5e-9, 0.0, 2.0);
+        assert!(
+            matches!(
+                singular_at(chart(&sphere), near_pole, band()),
+                Singular::Undecided(_)
+            ),
+            "the vertex is within the band of the pole"
+        );
+        let v = (near_pole.z / 2.0).asin();
+        for (gap, turns) in [(0.0, 0), (tau, 1), (-tau, -1)] {
+            assert_eq!(
+                read(at_gap(&sphere, near_pole, v, gap)),
+                lift(turns),
+                "sphere near its pole, gap {gap}: the image {turns} periods over"
+            );
+        }
+        // The twin a period over is not an offset the read tries: near
+        // the pole a gap of three half turns escalates, never decides.
+        assert_eq!(
+            read(at_gap(&sphere, near_pole, v, 1.5 * tau)),
+            "Escalated",
+            "sphere near its pole, gap 3π: the twin a period over is not tried"
+        );
+        // Where a whole turn at the lever is itself within ε, the image
+        // and the image a period over both close, and the image is taken
+        // first. Through `decide_joint` a sphere never reaches that: its
+        // read runs only where the incidence is undecided, so its lever
+        // is past the band's zero edge and no two offsets are within ε.
+        // So the order is pinned at the read itself.
+        let both = ChartArm::Angular(0.05 * band().zero());
+        let one = ChartArm::Angular(0.5 * band().zero());
+        for (orbit, period_over) in [(Orbit::Periods, 1), (Orbit::HalfPeriodsWithTwin, 2)] {
+            for (sign, gap) in [(1, tau), (-1, -tau)] {
+                assert_eq!(
+                    near_pole_gap_closes(both, gap, tau, orbit, band()),
+                    Some(0),
+                    "{orbit:?}, gap {gap}, a whole turn within ε: the image itself first"
+                );
+                assert_eq!(
+                    near_pole_gap_closes(one, gap, tau, orbit, band()),
+                    Some(sign * period_over),
+                    "{orbit:?}, gap {gap}, only the image a period over within ε"
+                );
+            }
+        }
+    }
+
     /// A placeholder payload has no net to bound, so it has no arms:
     /// it is not a [`DescribedChart`], and these meters cannot be
     /// asked about it.
@@ -6140,6 +6313,33 @@ mod recourse_tests {
             }
         }
     }
+
+    /// A fitted-lane escalation (the hull limb's, the one it raises),
+    /// rendered through the mint's `Certify` arm, ends in its limb's own
+    /// labelled recourse at a build.
+    #[test]
+    fn a_fitted_hull_escalation_renders_its_own_recourse_through_the_mint() {
+        let finding = PcurveMintError::Certify {
+            half_edge: HalfEdgeKey::default(),
+            error: PcurveCertifyError::FittedEscalated {
+                decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
+                cause: Indeterminate {
+                    margin: MarginDiag::value(5e-9),
+                    band: Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some("ssi_hull_sup_chart"),
+                    terminal_sliver: false,
+                },
+            },
+        };
+        assert_eq!(
+            finding.to_string(),
+            "the pcurve of half-edge HalfEdgeKey(null) failed certification: pcurve \
+             certification: the fitted lane's certificate escalated — whether the fitted carrier \
+             passes limb 2 (control-hull sup-norm bound) is undecided: margin 5e-9 lies inside \
+             the ambiguity band (1e-9, 1e-8). Recourse: loosen the tolerance, as a last resort; \
+             this refusal may indicate a kernel bug worth reporting"
+        );
+    }
 }
 
 /// **The fitted refusal raised before any check.** The mint's
@@ -6185,7 +6385,10 @@ mod derive_without_a_door {
         )
         .unwrap()
         .map_scalar(lift);
-        let err = derive_general_image(&carrier, &chart, HalfEdgeKey::default()).unwrap_err();
+        let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(carrier));
+        let params = (Dual64::from_f64(0.0), Dual64::from_f64(1.0));
+        let err =
+            derive_general_image(&carrier, params, &chart, HalfEdgeKey::default()).unwrap_err();
         let PcurveMintError::Certify {
             error: PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
             ..
@@ -6207,7 +6410,7 @@ mod derive_without_a_door {
 #[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic)]
 mod polar_shift_tests {
     use super::shift_polar_branch;
-    use geom_brep::{Pcurve, SpiricImage};
+    use geom_brep::{Pcurve, SpiricImage, WallTorus};
     use geom_core::{Point2, Vec2};
 
     /// **The meridional branch shift, at its own door.** A body cannot
@@ -6229,13 +6432,20 @@ mod polar_shift_tests {
                 u0: 0.25,
                 v0: 0.5,
                 sense: -1.0,
+                torus: WallTorus::Mirror,
             },
         };
         let Pcurve::Spiric {
             major,
             minor,
             offset,
-            image: SpiricImage::Wall { u0, v0, sense },
+            image:
+                SpiricImage::Wall {
+                    u0,
+                    v0,
+                    sense,
+                    torus,
+                },
         } = shift_polar_branch(&wall, 3.0, period)
         else {
             panic!("the wall arm keeps its variant and its image kind");
@@ -6243,6 +6453,7 @@ mod polar_shift_tests {
         assert_eq!(v0, 0.5 + 3.0 * period, "v0 takes the whole-period shift");
         assert_eq!(u0, 0.25, "the azimuth constant is the other door's");
         assert_eq!(sense, -1.0, "the sign is not a branch");
+        assert_eq!(torus, WallTorus::Mirror, "nor is the torus");
         assert_eq!((major, minor, offset), (0.09375, 0.0703125, 0.0078125));
 
         // A cap lives on a plane chart, where no joint decides a
@@ -6852,8 +7063,8 @@ mod lift_rows {
     /// orbit point meets, escalates.** The vertex is `5ε` from the north
     /// pole (incidence undecided), so its lever is `5ε`; the gap is one
     /// radian, so no mark decides, and none of the orbit points the
-    /// near-pole reading may take (the image, the twin either way) is
-    /// within ε of it at that lever. Taking the image there would be a
+    /// near-pole reading may take (the image, the twin either way, the
+    /// image a period either way) is within ε of it at that lever. Taking the image there would be a
     /// branch no margin saw.
     fn near_pole_off_orbit_escalates<T: Decide>(lane: &str) {
         let s = unit_sphere::<T>();
@@ -7052,26 +7263,31 @@ mod lift_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod turn_miss {
-    use super::turn_element;
+    use super::{Deck, JointElement, turn_element};
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use crate::{Body, LoopBoundary, MevSite, NewVertexSide};
     use geom::Surface;
     use geom_core::{Band, Tol};
 
-    /// **A turn whose ends meet but whose joint decision misses refuses;
-    /// it is not "no turn".** A null strut on a minted cylinder wall,
+    /// **A turn on a sub-band lever decides the lift its gap meets, in
+    /// both orientations.** A null strut on a minted cylinder wall,
     /// described as the wall's own circle once round, is a closed
-    /// carrier: its turn is a period. The same rows on a cylinder whose
-    /// radius is a fraction of ε put the turn's gap, a period, on a
-    /// mark at the vertex's lever, so the decision misses (`Err(None)`,
-    /// where it used to read `Ok(None)` right after deciding that the
-    /// ends meet); at a radius whose marks' margins sit inside the band,
-    /// it escalates (`Err(Some)`). Through the doors no body
-    /// reaches either, since every joint at that vertex was decided at
-    /// the same lever and margin when its rows were minted, so the row
-    /// shrinks the carrier's surface under the stored rows.
+    /// carrier: its turn is a period, `−τ` read along `he_plus` and `+τ`
+    /// along `he_minus`. On a cylinder whose radius `r` keeps the gap's
+    /// nearest mark, `π·r` off, inside the band's escalate edge (under
+    /// `escalate/π`, about `3.2ε` at this band), the marks read Zero or
+    /// in band, and the near-pole read ([`super::lever_periods`]) takes
+    /// the orbit point the gap meets within ε at that lever: the image
+    /// one period over (`u = ∓1`), or under `ε/τ`, where every orbit
+    /// point it tries is within ε, the image itself (`u = 0`). Past
+    /// `escalate/π` the marks decide `u = ∓1` themselves, the control. Each is a lift of the one
+    /// point, so the turn decides rather than missing as a
+    /// discontinuity. Through the doors no body reaches either, since
+    /// every joint at that vertex was decided at the same lever and
+    /// margin when its rows were minted, so the row shrinks the
+    /// carrier's surface under the stored rows.
     #[test]
-    fn a_turn_whose_joint_misses_refuses() {
+    fn a_sub_band_turn_decides_the_lift_its_gap_meets() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let mut body = Body::<f64>::new();
@@ -7102,13 +7318,9 @@ mod turn_miss {
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle, t0, t0 + core::f64::consts::TAU)
             .unwrap();
         body.set_edge_curve(null.edge, spec, tol).unwrap();
-        let he = null.he_plus;
-        assert!(
-            matches!(turn_element(&body, he, band), Ok(Some(_))),
-            "the control: at the wall's own radius the turn is decided"
-        );
         let key = body.get_face(face).unwrap().surface;
-        let at_radius = |r: f64| {
+        let he_minus = body.get_edge(null.edge).unwrap().he_minus;
+        let at = |he, r: f64| {
             let mut shrunk = body.clone();
             let Some(Surface::Cylinder { radius, .. }) = shrunk.surfaces.get_mut(key) else {
                 panic!("the wall is a cylinder")
@@ -7116,15 +7328,43 @@ mod turn_miss {
             *radius = r;
             turn_element(&shrunk, he, band)
         };
+        let lift = |u| {
+            Some(JointElement::Shift(Deck {
+                u,
+                v: 0,
+                twin: false,
+            }))
+        };
+        let read = |out: Result<Option<JointElement>, Option<geom_core::Indeterminate>>| {
+            out.map_err(|cause| cause.is_some())
+        };
+        assert_eq!(
+            read(at(null.he_plus, frame.radius)),
+            Ok(lift(-1)),
+            "the control: at the wall's own radius the turn is a period"
+        );
         let eps = band.zero();
-        assert!(
-            matches!(at_radius(0.1 * eps), Err(None)),
-            "a period's gap on a mark is a miss, not no turn"
-        );
-        assert!(
-            matches!(at_radius(eps), Err(Some(_))),
-            "a mark margin inside the band escalates"
-        );
+        for (he, turn, side) in [(null.he_plus, -1, "he_plus"), (he_minus, 1, "he_minus")] {
+            for r in [0.01, 0.1, 0.15] {
+                assert_eq!(
+                    read(at(he, r * eps)),
+                    Ok(lift(0)),
+                    "{side}, r = {r}·ε: under ε/τ every orbit point is within ε, the image itself"
+                );
+            }
+            for r in [0.17, 0.2, 0.25, 0.3, 0.5, 1.0, 3.0] {
+                assert_eq!(
+                    read(at(he, r * eps)),
+                    Ok(lift(turn)),
+                    "{side}, r = {r}·ε: the near-pole read takes the image a period over"
+                );
+            }
+            assert_eq!(
+                read(at(he, 10.0 * eps)),
+                Ok(lift(turn)),
+                "{side}, r = 10·ε: the control, where the marks decide the period"
+            );
+        }
     }
 }
 

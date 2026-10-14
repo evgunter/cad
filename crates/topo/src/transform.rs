@@ -8,14 +8,16 @@
 //!
 //! # Contract
 //!
-//! `map` must be a RIGID map (orthonormal linear part, determinant
-//! +1). Rigidity is **checked at the door** with decided predicates
-//! (column norms, pairwise orthogonality, and the determinant, each
-//! classified against the linear band) — a uniform scale is affinely
-//! self-consistent on planar bodies, so re-certification alone would
-//! NOT catch it while it silently broke every unit-vector convention
-//! downstream; the explicit check makes that a typed
-//! [`TransformError::NotRigid`] refusal. On top of that, every edge
+//! The map is a [`RigidMotion`] (orthonormal linear part, determinant
+//! +1, finite): rigidity is **carried by the witness or decided at its
+//! door** ([`RigidMotion::check_rigid`]), and this door asks nothing
+//! about it. A uniform scale is affinely self-consistent on planar
+//! bodies, so re-certification alone would NOT catch one while it
+//! silently broke every unit-vector convention downstream; the type is
+//! what keeps one out, to the type's own standard: a minted motion is
+//! rigid up to rounding, a door-admitted factor within the band, and a
+//! product of `k` admitted factors — not decided again — within about
+//! `k` bands (`RigidMotion`'s module docs). On top of that, every edge
 //! carrier is **re-certified** against the mapped geometry through
 //! [`geom_brep::EdgeCurve::certify_via`] — with the plane × NURBS lane the
 //! scalar's policy holds ([`crate::AtRestPolicy::nurbs_lane`]) — so a
@@ -101,7 +103,7 @@ use geom_brep::{
 };
 use geom_core::Tol;
 use geom_core::predicate::{Band, BandError};
-use geom_core::{Affine3, Decide, Margin, Point3, Real, Vec3};
+use geom_core::{Affine3, Decide, Point3, Real, RigidMotion, Vec3};
 
 use crate::body::Body;
 use crate::entity::EdgeKey;
@@ -120,31 +122,16 @@ pub enum TransformError {
     },
     /// The run's tolerance could not form a classification band.
     Band(BandError),
-    /// Re-certification of a mapped edge carrier failed: the map is not
-    /// an isometry at tolerance, or the input body's geometry was
-    /// already out of certification. Read the nested `source` for which
-    /// check refused.
+    /// Re-certification of a mapped edge carrier failed: the input
+    /// body's geometry was already out of certification, or the mapped
+    /// data no longer certify together (at an enclosure scalar, a
+    /// widened motion's images are enclosed apart). Read the nested
+    /// `source` for which check refused.
     Certify {
         /// The edge whose carrier failed.
         edge: EdgeKey,
         /// The certification refusal, unaltered.
         source: CertifyError,
-    },
-    /// The map's linear part failed a decided rigidity predicate —
-    /// a column norm or the determinant off 1, or two columns not
-    /// orthogonal, at tolerance (in-band indeterminacy refuses too:
-    /// a maybe-rigid map is not a rigid map).
-    NotRigid {
-        /// The named predicate that refused.
-        check: &'static str,
-    },
-    /// A translation component is non-finite (NaN/inf) — refused at the
-    /// door with the component named (a non-finite linear entry poisons
-    /// the rigidity margins and refuses as [`Self::NotRigid`]), before
-    /// certification would refuse it obliquely (PR 2 review, R1b).
-    NonFiniteMap {
-        /// The named finiteness predicate that refused.
-        check: &'static str,
     },
     /// The body carries a transient null-scaffold curve (M3 boolean
     /// machinery mid-flight); bodies at rest never do (tier 2).
@@ -167,9 +154,10 @@ pub enum TransformError {
         /// The scalar the map ran at ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
-    /// An edge of the plane × described-NURBS class (M7-8) cannot be
-    /// re-certified at this scalar: its certificate is re-derived on
-    /// the moved pair through the plane × NURBS lane, and the scalar's
+    /// An edge whose certificate needs the NURBS lane (the classes are
+    /// listed on [`geom_brep::CertifyError::NurbsLaneNotSupplied`])
+    /// cannot be re-certified at this scalar: its certificate is
+    /// re-derived on the moved pair through that lane, and the scalar's
     /// policy holds none ([`crate::AtRestPolicy::nurbs_lane`] answers
     /// `None` — a dual, DL1). It is a fact about the scalar and not
     /// about the body.
@@ -206,24 +194,6 @@ impl core::fmt::Display for TransformError {
                 "an edge the map moved failed re-certification: {}",
                 source.render(geom_brep::recourse::Reading::Build)
             ),
-            Self::NotRigid { check } => write!(
-                f,
-                "the map is not definitely rigid at tolerance: {}. Recourse: use only a \
-                 rotation and a translation",
-                not_rigid_reading(check)
-            ),
-            Self::NonFiniteMap { check } => {
-                let axis = match *check {
-                    "transform_rigid_trans_finite_x" => "x",
-                    "transform_rigid_trans_finite_y" => "y",
-                    _ => "z",
-                };
-                write!(
-                    f,
-                    "the translation's {axis} component is not a finite number. Recourse: give \
-                     the translation finite values"
-                )
-            }
             Self::NullScaffold { edge } => write!(
                 f,
                 "edge {edge:?} carries a transient null-scaffold curve, which a body at rest \
@@ -240,10 +210,10 @@ impl core::fmt::Display for TransformError {
             ),
             Self::NurbsLaneUnsupported { scalar, .. } => write!(
                 f,
-                "an edge between a plane and a spline face cannot be moved at the {scalar} \
-                 scalar: its certificate is re-derived on the moved pair through the plane x \
-                 NURBS lane, and only a scalar with certification rights holds that lane. \
-                 Recourse: move the body at a certifying scalar"
+                "an edge whose certificate needs the NURBS lane cannot be moved at the \
+                 {scalar} scalar: its certificate is re-derived on the moved pair through that \
+                 lane, and only a scalar with certification rights holds it. Recourse: move \
+                 the body at a certifying scalar"
             ),
             Self::ApproxRecertify { source } => write!(
                 f,
@@ -273,97 +243,6 @@ fn map_vec<T: Real>(map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {
     map.linear * v
 }
 
-/// **What a [`TransformError::NotRigid`] check found possible**, in
-/// words — the one reading of [`check_rigid`]'s check names, for every
-/// sentence that reports one.
-///
-/// The check refuses on a definite defect AND on an in-band margin (it
-/// refuses anything but a decided `Zero`), and the name does not say
-/// which, so the reading says what the check found possible, not a
-/// verdict. The checks run in order: the mirror check is reached only
-/// by columns decided orthonormal.
-#[must_use]
-pub fn not_rigid_reading(check: &str) -> &'static str {
-    match check {
-        "transform_rigid_col01_orth"
-        | "transform_rigid_col12_orth"
-        | "transform_rigid_col02_orth" => "it may shear",
-        "transform_rigid_det_plus_one" => "it may mirror",
-        _ => "it may scale an axis, or hold a number that is not finite",
-    }
-}
-
-/// **The decided rigidity door** (module docs), and the one home of the
-/// rule: every margin must classify `Zero` against the linear band —
-/// definite non-zero AND in-band indeterminacy both refuse (a
-/// maybe-rigid map is not a rigid map). [`transform_rigid`] asks it
-/// of every map it moves a body by, and a document door that admits a
-/// literal frame asks it of that frame, so the two cannot come to hold
-/// a map to different standards.
-///
-/// # Errors
-///
-/// [`TransformError::NotRigid`] naming the check that refused, and
-/// [`TransformError::NonFiniteMap`] for a translation component that
-/// is not finite.
-pub fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformError> {
-    let l = &map.linear;
-    let one = T::one();
-    // A table of K row names: they reach the funnel through the loop
-    // variable below, so no grep for a literal at the decide site finds
-    // them. A row added here is a roster change (`docs/K-REPORT.md`,
-    // "The inventory method, restated").
-    let checks: [(&'static str, T); 7] = [
-        ("transform_rigid_col0_unit", l.c0.dot(l.c0) - one),
-        ("transform_rigid_col1_unit", l.c1.dot(l.c1) - one),
-        ("transform_rigid_col2_unit", l.c2.dot(l.c2) - one),
-        ("transform_rigid_col01_orth", l.c0.dot(l.c1)),
-        ("transform_rigid_col12_orth", l.c1.dot(l.c2)),
-        ("transform_rigid_col02_orth", l.c0.dot(l.c2)),
-        ("transform_rigid_det_plus_one", l.determinant() - one),
-    ];
-    for (check, margin) in checks {
-        // Ledger row F10: the rigidity residuals of the linear map are
-        // DIMENSIONLESS (unit-column/orthogonality/det defects) against
-        // the metre band; the natural arm is the model/session-box
-        // extent — an arm-policy question deferred by the row. No door
-        // fits; flagged, not cast.
-        match geom_core::k_stats::decide_flagged(check, margin, band, "F10") {
-            Ok(geom_core::Sign::Zero) => {}
-            _ => return Err(TransformError::NotRigid { check }),
-        }
-    }
-    // Translation finiteness: x * 0 is exactly 0 iff x is finite
-    // (component-wise — a norm could overflow to inf for large finite
-    // translations). The linear part needs no separate door: NaN/inf
-    // entries poison the rigidity margins above and refuse there.
-    let t = &map.translation;
-    // The levered door with the ZERO dimensionless factor: each margin
-    // is 0·t_i — the zero length exactly when the component is finite,
-    // poison otherwise (the finiteness probe the module docs state).
-    let finite: [(&'static str, Margin<T>); 3] = [
-        (
-            "transform_rigid_trans_finite_x",
-            Margin::levered(T::zero(), t.x),
-        ),
-        (
-            "transform_rigid_trans_finite_y",
-            Margin::levered(T::zero(), t.y),
-        ),
-        (
-            "transform_rigid_trans_finite_z",
-            Margin::levered(T::zero(), t.z),
-        ),
-    ];
-    for (check, margin) in finite {
-        match geom_core::k_stats::decide(check, margin, band) {
-            Ok(geom_core::Sign::Zero) => {}
-            _ => return Err(TransformError::NonFiniteMap { check }),
-        }
-    }
-    Ok(())
-}
-
 /// **Sense-invariant** (M5 S10 audit). Every face's `sense` is copied
 /// unchanged, and correctly so: this map's ratified contract is a
 /// RIGID motion with `det = +1` (module docs), which carries the chart
@@ -378,7 +257,8 @@ pub fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), Transf
 /// predecessor so a periodic chart's wrap stays at the closure
 /// ([`crate::entity::LoopBoundary::Cycle`]'s `first`;
 /// [`crate::Body::revert`] is the map that does both). `det = +1` is
-/// enforced upstream, so there is no such branch to write here today.
+/// the [`RigidMotion`] type's, so there is no such branch to write here
+/// today.
 fn map_surface<T: Decide + crate::props::AtRestPolicy>(
     map: &Affine3<T>,
     s: &Surface<T>,
@@ -606,7 +486,7 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
     })
 }
 
-/// Applies the rigid map to every geometric datum of `body`, returning
+/// Applies the rigid motion to every geometric datum of `body`, returning
 /// a NEW body with identical topology and identical arena keys (the
 /// three geometry arenas are rewritten in place of the clone; nothing
 /// is re-minted, so downstream key handles remain meaningful). The
@@ -622,11 +502,11 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// [`TransformError`] — closed and typed.
 pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
-    map: &Affine3<T>,
+    motion: &RigidMotion<T>,
     tol: Tol,
 ) -> Result<Body<T>, TransformError> {
     let band = Band::linear(tol).map_err(TransformError::Band)?;
-    check_rigid(map, band)?;
+    let map = &motion.to_affine();
     let mut out = body.clone();
 
     // Points and surfaces first — edge re-certification below reads
@@ -832,7 +712,12 @@ mod tests {
 
     /// A translation: rigid, with exact entries.
     fn aside() -> Affine3<f64> {
-        Affine3::translation(Vec3::new(3.0, -1.5, 0.25))
+        aside_motion().to_affine()
+    }
+
+    /// [`aside`] as the witness the body door takes.
+    fn aside_motion() -> RigidMotion<f64> {
+        RigidMotion::translation(Vec3::new(3.0, -1.5, 0.25)).expect("a finite translation")
     }
 
     /// A described bilinear patch on the unit square — four live
@@ -925,13 +810,13 @@ mod tests {
         let mut placeheld: Body<f64> = Body::new();
         placeheld.add_surface(Surface::nurbs_placeholder());
         assert!(matches!(
-            transform_rigid(&placeheld, &aside(), Tol::witness()),
+            transform_rigid(&placeheld, &aside_motion(), Tol::witness()),
             Err(TransformError::NurbsPlaceholder)
         ));
 
         let mut described: Body<f64> = Body::new();
         described.add_surface(described_surface());
-        assert!(transform_rigid(&described, &aside(), Tol::witness()).is_ok());
+        assert!(transform_rigid(&described, &aside_motion(), Tol::witness()).is_ok());
     }
 }
 

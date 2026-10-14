@@ -127,11 +127,11 @@ pub enum Rung {
     SameConstruction,
     /// The kernel's carrier-pair verdict, run on the two cells'
     /// carriers in the replay at `Sym`, decided them one carrier, every
-    /// Zero it stands on a theorem of this kind.
-    CarrierVerdict(geom_core::Theorem),
-    /// The deciding margin, read in the replay at `Sym`, is zero as a
-    /// polynomial in the variables: a theorem of this kind.
-    MarginIdentity(geom_core::Theorem),
+    /// Zero it stands on proven by the symbolic tier.
+    CarrierVerdict,
+    /// The deciding margin, read in the replay at `Sym`, is proven zero
+    /// by the symbolic tier.
+    MarginIdentity,
 }
 
 /// **The door was canceled** before it decided every row: the token
@@ -361,11 +361,10 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::SameOriented => "continues on one carrier with",
         topo::Relation::SameOpposite => "rests on one carrier against",
         topo::Relation::OnCarrier => "lies on",
-        topo::Relation::EqualAngles => "makes an equal angle at its turn with",
+        topo::Relation::CommonFoot => "ends on its turn's third edge at one point with",
         topo::Relation::Tangent { aligned: true } => "continues tangent into",
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
-        topo::Relation::TangentContact { seam: false } => "touches tangentially against",
-        topo::Relation::TangentContact { seam: true } => "continues tangentially into",
+        topo::Relation::SurfaceTangent => "is tangent along a locus to",
         topo::Relation::Coaxial => "shares an axis with",
         topo::Relation::CoRuled => "is ruled along one direction with",
     }
@@ -379,7 +378,7 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::TangentWitness => "a tangency verified along its locus",
         topo::DecisionSite::CoaxialSphere => "a sphere's centre read on a cylinder's axis",
         topo::DecisionSite::SplitOn => "a split's on-plane verdict where its pieces touch",
-        topo::DecisionSite::BatteryTurn => "a blend's isosceles turn",
+        topo::DecisionSite::BatteryTurn => "a blend turn's two feet read as one point",
         topo::DecisionSite::BatteryJoint => "a blend chain's joint read as tangent",
         topo::DecisionSite::BatterySupportAxis => {
             "a blend's two supports read as sharing the axis its band is minted on"

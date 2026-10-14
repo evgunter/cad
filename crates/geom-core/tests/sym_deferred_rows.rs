@@ -1,14 +1,14 @@
-//! **The deferring session's rows**: a decision several Zeros back is a
-//! theorem only when every one of them is ([`MarginDiag::jointly`]),
+//! **The deferring session's rows**: a decision several Zeros back is
+//! proven only when every one of them is ([`MarginDiag::jointly`]),
 //! and a margin read in a session that did not decide it is no Zero
-//! there ([`deferred::discharge`]); a margin that is not a theorem
+//! there ([`deferred::discharge`]); a margin that is not proven
 //! says whether what kept it open is an opaque atom
 //! ([`deferred::discharge_or_why`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Margin, MarginDiag, Sign};
 use geom_core::sym::deferred::{Undischarged, discharge, discharge_or_why, with_deferred_session};
-use geom_core::{ParamSymbol, Sym, SymBudget, SymRetry, SymRules, Theorem};
+use geom_core::{ParamSymbol, Sym, SymBudget, SymRetry, SymRules};
 
 fn budget() -> SymBudget {
     SymBudget {
@@ -35,9 +35,9 @@ fn zero(margin: Sym<f64>) -> MarginDiag {
 
 /// In one session: `x − x`, an identity, and `x − y` at `x = y`, a
 /// coincidence of values. Joined either way round, the decision is no
-/// theorem; joined with itself, it is.
+/// proven; joined with itself, it is.
 #[test]
-fn a_joint_decision_is_a_theorem_only_when_both_are() {
+fn a_joint_decision_is_proven_only_when_both_are() {
     let (got, _) = with_deferred_session(budget(), SymRules::shipped(), SymRetry::none(), || {
         let x = p("x", 1.0);
         let thm = zero(x - x);
@@ -50,25 +50,16 @@ fn a_joint_decision_is_a_theorem_only_when_both_are() {
             discharge(thm.jointly(thm)),
         ]
     });
-    assert_eq!(
-        got,
-        [
-            Some(Theorem::SymbolicZero),
-            None,
-            None,
-            None,
-            Some(Theorem::SymbolicZero)
-        ]
-    );
+    assert_eq!(got, [true, false, false, false, true]);
 }
 
 /// A margin carried out of its session reads as no Zero in another one,
-/// even one whose own entry would discharge as a theorem.
+/// even one whose own entry would discharge.
 #[test]
 fn a_margin_discharges_only_in_its_own_session() {
     let (open, _) = with_deferred_session(budget(), SymRules::shipped(), SymRetry::none(), || {
         let open = zero(p("x", 1.0) - p("y", 1.0));
-        assert_eq!(discharge(open), None);
+        assert!(!discharge(open));
         open
     });
     let (got, _) = with_deferred_session(budget(), SymRules::shipped(), SymRetry::none(), || {
@@ -76,8 +67,8 @@ fn a_margin_discharges_only_in_its_own_session() {
         let thm = zero(z - z);
         (discharge(thm), discharge(open))
     });
-    assert_eq!(got, (Some(Theorem::SymbolicZero), None));
-    assert_eq!(discharge(open), None, "outside every session");
+    assert_eq!(got, (true, false));
+    assert!(!discharge(open), "outside every session");
 }
 
 /// The tier's word rides in the reading's padding: a margin is the size
@@ -109,7 +100,7 @@ fn an_open_margin_says_whether_it_keeps_an_opaque_atom() {
     assert_eq!(
         got,
         [
-            Ok(Theorem::SymbolicZero),
+            Ok(()),
             Err(Undischarged::Otherwise),
             Err(Undischarged::KeepsAnOpaqueAtom),
             Err(Undischarged::Otherwise),

@@ -1,6 +1,6 @@
 //! **Every piece of every span is read, and the join keeps what each
 //! assembly contributes.** The integral speed meter's piece assembly
-//! cuts each span into sixteen pieces, and a stall that only one piece
+//! cuts each span into thirty-two pieces, and a stall that only one piece
 //! sees must still drive the meter to a non-positive answer: these rows
 //! plant stalls at every piece boundary and every piece midpoint, inside
 //! multi-span curves, at random interior parameters and at extreme
@@ -90,8 +90,8 @@ fn stall(s: f64, w: Vec3<f64>, v: Vec3<f64>, touching: bool) -> Vec<Vec3<f64>> {
     }
 }
 
-/// A stall at every piece boundary `k/16` and every piece midpoint
-/// `(2k+1)/32`, crossing and touching, alone and inside a refined
+/// A stall at every piece boundary `k/32` and every piece midpoint
+/// `(2k+1)/64`, crossing and touching, alone and inside a refined
 /// multi-span curve, on the unit span: the certified floor never
 /// exceeds the speed at the stall, and the `f64` reading stays within
 /// its stated posture (a relative ulp of the derivative's scale) of it.
@@ -121,8 +121,8 @@ fn stalls_in_every_piece(degrees: &[usize], spans: &[(f64, f64)]) {
                 continue;
             }
             for &(off, len) in spans {
-                for k in 0..=32 {
-                    let s = f64::from(k) / 32.0;
+                for k in 0..=64 {
+                    let s = f64::from(k) / 64.0;
                     let one = bezier_with_derivative(p, &stall(s, w, v, touching), off, len);
                     let refined = one
                         .refine_knots(&[off + 0.3 * len, off + 0.61 * len])
@@ -148,7 +148,7 @@ fn stalls_in_every_piece(degrees: &[usize], spans: &[(f64, f64)]) {
         }
     }
     assert!(
-        rows >= 66 * degrees.len() * spans.len(),
+        rows >= 130 * degrees.len() * spans.len(),
         "the enumeration ran {rows} rows"
     );
 }
@@ -160,8 +160,8 @@ fn a_stall_at_extreme_scales_refuses() {
     let w = Vec3::new(3.1, 0.7, -1.3);
     let v = Vec3::new(-0.2, 1.9, 0.6);
     for scale in [1.0e-150, 1.0e-100, 1.0e100, 1.0e150] {
-        for k in [0, 1, 7, 16, 17, 31, 32] {
-            let s = f64::from(k) / 32.0;
+        for k in [0, 1, 15, 32, 33, 63, 64] {
+            let s = f64::from(k) / 64.0;
             for p in [3, 5] {
                 let c = bezier_with_derivative(p, &stall(s, w * scale, v * scale, false), 0.0, 1.0);
                 let reference = ceiling_at(&c, s);
@@ -303,12 +303,11 @@ fn planar(knots: &[f64], degree: usize, xy: &[(f64, f64)]) -> NurbsCurve3<f64> {
 
 /// **The two chord assemblies each still decide a carrier.** A jagged,
 /// nearly straight quadratic whose pieces each lean off the chord reads
-/// its best bound off the global chord, and a cubic reads it off the
-/// per-span chords; on each the meter is that assembly's value bit for
-/// bit, above the other chord assembly. Found by a seeded search over
-/// 20 000 random, near-straight and swaying nets (the global chord won
-/// on several near-straight quadratics, the per-span chords on one
-/// cubic).
+/// its best bound off the global chord, and a quadratic that turns hard
+/// in its first span reads it off the per-span chords; on each the
+/// meter is that assembly's value bit for bit, above the other chord
+/// assembly. Both were found by seeded searches of random, near-straight
+/// and swaying nets at the 32-piece schedule.
 #[test]
 fn each_chord_assembly_still_decides_a_carrier() {
     let global_wins = planar(
@@ -316,27 +315,19 @@ fn each_chord_assembly_still_decides_a_carrier() {
             0.0,
             0.0,
             0.0,
-            0.5494306202116541,
-            1.5333612871610138,
-            2.1994419454604666,
-            2.688855165735114,
-            3.4721217338420827,
-            3.8516209968410866,
-            4.839159757995035,
-            4.839159757995035,
-            4.839159757995035,
+            0.3813908325730467,
+            1.462793815306096,
+            1.7452794287592646,
+            1.7452794287592646,
+            1.7452794287592646,
         ],
         2,
         &[
-            (-0.2040435399387167, -0.1857579770822676),
-            (1.2931163226299747, 0.16490647565138256),
-            (2.102158015062652, 0.15712719291495614),
-            (3.2253447435483307, 0.18022331845149325),
-            (4.183161431706938, -0.16449944791768426),
-            (5.1382549659784065, -0.23442523183592373),
-            (6.0705183675798855, 0.10771386107516989),
-            (7.02853514002726, -0.10074544102959357),
-            (8.070232897126282, -0.09780996691956376),
+            (-0.13015911486881804, -0.15254351626904264),
+            (1.2268875200259348, 0.10721146191265712),
+            (2.0020530646303367, 0.13961857367596814),
+            (3.131884407183976, -0.08172411031456256),
+            (3.9381182181257715, -0.0394114391606194),
         ],
     );
     let span_wins = planar(
@@ -344,20 +335,17 @@ fn each_chord_assembly_still_decides_a_carrier() {
             0.0,
             0.0,
             0.0,
-            0.0,
-            1.1708792980142826,
-            1.5793340814211976,
-            1.5793340814211976,
-            1.5793340814211976,
-            1.5793340814211976,
+            0.3509675907175351,
+            1.4435938330577032,
+            1.4435938330577032,
+            1.4435938330577032,
         ],
-        3,
+        2,
         &[
-            (0.2453794525925453, -0.15618792727756828),
-            (0.8996062963056511, -0.1995838109320915),
-            (1.8863894995744546, 0.2790848787255656),
-            (3.270863202554688, -0.2561338545089181),
-            (4.02716411841858, 0.26566859892552724),
+            (1.1614764085861506, -0.30735351073009065),
+            (-1.3886695457184568, -1.5262162690312655),
+            (0.46588389875482417, 0.8438755510969296),
+            (1.3042887140992239, 1.7451237006533127),
         ],
     );
     let m = global_wins.speed_lower_bound().get();
@@ -424,7 +412,7 @@ fn the_join_never_reads_below_the_chord_assemblies() {
 }
 
 /// **The cell where only the piece assembly abstains.** The quadratic
-/// `0 → (1, 0, 0) → (−30, 0, 0)` turns back at `t = 1/32`, the middle
+/// `0 → (1, 0, 0) → (−62, 0, 0)` turns back at `t = 1/64`, the middle
 /// of its first piece, where `C′` runs from `2` to `−2` along `x`: the
 /// piece's coefficients sum to zero exactly, its direction is `0/0`,
 /// and the piece assembly abstains. Both chord assemblies stand, and
@@ -436,7 +424,7 @@ fn only_the_piece_assembly_abstains() {
         vec![
             Point3::new(0.0, 0.0, 0.0),
             Point3::new(1.0, 0.0, 0.0),
-            Point3::new(-30.0, 0.0, 0.0),
+            Point3::new(-62.0, 0.0, 0.0),
         ],
         vec![1.0; 3],
     )
@@ -454,5 +442,99 @@ fn only_the_piece_assembly_abstains() {
     assert!(
         !(mi > 0.0) && !mi.is_nan(),
         "the certified lane agrees: {mi}"
+    );
+}
+
+/// **A degree past the full schedule's exact range keeps its pieces.**
+/// At derivative degree 10 and 12 the 32-piece weights are not exact
+/// `f64`s, and the assembly reads 16 pieces instead of abstaining: on a
+/// degree-11 and a degree-13 Bézier net that sway `±1` the meter stays
+/// well above both chord assemblies and below the speed.
+#[test]
+fn a_high_degree_net_keeps_its_piece_reading() {
+    for degree in [11, 13] {
+        let n = degree + 1;
+        let xy: Vec<(f64, f64)> = (0..n)
+            .map(|i| (i as f64, if i % 2 == 0 { -1.0 } else { 1.0 }))
+            .collect();
+        let mut knots = vec![0.0; n];
+        knots.extend(std::iter::repeat_n(1.0, n));
+        let c = planar(&knots, degree, &xy);
+        let (m, mi) = meters(&c);
+        let chords = global_chord(&c).max(per_span_chord(&c));
+        let speed = (0..=400)
+            .map(|i| ceiling_at(&c, f64::from(i) / 400.0))
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            mi > 1.3 * chords && mi <= speed && m <= speed,
+            "degree {degree}: meter {m} / {mi}, chord assemblies {chords}, speed {speed}"
+        );
+    }
+}
+
+/// **A finer schedule can read lower** (recorded, not wanted): PR 4824's
+/// review probe case 2349, a degree-10 net that reads 1.3019 at 16
+/// pieces and 0.9953 at 32, because each sub-piece takes its own
+/// direction. The row records the 32-piece reading and that it stays
+/// sound; `the-integral-meters-piece-refinement-is-not-monotone` is the
+/// fix, which moves this reading back up — re-derive the row then.
+#[test]
+fn a_finer_schedule_can_read_lower_on_a_degree_ten_net() {
+    let mut knots = vec![0.0; 11];
+    knots.push(0.8284455455394362);
+    knots.extend([1.2418029074118602; 4]);
+    knots.extend([1.4730055634214718; 11]);
+    let net = [
+        (
+            -0.8815562390065059,
+            -0.6335917733379692,
+            -0.5212871485605084,
+        ),
+        (0.6393121701963538, 1.5736766182063207, 0.803115302228381),
+        (1.1075156131079207, -0.627422526781861, 1.1273988048852255),
+        (
+            -0.2909554093014055,
+            -0.19224858780193532,
+            1.5168916198261204,
+        ),
+        (
+            -1.8981705059772893,
+            0.25917888109405895,
+            -0.48083780672415344,
+        ),
+        (-1.3214274904496919, 1.2215792402233587, 1.7070515744998471),
+        (1.044288066856764, 0.8584413827991741, 1.9244710916101964),
+        (-0.7698869210485335, 0.757450190997226, -0.08473314740576487),
+        (
+            -1.4624303919030752,
+            0.25830146588240144,
+            -0.6007187280541237,
+        ),
+        (-0.7062761922653298, -1.4733562206944937, -1.511481897970791),
+        (1.1907806235043266, 1.980740257023497, 0.5054233250192071),
+        (0.11399841236031838, 1.0756353855391771, -0.3788142317844434),
+        (0.7355382613690677, -1.1389425436622784, 0.8190171107644),
+        (-0.658695834628594, 1.9171434672285872, -0.9368865107036051),
+        (-0.9803803255408838, -0.3038284162863536, 1.4006617905164997),
+        (
+            -0.006152120693329266,
+            0.5822102346614075,
+            -1.423371170381051,
+        ),
+    ];
+    let c = NurbsCurve3::<f64>::new(
+        KnotVector::clamped(knots, 10).unwrap(),
+        net.iter().map(|&(x, y, z)| Point3::new(x, y, z)).collect(),
+        vec![1.0; 16],
+    )
+    .unwrap();
+    let (m, mi) = meters(&c);
+    let (lo, hi) = c.domain();
+    let speed = (0..=2000)
+        .map(|i| ceiling_at(&c, lo + (hi - lo) * f64::from(i) / 2000.0))
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        (0.995..0.996).contains(&m) && mi <= m && m <= speed,
+        "case 2349: meter {m} / {mi} (32 pieces read 0.99527, 16 read 1.30192), speed {speed}"
     );
 }

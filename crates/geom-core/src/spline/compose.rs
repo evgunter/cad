@@ -160,20 +160,7 @@ impl<'a> CurveCertData<'a> {
                 control: n,
             }));
         }
-        for (index, w) in weights.iter().enumerate() {
-            if !(*w > 0.0) {
-                return Err(ComposeError::Structure(SplineError::NonPositiveWeight {
-                    index,
-                    weight: *w,
-                }));
-            }
-            if !w.is_finite() {
-                return Err(ComposeError::Structure(SplineError::NonFiniteWeight {
-                    index,
-                    weight: *w,
-                }));
-            }
-        }
+        crate::spline::check_weight_values(weights).map_err(ComposeError::Structure)?;
         for ch in coords {
             if ch.len() != n {
                 return Err(ComposeError::Structure(SplineError::ControlCountMismatch {

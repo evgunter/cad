@@ -141,7 +141,13 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
     if eps < 3.2795e-12 {
         match &moved {
             Err(ReplaceFaceError::Fit {
-                error: geom_brep::OffsetFitError::SampleCapReached { achieved, grid, .. },
+                error:
+                    geom_brep::OffsetFitError::WallReached {
+                        wall: geom_brep::OffsetFitWall::SampleCap { .. },
+                        achieved,
+                        grid,
+                        ..
+                    },
                 ..
             }) => assert!(
                 *grid == (45, 48) && (achieved - 3.2795e-12).abs() < 1e-15,

@@ -752,8 +752,8 @@ pub fn import_step(
             // for id.
             //
             // Each instance then goes through the kernel's own
-            // placement door (M7-4 Leg D, unchanged): `transform_rigid`
-            // re-checks rigidity with decided predicates and
+            // placement doors (M7-4 Leg D): the map is decided rigid at
+            // `RigidMotion::check_rigid`, and `transform_rigid`
             // RE-CERTIFIES every carrier against the mapped geometry,
             // so a placed copy is as first-class as an unplaced one —
             // and a map this reader let through that the kernel will
@@ -787,8 +787,20 @@ pub fn import_step(
                         map: Some(map),
                         transform,
                         ..
-                    }) => topo::transform_rigid(&one, &map, tol)
-                        .map_err(|source| StepImportError::Placement { transform, source })?,
+                    }) => {
+                        let band = geom_core::Band::linear(tol).map_err(|source| {
+                            StepImportError::Placement {
+                                transform,
+                                source: topo::TransformError::Band(source),
+                            }
+                        })?;
+                        let motion =
+                            geom_core::RigidMotion::check_rigid(&map, band).map_err(|source| {
+                                StepImportError::PlacementMap { transform, source }
+                            })?;
+                        topo::transform_rigid(&one, &motion, tol)
+                            .map_err(|source| StepImportError::Placement { transform, source })?
+                    }
                     _ => one,
                 };
                 // The per-solid subject of the shared gate (below),

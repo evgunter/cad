@@ -593,7 +593,7 @@ fn a_winding_no_path_decides_escalates_with_the_first_reading() {
         let left = quadric
             .outward(q, true)
             .cross(closing.carrier.deriv(geom::mid_param(t0, t1)) * (t1 - t0));
-        let mut arcs = run_loop_arcs(&body, face, (&surface, &quadric), &[h]).unwrap();
+        let mut arcs = run_loop_arcs(&body, face, (&surface, &quadric), &[h], band()).unwrap();
         arcs.push(LoopArc::of(&closing.carrier, (t0, t1)).unwrap());
         let reading = |w: Point3<f64>| {
             let path = quadric.paths((w, q), band()).unwrap().remove(0);
@@ -671,7 +671,7 @@ fn a_re_homing_no_path_decides_escalates_with_the_first_reading() {
             continue;
         };
         let cycle = outer_cycle(&body, made.face).unwrap().unwrap();
-        let arcs = run_loop_arcs(&body, made.face, (&surface, &quadric), &cycle).unwrap();
+        let arcs = run_loop_arcs(&body, made.face, (&surface, &quadric), &cycle, band()).unwrap();
         let skip: Vec<_> = cycle
             .iter()
             .map(|&he| body.get_half_edge(he).unwrap().edge)

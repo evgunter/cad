@@ -29,7 +29,8 @@ use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::offset_fit::{
-    OffsetFitError, approx_offset_surface_at, certify_offset_at, offset_point, recertify_approx_at,
+    OffsetFitError, OffsetFitWall, approx_offset_surface_at, certify_offset_at, offset_point,
+    recertify_approx_at,
 };
 use geom_core::{Affine3, Point3, Vec3};
 
@@ -119,7 +120,13 @@ fn an_unreachable_tolerance_refuses_typed() {
     let e = approx_offset_surface_at(Arc::new(bowed()), 0.3, 1e-18, band())
         .expect_err("1e-18 m on a bowed patch is not reachable");
     assert!(
-        matches!(e, OffsetFitError::SampleCapReached { .. }),
+        matches!(
+            e,
+            OffsetFitError::WallReached {
+                wall: OffsetFitWall::SampleCap { .. },
+                ..
+            }
+        ),
         "expected the sample cap's refusal, got {e}"
     );
 }

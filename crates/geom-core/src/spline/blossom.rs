@@ -20,7 +20,10 @@
 //! it by construction — a break of the piece's own span, or a ratio of
 //! the piece's own ends — so it is stated, not checked. An argument
 //! with no point in the closure refuses typed
-//! ([`BlossomError::OutsideSpan`]).
+//! ([`BlossomError::OutsideSpan`]). The one caller that cannot hold it
+//! by construction, a quadrature node that may lie past its span (a
+//! vertex pad's), goes through [`diagonal_in_span`], which checks the
+//! node lies whole in the closure and answers `None` otherwise.
 //!
 //! Everything else is this door at chosen arguments:
 //!
@@ -47,7 +50,7 @@ use super::knots::Span;
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::readable::Readable;
-use crate::real::CertifiedBounds;
+use crate::real::{Bounds, CertifiedBounds};
 
 /// A typed refusal of the blossom doors (fail-loud; the kernel never
 /// panics).
@@ -256,14 +259,61 @@ fn admit(u: Interval, index: usize, (lo, hi): (f64, f64)) -> Result<Interval, Bl
 /// the window combines at `(u − U_i)/(U_{i+p+1−r} − U_i)`, `i = s − p + j`.
 fn span_ratio(span: Span<'_>) -> ((f64, f64), impl Fn(usize, usize, Interval) -> Interval) {
     let (p, s, t) = (span.degree(), span.index(), span.knots().knots());
-    // Indexing justified: `p ≤ s ≤ last_span() = len − p − 2`, and
-    // `i + p + 1 − r ≤ s + p` for `j ≤ p`, `r ≥ 1`.
-    let ratio = move |j: usize, r: usize, u: Interval| {
+    // Indexing justified: `p ≤ s ≤ last_span() = len − p − 2`.
+    ((t[s], t[s + 1]), slice_ratio(t, p, s))
+}
+
+/// The recurrence's ratio at entry `j` of level `r`, on the span `s` of
+/// the knot list `t`: `(u − t_i)/(t_{i+p+1−r} − t_i)` with
+/// `i = s − p + j`, the knots read as exact points. The caller keeps
+/// `s ≥ p` and `s + p < t.len()`, so `i + p + 1 − r ≤ s + p` is in range
+/// for `j ≤ p`, `r ≥ 1`.
+fn slice_ratio(t: &[f64], p: usize, s: usize) -> impl Fn(usize, usize, Interval) -> Interval {
+    move |j: usize, r: usize, u: Interval| {
         let i = s - p + j;
         let below = Interval::point(t[i]);
         (u - below) / (Interval::point(t[i + p + 1 - r]) - below)
-    };
-    ((t[s], t[s + 1]), ratio)
+    }
+}
+
+/// The value at `t` of the degree-`p` piece over the knot list `knots`
+/// whose span starts at control `first`, from its `p + 1` coefficients
+/// `window`: the blossom on the diagonal `(t, …, t)`, every level
+/// [`Certification::between`], when `t` lies whole in the span's
+/// closure `[knots[first + p], knots[first + p + 1]]`. `None` when it
+/// does not (refused, or reaching past either end), and for a window
+/// that is not `p + 1` long or a list too short for the span: a piece's
+/// value past its span is its polynomial extension, no combination
+/// between its sources, so it is the caller's to answer.
+///
+/// The list need not be a clamped vector's (a derivative's raw knot
+/// list, `derivative_knot_slice`'s), only nondecreasing, which keeps
+/// every ratio in `[0, 1]` inside the closure. This door holds the
+/// argument contract by its explicit check (module docs); the result
+/// is bit-identical to [`CoeffWindow::blossom`] at `(t, …, t)` on the
+/// same span.
+#[must_use]
+pub fn diagonal_in_span(
+    knots: &[f64],
+    p: usize,
+    first: usize,
+    window: &[Interval],
+    t: Interval,
+) -> Option<Interval> {
+    let s = first + p;
+    if window.len() != p + 1 || s + p.max(1) >= knots.len() {
+        return None;
+    }
+    let (lo, hi) = (knots[s], knots[s + 1]);
+    if !(t.is_certified() && Bounds::lo(t) >= lo && Bounds::hi(t) <= hi) {
+        return None;
+    }
+    let ratio = slice_ratio(knots, p, s);
+    let mut d = window.to_vec();
+    for r in 1..=p {
+        level(&mut d, r, t, &ratio);
+    }
+    Some(d[p])
 }
 
 /// One level `r` of the recurrence at `u`, in place: entries `p … r`.
@@ -406,6 +456,20 @@ mod tests {
                 bits(&row.restrict((a, b)).unwrap()),
                 bits(&restricted),
                 "p={p}: span row vs coefficient window"
+            );
+            let span = win.span();
+            let diagonal = diagonal_in_span(
+                span.knots().knots(),
+                p,
+                span.first_control(),
+                win.coeffs(),
+                a,
+            )
+            .unwrap();
+            assert_eq!(
+                bits(&[diagonal]),
+                bits(&[win.blossom(&vec![a; p]).unwrap()]),
+                "p={p}: the raw-list diagonal vs the window's blossom"
             );
             let bez = KnotVector::bezier(p, (0.0, 1.0)).unwrap();
             let bern = &coeffs[..=p];

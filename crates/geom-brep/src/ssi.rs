@@ -132,6 +132,8 @@ mod refine;
 pub mod section;
 pub mod system;
 
+use std::rc::Rc;
+
 use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
@@ -146,7 +148,8 @@ pub use boundary::{
     BoundaryChart, BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SsiBoundaryContact,
 };
 pub use certify::{
-    OneArcRefusal, SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb, SsiTube,
+    OneArcRefusal, SSI_CERT_SPANS, SSI_HULL_CUTS, SSI_HULL_WORK, SSI_TUBE_RADIUS, SsiCertificate,
+    SsiLimb, SsiTube,
 };
 pub use exhaust::{
     ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal,
@@ -209,7 +212,7 @@ pub const SSI_MAX_STEPS: usize = 20_000;
 /// (untrusted candidate generation — `jet`/`march`/`system` stay
 /// `f64`-only), but *certifying* one is the consumer's own scalar, and
 /// a body at rest holds `Surface<T>`.
-pub enum SsiOperand<'a, T: geom_core::Real> {
+pub enum SsiOperand<'a, T: geom_core::CertifiedBounds> {
     /// An analytic surface: implicit residuals and `compose` hulls.
     Analytic(&'a Surface<T>),
     /// A NURBS surface: certified foot points and chart hulls, carried
@@ -497,14 +500,17 @@ pub enum SsiError {
         floor: f64,
     },
     /// Limb 3 ran and never got an answer: the ladder had rungs, but
-    /// no rung's tube probe produced an enclosure at all (each
-    /// returned nothing rather than a margin). Structural, like
-    /// [`SsiError::TubeLadderEmpty`], and likewise carrying no margin
-    /// — the distinction between them is exactly whether any radius
-    /// was ever tried.
+    /// no rung measured a margin. A rung is silent where its chain is
+    /// empty or broken, or where a box's transversality enclosure is
+    /// refused (an operand with no enclosure arm, or a poisoned box).
+    /// It carries no margin, like [`SsiError::TubeLadderEmpty`]; the
+    /// distinction between them is whether any radius was tried.
     TubeProbeSilent {
         /// How many rungs were offered and answered with nothing.
         rungs: u32,
+        /// How many of them had a transversality enclosure refused; the
+        /// rest built no chain.
+        refused: u32,
     },
     /// Limb 3's transversality is not certified clear of the zero band
     /// over the tube chain at any rung (its enclosure straddles zero, or
@@ -968,11 +974,12 @@ impl core::fmt::Display for SsiError {
                  from the {extent:e} m extent falls below the {floor:e} m ladder \
                  floor the tolerance sets, so limb 3 never ran and nothing was measured"
             ),
-            Self::TubeProbeSilent { rungs } => write!(
+            Self::TubeProbeSilent { rungs, refused } => write!(
                 f,
-                "ssi: none of the uniqueness tube's {rungs} ladder rungs produced an \
-                 enclosure, so limb 3 has nothing to decide — a structural refusal, \
-                 with no margin behind it"
+                "ssi: none of the uniqueness tube's {rungs} ladder rungs measured a \
+                 margin ({refused} had a transversality enclosure refused, the rest built \
+                 no chain), so limb 3 has nothing to decide — a structural refusal, with \
+                 no margin behind it"
             ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
@@ -1193,18 +1200,14 @@ impl core::fmt::Display for SsiError {
             ),
             Self::Escalated { decision, cause } => write!(
                 f,
-                concat!("ssi: whether {}", geom_core::undecided!(), ": {}"),
-                decision.question(),
+                concat!("ssi: {}", geom_core::undecided!(), ": {}"),
+                SsiDecision::Trace(*decision),
                 cause.payload()
             ),
             Self::CertificateEscalated { limb, cause } => write!(
                 f,
-                concat!(
-                    "ssi: whether the fitted carrier passes {}",
-                    geom_core::undecided!(),
-                    ": {}"
-                ),
-                limb.name(),
+                concat!("ssi: {}", geom_core::undecided!(), ": {}"),
+                SsiDecision::Limb(*limb),
                 cause.payload()
             ),
             Self::DomainUnusable { field, value } => {
@@ -1249,10 +1252,11 @@ impl SsiError {
                 crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
             }
             Self::PairTangent { verdict } => PAIR_TANGENCY.recourse(verdict.arm(), reading),
-            Self::Escalated { decision, cause } => decision.ending(cause, reading),
-            // Each limb ends by its own decision on every arm.
+            Self::Escalated { decision, cause } => {
+                SsiDecision::Trace(*decision).ending(cause, reading)
+            }
             Self::CertificateEscalated { limb, cause } => {
-                crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), reading)
+                SsiDecision::Limb(*limb).ending(cause, reading)
             }
             Self::CertificateLimb { limb, .. } => {
                 crate::certify::recourse(limb.check(), RefusedArm::SignCertain(None), reading)
@@ -1430,6 +1434,9 @@ impl SsiError {
             Self::TubeDegenerate(TubeDegeneracy::WallConstantAcrossLocus) => {
                 WALL_COLLAPSED_RECOURSE.to_owned()
             }
+            // A refused enclosure is a pair or box the tube cannot yet
+            // enclose.
+            Self::TubeProbeSilent { refused, .. } if *refused > 0 => NOT_YET_ENDING.to_owned(),
             // The box chain and the pcurve are the kernel's: a fitted
             // cubic's span hulls meet at the knots it passes through, and
             // its tangent names a direction.
@@ -1620,11 +1627,15 @@ impl TubeDegeneracy {
 /// its whole domain ([`ChartedNurbs::mint`]). The fields are private:
 /// the only way to hold one is to have minted it from the surface it
 /// carries.
-#[derive(Clone, Copy, Debug)]
-pub struct ChartedNurbs<'a, T: geom_core::Real> {
+#[derive(Clone, Debug)]
+pub struct ChartedNurbs<'a, T: geom_core::CertifiedBounds> {
     surface: &'a NurbsSurface<T>,
-    grid: Option<&'a enclose::CellGrid>,
     speeds: enclose::ChartSpeeds,
+    /// The chart enclosures over the surface's own cells, and over the
+    /// grid's when it was minted on one: each one value shared by every
+    /// clone, so a cell is read once for the operand's life.
+    own: Rc<NurbsBoxes<'a, T>>,
+    on_grid: Option<Rc<NurbsBoxes<'a, T>>>,
 }
 
 impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
@@ -1635,11 +1646,13 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// [`SsiError::ChartSpeed`], naming the axis whose speed is zero or
     /// not finite.
     pub fn mint(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
-        let speeds = NurbsBoxes::new(surface).chart_speeds()?;
+        let boxes = NurbsBoxes::new(surface);
+        let speeds = boxes.chart_speeds()?;
         Ok(Self {
             surface,
-            grid: None,
             speeds,
+            own: Rc::new(boxes),
+            on_grid: None,
         })
     }
 
@@ -1660,25 +1673,31 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
         surface: &'a NurbsSurface<T>,
         grid: &'a enclose::CellGrid,
     ) -> Result<Self, SsiError> {
-        NurbsBoxes::new(surface).chart_speeds()?;
-        let speeds = NurbsBoxes::on_grid(surface, grid).chart_speeds()?;
+        let own = NurbsBoxes::new(surface);
+        own.chart_speeds()?;
+        let boxes = NurbsBoxes::on_grid(surface, grid);
+        let speeds = boxes.chart_speeds()?;
         Ok(Self {
             surface,
-            grid: Some(grid),
             speeds,
+            own: Rc::new(own),
+            on_grid: Some(Rc::new(boxes)),
         })
     }
 
     /// The chart enclosures, over the cells it was minted on.
-    pub(crate) fn boxes(&self) -> NurbsBoxes<'a, T> {
-        match self.grid {
-            Some(g) => NurbsBoxes::on_grid(self.surface, g),
-            None => NurbsBoxes::new(self.surface),
-        }
+    pub(crate) fn boxes(&self) -> &NurbsBoxes<'a, T> {
+        self.on_grid.as_deref().unwrap_or(&self.own)
+    }
+
+    /// The chart enclosures over the surface's own cells, whatever it
+    /// was minted on: the ℝ⁴ pair's ([`four::PairBoxes`]).
+    pub(crate) fn own_boxes(&self) -> &Rc<NurbsBoxes<'a, T>> {
+        &self.own
     }
 }
 
-impl<'a, T: geom_core::Real> ChartedNurbs<'a, T> {
+impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// The surface.
     #[must_use]
     pub fn surface(&self) -> &'a NurbsSurface<T> {
@@ -1877,7 +1896,7 @@ const GRAZE: SizedDecision = SizedDecision {
     size: "crossing angle",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// What [`graze_recourse`] replaces with the side's name.
@@ -1906,7 +1925,7 @@ const fn short_branch(lever: &'static str) -> SizedDecision {
         size: "branch length",
         passes: SizedPass::Positive,
         stored: StoredDefinite::Lever,
-        at_zero: None,
+        no_size: None,
     }
 }
 
@@ -1919,7 +1938,7 @@ const MARCH_STEP_BEND: SizedDecision = SizedDecision {
     size: "bend",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// A short branch the wall bounds.
@@ -2014,7 +2033,7 @@ const TUBE_EXTENT: SizedDecision = SizedDecision {
     size: "feature extent",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// [`SsiError::PairBoundaryUnresolved`]'s ending: the section touches
@@ -2230,6 +2249,44 @@ impl TraceDecision {
     }
 }
 
+/// **The decision an SSI escalation names**: a trace's
+/// ([`SsiError::Escalated`]) or a certificate limb's
+/// ([`SsiError::CertificateEscalated`]). A door that carries an SSI
+/// escalation on in its own refusal carries this with it, so the
+/// escalation ends by its own decision at every door.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SsiDecision {
+    /// A trace's own decision.
+    Trace(TraceDecision),
+    /// A certificate limb's trilean ([`SsiLimb::check`]).
+    Limb(SsiLimb),
+}
+
+impl SsiDecision {
+    /// The ending this decision's escalation on `cause` carries, read at
+    /// `at`: a trace's by [`TraceDecision::ending`], a limb's by its own
+    /// check, as the limb's decided refusal ends.
+    #[must_use]
+    pub fn ending(self, cause: &Indeterminate, at: impl Into<ReadAt>) -> String {
+        match self {
+            Self::Trace(decision) => decision.ending(cause, at.into().reading()),
+            Self::Limb(limb) => {
+                crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), at)
+            }
+        }
+    }
+}
+
+/// The question the decision asks, as "whether …".
+impl core::fmt::Display for SsiDecision {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Trace(decision) => write!(f, "whether {}", decision.question()),
+            Self::Limb(limb) => write!(f, "whether the fitted carrier passes {}", limb.name()),
+        }
+    }
+}
+
 /// The march's settling against a domain that reaches further from zero
 /// than its coordinates resolve, where no operand bounds the states
 /// nearer ([`ReachBound::Domain`]).
@@ -2239,7 +2296,7 @@ const DOMAIN_SCALE: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The ℝ³ open end (`ssi_branch_open_end`), refused only where a
@@ -2252,7 +2309,7 @@ const OPEN_END: SizedDecision = SizedDecision {
     size: "boundary distance",
     passes: SizedPass::AnySign,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Limb 3's one-arc decision at a search ([`SsiError::TubeNotOneArc`]):
@@ -2267,7 +2324,7 @@ const TUBE_ONE_ARC: SizedDecision = SizedDecision {
     size: "clearance",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Limb 3's one-arc decision at rest
@@ -2279,7 +2336,7 @@ const REST_ONE_ARC: SizedDecision = SizedDecision {
     size: "clearance",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Where limb 3's one-arc proof refused: the door decides the lever.
@@ -2327,7 +2384,7 @@ const SELF_CROSSING: SizedDecision = SizedDecision {
     size: "closure angle",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The stepper's step against the operands and the caller's domain
@@ -2343,7 +2400,7 @@ const STEP_SCALE: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The cylinder × sphere tangency decision (`ssi_cs_tangency`): the
@@ -2353,7 +2410,7 @@ const PAIR_TANGENCY: SizedDecision = SizedDecision {
     size: "near-tangency",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// `surface`, the door's `operand`, refused when one of its stored data
@@ -2738,6 +2795,7 @@ fn boundary_pass(
     };
     boundary::Pass {
         wall,
+        boxes: charted.own_boxes(),
         speeds: charted.speeds(),
         plane: boundary::PassPlane {
             origin,
@@ -3541,6 +3599,7 @@ mod ending_tests {
                 KERNEL_DEFECT_ENDING,
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
+            ("tube probe, refused", NOT_YET_ENDING, NOT_YET_ENDING),
             (
                 "foot point",
                 KERNEL_LIMIT_RECOURSE,
@@ -3964,7 +4023,20 @@ mod ending_tests {
                     floor: 8e-9,
                 },
             ),
-            ("tube probe", SsiError::TubeProbeSilent { rungs: 6 }),
+            (
+                "tube probe",
+                SsiError::TubeProbeSilent {
+                    rungs: 6,
+                    refused: 0,
+                },
+            ),
+            (
+                "tube probe, refused",
+                SsiError::TubeProbeSilent {
+                    rungs: 6,
+                    refused: 6,
+                },
+            ),
             (
                 "tube not one arc, count",
                 SsiError::TubeNotOneArc {

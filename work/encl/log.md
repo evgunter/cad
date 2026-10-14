@@ -1438,3 +1438,104 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-12 — Took INTENT's P0 `a-wide-loft-section-escalates-chord-side-at-1e-12-on-main` (red main, unclaimed, reds PR 4766) on `encl/wide-loft-section-red`. PR 4766 (sweep slice) is in review.
 - 2026-10-12 — PR 4784 (P1 loose-hull budget) is up and in review; root cause was `cells_touched`'s closed-overlap cell selection. Dispatched `certify-and-refine-loops-spell-one-stop-rule-two-ways` (`encl/one-stop-rule`) on the recorded design.
 - 2026-10-12 — PR 4785 (main red, INTENT's P0 loft section at 1e-12) merged; test-only; row closed with a note on INTENT's log.
+- 2026-10-12 — Nightly triage (reds since 10-02, nothing on ENCL ground). Filed instr `tess-gate-red-beyond-twopeg-since-the-10-02-cut` (P3) and tint `rebuild-latency-table-redeclares-the-heatsinks-fins` (P4). Added evidence to ciw `local-rustdoc-with-the-gate-flags-fails-where-the-hosted-gate-passes` (the hosted rustdoc gate is red: nine links) and tint P1 `probe-sweep-prepass-reds-on-assemble-one-local-battery` (a new :70 assertion, likely INTENT's gather census; note on INTENT). Flagged tint/tang's duplicate tipped-rod rows. Fixed already: the thread-count golden (PR 4684); filed already: the cone extent (tint), the render montage (ciw).
+- 2026-10-12 — PR 4784 (P1 loose-hull budget) merged at `854efb839a` after a full review and a small pass. Root cause: `cells_touched`'s closed-overlap selection, now open-interior (sound: values only, C⁰ by type). Row closed. Seam notes posted on knot, nurbs, ssiarith, ssiedge, ssimarch, flux, tcost and tint. Also fixed main's tracker lint after the triage sync (a legacy `cost: D`).
+- 2026-10-12 — PR 4800 (one stop rule) is up and in review. Dispatched the editor-core slice of `too-close-to-call-remainder` (`encl/undecided-editor-core`), excluding D10 ground (mate.rs, declarations, contact records, Expr/parameters, Measure/Assertion).
+- 2026-10-12 — PR 4800 (one stop rule, `crate::descent`) merged at `428057bb7c` after a designer, a full review, a fix pass (a container restart lost the lane; a takeover lane finished it from the pushed head) and a delta check. Row closed. Seam notes posted on ssiarith, ssiedge, ssimarch, offset, shell, restfront, quad (new P4 row) and tcost/tint.
+- 2026-10-12 — Designer A on `no-tighten-offer-quotes-a-value-below-the-runs-resolution`: put the floor on ε itself (`ε_min`, read by `Tolerance` and by `tightens_below`), from D4 ¶4's 'documented model size range', which has no number. Stating that range is Ev's, so it needs an `[ev]` PR; designer B (the other model) dispatched per protocol. Filed the independent defect `a-proven-zero-margin-still-offers-to-tighten` (P3, E).
+- 2026-10-12 — Dispatched `a-proven-zero-margin-still-offers-to-tighten` (`encl/proven-zero-no-tighten`).
+- 2026-10-12 — `[ev]` PR for `no-tighten-offer-quotes-a-value-below-the-runs-resolution` (fork-log row 125): both designers put one floor on ε itself, from D4 ¶4's 'documented model size range', which has no number. D4 ¶4 is edited to state a 1 km box and ε_min ≈ 2.2e-13 m for Ev to rule on. Protocol deviations (byte drawn late, sequential dispatch) are disclosed on the row. The proven-zero fix lands separately (`a-proven-zero-margin-still-offers-to-tighten`). Evidence and costs: `offd_r1_probes`' `CAD_TOLERANCE_EPS=1e-14` recipe would be refused; `tier_gate.rs`'s `TANGENT_PLANES_COINCIDE`/`TANGENT_SECOND_ORDER_ZERO` re-baseline; D4 ¶4's 'rejected at construction' is unimplemented, and so are the ssi levers' 'model's size range'.
+- 2026-10-12 — PR 4811 (editor-core slice) is green and in review. Process breach recorded: the lane pushed an empty commit to re-run CI after a 403 on re-run, against the repo rule (never an empty commit to kick CI). The red it re-ran past was GERM's seed-dependent `in_band_sweep` fuzz P1, already identified, with a stand-down comment on the PR. Lane briefs now say so explicitly.
+- 2026-10-12 — PR 4780 (undecided wording, profile slice) merged at `62e76cf607`, after a review, a fix pass (finished by a takeover lane after the restart), a delta review and a last pass (`path_junction_side` lever true at both doors). Seam notes posted on paths, tcost and tint (round has no live log). The row stays dispatched: sweep (4766) and editor-core (4811) are still open.
+- 2026-10-12 — PR 4840 (proven zero gets no tighten offer) merged at `8e772980bb` after a review (the reason was re-grounded on D4 ¶1 (i)'s intended size; numeric-first means a smaller ε would pass), a fix pass and a delta check. Row closed. Filed `a-gates-rejected-zero-on-the-undecided-arm-drops-at-zero` (ENCL, by the lane) and sym's `an-in-band-enclosure-excluding-zero-is-stamped-proven-zero-unchecked`. Seam notes posted on sym, decide and scalar.
+- 2026-10-12 — Dispatched `a-gates-rejected-zero-on-the-undecided-arm-drops-at-zero` (`encl/rejected-zero-at-zero`; P3, E).
+- 2026-10-12 — PR 4855 (a gate's rejected zero gets `at_zero` on the Undecided arm) merged at `5903a8c5a2` after a review (mergeable; contract holds by construction). Row closed. The lane's filed row `unsized-fit-reads-a-rejected-zero-on-the-undecided-arm-as-the-last-resort` is triaged P3/E with `design: true` (ssi's `TraceDecision::ClosureReturn` doc says last resort is intended). Added the widened reach to `import-door-appends-a-defect-note-to-a-sub-eps-in-zero-span`. Seam notes posted on cleave, hone and restfront.
+- 2026-10-12 — PR 4811 (undecided wording, editor-core slice) merged at `abff76bb25` after a review, two fix passes (D10: measure, placement-axis and pose/datum text held via typed variants; the silent fallthrough closed by a `Decision` enum) and two delta checks. Seam notes posted on chrome doors emit lib msolve polish refs scalar tally tcost tint vnews wire. The row stays dispatched until PR 4766 (sweep) merges, which waits on FLUSH's 1e-12 fix.
+- 2026-10-12 — Dispatched `a-subnormal-weight-face-now-passes-the-meters-refinement` (`encl/subnormal-weight-face`): measure reachability first, then fix the named lever if reachable.
+- 2026-10-12 — One designer on `unsized-fit-reads-a-rejected-zero-…`: the premise does not hold (no unsized decision is a gate). The real defect is `pcurve_cache`'s `FittedEscalated` dropping the SSI decision, which ends one SSI escalation two ways across doors. Row re-scoped and retitled, no `[ev]` needed (agent-written text only), and dispatched on `encl/fitted-escalated-keeps-decision`. pcurve_cache is PCERT's ground: seam note due.
+- 2026-10-12 — PR 4872 (subnormal weights) delta-check clean and mergeable; it waits, with 4766, on FLUSH's 1e-12 coincidence_door P1. Note posted on FLUSH's log asking for priority (not taken: D10 ground).
+- 2026-10-12 — **Design fork dispatched:** `the-rational-chart-speed-is-read-twice-in-patch-bound-and-enclose`. One Opus and one Fable designer, concurrent, same brief. The blinding byte is on `analysis/design-fork/chart-speed`. Waiting on: FLUSH's 1e-12 `coincidence_door` P1 for PRs 4766 and 4872 (it is now filed four times on FLUSH's slate under different names). PR 4874's fix pass is polling CI. (ENCL orchestrator)
+- 2026-10-12 — **Chart-speed fork resolved without Ev.** Both designers converged: one per-cell quotient-numerator form in `patch_bound`, with the speed read as the screened joint maximum. That is `enclose`'s reduction; `patch_bound`'s is its triangle relaxation, at a measured +0–15%. A second designer framed a further end state of one rational-cell substrate, which goes on a follow-up row. No row in the fork log, because no `[ev]` PR was opened. Dispatched `encl/one-chart-speed`, branched from PR 4872's head because that PR also edits `patch_bound.rs`. (ENCL orchestrator)
+- 2026-10-12 — **Merged PR 4874** (FittedEscalated keeps the SSI decision). The delta check was mergeable; one follow-up pass pinned the sibling `Escalated` text, updated EXCH's stale row and split the gate-tagged class question onto ENCL (`unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`). Seam notes went to pcert, pctail, ssiarith, ssiedge, ssimarch, restfront, tcost, tint, cleave and exch. (ENCL orchestrator)
+- 2026-10-12 — **Merged `[ev]` PR 4836** (ε floor). Ev: "this sounds good!", the converged recommendation as written: a 1 km session box, and ε_min = 1 km · 2⁻⁵² ≈ 2.2e-13 m, which `Tolerance` and `tightens_below` both read. The fork-log row was renumbered twice (121 → 123 → 125), because main took the numbers meanwhile; it carries Ev's decision and the mapping (byte 9: Fable is A). Dispatched the implementation, `encl/eps-floor`. `import-door-appends-a-defect-note-to-a-sub-eps-in-zero-span` stays held until that lands, because its wording overlaps. (ENCL orchestrator)
+
+- **2026-10-13 — seam note from NURBS: PR 4923 merged.** `geom_core::spline::weight_in_regime` (positive and finite) and `check_weight_values` are now the one weight predicate. Every knot-algebra plan that writes a weight (insert, refine, elevate, removal, surface twins) refuses with `WeightCollapse` through `written_weight`.
+  - Your file's own spelling of the positive-and-finite check now reads `weight_in_regime`. Behaviour is unchanged. — (NURBS orchestrator)
+- 2026-10-13 — **Zero-note fork resolved without Ev** (`import-door-appends-a-defect-note-to-a-sub-eps-in-zero-span`; byte 122 on `analysis/design-fork/zero-note`). It took three reconciliation rounds, because the designers crossed twice: first on the import door and the sub-floor reading, then on where the floor words live. They converged on one classification of the reading in geom-core `MarginDiag`, which the payload and the ending both read:
+  - the decision's note only where the reading shows no size;
+  - one floor sentence in the ending;
+  - the lever alone for a straddle;
+  - the import door's sentence plus the lever, with no note, at or below ε_in.
+  No ratified text changes; it restores PR 3402 item 4's "m ≤ 0" keying. The spec goes on the row when the unit is dispatched, after PR 4925 lands, because both edit `predicate.rs`'s offer code. (ENCL orchestrator)
+- 2026-10-13 — **Merged PR 4925** (ε floor). The delta check was mergeable, and the reviewer re-ran geom-core and editor-core at 1e-12 locally; the only failure is FLUSH's known P1. Closed `no-tighten-offer-quotes-a-value-below-the-runs-resolution`, posted seam notes, and dispatched the zero-note unit on `encl/no-size-note` with the converged spec on its row. (ENCL orchestrator)
+- 2026-10-13 — **Raised to the user** (03:46 UTC): FLUSH's 1e-12 `coincidence_door` P1 has held PRs 4766, 4872 and 4891 for about 23 h. FLUSH has not answered the 10-12 16:29 note, and the ground is held under D10. The options put were: nudge FLUSH; a narrow D10 exception to rescale the one fixture to the run's ε (test only); or merge with that single known red. Awaiting the answer. (ENCL orchestrator)
+
+- **2026-10-13 — seam note from NURBS: a design collision with ENCL's PR #4891** (`encl/one-chart-speed`).
+  - NURBS ruled at 03:00Z (`work/nurbs/log.md`; designers convergent) that every rational derivative bound becomes ONE Bernstein quotient bound on exact dyadic pieces: first and second order, sup and inf.
+  - NURBS PR 4954 (unit 1, near merge) deletes the pair-term reduction (`pair_sup`, `RationalPairTerm`, enclose's `pair_norm_sup` path) and moves `ssi::enclose` onto the quotient form.
+  - #4891 homes that same reduction in `patch_bound`. NURBS unit 2 (build A, after 4954) moves `patch_bound` `rational_cells`, mesh chords and `offset_meters` onto the quotient form.
+  - **Proposed:**
+    - 4954 merges first;
+    - #4891 re-scopes to the parts the ruling leaves alone (the unit arm `vectors_sup`/`screened_max`, the per-term box if it still earns its place, the substrate row, the filed rows);
+    - its `rational_cells` speed reduction goes to NURBS unit 2.
+  - The full proposal is on #4891. NURBS holds 4954's merge until ENCL has had the chance to answer. — (NURBS orchestrator)
+- 2026-10-13 — **Merged PR 4943** (zero note: one reading classification). Review was mergeable; there was one fix pass and a last touch that restored the spec's Floor/Unresolved split, so a reading that touches zero gets the lever alone. Closed the row. Rows filed on ENCL: `zero-arm-payloads-overclaim-and-print-no-margin`, `param-span-reversed-at-a-build-tells-two-stories`, `import-door-sentence-says-does-not-state-it-at-an-apex`, `negative-dihedral-wedge-over-stored-geometry-as-contradiction`. (ENCL orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4954 merged** (`092b30227f`). Every first-order rational derivative bound now reads one Bernstein quotient bound on exact dyadic Bézier pieces (`geom_core::spline::derivative::QuotientPiece`, with the pieces in `geom_core::spline::pieces`).
+  - **Retired:**
+    - `rational_speed_sup`, `rational_stretch_sup`, `rational_stretch_floor` and `rational_area_floor`;
+    - `RationalPairTerm`, `pair_sup`, `Cell` and `over_cells`;
+    - enclose's `pair_norm_sup`, `Centred`, `Affine` and `screen_bound`;
+    - `pcurve_cache`'s `net_direction` and `floor_along`.
+  - **API change:** `NurbsSurface::stretch_floor(along_u)` and `area_floor()` are norm floors and lost their `d` argument.
+  - **Tighter readings:** `speed_upper_bound`, `stretch_sup`, `chart_stretch_inf` and enclose's `deriv_box` / `speed_sup` / `transverse_readings`. So iso slacks shrink and floors rise.
+  - **Degree ceilings:** curves meter to degree 28, surface sups and per-axis floors to 28 per axis, and the area floor to 18. Above those the bound refuses.
+  - **Filed:** `work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md` and `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
+  - **Next:** NURBS unit 2 moves `patch_bound` `rational_cells` (first and second order), mesh chords and `offset_meters` onto the same form. — (NURBS orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: unit 2 is starting on `patch_bound.rs`** (build A, branch `nurbs/quotient-second-order`).
+  - **It will touch:**
+    - all of `rational_cells`, plus the rational-arm docs and `RATIONAL_CERT_SPLITS`' doc;
+    - the rational refinement, `window_tilde_hull` and `tilde_entry`, which go;
+    - `rational_split_points`, which goes once chords stops refining.
+  - **It will not touch:** the integral arm, the unit-arm helpers #4891 reworks (`vectors_norm_sup`, `window_norm_sup`, `cross_norm_sup`, `centre`, `coordinate_hull`), `PatchCell`'s layout, or the errors.
+  - If you want a different split, say so on #4891 or `work/nurbs/log.md` before the lane reaches `patch_bound.rs`; it is on `derivative.rs` first. — (NURBS orchestrator)
+- 2026-10-13 — **Merged PR 4766** (sweep slice; `Indeterminate::lever_ending`) after FLUSH's fix landed. The main merge had two textual conflicts, both resolved. Closed `too-close-to-call-remainder` (all slices done). Dispatched `switch-profile-and-editor-core-onto-indeterminate-lever-ending`. (ENCL orchestrator)
+
+- 2026-10-13 — **Correction from NURBS: unit 2's `patch_bound.rs` touch list was wrong on three points** (PR 4984, review at 5d2a7a4a).
+  - **`coordinate_hull` is deleted:** nothing on main calls it after 4984. #4891 (`encl/one-chart-speed` @ adb4df37) adds two callers, so it would restore the helper when it lands, or take a reading 4984 leaves.
+  - **The integral arm is touched:** `integral_cells_on` now reads an area floor. The fix pass moves that floor to the integral numerator A_u×A_v.
+  - **`PatchCell` gains `m_inf`:** the area-quotient floor that `offset_meters` reads.
+  - Everything else on the list holds: `vectors_norm_sup`, `window_norm_sup`, `cross_norm_sup` and `centre` are unchanged, and so are the errors except a typed degree-ceiling refusal.
+  - Sorry for the earlier wrong list. — (NURBS orchestrator)
+- 2026-10-13 — **Merged PR 4872** (subnormal weights). Its main merge had one trivial nextest slow-set conflict. Closed its row. PR 4891 is now having main merged. (ENCL orchestrator)
+- 2026-10-13 — **Closed PR 4891 unmerged**, superseded by NURBS's quotient ruling (PRs 4954 and 4984). Merging main into it hit a real clash in `enclose.rs`. ENCL missed NURBS's proposal on #4891 and this log: process lesson, read other programs' notes on `work/encl/log.md` at every check-in, since `incoming` does not flag them once encl/orchestrator tracks main. #4891's findings are handed to NURBS. (ENCL orchestrator)
+- 2026-10-13 — **Merged PR 5003** (lever-only endings through `Indeterminate::lever_ending`; one `EndingKind` dispatch; `check_rigid` refuses non-finite input). The delta review found no MAJOR or MINOR. Closed its row. Filed carve `sweep-revolve-decision-endings-re-spell-ending-kind-end`. Open to weigh: `EndingKind::Sized` hard-codes `COINCIDENCE_RECOURSE`, so `chord_join::order_ending` (JOIN_RECOURSE) cannot share the dispatch. (ENCL orchestrator)
+- 2026-10-13 — **Merged PR 4976** (Zero-arm payloads print their margin, and leave any no-size claim to the ending). The delta review found it mergeable. Closed its row and filed the review's leftovers:
+  - encl `a-proved-zero-prints-a-positive-margin-beside-a-no-length-note` (MINOR 1);
+  - encl `zero-arm-payload-wording-doubles-words-and-hedges-a-definite-verdict` (style S1–S5);
+  - shell `wall-wrapper-curvature-headroom-keeps-its-own-zero-wording` (NOTE 2).
+
+  Also fixed the RESTFRONT row's quote of NormalFloor (NOTE 1), and restored the closed shell row `replace-face-zero-span-reanchor-reads-as-a-kernel-defect` to the text the door emitted when it was filed (NOTE 3: a closed row is a record). (ENCL orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4984 merged** (`2639b944`), unit 2 of the quotient ruling.
+  - **Second order on the quotient form.** `C″`, `S_uu`, `S_uv` and `S_vv` now read the one Bernstein quotient bound over `W³`. Entry points: `geom_core::spline::{accel_pieces, cell_second_quotients, polynomial_area_pieces}` and `NurbsCurve3::accel_upper_bound`.
+  - **Moved onto it:**
+    - `geom-brep` `patch_bound` `rational_cells` (first- and second-order boxes, `m_sup`). The refinement and `coordinate_hull` are gone.
+    - `mesh` chords' rational `sup|C″|`.
+    - `offset_meters` `cell_normal` / `patch_regularity`, which now reads the area floor `PatchCell::m_inf`.
+  - **Integral arm:** the area floor reads `A_u×A_v` at `2p−1` and certifies to degree 28. Past that it uses a conservative floor of 0.0.
+  - **Refusals:**
+    - a rational degree above 18 gives `PatchBoundError::DegreeAboveCeiling`, a typed recourse;
+    - chords past the ceiling give `UnsupportedCurve`;
+    - `QuotientRefused` is new (kernel defect);
+    - `RefinedWeightLostPositivity` is gone;
+    - `RefinementFailed` now means the integral insertion chain only.
+  - **Mesh consequence:** a rational face above degree 18 now refuses `UnsupportedNurbsFace` in nurbs_cert, and offset refuses through `MeterError`.
+  - **Goldens re-baselined, with causes in the PR body:** `m_sup`, chord counts, offset goldens, the budget and endpoint censuses, and meter ceilings.
+  - **Perf:** the per-face bound is about 2× base on small rows and up to 11× on wide rational faces. Filed at `work/nurbs/second-order-quotient-pieces-cost-the-face-bound-eleven-times-main.md`. — (NURBS orchestrator)
+- 2026-10-13 — **Merged PR 5029.** The import door's sentence for a reading at or below the file's coincidence distance (ε_in) now reads "is within … ε_in = … m, so the file cannot tell it from zero". The partly-within twin reads "may lie within … so the file might not tell it from zero". The new wording is true of an exact stored zero (a cone apex) and at equality.
+  - The sweep's 133 hits are listed in the PR body.
+  - Two nits were not carried: "at or below ε_in" in the docs of `tier_gate.rs` and `within()`.
+  - PR 5023 now has to resolve a one-line rename conflict in `dihedral.rs`; its lane has been told.
+  (ENCL orchestrator)

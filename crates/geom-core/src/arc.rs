@@ -537,6 +537,6 @@ mod tests {
             Some(Sign::Zero),
             "inside a larger expression: {counts:?}"
         );
-        assert!(counts.registered >= 2, "counted as registered: {counts:?}");
+        assert!(counts.symbolic >= 2, "proven by the tier: {counts:?}");
     }
 }

@@ -51,7 +51,7 @@ fn the_tangent_graze_resolves_past_first_order() {
     // The old doors must NOT fire: no TangencyUnsupported (the wall
     // definitely bends off the plane — tangent_sector_osculation),
     // no ConsecutiveOnSectors (the arcs' in-plane departures resolve
-    // at second order — tangent_sector_order2), no SliverSector on
+    // at second order — conic_bend_side), no SliverSector on
     // those predicates.
     use geom_core::k_stats::Bracket;
     let body = cylinder_body();
@@ -65,11 +65,7 @@ fn the_tangent_graze_resolves_past_first_order() {
     let out = split(&body, &plane, Tol::witness());
     let v = bracket.finish().verdicts;
     // The second-order lane ran, by name (telemetry from birth).
-    for name in [
-        "tangent_sector_order2",
-        "tangent_sector_order2_arm",
-        "tangent_sector_osculation",
-    ] {
+    for name in ["conic_bend", "conic_bend_side", "tangent_sector_osculation"] {
         assert!(
             v.iter().any(|x| x.predicate == name),
             "{name} never reached the funnel (recorded: {:?})",

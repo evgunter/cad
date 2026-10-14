@@ -136,7 +136,14 @@ pub(crate) fn section(
     (o, n): (Point3<f64>, Vec3<f64>),
     s: f64,
 ) -> geom::Curve3<f64> {
-    match geom_brep::plane_cone_section(&plane(o, n), cone, 4.0 * s, band()).unwrap() {
+    let &geom::Surface::Cone { apex, .. } = cone else {
+        panic!("the fixture sections a cone")
+    };
+    let reach = geom_brep::Reach::Measured {
+        at: apex,
+        lever: 4.0 * s,
+    };
+    match geom_brep::plane_cone_section(&plane(o, n), cone, &reach, band()).unwrap() {
         geom_brep::PlaneConeSection::TiltedEllipse(c)
         | geom_brep::PlaneConeSection::AxisNormalCircle(c) => c,
         other => panic!("the fixture's planes cut ellipses: {other:?}"),

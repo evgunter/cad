@@ -814,10 +814,15 @@ fn refuse(
     (at, kind): (RecipeNodeId, NodeErrorKind),
 ) -> Box<MateFault> {
     match kind {
-        NodeErrorKind::Escalated { source, .. } => Box::new(MateFault::Indeterminate {
-            mate,
-            diag: Box::new(source),
-        }),
+        NodeErrorKind::Escalated { source, .. }
+        | NodeErrorKind::MeasureEscalated { source, .. }
+        | NodeErrorKind::PlacementAxisEscalated { source, .. }
+        | NodeErrorKind::PoseDirectionEscalated { source, .. } => {
+            Box::new(MateFault::Indeterminate {
+                mate,
+                diag: Box::new(source),
+            })
+        }
         carried => Box::new(MateFault::PlacerRefused {
             mate,
             side,
@@ -910,7 +915,9 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
             )));
         }
     };
-    Ok(Some(crate::eval::stepped_rule_map(&ops, i64::from(i))))
+    crate::eval::stepped_rule_map(&ops, i64::from(i))
+        .map(|motion| Some(motion.to_affine()))
+        .map_err(here)
 }
 
 /// **The map a transform contributes** — its placement's motion, by

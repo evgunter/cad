@@ -206,6 +206,15 @@ struct Oracle {
 
 impl Oracle {
     fn new(cone: &[Sector]) -> Option<Self> {
+        Self::with_depth(cone, 40)
+    }
+
+    /// [`Oracle::new`] with its reference no deeper inside a face than
+    /// `steps` quarterings of the first step allow: a union of two
+    /// partners whose faces lie one rounding apart has a sliver between
+    /// them that a deeper reference could fall in, reading the union's
+    /// parity inverted.
+    fn with_depth(cone: &[Sector], steps: usize) -> Option<Self> {
         let wedges: Vec<Wedge> = cone
             .iter()
             .map(|s| {
@@ -223,7 +232,7 @@ impl Oracle {
                 n: BigInt::from(1),
                 d: BigInt::from(64),
             };
-            for _ in 0..40 {
+            for _ in 0..steps {
                 let r = vadd(&middle, &vscale(&inner, &eta));
                 if Self::crossings_of(&wedges, &middle, &r, Some(k)) == Some(0) {
                     return Some(Self {
@@ -702,21 +711,36 @@ fn shares_ray(f: &Wedge, g: &Wedge) -> bool {
         .any(|x| within(f, &cf, x) && within(g, &cg, x))
 }
 
-/// A small convex cone in the void of the cone `oracle` reads, a second
-/// partner of the same solid: its boundary meets the cone's only at the
-/// vertex, one of its corners lies in the void, and a bound of the cone
-/// lies outside it, all read exactly; `None` where the draw fails that.
-fn partner_in_void(
-    rng: &mut Rng,
-    cone: &[Sector],
-    oracle: &Oracle,
-) -> Option<(Vec<Sector>, Oracle)> {
-    let q = norm3([
-        rng.range(-1.0, 1.0),
-        rng.range(-1.0, 1.0),
-        rng.range(-1.0, 1.0),
-    ]);
-    let r = [0.3, 0.05, 1e-3][rng.below(3)];
+/// How a second partner sits in the void of the first
+/// ([`partner_in_void`]).
+#[derive(Clone, Copy, Debug)]
+enum Placed {
+    /// Its boundary meets the cone's only at the vertex.
+    Apart,
+    /// One of its corners is a bound of the cone, the rest strictly in
+    /// the void: the two touch along that ray.
+    AlongARay,
+    /// Each of its three corners lies on a face of the cone, inside
+    /// that face's sector: every edge of it on the void's boundary.
+    OnTheFaces,
+}
+
+/// Whether the void of the cone `oracle` reads is convex, exactly: every
+/// bound lies on or outside every face's plane, outward being the void.
+fn void_is_convex(oracle: &Oracle) -> bool {
+    oracle.wedges.iter().all(|w| {
+        oracle.wedges.iter().all(|b| {
+            [&b.start, &b.end]
+                .iter()
+                .all(|x| (det(&w.start, &w.end, x).sign() * w.orient) >= 0)
+        })
+    })
+}
+
+/// A ring of three directions about their mean, counterclockwise seen
+/// from outside, as [`sectors_from_ring`] takes a met cone's.
+fn ring_about(corners: [[f64; 3]; 3], rng: &mut Rng) -> Ring {
+    let q = norm3([0, 1, 2].map(|i| corners.iter().map(|c| norm3(*c)[i]).sum::<f64>()));
     let e1 = norm3(cross3(
         q,
         if q[0].abs() < 0.9 {
@@ -726,26 +750,128 @@ fn partner_in_void(
         },
     ));
     let e2 = cross3(q, e1);
-    let ring: Ring = (0..3)
-        .map(|k| {
-            let t = std::f64::consts::TAU * f64::from(k) / 3.0 + rng.range(-0.3, 0.3);
-            let (sn, cs) = t.sin_cos();
-            let d = [0, 1, 2].map(|i| q[i] + r * (cs * e1[i] + sn * e2[i]));
-            (norm3(d), rng.range(0.5, 2.0))
-        })
-        .collect();
+    let angle = |d: [f64; 3]| {
+        let dot = |a: [f64; 3], b: [f64; 3]| (0..3).map(|i| a[i] * b[i]).sum::<f64>();
+        dot(d, e2).atan2(dot(d, e1))
+    };
+    let mut sorted = corners;
+    sorted.sort_by(|a, b| angle(*a).total_cmp(&angle(*b)));
+    sorted.iter().map(|&d| (d, rng.range(0.5, 2.0))).collect()
+}
+
+/// A small convex cone in the void of the cone `oracle` reads, a second
+/// partner of the same solid, placed as `how` says ([`Placed`]), all
+/// read exactly; `None` where the draw fails that. The touching
+/// placements are drawn in convex voids only, where a cone over
+/// directions in the void's closure stays in it.
+fn partner_in_void(
+    rng: &mut Rng,
+    cone: &[Sector],
+    oracle: &Oracle,
+    how: Placed,
+) -> Option<(Vec<Sector>, Oracle)> {
+    let ring: Ring = match how {
+        Placed::Apart => {
+            let q = norm3([
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ]);
+            let r = [0.3, 0.05, 1e-3][rng.below(3)];
+            let e1 = norm3(cross3(
+                q,
+                if q[0].abs() < 0.9 {
+                    [1.0, 0.0, 0.0]
+                } else {
+                    [0.0, 1.0, 0.0]
+                },
+            ));
+            let e2 = cross3(q, e1);
+            (0..3)
+                .map(|k| {
+                    let t = std::f64::consts::TAU * f64::from(k) / 3.0 + rng.range(-0.3, 0.3);
+                    let (sn, cs) = t.sin_cos();
+                    let d = [0, 1, 2].map(|i| q[i] + r * (cs * e1[i] + sn * e2[i]));
+                    (norm3(d), rng.range(0.5, 2.0))
+                })
+                .collect()
+        }
+        Placed::AlongARay | Placed::OnTheFaces if !void_is_convex(oracle) => return None,
+        Placed::AlongARay => {
+            // The void's mean bound lies inside a convex void.
+            let g = norm3([0, 1, 2].map(|i| {
+                cone.iter()
+                    .map(|s| norm3(s.start_far)[i] + norm3(s.end_far)[i])
+                    .sum::<f64>()
+            }));
+            let shared = cone[rng.below(cone.len())].start_far;
+            let u = norm3(shared);
+            let t = [0.2, 0.5, 0.8][rng.below(3)];
+            let mut inner = |k: usize| {
+                let w = [0, 1, 2].map(|_| rng.range(-0.15, 0.15));
+                let d = [0, 1, 2].map(|i| u[i] + t * (g[i] - u[i]) + t * w[i] * f64::from(k as u8));
+                norm3(d)
+            };
+            let (a, b) = (inner(1), inner(2));
+            if [a, b]
+                .iter()
+                .any(|&d| oracle.class(d, rng) != SideCode::Out)
+            {
+                return None;
+            }
+            ring_about([shared, a, b], rng)
+        }
+        Placed::OnTheFaces => {
+            if cone.len() < 3 {
+                return None;
+            }
+            let mut faces: Vec<usize> = (0..cone.len()).collect();
+            for k in 0..3 {
+                let j = k + rng.below(faces.len() - k);
+                faces.swap(k, j);
+            }
+            let mut mid = |s: &Sector| {
+                let w = rng.range(0.2, 0.8);
+                let (a, b) = (norm3(s.start_far), norm3(s.end_far));
+                [0, 1, 2].map(|i| w * a[i] + (1.0 - w) * b[i])
+            };
+            let corners = [
+                mid(&cone[faces[0]]),
+                mid(&cone[faces[1]]),
+                mid(&cone[faces[2]]),
+            ];
+            let centre = [0, 1, 2].map(|i| corners.iter().map(|c| c[i]).sum::<f64>());
+            if oracle.class(centre, rng) != SideCode::Out {
+                return None;
+            }
+            ring_about(corners, rng)
+        }
+    };
+    let corners: Vec<V> = ring.iter().map(|&(d, _)| qv(d)).collect();
+    if det(&corners[0], &corners[1], &corners[2]).sign() == 0 {
+        return None;
+    }
     let mut partner = sectors_from_ring(&ring, false);
     for s in &mut partner {
         s.face += 100;
     }
     let own = Oracle::new(&partner)?;
-    let apart = oracle.class(partner[0].start_far, rng) == SideCode::Out
-        && own.class(cone[0].start_far, rng) == SideCode::Out
-        && !oracle
-            .wedges
+    match how {
+        Placed::Apart => {
+            let apart = oracle.class(partner[0].start_far, rng) == SideCode::Out
+                && own.class(cone[0].start_far, rng) == SideCode::Out
+                && !oracle
+                    .wedges
+                    .iter()
+                    .any(|f| own.wedges.iter().any(|g| shares_ray(f, g)));
+            apart.then_some((partner, own))
+        }
+        // The cone's own bounds lie outside a partner in its void.
+        Placed::AlongARay | Placed::OnTheFaces => cone
             .iter()
-            .any(|f| own.wedges.iter().any(|g| shares_ray(f, g)));
-    apart.then_some((partner, own))
+            .all(|s| own.class(s.start_far, rng) != SideCode::In)
+            .then_some((partner, own)),
+    }
 }
 
 /// **A vertex in pairs alone is read against both partners together,
@@ -754,10 +880,7 @@ fn partner_in_void(
 /// by [`pair_classes`] for each probe edge against the exact reading of
 /// their union. Where a partner reads nothing beside the other it must
 /// refuse; elsewhere, a row is wrong as in [`check_cone`], and a probe
-/// with no row is wrong. A layering that leaves the probe undecided and
-/// keeps each pair's rows is counted, and its wrong rows with it, not
-/// asserted
-/// (`work/tang/pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided.md`).
+/// with no row, or more than one, is wrong.
 fn check_pair(
     what: &str,
     cone: &[Sector],
@@ -768,19 +891,66 @@ fn check_pair(
     let Some(oracle) = cone_oracle(cone, band) else {
         return Vec::new();
     };
-    let Some((partner, _)) = partner_in_void(rng, cone, &oracle) else {
+    let how = if void_is_convex(&oracle) {
+        [Placed::Apart, Placed::AlongARay, Placed::OnTheFaces][rng.below(3)]
+    } else {
+        Placed::Apart
+    };
+    let Some((partner, _)) = partner_in_void(rng, cone, &oracle, how) else {
         return Vec::new();
     };
-    let both: Vec<Sector> = cone.iter().chain(&partner).cloned().collect();
-    let Some(union) = Oracle::new(&both) else {
-        return Vec::new();
-    };
-    counts.placed += 1;
-    let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
-    let vertex = VertexKey::from(key(7000));
-    let others = [bool_sectors(cone), bool_sectors(&partner)];
     let mut probes = probes_about(rng, cone);
     probes.extend(probes_about(rng, &partner));
+    check_partners(
+        &format!("{what}, {how:?}"),
+        cone,
+        &partner,
+        &probes,
+        how,
+        band,
+        rng,
+        counts,
+    )
+}
+
+/// [`check_pair`]'s reading of `probes` against `cone` and `partner`
+/// as two partners of one solid, against the exact reading of their
+/// union. A refusal the layering calls an invariant is wrong. So is a
+/// nesting it found no direction to read ([`BooleanError::NestingUnread`]),
+/// unless the partner is thinner than the band can read: its centre
+/// lies within ten escalation bands of its boundary (the readings lever
+/// up to its arm, and its best direction may lie deeper than its
+/// centre), where that refusal is its true reading and is counted.
+#[allow(clippy::too_many_arguments)]
+fn check_partners(
+    what: &str,
+    cone: &[Sector],
+    partner: &[Sector],
+    probes: &[[f64; 3]],
+    how: Placed,
+    band: Band,
+    rng: &mut Rng,
+    counts: &mut PairCounts,
+) -> Vec<String> {
+    let both: Vec<Sector> = cone.iter().chain(partner).cloned().collect();
+    // Twelve tries, the step quartered from 1/64, leave the reference
+    // no deeper than 1/(64·4¹¹) ≈ 3.7e-9 inside a face: far above a
+    // rounding's sliver, so a face one rounding from the partner's is
+    // passed over for another.
+    let Some(union) = Oracle::with_depth(&both, 12) else {
+        counts.no_reference += 1;
+        return Vec::new();
+    };
+    counts.placed[how as usize] += 1;
+    let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+    let vertex = VertexKey::from(key(7000));
+    let others = [bool_sectors(cone), bool_sectors(partner)];
+    // How far the partner's own centre lies inside it: the least
+    // deviation that puts the mean of its far points on its boundary.
+    let centre = [0, 1, 2]
+        .map(|i| partner.iter().map(|s| s.start_far[i]).sum::<f64>())
+        .map(|x| x / partner.len() as f64);
+    let thin = least_flip(partner, centre);
     let mut wrong = Vec::new();
     for (k, &far) in probes.iter().enumerate() {
         let probe = probe_sector(far);
@@ -797,17 +967,47 @@ fn check_pair(
             }
         }
         if pairs.len() < 2 {
-            counts.refused += 1;
+            *counts
+                .refused
+                .entry("the probe's own reading".to_owned())
+                .or_default() += 1;
             continue;
         }
         let unread = pairs.iter().any(|p| p.read.is_none());
-        let rows = match crate::boolean::vtxfac::pair_classes(Operand::A, vertex, &pairs, band) {
+        let rows = match crate::boolean::vtxfac::pair_classes(
+            Operand::A,
+            vertex,
+            std::slice::from_ref(&probe),
+            &pairs,
+            band,
+        ) {
             Err(BooleanError::VertexReadTwice { .. }) if unread => {
                 counts.unread += 1;
                 continue;
             }
-            Err(_) => {
-                counts.refused += 1;
+            Err(BooleanError::NestingUnread { .. }) if thin <= 10.0 * band.escalate() => {
+                *counts
+                    .refused
+                    .entry("NestingUnread, an island thinner than the band".to_owned())
+                    .or_default() += 1;
+                continue;
+            }
+            Err(
+                e @ (BooleanError::ClassificationInvariant { .. }
+                | BooleanError::NestingUnread { .. }),
+            ) => {
+                wrong.push(format!(
+                    "{what}, pair probe {k} {far:?}: {e:?} (the partner {thin:.3e} m thick)"
+                ));
+                continue;
+            }
+            Err(e) => {
+                let kind = match e {
+                    BooleanError::Escalated { decision, .. } => format!("{decision:?}"),
+                    BooleanError::VertexReadTwice { .. } => "a partner reads nothing".to_owned(),
+                    e => format!("{:?}", e.kind()),
+                };
+                *counts.refused.entry(kind).or_default() += 1;
                 continue;
             }
             Ok(rows) if unread => {
@@ -820,13 +1020,13 @@ fn check_pair(
             Ok(rows) => rows,
         };
         let truth = union.class(far, rng);
-        let flip = least_flip(cone, far).min(least_flip(&partner, far));
+        let flip = least_flip(cone, far).min(least_flip(partner, far));
         let in_band = truth == SideCode::On || flip <= band.zero();
-        let kept = rows.len() > 1;
         counts.rows += rows.len();
-        counts.kept += usize::from(kept);
-        if rows.is_empty() {
-            wrong.push(format!("{what}, pair probe {k} {far:?}: no row"));
+        if rows.len() != 1 {
+            wrong.push(format!(
+                "{what}, pair probe {k} {far:?}: rows {rows:?}, not one"
+            ));
         }
         for &(_, got) in &rows {
             let defect = match got {
@@ -834,13 +1034,11 @@ fn check_pair(
                 _ if got != truth => Some("the oracle contradicts it"),
                 _ => in_band.then_some("decided in band"),
             };
-            match defect {
-                Some(_) if kept => counts.kept_wrong += 1,
-                Some(defect) => wrong.push(format!(
+            if let Some(defect) = defect {
+                wrong.push(format!(
                     "{what}, pair probe {k} {far:?}: pair_classes reads {got:?}, exactly \
                      {truth:?}, flipped by a {flip:.3e} m deviation: {defect}"
-                )),
-                None => {}
+                ));
             }
         }
     }
@@ -848,17 +1046,19 @@ fn check_pair(
 }
 
 /// What the pair oracle read at one ε: partners placed, rows read,
-/// probes refused beside a partner that reads nothing, other refusals,
-/// and probes whose layering kept each pair's rows, with their wrong
-/// rows.
+/// probes refused beside a partner that reads nothing, and other
+/// refusals.
 #[derive(Default)]
 struct PairCounts {
-    placed: usize,
+    /// By [`Placed`]: apart, along a ray, on the faces.
+    placed: [usize; 3],
+    /// Placed pairs whose union no reference reads clear of a sliver,
+    /// skipped.
+    no_reference: usize,
     rows: usize,
     unread: usize,
-    refused: usize,
-    kept: usize,
-    kept_wrong: usize,
+    /// Refusals, by what refused.
+    refused: std::collections::BTreeMap<String, usize>,
 }
 
 /// What one reader read at one ε, and what it read nothing of or
@@ -951,18 +1151,28 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
             wrong.extend(check_pair(what, cone, band, &mut rng, &mut counts));
         }
         println!(
-            "[fuzz] sectors_cone_fuzz pairs at ε {eps:e}: {} wrong; {} partners placed, {} rows, \
-             {} probes refused beside a partner that reads nothing, {} refused otherwise, {} \
-             kept per pair ({} of their rows wrong; \
-             pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided)",
+            "[fuzz] sectors_cone_fuzz pairs at ε {eps:e}: {} wrong; partners placed {} apart, \
+             {} along a ray, {} on the faces, {} with no clear reference; {} rows, {} probes refused beside a partner that \
+             reads nothing, refused otherwise {:?}",
             wrong.len() - before,
-            counts.placed,
+            counts.placed[0],
+            counts.placed[1],
+            counts.placed[2],
+            counts.no_reference,
             counts.rows,
             counts.unread,
-            counts.refused,
-            counts.kept,
-            counts.kept_wrong
+            counts.refused
         );
+        // A union is skipped only where no face of the cone gives a
+        // reference clear of the partner within the depth; no draw has
+        // met one (none in 105 random seeds at each ε), so one that does
+        // is reported, not passed over.
+        if counts.no_reference > 0 {
+            wrong.push(format!(
+                "ε {eps:e}: {} placed pairs had no clear reference, and were not read",
+                counts.no_reference
+            ));
+        }
     }
     assert!(
         wrong.is_empty(),
@@ -971,6 +1181,138 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
         test_utils::fuzz::replay(),
         wrong.join("\n")
     );
+}
+
+/// A cone over `ring` (directions, each at unit reach) whose exact
+/// reading puts `inside` in its material (`material`) or out of it:
+/// whichever winding and side of [`sectors_from_ring`] does.
+fn cone_holding(ring: &[[f64; 3]], inside: [f64; 3], material: bool) -> Vec<Sector> {
+    let want = if material {
+        SideCode::In
+    } else {
+        SideCode::Out
+    };
+    let mut rng = Rng::from_seed(1);
+    for reversed in [false, true] {
+        let mut r: Ring = ring.iter().map(|&d| (d, 1.0)).collect();
+        if reversed {
+            r.reverse();
+        }
+        for hollow in [false, true] {
+            let mut cone = sectors_from_ring(&r, hollow);
+            if Oracle::new(&cone).is_some_and(|o| o.class(inside, &mut rng) == want) {
+                if material {
+                    for s in &mut cone {
+                        s.face += 100;
+                    }
+                }
+                return cone;
+            }
+        }
+    }
+    panic!("no winding of {ring:?} holds {inside:?}")
+}
+
+/// **An island whose every edge lies on its void's faces nests in it**:
+/// read by [`check_partners`] against the exact oracle, every probe
+/// about each reads one decided row, none wrong, and the layering
+/// finds the island's inside. The octant's island is convex, so its
+/// link mean lies inside it; the review's pentagon in a chevron void
+/// shares the chevron's reflex edge, and its link mean lies outside
+/// it, so a direction off a face reads it. The review's thin V, its
+/// arms 1e-9 thick, read at ε 1e-12, is read by a direction off a face
+/// many steps down, where the band still decides it. Red where the
+/// layering reads no direction inside the island
+/// ([`BooleanError::NestingUnread`]).
+/// The probes come from a fixed seed: they are the fixture's, drawn
+/// about each cone as the fuzz draws them.
+#[test]
+fn islands_touching_every_face_of_their_voids_nest() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let k = 1e-9;
+    let scenes = [
+        (
+            "an octant's island",
+            band,
+            vec![[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            [1.0, 1.0, 1.0],
+            vec![[1.0, 1.0, 0.0], [0.0, 1.0, 1.0], [1.0, 0.0, 1.0]],
+            [1.0, 1.0, 1.0],
+        ),
+        (
+            "a pentagon in a chevron",
+            band,
+            vec![
+                [-3.0, 2.0, 1.0],
+                [0.0, -1.0, 1.0],
+                [3.0, 2.0, 1.0],
+                [0.0, 0.0, 1.0],
+            ],
+            [0.0, -0.5, 1.0],
+            vec![
+                [0.0, 0.0, 1.0],
+                [-1.5, 1.0, 1.0],
+                [-0.5, -0.5, 1.0],
+                [0.5, -0.5, 1.0],
+                [1.5, 1.0, 1.0],
+            ],
+            [0.0, -0.3, 1.0],
+        ),
+        (
+            "a V 1e-9 thick in a V, at ε 1e-12",
+            Band::linear_at(Tol::witness(), 1e-12).unwrap(),
+            vec![
+                [-2.0, 2.0, 1.0],
+                [0.0, 0.0, 1.0],
+                [2.0, 2.0, 1.0],
+                [2.0 - k, 2.0, 1.0],
+                [0.0, k, 1.0],
+                [-2.0 + k, 2.0, 1.0],
+            ],
+            [1.0, 1.0 + k / 2.0, 1.0],
+            vec![
+                [0.0, 0.0, 1.0],
+                [2.0, 2.0, 1.0],
+                [2.0 - k / 2.0, 2.0, 1.0],
+                [1.8, 1.8 + k, 1.0],
+                [0.0, k, 1.0],
+                [-1.8, 1.8 + k, 1.0],
+                [-2.0 + k / 2.0, 2.0, 1.0],
+                [-2.0, 2.0, 1.0],
+            ],
+            [1.0, 1.0 + k / 2.0, 1.0],
+        ),
+    ];
+    let mut rng = Rng::from_seed(0x1514);
+    for (what, band, void, in_void, island, in_island) in scenes {
+        let cone = cone_holding(&void, in_void, false);
+        let partner = cone_holding(&island, in_island, true);
+        let mut probes = probes_about(&mut rng, &cone);
+        probes.extend(probes_about(&mut rng, &partner));
+        let mut counts = PairCounts::default();
+        let wrong = check_partners(
+            what,
+            &cone,
+            &partner,
+            &probes,
+            Placed::OnTheFaces,
+            band,
+            &mut rng,
+            &mut counts,
+        );
+        assert!(wrong.is_empty(), "{what}:\n{}", wrong.join("\n"));
+        assert_eq!(
+            counts.no_reference, 0,
+            "{what}: the union has a clear reference"
+        );
+        assert!(
+            counts.rows >= probes.len() / 2,
+            "{what}: {} rows of {} probes, refused {:?}",
+            counts.rows,
+            probes.len(),
+            counts.refused
+        );
+    }
 }
 
 /// Whether the arc from `d` to `p` meets the closed sector `u → v` on

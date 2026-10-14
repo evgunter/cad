@@ -77,6 +77,7 @@ pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
 mod neighborhood;
+pub(crate) use neighborhood::{EntryFault, entry_side, wide_entry};
 // `pub(crate)` for `order::exact_band` alone: the bit-hairline band is
 // a shared DEVICE (audit note N6), and the boolean backstop's
 // sign-certainty arm decides against the same one rather than minting
@@ -263,8 +264,8 @@ pub struct SplitReduction<T: Real> {
     /// the operand ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
     /// Each piece a crossing split minted, `(new edge, divided-from
-    /// edge)` in mint order.
-    pub edge_pieces: Vec<(EdgeKey, EdgeKey)>,
+    /// edge)` in mint order, checked as each was minted.
+    pub edge_pieces: crate::lineage::SplitEdgeDivisions,
 }
 
 /// **A knife edge the split would mint and cannot declare.** The plane
@@ -390,9 +391,10 @@ pub enum SplitReduceError {
         errors: Vec<ValidationError>,
     },
     /// Whether a vertex lies on the plane is undecided (F6): its distance
-    /// lies in the ambiguity band, beyond ε, or cannot be read. No
-    /// snapping — resolution is an explicit repair/adoption op (D7
-    /// machinery).
+    /// from the plane, or from a section the plane ends at it
+    /// ([`crate::vertex_section`]), lies in the ambiguity band, beyond ε,
+    /// or cannot be read. No snapping — resolution is an explicit
+    /// repair/adoption op (D7 machinery).
     SliverVertex {
         /// The offending vertex.
         vertex: VertexKey,
@@ -457,14 +459,12 @@ pub enum SplitReduceError {
     /// Two cyclically-consecutive entries remained ON after rule (a) —
     /// the "no consecutive ONs" invariant failed. For a planar operand
     /// this means a coplanar sector escaped the gate (documented
-    /// invariant, checked loudly rather than assumed). Since M5 PR 9
-    /// the conic in-plane-departure chain resolves ONE ORDER DOWN
-    /// first (the C12.2 second-order trilean,
-    /// `tangent_sector_order2`: an arc grazing the plane classifies
-    /// by which side it CURVES to), so reaching this refusal on a
-    /// conic boundary means the chain tied at second order too — a
-    /// genuinely osculating configuration this machinery will not
-    /// guess at (in-band second order escalates F6 upstream instead).
+    /// invariant, checked loudly rather than assumed). A conic's
+    /// in-plane departure reads one order down first
+    /// ([`geom_brep::conic_bend_side`]: an arc grazing the plane
+    /// classifies by which side it bends to), so reaching this refusal
+    /// on a conic boundary means a whole conic edge lay within the band
+    /// of the plane (an undecided bend escalates upstream instead).
     ConsecutiveOnSectors {
         /// The ON vertex whose neighborhood violated the invariant.
         vertex: VertexKey,
@@ -524,6 +524,11 @@ pub enum SplitReduceError {
     /// An underlying Euler operation refused (`split_edge` includes the
     /// certified-interiority refusals and escalations).
     Euler(EulerOpError),
+    /// The crossing insertion's edge division list refused a row where
+    /// a split added it ([`crate::lineage::SplitEdgeDivisions`]): a
+    /// kernel defect, since each split records the piece it just
+    /// minted.
+    LineageRow(crate::lineage::RowRefusal),
 }
 
 /// **How the reading a [`SplitReduceError::SliverSector`] refuses
@@ -632,17 +637,6 @@ impl From<EulerOpError> for SplitReduceError {
 /// declarations, so its plane is the first lever.
 pub(crate) use geom_core::SPLIT_PLANE_RECOURSE as SPLIT_COINCIDENCE_RECOURSE;
 
-/// The ending of a split escalation whose margin is no size the user
-/// chose (an angle, a winding, an order, a vertex's offset from the
-/// plane): the split's lever alone, with the unreadable-margin note on
-/// poison (D4 ¶1 (i)).
-pub(crate) fn split_lever_ending(diag: &geom_core::Indeterminate) -> String {
-    LeverOnly {
-        lever: SPLIT_COINCIDENCE_RECOURSE,
-    }
-    .recourse(RefusedArm::Undecided(diag), Reading::Build)
-}
-
 impl core::fmt::Display for SplitReduceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use geom_core::RANGE_RECOURSE;
@@ -698,7 +692,7 @@ impl core::fmt::Display for SplitReduceError {
             Self::SliverVertex { diag, .. } => diag
                 .undecided(
                     "whether a vertex lies on the split plane",
-                    split_lever_ending(diag),
+                    diag.lever_ending(SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::SliverSector { reading, .. } => write!(
@@ -791,6 +785,12 @@ impl core::fmt::Display for SplitReduceError {
                  refused: {source}"
             ),
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::LineageRow(refusal) => write!(
+                f,
+                "{}. {}",
+                refusal.refused_by("split"),
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
         }
     }
 }
@@ -1111,9 +1111,10 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole (no
 /// degenerate body is ever emitted). The sides are gated at tier 2
-/// ([`SplitFinishError::ResultInvalid`]). Tier 3 is deliberately not run
-/// on the sides: a pinch side's touching pieces carry contacts split
-/// declares nowhere.
+/// ([`SplitFinishError::ResultInvalid`]); tier 3 is not run on them. A
+/// pinch side's touching pieces need no contact record, since their
+/// copies of the pinched vertex share its point key, and the ON verdict
+/// that pinched them is in [`SplitResult::coincidences`].
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,

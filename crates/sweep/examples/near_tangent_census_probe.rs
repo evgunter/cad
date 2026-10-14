@@ -13,8 +13,8 @@
 //! through its trace door and every pair it decided against is dumped
 //! as a `PAIR` JSON line: the two entities, their exact `f64`
 //! coordinates, and the census's own reading of each predicate on the
-//! pair. A refusal prints its findings, and a sliver shell the gate
-//! refuses as in band its certified `V/A`. `scripts/near_tangent_census_classify.py`
+//! pair. A refusal prints its findings, and a shell check 10 refuses as
+//! in band its certified `V/A`. `scripts/near_tangent_census_classify.py`
 //! re-reads every `PAIR` at 60 digits and classifies it.
 //!
 //! `NT_D` (comma list) sets the tilts, `NT_EDGE=1` replaces them with
@@ -267,7 +267,8 @@ fn run_all(
                         after.extend(lumps.iter().cloned());
                     }
                 }
-                // The finished-body gate's in-band typing: a sliver shell.
+                // The finished-body gate's in-band typing: check 10's
+                // in-band shell.
                 Err(BooleanError::Escalated {
                     decision: BooleanDecision::ShellRole { others, .. },
                     diag,

@@ -2507,7 +2507,7 @@ mod tests {
     ///   its start and went on, which is drawn as the loop its own
     ///   steps closed;
     /// - one that turns inside the kernel's ambiguity band, whose
-    ///   `line_to Start` escalates as too close to call. That is said,
+    ///   `line_to Start` refuses as undecided. That is said,
     ///   not re-spelled: where `continue_to Start` would replay (a long
     ///   leg, a short close, `(0.0010000004, 0.001)`), it is another
     ///   spelling happening to pass, not the kernel deciding the close

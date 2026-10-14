@@ -30,10 +30,14 @@
 //! - **coaxial** — the swing `A₁` in the zero band: the residual is
 //!   constant to within `A₁` plus that error, and
 //!   [`constant_residual_roots`] decides it.
-//! - **extreme**, on `lo` and `hi` — definitely one-signed is a miss,
-//!   definitely straddling is two roots, and either extreme in the zero
-//!   band is a tangency, which is not a crossing at any order this lane
-//!   sees and answers [`CircleRoots::Uncertain`].
+//! - **extreme**, on `lo` and `hi`, each read as the interval its error
+//!   bound spans, both ends decided — definitely one-signed is a miss,
+//!   definitely straddling is two roots, an end in the escalation gap
+//!   escalates, and an extreme otherwise not definite is a tangency,
+//!   which is not a crossing at any order this lane sees and answers
+//!   [`CircleRoots::Uncertain`]. The noise meter bounds the error by the
+//!   zero band, not by the gap's far edge, so an extreme read bare could
+//!   clear `Kε` while its true value sits in the gap.
 //! - **root slack** — at either root the extremes' errors move the
 //!   residual by `δR = (hi·δlo − lo·δhi)/(hi − lo)` — the NEAR extreme's
 //!   error, plus only a share `|near|/(hi − lo)` of the far one's — so
@@ -157,6 +161,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
 use super::solid_contain::{QuarticRows, depressed_quartic_roots};
 use super::{BooleanDecision, BooleanError};
+use crate::bisect::{Step, bisect};
 use crate::validate::decide;
 
 /// What the certified roots of a circle against a surface say about the
@@ -344,8 +349,8 @@ const POLE_CANDIDATES: u32 = 32;
 /// `F`'s sign. The answer is [`certified_subdivision`]'s; the half-angle
 /// ladder runs first and only its escalations are kept.
 ///
-/// `slack` is the subdivision's root-slack meter, where the caller has
-/// one.
+/// `slack` is the subdivision's root-slack meter: an answer rests on
+/// the roots it reports.
 ///
 /// # Errors
 ///
@@ -357,7 +362,7 @@ pub(super) fn half_angle_roots<T: Decide>(
     residual: impl Fn(T) -> T,
     frame: HalfAngleFrame<T>,
     rows: &HalfAngleRows,
-    slack: Option<&RootSlack<'_, T>>,
+    slack: &RootSlack<'_, T>,
     band: Band,
 ) -> Result<CircleRoots<T>, BooleanError> {
     if f.degree > 2 {
@@ -366,7 +371,7 @@ pub(super) fn half_angle_roots<T: Decide>(
         });
     }
     ladder_roots(f, &residual, &frame, rows, band)?;
-    certified_subdivision(f, &residual, &frame.walk, &rows.verify, slack, band)
+    certified_subdivision(f, &residual, &frame.walk, &rows.verify, Some(slack), band)
 }
 
 /// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle
@@ -484,11 +489,6 @@ fn ladder_roots<T: Decide>(
 /// starts.
 const SUBDIVISION_START: u32 = 16;
 
-/// The most pieces [`certified_subdivision`] examines before it answers
-/// `Uncertain`: a bound on the walk (D9), far above what a transverse
-/// configuration needs (each simple root is isolated within a few dozen).
-const SUBDIVISION_BUDGET: usize = 4096;
-
 /// Where a piece may be split, as shares of its width, tried in order
 /// until the residual's sign there is definite. The same shares, of one
 /// starting piece, are the offsets tried for the turn's first cut.
@@ -563,7 +563,8 @@ const BISECTIONS: u32 = 64;
 ///   scalar's resolution and must then read ON the surface (`side`,
 ///   `Zero`), or the answer is `Uncertain` — and, where the caller hands
 ///   a [`RootSlack`] meter, its slack must be definitely inside the band
-///   too;
+///   too. The bisection closes on two adjacent scalars, and the root is
+///   the one whose residual is nearer zero;
 /// - otherwise the piece is split, until its arc length is inside the
 ///   band (`width`): a piece that small, neither clear nor monotone,
 ///   holds a double root — a tangency — and the answer is `Uncertain`,
@@ -578,6 +579,17 @@ const BISECTIONS: u32 = 64;
 /// true one to within `noise`, so its `k`-th derivative to within
 /// `Nᵏ·noise` (Bernstein's inequality for a trigonometric polynomial of
 /// degree `N`), and each Taylor term above is charged its own share.
+///
+/// **Without a meter** (`slack` `None`) a root is only a scalar whose
+/// residual, as evaluated, reads ON beside a sign change of it: within
+/// one scalar step of a true root of that evaluation, not within the
+/// band of the true root, and a pair inside the band of a true graze
+/// can stand for none. No answer rests on such roots: every door that
+/// answers meters its walk ([`half_angle_roots`] takes its meter by
+/// type; `ellipse_torus`'s `torus_walk` takes an `Option` that only its
+/// own rows pass as `None`), and the meterless walks are the ruling
+/// charts' uncharged reading, which only chooses a refusal's row, and
+/// the rows.
 #[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
 pub(super) fn certified_subdivision<T: Decide>(
     f: &TrigPoly<T>,
@@ -669,16 +681,15 @@ pub(super) fn certified_subdivision<T: Decide>(
     };
     let (first, first_side) = ends[0];
     ends.push((first + T::tau(), first_side));
-    // Popped left to right, so the roots come out in order.
-    let mut pieces: Vec<((T, Sign), (T, Sign))> =
-        ends.windows(2).rev().map(|w| (w[0], w[1])).collect();
+    // The pieces are walked left to right ([`crate::bisect`]), so the
+    // bisection's raw midpoints come out in order; the reported roots do
+    // not, since one in the walk's tail past `mid + π` re-centres to the
+    // front, and no reader relies on the order (the type is documented
+    // unordered). A walk past the core's piece budget answers
+    // `Uncertain`, as a visit that stops does.
+    let pieces: Vec<((T, Sign), (T, Sign))> = ends.windows(2).map(|w| (w[0], w[1])).collect();
     let mut roots: Vec<T> = Vec::new();
-    let mut examined = 0usize;
-    while let Some(((l, sl), (r, sr))) = pieces.pop() {
-        examined += 1;
-        if examined > SUBDIVISION_BUDGET {
-            return Ok(CircleRoots::Uncertain);
-        }
+    let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
         let half = (r - l) / two;
         let m = l + half;
         // The true `F`'s derivatives at `m`, each read from the rounded
@@ -696,36 +707,66 @@ pub(super) fn certified_subdivision<T: Decide>(
         let clear = (value(m).abs() - fall - noise) / f_per_metre_hi;
         let clear = residual_reach.map_or(clear, |reach| clear.min(reach));
         if definitely(rows.clear, clear) {
-            continue;
+            return Step::Settled;
         }
         let most_bend = d2_hi + d3_hi * half + fourth_hi * half.powi(2) / two;
         let least_slope =
             d1_lo - d2_hi * half - d3_hi * half.powi(2) / two - fourth_hi * half.powi(3) / six;
         if definitely(rows.monotone, speed_hi * least_slope / most_bend) {
             if sl == sr {
-                continue;
+                return Step::Settled;
             }
             // Bisected on the residual evaluated at the point, not on `F`
             // from its harmonics: the two share their zero set, and near a
             // graze `|F′|` is small enough that the harmonics' rounding
             // moves `F`'s sign change along the arc by more than the band.
-            let (mut lo, mut hi) = (l, r);
-            let at_lo = residual(l);
-            for _ in 0..BISECTIONS {
-                let c = (lo + hi) / two;
-                let product = residual(c) * at_lo;
-                lo = product.select_le_zero(lo, c);
-                hi = product.select_le_zero(c, hi);
-            }
+            let close = |l: T, r: T| {
+                let (mut lo, mut hi) = (l, r);
+                let at_lo = residual(l);
+                for _ in 0..BISECTIONS {
+                    let c = (lo + hi) / two;
+                    let product = residual(c) * at_lo;
+                    lo = product.select_le_zero(lo, c);
+                    hi = product.select_le_zero(c, hi);
+                }
+                (lo, hi)
+            };
             // Reported within `π` of the arc's midpoint, so a caller
             // compares it with `[t0, t1]` directly: the first cut's ends
             // are moved along their pieces, so the last piece runs past
-            // the half-turn.
+            // the half-turn. Of the two adjacent scalars the bracket
+            // closes on, a steep residual can read ON at one only, and
+            // their midpoint rounds onto either. Sound at every scalar by
+            // `ring_path::branch`'s window re-centring argument.
+            // `rows.side` reads the residual, which is periodic. The
+            // readers read an end of a whole-turn span alike: the wall
+            // crossing's `at_end`, and the ruling's fixed `(−π, π)`
+            // window, which re-sorts its roots. None reads the root as an
+            // identity.
             let mid = (t0 + t1) / two;
-            let root = mid + ((lo + hi) / two - mid).reduce_periodic_centred(T::tau());
-            match decide(rows.side, Margin::of(residual(root)), band) {
-                Ok(Sign::Zero) => {}
-                _ => return Ok(CircleRoots::Uncertain),
+            let reported = |t: T| mid + (t - mid).reduce_periodic_centred(T::tau());
+            let nearer = |(lo, hi): (T, T)| {
+                let (at_lo, at_hi) = (reported(lo), reported(hi));
+                (residual(at_lo).abs() - residual(at_hi).abs()).select_le_zero(at_lo, at_hi)
+            };
+            let on = |t: T| {
+                matches!(
+                    decide(rows.side, Margin::of(residual(t)), band),
+                    Ok(Sign::Zero)
+                )
+            };
+            let (lo, hi) = close(l, r);
+            let mut root = nearer((lo, hi));
+            if !on(root) {
+                // Moved by the turn it is reported at, which is `2π` only to
+                // rounding, the root stands on a line read with rounding of
+                // its own: the bracket is closed again on the piece moved
+                // by that turn, on the scalars the root is reported at.
+                let turn = lo - reported(lo);
+                root = nearer(close(l - turn, r - turn));
+                if !on(root) {
+                    return Step::Stop(CircleRoots::Uncertain);
+                }
             }
             if let Some(meter) = slack {
                 // `|F|` at the root, true to within `reach`: the true root
@@ -747,23 +788,27 @@ pub(super) fn certified_subdivision<T: Decide>(
                 let arc = speed_hi * reach / lever;
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
-                    Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
+                    Ok(Sign::Positive) | Err(_) => return Step::Stop(CircleRoots::Uncertain),
                 }
             }
             roots.push(root);
-            continue;
+            return Step::Settled;
         }
         if !definitely(rows.width, speed_hi * (r - l)) {
-            return Ok(CircleRoots::Uncertain);
+            return Step::Stop(CircleRoots::Uncertain);
         }
         let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
             let c = l + (r - l) * T::from_f64(share);
             side(c).map(|s| (c, s))
         }) else {
-            return Ok(CircleRoots::Uncertain);
+            return Step::Stop(CircleRoots::Uncertain);
         };
-        pieces.push(((c, sc), (r, sr)));
-        pieces.push(((l, sl), (c, sc)));
+        Step::Halve([((l, sl), (c, sc)), ((c, sc), (r, sr))])
+    });
+    match walk {
+        Ok(None) => {}
+        Ok(Some(answer)) => return Ok(answer),
+        Err(_) => return Ok(CircleRoots::Uncertain),
     }
     // Round the closed turn the ends' signs change an even number of
     // times, and every change on a monotone piece was bisected; an odd
@@ -797,9 +842,7 @@ pub(super) fn constant_residual_roots<T: Decide>(
     row: &'static str,
     band: Band,
 ) -> Result<FirstHarmonicRoots<T>, Indeterminate> {
-    let lo = decide(row, Margin::of(value - spread), band)?;
-    let hi = decide(row, Margin::of(value + spread), band)?;
-    Ok(match (lo, hi) {
+    Ok(match span_signs(row, value, spread, band)? {
         (Sign::Positive, _) | (_, Sign::Negative) => FirstHarmonicRoots::Miss,
         (Sign::Zero, Sign::Zero) => FirstHarmonicRoots::OnSurface,
         _ => FirstHarmonicRoots::Uncertain,
@@ -939,11 +982,11 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
         return constant_residual_roots(c0, a1 + noise, rows.extreme, band);
     }
-    let lo = decide(rows.extreme, Margin::of(lo_value), band)?;
+    let lo = extreme_sign(rows.extreme, lo_value, lo_noise, band)?;
     if lo == Sign::Positive {
         return Ok(FirstHarmonicRoots::Miss);
     }
-    let hi = decide(rows.extreme, Margin::of(hi_value), band)?;
+    let hi = extreme_sign(rows.extreme, hi_value, hi_noise, band)?;
     if hi == Sign::Negative {
         return Ok(FirstHarmonicRoots::Miss);
     }
@@ -968,12 +1011,52 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     // zero (module docs).
     let past = |near: T| two * (near.abs() / swing).sqrt().asin();
     let half_chord = (lo_value + hi_value).select_le_zero(past(hi_value), T::pi() - past(lo_value));
+    // The roots on the branch of the span's middle: sound at every scalar
+    // by `ring_path::branch`'s window re-centring argument. Its readers
+    // read an end of a whole-turn span alike: the wall crossing's
+    // `at_end`, the sphere cut-in's vertex lookup at either end, and
+    // `sphere_region`'s ray reading `sideless` at either end. None reads
+    // a root as an identity, which is why the floor stays: a structural
+    // pick would decide nothing a reader uses.
     let mid = (t0 + t1) / two;
     let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
     Ok(FirstHarmonicRoots::Certified([
         near_mid(phi - half_chord),
         near_mid(phi + half_chord),
     ]))
+}
+
+/// The signs of both ends of `[value − spread, value + spread]`, each
+/// decided under `row`: the one reading of a value known only to within
+/// `spread`.
+///
+/// # Errors
+///
+/// The band's escalation when either end lies in its gap.
+pub(super) fn span_signs<T: Decide>(
+    row: &'static str,
+    value: T,
+    spread: T,
+    band: Band,
+) -> Result<(Sign, Sign), Indeterminate> {
+    let below = decide(row, Margin::of(value - spread), band)?;
+    let above = decide(row, Margin::of(value + spread), band)?;
+    Ok((below, above))
+}
+
+/// The sign of an extreme read as `value` with error at most `noise`
+/// ([`span_signs`]): ends that disagree read `Zero`. `noise` must bound
+/// the whole error, rounding included, and a caller's charge may hold no
+/// slack beyond that (the conic × quadric door's true error reaches
+/// 0.99999999 of it), so no term of it can be trimmed.
+fn extreme_sign<T: Decide>(
+    row: &'static str,
+    value: T,
+    noise: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let (below, above) = span_signs(row, value, noise, band)?;
+    Ok(if below == above { below } else { Sign::Zero })
 }
 
 #[cfg(test)]
@@ -1160,6 +1243,39 @@ mod subdivision_guard_rows {
                 let off = residual(t).abs();
                 assert!(off <= eps, "root {t} reads {off:e} off the surface");
             }
+        }
+    }
+
+    /// **A bisected root is the bracket end nearer the surface.** The
+    /// residual is `sin(θ − a)` steepened `8.1·10⁶`-fold about `a` and
+    /// shifted `0.3` of the band's zero down there, so between `a` and the
+    /// next scalar `b` it steps from `−0.3` to `+1.5` zeros: the bracket
+    /// closes on them, `a` reads ON and `b` does not. `a`'s last bit is
+    /// odd, so their midpoint rounds onto `b`; reported there the root
+    /// reads off the surface and the answer is `Uncertain`.
+    #[test]
+    fn a_steep_root_is_reported_at_the_bracket_end_on_the_surface() {
+        let eps = 1e-9;
+        let a = f64::from_bits(1.0f64.to_bits() + 3);
+        let b = f64::from_bits(a.to_bits() + 1);
+        assert_eq!((a + b) / 2.0, b, "the midpoint rounds onto b");
+        let (steep, shift) = (1.8 * eps / (b - a), 0.3 * eps);
+        let residual = |t: f64| {
+            let near = (-((t - a) / 0.1).powi(2)).exp();
+            (t - a).sin() * (1.0 + (steep - 1.0) * near) - shift * near
+        };
+        assert!(residual(a).abs() < eps && residual(b) > eps, "a ON, b off");
+        let (s, c) = a.sin_cos();
+        let f = TrigPoly::second(0.0, -s, c, 0.0, 0.0);
+        match walk(&f, &residual, 0.0, eps) {
+            CircleRoots::Certified { count: 2, thetas } => {
+                assert!(
+                    thetas[..2].contains(&a),
+                    "the roots {:?} miss a",
+                    &thetas[..2]
+                );
+            }
+            other => panic!("{other:?} for a residual crossing twice, once at a"),
         }
     }
 

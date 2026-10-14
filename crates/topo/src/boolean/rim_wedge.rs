@@ -8,19 +8,18 @@
 //! - **wedge π** — the outward normals agree across the rim and the
 //!   two faces leave it on opposite sides ([`departures`]): the
 //!   composed material is smooth through it, and the rim is a SEAM of
-//!   one composite wall. Between two operands it is declared a `Seam`
-//!   and verified (C4); inside one body it is structural.
+//!   one composite wall. Between two operands the boolean glues the
+//!   faces' tangency (C4) and the seam is read on the result; inside
+//!   one body it is structural.
 //! - **normals agree, same departure** — the two faces leave the rim on
 //!   ONE side (a bowl hanging in a tube's mouth): a nested touch, a
 //!   cusp the normals alone cannot tell from the seam. The material
 //!   table answers [`RimRouting::Seam`] for it, since it reads only the
 //!   two sheets' normals and jets; [`departures`] is what tells the two
-//!   apart, and both callers ask it after the table.
-//! - **wedge 0 or 2π** — the normals oppose, the material pinches to a
-//!   knife edge or opens to a circular slit. That is the declared-cusp
-//!   family, DEFINED AND UNBUILT: the pair reaching this routing has no
-//!   tangent-locus arm, and no consumer yet builds the cusp or slit
-//!   edge from a locus of any shape. Its refusal names both.
+//!   apart, and the glue door (`route_rim`) asks it after the table.
+//! - **wedge 0 or 2π** — the normals oppose across the rim. A pair
+//!   reaching this routing has no tangent-locus arm for its two
+//!   surface kinds, which is what its refusal names.
 //! - **anything the samples cannot settle** — escalates, naming the
 //!   predicate that failed to decide. Never a silent verdict.
 //!
@@ -67,8 +66,8 @@ pub(crate) enum RimRouting {
     /// leave it on opposite sides (the smooth seam, the built arm), a
     /// nested touch if on one side. [`departures`] decides which.
     Seam,
-    /// Wedge 0 or 2π: the declared-`Tangent` cusp family, defined and
-    /// unbuilt.
+    /// Wedge 0 or 2π: outward normals opposed along the rim
+    /// ([`super::BooleanError::RimCuspArmUnbuilt`]).
     Cusp(MaterialWedge),
     /// Opposed sides whose jets osculate — conformal contact along the
     /// locus, which is a `Rest` claim wearing a rim's clothes.
@@ -125,12 +124,12 @@ pub(crate) enum RimRouting {
 /// pair whose radii disagree is about to be rejected on the radius
 /// margin regardless.
 ///
-/// **An in-band comparison ESCALATES; it never reads as "not this
-/// pair".** Two circles a hair apart are the sliver case, not a
-/// separation: answering `None` there would make an undecidable rim
-/// indistinguishable from a definitely absent one and hand the caller
-/// the bare class refusal as though the geometry had been examined and
-/// cleared. That is the silence this module's own docs forbid.
+/// **An in-band comparison ESCALATES where no pair of circles is
+/// decided one; it never reads as "not this pair".** Two circles a hair
+/// apart are the sliver case, not a separation: answering `None` there
+/// would make an undecidable rim indistinguishable from a definitely
+/// absent one and hand the caller the bare class refusal as though the
+/// geometry had been examined and cleared. That is the silence this module's own docs forbid.
 ///
 /// # Errors
 ///
@@ -143,48 +142,64 @@ pub(crate) fn shared_rim<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
+    // A pair decided one answers whatever another pair read; an
+    // undecided pair refuses only where none is.
+    let mut undecided = None;
+    let mut undecided_logs = Vec::new();
     for ra in face_boundary_circles(a, fa) {
         for rb in face_boundary_circles(b, fb) {
-            if let Some(margin) = same_circle(ra, rb, band)? {
-                return Ok(Some((ra, margin)));
+            let (read, log) = geom_core::k_stats::detached(|| same_circle(ra, rb, band));
+            match read {
+                Ok(Some(margin)) => {
+                    undecided_logs
+                        .into_iter()
+                        .for_each(geom_core::k_stats::splice_superseded);
+                    geom_core::k_stats::splice(log);
+                    return Ok(Some((ra, margin)));
+                }
+                Ok(None) => geom_core::k_stats::splice(log),
+                Err(diag) => {
+                    undecided_logs.push(log);
+                    undecided.get_or_insert(diag);
+                }
             }
         }
     }
-    Ok(None)
+    undecided_logs
+        .into_iter()
+        .for_each(geom_core::k_stats::splice);
+    undecided.map_or(Ok(None), Err)
 }
 
-/// Whether two circles are one, on their own data at `band`: radius and
-/// centre first, angle last — the two LENGTH data separate almost every
-/// non-rim pair definitely and cheaply, so ordering them ahead of the
-/// angular row keeps the sliver band from being consulted at all on
-/// pairs that are not candidates. [`shared_rim`]'s docs carry the rest.
-/// The circles' one margin, where every datum decides Zero: the
-/// radius row's.
+/// Whether two circles are one, on their own data at `band`, by the
+/// identity ladder's rule ([`super::carrier_eq::identity_data`]): any
+/// datum decided apart answers no, so an in-band radius never hides a
+/// centre decided elsewhere. Radius and centre first, angle last — the
+/// two LENGTH data separate almost every non-rim pair definitely and
+/// cheaply. [`shared_rim`]'s docs carry the rest. The circles' one
+/// margin, where every datum decides Zero: the radius row's, standing
+/// jointly for the others.
 fn same_circle<T: Decide>(
     ra: Rim<T>,
     rb: Rim<T>,
     band: Band,
 ) -> Result<Option<geom_core::MarginDiag>, Indeterminate> {
-    let mut first = None;
-    for (name, margin) in [
-        ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
-        ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
-        (
-            "rim_circle_axis_parallel",
-            Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
-        ),
-    ] {
-        match crate::validate::decide_reported(name, margin, band)? {
-            geom_core::Decided {
-                sign: geom_core::Sign::Zero,
-                margin,
-            } => {
-                first = first.or(Some(margin));
-            }
-            geom_core::Decided { .. } => return Ok(None),
-        }
+    use super::carrier_eq::IdentityData;
+    match super::carrier_eq::identity_data(
+        [
+            ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
+            ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
+            (
+                "rim_circle_axis_parallel",
+                Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
+            ),
+        ],
+        band,
+    ) {
+        IdentityData::Distinct => Ok(None),
+        IdentityData::One(margin) => Ok(margin),
+        IdentityData::Undecided(measure) => Err(measure.reported()),
     }
-    Ok(first)
 }
 
 /// The curve two declared faces are tangent along: a shared rim circle,
@@ -243,7 +258,9 @@ pub(crate) enum Departure {
 /// `entity`'s convention), so at a locus point the direction a face
 /// leaves along is `n × t`, with `t` its boundary's direction there.
 /// For two faces whose outward normals are ALIGNED along the locus,
-/// which is what both callers have already verified, those departures
+/// which the caller has verified (the rim routing, [`super::route_rim`];
+/// a line is read only by the unit rows here, since a line tangency
+/// routes no junction), those departures
 /// are opposite exactly when the two boundaries run the locus in
 /// opposite directions: the sign of each riding half-edge's direction
 /// against the locus's own tangent (`axis × (p − centre)` on a rim,
@@ -1577,7 +1594,7 @@ mod arc_end_rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod boundary_midpoint_rows {
     use super::*;
-    use crate::test_support_fixtures::{CylFrame, Prism, arc_cap, cyl_wall_sheet, prism_z};
+    use crate::test_support_fixtures::{Prism, arc_cap, prism_z};
     use geom_core::{Tol, Vec3};
 
     /// A block in the plane `z = 0` (its top face there) over the polygon
@@ -1648,8 +1665,7 @@ mod boundary_midpoint_rows {
     ///   there, `s·δ/2` from the midpoint. Clear of the band the pair
     ///   meets only along the ride, on opposite banks: `Opposite`.
     ///
-    /// Neither is the face's interior: `NoEdge` there would be the
-    /// declaration door's decided `SeamFaceRunsOn`.
+    /// Neither is the face's interior, where the read is `NoEdge`.
     #[test]
     fn a_boundary_midpoint_on_a_line_is_not_placed() {
         let tol = Tol::witness();
@@ -1823,62 +1839,5 @@ mod boundary_midpoint_rows {
                 &format!("tangent circle, alpha {alpha}"),
             );
         }
-    }
-
-    /// **Through the declaration door**: a seam claim between the
-    /// shallow-cornered block's top and a cylinder wall tangent to its
-    /// plane along the ride's line, the wall's meridian running `δ` past
-    /// the corner. On the boundary the claim is refused as outside the
-    /// envelope, never contradicted; clear of the band the door verifies
-    /// the seam.
-    #[test]
-    fn the_seam_door_refuses_a_boundary_midpoint_typed() {
-        let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let zero = band.zero();
-        let s = 4.0 * tol.k() * zero;
-        let corner = prism_z::<f64>(
-            &[
-                (-1.0, 0.0),
-                (1.0, 0.0),
-                (1.0, 1.0 - s),
-                (0.0, 1.0),
-                (-1.0, 1.0),
-            ],
-            -1.0,
-            0.0,
-            tol,
-        );
-        let wall_frame = CylFrame {
-            origin: Point3::new(0.0, 1.0, -1.0),
-            axis: Vec3::unit_x(),
-            radius: 1.0,
-            u_ref: Vec3::unit_z(),
-        };
-        let claim = |gap: f64| {
-            let delta = 2.0 * gap * zero / s;
-            let mut body = Body::<f64>::new();
-            let wall = cyl_wall_sheet(&mut body, wall_frame, (0.0, 1.0), (-1.0, delta), tol);
-            crate::boolean::verify_tangency_declaration(
-                &corner.body,
-                corner.top_face,
-                &body,
-                wall,
-                crate::boolean::Tangency::Seam,
-                band,
-            )
-            .map(|_| ())
-        };
-        assert!(
-            matches!(
-                claim(0.5),
-                Err(crate::boolean::BooleanError::UnsupportedDeclarationClass {
-                    class: crate::contact::GlueClass::Seam
-                })
-            ),
-            "on the boundary: refused typed, got {:?}",
-            claim(0.5)
-        );
-        assert!(claim(20.0).is_ok(), "clear of the band: the seam verifies");
     }
 }

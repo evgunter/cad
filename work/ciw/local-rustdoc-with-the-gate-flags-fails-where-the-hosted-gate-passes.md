@@ -44,3 +44,14 @@ kernel text may pass the nightly unseen, or a local run of the gate
 gives a red that CI does not reproduce. Start by diffing the hosted
 job's log (the exact `cargo doc` lines and `rustc -V`) against a local
 `scripts/doc-gate.sh` run.
+
+- 2026-10-12 (ENCL orchestrator, nightly triage): this row's premise is now false. The HOSTED rustdoc gate (nightly job `rustdoc (gate, every root)`) has been red every night since 2026-10-02. Repro: `scripts/doc-gate.sh`.
+  - **Workspace pass:**
+    - `crates/geom-core/src/spline/net.rs`: unresolved `equal_split_plan` (knot/nurbs; from 2ac0994f80).
+    - `crates/geom-core/src/sym/revalue.rs`: `record`, `super::SymOp::Opaque` and `super::SymOp::Hull`.
+    - `crates/sweep/src/blend/battery.rs`: `super::decide`.
+    - `crates/geom-core/src/linalg/svd.rs`: a redundant explicit link target `[Real](crate::real::Real)`.
+  - **`--no-default-features` passes:**
+    - `crates/editor-core/src/meta/ser.rs`: `MAX_NESTING` and `MAX_PRODUCER_NESTING`.
+    - `crates/topo/src/boolean/ops.rs`: `ValidationError::ScaffoldAtRest` and `JoinableVertexAtRest`.
+  - The fix is mechanical (qualify or unlink), and the site list may grow once the first failing pass is fixed. The row's title and priority should follow: a red main gate is above P3.

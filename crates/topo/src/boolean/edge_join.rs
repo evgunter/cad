@@ -214,13 +214,7 @@ impl core::fmt::Display for JoinUndecided {
                         "whether an edge meeting another at a vertex on one curve {}",
                         geom_brep::ISO_FAMILY_CLAUSE
                     ),
-                    geom_brep::recourse::LeverOnly {
-                        lever: geom_core::COINCIDENCE_RECOURSE,
-                    }
-                    .recourse(
-                        geom_brep::recourse::RefusedArm::Undecided(diag),
-                        geom_brep::recourse::Reading::Build
-                    )
+                    diag.lever_ending(geom_core::COINCIDENCE_RECOURSE)
                 )
             ),
             JoinReading::ChartClass(e @ geom_brep::IsoFamilyRefusal::Image(_)) => write!(
@@ -461,8 +455,11 @@ fn joinable<T: Decide>(
     if matches!(locus, Locus::Iso(_)) {
         return Ok(Some(join(false)));
     }
-    // The pair's reading at `w`, levered over the shorter edge's extent,
-    // so it does not depend on which edge the arena lists first.
+    // The pair's reading at `w`, levered over the scale of the edge the
+    // join makes: it holds both edges, so the larger of their extents
+    // bounds its own from below. Both are read, so the lever does not
+    // depend on which edge the arena lists first, and a short edge
+    // beside a long one does not shrink it.
     let extent = [(e1, d1), (e2, d2)]
         .into_iter()
         .filter_map(|(e, d)| {
@@ -471,7 +468,7 @@ fn joinable<T: Decide>(
             let chord = c.carrier().eval(t0).distance(c.carrier().eval(t1));
             Some(geom_brep::edge_extent(c.carrier(), t0, t1, chord))
         })
-        .reduce(T::min);
+        .reduce(T::max);
     let Some(extent) = extent else {
         return Ok(None);
     };
@@ -566,10 +563,10 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Vec<EdgeJoin>, BooleanError> {
     let joined = body.join_edges(band, tol)?;
     for j in &joined {
-        desc.substitute(Cell::Vertex(j.vertex), Cell::Edge(j.kept));
-        desc.substitute(Cell::Edge(j.gone), Cell::Edge(j.kept));
+        desc.substitute((Cell::Vertex(j.vertex), Cell::Edge(j.kept)))?;
+        desc.substitute((Cell::Edge(j.gone), Cell::Edge(j.kept)))?;
         if let Some(v) = j.conventional {
-            desc.substitute(Cell::Vertex(v), Cell::Edge(j.kept));
+            desc.substitute((Cell::Vertex(v), Cell::Edge(j.kept)))?;
         }
     }
     Ok(joined)
@@ -908,9 +905,7 @@ fn join_one<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let spec = if join.planar {
-        let members = body
-            .kev_merged_members(join.he)
-            .map_err(BooleanError::Euler)?;
+        let members = body.kev_merged_members(join.he)?;
         members
             .iter()
             .find(|m| m.edge == join.kept)
@@ -921,9 +916,7 @@ fn join_one<T: Decide + crate::props::AtRestPolicy>(
     } else {
         joined_spec(body, w, join)?
     };
-    let killed = body
-        .kev_describing(join.he, &[(join.kept, spec)], tol)
-        .map_err(BooleanError::Euler)?;
+    let killed = body.kev_describing(join.he, &[(join.kept, spec)], tol)?;
     debug_assert_eq!(killed.killed_vertex, w, "the kill takes the joined vertex");
     if !join.planar {
         return Ok(());

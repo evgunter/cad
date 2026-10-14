@@ -5,7 +5,7 @@
 //! The doors take the run's ε as the `Tol` witness alone and derive the
 //! band once, first, so the arm is reached before any face is read —
 //! an empty body is enough. The global tolerance commits once per
-//! process, so each arm is an `#[ignore]`d probe re-exec'd in its own
+//! process, so the arm is an `#[ignore]`d probe re-exec'd in its own
 //! process by `the_band_arm_is_reachable_through_the_doors`
 //! (`geom-core`'s `band_tolerance.rs` pattern).
 
@@ -67,33 +67,13 @@ fn probe_overflow_arm_through_the_doors() {
     println!("PROBE overflow-through-the-doors OK");
 }
 
-/// PROBE (own process). The COLLAPSE arm: the subnormal ε = 2⁻¹⁰²³ with
-/// the least admitted K.
-#[test]
-#[ignore]
-fn probe_collapse_arm_through_the_doors() {
-    let eps = f64::from_bits(1u64 << 51);
-    let tol = commit(eps, 1.0f64.next_up());
-    both_doors_refuse(
-        tol,
-        BandError::Empty {
-            zero: eps,
-            escalate: eps,
-        },
-    );
-    println!("PROBE collapse-through-the-doors OK at eps={eps:e}");
-}
-
-/// **Both arms of `Band::linear` reach the face-replacement doors'
-/// `Band` arm**, each from a tolerance the run's validator admits.
+/// **`Band::linear`'s overflow arm reaches the face-replacement doors'
+/// `Band` arm** from a tolerance the run's validator admits. Its
+/// collapse arm needs an ε below the floor, which no run commits
+/// (geom-core's `the_floor_refuses_every_eps_that_collapses_linear`).
 #[test]
 fn the_band_arm_is_reachable_through_the_doors() {
-    for probe in [
-        "probe_overflow_arm_through_the_doors",
-        "probe_collapse_arm_through_the_doors",
-    ] {
-        spawn_probe(probe);
-    }
+    spawn_probe("probe_overflow_arm_through_the_doors");
 }
 
 /// Re-execs this binary at one `#[ignore]`d probe, in its own process.

@@ -48,28 +48,74 @@ impl Mul for DInterval {
             return p;
         }
         let dec = self.dec.min(rhs.dec);
-        // Four corner products, each with directed pads; `mul_lo`/`mul_hi`
-        // apply the 0·inf := 0 corner convention internally.
-        let l = [
-            mul_lo(self.lo, rhs.lo),
-            mul_lo(self.lo, rhs.hi),
-            mul_lo(self.hi, rhs.lo),
-            mul_lo(self.hi, rhs.hi),
-        ];
-        let h = [
-            mul_hi(self.lo, rhs.lo),
-            mul_hi(self.lo, rhs.hi),
-            mul_hi(self.hi, rhs.lo),
-            mul_hi(self.hi, rhs.hi),
-        ];
-        let lo = l
-            .into_iter()
-            .fold(f64::INFINITY, |a, b| lower_of(a, b, f64::min));
-        let hi = h
-            .into_iter()
-            .fold(f64::NEG_INFINITY, |a, b| upper_of(a, b, f64::max));
+        let (lo, hi) = corner_bounds::<Product>(self, rhs);
         Self::make(lo, hi, dec)
     }
+}
+
+/// A directed corner operation: the lower and the upper bound of one
+/// corner value `x ∘ y`, one type per operation so the two bounds come
+/// as a pair and cannot be swapped.
+trait CornerOp {
+    fn lo(x: f64, y: f64) -> f64;
+    fn hi(x: f64, y: f64) -> f64;
+}
+
+/// `×`'s corners, with `0·inf := 0` built into `mul_lo`/`mul_hi`.
+struct Product;
+
+impl CornerOp for Product {
+    fn lo(x: f64, y: f64) -> f64 {
+        mul_lo(x, y)
+    }
+    fn hi(x: f64, y: f64) -> f64 {
+        mul_hi(x, y)
+    }
+}
+
+/// `÷`'s corners, for a divisor that keeps clear of zero.
+struct Quotient;
+
+impl CornerOp for Quotient {
+    fn lo(x: f64, y: f64) -> f64 {
+        div_lo(x, y)
+    }
+    fn hi(x: f64, y: f64) -> f64 {
+        div_hi(x, y)
+    }
+}
+
+/// The extremes of `Op` over the corners of `x` and `y`: `Op::lo` folded
+/// to the least and `Op::hi` to the greatest, from `±inf`.
+///
+/// A point operand's two endpoints are one, so its corners repeat, and
+/// each operand contributes only its distinct endpoints. The repeated
+/// values change neither extreme (`min` and `max` are idempotent, and
+/// `lower_of`/`upper_of`'s signed-zero rule asks only whether a `-0` or
+/// `+0` occurs), so the bits are the four-corner fold's. A `[-0, +0]`
+/// point is one point here, which is safe because `mul_lo`/`mul_hi` and
+/// `div_lo`/`div_hi` return `+0` for a zero factor or numerator at either
+/// sign. (No lower corner is ever `-0`, so the least's zero rule never
+/// fires.)
+fn corner_bounds<Op: CornerOp>(x: DInterval, y: DInterval) -> (f64, f64) {
+    match (x.lo == x.hi, y.lo == y.hi) {
+        (true, true) => fold::<Op, 1>([(x.lo, y.lo)]),
+        (true, false) => fold::<Op, 2>([(x.lo, y.lo), (x.lo, y.hi)]),
+        (false, true) => fold::<Op, 2>([(x.lo, y.lo), (x.hi, y.lo)]),
+        (false, false) => fold::<Op, 4>([(x.lo, y.lo), (x.lo, y.hi), (x.hi, y.lo), (x.hi, y.hi)]),
+    }
+}
+
+fn fold<Op: CornerOp, const N: usize>(corners: [(f64, f64); N]) -> (f64, f64) {
+    let least = corners
+        .iter()
+        .map(|&(a, b)| Op::lo(a, b))
+        .fold(f64::INFINITY, |a, b| lower_of(a, b, f64::min));
+    let greatest = corners
+        .iter()
+        .map(|&(a, b)| Op::hi(a, b))
+        .fold(f64::NEG_INFINITY, |a, b| upper_of(a, b, f64::max));
+    (least, greatest)
 }
 
 impl Div for DInterval {
@@ -98,24 +144,7 @@ impl Div for DInterval {
         let (lo, hi) = if touches_zero {
             div_touching_zero(self, rhs)
         } else {
-            let l = [
-                div_lo(self.lo, rhs.lo),
-                div_lo(self.lo, rhs.hi),
-                div_lo(self.hi, rhs.lo),
-                div_lo(self.hi, rhs.hi),
-            ];
-            let h = [
-                div_hi(self.lo, rhs.lo),
-                div_hi(self.lo, rhs.hi),
-                div_hi(self.hi, rhs.lo),
-                div_hi(self.hi, rhs.hi),
-            ];
-            (
-                l.into_iter()
-                    .fold(f64::INFINITY, |a, b| lower_of(a, b, f64::min)),
-                h.into_iter()
-                    .fold(f64::NEG_INFINITY, |a, b| upper_of(a, b, f64::max)),
-            )
+            corner_bounds::<Quotient>(self, rhs)
         };
         Self::make(lo, hi, dec)
     }
@@ -142,5 +171,125 @@ fn div_touching_zero(x: DInterval, y: DInterval) -> (f64, f64) {
         (false, true) => (f64::NEG_INFINITY, div_hi(x.hi, d)),
         // x < 0, y = [d<0, 0]: x/y in [x.hi/d, +inf)
         (false, false) => (div_lo(x.hi, d), f64::INFINITY),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::round::TWO_PROD_VALID_MIN;
+
+    /// Endpoints at every edge the corner products have: signed zeros,
+    /// the subnormal range and the 2Prod floor, exact and inexact
+    /// products, the extremes of the finite range and the infinities.
+    const EDGES: [f64; 22] = [
+        f64::NEG_INFINITY,
+        -f64::MAX,
+        -3.0,
+        -1.0 / 3.0,
+        -TWO_PROD_VALID_MIN,
+        -5e-324,
+        -0.0,
+        0.0,
+        5e-324,
+        2.2250738585072014e-308,
+        TWO_PROD_VALID_MIN,
+        1e-300,
+        0.1,
+        1.0 / 3.0,
+        0.375,
+        1.0,
+        1.0 + f64::EPSILON,
+        3.0,
+        9007199254740993.0,
+        1e300,
+        f64::MAX,
+        f64::INFINITY,
+    ];
+
+    /// Every interval over [`EDGES`], points included, at two decorations.
+    fn intervals() -> Vec<DInterval> {
+        EDGES
+            .iter()
+            .flat_map(|&lo| EDGES.iter().map(move |&hi| (lo, hi)))
+            .filter(|&(lo, hi)| lo <= hi && lo != f64::INFINITY && hi != f64::NEG_INFINITY)
+            .map(|(lo, hi)| DInterval::from_bounds(lo, hi))
+            .flat_map(|x| [x, x.with_dec_capped(crate::interval::Decoration::Def)])
+            .collect()
+    }
+
+    /// The oracle, spelled out here rather than read through
+    /// [`corner_bounds`] so that a fault in the shared fold cannot hide
+    /// in its own reference: all four corners, folded from `±inf`.
+    fn four_corners(
+        x: DInterval,
+        y: DInterval,
+        lo: fn(f64, f64) -> f64,
+        hi: fn(f64, f64) -> f64,
+    ) -> DInterval {
+        let l = [
+            lo(x.lo, y.lo),
+            lo(x.lo, y.hi),
+            lo(x.hi, y.lo),
+            lo(x.hi, y.hi),
+        ];
+        let h = [
+            hi(x.lo, y.lo),
+            hi(x.lo, y.hi),
+            hi(x.hi, y.lo),
+            hi(x.hi, y.hi),
+        ];
+        DInterval::make(
+            l.into_iter()
+                .fold(f64::INFINITY, |a, b| lower_of(a, b, f64::min)),
+            h.into_iter()
+                .fold(f64::NEG_INFINITY, |a, b| upper_of(a, b, f64::max)),
+            x.dec.min(y.dec),
+        )
+    }
+
+    fn bits(v: DInterval) -> (u64, u64, crate::interval::Decoration) {
+        (v.lo.to_bits(), v.hi.to_bits(), v.dec)
+    }
+
+    /// **A point operand takes a shorter fold, with the four-corner
+    /// fold's bits.** Every product over [`intervals`] against
+    /// [`four_corners`]: bounds bit for bit, decoration equal.
+    #[test]
+    fn a_point_product_is_the_four_corner_fold() {
+        let all = intervals();
+        let mut points = 0;
+        for &x in &all {
+            for &y in &all {
+                points += usize::from(x.lo == x.hi || y.lo == y.hi);
+                let want = four_corners(x, y, mul_lo, mul_hi);
+                assert_eq!(bits(x * y), bits(want), "{x:?} * {y:?}");
+            }
+        }
+        assert!(
+            points > 1000,
+            "the table reaches the point paths: {points} products"
+        );
+    }
+
+    /// **The same for a quotient whose divisor keeps clear of zero**, the
+    /// branch that folds corners: every quotient over [`intervals`] with
+    /// a one-signed divisor that does not touch zero, against
+    /// [`four_corners`].
+    #[test]
+    fn a_point_quotient_is_the_four_corner_fold() {
+        let all = intervals();
+        let mut points = 0;
+        for &x in &all {
+            for &y in all.iter().filter(|y| y.lo > 0.0 || y.hi < 0.0) {
+                points += usize::from(x.lo == x.hi || y.lo == y.hi);
+                let want = four_corners(x, y, div_lo, div_hi);
+                assert_eq!(bits(x / y), bits(want), "{x:?} / {y:?}");
+            }
+        }
+        assert!(
+            points > 1000,
+            "the table reaches the point paths: {points} quotients"
+        );
     }
 }

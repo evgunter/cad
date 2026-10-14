@@ -228,8 +228,9 @@ fn a_rigid_map_moves_a_face_minted_near_eps() {
         let (body, key) = body_with(face.clone());
         let (mut imaged, mut refitted) = (0_usize, 0_usize);
         for (name, map) in rotations() {
-            let moved = topo::transform_rigid(&body, &map, tol)
-                .unwrap_or_else(|e| panic!("d = {d}, {name}: a sound face must move: {e}"));
+            let moved =
+                topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol)
+                    .unwrap_or_else(|e| panic!("d = {d}, {name}: a sound face must move: {e}"));
             let after = approx_on(&moved, key);
             let (description, fit) = image(&face, &map);
             let geom::SurfaceDescription::Offset {
@@ -308,7 +309,7 @@ fn a_face_that_fails_where_it_stands_is_not_re_fitted() {
     );
     let (body, _) = body_with(planted);
     for (name, map) in rotations() {
-        match topo::transform_rigid(&body, &map, tol) {
+        match topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol) {
             Err(topo::TransformError::ApproxRecertify {
                 source: OffsetFitError::Limb { .. },
             }) => {}

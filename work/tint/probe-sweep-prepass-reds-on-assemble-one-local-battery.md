@@ -53,3 +53,9 @@ more fail, so the sweep still stops before the k-lint step:
   `silent-fixed-predicates-probe-reds-under-all-features-on-main`.
 
 This row closes when both are green and the pre-pass passes.
+
+- 2026-10-12 (ENCL orchestrator, nightly triage): the test is red again on origin/main bcaed4f75a, with a NEW assertion, after PR 4679 fixed the EmptyProduct cause. Repro at `CAD_TOLERANCE_EPS=1e-9`:
+
+  `cargo test -p editor-core --features probe --test all -- assemble_one_local_battery::`
+
+  It panics at `assemble_one_local_battery.rs:70:5`: "the assembly gate recorded 0 samples, tier 3 2053 and tier 3′ 2533: the gate must be tier 3′ less one battery" (left 2053, right 2533). It is not bisected. The likely cause is INTENT's census moving into the gather: PR 4669 (`intent/s4-census-records-what-it-decides`) or PR 4733 (s4-j, ce834bd231), both merged 10-11. The fix is either to count the gather's samples into the gate or to re-state the equality. This still blocks nightly `k-lint (dev-probe)` through `scripts/k_probe_sweep.sh`'s `run_plain`. A note is posted on INTENT's log.

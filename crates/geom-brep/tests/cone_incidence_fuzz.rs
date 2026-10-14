@@ -16,9 +16,10 @@ test_utils::gated_to![
     "crates/geom-brep/tests/shared/"
 ];
 
+use crate::shared::surf::off_cone;
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
-use geom_brep::{PcurveCertifyError, chart_pcurve};
+use geom_brep::chart_pcurve;
 use geom_core::{Point3, Tol, Vec3};
 use test_utils::fuzz;
 
@@ -30,16 +31,6 @@ fn cone(alpha: f64) -> Surface<f64> {
         half_angle: alpha,
         u_ref: Vec3::unit_x(),
     }
-}
-
-/// The worst distance of the carrier from the double cone.
-fn off_cone(c: &Curve3<f64>, alpha: f64) -> f64 {
-    (0..4096)
-        .map(|i| {
-            let p = c.eval(f64::from(i) * core::f64::consts::TAU / 4096.0);
-            (p.x.hypot(p.y) * alpha.cos() - p.z.abs() * alpha.sin()).abs()
-        })
-        .fold(0.0_f64, f64::max)
 }
 
 /// The section by the plane through `(0, 0, h)` tilted `theta` toward
@@ -110,11 +101,8 @@ fn an_uncovered_perturbed_section_lies_within_the_sliver() {
             // places the draw at its target.
             let per_unit = centre_reading(make(1e-7), alpha) / 1e-7;
             let c = ellipse(make(0.9 * e / per_unit));
-            if matches!(
-                chart_pcurve(&c, &cone(alpha), band()),
-                Ok(_) | Err(PcurveCertifyError::UnsupportedCarrier { .. })
-            ) {
-                let d = off_cone(&c, alpha);
+            if chart_pcurve(&c, &cone(alpha), band()).is_ok() {
+                let d = off_cone(&c, &cone(alpha));
                 assert!(
                     d < k * e,
                     "frac {frac}: an ellipse {:.2}·ε off the cone was read as on it ({})",

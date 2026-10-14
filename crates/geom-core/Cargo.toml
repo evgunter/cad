@@ -10,7 +10,8 @@ workspace = true
 
 [features]
 # Test-only. Three things ride it: the `test_support` module (the
-# suites' one reading of a reporting margin's upper end),
+# suites' one reading of a reporting margin's upper end, and `rigid`,
+# their one admission of a fixture map at the decided rigidity door),
 # `PatchSpans::cell_coeffs` (one Bernstein coefficient, read by
 # geom-brep's composite rows), and the
 # variant rosters behind `topo`'s sample-coverage row

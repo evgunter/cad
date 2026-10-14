@@ -20,8 +20,9 @@ a vertex of one operand on another's vertex, edge or face. It also
 groups several pierces of one face at one point into one ring
 (`vtxfac::ring_groups`). Each decision is a pending row
 (`crates/topo/src/boolean/reduce.rs` `PendingRow`), emitted as a
-`VertexFusion` coincidence only where a record citing it survives into
-the result (`ops::cite_rows`). `PendingRow`'s rule: "only one that does
+`VertexFusion` coincidence where a record citing it survives into
+the result, or where the result keeps the decided vertex as copies on
+one point key, a pinch the op made (`ops::cite_rows`, `ops::carry`). `PendingRow`'s rule: "only one that does
 makes pieces of the result touch, and only that one is a coincidence
 (D1: an ON verdict that only places topology is not)".
 

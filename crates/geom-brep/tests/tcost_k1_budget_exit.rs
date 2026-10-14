@@ -31,7 +31,9 @@ use std::f64::consts::{FRAC_1_SQRT_2, PI};
 use std::time::Instant;
 
 use geom_brep::props::PropsError;
-use geom_brep::props::quad::{FaceCutBounds, nurbs_patch_face};
+use geom_brep::props::quad::{
+    FaceCutBounds, RoundOutcome, RoundWindow, nurbs_patch_face, nurbs_patch_face_rounds,
+};
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
@@ -307,32 +309,70 @@ fn refused_early_on_the_last_round_bound() {
     assert_early(torus.name, eps, got);
 }
 
-/// Drive `face` to the early exit at ε = 1e-9 (asserting the exit's
-/// receipt), then again under a band whose coincidence zone the last
-/// round lands in, so the bound cannot fire and the schedule runs out
-/// honestly (asserting THAT receipt); return `(bound, measured)`.
+/// The face's last round alone, metered as the convergence meter does
+/// (`width(flux) / (3·mid(area))`): read off an open round under a
+/// target and a band so far below its width that it definitely misses.
+fn last_round_width(face: &Face) -> f64 {
+    let (ua, ub) = face.ku.domain();
+    let (va, vb) = face.kv.domain();
+    match nurbs_patch_face_rounds::<f64>(
+        &face.ku,
+        &face.kv,
+        &face.net,
+        &face.weights,
+        (ua, ub, va, vb),
+        face.perimeter,
+        face.boundary_defect,
+        1e-300,
+        Band::new(1e-300, 2e-300).unwrap(),
+        RoundWindow::at(RATIONAL_SCHEDULE_ROUNDS - 1),
+    ) {
+        Ok(RoundOutcome::Open { bounds, .. }) => {
+            let mid = (bounds.area.lo() + bounds.area.hi()) * 0.5;
+            bounds.flux.width() / (3.0 * mid)
+        }
+        other => panic!("{}: the last round must stay open: {other:?}", face.name),
+    }
+}
+
+/// The early refusal's width, then the schedule run out under a target
+/// that width meets and the last round does not: midway between the
+/// two, with a band an eighth of their gap. The bound then reads
+/// definitely under the target, so the early exit never fires; rounds
+/// before the last read definitely over it (each is about 4× the
+/// next); and the last round reads definitely over it, so the schedule
+/// ends in its own budget refusal, carrying a width that missed.
+/// Returns `(bound, measured)`.
 fn early_then_exhausted(face: &Face) -> (f64, f64) {
     let eps = 1e-9;
     let (early, secs_early) = face.run(eps, linear_band(eps));
     let got = budget(face.name, &early);
     assert_early(face.name, eps, got);
     let bound = got.0;
-    // A target 1e-3 above the bound, with a coincidence zone of 3e-3
-    // around it: rounds 0–6 read negative (≥ 4× the last), the bound
-    // reads inside the zone (so it never fires), and the last round
-    // reads zero — falling through to the exhaustion refusal.
-    let target = bound * (1.0 + 1e-3);
-    let band = Band::new(3e-3 * bound, 5e-3 * bound).unwrap();
+    let last = last_round_width(face);
+    assert!(
+        last > bound,
+        "{}: the last round's width {last:e} must exceed the early bound {bound:e} — the bound \
+         omits the midpoint sum's width and carries a `1 − 2⁻³⁰` factor",
+        face.name
+    );
+    let target = bound + (last - bound) * 0.5;
+    let zone = (last - bound) / 8.0;
+    let band = Band::new(zone, 2.0 * zone).unwrap();
     let (late, secs_late) = face.run(target / TARGET_LEN_FACTOR, band);
-    let (measured, _, rounds) = budget(face.name, &late);
+    let (measured, target_len, rounds) = budget(face.name, &late);
     // The exhaustion row proper: the receipt says every round was
-    // paid, and the payload cannot be the bound's — the bound omits
-    // the midpoint sum's width and carries a `1 − 2⁻³⁰` factor, so a
-    // measured last round is STRICTLY wider.
+    // paid, the payload is a width that missed its target, and it is
+    // the schedule's own, not the bound's.
     assert_eq!(
         rounds, RATIONAL_SCHEDULE_ROUNDS,
-        "{}: the coincidence band was meant to run the schedule out, but the loop paid {rounds} \
-         rounds",
+        "{}: the target between the bound and the last round was meant to run the schedule \
+         out, but the loop paid {rounds} rounds",
+        face.name
+    );
+    assert!(
+        measured > target_len,
+        "{}: the exhaustion refusal carries {measured:e}, not over its target {target_len:e}",
         face.name
     );
     assert!(
