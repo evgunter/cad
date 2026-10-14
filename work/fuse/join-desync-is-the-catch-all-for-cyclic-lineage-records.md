@@ -2,11 +2,13 @@
 id: join-desync-is-the-catch-all-for-cyclic-lineage-records
 kind: issue
 title: The split-hop naming tables (SplitNaming::joined_lineage, DiscardRow::boundary_chains) are chased by readers that bound or refuse a cycle, not checked where they are written; JoinDesync no longer carries any lineage cycle
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
 refs: [descendant-chase-spends-its-budget-into-a-dropped-contact-record, 3874]
+closed: 2026-10-14
+pr: 5086
 ---
 
 
@@ -124,3 +126,37 @@ refusing `SplitLineageCycle`) and inline by `names/borders.rs`'s
 cyclic")`. Each row maps a split's minted piece to the edge it was
 split from, so an `EdgeDivisions`-shaped list written where the rows
 are written would make the three walks total and their refusals go.
+
+## Closed by `fuse/split-hop-lineage-at-append` (2026-10-14)
+
+The two split-hop naming tables, measured first with an uncommitted probe
+over the topo, sweep and editor-core ci suites (8,557 tests, ε 1e-9):
+`SplitNaming::joined_lineage` held 112 rows over 74 split runs, and
+`DiscardRow::boundary_chains` 90,322 hops over 10,626 Booleans, repeated
+across rows in every Boolean that records chains; neither held a self
+hop or gave an edge two parents.
+
+Neither table is a list of mints, so neither goes on `Minted`: each is a
+copy of `SplitEdge` records taken before a kill, written in kill order,
+and a join can kill a child before its parent (the split hop
+`e1 → e13`, `e13 → e14`, `e13 → e15` with kills `e1`, `e14`, `e13`, which
+a fresh-key check refuses at `e13`; pinned in topo as
+`a_child_killed_before_its_parent_is_recorded_with_it`). Each is as
+acyclic as the records it copies, and one argument says so for both, on
+`Provenance::SplitEdge`. `joined_lineage` is now a map, killed edge →
+the edge it was split from, written in one place
+(`SplitNaming::record_joins`). Its content had no test before
+(dropping its rows left all 8,557 tests green); the cone graze in
+`split_tangent_edge_curved` now pins its rows whole.
+
+The walks that read the copies beside the records keep their bounds and
+cycle refusals, which are the records' walk's: they are listed on
+`origin/the-split-edge-lineage-walk-has-four-homes`, which owns checking
+the records where `Body::split_edge` writes them and giving the walk one
+home.
+
+`BooleanError::JoinDesync` carries no lineage cycle since PR 5022. The
+`JoinDesync` arms left that are not A/B lockstep breaks are torn-body
+reads (`topotail/torn-body-refusal-families-beyond-the-six-doors`) and
+the graft doors' caller errors (`issues/graft-door-caller-errors-are-join-desync`),
+neither a lineage record.
