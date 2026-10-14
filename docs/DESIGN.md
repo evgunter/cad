@@ -264,11 +264,26 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    like any coincidence. In-band κ_rel escalates; osculation
    refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
-   A doubled cusp (two material wedges on one tangent line) is the
-   coincident-distinct-edges class, each edge classifying separately;
-   where no edge lies on the line, the two wedges are a touch between
-   faces, recorded like any touch, and no op cuts edges to make a
-   junction of it. Consumers with no wedge-0/2π answer (fillet, offset,
+   Where more than two sheets meet on a line, the material decides the
+   edges, as the manifold boundary of the material rather than of its
+   surface: each creased material sector between two consecutive
+   sheets is one edge, bounding that wedge alone; a sector of exactly π
+   is a face continuing, with no edge there; and the material sectors
+   on one line are disjoint, so no face passes through an edge's
+   material wedge. So a doubled cusp (two material wedges on one
+   tangent line) and a reflex edge lying in one of its own faces are
+   two coincident distinct edges, each classifying separately; an edge
+   touching a face from outside its wedge stays one edge, in contact
+   with that face; and where no edge lies on the line, the wedges are a
+   touch between faces, recorded like any touch, and no op cuts edges
+   to make a junction of it. Where the line ends inside a face, that
+   face carries its edges as a zero-area ring, which bounds no hole and
+   whose winding is exempt; where it reaches the face's boundary, as a
+   slit of that loop. The complement pairs the sheets differently, so
+   a door that complements material across such a line re-pairs there.
+   Tier 3′ reads every touch for sides, the coincident edges on one
+   line included: touching cells' material lies on opposite sides of
+   each other. Consumers with no wedge-0/2π answer (fillet, offset,
    mesh sizing, sector classification), and none for a body's
    curve-touch records, refuse typed at the consumer.
    Also at tier 3: **maximal edges** (a joinable vertex at rest is a
