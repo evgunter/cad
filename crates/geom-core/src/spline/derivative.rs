@@ -47,13 +47,12 @@
 //! combinations of the positive control weights. There is no weight
 //! range, no sign split and no control-point hull.
 //!
-//! **The pieces.** A curve span's are exact dyadic Bézier pieces read
-//! off the span's blossom and one exact-weight combination
-//! ([`super::pieces`]). A cell's quotient is formed once over the cell
-//! and halved at ½ by de Casteljau, along each axis, as often as its
+//! **The pieces.** A curve span's or a cell's quotient is formed once
+//! over the span or cell, from its Bernstein rows read off the blossom
+//! ([`super::pieces::span_row`]), and halved at ½ by de Casteljau, along each axis, as often as its
 //! schedule asks: each step a sum and an exact halving, outward at
 //! `Interval`, so the halves enclose the exact quotient's at any degree
-//! and the count has no exactness ceiling. Neither reads a refined
+//! and the count has no exactness ceiling. No piece reads a refined
 //! knot vector: as the pieces shrink, the coefficient ratios converge
 //! on the quantity's range.
 //! Each derivative row is read off the B-spline derivative net (its
@@ -117,7 +116,8 @@
 //! derivative nets read twice ([`derivative_net`]'s scale at degree
 //! `p − 1` over the vector from its second knot for the second
 //! differences), each into the span's Bernstein row at its own degree,
-//! and restricted to the piece by the same exact weights.
+//! and `M` and `W³` are formed once over the span and halved into the
+//! pieces like the first order's.
 //!
 //! # Degree ceiling
 //!
@@ -152,7 +152,7 @@ use crate::real::Real;
 
 use super::knot_values::Knots;
 use super::knots::Span;
-use super::pieces::{binomial, piece_count, piece_weights, restrict, span_row};
+use super::pieces::{binomial, span_row};
 
 /// The degree ceiling of the quotient bound (module docs): the highest
 /// common degree whose binomials are all exact `f64`s, `C(56, 28) < 2⁵³`.
@@ -602,15 +602,6 @@ fn product<T: Real, const A: usize, const B: usize, const C: usize>(
     Grid::new(mv + 1, c)
 }
 
-/// `numer` raised to `denom`'s degrees, as one [`QuotientPiece`].
-fn quotient<T: Real, const D: usize>(
-    numer: &Grid<T, D>,
-    denom: &Grid<T, 1>,
-) -> Option<QuotientPiece<T, D>> {
-    let numer = numer.raised_to(denom.degree())?;
-    QuotientPiece::new(numer.arrays(), denom.c.iter().map(|w| w.0[0]).collect())
-}
-
 fn scale_by<T: Real, const D: usize>(v: Vector<T, D>, w: Vector<T, 1>) -> Vector<T, D> {
     v * w.0[0]
 }
@@ -954,11 +945,12 @@ struct SecondRaised<T> {
 
 /// **The curve statement's pieces** (module docs): on each of the
 /// nonempty spans of the spline with control `points` over `knots`, its
-/// derivative's quotient on each of [`piece_count`]`(·, splits)` exact
-/// dyadic pieces, in ascending span then piece order. With `weights`,
-/// `C′ = N/W²` (`N` of degree `2p − 1` raised to `2p`), the pieces
-/// counted for degree `p`; without, the polynomial derivative over one
-/// (degree `p − 1`, every `b_k` exactly one), counted for `p − 1`.
+/// derivative's quotient on each of the largest power of two at most
+/// `splits` equal pieces, at every degree, halved from the quotient
+/// formed once over the span, in ascending span then piece order. With
+/// `weights`, `C′ = N/W²` (`N` of degree `2p − 1` raised to `2p`);
+/// without, the polynomial derivative over one (degree `p − 1`, every
+/// `b_k` exactly one).
 /// `None` on a degree below one, an index past an array, or a common
 /// degree above [`QUOTIENT_MAX_DEGREE`]; empty when no span is
 /// nonempty.
@@ -972,35 +964,21 @@ pub fn speed_pieces<T: Real, const D: usize>(
     let mut out = Vec::new();
     for span in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
         let (axis, p, pts) = span_window(knots, span, points)?;
-        match weights {
+        let raised = match weights {
             None => {
-                let row = axis.row(&axis.derive(&pts)?, 1)?;
-                let count = piece_count(p - 1, splits);
-                for block in piece_weights(p - 1, count)?.chunks_exact(p.pow(2)) {
-                    let numer = Grid::column(restrict(block, &row)?)?;
-                    out.push(quotient(
-                        &numer,
-                        &Grid::column(vec![Vector([T::one()]); p])?,
-                    )?);
-                }
+                let numer = Grid::column(axis.row(&axis.derive(&pts)?, 1)?)?;
+                let denom = Grid::column(vec![Vector([T::one()]); p])?;
+                Raised { numer, denom }
             }
             Some(ws) => {
                 let rows = HomogeneousSpan::of(&axis, &pts, ws.get(span.window())?)?.rows;
-                let count = piece_count(p, splits);
-                let (wp, wq) = (piece_weights(p, count)?, piece_weights(p - 1, count)?);
-                for (bp, bq) in wp
-                    .chunks_exact((p + 1).pow(2))
-                    .zip(wq.chunks_exact(p.pow(2)))
-                {
-                    let a = Grid::column(restrict(bp, &rows.0)?)?;
-                    let w = Grid::column(restrict(bp, &rows.1)?)?;
-                    let da = Grid::column(restrict(bq, &rows.2)?)?;
-                    let dw = Grid::column(restrict(bq, &rows.3)?)?;
-                    let n = product(&da, &w, by_weight)?.minus(&product(&a, &dw, by_weight)?)?;
-                    out.push(quotient(&n, &product(&w, &w, weight_times)?)?);
-                }
+                let (a, w) = (Grid::column(rows.0)?, Grid::column(rows.1)?);
+                let (da, dw) = (Grid::column(rows.2)?, Grid::column(rows.3)?);
+                let n = product(&da, &w, by_weight)?.minus(&product(&a, &dw, by_weight)?)?;
+                Raised::of(&n, product(&w, &w, weight_times)?)?
             }
-        }
+        };
+        out.extend(raised.pieces((halving_count(splits), 1))?);
     }
     Some(out)
 }
@@ -1138,9 +1116,10 @@ fn second_numerator<T: Real, const D: usize>(
 
 /// **The curve's second-order pieces** (module docs, "The second
 /// order"): on each nonempty span of the RATIONAL spline with control
-/// `points` and `weights` over `knots`, `C″ = M/W³` on each of
-/// [`piece_count`]`(p, splits)` exact dyadic pieces, in ascending span
-/// then piece order, `M` of degree `3p − 2` raised to `3p`. `None` on a
+/// `points` and `weights` over `knots`, `C″ = M/W³` on each of the
+/// largest power of two at most `splits` equal pieces, halved from `M`
+/// and `W³` formed once over the span, in ascending span then piece
+/// order, `M` of degree `3p − 2` raised to `3p`. `None` on a
 /// degree below one, an index past an array, or a common degree above
 /// [`QUOTIENT_MAX_DEGREE`]; empty when no span is nonempty.
 pub fn accel_pieces<T: Real, const D: usize>(
@@ -1163,33 +1142,15 @@ pub fn accel_pieces<T: Real, const D: usize>(
             None
         };
         let rows = h.rows;
-        let count = piece_count(p, splits);
-        let blocks = |deg: usize| -> Option<Vec<Vec<f64>>> {
-            Some(
-                piece_weights(deg, count)?
-                    .chunks_exact((deg + 1).pow(2))
-                    .map(<[f64]>::to_vec)
-                    .collect(),
-            )
+        let (a, w) = (Grid::column(rows.0)?, Grid::column(rows.1)?);
+        let (da, dw) = (Grid::column(rows.2)?, Grid::column(rows.3)?);
+        let cross = doubled_cross(&a, &w, &da, &dw)?;
+        let xy = match second {
+            Some((dda, ddw)) => Some((Grid::column(dda)?, Grid::column(ddw)?)),
+            None => None,
         };
-        let (b0, b1) = (blocks(p)?, blocks(p - 1)?);
-        let b2 = if p >= 2 { blocks(p - 2)? } else { Vec::new() };
-        for k in 0..count {
-            let on = |b: &[Vec<f64>], row: &[Vector<T, D>]| Grid::column(restrict(b.get(k)?, row)?);
-            let on1 =
-                |b: &[Vec<f64>], row: &[Vector<T, 1>]| Grid::column(restrict(b.get(k)?, row)?);
-            let a = on(&b0, &rows.0)?;
-            let w = on1(&b0, &rows.1)?;
-            let da = on(&b1, &rows.2)?;
-            let dw = on1(&b1, &rows.3)?;
-            let cross = doubled_cross(&a, &w, &da, &dw)?;
-            let xy = match &second {
-                Some((dda, ddw)) => Some((on(&b2, dda)?, on1(&b2, ddw)?)),
-                None => None,
-            };
-            let (m, w3) = second_numerator(&a, &w, xy.as_ref().map(|(x, y)| (x, y)), cross)?;
-            out.push(quotient(&m, &w3)?);
-        }
+        let (m, w3) = second_numerator(&a, &w, xy.as_ref().map(|(x, y)| (x, y)), cross)?;
+        out.extend(Raised::of(&m, w3)?.pieces((halving_count(splits), 1))?);
     }
     Some(out)
 }
