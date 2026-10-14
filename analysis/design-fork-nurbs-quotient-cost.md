@@ -94,3 +94,16 @@
   - **Parity:** rung counts and worst margins match step 2 exactly.
   - **Meets:** the restricted cut lies outside the whole-cell box in 0–0.37% of meets, against 69–88% for step 2's restricted-net-plus-products cut. That one is often far wider than the whole box and is mostly discarded by the meet.
 - **Step 3 timing reopened (2026-10-14 13:02Z).** Against its own base (main with step 2's cut and #5059's compensated midpoint): r1 is 49 → 65 s (+33%) and shelling is 149 → 123 s (−17%), with rung counts identical. Restricting the raised (2p, 2q) grids costs about 1.6× step 2's restrict-then-form per cut on r1's walls. The earlier "(A) beats step 2" compared against a base without #5059. A postscript round was sent to both designers (A and B) with options (B), (A′), (D′) and open.
+
+### Postscript round: B's answer (independent, received 13:03Z)
+- **Recommends A″:** keep "the cut restricts the formed quotients", but restrict only what each reader reads.
+  - Axis-lazy restriction: one-axis readers (`deriv_box`, `speed_sup`, r1's hot path) need N_d plus W², that is 4 of 7 channels.
+  - A one-piece cut with no per-cut 2×2 halving; the meet with the whole cell's 2×2 reading stays.
+  - Batched channels per line.
+- **Rejects (B):** step 2's cut lies outside the whole box in 69–88% of meets, so it is cheap and mostly discarded. It also re-forms products per window.
+- **Rejects (D′):** two recipes chosen by a cost threshold.
+- **Measure before deciding,** in order: (1) axis-lazy, bit-identical; (2) plus the one-piece cut, checking rungs, margins and the flat-wall row at 1e-9; (3) plus batching. Skip "restrict un-raised, then raise", since it is about 1/(2p+1). Diagnostic: time the per-step `between` meet once with it off.
+- **Falsifiers:**
+  - With 1 and 2 applied, still slower than step 2 on r1 and no faster on shelling: then take (B) with `split_restrict`.
+  - Variant 2 moves a rung or margin: then keep the 2×2 halving.
+  - The cut is no longer dominant and the rows are still more than 2× pre-4954: then the remaining excess is elsewhere.
