@@ -1400,3 +1400,6 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The NITs stay. The partial-revolve start/end asymmetry is noted on CLEAVE's item.
   - Merge flow started: /home/user/m5152 = head + main (`1992956011`) + notes (`baf129db08`); full geom-brep/topo/sweep at 3 ε.
 - 2026-10-14 18:55 — **PR 5152 merged** (`2186089902`) on local green: full geom-brep 1368, topo 3028, sweep 2711 at 3 ε on head + main; main merged again at merge time (tracker-only change). Row PR-5152: sequential, M, tallied 0. The notes on HONE's and CLEAVE's items rode the PR. The apex-tangent implementer lane is free.
+- 2026-10-14 18:58 — **Dispatched** two lanes:
+  - **Steep-frustum endpoint item** (PCERT measured it fixed by #5043): pin the poses as a row red on the pre-5043 arm, then close. Session_01JBE8zU1mqRXyWBMGviKTEF, branch `germ/steep-frustum-endpoint-close`.
+  - **Circle×torus recentering** (P3, M), which also checks whether the "band's gap certifies past the band" note is a soundness hole. Session_01HSRijTdDzuHkDzA1E6HDQm, branch `germ/circle-torus-recentering`.
