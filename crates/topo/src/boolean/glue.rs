@@ -238,6 +238,50 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
     Ok(rows)
 }
 
+/// **The crossing cylinder pairs of the two operands**, two rows each:
+/// two walls whose radii decide equal and whose axes decide meeting
+/// ([`super::join::crossing_cylinder_margins`]), the classification the
+/// join's bisector lane reads for the pair. In A's face order and B's
+/// within each; none where the operation's verdicts are given.
+///
+/// # Errors
+///
+/// A face box's own refusal; [`BooleanError::ClassificationInvariant`]
+/// where the face tree returns an index past its input.
+pub(crate) fn crossing_cylinder_rows<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &Glue,
+    band: Band,
+) -> Result<Vec<crate::Coincidence>, BooleanError> {
+    if decls.verdicts == super::Verdicts::Given {
+        return Ok(Vec::new());
+    }
+    let wall = |s: &geom::Surface<T>| matches!(s, geom::Surface::Cylinder { .. });
+    let mut rows = Vec::new();
+    for (fa, fb) in overlapping_pairs(a, b, wall, band)? {
+        let Some(margins) = super::join::crossing_cylinder_margins((a, fa), (b, fb), band) else {
+            continue;
+        };
+        for (relation, margin) in [crate::Relation::SameRadius, crate::Relation::AxesMeet]
+            .into_iter()
+            .zip(margins)
+        {
+            rows.push(crate::Coincidence {
+                cells: [
+                    crate::RowCell::face(Operand::A, fa),
+                    crate::RowCell::face(Operand::B, fb),
+                ],
+                relation,
+                site: crate::DecisionSite::CrossingCylinders,
+                margin,
+                discharge: crate::Discharge::of(margin),
+            });
+        }
+    }
+    Ok(rows)
+}
+
 /// **The face-pair rows whose faces meet**: each row deciding faces
 /// `fa` of A and `fb` of B one carrier, tangent or coaxial is kept only
 /// where the reduction placed a cell of `fa`'s closure on a cell of

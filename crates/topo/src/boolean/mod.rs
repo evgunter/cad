@@ -1714,6 +1714,29 @@ pub struct HalfGerm<T: Real> {
     /// from the site toward the polygon edge's other end) — the datum
     /// the joining's mutual-facing test decides on (`bool_join_facing`).
     pub dir: geom_core::Vec3<T>,
+    /// The loop of its face pair's section the germ rides, decided once
+    /// where the germ is minted ([`Branch`]).
+    pub branch: Branch,
+}
+
+/// **Which loop of its face pair's section a germ rides.** A section of
+/// two loops — a plane cutting a torus in two circles or two ovals, two
+/// equal cylinders with intersecting axes in two bisector-plane
+/// ellipses — tells its loops apart by a margin at a point of the
+/// section (`ring_path::LoopSplit`). The margin is decided once, at the
+/// germ's site where the germ is minted, and every reader of the germ
+/// takes its loop from here: the join's matching and frames, and each
+/// side's chord. Both operands' germs of one slot carry the same
+/// branch, read at the A site.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Branch {
+    /// The section is one loop, loops sharing one frame, or straight;
+    /// or the germ runs along an edge, whose own curve it rides.
+    Only,
+    /// The loop on the split's positive side.
+    Positive,
+    /// The loop on its negative side.
+    Negative,
 }
 
 /// One minted boolean null edge with its F9 side attribute (below ≙ IN
@@ -4869,6 +4892,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     verified
         .coincidences
         .extend(glue::coaxial_rows(a_operand, b_operand, decls, band)?);
+    verified
+        .coincidences
+        .extend(glue::crossing_cylinder_rows(a_operand, b_operand, decls, band)?);
     let declared = GluedPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(
         a_operand,

@@ -4974,6 +4974,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coincidence_relation_tag",
         values: &[
+            "axes_meet",
             "co_ruled",
             "coaxial",
             "common_foot",
@@ -4981,6 +4982,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "on_carrier",
             "same_opposite",
             "same_oriented",
+            "same_radius",
             "surface_tangent",
             "tangent",
         ],
@@ -5026,6 +5028,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "carrier_ladder",
             "census_at_rest",
             "coaxial_sphere",
+            "crossing_cylinders",
             "plane_ladder",
             "profile_junction",
             "split_on",

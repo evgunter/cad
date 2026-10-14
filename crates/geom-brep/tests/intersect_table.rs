@@ -353,7 +353,7 @@ fn crossing_pair(r: f64, gamma: f64) -> (Surface<f64>, Surface<f64>) {
 fn equal_cylinders_split_into_two_ellipses() {
     let (c1, c2) = crossing_pair(1.5, 0.6);
     let s = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band()).unwrap();
-    let EqualCylinderSection::TwoEllipses { e1, e2 } = s else {
+    let EqualCylinderSection::TwoEllipses { e1, e2, .. } = s else {
         panic!("expected two ellipses, got {s:?}");
     };
     // The two-ellipse split verified against parametric substitution
@@ -1242,7 +1242,7 @@ mod interval {
         };
         let (c1, c2) = (mk(1.0), mk(-1.0));
         let s = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band()).unwrap();
-        let EqualCylinderSection::TwoEllipses { e1, e2 } = s else {
+        let EqualCylinderSection::TwoEllipses { e1, e2, .. } = s else {
             panic!("expected two ellipses, got {s:?}");
         };
         for e in [&e1, &e2] {

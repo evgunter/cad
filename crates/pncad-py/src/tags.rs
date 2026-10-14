@@ -2993,6 +2993,8 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::Tangent { aligned: false } => "cusp",
         R::SurfaceTangent => "surface_tangent",
         R::Coaxial => "coaxial",
+        R::SameRadius => "same_radius",
+        R::AxesMeet => "axes_meet",
         R::CoRuled => "co_ruled",
     }
 }
@@ -3006,6 +3008,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::CarrierLadder => "carrier_ladder",
         S::TangentWitness => "tangent_witness",
         S::CoaxialSphere => "coaxial_sphere",
+        S::CrossingCylinders => "crossing_cylinders",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
         S::BatteryJoint => "battery_joint",

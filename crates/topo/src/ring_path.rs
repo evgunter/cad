@@ -749,6 +749,23 @@ pub(crate) enum LoopSplit<T: Real> {
         /// The radius between the loops.
         radius: T,
     },
+    /// `|(p − origin)·sum| − |(p − origin)·diff|`: two equal cylinders
+    /// with unit axes `â₁`, `â₂` meeting at `origin` cut each other in
+    /// two ellipses, one in each bisector plane through `origin`, the
+    /// first with normal along `diff = â₁ − â₂`, the second along
+    /// `sum = â₁ + â₂`. A point of the first has `(p − origin)·diff = 0`
+    /// and of the second `(p − origin)·sum = 0`, so the margin is
+    /// positive on the first and negative on the second, and zero only
+    /// on the bisector planes' common line, where the ellipses cross
+    /// (the nodes).
+    Bisector {
+        /// The axes' meeting point.
+        origin: Point3<T>,
+        /// `â₁ + â₂`.
+        sum: Vec3<T>,
+        /// `â₁ − â₂`.
+        diff: Vec3<T>,
+    },
 }
 
 impl<T: Real> LoopSplit<T> {
@@ -761,6 +778,9 @@ impl<T: Real> LoopSplit<T> {
                 axis,
                 radius,
             } => (p - origin).cross(axis).norm() - radius,
+            Self::Bisector { origin, sum, diff } => {
+                (p - origin).dot(sum).abs() - (p - origin).dot(diff).abs()
+            }
         }
     }
 

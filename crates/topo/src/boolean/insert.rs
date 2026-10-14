@@ -485,6 +485,21 @@ pub(super) fn plan_null_pairs<T: Decide>(
             ),
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
+    // Each germ's branch, decided once, at the A site.
+    let site = a_body.resolve_vertex_point(contact.a, Proven);
+    let branches = survivors
+        .iter()
+        .zip(&loci)
+        .map(|(r, &l)| {
+            super::join::germ_branch(
+                (a_body, a_sectors[r.a].face),
+                (b_body, b_sectors[r.b].face),
+                l,
+                site,
+                band,
+            )
+        })
+        .collect::<Result<Vec<_>, BooleanError>>()?;
     // Each solid's walk order of the survivors ([`walk_order`]). Two
     // survivors pair with each other and run either way round, so only
     // more need one.
@@ -560,16 +575,16 @@ pub(super) fn plan_null_pairs<T: Decide>(
                 a_sectors,
                 a_body,
                 a_run,
-                (r0.a, r0.sa, g0_faces, dirs[i0]),
-                (r1.a, r1.sa, g1_faces, dirs[i1]),
+                (r0.a, r0.sa, g0_faces, dirs[i0], branches[i0]),
+                (r1.a, r1.sa, g1_faces, dirs[i1], branches[i1]),
                 &a_pos,
             )?,
             side(
                 b_sectors,
                 b_body,
                 b_run,
-                (r0.b, r0.sb, g0_faces, dirs[i0]),
-                (r1.b, r1.sb, g1_faces, dirs[i1]),
+                (r0.b, r0.sb, g0_faces, dirs[i0], branches[i0]),
+                (r1.b, r1.sb, g1_faces, dirs[i1], branches[i1]),
                 &b_pos,
             )?,
         ]);
@@ -1550,9 +1565,9 @@ fn walks_after<T: Decide>(
     }
 }
 
-/// A germ in one solid: its sector entry, its codes there, its cells
-/// and its direction.
-type Germ<T> = (usize, (SideCode, SideCode), Cells, Vec3<T>);
+/// A germ in one solid: its sector entry, its codes there, its cells,
+/// its direction and its branch.
+type Germ<T> = (usize, (SideCode, SideCode), Cells, Vec3<T>, super::Branch);
 
 /// A germ's `(A face, B face)` and `(A locus, B locus)`.
 pub(super) type Cells = ((FaceKey, FaceKey), (super::Locus, super::Locus));
@@ -1696,7 +1711,7 @@ fn mint_directed<T: Decide>(
     }
     // Germ facings as data (module docs): he_plus faces the from-germ,
     // he_minus the to-germ (the mev splice contract).
-    let meta = [(gf.2, gf.3), (gt.2, gt.3)];
+    let meta = [(gf.2, gf.3, gf.4), (gt.2, gt.3, gt.4)];
     // A nested strut hangs at its holder's tip, past the struts hung
     // there earlier at a lower germ; any other shared strut at the
     // vertex, past those hung in its corner.
@@ -2331,7 +2346,7 @@ fn mint_run<T: Decide>(
     from: usize,
     to: usize,
     run_side: SideCode,
-    germ_meta: [(Cells, Vec3<T>); 2],
+    germ_meta: [(Cells, Vec3<T>, super::Branch); 2],
     spike_from_first: bool,
     anchor: Option<HalfEdgeKey>,
 ) -> Result<(BoolNullEdgeRecord<T>, (VertexKey, HalfEdgeKey)), BooleanError> {
@@ -2381,7 +2396,7 @@ fn mint_run<T: Decide>(
     let mint = body.mev_null_run(site, vertex, run_side, plus_faces_start)?;
     let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
     let germ = |i: usize, he: crate::entity::HalfEdgeKey| {
-        let (((a_face, b_face), (a_locus, b_locus)), dir) = germ_meta[i];
+        let (((a_face, b_face), (a_locus, b_locus)), dir, branch) = germ_meta[i];
         super::HalfGerm {
             he,
             a_face,
@@ -2389,6 +2404,7 @@ fn mint_run<T: Decide>(
             a_locus,
             b_locus,
             dir,
+            branch,
         }
     };
     let germs = [germ(0, start_he), germ(1, end_he)];

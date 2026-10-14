@@ -1473,6 +1473,10 @@ pub enum EqualCylinderSection<T: Real> {
         e1: Curve3<T>,
         /// The ellipse in the `a1 + a2`-normal bisector plane.
         e2: Curve3<T>,
+        /// The two coincidences decided Zero to reach them, read off
+        /// their decisions: the radii equal (`cc_radius_equality`), then
+        /// the axes meeting (`cc_axes_coplanar`).
+        margins: [MarginDiag; 2],
     },
     /// Parallel axes, gap definitely < r₁ + r₂: two parallel rulings.
     ParallelLines {
@@ -1548,9 +1552,9 @@ pub fn cylinder_cylinder_section<T: Decide>(
     };
 
     // 1. Equal radii, decided by their margin.
-    match decide("cc_radius_equality", Margin::of(r1 - r2), band)
-        .map_err(SectionError::Escalated)?
-    {
+    let radii = decide_reported("cc_radius_equality", Margin::of(r1 - r2), band)
+        .map_err(SectionError::Escalated)?;
+    match radii.sign {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => return Err(SectionError::UnequalRadii),
     }
@@ -1604,9 +1608,9 @@ pub fn cylinder_cylinder_section<T: Decide>(
         }
         Sign::Positive | Sign::Negative => {
             // Crossing lane: coplanarity (intersecting vs skew).
-            match cylinder_axes_coplanar(reach, (o1, a1), (o2, a2), band)
-                .map_err(SectionError::Escalated)?
-            {
+            let meet = cylinder_axes_coplanar_reported(reach, (o1, a1), (o2, a2), band)
+                .map_err(SectionError::Escalated)?;
+            match meet.sign {
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => {
                     return Err(SectionError::RoutesToGeneralRung {
@@ -1638,6 +1642,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             Ok(EqualCylinderSection::TwoEllipses {
                 e1: mk(n1)?,
                 e2: mk(n2)?,
+                margins: [radii.margin, meet.margin],
             })
         }
     }
@@ -1754,9 +1759,23 @@ pub fn cylinder_axes_coplanar<T: Decide>(
     line2: (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Sign, Indeterminate> {
+    cylinder_axes_coplanar_reported(reach, line1, line2, band).map(|d| d.sign)
+}
+
+/// [`cylinder_axes_coplanar`], keeping the margin it decided on.
+///
+/// # Errors
+///
+/// As [`cylinder_axes_coplanar`].
+pub fn cylinder_axes_coplanar_reported<T: Decide>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<Decided, Indeterminate> {
     let (_, w) = axes_feet(reach, line1, line2);
     let cross = line1.1.cross(line2.1);
-    decide(
+    decide_reported(
         "cc_axes_coplanar",
         Margin::of(w.dot(cross) / cross.norm()),
         band,
