@@ -42,7 +42,7 @@ use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
 use crate::common::interval::{iv, p2, p3, v3};
-use geom_core::{Affine3, Interval, Tol, Vec3};
+use geom_core::{Affine3, Bounds, Interval, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
@@ -170,10 +170,12 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
          pose's door key for key; direct {d}, re-posed {r}",
         band.zero()
     );
-    let source = match reposed {
-        BooleanError::CrossingInsertion { source, .. } => source,
+    // Each site's own predicate, as measured: the crossing insertion's
+    // mapped source, the join edge's start.
+    let (source, site_predicate) = match reposed {
+        BooleanError::CrossingInsertion { source, .. } => (source, "carrier_matches_mapped_source"),
         BooleanError::Join(j) => match j.error() {
-            topo::SplitJoinError::Euler(source) => source,
+            topo::SplitJoinError::Euler(source) => (source, "carrier_endpoint_start"),
             _ => panic!("{what}: the only admitted escape is a certification escalation; got {r}"),
         },
         _ => panic!(
@@ -197,6 +199,11 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
         ),
         "{what}: a germ-frame predicate going indeterminate is the defect this unit \
          pins, never an accepted escape; direct {d}, re-posed {r}"
+    );
+    assert_eq!(
+        cause.predicate,
+        Some(site_predicate),
+        "{what}: the escape admits its site's measured predicate alone; direct {d}, re-posed {r}"
     );
 }
 
@@ -223,13 +230,56 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
             tol,
         )
     };
+    // Two walls of half-height 1.2 less the bicylinder `16/3`, whole
+    // inside both; each node `±x̂` (the re-pose moves them) one vertex
+    // where the union's four faces meet.
+    let want = 2.0 * PI * 2.4 - 16.0 / 3.0;
+    let assert_union = |out: &topo::BooleanBody<Interval>, nodes: [Point3<f64>; 2], what: &str| {
+        let m = topo::mass_properties(&out.body, tol).expect("interval props");
+        assert!(
+            m.volume.lo() - m.volume_pad <= want && want <= m.volume.hi() + m.volume_pad,
+            "{what}: volume {:?} ± {} brackets {want}",
+            m.volume,
+            m.volume_pad
+        );
+        for node in nodes {
+            let at: Vec<_> = out
+                .body
+                .vertex_points()
+                .filter(|(_, p)| {
+                    let mid = |x: Interval| 0.5 * (x.lo() + x.hi());
+                    (Point3::new(mid(p.x), mid(p.y), mid(p.z)) - node).norm() < 1e-9
+                })
+                .map(|(v, _)| out.body.half_edges().filter(|(_, h)| h.start == v).count())
+                .collect();
+            assert_eq!(
+                at,
+                vec![4],
+                "{what}: the node {node:?} is one vertex of valence 4"
+            );
+        }
+    };
     let direct = union(&a, &b);
-    assert!(
-        matches!(direct, Ok(topo::BooleanResult::Body(_))),
-        "the meeting-axes pose builds: {direct:?}"
+    let Ok(topo::BooleanResult::Body(out)) = &direct else {
+        panic!("the meeting-axes pose builds: {direct:?}");
+    };
+    assert_union(
+        out,
+        [Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0)],
+        "direct",
     );
     match union(&repose(&a), &repose(&b)) {
-        Ok(topo::BooleanResult::Body(_)) => {}
+        Ok(topo::BooleanResult::Body(out)) => {
+            // [`repose`]'s motion, at `f64`.
+            let r = Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 2.0, 3.0).normalize(),
+                0.7,
+            );
+            let moved =
+                |x: f64| r.transform_point(Point3::new(x, 0.0, 0.0)) + Vec3::new(0.3, -0.45, 0.6);
+            assert_union(&out, [moved(1.0), moved(-1.0)], "re-posed");
+        }
         Err(e) => assert_the_fixture_escape("a built body", &e, "the meeting-axes pose"),
         Ok(other) => panic!("the re-posed meeting-axes pose: {other:?}"),
     }

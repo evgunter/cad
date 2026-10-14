@@ -415,9 +415,9 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "NodeUnbuilt",
             BooleanError::NodeUnbuilt {
-                operand: topo::Operand::A,
-                face,
-                on_boundary: true,
+                a_face: face,
+                b_face: face,
+                why: topo::NodeWhy::OnBoundary(topo::Operand::A),
             },
         ),
         (

@@ -22,7 +22,7 @@ enum Placed {
     /// Strictly inside it.
     In,
     /// On the face's boundary, or where its trim gives no verdict.
-    Unbuilt { on_boundary: bool },
+    Unbuilt(super::NodeWhy),
 }
 
 /// [`Placed`] of `node` in `face` of the unmutated operand `body`, the
@@ -39,9 +39,9 @@ fn placed<T: Decide>(
         CurvedPlacement::Trim(Some(FaceContainment::Out)) => Ok(Placed::Out),
         CurvedPlacement::Trim(Some(FaceContainment::In)) => Ok(Placed::In),
         CurvedPlacement::Trim(Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))) => {
-            Ok(Placed::Unbuilt { on_boundary: true })
+            Ok(Placed::Unbuilt(super::NodeWhy::OnBoundary(operand)))
         }
-        CurvedPlacement::Trim(None) => Ok(Placed::Unbuilt { on_boundary: false }),
+        CurvedPlacement::Trim(None) => Ok(Placed::Unbuilt(super::NodeWhy::Unplaced(operand))),
         CurvedPlacement::OffCarrier => Err(BooleanError::JoinDesync {
             what: "a node of an equal cylinder pair reads off a wall it lies on",
         }),
@@ -56,21 +56,23 @@ pub(super) fn is_wall<T: Decide>(s: &geom::Surface<T>) -> bool {
 
 /// **Every node of every equal cylinder pair of the two operands,
 /// built**: each of `walls`, the face pairs of A's and B's cylinder
-/// walls whose boxes overlap ([`is_wall`]), whose section is the two bisector-plane ellipses
-/// ([`super::join::crossing_cylinder_section`]) has its two nodes placed
-/// in its two faces of the unmutated operands. A node definitely outside
-/// either face is no point of the pair's section there. A node inside
-/// both is minted into the working bodies `a` and `b` (one ring in each
-/// wall, [`super::vtxfac::mint_node`]); its arcs' tangents are the
-/// ellipses' at the node, and the germs' order is metered at the walls'
+/// walls whose boxes overlap ([`is_wall`]), whose section is the two
+/// bisector-plane ellipses ([`super::join::crossing_cylinder_reading`])
+/// has its two nodes placed in its two faces of the unmutated operands.
+/// A node definitely outside either face is no point of the pair's
+/// section there. A node inside both is minted into the working bodies
+/// `a` and `b` (one ring in each wall, [`super::vtxfac::mint_node`]); its
+/// arcs leave it along `â₁ + â₂` (`e₁`) and `â₁ − â₂` (`e₂`), where the
+/// ellipses cross square, and the germs' order is metered at the walls'
 /// radius. Each ring comes back as its records.
 ///
 /// # Errors
 ///
 /// [`BooleanError::NodeUnbuilt`] for a node on the boundary of a face
 /// that holds it, or that a face's trim cannot place, unless the other
-/// face holds it definitely outside; the containment door's refusals;
-/// [`super::vtxfac::mint_node`]'s.
+/// face holds it definitely outside; the reading's refusals, so that a
+/// pair whose nodes cannot be read is never skipped; the containment
+/// door's refusals; [`super::vtxfac::mint_node`]'s.
 pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
     (a, b): (&mut Body<T>, &mut Body<T>),
     (a_operand, b_operand): (&Body<T>, &Body<T>),
@@ -81,7 +83,7 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
     let mut out = Vec::new();
     for &(fa, fb) in walls {
         let Some(section) =
-            super::join::crossing_cylinder_section((a_operand, fa), (b_operand, fb), band)
+            super::join::crossing_cylinder_reading((a_operand, fa), (b_operand, fb), band)?
         else {
             continue;
         };
@@ -96,36 +98,32 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
                 });
             }
         };
-        // The first node is e₁ at π/2 and e₂ at −π/2, the second the
-        // other way round (the table's `nodes`).
-        let half = T::from_f64(core::f64::consts::FRAC_PI_2);
-        let params = [(half, -half), (-half, half)];
-        for (node, (t1, t2)) in section.nodes.into_iter().zip(params) {
+        let [a1, a2] = section.axes;
+        let unit = |v: geom_core::Vec3<T>| v / v.norm();
+        let tangents = [unit(a1 + a2), unit(a1 - a2)];
+        // The axes' meeting point, midway between the nodes.
+        let [n0, n1] = section.nodes;
+        let centre = n0 + (n1 - n0) * T::from_f64(0.5);
+        for node in section.nodes {
             let here = (
                 placed((Operand::A, a_operand), fa, node, band)?,
                 placed((Operand::B, b_operand), fb, node, band)?,
             );
-            let unbuilt = |operand, face, on_boundary| BooleanError::NodeUnbuilt {
-                operand,
-                face,
-                on_boundary,
-            };
             match here {
                 (Placed::Out, _) | (_, Placed::Out) => continue,
                 (Placed::In, Placed::In) => {}
-                (Placed::Unbuilt { on_boundary }, _) => {
-                    return Err(unbuilt(Operand::A, fa, on_boundary));
-                }
-                (_, Placed::Unbuilt { on_boundary }) => {
-                    return Err(unbuilt(Operand::B, fb, on_boundary));
+                (Placed::Unbuilt(why), _) | (_, Placed::Unbuilt(why)) => {
+                    return Err(BooleanError::NodeUnbuilt {
+                        a_face: fa,
+                        b_face: fb,
+                        why,
+                    });
                 }
             }
-            let unit = |v: geom_core::Vec3<T>| v / v.norm();
-            let tangents = [unit(section.e1.deriv(t1)), unit(section.e2.deriv(t2))];
             out.push(super::vtxfac::mint_node(
                 (&mut *a, &mut *b),
                 (fa, fb),
-                node,
+                (node, node - centre),
                 tangents,
                 section.axes,
                 radius,

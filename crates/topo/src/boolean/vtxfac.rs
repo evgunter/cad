@@ -50,8 +50,10 @@
 //!    `A`'s face gets a lone ring vertex with a strut per run, and that
 //!    vertex then pierces `B`'s face through the same [`RingPlan`] as
 //!    any other, its struts paired with `B`'s across the operands. The
-//!    four runs' sides are fixed by construction, each `A` sector about
-//!    `±â₁` bounded by one germ of each ellipse.
+//!    runs' sides are fixed by construction once the walls' senses are
+//!    read: `A`'s sectors about `±â₁` for two rods, about `±â₂` for two
+//!    bores, each bounded by one germ of each ellipse. A rod against a
+//!    bore refuses ([`super::NodeWhy::OppositeSenses`]).
 //!
 //! **On-edges** (an edge through the pierce vertex lying IN the face's
 //! plane): resolved by the flanking classes — `(In,·,In) → In`,
@@ -1620,16 +1622,20 @@ fn ring_struts<T: Decide>(
 /// ([`ring_vertex_in`]) and the section's four arcs leave it.
 ///
 /// The arcs' tangents are `tangents` (`e₁`'s, then `e₂`'s, either way
-/// along each), and `axes` the walls' axes, A's first. Round the node
-/// each wall's four sectors between the arcs alternate sides of the
-/// other solid, decided by construction (the section table's
-/// `nodes`): on A's wall the sectors about `±â₁` lie outside B and those
-/// about `±â₂` inside; on B's wall the same sectors, the other way
-/// round. So the node is a pierce of B's face by A's ring vertex whose
-/// two runs are A's Out sectors about `±â₁`, each bounded by one arc of
-/// each ellipse: A's struts span them on A's side ([`NewVertexSide`]
-/// Above), and B's ring, minted as the pierce's ring ([`mint_ring`]),
-/// spans the same sectors In. Both rings hang their struts by one tree
+/// along each), `axes` the walls' axes, A's first, and `radial` the
+/// node less the axes' meeting point. Round the node each wall's four
+/// sectors between the arcs alternate sides of the other cylinder (the
+/// section table's `nodes`): on A's wall the sectors about `±â₁` lie
+/// outside B's cylinder and those about `±â₂` inside; on B's wall the
+/// same sectors, the other way round. Which of those is outside B's
+/// material, and inside A's, is each face's sense: for two rods both are
+/// the sectors about `±â₁`, for two bores both about `±â₂`. So the node
+/// is a pierce of B's face by A's ring vertex whose two runs are those
+/// sectors, each bounded by one arc of each ellipse: A's struts span
+/// them on A's side ([`NewVertexSide`] Above), and B's ring, minted as
+/// the pierce's ring ([`mint_ring`]), spans the same sectors In. A rod
+/// against a bore makes A's Out sectors and B's In sectors different
+/// ones, which no pierce ring pairs, and refuses. Both rings hang their struts by one tree
 /// ([`ring_struts`]), A's facing each germ with the other half of its
 /// strut from B's, as a held pierce's strut does
 /// ([`faces_holding_pierce`]). `arm` meters the germs' order.
@@ -1640,13 +1646,15 @@ fn ring_struts<T: Decide>(
 ///
 /// # Errors
 ///
-/// The pierced face's normal refusing at the node; [`germ_order`]'s and
+/// [`BooleanError::NodeUnbuilt`] for walls of opposite senses, or arcs
+/// whose turn toward the axis reads Zero at the walls' radius; either
+/// face's normal refusing at the node; [`germ_order`]'s and
 /// [`mint_ring`]'s refusals; the Euler operators'.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     (a, b): (&mut Body<T>, &mut Body<T>),
     faces: (crate::entity::FaceKey, crate::entity::FaceKey),
-    node: geom_core::Point3<T>,
+    (node, radial): (geom_core::Point3<T>, Vec3<T>),
     tangents: [Vec3<T>; 2],
     axes: [Vec3<T>; 2],
     arm: T,
@@ -1672,20 +1680,74 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
         faces,
         (super::Locus::InFace(faces.0), super::Locus::InFace(faces.1)),
     );
-    // Each tangent turned toward A's axis, so a run's two germs bound
-    // the sector about `+â₁` and their opposites the one about `−â₁`.
-    // `t·â₁` is `1 ± cos θ` over the tangent's length for the angle `θ`
-    // between the axes, which the pair's parallel gate decided apart.
+    // **The runs, by the walls' senses.** Round the node the sectors
+    // about `±â₁` on A's wall lie outside B's cylinder and those about
+    // `±â₂` inside it; on B's wall those about `±â₁` lie inside A's
+    // cylinder and those about `±â₂` outside it. The pierce ring pairs
+    // A's sectors outside B's material with B's inside A's: for two rods
+    // (each face's material on its axis's side) both are the sectors
+    // about `±â₁`, for two bores both about `±â₂`. A rod against a bore
+    // makes them different sectors, which no pierce ring pairs. Each
+    // wall's sense is its outward normal against the radial `node − p`,
+    // which the walls, tangent at the node, are both square to: `±r`.
+    let sense = |operand, body: &Body<T>, face| -> Result<bool, BooleanError> {
+        let n = match crate::face_normal::face_outward_normal_at(body, face, node, band) {
+            Ok(Some(n)) => n.vec(),
+            Ok(None) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a node's face has no outward normal",
+                });
+            }
+            Err(refusal) => return Err(BooleanError::of_pierced_normal(refusal, operand, face)),
+        };
+        match decide("bool_node_wall_sense", Margin::of(n.dot(radial)), band) {
+            Ok(Sign::Positive) => Ok(true),
+            Ok(Sign::Negative) => Ok(false),
+            // The normal of a wall of radius `r` read against its own
+            // radius at the node is `±r`, which the radius guard decided
+            // definite before any section was read.
+            Ok(Sign::Zero) => Err(BooleanError::ClassificationInvariant {
+                what: "a node's wall reads its outward normal square to its radius",
+            }),
+            Err(diag) => Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::Moot,
+                diag,
+            )),
+        }
+    };
+    let out_axis = match (
+        sense(Operand::A, a, faces.0)?,
+        sense(Operand::B, b, faces.1)?,
+    ) {
+        (true, true) => axes[0],
+        (false, false) => axes[1],
+        _ => {
+            return Err(BooleanError::NodeUnbuilt {
+                a_face: faces.0,
+                b_face: faces.1,
+                why: super::NodeWhy::OppositeSenses,
+            });
+        }
+    };
+    // Each tangent turned toward that axis, so a run's two germs bound
+    // the sector about it and their opposites the one about its
+    // opposite. `t·â` is `cos(θ/2)` or `sin(θ/2)` for the angle `θ`
+    // between the axes: the pair's parallel gate decided `θ` apart at
+    // the walls' span, and a turn too small to read at their radius is a
+    // node this pass cannot build.
     let toward = |t: Vec3<T>| -> Result<Vec3<T>, BooleanError> {
         match decide(
             "bool_node_tangent_toward_axis",
-            Margin::levered(t.dot(axes[0]), arm),
+            Margin::levered(t.dot(out_axis), arm),
             band,
         ) {
             Ok(Sign::Positive) => Ok(t),
             Ok(Sign::Negative) => Ok(-t),
-            Ok(Sign::Zero) => Err(BooleanError::ClassificationInvariant {
-                what: "a node's arc runs square to an axis the pair's walls cross at",
+            Ok(Sign::Zero) => Err(BooleanError::NodeUnbuilt {
+                a_face: faces.0,
+                b_face: faces.1,
+                why: super::NodeWhy::NearlyParallel,
             }),
             Err(diag) => Err(BooleanError::coincidence(
                 Coincide::Sectors,
@@ -1707,6 +1769,9 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     ) {
         Ok(Sign::Positive) => false,
         Ok(Sign::Negative) => true,
+        // The arcs cross square, `g₁ ⟂ g₂` in the tangent plane whose
+        // normal this reads, so the margin is `±r`: definite wherever the
+        // radius guard decided the walls' radius.
         Ok(Sign::Zero) => {
             return Err(BooleanError::ClassificationInvariant {
                 what: "a node's two arcs leave it along one line",

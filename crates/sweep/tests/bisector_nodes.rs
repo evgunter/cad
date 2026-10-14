@@ -29,23 +29,21 @@ const PHI: f64 = 0.4;
 /// angles below (`(1 + |cos θ|)/sin θ < 4`).
 const H: f64 = 4.0;
 
-/// `A` about `z`, and `B` about `(0, −sin θ, cos θ)`, each of radius 1
-/// and half-length [`H`], through the origin; their nodes are `±x̂`.
-fn pair(theta: f64) -> (Body<f64>, Body<f64>) {
-    let a = spin(&cyl(1.0, H), Vec3::new(0.0, 0.0, 1.0), PHI);
+/// `A` about `z`, and `B` about `(0, −sin θ, cos θ)`, each of radius `r`
+/// and half-length [`H`], through the origin; their nodes are `±r·x̂`.
+fn pair(theta: f64, r: f64) -> (Body<f64>, Body<f64>) {
+    let a = spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), PHI);
     let b = spin(
-        &spin(&cyl(1.0, H), Vec3::new(0.0, 0.0, 1.0), PHI),
+        &spin(&cyl(r, H), Vec3::new(0.0, 0.0, 1.0), PHI),
         Vec3::new(1.0, 0.0, 0.0),
         theta,
     );
     (a, b)
 }
 
-/// One operation's result: its volume with its certified bracket, its
-/// solids, and the valence of each vertex standing on each node, by
-/// node.
+/// One operation's result: its solids, the valence of each vertex
+/// standing on each node, by node, its 3′ and the body.
 struct Built {
-    volume: (f64, f64),
     solids: usize,
     at_nodes: [Vec<usize>; 2],
     /// Tier 3′ on the result's own contact records.
@@ -63,7 +61,6 @@ fn built(
     };
     let body = &out.body;
     let tol = Tol::witness();
-    let m = topo::mass_properties(body, tol).unwrap();
     let valence = |v| body.half_edges().filter(|(_, h)| h.start == v).count();
     let at = |n: Point3<f64>| {
         body.vertex_points()
@@ -72,7 +69,6 @@ fn built(
             .collect::<Vec<_>>()
     };
     Built {
-        volume: (m.volume, m.volume_pad),
         solids: body.solids().count(),
         at_nodes: [at(nodes[0]), at(nodes[1])],
         three_prime: topo::validate_pseudomanifold(body, &out.contacts, tol).map(|_| ()),
@@ -82,19 +78,18 @@ fn built(
 
 /// Every operation of the pair at angle `theta`, both operand orders,
 /// against the closed forms and the node's shape.
-fn assert_family(a: &Body<f64>, b: &Body<f64>, theta: f64, nodes: [Point3<f64>; 2], what: &str) {
+fn assert_family(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    (theta, r): (f64, f64),
+    nodes: [Point3<f64>; 2],
+    what: &str,
+) {
     let tol = Tol::witness();
     let (a, b) = (finished("A", a.clone(), tol), finished("B", b.clone(), tol));
-    let v_wall = 2.0 * PI * H;
-    let cap = 16.0 / (3.0 * theta.sin());
-    let close = |got: &Built, want: f64, op: &str| {
-        assert!(
-            (got.volume.0 - want).abs() <= got.volume.1 + 1e-9,
-            "{what}, {op}: volume {} ± {}, want {want}",
-            got.volume.0,
-            got.volume.1
-        );
-    };
+    let v_wall = 2.0 * PI * r * r * H;
+    let cap = 16.0 * r.powi(3) / (3.0 * theta.sin());
+    let close = |got: &Built, want: f64, op: &str| assert_volume(&got.body, want, op);
     for (first, second, order) in [(&a, &b, "A, B"), (&b, &a, "B, A")] {
         let cut = |op| format!("{what} ({order}), {op}");
         let i = built(topo::intersect(first, second, tol), nodes, &cut("∩"));
@@ -144,11 +139,17 @@ fn assert_family(a: &Body<f64>, b: &Body<f64>, theta: f64, nodes: [Point3<f64>; 
 /// **The family at several angles**, each beside its re-posed twin.
 #[test]
 fn equal_cylinders_with_meeting_axes_build_every_operation_at_the_closed_forms() {
-    let nodes = [Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0)];
-    for deg in [90.0_f64, 60.0, 120.0, 35.0] {
+    for (deg, r) in [
+        (90.0_f64, 1.0),
+        (60.0, 1.0),
+        (120.0, 1.0),
+        (35.0, 1.0),
+        (60.0, 0.5),
+    ] {
         let theta = deg.to_radians();
-        let (a, b) = pair(theta);
-        assert_family(&a, &b, theta, nodes, &format!("{deg}°"));
+        let (a, b) = pair(theta, r);
+        let nodes = [Point3::new(r, 0.0, 0.0), Point3::new(-r, 0.0, 0.0)];
+        assert_family(&a, &b, (theta, r), nodes, &format!("{deg}°, r = {r}"));
     }
 }
 
@@ -157,7 +158,7 @@ fn equal_cylinders_with_meeting_axes_build_every_operation_at_the_closed_forms()
 #[test]
 fn the_family_re_posed_builds_the_same() {
     let theta = 60.0_f64.to_radians();
-    let (a, b) = pair(theta);
+    let (a, b) = pair(theta, 1.0);
     let (a, b) = (repose(&a), repose(&b));
     let r = geom_core::Affine3::rotation_about_axis(
         Point3::new(0.0, 0.0, 0.0),
@@ -170,7 +171,7 @@ fn the_family_re_posed_builds_the_same() {
         place.transform_point(Point3::new(1.0, 0.0, 0.0)),
         place.transform_point(Point3::new(-1.0, 0.0, 0.0)),
     ];
-    assert_family(&a, &b, theta, nodes, "60°, re-posed");
+    assert_family(&a, &b, (theta, 1.0), nodes, "60°, re-posed");
 }
 
 /// A rod about `z` over `z ∈ [z0, z1]`, its seam turned [`PHI`].
@@ -223,6 +224,142 @@ fn a_rim_through_the_nodes_refuses_at_the_crossing_layer() {
                 assert!(
                     matches!(r, Err(topo::BooleanError::CurvedPierceUnsupported { .. })),
                     "{what}, {pose}, {op}: the crossing layer's tangency door, got {r:?}"
+                );
+            }
+        }
+    }
+}
+
+/// A brick less a unit rod through it, its seam turned [`PHI`]: a bore,
+/// the wall's face bounding the brick's material away from its axis.
+fn bored(brick: [(f64, f64); 3], rod: Body<f64>) -> Body<f64> {
+    let tol = Tol::witness();
+    let brick = finished(
+        "the brick",
+        sweep::test_support::brick(brick[0], brick[1], brick[2], tol),
+        tol,
+    );
+    topo::subtract(&brick, &finished("the rod", rod, tol), tol)
+        .expect("the bore")
+        .body()
+        .expect("the bore is a body")
+        .body
+        .clone()
+        .into_body()
+}
+
+/// A unit rod about `y`, half-length `h`, its seam turned [`PHI`].
+fn rod_y(h: f64) -> Body<f64> {
+    spin(
+        &spin(&cyl(1.0, h), Vec3::new(0.0, 0.0, 1.0), PHI),
+        Vec3::new(1.0, 0.0, 0.0),
+        PI / 2.0,
+    )
+}
+
+/// A built body's volume against `want`: within its certified bracket,
+/// and within half a percent of its mesh's enclosed volume (the chordal
+/// deficit at `2e-3` is a fraction of that), an oracle independent of
+/// the quadrature.
+fn assert_volume(body: &topo::AtRestBody<f64>, want: f64, what: &str) {
+    let tol = Tol::witness();
+    let m = topo::mass_properties(body, tol).unwrap();
+    assert!(
+        (m.volume - want).abs() <= m.volume_pad + 1e-9,
+        "{what}: volume {} ± {}, want {want}",
+        m.volume,
+        m.volume_pad
+    );
+    let mesh = mesh::tessellate(body, 2e-3, tol).expect("the result tessellates");
+    // Where two solids of the result touch at a node their faces there
+    // are tangent, and a chord beside the node closes a triangle on
+    // each: a mesh edge four triangles hold, which the at-rest body has
+    // no counterpart of. One solid is held watertight.
+    if body.solids().count() == 1
+        && let Err(e) = mesh::validate::check_mesh(&mesh)
+    {
+        panic!("{what}: a watertight mesh, got {e:?}");
+    }
+    let meshed = mesh::validate::signed_volume(&mesh);
+    assert!(
+        (meshed - want).abs() <= 5e-3 * want,
+        "{what}: the mesh encloses {meshed}, want {want}"
+    );
+}
+
+/// **Two crossing bores build every operation**: each brick's wall
+/// bounds its material away from its axis, so round each node A's
+/// sectors outside B and B's inside A are both those about `±â₂`, the
+/// ring the node mints. `A` is `[−2, 2]³` bored about `z`, `B` is
+/// `[−1.5, 1.5] × [−3, 3] × [−1.5, 1.5]` bored about `y`, both bores of
+/// unit radius through the origin; their common box is `3 × 4 × 3`,
+/// which holds the bores `3π` and `4π` of it and their Steinmetz `16/3`
+/// whole, so `∩ = 36 − 7π + 16/3`. Both operand orders and the re-posed
+/// twin, against the closed forms and the mesh.
+#[test]
+fn two_crossing_bores_build_every_operation_at_the_closed_forms() {
+    let tol = Tol::witness();
+    let a = bored(
+        [(-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)],
+        spin(&cyl(1.0, 3.0), Vec3::new(0.0, 0.0, 1.0), PHI),
+    );
+    let b = bored([(-1.5, 1.5), (-3.0, 3.0), (-1.5, 1.5)], rod_y(4.0));
+    let (va, vb) = (64.0 - 4.0 * PI, 54.0 - 6.0 * PI);
+    let cap = 36.0 - 7.0 * PI + 16.0 / 3.0;
+    for (pose, a, b) in [
+        ("direct", a.clone(), b.clone()),
+        ("re-posed", repose(&a), repose(&b)),
+    ] {
+        let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+        for (order, x, y, vx, vy) in [("A, B", &a, &b, va, vb), ("B, A", &b, &a, vb, va)] {
+            for (op, r, want) in [
+                ("∪", topo::union(x, y, tol), vx + vy - cap),
+                ("∩", topo::intersect(x, y, tol), cap),
+                ("∖", topo::subtract(x, y, tol), vx - cap),
+            ] {
+                let what = format!("{pose} ({order}), {op}");
+                let Ok(BooleanResult::Body(out)) = r else {
+                    panic!("{what}: two crossing bores build, got {r:?}");
+                };
+                assert_volume(&out.body, want, &what);
+            }
+        }
+    }
+}
+
+/// **A rod against a bore is not built: it refuses typed.** Round each
+/// node A's sectors outside B and B's sectors inside A are then
+/// different sectors, which no pierce ring pairs, so the node refuses
+/// `NodeUnbuilt` with that reason, in every operation, both operand
+/// orders and the re-posed twin, rather than reaching the join.
+#[test]
+fn a_rod_against_a_bore_refuses_its_node_typed() {
+    let tol = Tol::witness();
+    let bore = bored(
+        [(-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)],
+        spin(&cyl(1.0, 3.0), Vec3::new(0.0, 0.0, 1.0), PHI),
+    );
+    let rod = rod_y(4.0);
+    for (pose, a, b) in [
+        ("direct", rod.clone(), bore.clone()),
+        ("re-posed", repose(&rod), repose(&bore)),
+    ] {
+        let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+        for (order, x, y) in [("rod, bore", &a, &b), ("bore, rod", &b, &a)] {
+            for (op, r) in [
+                ("∪", topo::union(x, y, tol)),
+                ("∩", topo::intersect(x, y, tol)),
+                ("∖", topo::subtract(x, y, tol)),
+            ] {
+                assert!(
+                    matches!(
+                        r,
+                        Err(topo::BooleanError::NodeUnbuilt {
+                            why: topo::NodeWhy::OppositeSenses,
+                            ..
+                        })
+                    ),
+                    "{pose} ({order}), {op}: the node refuses typed, got {r:?}"
                 );
             }
         }

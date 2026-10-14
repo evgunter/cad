@@ -2266,6 +2266,27 @@ pub enum RefusedRow {
     Found,
 }
 
+/// **Why a node of an equal cylinder pair is not built**
+/// ([`BooleanError::NodeUnbuilt`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NodeWhy {
+    /// The node lies on an edge or a vertex of the operand's face: a
+    /// seam or rim through it.
+    OnBoundary(Operand),
+    /// The operand's face trim gives the node no verdict.
+    Unplaced(Operand),
+    /// A crossing of an edge of one operand with the other's wall lies
+    /// at the node: its germ reads neither ellipse.
+    GermOnNode,
+    /// One wall bounds a bore and the other a rod: round the node A's
+    /// sectors outside B are not B's sectors inside A, which no pierce
+    /// ring pairs.
+    OppositeSenses,
+    /// The node's arcs cannot be told apart by their turn toward an
+    /// axis: the axes are this nearly parallel at the walls' radius.
+    NearlyParallel,
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -3144,12 +3165,10 @@ pub enum BooleanError {
     /// does not build.** Two equal cylinder walls whose axes meet cut
     /// each other in two ellipses that cross at two NODES, `p ± r·n̂`
     /// (`n̂ = unit(â₁ × â₂)`), where the walls are tangent. A node inside
-    /// a face of each wall is built (`vtxfac::mint_node`); one on an
-    /// edge or a vertex of a face (`on_boundary`: an operand's seam or
-    /// rim through it), or one the face's chart trim cannot place, is
-    /// not, and refuses here, naming the operand and face it was read
-    /// against. A crossing germ minted at a node is one on an edge, and
-    /// refuses the same.
+    /// a face of each wall, the two faces bounding their solids on the
+    /// same side of their walls (two rods, or two bores), is built
+    /// (`vtxfac::mint_node`); every other node refuses here, naming A's
+    /// and B's faces and why ([`NodeWhy`]).
     ///
     /// Radius equality and coplanar axes are decided by their margins
     /// (`geom_brep::cylinder_cylinder_section`); at definitely unequal
@@ -3157,13 +3176,12 @@ pub enum BooleanError {
     /// class ([`Self::GermFrameUnsupported`]); a margin in band
     /// escalates rather than claim either class.
     NodeUnbuilt {
-        /// The operand whose face the node was read against.
-        operand: Operand,
-        /// The face.
-        face: FaceKey,
-        /// Whether the node lies on the face's boundary; `false` where
-        /// the trim gave no verdict.
-        on_boundary: bool,
+        /// A's face the node was read in.
+        a_face: FaceKey,
+        /// B's face, likewise.
+        b_face: FaceKey,
+        /// Why the node is not built.
+        why: NodeWhy,
     },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
@@ -4153,14 +4171,41 @@ impl core::fmt::Display for BooleanError {
                 },
                 meeting_recourse(kind_word(geom::SurfaceKind::Torus)),
             ),
-            Self::NodeUnbuilt { .. } => write!(
-                f,
-                "two cylinder walls of equal radius whose axes cross meet along two \
-                 ellipses that cross each other, and the Boolean cannot yet build a point \
-                 where they cross on an edge of either part. Recourse: move or turn the \
-                 parts so that each crossing point lies inside a face of both walls or \
-                 outside one of them",
-            ),
+            Self::NodeUnbuilt { why, .. } => {
+                let (where_, recourse) = match why {
+                    NodeWhy::OnBoundary(_) => (
+                        "where they cross on an edge of either part",
+                        "move or turn the parts so that each crossing point lies inside a \
+                         face of both walls or outside one of them",
+                    ),
+                    NodeWhy::Unplaced(_) => (
+                        "where they cross, which it cannot place inside or outside a face of \
+                         either part",
+                        "move or turn the parts so that each crossing point lies clearly \
+                         inside a face of both walls or outside one of them",
+                    ),
+                    NodeWhy::GermOnNode => (
+                        "where they cross at a point an edge of the other part meets",
+                        "move or turn the parts so that no edge of either part meets a wall \
+                         at a crossing point",
+                    ),
+                    NodeWhy::OppositeSenses => (
+                        "where they cross when one wall bounds a bore and the other a rod",
+                        "make both walls rods or both bores, or move the parts so that the \
+                         crossing points lie outside one of the walls' faces",
+                    ),
+                    NodeWhy::NearlyParallel => (
+                        "where they cross when the axes are this nearly parallel",
+                        "turn the parts so that their axes cross at a wider angle",
+                    ),
+                };
+                write!(
+                    f,
+                    "two cylinder walls of equal radius whose axes cross meet along two \
+                     ellipses that cross each other, and the Boolean cannot yet build a \
+                     point {where_}. Recourse: {recourse}"
+                )
+            }
             Self::Pcurves { source } => write!(
                 f,
                 "the result's pcurve mint pass refused (curved results carry \
@@ -7889,9 +7934,9 @@ mod tests {
                 },
             },
             BooleanError::NodeUnbuilt {
-                operand: Operand::A,
-                face,
-                on_boundary: true,
+                a_face: face,
+                b_face: face,
+                why: NodeWhy::OnBoundary(Operand::A),
             },
             BooleanError::Pcurves {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
