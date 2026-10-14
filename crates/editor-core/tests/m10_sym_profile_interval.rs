@@ -296,17 +296,17 @@ const SLAB_LEDGER: [&str; 3] = [
      Plain/Decision calls 981 forms 9426 frozen 0 digest 509f76009e2fdeda65fed3469e5b4c9a\n\
      Plain/Assertion calls 514 forms 1186 frozen 0 digest 6cc3925553d39ab11afdd6f49e2e95fc\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest c1a337dfb3fddea52f0b602dee5ce284",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest 78f9da753bcbf13302396be314a2326a",
     "\
      Plain/Decision calls 981 forms 9426 frozen 0 digest d5fda03dcfd46c23e618d14b01521812\n\
      Plain/Assertion calls 514 forms 1186 frozen 0 digest e01dd6ba526d880e783c1591e8ec918d\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest 07d7408b59196363c53b96cbc8093e55",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest a46526317b8db75f798dfec4841a3faf",
     "\
      Plain/Decision calls 981 forms 9426 frozen 0 digest 12eb2d77e98670e393dd86ec271d5c3b\n\
      Plain/Assertion calls 514 forms 1186 frozen 0 digest ed52a22cbba70cd084174fda0dd6d15c\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest 567124dbedb7c16baa8e3ed1ec024203",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest 319b9bb461d5031e9da6c0bbc966174c",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -550,19 +550,54 @@ const PLATE_MAX_TERMS: usize = 28;
 /// every decision tally hold (`m10_10_pins_interval` reads the pair's
 /// sum unchanged).
 ///
+/// Check 4 reading one vector at its norm where it summed its parts,
+/// each measured by reverting it alone on the tree holding the rest:
+/// - the turning cylinder's class circle (one `σ` for the radius and
+///   orientation terms): `Plain/Decision` +267 forms and +72 frozen,
+///   `Early/Decision` +267;
+/// - the cylinder class selector's radial circle at its exact sup
+///   (`radial_amplitude`, read at the door and on both walks):
+///   `Plain/Decision` +20, `Plain/Assertion` +193 forms and +16 frozen,
+///   `Early/Decision` +20, `Early/Assertion` +193, `Door/Decision`
+///   +196;
+/// - the two fidelity channels read as one displacement's legs (`√(u² +
+///   v²)` in the envelope's total): `Plain/Decision` and
+///   `Early/Decision` +36 each;
+/// - `EnvelopeTerm::Tilt` and `EnvelopeTerm::Orientation` retired, one
+///   zero summand fewer per envelope each: `Plain/Decision` and
+///   `Early/Decision` −12 per slot, −24 in all.
+///
+/// Together `Plain/Decision` 15749/252 → 16048/324, `Plain/Assertion`
+/// 4349/389 → 4542/405, `Early/Decision` 8671 → 8970, `Early/Assertion`
+/// 5312 → 5505, `Door/Decision` 7181 → 7377, and every digest of those
+/// lines; calls, every decision tally and the largest form hold, and
+/// the slab does not move.
+///
 /// Check 4 reading a `cos t`/`sin t` pair at its exact sup
 /// (`√(m + √(q² + (a·b)²))`, `√(a² + b²)`) instead of the sum of its
 /// coefficients' norms: a longer expression per envelope term, so
 /// `Plain/Decision` 15735 → 15749 and `Early/Decision` 8657 → 8671
 /// (+14 forms each) and those lines' digests; calls, freezes and every
 /// other line hold.
+///
+/// A form's digest no longer carries a read's gate (DECIDE-10), so the
+/// `Early/Assertion` and `Door/Decision` digests move on every form the
+/// decision read built, with every count held; and the contradiction
+/// check asks the tier's algebra without the door, so the
+/// `Door/Assertion` line, 396 calls that built nothing, is gone. The
+/// slab's `Early/Assertion` digests move the same way at each ε row.
+///
+/// The pcurve envelope's orthonormal chart squaring its frame by cross
+/// products (`geom::square_frame`) builds its frame terms in another
+/// form: `Plain/Decision`, `Early/Assertion` and `Door/Decision` +14
+/// forms each, and the `Plain/Assertion` digest; every call and freeze
+/// holds.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 15749 frozen 252 digest 066bebc5066c4c94ae93362a0873cb94\n\
-     Plain/Assertion calls 654 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
-     Early/Decision calls 352 forms 8671 frozen 0 digest eeaf8b06f90df22e99214afb32688acd\n\
-     Early/Assertion calls 654 forms 5312 frozen 0 digest ba87a0aca9ba1283a9177f2602626bdd\n\
-     Door/Decision calls 396 forms 7181 frozen 0 digest 188fd982307faf268e6444b8ea1c82bb\n\
-     Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Plain/Decision calls 1048 forms 16062 frozen 324 digest 715619d65a643a83cc5e70b84b682d55\n\
+     Plain/Assertion calls 654 forms 4542 frozen 405 digest f63af9fca1a4ea01e1f6315ee03c04fd\n\
+     Early/Decision calls 352 forms 8970 frozen 0 digest 7331ca9ce50daa679d9117fae6863d1a\n\
+     Early/Assertion calls 654 forms 5519 frozen 0 digest 68250ff348585275fa8c8d419067c7fe\n\
+     Door/Decision calls 396 forms 7391 frozen 0 digest d5224bf3c464a7398f599a5455143cb7";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

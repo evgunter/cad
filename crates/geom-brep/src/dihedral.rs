@@ -1427,7 +1427,7 @@ mod tests {
     #[test]
     fn a_gates_rejection_ends_by_its_reading_on_either_arm() {
         use geom_core::sym::with_session;
-        use geom_core::{FileCoincidence, ParamSymbol, Sym, SymBudget, Theorem};
+        use geom_core::{FileCoincidence, ParamSymbol, Sym, SymBudget};
 
         use crate::recourse::{ReadAt, Reading, Refused, RefusedArm};
 
@@ -1448,8 +1448,8 @@ mod tests {
             decide_positive("dihedral_arm", Margin::of(x * three / three - x), b).unwrap_err()
         });
         assert_eq!(
-            (proved.margin.rejected_sign(), proved.margin.theorem()),
-            (Some(Sign::Zero), Some(Theorem::SymbolicZero)),
+            (proved.margin.rejected_sign(), proved.margin.proven()),
+            (Some(Sign::Zero), true),
             "the proved zero is a gate's rejection: {proved:?}"
         );
         assert_eq!(
@@ -1472,8 +1472,9 @@ mod tests {
             "{lever}; an edge of no length, or a face curving to a point as a cone does, \
              leaves no angle to measure"
         );
-        let unstated = "This length or the gap its faces open is below the file's declared \
-                        coincidence distance ε_in = 1e-8 m, so the file does not state it. ";
+        let untold = "This length or the gap its faces open is within the file's declared \
+                        coincidence distance ε_in = 1e-8 m, so the file cannot tell it from \
+                        zero. ";
         let offer = format!(
             "{lever}, or, if this length or the gap its faces open is intended, tighten the \
              tolerance below 5e-11 m"
@@ -1487,17 +1488,17 @@ mod tests {
             (
                 "a read zero",
                 &read,
-                [noted.clone(), noted.clone(), format!("{unstated}{lever}")],
+                [noted.clone(), noted.clone(), format!("{untold}{lever}")],
             ),
             (
                 "a proved zero",
                 &proved,
-                [noted.clone(), noted.clone(), format!("{unstated}{lever}")],
+                [noted.clone(), noted.clone(), format!("{untold}{lever}")],
             ),
             (
                 "a rounded zero",
                 &rounded,
-                [floor.clone(), floor.clone(), format!("{unstated}{floor}")],
+                [floor.clone(), floor.clone(), format!("{untold}{floor}")],
             ),
             (
                 "a small size",
@@ -1506,7 +1507,7 @@ mod tests {
                     offer.clone(),
                     offer,
                     format!(
-                        "{unstated}{lever}, or, if this length or the gap its faces open is \
+                        "{untold}{lever}, or, if this length or the gap its faces open is \
                          intended, re-export the file with its uncertainty declared below \
                          5e-10 m and tighten the tolerance below 5e-11 m"
                     ),
@@ -1515,7 +1516,7 @@ mod tests {
             (
                 "an untagged in-band margin on the refused side",
                 &in_band,
-                [noted.clone(), noted, format!("{unstated}{lever}")],
+                [noted.clone(), noted, format!("{untold}{lever}")],
             ),
             (
                 "a rejected Negative",
@@ -2255,8 +2256,9 @@ mod tests {
             assert_eq!(
                 DIHEDRAL_ARM.recourse(arm, file),
                 format!(
-                    "This length or the gap its faces open is below the file's declared \
-                     coincidence distance ε_in = 1e-6 m, so the file does not state it. {lever}"
+                    "This length or the gap its faces open is within the file's declared \
+                     coincidence distance ε_in = 1e-6 m, so the file cannot tell it from \
+                     zero. {lever}"
                 ),
                 "{arm:?} at the import door"
             );

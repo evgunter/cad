@@ -377,12 +377,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // Placed beside the sealed vessel so one camera and one scale carry
     // both, which is what makes the rim readable against the wall it
     // came from.
-    let apart = pncad::topo::transform_rigid(
-        &cup,
-        &pncad::geom_core::Affine3::translation(pncad::geom_core::Vec3::new(R_RIM * 3.0, 0.0, 0.0)),
-        tol,
-    )
-    .expect("a translation is rigid");
+    let beside = pncad::geom_core::RigidMotion::translation(pncad::geom_core::Vec3::new(
+        R_RIM * 3.0,
+        0.0,
+        0.0,
+    ))
+    .expect("a finite offset");
+    let apart = pncad::topo::transform_rigid(&cup, &beside, tol).expect("a translation is rigid");
 
     vec![Stop {
         name: "fivewall",

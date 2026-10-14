@@ -915,7 +915,9 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
             )));
         }
     };
-    Ok(Some(crate::eval::stepped_rule_map(&ops, i64::from(i))))
+    crate::eval::stepped_rule_map(&ops, i64::from(i))
+        .map(|motion| Some(motion.to_affine()))
+        .map_err(here)
 }
 
 /// **The map a transform contributes** — its placement's motion, by

@@ -228,8 +228,9 @@ fn r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door() {
 /// `R/r = 1.1` the clearance screen's margin is `≈ −0.27·r` (the unit
 /// measured `−2.717e-2` at `r = 0.1`), so a member whose screen reading
 /// would sit in the band has `r ≈ 1.8·Kε` — and there the mill refuses
-/// first: the flat grazes the cylinder at `R − r = 0.1·r`, in band
-/// (`split_conic_belly_graze`). The family is out of the rule's reach
+/// first: the flat grazes the cylinder at `R − r = 0.1·r`, in band, and
+/// the boolean's glue door escalates the plane×cylinder tangency it
+/// cannot decide (`pc_parallel_gap`). The family is out of the rule's reach
 /// at every scale, but the unit's "definite negative whatever the
 /// scale" describes the screen at ordinary scale only: at this one the
 /// body is not buildable.
@@ -239,8 +240,8 @@ fn r1_the_screened_ratio_scaled_into_the_band_is_refused_at_the_mill() {
     let r = 0.5 * b.escalate() / 0.2717;
     match rod_with_flat_at(1.1 * r, r, 10.0 * r, 2.2 * r, tol()) {
         Err(text) => assert!(
-            text.contains("split_conic_belly_graze"),
-            "the mill escalates the belly graze: {text}"
+            text.contains("pc_parallel_gap"),
+            "the mill escalates the belly graze at the glue door: {text}"
         ),
         Ok(body) => {
             let crease = rod_upper_crease(&body);

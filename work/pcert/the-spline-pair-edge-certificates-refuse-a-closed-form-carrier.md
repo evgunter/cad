@@ -7,7 +7,6 @@ opened: 2026-10-12
 priority: P1
 cost: M
 design: true
-needs_ev: true
 ---
 
 
@@ -55,3 +54,28 @@ D7 recognition's Line promotion lands on the same wall
 A non-plane analytic surface paired with a spline refuses at `resolve`
 for spline carriers too, so it is its own gap:
 `analytic-by-spline-edges-refuse-as-unimplemented-at-resolve`.
+
+## A premise that moves with the answer
+
+`topo::pcurves::nurbs_iso_derive`'s circle fall-through returns the
+arc-rim pick without falling through to `General`, on the premise that
+no door certifies an `Intersection` circle on a spline chart (PR 4988).
+A closed-form carrier the spline-pair lanes take would end that premise:
+`an_intersection_circle_on_a_spline_wall_is_refused_at_the_door`
+(`crates/sweep/tests/an_arc_rim_picks_the_row_it_lies_on.rs`) goes red
+then, and the fall-through has to reach `General` where the arc-rim
+certification refuses.
+
+## The answer
+
+Ruled by Ev (PR 4974, 2026-10-14): as recommended. The two lanes take
+a carrier of any kind on a rung-3 pair, checked by the C2 certificate's
+three limbs (`crates/geom-brep/README.md` C1/C2): limbs 1–2 read a
+closed-form carrier through `geom_brep::carrier_net`, limb 3 is the
+chart or two-chart tube as today. Ev's framing: "it's a bit weird to
+have something that's only reachable by import but i'm ok with this as
+a temporary state while the within-kernel certification is unbuilt".
+Today only import reaches it (a file's stated line or circle, or D7's
+Line promotion); the kernel's own spline-pair intersections mint spline
+carriers. When the lanes land, `nurbs_iso_derive`'s circle fall-through
+(above) must reach `General` where the arc-rim certification refuses.

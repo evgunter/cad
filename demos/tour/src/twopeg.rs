@@ -63,7 +63,7 @@
 
 use pncad::authoring::{p2, v3, validated};
 use pncad::document::ExtrudeSide;
-use pncad::geom_core::{Affine3, Tol, Vec3};
+use pncad::geom_core::{Affine3, RigidMotion, Tol, Vec3};
 use pncad::prelude::SurfaceKind;
 use pncad::prelude::{SurfaceKindSet, query};
 use pncad::profile::{ConstructedLoop, Open, SketchPlane, Start, ValidatedProfile, circle_split};
@@ -411,7 +411,7 @@ pub(crate) fn build<S: Scalar>(
 
     // The apart framing: Q lifted by a rigid transform (#84 — every
     // moved edge witness is re-minted, and the moved body revalidates).
-    let lift = Affine3::translation(v3(0.0, 0.0, 1.6));
+    let lift = RigidMotion::translation(v3(0.0, 0.0, 1.6)).expect("a finite lift");
     let q_lifted = pncad::topo::transform_rigid(&q, &lift, tol).expect("lift plate Q");
     (p, q, mated, q_lifted)
 }
@@ -446,7 +446,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // (`transform_rigid` would carry either: it leaves the topology
     // "and every arena key untouched", so a contact-carrying body
     // survives it. What it re-mints is each moved edge's WITNESS, #84.)
-    let aside = Affine3::translation(Vec3::new(APART_GAP, 0.0, 0.0));
+    let aside = RigidMotion::translation(Vec3::new(APART_GAP, 0.0, 0.0)).expect("a finite offset");
     let p_aside = pncad::topo::transform_rigid(&p, &aside, tol).expect("place P aside");
     let q_aside = pncad::topo::transform_rigid(&q_lifted, &aside, tol).expect("place Q aside");
     vec![Stop {

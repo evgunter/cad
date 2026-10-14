@@ -127,11 +127,11 @@ pub enum Rung {
     SameConstruction,
     /// The kernel's carrier-pair verdict, run on the two cells'
     /// carriers in the replay at `Sym`, decided them one carrier, every
-    /// Zero it stands on a theorem of this kind.
-    CarrierVerdict(geom_core::Theorem),
-    /// The deciding margin, read in the replay at `Sym`, is zero as a
-    /// polynomial in the variables: a theorem of this kind.
-    MarginIdentity(geom_core::Theorem),
+    /// Zero it stands on proven by the symbolic tier.
+    CarrierVerdict,
+    /// The deciding margin, read in the replay at `Sym`, is proven zero
+    /// by the symbolic tier.
+    MarginIdentity,
 }
 
 /// **The door was canceled** before it decided every row: the token

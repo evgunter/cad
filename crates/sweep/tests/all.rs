@@ -56,8 +56,12 @@ mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
 
+#[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
+mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_curved_keel_in_the_plane.rs"]
 mod a_curved_keel_in_the_plane;
+#[path = "a_face_off_the_tangent_ruling.rs"]
+mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
 mod a_flank_touch_at_a_shared_corner;
 #[path = "a_flipped_shallow_dimple.rs"]
@@ -102,6 +106,8 @@ mod a_thin_cap_keeps_its_digits;
 mod a_tube_ending_on_a_ball;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
+mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "an_inside_out_thin_tube_operand.rs"]
@@ -148,6 +154,8 @@ mod cone_join_lane;
 mod cone_operand_rows;
 #[path = "continuation_pose.rs"]
 mod continuation_pose;
+#[path = "crossing_equal_rods.rs"]
+mod crossing_equal_rods;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
@@ -204,6 +212,8 @@ mod pocket_ring_steep_ellipse;
 mod pocket_wall_crossing_a_side_face;
 #[path = "point_in_loop_arc_cap.rs"]
 mod point_in_loop_arc_cap;
+#[path = "point_touch_records.rs"]
+mod point_touch_records;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
 #[path = "r1_lane0_e2e.rs"]
@@ -289,6 +299,8 @@ mod axis_lap;
 mod band_annulus_host_boundary;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
+#[path = "band_planar_consume.rs"]
+mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
 mod band_planar_cut_off;
 #[path = "band_planar_cut_off_interval.rs"]
@@ -309,6 +321,10 @@ mod band_ruled_cap_ring;
 mod band_ruled_d_hole;
 #[path = "band_turn_overrun_chamfer.rs"]
 mod band_turn_overrun_chamfer;
+#[path = "band_turn_overrun_fillet.rs"]
+mod band_turn_overrun_fillet;
+#[path = "band_turn_overrun_fillet_model.rs"]
+mod band_turn_overrun_fillet_model;
 #[path = "band_turn_overrun_oracles.rs"]
 mod band_turn_overrun_oracles;
 #[path = "band_turn_overrun_probe.rs"]
@@ -793,6 +809,8 @@ mod germ_interior_saddle;
 mod germ_plane_torus_chord;
 #[path = "germ_plane_torus_frame.rs"]
 mod germ_plane_torus_frame;
+#[path = "germ_plane_torus_spiric.rs"]
+mod germ_plane_torus_spiric;
 #[path = "germ_radial_hole.rs"]
 mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]
@@ -1127,6 +1145,8 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_cone_with_a_tilted_seam.rs"]
+mod a_cone_with_a_tilted_seam;
 #[path = "join_lever_is_the_joined_edge.rs"]
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]

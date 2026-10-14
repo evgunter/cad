@@ -170,11 +170,20 @@ impl Verb {
         .map_err(|r| r.error)
     }
 
-    /// The section a band removes from (or adds to) a right dihedral.
+    /// The section a band of size `D` removes from (or adds to) a right
+    /// dihedral.
     pub(crate) fn section(self) -> f64 {
+        self.section_at(D, PI / 2.0)
+    }
+
+    /// The section a band of size `r` removes from (or adds to) a
+    /// dihedral of interior angle `theta`: the chamfer's triangle
+    /// `r²·sin θ / 2`, the fillet's kite less its sector
+    /// `r²·(cot(θ/2) − (π − θ)/2)`.
+    pub(crate) fn section_at(self, r: f64, theta: f64) -> f64 {
         match self {
-            Self::Chamfer => D * D / 2.0,
-            Self::Fillet => (1.0 - PI / 4.0) * D * D,
+            Self::Chamfer => r * r * theta.sin() / 2.0,
+            Self::Fillet => r * r * (1.0 / (theta / 2.0).tan() - (PI - theta) / 2.0),
         }
     }
 

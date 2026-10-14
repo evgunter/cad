@@ -129,7 +129,7 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
 /// key, the D5 descendant map's zip rows) and the surviving seam
 /// edges (the D6 description pass's worklist — tracked lineage, never
 /// a post-hoc scan).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(super) struct ZipReport {
     /// Vertex fusions in zip order: `(dead, kept)` per zipped pair.
     pub vertex_merges: Fusions,
@@ -139,6 +139,17 @@ pub(super) struct ZipReport {
     /// Edge fusions, `(dead, kept)`: each B section edge the zip kills
     /// and the A seam edge on its segment, which survives in its place.
     pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
+}
+
+impl Default for ZipReport {
+    // Each lineage list names itself where it is made (`LineageRows`).
+    fn default() -> Self {
+        Self {
+            vertex_merges: Fusions::new(crate::lineage::LineageRows::Fusions),
+            seam_edges: Default::default(),
+            edge_merges: Default::default(),
+        }
+    }
 }
 
 /// The order the loopglue zip fuses a seam's `n` vertex pairs in:
@@ -418,7 +429,7 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     let (cone_a, cone_b) = cones(&sigma_a, &sigma_b);
     let mut a_sections: Vec<FaceKey> = seams.iter().map(|&(a, _)| a).collect();
     let mut b_sections: Vec<FaceKey> = seams.iter().map(|&(_, b)| b).collect();
-    let mut splits = Vec::new();
+    let mut splits = crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies);
     split_side(
         body,
         &runs_a,
@@ -474,16 +485,15 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
 /// past it is one whose pinches the boolean's carry reads
 /// (`ops::Zipped`). Only [`split_cones`] builds one.
 pub(super) struct ConesSplit {
-    /// Each split `(split, new)` in the order made, keys of the body
-    /// split: the vertex split and the vertex its moved cone now holds,
-    /// on the split vertex's point key
-    /// (`BooleanNaming::cone_splits`).
-    splits: Vec<(VertexKey, VertexKey)>,
+    /// Each split `(new, split)` in the order made, keys of the body
+    /// split: the vertex its moved cone now holds, on the split vertex's
+    /// point key, and the vertex split (`BooleanNaming::cone_splits`).
+    splits: crate::lineage::ConeCopies,
 }
 
 impl ConesSplit {
-    /// The splits made, `(split, new)` in the order made.
-    pub(super) fn splits(&self) -> &[(VertexKey, VertexKey)] {
+    /// The splits made, checked as each was made.
+    pub(super) fn splits(&self) -> &crate::lineage::ConeCopies {
         &self.splits
     }
 }
@@ -554,7 +564,7 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 /// Splits each of one side's vertices per cone, its first cone's runs
 /// staying, one cone at a time: a cone whose runs lie together round the
 /// vertex, first in orbit order. Each split is pushed to `splits` as
-/// `(split, new)`.
+/// `(new, split)`, checked where it is pushed.
 ///
 /// The null edge each `mev_null` leaves lies between two section
 /// corners, on the section faces the zips consume, and is killed there:
@@ -570,14 +580,15 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 /// split takes a cone whose runs lie together, which nesting always
 /// leaves, so only two cones' runs alternating, their boundary cycles
 /// crossing there, refuse. No battery line reaches that.
-/// The Euler operators' refusals, typed.
+/// The Euler operators' refusals, typed. [`BooleanError::LineageRow`]
+/// where a split's copy is not one its `mev_null` minted.
 fn split_side<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     runs: &RunsAt,
     cone_of: &[usize],
     he_of: &dyn Fn(usize) -> HalfEdgeKey,
     sections: &mut Vec<FaceKey>,
-    splits: &mut Vec<(VertexKey, VertexKey)>,
+    splits: &mut crate::lineage::ConeCopies,
     tol: Tol,
 ) -> Result<(), BooleanError> {
     for at in runs.values() {
@@ -593,7 +604,7 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
                 crate::NewVertexSide::Above,
             )?;
             let split = proven(&body.half_edges, made.he_plus, EntityId::HalfEdge).start;
-            splits.push((split, made.vertex));
+            splits.push((made.vertex, split))?;
             let loop_of =
                 |he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
             let (lp, lm) = (loop_of(made.he_plus), loop_of(made.he_minus));
@@ -1237,7 +1248,7 @@ mod tests {
         };
         let killed = |v| (RowDefect::NamesRetired, super::super::Cell::Vertex(v));
 
-        let mut chain = Fusions::default();
+        let mut chain = Fusions::new(crate::lineage::LineageRows::Fusions);
         chain.push((a, b)).unwrap();
         chain.push((b, c)).unwrap();
         assert_eq!(
@@ -1246,7 +1257,7 @@ mod tests {
             "a chain folds through every hop, and an unfused key is its own"
         );
 
-        let mut fusions = Fusions::default();
+        let mut fusions = Fusions::new(crate::lineage::LineageRows::Fusions);
         fusions.push((a, b)).unwrap();
         for (row, what, case) in [
             ((c, a), killed(a), "keeps a killed key"),
@@ -1258,7 +1269,7 @@ mod tests {
             ),
         ] {
             assert_eq!(refusal(fusions.push(row)), what, "pushed: {case}");
-            let mut later = Fusions::default();
+            let mut later = Fusions::new(crate::lineage::LineageRows::Fusions);
             if row.0 != row.1 {
                 later.push(row).unwrap();
                 assert_eq!(refusal(fusions.extend(&later)), what, "extended: {case}");
@@ -1277,9 +1288,9 @@ mod tests {
     fn an_extend_that_refuses_partway_leaves_the_list_as_it_was() {
         let mut arena: SlotMap<VertexKey, ()> = SlotMap::with_key();
         let [a, b, c, d, e] = [(); 5].map(|()| arena.insert(()));
-        let mut fusions = Fusions::default();
+        let mut fusions = Fusions::new(crate::lineage::LineageRows::Fusions);
         fusions.push((a, b)).unwrap();
-        let mut later = Fusions::default();
+        let mut later = Fusions::new(crate::lineage::LineageRows::Fusions);
         later.push((d, e)).unwrap();
         later.push((c, a)).unwrap();
         assert!(

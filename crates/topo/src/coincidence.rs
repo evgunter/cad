@@ -174,24 +174,27 @@ pub enum DecisionSite {
 }
 
 /// **How a row's Zero was discharged**: against the band, or, in a
-/// replay at `Sym`, as a theorem of the symbolic tier (ERROR-DESIGN
-/// E12) — the deciding margin identically zero in the variables.
+/// replay at `Sym`, proven by the symbolic tier (ERROR-DESIGN E12) —
+/// the deciding margin zero wherever the construction takes the
+/// decisions it took. It says that the margin is zero, and nothing
+/// about how the tier proved it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Discharge {
     /// The margin was classified against the band.
     Numeric,
     /// The symbolic tier proved the margin zero.
-    Theorem(geom_core::Theorem),
+    Proven,
 }
 
 impl Discharge {
     /// How `margin`'s Zero was discharged, as its decision stamped it
-    /// ([`MarginDiag::theorem`]).
+    /// ([`MarginDiag::proven`]).
     #[must_use]
     pub const fn of(margin: MarginDiag) -> Self {
-        match margin.theorem() {
-            Some(how) => Self::Theorem(how),
-            None => Self::Numeric,
+        if margin.proven() {
+            Self::Proven
+        } else {
+            Self::Numeric
         }
     }
 }
@@ -210,6 +213,28 @@ pub struct Coincidence {
     pub margin: MarginDiag,
     /// How that margin's Zero was discharged.
     pub discharge: Discharge,
+}
+
+impl Coincidence {
+    /// The row's A-operand face and B-operand face, where it relates
+    /// one face of each operand, in that order; `None` for any other
+    /// pair of cells.
+    #[must_use]
+    pub fn face_pair(&self) -> Option<(crate::FaceKey, crate::FaceKey)> {
+        match self.cells {
+            [
+                RowCell::Input {
+                    input: Operand::A,
+                    cell: Cell::Face(a),
+                },
+                RowCell::Input {
+                    input: Operand::B,
+                    cell: Cell::Face(b),
+                },
+            ] => Some((a, b)),
+            _ => None,
+        }
+    }
 }
 
 /// **One decision a contact record cites** (D1 (ii)): the coincidence

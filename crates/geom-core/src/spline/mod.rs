@@ -59,6 +59,7 @@ pub mod net;
 pub mod pieces;
 pub mod projective;
 pub mod range;
+pub mod weight_scale;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
 pub use blossom::{BlossomError, SpanRow, diagonal_in_span, restrict_bernstein, restrict_segment};
@@ -66,8 +67,9 @@ pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
 pub use derivative::{
-    CellAxis, CellBlock, CellQuotients, QUOTIENT_MAX_DEGREE, QuotientPiece, cell_quotients,
-    derivative_net, span_derivative_scale, speed_pieces, stretch_pieces,
+    CellAxis, CellBlock, CellQuotients, CellSecondQuotients, QUOTIENT_MAX_DEGREE, QuotientPiece,
+    accel_pieces, cell_quotients, cell_second_quotients, derivative_net, polynomial_area_pieces,
+    span_derivative_scale, speed_pieces, stretch_pieces,
 };
 pub use hull::{
     C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
