@@ -38,6 +38,15 @@
 //! - **an iso family of one chart**: both faces on one surface key,
 //!   both edges `Chart` images in it on one iso family, and the chart
 //!   regular at the vertex.
+//! - **an iso family of one of the pair's charts**: both edges `OnPair`
+//!   citing the faces' two surface keys. The pair under-determines the
+//!   locus, so it does not decide the branch; the first of the two
+//!   charts (the plus face's, then the minus face's) on which both
+//!   carriers lie on one iso family does, regular at the vertex as
+//!   above. A pair on no family of either chart is not joined, nor is a
+//!   plane × plane pair, which the planar path takes and joins only as
+//!   an `Intersection`. The joined edge is asked the must-carry rule
+//!   again over its own span.
 //!
 //! Distinct components of one locus never share a point, and one iso
 //! family has one member through a regular point, so the vertex decides
@@ -333,13 +342,16 @@ pub(super) fn free_vertices<T: Real>(
 }
 
 /// The structural carrier a curved edge's description names on a face
-/// pair: a locus of the surface pair (transverse or tangent), or an iso
-/// family of one surface's chart.
+/// pair: a locus of the surface pair (transverse or tangent), an iso
+/// family of one surface's chart, or, for a locus the pair
+/// under-determines, an iso family of one of its two charts (`false`
+/// the plus face's, `true` the minus face's).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Locus {
     Transverse,
     Tangent,
     Iso(geom_brep::IsoFamily),
+    PairIso(bool, geom_brep::IsoFamily),
 }
 
 /// Whether `s`'s chart is singular at its point `p`: a cone's apex, a
@@ -478,7 +490,25 @@ fn joinable<T: Decide>(
                     .map_err(|e| undecided(JoinReading::ChartClass(e)))?
                     .map(Locus::Iso)
             }
-            _ => None,
+            geom_brep::EdgeDescription::OnPair { pair }
+                if sf != sg && *pair == geom_brep::SurfacePair::new(sf, sg) =>
+            {
+                let mut found = None;
+                for (minus, s) in [(false, surf_f), (true, surf_g)] {
+                    if let Some(family) = geom_brep::chart_iso_family(c.carrier(), s, band)
+                        .map_err(|e| undecided(JoinReading::ChartClass(e)))?
+                    {
+                        found = Some(Locus::PairIso(minus, family));
+                        break;
+                    }
+                }
+                found
+            }
+            geom_brep::EdgeDescription::Intersection { .. }
+            | geom_brep::EdgeDescription::TangentIntersection { .. }
+            | geom_brep::EdgeDescription::OnPair { .. }
+            | geom_brep::EdgeDescription::Chart(_)
+            | geom_brep::EdgeDescription::Scaffold(_) => None,
         })
     };
     let Some(locus) = locus_of(e1, d1)? else {
@@ -494,7 +524,7 @@ fn joinable<T: Decide>(
             return Ok(None);
         }
     }
-    if matches!(locus, Locus::Iso(_)) {
+    if matches!(locus, Locus::Iso(_) | Locus::PairIso(..)) {
         return Ok(Some(join(false)));
     }
     // The pair's reading at `w`, levered over the scale of the edge the
@@ -596,6 +626,10 @@ pub(crate) fn joinable_at_rest<T: Decide>(
 /// after the merge and its re-description, before the records are
 /// carried.
 ///
+/// Also returns, for each `gone` edge that held a `SplitEdge` record,
+/// the edge it was split from, read before the kills drop the record
+/// ([`super::BooleanNaming::joined_lineage`]).
+///
 /// # Errors
 ///
 /// As [`Body::join_edges`].
@@ -605,11 +639,13 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     recorded: &BTreeSet<VertexKey>,
     band: Band,
     tol: Tol,
-) -> Result<Vec<EdgeJoin>, BooleanError> {
+) -> Result<(Vec<EdgeJoin>, BTreeMap<EdgeKey, EdgeKey>), BooleanError> {
+    let split_from = split_records(body);
     // The boolean's own surgery body, re-minted whole after the carry:
     // no staging and no re-mint here.
     let free = free_vertices(body, recorded);
     let (joined, _) = join_all(body, band, tol, &|_| true, &free)?;
+    let mut lineage = BTreeMap::new();
     for j in &joined {
         desc.substitute((Cell::Vertex(j.vertex), Cell::Edge(j.kept)))?;
         desc.substitute((Cell::Edge(j.gone), Cell::Edge(j.kept)))?;
@@ -617,7 +653,41 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
             desc.substitute((Cell::Vertex(v), Cell::Edge(j.kept)))?;
         }
     }
-    Ok(joined)
+    record_joined_lineage(&mut lineage, &split_from, &joined);
+    Ok((joined, lineage))
+}
+
+/// Each edge of `body` with a `SplitEdge` record → the edge it was
+/// split from: the records as they stand, taken before a join's kills
+/// drop the killed edges' ([`record_joined_lineage`]).
+pub(crate) fn split_records<T: Real>(body: &Body<T>) -> BTreeMap<EdgeKey, EdgeKey> {
+    body.edges()
+        .filter_map(|(e, _)| match body.edge_provenance_of(e) {
+            Some(crate::provenance::Provenance::SplitEdge { edge }) => Some((e, *edge)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Writes into `lineage` each of `joins`' `gone` edges that held a
+/// record in `split_from` ([`split_records`], taken before the kills),
+/// with the edge it was split from. An edge recorded twice names one
+/// parent: a body holds one record per edge.
+pub(crate) fn record_joined_lineage(
+    lineage: &mut BTreeMap<EdgeKey, EdgeKey>,
+    split_from: &BTreeMap<EdgeKey, EdgeKey>,
+    joins: &[EdgeJoin],
+) {
+    for j in joins {
+        if let Some(&from) = split_from.get(&j.gone) {
+            let earlier = lineage.insert(j.gone, from);
+            debug_assert!(
+                earlier.is_none_or(|e| e == from),
+                "{:?} recorded with two parents ({earlier:?}, {from:?})",
+                j.gone
+            );
+        }
+    }
 }
 
 /// **Why the join refused**, as a door that is not the boolean carries
@@ -853,6 +923,7 @@ fn joined_spec<T: Decide>(
     body: &Body<T>,
     w: VertexKey,
     join: &Join,
+    band: Band,
 ) -> Result<geom_brep::EdgeCurveSpec<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let curve = |e: EdgeKey| {
@@ -902,6 +973,16 @@ fn joined_spec<T: Decide>(
             })?
     };
     let (a, b) = if backward { (tx, t1) } else { (t0, tx) };
+    // A declaration's parameter is affine in the carrier's, so the kept
+    // edge's runs on over the joined span exactly as a split restricts
+    // it; certification re-meters it.
+    let declared = match kept.authority() {
+        geom_brep::EdgeAuthority::Declared(mc) => {
+            let span = t1 - t0;
+            Some(mc.restrict((a - t0) / span, (b - t0) / span))
+        }
+        geom_brep::EdgeAuthority::Derived => None,
+    };
     let description = match kept.description() {
         geom_brep::EdgeDescription::Intersection { pair, .. } => {
             geom_brep::EdgeDescriptionSpec::Intersection {
@@ -915,20 +996,26 @@ fn joined_spec<T: Decide>(
                 witness: carrier.mid_point(a, b),
             }
         }
+        // The joined edge is longer than either piece, and the
+        // must-carry verdict reads its extent, so the pair is asked again
+        // over the joined span.
+        geom_brep::EdgeDescription::OnPair { pair } => body
+            .reask_on(*pair, carrier, (a, b), declared, band)
+            .map_err(|refusal| match refusal {
+                geom_brep::PairRefusal::InBand(escalation) => {
+                    let (reading, diag) = geom_brep::DihedralReading::of_must_carry(escalation);
+                    super::ops::seam_refusal(reading, diag)
+                }
+                geom_brep::PairRefusal::Mixed(stations) => BooleanError::MixedSeam {
+                    edge: join.kept,
+                    stations: Some(stations),
+                },
+            })?,
         geom_brep::EdgeDescription::Chart(c) => geom_brep::EdgeDescriptionSpec::Chart {
             surface: c.surface,
             image: if c.wrap { None } else { Some(c.pcurve.clone()) },
             wrap: c.wrap,
-            // A declaration's parameter is affine in the carrier's, so
-            // the kept edge's runs on over the joined span exactly as a
-            // split restricts it; certification re-meters it.
-            declared: match kept.authority() {
-                geom_brep::EdgeAuthority::Declared(mc) => {
-                    let span = t1 - t0;
-                    Some(mc.restrict((a - t0) / span, (b - t0) / span))
-                }
-                geom_brep::EdgeAuthority::Derived => None,
-            },
+            declared,
         },
         geom_brep::EdgeDescription::Scaffold(_) => {
             return Err(desync("a joined edge is scaffolding at rest"));
@@ -963,7 +1050,7 @@ fn join_one<T: Decide + crate::props::AtRestPolicy>(
                 what: "a joined edge is not the kill's merged member",
             })?
     } else {
-        joined_spec(body, w, join)?
+        joined_spec(body, w, join, band)?
     };
     let killed = body.kev_describing(join.he, &[(join.kept, spec)], tol)?;
     debug_assert_eq!(killed.killed_vertex, w, "the kill takes the joined vertex");
