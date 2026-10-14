@@ -104,7 +104,7 @@ pub(super) fn off_face<T: Decide + Bounds>(
 
 /// The carrier's reach, ρ in the module docs; `None` for a kind with no
 /// distance here.
-fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
+pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
     match *surface {
         geom::Surface::Sphere { radius, .. } | geom::Surface::Cylinder { radius, .. } => {
             Some(radius)

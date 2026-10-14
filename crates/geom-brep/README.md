@@ -26,7 +26,7 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
 | C6 f64 structure, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
@@ -566,10 +566,24 @@ drift and frame terms — with the schedule its cross-check), `Projected`
 (the projected image above, on an analytic chart), `Fitted` and `General`
 (on a spline chart; the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
-parameter stays chart-neutral. The description form every conventional
-edge takes is `EdgeDescription::Chart { surface, pcurve, seam }`, with
-`EdgeAuthority` recording who declared the locus; that collapse and its
-fence are `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
+parameter stays chart-neutral. A conventional edge takes one of two
+forms: `EdgeDescription::OnPair { pair }` for a locus two distinct
+surfaces under-determine, certified by incidence on both (each
+surface's per-sample residual, as `Intersection` meters it) and named
+by no chart, and `EdgeDescription::Chart { surface, pcurve, wrap }` for
+a locus one chart defines (wraps, iso lines, splits whose two faces
+share one surface, stated spline isos), with `EdgeAuthority` recording
+who declared the locus. Which form an edge between two faces takes is
+decided in one home, `topo::rest_locus` (`RestLocus`): one surface
+record is one surface; two records the carrier-equality ladder reads
+as one carrier over the faces' region are one surface too, since
+incidence on both is incidence on one, and the edge rests in the first
+record's chart; two distinct carriers, or a kind outside the ladder,
+are the pair; and a coincidence in band, a rung that cannot decide, or
+a region that does not read is the pair too, an answer rather than a
+guess, since the pair's certificate (incidence on both surfaces) holds
+whether or not they are one carrier. The chart collapse and its fence are
+`docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
 area read a face carrying a `General` pcurve through the trimmed
 quadrature lane (`crates/topo/src/props/quad_lane.rs`), and tessellation through the
 mesher's trimmed path; a rational `General` image refuses typed there.
@@ -674,7 +688,22 @@ only when both move one reading, as a residual and its span sag do. Tier 3 has t
 definitely-tangent edge carries a recorded `ContactMark` (`Tangent` when
 jet-determinate, `SmoothUnderdetermined` when the surfaces
 under-determine the locus, e.g. a G2 sketch join), and the must-carry
-rule `TangentNotIntrinsic` fires only on `ContactMark::Tangent`. NURBS-
+rule fires only on `ContactMark::Tangent`, refusing a declared locus or
+an `OnPair` there `TangentNotIntrinsic`. Read at an ε finer than the
+body was built at — every body a process holds was built at the run's
+ε, so only a re-read at a finer band is — a derived `OnPair` escalates
+instead (`PairTangencyDetermined`, with the sagitta it read; the
+transverse arm's twin is `PairCornerDetermined`): a zero-side reading
+turns definite as ε tightens, and the escalation is the finer band's
+question, not a defect. An edge whose stations read definitely
+transverse at one and definitely smooth at its neighbour brackets an
+unsampled in-band point and is refused (`MixedDihedral`, naming the two
+stations); `must_carry_over_edge` answers it `MustCarryVerdict::Mixed`,
+and every constructor refuses it typed but one: the blend's contact
+edge, routed smooth by its carrier's construction, ends a mixed reading
+as `SurgeryInvariant`, the surgery contradicting its own routing, since
+the rolling ball's exact contact cannot read a corner anywhere along
+it. NURBS-
 and `Approx`-adjacent edges are exempt by kind (`Unmarked`). Curved
 contact census is CONTACT-DESIGN's, at `crates/topo/README.md`.
 
