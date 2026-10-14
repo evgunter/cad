@@ -5150,6 +5150,11 @@ fn run_focal_section_checks<T: Decide>(
 /// Every term is rounding-scale on a minted image, so the envelope is
 /// the exact image's distance from the carrier plus the drift every
 /// banded check-1 gate admitted.
+///
+/// The coefficient terms are full-period sups by construction: a short
+/// arc pays the far side's coefficient error. That is the contract; on
+/// the suites' certificates it costs at most about 2.2× against the
+/// span's own miss (`focal-section-envelope-bounds-the-whole-ellipse-not-the-span`).
 fn focal_section_envelope<T: Real>(
     image: &FocalImage<T>,
     carrier: Harmonic3<T>,

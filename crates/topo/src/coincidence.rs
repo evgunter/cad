@@ -215,6 +215,28 @@ pub struct Coincidence {
     pub discharge: Discharge,
 }
 
+impl Coincidence {
+    /// The row's A-operand face and B-operand face, where it relates
+    /// one face of each operand, in that order; `None` for any other
+    /// pair of cells.
+    #[must_use]
+    pub fn face_pair(&self) -> Option<(crate::FaceKey, crate::FaceKey)> {
+        match self.cells {
+            [
+                RowCell::Input {
+                    input: Operand::A,
+                    cell: Cell::Face(a),
+                },
+                RowCell::Input {
+                    input: Operand::B,
+                    cell: Cell::Face(b),
+                },
+            ] => Some((a, b)),
+            _ => None,
+        }
+    }
+}
+
 /// **One decision a contact record cites** (D1 (ii)): the coincidence
 /// that backs the touch the record states.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

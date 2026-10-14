@@ -44,3 +44,17 @@ Both read a face's pieces through `face_pieces`, which still walks
 `Descendants::fragments` only. A sphere cut-in writes no fragment row,
 so the gap this row names is still there under the new names (read,
 not measured).
+
+## 2026-10-13: the naming record carries the cut-ins (EMIT, branch `emit/naming-refusals`)
+
+`boolean::ops::apply_cut_ins` now returns each operand's cut-in
+divisions and meridian edges. `through_the_join` puts the divisions
+ahead of the re-entered op's `BooleanNaming::face_fragments_a`/`_b`
+rows and lists the edges in `BooleanNaming::chart_cuts`, so naming
+chases a cut piece to the face it divided
+(`work/emit/a-sphere-cut-in-cap-fails-its-names-missing-upstream`).
+That covers naming only. The re-entered op's own
+`Descendants::fragments`, which `face_pieces` walks for the carry,
+still holds the join's rows alone. Passing the cut-in rows into the
+re-entered op, so both read one list, would close this row's gap and
+make the after-the-fact prepend unnecessary (read, not measured).
