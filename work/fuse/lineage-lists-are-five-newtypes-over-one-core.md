@@ -83,7 +83,7 @@ again ("vertex fusion", "copy-per-cone"). One rule for both.
   `SplitReduceError::LineageRow`. `RimNaming::seam_pieces` stays a plain
   list, with the reason at the field: its outer rim's first row maps
   the seam to itself by design (a piece→seam map, not mints). Measuring
-  that writer turned up `shell-lineage-drops-an-outer-rims-divided-seam`.
+  that writer turned up `shell/shell-lineage-drops-an-outer-rims-divided-seam`.
 - **One tag per cycle.** `BooleanErrorKind::SplitLineage` reaches
   Python as `split_lineage_cycle`, as `NamingError::SplitLineage`
   already did.

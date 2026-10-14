@@ -10,7 +10,7 @@ refs: [lineage-lists-are-five-newtypes-over-one-core]
 ---
 
 Found by `fuse/one-lineage-list` (the `lineage-lists-are-five-newtypes-over-one-core`
-unit) while measuring whether `RimNaming::seam_pieces` could go on a
+unit, on fuse) while measuring whether `RimNaming::seam_pieces` could go on a
 checked mint list. **Suspected, not yet pinned by a test.**
 
 `seam_rim` (`crates/topo/src/shell.rs`, the `SeamedRim` it returns)
