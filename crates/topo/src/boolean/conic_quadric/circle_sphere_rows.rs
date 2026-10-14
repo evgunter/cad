@@ -63,14 +63,10 @@ fn default_band() -> bool {
 fn a_crossing_sphere_meets_the_carrier_at_two_points_on_it() {
     let (c, r) = ([0.8, 0.6, 0.3], 0.5);
     let (t0, t1) = (-1.0, 4.0);
-    let Ok(CircleRoots::Certified {
-        count: 2,
-        roots: thetas,
-    }) = roots(c, r, t0, t1)
-    else {
+    let Ok(CircleRoots::Certified(found)) = roots(c, r, t0, t1) else {
         panic!("a sphere through the circle crosses it twice");
     };
-    let ts = [thetas[0], thetas[1]];
+    let ts: [_; 2] = found.roots().try_into().unwrap();
     let mid = (t0 + t1) / 2.0;
     for t in ts {
         let off = off_sphere(t, c, r).abs();
@@ -94,14 +90,10 @@ fn a_crossing_sphere_meets_the_carrier_at_two_points_on_it() {
 fn roots_are_reported_within_pi_of_an_arc_past_the_branch_cut() {
     let (c, r) = ([1.0, -0.1, 0.0], 0.3);
     let (t0, t1) = (5.0, 7.5);
-    let Ok(CircleRoots::Certified {
-        count: 2,
-        roots: thetas,
-    }) = roots(c, r, t0, t1)
-    else {
+    let Ok(CircleRoots::Certified(found)) = roots(c, r, t0, t1) else {
         panic!("the sphere straddles the circle at θ ≈ 0");
     };
-    let ts = [thetas[0], thetas[1]];
+    let ts: [_; 2] = found.roots().try_into().unwrap();
     for t in ts {
         assert!(
             t0 < t && t < t1,
@@ -250,14 +242,10 @@ fn a_near_tangent_crossing_is_placed_within_the_finest_band() {
     for delta in [2f64.powi(-14), 2f64.powi(-17), 2f64.powi(-20)] {
         let d = 1.0 + R - delta;
         let want = 2.0 * (delta * (2.0 * R - delta) / (4.0 * d)).sqrt().asin();
-        let Ok(CircleRoots::Certified {
-            count: 2,
-            roots: thetas,
-        }) = near_tangent(delta, fine_band())
-        else {
+        let Ok(CircleRoots::Certified(found)) = near_tangent(delta, fine_band()) else {
             panic!("δ = {delta:e}: the extremes straddle, so two roots");
         };
-        let ts = [thetas[0], thetas[1]];
+        let ts: [_; 2] = found.roots().try_into().unwrap();
         let mut got = ts.map(f64::abs);
         got.sort_by(f64::total_cmp);
         for t in got {
@@ -318,14 +306,12 @@ fn a_small_sphere_grazing_a_large_circle_is_placed_from_its_near_extreme() {
         let d = rho + r - nominal;
         let delta = (rho + r) - d;
         let want = 2.0 * (delta * (2.0 * r - delta) / (4.0 * d * rho)).sqrt().asin();
-        let Ok(CircleRoots::Certified {
-            count: 2,
-            roots: thetas,
-        }) = conic_quadric_roots(&circle(rho), -1.0, 1.0, &sphere([d, 0.0, 0.0], r), band).unwrap()
+        let Ok(CircleRoots::Certified(found)) =
+            conic_quadric_roots(&circle(rho), -1.0, 1.0, &sphere([d, 0.0, 0.0], r), band).unwrap()
         else {
             panic!("δ = {delta:e}: the small sphere crosses the circle twice");
         };
-        let ts = [thetas[0], thetas[1]];
+        let ts: [_; 2] = found.roots().try_into().unwrap();
         for t in ts {
             let off = rho * (t.abs() - want).abs();
             assert!(
@@ -534,14 +520,10 @@ fn the_interval_lane_encloses_the_oracle_roots() {
         band(),
     )
     .unwrap();
-    let Ok(CircleRoots::Certified {
-        count: 2,
-        roots: thetas,
-    }) = got
-    else {
+    let Ok(CircleRoots::Certified(found)) = got else {
         panic!("interval lane: expected two roots, got {got:?}");
     };
-    let ts = [thetas[0], thetas[1]];
+    let ts: [_; 2] = found.roots().try_into().unwrap();
     // The f64 sign changes over the arc, each bisected to the bit.
     let f = |t: f64| off_sphere(t, c, r);
     let mut want = Vec::new();

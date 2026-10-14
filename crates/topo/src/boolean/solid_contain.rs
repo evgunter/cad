@@ -202,7 +202,7 @@ use crate::splitting::containment::{
 use crate::validate::decide;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
 use geom_brep::recourse::Reading;
-use geom_brep::roots::{RootRefusal, Roots, Unsettled};
+use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use super::rim_wedge::Rim;
 use super::sphere_region::{RegionRefusal, SphereFaceRegion, sphere_face_region};
@@ -4672,14 +4672,8 @@ pub(super) fn line_torus_roots<T: Decide>(
     let q_hat = T::from_f64(8.0) * rr * e * n;
     let s = big_m.powi(2) - four * rr * (m - n.powi(2));
     match depressed_quartic_roots(p, q_hat, s, ext, &RAY_TORUS_ROWS, band)? {
-        Roots::Certified { count, roots: ys } => {
-            let mut ts = [T::zero(); 4];
-            for (t, y) in ts.iter_mut().zip(ys).take(count) {
-                // Undo the depression: `t = y − b`.
-                *t = y - b;
-            }
-            Ok(Roots::Certified { count, roots: ts })
-        }
+        // Undo the depression: `t = y − b`.
+        Roots::Certified(ys) => Ok(Roots::Certified(ys.map(|y| y - b))),
         Roots::Miss => Ok(Roots::Miss),
     }
 }
@@ -4706,10 +4700,10 @@ const RAY_TORUS_ROWS: QuarticRows = QuarticRows {
 fn torus_crossings<T: Decide>(
     face: FaceKey,
     roots: Result<QuarticRoots<T>, Unsettled>,
-) -> Result<Option<(usize, [T; 4])>, RayFault<PointInSolidError>> {
+) -> Result<Option<Found<T, 4>>, RayFault<PointInSolidError>> {
     match roots {
         Ok(Roots::Miss) => Ok(None),
-        Ok(Roots::Certified { count, roots }) => Ok(Some((count, roots))),
+        Ok(Roots::Certified(found)) => Ok(Some(found)),
         Err(Unsettled::CountDisagrees {
             certified,
             constructed,
@@ -5247,10 +5241,10 @@ fn cast_ray<T: Decide>(
                         Err(RootRefusal::Unsettled(why)) => Err(why),
                         Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
                     };
-                let Some((count, ts)) = torus_crossings(face, roots)? else {
+                let Some(found) = torus_crossings(face, roots)? else {
                     continue;
                 };
-                for &t in &ts[..count] {
+                for &t in found.roots() {
                     let p = q + d * t;
                     match point_on_torus_in_face(
                         face,

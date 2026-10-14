@@ -6388,9 +6388,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 )?;
                 let thetas = match roots {
                     Ok(geom_brep::roots::Roots::Miss) => continue,
-                    Ok(geom_brep::roots::Roots::Certified { count, roots }) => {
-                        roots[..count].to_vec()
-                    }
+                    Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),
                     Ok(geom_brep::roots::Roots::On(_)) | Err(_) => {
                         return Err(refuse(
                             "a boundary arc of the sphere face meets the cut's meridian plane \

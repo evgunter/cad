@@ -400,10 +400,27 @@ fn ladder_roots<T: Decide>(
         let s = e0 - b3 * d1 / four + b3.powi(2) * c2m / T::from_f64(16.0)
             - T::from_f64(3.0) * b3.powi(4) / T::from_f64(256.0);
         // Its answer is not read (the subdivision answers); an in-band
-        // sign it meets is the door's escalation.
+        // sign it meets is the door's escalation. Its `CountDisagrees` is
+        // dropped with its count, unlike the line × torus door's, where
+        // the quartic's coefficients are the residual's own and a
+        // disagreement is a classification invariant: here they come
+        // through the anchor rotation, pole division and rescale, whose
+        // rounding nothing meters (module docs), and the module docs
+        // record it disagreeing across definite crossings.
         return match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band) {
             Err(RootRefusal::Escalated(diag)) => Err(diag),
-            Ok(_) | Err(RootRefusal::Unsettled(_)) => Ok(()),
+            Ok(_)
+            | Err(RootRefusal::Unsettled(
+                Unsettled::CountDisagrees { .. }
+                | Unsettled::Tangency
+                | Unsettled::Resolvent
+                | Unsettled::SignInBand
+                | Unsettled::Meter
+                | Unsettled::Exhausted
+                | Unsettled::ImpossibleCount
+                | Unsettled::AtApex
+                | Unsettled::Degenerate,
+            )) => Ok(()),
         };
     }
     Ok(())
@@ -750,16 +767,7 @@ pub fn certified_subdivision<T: Decide>(
     if roots.len() > 2 * n_deg || roots.len() % 2 == 1 {
         return Err(Unsettled::ImpossibleCount);
     }
-    let count = roots.len();
-    if count == 0 {
-        return Ok(Roots::Miss);
-    }
-    let mut thetas = [T::zero(); 2 * MAX_DEGREE];
-    thetas[..count].copy_from_slice(&roots);
-    Ok(Roots::Certified {
-        count,
-        roots: thetas,
-    })
+    Roots::of(&roots).ok_or(Unsettled::ImpossibleCount)
 }
 
 #[cfg(test)]
@@ -848,7 +856,8 @@ mod subdivision_guard_rows {
         let truth = sign_changes(&residual);
         assert!(truth > 2, "the wiggle crosses zero, read {truth} changes");
         match walk(&f, &residual, 0.8e-3, 1e-9) {
-            Ok(Roots::Certified { count, .. }) => {
+            Ok(Roots::Certified(found)) => {
+                let count = found.count();
                 assert_eq!(count, truth, "certified {count} roots of {truth}");
             }
             Err(_) => {}
@@ -871,12 +880,10 @@ mod subdivision_guard_rows {
         let value = |t: f64| f.cos[0] + f.cos[1] * t.cos() + f.cos[2] * (2.0 * t).cos();
         assert_eq!(sign_changes(&value), 2);
         match walk(&f, &value, 0.0, 1e-9) {
-            Ok(Roots::Certified {
-                count,
-                roots: thetas,
-            }) => {
+            Ok(Roots::Certified(found)) => {
+                let count = found.count();
                 assert_eq!(count, 2, "certified {count} roots of 2");
-                for &t in &thetas[..count] {
+                for &t in found.roots() {
                     assert!(value(t).abs() <= 1e-9, "root {t} reads {:e}", value(t));
                 }
             }
@@ -926,7 +933,8 @@ mod subdivision_guard_rows {
         };
         let band = Band::new(1e-9, 1e-8).unwrap();
         match certified_subdivision(&f, &value, &frame, &ROWS, None, band) {
-            Ok(Roots::Certified { count, .. }) => {
+            Ok(Roots::Certified(found)) => {
+                let count = found.count();
                 assert_eq!(count, truth, "certified {count} roots of {truth}");
             }
             Err(_) => {}
@@ -946,12 +954,8 @@ mod subdivision_guard_rows {
         let step = 20.0 * eps;
         let residual = |t: f64| step * ((t.sin() / step).floor() + 0.5);
         let got = walk(&sine(1.0), &residual, step, eps);
-        if let Ok(Roots::Certified {
-            count,
-            roots: thetas,
-        }) = got
-        {
-            for &t in &thetas[..count] {
+        if let Ok(Roots::Certified(found)) = got {
+            for &t in found.roots() {
                 let off = residual(t).abs();
                 assert!(off <= eps, "root {t} reads {off:e} off the surface");
             }
@@ -980,14 +984,11 @@ mod subdivision_guard_rows {
         let (s, c) = a.sin_cos();
         let f = DegreeTwo::new(0.0, -s, c, 0.0, 0.0).poly();
         match walk(&f, &residual, 0.0, eps) {
-            Ok(Roots::Certified {
-                count: 2,
-                roots: thetas,
-            }) => {
+            Ok(Roots::Certified(found)) if found.count() == 2 => {
                 assert!(
-                    thetas[..2].contains(&a),
+                    found.roots().contains(&a),
                     "the roots {:?} miss a",
-                    &thetas[..2]
+                    found.roots()
                 );
             }
             other => panic!("{other:?} for a residual crossing twice, once at a"),
@@ -1010,7 +1011,8 @@ mod subdivision_guard_rows {
         };
         assert_eq!(sign_changes(&residual), 2);
         match walk(&sine(1.0), &residual, 0.0, 1e-9) {
-            Ok(Roots::Certified { count, .. }) => {
+            Ok(Roots::Certified(found)) => {
+                let count = found.count();
                 assert_eq!(count % 2, 0, "certified an odd count, {count}");
             }
             Err(_) => {}

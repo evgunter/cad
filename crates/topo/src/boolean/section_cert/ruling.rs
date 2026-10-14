@@ -536,7 +536,7 @@ fn roots<T: Decide>(
         band,
     ) {
         Ok(geom_brep::roots::Roots::Miss) => Vec::new(),
-        Ok(geom_brep::roots::Roots::Certified { count, roots }) => roots[..count].to_vec(),
+        Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),
         Err(_) => return Err(walk.row),
     };
     let slacks = slacks(charged, band);

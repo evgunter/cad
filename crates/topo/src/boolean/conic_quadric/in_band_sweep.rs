@@ -140,7 +140,7 @@ fn permitted(
         Ok(Err(_)) | Err(_) => true,
         Ok(Ok(CircleRoots::On(_))) => farthest(c, r) <= 10.0 * eps,
         Ok(Ok(CircleRoots::Miss)) => clear && truth.roots.is_empty(),
-        Ok(Ok(CircleRoots::Certified { count, .. })) => clear && *count == truth.roots.len(),
+        Ok(Ok(CircleRoots::Certified(found))) => clear && found.count() == truth.roots.len(),
     }
 }
 
@@ -521,14 +521,11 @@ fn a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly() {
     let truth = exact::truth(&c, &wall(1.0));
     assert_eq!(truth.roots.len(), 2, "the pose crosses the wall twice");
     let got = conic_quadric_roots(&c, -1.0, 1.0, &wall(1.0), band);
-    let Ok(Ok(CircleRoots::Certified {
-        count: 2,
-        roots: thetas,
-    })) = got
-    else {
+    let Ok(Ok(CircleRoots::Certified(found))) = got else {
         panic!("two certified crossings, got {got:?}");
     };
-    for &t in &thetas[..2] {
+    let thetas: [_; 2] = found.roots().try_into().unwrap();
+    for &t in &thetas {
         let off = truth
             .roots
             .iter()
@@ -604,10 +601,8 @@ fn a_circle_of_radius_1500_places_its_roots_within_the_zero_band() {
                     "ε {eps:e}, depth {depth:e}, g {g}, b {b}: Miss on {} true roots",
                     truth.roots.len()
                 )),
-                Ok(Ok(CircleRoots::Certified {
-                    count,
-                    roots: thetas,
-                })) => {
+                Ok(Ok(CircleRoots::Certified(found))) => {
+                    let (count, thetas) = (found.count(), found.roots());
                     if count != truth.roots.len() {
                         wrong.push(format!(
                             "ε {eps:e}, depth {depth:e}, g {g}, b {b}: {count} certified, {} true",
@@ -695,7 +690,7 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
             let true_answer = match &got {
                 Ok(Err(_)) | Err(_) => continue,
                 Ok(Ok(CircleRoots::Miss)) => truth.roots.is_empty(),
-                Ok(Ok(CircleRoots::Certified { count, .. })) => *count == truth.roots.len(),
+                Ok(Ok(CircleRoots::Certified(found))) => found.count() == truth.roots.len(),
                 Ok(Ok(CircleRoots::On(_))) => false,
             };
             if truth.residual_depth < eps || !true_answer {

@@ -173,9 +173,10 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
             }
             let d = d.normalize();
             let got = line_torus_roots(o, d, center, axis, big_r, r, band());
-            let Ok(QuarticRoots::Certified { count, roots: ts }) = got else {
+            let Ok(QuarticRoots::Certified(found)) = got else {
                 continue;
             };
+            let (count, ts) = (found.count(), found.roots());
             if k % 2 == 1 {
                 ferrari += 1;
             }

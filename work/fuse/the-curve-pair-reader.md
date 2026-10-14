@@ -38,7 +38,14 @@ Stage (b)'s first part settles what stage (a)'s review found, and builds step 2:
 
 Its second part is step 3, the meeting reading.
 
-**Stage (c) owes** the callers. These four readings still decide the point-on-span question themselves and move onto `Span::contact`:
+**Stage (c) owes** the callers. `roots::Unsettled` splits by what its consumers act on. It holds three kinds in one enum:
+- pose-caused refusals: `Tangency`, and the cone door's `AtApex` and `Degenerate`, which are cone vocabulary in a crate with no cone door;
+- resolution-caused ones: `Meter`, `SignInBand`, `Exhausted`;
+- self-contradictions, a kernel-bug class: `ImpossibleCount`, `Resolvent`, `CountDisagrees`.
+
+`reduce::wall_crossing` reads `AtApex` by name, and the line × torus door and `solid_contain::torus_crossings` read `CountDisagrees`; every other consumer treats them alike. The split moves `AtApex` and `Degenerate` into topo's cone door and the contradictions into an arm consumers cannot fold into a graze. It touches every root-finder row, so it was left out of stage (b).
+
+These four readings still decide the point-on-span question themselves and move onto `Span::contact`:
 - `carrier_cross::strictly_inside`;
 - `census::curved::interior_at` and `clear_of_end`;
 - the census line lane's `on_edge_interior`;

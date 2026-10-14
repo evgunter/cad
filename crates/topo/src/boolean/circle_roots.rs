@@ -316,10 +316,10 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     // pick would decide nothing a reader uses.
     let mid = (t0 + t1) / two;
     let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
-    Ok(Roots::Certified {
-        count: 2,
-        roots: [near_mid(phi - half_chord), near_mid(phi + half_chord)],
-    })
+    Ok(Roots::all([
+        near_mid(phi - half_chord),
+        near_mid(phi + half_chord),
+    ]))
 }
 
 /// The signs of both ends of `[value − spread, value + spread]`, each

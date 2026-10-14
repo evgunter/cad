@@ -29,14 +29,38 @@ pub enum Roots<T, const N: usize, C = Infallible> {
     /// The residual is a zero constant along the carrier: it lies on the
     /// surface.
     On(C),
-    /// A certified count (at most `N`) and the roots, unordered, in
-    /// `roots[..count]`.
-    Certified {
-        /// How many of `roots` are roots.
-        count: usize,
-        /// The roots, `roots[..count]`.
-        roots: [T; N],
-    },
+    /// A certified count of one to `N` roots.
+    Certified(Found<T, N>),
+}
+
+/// One to `N` certified roots, unordered. Built only by [`Roots::of`], so
+/// a count past `N` (or of none, which is [`Roots::Miss`]) cannot be
+/// held, and [`Found::roots`] is the one way to read them.
+#[derive(Debug, Clone, Copy)]
+pub struct Found<T, const N: usize> {
+    count: usize,
+    roots: [T; N],
+}
+
+impl<T, const N: usize> Found<T, N> {
+    /// The roots, unordered.
+    pub fn roots(&self) -> &[T] {
+        &self.roots[..self.count]
+    }
+
+    /// How many roots there are, one to `N`.
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
+    /// The same count of roots, each moved by `f`.
+    #[must_use]
+    pub fn map(self, f: impl Fn(T) -> T) -> Self {
+        Self {
+            count: self.count,
+            roots: self.roots.map(f),
+        }
+    }
 }
 
 /// [`Roots::On`]'s payload where a finder's residual can be a zero
@@ -50,6 +74,34 @@ impl From<Infallible> for OnCarrier {
     }
 }
 
+impl<T: geom_core::Real, const N: usize, C> Roots<T, N, C> {
+    /// `roots` as a decided answer: [`Roots::Miss`] for none,
+    /// [`Roots::Certified`] for one to `N`, and `None` for more than `N`,
+    /// a count the finder cannot hold.
+    #[must_use]
+    pub fn of(roots: &[T]) -> Option<Self> {
+        if roots.is_empty() {
+            return Some(Self::Miss);
+        }
+        let count = roots.len();
+        if count > N {
+            return None;
+        }
+        let mut held = [T::zero(); N];
+        held[..count].copy_from_slice(roots);
+        Some(Self::Certified(Found { count, roots: held }))
+    }
+}
+
+impl<T, const N: usize, C> Roots<T, N, C> {
+    /// Exactly `N ≥ 1` certified roots.
+    #[must_use]
+    pub fn all(roots: [T; N]) -> Self {
+        const { assert!(N > 0, "a certified count is at least one") };
+        Self::Certified(Found { count: N, roots })
+    }
+}
+
 impl<T: geom_core::Real, const M: usize, C: Into<OnCarrier>> Roots<T, M, C> {
     /// The same answer in a finder's shape with room for `N ≥ M` roots
     /// and an [`OnCarrier`] arm.
@@ -59,10 +111,13 @@ impl<T: geom_core::Real, const M: usize, C: Into<OnCarrier>> Roots<T, M, C> {
         match self {
             Self::Miss => Roots::Miss,
             Self::On(on) => Roots::On(on.into()),
-            Self::Certified { count, roots } => {
+            Self::Certified(found) => {
                 let mut wide = [T::zero(); N];
-                wide[..M].copy_from_slice(&roots);
-                Roots::Certified { count, roots: wide }
+                wide[..M].copy_from_slice(&found.roots);
+                Roots::Certified(Found {
+                    count: found.count,
+                    roots: wide,
+                })
             }
         }
     }

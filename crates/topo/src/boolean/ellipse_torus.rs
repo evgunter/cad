@@ -285,7 +285,7 @@ mod tests {
                     .fold(f64::INFINITY, f64::min);
                 let resolvable = 100.0 * noise / slope <= band.zero();
                 match ellipse_torus_roots(e, t0, t0 + 1.0, s, band).unwrap() {
-                    Ok(CircleRoots::Certified { .. }) => {
+                    Ok(CircleRoots::Certified(_)) => {
                         assert_matches_oracle(label, e, s, t0, *want);
                     }
                     Err(_) if !resolvable => {}
@@ -491,10 +491,8 @@ mod torus_rows {
                         fuzz::replay()
                     );
                     match found {
-                        Ok(CircleRoots::Certified {
-                            count,
-                            roots: thetas,
-                        }) => {
+                        Ok(CircleRoots::Certified(found)) => {
+                            let (count, thetas) = (found.count(), found.roots());
                             certified += 1;
                             assert_eq!(
                                 count,
@@ -695,10 +693,8 @@ mod torus_rows {
             let meter_decides = k == 0;
             match door {
                 Err(_) => {}
-                Ok(CircleRoots::Certified {
-                    count,
-                    roots: thetas,
-                }) => {
+                Ok(CircleRoots::Certified(found)) => {
+                    let (count, thetas) = (found.count(), found.roots());
                     let off = worst(pose, &thetas[..count], truth);
                     assert!(off <= band.zero(), "case {k}: a root {off:e} m of arc off");
                 }
@@ -711,13 +707,10 @@ mod torus_rows {
                 );
                 continue;
             }
-            let Ok(CircleRoots::Certified {
-                count,
-                roots: thetas,
-            }) = bare
-            else {
+            let Ok(CircleRoots::Certified(found)) = bare else {
                 panic!("case {k}: the unmetered walk certifies, got {bare:?}");
             };
+            let (count, thetas) = (found.count(), found.roots());
             let off = worst(pose, &thetas[..count], truth);
             assert!(
                 off > 10.0 * band.zero(),
@@ -813,10 +806,8 @@ mod torus_rows {
                 let band = Band::new(eps, 10.0 * eps).unwrap();
                 let label = format!("seam {seam}, ε {eps}");
                 match pose.answers(band).0 {
-                    Ok(CircleRoots::Certified {
-                        count,
-                        roots: thetas,
-                    }) => {
+                    Ok(CircleRoots::Certified(found)) => {
+                        let (count, thetas) = (found.count(), found.roots());
                         assert_eq!(count, 6, "{label}: {:?}", &thetas[..count]);
                         for &t in &thetas[..count] {
                             let arc = arc_off(&e, t, &truth);
@@ -1001,7 +992,7 @@ mod torus_rows {
         for (term, pose) in &poses {
             let (door, bare) = pose.answers(band);
             assert!(
-                matches!(bare, Ok(CircleRoots::Certified { .. })),
+                matches!(bare, Ok(CircleRoots::Certified(_))),
                 "{term}: the unmetered walk certifies the pose, got {bare:?}"
             );
             assert!(
@@ -1053,10 +1044,9 @@ mod torus_rows {
                         unreachable!("the pose is an ellipse and a torus")
                     };
                     let (answer, roots) = match ellipse_torus_roots(&e, t0, t1, &s, band) {
-                        Ok(Ok(CircleRoots::Certified {
-                            count,
-                            roots: thetas,
-                        })) => ("certified", thetas[..count].to_vec()),
+                        Ok(Ok(CircleRoots::Certified(found))) => {
+                            ("certified", found.roots().to_vec())
+                        }
                         Ok(Ok(CircleRoots::Miss)) => ("miss", vec![]),
                         Ok(Err(_)) => ("uncertain", vec![]),
                         other => panic!("{other:?}"),

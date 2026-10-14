@@ -267,15 +267,12 @@ fn a_graze_is_read_by_its_depth() {
             );
             continue;
         }
-        let Ok(Ok(CircleRoots::Certified {
-            count,
-            roots: thetas,
-        })) = got
-        else {
+        let Ok(Ok(CircleRoots::Certified(found))) = got else {
             panic!("{label}: four certified crossings, got {got:?}");
         };
+        let count = found.count();
         assert_eq!(count, 4, "{label}");
-        for &t in &thetas[..count] {
+        for &t in found.roots() {
             let p = e.eval(t);
             let off = (p.x.hypot(p.y) - r).abs();
             assert!(
@@ -329,15 +326,12 @@ fn the_subdivision_reads_its_pieces_at_the_top_speed() {
         ),
     };
     let got = conic_quadric_roots(&e, 3.511343352233997, 7.298353179068743, &s, band);
-    let Ok(Ok(CircleRoots::Certified {
-        count,
-        roots: thetas,
-    })) = got
-    else {
+    let Ok(Ok(CircleRoots::Certified(found))) = got else {
         panic!("certified crossings, got {got:?}");
     };
+    let count = found.count();
     assert!(count > 0, "crossings");
-    for &t in &thetas[..count] {
+    for &t in found.roots() {
         let off = ((e.eval(t) - center).norm() - radius).abs();
         assert!(off <= band.zero(), "root {t} lies {off} off the sphere");
     }
@@ -373,16 +367,13 @@ fn the_first_harmonic_arm_places_its_roots_along_the_arc() {
         let h = 10f64.powf(-6.0 + 5.7 * f64::from(k) / 80.0);
         let w = wall([0.0, -1.0, 0.0], [0.0, 0.0, 1.0], 2.0 - h);
         let (t0, t1) = (-0.2, PI + 0.2);
-        let Ok(Ok(CircleRoots::Certified {
-            count,
-            roots: thetas,
-        })) = conic_quadric_roots(&section, t0, t1, &w, band)
+        let Ok(Ok(CircleRoots::Certified(found))) = conic_quadric_roots(&section, t0, t1, &w, band)
         else {
             continue;
         };
         certified += 1;
         let truth = oracle(&section, &w, t0, t1);
-        for &t in &thetas[..count] {
+        for &t in found.roots() {
             let nearest = truth
                 .iter()
                 .copied()
@@ -511,12 +502,10 @@ mod fuzz_rows {
                     fuzz::replay()
                 );
                 match found {
-                    Ok(CircleRoots::Certified {
-                        count,
-                        roots: thetas,
-                    }) => {
+                    Ok(CircleRoots::Certified(found)) => {
+                        let count = found.count();
                         certified += 1;
-                        for &t in &thetas[..count] {
+                        for &t in found.roots() {
                             let off = distance(&s, e.eval(t)).abs();
                             assert!(off <= eps, "{label}: root {t} lies {off} off the surface");
                         }
@@ -764,12 +753,9 @@ mod graze_rows {
                         let clear = if least { at > eps } else { at < -eps };
                         assert!(clear, "{label}: a certified Miss ({at:e} at the vertex)");
                     }
-                    Ok(Ok(CircleRoots::Certified {
-                        count,
-                        roots: thetas,
-                    })) => {
+                    Ok(Ok(CircleRoots::Certified(found))) => {
                         certified += 1;
-                        for &t in &thetas[..count] {
+                        for &t in found.roots() {
                             let off = distance(e.eval(t)).abs();
                             assert!(off <= eps, "{label}: root {t} lies {off} off");
                         }

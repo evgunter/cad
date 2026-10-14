@@ -105,16 +105,13 @@ fn assert_matches_oracle(
     want: usize,
 ) -> Vec<f64> {
     let t1 = t0 + 1.0;
-    let Ok(CircleRoots::Certified {
-        count,
-        roots: thetas,
-    }) = door(e, s, t0, t1)
-    else {
+    let Ok(CircleRoots::Certified(found)) = door(e, s, t0, t1) else {
         panic!("{label}: certified roots, got {:?}", door(e, s, t0, t1));
     };
+    let count = found.count();
     assert_eq!(count, want, "{label}: the certified count");
     let mid = (t0 + t1) / 2.0;
-    let mut got = thetas[..count].to_vec();
+    let mut got = found.roots().to_vec();
     for &t in &got {
         assert!((t - mid).abs() <= PI, "{label}: {t} within π of {mid}");
         let off = distance(s, e.eval(t));
@@ -326,14 +323,7 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
     let toward = if u_ref.x < 0.0 { 0.0 } else { PI };
     let at = |shift: f64| toward + shift / 0.5;
     let apex = conic.point(toward);
-    let certified = |thetas: &[f64]| {
-        let mut all = [0.0; 8];
-        all[..thetas.len()].copy_from_slice(thetas);
-        CircleRoots::Certified {
-            count: thetas.len(),
-            roots: all,
-        }
-    };
+    let certified = |thetas: &[f64]| CircleRoots::of(thetas).unwrap();
     for (label, shift) in [
         ("at the apex", 0.0),
         ("half a zero band off it", 0.5 * b.zero()),
@@ -348,7 +338,7 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
     let clear = certified(&[at(3.0 * b.escalate()), at(1.0)]);
     let got = off_the_apex(&conic, apex, clear, b);
     assert!(
-        matches!(got, Ok(CircleRoots::Certified { count: 2, .. })),
+        matches!(got, Ok(CircleRoots::Certified(found)) if found.count() == 2),
         "roots definitely off the apex stand, got {got:?}"
     );
     for other in [CircleRoots::Miss, CircleRoots::On(OnCarrier)] {
@@ -414,14 +404,10 @@ fn a_root_the_slack_meter_cannot_place_refuses() {
         );
     }
     let e = crossing(0.3);
-    let Ok(Ok(CircleRoots::Certified {
-        count,
-        roots: thetas,
-    })) = conic_quadric_roots(&e, -0.5, 0.5, &s, band)
-    else {
+    let Ok(Ok(CircleRoots::Certified(found))) = conic_quadric_roots(&e, -0.5, 0.5, &s, band) else {
         panic!("far from the apex the roots are certified")
     };
-    let mut got = thetas[..count].to_vec();
+    let mut got = found.roots().to_vec();
     got.sort_by(f64::total_cmp);
     let truth = crossings(|t| form(&s, e.eval(t)), -PI, PI);
     assert_eq!(got.len(), truth.len(), "{got:?} vs the oracle's {truth:?}");
@@ -512,10 +498,8 @@ fn certified_answers_hold_against_the_quadric_form() {
                 .map(|k| distance(&s, e.eval(at(k))))
                 .fold(f64::INFINITY, f64::min);
             match found {
-                Ok(CircleRoots::Certified {
-                    count,
-                    roots: thetas,
-                }) => {
+                Ok(CircleRoots::Certified(found)) => {
+                    let (count, thetas) = (found.count(), found.roots());
                     certified += 1;
                     for &t in &thetas[..count] {
                         let p = e.eval(t);
@@ -622,10 +606,8 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                 .map(|j| distance(&s, e.eval(at(j))))
                 .fold(f64::INFINITY, f64::min);
             match found {
-                Ok(CircleRoots::Certified {
-                    count,
-                    roots: thetas,
-                }) => {
+                Ok(CircleRoots::Certified(found)) => {
+                    let (count, thetas) = (found.count(), found.roots());
                     certified += 1;
                     for &t in &thetas[..count] {
                         let p = e.eval(t);
