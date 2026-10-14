@@ -415,12 +415,9 @@ pub enum RevertError {
 impl core::fmt::Display for RevertError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::CoincidentEdges {
-                edges: [a, b],
-                ends: [p, q],
-            } => write!(
+            Self::CoincidentEdges { edges, ends } => write!(
                 f,
-                "edges {a:?} and {b:?} lie on one line between points {p:?} and {q:?}: the \
+                "the edges {edges:?} lie on one line, between the points {ends:?}: the \
                  complement pairs the faces meeting there differently, and that re-pairing is \
                  not built"
             ),
