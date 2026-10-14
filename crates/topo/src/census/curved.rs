@@ -13,7 +13,7 @@
 //! kind inverts in closed form (which is no foot off an ellipse), and
 //! otherwise from each piece of the span the search below keeps. An end
 //! is cleared when the parameter's distance from it, metered by the
-//! carrier's least speed ([`crate::carrier_speed::speed_range`]), decides
+//! carrier's least speed ([`geom_brep::carrier_speed::speed_range`]), decides
 //! positive, and reached when it decides negative; between the two the
 //! same distance metered by the greatest speed decides the side, and on
 //! the inner side the point's distance from the end's point decides.
@@ -23,7 +23,7 @@
 //! other's ends, one of which an overlap holds; then every meeting the
 //! search finds, each read on both carriers at its own parameters.
 //!
-//! **The search** is [`crate::bisect`]'s walk over the spans. A piece
+//! **The search** is [`geom_core::bisect`]'s walk over the spans. A piece
 //! reaches at most `ℓ` metres from its middle point, `ℓ` its half-span
 //! times the carrier's greatest speed. Two pieces are cleared when the
 //! distance between their middle points less both reaches decides
@@ -31,14 +31,14 @@
 //! distance's component along a unit `n` less each piece's run along `n`
 //! and its bend (`|n·C′|·h + |C″|·h²/2`), the second-order bound
 //! `boolean::carrier_touch` takes, read along the gap and across each
-//! piece's tangent. Pieces stop at [`crate::bisect::tangency_floor`] of
+//! piece's tangent. Pieces stop at [`geom_core::bisect::tangency_floor`] of
 //! `1/κ`, `κ` the two carriers' summed curvature bound
-//! ([`crate::carrier_speed::curvature_hi`]). A spline bounds neither
+//! ([`geom_brep::carrier_speed::curvature_hi`]). A spline bounds neither
 //! acceleration nor curvature here, so its pieces stop at the band
 //! itself and a tangency of a spline runs past the budget and refuses
 //! typed. A pair that stops is polished toward the meeting and read.
 //! Every piece the search does not clear ends at such a pair, so no
-//! meeting is left unread; a walk past [`crate::bisect::PIECE_BUDGET`]
+//! meeting is left unread; a walk past [`geom_core::bisect::PIECE_BUDGET`]
 //! refuses typed, naming both edges.
 
 use geom::Curve3;
@@ -47,9 +47,9 @@ use geom_core::{Band, Decide, InfSpeed, Margin, MarginDiag, Point3, Real, Sign, 
 use super::{
     CensusSubject, CensusUnsupportedCause, ValidationError, gap_is_zero, gap_zero_reading,
 };
-use crate::bisect::{Step, bisect};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId};
+use geom_core::bisect::{Step, bisect};
 
 /// The Gauss–Newton steps a candidate is polished by.
 const POLISH_STEPS: usize = 4;
@@ -94,7 +94,7 @@ impl<T: Real> Piece<T> {
 
     /// The most metres a point of the piece lies from its middle point.
     fn reach(self, hi: SupSpeed<T>) -> T {
-        crate::bisect::reach(hi, (self.a, self.b))
+        geom_core::bisect::reach(hi, (self.a, self.b))
     }
 
     /// The two halves, in order.
@@ -191,9 +191,9 @@ fn read<T: Decide>(
         return None;
     };
     let carrier = curve.carrier().clone();
-    let (lo, hi) = crate::carrier_speed::speed_range(&carrier);
-    let accel = crate::carrier_speed::accel_hi(&carrier);
-    let curvature = crate::carrier_speed::curvature_hi(&carrier);
+    let (lo, hi) = geom_brep::carrier_speed::speed_range(&carrier);
+    let accel = geom_brep::carrier_speed::accel_hi(&carrier);
+    let curvature = geom_brep::carrier_speed::curvature_hi(&carrier);
     let span = curve.params();
     let span_reach = Margin::metered_sup((span.1 - span.0).abs(), hi);
     if decided("pm_census_curved_speed_hi", span_reach, band, errors)? != Sign::Positive {
@@ -302,7 +302,7 @@ fn polish_pair<T: Decide>(a: &Read<T>, b: &Read<T>, (mut s, mut t): (T, T), slac
 
 /// **The pieces of `curve` over `span` that `q` may rest on**: the
 /// span halved, a piece decided clear of `q` when its middle point's
-/// distance less its reach ([`crate::bisect::reach`] of `hi`) decides
+/// distance less its reach ([`geom_core::bisect::reach`] of `hi`) decides
 /// positive, and kept when its reach stops at the band ([`stops`]). Every
 /// point of the span within the band of `q` lies in a kept piece. The one
 /// walk the foot search ([`feet`]) and pass 2′'s skip
@@ -314,7 +314,7 @@ fn near_pieces<T: Decide>(
     hi: SupSpeed<T>,
     q: Point3<T>,
     band: Band,
-) -> Result<Vec<Piece<T>>, crate::bisect::Exhausted> {
+) -> Result<Vec<Piece<T>>, geom_core::bisect::Exhausted> {
     let mut out = Vec::new();
     bisect(
         [Piece::whole(span)],
@@ -388,7 +388,7 @@ pub(super) fn may_rest_on<T: Decide>(body: &Body<T>, e: EdgeKey, q: Point3<T>, b
     else {
         return true;
     };
-    let hi = crate::carrier_speed::speed_range(curve.carrier()).1;
+    let hi = geom_brep::carrier_speed::speed_range(curve.carrier()).1;
     near_pieces(curve.carrier(), curve.params(), hi, q, band).map_or(true, |p| !p.is_empty())
 }
 
@@ -566,7 +566,7 @@ fn pieces_apart<T: Decide>(
 /// `None` where a carrier bounds no curvature.
 fn floor<T: Decide>(a: &Read<T>, b: &Read<T>, band: Band) -> Option<T> {
     let kappa = a.curvature? + b.curvature?;
-    Some(crate::bisect::tangency_floor(
+    Some(geom_core::bisect::tangency_floor(
         T::one() / kappa,
         band.escalate(),
     ))
@@ -769,9 +769,9 @@ mod tests {
     }
 
     fn read(curve: Curve3<f64>, span: (f64, f64)) -> Read<f64> {
-        let (lo, hi) = crate::carrier_speed::speed_range(&curve);
-        let accel = crate::carrier_speed::accel_hi(&curve);
-        let curvature = crate::carrier_speed::curvature_hi(&curve);
+        let (lo, hi) = geom_brep::carrier_speed::speed_range(&curve);
+        let accel = geom_brep::carrier_speed::accel_hi(&curve);
+        let curvature = geom_brep::carrier_speed::curvature_hi(&curve);
         Read {
             edge: EdgeKey::default(),
             curve,
@@ -791,8 +791,8 @@ mod tests {
         Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::unit_z(),
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         }
     }

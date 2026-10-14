@@ -2626,7 +2626,8 @@ impl Coincidence {
 
     /// What was decided between them: `same_oriented`,
     /// `same_opposite`, `on_carrier`, `common_foot`, `tangent`, `cusp`,
-    /// `surface_tangent`, `coaxial` or `co_ruled`. A
+    /// `surface_tangent`, `coaxial`, `same_radius`, `axes_meet` or
+    /// `co_ruled`. A
     /// `profile_junction` row is `tangent` or `cusp` between two carriers
     /// and `same_oriented` where its pieces continue one; a
     /// `tangent_witness` row is `surface_tangent`, claiming nothing of
@@ -2637,9 +2638,9 @@ impl Coincidence {
     }
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
-    /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
-    /// `battery_joint`, `battery_support_axis`, `profile_junction`,
-    /// `vertex_fusion` or `census_at_rest`.
+    /// `tangent_witness`, `coaxial_sphere`, `crossing_cylinders`,
+    /// `split_on`, `battery_turn`, `battery_joint`, `battery_support_axis`,
+    /// `profile_junction`, `vertex_fusion` or `census_at_rest`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

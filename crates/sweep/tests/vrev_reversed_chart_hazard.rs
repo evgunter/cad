@@ -18,7 +18,10 @@
 //! purpose through the test-only unvouched door: structural validation
 //! stays green over the surgery, no pcurve survives to be stranded, and
 //! the geometric-structural tier reports the stranded description on
-//! every reversed wall, and the rowless wall's re-derivation refusing. It exists so that a caller who reads
+//! every reversed wall, and the wall rowless. (A seam on a reversed
+//! wall runs against its neighbour's `v` map, and re-derives as the
+//! column that runs the other way, so the rows are not lost for good:
+//! a re-mint restores them.) It exists so that a caller who reads
 //! `reversed_v`'s "What this does not do" paragraph can see what the
 //! door does not do, rather than take its word for it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -104,7 +107,9 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
     for e in &errs {
         match e {
             ValidationError::DescriptionNotAdjacent { .. } => stale_descriptions += 1,
-            ValidationError::Pcurve { .. } => stale_pcurves += 1,
+            ValidationError::Pcurve {
+                finding: topo::PcurveMintError::Unminted { .. },
+            } => stale_pcurves += 1,
             other => panic!("an unexpected finding after a chart reversal: {other:?}"),
         }
     }
@@ -117,7 +122,23 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
         stale_pcurves, 4,
         "one per reversed wall: `set_face_surface` drops a face's rows when the \
          new surface is not the chart they were stated in, so each reversed \
-         wall arrives rowless, and the pass re-derives it and names the first \
-         half-edge the reversed chart cannot place ({errs:?})"
+         wall arrives rowless and is reported unminted ({errs:?})"
+    );
+
+    // The rows are not lost for good: a re-mint restores every reversed
+    // wall's, and what is left is the stranded descriptions alone.
+    assert_eq!(
+        topo::mint_pcurves(&mut body, tol),
+        Ok(()),
+        "a re-mint re-derives the reversed walls' rows"
+    );
+    let after = topo::validate_geometric_structural(&body, tol)
+        .expect_err("the stranded descriptions are still there");
+    assert!(
+        after.len() == 4
+            && after
+                .iter()
+                .all(|e| matches!(e, ValidationError::DescriptionNotAdjacent { .. })),
+        "only the four stranded descriptions are left: {after:?}"
     );
 }

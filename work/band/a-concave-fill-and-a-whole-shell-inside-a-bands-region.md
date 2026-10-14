@@ -34,6 +34,11 @@ reports a feature an op makes vanish or change type unasked.
 `docs/DESIGN.md`'s void-insertion convention gains the blend's seal as
 its fourth producer. The build order is the one below.
 
+Erratum (2026-10-14, PR 5099): the table's concave closed-shell cell
+said an absorbed island's voids "become the solid's"; under `S ∪ F`
+they are filled, since the prism's complement is connected and so the
+island's voids lie in `F`.
+
 ## The question
 
 What does a fillet or chamfer do with the solid's other features in and
@@ -57,7 +62,7 @@ Every case follows by set algebra:
 | Case | Convex band (`S − R`) | Concave band (`S ∪ F`) |
 |---|---|---|
 | A feature wholly inside, attached by cycles on the faces bounding the region | goes (the through-bore is built: steps 1–4) | a protrusion is absorbed |
-| A closed shell wholly inside | a void goes; a free solid inside `R` goes with it | an island is absorbed; its voids become the solid's |
+| A closed shell wholly inside | a void goes; a free solid inside `R` goes with it | an island is absorbed, its voids with it: they lie in `F`, which fills them |
 | A hole whose mouth lies wholly on the face the fill covers | — | sealed: a through-hole turns blind, a blind hole becomes a void |
 | A feature crossing the band surface | refuses as unbuilt | refuses as unbuilt |
 
@@ -103,9 +108,30 @@ as a fillet that does.
 re-word the crossing refusal's recourse to the reorder (and to what is
 true where none exists). (2) The concave bar. (3) The one-cycle members:
 blind bore, pin, boss, dimple. (4) Whole shells and the seal, sharing
-`insert_void`'s bookkeeping. The lint and an editor reorder action
+`insert_void`'s bookkeeping. Step 1: PR 5077. Step 2: PR 5099. The lint and an editor reorder action
 (re-point plus the selection unwrap, one action) run beside any step;
 the crossing arm waits on the intersection table.
 
 Two designers (fork-log row 140) recommended this from their first
 reports; it replaces row 139's case-by-case recommendation.
+
+## Findings (step 2: the concave bar)
+
+- **Built** for the plane–plane fillet and chamfer and the ruled cut-off:
+  a cut-off's cap ring read inside its sliver carries its crease on
+  either convexity (`surgery.rs`, the `CapMeter` list), and nothing else
+  reads the side — the fill's section is the convex removal's region,
+  the prism reading is geometry, the carve topology. Rows:
+  `band_concave_bar`, `editor-core` `edit_concave_bar`.
+- **Refused, for steps 3 and 4** (pinned in `band_concave_bar`):
+  - a bump wholly inside `F` on an otherwise absorbable bar refuses as
+    a bound (`FaceClearance { bounded: true }`): the bar's face would
+    carry a ring, and the reach's bound reads first;
+  - a bar with an enclosed void (a sealed tube) refuses `WhollyInside`
+    at the void's shell, which has no cap cycle: step 4's whole shells;
+  - a blind hole in an end wall, its mouth inside the sliver, refuses
+    as a bound, in one wall or both.
+- **Filed:** `an-oblique-caps-inside-reading-charges-a-ring-its-major-semi-axis`
+  (a hair inside the fillet's arc at a leaning wall reads a bound, both
+  sides alike).
+

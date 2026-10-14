@@ -27,7 +27,48 @@ Ev ruled on PR 5027 (2026-10-14). The reader lives in `geom-brep`, beside C5's s
 4. **Callers.** `carrier_cross` becomes a caller, then the census confirm (and through it `records::landings`), then the census edge-face cut (`restread/the-census-edge-face-cut-crosses-chords-and-conics-only`).
 5. **Rows.**
    - The walk serves as a differential oracle over the closed forms, outside the band. It would have caught the cleave P1 `a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles` in seconds.
+   - The walk check is vacuous where the walk refuses. It runs past its budget on two circles that stay within a few bands of each other round a long arc: on most grazing and tilted draws. There the closed forms are checked by draws built with their least distance in the zero band, by an independent least distance against every decided "no", and by an independent distance from every decided meeting to both spans.
    - The near-concentric census row re-baselines to a decided answer.
+
+## Stage (b)
+
+Stage (b)'s first part settles what stage (a)'s review found, and builds step 2:
+
+- **The root finders have one shape** (`geom_brep::roots`): `Roots<T, N, C>` holds decided answers only (a miss, ON, or a `Found`: one to `N` roots, read only through `Found::roots`), and every refusal is typed in the `Err` (`Unsettled`, or `RootRefusal` where a finder escalates). `TrigRoots`, `QuarticRoots` and topo's `CircleRoots` and `FirstHarmonicRoots` are its instances; `Roots::widen` is the one bridge. `circle_roots::rounding_charge` is retired, and `half_angle_roots` takes a `DegreeTwo`, so a residual past degree two is unrepresentable.
+- **One span type and one point-on-span reading**: `geom_brep::curve_pair::{Span, Contact}`.
+
+Its second part builds step 3 and the rows of step 5:
+
+- **The table, the pose and the entry point**: `geom_brep::curve_pair::{method, pose, meet}`. Line, circle and ellipse pairs are read in closed form, and pairs with a spiric or spline side by the walk (`curve_pair/walk.rs`).
+- **Across planes**, a candidate is the two carriers' closest pair, polished from where one crosses the other's plane and metered. Each span's ends are read against the other.
+- **The rows**:
+  - `curve_pair::meet_rows`, the poses;
+  - `curve_pair::meet_oracle`: the walk as differential oracle, and draws built inside the zero band, a decided "no" held to an independent least distance;
+  - the cleave pin `a_near_tangent_coplanar_pair_is_placed_on_both_circles`.
+- **Filed**:
+  - `two-coplanar-ellipses-have-no-meeting-method`;
+  - `curve-pair-polish-meters-refuse-shallow-meetings`;
+  - `curve-pair-line-beside-a-thin-conic-is-unsupported`;
+  - `curve-pair-harmonic-with-both-extremes-in-band-refuses-tangency`.
+
+**Stage (c) owes** the callers (step 4):
+- `carrier_cross::meetings` becomes a caller of `meet`;
+- then the census confirm (`census::curved::reads_meet`, and through it `records::landings`);
+- then the census edge-face cut (`restread/the-census-edge-face-cut-crosses-chords-and-conics-only`);
+- the near-concentric census row re-baselines to the decided answer that `meet` gives (`near_concentric_arcs_are_decided` pins it in `geom-brep`).
+
+Stage (c) also owes the split of `roots::Unsettled` by what its consumers act on. It holds three kinds in one enum:
+- pose-caused refusals: `Tangency`, and the cone door's `AtApex` and `Degenerate`, which are cone vocabulary in a crate with no cone door;
+- resolution-caused ones: `Meter`, `SignInBand`, `Exhausted`;
+- self-contradictions, a kernel-bug class: `ImpossibleCount`, `Resolvent`, `CountDisagrees`.
+
+`reduce::wall_crossing` reads `AtApex` by name, and the line × torus door and `solid_contain::torus_crossings` read `CountDisagrees`; every other consumer treats them alike. The split moves `AtApex` and `Degenerate` into topo's cone door and the contradictions into an arm consumers cannot fold into a graze. It touches every root-finder row, so it was left out of stage (b).
+
+These four readings still decide the point-on-span question themselves, and move onto `Span::contact`:
+- `carrier_cross::strictly_inside`;
+- `census::curved::interior_at` and `clear_of_end`;
+- the census line lane's `on_edge_interior`;
+- `LoopEdge::contact`'s conic rows (`ConicArc::hit`), which read the distance to the conic rather than at a parameter. Its spiric row carries a refusal inside its value (`SpiricHit::Unsettled`, read as `EdgeContact::Unread`), which the move types.
 
 **Closes on landing:**
 - `two-curve-curve-meeting-finders`

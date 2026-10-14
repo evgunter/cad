@@ -1534,6 +1534,11 @@ pub fn split_op_error_tag(err: &SplitOpError) -> &'static str {
         SplitOpError::Finish(SplitFinishError::EdgeJoin { refusal, .. }) => {
             join_refusal_tag(refusal)
         }
+        // A side refused only on in-band shells is the Boolean's
+        // `Escalated` on the same decision, so it carries the Boolean's word.
+        SplitOpError::Finish(SplitFinishError::ResultEscalated { .. }) => {
+            boolean_error_tag(BooleanErrorKind::Escalated)
+        }
         SplitOpError::Finish(_) => "finish",
         SplitOpError::Pcurves(_) => "pcurves",
         SplitOpError::Pieces(_) => "pieces",
@@ -1582,13 +1587,10 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
 ///
 /// The FFI spelling is this crate's to own; the DISCRIMINANT is not.
 /// It is `BooleanError::kind`, and this map keys off it — the
-/// [`path_error_tag`] shape — so the word does not depend on holding
-/// the error itself. Two doors publish it and they hold different
-/// things: the evaluation ladder's `inner_kind` has the whole
-/// `BooleanError` behind [`node_inner_kind_tag`], and the advisory
-/// checks' `separation_unavailable` evidence has only the class,
-/// because a finding is `Clone + PartialEq` and the error is neither.
-/// One map answers both.
+/// [`path_error_tag`] shape. Two doors publish it: the evaluation
+/// ladder's `inner_kind` behind [`node_inner_kind_tag`], and the
+/// advisory checks' `separation_unavailable` evidence. One map answers
+/// both.
 ///
 /// Over `BooleanErrorKind`'s arms rather than `..`, so a new kernel
 /// refusal stops this build instead of acquiring a silent tag. A kind
@@ -1643,7 +1645,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
         BooleanErrorKind::GermSectionOutsideInventory => "germ_section_outside_inventory",
         BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
-        BooleanErrorKind::GermFrameCylinderPinch => "germ_frame_cylinder_pinch",
+        BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
         BooleanErrorKind::Euler => "euler",
         BooleanErrorKind::Pcurves => "pcurves",
         BooleanErrorKind::Join => "join",
@@ -1655,6 +1657,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::LineageRow => "lineage_row",
         BooleanErrorKind::SplitLineage => "split_lineage_cycle",
         BooleanErrorKind::EdgeUndescribed => "edge_undescribed",
+        BooleanErrorKind::MixedSeam => "mixed_seam",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
         BooleanErrorKind::CoincidentShell => "coincident_shell",
@@ -1821,6 +1824,7 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::Rim { .. } => "rim",
         ShellError::Escalated { .. } => "escalated",
         ShellError::Pcurve { .. } => "pcurve",
+        ShellError::RimSeamMixed { .. } => "rim_seam_mixed",
         ShellError::Join { refusal } => join_refusal_tag(refusal),
         ShellError::NotValid { .. } => "not_valid",
     }
@@ -2996,6 +3000,8 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::Tangent { aligned: false } => "cusp",
         R::SurfaceTangent => "surface_tangent",
         R::Coaxial => "coaxial",
+        R::SameRadius => "same_radius",
+        R::AxesMeet => "axes_meet",
         R::CoRuled => "co_ruled",
     }
 }
@@ -3009,6 +3015,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::CarrierLadder => "carrier_ladder",
         S::TangentWitness => "tangent_witness",
         S::CoaxialSphere => "coaxial_sphere",
+        S::CrossingCylinders => "crossing_cylinders",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
         S::BatteryJoint => "battery_joint",
@@ -3126,12 +3133,15 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::PlanarBoundaryResidual { .. } => "planar_boundary_residual",
         ValidationError::PlanarBoundaryEscalated { .. } => "planar_boundary_escalated",
         ValidationError::SliverDihedral { .. } => "sliver_dihedral",
+        ValidationError::MixedDihedral { .. } => "mixed_dihedral",
         ValidationError::NoDihedralArm { .. } => "no_dihedral_arm",
         ValidationError::TransverseNotIntrinsic { .. } => "transverse_not_intrinsic",
         ValidationError::ScaffoldAtRest { .. } => "scaffold_at_rest",
         ValidationError::JoinableVertexAtRest { .. } => "joinable_vertex_at_rest",
         ValidationError::JoinUndecidedAtRest { .. } => "join_undecided_at_rest",
         ValidationError::TangentNotIntrinsic { .. } => "tangent_not_intrinsic",
+        ValidationError::PairTangencyDetermined { .. } => "pair_tangency_determined",
+        ValidationError::PairCornerDetermined { .. } => "pair_corner_determined",
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",

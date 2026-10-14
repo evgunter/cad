@@ -176,8 +176,8 @@ fn arcs(e: &Curve3<f64>, coord: impl Fn(Point3<f64>) -> f64, lo: f64, hi: f64) -
     let Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = *e
     else {
@@ -186,8 +186,8 @@ fn arcs(e: &Curve3<f64>, coord: impl Fn(Point3<f64>) -> f64, lo: f64, hi: f64) -
     let v = axis.cross(u_ref);
     let c = coord(center);
     let zero = coord(Point3::new(0.0, 0.0, 0.0));
-    let a = coord(Point3::new(0.0, 0.0, 0.0) + u_ref * major) - zero;
-    let b = coord(Point3::new(0.0, 0.0, 0.0) + v * minor) - zero;
+    let a = coord(Point3::new(0.0, 0.0, 0.0) + u_ref * semi_u) - zero;
+    let b = coord(Point3::new(0.0, 0.0, 0.0) + v * semi_v) - zero;
     let r = a.hypot(b);
     let th = b.atan2(a);
     let mut roots = Vec::new();
@@ -289,14 +289,14 @@ fn read(
             apex, axis, u_ref, ..
         },
         &Curve3::Ellipse {
-            major,
+            semi_u,
             u_ref: e_u,
             center,
             ..
         },
     ) = (&image, quadric, e)
     {
-        let ra = e_u * major - axis * (e_u * major).dot(axis);
+        let ra = e_u * semi_u - axis * (e_u * semi_u).dot(axis);
         let start = ra * (center - apex).dot(axis).signum();
         let u0 = start.dot(axis.cross(u_ref)).atan2(start.dot(u_ref));
         let alt = Pcurve::FocalSection(FocalImage { u0, ..*fi });
@@ -420,7 +420,7 @@ fn cone_family(no_split: bool) {
                 let tag = format!("cone a{alpha:.4} S{scale:e} f{f}");
                 match plane_cone_section(&plane, &cone, &reach, band()) {
                     Ok(PlaneConeSection::TiltedEllipse(e)) => {
-                        let Curve3::Ellipse { major, minor, .. } = e else {
+                        let Curve3::Ellipse { semi_u, semi_v, .. } = e else {
                             unreachable!()
                         };
                         let arcs = arcs(&e, |p| (p - o_frame).dot(y_frame), 0.0, h);
@@ -428,12 +428,12 @@ fn cone_family(no_split: bool) {
                             cone_miss(p, apex, axis, alpha).max(plane_miss(p, q, n))
                         });
                         println!(
-                            "POSE {tag} eps{eps:e} | {out} | A {major:.3e} B {minor:.3e} ext {across:.3e} k {k:.3e} \
+                            "POSE {tag} eps{eps:e} | {out} | A {semi_u:.3e} B {semi_v:.3e} ext {across:.3e} k {k:.3e} \
                              | carrier {:.2e} map {:.2e} mapfull {:.2e} | uA/k2 {:.2e} | cert {}",
                             r.carrier_res,
                             r.map_res,
                             r.map_res_full,
-                            U * major / (k * k),
+                            U * semi_u / (k * k),
                             r.cert
                         );
                     }
@@ -496,7 +496,7 @@ fn cyl_family(no_split: bool) {
             let k = phi.cos();
             match plane_cylinder_section(&plane, &cyl, &reach, band()) {
                 Ok(PlaneCylinderSection::TiltedEllipse(e)) => {
-                    let Curve3::Ellipse { major, minor, .. } = e else {
+                    let Curve3::Ellipse { semi_u, semi_v, .. } = e else {
                         unreachable!()
                     };
                     let arcs = arcs(&e, |p| (p - o).dot(axis), 0.0, scale);
@@ -504,12 +504,12 @@ fn cyl_family(no_split: bool) {
                         cyl_miss(p, o, axis, scale).max(plane_miss(p, q, n))
                     });
                     println!(
-                        "POSE {tag} eps{eps:e} | {out} | A {major:.3e} B {minor:.3e} ext {across:.3e} k {k:.3e} \
+                        "POSE {tag} eps{eps:e} | {out} | A {semi_u:.3e} B {semi_v:.3e} ext {across:.3e} k {k:.3e} \
                          | carrier {:.2e} map {:.2e} mapfull {:.2e} | uA {:.2e} | cert {}",
                         r.carrier_res,
                         r.map_res,
                         r.map_res_full,
-                        U * major,
+                        U * semi_u,
                         r.cert
                     );
                 }

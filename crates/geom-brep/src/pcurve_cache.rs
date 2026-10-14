@@ -180,6 +180,7 @@ use geom_core::{
 
 use crate::certify::{CERT_SAMPLES, CertCheck, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
+use crate::ladder::{IdentityLadder, read_identity};
 use crate::recourse::{Reading, RefusedArm, Unsized};
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -1687,6 +1688,12 @@ pub enum PcurveCertifyError {
     /// carried whole, as the plane × NURBS lane carries it from the same
     /// producer ([`crate::PlaneNurbsRefusal::CarrierDomain`]).
     CarrierDomain(crate::edge_nurbs::CarrierDomainRefusal),
+    /// The fitted lane's limb 2 has no certified net of the carrier
+    /// over a span of the image's domain: the carrier-enclosure door's
+    /// refusal, naming the carrier's kind and the span, carried whole as
+    /// the edge certificate carries it
+    /// ([`crate::PlaneNurbsRefusal::CarrierEnclosure`]).
+    CarrierEnclosure(crate::CarrierEnclosureRefusal),
     /// A fitted-lane classification ESCALATED — D4 ¶3's
     /// escalate-never-guess, at the SSI door rather than at one of this
     /// module's own schedule checks. It ends by the SSI decision it
@@ -1842,6 +1849,11 @@ impl core::fmt::Display for PcurveCertifyError {
                 limb.name()
             ),
             Self::CarrierDomain(refusal) => write!(f, "pcurve certification: {refusal}"),
+            Self::CarrierEnclosure(refusal) => write!(
+                f,
+                "pcurve certification: the fitted lane's certificate refused at limb 2 — \
+                 {refusal}"
+            ),
             // Each escalation ends in its decision's own labelled
             // ending, read at a build: the door that reads it at rest
             // asks `ending` instead of rendering this.
@@ -1956,6 +1968,7 @@ impl PcurveCertifyError {
             | Self::ChartRow { .. }
             | Self::FittedCertificate { .. }
             | Self::CarrierDomain(_)
+            | Self::CarrierEnclosure(_)
             | Self::ChartWindingUnsupported
             | Self::BranchOutOfReach
             | Self::PlaceholderChart
@@ -2400,27 +2413,11 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
     wall: &NurbsSurface<T>,
 ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
     use crate::edge_nurbs::PlaneNurbsRefusal as P;
-    // A spline's image spans its own knot domain, which the composite
-    // pairs it on; any other carrier's spans `params`' outer ends (its
-    // bracket's, so the image covers the interval at every scalar),
-    // held there.
+    // The image spans the carrier's certificate span, the edge
+    // certificate's rule (`carrier_span`).
     let eval = |t| carrier.eval(t);
-    let schedule = match carrier {
-        Curve3::Nurbs(net) => {
-            crate::edge_nurbs::Schedule::new(&eval, net.domain(), net.knot_values().domain())
-        }
-        _ => {
-            let (lo, hi) = (
-                params.0.lo().min(params.1.lo()),
-                params.0.hi().max(params.1.hi()),
-            );
-            crate::edge_nurbs::Schedule::new(
-                &eval,
-                (lo, hi),
-                (T::from_computed(lo), T::from_computed(hi)),
-            )
-        }
-    };
+    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+    let schedule = crate::edge_nurbs::Schedule::new(&eval, domain, ends);
     let (t0, t1) = schedule.domain();
     let certificate = |what| PcurveCertifyError::FittedCertificate {
         limb: None,
@@ -2457,7 +2454,8 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::TubeNotOneArc { .. }
         | P::Escalated { .. }
         | P::ReportedTransversalityPoisoned(_)
-        | P::ChartSpeed(_)) => unreachable!(
+        | P::ChartSpeed(_)
+        | P::CarrierEnclosure(_)) => unreachable!(
             "chart_image returns these only from its per-sample hook or the certificate, and \
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
@@ -2749,8 +2747,9 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
 /// # Errors
 ///
 /// [`PcurveCertifyError::FittedCertificate`] when the bound refuses or
-/// the carrier cannot be enclosed, or the image stops short of the
-/// edge.
+/// the image stops short of the edge;
+/// [`PcurveCertifyError::CarrierEnclosure`] when the carrier has no
+/// certified net over a span of the image's domain.
 pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     image: &NurbsCurve2<T>,
@@ -2781,7 +2780,8 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // `run_fitted_checks`, this gate's only caller, has already decided
     // `t1 − t0` through `decide`, which refuses an uncertified value.
     let (d0, d1) = image.knots().domain();
-    if !(d0 <= t0.lo().min(t1.lo()) && t0.hi().max(t1.hi()) <= d1) {
+    let (lo, hi) = crate::carrier_net::outer_ends((t0, t1));
+    if !(d0 <= lo && hi <= d1) {
         return Err(PcurveCertifyError::FittedCertificate {
             limb: Some(SsiLimb::HullSup),
             what: "the image's domain stops short of the edge's interval, so its hull \
@@ -2789,15 +2789,11 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
             magnitude: None,
         });
     }
-    use crate::ssi::certify::{
-        CHART_HULL, Hull, Refused, chart_breaks, chart_round, hull_limb, subdivide,
-    };
-    use geom_core::spline::algebra::range_grid_points;
-    // Each round's composite against this chart alone, cut at `cuts`
-    // besides the image's knots and the domain's uniform grid. A spline
-    // carrier enters as its own net; a closed-form one as its enclosing
-    // net over the round's breaks, so a halving shrinks its remainder
-    // too.
+    use crate::ssi::certify::{CHART_HULL, Refused, carrier_chart_round, chart_grid, hull_limb};
+    // Each round's composite against this chart alone, the carrier read
+    // through the carrier-enclosure door over the image's domain, cut at
+    // `cuts` besides the round's grid: a halving shrinks a closed form's
+    // remainder too.
     let (pcoords, scoords) = (image.certified_coords(), chart.certified_coords());
     let pimage = (image.knots(), image.weight_channel(), &pcoords[..]);
     let schart = (
@@ -2806,48 +2802,11 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         chart.weight_channel(),
         &scoords[..],
     );
-    let stopped = if let Curve3::Nurbs(net) = carrier {
-        let grid = chart_breaks(net.knots(), image.knots());
-        let coords = net.certified_coords();
-        subdivide(
-            |cuts: &[f64]| -> Result<Hull, crate::ssi::SsiError> {
-                let extra: Vec<f64> = grid.iter().chain(cuts).copied().collect();
-                chart_round(
-                    (net.knots(), net.weight_channel(), &coords),
-                    pimage,
-                    schart,
-                    &extra,
-                )
-            },
-            band,
-        )
-    } else {
-        let (lo, hi) = image.knots().domain();
-        let knots: Vec<f64> = image.knots().interior_knots().map(|(k, _)| k).collect();
-        let grid = range_grid_points(lo, hi, crate::ssi::certify::SSI_CERT_SPANS, &knots);
-        subdivide(
-            |cuts: &[f64]| -> Result<Hull, crate::ssi::SsiError> {
-                let mut breaks: Vec<f64> = knots.iter().chain(&grid).chain(cuts).copied().collect();
-                breaks.extend([lo, hi]);
-                breaks.sort_by(f64::total_cmp);
-                breaks.dedup();
-                let enclosed = crate::carrier_net::enclosing_net(carrier, &breaks).ok_or(
-                    crate::ssi::SsiError::UnsupportedCertificate {
-                        what: "the carrier has no certified enclosure over a span of its \
-                               image's domain",
-                    },
-                )?;
-                let weights = vec![1.0; enclosed.knots.control_count()];
-                chart_round(
-                    (&enclosed.knots, &weights, &enclosed.coords),
-                    pimage,
-                    schart,
-                    &[],
-                )
-            },
-            band,
-        )
-    };
+    let grid = chart_grid(carrier, image.knots());
+    let stopped = crate::ssi::certify::subdivide(
+        |cuts: &[f64]| carrier_chart_round(carrier, pimage, schart, &grid, cuts),
+        band,
+    );
     let stopped = stopped.map_err(ssi_refusal)?;
     hull_limb(&CHART_HULL, stopped, band, &mut Refused::default()).map_err(ssi_refusal)
 }
@@ -2883,6 +2842,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             return PcurveCertifyError::FittedLimb { limb, margin };
         }
         E::UnsupportedCertificate { what } => (None, what, None),
+        E::CarrierEnclosure(refusal) => return PcurveCertifyError::CarrierEnclosure(refusal),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
         // compiler is what enforces that. The hull limb raises none of
@@ -3426,13 +3386,13 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => Some(Harmonic3 {
             c: center,
-            a: u_ref * major,
-            b: axis.cross(u_ref) * minor,
+            a: u_ref * semi_u,
+            b: axis.cross(u_ref) * semi_v,
             l: Vec3::zero(),
         }),
         // A spiric has no `{1, cos, sin, t}` form (its `m` channel is
@@ -3802,7 +3762,9 @@ fn param_rate<T: SpanLocate>(carrier: &Curve3<T>) -> InfSpeed<T> {
         Curve3::Circle { radius, .. } => InfSpeed::new(radius),
         // The smaller semi-axis MAGNITUDE: the semi-axes carry no order
         // and no sign (`Conic`); `minor` for the ordinary order.
-        Curve3::Ellipse { major, minor, .. } => InfSpeed::new(major.abs().min(minor.abs())),
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            InfSpeed::new(geom::Curve3::semi_axes_by_size(semi_u, semi_v).1)
+        }
         Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
     }
 }
@@ -4815,6 +4777,39 @@ pub fn whole_period_count<T: Decide>(
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<i32, BranchMiss> {
+    whole_period_walk(name, gap, period, meter, band).map_err(|stop| stop.miss)
+}
+
+/// Where [`whole_period_walk`] stopped short of a branch: the miss, and
+/// for a mark (undecided, or the gap on it) the two branches `[j, j + 1]`
+/// that mark lies between. A reach miss has none.
+#[derive(Clone, Debug)]
+pub struct WalkStop {
+    /// Why no branch was decided.
+    pub miss: BranchMiss,
+    /// The branches either side of the mark the walk stopped on.
+    pub astride: Option<[i32; 2]>,
+}
+
+/// [`whole_period_count`], reporting where the walk stopped
+/// ([`WalkStop`]). The walk steps one period at a time from `0`, and
+/// every mark it crosses is decided on the side it crosses, so the mark
+/// it stops on is the first, from `0`, that the gap does not clear.
+/// Where that mark decides Zero ([`BranchMiss::OnMark`]) the gap is
+/// within the band's zero of it in the meter's units; the branches
+/// astride it are the orbit points either side of that mark.
+///
+/// # Errors
+///
+/// [`WalkStop`]: a mark undecided, the gap on a mark (each with the
+/// branches astride it), or the gap out of reach.
+pub fn whole_period_walk<T: Decide>(
+    name: &'static str,
+    gap: T,
+    period: T,
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<i32, WalkStop> {
     let half = T::from_f64(0.5);
     let mark = |k: i32, side: T| {
         decide(
@@ -4823,34 +4818,44 @@ pub fn whole_period_count<T: Decide>(
             band,
         )
     };
+    let stop = |miss, astride| WalkStop {
+        miss,
+        astride: Some(astride),
+    };
+    let reach = WalkStop {
+        miss: BranchMiss::OutOfReach,
+        astride: None,
+    };
     let mut k = 0;
     // What is already known about the marks either side of `k`: moving
     // up one period learns the lower mark, moving down the upper.
     let (mut below, mut above) = (false, false);
     loop {
         if !above {
-            match mark(k, half).map_err(BranchMiss::Undecided)? {
+            match mark(k, half).map_err(|c| stop(BranchMiss::Undecided(c), [k, k + 1]))? {
                 Sign::Negative => {}
-                Sign::Zero => return Err(BranchMiss::OnMark),
+                Sign::Zero => return Err(stop(BranchMiss::OnMark, [k, k + 1])),
                 Sign::Positive => {
                     k += 1;
                     (below, above) = (true, false);
                     if k > MAX_BRANCH_PERIODS {
-                        return Err(BranchMiss::OutOfReach);
+                        return Err(reach);
                     }
                     continue;
                 }
             }
         }
         if !below {
-            match mark(k, T::zero() - half).map_err(BranchMiss::Undecided)? {
+            match mark(k, T::zero() - half)
+                .map_err(|c| stop(BranchMiss::Undecided(c), [k - 1, k]))?
+            {
                 Sign::Positive => {}
-                Sign::Zero => return Err(BranchMiss::OnMark),
+                Sign::Zero => return Err(stop(BranchMiss::OnMark, [k - 1, k])),
                 Sign::Negative => {
                     k -= 1;
                     (below, above) = (false, true);
                     if k < -MAX_BRANCH_PERIODS {
-                        return Err(BranchMiss::OutOfReach);
+                        return Err(reach);
                     }
                     continue;
                 }
@@ -5517,48 +5522,46 @@ fn run_spiric_checks<T: Decide>(
                 ("pcurve_spiric_chart_minor", Margin::of(s_minor - r_minor)),
                 ("pcurve_spiric_chart_tilt", Margin::levered(sin_tilt, arm)),
             ];
-            for (i, (name, margin)) in gates.into_iter().enumerate() {
-                match decide(name, margin, band).map_err(winding_escalated)? {
-                    Sign::Zero => {}
-                    Sign::Positive | Sign::Negative => {
-                        // Not the named torus. Only a CENTRE that fails
-                        // can leave the chart the OTHER torus that holds
-                        // the oval, and the gates after it, not yet
-                        // decided, must hold for that.
-                        let mut other = i == 0;
-                        if other {
-                            let d_other = s_center
-                                - torus_center(match torus {
-                                    WallTorus::Own => WallTorus::Mirror,
-                                    WallTorus::Mirror => WallTorus::Own,
-                                });
-                            for (name, margin) in gates
-                                .into_iter()
-                                .skip(1)
-                                .chain([("pcurve_spiric_chart_other", Margin::norm3(d_other))])
-                            {
-                                if decide(name, margin, band).map_err(winding_escalated)?
-                                    != Sign::Zero
-                                {
-                                    other = false;
-                                    break;
-                                }
-                            }
-                        }
-                        if other {
-                            return Err(PcurveCertifyError::ImageMismatch {
-                                image: PcurveKind::Spiric,
-                                why: "the wall image names one of the two tori that hold the \
-                                      oval, and the chart is the other",
-                            });
-                        }
-                        return Err(spiric_off_own_chart(
-                            "the chart torus is neither the carrier's own nor its mirror \
-                             through the cutting plane, and a spiric oval lies on no other \
-                             torus",
-                        )
-                        .refusal(surface, carrier));
+            // Read as an identity ladder (`crate::ladder`): a gate
+            // decided apart answers past an earlier in-band one.
+            let reader = |name, margin| geom_core::k_stats::decide_reported(name, margin, band);
+            match read_identity(gates, reader) {
+                IdentityLadder::Zero(_) => {}
+                IdentityLadder::Undecided(kept) => {
+                    return Err(winding_escalated(kept.refusing_cause()));
+                }
+                IdentityLadder::Apart { at, .. } => {
+                    // Not the named torus. Only a CENTRE apart can leave
+                    // the chart the OTHER torus that holds the oval: a
+                    // radius or tilt apart is apart from both, so the
+                    // other torus's ladder is read only on the centre.
+                    let neither = spiric_off_own_chart(
+                        "the chart torus is neither the carrier's own nor its mirror \
+                         through the cutting plane, and a spiric oval lies on no other \
+                         torus",
+                    )
+                    .refusal(surface, carrier);
+                    if at != 0 {
+                        return Err(neither);
                     }
+                    let d_other = s_center
+                        - torus_center(match torus {
+                            WallTorus::Own => WallTorus::Mirror,
+                            WallTorus::Mirror => WallTorus::Own,
+                        });
+                    let data = gates
+                        .into_iter()
+                        .skip(1)
+                        .chain([("pcurve_spiric_chart_other", Margin::norm3(d_other))]);
+                    return Err(match read_identity(data, reader) {
+                        IdentityLadder::Zero(_) => PcurveCertifyError::ImageMismatch {
+                            image: PcurveKind::Spiric,
+                            why: "the wall image names one of the two tori that hold the \
+                                  oval, and the chart is the other",
+                        },
+                        IdentityLadder::Apart { .. } => neither,
+                        IdentityLadder::Undecided(kept) => winding_escalated(kept.refusing_cause()),
+                    });
                 }
             }
             // Each residue at its own arm, in metres: a moved centre
@@ -7643,9 +7646,9 @@ fn derive_class<T: Decide>(
                 Curve3::Ellipse {
                     center,
                     axis: e_axis,
-                    major,
-                    minor,
-                    u_ref: e_u,
+                    semi_u,
+                    semi_v,
+                    u_ref: seam,
                 } => {
                     // The tilted-section class: the exact
                     // [`Pcurve::FocalSection`] image (variant docs for
@@ -7660,6 +7663,17 @@ fn derive_class<T: Decide>(
                     if let Err(why) = cone_conic_incidence(carrier, surface, band)? {
                         return Err(off_chart(why));
                     }
+                    // The image is read about the major vertex, where
+                    // the focus is on the `t = t0` side: a carrier seamed
+                    // at a minor vertex is read a quarter turn on. The
+                    // major direction is the principal one the cone's
+                    // axis has a component along (a section's minor axis
+                    // is perpendicular to it), which a near-circle's
+                    // semi-axes, rounding past each other, cannot say.
+                    let Some(frame) = carrier.section_frame(axis) else {
+                        unreachable!("an Ellipse carrier has a major frame")
+                    };
+                    let (e_u, major, minor) = (frame.major_dir, frame.major, frame.minor);
                     let e_v = e_axis.cross(e_u);
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
                     let w = center - apex;
@@ -7724,10 +7738,10 @@ fn derive_class<T: Decide>(
                     Ok((
                         Pcurve::FocalSection(FocalImage {
                             u0: stable_azimuth(start.dot(cv), start.dot(u_ref), band),
-                            t0: T::zero(),
+                            t0: frame.phase,
                             v0: h / c_ha,
-                            va: e_u.dot(axis) * major / c_ha,
-                            vb: e_v.dot(axis) * minor / c_ha,
+                            va: seam.dot(axis) * semi_u / c_ha,
+                            vb: e_axis.cross(seam).dot(axis) * semi_v / c_ha,
                             vl: T::zero(),
                             beta,
                             sense,
@@ -8148,10 +8162,13 @@ fn winding_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// Villarceau circle: the centre lies on the line where the plane meets
 /// the equator. Not shown off the torus but past any gate is a circle
 /// grazing it ([`Grazer::TorusCircle`]) — a circle ⊥ the axis centred `δ`
-/// off it leaves the tube's crest by only `δ²/2r`. A circle that fails
-/// one gate alone by more than the band is, to first order, that far off
-/// the torus, so the incidence test refuses it before the gates read it:
-/// the gates are what tells a grazer from the class.
+/// off it leaves the tube's crest by only `δ²/2r`. How far off the torus
+/// a gate's failure puts a circle depends on the gate and the torus (the
+/// gate site's comment): about the gate's own margin for each gate on a
+/// ring torus, so the incidence test reads such a circle first, but much
+/// less for the plane gate near a horn torus, where a circle past that
+/// gate reaches the gates and refuses as grazing. The gates are what
+/// tells a grazer from the class.
 ///
 /// **The image** (variant docs): the vertex is the point
 /// `centre + R·d̂` farthest from the axis (`d̂` the unit radial of the
@@ -8161,7 +8178,8 @@ fn winding_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// `R·(n × d̂)`, along the axis (`pcurve_torus_villarceau_tube_rate`,
 /// `±r`) and along the azimuth (`pcurve_chart_orientation`,
 /// `±√(R² − r²)`), each levered at `R`; each magnitude is first decided
-/// positive, which only a tube or an `R − r` at the band's scale fails.
+/// positive, which fails only where the tube `r`, or `√(R² − r²)`, is at
+/// the band's scale (the comment at `unit_sign`).
 ///
 /// # Errors
 ///
@@ -8213,20 +8231,60 @@ fn torus_oblique_circle<T: Decide>(
         ),
         ("pcurve_torus_villarceau_radius", Margin::of(radius - big)),
     ];
-    for (name, margin) in gates {
-        match decide(name, margin, band).map_err(incidence_escalated)? {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => {
-                return Err(grazes(surface, carrier, Grazer::TorusCircle));
-            }
+    // Read as an identity ladder (`crate::ladder`), the spiric chart's
+    // rule: a gate decided apart answers past an earlier in-band one.
+    // What reaches these gates through `chart_pcurve`, as measured:
+    // - On `R = 2`, `r = 0.7`, a circle's first-order departure from the
+    //   torus at the 64 incidence samples has a one-dimensional null space
+    //   (a turn about the axis, which moves no gate), and the least
+    //   departure that puts any one gate at `m` is `0.995·m` to `1.04·m`
+    //   at its farthest sample: a gate in band or past it is read about as
+    //   far off the torus by the incidence test, which decides first.
+    // - Near a horn torus the plane gate is cheaper. On `R = 2`,
+    //   `R − r = 1e-6`, band `(1e-9, 1e-8)`, the Villarceau circle moved
+    //   along its own normal by `3e-9` to `1e-8` escalates here on
+    //   `_plane` (`pcurve_villarceau::a_plane_gate_in_band_near_the_horn_…`),
+    //   and by `3e-8` is read on the torus and refused as grazing it.
+    // - The masking order needs a gate read before `_plane` (`_offset`,
+    //   `_equator`) in band with `_plane` past it. On that near-horn pose,
+    //   with `_plane` at `3e-8` or `5e-8`, `2e-9` or `5e-9` of offset or
+    //   of equator departs about its own margin (`2.6e-9` for `2e-9` of
+    //   offset, `2.03e-9` for `2e-9` of equator),
+    //   and the incidence test escalates on it before the gates read
+    //   anything.
+    // `ladder`'s rows hold the rule itself.
+    match read_identity(gates, |name, margin| {
+        geom_core::k_stats::decide_reported(name, margin, band)
+    }) {
+        IdentityLadder::Zero(_) => {}
+        IdentityLadder::Apart { .. } => {
+            return Err(grazes(surface, carrier, Grazer::TorusCircle));
         }
+        IdentityLadder::Undecided(kept) => return Err(incidence_escalated(kept.refusing_cause())),
     }
     let d = w_r / w_r.norm();
     let tangent = n.cross(d);
-    // The tangent's two parts are `±r` and `±√(R² − r²)` on a Villarceau
-    // circle, so neither is in the band unless the tube, or `R − r`, is
-    // at the band's own scale: there the class is undecided at this
-    // tolerance, and the magnitude's gate escalates.
+    // The tangent's two parts, levered at `R`, are `R·sin θ` (`r` on a
+    // Villarceau circle) and `R·cos θ` (`√(R² − r²)`), `θ` the plane's
+    // tilt. The router reaches here by two routes:
+    // - Both class gates apart. `pcurve_torus_chart_axial` read the
+    //   tube-rate part's own number, `R·sin θ`, apart.
+    //   `pcurve_torus_chart_meridian` read `(a × b)·e / r = (R/r)·R·cos θ`
+    //   apart. `R·cos θ` at the band's scale forces `R − r ≤ (K·ε)²/2R`,
+    //   where `R/r` is one to below rounding, so the readings agree.
+    // - The parallel arm: `_axial` Zero (`R·sin θ ≤ ε`) and
+    //   `pcurve_torus_chart_centered` apart (`‖w_r‖ ≥ K·ε`). Passing the
+    //   gates above then needs `‖w_r‖ ≤ r + ε` (`_offset`) and
+    //   `r ≤ R·sin θ + ε` (`_tilt`), so `‖w_r‖ ≤ 3·ε`: this route reaches
+    //   here only at `K ≤ 3`, up to rounding, and there the tube-rate part
+    //   decides Zero (measured at `R = 2`, `r = 1.8e-9`, band
+    //   `(1e-9, 2e-9)`).
+    // At the run's `K` above 3, a Zero or in-band reading here is two
+    // readings of one number disagreeing, a kernel defect, which is the
+    // ending `ChartIncidence` gives it. The `K ≤ 3` route's defect ending
+    // is the class
+    // `work/pcert/band-scale-torus-geometry-ends-as-a-kernel-defect.md`
+    // covers.
     let unit_sign = |name, along: Vec3<T>| {
         let part = tangent.dot(along);
         geom_core::k_stats::decide_positive(name, Margin::levered(part.abs(), big), band)
@@ -8803,8 +8861,8 @@ mod tests {
             center: Point3::new(0.0, 0.0, h),
             // The ellipse's own axis is the section plane's normal.
             axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-            major: r / tilt.cos(),
-            minor: r,
+            semi_u: r / tilt.cos(),
+            semi_v: r,
             u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
         }
     }
@@ -8949,8 +9007,8 @@ mod tests {
         let carrier = Curve3::Ellipse {
             center: Point3::new(0.1, -0.2, 0.5),
             axis: Vec3::unit_z(),
-            major: 0.7,
-            minor: 0.3,
+            semi_u: 0.7,
+            semi_v: 0.3,
             u_ref: Vec3::unit_x(),
         };
         let p = chart_pcurve(&carrier, &plane, band()).unwrap();
@@ -9297,8 +9355,8 @@ mod tests {
         let squashed = Curve3::Ellipse {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
-            major: r,
-            minor: r - d,
+            semi_u: r,
+            semi_v: r - d,
             u_ref: Vec3::unit_x(),
         };
         let rows = [
@@ -9542,8 +9600,8 @@ mod tests {
         let ellipse = Curve3::Ellipse {
             center: Point3::new(0.2, 0.0, 2.0),
             axis: Vec3::new(0.3_f64.sin(), 0.0, 0.3_f64.cos()),
-            major: 1.2,
-            minor: 1.0,
+            semi_u: 1.2,
+            semi_v: 1.0,
             u_ref: Vec3::new(0.3_f64.cos(), 0.0, -0.3_f64.sin()),
         };
         let err = chart_pcurve(&ellipse, &cone, band()).unwrap_err();
@@ -9654,8 +9712,8 @@ mod tests {
                 Curve3::Ellipse {
                     center: Point3::origin(),
                     axis: Vec3::unit_z(),
-                    major: 2.5,
-                    minor: 2.0,
+                    semi_u: 2.5,
+                    semi_v: 2.0,
                     u_ref: Vec3::unit_x(),
                 },
                 &torus,

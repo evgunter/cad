@@ -3194,8 +3194,8 @@ mod review_probes {
     /// stored, not which torus they describe, so the tessellator sees
     /// the same surface and splits it the same way. The two SWEPT
     /// blade rows are the other half of the finding, and it runs the
-    /// other way: a swept lens skin costs nearly SEVEN times the stem
-    /// tube at the same δ (5_576 against 828 at 2e-3). Part of that
+    /// other way: a swept lens skin costs about six and a half times the
+    /// stem tube at the same δ (5_374 against 828 at 2e-3). Part of that
     /// is geometry — the lens is curved across, where a straight-sided
     /// section is flat — and part is the sizing lane: a rational wall
     /// is sized per cell of the 16 × 16 refinement its certified bound
@@ -3228,9 +3228,15 @@ mod review_probes {
             ("lily_lantern", 2e-3, 2_556),
             // RE-BASELINED: the swept leaves are fitted at the cubic
             // degree along the path (wall 15 retired) — 6_468 -> 5_576
-            // and 5_992 -> 5_164.
-            ("lily_leaf_b", 2e-3, 5_576),
-            ("lily_leaf_c", 2e-3, 5_164),
+            // and 5_992 -> 5_164. RE-BASELINED again (PR 4984, one
+            // second-order quotient for rational bounds): the blade
+            // face's certified second-derivative sups tighten (`muu`
+            // 0.138 -> 0.126, `muv` 0.043 -> 0.023 on leaf b), so its
+            // per-cell grid drops 96 cells — 5_576 -> 5_374 and
+            // 5_164 -> 4_962. The sampled |S − Π| stays under 8.5e-5
+            // against the face's 1e-3.
+            ("lily_leaf_b", 2e-3, 5_374),
+            ("lily_leaf_c", 2e-3, 4_962),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read

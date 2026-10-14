@@ -334,8 +334,12 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
 /// as the OTHER direction's does — a circle of the torus against the
 /// cylinder's wall, the conic × quadric root door
 /// (`topo::boolean::conic_quadric`). Their pierces' sector sides
-/// certify, and what refuses is the cylinder × torus germ pair, which
-/// has no frame — never a body.
+/// certify, and what refuses is a germ pair's section — never a body.
+/// A germ's branch is read where it is minted, so the first section
+/// read is the end cap's against the torus: the cap plane stands
+/// parallel to the torus's axis at its inner equator, a general-rung
+/// spiric (`GermSectionSpiric`), ahead of the cylinder × torus pair,
+/// which has no frame either.
 ///
 /// The pair gate's own sentence is pinned on a cone, the kind it still
 /// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
@@ -393,17 +397,17 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
         &finished("the torus", torus, Tol::witness()),
         Tol::witness(),
     )
-    .expect_err("a cylinder × torus germ pair has no frame");
+    .expect_err("the cap plane × torus germ pair's section is a general spiric");
     assert!(
         matches!(
             err,
-            BooleanError::GermFrameUnsupported {
-                a_kind: geom::SurfaceKind::Cylinder,
+            BooleanError::GermSectionSpiric {
+                a_kind: geom::SurfaceKind::Plane,
                 b_kind: geom::SurfaceKind::Torus,
                 ..
             }
         ),
-        "expected the germ-frame door, got {err:?}"
+        "expected the cap's spiric section door, got {err:?}"
     );
 }
 

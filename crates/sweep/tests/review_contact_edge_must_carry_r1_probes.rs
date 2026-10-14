@@ -425,9 +425,8 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
 // The corner ball's own arcs on a slim wedge: the EXTENT lever.
 // ---------------------------------------------------------------
 
-/// Edges of a carved body stored as a non-seam chart image — the rule's
-/// UNDER-DETERMINED description, and any other chart-described edge
-/// the body carries (a boolean's rims among them): a whole-body count.
+/// Edges of a carved body stored as a non-seam chart image (a boolean's
+/// rims among them): a whole-body count.
 fn chart_contact_edges(body: &Body<f64>) -> usize {
     body.edges()
         .filter(|(_, e)| {
@@ -436,6 +435,21 @@ fn chart_contact_edges(body: &Body<f64>) -> usize {
                     .and_then(|g| g.certified())
                     .map(|c| c.description()),
                 Some(EdgeDescription::Chart(c)) if !c.wrap
+            )
+        })
+        .count()
+}
+
+/// Edges of a carved body storing the conventional pair (`OnPair`) —
+/// the rule's UNDER-DETERMINED description: a whole-body count.
+fn pair_edges(body: &Body<f64>) -> usize {
+    body.edges()
+        .filter(|(_, e)| {
+            matches!(
+                body.get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.description()),
+                Some(EdgeDescription::OnPair { .. })
             )
         })
         .count()
@@ -493,12 +507,16 @@ fn r1_a_slim_wedges_corner_arcs_reach_the_in_band_and_under_determined_verdicts(
     assert_eq!(
         topo::validate_geometric(&out.body, tol()),
         Ok(()),
-        "the carve with chart-described corner arcs is tier-3 valid"
+        "the carve with conventional corner arcs is tier-3 valid"
     );
     assert_eq!(
-        (intrinsic_edges(&out.body), chart_contact_edges(&out.body)),
-        (44, 6),
-        "four of the 48 contact edges store the conventional chart image (the vent's two \
-         chart edges are the boolean's)"
+        (
+            intrinsic_edges(&out.body),
+            pair_edges(&out.body),
+            chart_contact_edges(&out.body)
+        ),
+        (44, 4, 2),
+        "four of the 48 contact edges store the conventional pair (the vent's two chart \
+         edges are the boolean's)"
     );
 }

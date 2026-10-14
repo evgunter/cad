@@ -57,7 +57,8 @@
 //! A RATIONAL face's second partials are quotients `M/W³` with
 //! polynomial numerators, and the sups are read from
 //! [`patch_bound`]'s rational arm (its module docs, "The rational
-//! arm"): on each exact dyadic piece of a span cell, numerator and
+//! arm"): on each dyadic piece of a span cell (halved from the cell's
+//! quotient, formed once over it), numerator and
 //! denominator raised to one degree, the partial is a convex
 //! combination of the coefficient ratios `m_k/b_k`, so its signed
 //! enclosure is their coordinate range. The pieces are cut from the

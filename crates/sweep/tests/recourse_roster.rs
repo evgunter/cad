@@ -482,6 +482,7 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
                 passes: geom_core::SizedPass::Positive,
                 no_size: None,
                 unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+                refused: geom_core::RefusedReading::AsShown,
             },
         );
         assert!(text.ends_with(&ending), "{what}: {text}");

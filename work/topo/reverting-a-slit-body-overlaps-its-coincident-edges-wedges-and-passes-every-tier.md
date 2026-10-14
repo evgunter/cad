@@ -2,10 +2,11 @@
 id: reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier
 kind: issue
 title: Body::revert of a body with coincident distinct edges on one line yields overlapping material wedges, and every tier passes it
-status: open
+status: review
 opened: 2026-10-14
 priority: P1
 cost: M
+branch: cleave/revert-repairs-coincident-edges
 ---
 
 Found by the radial-edges design fork on CLEAVE's `[ev]` PR 4795, by

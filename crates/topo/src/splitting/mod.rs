@@ -1110,11 +1110,18 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// # Errors
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole (no
-/// degenerate body is ever emitted). The sides are gated at tier 2
-/// ([`SplitFinishError::ResultInvalid`]); tier 3 is not run on them. A
-/// pinch side's touching pieces need no contact record, since their
-/// copies of the pinched vertex share its point key, and the ON verdict
-/// that pinched them is in [`SplitResult::coincidences`].
+/// degenerate body is ever emitted). Each side is gated at tier 2
+/// ([`SplitFinishError::ResultInvalid`]) and, as sorted into its
+/// solids, at the scalar's at-rest gate
+/// ([`crate::AtRestPolicy::gate_at_rest`], the gate the Boolean's result
+/// passes, its findings typed as the Boolean types them:
+/// [`SplitFinishError::ResultEscalated`] for shells in band,
+/// [`SplitFinishError::ResultNotAtRest`] otherwise). So at a certifying
+/// scalar no side is returned that [`crate::validate_geometric`]
+/// refuses; at a dual the gate runs nothing beyond tier 2. A pinch side's
+/// touching pieces need no contact record, since their copies of the
+/// pinched vertex share its point key, and the ON verdict that pinched
+/// them is in [`SplitResult::coincidences`].
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
@@ -1133,10 +1140,15 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
         operand
     };
     let mut result = split_direct(operand, plane, tol)?;
-    for part in [&mut result.above, &mut result.below] {
+    for (side, part) in [
+        (PlaneSide::Above, &mut result.above),
+        (PlaneSide::Below, &mut result.below),
+    ] {
         if let finish::SplitPart::Body(body) = part {
             crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), None)
                 .map_err(SplitError::Pieces)?;
+            T::gate_at_rest(body, tol)
+                .map_err(|errors| SplitFinishError::not_at_rest(side, errors))?;
         }
     }
     Ok(result)
@@ -1167,16 +1179,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
             // Every finisher ends with the join (`docs/DESIGN.md`, maximal edges).
             let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
             // Taken before the kills, which drop it (`SplitNaming::joined_lineage`).
-            let split_from: std::collections::BTreeMap<
-                crate::entity::EdgeKey,
-                crate::entity::EdgeKey,
-            > = body
-                .edges()
-                .filter_map(|(e, _)| match body.edge_provenance_of(e) {
-                    Some(crate::provenance::Provenance::SplitEdge { edge }) => Some((e, *edge)),
-                    _ => None,
-                })
-                .collect();
+            let split_from = crate::boolean::edge_join::split_records(body);
             // On this run's own output: a refusal discards it.
             let joins = body
                 .join_edges_within(band, tol, &|_| true)
@@ -1184,15 +1187,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                     side,
                     refusal: crate::boolean::JoinRefusal::of(&refusal),
                 })?;
-            result.naming.joined_lineage.extend(
-                joins
-                    .iter()
-                    .filter_map(|j| split_from.get(&j.gone).map(|&from| (j.gone, from))),
-            );
-            result
-                .naming
-                .edge_joins
-                .extend(joins.into_iter().map(|j| (side, j)));
+            result.naming.record_joins(side, &split_from, joins);
             // The side's tier-2 gate again, on the body as joined.
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;

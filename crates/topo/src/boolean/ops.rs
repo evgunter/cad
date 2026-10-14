@@ -345,6 +345,13 @@ pub struct BooleanNaming {
     /// row's vertex and `gone` edge are dead, and its `kept` edge holds
     /// their interiors (maximal edges, `docs/DESIGN.md`'s merge stage).
     pub edge_joins: Vec<super::EdgeJoin>,
+    /// Killed edge → the edge it was split from, for each `gone` edge of
+    /// [`Self::edge_joins`] that held a `SplitEdge` record: a kill takes
+    /// its edge's birth record with it, so an edge this op split and
+    /// then joined away leads to its parent only through this copy,
+    /// taken before the kills (as the Split's
+    /// `SplitNaming::joined_lineage`).
+    pub joined_lineage: BTreeMap<EdgeKey, EdgeKey>,
 }
 
 impl Default for BooleanNaming {
@@ -378,6 +385,7 @@ impl Default for BooleanNaming {
             null_copies: Default::default(),
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
             edge_joins: Default::default(),
+            joined_lineage: Default::default(),
         }
     }
 }
@@ -815,7 +823,11 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         discarded[usize::from(row.operand == Operand::B)].insert(row.face);
     }
     let recorded = carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
-    let (merged, edge_joins) = finish_output(
+    let OutputStage {
+        merged,
+        edge_joins,
+        joined_lineage,
+    } = finish_output(
         &mut body,
         &mut desc,
         &declared_pairs,
@@ -874,6 +886,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         null_copies,
         cone_splits,
         edge_joins,
+        joined_lineage,
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,
@@ -2349,6 +2362,16 @@ fn bound_holds<'t, 'b, T: Decide>(
     }
 }
 
+/// What [`finish_output`] made.
+pub(super) struct OutputStage {
+    /// The merge of coplanar faces.
+    pub(super) merged: crate::merge_faces::MergeCoplanarOutcome,
+    /// The joins, in the order made ([`BooleanNaming::edge_joins`]).
+    pub(super) edge_joins: Vec<super::EdgeJoin>,
+    /// The joined-away edges' parents ([`BooleanNaming::joined_lineage`]).
+    pub(super) joined_lineage: BTreeMap<EdgeKey, EdgeKey>,
+}
+
 /// **The boolean's output stage**, the one every result path takes
 /// (`docs/DESIGN.md`, the merge stage): the merge of coplanar faces
 /// over the `declared` surface pairs (none where one operand is absent
@@ -2370,13 +2393,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     recorded: &BTreeSet<VertexKey>,
     band: Band,
     tol: Tol,
-) -> Result<
-    (
-        crate::merge_faces::MergeCoplanarOutcome,
-        Vec<super::EdgeJoin>,
-    ),
-    BooleanError,
-> {
+) -> Result<OutputStage, BooleanError> {
     #[cfg(feature = "sweep-testing")]
     OUTPUT_STAGE_POINTS.with(|s| {
         if let Some(stages) = s.borrow_mut().as_mut() {
@@ -2393,8 +2410,12 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     let merged = body.merge_coplanar_faces_unjoined(declared, tol)?;
     desc.absorb_merge(&merged)?;
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
-    let edge_joins = join_stage(body, desc, recorded, band, tol)?;
-    Ok((merged, edge_joins))
+    let (edge_joins, joined_lineage) = join_stage(body, desc, recorded, band, tol)?;
+    Ok(OutputStage {
+        merged,
+        edge_joins,
+        joined_lineage,
+    })
 }
 
 /// One output stage's vertices, each with its point rendered
@@ -2535,6 +2556,7 @@ pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
             decision: BooleanDecision::EdgeOnFaces,
             diag,
         },
+        DescribeRefusal::Mixed { edge, stations } => BooleanError::MixedSeam { edge, stations },
     }
 }
 
@@ -2561,8 +2583,9 @@ fn of_attachment(
 /// the chord-midpoint witness; definitely smooth ⇒ the must-carry rule
 /// over the edge ([`must_carry_reading`]) — the intrinsic
 /// `TangentIntersection` where the surfaces determine the locus, else
-/// the conventional description (D2's split); an undecided reading
-/// refuses typed. `skipped` is the merge stage's record of the groups
+/// the conventional description (D2's split); an undecided reading,
+/// or a seam a corner at one station and smooth at another, refuses
+/// typed. `skipped` is the merge stage's record of the groups
 /// it left unglued. The boolean's minted edges and the merge door's
 /// kept boundaries are both described here, and each door words the
 /// refusal as its own.
@@ -2638,7 +2661,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                 // surfaces under-determine the locus (D2's split).
                 let stale = match existing.as_ref().ok_or_else(corrupt)?.description() {
                     geom_brep::EdgeDescription::Intersection { pair, .. }
-                    | geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+                    | geom_brep::EdgeDescription::TangentIntersection { pair, .. }
+                    | geom_brep::EdgeDescription::OnPair { pair } => {
                         *pair != geom_brep::SurfacePair::new(s1, s2)
                     }
                     // A chart image cites ONE adjacent surface (its
@@ -2661,16 +2685,25 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                 // The D6 smooth ladder (M9-3): a definitely-smooth
                 // seam descends one order through the must-carry rule
                 // over the edge, at the stations tier 3's must-carry arm
-                // re-reads (`must_carry_reading`).
-                let mint_intrinsic = {
+                // re-reads (`must_carry_reading`). A seam that reads a
+                // corner at some station and smooth at another is
+                // certifiable as neither, and refuses (D2).
+                let reading = {
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
                     let (_, [sa, sb]) = geom_brep::SurfacePair::sorted(s1, surf1, s2, surf2);
                     must_carry_reading(sa, sb, c.carrier(), t0, t1, extent, band).map_err(
-                        |(reading, diag)| DescribeRefusal::undecided(edge, reading, diag),
+                        |refusal| match refusal {
+                            SeamRefusal::Undecided(reading, diag) => {
+                                DescribeRefusal::undecided(edge, reading, diag)
+                            }
+                            SeamRefusal::Mixed(stations) => {
+                                DescribeRefusal::Mixed { edge, stations }
+                            }
+                        },
                     )?
                 };
-                if mint_intrinsic {
+                if reading == SeamReading::Intrinsic {
                     // Mint the intrinsic tangency on the existing
                     // carrier (U2: today's taxonomy, 1:1 onto
                     // (surface, exact-lane pcurve)) — this also
@@ -2691,13 +2724,27 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier().kind(), e)
                     })?;
                 } else if stale {
-                    // A locus the adjacent surfaces under-determine,
-                    // of any carrier kind, rests in `s1`'s chart.
+                    // A locus the adjacent surfaces under-determine, of
+                    // any carrier kind, rests where it lies
+                    // (`crate::rest_locus`), on its UNCHANGED carrier
+                    // (only the description moves): the pair of two
+                    // distinct surfaces, or an image in the chart of the
+                    // one surface both faces lie on.
                     let c = existing.as_ref().ok_or_else(corrupt)?;
-                    body.set_edge_curve(edge, c.restated_in_chart(s1), tol)
-                        .map_err(|e| {
-                            of_attachment(edge, EdgeDescribeFailure::Chart, c.carrier().kind(), e)
-                        })?;
+                    let rest = crate::rest_locus(
+                        body,
+                        [(s1, Some(sides.plus.face)), (s2, Some(sides.minus.face))],
+                        c.carrier(),
+                        c.params(),
+                        band,
+                    );
+                    let failure = match rest {
+                        geom_brep::RestLocus::Chart(_) => EdgeDescribeFailure::Chart,
+                        geom_brep::RestLocus::Pair(_) => EdgeDescribeFailure::Pair,
+                    };
+                    let spec = c.restated_at(rest);
+                    body.set_edge_curve(edge, spec, tol)
+                        .map_err(|e| of_attachment(edge, failure, c.carrier().kind(), e))?;
                 }
             }
         }
@@ -2763,14 +2810,24 @@ pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> Boo
 /// - under-determined ⇒ `false`: the conventional description is the
 ///   honest one (coplanar planes' exact-zero jet lands here, so a planar
 ///   split keeps its chord description);
-/// - a station that reads the seam a corner ⇒ `false`: the seam is
-///   smooth at its witness and transverse elsewhere, an edge tier 3
-///   holds to neither description, so it keeps the conventional one;
-/// - in band at a station ⇒ the typed escalation of the reading that
-///   raised it: the seam's first-order arm or wedge, by rung, as
-///   [`seam_class`] ends it, or its second-order bend
+/// - a station that reads the seam a corner ⇒ [`SeamRefusal::Mixed`]
+///   with the two stations that disagree, which the describe pass words
+///   as [`BooleanError::MixedSeam`] naming its edge: the seam is smooth
+///   at its witness and a corner elsewhere, so the dihedral passes
+///   through the band at a point no station read, and the seam is
+///   certifiable as neither (D2);
+/// - every station a corner ⇒ [`SeamRefusal::Mixed`] with no stations:
+///   the corner refutes the smooth reading at the witness, which is not
+///   a station on every carrier (a line's is its vertices' midpoint), as
+///   the smooth-premise doors refuse it;
+/// - in band at a station ⇒ [`SeamRefusal::Undecided`], worded as the
+///   typed escalation of the reading that raised it
+///   ([`seam_refusal`]): the seam's first-order arm or wedge, by rung,
+///   as [`seam_class`] ends it, or its second-order bend
 ///   ([`BooleanDecision::SeamJet`]). Certifiable as neither, so never
 ///   folded into either description (D4 ¶3).
+///
+/// Edge-free: the describe pass names the edge where it words a refusal.
 #[cfg(test)]
 pub(super) fn seam_must_carry<T: Decide>(
     surf1: &geom::Surface<T>,
@@ -2780,13 +2837,29 @@ pub(super) fn seam_must_carry<T: Decide>(
     t1: T,
     extent: T,
     band: Band,
-) -> Result<bool, BooleanError> {
+) -> Result<SeamReading, SeamRefusal> {
     must_carry_reading(surf1, surf2, carrier, t0, t1, extent, band)
-        .map_err(|(reading, diag)| seam_refusal(reading, diag))
 }
 
-/// [`seam_must_carry`]'s verdict, unworded: an undecided station
-/// returns the reading that raised it and its diagnostics.
+/// Why a seam smooth at its witness has no description: a station
+/// undecided, with the reading that raised it and its diagnostics, or
+/// one that reads a corner ([`seam_must_carry`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) enum SeamRefusal {
+    Undecided(DihedralReading, Indeterminate),
+    Mixed(Option<geom_brep::MixedStations>),
+}
+
+/// What a seam smooth at its witness stores ([`seam_must_carry`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SeamReading {
+    /// The intrinsic tangency: the surfaces determine the locus.
+    Intrinsic,
+    /// The conventional pair: the surfaces under-determine it.
+    Conventional,
+}
+
+/// [`seam_must_carry`]'s verdict, unworded.
 fn must_carry_reading<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
@@ -2795,12 +2868,17 @@ fn must_carry_reading<T: Decide>(
     t1: T,
     extent: T,
     band: Band,
-) -> Result<bool, (DihedralReading, Indeterminate)> {
+) -> Result<SeamReading, SeamRefusal> {
     use geom_brep::MustCarryVerdict;
     match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, extent, band) {
-        MustCarryVerdict::JetDeterminate => Ok(true),
-        MustCarryVerdict::UnderDetermined | MustCarryVerdict::Transverse => Ok(false),
-        MustCarryVerdict::InBand(escalation) => Err(DihedralReading::of_must_carry(escalation)),
+        MustCarryVerdict::JetDeterminate => Ok(SeamReading::Intrinsic),
+        MustCarryVerdict::UnderDetermined => Ok(SeamReading::Conventional),
+        MustCarryVerdict::Transverse => Err(SeamRefusal::Mixed(None)),
+        MustCarryVerdict::Mixed(stations) => Err(SeamRefusal::Mixed(Some(stations))),
+        MustCarryVerdict::InBand(escalation) => {
+            let (reading, diag) = DihedralReading::of_must_carry(escalation);
+            Err(SeamRefusal::Undecided(reading, diag))
+        }
     }
 }
 
@@ -5090,46 +5168,72 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     Ok(kept)
 }
 
-/// **How the finished-body gate types what it found** (D10, Booleans):
-/// a result holds no in-band pair or shell, and one that does is the
-/// operands' ill-conditioning, which definite cuts can compose. So where
-/// every finding is born of a margin certified in band, the refusal is
-/// [`BooleanError::Escalated`] on the shell whose certified enclosure
-/// binds the offer (nearest zero: a tolerance deciding it decides every
-/// other), naming how many more lie in band; its recourse is a smaller
-/// tolerance or moved parts. Any other finding is the kernel's own
-/// defect, and the refusal is [`BooleanError::ResultInvalid`] carrying
-/// every finding. Each finding's arm is [`finding_arm`]'s.
-fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
-    let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
-    in_band
-        .and_then(|shells| escalated(&shells))
-        .unwrap_or(BooleanError::ResultInvalid { errors })
+/// **How the at-rest gate's refusal of a door's result is typed** (D10,
+/// Booleans), for the two doors that share it: the Boolean's [`gate`]
+/// and [`crate::splitting::split`]. The other doors that gate at rest
+/// type on their own
+/// (`work/cleave/the-at-rest-result-gate-and-its-typing-live-in-five-homes.md`).
+/// A result holds no in-band pair or shell, and one that does is the
+/// operands' ill-conditioning, which definite cuts can compose.
+#[derive(Debug)]
+pub(crate) enum AtRestRefusal {
+    /// Every finding is born of a margin certified in band: the shell
+    /// whose certified enclosure binds the offer (nearest zero, so a
+    /// tolerance deciding it decides every other), as
+    /// [`BooleanDecision::ShellRole`] naming how many more lie in
+    /// band, with its reading. Its recourse is a smaller tolerance or
+    /// moved geometry.
+    InBand {
+        /// [`BooleanDecision::ShellRole`] on the binding shell.
+        decision: BooleanDecision,
+        /// The binding shell's certified reading.
+        diag: geom_core::Indeterminate,
+    },
+    /// Any other finding: the kernel's own defect or limit, every
+    /// finding carried, each with its own ending.
+    Kernel(Vec<ValidationError>),
 }
 
-/// The refusal for `shells`, the result's in-band shells: on the one
-/// whose enclosure binds the offer, naming how many more there are.
-/// `None` where there are none.
-fn escalated(shells: &[InBandShell]) -> Option<BooleanError> {
-    let binding = shells.iter().copied().reduce(|a, b| {
-        if a.sliver
-            .reading()
-            .margin
-            .binds_before(b.sliver.reading().margin)
-        {
-            a
-        } else {
-            b
-        }
-    })?;
-    Some(BooleanError::Escalated {
-        decision: BooleanDecision::ShellRole {
-            solid: binding.solid,
-            shell: binding.shell,
-            others: shells.len() - 1,
+/// The at-rest gate's findings typed ([`AtRestRefusal`]); each finding's
+/// arm is [`finding_arm`]'s.
+pub(crate) fn at_rest_refusal(errors: Vec<ValidationError>) -> AtRestRefusal {
+    let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
+    let binding = in_band.as_deref().and_then(|shells| {
+        let b = shells.iter().copied().reduce(|a, b| {
+            if a.sliver
+                .reading()
+                .margin
+                .binds_before(b.sliver.reading().margin)
+            {
+                a
+            } else {
+                b
+            }
+        })?;
+        Some((b, shells.len() - 1))
+    });
+    match binding {
+        Some((b, others)) => AtRestRefusal::InBand {
+            decision: BooleanDecision::ShellRole {
+                solid: b.solid,
+                shell: b.shell,
+                others,
+            },
+            diag: *b.sliver.reading(),
         },
-        diag: *binding.sliver.reading(),
-    })
+        None => AtRestRefusal::Kernel(errors),
+    }
+}
+
+/// **How the finished-body gate's refusal reads at the Boolean**: the
+/// shared typing ([`at_rest_refusal`]), an in-band shell
+/// as [`BooleanError::Escalated`] on [`BooleanDecision::ShellRole`] and
+/// the kernel's findings as [`BooleanError::ResultInvalid`].
+fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
+    match at_rest_refusal(errors) {
+        AtRestRefusal::InBand { decision, diag } => BooleanError::Escalated { decision, diag },
+        AtRestRefusal::Kernel(errors) => BooleanError::ResultInvalid { errors },
+    }
 }
 
 /// **Which of Q1's arms one finding of the finished-body gate is**: the
@@ -5167,6 +5271,9 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         | V::PlanarFaceEscalated { .. }
         | V::PlanarBoundaryEscalated { .. }
         | V::SliverDihedral { .. }
+        | V::MixedDihedral { .. }
+        | V::PairTangencyDetermined { .. }
+        | V::PairCornerDetermined { .. }
         | V::JoinUndecidedAtRest { .. }
         | V::VolumeSignUnresolved { .. }
         | V::RingContactEscalated { .. }
@@ -6369,7 +6476,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 let d = k.dot(offset);
                 let (cos_part, sin_part) = (cr * k.dot(cu), cr * k.dot(ca.cross(cu)));
                 let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
-                let noise = super::circle_roots::rounding_charge(offset.norm() + cr);
+                let noise = geom_brep::rounding_charge(offset.norm() + cr);
                 let roots = super::circle_roots::first_harmonic_roots(
                     &super::circle_roots::FirstHarmonic {
                         lo: d - amplitude,
@@ -6387,10 +6494,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     band,
                 )?;
                 let thetas = match roots {
-                    super::circle_roots::FirstHarmonicRoots::Miss => continue,
-                    super::circle_roots::FirstHarmonicRoots::Certified(thetas) => thetas.to_vec(),
-                    super::circle_roots::FirstHarmonicRoots::OnSurface
-                    | super::circle_roots::FirstHarmonicRoots::Uncertain => {
+                    Ok(geom_brep::roots::Roots::Miss) => continue,
+                    Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),
+                    Ok(geom_brep::roots::Roots::On(_)) | Err(_) => {
                         return Err(refuse(
                             "a boundary arc of the sphere face meets the cut's meridian plane \
                              where its roots are not certified",
@@ -6764,7 +6870,11 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             ];
             let recorded =
                 carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
-            let (merged, edge_joins) = finish_output(
+            let OutputStage {
+                merged,
+                edge_joins,
+                joined_lineage,
+            } = finish_output(
                 &mut body,
                 &mut desc,
                 &declared_pairs,
@@ -6803,6 +6913,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 edge_classes: red.edge_classes.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
+                joined_lineage,
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -6867,7 +6978,11 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         &desc,
         [&discarded[0], &discarded[1]],
     )?;
-    let (merged, edge_joins) = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
+    let OutputStage {
+        merged,
+        edge_joins,
+        joined_lineage,
+    } = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
     let output = output_substitutions(&merged, &edge_joins)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
@@ -6894,6 +7009,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             edge_classes: red.edge_classes.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
+            joined_lineage: joined_lineage.clone(),
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -6908,6 +7024,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             edge_classes: red.edge_classes.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
+            joined_lineage: joined_lineage.clone(),
             ..BooleanNaming::default()
         },
     };
@@ -8569,7 +8686,7 @@ mod tests {
         carrier: &geom::Curve3<f64>,
         (t0, t1): (f64, f64),
         extent: f64,
-    ) -> [Result<bool, BooleanError>; 2] {
+    ) -> [Result<super::SeamReading, super::SeamRefusal>; 2] {
         let witness = carrier.eval((t0 + t1) / 2.0);
         [(s1, s2), (s2, s1)].map(|(a, b)| {
             assert!(
@@ -8580,6 +8697,17 @@ mod tests {
                 "the row's seam reads smooth at its witness"
             );
             seam_must_carry(a, b, carrier, t0, t1, extent, band())
+        })
+    }
+
+    /// A seam refusal undecided at a station, worded as the describe pass
+    /// words it ([`super::seam_refusal`]); any other answer, as read.
+    fn worded(
+        got: Result<super::SeamReading, super::SeamRefusal>,
+    ) -> Result<super::SeamReading, Result<BooleanError, super::SeamRefusal>> {
+        got.map_err(|refusal| match refusal {
+            super::SeamRefusal::Undecided(reading, diag) => Ok(super::seam_refusal(reading, diag)),
+            mixed @ super::SeamRefusal::Mixed(_) => Err(mixed),
         })
     }
 
@@ -8597,11 +8725,11 @@ mod tests {
             .into_iter()
             .enumerate()
         {
-            match got {
-                Err(BooleanError::Escalated {
+            match worded(got) {
+                Err(Ok(BooleanError::Escalated {
                     decision: BooleanDecision::SeamJet,
                     diag,
-                }) => assert_eq!(
+                })) => assert_eq!(
                     diag.predicate,
                     Some("tangent_second_order"),
                     "order {order}: the escalation is the station's sagitta"
@@ -8620,14 +8748,14 @@ mod tests {
         let (floor, cylinder, ruling) = resting();
         let extent = in_band();
         for (a, b) in [(&floor, &cylinder), (&cylinder, &floor)] {
-            let got = seam_must_carry(a, b, &ruling, 0.0, 1.0, extent, band());
+            let got = worded(seam_must_carry(a, b, &ruling, 0.0, 1.0, extent, band()));
             assert!(
                 matches!(
                     got,
-                    Err(BooleanError::Escalated {
+                    Err(Ok(BooleanError::Escalated {
                         decision: BooleanDecision::LeverArm(LeverArm::Seam),
                         ..
-                    })
+                    }))
                 ),
                 "an in-band arm is the seam lever's refusal, got {got:?}"
             );
@@ -8646,7 +8774,7 @@ mod tests {
             .enumerate()
         {
             assert!(
-                matches!(got, Ok(true)),
+                matches!(got, Ok(super::SeamReading::Intrinsic)),
                 "order {order}: a definite bend demands the intrinsic tangency, got {got:?}"
             );
         }
@@ -8660,8 +8788,35 @@ mod tests {
             .enumerate()
         {
             assert!(
-                matches!(got, Ok(false)),
+                matches!(got, Ok(super::SeamReading::Conventional)),
                 "order {order}: coplanar planes keep the conventional chord, got {got:?}"
+            );
+        }
+    }
+
+    /// **A corner at every station maps to the seam's typed refusal, with
+    /// no stations.** What this row shows is the mapping: the floor and a
+    /// plane through its ruling at 45° read a corner at every station
+    /// (and at the witness too, so the describe pass's smooth arm would
+    /// not ask these surfaces). The arm asks the rule of a seam it read
+    /// smooth at the witness, which is not a station on every carrier (a
+    /// line's is its vertices' midpoint); where such a seam reads a corner
+    /// at every station, this is the refusal it gets, as the
+    /// smooth-premise doors refuse it, rather than a panic.
+    #[test]
+    fn a_corner_at_every_station_maps_to_the_seams_typed_refusal() {
+        let (floor, _, ruling) = resting();
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let tilted = geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(s, 0.0, s),
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        for (a, b) in [(&floor, &tilted), (&tilted, &floor)] {
+            let got = seam_must_carry(a, b, &ruling, 0.0, 1.0, 1.0, band());
+            assert!(
+                matches!(got, Err(super::SeamRefusal::Mixed(None))),
+                "a corner at every station refuses typed, got {got:?}"
             );
         }
     }
@@ -8705,17 +8860,17 @@ mod tests {
         (torus, bitangent, circle)
     }
 
-    /// **A seam smooth at its witness and a corner at a station keeps
-    /// the conventional posture, in both orders**, on [`villarceau`]'s
-    /// arc a radian either side of the tangency. Each station's jet read
-    /// off a smooth join measures a transverse direction tangent to the
-    /// first surface alone, so the per-station sagitta reads definitely
+    /// **A seam smooth at its witness and a corner at a station refuses
+    /// as a mixed seam, in both orders**, on [`villarceau`]'s arc a
+    /// radian either side of the tangency. Each station's jet read off a
+    /// smooth join measures a transverse direction tangent to the first
+    /// surface alone, so the per-station sagitta reads definitely
     /// positive in both orders here, at values that differ with the
-    /// order; the rule reads the corner first-order instead, and tier 3
-    /// holds an edge that is not smooth throughout to neither
-    /// description, so no intrinsic tangency is demanded of it.
+    /// order; the rule reads the corner first-order instead, and the
+    /// stations disagreeing bracket a point no station read in band, so
+    /// the seam is certifiable as neither (D2).
     #[test]
-    fn a_seam_smooth_at_its_witness_and_a_corner_at_a_station_stays_conventional() {
+    fn a_seam_smooth_at_its_witness_and_a_corner_at_a_station_refuses_as_mixed() {
         let (torus, bitangent, arc) = villarceau();
         let span = (-1.0, 1.0);
         assert!(
@@ -8728,8 +8883,11 @@ mod tests {
         for (a, b) in [(&torus, &bitangent), (&bitangent, &torus)] {
             assert_eq!(
                 geom_brep::must_carry_over_edge(a, b, &arc, span.0, span.1, 1.0, band()),
-                geom_brep::MustCarryVerdict::Transverse,
-                "a station reads the seam a corner"
+                geom_brep::MustCarryVerdict::Mixed(geom_brep::MixedStations {
+                    transverse: 3,
+                    smooth: 4
+                }),
+                "the stations beside the tangency read a corner, the one at it smooth"
             );
         }
         for (order, got) in both_orders(&torus, &bitangent, &arc, span, 1.0)
@@ -8737,9 +8895,14 @@ mod tests {
             .enumerate()
         {
             assert!(
-                matches!(got, Ok(false)),
-                "order {order}: a seam that is a corner somewhere keeps the conventional \
-                 description, got {got:?}"
+                matches!(
+                    got,
+                    Err(super::SeamRefusal::Mixed(Some(geom_brep::MixedStations {
+                        transverse: 3,
+                        smooth: 4
+                    })))
+                ),
+                "order {order}: a seam that is a corner somewhere refuses as mixed, got {got:?}"
             );
         }
     }
@@ -8804,11 +8967,11 @@ mod tests {
         {
             assert!(
                 matches!(
-                    got,
-                    Err(BooleanError::Escalated {
+                    worded(got),
+                    Err(Ok(BooleanError::Escalated {
                         decision: BooleanDecision::SeamWedge,
                         ..
-                    })
+                    }))
                 ),
                 "order {order}: the in-band wedge refuses as the seam's wedge, got {got:?}"
             );

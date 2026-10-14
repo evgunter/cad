@@ -260,8 +260,8 @@ pub enum ArcCheck {
     /// The start, turned by the stored sweep about the stored centre,
     /// does not land on the end vertex (`arc_landing`).
     Landing,
-    /// The stored sweep is not in 0 < |Δθ| < 2π, signed as its sagitta
-    /// turns (`arc_sweep_range`).
+    /// The stored sweep is not in 0 < |Δθ| < 2π, or, for a full turn,
+    /// is not |Δθ| = 2π (`arc_sweep_range`).
     SweepRange,
 }
 

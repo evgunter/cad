@@ -1823,7 +1823,8 @@ pub fn rod_chord_at(flat: f64) -> RodChord {
 ///
 /// `f64` only: the boolean door's scalar bound is `Decide + Bounds`, a
 /// compound this file is not ratified to spell (the bracket-bound
-/// allowlist is per file). The interval twin takes the same body through
+/// allowlist is per file and scans `src/` alone, so a suite under
+/// `tests/` may spell it). The interval twin takes the same body through
 /// the extrude door instead — [`rod_d_profile_at`].
 ///
 /// Bit-identical to the pre-delegation body only because `ROD_L = 1.0`
