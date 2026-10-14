@@ -9,6 +9,7 @@ cost: M
 refs: [torus-circle-arc-classifies-far-frame-carriers-uncharged, no-door-rejects-geometry-past-eps-f64-resolution]
 closed: 2026-10-14
 branch: germ/pt-section-gaps
+pr: 5125
 ---
 
 
