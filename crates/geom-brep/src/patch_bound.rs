@@ -1450,9 +1450,10 @@ pub(crate) mod tests {
     /// bidegree `(2, 1)` whose weights vary along the degree-1 direction,
     /// which a Möbius reparameterization makes genuinely curve in
     /// parameter. Dropping any of the integral arm's centred cross
-    /// bound's three spread terms reads under a sampled magnitude; any
-    /// speed loosened at all reads over its box ceiling, and `m_sup`
-    /// loosened by a fifth.
+    /// bound's three spread terms reads under a sampled magnitude; a
+    /// speed loosened by `1e-9` of itself reads over its box ceiling
+    /// (one far below the ceiling's `1e-12`, `1e-13` say, does not), and
+    /// `m_sup` loosened by a fifth.
     /// The rational arm's terms are the quotient statement's, whose own
     /// rows drop them (`geom_core::spline::derivative`).
     ///

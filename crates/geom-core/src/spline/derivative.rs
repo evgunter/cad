@@ -1344,7 +1344,10 @@ pub fn polynomial_area_pieces<T: Real>(
     let counts = (piece_count(mu, splits.0), piece_count(mv, splits.1));
     let ones = || vec![T::one(); (mu + 1) * (mv + 1)];
     if counts == (1, 1) {
-        // One piece is the block itself: no cut to form.
+        // One piece is the block itself: no cut to form. At `f64` this
+        // is the identity cut bit for bit; at `Interval` the cut's `×[1,1]`
+        // padded an ulp below `|x| ≈ 2^-960` and normalised `−0`, so these
+        // enclosures are subsets of what it formed, never wider.
         return Some(vec![QuotientPiece::new(numer.arrays(), ones())?]);
     }
     let denom = Grid::new(mv + 1, ones().into_iter().map(|w| Vector([w])).collect())?;
