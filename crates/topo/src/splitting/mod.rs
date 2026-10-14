@@ -1184,15 +1184,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                     side,
                     refusal: crate::boolean::JoinRefusal::of(&refusal),
                 })?;
-            result.naming.joined_lineage.extend(
-                joins
-                    .iter()
-                    .filter_map(|j| split_from.get(&j.gone).map(|&from| (j.gone, from))),
-            );
-            result
-                .naming
-                .edge_joins
-                .extend(joins.into_iter().map(|j| (side, j)));
+            result.naming.record_joins(side, &split_from, joins);
             // The side's tier-2 gate again, on the body as joined.
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;

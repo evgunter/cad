@@ -2,11 +2,12 @@
 id: a-rod-rim-across-a-tube-ellipse-union-is-undescribed-in-one-order
 kind: issue
 title: A rod's rim across a tube's ellipse rim, one carrier: t ∪ r refuses EdgeUndescribed NoConventionalLane where r ∪ t builds
-status: review
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
 branch: cleave/rod-rim-union-describe
+closed: 2026-10-14
 ---
 
 

@@ -2160,16 +2160,24 @@ pub enum PlaneConeSection<T: Real> {
     AxisNormalCircle(Curve3<T>),
     /// Plane tilted but meeting every generator, the section reaching
     /// past the zero band of the apex:
-    /// the exact `Ellipse` (rung 2), carrier axis the plane normal,
-    /// zero-residual-by-construction.
+    /// the closed-form `Ellipse` (rung 2), carrier axis the plane normal.
+    /// Its points stand off both surfaces by the rounding its stored
+    /// fields carry, a few `u` of `max(major, |centre|, |apex|)`. That
+    /// bounds the distance off the cut, not the fields: near the
+    /// parabola the section is ill-conditioned along the plane, and the
+    /// semi-axes carry the discriminant's relative rounding `u/|D|`
+    /// while the points stay on both surfaces.
     ///
-    /// With `c = axis·n`, `δ = (apex − q)·n` and `K = c² − sin²α`
-    /// (positive exactly on this lane), the Dandelin construction gives
-    /// semi-major `|δ|·sin α·cos α / K` along the axis' in-plane
-    /// shadow, semi-minor `|δ|·sin α / √K` along `axis × n`, and centre
-    /// `apex − (δ/K)·(c·axis − sin²α·n)`. At `c² = 1` both semi-axes are
-    /// the axis-normal circle's `|h|·tan α` and the centre is its centre
-    /// — the circle is this form's boundary case.
+    /// With `c = axis·n`, `s = ‖axis × n‖`, `δ = (apex − q)·n`, the
+    /// discriminant `D = sin α·s − cos α·|c|` and
+    /// `K = c² − sin²α = −D·(sin α·s + cos α·|c|)` (positive exactly on
+    /// this lane, and read in the product form), the Dandelin
+    /// construction gives semi-major `|δ|·sin α·cos α / K` along
+    /// `û = (axis × n)/s × n`, semi-minor `|δ|·sin α / √K` along
+    /// `axis × n`, and centre `apex − δ·n + (c·δ·s/K)·û`: the apex's foot
+    /// on the plane moved along the major axis. At `c² = 1` both
+    /// semi-axes are the axis-normal circle's `|h|·tan α` and the centre
+    /// is its centre — the circle is this form's boundary case.
     TiltedEllipse(Curve3<T>),
 }
 
@@ -2454,15 +2462,25 @@ pub fn plane_cone_section<T: Decide>(
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Negative => {
-                    // K = −D·(cos α·|c| + sin α·s) > 0 here.
-                    let k = c.powi(2) - sin_a.powi(2);
+                    // K = c² − sin²α, read as −D·M off `s` and `cos α`:
+                    // where the plane is near square to the axis or the
+                    // cone near flat, `c` and `sin α` sit near 1 and
+                    // carry the tilt and the aperture's complement only
+                    // to `u` over those small angles, which the
+                    // difference of squares hands to K whole.
+                    let k = (T::zero() - discr) * (sin_a * s + cos_a * c.abs());
                     let major = apex_gap.abs() * sin_a * cos_a / k;
                     let minor = apex_gap.abs() * sin_a / k.sqrt();
-                    let center = apex - (a * c - n * sin_a.powi(2)) * (apex_gap / k);
                     // The axis-normal trilean above made `s`
                     // definite, so the minor direction is.
                     let v_minor = s_vec / s;
                     let u_major = v_minor.cross(n);
+                    // The centre is the apex's foot on the plane moved
+                    // along the major axis by `c·δ·s/K`: in the plane by
+                    // construction, where `apex − (c·a − sin²α·n)·δ/K`
+                    // reads a vector that cancels to K along the normal
+                    // and then divides it by K.
+                    let center = apex - n * apex_gap + u_major * (c * apex_gap * s / k);
                     let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
                     Ok(PlaneConeSection::TiltedEllipse(e))
                 }

@@ -157,10 +157,10 @@ enum Rung {
 /// source escalates (`carrier_matches_mapped_source`, an enclosure a
 /// few parts per million over the band's zero). At ε/16 the split
 /// certifies and the union of its halves does not: the glue door reads
-/// the cut faces' plane offset in band (`bool_plane_offset`), so the pair
-/// is not glued, and the corner that reads it one carrier refuses
-/// (`carrier_unglued_coincidence`). ε/32 and every narrower rung
-/// certify. Each
+/// the cut faces' plane offset in band (`bool_plane_offset`, an
+/// enclosure across zero), so the pair is not glued, and the corner that
+/// reads it one carrier refuses with that reading, the one a narrower
+/// width clears: ε/32 and every narrower rung certify. Each
 /// rung is asserted, so a floor that moves — up or down — reds this
 /// row naming the rung.
 #[test]
@@ -181,7 +181,7 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
             16,
             Rung::Escalates {
                 node: union,
-                predicate: "carrier_unglued_coincidence",
+                predicate: "bool_plane_offset",
             },
         ),
         (32, Rung::Green),

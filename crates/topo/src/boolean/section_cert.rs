@@ -2107,8 +2107,8 @@ fn cone_plane_pair<T: Decide>(
 }
 
 /// The subdivision rows every ruling chart walks under.
-const RULING_WALK: crate::boolean::circle_roots::SubdivisionRows =
-    crate::boolean::circle_roots::SubdivisionRows {
+const RULING_WALK: geom_brep::half_angle::SubdivisionRows =
+    geom_brep::half_angle::SubdivisionRows {
         clear: "section_ruling_clear",
         monotone: "section_ruling_monotone",
         side: "section_ruling_side",

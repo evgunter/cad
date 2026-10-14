@@ -64,11 +64,14 @@ struct Side<'a, T: Decide> {
 /// the same records and reads the caller's graft rows only to decide
 /// where to stop, so the argument covers it too.
 ///
-/// **The kills' hops are not covered by it.** `killed` comes from
-/// `BooleanNaming::discards`' boundary chains ([`KilledSplits`]), a
-/// public naming table nothing checks where the kernel writes it, so a
-/// cycle through those hops is writable and this walk's bound is what
-/// refuses it (`work/fuse/join-desync-is-the-catch-all-for-cyclic-lineage-records.md`).
+/// **The kills' hops are copies of the same records.** `killed` comes
+/// from `BooleanNaming::discards`' boundary chains ([`KilledSplits`]),
+/// which copy the clone's `SplitEdge` records before the kills drop
+/// them, so as the kernel writes them they are as acyclic as the records
+/// (`topo::Provenance::SplitEdge`). They are public fields a caller can
+/// also write, and nothing checks the records where `Body::split_edge`
+/// writes them, so this walk keeps its own bound and refusal
+/// (`work/origin/the-split-edge-lineage-walk-has-four-homes.md`).
 ///
 /// Where the lineage stops at a key the table does not name and a kill
 /// took ([`KilledSplits`]), the walk steps to that key's parent and goes
@@ -147,7 +150,9 @@ impl KilledSplits {
 ///
 /// [`NamingError::SplitLineage`] on a cycling lineage; the halves'
 /// records are restrictions of one acyclic record set, so their union
-/// is acyclic by the same writer-access argument.
+/// is acyclic by the same writer-access argument, and so is its union
+/// with the split's copy of the records its joins killed
+/// (`SplitNaming::joined_lineage`).
 fn chase_split_edge_to_table<T: Decide>(
     sides: &[Side<'_, T>],
     table: &NameTable,
@@ -368,7 +373,7 @@ fn split_joined_readings<T: Decide>(
     target_table: &NameTable,
 ) -> Result<BTreeMap<EdgeKey, Joined>, NamingError> {
     let bug = |what| NamingError::Emission { what };
-    let lineage: BTreeMap<EdgeKey, EdgeKey> = naming.joined_lineage.iter().copied().collect();
+    let lineage = &naming.joined_lineage;
     // Keys are unique across the two halves (restrictions of one
     // arena), and each side's joins keep their order, so one chase
     // over both sides' rows is each side's.
@@ -398,7 +403,7 @@ fn split_joined_readings<T: Decide>(
         let mut roots = BTreeSet::new();
         let mut chords = 0usize;
         for &c in &cover {
-            let root = chase_split_lineage(sides, target_table, &lineage, c)?;
+            let root = chase_split_lineage(sides, target_table, lineage, c)?;
             if named(root) {
                 roots.insert(root);
             } else {
@@ -1799,11 +1804,9 @@ enum JoinedCover {
 
 /// **The operand edges joined edge `e` lies along** (`names/README.md`,
 /// "Flush edges"): the edges of either operand between two faces that
-/// `e`'s two faces descend from (a merged face from each of its
-/// constituents), straight where `e` is and curved where `e` is, that
-/// lie on `e`'s carrier and overlap it over a length, read through
-/// [`ON_MEMBER_EDGE`] along `e`'s line ([`Segment::cover`]) or its
-/// curved carrier ([`Track::cover`]). One that holds `e` whole makes
+/// `e`'s two faces descend from ([`joined_candidates`]) that lie on
+/// `e`'s carrier and overlap it over a length ([`joined_along`]). One
+/// that holds `e` whole makes
 /// `e` a piece of it, the least such in key order with A's before B's;
 /// otherwise several that overlap it and together cover it name it as a
 /// set, since a set name says the edge lies on its constituents.
@@ -1833,37 +1836,24 @@ fn joined_cover<T: Decide>(
             None => vec![descend_face(f)?],
         })
     };
-    let (d0, d1) = (descents(*f0)?, descents(*f1)?);
-    let line = is_straight(body, e);
-    let mut candidates: BTreeSet<OpSide<EdgeKey>> = BTreeSet::new();
-    for &g0 in &d0 {
-        for &g1 in d1
-            .iter()
-            .filter(|g1| g1.operand() == g0.operand() && **g1 != g0)
-        {
-            let (op, k0) = g0.of(a, b);
-            let (_, k1) = g1.of(a, b);
-            for r in rims_between(op.body, k0, k1)? {
-                if is_straight(op.body, r) == line {
-                    candidates.insert(g0.with(r));
-                }
-            }
-        }
-    }
-    let mut arcs = Vec::with_capacity(candidates.len());
-    for r in candidates {
-        let (op, k) = r.of(a, b);
-        arcs.push((r, carrier_arc(op.body, k)?));
-    }
-    let cover = if line {
-        Segment::of_edge(body, e)?.cover(
-            arcs.into_iter().map(|(r, arc)| (r, arc.p0, arc.p1)),
-            ON_MEMBER_EDGE,
-            bnd,
-        )?
-    } else {
-        Track::of_edge(body, e)?.cover(arcs, ON_MEMBER_EDGE, bnd)?
+    let operand = |ds: Vec<OpSide<FaceKey>>| -> Vec<(topo::Operand, FaceKey)> {
+        ds.into_iter().map(OpSide::of_operand).collect()
     };
+    let (d0, d1) = (operand(descents(*f0)?), operand(descents(*f1)?));
+    let candidates = joined_candidates(
+        &d0,
+        &d1,
+        |side| Ok(OpSide::on(side, ()).of(a, b).0.body),
+        is_straight(body, e),
+    )?;
+    let cover = joined_along(
+        body,
+        e,
+        candidates
+            .into_iter()
+            .map(|((side, r), arc)| (OpSide::on(side, r), arc)),
+        bnd,
+    )?;
     if let Some(&r) = cover.within.first() {
         return Ok(JoinedCover::One(r));
     }
@@ -1965,19 +1955,25 @@ fn name_boolean_vertices<T: Decide>(
     // never the whole set (N2).
     let set_holding =
         |v: VertexKey, set: &[OpSide<EdgeKey>]| -> Result<Vec<OpSide<NameRef>>, NamingError> {
-            let p = vertex_point(body, v)?;
-            let mut held = Vec::new();
-            for &r in set {
-                let (op, k) = r.of(a, b);
-                if Segment::of_edge(op.body, k)?.place(p, ON_MEMBER_EDGE, bnd)? != OnSegment::Off {
-                    let up = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(k)))?;
-                    held.push(r.with(up.name));
+            let held = edges_holding(
+                vertex_point(body, v)?,
+                set.iter().map(|&r| {
+                    let (op, k) = r.of(a, b);
+                    (r, op.body, k)
+                }),
+                bnd,
+            )?;
+            let a_holds = held.iter().any(|r| matches!(r, OpSide::A(_)));
+            let mut out = Vec::with_capacity(held.len());
+            for r in held {
+                if a_holds && matches!(r, OpSide::B(_)) {
+                    continue;
                 }
+                let (op, k) = r.of(a, b);
+                let up = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(k)))?;
+                out.push(r.with(up.name));
             }
-            if held.iter().any(|r| matches!(r, OpSide::A(_))) {
-                held.retain(|r| matches!(r, OpSide::A(_)));
-            }
-            Ok(held)
+            Ok(out)
         };
     // The zips' fusions (`vertex_merges`): kept key → dead partners
     // (a fused vertex may owe
@@ -3136,6 +3132,7 @@ pub(super) struct CarrierArc<T: Decide> {
 /// vertex sits, which has no identity of its own (`docs/DESIGN.md`,
 /// maximal edges).
 pub(super) struct Track<T: Decide> {
+    edge: EdgeKey,
     carrier: geom::Curve3<T>,
     t0: T,
     mid: T,
@@ -3178,6 +3175,7 @@ impl<T: Decide> Track<T> {
         let mid = geom::mid_param(t0, t1);
         let speed = carrier.deriv(mid).norm();
         Ok(Track {
+            edge: e,
             carrier,
             t0,
             mid,
@@ -3202,6 +3200,12 @@ impl<T: Decide> Track<T> {
     /// on a periodic one, where `p` lies on the carrier (its distance
     /// from the carrier's point at its recovered parameter decided
     /// zero through `predicate`); `None` off it.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::CarrierUnplaced`] on a carrier that recovers no
+    /// parameter for a point (a spline), where "off it" would be a
+    /// guess.
     fn offset(
         &self,
         p: Point3<T>,
@@ -3209,7 +3213,10 @@ impl<T: Decide> Track<T> {
         bnd: geom_core::Band,
     ) -> Result<Option<T>, NamingError> {
         let Some(u) = self.carrier.param_near(p, self.mid) else {
-            return Ok(None);
+            return Err(NamingError::CarrierUnplaced {
+                edge: self.edge,
+                carrier: self.carrier.kind(),
+            });
         };
         let gap = decide(
             predicate,
@@ -3263,6 +3270,31 @@ impl<T: Decide> Track<T> {
             _ => (a1, per - d1),
         };
         Ok(Some(vec![(lo, lo + n), (lo - per, lo + n - per)]))
+    }
+
+    /// Whether `p` lies on this edge: on its carrier at an offset within
+    /// its span, the ends included. A closed edge holds every point of
+    /// its carrier, and a point just short of a periodic edge's start
+    /// reads a period on, at the start.
+    fn holds(
+        &self,
+        p: Point3<T>,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<bool, NamingError> {
+        let Some(u) = self.offset(p, predicate, bnd)? else {
+            return Ok(false);
+        };
+        if self.closed {
+            return Ok(true);
+        }
+        if let Some(per) = self.period
+            && self.sign(per - u, predicate, bnd)? == Sign::Zero
+        {
+            return Ok(true);
+        }
+        Ok(self.sign(u, predicate, bnd)? != Sign::Negative
+            && self.sign(self.len - u, predicate, bnd)? != Sign::Negative)
     }
 
     /// **How this edge lies along `candidates`** — [`Segment::cover`]
@@ -3376,6 +3408,92 @@ fn rim_holding<T: Decide>(
 /// ends and both faces).
 pub(super) fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
     topo::query::edge_carrier_kind(body, e) == Some(topo::query::CurveKind::Line)
+}
+
+/// Whether edge `e` of `body` holds point `p`, its ends included,
+/// through `predicate`: on its closed [`Segment`] where it is straight,
+/// and within its span along its certified carrier where it is curved
+/// ([`Track`]), never by a curved edge's chord.
+pub(super) fn edge_holds<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    p: Point3<T>,
+    predicate: &'static str,
+    bnd: geom_core::Band,
+) -> Result<bool, NamingError> {
+    if is_straight(body, e) {
+        Ok(Segment::of_edge(body, e)?.place(p, predicate, bnd)? != OnSegment::Off)
+    } else {
+        Track::of_edge(body, e)?.holds(p, predicate, bnd)
+    }
+}
+
+/// **The edges a joined edge may lie along** (`names/README.md`,
+/// "Flush edges"), for a pair boolean's operands and a union's members
+/// alike, each a source `S` with its own body (`body_of`): the edges
+/// between two faces of one source that the joined edge's two faces
+/// descend from (`d0` and `d1`, a merged face listing each of its
+/// constituents), straight where `line` is and curved where it is not,
+/// each with its [`CarrierArc`].
+pub(super) fn joined_candidates<'b, T: Decide + 'b, S: Copy + Ord>(
+    d0: &[(S, FaceKey)],
+    d1: &[(S, FaceKey)],
+    body_of: impl Fn(S) -> Result<&'b Body<T>, NamingError>,
+    line: bool,
+) -> Result<BTreeMap<(S, EdgeKey), CarrierArc<T>>, NamingError> {
+    let mut out = BTreeMap::new();
+    for &(s, g0) in d0 {
+        let body = body_of(s)?;
+        for &(_, g1) in d1.iter().filter(|(s1, g1)| *s1 == s && *g1 != g0) {
+            for r in rims_between(body, g0, g1)? {
+                if is_straight(body, r) == line
+                    && let std::collections::btree_map::Entry::Vacant(slot) = out.entry((s, r))
+                {
+                    slot.insert(carrier_arc(body, r)?);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// **How joined edge `e` lies along `candidates`**: along its line
+/// ([`Segment::cover`]) where it is straight, along its certified
+/// carrier ([`Track::cover`]) where it is curved, through
+/// [`ON_MEMBER_EDGE`].
+pub(super) fn joined_along<T: Decide, K>(
+    body: &Body<T>,
+    e: EdgeKey,
+    candidates: impl IntoIterator<Item = (K, CarrierArc<T>)>,
+    bnd: geom_core::Band,
+) -> Result<Cover<K>, NamingError> {
+    if is_straight(body, e) {
+        Segment::of_edge(body, e)?.cover(
+            candidates.into_iter().map(|(k, arc)| (k, arc.p0, arc.p1)),
+            ON_MEMBER_EDGE,
+            bnd,
+        )
+    } else {
+        Track::of_edge(body, e)?.cover(candidates, ON_MEMBER_EDGE, bnd)
+    }
+}
+
+/// The edges of `set`, each with its source's body, that hold point
+/// `p` ([`edge_holds`] through [`ON_MEMBER_EDGE`]), in `set`'s order: a
+/// vertex of a joined edge cites the edges of its set it lies on, never
+/// the whole set (N2).
+pub(super) fn edges_holding<'b, T: Decide + 'b, K>(
+    p: Point3<T>,
+    set: impl IntoIterator<Item = (K, &'b Body<T>, EdgeKey)>,
+    bnd: geom_core::Band,
+) -> Result<Vec<K>, NamingError> {
+    let mut held = Vec::new();
+    for (k, body, e) in set {
+        if edge_holds(body, e, p, ON_MEMBER_EDGE, bnd)? {
+            held.push(k);
+        }
+    }
+    Ok(held)
 }
 
 /// Edge `e` of `body` as a cover candidate: its ends and, on a curved
@@ -6659,6 +6777,39 @@ mod rim_holding_rows {
     #[test]
     fn a_chord_across_a_split_is_held_by_no_piece() {
         assert_eq!(holding(chord_arc(30.0, 60.0)), None);
+    }
+
+    /// **A point on a curved edge is placed along its carrier, never by
+    /// its chord**: of the rim's three pieces (−90°–45°, 45°–120°,
+    /// 120°–180°), a point on the arc inside the middle one is held by
+    /// it alone, the midpoint of that piece's chord (inside the circle,
+    /// on no piece) by none, a split point by the two pieces it ends,
+    /// and the rim's own ends by the piece each ends.
+    #[test]
+    fn a_point_on_a_curved_piece_is_held_along_its_carrier() {
+        let (body, _, _, pieces) = split_prism();
+        let bnd = band(Tol::witness()).unwrap();
+        let held = |p: Point3<f64>| {
+            super::edges_holding(p, pieces.iter().map(|&k| (k, &body, k)), bnd).unwrap()
+        };
+        let chord_mid = at(45.0) + (at(120.0) - at(45.0)) * 0.5;
+        assert_eq!(
+            held(at(80.0)),
+            vec![pieces[1]],
+            "on the arc, inside the middle piece"
+        );
+        assert_eq!(
+            held(chord_mid),
+            Vec::<EdgeKey>::new(),
+            "the middle piece's chord"
+        );
+        let mut split = held(at(45.0));
+        split.sort_unstable();
+        let mut ends = vec![pieces[0], pieces[1]];
+        ends.sort_unstable();
+        assert_eq!(split, ends, "the split at 45°");
+        assert_eq!(held(at(-90.0)), vec![pieces[0]], "the rim's start");
+        assert_eq!(held(at(180.0)), vec![pieces[2]], "the rim's end");
     }
 
     /// A chord ending exactly at the split at 45° is held by the piece

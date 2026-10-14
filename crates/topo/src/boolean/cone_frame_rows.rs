@@ -112,8 +112,9 @@ fn shape(frame: &Frame) -> String {
 
 /// The Dandelin construction for a plane `(q, n)` cutting the cone
 /// `(A, â, α)` off its apex, as `PlaneConeSection::TiltedEllipse`'s docs
-/// state it: centre `A − (δ/K)·(c·â − sin²α·n)`, with `c = â·n`,
-/// `δ = (A − q)·n` and `K = c² − sin²α`.
+/// state it: centre `A − δ·n + (c·δ·s/K)·û`, with `c = â·n`,
+/// `s = ‖â × n‖`, `δ = (A − q)·n`, `û = (â × n)/s × n` and
+/// `K = (cos α·|c| − sin α·s)·(cos α·|c| + sin α·s)`.
 fn dandelin_centre(cone: &geom::Surface<f64>, q: Point3<f64>, n: Vec3<f64>) -> Point3<f64> {
     let &geom::Surface::Cone {
         apex,
@@ -124,11 +125,14 @@ fn dandelin_centre(cone: &geom::Surface<f64>, q: Point3<f64>, n: Vec3<f64>) -> P
     else {
         panic!("a cone")
     };
-    let n = n.normalize();
-    let (c, s2) = (axis.dot(n), half_angle.sin().powi(2));
+    let (axis, n) = (axis.normalize(), n.normalize());
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    let (c, s_vec) = (axis.dot(n), axis.cross(n));
+    let s = s_vec.norm();
+    let k = (cos_a * c.abs() - sin_a * s) * (cos_a * c.abs() + sin_a * s);
     let delta = (apex - q).dot(n);
-    let k = c * c - s2;
-    apex - (axis * c - n * s2) * (delta / k)
+    let u_major = (s_vec / s).cross(n);
+    apex - n * delta + u_major * (c * delta * s / k)
 }
 
 fn assert_conic_frame(got: &Frame, centre: Point3<f64>, normal: Vec3<f64>, what: &str) {
