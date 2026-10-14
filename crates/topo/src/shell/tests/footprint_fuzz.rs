@@ -90,8 +90,8 @@ fn carrier(rng: &mut Rng, kind: usize) -> (geom::Curve3<f64>, (f64, f64)) {
                 geom::Curve3::Ellipse {
                     center,
                     axis,
-                    major: a.max(b),
-                    minor: a.min(b),
+                    semi_u: a.max(b),
+                    semi_v: a.min(b),
                     u_ref,
                 },
                 window(rng),
