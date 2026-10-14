@@ -1575,3 +1575,9 @@ coincidence is now a margined verdict (no declarations), checked by the
   - The designer A dispatch was lost to a container restart and re-dispatched with the same brief.
   - Found on the way: PR 5101's body was wrong that `NotTransverse` at rest "was already the defect ending". A Transversality or TangentSecondOrder zero verdict at rest still ends in the lever alone.
   (ENCL orchestrator)
+- 2026-10-14 — **Ev on `[ev]` PR 5134:** "aren't stored contradictions kernel bugs (and hence should panic)?" Then: "adoption should re-certify everything … wouldn't want to make a decision on that without weighing the current state."
+  - A read-only survey answered: adoption certifies every edge at ε twice (the ladder and `gate3`), but keeps the file's carriers, vertices and surfaces verbatim. Bodies past the import door (adopted or kernel-built, same ε) reach these contradictions only through a kernel bug. The import door itself is input, and it reads "as at rest".
+  - Posted to the PR, with options (a) Ev rules or (b) another designer round. Waiting on Ev.
+  - Filed exch `step-import-reads-a-negative-surface-radius-unchecked-before-edge-certification` and topotail `flipped-face-sense-for-tests-is-not-feature-gated`.
+  (ENCL orchestrator)
+- 2026-10-14 — At Ev's request, the import-validation question is split out of `[ev]` PR 5134 as exch `can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches`. PR 5134 waits on it. (ENCL orchestrator)

@@ -2,11 +2,12 @@
 id: the-spline-pair-edge-certificates-refuse-a-closed-form-carrier
 kind: issue
 title: the plane x NURBS and NURBS x NURBS edge certificates refuse any non-spline carrier, so the mint's General route for one is unreachable at rest
-status: open
+status: closed
 opened: 2026-10-12
 priority: P1
 cost: M
-design: true
+closed: 2026-10-14
+branch: pcert/spline-pair-any-carrier
 ---
 
 
@@ -79,3 +80,40 @@ Today only import reaches it (a file's stated line or circle, or D7's
 Line promotion); the kernel's own spline-pair intersections mint spline
 carriers. When the lanes land, `nurbs_iso_derive`'s circle fall-through
 (above) must reach `General` where the arc-rim certification refuses.
+
+## Closed
+
+Built on `pcert/spline-pair-any-carrier`, as ruled:
+
+- **One carrier-enclosure door**, `geom_brep::carrier_net::carrier_net`:
+  a spline is its own net, its round's breaks inserted exactly by the
+  composite; a line its degree-1 net; a circle, ellipse or spiric its
+  Taylor-enclosing net. A span it cannot enclose refuses typed,
+  `CarrierEnclosureRefusal { kind, span }`, carried as
+  `SsiError::CarrierEnclosure`, `PlaneNurbsRefusal::CarrierEnclosure`
+  and `PcurveCertifyError::CarrierEnclosure`.
+- The fitted row's round and the SSI certificate's limb 2 (both
+  `analytic_limbs`, which runs on the plane side of every plane × NURBS
+  edge, and `nurbs_limbs`) read the carrier only through it
+  (`ssi::certify::carrier_chart_round`). `certify_branch` takes a
+  `Curve3` and the edge's interval; `carrier_span` is the one rule for
+  the span a certificate and the mint's image cover. The ℝ³ box chain
+  stays spline-only (`BOX_CHAIN_NEEDS_SPLINE`).
+- `run_checks`'s two "must be a spline" refusals are deleted; the
+  resolver is unchanged.
+- `nurbs_iso_derive`'s circle fall-through certifies the arc-rim pick
+  and reaches `General` where that certification definitely refuses.
+
+Evidence: `geom-brep`'s `spline_pair_any_carrier` rows (a line, a
+circle and an ellipse on a plane × spline pair, and a line and a circle
+between two spline charts, each certifying or refusing at limb 2 on its
+measured bound, with the same verdict for its spline twin; a carrier
+2ε off the wall between samples escalating at limb 2 on the 2ε it read;
+the door's typed refusal by kind and span; the closed forms through
+the certification door). `sweep`'s
+`an_intersection_circle_on_a_spline_wall_is_refused_at_the_door` is
+re-pinned: the rim's circle now reaches limb 2 and refuses on its
+chord error (≈4.6e-4 m) rather than as `Unsupported`.
+
+The non-plane analytic × spline gap stays its own item:
+`analytic-by-spline-edges-refuse-as-unimplemented-at-resolve`.
