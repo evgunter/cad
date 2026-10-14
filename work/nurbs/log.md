@@ -1498,3 +1498,15 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **#5132 (build A): the SSIARITH rigid-map fuzzer P2.** The cause is the test's scale (the margin rounds at magnitude 1, not at its own value), not a bound. Test-only fix, with the 4 seeds pinned and a production mutant still red. FULL review on green.
   - **#5114 (exact-scale)** is in FULL review.
 - 2026-10-14 12:48Z — **#5059 merged** (01bd9fa7, FULL plus the M1 re-check). It closes `work/ssiarith/chart-point-signs-are-f64-evaluations`. #5132 (the rigid-map fuzzer, test-only) is in FULL review.
+- 2026-10-14 13:25Z — **Step 3 postscript round converged** (both designers, on the fork record branch). Keep "the cut restricts the formed quotients"; reject (B) step 2's cut and (D′) per-cut choice. Make the restriction cheap, in this order:
+  - (1) a thin-ratio step instead of `Interval::between`;
+  - (2) axis-lazy restriction;
+  - (3) a window-reading object that restricts once across doors;
+  - (4) batching;
+  - (5) a one-piece cut, only if still needed.
+  - The fallback is to restrict the formed low-degree grids. #5123 lands only when it's no regression against main on either row.
+  - **Protocol finding:** I appended B's answer to the fork record before A had answered, and A's brief pointed it there, so A's answer was not blind (A disclosed this). Next time, append postscript answers only after both are in.
+  - #5132 (fuzzer) is at 5ed36e07 after review fixes, with Unit tightened to 32 ulps. #5114 is in FULL review, with the ε rows green and slow sets running.
+- 2026-10-14 13:50Z — **#5132 merged** (d6396bc0; FULL review mergeable, follow-up test-module plus docs only). It closes both SSIARITH rigid-map fuzzer items.
+  - Build A's next unit is measurement only, so it can't collide with #5123's files: a perf split of shelling and r1 on main and on #5123's head (how much of the excess over pre-4954 is not the quotient unit), plus a `RATIONAL_CERT_SPLITS`/`BLOCK_PIECE_SPLITS` sensitivity run on main. Tables go to build C too.
+  - The NURBS slate on main has no unblocked code item outside #5123's territory: the corner-end refusal and the elevation conditioning both wait on a consumer.

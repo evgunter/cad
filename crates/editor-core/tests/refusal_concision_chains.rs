@@ -71,6 +71,8 @@ const KERNEL_KEYED: &[&str] = &[
     "Blend/BodyNotIntact/Unresolved",
     "Blend/BodyNotIntact/Unwalked",
     "Blend/BodyNotIntact/Disagrees",
+    "Blend/BodyNotIntact/Scaffolding",
+    "Blend/BodyNotIntact/Degenerate",
     "Blend/SurgeryInvariant",
     "Blend/Certify",
     "Naming/SplitLineage",
@@ -2775,6 +2777,22 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "BodyNotIntact/Scaffolding",
+            E::BodyNotIntact {
+                at: EntityId::Edge(edge),
+                breach: Breach::Scaffolding,
+                detail: "a rim edge carries no certified carrier",
+            },
+        ),
+        (
+            "BodyNotIntact/Degenerate",
+            E::BodyNotIntact {
+                at: EntityId::Face(face),
+                breach: Breach::Degenerate,
+                detail: "a face's stored surface, which its box reads",
+            },
+        ),
+        (
             "SurgeryInvariant",
             E::SurgeryInvariant {
                 at: EntityId::Face(face),
@@ -5214,8 +5232,8 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
 /// their recourse, and the rows above render one representative detail
 /// apiece. So this reads every detail the blend module raises those arms
 /// with — the second argument of each `unbuilt_chain`,
-/// `unbuilt_run_out`, `unbuilt_geometry`, `unresolved`, `unwalked` and
-/// `disagrees` call in
+/// `unbuilt_run_out`, `unbuilt_geometry`, `unresolved`, `unwalked`,
+/// `disagrees`, `scaffolding` and `degenerate` call in
 /// `sweep/src/blend`, and the `detail:` of each of those arms built
 /// directly, a literal or a `const` resolved in the same tree — and
 /// renders each through the feature tree's chain, under both verbs.
@@ -5251,6 +5269,16 @@ fn every_blend_detail_renders_within_the_budget() {
                 breach: Breach::Disagrees,
                 detail,
             },
+            "scaffolding" => E::BodyNotIntact {
+                at,
+                breach: Breach::Scaffolding,
+                detail,
+            },
+            "degenerate" => E::BodyNotIntact {
+                at,
+                breach: Breach::Degenerate,
+                detail,
+            },
             other => panic!("no arm for {other}"),
         };
         for verb in [BlendKind::Fillet, BlendKind::Chamfer] {
@@ -5274,6 +5302,8 @@ fn every_blend_detail_renders_within_the_budget() {
         "unresolved",
         "unwalked",
         "disagrees",
+        "scaffolding",
+        "degenerate",
     ] {
         assert!(
             details.iter().any(|(h, _, _)| *h == helper),
@@ -5293,7 +5323,10 @@ fn every_blend_detail_renders_within_the_budget() {
         .zip(details.iter().flat_map(|d| [d, d]))
         .flat_map(|((name, text), (helper, _, _))| {
             eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-            let keyed = matches!(*helper, "unresolved" | "unwalked" | "disagrees");
+            let keyed = matches!(
+                *helper,
+                "unresolved" | "unwalked" | "disagrees" | "scaffolding" | "degenerate"
+            );
             test_utils::refusal::problems(name, text, &[], keyed)
         })
         .collect();
@@ -5351,6 +5384,8 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
             "unresolved",
             "unwalked",
             "disagrees",
+            "scaffolding",
+            "degenerate",
         ] {
             let call = format!("{helper}(");
             for (at, _) in code.match_indices(&call) {
@@ -5386,7 +5421,7 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
             ("UnsupportedChain", "unbuilt_chain"),
             ("UnsupportedRunOut", "unbuilt_run_out"),
             ("UnsupportedGeometry", "unbuilt_geometry"),
-            ("BodyNotIntact", "disagrees"),
+            ("BodyNotIntact", longest_breach()),
         ] {
             let needle = format!("{arm} {{");
             for (at, _) in code.match_indices(&needle) {
@@ -5420,6 +5455,39 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
         }
     }
     out
+}
+
+/// The helper of the breach whose `BodyNotIntact` rendering is longest,
+/// measured rather than assumed, so a kind added or reworded moves it.
+/// The match is exhaustive: a new kind does not compile here until it
+/// is named, and then belongs in the list.
+fn longest_breach() -> &'static str {
+    use sweep::blend::{BlendError, Breach};
+    let helper = |breach| match breach {
+        Breach::Unresolved => "unresolved",
+        Breach::Unwalked => "unwalked",
+        Breach::Disagrees => "disagrees",
+        Breach::Scaffolding => "scaffolding",
+        Breach::Degenerate => "degenerate",
+    };
+    let at = topo::EntityId::Face(topo::FaceKey::default());
+    [
+        Breach::Unresolved,
+        Breach::Unwalked,
+        Breach::Disagrees,
+        Breach::Scaffolding,
+        Breach::Degenerate,
+    ]
+    .into_iter()
+    .max_by_key(|&breach| {
+        let detail = "";
+        BlendError::BodyNotIntact { at, breach, detail }
+            .to_string()
+            .split_whitespace()
+            .count()
+    })
+    .map(helper)
+    .expect("a breach to measure")
 }
 
 /// A plain Rust string literal's value: `\`-newline continuations and

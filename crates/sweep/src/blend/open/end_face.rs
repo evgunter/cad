@@ -1017,12 +1017,7 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
             foot_param(body, rim, v0, f0)?,
             foot_param(body, rim, v1, f1)?,
         );
-        let Some((carrier, _)) = stored_piece(body, rim)? else {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(rim),
-                "an end face's rim carries no certified carrier",
-            ));
-        };
+        let (carrier, _) = stored_piece(body, rim)?;
         let rate = match *carrier {
             Curve3::Line { .. } => InfSpeed::new(T::one()),
             Curve3::Circle { radius, .. } => InfSpeed::new(radius),
@@ -1071,10 +1066,9 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedGeometry`] when the rim carries no certified
-/// carrier; [`BlendError::UnsupportedRunOut`] from the foot's parameter
+/// [`BlendError::UnsupportedRunOut`] from the foot's parameter
 /// ([`foot_param`]); [`BlendError::BodyNotIntact`] when the rim does not
-/// resolve or does not end at `vertex`.
+/// resolve, carries no certified carrier, or does not end at `vertex`.
 fn rim_piece<T: Decide + Bounds>(
     body: &Body<T>,
     rim: EdgeKey,
@@ -1085,12 +1079,7 @@ fn rim_piece<T: Decide + Bounds>(
         .get_edge(rim)
         .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?
         .he_plus;
-    let Some((carrier, (t0, t1))) = stored_piece(body, rim)? else {
-        return Err(unbuilt_geometry(
-            EntityId::Edge(rim),
-            "an end face's rim carries no certified carrier",
-        ));
-    };
+    let (carrier, (t0, t1)) = stored_piece(body, rim)?;
     let t = foot_param(body, rim, vertex, foot)?;
     if body.get_half_edge(he_plus).map(|h| h.start) == Some(vertex) {
         Ok((carrier, (t0, t)))
