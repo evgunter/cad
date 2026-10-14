@@ -3,30 +3,27 @@
 //! visit, cut in two, or answering the walk's question, under one piece
 //! budget (D9). The visit is the parameter — what clears a piece, how
 //! small a piece may get, and what a piece too small to cut answers are
-//! the caller's: `geom_brep::half_angle` (a residual round a turn), and
-//! in `topo` `boolean::carrier_touch` (a curve against a surface's
-//! carrier), `splitting::spiric_arc` (a spiric arc against a point, a
-//! segment or a ray) and `census::curved` (a curve against a point or
-//! another curve). Beside it, the two lengths a walk near a tangency reads
-//! alike: a piece's [`reach`] and the [`tangency_floor`].
+//! the caller's (e.g. a residual round a turn, or a curve against a
+//! surface, a point or another curve). Beside it, the two lengths a walk
+//! near a tangency reads alike: a piece's [`reach`] and the
+//! [`tangency_floor`].
 //!
 //! The core owns the budget and not a depth: what "too deep" means is
-//! each walk's. `spiric_arc` caps a piece at depth 60, set past the
-//! roughly 52 halvings after which `f64` can no longer split a window of
-//! a few radians, so that the arithmetic runs out before the cap binds;
-//! it answers there as at the budget;
-//! `census::curved` counts a piece's cuts only to halve the pair's
-//! shallower side first, and stops on a length (the floor, the band);
-//! `half_angle` stops on a decided width in metres. A cap the core
-//! imposed would be a second budget, binding where the first already
-//! does.
+//! each walk's. A walk may cap a piece's depth (answering there as at the
+//! budget), count cuts only to choose which side to halve, or stop on a
+//! decided length. A cap the core imposed would be a second budget,
+//! binding where the first already does.
 
 use crate::{Margin, Real, SupSpeed};
 
 /// The most pieces one walk reads before it gives up. Sized from a
-/// measurement taken once, on 2026-10-13, with nothing that re-takes it:
-/// a count is a property of the bounds and not a contract, so no row
-/// pins one and the figures are dated. Over the `topo` and `sweep`
+/// measurement taken once, on 2026-10-13, that nothing re-takes: a count
+/// is a property of the bounds and not a contract, so no row pins one
+/// and the figures are dated. The walks are not in this crate, so no
+/// row here can re-take it either; what GUARDS the budget is the `topo`
+/// and `sweep` suites the figures come from, where a walk that ran out
+/// before answering refuses and the row that expected its answer reds.
+/// Over the `topo` and `sweep`
 /// suites at ε 1e-9 a walk that answered read at most 117 pieces in
 /// `half_angle`, 249 in `carrier_touch`, 271 in `spiric_arc`'s point
 /// and ray readings, 367 in `census::curved` and 2559 in `spiric_arc`'s

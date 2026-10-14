@@ -1,10 +1,10 @@
 //! **The half-angle ladder, and the subdivision that answers**: the
 //! certified real roots, round a whole turn, of a residual along a conic
-//! that is a trigonometric polynomial in the conic's own angle. `topo`'s
-//! circle × surface doors (`boolean::conic_quadric`,
-//! `boolean::circle_torus`, `boolean::ellipse_torus`) compute the
-//! residual's harmonics, name their rows, and hand it here; a door's own
-//! decision and error vocabulary wrap what this answers.
+//! that is a trigonometric polynomial in the conic's own angle. The
+//! caller (a "door") computes the residual's harmonics and names their
+//! rows; what this answers is a value or a typed refusal
+//! ([`LadderRefusal`]), and the caller's own decision and error
+//! vocabulary wrap it.
 //!
 //! A residual that is a trigonometric polynomial `F(θ)` of degree TWO —
 //! a circle against a torus's implicit, or against a cylinder wall it is
@@ -19,13 +19,13 @@
 //! (at most [`MAX_DEGREE`]) has at most `2N` roots, and its Taylor and
 //! noise bounds read every harmonic up to `N`. An ellipse against a
 //! torus's implicit is of degree four, an octic in the half-angle with no
-//! ladder, and the ellipse × torus door hands it to the subdivision alone
-//! (`topo`'s `boolean::ellipse_torus`) with a root-slack meter ([`RootSlack`]).
+//! ladder, and it goes to the subdivision alone with a root-slack meter
+//! ([`RootSlack`]).
 //!
 //! **The ladder runs first, for its escalations only.** Under the
 //! tangent half-angle `t = tan(φ/2)`, `F·(1 + t²)²` is a quartic in `t`,
 //! which the certified quartic ladder ([`crate::quartic`]) decides; an in-band
-//! sign it meets escalates as the door's decision, and that `Err` is
+//! sign it meets escalates ([`LadderRefusal::Escalated`]), and that `Err` is
 //! all [`half_angle_roots`] keeps. Its answers are dropped: they are
 //! decided in its root variable `τ`, arc length only to first order
 //! about the anchor (and along an ellipse only up to the ratio of its
@@ -456,7 +456,8 @@ const BISECTIONS: u32 = 64;
 /// degree `N ≤ MAX_DEGREE` over the whole turn about the arc's midpoint,
 /// by subdivision decided in the RESIDUAL's metres.** It is
 /// [`half_angle_roots`]' answer at `N = 2`, the ladder before it keeping
-/// only its escalations, and the ellipse × torus door's at `N = 4`.
+/// only its escalations, and the whole answer at `N = 4` (e.g. an ellipse
+/// against a torus).
 ///
 /// Why it is needed: the ladder decides on a quartic in a root variable
 /// whose length is arc length only to first order about the anchor, and

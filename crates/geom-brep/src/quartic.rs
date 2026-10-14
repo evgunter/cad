@@ -1,6 +1,6 @@
 //! **The certified real roots of a depressed monic quartic**: the sign
-//! ladder [`depressed_quartic_roots`] that the ray × torus lane and the
-//! half-angle ladder ([`crate::half_angle`]) both run, the cancellation-free
+//! ladder [`depressed_quartic_roots`] (the half-angle ladder,
+//! [`crate::half_angle`], is one caller), the cancellation-free
 //! [`quadratic_roots`] its factors (and every quadratic arm) are solved by,
 //! and the `sqrt`-chain cube root its Ferrari resolvent is built on.
 
@@ -33,22 +33,21 @@ pub fn quadratic_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
     ]
 }
 
-/// What [`depressed_quartic_roots`] found — the three-way keep-them-apart
-/// posture a quadratic's tangency takes, with the middle case widened: on a
-/// quartic the thing a ray must abandon on is not only a tangency but
-/// any root count this door cannot CERTIFY at the run's tolerance.
+/// What [`depressed_quartic_roots`] found: the quartic's real-root count
+/// certified (none, or that many roots), not certain, or certified and
+/// contradicted by the roots constructed. Only [`QuarticRoots::Miss`] and
+/// [`QuarticRoots::Certified`] are answers; the other two are the ladder
+/// declining one, and a caller decides what declining costs it.
 #[derive(Debug, Clone, Copy)]
 pub enum QuarticRoots<T> {
-    /// A certified count of ZERO: the line misses the tube definitely.
+    /// A certified count of ZERO: the quartic has no real root.
     Miss,
-    /// The real-root count is not certain at this tolerance — a repeated
-    /// root (the line grazes the tube, or runs along a symmetry the
-    /// quartic degenerates on), or a classifying sign in the band. Not a
-    /// miss and not an answer: the ray abandons and the schedule
-    /// retries, exactly as a tangency does.
+    /// The real-root count is not certain at this tolerance: a repeated
+    /// root, or a classifying sign in the band (rungs 1, 3 and 4 of
+    /// [`depressed_quartic_roots`], and an uncertain `p`/`D`). Neither a
+    /// miss nor an answer.
     Uncertain,
-    /// A certified count, and that many roots — unordered, since the
-    /// closest-hit fold orders by advance.
+    /// A certified count, and that many roots, unordered.
     Certified {
         /// How many of `ts` are roots: 2 or 4.
         count: usize,
@@ -57,8 +56,8 @@ pub enum QuarticRoots<T> {
     },
     /// The roots constructed disagree in number with the count
     /// certified. Never an answer: one of the two is wrong, and where
-    /// measured it is the certified count (rung 5 of `topo`'s
-    /// `line_torus_roots`).
+    /// measured it is the certified count (rung 5 of
+    /// [`depressed_quartic_roots`]).
     CountDisagrees {
         /// The count the sign ladder certified.
         certified: usize,
@@ -272,11 +271,11 @@ pub struct QuarticRows {
 }
 
 /// **The certified real roots of the depressed monic quartic**
-/// `y⁴ + p y² + q̂ y + s`, the ladder `topo`'s `line_torus_roots` documents
-/// rung by rung: the count read off exact sign algebra (`Δ`, then `p`
-/// and `D = 64s − 16p²` on the positive branch), the biquadratic arm
-/// when `q̂` is in band, Ferrari's factorization otherwise, and the
-/// constructed count checked against the certified one.
+/// `y⁴ + p y² + q̂ y + s`: the count read off exact sign algebra (`Δ`,
+/// then `p` and `D = 64s − 16p²` on the positive branch), the
+/// biquadratic arm when `q̂` is in band, Ferrari's factorization
+/// otherwise, and the constructed count checked against the certified
+/// one.
 ///
 /// `y` is a LENGTH and `lever` the length scale its roots spread over:
 /// every margin is metered as `coefficient / lever^k` so that it is a
@@ -284,6 +283,69 @@ pub struct QuarticRows {
 /// `q̂` over `lever²`, the factors' discriminants over `lever`), which
 /// is what makes the ladder's band a statement in metres. The roots
 /// come back unordered in `ts[..count]`, in the `y` variable.
+///
+/// # The certified count, and what it costs
+///
+/// The count is read off exact sign algebra, never off the roots: with
+/// `Δ` the quartic's discriminant,
+///
+/// * `Δ` Negative ⇒ exactly **2** real roots;
+/// * `Δ` Positive ⇒ **4** real when `p` and `D` are both Negative, and
+///   **0** otherwise;
+/// * `Δ` Zero, or a Zero on `p`/`D` inside the positive branch ⇒ the
+///   count is NOT certain, and the ladder answers only on a certain one.
+///
+/// `Δ` is metered over `lever¹¹` because for a monic quartic
+/// `Δ = Π_{i<j}(y_i − y_j)²`: two roots a distance `δ` apart, with the
+/// rest spread over the lever, put `Δ ≈ δ²·lever¹⁰` and the margin at
+/// `δ²/lever`. **So the ladder refuses over a BAND around a repeated
+/// root, not at one**, and the band is as wide as `√(K·ε·lever)` in root
+/// separation.
+///
+/// # The ladder, rung by rung
+///
+/// The leading coefficient is the literal `1`: the degree cannot drop,
+/// and nothing here divides by a lead. What a degenerate quartic
+/// degrades is its ROOT STRUCTURE, and each rung of that is typed, by
+/// its row in [`QuarticRows`]:
+///
+/// 1. **`disc` Zero**: the quartic has a repeated real root.
+///    [`QuarticRoots::Uncertain`].
+/// 2. **`odd` Zero**: `q̂` is in band and the quartic is BIQUADRATIC.
+///    Not a degeneracy but a different closed form: `y²` solves a
+///    quadratic and the roots come out of two square roots, which is also
+///    the only form the resolvent below cannot be used for (its `α = √z`
+///    would be zero and `q̂/α` poison).
+///    **This arm has a band, and it costs root accuracy rather than a
+///    count.** It is taken whenever `q̂/lever²` is in band, i.e. for a
+///    `q̂` that is small rather than zero, and it then solves the quartic
+///    with `q̂` SET to zero: the nearby quartic, not the posed one. The
+///    root error that buys is first order in the dropped term,
+///    `≈ q̂/lever²`, so it is bounded by the band itself. The count is
+///    unaffected: it was certified from `Δ` before this branch was
+///    chosen.
+/// 3. **`split_lead` non-Positive**: the resolvent's largest real root
+///    is not positive, which contradicts its own constant term `−q̂² < 0`
+///    on the branch that computed it. [`QuarticRoots::Uncertain`]. It is
+///    NOT only a rounding-scale contradiction: a `q̂` small enough that
+///    the root `≈ q̂²/c1` falls inside the band, but large enough to clear
+///    rung 2, reaches it too, a legitimate root refused on its size
+///    (`work/inside/torus-split-lead-escalates-a-legitimately-small-resolvent-root.md`).
+/// 4. **`split` Zero**: one of the two quadratic factors has a zero
+///    discriminant, i.e. a double root, which contradicts the definite
+///    discriminant of rung 1. [`QuarticRoots::Uncertain`].
+/// 5. **[`QuarticRoots::CountDisagrees`]**: the roots CONSTRUCTED
+///    disagree in number with the count CERTIFIED by rung 1. Where
+///    measured exactly, the construction is right and rung 1 is wrong:
+///    `Δ`'s `f64` evaluation carries rounding far past the band that no
+///    decision charges, so a definite-looking sign can be the noise's
+///    (`work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`;
+///    measured by `topo`'s
+///    `torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`
+///    and `a_far_ray_reaches_the_count_disagreement`). This rung catches
+///    the defect only where the two counts differ; where the noise flips
+///    the count to [`QuarticRoots::Miss`], the answer is wrong and
+///    nothing here sees it.
 ///
 /// # Errors
 ///

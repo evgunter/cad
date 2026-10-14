@@ -4596,82 +4596,32 @@ pub(super) fn line_sphere_roots<T: Decide>(
 /// p = 2M − 4R²(1 − e²)      q̂ = 8R²·e·n      s = M² − 4R²(m − n²)
 /// ```
 ///
-/// **The degenerate-quartic ladder, stated where it lives.** A reader
-/// arriving from the cone arm will look for the vanishing leading
-/// coefficient that arm makes a posture of, and there is none to find:
-/// `d` is a unit direction, so the leading coefficient is `|d|⁴` and the
-/// degree cannot drop. At `f64` that is exactly 1; at the `Interval`
-/// scalar it is an enclosure of 1, a few ulps wide, since `normalize`
-/// cannot round to a unit vector exactly — **bounded away from zero
-/// either way**, which is all this posture needs, and the arm never
-/// divides by it (the depression and both closed forms are written for
-/// the monic form and take `1` as a literal). What the ray's symmetry
-/// alignments degrade is the ROOT STRUCTURE, and each rung of that
-/// ladder is typed here:
+/// **The ladder that solves it is [`depressed_quartic_roots`]**, whose
+/// docs state its count, its band and its rungs; what is the RAY's is
+/// stated here. A reader arriving from the cone arm will look for the
+/// vanishing leading coefficient that arm makes a posture of, and there
+/// is none to find: `d` is a unit direction, so the leading coefficient
+/// is `|d|⁴` and the degree cannot drop. At `f64` that is exactly 1; at
+/// the `Interval` scalar it is an enclosure of 1, a few ulps wide, since
+/// `normalize` cannot round to a unit vector exactly — **bounded away
+/// from zero either way**, which is all the monic form needs. The lever
+/// is `ext = R + r`.
 ///
-/// 1. **`bool_ray_torus_disc` Zero** — the quartic has a repeated real
-///    root. Both alignments that a reader expects to break the degree
-///    arrive here instead: a ray along the axis (`e = ±1`, where
-///    `1 − e² = 0` and the `t²` coefficient loses its `R²` term) and a
-///    ray in the midplane (`n = 0`, `q̂ = 0`), each of which merges roots
-///    for the poses that touch the tube. Uncertain count — graze, retry.
-/// 2. **`bool_ray_torus_odd` Zero** — `q̂ = 8R²·e·n` vanishes and the
-///    quartic is BIQUADRATIC. Not a degeneracy but a different closed
-///    form: `y² ` solves a quadratic and the roots come out of two
-///    square roots, which is also the only form the resolvent below
-///    cannot be used for (its `α = √z` would be zero and `q̂/α` poison).
-///    Reached by every axis-parallel ray (`n = 0` there) and by every
-///    midplane ray (`e = 0`) — the four-root ray through the hole is in
-///    this arm.
-///    **This arm has a band, and it costs root accuracy rather than a
-///    count.** It is taken whenever `|q̂| ≤ K·ε·ext²`, i.e. for a `q̂`
-///    that is small rather than zero, and it then solves the quartic
-///    with `q̂` SET to zero — the nearby quartic, not the posed one. The
-///    root error that buys is first order in the dropped term,
-///    `≈ q̂/ext²  ≤ K·ε` in metres, so it is bounded by the same band
-///    every downstream trim and incidence margin is metered at. The
-///    count is unaffected: it was certified from `Δ` before this branch
-///    was chosen.
-/// 3. **`bool_ray_torus_split_lead` non-Positive** — the resolvent's
-///    largest real root is not positive, which contradicts its own
-///    constant term `−q̂² < 0` on the branch that computed it.
-///    Uncertain, graze. It is NOT only a rounding-scale contradiction:
-///    a `q̂` small
-///    enough that the root `≈ q̂²/c1` falls inside the band, but large
-///    enough to clear rung 2, reaches it too — a legitimate root refused
-///    on its size (`work/inside/torus-split-lead-escalates-a-
-///    legitimately-small-resolvent-root.md`).
-/// 4. **`bool_ray_torus_split` Zero** — one of the two quadratic factors
-///    has a zero discriminant, i.e. a double root, which contradicts the
-///    definite discriminant of rung 1. Uncertain, graze.
-/// 5. **[`QuarticRoots::CountDisagrees`]** — the roots CONSTRUCTED disagree
-///    in number with the count CERTIFIED by rung 1. Where measured
-///    exactly, the construction is right and rung 1 is wrong: `Δ`'s
-///    `f64` evaluation carries rounding far past the band that no
-///    decision charges, so a definite-looking sign can be the noise's
-///    (`work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`;
-///    `torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`
-///    and `a_far_ray_reaches_the_count_disagreement`). This rung catches
-///    the defect only where the two counts differ; where the noise flips
-///    the count to `Miss`, the answer is wrong and nothing here sees it.
-///    On a ray it blocks that ray
-///    ([`PointInSolidError::RootCountDisagrees`]) and another may settle.
+/// What the ray's symmetry alignments degrade is the root structure,
+/// and they land on the ladder's rungs (rows `bool_ray_torus_*`):
 ///
-/// # The certified count, and what it costs
-///
-/// The count is read off exact sign algebra, never off the roots: with
-/// `Δ` the quartic's discriminant and `D = 64s − 16p²`,
-///
-/// * `Δ` Negative ⇒ exactly **2** real roots;
-/// * `Δ` Positive ⇒ **4** real when `p` and `D` are both Negative, and
-///   **0** otherwise;
-/// * `Δ` Zero, or a Zero on `p`/`D` inside the positive branch ⇒ the
-///   count is NOT certain, and this door answers only on a certain one.
-///
-/// `Δ` is `m¹²` and is metered over `ext¹¹` (`ext = R + r`), which is
-/// the D4-honest length: for a monic quartic `Δ = Π_{i<j}(t_i − t_j)²`,
-/// so two roots a distance `δ` apart with the rest spread over the
-/// body's own scale put `Δ ≈ δ²·ext¹⁰` and the margin at `δ²/ext`.
+/// * a ray along the axis (`e = ±1`, where `1 − e² = 0` and the `t²`
+///   coefficient loses its `R²` term) and a ray in the midplane
+///   (`n = 0`, `q̂ = 0`) each merge roots for the poses that touch the
+///   tube: rung 1, `bool_ray_torus_disc` Zero. Uncertain count — graze,
+///   retry.
+/// * every axis-parallel ray (`n = 0`) and every midplane ray (`e = 0`)
+///   has `q̂ = 8R²·e·n` zero, the biquadratic arm (rung 2,
+///   `bool_ray_torus_odd`); the four-root ray through the hole is in it.
+/// * a ray all but perpendicular to the axis has a resolvent root
+///   `≈ q̂²/c1` that can fall in rung 3's band (`bool_ray_torus_split_lead`).
+/// * a [`QuarticRoots::CountDisagrees`] blocks that ray
+///   ([`PointInSolidError::RootCountDisagrees`]) and another may settle.
 ///
 /// **So this door refuses over a BAND around a tangency, and the band is
 /// wide.** A caller reading "a tangent ray grazes" will assume a
