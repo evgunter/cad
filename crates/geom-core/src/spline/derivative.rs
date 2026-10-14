@@ -372,12 +372,14 @@ impl<T: Real, const D: usize> Vector<T, D> {
         }
     }
 
-    /// The vector times the exact power of two `k`, skipped at one.
+    /// The vector times the exact power of two `k`, skipped at one,
+    /// through [`Real::scale_pow2`]: at the interval scalar an exponent
+    /// shift, not a general product against a point.
     fn scaled(self, k: f64) -> Self {
         if k == 1.0 {
             self
         } else {
-            self * T::from_f64(k)
+            Self(self.0.map(|x| x.scale_pow2(k)))
         }
     }
 
