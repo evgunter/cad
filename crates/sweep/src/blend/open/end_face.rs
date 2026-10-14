@@ -552,7 +552,7 @@ impl<T: Bounds> CapSliver<T> {
         // `‖q‖ = a + k·s`, `|k| ≤ 1`: with `τ = s + b` and `a′ = a − k·b`,
         // `(1 − k²)·τ² − 2·a′·k·τ + d2 − a′² = 0`, whose roots are
         // `(d2 − a′²)/(a′·k ∓ r)`, both signs taken where `topo`'s
-        // `solid_contain::quadratic_roots` picks one. It never divides by
+        // `geom_brep::quartic::quadratic_roots` picks one. It never divides by
         // `1 − k²`, which vanishes on an edge along a floor's direction
         // and leaves the equation linear with the one root it takes. A
         // divisor vanishes alone only where `a′² = d2`: the other root

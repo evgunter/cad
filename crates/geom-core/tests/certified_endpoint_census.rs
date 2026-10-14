@@ -367,11 +367,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-brep/src/ssi/four.rs",
-        5,
-        4,
-        "the 4 that ask are the Krawczyk test's preconditioner midpoint, image, \
-         containment and miss reads, which refuse a piece unless every image row is \
-         certified. The 1 that does not ask is `mean_value_excludes`' column midpoints, \
+        3,
+        2,
+        "the 2 that ask are the Krawczyk image's preconditioner midpoint and image \
+         reads, which refuse a piece unless every image row is certified; its \
+         containment and miss tests compare the image's certified sides. The 1 that \
+         does not ask is `mean_value_excludes`' column midpoints, \
          which select an exclusion direction: any fixed direction is sound, and the form \
          built along it is read only through `sign`, which refuses an uncertified \
          enclosure by name",

@@ -2641,7 +2641,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
-    ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
+    (
+        "circle_torus.rs",
+        "circle_torus_roots",
+        "BooleanDecision::ArcTorusRoots",
+        1,
+    ),
     (
         "circle_torus.rs",
         "escalated",

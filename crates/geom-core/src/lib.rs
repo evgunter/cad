@@ -16,6 +16,7 @@
 //! design contract this crate implements.
 
 pub mod arc;
+pub mod bisect;
 pub mod bit_identity;
 pub mod dual;
 pub mod exact;
