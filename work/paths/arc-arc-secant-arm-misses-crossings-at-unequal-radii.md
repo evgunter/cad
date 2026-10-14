@@ -2,9 +2,11 @@
 id: arc-arc-secant-arm-misses-crossings-at-unequal-radii
 kind: issue
 title: At f64, arc_arc's secant arm misplaces the crossings of two circles whose radii differ by orders of magnitude, so arcs that cross read no contact and a self-crossing profile validates
-status: open
+status: closed
 opened: 2026-10-12
 priority: P0
+cost: M
+closed: 2026-10-13
 ---
 
 
@@ -70,3 +72,44 @@ taken from the smaller circle's centre, keeps the cancellation in `d`
 (the oracle in `crates/profile/src/seg_reach_fuzz.rs` computes it so).
 The `internal`/`external` tangent arms place their candidate with the
 same `a` (`an-internal-tangency-reads-its-spans-at-the-radical-foot-off-both-arcs`).
+
+## Outcome
+
+Fixed on `paths/arc-arc-secant-unequal-radii`. `arc_arc` takes the foot
+and the half-chord from the clearances (`seg.rs` `Circles`):
+`r₁ − a = (r₁ + r₂ − d)(d − r₁ + r₂)/2d` and
+`h² = (r₁ + r₂ − d)(d − r₁ + r₂)(d + r₁ − r₂)(d + r₁ + r₂)/4d²`, in the
+secant arm and the internal-tangent arm. Against a 60-digit oracle,
+over radius ratios 1 to 10¹² and centres out to 10³, the crossings sit
+off either carrier by at most 3.6 ulps of the largest radius or
+coordinate (the old form: up to 1.9e8), and every Interval box holds
+the true crossing.
+
+Reproduction 4 (ratio about 1.5, r ≈ 90 and 139, centres about 100,
+crossings 12–24ε from the ends, 1e-12) reads no miss at the fix's head
+or at its merge base: both reviews of #5032 probed it, 160,000 draws in
+one and 3,000 pairs in the other, and at that ratio the old placement
+is accurate to 2.1 ulps of scale. The class is unequal radii, not large
+coordinates.
+
+Rows, red at `f64` on the head before the fix:
+`seg::pair_contact_tests::arcs_crossing_at_unequal_radii_never_read_no_contact`
+(the issue's two pairs, both orders; red at 1e-9 and 1e-12) and
+`rejections::a_small_arc_crossing_a_large_one_is_non_simple` (a whole
+profile that validated at 1e-9 and 1e-12). The `rivals` fuzz family's
+ratio cap is lifted from 10² to 10¹². At effort 10, over seeds 0x1, 0x4
+and 0x5, it is green at 1e-9 and 1e-12, where the old placement reads
+80 to 111 misses for each seed. The placement's own accuracy is
+`seg::circles_accuracy_tests::circle_pair_points_sit_within_a_few_ulps_of_scale`:
+crossings and the internal-tangent foot within 8 ulps of scale against
+double-double residuals (the head reads at most 2.3), red on each
+cancelling spelling of `a` or `h²`.
+
+Sweep: the other sites with the same algebra are filed as
+`circle-pair-edge-candidates-cancel-at-unequal-radii` (RESTFRONT),
+`circle-crossing-closed-forms-cancel-at-unequal-radii` (HONE) and
+`sphere-sphere-section-radius-cancels-at-unequal-radii` (ROOTS), and,
+from a sweep over every crate, `sheet-center-circle-pair-cancels-at-unequal-offsets`
+(BAND). A shared home for the algebra is
+`work/issues/circle-pair-radical-chord-has-no-shared-home.md`.
+`decided-tangent-point-is-the-radical-foot` now cites them.

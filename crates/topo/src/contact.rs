@@ -161,6 +161,18 @@ impl GlueClass {
         matches!(self, Self::Rest | Self::Continuation)
     }
 
+    /// The relation that glues a face pair under this class: the
+    /// inverse of [`crate::Relation::glued_class`] on the relations
+    /// that glue.
+    #[must_use]
+    pub const fn relation(self) -> crate::Relation {
+        match self {
+            Self::Rest => crate::Relation::SameOpposite,
+            Self::Continuation => crate::Relation::SameOriented,
+            Self::Tangent => crate::Relation::SurfaceTangent,
+        }
+    }
+
     /// **The one-carrier class two faces' senses make them**, the one
     /// place a sense is read as a class: opposed senses are a `Rest`
     /// contact, aligned senses a continuation (C4). Two distinct
@@ -412,6 +424,14 @@ pub struct ContactFinding {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// Each class's relation glues back as that class.
+    #[test]
+    fn a_glue_class_is_its_relations_class() {
+        for &class in GlueClass::ALL {
+            assert_eq!(class.relation().glued_class(), Some(class), "{class:?}");
+        }
+    }
 
     /// The two-arm menu is exactly two arms: §3d's ratified shape.
     /// The three-arm coincidence sentence must not leak in — its

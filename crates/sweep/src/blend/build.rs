@@ -76,7 +76,7 @@ use topo::{AtRestBody, Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBounda
 use super::admit::{CornerFaces, CornerLinks};
 use super::arms::corner_chart;
 use super::battery::{BlendRequest, Link, run_battery};
-use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
+use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_geometry};
 use super::{BlendError, BlendKind, BlendRefusal};
 use geom_core::Tol;
 
@@ -455,7 +455,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
     // adjacent corners apart, and the third support is exactly what
     // the score below turns on.
     if faces.vertex() != links.vertex() {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Vertex(links.vertex()),
             "a corner's chart was offered the face orbit of a different vertex",
         ));
@@ -470,7 +470,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
         // THIS corner's three. Necessary, not sufficient — the vertex
         // check above is what identifies the corner.
         let third = faces.third(l.face_a, l.face_b).ok_or_else(|| {
-            not_intact(
+            disagrees(
                 EntityId::Vertex(links.vertex()),
                 "a corner's chart candidate carries supports that are not two of this \
                  corner's own three faces",
