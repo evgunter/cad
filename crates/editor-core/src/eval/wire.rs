@@ -2729,6 +2729,7 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
             let emitted = (verb.emitter)(
                 id,
+                BooleanOp::Subtract,
                 &out.body,
                 &naming,
                 &names::OperandCtx {
@@ -3142,6 +3143,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 // member's own name when the chain is collapsed.
                 let emitted = (verb.emitter)(
                     id,
+                    op,
                     &out.body,
                     &naming,
                     &names::OperandCtx {
