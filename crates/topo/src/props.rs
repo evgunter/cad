@@ -2826,7 +2826,11 @@ pub struct ShellClassification<T: Real> {
     pub surface_area: T,
     /// Certified half-width of the area bracket (m²).
     pub area_pad: f64,
-    /// The decided role.
+    /// The decided role. A solid's only shell is `Outer` by arity, not
+    /// by a reading of its orientation: on an unvalidated body it is
+    /// `Outer` beside a negative `volume` where that shell is wound
+    /// inside out, which the at-rest gate (check 7) refuses and this
+    /// door does not check.
     pub role: ShellRole,
 }
 
@@ -3053,15 +3057,17 @@ impl std::error::Error for ShellClassifyError {}
 /// Per-shell signed volume and outer/void role for every shell of
 /// `body`, in shell-arena slot order (deterministic per D9).
 ///
-/// The flux machinery is tier-3 check 7's, SHARED (engineering
-/// convention 2): each shell sums the same per-face contributions the
-/// whole-body [`mass_properties`] sums, restricted to that shell's
-/// face list — never a second flux implementation. The role is the one
-/// reader's ([`shell_role`]): a solid's only shell is `Outer` by arity,
-/// and any other shell's role is the side at infinity of its faces, read
-/// off rays aimed at them and off its volume's certified sign only where
-/// no face offers an aim that reads. A role no reading decides refuses
-/// typed, never a guess.
+/// Each shell's volume and area sum the same per-face contributions the
+/// whole-body [`mass_properties`] sums, restricted to that shell's face
+/// list — never a second flux implementation (engineering convention 2).
+/// The role is the one reader's ([`shell_role`]): a solid's only shell is
+/// `Outer` by ARITY — its role, not its orientation, which this door does
+/// not read: a lone shell wound inside out on a body that has not passed
+/// the at-rest gate classifies `Outer` beside a negative volume, and it
+/// is check 7 that refuses it. Any other shell's role is the side at
+/// infinity of its faces, read off rays aimed at them and off its
+/// volume's certified sign only where no face offers an aim that reads.
+/// A role no reading decides refuses typed, never a guess.
 ///
 /// # Errors
 ///
