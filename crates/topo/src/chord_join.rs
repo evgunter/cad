@@ -6719,4 +6719,44 @@ mod nearest_branch_rows {
             assert!(read, "d = {d:e} (lever {lever:e}), gap π: {got:?}");
         }
     }
+
+    /// Review 5071 r2 probe: a gap of `(k + ½)` turns with `|k| >= 2`
+    /// sits on a mark whose nearest offsets (`k`, `k + 1`) the read
+    /// never tries; with `π·lever` in band and `τ·lever` past escalate,
+    /// the marks decide `OnMark` and every TRIED offset decides off.
+    #[test]
+    fn review_5071_r2_a_far_half_turn_gap_reads_the_untried_offsets() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let alpha = 0.01f64;
+        let cone = geom::Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let tau = core::f64::consts::TAU;
+        let pi = core::f64::consts::PI;
+        // pi * lever = 0.75 * escalate: in band; tau * lever = 1.5 escalate.
+        let lever = 0.75 * band.escalate() / pi;
+        let d = lever / alpha.sin();
+        let vertex = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
+        assert_eq!(decide("cone_row_apex", Margin::of(d), band), Ok(Sign::Positive));
+        let mut lines = Vec::new();
+        for turns in [0.5, 1.5, 2.5, 3.5, -0.5, -1.5, -2.5, -3.5] {
+            let got = nearest_branch(&cone, FaceKey::default(), vertex, turns * tau, band);
+            let tag = match &got {
+                Ok(k) => format!("Ok({k})"),
+                Err(SplitJoinError::Escalated { .. }) => "Escalated".into(),
+                Err(SplitJoinError::SectionInvariant { .. }) => "SectionInvariant".into(),
+                Err(e) => format!("{e:?}"),
+            };
+            lines.push(format!("gap {turns}τ: {tag}"));
+        }
+        let msg = lines.join("\n");
+        eprintln!("{msg}");
+        assert!(
+            !msg.contains("SectionInvariant"),
+            "a decided miss where the gap's nearest offsets sit pi*lever (in band) off:\n{msg}"
+        );
+    }
 }
