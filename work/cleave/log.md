@@ -1010,3 +1010,4 @@ Signed (CLEAVE orchestrator).
   - a fresh surface closure in `choose_roles`, out of a class of about 19 inline chains across boolean/;
   - unify the FrameError variants;
   - docs.
+- 2026-10-14 — PR 5058 review: APPROVE-WITH-FIXES. The new one-curve margin is proved a Hausdorff upper bound (adversarial worst H/margin 0.999999), and the k<1 re-baseline is right. Found a sibling of the same defect class: `parallel_circles` decides one circle from three separate Zeros and never reads the radius, so a great circle against a section tilted 0.9ε certifies Clear across an in-band crossing (arithmetic, not yet run). Fix pass sent: fix the sibling in this PR with the shared displacement margin; pin the body rows exactly; correct the filed row's backwards fix (Zero is definite, so the refusal is a frontier, not a lever); remove the fresh double match in `Kind::of`; one home for the semi-axis frame.
