@@ -226,22 +226,23 @@ impl From<CarrierAbsence> for ReadbackError {
 }
 
 /// **The walk to a face's carrier surface** — face, then the surface
-/// its record names — with the face's own orientation sense beside
-/// it, and the two refusals that walk can produce, in one body.
+/// its record names — with the surface's key and the face's own
+/// orientation sense beside it, and the refusal that walk can produce,
+/// in one body.
 ///
-/// What it guarantees is exactly this and no more: the two face doors
-/// make ONE walk to a face's geometry between them, so WHICH lookup
-/// came back empty is decided in one place rather than twice. It is
-/// the face-side twin of [`edge_carrier_ref`].
-fn carrier_surface<T: Real>(
+/// What it guarantees is exactly this and no more: the face doors and
+/// the Boolean's join make ONE walk to a face's geometry between them,
+/// so WHICH lookup came back empty is decided in one place rather than
+/// several. It is the face-side twin of [`edge_carrier_ref`].
+pub(crate) fn carrier_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
-) -> Result<(&Surface<T>, bool), ReadbackError> {
+) -> Result<(SurfaceKey, &Surface<T>, bool), ReadbackError> {
     let f = body.get_face(face).ok_or(ReadbackError::Dangling {
         what: EntityId::Face(face),
     })?;
     let surface = body.face_surface_linked(face, f);
-    Ok((surface, f.sense))
+    Ok((f.surface, surface, f.sense))
 }
 
 /// **A face's carrier frame** — the stored plane/axis data of the
@@ -302,7 +303,7 @@ fn carrier_surface<T: Real>(
 /// assert!(pose.sense);
 /// ```
 pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, ReadbackError> {
-    let (surface, sense) = carrier_surface(body, face)?;
+    let (_, surface, sense) = carrier_surface(body, face)?;
     let frame = |origin: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>| Pose {
         origin,
         axis,
@@ -395,7 +396,7 @@ pub fn face_carrier_kind<T: Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<SurfaceKind, ReadbackError> {
-    let (surface, _sense) = carrier_surface(body, face)?;
+    let (_, surface, _sense) = carrier_surface(body, face)?;
     Ok(surface.kind())
 }
 
