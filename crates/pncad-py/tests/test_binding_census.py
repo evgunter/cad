@@ -2726,9 +2726,11 @@ NOT_BOUND = {
     # caller to branch on. Not a `gap:` either: the debt is the blend
     # door being unprojected, which is #1479's row and not a missing
     # binding for these types. `BlendDecision` (`Escalated`'s decision)
-    # joined them on the same terms.
+    # joined them on the same terms, and so did `Breach`
+    # (`BodyNotIntact`'s cause).
     "BlendDecision": INTERIOR,
     "BlendSite": INTERIOR,
+    "Breach": INTERIOR,
     # The boolean doors' operand type: the evaluator finishes each
     # operand at the boolean seat, so Python hands it no body to finish.
     "AtRestBody": INTERIOR,
