@@ -3122,10 +3122,14 @@ for this addendum, so no population count is claimed.
   `RigidMotion::turned_between` through `decide_flagged` under ledger
   row F21 (`docs/predicate-dimension-audit.md`): the divisor
   `1 + t₀·tᵢ` of the minimal rotation carrying the start tangent onto
-  station `i`'s, dimensionless against the linear band. It replaces an
-  exact `sin > 0.0` structure comparison. At station 0 and on a
-  straight path the margin is exactly 2; it approaches zero only where
-  the path doubles back, which is where it refuses.
+  station `i`'s, dimensionless against the linear band, evaluated as
+  `|t₀ + tᵢ|²/2` so that it holds to a few ulps relative to its own
+  size as it nears zero. It replaces an exact `sin > 0.0` structure
+  comparison. At station 0 and on a straight path the margin is 2 to
+  within an ulp (`|t₀|²` is 1 only to rounding), and the turn is still
+  the identity bit for bit there, because `t₀ × (t₀ + t₀)` is exactly
+  zero; the margin approaches zero only where the path doubles back,
+  which is where it refuses.
 
 The evaluation layer's `datum_unit_norm` under `DATUM_AXIS_ROLE`
 (`editor-core`'s axis port, `eval/wire/pose.rs`) is asked once per

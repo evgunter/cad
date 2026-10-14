@@ -1155,16 +1155,22 @@ Flagged, NOT fixed here (dispositions):
 - **F21** (added by PATHS' sketch-plane frame unit)
   `geom-core/src/linalg/rigid_motion.rs` `RigidMotion::turned_between`,
   under the caller's site name (`sweep`'s `sweep_path_turn`, a path
-  sweep's turn from the start tangent onto a station's): the divisor
-  `1 + a·b` of the Rodrigues-between rotation, for `a`, `b` direction
-  witnesses. Dimensionless — a defect of the pair, zero exactly when
+  sweep's turn from the start tangent onto a station's): `1 + a·b`,
+  the scalar part of the quaternion `(1 + a·b, a × b)` whose matrix
+  the turn is, for `a`, `b` direction witnesses, evaluated as
+  `|a + b|²/2`. Dimensionless — a defect of the pair, zero exactly when
   they are opposed — decided against the metre band, which is the
   clause-(i) debt this row records; the turn has no lever arm of its
   own (it acts on the section, whose extent is the caller's). The
-  margin is the quantity whose arithmetic degrades as the pair turns
-  toward opposed, so the decision sits on what goes bad rather than on
-  an axis `a × b`, which would escalate on a nearly straight path where
-  any axis serves. Same arm question as F10; one site,
+  margin is where the turn stops being THE minimal rotation, so the
+  decision sits on that rather than on an axis `a × b`, which would
+  escalate on a nearly straight path where any axis serves. It is not
+  also a conditioning threshold: the quaternion matrix is orthogonal to
+  rounding at every angle, and with both parts evaluated through
+  `a + b` it carries `a` onto `b` to a few ulps at every margin the
+  band decides positive (the residue `(|a| − |b|)²/(2|a × b|)` is of
+  order `u²/√ε`), so rigidity and carry are rounding-level wherever the
+  turn builds. Same arm question as F10; one site,
   `LEDGER_FLAGGED_SITES` 5 → 6.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by

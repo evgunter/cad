@@ -70,7 +70,9 @@ decision record):
   the Crossings bullet); `pin` is not built. `Profile::map_scalar` is
   `Profile::embed`.
 - `RigidMotion::turned_between` (one decision, `1 + a·b > 0`, ledger
-  row F21, site `sweep_path_turn`) and `translated` mint the station
+  row F21, site `sweep_path_turn`; built as the quaternion
+  `(1 + a·b, a × b)`'s matrix rather than the Rodrigues-between form,
+  which was not rigid within the band near opposed) and `translated` mint the station
   frames; the station tangents are `UnitVec3`s under
   `sweep_path_tangent`; `unit_tangent` is gone. `path_start_frame` and
   `point_at` return the `RigidMotion`. `revolve_placed_axis` and

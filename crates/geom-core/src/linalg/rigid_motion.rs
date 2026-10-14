@@ -93,10 +93,10 @@
 //!   the axis is RAW: the axis is decided first and kept as `w`, the
 //!   reference yields to it.
 //! - [`RigidMotion::turned_between`] — the minimal rotation carrying
-//!   one direction witness onto another, in the Rodrigues-between form
-//!   with no normalized axis and no angle. One decision, its divisor
-//!   `1 + a·b > 0`: the opposed pair, where no rotation is THE minimal
-//!   one.
+//!   one direction witness onto another, as the matrix of the
+//!   quaternion `(1 + a·b, a × b)` with no normalized axis and no
+//!   angle. One decision, `1 + a·b > 0`: the opposed pair, where no
+//!   rotation is THE minimal one.
 //!
 //! Which product `w` is depends on the mint: the Gram–Schmidt mint and
 //! the exact world frames build `w = u × v` (at `f64` the rounded
@@ -972,22 +972,34 @@ impl<T: Decide> RigidMotion<T> {
     }
 
     /// **The minimal rotation carrying `a` onto `b`, about the axis
-    /// through `about`** — the Rodrigues-between form
-    /// `R = I + [k]× + [k]×²/(1 + a·b)`, `k = a × b`: no normalized
-    /// axis and no angle. Over the reals it is a rotation for every
-    /// pair of unit vectors that are not opposed, and it is the
-    /// identity, with no rounding, where `k` is exactly zero (a pair
-    /// that is bitwise one direction).
+    /// through `about`** — the matrix of the unit quaternion along
+    /// `(1 + a·b, a × b)`, in its homogeneous form (every entry over
+    /// the quaternion's squared norm): no normalized axis and no
+    /// angle. The matrix is orthogonal to rounding at every angle,
+    /// because each entry is a quadratic in the quaternion over its own
+    /// squared norm, and it is the identity, with no rounding, on a pair
+    /// that is bitwise one direction (`a × (a + a)` is exactly zero).
     ///
-    /// Its one decision is its divisor, `1 + a·b > 0`, under `site`:
-    /// the margin that degrades as the pair turns toward opposed,
-    /// where every axis perpendicular to them is a minimal rotation
-    /// and none is THE one. A dimensionless margin against the linear
-    /// band (ledger row F21).
+    /// The quaternion's two parts are evaluated through `h = a + b`, as
+    /// `1 + a·b = |h|²/2` and `a × b = a × h`. Near opposed `h` is
+    /// short and its components carry no cancellation, so both parts
+    /// hold to a few ulps RELATIVE to their own size, and `a` lands on
+    /// `b` to a few ulps at every angle the decision admits (read off
+    /// `a·b`, `1 + a·b` would carry an ulp absolute, and turn `a` off
+    /// `b` by about `u/√(1 + a·b)`).
     ///
-    /// Evaluation order (fixed, D9): `k = a × b`, `d = 1 + a·b`, each
-    /// column `e + k × e + k × (k × e) / d` for `e` the basis vector,
-    /// then the translation `q − R·q` for `q = about − Point3::origin()`.
+    /// Its one decision is `1 + a·b > 0`, under `site`: the margin that
+    /// degrades as the pair turns toward opposed, where every axis
+    /// perpendicular to them is a minimal rotation and none is THE
+    /// one. A dimensionless margin against the linear band (ledger row
+    /// F21). The carry needs no threshold of its own: the miss is a
+    /// few `u` plus `(|a| − |b|)²/(2|a × b|)`, of order `u²/√ε` for a
+    /// margin the band decides positive, far below `ε`.
+    ///
+    /// Evaluation order (fixed, D9): `h = a + b`, `d = (h·h)/2`,
+    /// `k = a × h`, `n² = d² + kx² + ky² + kz²`, the columns of the
+    /// quaternion matrix of `(d, k)` over `n²`, then the translation
+    /// `q − R·q` for `q = about − Point3::origin()`.
     ///
     /// # Errors
     ///
@@ -1003,8 +1015,10 @@ impl<T: Decide> RigidMotion<T> {
         band: Band,
     ) -> Result<Self, TurnError> {
         let (a, b) = (a.get(), b.get());
-        let k = a.cross(b);
-        let d = T::one() + a.dot(b);
+        let two = T::one() + T::one();
+        let h = a + b;
+        let d = h.dot(h) / two;
+        let k = a.cross(h);
         // Ledger row F21: `1 + a·b` is a dimensionless defect of the
         // pair against the metre band; the turn has no arm of its own.
         match crate::k_stats::decide_flagged(site, d, band, "F21") {
@@ -1012,14 +1026,25 @@ impl<T: Decide> RigidMotion<T> {
             Ok(Sign::Zero | Sign::Negative) => return Err(TurnError::Opposed),
             Err(source) => return Err(TurnError::Undecided(source)),
         }
-        let column = |e: Vec3<T>| {
-            let ke = k.cross(e);
-            e + ke + k.cross(ke) / d
-        };
+        let (x, y, z) = (k.x, k.y, k.z);
+        let (dd, xx, yy, zz) = (d * d, x * x, y * y, z * z);
+        let n2 = dd + xx + yy + zz;
         let r = Mat3::from_cols(
-            column(Vec3::unit_x()),
-            column(Vec3::unit_y()),
-            column(Vec3::unit_z()),
+            Vec3::new(
+                dd + xx - yy - zz,
+                two * (x * y + d * z),
+                two * (x * z - d * y),
+            ) / n2,
+            Vec3::new(
+                two * (x * y - d * z),
+                dd - xx + yy - zz,
+                two * (y * z + d * x),
+            ) / n2,
+            Vec3::new(
+                two * (x * z + d * y),
+                two * (y * z - d * x),
+                dd - xx - yy + zz,
+            ) / n2,
         );
         let anchor = |_| TurnError::NonFinite(MotionPart::Anchor);
         let q = finite(about, MotionPart::Anchor).map_err(anchor)? - Point3::origin();
@@ -1932,6 +1957,84 @@ mod crossing_and_turn_rows {
             turn(x, at(4.0 * b.escalate()), origin).is_ok(),
             "past the escalation threshold the turn builds"
         );
+    }
+
+    /// **Up to the band's escalation edge, the turn is rigid and carries
+    /// `a` onto `b` to rounding**, at `f64` and at `Interval`: over six
+    /// generic pairs at `1 + a·b` from `0.5` down to four escalations,
+    /// every turn builds, the rigidity door admits it at both scalars,
+    /// its seven rigidity defects stay below `1e-14`, and `a` lands
+    /// within `1e-14` of `b` (at `Interval`, the enclosure of the miss
+    /// within `1e-13`). Neither bound depends on how near opposed the
+    /// pair is or on the run's ε, so the row holds at every ε row.
+    #[test]
+    fn near_opposed_the_turn_is_rigid_and_carries_a_onto_b_to_rounding() {
+        use crate::real::Bounds;
+        let edge = 4.0 * band().escalate();
+        let pairs = [
+            (Vec3::new(0.36, -0.48, 0.8), Vec3::new(0.2, 0.9, -0.3)),
+            (Vec3::new(1.0, 2.0, 3.0), Vec3::new(-0.7, 0.1, 0.4)),
+            (Vec3::new(-0.3, 0.77, -0.1), Vec3::new(0.5, 0.5, 0.9)),
+            (Vec3::new(0.9, 0.05, -0.6), Vec3::new(0.0, -1.0, 0.3)),
+            (
+                Vec3::new(0.123, 0.456, 0.789),
+                Vec3::new(0.987, -0.654, 0.321),
+            ),
+            (Vec3::new(-2.0, 0.3, 1.1), Vec3::new(0.4, 0.4, -1.0)),
+        ];
+        let defects = |l: Mat3<f64>| {
+            let (c0, c1, c2) = (l.c0, l.c1, l.c2);
+            [
+                c0.dot(c0) - 1.0,
+                c1.dot(c1) - 1.0,
+                c2.dot(c2) - 1.0,
+                c0.dot(c1),
+                c1.dot(c2),
+                c0.dot(c2),
+                l.determinant() - 1.0,
+            ]
+            .into_iter()
+            .fold(0.0_f64, |m, x| m.max(x.abs()))
+        };
+        let mut rows = 0;
+        let mut margin = 0.5_f64;
+        while margin >= edge {
+            // b at π − δ from a, 1 + a·b = 1 − cos δ ≈ δ²/2.
+            let delta = (2.0 * margin).sqrt();
+            for (k, (av, pv)) in pairs.into_iter().enumerate() {
+                let a = unit(av);
+                let p = unit(a.get().cross(pv));
+                let b = unit(-(a.get() * delta.cos()) + p.get() * delta.sin());
+                let at = format!("pair {k} at 1 + a·b ≈ {margin:e}");
+                let m = turn(a, b, Point3::origin()).unwrap_or_else(|e| panic!("{at}: {e}"));
+                let defect = defects(m.linear());
+                assert!(defect < 1e-14, "{at}: rigidity defect {defect:e}");
+                let miss = (m.turn(a).get() - b.get()).norm();
+                assert!(miss < 1e-14, "{at}: a lands {miss:e} off b");
+                assert!(
+                    RigidMotion::check_rigid(&m.to_affine(), band()).is_ok(),
+                    "{at}: the rigidity door admits the f64 turn"
+                );
+                let (ai, bi) = (
+                    a.embed_by(Interval::from_f64),
+                    b.embed_by(Interval::from_f64),
+                );
+                let mi = RigidMotion::turned_between(ai, bi, Point3::origin(), SITE, band())
+                    .unwrap_or_else(|e| panic!("{at}, Interval: {e}"));
+                assert!(
+                    RigidMotion::check_rigid(&mi.to_affine(), band()).is_ok(),
+                    "{at}: the rigidity door admits the Interval turn"
+                );
+                let off = mi.turn(ai).get() - bi.get();
+                let reach = [off.x, off.y, off.z]
+                    .into_iter()
+                    .fold(0.0_f64, |r, c| r.max(c.lo().abs()).max(c.hi().abs()));
+                assert!(reach < 1e-13, "{at}, Interval: the miss reaches {reach:e}");
+            }
+            rows += 1;
+            margin /= 10_f64.sqrt();
+        }
+        assert!(rows >= 8, "the ladder reaches near opposed: {rows} rungs");
     }
 
     /// **`translated` keeps the axes bit for bit and adds to the
