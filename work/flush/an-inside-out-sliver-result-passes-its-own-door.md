@@ -55,4 +55,4 @@ class. `AtRestBody::slivers` and the operand gate that read it
 
 The reader found one such body main ships: a fin ∪ a pyramid across its
 fold leaves a region winding −1
-(`a-fin-united-with-a-pyramid-across-its-fold-leaves-a-region-winding-minus-one`).
+(`a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass`).

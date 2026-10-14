@@ -133,7 +133,7 @@ The reader aims at 60°.
   `role_at_target`, `SHELL_ROLE`'s "thickness" size.
 - **Pins.** `crates/topo/tests/shell_role_reader.rs`.
 
-Filed: `a-fin-united-with-a-pyramid-across-its-fold-leaves-a-region-winding-minus-one`
+Filed: `a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass`
 (a wrong body main ships, which the reader now refuses) and
 `the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`
 (the curved step's residue; cylinders, cones, tori and closed spheres

@@ -213,6 +213,8 @@ fn local(pose: &Pose, w: Vec3<f64>) -> [f64; 3] {
 struct Tally {
     built: usize,
     refused: BTreeMap<String, usize>,
+    /// Each refused cell, `"<pose>, <op>: <kind>"`.
+    refused_cells: Vec<String>,
     rows: usize,
     wrong: usize,
     missing: usize,
@@ -248,6 +250,11 @@ fn check(
             Err(e) => {
                 let kind = format!("{e:?}");
                 let kind = kind.split([' ', '{', '(']).next().unwrap_or("").to_owned();
+                let cell = what
+                    .strip_prefix(label)
+                    .unwrap_or(&what)
+                    .trim_start_matches(", ");
+                tally.refused_cells.push(format!("{cell}: {kind}"));
                 *tally.refused.entry(kind).or_default() += 1;
                 continue;
             }
@@ -969,26 +976,77 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         let tally = &tallies[label];
         rows += tally.rows;
         eprintln!(
-            "{label} | {} | {:?} | {} | {} | {} | {}",
-            tally.built, tally.refused, tally.rows, tally.wrong, tally.missing, tally.doubled
+            "{label} | {} | {:?} | {} | {} | {} | {} | {:?}",
+            tally.built,
+            tally.refused,
+            tally.rows,
+            tally.wrong,
+            tally.missing,
+            tally.doubled,
+            tally.refused_cells
         );
-        // The fin ∪ a pyramid across its fold: the union leaves a region
-        // that winds −1, which check 7's aimed ray reads inside out, and
-        // the door refuses (`work/flush/a-fin-united-with-a-pyramid-across-its-fold-leaves-a-region-winding-minus-one.md`).
-        let known = KNOWN_INSIDE_OUT.contains(label)
-            && tally.refused.keys().all(|kind| kind == "ResultInvalid");
-        if (!tally.refused.is_empty() && !known) || tally.wrong + tally.missing + tally.doubled > 0
-        {
+        // The fin crown holds a region that winds −1 at rest, before any
+        // join (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`):
+        // which of its unions refuses is face order's choice, not the
+        // region's. Pinned exactly, both what refuses and what builds
+        // holding the region, so the row's fix shows here.
+        let refused = KNOWN_INSIDE_OUT
+            .iter()
+            .find(|(l, _)| l == label)
+            .map_or(&[][..], |(_, cells)| &cells[..]);
+        if tally.refused_cells != refused || tally.wrong + tally.missing + tally.doubled > 0 {
             failures.push(format!("{label}: {tally:?}"));
+        }
+        if let Some((_, built)) = KNOWN_WRONG.iter().find(|(l, _)| l == label)
+            && tally.built != *built
+        {
+            failures.push(format!(
+                "{label}: {} built, {built} known wrong (the crown's −1 region): {tally:?}",
+                tally.built
+            ));
         }
     }
     assert!(failures.is_empty(), "{failures:#?}");
     assert!(rows > 0, "rows were read");
 }
 
-/// The scenes whose `x ∪ y` the door refuses, its result inside out
-/// somewhere (`ResultInvalid { NegativeVolume }`).
-const KNOWN_INSIDE_OUT: [&str; 2] = ["a fin, probe 2", "a fin, probe 4"];
+/// The fin scenes whose union check 7 reads inside out
+/// (`ResultInvalid { NegativeVolume }`), cell by cell: `x ∪ y` at three
+/// poses of four. The region it reads is the fin crown's own
+/// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`);
+/// the aimed ray that finds it is the first in face order that decides,
+/// so `y ∪ x` and the flipped pose's `x ∪ y` take another ray, read
+/// `Out`, and build.
+const KNOWN_INSIDE_OUT: [(&str, [&str; 3]); 2] = [
+    (
+        "a fin, probe 2",
+        [
+            "at rest, x ∪ y: ResultInvalid",
+            "turned about z, x ∪ y: ResultInvalid",
+            "turned, x ∪ y: ResultInvalid",
+        ],
+    ),
+    (
+        "a fin, probe 4",
+        [
+            "at rest, x ∪ y: ResultInvalid",
+            "turned about z, x ∪ y: ResultInvalid",
+            "turned, x ∪ y: ResultInvalid",
+        ],
+    ),
+];
+
+/// **Known wrong**: the fin scenes whose results build and pass tier 3
+/// holding the crown's −1 region (an independent winding count reads it
+/// in every union with probes 1, 2 and 4, in both orders, and in the
+/// crown alone: review R1, PR 5119), with the cells that build. Check 7
+/// and the census pass a body with a −1 region today; the row owns it
+/// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`).
+const KNOWN_WRONG: [(&str, usize); 3] = [
+    ("a fin, probe 1", 20),
+    ("a fin, probe 2", 27),
+    ("a fin, probe 4", 27),
+];
 
 /// A probe cell's tally beside [`Tally`]: what built, what was empty or
 /// refused, and each result that read wrong against the germ.
