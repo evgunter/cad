@@ -945,6 +945,10 @@ pub(crate) struct SectionCtx<T: Real> {
     pub(crate) normal: UnitVec3<T>,
     /// The minted auxiliary plane surface, once needed.
     pub(crate) plane_key: Option<SurfaceKey>,
+    /// The loop of a two-loop section the chord rides, where the caller
+    /// decided it: a boolean germ's branch. `None` in the split lane,
+    /// whose chord reads it at its sites ([`section_loop`]).
+    pub(crate) branch: Option<crate::boolean::Branch>,
 }
 
 /// Which curved-section lane a [`ChordJoiner::join`] call runs
@@ -977,6 +981,9 @@ pub(crate) enum JoinLane<'a, T: Real> {
         window: Option<(T, T)>,
         /// The aux wall key in THIS body (minted once, caller-cached).
         partner_key: &'a mut Option<SurfaceKey>,
+        /// The germ's branch: the loop of a two-loop section the chord
+        /// rides.
+        branch: crate::boolean::Branch,
     },
     /// A section segment that is an edge of this solid: this side's
     /// chord is a copy of that edge ([`along_edge_spec`]) and reads no
@@ -1150,25 +1157,35 @@ pub(crate) enum SectionCase<T: Real> {
     },
 }
 
-/// **The loop of a two-loop section a chord's sites lie on**
+/// **The loop of a two-loop section a chord rides**: the branch the
+/// caller decided (a boolean germ's, decided where the germ was minted),
+/// or, in the split lane, the loop its sites lie on
 /// (**`chord_section_loop`**: the split's margin at each site, in
-/// metres). It reads which side of the split a site is on, not whether
-/// the site lies on that side's loop: the sites are germ sites the join
-/// placed on the section, and certification holds the arc minted between
-/// them to both surfaces. On the meridian circles and the spiric ovals
+/// metres). The split lane reads which side of the split a site is on,
+/// not whether the site lies on that side's loop: the sites are
+/// crossings placed on the section, and certification holds the arc
+/// minted between them to both surfaces. On the meridian circles and the spiric ovals
 /// the margin is `√(ρ² − d²) ≥ √((R − r)² − d²)` at every point of the
 /// section, which the table decided positive (`d = 0` on the circles),
 /// and on the concentric circles `√(r² − h²)`, likewise decided, so
 /// a site whose margin falls in the band is no site of the section, an
 /// invariant; an undecided one escalates. Sites on two sides are an
-/// invariant too: the boolean join pairs germs only on one loop.
+/// invariant too.
 fn section_loop<T: Decide>(
     face: FaceKey,
     [positive, negative]: [SectionCurve<T>; 2],
-    split: LoopSplit<T>,
+    (split, branch): (LoopSplit<T>, Option<crate::boolean::Branch>),
     sites: [Point3<T>; 2],
     band: Band,
 ) -> Result<SectionCurve<T>, SplitJoinError> {
+    // A boolean germ along an edge rides the edge's own curve and
+    // carries no branch of the face pair's section: its chord reads the
+    // loop at its sites, as the split lane's does.
+    match branch {
+        Some(crate::boolean::Branch::Positive) => return Ok(positive),
+        Some(crate::boolean::Branch::Negative) => return Ok(negative),
+        Some(crate::boolean::Branch::Only) | None => {}
+    }
     let side = |p| match decide("chord_section_loop", Margin::of(split.margin(p)), band) {
         Ok(Sign::Zero) => Err(SplitJoinError::SectionInvariant {
             face,
@@ -1811,13 +1828,14 @@ fn chord_spec<T: Decide>(
                 wall,
                 window,
                 partner_key,
+                branch,
             } => bool_planar_chord_spec(
                 body,
                 band,
                 face,
                 wall_key,
                 (&wall, window),
-                partner_key,
+                (partner_key, branch),
                 u1,
                 u2,
                 leave,
@@ -1942,7 +1960,7 @@ fn chord_spec<T: Decide>(
         SectionCase::Loops { loops, split } => section_loop(
             face,
             loops,
-            split,
+            (split, ctx.branch),
             [vertex_point(body, u1), vertex_point(body, u2)],
             band,
         )?,
@@ -2147,7 +2165,7 @@ fn bool_planar_chord_spec<T: Decide>(
     face: FaceKey,
     plane_key: SurfaceKey,
     (wall, partner_window): (&geom::Surface<T>, Option<(T, T)>),
-    partner_key: &mut Option<SurfaceKey>,
+    (partner_key, branch): (&mut Option<SurfaceKey>, crate::boolean::Branch),
     u1: VertexKey,
     u2: VertexKey,
     leave: Departure<T>,
@@ -2210,7 +2228,7 @@ fn bool_planar_chord_spec<T: Decide>(
         SectionCase::Loops { loops, split } => section_loop(
             face,
             loops,
-            split,
+            (split, Some(branch)),
             [vertex_point(body, u1), vertex_point(body, u2)],
             band,
         )?,
@@ -4831,6 +4849,7 @@ mod tests {
             origin: plane.origin,
             normal: plane.normal,
             plane_key: None,
+            branch: None,
         };
         (body, seed.face, seed.vertex, mev.vertex, ctx)
     }
@@ -5342,6 +5361,7 @@ mod tests {
             origin: base,
             normal: UnitVec3::new(normal, "rim patch", band).unwrap(),
             plane_key: None,
+            branch: None,
         };
         let leave = Departure {
             dir: Vec3::unit_z(),
@@ -5580,6 +5600,7 @@ mod tests {
                 origin: plane.origin,
                 normal: plane.normal,
                 plane_key: None,
+                branch: None,
             };
             between_edge_is_section(&body, &ctx, rim, band).unwrap()
         };
@@ -6434,6 +6455,7 @@ mod torn_hop_rows {
             origin: Point3::new(0.0, 0.0, 0.5),
             normal: UnitVec3::new(Vec3::unit_z(), "torn_hop_rows", band()).unwrap(),
             plane_key: None,
+            branch: None,
         };
         let he = body
             .loop_cycle(first_member(&body, face))
