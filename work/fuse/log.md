@@ -963,3 +963,18 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - copies the fix minted.
   - **Before merge:** main was merged into b2 with two list conflicts (nextest slow set, from-f64 tsv), both sides kept. Clippy, the gates and 30/30 reader tests pass on the merged tree. The final b tree equals it, and main had moved only by a STATUS render.
   - **Stage (c) is next:** callers move onto `meet` and `Span::contact` (`carrier_cross` first, coordinating with cleave's 5058).
+- 2026-10-14: the container restarted at about 17:50Z. The stage (c) lane was resumed from its transcript; its local CI runs and its poll were lost.
+- 2026-10-14: PR 5154 (c1: `carrier_cross` reads `meet`; `pose::one_curve` is 5058's margin; `Span::contact` gains `Past`).
+  - **Review:** Opus and Fable both approve with fixes, with no MAJOR. Both prefer `Past` to re-reading at the nearer end.
+  - **Fix pass:** queued to the lane. It covers:
+    - `past` folded into `end_side`, plus a chord-stage pin;
+    - the concentric contradiction retyped;
+    - the claim "no caller loses a correct answer" restated (false at ε=1e-6 for θ=1e-3..1e-2, though typed);
+    - the missed `ring_path::misses_in_plane` readings;
+    - `decision_words`;
+    - stale rows, and the ssiarith fuzzer's cause and rate.
+  - **For Ev:** 5154 is now `[ev]` with a C5 question:
+    - A: add `Past` to the list;
+    - B: drop the list from C5 (recommended);
+    - C: re-read at the nearer end.
+    - No designer pair was run: C decides a false "off the carrier", so this is a ratified-text amendment, not a fork.
