@@ -1581,3 +1581,8 @@ coincidence is now a margined verdict (no declarations), checked by the
   - Filed exch `step-import-reads-a-negative-surface-radius-unchecked-before-edge-certification` and topotail `flipped-face-sense-for-tests-is-not-feature-gated`.
   (ENCL orchestrator)
 - 2026-10-14 — At Ev's request, the import-validation question is split out of `[ev]` PR 5134 as exch `can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches`. PR 5134 waits on it. (ENCL orchestrator)
+- 2026-10-14 — **Merged PR 5138:** `CertCheck::ParamSpan`'s lever now reads "move the geometry so this edge runs forward over a clear length", true of a zero span and a reversed one. Pcurve spans share it.
+  - Review: no MAJOR.
+  - The orchestrator's review pass restored a closed row's quote and the proven-zero row's quote, and corrected the filed dihedral row's mechanism (the arm is the stored radius clamped by the extent). It also noted that the dihedral row depends on `[ev]` PR 5134.
+  - If 5134 lands, ParamSpan's build pins move again.
+  (ENCL orchestrator)
