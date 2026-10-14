@@ -90,3 +90,10 @@ return the grazed generator itself. A cylinder with a conical pit
 `SliverSector` on `sector_straight` at the apex vertex. The tangent
 line plays no part in this refusal.
 
+
+## The partial revolve's two end rulings differ (review r5152, PR 5152)
+
+A frustum revolved `Partial(4 rad)` and grazed along its START ruling
+refuses `SliverSector` at `|τ| ≥ 0.5ε`. Grazed along its END ruling
+(`a = 4`), the same pose lands whole. Both results are identical on main
+and on the apex fix, at three ε. This asymmetry is not yet explained.
