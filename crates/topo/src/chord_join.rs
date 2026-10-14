@@ -7047,3 +7047,114 @@ mod pole_branch_rows {
 
     use core::f64::consts::{PI, TAU};
 }
+
+/// Review probes (PR 5080, r1).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review_5080_r1_probes {
+    use super::*;
+    use core::f64::consts::{FRAC_PI_2, PI};
+    use geom_core::{Point3, Vec3};
+
+    fn sphere() -> (Point3<f64>, f64, Vec3<f64>) {
+        (Point3::new(0.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.0, 1.0))
+    }
+    fn meridian(phi: f64) -> geom::Curve3<f64> {
+        let (s, c) = phi.sin_cos();
+        geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(-s, c, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(0.0, 0.0, 1.0),
+        }
+    }
+    fn small_circle(beta: f64) -> geom::Curve3<f64> {
+        let (s, c) = beta.sin_cos();
+        geom::Curve3::Circle {
+            center: Point3::new(s * c, 0.0, c * c),
+            axis: Vec3::new(s, 0.0, c),
+            radius: s,
+            u_ref: Vec3::new(-c, 0.0, s),
+        }
+    }
+    fn joint(gap: f64) -> PoleJoint<f64> {
+        PoleJoint {
+            face: FaceKey::default(),
+            surface: sphere(),
+            pole_height: 1.0,
+            advancing: true,
+            gap,
+            prev_k: 0,
+            same_edge: false,
+        }
+    }
+
+    /// P1: an arrived edge whose far end is the pole itself (a closed
+    /// full meridian, its one vertex at the pole) levers at ~0, so a
+    /// right-angle wedge refuses as coincident.
+    #[test]
+    fn p1_a_closed_meridian_at_the_pole_levers_zero() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let a = meridian(0.0);
+        let b = meridian(-FRAC_PI_2);
+        let lever = pole_lever((&a, 2.0 * PI), sphere(), 1.0).unwrap();
+        let got = pole_branch(joint(FRAC_PI_2), (&a, 2.0 * PI), (&b, PI), band);
+        eprintln!("P1 lever {lever:e}: {got:?}");
+    }
+
+    /// P2: a lens (meridian + small circle bending toward it, meeting
+    /// again): the lever overstates the max separation about 4x. At
+    /// K = 3 a lens within ε everywhere decides a branch.
+    #[test]
+    fn p2_a_lens_within_eps_decides_at_a_small_k() {
+        let beta: f64 = 0.3;
+        let eps = 1e-9;
+        let band = Band::new(eps, 3.0 * eps).unwrap();
+        let curved = small_circle(beta);
+        // second meeting at t* ≈ 2θ/κ·…; find it numerically.
+        let theta = 1e-4;
+        let phi = -FRAC_PI_2 + theta;
+        let n = Vec3::new(-phi.sin(), phi.cos(), 0.0);
+        let (mut lo, mut hi) = (1e-6, 1.0);
+        let d = |t: f64| (curved.eval(t) - Point3::new(0.0, 0.0, 0.0)).dot(n);
+        let s0 = d(lo).signum();
+        for _ in 0..200 {
+            let m = 0.5 * (lo + hi);
+            if d(m).signum() == s0 { lo = m } else { hi = m }
+        }
+        let tstar = lo;
+        let maxsep = (0..10000).map(|i| d(tstar * f64::from(i) / 1e4).abs()).fold(0.0, f64::max);
+        let lever = pole_lever((&curved, tstar), sphere(), 1.0).unwrap();
+        // scale theta so the true max separation is 0.9 eps
+        let scale = (0.9 * eps / maxsep).sqrt();
+        let theta2 = theta * scale;
+        eprintln!("P2 θ={theta:e} t*={tstar:e} maxsep={maxsep:e} θ·lever={:e} ratio {:.3}; θ2={theta2:e}", theta * lever, theta * lever / maxsep);
+        let phi2 = -FRAC_PI_2 + theta2;
+        let m = meridian(phi2);
+        let n2 = Vec3::new(-phi2.sin(), phi2.cos(), 0.0);
+        let d2 = |t: f64| (curved.eval(t) - Point3::new(0.0, 0.0, 0.0)).dot(n2);
+        let (mut lo, mut hi) = (1e-9, 1.0);
+        let s0 = d2(lo).signum();
+        for _ in 0..200 {
+            let mm = 0.5 * (lo + hi);
+            if d2(mm).signum() == s0 { lo = mm } else { hi = mm }
+        }
+        let t2 = lo;
+        let maxsep2 = (0..10000).map(|i| d2(t2 * f64::from(i) / 1e4).abs()).fold(0.0, f64::max);
+        // the meridian's far end at the same meeting point: polar angle of curved(t2)
+        let p = curved.eval(t2);
+        let polar = p.x.hypot(p.y).atan2(p.z);
+        let got = pole_branch(joint(-theta2), (&m, polar), (&curved, t2), band);
+        eprintln!("P2 maxsep2={maxsep2:e} (eps {eps:e}) θ2·lever={:e}: {got:?}", theta2 * pole_lever((&curved, t2), sphere(), 1.0).unwrap().min(pole_lever((&m, polar), sphere(), 1.0).unwrap()));
+    }
+
+    /// P3: a tiny stub (shorter than ε/π) refuses as "one direction"
+    /// even when its partner leaves exactly opposite.
+    #[test]
+    fn p3_opposite_stubs_under_the_band_refuse_as_one_direction() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let s = 0.2 * band.zero();
+        let got = pole_branch(joint(-PI + 0.1), (&meridian(0.0), s), (&meridian(PI - 0.1), PI), band);
+        eprintln!("P3 s={s:e}: {got:?}");
+    }
+}
