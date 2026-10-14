@@ -6762,6 +6762,44 @@ mod pole_slit_tests {
             .collect()
     }
 
+    /// Review 5126 r2: the near-pole read at a lever whose marks miss
+    /// near the gap but decide far from it.
+    #[test]
+    fn r2_p3_lever_periods_at_a_narrow_lever_far_out() {
+        use geom_brep::BranchMiss;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().eps();
+        let lever = 0.25 * eps / PI;
+        let mut out = vec![format!("eps {eps:e} lever {lever:e}")];
+        for n in [0.0_f64, 3.0, 4.0, 5.0, 10.0, 40.0] {
+            let gap = n * 2.0 * PI + 1e-3;
+            let r: Result<i32, BranchMiss> = super::lever_periods(
+                "r2",
+                super::ChartArm::Angular(lever),
+                gap,
+                2.0 * PI,
+                super::Orbit::Periods,
+                band,
+            );
+            out.push(format!("n={n}: {r:?}"));
+        }
+        eprintln!("P3 {out:#?}");
+    }
+
+    /// Review 5126 r2: sweep the door row's offsets, one at a time.
+    #[test]
+    fn r2_p4_offset_sweep() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mut out = Vec::new();
+        for periods in [1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 1000.0, -3.0, -10.0] {
+            let s =
+                slit_cap_below(periods).map(|(b, _, _)| super::validate_pcurves(&b, band).len());
+            let c = cylinder_patch_below(periods).map(|b| super::validate_pcurves(&b, band).len());
+            out.push(format!("{periods}: sphere {s:?} cylinder {c:?}"));
+        }
+        eprintln!("P4 {out:#?}");
+    }
+
     /// **A carrier stated whole periods off its azimuth mints.** Nothing
     /// bounds where a circle carrier's parameter runs against the azimuth
     /// it covers, so the loop walk's joint gap carries that offset. Where

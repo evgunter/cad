@@ -10718,3 +10718,54 @@ mod iso_arc_poison {
         assert!(g.value.is_nan() && g.deriv.is_nan(), "{g:?}");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_5126_r2_probes {
+    use super::*;
+    use core::f64::consts::{PI, TAU};
+    use geom_core::{Point3, Tol, Vec3};
+
+    /// Claim 4: an attach-path image whole periods off its carrier's
+    /// re-derivation — the same point set — read by check 4.
+    #[test]
+    fn p1_check4_reads_a_shifted_attach_path_image() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let surface = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let carrier = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.5),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let image = chart_pcurve(&carrier, &surface, band).unwrap();
+        let mut out = Vec::new();
+        for k in [0, 1, 3, 4, 5, 10] {
+            let shifted = image.shift_branch(f64::from(k), TAU);
+            let r = PcurveCache::certify(shifted, 0.0, PI, &carrier, &surface, band);
+            out.push(format!(
+                "k={k}: {:?}",
+                r.as_ref().map(|_| ()).map_err(|e| format!("{e:?}"))
+            ));
+        }
+        eprintln!("P1 {out:#?}");
+        let k5 = PcurveCache::certify(
+            image.shift_branch(5.0, TAU),
+            0.0,
+            PI,
+            &carrier,
+            &surface,
+            band,
+        );
+        assert!(
+            k5.is_ok(),
+            "P1: a stored image 5 periods off refuses: {:?}",
+            k5.err()
+        );
+    }
+}

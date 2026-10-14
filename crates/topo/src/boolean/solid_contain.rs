@@ -6075,3 +6075,60 @@ mod joint_branch_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_5126_r2_probes {
+    use super::*;
+    use core::f64::consts::TAU;
+
+    /// Claim 5: `bool_torus_chart_branch` on a torus wall whose bottom
+    /// parallel's carrier runs whole periods off the azimuth it covers.
+    #[test]
+    fn p2_torus_window_walk_on_a_carrier_periods_off() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let mut out = Vec::new();
+        for n in [0.0, 1.0, 4.0, 5.0, 10.0] {
+            let built = crate::boolean::boxes::tests::torus_wall_shifted(
+                n * TAU,
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                2.0,
+                0.5,
+                (0.3, 1.9),
+                (-0.7, 0.8),
+            );
+            match built {
+                Err(e) => out.push(format!("{n}: mint refused {e:?}")),
+                Ok((body, face)) => {
+                    let v = crate::pcurves::validate_pcurves(&body, band);
+                    let w = torus_chart_windows(&body, face, band);
+                    let fw = torus_face_windows(&body, face, 2.0, 0.5, band);
+                    out.push(format!(
+                        "{n}: validate {} faults; windows {:?}; face_windows {:?}",
+                        v.len(),
+                        w.map(|o| o.is_some()),
+                        fw.map(|_| ())
+                    ));
+                }
+            }
+        }
+        eprintln!("P2 {out:#?}");
+        let (body, face) = crate::boolean::boxes::tests::torus_wall_shifted(
+            5.0 * TAU,
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            2.0,
+            0.5,
+            (0.3, 1.9),
+            (-0.7, 0.8),
+        )
+        .unwrap();
+        assert!(
+            torus_chart_windows(&body, face, band).unwrap().is_some(),
+            "P2: the 5-periods-off wall's window walk does not meet"
+        );
+    }
+}
