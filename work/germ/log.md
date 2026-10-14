@@ -1293,3 +1293,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-10-14 02:30 — Confirmed the fix-pass lane's slow-set reds on main `e9e5df7c8a`.
   - **Red at 1e-12:** both `rigid_map_near_eps_approx` rows, with d = 0.05 reaching no refusal. They were already red at `6f2656af50`, before PR 4966 merged, so 4966 is not the cause. Filed on ENCL (P2) as `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main`: PR 5056, merged `e521ff8a2c`.
   - **Not red on main at 1e-6:** `three_solids_on_one_line::an_edge_crossing_both_wedges…` passes; not filed.
+- 2026-10-14 02:26 — Check-in. 5043's fix pass is running (dispatched 02:15). The spiric-lever lane is running its default-ε geom-brep/topo suite. Known reds now include the ENCL rigid-map rows. Re-armed for 03:26.
