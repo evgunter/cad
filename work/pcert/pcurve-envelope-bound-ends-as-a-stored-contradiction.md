@@ -33,21 +33,28 @@ Move `Envelope` (and any `EnvelopeTerm` that is a bound) to `Unsized::Bound`. Gi
 
 ## Closed (PR 5041, 2026-10-13)
 
-`PcurveCheck::bounds_a_miss` is true for `Envelope` and every
-`EnvelopeTerm`, and `recourse` routes them through `Unsized::Bound`.
-Each term bounds a part of the miss from above, and the parts share
-`t`, so they can partly cancel: no term is an exact reading. A sample's
-`MapResidual` stays `Fit`, because it is the miss itself. The build
-`Display` and `classify_pcurve`'s at-rest reason name the bound, and a
-definite envelope refusal at rest ends in the kernel-limit recourse.
-Rows: `a_refused_envelope_reads_as_a_bound_at_rest` (the `envelope-fit`
-mutant turns it red) and `own_close_endings_follow_their_decisions`'
-definite pcurve rows.
+`PcurveCheck::bounds_a_miss` reads the check's routing table: true for
+`Envelope` and every `EnvelopeTerm`, which route through
+`Unsized::Bound`. Each term bounds a part of the miss from above, and
+the parts share `t`, so they can partly cancel: no term is an exact
+reading. A sample's `MapResidual` stays `Fit`, because it is the miss
+itself. The build `Display` and `classify_pcurve`'s at-rest reason name
+the bound, and a definite envelope refusal at rest ends in the
+kernel-limit recourse. Row: `a_refused_envelope_reads_as_a_bound_at_rest`
+reads a real definite loose envelope through `PcurveCache::certify` (a
+stored image drifting axially over a window far from `t = 0`, true miss
+under the zero band), and the `envelope-fit` mutant turns it red. That
+looseness is filed as
+`pcurve-fidelity-levers-a-linear-difference-by-its-reach-from-the-origin`.
 
-The sweep found a sibling in this file. The fitted lane re-wraps a
+The sweep found a sibling in this file. The fitted lane re-wrapped a
 decided SSI limb refusal as `FittedCertificate`, which carried no
-ending, so a hull-sup limb, a `Bound` at the SSI door, read at rest as
-a stored contradiction. It now ends by its limb's check, as at the SSI
-door. `merge_faces::MergeDecision::DeclaredReach` routes through
+ending, so at rest every limb read as a stored contradiction. It is now
+`PcurveCertifyError::FittedLimb`, which ends by what the limb measures
+at THIS door (`PcurveCheck::of_fitted_limb`). The hull sup is the
+envelope, a bound. The hull's value at a break is the stored image's
+own miss there, so it is `MapResidual`, a stored contradiction; at the
+SSI door the same value is a bound, because the image there is a
+witness. `merge_faces::MergeDecision::DeclaredReach` routes through
 `Bound` (no text moves at Build); `PairReach`, whose margin never reads,
 routes through `Defect`.

@@ -1,15 +1,18 @@
-//! Check 4's exact norms read as the sum of their parts again, one site
-//! at a time: a test build takes the sum in place of the norm at the
-//! site `PCERT_RADIAL_PAIR_MUTANT` names at compile time ([`SITES`]);
-//! `fidelity-cone` reads the cone's two fidelity channels as
-//! orthogonal, `pole-start-under` under-reads the pole start, and
-//! `envelope-fit` reads the envelope's refusal as a miss rather than a
-//! bound on one. Each production site keeps a one-line hook that asks
-//! its own function here, which answers `None` unless its site is
-//! named. The rows that refuse each are in `radial_pair_rows`, and
-//! `envelope-fit`'s is `a_refused_envelope_reads_as_a_bound_at_rest`. `option_env!` because
-//! `scripts/gates/no-ambient-env.sh` forbids a runtime read in
-//! `crates/*/src`.
+//! Check 4 read wrong again, one site at a time: a test build takes the
+//! old reading at the site `PCERT_RADIAL_PAIR_MUTANT` names at compile
+//! time ([`SITES`]). Two kinds of site:
+//! - **sums**: an exact norm read as the sum of its parts (the rows
+//!   that refuse each are in `radial_pair_rows`); `fidelity-cone` reads
+//!   the cone's two fidelity channels as orthogonal, and
+//!   `pole-start-under` under-reads the pole start;
+//! - **routing**: `envelope-fit` routes the envelope's refusal as a
+//!   miss rather than a bound on one (its row is
+//!   `a_refused_envelope_reads_as_a_bound_at_rest`).
+//!
+//! Each production site keeps a one-line hook that asks its own
+//! function here, which answers nothing unless its site is named.
+//! `option_env!` because `scripts/gates/no-ambient-env.sh` forbids a
+//! runtime read in `crates/*/src`.
 
 use geom::Surface;
 use geom_core::{Real, Vec3};
@@ -159,9 +162,9 @@ pub(super) fn frame<T: Real>(d_radial: T, d_axis: T) -> Option<T> {
     on("frame").then(|| d_radial + d_axis)
 }
 
-/// The envelope's refusal read as a miss, not a bound on one.
-pub(super) fn envelope_fit() -> Option<bool> {
-    on("envelope-fit").then_some(false)
+/// The envelope's refusal routed as a miss, not a bound on one.
+pub(super) fn envelope_fit() -> bool {
+    on("envelope-fit")
 }
 
 /// The variable names a site this crate or topo's `chord_join` hooks.

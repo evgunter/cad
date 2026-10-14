@@ -323,12 +323,17 @@ impl SsiLimb {
     }
 
     /// The certification check a refusal of this limb is a refused arm
-    /// of, whose ending ([`crate::certify::recourse`]) every door that
-    /// reports the limb reads. Limbs 1 and 2 are the fitted carrier's
-    /// on-locus residual and sup-norm bound; limb 2's value at a break
-    /// is limb 1's residual against an analytic operand, and against a
-    /// NURBS operand the sup-norm bound's quantity at a point, a bound
-    /// on the miss like it; limb 3's margin is the operands'
+    /// of where the limb judges a carrier against its surfaces, with
+    /// its image a witness: the SSI door, and the edge certifier's
+    /// lanes that run the limbs (their ending is
+    /// [`crate::certify::recourse`]'s). What a limb's value measures is
+    /// the door's to say: where the image under judgement is a STORED
+    /// one, the value at a break is that image's own miss
+    /// (`PcurveCheck::of_fitted_limb`). Limbs 1 and 2 are the fitted
+    /// carrier's on-locus residual and sup-norm bound; limb 2's value at
+    /// a break is limb 1's residual against an analytic operand, and
+    /// against a NURBS operand the sup-norm bound's quantity at a point,
+    /// a bound on the miss like it; limb 3's margin is the operands'
     /// transversality over the box chain.
     #[must_use]
     pub fn check(self) -> CertCheck {

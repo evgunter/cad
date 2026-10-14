@@ -2710,6 +2710,19 @@ fn poison_words(is_direction: bool) -> &'static str {
 // lane, the sample and the lever — rides whole in the payload and in
 // its own `Display`.
 
+/// The reason a refusal on a certified upper bound on a miss carries:
+/// the certificate's bound on how far `$subject` exceeds the tolerance,
+/// which says only that the certificate cannot show the description.
+macro_rules! bound_reason {
+    ($subject:literal) => {
+        concat!(
+            "the check's certified bound on how far ",
+            $subject,
+            " exceeds the tolerance"
+        )
+    };
+}
+
 fn classify_band(e: &BandError) -> &'static str {
     match e {
         BandError::InvalidValue { .. } => "a tolerance threshold is not finite and positive",
@@ -2722,8 +2735,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     use geom_brep::AnalyticRung3Refusal as A;
     use geom_brep::PlaneNurbsRefusal as P;
     const MISMATCH: &str = "its stored description does not match its geometry";
-    const BOUND: &str = "the check's certified bound on how far it strays from its faces \
-                         exceeds the tolerance";
+    const BOUND: &str = bound_reason!("it strays from its faces");
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
     // The lead is this window's own.
     let why = match e {
@@ -3173,8 +3185,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;
     const WRONG: &str = "the stored boundary does not match the face";
-    const BOUND: &str = "the check's certified bound on how far the stored boundary strays from \
-                         the face exceeds the tolerance";
+    const BOUND: &str = bound_reason!("the stored boundary strays from the face");
     const KIND: &str = "the kernel cannot yet map a boundary of this kind";
     const CLOSE: &str = geom_core::undecided!("the boundary");
     let (why, recourse) = match e {
@@ -3225,58 +3236,59 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             crate::pcurves::EMPTY_OUTER_RECOURSE,
         ),
         M::Certify { error, .. } => {
+            // A decision's refused arm ends as its check's routing gives
+            // it at rest (`PcurveCertifyError::ending`); a refusal no
+            // decision owns ends in its own.
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
-                | C::BranchOutOfReach => (KIND, NOT_YET_ENDING),
+                | C::BranchOutOfReach => (KIND, Some(NOT_YET_ENDING)),
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
-                    crate::pcurves::PLACEHOLDER_RECOURSE,
+                    Some(crate::pcurves::PLACEHOLDER_RECOURSE),
                 ),
                 C::SectorRefused { .. } => (
                     "a boundary curve runs into its chart's singular set (a pole, the apex or \
                      the tube's core), where its image has no one branch",
-                    "Recourse: re-aim the chart's axis away from the curve, or split the edge \
-                     there",
+                    Some(
+                        "Recourse: re-aim the chart's axis away from the curve, or split the \
+                         edge there",
+                    ),
                 ),
                 C::FittedLaneUnsupported { .. } => (
                     "this scalar cannot certify a fitted boundary",
-                    "Recourse: check the body at a certifying scalar",
+                    Some("Recourse: check the body at a certifying scalar"),
                 ),
                 C::CarrierDomain(_) => (
                     "a boundary curve's parameter range cannot carry its image on the face",
-                    REPARAMETERIZE,
+                    Some(REPARAMETERIZE),
                 ),
-                C::CarrierGrazesChart { grazer, .. } => (WRONG, grazer.recourse()),
-                C::ResidualExceeded { check, .. } if check.bounds_a_miss() => {
-                    (BOUND, geom_core::KERNEL_LIMIT_RECOURSE)
-                }
-                C::FittedCertificate {
-                    limb: Some(limb),
-                    magnitude: Some(geom_brep::pcurve_cache::FittedMagnitude::LimbResidual(_)),
-                    ..
-                } if limb.check().bounds_a_miss() => (BOUND, geom_core::KERNEL_LIMIT_RECOURSE),
+                C::CarrierGrazesChart { grazer, .. } => (WRONG, Some(grazer.recourse())),
                 C::ChartRow { .. }
                 | C::CarrierOffChart { .. }
                 | C::ImageMismatch { .. }
-                | C::IntervalNotForward
-                | C::AzimuthPeriodExceeded
-                | C::TubePeriodExceeded
-                | C::ResidualExceeded { .. }
-                | C::FittedCertificate { .. } => (WRONG, DEFECT),
-                C::FittedEscalated { .. } | C::Escalated { .. } => (CLOSE, DEFECT),
-                C::Band(b) => (classify_band(b), TOLERANCE),
+                | C::FittedCertificate { .. } => (WRONG, Some(DEFECT)),
+                C::ResidualExceeded { .. } | C::FittedLimb { .. } => {
+                    let why = if error.refuses_on_a_bound() {
+                        BOUND
+                    } else {
+                        WRONG
+                    };
+                    (why, None)
+                }
+                C::IntervalNotForward | C::AzimuthPeriodExceeded | C::TubePeriodExceeded => {
+                    (WRONG, None)
+                }
+                C::FittedEscalated { .. } | C::Escalated { .. } => (CLOSE, None),
+                C::Band(b) => (classify_band(b), Some(TOLERANCE)),
             };
-            // A decision's refused arm ends as its check's routing gives
-            // it at rest (`PcurveCertifyError::ending`); a refusal no
-            // decision owns ends in its own.
-            return (
-                why,
-                error
-                    .ending(Reading::AtRest)
-                    .map_or(Cow::Borrowed(own), Cow::Owned),
-            );
+            let recourse = match (error.ending(Reading::AtRest), own) {
+                (Some(ending), _) => Cow::Owned(ending),
+                (None, Some(own)) => Cow::Borrowed(own),
+                (None, None) => unreachable!("a decision's refused arm always has its ending"),
+            };
+            return (why, recourse);
         }
     };
     (why, recourse.into())
@@ -11860,13 +11872,10 @@ mod tests {
                 ),
             ),
             (
-                "pcurve fitted hull limb, definite",
-                pcurve(PcurveCertifyError::FittedCertificate {
-                    limb: Some(geom_brep::SsiLimb::HullSup),
-                    what: "a certificate limb exceeded ε",
-                    magnitude: Some(geom_brep::pcurve_cache::FittedMagnitude::LimbResidual(
-                        MarginDiag::value(5e-8),
-                    )),
+                "pcurve fitted hull sup, definite",
+                pcurve(PcurveCertifyError::FittedLimb {
+                    limb: geom_brep::SsiLimb::HullSup,
+                    margin: MarginDiag::value(5e-8),
                 }),
                 format!(
                     "the check's certified bound on how far the stored boundary strays from the \
@@ -11874,13 +11883,10 @@ mod tests {
                 ),
             ),
             (
-                "pcurve fitted on-locus limb, definite",
-                pcurve(PcurveCertifyError::FittedCertificate {
-                    limb: Some(geom_brep::SsiLimb::OnLocus),
-                    what: "a certificate limb exceeded ε",
-                    magnitude: Some(geom_brep::pcurve_cache::FittedMagnitude::LimbResidual(
-                        MarginDiag::value(5e-8),
-                    )),
+                "pcurve fitted hull value at a break, definite",
+                pcurve(PcurveCertifyError::FittedLimb {
+                    limb: geom_brep::SsiLimb::HullValueChart,
+                    margin: MarginDiag::value(1.4e-3),
                 }),
                 format!("the stored boundary does not match the face. {DEFECT}"),
             ),
