@@ -2,8 +2,9 @@
 id: closed-in-face-section-loop-has-one-site
 kind: issue
 title: A closed operand conic lying in the partner's face makes a single-site closed section loop, which nothing in the join or the REST lane represents
-status: dispatched
+status: closed
 opened: 2026-10-02
+closed: 2026-10-14
 priority: P1
 cost: H
 branch: paths/in-face-section-self-loop
@@ -147,3 +148,53 @@ the class turns these rows from building to refusing:
 `peg_in_bore_union` and `intent_s5_b_interference::a_pin_bottoming…`,
 and the tour's lily (`foot ∪ corm` at the socket). Unit 4 is held on
 this row.
+
+## Outcome
+
+Built on `paths/in-face-section-self-loop` (PATHS took the row: it
+blocked unit 4). The in-face loop is the transverse arm's sibling in
+one owner, `boolean/join.rs` `one_site_segments` (renamed from
+`wrap_site_segments`): a one-site record is one segment, its two ends
+the record's two slots, where `closes_at_its_site` reads the site on
+both operands (`site_cell`) as
+
+- a wrap edge against a pierce of a planar face (the transverse arm,
+  unchanged);
+- a closed edge (both ends the site) against a pierce of a planar or
+  spherical face, or against another closed edge through the site
+  (`SegmentLane::AlongEdge`).
+
+The chords (`chord_join.rs`):
+
+- **the closed edge's side** copies the edge whole in every lane
+  (`along_edge_spec`, `closed_at`). A self-loop's direction is free in
+  topology, so it is read from the chord's `mef` site
+  (`closed_chord_runs_forward`): the loop keeping the edge's half is the
+  zero-area sliver, whose chord half runs against it. The copy is
+  stated in the chart of the face it divides, because a whole-turn
+  scaffold circle reads as a null edge's placeholder.
+- **a ring holding the null edge and the closed edge** (a puck's floor
+  rim in the ring's annulus) goes through `join_lone_ring` as a pierce
+  ring does: promoted, joined, and the one face its chord walls off
+  goes back as the old face's ring (`lone_ring` returns `LoneRing`).
+- **a pierce of a sphere face** sides the two whole conics with
+  `RimSide::Sphere`: a plane cuts the sphere in the conic alone, so the
+  region of each conic loop lies on the side of its plane `n × t`
+  points to, and the hole is the one whose side holds the old face's
+  outer loop.
+
+Witnesses: `crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`
+(a boss on and under a plate at four azimuths, beside a ring and over a
+hole; coaxial equal cylinders; a rim inside a ball face; a puck and its
+rounding ring), every op in both orders where the op builds on the
+two-arc form. F4d (`a_plane_across_a_one_face_wall.rs`
+`a_circle_edge_in_the_partners_face_builds`) and the equator tori
+(`germ_plane_torus_chord.rs` `two_loops_on_one_face_pair_build_their_true_bodies`)
+now build to their closed forms; their refusal rows are gone.
+
+Still refused `SingleSiteSectionLoop`: a closed edge piercing a face
+other than a plane or a sphere (a cone, a cylinder, a torus, whose
+plane can cut the face in more than the conic), and a plane tangent at
+a wrap edge's end vertex. D10: no declared contact is read or recorded
+by the arm, and the REST lane's `section_segments` is unchanged.
+

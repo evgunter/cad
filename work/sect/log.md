@@ -16,3 +16,6 @@ at the move. SECT owns the curved section-frame and lane rows outright:
 no per-pair stopgap lane is built elsewhere. Rows dispatchable: 10, for
 31 points against a budget of 31.
 — (JOIN orchestrator)
+
+- 2026-10-14 — `closed-in-face-section-loop-has-one-site` closed by PATHS on `paths/in-face-section-self-loop` (`one_site_segments`: the wrap crossing and the closed-edge arm in one owner). (PATHS)
+

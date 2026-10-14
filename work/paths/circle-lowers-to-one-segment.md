@@ -7,7 +7,6 @@ opened: 2026-09-25
 priority: P1
 cost: D
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-blocked_on: [closed-in-face-section-loop-has-one-site]
 ---
 
 
@@ -46,3 +45,17 @@ Unit 4 of the #3218 lowering. `circle(c, r)` lowers through `circle_split`'s ker
 - A washer, an annular one-segment tube through a plate, still refuses
   when its two wrap edges sit at different azimuths. That is filed as
   `annular-one-segment-tube-through-a-plate-refuses-section-loop-undecided` (JOIN, closed by PR 4397).
+
+## Its blocker has closed (2026-10-14, branch `paths/in-face-section-self-loop`)
+
+`closed-in-face-section-loop-has-one-site` is closed: a one-segment
+circle lying in the partner's face joins as a one-site section loop
+(`boolean/join.rs` `one_site_segments`). The rows that measured the
+class build in every op and both orders, at their closed forms
+(`crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`): a boss
+on a plate (the parked unit's witness), the coaxial equal-cylinder
+union, a rim inside a ball face, a puck and its rounding ring. Still
+refused typed: a one-segment rim piercing a cone, cylinder or torus
+face. The four other regression groups the 2026-10-14 log entry names
+still need attributing when the unit resumes.
+
