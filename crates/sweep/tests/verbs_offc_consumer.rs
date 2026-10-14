@@ -165,9 +165,22 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
         },
     )
     .unwrap();
-    // The map re-mint may itself refuse on the moved chart; the claim
-    // under test is tier 3's, so run it whatever the mint said.
-    let _ = topo::mint_pcurves(&mut body, Tol::witness());
+    // The re-mint refuses on the degraded chart: its rows' images no
+    // longer map onto their carriers. Tier 3's claim is checked after.
+    let minted = topo::mint_pcurves(&mut body, Tol::witness());
+    assert!(
+        matches!(
+            minted,
+            Err(topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
+                    ..
+                },
+                ..
+            })
+        ),
+        "the re-mint refuses the degraded chart's rows at the map residual: {minted:?}"
+    );
     let errors = topo::validate_geometric(&body, Tol::witness())
         .expect_err("a degraded fit must not validate");
     assert!(
@@ -937,4 +950,65 @@ fn the_walls_a_placed_approx_capped_part_still_meets() {
         ),
         "expected the kind refusal, got {step}"
     );
+}
+
+/// **A rim stated as a ROW in another chart takes its own image, never a
+/// constant one.** The approximated cap is moved onto a fresh key
+/// holding the same surface, so its rims stay described as iso images
+/// in the OLD chart, and two of them are rows there (`v` fixed, `u`
+/// moving). Re-derived on the new chart, each of the cap's four rims is
+/// an exact iso line with one moving channel, and each certifies. A
+/// derivation that read a stated row as a column would build
+/// `pl = (0, 0)`, a point, which certification refuses.
+#[test]
+fn a_rim_stated_as_a_row_in_another_chart_takes_its_own_image() {
+    let d = 0.05;
+    let (mut body, face) = box_with_approx_cap(d, MINT_TARGET);
+    let same = approx_face_surface(&body, face);
+    // Lifts RechartStrandsDescriptions: the cap on a fresh key holding
+    // the same surface, its rims still described in the old chart, is
+    // the row's premise.
+    body.set_face_surface_unvouched_for_tests(
+        face,
+        FaceSurface::New {
+            surface: Surface::Approx(same),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let chart = body
+        .get_surface(body.get_face(face).unwrap().surface)
+        .unwrap()
+        .clone();
+    let rims: Vec<_> = body
+        .half_edges()
+        .map(|(k, _)| k)
+        .filter(|&k| body.face_of_half_edge(k) == Some(face))
+        .collect();
+    assert_eq!(rims.len(), 4, "the cap has four rims");
+    for h in rims {
+        let mut fresh = body.clone();
+        fresh.detach_pcurve(h);
+        let image = topo::pcurve_of(&fresh, h, band).unwrap();
+        let topo::Pcurve::IsoLine { pl, .. } = image else {
+            panic!("{h:?}: a straight rim on the cap's chart is an iso line: {image:?}")
+        };
+        assert!(
+            (pl.x == 0.0) != (pl.y == 0.0),
+            "{h:?}: exactly one channel moves, so the image is a row or a column: {pl:?}"
+        );
+        let curve = fresh
+            .get_curve_geom(
+                fresh
+                    .get_edge(fresh.get_half_edge(h).unwrap().edge)
+                    .unwrap()
+                    .curve,
+            )
+            .and_then(topo::CurveGeom::certified)
+            .unwrap();
+        let (t0, t1) = curve.params();
+        geom_brep::PcurveCache::certify(image, t0, t1, curve.carrier(), &chart, band)
+            .unwrap_or_else(|e| panic!("{h:?}: the rim's image certifies: {e:?}"));
+    }
 }

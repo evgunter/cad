@@ -13,6 +13,9 @@
 test_utils::gated_to![
     "crates/topo/src/boolean/conic_quadric/mod.rs",
     "crates/topo/src/boolean/circle_roots.rs",
+    "crates/geom-brep/src/half_angle.rs",
+    "crates/geom-brep/src/quartic.rs",
+    "crates/geom-core/src/bisect.rs",
     "crates/topo/src/boolean/conic_oracle.rs",
     "crates/topo/src/boolean/conic_oracle/",
     "crates/topo/src/boolean/solid_contain.rs",
@@ -102,8 +105,8 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref: toward,
         }
     };
@@ -152,14 +155,14 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => geom::Curve3::Ellipse {
             center: lift_p(center),
             axis: lift_v(axis),
-            major: at(major),
-            minor: at(minor),
+            semi_u: at(semi_u),
+            semi_v: at(semi_v),
             u_ref: lift_v(u_ref),
         },
         _ => panic!("the sweep draws circles and ellipses"),
