@@ -645,8 +645,8 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use geom::NurbsSurface;
-    use geom_core::Point3;
     use geom_core::spline::KnotVector;
+    use geom_core::{CertifiedBounds, Interval, Point3, Real};
 
     use super::super::ChartedNurbs;
     use super::super::one_arc::Shortfall;
@@ -665,13 +665,27 @@ mod tests {
     }
 
     /// The pair over two charts, at their own speeds.
-    fn boxed<'a>(a: &'a NurbsSurface<f64>, b: &'a NurbsSurface<f64>) -> PairBoxes<'a, f64> {
+    fn boxed<'a, T: CertifiedBounds>(
+        a: &'a NurbsSurface<T>,
+        b: &'a NurbsSurface<T>,
+    ) -> PairBoxes<'a, T> {
         let (na, nb) = (
             ChartedNurbs::mint(a).unwrap(),
             ChartedNurbs::mint(b).unwrap(),
         );
         let (sa, sb) = (na.speeds(), nb.speeds());
         PairBoxes::new(&na, &nb, [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()])
+    }
+
+    /// [`one_arc_pair`] over the one box that is the two charts' whole
+    /// domain.
+    fn spans<T: CertifiedBounds>(
+        (a, b): (&NurbsSurface<T>, &NurbsSurface<T>),
+        ends: [([f64; 4], usize); 2],
+        eps: f64,
+    ) -> Result<(), Shortfall> {
+        let domain = Box4::of_charts(a, b);
+        one_arc_pair(&boxed(a, b), (&[domain], domain), ends, eps)
     }
 
     /// The walls `x = 0`, `(u, v) ↦ (0, u, v)`, and `y = ½`,
@@ -690,25 +704,33 @@ mod tests {
     /// there.** Read across `v₂`, the slice through either end meets the
     /// locus on its own edge `v₁ = 0` or `v₁ = 1`, where no Krawczyk test
     /// isolates it; the box's boundary root on that side, inside the box
-    /// about the end, is what reaches it, at every ε.
+    /// about the end, is what reaches it, at every ε, on the `f64` lane
+    /// and on the `Interval` lane, whose chart midpoint is an enclosure.
     #[test]
     fn an_end_on_a_domain_side_is_reached_by_the_root_there() {
         let (a, b) = walls();
-        let pair = boxed(&a, &b);
-        let domain = Box4::of_charts(&a, &b);
+        let (ia, ib) = (
+            a.map_scalar(<Interval as Real>::from_f64),
+            b.map_scalar(<Interval as Real>::from_f64),
+        );
         let ends = [([0.5, 0.0, 0.5, 0.25], 3), ([0.5, 1.0, 0.5, 0.75], 3)];
         for eps in [1e-6, 1e-9, 1e-12] {
             assert_eq!(
-                one_arc_pair(&pair, (&[domain], domain), ends, eps),
+                spans((&a, &b), ends, eps),
                 Ok(()),
-                "the arc spans both sides at ε = {eps:e}"
+                "the arc spans both sides at ε = {eps:e}, f64"
+            );
+            assert_eq!(
+                spans((&ia, &ib), ends, eps),
+                Ok(()),
+                "the arc spans both sides at ε = {eps:e}, Interval"
             );
         }
         // A start a tenth past the first's `v = 0` side: no root of the
         // box lies near it, and the box about it misses the domain.
         let past = [([0.5, -0.1, 0.5, 0.2], 3), ends[1]];
         assert_eq!(
-            one_arc_pair(&pair, (&[domain], domain), past, 1e-9),
+            spans((&a, &b), past, 1e-9),
             Err(Shortfall::Short),
             "a carrier overrunning the arc refuses as short"
         );
