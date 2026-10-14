@@ -5492,6 +5492,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "naming_error_tag",
         values: &[
+            "carrier_unplaced",
             "closed_carrier_unread",
             "conventional_vertex",
             "duplicate",
