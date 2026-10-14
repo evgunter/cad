@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-14
 ---
 
-Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), which tests every geometric pair question against C5's rule: one total kind-pair table, one method per pair, no runtime fallback (`crates/geom-brep/README.md`, C5).
+Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
 
 ## What
 
@@ -24,8 +24,10 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), 
 
 ## Owed
 
-- One coincidence table over every kind pair. Its unread pairs refuse typed, and each consumer reads it.
-- `vtxfac`'s datum fallback becomes the table's cone arm, rather than a second attempt.
-- `merge_faces`' silent `false` becomes a typed refusal or a stated "unread is not mergeable" rule.
+Re-aimed to D3 "One reading per question". Coincident ± is one class of the carrier pair's *pose*, decided once by the pose reading. That reading replaces the "one coincidence table": it is total over the kind pairs, its unread pairs refuse typed naming what they lack, and each consumer reads it.
 
-Sites 4–5 are bit-identity rather than geometric questions. Whether they stay outside the table is the fix's call.
+- `vtxfac`'s datum fallback becomes the pose reading's cone arm, rather than a second attempt reached because the ladder refused.
+- `merge_faces`' `OutsideInventory` read as `Ok(false)` is a typed refusal read as a verdict, which D4's line "A typed refusal is never read as a verdict" (`docs/DESIGN.md`, D4 item 3) forbids. It refuses, or takes a path that decides coincidence itself. The earlier alternative, a stated "unread is not mergeable" rule, is no longer open.
+- The `CoincidentSurfaces` decided inside the C5 arms with their own margins: an outcome takes the pose reading's answer and decides no pose of its own.
+- `adopt::coincident_surfaces`: D3 says import is not exempt. It reads the same pose reading, with the file's own coincidence distance as the band.
+- Sites 4–5 (`same_chart`, `surface_bits_equal`) are exempt under D3 only if they are identity of stored bits on which no topology decision depends. The fix checks that for each and says which.
