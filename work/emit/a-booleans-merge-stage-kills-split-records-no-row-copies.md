@@ -98,6 +98,12 @@ Re-pinned: `lib_g16_corpus_name_digests` and
 `topo` `boolean_discards::an_edge_split_and_merged_away_in_one_step_records_its_parent`,
 which fails with the merge's copy removed.
 
-**Filed:** `work/origin/body-split-root-stops-at-a-parent-an-output-stage-killed.md`
-(`split_root` reads the body alone; the shell's dropped records reach
-only those readers).
+**Filed:**
+- `work/origin/body-split-root-stops-at-a-parent-an-output-stage-killed.md`:
+  `split_root` reads the body alone, and the shell's dropped records
+  reach only its readers.
+- `work/emit/a-booleans-carve-kills-a-split-record-its-discard-rows-do-not-copy.md`:
+  the blind-spot pass, run with the fix in place. It recorded the
+  records every kill drops, not only the output stage's. One chase
+  still ends at a parent the boolean's carve killed with no row
+  copying its record.
