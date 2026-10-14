@@ -6771,6 +6771,7 @@ mod joint_branch_rows {
 
 #[cfg(test)]
 mod pre_filter_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
     use super::*;
     use crate::test_support_fixtures::brick;
     use geom_core::k_stats::Bracket;
