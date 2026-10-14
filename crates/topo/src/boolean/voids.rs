@@ -85,6 +85,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::entity::{ShellKey, SolidKey};
 use crate::geometry::SurfaceKey;
+use crate::revert::RevertError;
 
 /// One cavity shell's strict-containment certificate, supplied by the
 /// caller (module docs: the door never derives containment).
@@ -193,6 +194,9 @@ pub enum VoidInsertError {
         /// How many solids the cavity holds.
         cavity_solids: usize,
     },
+    /// The cavity does not revert ([`crate::Body::revert`]): its
+    /// complement pairs the faces meeting on a line of it differently.
+    Revert(RevertError),
 }
 
 impl core::fmt::Display for VoidInsertError {
@@ -237,6 +241,7 @@ impl core::fmt::Display for VoidInsertError {
                 "the void door takes one destination solid per cavity solid, and a cavity of \
                  at least one: the call names {destinations} for a cavity of {cavity_solids}"
             ),
+            Self::Revert(e) => write!(f, "the cavity does not revert: {e}"),
         }
     }
 }
@@ -417,7 +422,7 @@ pub(crate) fn insert_hollow_voids<T: Decide>(
         };
         (dst.arena_counts(), transplant)
     };
-    let reversed = cavity.revert();
+    let reversed = cavity.revert().map_err(VoidInsertError::Revert)?;
     let graft = graft_solids_disjoint(dst, dst_solids, &reversed).unwrap_or_else(|e| {
         unreachable!(
             "the void graft refused ({e:?}): its every argument refusal was checked above \

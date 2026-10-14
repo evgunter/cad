@@ -273,7 +273,13 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 
     // ---- ∖: revert the kept B side (Eq. 15.1's (BinA)⁻¹). ----
     if op == BooleanOp::Subtract {
-        b_kept = b_kept.revert();
+        if let Some(source) = kept_coincident_edges(b_pristine, &b_kept, &red.edge_splits) {
+            return Err(BooleanError::Revert {
+                operand: Operand::B,
+                source,
+            });
+        }
+        b_kept = b_kept.reverted();
     }
 
     // ---- The combine door. ----
@@ -410,6 +416,33 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         vertex_map,
         graft,
         discards,
+    })
+}
+
+/// The first pair of `input`'s coincident edges ([`Body::revert`]'s
+/// refusal) both of which keep a piece in `kept`, the part of `input`'s
+/// working clone ∖ reverts. The clone is read through its input: the
+/// reduction splits edges where the other operand's faces cross them,
+/// minting each piece's ends on point keys of its own, so two pieces of
+/// coincident edges need not share their ends; and the clone holds a
+/// coincident pair of its own where the other operand's coincident
+/// edges lie in its faces, which is that operand's line, not this one's.
+fn kept_coincident_edges<T: geom_core::Real>(
+    input: &Body<T>,
+    kept: &Body<T>,
+    splits: &super::EdgeSplits,
+) -> Option<crate::RevertError> {
+    let lines = input.coincident_edges();
+    if lines.is_empty() {
+        return None;
+    }
+    let roots: std::collections::BTreeSet<_> = kept
+        .edges()
+        .map(|(edge, _)| splits.root(Operand::B, edge))
+        .collect();
+    lines.into_iter().find(|line| {
+        let crate::RevertError::CoincidentEdges { edges, .. } = line;
+        edges.iter().all(|edge| roots.contains(edge))
     })
 }
 

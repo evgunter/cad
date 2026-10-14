@@ -3436,6 +3436,18 @@ pub enum BooleanError {
     /// piece, and the result is not handed back under a guessed
     /// grouping.
     Pieces(crate::pieces::PieceSortError),
+    /// ∖ reverts an operand's kept part ([`crate::Body::revert`]), and
+    /// that part does not revert: two of its edges lie on one line, and
+    /// the complement pairs the faces meeting there differently, which
+    /// is not built.
+    Revert {
+        /// The operand reverted.
+        operand: Operand,
+        /// The revert's refusal: the two coincident edges in the
+        /// operand's own keys where the operand holds them, else in its
+        /// working clone's.
+        source: crate::revert::RevertError,
+    },
 }
 
 /// Which arm of [`BooleanError`] refused — the discriminant alone,
@@ -3617,6 +3629,8 @@ pub enum BooleanErrorKind {
     GraftRecertify,
     /// [`BooleanError::Pieces`].
     Pieces,
+    /// [`BooleanError::Revert`].
+    Revert,
 }
 
 /// Which of the volume backstop's three bodies a refusal is about.
@@ -3827,6 +3841,7 @@ impl BooleanError {
             Self::UnrepresentableResult => BooleanErrorKind::UnrepresentableResult,
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
             Self::Pieces(_) => BooleanErrorKind::Pieces,
+            Self::Revert { .. } => BooleanErrorKind::Revert,
         }
     }
 }
@@ -4619,6 +4634,13 @@ impl core::fmt::Display for BooleanError {
                 )
             }
             Self::Pieces(e) => write!(f, "the result could not be sorted into solids: {e}"),
+            Self::Revert { operand, source } => {
+                let operand = operand_word(*operand);
+                write!(
+                    f,
+                    "the {operand} solid's kept part does not revert: {source}"
+                )
+            }
         }
     }
 }
@@ -7983,6 +8005,13 @@ mod tests {
                 which: "vol(A ∖ B) ≤ vol(A)",
             },
             BooleanError::UnrepresentableResult,
+            BooleanError::Revert {
+                operand: Operand::B,
+                source: crate::revert::RevertError::CoincidentEdges {
+                    edges: [edge, edge],
+                    ends: [crate::geometry::PointKey::default(); 2],
+                },
+            },
         ]
     }
 
@@ -8090,6 +8119,7 @@ mod tests {
                 BooleanErrorKind::UnrepresentableResult => "UnrepresentableResult",
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
                 BooleanErrorKind::Pieces => "Pieces",
+                BooleanErrorKind::Revert => "Revert",
             }
         }
         /// The variant name `Debug` opens with.

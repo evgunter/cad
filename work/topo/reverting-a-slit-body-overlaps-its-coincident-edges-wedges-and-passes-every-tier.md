@@ -49,3 +49,36 @@ kissing cusps is two seams, because the sheets re-pair.
    line: their material sectors must be disjoint. Its home is
    restread's `census-passes-a-face-inside-an-edges-material-wedge`.
    Without the check, this body passes the gate.
+
+## Built (branch cleave/revert-repairs-coincident-edges)
+
+Measured on `origin/main` `ebf6c05239` at ε = default, 1e-6 and 1e-12
+(the same at each):
+- The split's one-end slit body passes tiers 2, 3 and 3′. Its keel is
+  two edges from (1.5, 1, 1) to two vertices at (4, 1, 1) on one point
+  key, each a `Line` on its own curve key.
+- `revert` of it: tier 2 passes, tiers 3 and 3′ fail only
+  `NegativeVolume` (a reverted body bounds the complement); the wedge
+  check reads each 286.7° wedge alone and passes it.
+- `subtract(slab [−1,5]×[−2,4]×[0,1.5], slit body)`: one solid, no
+  records, volume 46.1875 (the closed form), tiers 3 and 3′ pass. The
+  floor carries the two overlapping 286.7° edges. Confirmed. The same
+  with the slab ending at `x = 3` (the slit cut across): 30.1125, every
+  tier passes.
+
+Landed: the minimal sound form, not the re-pairing.
+- `Body::revert` returns `Result<Self, RevertError>` and refuses
+  `RevertError::CoincidentEdges { edges, ends }` where two distinct
+  edges run between the same two point keys on two lines or one stored
+  curve.
+- ∖ refuses `BooleanError::Revert { operand: B, source }`: the seamed
+  finish reads the input's coincident edges through the reduction's
+  split lineage (the slit cut across has its pieces' ends on new point
+  keys); the single-operand fallback and the void door
+  (`VoidInsertError::Revert`) refuse through `revert`.
+- Pins: `crates/topo/tests/a_doubled_line_does_not_revert.rs` at every
+  pose (default, 1e-6, 1e-12 measured locally). A single cusp still
+  reverts to the legal knife slit
+  (`tier3_tests::revert_maps_the_legal_cusp_to_the_legal_slit`).
+- The re-pairing is filed as
+  `revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet`.

@@ -48,3 +48,18 @@ alone. A reverted slit body is the coincident-edge case: see topo's
 `reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier`.
 The D1 sentence on 4795 names this check, so this row's scope grows
 to cover it if Ev ratifies.
+
+## Measured witnesses (topo row, 2026-10-14)
+
+Each passes tiers 3 and 3′ on `origin/main` `ebf6c05239`, at rest:
+- **Coincident edges, overlapping.** `subtract` of the slab
+  `[−1,5]×[−2,4]×[0,1.5]` less the split's one-end slit body (the
+  `slit_body` fixture of `crates/topo/tests/a_doubled_line_does_not_revert.rs`):
+  one solid, volume 46.1875 (right), its floor carrying the keel as two
+  edges each bounding about 286.7°. The same with the slab ending at
+  `x = 3`, which cuts the slit (30.1125). ∖ now refuses both
+  (`BooleanError::Revert`), so neither reaches the gate today; the
+  check is what would catch the next door that writes one.
+- **A face inside an edge's wedge.** ∖ of a glued tip, the tool's
+  records carried: topo's
+  `subtracting-a-glued-tip-reverts-its-edge-on-face-line-into-the-rider-form`.
