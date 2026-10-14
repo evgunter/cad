@@ -270,16 +270,17 @@ const HOLDERS: &[&str] = &[
 const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/carrier_net.rs",
-        2,
+        1,
         0,
-        "both are `T: Bounds` reads of an edge interval's evaluation bracket \
-         (blind spot 1), not a certification bracket: `carrier_span` takes the \
-         interval's outer ends as the `f64` span a closed-form carrier's schedule \
-         and net are built over, and branches on nothing. Its callers are the \
-         general image's producer and the spline-pair edge certificate, each behind \
-         `run_fitted_checks`' or `run_checks`' check 2, which has decided `t1 - t0` \
-         through `decide` and so refused an uncertified parameter; a NaN end that \
-         reached it anyway is refused by `chart_image`'s domain door",
+        "the one is `outer_ends`, a `T: Bounds` read of an edge interval's \
+         evaluation bracket (blind spot 1), not a certification bracket: the \
+         interval's outer ends, the one spelling of that rule, and it branches on \
+         nothing. Its callers are `carrier_span` (the closed-form certificate span and \
+         the general image's schedule), the fitted row's coverage gate and the \
+         analytic rung-3 tube's piece, each behind a check 2 that has decided \
+         `t1 - t0` through `decide` and so refused an uncertified parameter; a NaN end \
+         that reached the fitted gate fails it, and `chart_image`'s domain door \
+         refuses one in a span",
     ),
     (
         "crates/geom-brep/src/offset_fit.rs",
@@ -308,18 +309,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          non-finite mean, so a refused input still yields a finite centre and the \
          reach about it reports the trouble",
     ),
-    (
-        "crates/geom-brep/src/pcurve_cache.rs",
-        3,
-        2,
-        "the remaining 1 is a `T: Bounds` read of an edge interval's evaluation \
-         bracket (blind spot 1), not a certification bracket. The fitted door's \
-         domain gate (`fitted_lane`) branches on it, the interval's outer ends \
-         against the image's stored `f64` knot domain: it is reached only through \
-         `run_fitted_checks`, whose check 2 has already decided `t1 - t0` through \
-         `decide`, which refuses an uncertified parameter, so a refused bracket \
-         stops at check 2 before this gate (at `f64` its NaN fails the gate)",
-    ),
+    ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     ("crates/geom-brep/src/props/bracket.rs", 4, 4, ""),
     (

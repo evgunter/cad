@@ -1371,6 +1371,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 }) => {}
                 // An undecided certification is the rim's to report:
                 // the mint certifies the pick again and escalates it.
+                // A definite refusal of the rim's locus says the circle
+                // is not this row, and falls through; any other refusal
+                // is about the chart or the run, not the candidate, and
+                // leaves with its own words.
                 Ok(rim) => match PcurveCache::certify(rim.clone(), t0, t1, &carrier, surface, band)
                 {
                     Ok(_)
@@ -1378,7 +1382,13 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                         PcurveCertifyError::Escalated { .. }
                         | PcurveCertifyError::FittedEscalated { .. },
                     ) => return Ok(rim),
-                    Err(_) => {}
+                    Err(
+                        PcurveCertifyError::ResidualExceeded { .. }
+                        | PcurveCertifyError::CarrierOffChart { .. }
+                        | PcurveCertifyError::ImageMismatch { .. }
+                        | PcurveCertifyError::IsoUnsupported { .. },
+                    ) => {}
+                    Err(error) => return Err(PcurveMintError::Certify { half_edge, error }),
                 },
                 refused => return refused,
             }

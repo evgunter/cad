@@ -307,6 +307,11 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
                 1,
                 "exactly the restated seam takes the declare-and-check rung: {seams:?}"
             );
+            assert_eq!(
+                plane_nurbs_intersections(&body).len(),
+                5,
+                "beside the restated seam, the same four cap rims as our own bytes"
+            );
             let (curve, _, wall) = &seams[0];
             // The seam CHARTS. The NURBS wall stores its side (the
             // boundary-column iso image); the plane keeps M2's

@@ -474,7 +474,13 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 cause.payload()
             ),
             Self::ChartSpeed(r) => f.write_str(r.what()),
-            Self::CarrierEnclosure(r) => write!(f, "{}: {r}", SsiLimb::HullSup.name()),
+            // The door is read only by limb 2's composite (against the
+            // plane and against the wall alike), before any bound
+            // exists, so the refusal names the limb and no bound.
+            Self::CarrierEnclosure(r) => write!(
+                f,
+                "limb 2 could not enclose the declared carrier between samples: {r}"
+            ),
             Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
         }
     }
@@ -837,8 +843,8 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             what: "the analytic rung-3 certificate reads two analytic operands",
         });
     }
-    let (t0, t1) = params;
-    let piece = edge_piece(carrier, t0.lo().min(t1.lo()), t0.hi().max(t1.hi()))?;
+    let (lo, hi) = crate::carrier_net::outer_ends(params);
+    let piece = edge_piece(carrier, lo, hi)?;
     let lane = crate::FittedLane::<T>::certified();
     for operand in [s1, s2] {
         use crate::pcurve_cache::projected::{Offset, net_offset_sup};

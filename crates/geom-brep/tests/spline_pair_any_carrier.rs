@@ -183,46 +183,24 @@ fn verdict(name: &str, got: &Limbs) -> (Verdict, f64) {
     }
 }
 
-/// **Plane × spline, each closed-form kind.** The off-iso diagonal on
-/// the flat wall certifies, its hull bound within ε; a circle and an
-/// ellipse over 1.3 rad of the quarter-cylinder wall refuse at the
-/// hull on the degree-1 image's chord error, measured; a circle over
-/// a short arc ([`short`]) certifies. Each spline twin reaches the same
-/// verdict.
-#[test]
-fn a_closed_form_carrier_on_a_plane_by_spline_pair_meets_its_twins_verdict() {
-    let (ellipse, tilted) = ellipse();
-    let rows = [
-        (
-            "line",
-            diagonal(),
-            (0.0, 1.0),
-            diagonal_plane(),
-            flat_wall(),
-        ),
-        (
-            "circle, 1.3 rad",
-            circle(0.5),
-            (0.1, 1.4),
-            horizontal(0.5),
-            quarter_cylinder_wall(),
-        ),
-        (
-            "circle, short",
-            circle(0.5),
-            short(0.002),
-            horizontal(0.5),
-            quarter_cylinder_wall(),
-        ),
-        (
-            "ellipse, 1.3 rad",
-            ellipse,
-            (0.1, 1.4),
-            tilted,
-            quarter_cylinder_wall(),
-        ),
-    ];
-    for (name, carrier, params, plane, wall) in rows {
+/// A plane × spline row: a carrier, its interval, the plane and the
+/// wall, and the verdict the carrier and its spline twin both reach.
+type PlaneRow = (
+    &'static str,
+    Curve3<f64>,
+    (f64, f64),
+    Surface<f64>,
+    NurbsSurface<f64>,
+    Verdict,
+);
+
+/// Each row's closed form and its spline twin reach `want`: a
+/// certified bound within ε, or a limb-2 refusal on a measured miss
+/// past ε. The twin is the same LOCUS, not the same parameterised
+/// curve (a rational arc is not the angle's), so its image and bound
+/// differ and only the verdict is compared.
+fn plane_rows_meet_their_twins(rows: Vec<PlaneRow>) {
+    for (name, carrier, params, plane, wall, want) in rows {
         let got = plane_nurbs_limbs(&carrier, params, &plane, &wall, 1.0, band());
         let (closed, bound) = verdict(name, &got);
         let spline = twin(&carrier, params);
@@ -231,40 +209,127 @@ fn a_closed_form_carrier_on_a_plane_by_spline_pair_meets_its_twins_verdict() {
             &plane_nurbs_limbs(&spline, params, &plane, &wall, 1.0, band()),
         );
         println!("{name}: {closed:?} on {bound:e} m; its twin {twinned:?} on {twin_bound:e} m");
-        assert_eq!(
-            std::mem::discriminant(&closed),
-            std::mem::discriminant(&twinned),
-            "{name}: the twin's verdict: {closed:?}, {twinned:?}"
-        );
-        match closed {
-            Verdict::Certified => assert!(
-                bound <= eps() && twin_bound <= eps(),
-                "{name}: both bounds within ε: {bound:e}, {twin_bound:e}"
-            ),
-            Verdict::Refused(limb) => {
-                assert!(
-                    matches!(limb, SsiLimb::HullSup | SsiLimb::HullValueChart),
-                    "{name}: limb 2 refuses: {limb:?}"
-                );
-                assert!(
-                    [bound, twin_bound]
-                        .iter()
-                        .all(|b| (eps()..1e-3).contains(b)),
-                    "{name}: a miss past ε, measured: {bound:e}, {twin_bound:e}"
-                );
+        for (who, v, b) in [
+            ("closed form", &closed, bound),
+            ("twin", &twinned, twin_bound),
+        ] {
+            assert_eq!(
+                std::mem::discriminant(v),
+                std::mem::discriminant(&want),
+                "{name}: the {who}'s verdict: {v:?}"
+            );
+            match v {
+                Verdict::Certified => assert!(b <= eps(), "{name}: the {who} within ε: {b:e}"),
+                Verdict::Refused(limb) => assert!(
+                    matches!(limb, SsiLimb::HullSup | SsiLimb::HullValueChart)
+                        && (eps()..1e-3).contains(&b),
+                    "{name}: the {who} refused at limb 2 on a miss past ε: {limb:?}, {b:e}"
+                ),
             }
         }
-        let want = if name.contains("1.3") {
-            Verdict::Refused(SsiLimb::HullSup)
-        } else {
-            Verdict::Certified
-        };
-        assert_eq!(
-            std::mem::discriminant(&closed),
-            std::mem::discriminant(&want),
-            "{name}: {closed:?}"
-        );
     }
+}
+
+/// **Plane × spline, a certifying line.** The off-iso diagonal on the
+/// flat wall certifies, hull bound within ε, as its degree-1 twin does.
+#[test]
+fn a_line_on_a_plane_by_spline_pair_certifies_with_its_twin() {
+    plane_rows_meet_their_twins(vec![(
+        "line",
+        diagonal(),
+        (0.0, 1.0),
+        diagonal_plane(),
+        flat_wall(),
+        Verdict::Certified,
+    )]);
+}
+
+/// **Plane × spline, a certifying circle.** A circle over a short arc
+/// ([`short`]) of the quarter-cylinder wall certifies, its enclosing
+/// net and its degree-1 image within ε, as its rational twin does.
+#[test]
+fn a_short_circle_on_a_plane_by_spline_pair_certifies_with_its_twin() {
+    plane_rows_meet_their_twins(vec![(
+        "circle, short",
+        circle(0.5),
+        short(0.002),
+        horizontal(0.5),
+        quarter_cylinder_wall(),
+        Verdict::Certified,
+    )]);
+}
+
+/// **Plane × spline, the refusing closed forms.** A circle and an
+/// ellipse over 1.3 rad of the quarter-cylinder wall refuse at limb 2
+/// on the degree-1 image's chord error, measured, as their twins do.
+#[test]
+fn a_closed_form_carrier_on_a_plane_by_spline_pair_refuses_with_its_twin() {
+    let (ellipse, tilted) = ellipse();
+    plane_rows_meet_their_twins(vec![
+        (
+            "circle, 1.3 rad",
+            circle(0.5),
+            (0.1, 1.4),
+            horizontal(0.5),
+            quarter_cylinder_wall(),
+            Verdict::Refused(SsiLimb::HullSup),
+        ),
+        (
+            "ellipse, 1.3 rad",
+            ellipse,
+            (0.1, 1.4),
+            tilted,
+            quarter_cylinder_wall(),
+            Verdict::Refused(SsiLimb::HullSup),
+        ),
+    ]);
+}
+
+/// A wall on `[0, 1]²` whose height along `u` is `z(u)`, flat between
+/// `u = 0` and `u = knee` and rising linearly by `rise` to `u = 1`;
+/// linear in `v`.
+fn kneed_wall(knee: f64, rise: f64) -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, knee, 1.0, 1.0], 1).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = [(0.0, 0.0), (knee, 0.0), (1.0, rise)]
+        .into_iter()
+        .flat_map(|(x, z)| [Point3::new(x, 0.0, z), Point3::new(x, 1.0, z)])
+        .collect();
+    NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
+}
+
+/// **The certificate covers the edge's whole interval.** The diagonal
+/// lies on a wall that is flat up to `u = 1/2` and rises past it, so
+/// the edge leaves the wall over the last third of its interval
+/// (`x = 0.1 + 0.6·t` passes `1/2` at `t = 2/3`) and the certificate
+/// refuses it, at the edge certificate alone: no mint, no fitted lane.
+/// A certificate whose span covered only the first half of the
+/// interval would certify it. The first half alone, stated as the
+/// edge, does certify, so the refusal is the second half's.
+#[test]
+fn the_certificate_reads_the_edges_whole_interval() {
+    let wall = kneed_wall(0.5, 0.2);
+    let got = plane_nurbs_limbs(
+        &diagonal(),
+        (0.0, 1.0),
+        &diagonal_plane(),
+        &wall,
+        1.0,
+        band(),
+    );
+    assert!(
+        matches!(got, Err(PlaneNurbsRefusal::Limb { .. })),
+        "the edge leaves the wall over its last third: {got:?}"
+    );
+    let half = plane_nurbs_limbs(
+        &diagonal(),
+        (0.0, 0.5),
+        &diagonal_plane(),
+        &wall,
+        1.0,
+        band(),
+    );
+    assert!(half.is_ok(), "its first half is on the wall: {half:?}");
 }
 
 /// The horizontal bilinear chart `z = h` over `[-0.1, 1.1]²`.
@@ -343,29 +408,35 @@ fn a_closed_form_carrier_between_two_spline_charts_meets_its_twins_verdict() {
     }
 }
 
-/// A wall on `[0, 1]²` that leaves `z = 0` by `peak` between the
-/// image schedule's stations and touches it, level, at each: in `u`,
-/// one degree-4 Bézier per station span with controls
+/// A wall on `[0, 1]²` that leaves `z = 0` by `peak` between two
+/// adjacent stations of the image schedule and is flat elsewhere: in
+/// `u`, a degree-4 Bézier over that station span with controls
 /// `(0, 0, peak/0.375, 0, 0)` (its middle Bernstein is `6/16` at the
-/// span's middle), the spans meeting level; in `v`, linear.
+/// span's middle), meeting the flat spans either side level; in `v`,
+/// linear.
 fn bumped_wall(peak: f64) -> NurbsSurface<f64> {
-    let spans = geom_brep::edge_nurbs::PXN_FIT_SAMPLES as usize - 1;
+    let spans = f64::from(geom_brep::edge_nurbs::PXN_FIT_SAMPLES - 1);
+    let (a, b) = (16.0 / spans, 17.0 / spans);
     let mut knots = vec![0.0; 5];
-    for i in 1..spans {
-        #[allow(clippy::cast_precision_loss)]
-        knots.extend([i as f64 / spans as f64; 4]);
-    }
+    knots.extend([a; 4]);
+    knots.extend([b; 4]);
     knots.extend([1.0; 5]);
     let ku = KnotVector::clamped(knots, 4).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let n = 4 * spans + 1;
-    let mut control = Vec::with_capacity(2 * n);
-    for j in 0..n {
-        #[allow(clippy::cast_precision_loss)]
-        let x = j as f64 / (n - 1) as f64;
-        let z = if j % 4 == 2 { peak / 0.375 } else { 0.0 };
-        control.extend([Point3::new(x, 0.0, z), Point3::new(x, 1.0, z)]);
-    }
+    let xs = |lo: f64, hi: f64| (0..4).map(move |k| lo + (hi - lo) * f64::from(k) / 4.0);
+    let mut row: Vec<(f64, f64)> = xs(0.0, a).map(|x| (x, 0.0)).collect();
+    row.extend(
+        xs(a, b)
+            .enumerate()
+            .map(|(k, x)| (x, if k == 2 { peak / 0.375 } else { 0.0 })),
+    );
+    row.extend(xs(b, 1.0).map(|x| (x, 0.0)));
+    row.push((1.0, 0.0));
+    let n = row.len();
+    let control = row
+        .into_iter()
+        .flat_map(|(x, z)| [Point3::new(x, 0.0, z), Point3::new(x, 1.0, z)])
+        .collect();
     NurbsSurface::new(ku, kv, control, vec![1.0; 2 * n]).unwrap()
 }
 

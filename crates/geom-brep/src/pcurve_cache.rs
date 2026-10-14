@@ -2779,7 +2779,8 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // `run_fitted_checks`, this gate's only caller, has already decided
     // `t1 − t0` through `decide`, which refuses an uncertified value.
     let (d0, d1) = image.knots().domain();
-    if !(d0 <= t0.lo().min(t1.lo()) && t0.hi().max(t1.hi()) <= d1) {
+    let (lo, hi) = crate::carrier_net::outer_ends((t0, t1));
+    if !(d0 <= lo && hi <= d1) {
         return Err(PcurveCertifyError::FittedCertificate {
             limb: Some(SsiLimb::HullSup),
             what: "the image's domain stops short of the edge's interval, so its hull \

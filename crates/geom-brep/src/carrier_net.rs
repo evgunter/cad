@@ -82,7 +82,8 @@ fn lift_p<T: CertifiedBounds>(p: Point3<T>) -> Vec3<Interval> {
     lift_v(p - Point3::origin())
 }
 
-/// `None` for a line or a spline carrier, which are no harmonic.
+/// `None` for a line or a spline carrier, neither of which is a
+/// harmonic.
 fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>) -> Option<Harmonic> {
     let i = Interval::from_certified;
     match carrier {
@@ -372,11 +373,17 @@ pub(crate) fn carrier_span<T: Bounds>(carrier: &Curve3<T>, params: (T, T)) -> ((
     if let Curve3::Nurbs(net) = carrier {
         return (net.domain(), net.knot_values().domain());
     }
-    let (lo, hi) = (
-        params.0.lo().min(params.1.lo()),
-        params.0.hi().max(params.1.hi()),
-    );
+    let (lo, hi) = outer_ends(params);
     ((lo, hi), (T::from_computed(lo), T::from_computed(hi)))
+}
+
+/// **An edge interval's outer ends**: the lowest point of either end's
+/// bracket and the highest, so `[lo, hi]` covers the interval at every
+/// scalar, in either order of its ends. The one spelling of that rule:
+/// [`carrier_span`]'s closed-form span, the fitted row's coverage gate
+/// and the analytic rung-3 tube's piece all read it here.
+pub(crate) fn outer_ends<T: Bounds>((t0, t1): (T, T)) -> (f64, f64) {
+    (t0.lo().min(t1.lo()), t0.hi().max(t1.hi()))
 }
 
 /// Whether every control of a span is a certified finite enclosure.

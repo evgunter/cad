@@ -94,16 +94,37 @@ fn an_imported_lofts_cap_rims_are_derived_when_the_cap_moves() {
             rim.description()
         );
     }
+    // Each rim's height at its parameter midpoint: the cap's `z = 1`
+    // before the move, the moved cap's `z = 0.95` after it.
+    let mid_z = |rim: &geom_brep::EdgeCurve<f64>| {
+        let (t0, t1) = rim.params();
+        rim.carrier().eval(0.5 * (t0 + t1)).z
+    };
+    let on = |z: f64, want: f64| (z - want).abs() <= Tol::witness().get().eps;
+    assert!(
+        before.iter().all(|r| on(mid_z(r), 1.0)),
+        "the imported rims lie on the z = 1 cap: {:?}",
+        before.iter().map(mid_z).collect::<Vec<_>>()
+    );
     topo::replace_face_offset(&mut body, cap, -0.05, Tol::witness())
         .expect("the imported loft's cap moves inward");
-    for rim in rims(&body, cap) {
+    let moved = body.get_face(cap).unwrap().surface;
+    assert_ne!(
+        moved, cap_surface,
+        "the moved cap is a new surface, not the imported one"
+    );
+    let after = rims(&body, cap);
+    assert_eq!(after.len(), 4, "the moved cap keeps its four rims");
+    for rim in &after {
         assert!(
             matches!(
                 rim.description(),
-                geom_brep::EdgeDescription::Intersection { .. }
-            ) && !rim.authority().is_declared(),
-            "the moved rim is the cap's section of its wall, its record dropped: {:?}",
-            rim.description()
+                geom_brep::EdgeDescription::Intersection { pair, .. } if pair.keys().contains(&moved)
+            ) && !rim.authority().is_declared()
+                && on(mid_z(rim), 0.95),
+            "the moved rim is the moved cap's section of its wall, at z = 0.95: {:?} at z = {}",
+            rim.description(),
+            mid_z(rim)
         );
     }
 }

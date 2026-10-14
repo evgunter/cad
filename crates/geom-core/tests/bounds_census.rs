@@ -131,11 +131,20 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/geom-brep/src/carrier_net.rs",
+        subject: "outer_ends",
+        why: Payload(
+            "an edge interval's outer bracket ends, returned as the f64 pair every \
+             span and coverage gate of the certificate reads; nothing branches on them \
+             here",
+        ),
+    },
+    Site {
+        path: "crates/geom-brep/src/carrier_net.rs",
         subject: "carrier_span",
         why: Payload(
-            "an edge interval's outer bracket ends become the f64 span a closed-form \
-             carrier's chart-image schedule and enclosing net are built over, lifted back \
-             through `from_computed`; nothing branches on them",
+            "an edge interval's outer bracket ends (`outer_ends`) become the f64 span a \
+             closed-form carrier's chart-image schedule and enclosing net are built over, \
+             lifted back through `from_computed`; nothing branches on them",
         ),
     },
     Site {

@@ -353,7 +353,6 @@ fn carrier_domain_invalid() -> geom_brep::CarrierDomainRefusal {
     }
 }
 
-/// The carrier-domain refusal on a domain too narrow for its ends.
 /// A spiric with no certified net over the span holding its root's
 /// zero.
 fn carrier_enclosure() -> geom_brep::CarrierEnclosureRefusal {
@@ -363,6 +362,7 @@ fn carrier_enclosure() -> geom_brep::CarrierEnclosureRefusal {
     }
 }
 
+/// The carrier-domain refusal on a domain too narrow for its ends.
 fn carrier_domain_collapsed() -> geom_brep::CarrierDomainRefusal {
     geom_brep::CarrierDomainRefusal {
         lo: 1.0e6,

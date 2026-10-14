@@ -476,7 +476,9 @@ fn adopt_edges(
             // therefore requires BOTH: the two records describe one
             // locus, and this edge's carrier lies on it.
             // **The Nurbs-adjacency exemption (M7-3 item 4)** — the
-            // cap-plane × NURBS-wall rim class, exempt BY KIND
+            // cap-plane × NURBS-wall rims the `Intersection` rung above
+            // does not certify (a curved rim, whose degree-1 chart
+            // image its hull refuses; a straight one it does), exempt BY KIND
             // (mirroring tier-3 check 4's flip-B exemption,
             // `topo::validate`): coincidence is an implicit-form
             // question and a NURBS wall has no implicit form, so the
@@ -889,7 +891,9 @@ fn line_column_match(
 /// and no exported body puts one inside a single surface); the ladder
 /// then reports every refusal typed.
 ///
-/// A **Nurbs-adjacent LINE rim** (`nurbs_rim`, M7-3 item 4) takes the
+/// A **Nurbs-adjacent LINE rim** (`nurbs_rim`, M7-3 item 4) the
+/// `Intersection` rung did not certify — that rung, offered first,
+/// takes a straight rim whose chart image is straight — takes the
 /// `PlacedSegment` shape instead of `ExtrudedPoint`, for two reasons
 /// with one root: `PlacedSegment { Line }` is the description CLASS
 /// the native loft builder stores for exactly this edge class, and it
