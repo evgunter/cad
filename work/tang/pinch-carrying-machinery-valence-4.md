@@ -75,7 +75,7 @@ E retires the prerequisite's channel. Equal radii are decided by their margin, a
 
 ## Ev's decision (PR 5020, 2026-10-14)
 
-Approved by Ev. Weighed by a designer pair over two reconciliation rounds (row 134 of
+Approved by Ev. Weighed by a designer pair over two reconciliation rounds (row 137 of
 `docs/DESIGN-FORK-LOG.md`); both hold one recommendation. The August
 inventory is stale: nothing caps valence, and since PRs 4057 and 4728
 the boolean splits a pinch into one vertex per cone and holds several
