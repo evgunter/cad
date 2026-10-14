@@ -125,12 +125,15 @@ fn slice_oracle(r_of: fn(f64) -> f64, phi: f64, qy: f64) -> f64 {
 /// The apex-side piece of a cut that stays inside the lateral face: the
 /// oblique cone over the section ellipse, minus the small cone of
 /// radius 1/2 and height 1 beyond the far cap. With `c = cos φ` (the
-/// axis against the normal), `δ = (apex − q)·n` and `K = c² − sin²α`:
+/// axis against the normal), `δ = (apex − q)·n` and
+/// `K = c² − sin²α = (cos α·c − sin α·sin φ)·(cos α·c + sin α·sin φ)`,
+/// read in the product form:
 /// `A = |δ|·sin α·cos α / K`, `b = |δ|·sin α / √K`.
 fn apex_side_closed_form(f: &Frustum, phi: f64, qy: f64) -> f64 {
     let (s, c) = alpha().sin_cos();
-    let k = phi.cos().powi(2) - s * s;
-    let delta = ((f.apex_y - qy) * phi.cos()).abs();
+    let (sin_phi, cos_phi) = phi.sin_cos();
+    let k = (c * cos_phi - s * sin_phi) * (c * cos_phi + s * sin_phi);
+    let delta = ((f.apex_y - qy) * cos_phi).abs();
     let major = delta * s * c / k;
     let minor = delta * s / k.sqrt();
     PI / 3.0 * major * minor * delta - PI / 12.0

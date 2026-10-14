@@ -779,6 +779,8 @@ fn documents_outside_the_corpus_read_apart_too() {
         docs.push((format!("round pins, {op:?}"), doc));
     }
 
+    docs.push(("glued rim cut by a third block".to_owned(), glued_rim().0));
+
     let mut alike = Vec::new();
     for (label, doc) in &docs {
         let ev = fixture::run(doc, &EvalOptions::default());
@@ -791,6 +793,61 @@ fn documents_outside_the_corpus_read_apart_too() {
         "distinct names of one table are said alike:\n{}",
         alike.join("\n")
     );
+}
+
+/// The three-block glued rim (`fixture::glued_rim`, glued flush) as
+/// one document, and its union.
+fn glued_rim() -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("name_words_glued_rim", geom_core::Tol::witness());
+    let (doc, members) = fixture::glued_rim(0.0)(doc);
+    fixture::union_over(doc, &members)
+}
+
+/// **Each seam in a run of seams is said by its two faces**, in full
+/// and within the evaluation alike: the three-block glued rim, where
+/// `c`'s wall cuts the rim of `b` glued on `a`, holds two vertices that
+/// are each the run of three seams and share the seam of `a`'s top and
+/// `c`'s wall. Said within the evaluation, a seam said as "an edge"
+/// says nothing of where the vertex is, and two such runs differ only
+/// in the seams the detail opened.
+#[test]
+fn a_run_of_seams_says_each_seam_by_its_faces() {
+    let (doc, u) = glued_rim();
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    let full = Speaker::of(&doc);
+    let within = full.within(&ev);
+    let runs: Vec<StableName> = ev
+        .value(u)
+        .expect("the glued rim evaluates")
+        .name_table
+        .iter()
+        .map(|(name, _)| name)
+        .filter(|name| {
+            matches!(name.path.as_slice(), [RoleSeg::EdgeCrossing(run)]
+                if run.len() == 3 && run.iter().all(|l| l.sense.is_none()))
+        })
+        .cloned()
+        .collect();
+    assert_eq!(
+        runs.len(),
+        2,
+        "two vertices are runs of three seams: {runs:?}"
+    );
+    for (form, by) in [("in full", full), ("within the evaluation", within)] {
+        let said: Vec<String> = runs.iter().map(|n| by.name(n).to_string()).collect();
+        for s in &said {
+            assert_eq!(
+                s.matches("the seam of ").count(),
+                3,
+                "{form}: each seam is said by its faces: {s}"
+            );
+            assert!(
+                !s.contains("an edge"),
+                "{form}: no seam is said as an edge: {s}"
+            );
+        }
+        assert_ne!(said[0], said[1], "{form}: the two runs read apart");
+    }
 }
 
 /// **A kept name spoken again after its step was dropped says the step
