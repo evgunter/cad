@@ -8,6 +8,7 @@ priority: P3
 cost: E
 refs: [loop-walk-branch-is-an-opaque-floor-atom]
 closed: 2026-10-14
+pr: 5126
 ---
 
 
