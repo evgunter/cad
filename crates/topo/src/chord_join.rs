@@ -7045,5 +7045,58 @@ mod pole_branch_rows {
         );
     }
 
+
+    /// REVIEW PROBE (5080 r2): an edge whose far end is back at the pole
+    /// (a closed small circle through the pole, or one sweeping nearly
+    /// all of it) reads a lever of ~0 from its far end, though its
+    /// furthest off-axis distance is sin 2β.
+    #[test]
+    fn review_probe_a_closed_edge_at_the_pole_is_not_a_coincidence() {
+        let band = band();
+        let beta: f64 = 0.3;
+        let curved = small_circle(beta);
+        let mut ok = true;
+        for far in [2.0 * PI, 2.0 * PI - 1e-9, 1.999 * PI, 1.9 * PI] {
+            let lever = pole_lever((&curved, far), sphere(), 1.0).unwrap();
+            // The closed circle arrives at the pole from azimuth +π/2;
+            // a meridian at azimuth 0 leaves a quarter turn off it.
+            let m = meridian::<f64>(0.0);
+            let got = pole_branch(joint(PI / 2.0, false), (&curved, far), (&m, PI), band);
+            eprintln!("far = {far}: lever {lever:e}, got {got:?}");
+            ok &= got.is_ok();
+        }
+        assert!(ok, "a closed or near-closed edge at the pole refuses as a coincidence");
+    }
+
+    /// REVIEW PROBE (5080 r2): the lune between a meridian and a small
+    /// circle bending toward it, both from the pole to their second
+    /// meeting point P. Report the lever's margin against the true
+    /// largest separation.
+    #[test]
+    fn review_probe_inward_lune_lever_vs_true_separation() {
+        let beta: f64 = 0.3;
+        let curved = small_circle(beta);
+        for theta in [1e-3_f64, 1e-2, 1e-1] {
+            // the meridian at azimuth −π/2 + θ (toward +x, inside the bend)
+            let phi = -PI / 2.0 + theta;
+            let m = meridian::<f64>(phi);
+            // find t on the small circle where its azimuth reaches phi again
+            let az = |t: f64| { let q = curved.eval(t); q.y.atan2(q.x) };
+            let (mut lo, mut hi) = (1e-6, PI);
+            for _ in 0..200 { let mid = 0.5*(lo+hi); if az(mid) < phi { lo = mid } else { hi = mid } }
+            let t_p = 0.5*(lo+hi);
+            let p = curved.eval(t_p);
+            let polar = p.z.acos();
+            let l_c = pole_lever((&curved, t_p), sphere(), 1.0).unwrap();
+            let l_m = pole_lever((&m, polar), sphere(), 1.0).unwrap();
+            let lever = l_c.min(l_m);
+            // true max distance from points of the curved edge to the meridian plane
+            let n = Vec3::new(-phi.sin(), phi.cos(), 0.0);
+            let mut sep: f64 = 0.0;
+            for i in 0..=10000 { let t = t_p * f64::from(i) / 10000.0; let q = curved.eval(t); sep = sep.max((q.x*n.x+q.y*n.y).abs()); }
+            eprintln!("θ = {theta:e}: t_P {t_p:.4}, lever {lever:e}, θ·lever {:e}, true max sep {sep:e}, ratio {:.3}", theta*lever, theta*lever/sep);
+        }
+    }
+
     use core::f64::consts::{PI, TAU};
 }
