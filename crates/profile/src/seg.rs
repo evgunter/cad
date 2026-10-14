@@ -1307,7 +1307,8 @@ fn arc_clear_of_carrier<T: Decide>(
 /// - **`carrier_circles_internal`** — margin: d − |r₁ − r₂|, the
 ///   internal clearance. Negative ⇒ nested, no contact; Zero ⇒
 ///   internally tangent (contact on the center line beyond both
-///   centers); Positive (with external Negative) ⇒ two proper
+///   centers, midway between the carriers there); Positive (with
+///   external Negative) ⇒ two proper
 ///   intersections, on the radical line ([`Circles2::crossings`]), whose
 ///   half-chord's square is a product of four factors: the two
 ///   clearances, each definite in this branch, and `d + |r₁ − r₂|` and
@@ -1315,6 +1316,11 @@ fn arc_clear_of_carrier<T: Decide>(
 ///
 /// The three margins and the crossings read one [`Circles2`], so the
 /// factors the crossings take are the margins decided, bit for bit.
+///
+/// A tangency's spans each read the contact's radial projection onto
+/// their own carrier, the carrier's point nearest the other, so
+/// [`arc_span`]'s chordal margin reads a carrier point however far the
+/// near-concentric radical foot falls from either circle.
 ///
 /// Divisions by d occur only in branches where the identity margin was
 /// definitely positive with the relevant clearances pinned, so d is
@@ -1363,6 +1369,14 @@ fn arc_arc<T: Decide>(
         Sign::Positive => {
             let mut contacts = Vec::new();
             let spans = |q| (arc_span(g1, q, band), arc_span(g2, q, band));
+            // A tangency's candidate is on at most one carrier, so each
+            // span reads its own carrier's point facing it.
+            let tangent_spans = |q| {
+                (
+                    arc_span(g1, radial_foot(g1, q), band),
+                    arc_span(g2, radial_foot(g2, q), band),
+                )
+            };
             match decide(
                 "carrier_circles_external",
                 Margin::of(pair.external()),
@@ -1374,7 +1388,14 @@ fn arc_arc<T: Decide>(
                     // identity margin, so the division is safe.
                     let delta = g2.arc.centre - g1.arc.centre;
                     let q = g1.arc.centre + delta * (g1.arc.radius / pair.d());
-                    candidates(&mut contacts, (s1, s2), &[q], CKind::Tangency, spans, band)?;
+                    candidates(
+                        &mut contacts,
+                        (s1, s2),
+                        &[q],
+                        CKind::Tangency,
+                        tangent_spans,
+                        band,
+                    )?;
                 }
                 Sign::Negative => {
                     match decide(
@@ -1386,14 +1407,19 @@ fn arc_arc<T: Decide>(
                         Sign::Zero => {
                             // Internally tangent: d = |Δr| and the
                             // identity margin d + |Δr| = 2d is definite,
-                            // so d is bounded away from zero.
-                            let q = circles.foot();
+                            // so d is bounded away from zero. The
+                            // radical foot stands about g·r/d off both
+                            // carriers; the contact is the midpoint of
+                            // its projections onto them, g/2 off each.
+                            let foot = circles.foot();
+                            let (p1, p2) = (radial_foot(g1, foot), radial_foot(g2, foot));
+                            let q = p1 + (p2 - p1) * T::from_f64(0.5);
                             candidates(
                                 &mut contacts,
                                 (s1, s2),
                                 &[q],
                                 CKind::Tangency,
-                                spans,
+                                tangent_spans,
                                 band,
                             )?;
                         }
@@ -1623,12 +1649,15 @@ fn touches_from<T: Decide>(
     });
     let held = || match &host.kind {
         SegKind::Line => line_span(host, p, band),
-        SegKind::Arc(g) => {
-            let foot = g.arc.centre + (p - g.arc.centre) * (g.arc.radius / g.arc.rim(p));
-            arc_span(g, foot, band)
-        }
+        SegKind::Arc(g) => arc_span(g, radial_foot(g, p), band),
     };
     Ok(joint(on, held)?.is_some())
+}
+
+/// The point of `g`'s carrier on the ray from its centre through `p`,
+/// which must stand definitely off the centre.
+fn radial_foot<T: Real>(g: &ArcGeom<T>, p: Point2<T>) -> Point2<T> {
+    g.arc.centre + (p - g.arc.centre) * (g.arc.radius / g.arc.rim(p))
 }
 
 /// A grazing ray: the parity question could not be answered definitely
