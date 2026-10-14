@@ -672,29 +672,25 @@ fn arc_sample<T: Real>(t0: T, t1: T, k: usize) -> T {
 }
 
 /// **A conic carrier's frame**: the ellipse
-/// `C(θ) = center + major·cos θ·û + minor·sin θ·v̂`, `v̂ = axis × û`, of
-/// which the circle is the `major = minor` instance. `θ` is the
+/// `C(θ) = center + semi_u·cos θ·û + semi_v·sin θ·v̂`, `v̂ = axis × û`,
+/// of which the circle is the `semi_u = semi_v` instance. `θ` is the
 /// eccentric anomaly (a circle's angle), so `C − center` is a first
 /// harmonic in `θ` — which is what makes every residual below a
 /// trigonometric polynomial against a plane, a sphere or a cylinder.
 ///
-/// **The stored semi-axes carry no order and no sign.** Three doors
-/// speak of them, and only the first decides both: the constructor
-/// `geom::Curve3::ellipse` refuses unless `major > minor > 0`; tier 3
-/// (`geom::Curve3::representability_margins`) certifies each positive
-/// but not their order, so an ellipse stored with `minor > major`
-/// passes it; and certification (`crate::certify`'s span meter,
-/// `min(|major|, minor)`) meters either order and refuses a non-positive
-/// `minor`, but admits a negative `major` with its `u_ref` flipped (the
-/// same locus), which tier 3 then refuses on its value. So a reader past
-/// certification can meet either order, and a negative `major` on a
-/// body not yet validated (`loop_winding`'s conic term reads them the
-/// same way). Nothing here assumes either: the
-/// harmonic algebra is sign-general (it reads the vectors `major·û` and
-/// `minor·v̂`), and every bound reads the MAGNITUDES through
-/// [`Conic::speed_lo`] and [`Conic::speed_hi`]:
-/// `|C′(θ)|² = major²sin²θ + minor²cos²θ` lies in
-/// `[speed_lo², speed_hi²]`, and `C″(θ) = center − C(θ)`, so
+/// **The stored semi-axes carry no order and no sign.** `u_ref` is
+/// either principal direction (`geom::Curve3::Ellipse`), tier 3
+/// (`geom::Curve3::representability_margins`) certifies each positive,
+/// and certification (`crate::certify`'s span meter,
+/// `min(|semi_u|, semi_v)`) refuses a non-positive `semi_v` but admits a
+/// negative `semi_u` with its `u_ref` flipped (the same locus), which
+/// tier 3 then refuses on its value. So a reader past certification can
+/// meet either order, and a negative `semi_u` on a body not yet
+/// validated. Nothing here assumes either: the harmonic algebra is
+/// sign-general (it reads the vectors `semi_u·û` and `semi_v·v̂`), and
+/// every bound reads the MAGNITUDES through [`Conic::speed_lo`] and
+/// [`Conic::speed_hi`]: `|C′(θ)|² = semi_u²sin²θ + semi_v²cos²θ` lies
+/// in `[speed_lo², speed_hi²]`, and `C″(θ) = center − C(θ)`, so
 /// `|C″| ≤ speed_hi` too.
 ///
 /// **Precondition on the frame, unchecked:** `axis` and `u_ref` unit and
@@ -710,13 +706,14 @@ pub struct Conic<T: Real> {
     pub center: Point3<T>,
     /// The unit normal of the conic's plane.
     pub axis: Vec3<T>,
-    /// The unit direction of `major`, where `θ = 0` lives.
+    /// The unit principal direction `semi_u` is measured along, where
+    /// `θ = 0` lives.
     pub u_ref: Vec3<T>,
     /// The semi-axis along `u_ref` (metres; any sign, any order).
-    pub major: T,
-    /// The semi-axis along `axis × u_ref` (metres); equal to `major` on
+    pub semi_u: T,
+    /// The semi-axis along `axis × u_ref` (metres); equal to `semi_u` on
     /// a circle.
-    pub minor: T,
+    pub semi_v: T,
 }
 
 impl<T: Real> Conic<T> {
@@ -727,8 +724,8 @@ impl<T: Real> Conic<T> {
             center,
             axis,
             u_ref,
-            major: radius,
-            minor: radius,
+            semi_u: radius,
+            semi_v: radius,
         }
     }
 
@@ -746,15 +743,15 @@ impl<T: Real> Conic<T> {
             geom::Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => Some(Self {
                 center,
                 axis,
                 u_ref,
-                major,
-                minor,
+                semi_u,
+                semi_v,
             }),
             geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                 None
@@ -762,7 +759,7 @@ impl<T: Real> Conic<T> {
         }
     }
 
-    /// `axis × u_ref`, the semi-minor direction.
+    /// `axis × u_ref`, the direction `semi_v` is measured along.
     #[must_use]
     pub fn v_ref(&self) -> Vec3<T> {
         self.axis.cross(self.u_ref)
@@ -772,14 +769,14 @@ impl<T: Real> Conic<T> {
     /// magnitude.
     #[must_use]
     pub fn speed_lo(&self) -> T {
-        self.major.abs().min(self.minor.abs())
+        geom::Curve3::semi_axes_by_size(self.semi_u, self.semi_v).1
     }
 
     /// The greatest speed `|C′|` over the carrier, and a bound on `|C″|`:
     /// the larger semi-axis magnitude.
     #[must_use]
     pub fn speed_hi(&self) -> T {
-        self.major.abs().max(self.minor.abs())
+        geom::Curve3::semi_axes_by_size(self.semi_u, self.semi_v).0
     }
 
     /// A bound on the curvature over the carrier, `speed_hi / speed_lo²`:
@@ -794,14 +791,14 @@ impl<T: Real> Conic<T> {
     #[must_use]
     pub fn speed_at(&self, theta: T) -> T {
         let (sin, cos) = theta.sin_cos();
-        ((self.major * sin).powi(2) + (self.minor * cos).powi(2)).sqrt()
+        ((self.semi_u * sin).powi(2) + (self.semi_v * cos).powi(2)).sqrt()
     }
 
     /// The point at eccentric anomaly `theta`.
     #[must_use]
     pub fn point(&self, theta: T) -> Point3<T> {
         let (sin, cos) = theta.sin_cos();
-        self.center + self.u_ref * (self.major * cos) + self.v_ref() * (self.minor * sin)
+        self.center + self.u_ref * (self.semi_u * cos) + self.v_ref() * (self.semi_v * sin)
     }
 }
 
@@ -1033,7 +1030,7 @@ fn arc_curvature_bound<T: Real>(s: &Surface<T>, conic: &Conic<T>, t0: T, t1: T) 
 /// of `C′` and `C″`, both of length at most `a` ([`Conic`]); `ρ′ =
 /// w·w′/ρ` gives `|ρ′| ≤ a` and `ρ″ = (|w′|² + w·w″)/ρ − (w·w′)²/ρ³`
 /// gives `|ρ″| ≤ a + 2a²/ρ_min`; `h` is an EXACT first harmonic of
-/// amplitude `a_h = |(major·û·n, minor·v̂·n)|`, so `|h′|, |h″| ≤ a_h` on any arc
+/// amplitude `a_h = |(semi_u·û·n, semi_v·v̂·n)|`, so `|h′|, |h″| ≤ a_h` on any arc
 /// at all. On a circle `a` is its radius `ρ_c`.
 ///
 /// `D_max` is TWO-SIDED (`max` over both ends of the `ρ` range, not
@@ -1075,8 +1072,8 @@ fn torus_curvature_bound<T: Real>(
     let two = T::from_f64(2.0);
     // `a` bounds `|C′|` and `|C″|` over the whole carrier ([`Conic`]).
     let a = conic.speed_hi();
-    let a_h = ((conic.major * conic.u_ref.dot(tn)).powi(2)
-        + (conic.minor * conic.v_ref().dot(tn)).powi(2))
+    let a_h = ((conic.semi_u * conic.u_ref.dot(tn)).powi(2)
+        + (conic.semi_v * conic.v_ref().dot(tn)).powi(2))
     .sqrt();
     let step = (t1 - t0) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
     let lipschitz = a * step.abs() / two;
@@ -1128,7 +1125,7 @@ pub struct ConicHarmonics<T> {
     /// projection included: `(|C₀ − o| + max(|a|, |b|))² + r²` — the
     /// scale their rounding is charged against, read at the semi-axes'
     /// MAGNITUDES (a signed or ordered read under-charges a negative
-    /// `major`, or a `minor` stored larger).
+    /// `semi_u`, or a `semi_v` stored larger).
     pub terms: T,
     /// The length the m² form is divided by to give the polynomial:
     /// `2r` on a sphere or a wall, the carrier's reach from the apex on
@@ -1151,7 +1148,7 @@ fn quadric_harmonics<T: Real>(
 ) -> ConicHarmonics<T> {
     let two = T::from_f64(2.0);
     let half = T::from_f64(0.5);
-    let (a, b) = (conic.major, conic.minor);
+    let (a, b) = (conic.semi_u, conic.semi_v);
     let d = conic.center - origin;
     let e = perp(d);
     let (up, vp) = (perp(conic.u_ref), perp(conic.v_ref()));
@@ -1228,7 +1225,7 @@ pub fn conic_cone_harmonics<T: Real>(
     let half = T::from_f64(0.5);
     let (sin_a, cos_a) = half_angle.sin_cos();
     let (cc, ss) = (cos_a.powi(2), sin_a.powi(2));
-    let (a, b) = (conic.major, conic.minor);
+    let (a, b) = (conic.semi_u, conic.semi_v);
     let (u, v) = (conic.u_ref, conic.v_ref());
     let d = conic.center - apex;
     let perp = |x: Vec3<T>| {
@@ -1303,7 +1300,7 @@ pub fn conic_cone_residual<T: Real>(
     let (sin, cos) = (transcendental(sin), transcendental(cos));
     let (sin_a, cos_a) = half_angle.sin_cos();
     let (sin_a, cos_a) = (transcendental(sin_a), transcendental(cos_a));
-    let (a, b) = (Rounded::exact(conic.major), Rounded::exact(conic.minor));
+    let (a, b) = (Rounded::exact(conic.semi_u), Rounded::exact(conic.semi_v));
     let (n, u) = (exact_vec(conic.axis), exact_vec(conic.u_ref));
     let v = cross(n, u);
     let c = exact_vec(Vec3::new(conic.center.x, conic.center.y, conic.center.z));
@@ -1411,7 +1408,7 @@ pub fn conic_torus_harmonics<T: Real>(
     minor_radius: T,
 ) -> ConicTorusHarmonics<T> {
     let (two, half) = (T::from_f64(2.0), T::from_f64(0.5));
-    let (a, b) = (conic.major, conic.minor);
+    let (a, b) = (conic.semi_u, conic.semi_v);
     let (u, v) = (conic.u_ref, conic.v_ref());
     let w = conic.center - t_center;
     let (aa, bb) = (a.powi(2) * u.norm_squared(), b.powi(2) * v.norm_squared());
@@ -1530,7 +1527,7 @@ fn conic_torus_split<T: Real>(
         error: ulp * x.abs(),
     };
     let (sin, cos) = (transcendental(sin), transcendental(cos));
-    let (a, b) = (Rounded::exact(conic.major), Rounded::exact(conic.minor));
+    let (a, b) = (Rounded::exact(conic.semi_u), Rounded::exact(conic.semi_v));
     let (n, u) = (exact_vec(conic.axis), exact_vec(conic.u_ref));
     let v = cross(n, u);
     let c = exact_vec(Vec3::new(conic.center.x, conic.center.y, conic.center.z));
@@ -1569,7 +1566,7 @@ pub fn conic_quadric_residual<T: Real>(
         error: ulp * x.abs(),
     };
     let (sin, cos) = (transcendental(sin), transcendental(cos));
-    let (a, b) = (Rounded::exact(conic.major), Rounded::exact(conic.minor));
+    let (a, b) = (Rounded::exact(conic.semi_u), Rounded::exact(conic.semi_v));
     let (n, u) = (exact_vec(conic.axis), exact_vec(conic.u_ref));
     let v = cross(n, u);
     let c = exact_vec(Vec3::new(conic.center.x, conic.center.y, conic.center.z));
@@ -1720,8 +1717,8 @@ fn conic_residual_harmonics<T: Real>(
             return Some(ResidualHarmonics {
                 c0: d.dot(normal),
                 a1: amp(
-                    conic.major * conic.u_ref.dot(normal),
-                    conic.minor * conic.v_ref().dot(normal),
+                    conic.semi_u * conic.u_ref.dot(normal),
+                    conic.semi_v * conic.v_ref().dot(normal),
                 ),
                 a2: T::zero(),
                 // Linear in the offset: its terms are metres already.
@@ -3109,8 +3106,8 @@ mod conic_tests {
             center: Point3::new(0.006_142_65, 0.035_256_44, 0.010_196_55),
             axis: Vec3::new(0.758_923_11, 0.041_698_83, -0.649_843_76),
             u_ref: Vec3::new(-0.631_128_01, 0.979_226_32, -0.574_074_24),
-            major: 1.779_300_934_408_354,
-            minor: 0.988_632_635_923_187_6,
+            semi_u: 1.779_300_934_408_354,
+            semi_v: 0.988_632_635_923_187_6,
         };
         let (c, ax) = (
             Point3::new(0.0, 0.0, 0.0),
@@ -3334,8 +3331,8 @@ mod conic_tests {
             ([1.0, 2.0, 0.5], [0.0, 1.0, 1.0], [0.4, 0.1, -0.2], 0.9, 0.3),
             ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.2, 0.0, 0.1], 0.4, 0.39),
             // The frames the mint certifies with a stored order or sign
-            // the bounds must not trust: `minor > major`, a negative
-            // `major` (its `u_ref` flipped), a negative `minor`.
+            // the bounds must not trust: `semi_v > semi_u`, a negative
+            // `semi_u` (its `u_ref` flipped), a negative `semi_v`.
             ([1.0, 2.0, 0.5], [0.0, 1.0, 1.0], [0.4, 0.1, -0.2], 0.3, 0.9),
             (
                 [0.0, 0.0, 1.0],
@@ -3353,14 +3350,14 @@ mod conic_tests {
             ),
         ]
         .into_iter()
-        .map(|(n, u, c, major, minor)| {
+        .map(|(n, u, c, semi_u, semi_v)| {
             let (axis, u_ref) = frame(n, u);
             Conic {
                 center: Point3::from_array(c),
                 axis,
                 u_ref,
-                major,
-                minor,
+                semi_u,
+                semi_v,
             }
         })
         .collect()
@@ -3434,8 +3431,8 @@ mod conic_tests {
     /// (eccentricity up to 20), against random tori, spheres and walls,
     /// on arcs log-uniform over three decades: every one of a dense run
     /// of pointwise residuals lies inside the arc's range. Reading the
-    /// stored `major` as the speed bound (an ellipse stored with
-    /// `minor > major`, or with a negative `major`) fails it.
+    /// stored `semi_u` as the speed bound (an ellipse stored with
+    /// `semi_v > semi_u`, or with a negative `semi_u`) fails it.
     #[test]
     fn the_arc_enclosure_holds_for_any_stored_frame() {
         use test_utils::fuzz;
@@ -3457,16 +3454,16 @@ mod conic_tests {
             let u_ref = (u - axis * u.dot(axis)).normalize();
             let big = rng.range(0.1, 2.0);
             let small = big / rng.range(1.0, 20.0);
-            let (mut major, mut minor) = if rng.below(2) == 0 {
+            let (mut semi_u, mut semi_v) = if rng.below(2) == 0 {
                 (big, small)
             } else {
                 (small, big)
             };
             if rng.below(3) == 0 {
-                major = -major;
+                semi_u = -semi_u;
             }
             if rng.below(3) == 0 {
-                minor = -minor;
+                semi_v = -semi_v;
             }
             let conic = Conic {
                 center: Point3::new(
@@ -3476,8 +3473,8 @@ mod conic_tests {
                 ),
                 axis,
                 u_ref,
-                major,
-                minor,
+                semi_u,
+                semi_v,
             };
             let x = Vec3::new(1.0, 0.0, 0.0);
             let n = unit(&mut rng);

@@ -1551,8 +1551,8 @@ fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
     let ellipse = geom::Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let half = D / (2.0 * minor);
@@ -2641,7 +2641,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
-    ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
+    (
+        "circle_torus.rs",
+        "circle_torus_roots",
+        "BooleanDecision::ArcTorusRoots",
+        1,
+    ),
     (
         "circle_torus.rs",
         "escalated",

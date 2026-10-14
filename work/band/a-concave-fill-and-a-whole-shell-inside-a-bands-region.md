@@ -103,7 +103,7 @@ as a fillet that does.
 re-word the crossing refusal's recourse to the reorder (and to what is
 true where none exists). (2) The concave bar. (3) The one-cycle members:
 blind bore, pin, boss, dimple. (4) Whole shells and the seal, sharing
-`insert_void`'s bookkeeping. The lint and an editor reorder action
+`insert_void`'s bookkeeping. Step 1: PR 5077. The lint and an editor reorder action
 (re-point plus the selection unwrap, one action) run beside any step;
 the crossing arm waits on the intersection table.
 
