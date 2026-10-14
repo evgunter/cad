@@ -129,7 +129,7 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
 /// key, the D5 descendant map's zip rows) and the surviving seam
 /// edges (the D6 description pass's worklist — tracked lineage, never
 /// a post-hoc scan).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(super) struct ZipReport {
     /// Vertex fusions in zip order: `(dead, kept)` per zipped pair.
     pub vertex_merges: Fusions,
@@ -139,6 +139,17 @@ pub(super) struct ZipReport {
     /// Edge fusions, `(dead, kept)`: each B section edge the zip kills
     /// and the A seam edge on its segment, which survives in its place.
     pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
+}
+
+impl Default for ZipReport {
+    // Each lineage list names itself where it is made (`LineageRows`).
+    fn default() -> Self {
+        Self {
+            vertex_merges: Fusions::new(crate::lineage::LineageRows::Fusions),
+            seam_edges: Default::default(),
+            edge_merges: Default::default(),
+        }
+    }
 }
 
 /// The order the loopglue zip fuses a seam's `n` vertex pairs in:
@@ -418,7 +429,7 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     let (cone_a, cone_b) = cones(&sigma_a, &sigma_b);
     let mut a_sections: Vec<FaceKey> = seams.iter().map(|&(a, _)| a).collect();
     let mut b_sections: Vec<FaceKey> = seams.iter().map(|&(_, b)| b).collect();
-    let mut splits = crate::lineage::ConeCopies::default();
+    let mut splits = crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies);
     split_side(
         body,
         &runs_a,
@@ -1237,7 +1248,7 @@ mod tests {
         };
         let killed = |v| (RowDefect::NamesRetired, super::super::Cell::Vertex(v));
 
-        let mut chain = Fusions::default();
+        let mut chain = Fusions::new(crate::lineage::LineageRows::Fusions);
         chain.push((a, b)).unwrap();
         chain.push((b, c)).unwrap();
         assert_eq!(
@@ -1246,7 +1257,7 @@ mod tests {
             "a chain folds through every hop, and an unfused key is its own"
         );
 
-        let mut fusions = Fusions::default();
+        let mut fusions = Fusions::new(crate::lineage::LineageRows::Fusions);
         fusions.push((a, b)).unwrap();
         for (row, what, case) in [
             ((c, a), killed(a), "keeps a killed key"),
@@ -1258,7 +1269,7 @@ mod tests {
             ),
         ] {
             assert_eq!(refusal(fusions.push(row)), what, "pushed: {case}");
-            let mut later = Fusions::default();
+            let mut later = Fusions::new(crate::lineage::LineageRows::Fusions);
             if row.0 != row.1 {
                 later.push(row).unwrap();
                 assert_eq!(refusal(fusions.extend(&later)), what, "extended: {case}");
@@ -1277,9 +1288,9 @@ mod tests {
     fn an_extend_that_refuses_partway_leaves_the_list_as_it_was() {
         let mut arena: SlotMap<VertexKey, ()> = SlotMap::with_key();
         let [a, b, c, d, e] = [(); 5].map(|()| arena.insert(()));
-        let mut fusions = Fusions::default();
+        let mut fusions = Fusions::new(crate::lineage::LineageRows::Fusions);
         fusions.push((a, b)).unwrap();
-        let mut later = Fusions::default();
+        let mut later = Fusions::new(crate::lineage::LineageRows::Fusions);
         later.push((d, e)).unwrap();
         later.push((c, a)).unwrap();
         assert!(
