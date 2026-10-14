@@ -5827,6 +5827,23 @@ mod stretch_meter {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// review 5071 delta probe: a gap just off a half-turn mark, so the two
+    /// branches astride it sit unequally far: one in band, one decided off.
+    #[test]
+    fn review_5071_asym_bracket() {
+        use super::{Orbit, lever_periods};
+        let pi = core::f64::consts::PI;
+        let tau = core::f64::consts::TAU;
+        let (zero, esc) = (band().zero(), band().escalate());
+        let lever = (esc + 0.5 * zero) / pi;
+        for (k, sgn) in [(2.5f64, 1.0f64), (2.5, -1.0), (-2.5, 1.0), (-2.5, -1.0), (0.5, 1.0), (0.5, -1.0)] {
+            let gap = k * tau + sgn * 0.8 * zero / lever;
+            let out = lever_periods("asym", ChartArm::Angular(lever), gap, tau, Orbit::Periods, band());
+            let near = (-10..=10).filter(|n: &i32| lever * (gap - f64::from(*n) * tau).abs() < esc).collect::<Vec<_>>();
+            eprintln!("REVIEW5071 asym gap {k}τ{:+}: in band {near:?}: {out:?}", sgn * 0.8);
+        }
+    }
+
     /// review 5071 delta probe: brute force over levers, gaps and bands.
     /// A decided miss (OnMark / OutOfReach) must not stand where some orbit
     /// point within the walk's reach is within `escalate` of the gap at the lever.
