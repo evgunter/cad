@@ -258,9 +258,10 @@ impl<T: Decide + Bounds> EndCut<T> {
 ///   extreme of its own: its ends are the feet, which end the rim
 ///   pieces too; a chord is extreme only at its ends; and inside its
 ///   window an arc of the convex `E` is farthest from `center`, or
-///   lowest along `dₖ`, only where `E`'s outward normal points the way
-///   the function runs on, and `S`, outside `E`, runs on past that
-///   point. So `reach` and the floors are those extremes over the two
+///   lowest along `dₖ`, only where `E`'s outward normal is the
+///   direction in which the function keeps growing (the reach) or
+///   falling (a floor); `S` lies outside `E` there — and `center`,
+///   `E`'s own centre, inside it — so `S` runs on past that point. So `reach` and the floors are those extremes over the two
 ///   rim pieces, each in closed form over its own window
 ///   ([`piece_distance`], [`piece_along`]).
 ///
@@ -807,10 +808,11 @@ impl<T: Decide + Bounds> CapSliver<T> {
 
     /// **The region a cut-off removes from its end face**, read off the
     /// source before any mutation. `rims` pairs each rim with its foot,
-    /// `face_a`'s first. The end curves differ only in the curve's own
-    /// terms: a round one is read over its window from `face_a`'s foot
-    /// to `face_b`'s, a chord — `center` its midpoint, no section
-    /// inside — at its two ends, where a segment's extremes are.
+    /// `face_a`'s first. `reach` and the floors are read over the rim
+    /// pieces alone (the type's doc says why the end curve adds none);
+    /// the end curves differ in `center`, `inside` and `exact`, and a
+    /// round end's window from `face_a`'s foot to `face_b`'s is read
+    /// only to check that it runs forward.
     ///
     /// # Errors
     ///

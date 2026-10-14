@@ -463,8 +463,9 @@ fn in_the_corner(t: f64, s: f64) -> (f64, f64) {
 }
 
 /// **A cap edge whose window holds its circle's extreme crosses the
-/// arc**, read at that extreme, not at the edge's ends. Each bore
-/// reaches `≈ 0.006` past the fillet's arc into the sliver, and refuses
+/// arc**, read at that extreme, not at the edge's ends. The round bore
+/// reaches `≈ 0.006` past the fillet's arc into the sliver and the
+/// D-shaped one `≈ 0.008`; each refuses
 /// `RingClearance` as a measurement at the cap:
 ///
 /// - a round bore about `c + (0.035, 0.048)` of radius `0.0465`, whose
