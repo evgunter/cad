@@ -121,11 +121,8 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_split_and_its_lev
     let cyl = cylinder(tol);
     let cut = |t: f64, d: f64| {
         let normal = Vec3::new(t, 0.0, 1.0);
-        let plane = topo::test_support::split_plane(
-            Point3::new(1.0, 0.0, d),
-            normal / normal.norm(),
-            tol,
-        );
+        let plane =
+            topo::test_support::split_plane(Point3::new(1.0, 0.0, d), normal / normal.norm(), tol);
         split(&cyl, &plane, tol)
     };
     let mut wrong = Vec::new();

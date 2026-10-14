@@ -1779,7 +1779,10 @@ mod tests {
         ];
         for (what, curve, (t0, t1), want) in rows {
             let got = curve.resolution(t0, t1).unwrap();
-            assert!((got - want).abs() <= 1e-12 * want, "{what}: {got:e} vs {want:e}");
+            assert!(
+                (got - want).abs() <= 1e-12 * want,
+                "{what}: {got:e} vs {want:e}"
+            );
         }
         let spiric = Curve3::Spiric {
             center: Point3::origin(),

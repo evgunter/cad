@@ -97,12 +97,8 @@ fn a_resolved_carriers_pin_is_the_inputs_by_provenance() {
             );
         }
     }
-    let got = ends(SectionEndReading::SquareToAxis).refusal(
-        face,
-        &arc(),
-        escalated(residual()),
-        band(),
-    );
+    let got =
+        ends(SectionEndReading::SquareToAxis).refusal(face, &arc(), escalated(residual()), band());
     assert!(
         matches!(
             got,
@@ -134,12 +130,8 @@ fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
         let unresolved = k * rho > EPS;
         assert_eq!(unresolved, x > 2e4, "x {x:e}: ρ {rho:e}");
         for reading in [SectionEndReading::OnPlane, SectionEndReading::SquareToAxis] {
-            let got = ends(reading).refusal(
-                face,
-                &spec,
-                escalated(CertCheck::EndpointStart),
-                band(),
-            );
+            let got =
+                ends(reading).refusal(face, &spec, escalated(CertCheck::EndpointStart), band());
             match (&got, unresolved) {
                 (
                     SplitJoinError::SectionUnresolved {
