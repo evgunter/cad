@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-14
 ---
 
-Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), which tests every geometric pair question against C5's rule: one total kind-pair table, one method per pair, no runtime fallback (`crates/geom-brep/README.md`, C5).
+Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
 
 ## What
 
@@ -21,4 +21,10 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), 
 
 ## Owed
 
-The tangency outcome is one arm of the pair's section, so it is read from the one surface-pair table (see `hone/surface-pair-sections-are-classified-by-tables-beside-route`), not decided again beside it. The second-order wedge duplicate (`dihedral::tangent_second_order` against `contact_verify`'s own) is already on `pred/lever-arm-fold-six-hand-rolled-siblings` (issue 1439) and is not refiled.
+Re-aimed to D3 "One reading per question". The earlier target, "the tangency outcome is one arm of the pair's section", has moved: point touch and line tangent are classes of the pair's *pose*, decided once by the pose reading. The touch point and the tangent line are the section outcome's witnesses, and the outcome takes the pose reading's answer rather than deciding tangency itself.
+
+- The pose reading decides point touch (plane×sphere, sphere×sphere) and line tangent (plane×cylinder, parallel cylinder×cylinder).
+- `census::point::face_face` (its private enum and `pm_census_point_*` predicates), `locus::closed_form_locus` and `section_cert`'s `Section::Tangent` each read that pose reading and the outcome that takes it. None of them decides the tangency again.
+- A consumer that serves fewer pairs matches on the pose reading's answer and refuses the rest typed (the `_ => None` in `face_face` goes).
+
+The second-order wedge duplicate (`dihedral::tangent_second_order` against `contact_verify`'s own) is already on `pred/lever-arm-fold-six-hand-rolled-siblings` (issue 1439) and is not refiled.

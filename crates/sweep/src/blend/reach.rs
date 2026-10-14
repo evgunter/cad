@@ -211,9 +211,7 @@ fn gap<T: Real>(lo: T, hi: T, c: T) -> T {
 /// chord `|b̂ − ±a|`.
 fn tilt<T: Real>(b: Vec3<T>, a: Vec3<T>) -> T {
     let b = b.normalize();
-    (T::from_f64(2.0) - T::from_f64(2.0) * b.dot(a).abs())
-        .max(T::zero())
-        .sqrt()
+    (b - a).norm().min((b + a).norm())
 }
 
 /// `±1` where the sign of `x` is decided past the bracket, `0` where it
@@ -601,35 +599,40 @@ fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, Point3<T>, Vec3<
 /// **A surface's distance read in the sheet about the unit axis `a`
 /// through `o`**, with the slack that makes it an enclosure: a sheet
 /// function `f` and `δ` with `|d(x) − f(ρ(x), z(x))| ≤ δ` for every `x`
-/// within `lever(p)` of the surface's own reference point `p`, `d` the
-/// surface's own signed distance. The slack is the surface's departure
-/// from a surface of revolution about `(o, a)`: its reference point's
-/// distance from the axis, and its own axis's tilt (the chord
-/// `|â − ±a|`) levered over that reach. `None` for a surface with no
-/// closed form here.
+/// in the box `(lo, hi)`, `d` the surface's own signed distance. The
+/// slack is the surface's departure from a surface of revolution about
+/// `(o, a)`: a reference point's distance from the axis, and its own
+/// axis's tilt (the chord `|â − ±a|`) levered from there over the box.
+/// A cone, a sphere and a torus are read at their anchor; a plane and a
+/// cylinder at the foot of the box's centre on the plane or the axis,
+/// since the origin they store may be anywhere on it. `None` for a
+/// surface with no closed form here.
 fn sheet_fn<T: Decide + Bounds>(
     s: &Surface<T>,
     o: Point3<T>,
     a: Vec3<T>,
-    lever: impl Fn(Point3<T>) -> T,
+    (lo, hi): (Point3<T>, Point3<T>),
 ) -> Option<(SheetFn<T>, T)> {
     let tilt = |b: Vec3<T>| tilt(b, a);
     let one = T::one();
     let off_axis = |p: Point3<T>| sheet_of(o, a, p);
+    let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
+    let centre = lo + (hi - lo) / T::from_f64(2.0);
     Some(match s {
         Surface::Plane { origin, normal, .. } => {
             let n = normal.normalize();
+            let foot = centre - n * (centre - *origin).dot(n);
             // Either sign encloses, the slack being the chord to it, so a
             // plane parallel to the axis takes one by decision.
             let sg = if n.dot(a).hi() < 0.0 { -one } else { one };
-            let (_, z) = off_axis(*origin);
+            let (_, z) = off_axis(foot);
             (
                 SheetFn::Line {
                     alpha: T::zero(),
                     beta: sg,
                     gamma: -sg * z,
                 },
-                (n - a * sg).norm() * lever(*origin),
+                (n - a * sg).norm() * lever(foot),
             )
         }
         Surface::Cylinder {
@@ -637,14 +640,18 @@ fn sheet_fn<T: Decide + Bounds>(
             axis,
             radius,
             ..
-        } => (
-            SheetFn::Line {
-                alpha: one,
-                beta: T::zero(),
-                gamma: -*radius,
-            },
-            off_axis(*origin).0 + tilt(*axis) * lever(*origin),
-        ),
+        } => {
+            let b = axis.normalize();
+            let foot = *origin + b * (centre - *origin).dot(b);
+            (
+                SheetFn::Line {
+                    alpha: one,
+                    beta: T::zero(),
+                    gamma: -*radius,
+                },
+                off_axis(foot).0 + tilt(*axis) * lever(foot),
+            )
+        }
         Surface::Sphere { center, radius, .. } => {
             let (rho, z) = off_axis(*center);
             (
@@ -753,14 +760,6 @@ struct Reach<T: Real> {
     /// A straight link's edge and unit spine direction, which its
     /// prism reading takes ([`prism_inside`]).
     spine: Option<(EdgeKey, Vec3<T>)>,
-}
-
-impl<T: Real> Reach<T> {
-    /// The farthest a point of the reach's box lies from `p`: the lever
-    /// a sheet slack is taken over ([`sheet_fn`]).
-    fn lever(&self, p: Point3<T>) -> T {
-        corner_max(self.lo, self.hi, |x| (x - p).norm())
-    }
 }
 
 /// The outward normal of `face` at `p`, or the body's refusal.
@@ -1217,10 +1216,9 @@ fn circular_reach<T: Decide + Bounds>(
         st.c.ok_or_else(|| disagrees(EntityId::Edge(link.edge), "a torus band's spine point"))?;
     let reach = (st.p - c).norm();
     // A torus about its own axis: `big + reach` across, `reach` along.
-    let ext = |k: T| major_radius * (T::one() - k.powi(2)).max(T::zero()).sqrt() + reach;
-    let e = Vec3::new(ext(a.x), ext(a.y), ext(a.z));
+    let ext = |p: T, q: T| major_radius * (p.powi(2) + q.powi(2)).sqrt() + reach;
+    let e = Vec3::new(ext(a.y, a.z), ext(a.z, a.x), ext(a.x, a.y));
     let (lo, hi) = (center - e, center + e);
-    let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
     let sheet = |x: Point3<T>| sheet_of(o, a, x);
     let in_sheet = |f: SheetFn<T>, slack: T| Bound::Sheet { o, a, f, slack };
     let mut bounds = Vec::new();
@@ -1231,7 +1229,7 @@ fn circular_reach<T: Decide + Bounds>(
     for f in [link.face_a, link.face_b] {
         let s = surface_of(body, f)?;
         exact &= matches!(s, Surface::Plane { .. } | Surface::Cylinder { .. });
-        if let Some((g, slack)) = sheet_fn(&s, o, a, lever) {
+        if let Some((g, slack)) = sheet_fn(&s, o, a, (lo, hi)) {
             let at = g.at(qr, qz);
             bounds.push((Role::Side(f), in_sheet(g.scaled(-sign(at)), slack)));
             sides.push(surface_key(body, f)?);
@@ -1626,16 +1624,16 @@ fn inside_bound<T: Bounds>(
     most
 }
 
-/// A coaxial face's image in the sheet, along its own trace: an axial
-/// range for a sphere, a cylinder or a cone, a radial one for a plane ⊥
-/// the axis.
+/// A face's image in the sheet, along its own trace: an axial range for
+/// a sphere, a cylinder or a cone, a radial one for a plane.
 enum Clip<T: Real> {
     Z(T, T),
     Rho(T, T),
 }
 
-/// **The extent of a coaxial face's image along its trace**, read from
-/// its boundary (`None` where it cannot be).
+/// **The extent of a face's image along its trace**, read from its
+/// boundary (`None` where it cannot be): a sphere and a cone coaxial
+/// with the trace, a cylinder and a plane at any pose.
 ///
 /// The image of a connected face is an arc of the trace whose ends are
 /// images of its boundary or a singular point on the axis (a pole, an
@@ -1644,6 +1642,16 @@ enum Clip<T: Real> {
 /// on a sphere, where `W = 0` leaves none or both poles, the sign of
 /// `∮ (z − z_c) dθ = 2πR·k − A/R` (`k` the poles inside) decides. Any
 /// other boundary leaves the box alone; a torus is not clipped.
+///
+/// A cylinder and a plane need no shared axis. Along a cylinder's
+/// ruling `z` is affine, so the ruling through any point of a face
+/// leaves it at a boundary point no lower, and one no higher: the
+/// boundary's span is the face's, at every pose of the cylinder. On a
+/// plane `ρ` is convex, so its maximum over a face is on the boundary;
+/// a plane the axis crosses has its one minimum `0` there, inside the
+/// face exactly when the boundary winds once about the axis, and on a
+/// plane parallel to the axis `ρ` is constant along the axis's
+/// direction, so the boundary holds the minimum too.
 fn sheet_clip<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
@@ -1655,7 +1663,7 @@ fn sheet_clip<T: Decide + Bounds>(
     let tilt = |b: Vec3<T>| tilt(b, a);
     let off = |p: Point3<T>| sheet_of(o, a, p).0;
     let near = |x: T| x.hi() <= band.zero();
-    // The surface, read about the axis it must share with the band.
+    // The surface, read about the band's axis.
     enum Kind<T: Real> {
         Sphere { zc: T, r: T, center: Point3<T> },
         Cylinder,
@@ -1668,13 +1676,11 @@ fn sheet_clip<T: Decide + Bounds>(
             r: *radius,
             center: *center,
         },
-        Surface::Cylinder { origin, axis, .. } if near(off(*origin)) && near(tilt(*axis)) => {
-            Kind::Cylinder
-        }
+        Surface::Cylinder { .. } => Kind::Cylinder,
         Surface::Cone { apex, axis, .. } if near(off(*apex)) && near(tilt(*axis)) => Kind::Cone {
             z_apex: sheet_of(o, a, *apex).1,
         },
-        Surface::Plane { normal, .. } if near(tilt(*normal)) => Kind::Plane,
+        Surface::Plane { .. } => Kind::Plane,
         _ => return None,
     };
     let pad = T::from_f64(band.escalate());
@@ -1762,10 +1768,11 @@ fn sheet_clip<T: Decide + Bounds>(
                     let ax = axis.normalize();
                     let dot = ax.dot(a);
                     let d_lat = off(center) + tilt(ax) * radius;
-                    let lean = (T::from_f64(2.0)
-                        - T::from_f64(2.0) * (T::one() - dot.powi(2)).max(T::zero()).sqrt())
-                    .max(T::zero())
-                    .sqrt();
+                    // The chord to the nearest ⊥ direction,
+                    // `√(2 − 2·cos φ)` with `sin φ = |dot|`, spelt
+                    // without the cancellation near ⊥.
+                    let lean = dot.abs() * T::from_f64(2.0).sqrt()
+                        / (T::one() + (T::one() - dot.powi(2)).max(T::zero()).sqrt()).sqrt();
                     let d_mer = off(center) + lean * radius;
                     if d_lat.hi() <= d_mer.lo() {
                         // A latitude circle: the azimuth turns with the
@@ -1905,7 +1912,7 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
     band: Band,
 ) -> Option<T> {
     let (o, a) = reach.sheet?;
-    let (f, slack) = sheet_fn(surface, o, a, |p| reach.lever(p))?;
+    let (f, slack) = sheet_fn(surface, o, a, (reach.lo, reach.hi))?;
     let mut rect = sheet_box(o, a, &Cell::<T>::new(lo, hi));
     // The face's own extent along its trace, where its boundary says it.
     match face.and_then(|face| sheet_clip(body, face, surface, o, a, band)) {
@@ -2669,7 +2676,7 @@ fn metered<T: Decide + Bounds>(
     let certified = |m: T| m.lo() >= band.escalate();
     let coaxial = reach
         .sheet
-        .and_then(|(o, a)| sheet_fn(surface, o, a, |p| reach.lever(p)))
+        .and_then(|(o, a)| sheet_fn(surface, o, a, (reach.lo, reach.hi)))
         .is_some_and(|(_, slack)| slack.hi() < reach.width.lo());
     if coaxial {
         match sheet() {
@@ -2806,6 +2813,599 @@ mod tests {
             revalued, [None; 4],
             "a corner, the centre and the lever are unknowns, not the constants the box read"
         );
+    }
+
+    /// The rod `ρ ≤ ½` about `z` over `z ∈ [0, 1]`, a wall face of it,
+    /// and that face's stored cylinder.
+    #[allow(clippy::expect_used)]
+    fn rod<T: topo::AtRestPolicy>() -> (topo::Body<T>, topo::FaceKey, geom::Surface<T>) {
+        use geom_core::{Point2, Tol};
+        let half = T::from_f64(0.5);
+        let body = crate::test_support::prism_at(
+            vec![
+                (Point2::new(-half, T::zero()), T::one()),
+                (Point2::new(half, T::zero()), T::one()),
+            ],
+            T::zero(),
+            T::one(),
+            Tol::witness(),
+        );
+        let mut faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
+        faces.sort_unstable();
+        let (wall, stored) = faces
+            .into_iter()
+            .find_map(|f| {
+                let s = body.get_surface(body.get_face(f)?.surface)?;
+                matches!(s, geom::Surface::Cylinder { .. }).then(|| (f, s.clone()))
+            })
+            .expect("the rod's wall");
+        (body, wall, stored)
+    }
+
+    /// The unit axis `cos t · z + sin t · x` through the origin.
+    fn leaning<T: geom_core::Real>(t: f64) -> (Point3<T>, Vec3<T>) {
+        (
+            Point3::new(T::zero(), T::zero(), T::zero()),
+            Vec3::new(T::from_f64(t.sin()), T::zero(), T::from_f64(t.cos())),
+        )
+    }
+
+    /// The witness band.
+    #[allow(clippy::expect_used)]
+    fn band() -> geom_core::Band {
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band")
+    }
+
+    /// The rod's wall stored with its origin `along` metres up its axis.
+    #[allow(clippy::expect_used, clippy::panic)]
+    fn stored_at<T: geom_core::Real>(s: &geom::Surface<T>, along: f64) -> geom::Surface<T> {
+        let geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } = s.clone()
+        else {
+            panic!("the rod's wall is a cylinder")
+        };
+        geom::Surface::Cylinder {
+            origin: origin + axis * T::from_f64(along),
+            axis,
+            radius,
+            u_ref,
+        }
+    }
+
+    /// **A cylinder's clip does not move with where its origin is
+    /// stored**: the rod's wall read about an axis leaning half the zero
+    /// band off its own, with its origin stored at the base and up to
+    /// 1e5 m along, clips to its boundary's span at every storage, at
+    /// `f64` and at `Interval`. Stored 3 m along, the origin stood
+    /// `1.5·zero` off the axis and the face's clip was lost.
+    #[test]
+    #[allow(clippy::panic)]
+    fn the_clip_reads_one_span_at_every_stored_origin() {
+        use super::{Clip, sheet_clip};
+        use geom_core::Bounds;
+        let band = band();
+        let storages = [0.0, -3.0, 1.0e3, 1.0e5];
+        macro_rules! spans {
+            ($t:ty) => {{
+                let (body, wall, stored) = rod::<$t>();
+                let (o, a) = leaning::<$t>(0.5 * band.zero());
+                storages.map(|along| {
+                    match sheet_clip(&body, wall, &stored_at(&stored, along), o, a, band) {
+                        Some(Clip::Z(z0, z1)) => (z0.lo(), z1.hi()),
+                        Some(Clip::Rho(..)) => {
+                            panic!("stored {along} m along: an axial clip, not a radial one")
+                        }
+                        None => panic!("stored {along} m along: the wall clips"),
+                    }
+                })
+            }};
+        }
+        for (scalar, spans) in [
+            ("f64", spans!(f64)),
+            ("Interval", spans!(geom_core::interval::Interval)),
+        ] {
+            for (along, span) in storages.into_iter().zip(spans) {
+                assert_eq!(
+                    span, spans[0],
+                    "{scalar}, stored {along} m along: the base storage's span"
+                );
+            }
+            let (z0, z1) = spans[0];
+            assert!(
+                z0 <= 0.0 && z1 >= 1.0 && z1 - z0 < 1.0 + 4.0 * band.escalate(),
+                "{scalar}: the span holds the wall's [0, 1] and little else: {z0}..{z1}"
+            );
+        }
+    }
+
+    /// A profile loop as an `(x, y, bulge)` vertex chain.
+    type Chain = Vec<(f64, f64, f64)>;
+
+    /// The clip corpus: each fixture a list of profile loops (outer
+    /// first) as `(x, y, bulge)` chains, extruded over `z ∈ [0, 1]` —
+    /// a full rod, a half-rod, a 270° and a 90° circular segment (walls
+    /// that do and do not wrap past a tilted axis's extremes), a disc
+    /// with an off-centre bore (a holed cap, an off-axis bore wall), and
+    /// a square (planar walls).
+    fn clip_fixtures() -> Vec<(&'static str, Vec<Chain>)> {
+        let q = core::f64::consts::FRAC_PI_4;
+        let big = (3.0 * core::f64::consts::PI / 8.0).tan();
+        let (c, s) = (0.3f64.cos(), 0.3f64.sin());
+        vec![
+            ("rod", vec![vec![(-0.5, 0.0, 1.0), (0.5, 0.0, 1.0)]]),
+            ("half-rod", vec![vec![(-0.5, 0.0, 1.0), (0.5, 0.0, 0.0)]]),
+            (
+                "major-segment",
+                vec![vec![
+                    (0.5 * q.cos(), 0.5 * q.sin(), big),
+                    (0.5 * q.cos(), -0.5 * q.sin(), 0.0),
+                ]],
+            ),
+            (
+                "minor-segment",
+                vec![vec![
+                    (0.5 * q.cos(), -0.5 * q.sin(), 1.0 / big),
+                    (0.5 * q.cos(), 0.5 * q.sin(), 0.0),
+                ]],
+            ),
+            (
+                "bored",
+                vec![
+                    vec![(c, s, 1.0), (-c, -s, 1.0)],
+                    vec![(0.6, 0.0, -1.0), (0.2, 0.0, -1.0)],
+                ],
+            ),
+            (
+                "square",
+                vec![vec![
+                    (-0.5, -0.5, 0.0),
+                    (0.5, -0.5, 0.0),
+                    (0.5, 0.5, 0.0),
+                    (-0.5, 0.5, 0.0),
+                ]],
+            ),
+        ]
+    }
+
+    fn extrude<T: topo::AtRestPolicy>(loops: &[Chain]) -> topo::Body<T> {
+        use geom_core::Point2;
+        let loops = loops
+            .iter()
+            .map(|l| {
+                profile::test_support::bulge_loop(
+                    l.iter()
+                        .map(|&(x, y, b)| {
+                            (Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b))
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+        crate::test_support::extruded(
+            profile::SketchPlane::xy(),
+            loops,
+            T::one(),
+            geom_core::Tol::witness(),
+        )
+    }
+
+    /// Ordered samples of each boundary loop of `face`.
+    #[allow(clippy::expect_used)]
+    fn boundary_samples(body: &topo::Body<f64>, face: topo::FaceKey) -> Vec<Vec<Point3<f64>>> {
+        let f = body.get_face(face).expect("the face");
+        let mut out = Vec::new();
+        for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+            let topo::LoopBoundary::Cycle { first } = body.get_loop(lp).expect("its loop").boundary
+            else {
+                continue;
+            };
+            let mut pts = Vec::new();
+            for he in body.loop_cycle(first).expect("its cycle") {
+                let h = body.get_half_edge(he).expect("a half-edge");
+                let e = body.get_edge(h.edge).expect("its edge");
+                let cert = body
+                    .get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .expect("a certified curve");
+                let (t0, t1) = cert.params();
+                for k in 0..48 {
+                    let s = f64::from(k) / 48.0;
+                    let s = if e.he_plus == he { s } else { 1.0 - s };
+                    pts.push(cert.carrier().eval(t0 + (t1 - t0) * s));
+                }
+            }
+            out.push(pts);
+        }
+        out
+    }
+
+    /// Points of a face of a z-extrusion: a wall's boundary points
+    /// spread over `z ∈ [0, 1]`; a cap's grid points the boundary winds
+    /// about, clear of it by 0.01.
+    fn face_samples(
+        body: &topo::Body<f64>,
+        face: topo::FaceKey,
+        s: &geom::Surface<f64>,
+    ) -> Vec<Point3<f64>> {
+        let loops = boundary_samples(body, face);
+        let all: Vec<Point3<f64>> = loops.iter().flatten().copied().collect();
+        let mut out = all.clone();
+        match s {
+            geom::Surface::Cylinder { .. } => {
+                for p in &all {
+                    out.extend((0..=4).map(|j| Point3::new(p.x, p.y, f64::from(j) / 4.0)));
+                }
+            }
+            geom::Surface::Plane { origin, .. } => {
+                let pi = core::f64::consts::PI;
+                for i in 0..=40 {
+                    for j in 0..=40 {
+                        let (x, y) = (-1.0 + f64::from(i) / 20.0, -1.0 + f64::from(j) / 20.0);
+                        let clear = all.iter().all(|p| (p.x - x).hypot(p.y - y) > 0.01);
+                        let mut w = 0.0;
+                        for l in &loops {
+                            for k in 0..l.len() {
+                                let (p, q) = (l[k], l[(k + 1) % l.len()]);
+                                let d = (q.y - y).atan2(q.x - x) - (p.y - y).atan2(p.x - x);
+                                w += (d + pi).rem_euclid(2.0 * pi) - pi;
+                            }
+                        }
+                        if clear && w.abs() > 3.0 {
+                            out.push(Point3::new(x, y, origin.z));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        out
+    }
+
+    /// The unit axis at polar angle `t` from `z`, azimuth `phi`.
+    fn polar(t: f64, phi: f64) -> Vec3<f64> {
+        Vec3::new(t.sin() * phi.cos(), t.sin() * phi.sin(), t.cos())
+    }
+
+    /// Leans of the trace's axis off `z`: coaxial, within the zero
+    /// band, through ⊥ (exactly, and either side of it within and past
+    /// a band), to antiparallel.
+    fn clip_leans() -> Vec<f64> {
+        let h = core::f64::consts::FRAC_PI_2;
+        let pi = core::f64::consts::PI;
+        vec![
+            0.0,
+            0.9 * band().zero(),
+            1.0e-3,
+            0.3,
+            1.2,
+            1.5,
+            h - 1.0e-3,
+            h - 1.0e-6,
+            h - 3.0 * band().escalate(),
+            h,
+            h + 1.0e-4,
+            2.0,
+            3.0,
+            pi - 1.0e-9,
+            pi,
+        ]
+    }
+
+    /// **A clip holds its face at every pose**: on every cylinder and
+    /// plane face of the corpus, about axes at every lean, three
+    /// azimuths and seven origins (through a cap, near a rim, inside the
+    /// bore, outside the body, far below, at a cap corner), every
+    /// sampled face point lies in the clip `sheet_clip` reads, at `f64`
+    /// and at `Interval`. A wall ⊥ the axis is clipped too: `z` is
+    /// constant along its rulings.
+    #[allow(clippy::expect_used)]
+    #[test]
+    fn a_clip_holds_its_face_at_every_pose() {
+        use super::{Clip, sheet_clip};
+        use geom_core::interval::Interval;
+        use geom_core::{Bounds, Real};
+        let band = band();
+        let origins = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.1, -0.2, 0.3),
+            Point3::new(0.45, 0.0, 0.5),
+            Point3::new(0.4, 0.0, 0.5),
+            Point3::new(2.0, 1.0, 0.0),
+            Point3::new(0.0, 0.0, -7.0),
+            Point3::new(0.49, 0.49, 1.0),
+        ];
+        macro_rules! read {
+            ($c:expr) => {
+                $c.map(|c| match c {
+                    Clip::Z(lo, hi) => ("Z", lo.lo(), hi.hi()),
+                    Clip::Rho(lo, hi) => ("Rho", lo.lo(), hi.hi()),
+                })
+            };
+        }
+        #[allow(clippy::expect_used)]
+        fn surface<T: geom_core::Real>(b: &topo::Body<T>, k: topo::FaceKey) -> geom::Surface<T> {
+            b.get_face(k)
+                .and_then(|face| b.get_surface(face.surface))
+                .cloned()
+                .expect("the face's surface")
+        }
+        let iv = |x: f64| Interval::from_f64(x);
+        let (mut clipped, mut perpendicular_walls, mut bad) = (0usize, 0usize, Vec::new());
+        for (name, loops) in clip_fixtures() {
+            let body = extrude::<f64>(&loops);
+            let ibody = extrude::<Interval>(&loops);
+            let mut faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
+            faces.sort_unstable();
+            let mut ifaces: Vec<_> = ibody.faces().map(|(k, _)| k).collect();
+            ifaces.sort_unstable();
+            assert_eq!(faces.len(), ifaces.len(), "{name}: the twin bodies' faces");
+            for (&f, &fi) in faces.iter().zip(&ifaces) {
+                let (s, si) = (surface(&body, f), surface(&ibody, fi));
+                if !matches!(
+                    s,
+                    geom::Surface::Cylinder { .. } | geom::Surface::Plane { .. }
+                ) {
+                    continue;
+                }
+                let pts = face_samples(&body, f, &s);
+                assert!(pts.len() > 50, "{name} {f:?}: the face's samples");
+                for t in clip_leans() {
+                    for phi in [0.0, 0.7, 2.0] {
+                        let a = polar(t, phi);
+                        let ai = Vec3::new(iv(a.x), iv(a.y), iv(a.z));
+                        for o in origins {
+                            let oi = Point3::new(iv(o.x), iv(o.y), iv(o.z));
+                            for (scalar, clip) in [
+                                ("f64", read!(sheet_clip(&body, f, &s, o, a, band))),
+                                ("Interval", read!(sheet_clip(&ibody, fi, &si, oi, ai, band))),
+                            ] {
+                                let Some((kind, lo, hi)) = clip else {
+                                    continue;
+                                };
+                                clipped += 1;
+                                let wall = matches!(s, geom::Surface::Cylinder { .. });
+                                perpendicular_walls +=
+                                    usize::from(wall && t == core::f64::consts::FRAC_PI_2);
+                                let worst = pts
+                                    .iter()
+                                    .map(|p| {
+                                        let v = *p - o;
+                                        let z = v.dot(a);
+                                        let x = if kind == "Z" { z } else { (v - a * z).norm() };
+                                        (lo - x).max(x - hi)
+                                    })
+                                    .fold(f64::NEG_INFINITY, f64::max);
+                                if worst > 0.0 {
+                                    bad.push(format!(
+                                        "{name} {f:?} {scalar} lean {t} phi {phi} o {o:?}: \
+                                         its {kind} clip {lo}..{hi} misses a face point by {worst}"
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(clipped > 5000, "the corpus reads clips: {clipped}");
+        assert!(
+            perpendicular_walls > 0,
+            "walls ⊥ the axis are clipped: {perpendicular_walls}"
+        );
+        assert!(
+            bad.is_empty(),
+            "{} clips miss their face:\n{}",
+            bad.len(),
+            bad[..bad.len().min(40)].join("\n")
+        );
+    }
+
+    /// **A sheet slack does not move with where a plane's or a
+    /// cylinder's origin is stored**: about an axis leaning half the zero
+    /// band, over a box of half-width 2 about the origin, the rod's wall
+    /// stored up to 1e5 m along its axis, and a plane `z = 1` stored up to
+    /// 1e5 m across itself, each read one slack within rounding, a few
+    /// zero bands and not none. Read at the stored origin, the far
+    /// storage's slack was about 1e5 zero bands.
+    #[test]
+    #[allow(clippy::panic)]
+    fn a_sheet_slack_reads_one_value_at_every_stored_origin() {
+        use super::sheet_fn;
+        let band = band();
+        let (_, _, wall) = rod::<f64>();
+        let (o, a) = leaning::<f64>(0.5 * band.zero());
+        let reach = (Point3::new(-2.0, -2.0, -2.0), Point3::new(2.0, 2.0, 2.0));
+        let plane_at = |x: f64| geom::Surface::Plane {
+            origin: Point3::new(x, 0.0, 1.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for (what, at) in [
+            (
+                "the wall",
+                &(|along: f64| stored_at(&wall, along)) as &dyn Fn(f64) -> geom::Surface<f64>,
+            ),
+            ("the plane", &plane_at),
+        ] {
+            let slack = |along: f64| match sheet_fn(&at(along), o, a, reach) {
+                Some((_, slack)) => slack,
+                None => panic!("{what} stored {along} m along: a sheet form"),
+            };
+            let base = slack(0.0);
+            assert!(
+                base > 0.0 && base < 10.0 * band.zero(),
+                "{what}: a slack of a few zero bands, the lean read: {base}"
+            );
+            for along in [-3.0, 1.0e3, 1.0e5] {
+                let s = slack(along);
+                assert!(
+                    (s - base).abs() <= 0.1 * band.zero(),
+                    "{what} stored {along} m along: the base storage's slack {base}, read {s}"
+                );
+            }
+        }
+    }
+
+    /// **A sheet slack encloses the distance it stands for**: for a
+    /// cylinder and a plane at seven leans of their own, stored at four
+    /// places along or across themselves, in three reach boxes (one 1e4 m
+    /// out), about axes at every lean, `|d(x) − f(ρ, z)| ≤ slack` at the
+    /// box's 5×5×5 grid points.
+    #[test]
+    fn a_sheet_slack_encloses_the_distance() {
+        use super::sheet_fn;
+        let boxes = [
+            (Point3::new(-2.0, -2.0, -2.0), Point3::new(2.0, 2.0, 2.0)),
+            (Point3::new(50.0, -3.0, 40.0), Point3::new(51.0, -2.0, 41.0)),
+            (
+                Point3::new(-1e4, 0.0, 1e4),
+                Point3::new(-1e4 + 0.1, 0.1, 1e4 + 0.1),
+            ),
+        ];
+        let (mut read, mut bad) = (0usize, Vec::new());
+        let o = Point3::origin();
+        for t in clip_leans() {
+            let a = polar(t, 0.4);
+            for own in [
+                0.0,
+                1e-9,
+                1e-6,
+                1e-3,
+                0.5,
+                2.0,
+                core::f64::consts::PI - 1e-7,
+            ] {
+                let b = polar(own, 1.3);
+                let in_plane = b.cross(Vec3::new(1.0, 0.2, 0.0));
+                for along in [0.0, -3.0, 1e3, 1e5] {
+                    let cylinder = geom::Surface::Cylinder {
+                        origin: Point3::new(0.3, -0.1, 0.0) + b * along,
+                        axis: b * 3.0,
+                        radius: 0.5,
+                        u_ref: b.cross(Vec3::new(0.3, 1.0, 0.1)).normalize(),
+                    };
+                    let plane = geom::Surface::Plane {
+                        origin: Point3::new(0.0, 0.0, 1.0) + in_plane * along,
+                        normal: b,
+                        u_ref: in_plane.normalize(),
+                    };
+                    let distance = |s: &geom::Surface<f64>, x: Point3<f64>| match *s {
+                        geom::Surface::Cylinder {
+                            origin,
+                            axis,
+                            radius,
+                            ..
+                        } => {
+                            let (v, n) = (x - origin, axis.normalize());
+                            (v - n * v.dot(n)).norm() - radius
+                        }
+                        geom::Surface::Plane { origin, normal, .. } => {
+                            (x - origin).dot(normal.normalize())
+                        }
+                        _ => f64::NAN,
+                    };
+                    for s in [cylinder, plane] {
+                        for (lo, hi) in boxes {
+                            let Some((g, slack)) = sheet_fn(&s, o, a, (lo, hi)) else {
+                                continue;
+                            };
+                            read += 1;
+                            // The row's own f64 rounding at these magnitudes.
+                            let round = 1e-12 * (1.0 + lo.x.abs() + lo.z.abs() + along.abs());
+                            let at = |l: f64, h: f64, m: i32| l + (h - l) * f64::from(m) / 4.0;
+                            let mut worst = f64::NEG_INFINITY;
+                            for i in 0..=4 {
+                                for j in 0..=4 {
+                                    for k in 0..=4 {
+                                        let x = Point3::new(
+                                            at(lo.x, hi.x, i),
+                                            at(lo.y, hi.y, j),
+                                            at(lo.z, hi.z, k),
+                                        );
+                                        let v = x - o;
+                                        let z = v.dot(a);
+                                        let rho = (v - a * z).norm();
+                                        let gap = (distance(&s, x) - g.at(rho, z)).abs() - slack;
+                                        worst = worst.max(gap - round);
+                                    }
+                                }
+                            }
+                            if worst > 0.0 || worst.is_nan() {
+                                bad.push(format!(
+                                    "lean {t}, own lean {own}, stored {along} along, {:?}, box {lo:?}: \
+                                     slack {slack} short by {worst}",
+                                    core::mem::discriminant(&s)
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(read > 1000, "the row reads slacks: {read}");
+        assert!(
+            bad.is_empty(),
+            "{} slacks short:\n{}",
+            bad.len(),
+            bad[..bad.len().min(40)].join("\n")
+        );
+    }
+
+    /// **`tilt` reads the chord to the nearer of `±a`**: `2·sin(θ/2)`, θ
+    /// that angle, near 0, ⊥ and π, for a unit, a short and a long `b` —
+    /// within 4 ulp at `f64`, enclosed at `Interval`.
+    #[test]
+    fn tilt_reads_the_chord() {
+        use super::tilt;
+        use geom_core::interval::Interval;
+        use geom_core::{Bounds, Real};
+        let pi = core::f64::consts::PI;
+        let iv = |v: Vec3<f64>| {
+            Vec3::new(
+                Interval::from_f64(v.x),
+                Interval::from_f64(v.y),
+                Interval::from_f64(v.z),
+            )
+        };
+        let a = Vec3::new(0.0, 0.0, 1.0);
+        for th in [
+            0.0,
+            1e-15,
+            1e-12,
+            1e-9,
+            1e-6,
+            0.3,
+            pi / 2.0 - 1e-9,
+            pi / 2.0,
+            2.0,
+            pi - 1e-6,
+            pi - 1e-9,
+            pi - 1e-12,
+            pi,
+        ] {
+            for scale in [1.0, 1e-3, 7.0e3] {
+                let b = Vec3::new(th.sin(), 0.0, th.cos()) * scale;
+                let truth = 2.0 * (th.min(pi - th) / 2.0).sin();
+                let f = tilt(b, a);
+                assert!(
+                    (f - truth).abs() <= 4.0 * f64::EPSILON * (1.0 + truth) + 1e-16,
+                    "f64 tilt at θ {th}, ×{scale}: {f}, the chord {truth}"
+                );
+                // `b` is the rounded input: an outward margin of its rounding.
+                let g = tilt(iv(b), iv(a));
+                let m = 4.0 * f64::EPSILON;
+                assert!(
+                    g.lo() <= truth + m && g.hi() >= truth - m,
+                    "Interval tilt at θ {th}, ×{scale}: [{}, {}] holds the chord {truth}",
+                    g.lo(),
+                    g.hi()
+                );
+            }
+        }
     }
 
     /// **A sheet bound read as the band's own material takes its slack

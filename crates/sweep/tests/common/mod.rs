@@ -87,6 +87,8 @@
 //! - [`stations`] — a station cut back into a rim by hand, and the
 //!   reader that finds stations on a body: body authoring plus the one
 //!   reader its rows check with, as [`cone_nappe`];
+//! - [`oblique`] — the oblique clip, a body cut by a turned cube so
+//!   its corners are oblique trihedra (body authoring, same routing);
 //! - [`pinch_cones`] — a boolean's cones at a point from the operands'
 //!   convex pieces, and the vertices a built body holds there: a truth
 //!   derived without the kernel plus the check against it, so beside
@@ -286,6 +288,10 @@ pub mod quadrature;
 /// one reader the run-wall and blend rows check with, so it routes
 /// here.
 pub mod stations;
+
+/// The oblique clip: a body cut by a turned cube so its corners are
+/// oblique trihedra. Body authoring, so it routes here.
+pub mod oblique;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
