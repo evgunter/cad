@@ -6838,6 +6838,31 @@ mod pole_slit_tests {
     }
 
     #[test]
+    fn review_5126_probe_chart_region_reanchored() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let b0 = cylinder_patch_below(0.0).unwrap();
+        for periods in [0.0, 1.0, 3.0, 4.0, 5.0, 10.0] {
+            let Ok(mut a) = cylinder_patch_below(periods) else { eprintln!("PROBE ra {periods}: mint refused"); continue };
+            let faces: Vec<_> = a.faces().map(|(k, f)| (k, f.outer)).collect();
+            for (f, outer) in faces {
+                let LoopBoundary::Cycle { first } = a.get_loop(outer).unwrap().boundary else { continue };
+                let cycle = a.loop_cycle(first).unwrap();
+                // anchor at the half-edge whose row runs over the bottom arc
+                let arc = cycle.iter().copied().find(|he| a.pcurve(*he).is_some_and(|c| { let (t0, t1) = c.params(); t0 < -0.5 || t1 < -0.5 || (t1 - t0).abs() > 3.0 })).unwrap_or(first);
+                a.get_loop_mut(outer).unwrap().boundary = LoopBoundary::Cycle { first: arc };
+                let _ = crate::mint_pcurves_of(&mut a, &[f], Tol::witness());
+                let cyc = a.loop_cycle(arc).unwrap();
+                let xs: Vec<String> = crate::pcurves::lifted_images(&a, &cyc).iter().zip(&cyc).map(|(im, he)| {
+                    let (t0, t1) = a.pcurve(*he).map(|c| c.params()).unwrap_or((0.0, 0.0));
+                    im.as_ref().map_or("none".into(), |im| format!("{:.3}..{:.3}", im.eval(t0).x, im.eval(t1).x))
+                }).collect();
+                let s = a.get_surface(a.get_face(f).unwrap().surface).unwrap().clone();
+                eprintln!("PROBE ra {periods} face {f:?} anchored {arc:?}: lifted {xs:?} overlap-vs-unshifted {:?} tier3 {} chart_boundary {:?}", crate::chart_region_overlap(&a, f, &b0, f, band), super::validate_pcurves(&a, band).len(), super::chart_boundary(&a, f, &s, band).map(|_| ()));
+            }
+        }
+    }
+
+    #[test]
     fn review_5126_probe_chart_region_far_patch() {
         let band = Band::linear(Tol::witness()).unwrap();
         let b0 = cylinder_patch_below(0.0).unwrap();
