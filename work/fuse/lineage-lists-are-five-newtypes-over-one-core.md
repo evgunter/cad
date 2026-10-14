@@ -8,6 +8,7 @@ priority: P3
 cost: M
 refs: [split-rows-are-chased-with-no-cycle-check, null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader]
 closed: 2026-10-13
+pr: 5049
 ---
 
 Found by the review of PR 5022 (`fuse/lineage-rows-refuse-at-append`),
