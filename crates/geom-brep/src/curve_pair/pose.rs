@@ -299,7 +299,7 @@ fn middle<T: Decide>(s: &Span<'_, T>) -> Point3<T> {
 /// The conic's tangent `C′(θ)`.
 fn tangent<T: Decide>(k: &Conic<T>, theta: T) -> Vec3<T> {
     let (sin, cos) = theta.sin_cos();
-    k.u_ref * (T::zero() - k.major * sin) + k.v_ref() * (k.minor * cos)
+    k.u_ref * (T::zero() - k.semi_u * sin) + k.v_ref() * (k.semi_v * cos)
 }
 
 /// The conic's parameter nearest `q`: the angle of `q`'s unit
@@ -308,7 +308,7 @@ fn tangent<T: Decide>(k: &Conic<T>, theta: T) -> Vec3<T> {
 /// point only reads the point farther off ([`Span::contact`]).
 fn conic_foot<T: Decide>(k: &Conic<T>, q: Point3<T>) -> T {
     let w = q - k.center;
-    let mut t = (w.dot(k.v_ref()) / k.minor).atan2(w.dot(k.u_ref) / k.major);
+    let mut t = (w.dot(k.v_ref()) / k.semi_v).atan2(w.dot(k.u_ref) / k.semi_u);
     for _ in 0..FOOT_STEPS {
         let d = tangent(k, t);
         t = t - (k.point(t) - q).dot(d) / d.dot(d);
@@ -460,7 +460,7 @@ fn line_conic<T: Decide>(
     // line's normal in the plane, a first harmonic in the conic's angle.
     let m = unit(n.cross(u));
     let c0 = (k.center - o).dot(m);
-    let (cp, sp) = (k.major * k.u_ref.dot(m), k.minor * k.v_ref().dot(m));
+    let (cp, sp) = (k.semi_u * k.u_ref.dot(m), k.semi_v * k.v_ref().dot(m));
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
     if !definite(row::SWING, Margin::of(swing), band)? {
         return Err(PoseRefusal::Unsupported {
@@ -535,7 +535,7 @@ fn conic_conic<T: Decide>(
     }
     // In one plane, to within the offset and the tilt over the conics.
     let slant = offset.abs() + tilt * lever;
-    let oriented = |k: &Conic<T>| k.axis * (k.major * k.minor);
+    let oriented = |k: &Conic<T>| k.axis * (k.semi_u * k.semi_v);
     let cosine = unit(oriented(&ka)).dot(unit(oriented(&kb)));
     let foot_a = |q: Point3<T>| conic_foot(&ka, q);
     let foot_b = |q: Point3<T>| conic_foot(&kb, q);
@@ -549,9 +549,9 @@ fn conic_conic<T: Decide>(
         Coplanar::Circles => coplanar_circles(&ka, &kb, noise, &place, &coincident, band),
         Coplanar::EllipseCircle => {
             let w = ka.center - kb.center;
-            let r = kb.major.abs();
+            let r = kb.semi_u.abs();
             let bound =
-                w.norm() + (ka.major.abs() - r).abs().max((ka.minor.abs() - r).abs()) + slant;
+                w.norm() + (ka.semi_u.abs() - r).abs().max((ka.semi_v.abs() - r).abs()) + slant;
             if !definite(row::ONE_CURVE, Margin::of(bound), band)? {
                 return coincident();
             }
@@ -578,8 +578,8 @@ fn conic_conic<T: Decide>(
 /// `L = [a·û, b·v̂]`, which pairs each point `c₁ + L₁x` of the first with
 /// the point `c₂ + L₂Qx` of the second.
 fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
-    let (e1, e2) = (e.u_ref * e.major, e.v_ref() * e.minor);
-    let (f1, f2) = (f.u_ref * f.major, f.v_ref() * f.minor);
+    let (e1, e2) = (e.u_ref * e.semi_u, e.v_ref() * e.semi_v);
+    let (f1, f2) = (f.u_ref * f.semi_u, f.v_ref() * f.semi_v);
     let pair = |p: Vec3<T>, q: Vec3<T>| ((e1 - p).norm_squared() + (e2 - q).norm_squared()).sqrt();
     let neg = |v: Vec3<T>| v * (T::zero() - T::one());
     let gaps = [
@@ -607,7 +607,7 @@ fn transverse<T: Decide>(
 ) -> Result<Pose<T>, PoseRefusal> {
     let n = kb.axis;
     let c0 = (ka.center - kb.center).dot(n);
-    let (cp, sp) = (ka.major * ka.u_ref.dot(n), ka.minor * ka.v_ref().dot(n));
+    let (cp, sp) = (ka.semi_u * ka.u_ref.dot(n), ka.semi_v * ka.v_ref().dot(n));
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
     match decide(row::SWING, Margin::of(swing), band)? {
         Sign::Positive | Sign::Negative => {}
@@ -686,7 +686,7 @@ fn coplanar_circles<T: Decide>(
     coincident: &impl Fn() -> Result<Pose<T>, PoseRefusal>,
     band: Band,
 ) -> Result<Pose<T>, PoseRefusal> {
-    let (ra, rb) = (ka.major.abs(), kb.major.abs());
+    let (ra, rb) = (ka.semi_u.abs(), kb.semi_u.abs());
     let w = ka.center - kb.center;
     let w = w - ka.axis * w.dot(ka.axis);
     let d = w.norm();
@@ -732,9 +732,9 @@ fn coplanar_ellipse_circle<T: Decide>(
     place: &impl Fn(T) -> Candidate<T>,
     band: Band,
 ) -> Result<Pose<T>, PoseRefusal> {
-    let r = kc.major.abs();
+    let r = kc.semi_u.abs();
     let w = ke.center - kc.center;
-    let (a, b) = (ke.major, ke.minor);
+    let (a, b) = (ke.semi_u, ke.semi_v);
     let two = T::from_f64(2.0);
     // `|E(θ) − c|² − r²` in the ellipse's angle.
     let c0 = w.norm_squared() + (a.powi(2) + b.powi(2)) / two - r.powi(2);

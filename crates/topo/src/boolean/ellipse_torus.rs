@@ -410,8 +410,8 @@ mod torus_rows {
         let e = geom::Curve3::Ellipse {
             center,
             axis: n,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref: (u - n * u.dot(n)).normalize(),
         };
         let theta = rng.range(0.0, TAU);
@@ -552,8 +552,8 @@ mod torus_rows {
             let e = geom::Curve3::Ellipse {
                 center: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::from_array(self.n),
-                major: self.semi[0],
-                minor: self.semi[1],
+                semi_u: self.semi[0],
+                semi_v: self.semi[1],
                 u_ref: Vec3::from_array(self.u),
             };
             let s = crate::boolean::conic_oracle::torus(
@@ -1037,8 +1037,8 @@ mod torus_rows {
                         geom::Curve3::Ellipse {
                             center,
                             axis,
-                            major,
-                            minor,
+                            semi_u,
+                            semi_v,
                             u_ref,
                         },
                         geom::Surface::Torus {
@@ -1081,7 +1081,7 @@ mod torus_rows {
                     writeln!(
                         out,
                         "ETDUMP {{\"family\": \"{name}\", \"eps\": {eps:?}, \"center\": {}, \"axis\": {}, \
-                         \"u_ref\": {}, \"major\": {major:?}, \"minor\": {minor:?}, \"hub\": {}, \
+                         \"u_ref\": {}, \"major\": {semi_u:?}, \"minor\": {semi_v:?}, \"hub\": {}, \
                          \"t_axis\": {}, \"R\": {major_radius:?}, \"r\": {minor_radius:?}, \
                          \"t0\": {t0:?}, \"t1\": {t1:?}, \"answer\": \"{answer}\", \"roots\": {roots:?}, \
                          \"residuals\": {bounds:?}}}",

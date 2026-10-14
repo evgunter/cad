@@ -64,8 +64,8 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     let &Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = e
     else {
@@ -74,21 +74,56 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     Curve3::Ellipse {
         center,
         axis: -axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     }
 }
 
-/// Every pairing of nappe and traversal: the image is the
-/// cone instance of the `FocalSection` form, maps onto the carrier at rounding scale over two
-/// periods (the azimuth's branch never jumps), and certifies over a
-/// span longer than a half-turn with a rounding-scale envelope.
+/// The same ellipse seamed `k` quarter turns on, at each of its four
+/// principal vertices in turn: `u_ref` turned about `axis` and, on an
+/// odd turn, the semi-axes swapped.
+fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
+    let &Curve3::Ellipse {
+        center,
+        axis,
+        semi_u,
+        semi_v,
+        u_ref,
+    } = e
+    else {
+        unreachable!()
+    };
+    let (u_ref, semi_u, semi_v) = match k % 4 {
+        0 => (u_ref, semi_u, semi_v),
+        1 => (axis.cross(u_ref), semi_v, semi_u),
+        2 => (-u_ref, semi_u, semi_v),
+        _ => (-axis.cross(u_ref), semi_v, semi_u),
+    };
+    Curve3::Ellipse {
+        center,
+        axis,
+        semi_u,
+        semi_v,
+        u_ref,
+    }
+}
+
+/// Every pairing of nappe and traversal, seamed at each principal
+/// vertex: the image is the cone instance of the `FocalSection` form,
+/// maps onto the carrier at rounding scale over two periods (the
+/// azimuth's branch never jumps), and certifies over a span longer than
+/// a half-turn with a rounding-scale envelope. A carrier seamed at a
+/// minor vertex is read in its major frame through the image's `t0`.
 #[test]
 fn the_image_is_exact_on_both_nappes_and_both_traversals() {
     for axis_sign in [1.0, -1.0] {
         let surface = cone(axis_sign);
-        for carrier in [section(), reversed(&section())] {
+        let carriers = [section(), reversed(&section())]
+            .iter()
+            .flat_map(|e| (0..4).map(|k| seamed(e, k)))
+            .collect::<Vec<_>>();
+        for carrier in carriers {
             let what = format!("axis sign {axis_sign}, carrier {carrier:?}");
             let image = chart_pcurve(&carrier, &surface, band()).unwrap();
             let Pcurve::FocalSection(FocalImage { beta, sense, .. }) = image else {
@@ -301,7 +336,7 @@ fn read_off_the_sum(
         &Pcurve::FocalSection(focal),
         &Curve3::Ellipse {
             center,
-            major,
+            semi_u,
             u_ref: e_u,
             ..
         },
@@ -314,7 +349,7 @@ fn read_off_the_sum(
     };
     let radial = |v: Vec3<f64>| v - axis * v.dot(axis);
     let w = center - apex;
-    let start = (radial(w) + radial(e_u * major)) * w.dot(axis).signum();
+    let start = (radial(w) + radial(e_u * semi_u)) * w.dot(axis).signum();
     let u0 = start.dot(axis.cross(u_ref)).atan2(start.dot(u_ref));
     Pcurve::FocalSection(FocalImage { u0, ..focal })
 }
@@ -452,8 +487,8 @@ fn skew_near_circle(alpha: f64, h: f64, phi: f64, off: f64) -> (Curve3<f64>, Sur
     let carrier = Curve3::Ellipse {
         center: m.transform_point(center + Vec3::unit_y() * off),
         axis: m.transform_vec(u_ref.cross(Vec3::unit_y())),
-        major: 0.5 * (p1 - p2).norm(),
-        minor: (ta * ta * cz * cz - cx * cx).sqrt(),
+        semi_u: 0.5 * (p1 - p2).norm(),
+        semi_v: (ta * ta * cz * cz - cx * cx).sqrt(),
         u_ref: m.transform_vec(u_ref),
     };
     let surface = Surface::Cone {
@@ -697,8 +732,8 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
     let Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = exact
     else {
@@ -707,8 +742,8 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
     let carrier = Curve3::Ellipse {
         center: center + u_ref * (0.3 * eps()),
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     };
     let off = off_cone(&carrier, &surface);
@@ -717,10 +752,10 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
         Err(e) => return refused(format!("a carrier {off:e} off the cone: {e}")),
     };
     let miss = whole_turn_miss(&image, &carrier, &surface);
-    let bound = off / alpha.cos() + 4.0 * f64::EPSILON * major / k;
+    let bound = off / alpha.cos() + 4.0 * f64::EPSILON * semi_u / k;
     assert!(
         miss < bound,
-        "carrier {off:e} off the cone (k {k:e}, A {major:e}): image misses by {miss:e}, \
+        "carrier {off:e} off the cone (k {k:e}, A {semi_u:e}): image misses by {miss:e}, \
          past {bound:e}"
     );
 }

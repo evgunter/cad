@@ -89,8 +89,8 @@ fn through(rng: &mut fuzz::Rng, kind: usize, x: Point3<f64>) -> (Curve3<f64>, f6
         Curve3::Ellipse {
             center,
             axis,
-            major: a,
-            minor: b,
+            semi_u: a,
+            semi_v: b,
             u_ref: u,
         }
     };

@@ -37,8 +37,8 @@ fn ellipse() -> Curve3<f64> {
     Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::unit_z(),
-        major: 3.0,
-        minor: 0.5,
+        semi_u: 3.0,
+        semi_v: 0.5,
         u_ref: Vec3::unit_x(),
     }
 }

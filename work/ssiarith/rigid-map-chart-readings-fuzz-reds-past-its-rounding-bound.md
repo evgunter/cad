@@ -25,3 +25,12 @@ A local hunt at `CAD_FUZZ_EFFORT=8` found a counterexample within three runs. It
 
 Is the margin reading's rounding under a rigid map larger than the in-file derivation claims ("a few hundred ulps of the coordinates' reach, relative, scaled up on a window by the cut's `1 / width`")? Or is the reading itself less rigid-invariant than the derivation assumes? Either way, re-derive the bound or the reading, and pin this seed's case as a fixed row.
 
+
+## A second seed (nurbs lane `pair-walk-domain-side-end`, 2026-10-14)
+
+Met at the default effort in a local 1e-12 run. It reproduces on main at `9f97c7b` in a fresh target directory:
+
+- Reproduce with `CAD_FUZZ_SEED=0x1d0a3b646ab0444b CAD_FUZZ_EFFORT=1`.
+- Case: "two-span patch" again, a rigid map about `(-0.1568, 0.9182, 0.3246)` through `(0.4462, 0.6121, -0.4581)` by 2.9171.
+- The same transverse margin moved, from 0.002672789803881874 to 0.0026727898038855606: about 3.7e-15 absolute.
+- So effort 1 meets it too, and the per-PR gate can turn red on it.
