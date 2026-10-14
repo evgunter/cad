@@ -467,7 +467,9 @@ impl CensusTrace {
 ///   carrying a curve with no sound box, or a null carrier, poisons —
 ///   the poison box overlaps everything and is never pruned);
 /// - an **edge** box is [`edge_box`] — the chord box, since only `Line`
-///   carriers enter the snapshot;
+///   carriers enter the snapshot; a **curved edge**'s, pass 2′'s
+///   answering side, is the same door's sound box for its kind (a
+///   carrier with no sound box poisons, and is never pruned);
 /// - a **vertex** box is the point widened by the pad;
 /// - the **backstop**'s box is the face's own reach ([`face_reach`],
 ///   sound for every carrier kind), padded the same way — and a face
@@ -525,6 +527,8 @@ struct Trees {
     edges: Class,
     /// The planar faces — always the answering side.
     faces: Class,
+    /// The curved edges, in arena order — pass 2′'s answering side.
+    curved: Class,
 }
 
 /// One entity class under the strategy: its padded boxes in snapshot
@@ -596,6 +600,8 @@ fn empty_box() -> Aabb {
 struct Candidates {
     strategy: CensusStrategy,
     trees: Trees,
+    /// The curved edges [`Trees::curved`] indexes, in its order.
+    curved: Vec<EdgeKey>,
 }
 
 /// The item of a snapshot slice at a candidate index. The index is
@@ -639,13 +645,21 @@ impl Candidates {
                 }
             })
             .collect();
+        let curved: Vec<EdgeKey> = body
+            .edges
+            .keys()
+            .filter(|&k| !edge_is_line(body, k))
+            .collect();
+        let curved_boxes = curved.iter().map(|&k| edge_box(body, k, pad)).collect();
         Self {
             strategy,
             trees: Trees {
                 verts: Class::build(strategy, vert_boxes),
                 edges: Class::build(strategy, edge_boxes),
                 faces: Class::build(strategy, face_boxes),
+                curved: Class::build(strategy, curved_boxes),
             },
+            curved,
         }
     }
 
@@ -773,6 +787,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
         trace.as_deref_mut(),
         &mut errors,
     );
+    sweep_vertex_curved_edge(body, &geo, &declared, band, &cands, &mut errors);
     sweep_vertex_face(
         body,
         &geo,
@@ -1544,6 +1559,79 @@ fn pair_vertex_edge<T: Decide>(
             witness: witness(q),
             margin: Some(margin),
         });
+    }
+}
+
+/// Census pass 2′: a vertex on a **curved** edge's interior, the
+/// question pass 2 asks of a line, read through the curved lane
+/// ([`curved::on_curved_interior`]) and backed alike: by its
+/// `(vertex, edge)` record, the face rung, or a conventional vertex's
+/// edge-edge record. A vertex at one of the edge's ends is pass 1's.
+/// Candidates are the pairs whose padded boxes meet; of those, a vertex
+/// the span's pieces all clear ([`curved::may_rest_on`]) is passed by
+/// with no decision pushed, so an edge the reading would refuse is
+/// refused only for a vertex that reaches it.
+fn sweep_vertex_curved_edge<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    declared: &Declared,
+    band: Band,
+    cands: &Candidates,
+    errors: &mut Vec<ValidationError>,
+) {
+    // Each curved edge's ends and sides; tier 1 guarantees resolution,
+    // and an edge that does not resolve is passed by, as the snapshot's.
+    let edges: Vec<_> = cands
+        .curved
+        .iter()
+        .map(|&ek| {
+            let edge = body.edges.get(ek)?;
+            let v0 = body.half_edges.get(edge.he_plus)?.start;
+            let v1 = body.half_edge_end(edge.he_plus)?;
+            let point = |v| {
+                body.vertices
+                    .get(v)
+                    .and_then(|d| body.points.get(d.point))
+                    .copied()
+            };
+            let sides = crate::readback::edge_sides(body, ek).ok()?.faces();
+            Some((ek, [(v0, point(v0)?), (v1, point(v1)?)], sides))
+        })
+        .collect();
+    for (i, &(vk, q)) in geo.verts.iter().enumerate() {
+        for j in cands.trees.curved.overlapping(cands.trees.verts.query(i)) {
+            let Some((ek, ends, (f_plus, f_minus))) = *candidate(&edges, j) else {
+                continue;
+            };
+            if ends.iter().any(|&(v, _)| v == vk) {
+                continue; // structural adjacency
+            }
+            let at_end = |p: Point3<T>| {
+                geom_core::k_stats::decide(
+                    "pm_census_ve_curved_sweep_end",
+                    Margin::norm3(q - p),
+                    band,
+                ) == Ok(Sign::Zero)
+            };
+            if ends.iter().any(|&(_, p)| at_end(p)) || !curved::may_rest_on(body, ek, q, band) {
+                continue;
+            }
+            if curved::on_curved_interior(body, ek, q, band, errors) == Some(true)
+                && !declared.ve_recorded(vk, ek)
+                && !declared.vf_face_backed(geo, vk, f_plus)
+                && !declared.vf_face_backed(geo, vk, f_minus)
+                && !declared.at_conventional(geo, vk, EntityId::Edge(ek))
+            {
+                errors.push(ValidationError::UnrecordedContact {
+                    contact: CensusContact::VertexOnEdge {
+                        vertex: vk,
+                        edge: ek,
+                    },
+                    witness: witness(q),
+                    margin: None,
+                });
+            }
+        }
     }
 }
 
@@ -6592,7 +6680,7 @@ fn confirm_face_pair<T: Decide>(
 /// planar face's plane read `Out`. `Some(None)` where the curved door
 /// leaves the point unread; `None` where a decision escalated or the door
 /// refused (pushed).
-fn face_holds<T: Decide>(
+pub(crate) fn face_holds<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,

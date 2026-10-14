@@ -343,6 +343,44 @@ fn feet<T: Decide>(
     Some(out)
 }
 
+/// **Whether `q` may rest on `e`'s span**: some piece of it, halved
+/// down to the band, keeps within reach of `q`. `false` only where every
+/// piece is decided clear of `q`, so a vertex the sweep passes by holds
+/// no touch the reading would have found; `true` past the budget, or for
+/// an edge with no certified curve, leaving the question to the reading.
+/// It decides nothing about the carrier's least speed, so a span the
+/// reading would refuse ([`read`]) is refused only for a vertex that
+/// reaches it.
+pub(super) fn may_rest_on<T: Decide>(body: &Body<T>, e: EdgeKey, q: Point3<T>, band: Band) -> bool {
+    let Some(curve) = body
+        .edges
+        .get(e)
+        .and_then(|d| body.curves.get(d.curve))
+        .and_then(crate::null::CurveGeom::certified)
+    else {
+        return true;
+    };
+    let carrier = curve.carrier();
+    let hi = crate::carrier_speed::speed_range(carrier).1;
+    let walk = bisect([Piece::whole(curve.params())], |p| {
+        let reach = p.reach(hi);
+        let gap = (carrier.eval(p.mid()) - q).norm();
+        if surely(
+            "pm_census_ve_curved_sweep_clear",
+            gap - reach,
+            band,
+            Sign::Positive,
+        ) {
+            return Step::Settled;
+        }
+        if stops("pm_census_ve_curved_sweep_piece", reach, None, band) {
+            return Step::Stop(());
+        }
+        Step::Halve(p.halves())
+    });
+    !matches!(walk, Ok(None))
+}
+
 /// Whether `q` lies on `e`'s interior (module docs). `None` where a
 /// decision escalated or the edge is not read (pushed).
 pub(super) fn on_curved_interior<T: Decide>(

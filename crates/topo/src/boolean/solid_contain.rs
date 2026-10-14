@@ -3814,6 +3814,18 @@ fn latitude_extremes<T: Decide>(
 /// answer outside its reach is [`PointInSolidError::EdgeCarrierUnsupported`]
 /// where `p` could land in it.
 ///
+/// **Not the census's read, on purpose.** A vertex-on-face record and a
+/// boolean's carry place a point through [`super::face_placement`],
+/// which decides the point on the plane first and walks the face's
+/// boundary before its interior, escalating a point in the band of a
+/// vertex. This test is the ray walk's: `p` is a ray's hit on the face's
+/// own plane, read against the loops' projection (an admitted operand's
+/// face may hold a vertex off that plane by more than a tightened band),
+/// and any boundary is `None`, a graze the walk retries on another ray.
+/// Both walk each loop on the one core
+/// (`splitting::containment::carrier_walk`); they differ only on the
+/// boundary, where neither answers inside.
+///
 /// # Panics
 ///
 /// Where a loop `face` lists does not resolve (D2 row 4): a torn outer

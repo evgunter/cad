@@ -73,7 +73,8 @@ fn holds(body: &Body<f64>, cell: Cell, p: Point3<f64>, band: Band) -> bool {
                 panic!("a brick face is a plane");
             };
             (p - *origin).dot(*normal).abs() <= ON
-                && topo::test_support::point_in_face(body, f, p, band) == Ok(Some(true))
+                && topo::test_support::face_holds(body, f, p, band)
+                    == Ok(Some(topo::FaceContainment::In))
         }
     }
 }
