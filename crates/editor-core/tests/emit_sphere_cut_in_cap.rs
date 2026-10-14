@@ -25,7 +25,7 @@ use geom_core::Tol;
 
 /// A ball of radius `r` centred `c` up the y axis: a bulge-1 semicircle
 /// revolved a full turn about y.
-fn ball(doc: ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
+pub(crate) fn ball(doc: ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
     let meridian = LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, c - r])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
@@ -51,7 +51,7 @@ fn ball(doc: ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
 
 /// The unit direction at latitude `lat` (from the xz plane toward +y)
 /// and azimuth `az` (from +x toward +z), in degrees.
-fn dir(lat: f64, az: f64) -> [f64; 3] {
+pub(crate) fn dir(lat: f64, az: f64) -> [f64; 3] {
     let (lat, az) = (lat.to_radians(), az.to_radians());
     [lat.cos() * az.cos(), lat.sin(), lat.cos() * az.sin()]
 }
@@ -68,7 +68,7 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
 /// A `2w × 2w × t` brick whose near face lies in the plane `n·p = s`,
 /// centred on its foot, its material beyond the plane: `y` turned onto
 /// `n` about `y × n`, as `sweep`'s `snowman` rows turn theirs.
-fn brick_toward(
+pub(crate) fn brick_toward(
     doc: ProfileDoc,
     n: [f64; 3],
     s: f64,
