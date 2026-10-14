@@ -3412,6 +3412,40 @@ pub(crate) mod tests {
     }
 
     /// REVIEW PROBE (PR 5140): walls whose arcs bulge PAST their
+    /// REVIEW PROBE (PR 5140): the hull fallback answers DEFINITELY,
+    /// so an in-band escalation its levered read recorded is one the
+    /// box does not rest on. Does it stay on the open frame's
+    /// escalation log (which the subdivision driver reads as the
+    /// node's cause)? Both lanes, the in-band band only.
+    #[test]
+    fn review_probe_5140_hull_fallback_leaves_no_escalation_on_the_log() {
+        let (body, face) = cyl_wall(1.0, 0.0, core::f64::consts::FRAC_PI_2, -0.25, 0.75);
+        let band = Band::new(0.5, 5.0).unwrap();
+        let bracket = geom_core::k_stats::Bracket::open();
+        let b = face_box(&body, face, sweep_pad(band), band);
+        let recorded = bracket.finish();
+        assert!(b.is_ok(), "the wall boxes");
+        let names: Vec<_> = recorded
+            .escalations
+            .iter()
+            .map(geom_core::k_stats::Escalation::predicate)
+            .collect();
+        let bracket = geom_core::k_stats::Bracket::open();
+        let c = crate::census::face_reach(&body, face, band);
+        let census: Vec<_> = bracket
+            .finish()
+            .escalations
+            .iter()
+            .map(geom_core::k_stats::Escalation::predicate)
+            .collect();
+        assert!(c.is_some(), "the census claims the wall");
+        assert!(
+            names.is_empty() && census.is_empty(),
+            "a definite hull box left escalations on the log: bracket lane {names:?}, \
+             census lane {census:?}"
+        );
+    }
+
     /// vertices — the quarter wall at `[0, π/2]` keeps its arc inside
     /// the vertex box, so a vertex-only hull would pass the PR's row.
     /// These spans put azimuth extrema strictly inside the arc. Both
