@@ -29,3 +29,12 @@ D4 ¶1 (iv) excuses only a definite *contradiction* read at rest, which ends as 
 ## Question
 
 Should `(Reading::AtRest, StoredDefinite::Lever)` take the class route too, ending in the lever plus `NoSize::stored`? The answer would be `sign_certain_recourse` over the words at rest.
+
+## Evidence
+
+- 2026-10-14 (ENCL implementer, `encl/definite-arm-one-story`, PR 5023 review): the same branch splits one definite reading at rest by the route that carries it. `MarginDiag::shows` classes a reading past the band, wholly on the refused side, as `Shows::Refused`, which ends as `NoSize` does. So a gate's rejected definite reading routed as `RefusedArm::Undecided` ends in the lever plus `NoSize::stored` at rest (`SizedDecision::recourse`, its `Undecided` arm through `MarginDiag::sized_recourse`). The same reading on `RefusedArm::SignCertain` at rest ends by `SizedDecision::stored`:
+  - **Lever decisions** (`CertCheck::ParamSpanMeter`; `Meter::NormalFloor`): Undecided-past ends in the lever plus the note, and SignCertain at rest in the lever alone (`(Reading::AtRest, StoredDefinite::Lever)`).
+  - **Contradiction decisions** (`CertCheck::ParamSpan`, `DIHEDRAL_ARM`): Undecided-past ends in the lever plus the note, and SignCertain at rest in `KERNEL_OR_FILE_DEFECT_ENDING` (`(Reading::AtRest, StoredDefinite::Contradiction)`). `dihedral::tests::a_gates_rejection_ends_by_its_reading_on_either_arm` pins both routes for the negative wedge.
+  - The import door past ε_in reads as at rest, so it carries the same split.
+  - So the question above widens: one definite reading should end one way at rest whichever route carries it. For a Contradiction decision that would make the Undecided-past route end in the defect ending, or the SignCertain route in the lever plus the note.
+

@@ -333,7 +333,10 @@ impl LeverOnly {
 /// zero, a reading wholly on zero or the refused side (in band or past
 /// it, and so a sign-certain arm at a build), or a zero the symbolic
 /// tier proved ([`MarginDiag::sized_recourse`]), and on no other
-/// reading, at no import door.
+/// reading. At the import door it rides only on a reading whose nearer
+/// end lies past ε_in, which the door reads as at rest; within ε_in the
+/// door's one sentence carries no note
+/// ([`MarginDiag::sized_recourse_in_file`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NoSize {
     /// The note at a build, where the kernel made the geometry.
@@ -709,8 +712,8 @@ mod tests {
     /// rest and at the import door, on both lanes — the decision's note on
     /// a reading that shows no size, the floor's sentence on a sub-floor
     /// size, the lever alone on an enclosure across zero, the offer on a
-    /// size — and the import door adds no decision's note but keeps the
-    /// floor's sentence. Red if a route keys the note on the tag rather
+    /// size — and the import door adds no decision's note to any of these
+    /// readings, all within ε_in, but keeps the floor's sentence. Red if a route keys the note on the tag rather
     /// than the reading.
     #[test]
     fn either_route_ends_a_reading_alike() {
@@ -785,7 +788,7 @@ mod tests {
                 match at {
                     ReadAt::Run(Reading::Build) => assert_eq!(got, want, "{margin}"),
                     ReadAt::File(_) => {
-                        // No decision's note at the door; the floor's
+                        // No decision's note within ε_in; the floor's
                         // sentence, true of the number, rides as at a build.
                         assert!(!got.ends_with("; S"), "{margin} at the import door: {got}");
                         assert_eq!(

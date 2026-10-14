@@ -909,8 +909,9 @@ mod tests {
     /// clause on a floor that shows no size — zero, in band on the
     /// refused side, or sign-certain at a build — which no tolerance
     /// resolves, and where the decision has none, the lever alone there;
-    /// and a poisoned margin keeps the lever and says what it may mean. Read with another lever, each ending keeps its shape
-    /// and swaps the lever alone.
+    /// and a poisoned margin keeps the lever and says what it may mean.
+    /// Read with another lever, each ending keeps its shape and swaps the
+    /// lever alone.
     #[test]
     fn each_meter_arm_ends_in_its_decisions_recourse() {
         let straddle = MarginDiag::enclosure(-2e-9, 4e-9);

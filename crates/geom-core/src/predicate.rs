@@ -1263,10 +1263,10 @@ enum Shows {
     /// A size on a side the decision passes, decided passing by every
     /// tolerance a run admits below this one.
     Offer(f64),
-    /// No size: an exact zero, a reading reaching no side the decision
-    /// passes, in band or past it, or a zero the symbolic tier proved.
-    /// What a decision's note on a zero verdict asserts is established
-    /// here and nowhere else.
+    /// No size: an exact zero, a reading in band reaching no side the
+    /// decision passes, or a zero the symbolic tier proved. What a
+    /// decision's note on a zero verdict asserts is established here and
+    /// in [`Shows::Refused`], and nowhere else.
     NoSize,
     /// A nonzero size wholly on a side the decision passes, its nearer
     /// end away from zero, that only a tolerance at or below [`EPS_MIN`]
@@ -1278,6 +1278,10 @@ enum Shows {
     /// Past the band on a side the decision passes: decided at this
     /// tolerance already.
     Past,
+    /// Past the band wholly on sides the decision refuses: a decided sign
+    /// it cannot use, which shows no size as [`Shows::NoSize`] does and
+    /// ends as it does (D4 ¶1 (iv)).
+    Refused,
     /// Poisoned.
     Unreadable,
 }
@@ -1359,13 +1363,12 @@ pub struct SizedWords<'a> {
 
 impl SizedWords<'_> {
     /// **The ending of a sign-certain refusal that keeps no reading**
-    /// (D4 ¶1 (iv)): a verdict decided on a sign the decision refuses
-    /// lies wholly on the refused side, which [`MarginDiag::shows`]
-    /// classes as no size wherever the reading lies, so it ends as a
+    /// (D4 ¶1 (iv)): a verdict decided on a sign the decision refuses is
+    /// [`Shows::Refused`] by that class's definition, so it ends as a
     /// reading of that class does ([`MarginDiag::sized_recourse`]).
     #[must_use]
     pub fn sign_certain_recourse(self) -> String {
-        Shows::NoSize.ending(self)
+        Shows::Refused.ending(self)
     }
 }
 
@@ -1385,7 +1388,7 @@ impl Shows {
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
                  {v:e} m"
             ),
-            Self::NoSize => lever_recourse(lever, no_size),
+            Self::NoSize | Self::Refused => lever_recourse(lever, no_size),
             Self::Floor => lever_recourse(lever, Some(&floor_note(size))),
             Self::Unresolved | Self::Past => lever_recourse(lever, None),
             Self::Unreadable => lever_recourse(lever, Some(unreadable)),
@@ -1722,8 +1725,12 @@ impl MarginDiag {
             Reading::Invalid => return Shows::Unreadable,
         };
         let reaches = passes.reaches(lo, hi);
-        if reaches.0 && self.placement(band) == Placement::Past {
-            return Shows::Past;
+        if self.placement(band) == Placement::Past {
+            return if reaches.0 {
+                Shows::Past
+            } else {
+                Shows::Refused
+            };
         }
         match reaches {
             _ if self.proven() => Shows::NoSize,
@@ -1866,7 +1873,7 @@ impl MarginDiag {
             Shows::Floor => format!("{untold} Recourse: {lever}; {}", floor_note(size)),
             // Decided at this tolerance already, yet a size the file cannot
             // tell from zero: the lever alone, as at rest.
-            Shows::NoSize | Shows::Unresolved | Shows::Past => {
+            Shows::NoSize | Shows::Unresolved | Shows::Past | Shows::Refused => {
                 format!("{untold} Recourse: {lever}")
             }
             // A poisoned reading has no magnitude, so it ended above; it
@@ -2477,15 +2484,14 @@ impl Indeterminate {
     /// may intend, which no subdivision unproves. Every other reading
     /// says what it is; what a tolerance does for it is the ending's.
     fn reading(&self) -> (Option<&'static str>, KindLever) {
-        const DECIDED: &str = "a decided sign this decision cannot use";
         let (margin, band) = (self.margin, self.band);
         let undecided_value =
             margin.kind() == MarginKind::Value || margin.placement(band) == Placement::ZeroBand;
         match margin.shows(band, self.passes()) {
-            Shows::Past => (Some(DECIDED), KindLever::Door),
-            Shows::NoSize if margin.placement(band) == Placement::Past => {
-                (Some(DECIDED), KindLever::Door)
-            }
+            Shows::Past | Shows::Refused => (
+                Some("a decided sign this decision cannot use"),
+                KindLever::Door,
+            ),
             Shows::Unreadable => (None, KindLever::Inputs),
             Shows::NoSize if margin.proven() => (
                 Some("a zero the symbolic tier proved, which no tolerance makes a size"),
@@ -2854,9 +2860,9 @@ mod tests {
     /// unresolved; a reading with no point on an accepted side, an exact
     /// zero and a proved zero show no size; a size on an accepted side
     /// that only a tolerance at or below ε_min decides is the floor's;
-    /// past the band, a reading wholly on a refused side still shows no
-    /// size, and one on a passing side, and poison, are their own. Red if
-    /// any row moves class.
+    /// past the band, a reading wholly on a refused side is refused, and
+    /// one on a passing side, and poison, are their own. Red if any row
+    /// moves class.
     #[test]
     fn each_reading_shows_one_class() {
         use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive};
@@ -2881,10 +2887,10 @@ mod tests {
             (Positive, v(2e-12), Shows::Floor),
             (Positive, e(2e-12, 3e-12), Shows::Floor),
             (Positive, v(5e-8), Shows::Past),
-            (Positive, v(-5e-8), Shows::NoSize),
-            (Positive, e(-5e-8, -2e-8), Shows::NoSize),
-            (NonNegative, e(-5e-8, -2e-8), Shows::NoSize),
-            (Negative, v(5e-8), Shows::NoSize),
+            (Positive, v(-5e-8), Shows::Refused),
+            (Positive, e(-5e-8, -2e-8), Shows::Refused),
+            (NonNegative, e(-5e-8, -2e-8), Shows::Refused),
+            (Negative, v(5e-8), Shows::Refused),
             (Negative, v(-5e-8), Shows::Past),
             (NonZero, v(-5e-8), Shows::Past),
             (Positive, v(5e-10).as_proven(), Shows::NoSize),

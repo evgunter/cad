@@ -2080,8 +2080,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 }),
             },
             "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
-             there; an edge of no length, or a face curving to a point as a cone does, leaves no \
-             angle to measure",
+             there; an edge of no length or a cone's point leaves no angle to measure; a radius \
+             below zero is a defect",
         ),
         (
             "spline meter turns back",

@@ -6129,8 +6129,8 @@ mod tests {
             text,
             "at sample 4 the edge is not shown long enough, for how its faces curve, to measure \
              their angle (margin 0e0 m). Recourse: move the geometry so that edge is clearly \
-             longer and no face curves tightly there; an edge of no length, or a face curving to \
-             a point as a cone does, leaves no angle to measure",
+             longer and no face curves tightly there; an edge of no length or a cone's point \
+             leaves no angle to measure; a radius below zero is a defect",
         );
     }
 

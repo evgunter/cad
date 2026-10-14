@@ -106,17 +106,19 @@ use crate::recourse::{NoSize, SizedDecision, SizedPass, StoredDefinite};
 /// withholds the offer. Its margin is the wedge the arm meters,
 /// `sin θ · arm` (the arm's own where that wedge reads zero at the
 /// tolerance deciding the arm), so the tolerance it offers decides the
-/// arm and the wedge both. Its zero note names both ways the arm reaches
-/// no length: the edge's extent (an edge of none) and a face's radius
-/// (a cone's apex).
+/// arm and the wedge both. Its note names every reading that shows no
+/// size: both ways the arm reaches no length, the edge's extent (an edge
+/// of none) and a face's radius (a cone's point), and the one way the
+/// wedge goes below zero, a stored radius below zero, which breaks the
+/// stored convention and so is a defect.
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
     lever: "move the geometry so that edge is clearly longer and no face curves tightly there",
     size: "length or the gap its faces open",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Contradiction,
     no_size: Some(NoSize::same(
-        "an edge of no length, or a face curving to a point as a cone does, leaves no angle to \
-         measure",
+        "an edge of no length or a cone's point leaves no angle to measure; a radius below zero \
+         is a defect",
     )),
 };
 
@@ -1424,8 +1426,10 @@ mod tests {
     /// rejected zero a smaller tolerance decides passing is offered that
     /// tolerance; a rejected Negative, wholly on the refused side, takes
     /// the note as an in-band one does, at the import door too, where it
-    /// lies past ε_in; and at the import door no reading within ε_in
-    /// takes the note.
+    /// lies past ε_in, and the note says that a radius below zero is a
+    /// defect; the same Negative on the sign-certain arm takes the note at
+    /// a build and the defect ending over stored geometry; and at the
+    /// import door no reading within ε_in takes the note.
     #[test]
     fn a_gates_rejection_ends_by_its_reading_on_either_arm() {
         use geom_core::sym::with_session;
@@ -1471,8 +1475,8 @@ mod tests {
         let lever = "Recourse: move the geometry so that edge is clearly longer and no face \
                      curves tightly there";
         let noted = format!(
-            "{lever}; an edge of no length, or a face curving to a point as a cone does, \
-             leaves no angle to measure"
+            "{lever}; an edge of no length or a cone's point leaves no angle to measure; a \
+             radius below zero is a defect"
         );
         let untold = "This length or the gap its faces open is within the file's declared \
                         coincidence distance ε_in = 1e-8 m, so the file cannot tell it from \
@@ -1523,7 +1527,7 @@ mod tests {
             (
                 "a rejected Negative",
                 &negative,
-                [noted.clone(), noted.clone(), noted],
+                [noted.clone(), noted.clone(), noted.clone()],
             ),
         ];
         for (what, cause, want) in rows {
@@ -1543,6 +1547,24 @@ mod tests {
                     );
                 }
             }
+        }
+        // The same negative wedge decided on the sign-certain arm: the
+        // note at a build, and over stored geometry the defect ending of
+        // a contradiction, at the import door too.
+        let definite = Refused::Negative {
+            margin: negative.margin,
+        };
+        let defect = geom_core::KERNEL_OR_FILE_DEFECT_ENDING.to_owned();
+        for (at, want) in [
+            (ReadAt::Run(Reading::Build), noted),
+            (ReadAt::Run(Reading::AtRest), defect.clone()),
+            (ReadAt::File(file), defect),
+        ] {
+            assert_eq!(
+                DIHEDRAL_ARM.recourse(definite.arm(), at),
+                want,
+                "a definite Negative, sign-certain arm, {at:?}"
+            );
         }
     }
 
@@ -2245,7 +2267,7 @@ mod tests {
             "the apex arm reads exactly +0.0"
         );
         let collapsed = err.collapsed_arm().expect("the apex's arm is decided zero");
-        let note = "leaves no angle to measure";
+        let note = "a cone's point leaves no angle to measure; a radius below zero is a defect";
         let lever = "Recourse: move the geometry so that edge is clearly longer and no face \
                      curves tightly there";
         let file = FileCoincidence::new(1e-6);
