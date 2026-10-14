@@ -628,13 +628,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "PinchConesOnSeparateKeys",
-            BooleanError::PinchConesOnSeparateKeys {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
-            },
-        ),
-        (
             "PinchRaysInAFace",
             BooleanError::PinchRaysInAFace {
                 operand: Operand::A,

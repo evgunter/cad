@@ -211,13 +211,10 @@ enum GermLane<T: geom_core::Real> {
     /// ruling in it.
     Rulings((Point3<T>, UnitVec3<T>)),
     /// An equal cylinder pair with intersecting axes: the segment rides
-    /// the ellipse of its germ's `branch`, which lies in that branch's
+    /// the ellipse of its germ's branch, which lies in that branch's
     /// bisector plane, and each side's chord is its own wall cut by
     /// that plane.
-    Bisector {
-        plane: (Point3<T>, UnitVec3<T>),
-        branch: super::Branch,
-    },
+    Bisector((Point3<T>, UnitVec3<T>)),
     /// A segment along a conic edge of the solid `on` only, lying inside
     /// the other's curved face: `on`'s chord copies its edge, and the
     /// other's is its face cut by the edge's plane, which meets that
@@ -241,7 +238,7 @@ impl<T: geom_core::Real> GermLane<T> {
             Self::Planar => (RingClosure::Planar, RingClosure::Planar),
             Self::PlaneWall(plane) => (RingClosure::Planar, RingClosure::Wall(plane)),
             Self::WallPlane(plane) => (RingClosure::Wall(plane), RingClosure::Planar),
-            Self::Radical(plane) | Self::Rulings(plane) | Self::Bisector { plane, .. } => {
+            Self::Radical(plane) | Self::Rulings(plane) | Self::Bisector(plane) => {
                 (RingClosure::Wall(plane), RingClosure::Wall(plane))
             }
             Self::EdgePlane {
@@ -1000,6 +997,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
+    crossing_germs_have_their_reading(red, (a_pristine, b_pristine), band)?;
     let segments = join_segments(red, band)?;
     // A segment along an edge of both solids is that edge in both: each
     // solid's chord copies its own edge and no section is read (the
@@ -1252,13 +1250,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                         .get(&(ka, kb))
                         .ok_or(desync("a bisector segment's wall pair has no planes"))?
                         .pick(germ.branch)?;
-                    GermLane::Bisector {
-                        plane: (
-                            lp.center,
-                            germ_normal(germ_reach(&red.a)?, lp.center, lp.axis)?,
-                        ),
-                        branch: germ.branch,
-                    }
+                    GermLane::Bisector((
+                        lp.center,
+                        germ_normal(germ_reach(&red.a)?, lp.center, lp.axis)?,
+                    ))
                 }
                 arm @ KindArm::None => edge_lane(arm)?,
             })
@@ -1422,11 +1417,11 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 ])?;
                 curves
             }
-            Some(GermLane::Bisector { plane, branch }) => {
+            Some(GermLane::Bisector(plane)) => {
                 let datum = |own, partner| AuxDatum::Bisector {
                     own,
                     partner,
-                    branch,
+                    branch: germ.branch,
                 };
                 (
                     sa.split_curve(
@@ -1618,6 +1613,51 @@ fn bisector_planes<T: Decide>(
         }
     }
     Ok(planes)
+}
+
+/// **Every germ that rides an ellipse of an equal cylinder pair finds
+/// the pair read so on the operands**: the reading its coincidence rows
+/// are recorded from (`glue::frame_rows`) and its nodes are minted from
+/// (`node::mint_nodes`), [`crossing_cylinder_section`] on the unmutated
+/// operands' faces. The germ's branch was decided where the germ was
+/// minted, on the working bodies; a pair that reading finds crossing
+/// and this one does not would build without its rows or its nodes.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] for such a pair.
+fn crossing_germs_have_their_reading<T: Decide>(
+    red: &BooleanReduction<T>,
+    pristine: (&Body<T>, &Body<T>),
+    band: Band,
+) -> Result<(), BooleanError> {
+    let wall = |body: &Body<T>, f: FaceKey| {
+        matches!(
+            body.get_face(f).and_then(|fd| body.get_surface(fd.surface)),
+            Some(geom::Surface::Cylinder { .. })
+        )
+    };
+    let mut read = std::collections::BTreeSet::new();
+    for germ in red.null_edges_of(Operand::A).flat_map(|r| r.germs) {
+        let (super::Locus::InFace(fa), super::Locus::InFace(fb)) = (germ.a_locus, germ.b_locus)
+        else {
+            continue;
+        };
+        if germ.branch == super::Branch::Only
+            || !wall(&red.a, fa)
+            || !wall(&red.b, fb)
+            || !read.insert((fa, fb))
+        {
+            continue;
+        }
+        if crossing_cylinder_section((pristine.0, fa), (pristine.1, fb), band).is_none() {
+            return Err(BooleanError::JoinDesync {
+                what: "a germ rides an equal cylinder pair's ellipse where the pair's own \
+                       reading finds none",
+            });
+        }
+    }
+    Ok(())
 }
 
 /// **How far a partner site is along the germ line**, seen from the
@@ -3650,9 +3690,7 @@ fn intersecting_cylinder_axes<T: Decide>(
                     center, axis: n1, ..
                 },
                 geom::Curve3::Ellipse { axis: n2, .. },
-                geom::Surface::Cylinder { axis: a1, .. },
-                geom::Surface::Cylinder { axis: a2, .. },
-            ) = (e1, e2, sa, sb)
+            ) = (e1, e2)
             else {
                 return Err(FrameError::Desync(
                     "the equal-radius cylinder section carried a non-ellipse",
@@ -3665,10 +3703,12 @@ fn intersecting_cylinder_axes<T: Decide>(
             };
             return Ok(SectionLoops::Two {
                 loops: [lp(n1), lp(n2)],
+                // The planes' own unit normals: `e1`'s along `â₁ − â₂`,
+                // `e2`'s along `â₁ + â₂`.
                 split: LoopSplit::Bisector {
                     origin: center,
-                    sum: *a1 + *a2,
-                    diff: *a1 - *a2,
+                    sum: n2,
+                    diff: n1,
                 },
             });
         }
@@ -3829,12 +3869,12 @@ fn cs_transverse_frame<T: Decide>(
 /// `c` along `axis` changes `p−c` by a multiple of `axis`, which the
 /// triple product annihilates. So the sense a germ gets is identical
 /// whichever of the two stations (or the sphere centre between them)
-/// is handed over, and the pair needs neither a second frame nor a
-/// node arm. This is exactly where the cylinder PAIR differs: its
-/// crossing ellipses lie in two DIFFERENT bisector planes with two
-/// different axes, and no single frame is right for both — hence
-/// [`FrameError::CylinderNodes`] there and nothing like it
-/// here.
+/// is handed over, and the pair needs no second frame. This is exactly
+/// where the cylinder PAIR differs: its crossing ellipses lie in two
+/// DIFFERENT bisector planes with two different axes, and no single
+/// frame is right for both — hence its two loops there, each germ on
+/// the one its branch names ([`LoopSplit::Bisector`]), and nothing like
+/// it here.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 pub(super) fn cs_pair_frame<T: Decide>(
     cyl: &geom::Surface<T>,
@@ -5866,13 +5906,14 @@ mod frame_dispatch_tests {
     /// Both refusal variants are the trap being closed, but they are
     /// NOT interchangeable per row, and the matcher is split so that
     /// the loosening is confined to where it is earned. Only a
-    /// CYLINDER PAIR can reach `CylinderNodes` — the split
-    /// on coplanarity is the only producer of that variant — so those
-    /// rows admit either refusal here and the row below pins which one
-    /// each gets. Every other kind pair falls through to the
-    /// dispatch's final arm, where `NoArm` is the only reachable
-    /// answer, and a row that accepted the nodes variant there would
-    /// green through a mis-routed dispatch.
+    /// CYLINDER PAIR can be served the bisector lane
+    /// ([`serves_cylinder_nodes`]) — the split on coplanarity, then on
+    /// radius equality, is its only producer — so those rows admit
+    /// either answer here and the row below pins which one each meeting
+    /// pose gets. Every other kind pair falls through to the dispatch's
+    /// final arm, where `NoArm` is the only reachable answer, and a row
+    /// that accepted the bisector lane there would green through a
+    /// mis-routed dispatch.
     #[test]
     fn a_pair_without_an_arm_refuses_and_never_answers_straight() {
         // `cylinder_pair` marks the rows whose kinds can reach the
@@ -6001,20 +6042,26 @@ mod frame_dispatch_tests {
         let z = Vec3::new(0.0, 0.0, 1.0);
         let x = Vec3::new(1.0, 0.0, 0.0);
         for (r, equal) in [(1.0_f64, true), (0.4, false)] {
-            // Axes meeting at the origin.
-            let (sa, sb) = (cylinder(z), cylinder_at(Point3::new(0.0, 0.0, 0.0), x, r));
-            if equal {
-                assert!(
-                    serves_cylinder_nodes(&sa, &sb, at(), band()),
-                    "r = {r}: intersecting axes at equal radii serve the nodes"
+            // Axes meeting at the origin, square and at a slant.
+            for partner in [x, Vec3::new(0.0, 1.0, 1.0).normalize()] {
+                let (sa, sb) = (
+                    cylinder(z),
+                    cylinder_at(Point3::new(0.0, 0.0, 0.0), partner, r),
                 );
-            } else {
-                let got = pair_section_frame(&sa, &sb, at(), None, band());
-                assert!(
-                    matches!(got, Err(FrameError::NoArm)),
-                    "r = {r}: intersecting axes at unequal radii, got {}",
-                    outcome(&got)
-                );
+                if equal {
+                    assert!(
+                        serves_cylinder_nodes(&sa, &sb, at(), band()),
+                        "r = {r}, partner {partner:?}: intersecting axes at equal radii serve \
+                         the nodes"
+                    );
+                } else {
+                    let got = pair_section_frame(&sa, &sb, at(), None, band());
+                    assert!(
+                        matches!(got, Err(FrameError::NoArm)),
+                        "r = {r}, partner {partner:?}: intersecting axes at unequal radii, got {}",
+                        outcome(&got)
+                    );
+                }
             }
             // The same pair lifted along the common perpendicular
             // `a1 x a2` — the ONE direction that separates the axes. A
@@ -6048,6 +6095,37 @@ mod frame_dispatch_tests {
             ),
             "parallel cylinder axes meet in rulings"
         );
+    }
+
+    /// **A radius margin in band at meeting axes escalates (D4)**: it
+    /// is neither the nodes nor the unequal pair's `NoArm`, each of which
+    /// claims a definite class. The partner's radius is `1 + 2·zero` of
+    /// the band, past the zero band and short of escalation's edge, so
+    /// the table's `cc_radius_equality` reads it in band; a dispatch that
+    /// mapped that escalation to `NoArm` (or to the nodes) reds here.
+    #[test]
+    fn an_in_band_radius_at_meeting_axes_escalates() {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let r = 1.0 + 2.0 * band().zero();
+        for partner in [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 1.0).normalize(),
+        ] {
+            let got = pair_section_frame(
+                &cylinder(z),
+                &cylinder_at(Point3::new(0.0, 0.0, 0.0), partner, r),
+                at(),
+                None,
+                band(),
+            );
+            assert!(
+                matches!(&got, Err(FrameError::Escalated(diag))
+                    if diag.predicate == Some("cc_radius_equality")),
+                "partner {partner:?}, r = 1 + 2·zero: the radius margin is in band and must \
+                 escalate, got {}",
+                outcome(&got)
+            );
+        }
     }
 
     /// **The nodes are a property of the whole intersecting

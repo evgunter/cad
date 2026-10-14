@@ -56,7 +56,7 @@ use super::role::{
     CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, SplitHalf, StableName,
     name_free_seg,
 };
-use super::table::{EntityRef, Entry};
+use super::table::EntityRef;
 
 /// The op group a [`RoleSeg`] belongs to — the enum's own documented
 /// grouping, made addressable so a pattern can say "anything the
@@ -927,10 +927,7 @@ pub fn select_where<T: Decide>(
         // `Ambiguous`); none ⇒ exclude; MIXED ⇒ refuse, because a
         // filter cannot half-select a name and silence in either
         // direction lies.
-        let candidates: &[EntityRef] = match entry {
-            Entry::Unique(e) => core::slice::from_ref(e),
-            Entry::Tied(v) => v,
-        };
+        let candidates: &[EntityRef] = entry.entities();
         let mut matched = 0usize;
         for ent in candidates {
             let body = interrogate::output_body(&value.payload, ent.body).map_err(|error| {

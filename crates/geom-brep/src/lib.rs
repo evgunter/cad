@@ -54,6 +54,7 @@
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
 mod carrier_net;
+pub mod carrier_speed;
 pub mod certify;
 pub mod conic_bend;
 pub(crate) mod descent;
@@ -67,10 +68,12 @@ pub mod extent;
 pub mod fitted_lane;
 #[cfg(test)]
 mod grid_offsets;
+pub mod half_angle;
 pub(crate) mod harmonic;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
+pub mod ladder;
 pub mod locus;
 pub mod mapped;
 pub mod newell;
@@ -83,6 +86,7 @@ pub mod patch_bound;
 pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
+pub mod quartic;
 pub mod recourse;
 pub(crate) mod shape_operator;
 mod sphere_circle;

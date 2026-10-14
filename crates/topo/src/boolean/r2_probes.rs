@@ -14,7 +14,8 @@
 
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use super::solid_contain::{TorusRoots, line_torus_roots};
+use super::solid_contain::line_torus_roots;
+use geom_brep::quartic::QuarticRoots;
 
 const R_MAJ: f64 = 1.0;
 const R_MIN: f64 = 0.3;
@@ -83,16 +84,16 @@ fn probe(q: Point3<f64>, d_raw: Vec3<f64>, band: Band) -> (Option<(usize, Vec<f6
         R_MIN,
         band,
     ) {
-        Ok(TorusRoots::Miss) => (Some((0, Vec::new())), false),
-        Ok(TorusRoots::Uncertain) => (None, false),
-        Ok(TorusRoots::Certified { count, ts }) => {
+        Ok(QuarticRoots::Miss) => (Some((0, Vec::new())), false),
+        Ok(QuarticRoots::Uncertain) => (None, false),
+        Ok(QuarticRoots::Certified { count, ts }) => {
             let mut v: Vec<f64> = ts[..count].to_vec();
             v.sort_by(f64::total_cmp);
             (Some((count, v)), false)
         }
         // Rung 5 (constructed ≠ certified) is a broken premise; an
         // in-band escalation is the honest decline.
-        Ok(TorusRoots::CountDisagrees { .. }) => (None, true),
+        Ok(QuarticRoots::CountDisagrees { .. }) => (None, true),
         Err(e) => (None, e.margin.is_invalid()),
     }
 }
@@ -275,7 +276,7 @@ fn r2_extreme_radii_ratios_keep_the_certified_roots_honest() {
             pf = v;
         }
         match got {
-            Ok(TorusRoots::Certified { count, ts }) => {
+            Ok(QuarticRoots::Certified { count, ts }) => {
                 assert_eq!(count, roots.len(), "count at ratio {rr}/{rm}");
                 let mut v: Vec<f64> = ts[..count].to_vec();
                 v.sort_by(f64::total_cmp);

@@ -410,17 +410,16 @@ Built (PR 5020's design): the node is a ring in each wall with its
 sides fixed by construction, and the join cuts each wall by the
 bisector plane of the germ's branch.
 
-**What SEAT's channel gives it**: recognition only.
-`cylinder_cylinder_section` takes `RadiusEvidence::{Declared, None}`
-and never reads radii; SEAT-6 (`work/seat/SEAT-6.md`, PR #1593)
-mints the per-field `ParamSource` so a production caller can say
-`Declared`. Named or not, the family builds at its nodes.
+**What SEAT's channel gives it**: nothing.
+`cylinder_cylinder_section` decides the radii equal by their margin
+(`cc_radius_equality`, D10) and reads no declaration, so the family
+is recognised whether or not its radius was declared once.
 
 **Why the spiric carrier neither resolves nor shares it**:
 
 1. The pinch curves are exact conics the kernel already carries; no
-   carrier is missing. The gap is the vertex/loop vocabulary, which
-   a `Curve3` variant cannot touch.
+   carrier is missing. The gap is the Boolean minting the node, a
+   topology step a `Curve3` variant cannot touch.
 2. The rim spiric never has a node: §3.4, `t < R − (r − t)` for every
    legal `t`. Two smooth disjoint ovals, one of them the rim, both
    `Intersection`-transverse everywhere. No valence-4 vertex is
