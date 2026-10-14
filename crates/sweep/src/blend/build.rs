@@ -404,26 +404,23 @@ pub(super) fn face_cycle_edges<T: Decide>(body: &Body<T>, face: FaceKey) -> Opti
 
 /// The octant's chart pick at one trivalent corner: the chart is
 /// [`corner_chart`] over the corner's feet with the pole on the THIRD
-/// support's foot (up to sign) of one incident link, so neither pole
-/// lies inside the patch off a vertex. Which link: the octant is an
+/// support's foot (up to sign) of one incident link. Every link yields
+/// a valid chart that way — neither pole inside the patch off a
+/// vertex — so the pick only PREFERS one: the octant is an
 /// iso-parameter rectangle exactly when that link's edge axis
-/// `n_a × n_b` is parallel to the third support's normal `n_c`, so the
-/// pick minimizes `|n_c × (n_a × n_b)|` over the incident requested
-/// links, ORDER-FREE — it finds the admitting edge whenever one exists
-/// and falls back to the best-scoring link (the genuinely oblique
-/// trihedron, whose octant is a spherical triangle with two meridian
-/// sides and still passes tier 3) only when none does. Returns
-/// `(u_ref, axis)`.
+/// `n_a × n_b` is parallel to the third support's normal `n_c`, so it
+/// minimizes `|n_c × (n_a × n_b)|` over the incident requested links,
+/// ORDER-FREE, and finds the admitting edge whenever one exists. On a
+/// genuinely oblique trihedron no link admits, and the octant is a
+/// spherical triangle with two meridian sides whichever link wins.
+/// Returns `(u_ref, axis)`.
 ///
 /// **The chart follows the corner's convexity**: a convex octant's
 /// feet lie along `+n_i` from the centre, a concave one's along `−n_i`,
 /// and the seam passes through the foot `n_a` (convex) or `−n_b`
 /// (concave). The pole's sign falls out of the winding of the winning
-/// link's stored face order (measured split: 7:1 over a cube's convex
-/// octants, 6:2 over the cavity's concave ones —
-/// `review_blend4_r2_probes::r2_the_octant_chart_pole_is_the_third_foot_only_up_to_sign`,
-/// beside the seam/quarter-turn pin that holds both halves of the
-/// concave fold).
+/// link's stored face order, so it differs between corners of one body
+/// (`review_blend4_r2_probes::r2_the_octant_chart_pole_is_the_third_foot_only_up_to_sign`).
 ///
 /// **The pick always yields, over one corner.** [`CornerLinks`] carries
 /// at least one link and [`CornerFaces::third`] is total over the

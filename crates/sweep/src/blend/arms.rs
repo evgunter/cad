@@ -999,8 +999,7 @@ impl<T: Real> Ruling<T> {
 /// the patch spans `u ∈ [0, θ]` with `θ < π`, bounded by the meridians
 /// through `f_x` and `f_y` and the arc `f_x f_y`, which is the equator
 /// exactly when `f_x, f_y ⊥ f_c` (the iso-rectangle `build`'s octant
-/// pick scores for). A sphere chart's normal is radial outward under
-/// either pole, so the fold never touches a face's sense.
+/// pick scores for).
 #[must_use]
 pub fn corner_chart<T: Real>(feet: [Vec3<T>; 3]) -> (Vec3<T>, Vec3<T>) {
     let [f_x, f_y, f_c] = feet;

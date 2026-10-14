@@ -7,10 +7,14 @@
 //! Over a corpus of corner patches — a cube's convex corners at six
 //! rigid poses and two scales, the vented cavity's concave ones, the
 //! slim-wedge skewed cavity at two scales, the oblique trihedra of
-//! `m5_pr12_fix_pass`'s `f4` clip and of a void cut in its shape, and a
-//! cube at `Interval` — every corner face reads
-//! `MaterialSign::Encoded` agreeing with its stored bit, and each pole
-//! of its sphere chart is one of its vertices or lies outside it.
+//! `m5_pr12_fix_pass`'s `f4` clip, of a void cut in its shape and of
+//! clips of an acute and an obtuse prism, and a cube at `Interval` —
+//! every corner face reads `MaterialSign::Encoded` agreeing with its
+//! stored bit, and each pole of its sphere chart is one of its vertices
+//! or lies outside it. That is the rule; the stored chart is held to
+//! its construction too (`sweep::blend::arms::corner_chart`): one pole
+//! IS a vertex, and the sampled boundary sits in one `u` window inside
+//! `[0, π)`.
 //!
 //! "Outside" is read off the face's own vertices, not the chart: a
 //! corner patch's sides are great-circle arcs, so the patch is the
@@ -22,15 +26,17 @@
 
 use crate::common::cavity::{brick, cavity_edges, cut, rod, skewed_cavity_edges, vented_cavity};
 use crate::common::interval::iv;
+use crate::common::oblique;
 use crate::common::poses::poses;
+use std::f64::consts::PI;
+
 use geom::Surface;
-use geom_core::{Affine3, Band, Bounds, Decide, Interval, Point2, Point3, Sign, Tol, Vec3};
+use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Sign, Tol, Vec3};
 
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{Convexity, Filleted};
-use sweep::test_support::{at_rest, cube, finished};
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use sweep::test_support::{at_rest, corners, cube, prism};
 use topo::{Body, EdgeKey, LoopBoundary, query};
 
 fn mid<T: Bounds>(x: T) -> f64 {
@@ -67,7 +73,7 @@ fn every_corner_encodes_and_holds_no_pole<T: Decide + Bounds>(
             center,
             radius,
             axis,
-            ..
+            u_ref,
         } = *surface
         else {
             panic!("{tag}: a fillet corner patch is a sphere");
@@ -104,6 +110,32 @@ fn every_corner_encodes_and_holds_no_pole<T: Decide + Bounds>(
         assert!(verts.len() >= 3, "{tag}: a corner patch has three corners");
         let r = mid(radius);
         let axis = mid3(Point3::new(axis.x, axis.y, axis.z));
+        let u_ref = mid3(Point3::new(u_ref.x, u_ref.y, u_ref.z));
+        assert!(
+            verts
+                .iter()
+                .any(|v| (*v - axis).norm() * r < 1e-9 || (*v + axis).norm() * r < 1e-9),
+            "{tag}: corner face {face:?}'s pole {axis:?} is on none of its vertices {verts:?}"
+        );
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        for e in &outer {
+            let (t0, t1) = (mid(e.t0), mid(e.t1));
+            for k in 0..=32 {
+                let t = t0 + (t1 - t0) * f64::from(k) / 32.0;
+                let d = (mid3(e.carrier.eval(T::from_f64(t))) - c).normalize();
+                if d.cross(axis).norm() < 1e-6 {
+                    continue;
+                }
+                let u = d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref));
+                lo = lo.min(u);
+                hi = hi.max(u);
+            }
+        }
+        assert!(
+            lo > -1e-9 && hi < PI,
+            "{tag}: corner face {face:?}'s boundary spans u [{lo}, {hi}], not one window in \
+             [0, π)"
+        );
         for pole in [axis, -axis] {
             let on_vertex = verts.iter().any(|v| (*v - pole).norm() * r < 1e-9);
             let inside = (1..verts.len() - 1)
@@ -121,48 +153,6 @@ fn every_corner_encodes_and_holds_no_pole<T: Decide + Bounds>(
 fn fillet_all(tag: &str, body: &Body<f64>, edges: &[EdgeKey], r: f64) -> Filleted<f64> {
     fillet_edges(&at_rest(body, Tol::witness()), edges, r, Tol::witness())
         .unwrap_or_else(|e| panic!("{tag}: the fillet builds: {e:?}"))
-}
-
-/// `m5_pr12_fix_pass`'s `f4` clip: the unit cube cut by a cube turned
-/// `0.4` about a skew axis, whose corners are genuinely oblique
-/// trihedra (no support's normal is parallel to the other two's edge).
-fn oblique_clip() -> Body<f64> {
-    let prism = |side: f64| {
-        sweep::test_support::brick((0.0, side), (0.0, side), (0.0, side), Tol::witness())
-    };
-    let tilted = topo::transform_rigid(
-        &prism(3.0),
-        &geom_core::RigidMotion::translation(Vec3::new(-1.55, -1.55, -2.45)).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap();
-    let tilted = topo::transform_rigid(
-        &tilted,
-        &geom_core::test_support::rigid(
-            &Affine3::rotation_about_axis(
-                Point3::new(1.0, 1.0, 1.0),
-                Vec3::new(1.0, -1.0, 0.0).normalize(),
-                0.4,
-            ),
-            Tol::witness(),
-        ),
-        Tol::witness(),
-    )
-    .unwrap();
-    boolean_op_with(
-        BooleanOp::Intersect,
-        &finished("the unit cube", prism(1.0), Tol::witness()),
-        &finished("the tilted cube", tilted, Tol::witness()),
-        &topo::BooleanInputs::default(),
-        SweepStrategy::Realized,
-        Tol::witness(),
-    )
-    .expect("the oblique clip")
-    .body()
-    .expect("a body")
-    .body
-    .clone()
-    .into_body()
 }
 
 #[test]
@@ -194,9 +184,44 @@ fn every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex() {
         read += every_corner_encodes_and_holds_no_pole(&tag, &out);
     }
 
-    let clip = oblique_clip();
+    let clip = oblique::f4();
     let out = fillet_all("the f4 oblique clip", &clip, &query::all_edges(&clip), 0.08);
     read += every_corner_encodes_and_holds_no_pole("the f4 oblique clip", &out);
+
+    // Oblique clips of an acute and an obtuse prism: corners whose
+    // dihedrals stray far from a right angle.
+    let acute: f64 = 0.35;
+    for (name, base, angle, ax) in [
+        (
+            "the acute prism",
+            prism(
+                corners(&[
+                    (0.0, 0.0),
+                    (1.2, 0.0),
+                    (1.2 * acute.cos(), 1.2 * acute.sin()),
+                ]),
+                1.0,
+                Tol::witness(),
+            ),
+            0.15,
+            Vec3::new(1.0, 2.0, 3.0),
+        ),
+        (
+            "the obtuse prism",
+            prism(
+                corners(&[(0.0, 0.2), (1.0, 0.0), (2.0, 0.2), (1.0, 1.0)]),
+                1.0,
+                Tol::witness(),
+            ),
+            0.4,
+            Vec3::new(1.0, -1.0, 0.0),
+        ),
+    ] {
+        let tag = format!("{name} clipped {angle} about {ax:?}");
+        let body = oblique::clip(base, angle, ax).expect("the clip");
+        let out = fillet_all(&tag, &body, &query::all_edges(&body), 0.03);
+        read += every_corner_encodes_and_holds_no_pole(&tag, &out);
+    }
 
     // The same oblique trihedra as a vented void: concave corners whose
     // supports are not orthogonal.
@@ -248,8 +273,9 @@ fn every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex() {
     read += every_corner_encodes_and_holds_no_pole("the cube at Interval", &out);
 
     // 12 cubes, the cavity, two skewed cavities, the clip, the void
-    // and the Interval cube: eight corners each.
-    assert_eq!(read, 18 * 8, "every corner of the corpus was read");
+    // and the Interval cube: eight corners each; the two prism clips,
+    // sixteen between them.
+    assert_eq!(read, 18 * 8 + 16, "every corner of the corpus was read");
 }
 
 /// **The arm's own chart, as a value**: `corner_ball`'s pole is the

@@ -8,15 +8,13 @@
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
-use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Vec3};
 use geom_core::{Band, ErrorTextReading, Tol};
+use geom_core::{Bounds, Interval, Point2, Real, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::Body;
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query;
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
@@ -218,40 +216,7 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 /// it, each for its own reason).
 #[test]
 fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
-    let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
-    let c2 = prism(&[(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)], 3.0);
-    let c2 = topo::transform_rigid(
-        &c2,
-        &geom_core::RigidMotion::translation(Vec3::new(-1.55, -1.55, -2.45)).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap();
-    let c2 = topo::transform_rigid(
-        &c2,
-        &geom_core::test_support::rigid(
-            &Affine3::rotation_about_axis(
-                Point3::new(1.0, 1.0, 1.0),
-                Vec3::new(1.0, -1.0, 0.0).normalize(),
-                0.4,
-            ),
-            Tol::witness(),
-        ),
-        Tol::witness(),
-    )
-    .unwrap();
-    let clipped = boolean_op_with(
-        BooleanOp::Intersect,
-        &finished("the unit cube", c1, Tol::witness()),
-        &finished("the tilted cube", c2, Tol::witness()),
-        &topo::BooleanInputs::default(),
-        SweepStrategy::Realized,
-        Tol::witness(),
-    )
-    .expect("the oblique clip")
-    .body()
-    .expect("a body")
-    .body
-    .clone();
+    let clipped = crate::common::oblique::f4();
     let edges = query::all_edges(&clipped);
     let r = 0.08;
     let f = fillet_edges(
