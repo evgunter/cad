@@ -686,7 +686,15 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             })
     };
     let arm = match stopped {
-        Subdivided::Value { at: tb, .. } if carrier_on_surface(tb) => &CHART_IMAGE_HULL,
+        Subdivided::Value { at: tb, .. }
+            if match std::env::var("R2_MUT").as_deref() {
+                Ok("on") => true,
+                Ok("off") => false,
+                _ => carrier_on_surface(tb),
+            } =>
+        {
+            &CHART_IMAGE_HULL
+        }
         _ => &CHART_HULL,
     };
     let sup = hull_limb(arm, stopped, band, at)?;
