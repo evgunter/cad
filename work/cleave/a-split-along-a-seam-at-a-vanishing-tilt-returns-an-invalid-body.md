@@ -71,7 +71,8 @@ band, so `props_chart_junction_closed` escalates. At `ψ = 1e-7` the vertex's
 trig bracket is refused outright (NaN slack and gap, margin `Invalid`). At
 `φ = 0.9` the same family also reaches a frame finding
 (`UnrepresentableCurveDatum { Ellipse, URef, .. }`, the frame's own rounding
-times the axis) and a spent quadrature budget (`QuadratureBudget`, width
+times the axis; PR 5100's review found it the first finding at `φ = 2.2`
+too, on the grazing-plane rows with `L` up to 2.5 at 1e-9) and a spent quadrature budget (`QuadratureBudget`, width
 `2.2e-6` against target `1.0e-6` after 13 rounds, 4.4 s in release). The input
 is `ψ·1 m = 1e-7` off tangency, outside the band at `ε ≤ 1e-9`. So these are
 kernel limitations with no geometry lever, and the refusal offers none: the
@@ -99,3 +100,23 @@ these halves valid.
 at every ε row: every side returned passes `validate_geometric` and the sides
 hold `π`; every at-rest refusal carries only the ellipse's findings and no
 tighten or move lever; the `ψ = 1e-3` poses answer.
+
+**Fix pass (PR 5100's review).**
+- The typing has one home: `topo::boolean::at_rest_refusal` (`boolean/ops.rs`,
+  where the Boolean's site census reads it). The Boolean's `gate` and the
+  split both route through it. A side refused only on in-band shells is
+  `SplitFinishError::ResultEscalated`, `BooleanDecision::ShellRole` rendered
+  as the Boolean renders it. Every other refusal is `ResultNotAtRest`, worded
+  through `topo::validate::write_result_not_at_rest`, the same function the
+  Boolean's `ResultInvalid` uses.
+- The pin asserts the exact variant, a nonzero at-rest count at ε ≤ 1e-9
+  (26 at 1e-9, 28 at 1e-12, none at 1e-6), each finding's own ending with no
+  lever, and the first finding rendered whole.
+- `section_ellipse_seam_poses.rs` (PR 4861) is re-baselined. 50 rows that
+  returned sides tier 3 refused now refuse at the split's gate, named by the
+  first refused side: 18 at 1e-6 (`VolumeUncomputable`) and 32 at 1e-12
+  (`URef` frame findings).
+- `transform_rigid` does flip tier 3: 40 of 784 turned valid slivers read
+  `NegativeVolume` at 1e-9. Filed as
+  `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out` (P2).
+
