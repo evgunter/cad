@@ -1333,3 +1333,13 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **B's off-question finds:** a turned frame at |o| ≈ 990 (inside the box) refuses ∩/∖ `VolumeUnmeasured { QuadratureBudget }` while the origin builds, suggested for FLUX; D4 ¶4 "rejected at construction" is unbuilt.
   - Both say no ratified text moves, so Ev's PR 4895 discretion should apply once they agree.
 - 2026-10-14 09:35 — Check-in. 5066's fix pass is testing the winding's finer-count change (item 5). The pt-section-gaps designers are in reconciliation round 1. Re-armed for 10:35.
+- 2026-10-14 10:20 — **pt-section-gaps fork closed without going to Ev.** Both designers call it no fork, and no ratified text moves (PR 4895 discretion).
+  - **Round 1 crossed on the one detail.** A adopted `d = n·(q − c)`: `61e697d836`'s reason matched a retired door, and the only row it reds demands bits D10 does not promise. B dropped it to "optional; spell it as the sphere arm if the arm is touched". B also found that no contract or certificate depends on the old spelling (the commit's rows are green with the change).
+  - **My call:** adopt the stable spelling. It is D10's frame rule and the sphere arm's convention; neither designer objects; it is conditioning, not a decision. Final state both share: no charge at the section; the far readings belong to D4 ¶4's unbuilt session box (`work/scalar/no-door-rejects-geometry-past-eps-f64-resolution`).
+  - No DESIGN-FORK-LOG row: the population is forks put to Ev as `[ev]` PRs (protocol rule 1). Reports are in scratchpad/fork-ptgap/ (round 0 and round 1).
+  - **Implementer dispatched**, session_01478Xw3fLmvxSwurLaQLTCL, branch germ/pt-section-gaps:
+    - the frame-rule spelling, re-baselining spiric_rim's re-pose row;
+    - the section far row moved inside the box and asserting 0 misreads;
+    - the germ item closed into the box item, with a seam note on PR 5012's rows and charge and on K's lower bound;
+    - FLUX's turned-frame QuadratureBudget defect filed;
+    - the c5 item's stale front matter refreshed.
