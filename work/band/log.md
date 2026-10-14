@@ -1031,3 +1031,33 @@ the fix pass took the reviewer's oblique corpus into the row. Oblique
 fillet corners still do not tessellate (`NotIsoRectangle`, the P0 tess
 item, which now carries them as a witness); box corners move only by
 signed zeros at axis poses and by ulps elsewhere.
+
+## 2026-10-14 — sheet_clip clips a cylinder or plane at any pose (PR 5052)
+
+`sheet_clip` admitted a cylinder by its stored origin's offset and an
+unlevered tilt gate. A wrong admission was only ever a lost clip (the
+clip is the face boundary's span along the trace, and `z` is affine
+along every ruling, so the boundary's span holds the face at every
+pose); the fix reads no origin and, after review, clips a cylinder or
+a plane at any pose, ⊥ included. `sheet_fn` reads its slack at the foot
+of the reach box's centre. `tilt`, the circle arm's `lean` and
+`circular_reach` take their chords without cancellation; main's
+`√(2−2|b̂·a|)` under-read the slack in f64 (a zero-band lean levered
+over a long box read 0). Cost M, full review APPROVE-WITH-FIXES (no
+MAJOR: 9412 clips at 14 leans, 0 missed a face point; mutants red); the
+fix pass ported the reviewer's corpus as rows.
+
+## 2026-10-14 — the band feature rule written down; the crossing recourse names the reorder (PR 5077, step 1)
+
+C8 and `crates/sweep/README.md` predicate 2 state Ev's rule (PR 4963):
+`S − R` / `S ∪ F`, what is built today, and the refusals sorted by the
+meter that reads them (the screen and the ring meters; the reach;
+`WhollyInside`). The clearance and ring recourses offer the reorder
+("if that face came after the edge, blend before it, re-picking the
+edges there"); rows walk it to a build for a chamfer against a skew
+bore and for either verb against a parallel bore, and pin the fillet
+against a skew bore refusing at the Boolean (`GermFrameUnsupported
+{ Cylinder, Cylinder }`) until that pair is served. Filed
+`work/doctail/an-editor-action-moves-a-node-after-another.md`; the
+lint item carries Ev's op-agnostic ruling. Cost M, full review
+APPROVE-WITH-FIXES (two README sentences named the wrong arm or row).

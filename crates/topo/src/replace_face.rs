@@ -1206,14 +1206,14 @@ pub(crate) fn translate_curve<T: Real>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => Curve3::Ellipse {
             center: *center + delta,
             axis: *axis,
-            major: *major,
-            minor: *minor,
+            semi_u: *semi_u,
+            semi_v: *semi_v,
             u_ref: *u_ref,
         },
         Curve3::Spiric {
@@ -2214,12 +2214,12 @@ fn cone_v_range<T: Decide>(
         Curve3::Ellipse {
             center,
             axis: ca,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let v_ref = ca.cross(*u_ref);
-            let amp = ((u_ref.dot(axis) * *major).powi(2) + (v_ref.dot(axis) * *minor).powi(2))
+            let amp = ((u_ref.dot(axis) * *semi_u).powi(2) + (v_ref.dot(axis) * *semi_v).powi(2))
                 .sqrt()
                 / cos_a;
             let c = v_of(*center);
@@ -4475,8 +4475,8 @@ mod pose_reach_rows {
             let e = Curve3::Ellipse {
                 center: Point3::new(0.1, 0.2, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref: Vec3::new(u, 0.0, 0.0),
             };
             let reach = Reach::Span {
