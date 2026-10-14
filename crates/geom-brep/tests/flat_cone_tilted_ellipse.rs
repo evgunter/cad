@@ -36,7 +36,8 @@ const RESOLUTION_ULPS: f64 = 16.0;
 
 /// A cone of half-angle `alpha` about `axis` from `apex`, and the plane
 /// `gap` off the apex whose normal leans `tilt` off the axis toward
-/// `toward`, its section consumed `lever` from the apex.
+/// `toward` (reversed where `flip`, so `axis·normal < 0`), its section
+/// consumed `lever` from the apex.
 struct Pose {
     apex: Point3<f64>,
     axis: Vec3<f64>,
@@ -45,13 +46,15 @@ struct Pose {
     toward: Vec3<f64>,
     gap: f64,
     lever: f64,
+    flip: bool,
 }
 
 impl Pose {
     fn normal(&self) -> Vec3<f64> {
         let a = self.axis;
         let perp = (self.toward - a * self.toward.dot(a)).normalize();
-        (a * self.tilt.cos() + perp * self.tilt.sin()).normalize()
+        let n = (a * self.tilt.cos() + perp * self.tilt.sin()).normalize();
+        if self.flip { -n } else { n }
     }
 
     fn surfaces(&self) -> (Surface<f64>, Surface<f64>) {
@@ -116,16 +119,18 @@ impl Pose {
 /// leaning a fraction of that off square to the axis, in a generic
 /// frame: ellipses of 1e3 to 1e6 m whose `K` is 1e-11 to 1e-6, each
 /// consumed over the axis-normal circle's radius `|gap|/(π/2 − α)`, so
-/// the conic-type margin clears the band at every ε row.
+/// the conic-type margin clears the band at every ε row. Half the rows,
+/// a checkerboard over the three axes, reverse the normal.
 #[test]
 fn a_flat_cone_cut_near_square_serves_an_ellipse_on_the_cut() {
     let axis = Vec3::new(0.3, -0.5, 0.81).normalize();
     let toward = Vec3::new(-0.7, 0.2, 0.4);
     let apex = Point3::new(3.1, -2.7, 5.3);
     let mut rows = Vec::new();
-    for flat in [1e-5, 1e-4, 1e-3] {
-        for lean in [0.3, 0.6, 0.85] {
-            for gap in [0.7, -2.3] {
+    for (i, flat) in [1e-5, 1e-4, 1e-3].into_iter().enumerate() {
+        for (j, lean) in [0.3, 0.6, 0.85].into_iter().enumerate() {
+            for (k, gap) in [0.7, -2.3].into_iter().enumerate() {
+                let flip = (i + j + k) % 2 == 1;
                 let pose = Pose {
                     apex,
                     axis,
@@ -134,11 +139,12 @@ fn a_flat_cone_cut_near_square_serves_an_ellipse_on_the_cut() {
                     toward,
                     gap,
                     lever: gap.abs() / flat,
+                    flip,
                 };
-                let miss = pose
-                    .miss_in_ulps()
-                    .unwrap_or_else(|| panic!("flat {flat:e}, lean {lean}, gap {gap}: no ellipse"));
-                rows.push((flat, lean, gap, miss));
+                let miss = pose.miss_in_ulps().unwrap_or_else(|| {
+                    panic!("flat {flat:e}, lean {lean}, gap {gap}, flip {flip}: no ellipse")
+                });
+                rows.push((flat, lean, gap, flip, miss));
             }
         }
     }
@@ -149,12 +155,13 @@ fn a_flat_cone_cut_near_square_serves_an_ellipse_on_the_cut() {
     assert!(
         off.is_empty(),
         "served ellipses stand past {RESOLUTION_ULPS} u of their size off the cut \
-         (flat, lean, gap, miss in u·size): {off:?}"
+         (flat, lean, gap, flip, miss in u·size): {off:?}"
     );
 }
 
 /// Flat, needle and ordinary cones in random frames, cut at a random
-/// fraction of the tilt that keeps the section an ellipse.
+/// fraction of the tilt that keeps the section an ellipse, the normal
+/// reversed at random.
 #[test]
 fn every_served_tilted_ellipse_stands_on_the_cut() {
     let mut g = fuzz::start("flat_cone_tilted_ellipse::every_served");
@@ -184,6 +191,7 @@ fn every_served_tilted_ellipse_stands_on_the_cut() {
             toward: unit(&mut g),
             gap: g.range(0.3, 3.0) * if g.unit() < 0.5 { 1.0 } else { -1.0 },
             lever: 1.0,
+            flip: g.unit() < 0.5,
         };
         if let Some(miss) = pose.miss_in_ulps() {
             served += 1;
