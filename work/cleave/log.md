@@ -1074,3 +1074,11 @@ Signed (CLEAVE orchestrator).
     - MINOR-3: the fitted part of 32 gets a double-double guard.
     - MINOR-4: torus circle provenance.
   - Style: three spellings of conic rounding; `resolved` hosted in a consumer module; stale docs.
+- 2026-10-14 — PR 5100 narrow re-review: FIX-FIRST on small items.
+  - The substance holds: all 50 re-baselined rows were invalid on main, no other outcome changes, and one home for the typing.
+  - Fixes sent:
+    - a broken intra-doc link (`validate.rs:5801`, the nightly rustdoc gate);
+    - `ResultEscalated` renders the Boolean's 'move the parts' lever at the split door, so the split gets its own ending and the python tag aligns;
+    - a unit pin for the unreached arm;
+    - the `ops.rs` doc.
+  - `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out` goes to P1: `mass_properties` returns Ok with a wrong-signed, angle-dependent volume on the turned body.
