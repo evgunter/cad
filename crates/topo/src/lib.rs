@@ -816,6 +816,28 @@ pub mod test_support {
         )
     }
 
+    /// **Where `face` holds `p`, as the census confirms it**: the read
+    /// that places a `(vertex, face)` record at rest, and that the
+    /// boolean's carry asks of a divided face's pieces
+    /// ([`crate::boolean::face_placement`]). `Ok(Some(_))` placed (a
+    /// point decided off a planar face's plane is `Out`), `Ok(None)` a
+    /// curved trim's unread remainder, `Err` the escalations or refusal
+    /// the census would push.
+    ///
+    /// # Errors
+    ///
+    /// The census's own findings for the read, as above.
+    pub fn face_holds<T: geom_core::Decide>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        p: geom_core::Point3<T>,
+        band: geom_core::Band,
+    ) -> Result<Option<crate::FaceContainment>, Vec<crate::ValidationError>> {
+        let mut errors = Vec::new();
+        crate::census::face_holds(body, face, p, band, "pm_census_confirm_vf", &mut errors)
+            .ok_or(errors)
+    }
+
     /// Is `p`, on `face`'s plane, inside the face? `point_in_solid`'s
     /// planar in-face test, which the ray sweep reaches only through a
     /// hit it decides to take — named here so a row can ask it about a
