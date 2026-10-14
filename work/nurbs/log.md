@@ -1497,3 +1497,4 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - Ruling: no landing as a regression. Re-measure and profile head vs base; if (A) can't beat it, (B) goes to the designers.
   - **#5132 (build A): the SSIARITH rigid-map fuzzer P2.** The cause is the test's scale (the margin rounds at magnitude 1, not at its own value), not a bound. Test-only fix, with the 4 seeds pinned and a production mutant still red. FULL review on green.
   - **#5114 (exact-scale)** is in FULL review.
+- 2026-10-14 12:48Z — **#5059 merged** (01bd9fa7, FULL plus the M1 re-check). It closes `work/ssiarith/chart-point-signs-are-f64-evaluations`. #5132 (the rigid-map fuzzer, test-only) is in FULL review.
