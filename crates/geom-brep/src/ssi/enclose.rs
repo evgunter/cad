@@ -593,7 +593,7 @@ impl UvWindow {
 /// read tighter hulls. Evaluation ([`NurbsBoxes::rect_box`]'s midpoint)
 /// and the boundary rows always read the surface itself.
 #[derive(Debug)]
-pub(crate) struct NurbsBoxes<'a, T: geom_core::Real> {
+pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
     surface: &'a NurbsSurface<T>,
     grid: Option<&'a CellGrid>,
     /// Each span cell's whole net, row-major by `(su, sv)` over the cell

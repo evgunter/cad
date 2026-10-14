@@ -1769,7 +1769,7 @@ pub(crate) enum Limbs {
 /// What a carrier is certified against. Each arm carries its own
 /// lane's inputs, so no lane reads another's; limb 3 proves the same
 /// theorem on each, over the region it is cut to.
-pub(crate) enum Lane<'a, T: Real> {
+pub(crate) enum Lane<'a, T: geom_core::CertifiedBounds> {
     /// At rest, any operand pair: an ℝ³ chain is cut to nothing, a chart
     /// chain to the wall's knot rectangle.
     AtRest {

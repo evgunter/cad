@@ -212,7 +212,7 @@ pub const SSI_MAX_STEPS: usize = 20_000;
 /// (untrusted candidate generation — `jet`/`march`/`system` stay
 /// `f64`-only), but *certifying* one is the consumer's own scalar, and
 /// a body at rest holds `Surface<T>`.
-pub enum SsiOperand<'a, T: geom_core::Real> {
+pub enum SsiOperand<'a, T: geom_core::CertifiedBounds> {
     /// An analytic surface: implicit residuals and `compose` hulls.
     Analytic(&'a Surface<T>),
     /// A NURBS surface: certified foot points and chart hulls, carried
@@ -1628,7 +1628,7 @@ impl TubeDegeneracy {
 /// the only way to hold one is to have minted it from the surface it
 /// carries.
 #[derive(Clone, Debug)]
-pub struct ChartedNurbs<'a, T: geom_core::Real> {
+pub struct ChartedNurbs<'a, T: geom_core::CertifiedBounds> {
     surface: &'a NurbsSurface<T>,
     speeds: enclose::ChartSpeeds,
     /// The chart enclosures over the surface's own cells, and over the
@@ -1697,7 +1697,7 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     }
 }
 
-impl<'a, T: geom_core::Real> ChartedNurbs<'a, T> {
+impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// The surface.
     #[must_use]
     pub fn surface(&self) -> &'a NurbsSurface<T> {
