@@ -314,23 +314,74 @@ fn a_slab_face_nearly_along_a_ruling_builds() {
 
 const COIN_FLIP_1E6: &[(&str, &str)] = &[
     ("θ 3e-5 (1, 0) c 0", "at-rest gate above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c 0.5", "at-rest gate above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c -0.5", "at-rest gate above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c 0.8", "at-rest gate above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c -0.8", "at-rest gate above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c 0.9", "at-rest gate above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c -0.9", "at-rest gate above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c 0.99", "at-rest gate above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c -0.99", "at-rest gate above VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c 0", "at-rest gate below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c 0.5", "at-rest gate below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c -0.5", "at-rest gate below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c 0.8", "at-rest gate below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c -0.8", "at-rest gate below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c 0.9", "at-rest gate below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c -0.9", "at-rest gate below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c 0.99", "at-rest gate below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c -0.99", "at-rest gate below VolumeUncomputable"),
+    (
+        "θ 3e-5 (1, 0) c 0.5",
+        "at-rest gate above VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (1, 0) c -0.5",
+        "at-rest gate above VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (1, 0) c 0.8",
+        "at-rest gate above VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (1, 0) c -0.8",
+        "at-rest gate above VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (1, 0) c 0.9",
+        "at-rest gate above VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (1, 0) c -0.9",
+        "at-rest gate above VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (1, 0) c 0.99",
+        "at-rest gate above VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (1, 0) c -0.99",
+        "at-rest gate above VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (-1, 1) c 0",
+        "at-rest gate below VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (-1, 1) c 0.5",
+        "at-rest gate below VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (-1, 1) c -0.5",
+        "at-rest gate below VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (-1, 1) c 0.8",
+        "at-rest gate below VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (-1, 1) c -0.8",
+        "at-rest gate below VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (-1, 1) c 0.9",
+        "at-rest gate below VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (-1, 1) c -0.9",
+        "at-rest gate below VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (-1, 1) c 0.99",
+        "at-rest gate below VolumeUncomputable",
+    ),
+    (
+        "θ 3e-5 (-1, 1) c -0.99",
+        "at-rest gate below VolumeUncomputable",
+    ),
 ];
 const COIN_FLIP_1E9: &[(&str, &str)] = &[
     ("θ 1e-4 (1, 0) c 0", "refused Reduce SliverSector"),
