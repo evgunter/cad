@@ -92,3 +92,7 @@ and PCERT's (`pcurve_cache.rs` / `chart_pcurve`) ground; the PR announces it.
   `the_major_frame_is_read_from_the_semi_axes` and
   `a_section_frame_is_read_off_the_axis_of_revolution`; and `geom-brep`
   `pcurve_cone_section` at every principal seam.
+- Re-baselined: `sweep`'s thread-count digest (`tilted_cut_upper`'s
+  pads narrow at 1e-6 and 1e-12, from the re-seamed chords) and
+  `step-export`'s `cut_cylinder.expect` pad. The montage-uv cells
+  re-render.
