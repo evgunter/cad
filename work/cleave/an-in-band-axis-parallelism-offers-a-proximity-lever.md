@@ -2,12 +2,13 @@
 id: an-in-band-axis-parallelism-offers-a-proximity-lever
 kind: issue
 title: An in-band reading of a cylinder pair's axis parallelism offers the user a proximity lever
-status: review
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: E
 refs: [crossing-equal-cylinders-take-the-parallel-radical-plane-and-desync]
 branch: cleave/join-face-surface-one-home
+closed: 2026-10-14
 ---
 
 

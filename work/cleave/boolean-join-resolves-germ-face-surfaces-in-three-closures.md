@@ -2,11 +2,12 @@
 id: boolean-join-resolves-germ-face-surfaces-in-three-closures
 kind: issue
 title: boolean::join resolves a germ's face surfaces in three closures with one message
-status: review
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: E
 branch: cleave/join-face-surface-one-home
+closed: 2026-10-14
 ---
 
 Found by PR 4863's narrow re-review (verdict MERGE); filed rather than held for.
