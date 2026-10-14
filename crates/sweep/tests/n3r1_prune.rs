@@ -119,19 +119,21 @@ fn digest(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> String {
     }
 }
 
-/// The adopted arm's candidate set on the corpus: 154 examined pairs —
+/// The adopted arm's candidate set on the corpus: 163 examined pairs —
 /// the landing PR's 98 (the base arm examined 134; the 36 lost are that
 /// PR's table, each on loci separated by more than the pad with no
-/// reference-accepted event), and the 56 of the cylinder pair shifted
-/// 0.3, whose rim crossings the circle × cylinder root lane now
-/// certifies — and no reference-accepted pair unexamined wherever the
+/// reference-accepted event), the 56 of the cylinder pair shifted 0.3,
+/// whose rim crossings the circle × cylinder root lane now certifies,
+/// and 9 more where a line crossing's pieces are read again against
+/// the faces before the one that split it — and no reference-accepted
+/// pair unexamined wherever the
 /// reference runs. A face-free vertex record the idealized trace counts
 /// against a face the fragment's box never meets would show here
 /// (`work/hone/sweep-trace-counts-a-face-free-vertex-record-as-the-pairs-event.md`);
 /// none stands on the corpus, since the narrow phase behind the tree
 /// (`boolean::separating`) parts the cylinder pair's in both strategies.
 #[test]
-fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
+fn n3r1_prune_corpus_examines_163_pairs_and_loses_no_accepted_one() {
     let mut total_prune_pairs = 0usize;
     for (name, a, b) in corpus() {
         // A pair the realized sweep refuses typed (a curved pierce the
@@ -158,7 +160,7 @@ fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
         let b = finished(&format!("{name}: B"), b, Tol::witness());
         let _ = digest(&topo::boolean::subtract(&a, &b, Tol::witness()));
     }
-    assert_eq!(total_prune_pairs, 154, "the corpus's candidate total moved");
+    assert_eq!(total_prune_pairs, 163, "the corpus's candidate total moved");
 }
 
 /// **Pruning loses no contact and no split, corpus-wide**. The realized and idealized sweeps must

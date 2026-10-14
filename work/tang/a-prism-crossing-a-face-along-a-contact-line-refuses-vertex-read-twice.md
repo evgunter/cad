@@ -2,12 +2,13 @@
 id: a-prism-crossing-a-face-along-a-contact-line-refuses-vertex-read-twice
 kind: issue
 title: A prism crossing a face along an edge lying in it refuses VertexReadTwice, or UnpairedLooseEnds at the join in one slot; a wedge's face beside the edge refuses ClassificationInvariant
-status: dispatched
+status: closed
 opened: 2026-10-13
 priority: P2
 cost: M
 refs: [a-contact-line-whose-ray-holds-a-subdivision-bisector-refuses-unbuilt]
 branch: tang/crossing-face-vertex-read-twice
+closed: 2026-10-14
 ---
 
 Found by the TANG lane that built the contact-line bisector arm
@@ -84,3 +85,24 @@ one end of the line and not the other.
   face the section runs in, as the pair at the plate's top does through
   the bisector.
 - When it builds, the row's refusal table goes.
+
+## Closed
+
+The asymmetry came from the sweep, not the double-read check.
+`reduce::sweep_direction`'s line lane split an edge at a proper
+crossing and requeued the pieces from the next face. A face read
+earlier that the edge lies in had read only the edge's ends, so the
+vertex the split minted was never read against it. The other slot mints
+that vertex on the other operand, whose own sweep reads it from the
+first face. The pieces are now read against every face. Every witness
+above refuses `VertexReadTwice` alike in every op, slot and member
+order. The wedge's tool-first union, which refused
+`ClassificationInvariant` on main, builds sound in every order,
+tier 3′ included.
+
+`VertexReadTwice` now names its recourse: apply the operation to the
+pieces of the other solid that touch there, before they are joined.
+`the_recourse_of_a_prism_crossing_a_face_beside_a_resting_corner_builds`
+runs that route for every op, at both tops, and it builds sound.
+Building the shape itself is
+`a-corner-read-as-a-pair-and-a-pierce-is-unbuilt`.
