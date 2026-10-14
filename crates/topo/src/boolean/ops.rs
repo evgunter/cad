@@ -6878,7 +6878,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         &desc,
         [&discarded[0], &discarded[1]],
     )?;
-    let (merged, edge_joins, joined_lineage) = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
+    let (merged, edge_joins, joined_lineage) =
+        finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
     let output = output_substitutions(&merged, &edge_joins)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;

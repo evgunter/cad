@@ -1621,7 +1621,10 @@ fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
         ),
     )];
     for order in permutations(&[0, 1]) {
-        runs.push((format!("{order:?}"), union_of(doc.clone(), &[a, bar], &order)));
+        runs.push((
+            format!("{order:?}"),
+            union_of(doc.clone(), &[a, bar], &order),
+        ));
     }
     let mut first: Option<(String, BTreeMap<String, Vec<Vec<String>>>)> = None;
     for (at, (d, n)) in runs {
