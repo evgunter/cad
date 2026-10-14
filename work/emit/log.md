@@ -2302,3 +2302,18 @@ This is fork-log row 131 (renumbered at merge; Ev: "sounds good!"). Also filed: 
 - NURBS (#5044): the lily-leaf tessellation table drift on main, found on this PR's demos run.
 
 The PR merged with `demos` red on that drift alone.
+
+## 2026-10-14 — PR 5062: the whole ball cut by a tilted brick, parked
+
+**Measured.** Intersect and union refuse `UNCLASSIFIED_SIDE` in both operand orders; subtract names in both.
+
+**Cause.**
+- The kernel re-charts the closed ball with `apply_recuts`. It turns the ball until its poles lie on the brick's axis, and every key is kept.
+- The union reads member edges by key but member vertices by position in the member's own body. At a turned pole the two readings disagree, so the vertex falls through to `meeting` with no other member to read a sense against, and it refuses.
+- ORBIT's graft row is not reached here.
+
+**Parked.** The row waits on ORBIT's `closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`, which retires the re-chart; with no re-chart, the question this row raised does not arise. It goes to a designer pair only if ORBIT lands and keeps the re-chart.
+
+**Pin.** `emit_ball_cut_by_brick.rs` pins every op in both orders. Subtract cites a ball pole off the ball's own poles, so the test flips when the re-chart goes.
+
+**Process.** The lane's report said main did not build: `BooleanNaming`'s `Default` had no `chart_cuts`. #5060 had already fixed that.
