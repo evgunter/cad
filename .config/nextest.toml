@@ -40,3 +40,11 @@ not (
   (binary_id(viewer::all) & (test(=display_budget::a_bodys_count_has_stopped_falling_by_its_own_extent) | test(=display_budget::no_probe_out_tessellates_the_picture_it_sizes) | test(=display_budget::the_budget_commits_the_delta_it_always_has) | test(=display_budget::the_gallery_ring_is_drawn_inside_the_budget) | test(=index_memo::every_parametric_corpus_document_indexes_the_same_through_the_seam_across_edits) | test(=pick3_acceptance::the_door_answers_the_exhaustive_walk_and_keeps_every_aimed_vertex) | test(=review_pick_r2::the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus) | test(=door_at_rest::a_landings_door_reads_pending_until_its_own_answer_settles) | test(=door_at_rest::the_threaded_door_seam_answers_the_newest_landing)))
 )
 """
+
+# The re-valuation rows (`editor-core`'s `revalue_corpus`) replay each
+# corpus document at `Sym<f64>` with its profiles elaborated at the lane,
+# and one row's replay holds several GB: four at once exhausted a 16 GB
+# runner. Each takes the whole run's threads, so they run one at a time.
+[[profile.default.overrides]]
+filter = 'binary_id(editor-core::all) & test(/^revalue_corpus::revalue_/)'
+threads-required = 'num-test-threads'
