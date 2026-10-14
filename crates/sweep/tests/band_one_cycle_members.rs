@@ -98,7 +98,7 @@ fn pin<T: Decide + Bounds + AtRestPolicy>(
 
 /// The faces of `body` whose every vertex lies within `reach` of the
 /// line along `x` through `(y, z)`, over `x ∈ [x0, x1]`: a cup's faces.
-fn cup_faces<T: Real + Bounds>(
+pub(crate) fn cup_faces<T: Real + Bounds>(
     body: &Body<T>,
     (y, z): (f64, f64),
     reach: f64,
@@ -133,17 +133,18 @@ fn cup_faces<T: Real + Bounds>(
 
 /// **The cups go with the band**: `verb` at `r` on `edges` builds at
 /// tiers 3 and 3′ with naming totality; the cups' faces `cups` are gone
-/// and retired; the shell count and genus hold (a cup is no handle) and
+/// and retired; the shell count holds and the genus drops by the
+/// `through` features (a cup is no handle, a through bore is one) and
 /// each of the `mouths` leaves its end wall; and the volume moves by
 /// `dv` to `1e-12` of the scale `k` cubed, the enclosure a claim and its
 /// midpoint on the closed form.
 #[allow(clippy::too_many_arguments)] // the row's own reads, one per argument.
-fn assert_taken<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBounds>(
+pub(crate) fn assert_taken<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBounds>(
     verb: Verb,
     body: &Body<T>,
     edges: &[EdgeKey],
     r: f64,
-    (cups, mouths): (&[FaceKey], usize),
+    (cups, mouths, through): (&[FaceKey], usize, i64),
     (dv_want, k): (f64, f64),
     what: &str,
 ) {
@@ -176,9 +177,9 @@ fn assert_taken<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBounds>(
     );
     let c1 = topo::readback::euler_counts(&out.body);
     assert_eq!(
-        (c1.s, c1.genus()),
-        (c0.s, c0.genus()),
-        "{what}: the shells and their genus hold"
+        (c1.s, c1.genus().expect("a genus") + through),
+        (c0.s, c0.genus().expect("a genus")),
+        "{what}: the shells hold and each through feature's handle goes"
     );
     let ((v0, pad0), (v1, pad1)) = (volume_enclosure(body), volume_enclosure(&out.body));
     let (dv, pad) = (v1 - v0, pad0 + pad1);
@@ -216,7 +217,7 @@ fn a_blind_bore_and_a_pin_go_with_the_band_at_every_scale() {
                 &body,
                 &[top(&body, k)],
                 D * k,
-                (&cups, 1),
+                (&cups, 1, 0),
                 (dv, k),
                 &what,
             );
@@ -237,7 +238,7 @@ fn a_blind_bore_and_a_pin_go_with_the_band_at_every_scale() {
                 &body,
                 &[floor(&body, k)],
                 D * k,
-                (&cups, 1),
+                (&cups, 1, 0),
                 (dv, k),
                 &what,
             );
@@ -260,7 +261,7 @@ fn a_blind_bore_and_a_pin_go_with_the_band_at_interval() {
             &body,
             &[top(&body, 1.0)],
             D,
-            (&cups, 1),
+            (&cups, 1, 0),
             (dv, 1.0),
             "a blind bore at Interval",
         );
@@ -275,7 +276,7 @@ fn a_blind_bore_and_a_pin_go_with_the_band_at_interval() {
             &body,
             &[floor(&body, 1.0)],
             D,
-            (&cups, 1),
+            (&cups, 1, 0),
             (dv, 1.0),
             "a pin at Interval",
         );
@@ -300,7 +301,7 @@ fn a_pin_from_a_leaning_end_wall_goes_with_the_fill() {
                 &body,
                 &[floor(&body, 1.0)],
                 D,
-                (&cups, 1),
+                (&cups, 1, 0),
                 (dv, 1.0),
                 &what,
             );
@@ -333,7 +334,7 @@ fn two_cups_and_a_square_pin_go_with_the_band() {
             &body,
             &[top(&body, 1.0)],
             D,
-            (&cups, 2),
+            (&cups, 2, 0),
             (dv, 1.0),
             "two blind bores",
         );
@@ -360,7 +361,7 @@ fn two_cups_and_a_square_pin_go_with_the_band() {
             &body,
             &[floor(&body, 1.0)],
             D,
-            (&cups, 1),
+            (&cups, 1, 0),
             (dv, 1.0),
             "a square pin",
         );
@@ -398,7 +399,7 @@ fn a_blind_bore_from_a_leaning_end_wall_goes_with_the_band() {
         let front = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
         for verb in VERBS {
             let dv = -(2.0 * section(verb, D) - PI * a * a * (1.0 - s * d));
-            assert_taken(verb, &body, &[front], D, (&cups, 1), (dv, 1.0), &what);
+            assert_taken(verb, &body, &[front], D, (&cups, 1, 0), (dv, 1.0), &what);
         }
     }
 }
@@ -503,7 +504,7 @@ fn a_cups_mouth_a_hair_across_the_sliver_crosses_and_one_inside_goes() {
             let (body, crease, cups, dv) = side.cup(verb, inside_by(verb, HAIR, a), a, None);
             assert_eq!(cups.len(), 3, "{side:?} {verb:?}: the cup's three faces");
             let what = format!("{side:?}, a mouth a hair inside");
-            assert_taken(verb, &body, &[crease], D, (&cups, 1), (dv, 1.0), &what);
+            assert_taken(verb, &body, &[crease], D, (&cups, 1, 0), (dv, 1.0), &what);
         }
     }
 }
@@ -540,7 +541,7 @@ fn a_cups_head_a_hair_across_the_band_surface_crosses_and_one_inside_goes() {
                  two half-walls and its end"
             );
             let what = format!("{side:?}, a head a hair inside");
-            assert_taken(verb, &body, &[crease], D, (&cups, 1), (dv, 1.0), &what);
+            assert_taken(verb, &body, &[crease], D, (&cups, 1, 0), (dv, 1.0), &what);
         }
     }
 }
@@ -571,5 +572,480 @@ fn a_pin_inside_a_concave_ruled_creases_fill_refuses_as_a_bound() {
             })
         ),
         "the ruled pin refuses as a bound, got {got:?}"
+    );
+}
+
+/// The convex block at scale one less a round bore of radius `a` whose
+/// axis runs from corner coordinates `p` at the end face `x = 0` to `q`
+/// at its square floor `x = h`, and its axis length `ℓ` there.
+fn leaning_bore(p: (f64, f64), (h, q): (f64, (f64, f64)), a: f64) -> (Body<f64>, f64) {
+    let t = -0.2 / h;
+    let s = (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
+    let bore = bar(
+        (-0.2, convex_at(1.0, s)),
+        (h, convex_at(1.0, q)),
+        0.0,
+        Section::Round(a),
+        Vec3::new(0.0, 1.0, 0.0),
+    );
+    let ell = (h * h + (q.0 - p.0).powi(2) + (q.1 - p.1).powi(2)).sqrt();
+    (boolean(false, block(1.0), bore), ell)
+}
+
+/// `verb` refuses typed, as `want` reads it, and never from inside the
+/// surgery.
+fn assert_refuses(
+    verb: Verb,
+    body: &Body<f64>,
+    edges: &[EdgeKey],
+    want: impl Fn(&BlendError) -> bool,
+    what: &str,
+) {
+    validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3, {e:?}"));
+    match blend(verb, body, edges, D) {
+        Err(e) => assert!(want(&e), "{what} ({verb:?}): refused, but {e:?}"),
+        Ok(_) => panic!("{what} ({verb:?}): refuses, but built"),
+    }
+}
+
+fn bounded(e: &BlendError) -> bool {
+    matches!(e, BlendError::FaceClearance { bounded: true, .. })
+}
+
+fn crossing(e: &BlendError) -> bool {
+    matches!(e, BlendError::FaceClearance { bounded: false, .. })
+}
+
+fn wholly_inside(e: &BlendError) -> bool {
+    matches!(e, BlendError::WhollyInside { .. })
+}
+
+/// **A cup whose axis leans off the spine goes where the reading's
+/// terms allow**: a bore from `(0.012, 0.012)` at `x = 0` to its floor
+/// at `x = ½`, its axis turned `σ` in each corner coordinate, holds
+/// `π·a²·ℓ` (`ℓ` its axis), so `ΔV = −(A − π·a²·ℓ)`. At `σ = 0.0011` it
+/// goes under both verbs: its floor circle reads at its depth, its
+/// pieces halved until each box's radius is within an eighth of it. At
+/// `σ = 0.0031` the fillet charges the walls their box's diagonal times
+/// the lean, which outweighs the depth, and refuses as a bound; the
+/// chamfer's triangle, convex, owes no such term and takes it.
+#[test]
+fn a_leaning_blind_bore_goes_where_its_lean_is_paid() {
+    let (d, a) = BAR;
+    for (shift, fillet) in [(0.0011, true), (0.0031, false)] {
+        let (body, ell) = leaning_bore((d, d), (0.5, (d + shift, d - shift)), a);
+        let cups = cup_faces(&body, convex_at(1.0, (d, d)), a + 2.0 * shift, (0.0, 0.51));
+        assert_eq!(cups.len(), 3, "lean {shift}: two half-walls and a floor");
+        let what = format!("a bore leaning {shift}");
+        for verb in VERBS {
+            if matches!(verb, Verb::Fillet) && !fillet {
+                assert_refuses(verb, &body, &[top(&body, 1.0)], bounded, &what);
+                continue;
+            }
+            let dv = -(section(verb, D) - PI * a * a * ell);
+            assert_taken(
+                verb,
+                &body,
+                &[top(&body, 1.0)],
+                D,
+                (&cups, 1, 0),
+                (dv, 1.0),
+                &what,
+            );
+        }
+    }
+}
+
+/// **A leaning cup whose axis dips through the fillet's disk crosses,
+/// and the chamfer's triangle takes it**: a bore of radius `0.003` from
+/// `(0.005, 0.055)` at `x = 0` to `(0.055, 0.005)` at `x = ½` lies in
+/// the fillet's sliver at both ends but crosses its arc midway, and
+/// refuses as a measurement; under the chamfer (chord `u + v = 0.1`) it
+/// goes at `ΔV = −(A − π·a²·ℓ)`. A pin of radius `0.002` across the
+/// fill along `u + v = 0.06` (outside the fillet's arc midway) does the
+/// same, `ΔV = +(A/2 − π·a²·ℓ)`; one along `u + v = 0.054`, inside
+/// both, refuses as a bound under the fillet (its 26° lean is charged)
+/// and goes under the chamfer.
+#[test]
+fn a_cup_leaning_across_the_fillets_disk_crosses_and_the_chamfer_takes_it() {
+    let a = 0.003;
+    let (body, ell) = leaning_bore((0.005, 0.055), (0.5, (0.055, 0.005)), a);
+    let cups = cup_faces(&body, convex_at(1.0, (0.03, 0.03)), 0.04, (0.0, 0.51));
+    assert_eq!(cups.len(), 3, "the leaning bore's two half-walls and floor");
+    let crease = top(&body, 1.0);
+    assert_refuses(
+        Verb::Fillet,
+        &body,
+        &[crease],
+        crossing,
+        "a bore across the disk",
+    );
+    let dv = -(section(Verb::Chamfer, D) - PI * a * a * ell);
+    assert_taken(
+        Verb::Chamfer,
+        &body,
+        &[crease],
+        D,
+        (&cups, 1, 0),
+        (dv, 1.0),
+        "a bore across the disk",
+    );
+    let a = 0.002;
+    for (c, fillet) in [
+        (0.056, crossing as fn(&BlendError) -> bool),
+        (0.05, bounded),
+    ] {
+        let (p, q) = ((0.004, c), (c, 0.004));
+        let leg = |x: f64, (u, v): (f64, f64)| (x, concave_at(1.0, (u, v)));
+        let t = (0.15 - 0.25) / 0.15;
+        let s = (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
+        let body = boolean(
+            true,
+            die::<f64>(1.0, 0.0),
+            bar(
+                leg(0.15, s),
+                leg(0.4, q),
+                0.0,
+                Section::Round(a),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
+        );
+        let ell = (0.15f64.powi(2) + 2.0 * (q.0 - p.0).powi(2)).sqrt();
+        let what = format!("a pin leaning along u + v = {}", c + 0.004);
+        let crease = floor(&body, 1.0);
+        assert_refuses(Verb::Fillet, &body, &[crease], fillet, &what);
+        let mid = concave_at(1.0, (0.5 * (p.0 + q.0), 0.5 * (p.1 + q.1)));
+        let cups = cup_faces(&body, mid, 0.04, (0.25, 0.41));
+        assert_eq!(cups.len(), 3, "{what}: two half-walls and an end");
+        let dv = section(Verb::Chamfer, D) * 0.5 - PI * a * a * ell;
+        assert_taken(
+            Verb::Chamfer,
+            &body,
+            &[crease],
+            D,
+            (&cups, 1, 0),
+            (dv, 1.0),
+            &what,
+        );
+    }
+}
+
+/// **A cup with a handle, and a feature with two mouths on one cap,
+/// refuse `WhollyInside`**: the rule takes them (each lies inside the
+/// region, which goes whole), but `plan` admits only a disk on one cap
+/// or an annulus between two
+/// (`work/band/a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved.md`).
+/// - A square blind bore of half-side `0.004` with a square cross bar
+///   spanning it at `x = 0.2`: one mouth, genus 1, so
+///   `V − E + F − R = −1`, under both verbs.
+/// - A square pin of half-side `0.006` with a square hole across it at
+///   `x = 0.4`: the chamfer reads it whole and refuses; under the
+///   fillet its mouth crosses the arc (`RingClearance`, measured).
+/// - Two square bores from one end face meeting at `x = 0.4` (a U-tube,
+///   two mouths on one cap), under the chamfer; the fillet's arc
+///   crosses their mouths.
+#[test]
+fn a_cup_with_a_handle_and_a_u_tube_refuse_wholly_inside() {
+    let (d, h, b, c) = (0.012, 0.4, 0.004, 0.0015);
+    let (y, z) = convex_at(1.0, (d, d));
+    let bored = boolean(
+        false,
+        block::<f64>(1.0),
+        brick((-0.2, h), (y - b, y + b), (z - b, z + b), tol()),
+    );
+    let body = boolean(
+        true,
+        bored,
+        brick(
+            (0.2 - c, 0.2 + c),
+            (y - 0.006, y + 0.006),
+            (z - c, z + c),
+            tol(),
+        ),
+    );
+    assert_eq!(
+        topo::readback::euler_counts(&body)
+            .genus()
+            .expect("a genus"),
+        1,
+        "the bore carries a handle"
+    );
+    for verb in VERBS {
+        assert_refuses(
+            verb,
+            &body,
+            &[top(&body, 1.0)],
+            wholly_inside,
+            "a cup with a handle",
+        );
+    }
+    let (y, z) = concave_at(1.0, (0.025, 0.025));
+    let pinned = boolean(
+        true,
+        die::<f64>(1.0, 0.0),
+        bar(
+            (0.1, (y, z)),
+            (0.5, (y, z)),
+            0.0,
+            Section::Square(0.006),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+    );
+    let body = boolean(
+        false,
+        pinned,
+        brick(
+            (0.398, 0.402),
+            (y - 0.012, y + 0.012),
+            (z - 0.002, z + 0.002),
+            tol(),
+        ),
+    );
+    assert_eq!(
+        topo::readback::euler_counts(&body)
+            .genus()
+            .expect("a genus"),
+        1,
+        "the pin carries a handle"
+    );
+    let crease = floor(&body, 1.0);
+    assert_refuses(
+        Verb::Chamfer,
+        &body,
+        &[crease],
+        wholly_inside,
+        "a pin with a cross hole",
+    );
+    assert_refuses(
+        Verb::Fillet,
+        &body,
+        &[crease],
+        |e| matches!(e, BlendError::RingClearance { bounded: false, .. }),
+        "a pin with a cross hole",
+    );
+    let meet = (0.4, (0.03, 0.03));
+    let leg = |from: (f64, f64)| {
+        let t = -0.2 / 0.4;
+        let s = (
+            from.0 + (meet.1.0 - from.0) * t,
+            from.1 + (meet.1.1 - from.1) * t,
+        );
+        bar(
+            (-0.2, convex_at(1.0, s)),
+            (meet.0, convex_at(1.0, meet.1)),
+            0.0,
+            Section::Square(0.003),
+            Vec3::new(0.0, 1.0, 0.0),
+        )
+    };
+    let body = boolean(
+        false,
+        boolean(false, block::<f64>(1.0), leg((0.015, 0.045))),
+        leg((0.045, 0.015)),
+    );
+    assert_refuses(
+        Verb::Chamfer,
+        &body,
+        &[top(&body, 1.0)],
+        wholly_inside,
+        "a U-tube",
+    );
+}
+
+/// **Cups beside other features, and under other bands, go**:
+/// - a blind bore of radius `0.004` to `0.4` beside a through bore of
+///   radius `0.003` in one sliver — one disk and one annulus in one
+///   request — `ΔV = −(A − π·a²·0.4 − π·b²)`;
+/// - a blind bore to `½` under each of two bands in one request (the
+///   block's top edges at `y = 1` and `y = 0`), each read in its own
+///   band, `ΔV = −2·(A − π·a²/2)`;
+/// - a blind bore whose floor stops `1e-4` short of the far end face,
+///   `ΔV = −(A − π·a²·(1 − 10⁻⁴))`, and one `1e-4` past it, a through
+///   bore, `ΔV = −(A − π·a²)`;
+/// - a blind bore from the far end of a mitre's band (the top edges at
+///   `y = 1` and `x = 0`), `ΔV` the plain mitre's plus `π·a²·0.3`. One
+///   from the mitre's own end refuses at the screen: its mouth lies on
+///   the other band's strip
+///   (`work/band/a-cup-whose-mouth-lies-on-a-supports-strip-is-not-carved.md`).
+#[test]
+fn cups_beside_a_bore_under_two_bands_and_by_a_mitre_go() {
+    let (d, a) = BAR;
+    let (p, q) = (convex_at(1.0, (0.012, 0.03)), convex_at(1.0, (0.03, 0.012)));
+    let (a1, b1) = (0.004, 0.003);
+    let body = boolean(
+        false,
+        boolean(false, block::<f64>(1.0), rod((-0.2, 0.4), p, a1)),
+        rod((-0.2, 1.2), q, b1),
+    );
+    let mut cups = cup_faces(&body, p, a1, (0.0, 0.4));
+    cups.extend(cup_faces(&body, q, b1, (0.0, 1.0)));
+    assert_eq!(cups.len(), 5, "the cup's three faces and the bore's two");
+    for verb in VERBS {
+        let dv = -(section(verb, D) - PI * a1 * a1 * 0.4 - PI * b1 * b1);
+        let what = "a cup beside a through bore";
+        assert_taken(
+            verb,
+            &body,
+            &[top(&body, 1.0)],
+            D,
+            (&cups, 3, 1),
+            (dv, 1.0),
+            what,
+        );
+    }
+    let near = convex_at(1.0, (d, d));
+    let far = (d, 1.0 - d);
+    let body = boolean(
+        false,
+        blind_bore::<f64>(1.0, (d, d), a, 0.5),
+        rod((-0.2, 0.5), far, a),
+    );
+    let mut cups = cup_faces(&body, near, a, (0.0, 0.5));
+    cups.extend(cup_faces(&body, far, a, (0.0, 0.5)));
+    let edges = [
+        top(&body, 1.0),
+        edge(&body, [0.0, 0.0, 1.0], [1.0, 0.0, 1.0]),
+    ];
+    for verb in VERBS {
+        let dv = -2.0 * (section(verb, D) - PI * a * a * 0.5);
+        assert_taken(
+            verb,
+            &body,
+            &edges,
+            D,
+            (&cups, 2, 0),
+            (dv, 1.0),
+            "a cup under each of two bands",
+        );
+    }
+    for (end, mouths, through) in [(1.0 - 1e-4, 1, 0), (1.0 + 1e-4, 2, 1)] {
+        let body = blind_bore::<f64>(1.0, (d, d), a, end);
+        let cups = cup_faces(&body, near, a, (0.0, end.min(1.0)));
+        let what = format!("a bore to {end}");
+        for verb in VERBS {
+            let dv = -(section(verb, D) - PI * a * a * end.min(1.0));
+            assert_taken(
+                verb,
+                &body,
+                &[top(&body, 1.0)],
+                D,
+                (&cups, mouths, through),
+                (dv, 1.0),
+                &what,
+            );
+        }
+    }
+    let mitre = |b: &Body<f64>| [top(b, 1.0), edge(b, [0.0, 0.0, 1.0], [0.0, 1.0, 1.0])];
+    let plain = block::<f64>(1.0);
+    let from_far = boolean(false, block::<f64>(1.0), rod((0.7, 1.2), near, a));
+    let from_near = blind_bore::<f64>(1.0, (d, d), a, 0.3);
+    let cups = cup_faces(&from_far, near, a, (0.7, 1.0));
+    for verb in VERBS {
+        let out = blend(verb, &plain, &mitre(&plain), D).expect("the plain mitre builds");
+        let (v0, v1) = (volume_enclosure(&plain).0, volume_enclosure(&out.body).0);
+        let dv = v1 - v0 + PI * a * a * 0.3;
+        let what = "a cup on a mitred band's far end";
+        assert_taken(
+            verb,
+            &from_far,
+            &mitre(&from_far),
+            D,
+            (&cups, 1, 0),
+            (dv, 1.0),
+            what,
+        );
+        assert_refuses(
+            verb,
+            &from_near,
+            &mitre(&from_near),
+            |e| matches!(e, BlendError::FaceClearanceUncertified { .. }),
+            "a cup on a mitred band's own end",
+        );
+    }
+}
+
+/// **A bore that breaks through a support is no cup**: a bore of radius
+/// `0.006` `0.004` from the support `z = 1` opens a slot in it, and
+/// refuses at the screen.
+#[test]
+fn a_bore_breaking_through_a_support_refuses_at_the_screen() {
+    let body = blind_bore::<f64>(1.0, (0.004, 0.02), 0.006, 0.5);
+    for verb in VERBS {
+        assert_refuses(
+            verb,
+            &body,
+            &[top(&body, 1.0)],
+            |e| matches!(e, BlendError::FaceClearanceUncertified { .. }),
+            "a slot",
+        );
+    }
+}
+
+/// **A cup that crosses the band surface between the places its
+/// boundary is sampled at still refuses**, as a bound: the crossing is
+/// not measured there, and neither the curve's pieces nor the lines'
+/// slack certify it inside. A head crossing the fillet's arc in the
+/// convex block:
+/// - round, of radius `0.012` over `x ∈ [0.3, 0.35]` on a stem of
+///   radius `0.004`, its far side `1e-4` past the arc and turned
+///   `5π/16` from its seam, midway between two of its circles'
+///   samples: each piece of a circle is read over a box reaching
+///   `σ·w/2` from its middle point, and the piece over the crossing
+///   never certifies;
+/// - a diamond (a square of half-side `0.012` turned 45°) over
+///   `x ∈ [0.2, 0.25]`, its axis leaning `2·10⁻⁴` so no wall is parallel
+///   to the spine, the far edge of its end dipping `2·10⁻⁶` past the arc
+///   midway between two samples: its ends are certified, and the line
+///   between them is charged its run across the spine.
+#[test]
+fn a_head_crossing_between_its_boundary_samples_refuses_as_a_bound() {
+    let (a, b) = (0.004, 0.012);
+    let (u, v) = inside_by(Verb::Fillet, -HAIR, b);
+    let at = convex_at(1.0, (u, v));
+    let turn = -0.75 * PI - 5.0 * PI / 16.0;
+    let body = boolean(
+        false,
+        boolean(false, block::<f64>(1.0), rod((-0.2, 0.3), at, a)),
+        bar(
+            (0.3, at),
+            (0.35, at),
+            0.0,
+            Section::Round(b),
+            Vec3::new(0.0, turn.cos(), turn.sin()),
+        ),
+    );
+    assert_refuses(
+        Verb::Fillet,
+        &body,
+        &[top(&body, 1.0)],
+        bounded,
+        "a round head",
+    );
+    let s2 = 2f64.sqrt();
+    let c = 2.0 * (D - (D - 2e-6) / s2);
+    let mid = (c / 2.0 + b / (8.0 * s2), c / 2.0 - b / (8.0 * s2));
+    let end = (mid.0 - b / s2, mid.1 - b / s2);
+    let start = (end.0 - 2e-4, end.1 - 1e-4);
+    let body = boolean(
+        false,
+        boolean(
+            false,
+            block::<f64>(1.0),
+            rod((-0.2, 0.22), convex_at(1.0, start), 0.003),
+        ),
+        bar(
+            (0.2, convex_at(1.0, start)),
+            (0.25, convex_at(1.0, end)),
+            0.0,
+            Section::Square(b),
+            Vec3::new(0.0, 1.0, 1.0),
+        ),
+    );
+    assert_refuses(
+        Verb::Fillet,
+        &body,
+        &[top(&body, 1.0)],
+        bounded,
+        "a diamond head",
     );
 }

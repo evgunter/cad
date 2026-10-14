@@ -19,13 +19,15 @@
 //! filled (a bore) or removed (a bar).
 //!
 //! The walk, per feature, on the clone before the band is carved
-//! ([`consume`]): a through-feature's cycle on one cap is promoted to a
-//! plug face (`mfkrh`, which ends the feature's hole; a cup is a disk
-//! already); the plug and the feature's faces are merged across their
-//! shared edges into one face (`kef`),
-//! and the edges left inside it, a tree hanging from the other cap's
-//! cycle, are retired leaf first (`kev`); that face is merged into the
-//! other cap across one of the cycle's edges (`kef`), whose remaining
+//! ([`consume`]): each ring of a feature's face is bridged to its outer
+//! cycle (`mekr`), so the faces merged are ring-free; a through-feature's
+//! cycle on one cap is promoted to a plug face (`mfkrh`, which ends the
+//! feature's hole; a cup is a disk already); the plug and the feature's
+//! faces are merged across their shared edges into one face (`kef`),
+//! and the edges left inside it, a tree hanging from the kept cycle (a
+//! cup's mouth, or a through-feature's unplugged one), are retired leaf
+//! first (`kev`); that face is merged into the kept cycle's cap across
+//! one of the cycle's edges (`kef`), whose remaining
 //! edges are retired the same way down to a lone vertex; and that vertex
 //! is joined to the cap's outer cycle by a strut (`mekr`) and retired
 //! with it (`kev`).
@@ -132,7 +134,9 @@ pub(super) fn plan<T: Decide>(
     consumed: &Consumed<T>,
 ) -> Result<Vec<Feature>, BlendError> {
     let refuse = || consumed.refusal.clone();
-    let faces = &consumed.faces;
+    let mut faces: Vec<FaceKey> = consumed.read.iter().map(|(f, _)| *f).collect();
+    faces.sort_unstable();
+    faces.dedup();
     let ring_of = |lp: LoopKey| consumed.rings.iter().find(|r| r.ring == lp);
     // Union-find over the faces, by shared edge.
     let mut parent: Vec<usize> = (0..faces.len()).collect();
@@ -281,7 +285,7 @@ fn spur<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Option<HalfEdgeKey>,
         return Err(invariant_broken(
             EntityId::Face(face),
             "a consumed feature leaves a cycle of edges inside one face, which `plan`'s \
-             annulus rules out",
+             disk and annulus count rules out",
         ));
     }
     Ok(None)

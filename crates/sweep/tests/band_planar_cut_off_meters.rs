@@ -24,6 +24,7 @@ use sweep::blend::{BlendDecision, BlendError, BlendSite, Convexity};
 use sweep::test_support::{block, pocket_die, prism, prism_on, realized, sketch_from_axes};
 use topo::{Body, ContactRecords, EntityId, validate_geometric, validate_pseudomanifold};
 
+use crate::band_one_cycle_members::{assert_taken, cup_faces};
 use crate::band_planar_cut_off::{D, Verb, carve, edge, tol};
 
 /// A round pin of radius `r` along +x from `origin`, `h` long: the
@@ -93,20 +94,11 @@ fn a_hole_in_the_end_face_sliver_crosses_the_arc_and_the_chamfer_takes_the_conve
         let e = edge(body, a, b);
         for verb in [Verb::Chamfer, Verb::Fillet] {
             match (verb, verb.run(body, &[e])) {
-                (Verb::Chamfer, Ok(out)) if convexity == Convexity::Convex => {
-                    validate_geometric(&out.body, tol())
-                        .unwrap_or_else(|e| panic!("{what} (Chamfer): tier 3, {e:?}"));
-                    let props = |b: &Body<f64>| {
-                        topo::mass_properties(b, tol())
-                            .expect("closed-form props")
-                            .volume
-                    };
-                    let dv = props(&out.body) - props(body);
-                    let want = -(D * D - core::f64::consts::PI * 0.01 * 0.01 * 0.3);
-                    assert!(
-                        (dv - want).abs() < 1e-9,
-                        "{what} (Chamfer): ΔV {dv} vs the closed form {want}"
-                    );
+                (Verb::Chamfer, Ok(_)) if convexity == Convexity::Convex => {
+                    let cups = cup_faces(body, (0.03, 0.97), 0.01, (0.0, 0.3));
+                    assert_eq!(cups.len(), 3, "{what}: the hole's two half-walls and floor");
+                    let dv = -(D * D - core::f64::consts::PI * 0.01 * 0.01 * 0.3);
+                    assert_taken(verb, body, &[e], D, (&cups, 1, 0), (dv, 1.0), what);
                 }
                 (
                     Verb::Chamfer,

@@ -19,6 +19,7 @@ use sweep::test_support::{
 use topo::boolean::BooleanOp;
 use topo::{Body, EdgeKey, mass_properties, query, validate_geometric};
 
+use crate::band_one_cycle_members::{assert_taken, cup_faces};
 use crate::band_planar_cut_off::{
     D, Verb, carve, edge, midpoint_tol, pad_ceiling, tol, volume, volume_enclosure,
 };
@@ -532,21 +533,16 @@ fn a_hole_in_a_square_walls_sliver_goes_with_the_band_under_both_verbs() {
     let (rad, deep) = (0.004, 0.016);
     let body = drilled(0.0, 0.04, 0.015, rad);
     let front = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let cups = cup_faces(&body, (0.04, 0.985), rad, (0.0, deep));
+    assert_eq!(cups.len(), 3, "the hole's two half-walls and floor");
     for verb in [Verb::Fillet, Verb::Chamfer] {
-        let out = verb
-            .run(&body, &[front])
-            .unwrap_or_else(|e| panic!("{verb:?}: the blind hole goes with the band, got {e}"));
-        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
         let section = match verb {
             Verb::Fillet => (1.0 - core::f64::consts::FRAC_PI_4) * D * D,
             Verb::Chamfer => D * D / 2.0,
         };
         let want = -(2.0 * section - core::f64::consts::PI * rad * rad * deep);
-        let dv = volume(&out.body) - volume(&body);
-        assert!(
-            (dv - want).abs() < midpoint_tol(),
-            "{verb:?}: ΔV {dv} vs the closed form {want}"
-        );
+        let what = "the square wall's mid-sliver hole";
+        assert_taken(verb, &body, &[front], D, (&cups, 1, 0), (want, 1.0), what);
     }
 }
 
