@@ -153,9 +153,10 @@ is `Line | Circle | Ellipse | Nurbs`.
 
 **Held, sharper: the pinch family needs no carrier.** Its section is
 two exact `Ellipse`s (`intersect.rs:EqualCylinderSection::TwoEllipses`);
-the refusal is a frame/topology statement,
+the refusal is a topology statement,
 `BooleanError::GermFrameCylinderPinch` (`topo/src/boolean/mod.rs`,
-raised in `boolean/join.rs` from `FrameError::CylinderNodes`).
+raised in `boolean/join.rs` where a node lies in both faces,
+`place_nodes`).
 
 **Refuted: RIMCAP's "same family as #1377".** §6, by §3.4's algebra.
 
