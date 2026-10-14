@@ -1273,3 +1273,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Worktrees and targets removed.
   - The TiltedEllipse lane (session_019MVgQmqRijZNgdo3U6o2ke) is on 4966's branch; it merges main itself now that 4966 has landed.
 - 2026-10-13 23:23 — Check-in. 5012's fix pass is on its audit-doc item; the TiltedEllipse lane is working. One lane was free, so I dispatched the P3 spiric lever near the pinch: session_014HPqTVQme8Re1tW6MGLAE4, branch germ/spiric-lever-pinch. Re-armed for 00:23.
+- 2026-10-14 00:30 — Check-in.
+  - **PR 5043** (TiltedEllipse lane) opened at head `451044c980`. It fixes two cancellations in the arm: K is now read as `−D·M`, and the centre as the apex's foot plus the major-axis offset. After the fix every served ellipse stands within 8.4·u·size of the cut; before, flat cones stood up to 1e7·ε off.
+    - Graded M. Arm byte 35, mod 3 = 2 → **SEQUENTIAL**. Dispatched r5043 (local Opus; brief sha256 `455a4bc68273`).
+  - **5012's fix pass** pushed `a8f0a6e9bf`: 7 items done, hosted CI running. Local verify via vpr.sh is running (summary in v5012/summary.txt).
+    - The lane reports three topo reds that are also red on main and unfiled: at 1e-6 `three_solids_on_one_line::an_edge_crossing_both_wedges_refuses_typed…`; at 1e-12 `rigid_map_near_eps_approx::{the_image_of_a_face_minted_near_eps_refuses_re_derivation, a_rigid_map_moves_a_face_minted_near_eps}`. I'll confirm them on main and file them.
+  - Re-armed for 01:24.
