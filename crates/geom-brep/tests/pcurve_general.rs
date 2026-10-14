@@ -614,3 +614,117 @@ fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
         "a curved foot path's degree-1 image refuses at the hull: {got:?}"
     );
 }
+
+/// R2 probe (PR 5041 review): the stored image bent 1e-3 off its
+/// carrier between samples, a real stored contradiction, read at rest.
+#[test]
+fn r2_probe_a_bent_image_at_rest() {
+    use geom_brep::recourse::Reading;
+    let n = geom_brep::CERT_SAMPLES;
+    let mut points = Vec::new();
+    for i in 0..n {
+        let t = f64::from(i) / f64::from(n - 1);
+        points.push(Point2::new(0.0, t));
+        if i + 1 < n {
+            let mid = (f64::from(i) + 0.5) / f64::from(n - 1);
+            points.push(Point2::new(1e-3, mid));
+        }
+    }
+    let mut knots = vec![0.0, 0.0];
+    let count = points.len();
+    knots.extend((1..count - 1).map(|k| points[k].y));
+    knots.extend([1.0, 1.0]);
+    let bent = Arc::new(
+        NurbsCurve2::new(
+            KnotVector::clamped(knots, 1).expect("knots"),
+            points,
+            vec![1.0; count],
+        )
+        .expect("the bent image builds"),
+    );
+    let line = Curve3::Line {
+        origin: Point3::new(1.0, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    };
+    for (name, carrier) in [("spline", ruling()), ("line", line)] {
+        let got = PcurveCache::certify_general(
+            Arc::clone(&bent),
+            0.0,
+            1.0,
+            &carrier,
+            &quarter_cylinder_wall(),
+            band(),
+            Some(FittedLane::certified()),
+        );
+        let e = got.expect_err("refuses");
+        eprintln!(
+            "R2 {name}: {e:?}\n  display: {e}\n  at rest: {:?}",
+            e.ending(Reading::AtRest)
+        );
+    }
+}
+
+/// R2 probe (PR 5041 review, claim 5): a rim off the cylinder's axis by
+/// `d` over a short arc about where it crosses the cylinder, its stored
+/// image following the foot path to first order, so the true miss stays
+/// within ~d·δ while the envelope's Centre term reads d.
+#[test]
+fn r2_probe_a_loose_envelope_through_certify() {
+    use geom_brep::recourse::Reading;
+    use geom_core::{Vec2};
+    let b = band();
+    let z = b.zero();
+    let r = 0.5;
+    let cyl = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    for (k, delta) in [(20.0, 0.02), (50.0, 0.005), (200.0, 0.001), (5.0, 0.05)] {
+        let d = k * z;
+        let carrier = Curve3::Circle {
+            center: Point3::new(d, 0.0, 0.3),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let mid = core::f64::consts::FRAC_PI_2;
+        let (t0, t1) = (mid - delta, mid + delta);
+        // True miss over the arc, sampled densely.
+        let image = |t: f64| (t - (d / r) * t.sin(), 0.3);
+        let mut sup: f64 = 0.0;
+        for i in 0..=2000 {
+            let t = t0 + (t1 - t0) * f64::from(i) / 2000.0;
+            let (u, v) = image(t);
+            let s: (f64, f64, f64) = (r * u.cos(), r * u.sin(), v);
+            let c: (f64, f64, f64) = (d + r * t.cos(), r * t.sin(), 0.3);
+            let m = ((s.0 - c.0).powi(2) + (s.1 - c.1).powi(2) + (s.2 - c.2).powi(2)).sqrt();
+            sup = sup.max(m);
+        }
+        for (name, pc) in [
+            ("foot-following", Pcurve::Harmonic {
+                p0: Point2::new(0.0, 0.3),
+                pa: Vec2::new(0.0, 0.0),
+                pb: Vec2::new(-d / r, 0.0),
+                pl: Vec2::new(1.0, 0.0),
+            }),
+            ("class", Pcurve::Harmonic {
+                p0: Point2::new(0.0, 0.3),
+                pa: Vec2::new(0.0, 0.0),
+                pb: Vec2::new(0.0, 0.0),
+                pl: Vec2::new(1.0, 0.0),
+            }),
+        ] {
+            let got = PcurveCache::certify(pc, t0, t1, &carrier, &cyl, b);
+            match got {
+                Ok(c) => eprintln!("R2L k={k} δ={delta} {name}: true sup {:.3}·zero CERTIFIES {:?}", sup / z, c.certificate()),
+                Err(e) => eprintln!(
+                    "R2L k={k} δ={delta} {name}: true sup {:.3}·zero -> {e:?}\n   at rest: {:?}",
+                    sup / z,
+                    e.ending(Reading::AtRest)
+                ),
+            }
+        }
+    }
+}
