@@ -1312,14 +1312,28 @@ impl<T: Real> CellFirstQuotients<T> {
     /// `v`, the area absent.
     #[must_use]
     pub fn pieces(&self, splits: (usize, usize)) -> Option<Vec<CellQuotients<T>>> {
-        let counts = (halving_count(splits.0), halving_count(splits.1));
-        let (u, v) = (self.u.pieces(counts)?, self.v.pieces(counts)?);
+        let (u, v) = (
+            self.axis_pieces(true, splits)?,
+            self.axis_pieces(false, splits)?,
+        );
         Some(
             u.into_iter()
                 .zip(v)
                 .map(|(u, v)| CellQuotients { u, v, area: None })
                 .collect(),
         )
+    }
+
+    /// The pieces of `S_u` (`along_u`) or `S_v` alone, as
+    /// [`Self::pieces`] reads them, in the same order.
+    #[must_use]
+    pub fn axis_pieces(
+        &self,
+        along_u: bool,
+        splits: (usize, usize),
+    ) -> Option<Vec<QuotientPiece<T, 3>>> {
+        let counts = (halving_count(splits.0), halving_count(splits.1));
+        if along_u { &self.u } else { &self.v }.pieces(counts)
     }
 }
 
@@ -1339,19 +1353,58 @@ impl CellFirstQuotients<crate::interval::Interval> {
     /// too (module docs, "The `b_k` are positive").
     #[must_use]
     pub fn restrict(&self, cuts: (Option<AxisCut>, Option<AxisCut>)) -> Self {
-        // `S_u` and `S_v` share `W²` (`Homogeneous::first_raised`), so
-        // it is restricted once.
-        let denom = self.u.denom.restricted(cuts);
-        Self {
-            u: Raised {
-                numer: self.u.numer.restricted(cuts),
-                denom: denom.clone(),
-            },
-            v: Raised {
-                numer: self.v.numer.restricted(cuts),
-                denom,
-            },
+        let (u, v) = self.restrict_axes(cuts, (true, true));
+        match (u, v) {
+            (Some(u), Some(v)) => Self { u, v },
+            _ => unreachable!("both axes asked"),
         }
+    }
+
+    /// The pieces of `S_u` (`axes.0`) and `S_v` (`axes.1`) on the part
+    /// of the block a cut keeps ([`Self::restrict`]), each axis only
+    /// where asked, `None` where not asked or refused: a reader of one
+    /// axis restricts its numerator and `W²` alone. Bit for bit the
+    /// pieces [`Self::restrict`] then [`Self::pieces`] read.
+    #[must_use]
+    pub fn cut_pieces(
+        &self,
+        cuts: (Option<AxisCut>, Option<AxisCut>),
+        axes: (bool, bool),
+        splits: (usize, usize),
+    ) -> (
+        Option<Vec<QuotientPiece<crate::interval::Interval, 3>>>,
+        Option<Vec<QuotientPiece<crate::interval::Interval, 3>>>,
+    ) {
+        let counts = (halving_count(splits.0), halving_count(splits.1));
+        let (u, v) = self.restrict_axes(cuts, axes);
+        (
+            u.and_then(|r| r.pieces(counts)),
+            v.and_then(|r| r.pieces(counts)),
+        )
+    }
+
+    /// The asked axes' quotients restricted; `S_u` and `S_v` share `W²`
+    /// (`Homogeneous::first_raised`), so it is restricted once.
+    fn restrict_axes(
+        &self,
+        cuts: (Option<AxisCut>, Option<AxisCut>),
+        (want_u, want_v): (bool, bool),
+    ) -> (
+        Option<Raised<crate::interval::Interval, 3>>,
+        Option<Raised<crate::interval::Interval, 3>>,
+    ) {
+        if !(want_u || want_v) {
+            return (None, None);
+        }
+        let denom = self.u.denom.restricted(cuts);
+        let raised = |q: &Raised<crate::interval::Interval, 3>| Raised {
+            numer: q.numer.restricted(cuts),
+            denom: denom.clone(),
+        };
+        (
+            want_u.then(|| raised(&self.u)),
+            want_v.then(|| raised(&self.v)),
+        )
     }
 }
 
