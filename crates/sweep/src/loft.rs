@@ -641,26 +641,24 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
     /// ([`geom_core::spline::Knots::new`]). So the skin is the `f64`
     /// one, the walls are lifted ([`lift_loop_walls`]), and the caps
     /// and the fold read the `f64` canonical form lifted onto the
-    /// placements the skin was selected on, themselves lifted
-    /// ([`ValidatedProfile::lift_onto`]). A section whose values are
-    /// wider than a point refuses before this half runs: at the `f64`
-    /// validation in [`fn@build`], whose value channel is then NaN, or
+    /// lane's own placements ([`ValidatedProfile::lift_onto`]), whose
+    /// value channel is the planes the skin was selected on. A section
+    /// whose values are wider than a point refuses before this half
+    /// runs: at the `f64` validation in [`fn@build`], whose value
+    /// channel is then NaN, or
     /// as [`LoftError::SectionNotAPoint`] in [`loft_profiles`]; a
     /// placement wider than a point refuses in both
     /// ([`LoftError::PlacementNotAPoint`]).
     fn enclosure(self) -> Self::Out {
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
-        // The planes the `f64` skin was selected on, embedded exactly:
-        // every reader of this half — the fold, the caps, the rims —
-        // reads the one loft it encloses.
-        let places: Vec<SketchPlane<T>> = self.channel_places.iter().map(|p| p.embed()).collect();
+        let places = self.places;
         let lifted: Vec<ValidatedProfile<T>> = self
             .canonical
             .iter()
-            .zip(&places)
+            .zip(places)
             .map(|(c, place)| c.clone().lift_onto(*place))
             .collect();
-        stacking_fold(&places, &lifted, band)?;
+        stacking_fold(places, &lifted, band)?;
         let geometry = skin_validated(self.canonical, self.channel_places, self.v_degree)
             .map_err(LoftError::Skin)?;
         let walls = geometry
@@ -668,7 +666,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             .iter()
             .map(|w| lift_loop_walls(w))
             .collect::<Result<Vec<_>, _>>()?;
-        assemble(&places, &walls, &lifted, geometry.section_params, self.tol)
+        assemble(places, &walls, &lifted, geometry.section_params, self.tol)
     }
 }
 
@@ -1191,7 +1189,9 @@ fn profile_is_finite(profile: &ValidatedProfile<f64>) -> bool {
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum, with
-/// [`SkinError::PathTangentReversal`] arriving through
+/// [`SkinError::PathTangentVanishes`],
+/// [`SkinError::PathTangentReversal`] and
+/// [`SkinError::PathTangentUndecided`] arriving through
 /// [`LoftError::Skin`].
 pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     profile: &[impl SectionLoop<T>],
