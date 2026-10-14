@@ -164,7 +164,7 @@ pub fn quarter_bulge() -> f64 {
 /// Lifts an `f64` profile to any scalar (exact embedding per
 /// `Real::from_f64`).
 ///
-/// `Profile::map_scalar` except for the plane: this mints `xy` at `T`
+/// `Profile::embed` except for the plane: this mints `xy` at `T`
 /// rather than lifting `p`'s, and every caller's profile is on `xy`.
 pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
     Profile::new(

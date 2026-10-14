@@ -1,5 +1,5 @@
 //! **The raw scalar-lift door, rung by rung**:
-//! `ProfileLoop::map_scalar`, `Profile::map_scalar`.
+//! `ProfileLoop::map_scalar`, `Profile::embed`.
 //!
 //! The claim under test is that the lift is STRUCTURAL — every stored
 //! scalar goes through `f` and nothing is computed, every count and
