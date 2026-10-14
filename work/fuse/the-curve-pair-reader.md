@@ -42,7 +42,7 @@ Its second part is step 3, the meeting reading.
 - `carrier_cross::strictly_inside`;
 - `census::curved::interior_at` and `clear_of_end`;
 - the census line lane's `on_edge_interior`;
-- `LoopEdge::contact`'s conic rows (`ConicArc::hit`), which read the distance to the conic rather than at a parameter.
+- `LoopEdge::contact`'s conic rows (`ConicArc::hit`), which read the distance to the conic rather than at a parameter. Its spiric row carries a refusal inside its value (`SpiricHit::Unsettled`, read as `EdgeContact::Unread`), which the move types.
 
 **Closes on landing:**
 - `two-curve-curve-meeting-finders`
