@@ -553,7 +553,10 @@ fn bern_mul_row_into(a: &[Interval], b: &[Interval], w: &BernWeights, out: &mut 
         let mut acc = Interval::zero();
         for (t, wt) in w.row(k).iter().enumerate() {
             let i = lo + t;
-            acc = acc + a[i] * b[k - i] * *wt;
+            // A binomial quotient is non-negative, so its product reads
+            // the two corners the signs select ([`Interval::mul_nonneg`]),
+            // bit for bit the general product's four.
+            acc = acc + (a[i] * b[k - i]).mul_nonneg(*wt);
         }
         out.push(acc);
     }

@@ -88,6 +88,58 @@ impl DInterval {
     }
 }
 
+impl DInterval {
+    /// **`self · w` for a multiplier `w` with `w.lo >= 0`**, bit for bit
+    /// the general product, reading two corners where it can.
+    ///
+    /// With `w` non-negative, the extreme EXACT corners are fixed by the
+    /// signs of `self`'s endpoints: the least is `self.lo · w.lo` when
+    /// `self.lo >= 0` and `self.lo · w.hi` otherwise, the greatest
+    /// `self.hi · w.hi` when `self.hi >= 0` and `self.hi · w.lo`
+    /// otherwise. The four-corner fold takes the least of the PADDED
+    /// corners, and that is the selected corner's own [`mul_lo`] unless
+    /// the selected product is exact: a padded `mul_lo` is `down1` of a
+    /// rounded value, and every other corner rounds at or above that
+    /// value, so none pads below it; but an exact selected corner keeps
+    /// its value unpadded, and a neighbour that rounds onto the same
+    /// value and pads one step reads below it (and a neighbour that
+    /// underflows to zero pads past an exact zero). So the selected
+    /// corner's bound is returned when it was padded, and the general
+    /// product decides when it was exact (mirror for `hi`). A point `w`
+    /// is the general product too, which already folds two corners
+    /// there, as is a `w` with a negative lower end, and a poisoned or
+    /// empty operand.
+    #[must_use]
+    pub fn mul_nonneg(self, w: Self) -> Self {
+        if Self::propagate2(&self, &w).is_some() || w.lo < 0.0 || w.lo == w.hi {
+            return self * w;
+        }
+        let (a, b) = if self.lo >= 0.0 {
+            (self.lo, w.lo)
+        } else {
+            (self.lo, w.hi)
+        };
+        let lo = mul_lo(a, b);
+        let (c, e) = if self.hi >= 0.0 {
+            (self.hi, w.hi)
+        } else {
+            (self.hi, w.lo)
+        };
+        let hi = mul_hi(c, e);
+        if unpadded(a, b, lo) || unpadded(c, e, hi) {
+            return self * w;
+        }
+        Self::make(lo, hi, self.dec.min(w.dec))
+    }
+}
+
+/// Whether a corner bound `v` of `x · y` is the product itself rather
+/// than a padded step: a zero factor (its exact zero), or `v` equal to
+/// the rounded product.
+fn unpadded(x: f64, y: f64, v: f64) -> bool {
+    x == 0.0 || y == 0.0 || v == x * y
+}
+
 /// `k > 0` with an all-zero significand at a normal exponent.
 fn is_normal_pow2(k: f64) -> bool {
     const SIGNIFICAND: u64 = (1 << 52) - 1;
@@ -493,5 +545,81 @@ mod tests {
                 y.hi
             );
         }
+    }
+
+    /// **A product by a non-negative multiplier is the general product,
+    /// bit for bit.** Every interval over [`intervals`] times every one
+    /// of them with a non-negative lower end: [`DInterval::mul_nonneg`]'s
+    /// two corners against `x * w`'s four, bounds and decoration,
+    /// across signed zeros, the subnormal range, the 2Prod floor, the
+    /// extremes and the infinities.
+    #[test]
+    fn a_nonnegative_multiplier_is_the_general_product() {
+        let all = intervals();
+        let mut n = 0;
+        for &x in &all {
+            for &w in all.iter().filter(|w| w.lo >= 0.0) {
+                assert_eq!(bits(x.mul_nonneg(w)), bits(x * w), "{x:?} * {w:?}");
+                n += 1;
+            }
+        }
+        // A multiplier below zero is handed to the general product.
+        let (x, w) = (
+            DInterval::from_bounds(-2.0, 3.0),
+            DInterval::from_bounds(-1.0, 0.5),
+        );
+        assert_eq!(bits(x.mul_nonneg(w)), bits(x * w));
+        assert!(n > 10_000, "the table reaches the shortcut: {n} products");
+    }
+
+    /// **The same against the weights the Bernstein products read**, at
+    /// operands drawn to provoke ties: a binomial quotient `C·C'/C''` as
+    /// an enclosure, against intervals built from dyadic values with
+    /// few significant bits (whose products are often exact, the case
+    /// that falls back to four corners), near-zero values and random
+    /// doubles, both signs. Bounds and decoration, bit for bit.
+    #[test]
+    fn a_binomial_weight_product_is_the_general_product() {
+        let mut s: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = || {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            s
+        };
+        let draw = |n: &mut dyn FnMut() -> u64| -> f64 {
+            let r = n();
+            let sign = if r & 1 == 0 { 1.0 } else { -1.0 };
+            let m = ((r >> 8) % 64) as f64;
+            let e = ((r >> 20) % 40) as i32 - 20;
+            match (r >> 40) % 4 {
+                0 => sign * m * 2f64.powi(e),
+                1 => sign * f64::from_bits((r >> 2) & 0x3FEF_FFFF_FFFF_FFFF),
+                2 => sign * m * 2f64.powi(-1060),
+                _ => 0.0,
+            }
+        };
+        let binom =
+            |n: u64, k: u64| (0..k).fold(1.0_f64, |acc, i| acc * (n - i) as f64 / (i + 1) as f64);
+        let (mut n, mut fell_back) = (0usize, 0usize);
+        for _ in 0..200_000 {
+            let (x0, x1) = (draw(&mut next), draw(&mut next));
+            let x = DInterval::from_bounds(x0.min(x1), x0.max(x1));
+            let r = next();
+            let (da, db) = (1 + r % 12, 1 + (r >> 8) % 12);
+            let k = (r >> 16) % (da + db + 1);
+            let i = k.saturating_sub(db) + (r >> 24) % (k.min(da) - k.saturating_sub(db) + 1);
+            let w = DInterval::point(binom(da, i) * binom(db, k - i))
+                / DInterval::point(binom(da + db, k));
+            let got = x.mul_nonneg(w);
+            let want = x * w;
+            assert_eq!(bits(got), bits(want), "{x:?} * {w:?}");
+            n += 1;
+            fell_back += usize::from(w.lo == w.hi);
+        }
+        assert!(
+            n == 200_000 && fell_back < n,
+            "{fell_back} point weights of {n}"
+        );
     }
 }
