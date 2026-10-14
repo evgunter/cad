@@ -2,10 +2,11 @@
 id: a-lever-decisions-definite-arm-at-rest-drops-its-note
 kind: issue
 title: geom-brep: at rest, a StoredDefinite::Lever decision's sign-certain arm ends in the lever alone while its in-band sibling carries the no_size note
-status: open
+status: dispatched
 opened: 2026-10-13
 priority: P3
 cost: E
+branch: encl/at-rest-one-story
 ---
 
 (Filed by the ENCL implementer of `param-span-reversed-at-a-build-tells-two-stories`, from its sweep.)
@@ -38,3 +39,13 @@ Should `(Reading::AtRest, StoredDefinite::Lever)` take the class route too, endi
   - The import door past ε_in reads as at rest, so it carries the same split.
   - So the question above widens: one definite reading should end one way at rest whichever route carries it. For a Contradiction decision that would make the Undecided-past route end in the defect ending, or the SignCertain route in the lever plus the note.
 
+
+## Ruled (ENCL orchestrator, 2026-10-14)
+
+One definite reading ends one way at rest whichever arm routes it. The ending reads the reading's class and the decision's `StoredDefinite`, never the route. Per D4 ¶1 (iv), applied as ratified:
+
+- **`StoredDefinite::Lever`:** a definite refused reading at rest (`Shows::Refused`, or the sign-certain arm) ends in the lever plus the decision's `no_size` note, the same as its in-band sibling. A Lever decision is one the lever reaches.
+- **`StoredDefinite::Contradiction`:** a definite refused reading at rest ends in `KERNEL_OR_FILE_DEFECT_ENDING` on either route. That includes the import door past ε_in, which reads as at rest. (iv) excuses exactly this case: a contradiction between a stored description and its stored geometry that no move reaches. An in-band reading at rest is not definite, so it keeps the lever plus the note.
+- **A build is unchanged:** every sized decision's definite refused arm ends in the lever plus the note, as PR 5023 made it.
+
+Derive the route-free ending from one place, so the two routes cannot drift. Pin both routes for each of the four `no_size: Some` decisions at rest, and at the door past ε_in.
