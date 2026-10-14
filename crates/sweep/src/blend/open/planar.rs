@@ -54,9 +54,9 @@ use crate::blend::battery::{Convexity, EndSection, Link, Overrun, Turn};
 use crate::blend::build::{fan_at, octant_chart, outward_of};
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
-    CORNER_SUPPORT_NOT_PLANAR, ContactCarrier, Described, SourceFaces, chord_site, face_of_half,
-    halves_of, not_intact, op, open_trimline, point_of, retire_fragment, split_fragment,
-    unbuilt_geometry, unbuilt_run_out,
+    CORNER_SUPPORT_NOT_PLANAR, ContactCarrier, Described, SourceFaces, chord_site, disagrees,
+    face_of_half, halves_of, op, open_trimline, point_of, retire_fragment, split_fragment,
+    unbuilt_geometry, unbuilt_run_out, unresolved, unwalked,
 };
 use crate::blend::{BlendDecision, BlendError, BlendKind, BlendSite};
 
@@ -141,7 +141,7 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
     let p = *body
         .get_vertex(vertex)
         .and_then(|x| body.get_point(x.point))
-        .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a corner's stored point"))?;
+        .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a corner's stored point"))?;
     let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
     for (slot, &f) in normals.iter_mut().zip(faces.as_slice()) {
         *slot = outward_of(body, f)
@@ -283,17 +283,17 @@ pub(in crate::blend) fn joint_plan<'a, T: Decide>(
         .find(|o| o.edge() == joint.arriving())
         .map(AdmittedOpen::link)
         .ok_or_else(|| {
-            not_intact(
+            disagrees(
                 EntityId::Vertex(vertex),
                 "a joint's arriving link is not an admitted planar link",
             )
         })?;
     let p = point_of(body, vertex)
-        .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a joint's stored point"))?;
+        .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a joint's stored point"))?;
     let mut feet = [p; 2];
     for (foot, face) in feet.iter_mut().zip(joint.faces()) {
         let Some((trim, _)) = link.trim_on(face) else {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Vertex(vertex),
                 "a joint's face is not a support of its arriving link",
             ));
@@ -364,11 +364,21 @@ pub(in crate::blend) struct TurnPlan<'a, T: Real> {
     /// The mitre's carrier: the chord where two plane bands cross, or
     /// the ellipse where two cylinder bands do.
     mitre: ContactCarrier<T>,
-    /// At an overrun, the region the far band's cut-off at the near
-    /// band's face of the third edge takes from that face: the far
-    /// band's whole cut-off sliver there, which arm (c) meters
-    /// ([`EndCut::plan`]).
-    pub(in crate::blend) sliver: Option<CapSliver<T>>,
+    /// The turn's overrun with its planned cut-off, present exactly
+    /// when the battery decided one: the plan's readers take the overrun
+    /// from here, never from [`Turn::overrun`].
+    pub(in crate::blend) overrun: Option<PlannedOverrun<'a, T>>,
+}
+
+/// **An overrun with its far band's cut-off at the near band's face of
+/// the third edge** ([`EndCut::plan`]).
+pub(in crate::blend) struct PlannedOverrun<'a, T: Real> {
+    /// The battery's overrun.
+    pub(in crate::blend) of: &'a Overrun<T>,
+    /// The overrun edge's carrier, a piece of the cut-off's end curve.
+    pub(in crate::blend) carrier: ContactCarrier<T>,
+    /// The cut-off's whole sliver at that face, which arm (c) meters.
+    pub(in crate::blend) sliver: CapSliver<T>,
 }
 
 /// The refusal for a fillet turn whose two cylinders the section door
@@ -391,10 +401,12 @@ const MITRE_NOT_AN_ELLIPSE: &str = "a turn's two cylinder bands do not meet in a
 /// `at` is the foot's parameter on the third edge, read by the caller.
 ///
 /// At an overrun the far band is planned cut off at the near band's
-/// face of the third edge, as any cut-off is ([`EndCut::plan`]): its
-/// feet are the far foot on the third edge and its trimline on the
-/// shared face met with the near band's requested edge, and the sliver
-/// between them and the vertex is what the ring pass meters.
+/// face of the third edge, as any cut-off is ([`EndCut::plan`]), in the
+/// section the battery picked ([`Overrun::section`]): its feet are the
+/// far foot on the third edge and its trimline on the shared face met
+/// with the near band's requested edge, the overrun edge is its end
+/// curve's piece from the mitre's end to the far foot, and the sliver
+/// between the feet and the vertex is what the ring pass meters.
 ///
 /// # Errors
 ///
@@ -417,7 +429,7 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
         [a, b] if [a.edge(), b.edge()] == turn.requested => [a, b],
         [a, b] if [b.edge(), a.edge()] == turn.requested => [b, a],
         _ => {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Vertex(vertex),
                 "a turn's admitted links are not its two requested edges",
             ));
@@ -428,7 +440,7 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
         BlendKind::Fillet => {
             let unbuilt = || unbuilt_geometry(EntityId::Vertex(vertex), MITRE_NOT_AN_ELLIPSE);
             let p = point_of(body, vertex)
-                .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a turn's vertex"))?;
+                .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a turn's vertex"))?;
             let cylinder = |l: &Link<T>, axis: Vec3<T>| match l.blend.surface {
                 Surface::Cylinder {
                     origin,
@@ -469,20 +481,23 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
             ContactCarrier::Transverse(e1)
         }
     };
-    let sliver = match turn.overrun() {
+    let overrun = match turn.overrun() {
         None => None,
-        Some(o) => Some(
-            cut_off_plan(body, links[o.far], vertex, EndSection::Chord)?
-                .end
-                .sliver,
-        ),
+        Some(of) => {
+            let end = cut_off_plan(body, links[of.far], vertex, of.section.clone())?.end;
+            Some(PlannedOverrun {
+                of,
+                carrier: end.carrier(),
+                sliver: end.sliver,
+            })
+        }
     };
     Ok(TurnPlan {
         turn,
         links,
         at,
         mitre,
-        sliver,
+        overrun,
     })
 }
 
@@ -553,7 +568,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             foot_of
                 .get(&(v, f))
                 .copied()
-                .ok_or_else(|| not_intact(EntityId::Vertex(v), "a station's foot on its support"))
+                .ok_or_else(|| disagrees(EntityId::Vertex(v), "a station's foot on its support"))
         };
 
     // ---- Per cut-off: both rims split at their feet and the end curve
@@ -585,8 +600,8 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     for t in turns {
         let foot = turn_split(body, t, rec, tol)?;
         let mut feet = [foot; 2];
-        if let Some(o) = t.turn.overrun() {
-            feet[o.near()] = overrun_cut(body, t, o, foot, &mut described, rec, tol)?;
+        if let Some(o) = &t.overrun {
+            feet[o.of.near()] = overrun_cut(body, t, o, foot, &mut described, rec, tol)?;
         }
         for (f, x) in t.turn.others.into_iter().zip(feet) {
             once(
@@ -616,7 +631,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             let p = *body
                 .get_vertex(v)
                 .and_then(|x| body.get_point(x.point))
-                .ok_or_else(|| not_intact(EntityId::Vertex(v), "a support boundary vertex"))?;
+                .ok_or_else(|| unresolved(EntityId::Vertex(v), "a support boundary vertex"))?;
             let fp = station.foot;
             // **NOT re-described at rest, and that is a REPORTED
             // finding rather than an oversight** (P-1b, #1116).
@@ -661,8 +676,8 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             );
             let (he1, he2) = (half_from(body, f, x)?, half_from(body, f, y)?);
             let (px, py) = (
-                point_of(body, x).ok_or_else(|| not_intact(EntityId::Vertex(x), "a foot"))?,
-                point_of(body, y).ok_or_else(|| not_intact(EntityId::Vertex(y), "a foot"))?,
+                point_of(body, x).ok_or_else(|| unresolved(EntityId::Vertex(x), "a foot"))?,
+                point_of(body, y).ok_or_else(|| unresolved(EntityId::Vertex(y), "a foot"))?,
             );
             let created = body
                 .mef(
@@ -697,13 +712,13 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             strip_half
                 .get(&(e, f))
                 .copied()
-                .ok_or_else(|| not_intact(EntityId::Face(f), "a link's support"))
+                .ok_or_else(|| disagrees(EntityId::Face(f), "a link's support"))
         };
         let (half_a, half_b) = (half_on(o.link().face_a)?, half_on(o.link().face_b)?);
         let survivor_loop = body
             .get_half_edge(half_b)
             .map(|h| h.parent_loop)
-            .ok_or_else(|| not_intact(EntityId::HalfEdge(half_b), "a carved strip's half"))?;
+            .ok_or_else(|| unresolved(EntityId::HalfEdge(half_b), "a carved strip's half"))?;
         sources.kef_minted(body, half_a, "edge-strip kef", tol)?;
         once(&mut hexagon, e, survivor_loop, EntityId::Edge(e))?;
     }
@@ -725,7 +740,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
          -> Result<EdgeKey, BlendError> {
             let l = o.link();
             let f = hex_face(body, l.edge)
-                .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a merged strip's face"))?;
+                .ok_or_else(|| unresolved(EntityId::Edge(l.edge), "a merged strip's face"))?;
             // The arc spans the two feet flanking the corner in the
             // merged strip's cycle: from the foot whose half-edge ENDS
             // at the corner to the foot two positions on.
@@ -738,9 +753,9 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             )?;
             let (p1, p2) = (
                 point_of(body, v1)
-                    .ok_or_else(|| not_intact(EntityId::Vertex(v1), "an arc foot's vertex"))?,
+                    .ok_or_else(|| unresolved(EntityId::Vertex(v1), "an arc foot's vertex"))?,
                 point_of(body, v2)
-                    .ok_or_else(|| not_intact(EntityId::Vertex(v2), "an arc foot's vertex"))?,
+                    .ok_or_else(|| unresolved(EntityId::Vertex(v2), "an arc foot's vertex"))?,
             );
             let created = body
                 .mef(
@@ -877,13 +892,13 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     for t in turns {
         let [b1, b2] = t.links.map(|o| hex_face(body, o.edge()));
         let (Some(b1), Some(b2)) = (b1, b2) else {
-            return Err(not_intact(
+            return Err(unresolved(
                 EntityId::Vertex(t.turn.vertex),
                 "a turning band's merged strip face",
             ));
         };
         if b1 == b2 {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Vertex(t.turn.vertex),
                 "a turn's two links merged into one band face",
             ));
@@ -901,7 +916,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         // strip holds the overrun, and folded into the far one; it runs
         // from the crossing to that band's foot on its face of the third
         // edge (the mitre's end there).
-        let near = t.turn.overrun().map_or(0, Overrun::near);
+        let near = t.overrun.as_ref().map_or(0, |o| o.of.near());
         let v = t.turn.vertex;
         let ends = [
             foot_at(&foot_of, v, t.turn.shared)?,
@@ -916,7 +931,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     for (c, rims) in cut_offs.iter().zip(&cuts) {
         let e = c.link.edge();
         let band = hex_face(body, e)
-            .ok_or_else(|| not_intact(EntityId::Edge(e), "a merged strip's face"))?;
+            .ok_or_else(|| unresolved(EntityId::Edge(e), "a merged strip's face"))?;
         fold_sliver(body, sources, band, c.end.vertex, rims, rec, tol)?;
     }
 
@@ -966,9 +981,9 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         let first = band.first().edge();
         let f = live
             .next()
-            .ok_or_else(|| not_intact(EntityId::Edge(first), "a merged strip's face"))?;
+            .ok_or_else(|| unresolved(EntityId::Edge(first), "a merged strip's face"))?;
         if live.any(|g| g != f) {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Edge(first),
                 "a band's links did not fuse into one face across their joints",
             ));
@@ -1007,17 +1022,18 @@ fn turn_split<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<VertexKey, BlendError> {
     let linked = t.links.map(|o| o.edge());
-    let third = fan_at(body.edges_of_vertex(t.turn.vertex))
-        .and_then(|fan| match fan[..] {
-            [_, _, _] => fan.into_iter().find(|e| !linked.contains(e)),
-            _ => None,
-        })
-        .ok_or_else(|| {
-            not_intact(
-                EntityId::Vertex(t.turn.vertex),
-                "a turn's vertex does not carry its two links and one third edge",
-            )
-        })?;
+    let fan = fan_at(body.edges_of_vertex(t.turn.vertex))
+        .ok_or_else(|| unwalked(EntityId::Vertex(t.turn.vertex), "a turn's vertex orbit"))?;
+    let third = match fan[..] {
+        [_, _, _] => fan.into_iter().find(|e| !linked.contains(e)),
+        _ => None,
+    }
+    .ok_or_else(|| {
+        disagrees(
+            EntityId::Vertex(t.turn.vertex),
+            "a turn's vertex does not carry its two links and one third edge",
+        )
+    })?;
     let frag = split_fragment(
         body,
         third,
@@ -1029,7 +1045,7 @@ fn turn_split<T: Decide + topo::AtRestPolicy>(
         tol,
     )?;
     if frag.source != t.turn.edge {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Edge(third),
             "a turn's third edge is not a fragment of the edge the verdict named",
         ));
@@ -1043,8 +1059,9 @@ fn turn_split<T: Decide + topo::AtRestPolicy>(
 /// far band's cut-off at the near band's face of the third edge, from
 /// the turn foot `foot` on that edge out into the face to the mitre's
 /// end, which is where the near band's trimline there starts. The edge
-/// is the far band's end curve (a chamfer's chord) and its end that
-/// band's foot on the face, as at any cut-off. Returns the mitre's end.
+/// is the far band's end curve (a chamfer's chord, a fillet's arc of a
+/// circle or an ellipse) and its end that band's foot on the face, as at
+/// any cut-off. Returns the mitre's end.
 ///
 /// # Errors
 ///
@@ -1054,16 +1071,17 @@ fn turn_split<T: Decide + topo::AtRestPolicy>(
 fn overrun_cut<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     t: &TurnPlan<'_, T>,
-    o: &Overrun<T>,
+    planned: &PlannedOverrun<'_, T>,
     foot: VertexKey,
     described: &mut Described<T>,
     rec: &mut BlendNaming,
     tol: Tol,
 ) -> Result<VertexKey, BlendError> {
+    let o = planned.of;
     let near = t.turn.others[o.near()];
     let he = half_from(body, near, foot)?;
     let p =
-        point_of(body, foot).ok_or_else(|| not_intact(EntityId::Vertex(foot), "a turn foot"))?;
+        point_of(body, foot).ok_or_else(|| unresolved(EntityId::Vertex(foot), "a turn foot"))?;
     let created = body
         .mev(
             MevSite::Fan { he1: he, he2: he },
@@ -1073,7 +1091,7 @@ fn overrun_cut<T: Decide + topo::AtRestPolicy>(
         )
         .map_err(|e| op("overrun mev", e))?;
     let crease = t.links[o.far].edge();
-    described.push((created.edge, ContactCarrier::Chord, crease));
+    described.push((created.edge, planned.carrier.clone(), crease));
     rec.arcs.push((created.edge, t.turn.vertex, crease));
     rec.feet.push((created.vertex, t.turn.vertex, near));
     Ok(created.vertex)
@@ -1118,8 +1136,8 @@ fn turn_fusion<T: Decide + topo::AtRestPolicy>(
     };
     let (he1, he2) = (half_from(body, band, x)?, half_from(body, band, y)?);
     let (px, py) = (
-        point_of(body, x).ok_or_else(|| not_intact(EntityId::Vertex(x), "a mitre's end"))?,
-        point_of(body, y).ok_or_else(|| not_intact(EntityId::Vertex(y), "a mitre's end"))?,
+        point_of(body, x).ok_or_else(|| unresolved(EntityId::Vertex(x), "a mitre's end"))?,
+        point_of(body, y).ok_or_else(|| unresolved(EntityId::Vertex(y), "a mitre's end"))?,
     );
     let created = body
         .mef(
@@ -1132,7 +1150,7 @@ fn turn_fusion<T: Decide + topo::AtRestPolicy>(
     described.push((created.edge, t.mitre.clone(), t.links[0].edge()));
     rec.mitres.push((created.edge, v));
     let (sp, sm) = halves_of(body, strut)
-        .ok_or_else(|| not_intact(EntityId::Edge(strut), "a turn's strut"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(strut), "a turn's strut"))?;
     let triangle = created.face;
     let dying = if face_of_half(body, sp) == Some(triangle) {
         sp
@@ -1140,31 +1158,28 @@ fn turn_fusion<T: Decide + topo::AtRestPolicy>(
         sm
     };
     if face_of_half(body, dying) != Some(triangle) {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Edge(strut),
             "a turn's strut does not bound the triangle the mitre cut off",
         ));
     }
     sources.kef_minted(body, dying, "turn strut kef", tol)?;
-    let spur = body
+    let fan = body
         .edges_of_vertex(v)
-        .and_then(|fan| match fan[..] {
-            [e] => halves_of(body, e),
-            _ => None,
-        })
-        .map(|(hp, hm)| {
-            if body.half_edge_end(hm) == Some(v) {
-                hm
-            } else {
-                hp
-            }
-        })
-        .ok_or_else(|| {
-            not_intact(
-                EntityId::Vertex(v),
-                "a turn's vertex is not left with the third edge's piece alone",
-            )
-        })?;
+        .ok_or_else(|| unwalked(EntityId::Vertex(v), "a turn's vertex orbit"))?;
+    let [piece] = fan[..] else {
+        return Err(disagrees(
+            EntityId::Vertex(v),
+            "a turn's vertex is not left with the third edge's piece alone",
+        ));
+    };
+    let (hp, hm) = halves_of(body, piece)
+        .ok_or_else(|| unresolved(EntityId::Edge(piece), "a turn's third edge's piece"))?;
+    let spur = if body.half_edge_end(hm) == Some(v) {
+        hm
+    } else {
+        hp
+    };
     debug_assert!(
         body.kev_merged_members(spur).is_ok_and(|m| m.is_empty()),
         "turn kev: the third edge's piece is a spur at the vertex"
@@ -1188,7 +1203,7 @@ fn once<K: Ord, V>(
             slot.insert(value);
             Ok(())
         }
-        Entry::Occupied(_) => Err(not_intact(
+        Entry::Occupied(_) => Err(disagrees(
             at,
             "the carve minted a second row for one station, strip or link",
         )),

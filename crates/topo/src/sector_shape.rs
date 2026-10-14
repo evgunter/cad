@@ -442,6 +442,20 @@ pub(crate) fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point
     (q - origin).dot(normal)
 }
 
+/// [`plane_offset`] with a first-order bound on its own rounding, its
+/// inputs exact ([`geom_core::running`]): the value is bit-identical to
+/// [`plane_offset`]'s, so a door that decides on one charges the other.
+pub(crate) fn plane_offset_rounded<T: Real>(
+    origin: Point3<T>,
+    normal: Vec3<T>,
+    q: Point3<T>,
+) -> geom_core::running::Rounded<T> {
+    use geom_core::running::{self, Rounded};
+    let d = [(q.x, origin.x), (q.y, origin.y), (q.z, origin.z)]
+        .map(|(a, b)| Rounded::exact(a) - Rounded::exact(b));
+    running::dot(d, running::exact_vec(normal))
+}
+
 /// **A point's distance from the closed segment `a → b`, in metres**:
 /// to the foot of the perpendicular where it falls on the segment, to
 /// the nearer end otherwise (the foot parameter clamped by `min`/`max`,

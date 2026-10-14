@@ -2276,3 +2276,44 @@ The pair converged after one round:
 - the one-line shape moves to the `Emission` residue, and its row closes as unreached.
 
 This is fork-log row 131 (renumbered at merge; Ev: "sounds good!"). Also filed: `a-run-of-seams-says-every-seam-after-the-first-as-an-edge`.
+
+## 2026-10-13 — the glued-rim ruling built (branch `emit/glued-rim-build`)
+
+- The three-block glued-rim fixture is pinned over all 6 member orders, along with its sunk and lifted variants. Glued and sunk publish the same seam and seam-run names. Lifted names the edge as a piece of `b`'s rim.
+- One line meeting several faces is now an `Emission` refusal in both emitters, with the planar link argument beside each. `SeamVertexParentage` keeps one raiser, the pair emitter's A-side lone-edge arm, and its doc and message now describe that arm.
+- Closed:
+  - `a-union-edge-in-a-face-whose-member-face-glued-is-a-seam-not-a-member-edge-piece`;
+  - `a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces` (unreached).
+- Filed on CIW: `the-ci-slow-set-names-tests-that-no-longer-exist`.
+
+## 2026-10-14 — PR 5039: two naming refusals on sound bodies
+
+**The prism bridging two wedges** (closed). A union seam between two distinct faces of one operand is now named as their `Seam`, and the arm guards on `BooleanOp::Union`. This covers both a seam that shares no edge and a chord off every rim the two faces share. `borders.rs` follows split lineage for touches through one loud walk.
+- Pinned in every building order, with a fast subset run in per-PR CI.
+- The orders that fold the bridge last still refuse in topo (TANG's row).
+
+**The sphere cut-in cap** (closed, P2). Topo's `apply_cut_ins` now records its divisions and chart cuts (record only), so the cap no longer refuses `MissingUpstream`. What remains is the typed `ConventionalVertex` refusal (FUSE's row).
+
+**Filed:**
+- FUSE: the unglued cut in the lens ∪ brick;
+- EMIT: a whole ball cut by a tilted brick refuses `UNCLASSIFIED_SIDE`;
+- CIW: loop-boundary-discards loses a fn whose signature holds a `;`;
+- ORBIT: the re-cut graft keys carry no record;
+- NURBS (#5044): the lily-leaf tessellation table drift on main, found on this PR's demos run.
+
+The PR merged with `demos` red on that drift alone.
+
+## 2026-10-14 — PR 5062: the whole ball cut by a tilted brick, parked
+
+**Measured.** Intersect and union refuse `UNCLASSIFIED_SIDE` in both operand orders; subtract names in both.
+
+**Cause.**
+- The kernel re-charts the closed ball with `apply_recuts`. It turns the ball until its poles lie on the brick's axis, and every key is kept.
+- The union reads member edges by key but member vertices by position in the member's own body. At a turned pole the two readings disagree, so the vertex falls through to `meeting` with no other member to read a sense against, and it refuses.
+- ORBIT's graft row is not reached here.
+
+**Parked.** The row waits on ORBIT's `closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`, which retires the re-chart; with no re-chart, the question this row raised does not arise. It goes to a designer pair only if ORBIT lands and keeps the re-chart.
+
+**Pin.** `emit_ball_cut_by_brick.rs` pins every op in both orders. Subtract cites a ball pole off the ball's own poles, so the test flips when the re-chart goes.
+
+**Process.** The lane's report said main did not build: `BooleanNaming`'s `Default` had no `chart_cuts`. #5060 had already fixed that.

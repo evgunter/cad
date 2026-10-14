@@ -4833,6 +4833,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "crossing_at_cone_apex",
             "crossing_carrier_unsupported",
             "crossing_insertion",
+            "crossings_along_a_contact_line",
             "curved_boolean_unsupported",
             "curved_edge_unsupported",
             "curved_pair_unsupported",
@@ -4850,6 +4851,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "germ_section_outside_inventory",
             "germ_section_spiric",
             "graft_recertify",
+            "held_pierce_unbuilt",
             "inside_out_operand",
             "invalid_input",
             "join",
@@ -4882,6 +4884,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "shared_vertex_crossings",
             "shell_witness_exhausted",
             "spheres_meet",
+            "split_lineage_cycle",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
@@ -6756,6 +6759,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // The slot-addressed half of the two above, same pin.
     ("slot_var_kind", 2),
     ("smooth_join_refuted", 2),
+    // One fact: one `SplitLineageCycle`, met by the Boolean
+    // (`BooleanErrorKind::SplitLineage`) or by naming
+    // (`NamingError::SplitLineage`);
+    // `a_split_lineage_cycle_has_one_word_wherever_it_is_met` pins it.
+    ("split_lineage_cycle", 2),
     ("step_ids", 3),
     ("structure", 3),
     ("tolerance_conflict", 2),
@@ -6811,6 +6819,22 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
 /// words `ring_contact_tag` names a ring meeting its outer loop, the
 /// other ring in the outer loop's place, so a caller reads one
 /// vocabulary for one shape. Red where either map re-spells a shape.
+/// **One split-lineage cycle, one word.** The Boolean and naming both
+/// refuse a `SplitLineageCycle` they meet, and a caller reading the tag
+/// reads one fact. Red if either map spells it apart.
+#[test]
+fn a_split_lineage_cycle_has_one_word_wherever_it_is_met() {
+    use crate::tags::{boolean_error_tag, naming_error_tag};
+    use pncad::topo::{BooleanErrorKind, SplitLineageCycle};
+    let cycle = SplitLineageCycle {
+        edge: Default::default(),
+    };
+    assert_eq!(
+        boolean_error_tag(BooleanErrorKind::SplitLineage),
+        naming_error_tag(&pncad::select::NamingError::SplitLineage(cycle))
+    );
+}
+
 #[test]
 fn ring_pair_words_are_the_outer_contact_words() {
     use crate::tags::{ring_contact_tag, ring_pair_contact_tag};

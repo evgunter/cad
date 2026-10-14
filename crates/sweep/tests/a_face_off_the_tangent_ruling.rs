@@ -43,7 +43,7 @@ fn about_y(
     let body = revolved_about_y(profile, rev, tol());
     let place = Affine3::translation(Vec3::new(x, 0.0, 0.0))
         * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), spin);
-    topo::transform_rigid(&body, &place, tol()).unwrap()
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol()), tol()).unwrap()
 }
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::Body<f64> {
@@ -95,7 +95,7 @@ fn all_say(rows: &[[String; 2]], want: &str, why: &str) {
 
 fn turned(b: topo::Body<f64>, angle: f64) -> topo::Body<f64> {
     let t = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), angle);
-    topo::transform_rigid(&b, &t, tol()).unwrap()
+    topo::transform_rigid(&b, &geom_core::test_support::rigid(&t, tol()), tol()).unwrap()
 }
 
 /// The brick's top `5.5·ε` below the wall's carrier, slid off the

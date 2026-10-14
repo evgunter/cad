@@ -52,6 +52,7 @@ crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	nappe_sign(*nappe)	a c
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s0	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s1	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(an-edges-parameter-ends-enter-a-carrier-piece-as-constants)	v	net_param: a parameter that is no net breakpoint: an edge enclosure's f64 end (a computed value, laundered), or a partition or halving break (a genuine constant)
+crates/geom-brep/src/props/closure.rs	1	constant	VERTEX_SLACK * band.zero()	the vertex slack, a multiple of the band's zero width: a tolerance
 crates/geom-brep/src/props/loop_area.rs	1	constant	*w	a Gauss weight
 crates/geom-brep/src/props/loop_area.rs	1	constant	*x	a Gauss node
 crates/geom-brep/src/ssi/certify.rs	1	constant	0.5 * (a + b)	a refined span's midpoint where the chain box's axis is read: a direction the certificate holds for whichever one it is handed
@@ -67,7 +68,8 @@ crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interva
 crates/geom-core/src/spline/algebra.rs	1	constant	a	apply_rational: degree elevation's binomial ratio i/(p + 1), a constant of the operation
 crates/geom-core/src/spline/basis.rs	1	constant	factor	a falling factorial of the degree, a count
 crates/geom-core/src/spline/basis.rs	1	constant	self.0.knots().knots()[i]	the lifted basis over a bare KnotVector, which holds no value in a scalar: its one production caller is geom's f64 fit, where from_f64 is the identity; a carrier's evaluation reads basis_funs_in over its held knots. KNOWN GAP: pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
-crates/geom-core/src/spline/derivative.rs	1	constant	p as f64	the degree, a derivative coefficient's factor over the held knots
+crates/geom-core/src/spline/derivative.rs	2	constant	p as f64	the degree, a derivative coefficient's factor over the held knots (and a Bézier axis's degree, the r-th derivative's scale)
+crates/geom-core/src/spline/derivative.rs	1	constant	p.checked_sub(r)? as f64	the degree of a Bézier axis's r-th derivative, its scale's factor
 crates/geom-core/src/spline/derivative.rs	2	constant	k	an exact binomial integer (the quotient bound's Bernstein product and elevation weights; QUOTIENT_MAX_DEGREE keeps every one below 2^53)
 crates/geom-core/src/spline/knot_values.rs	1	constant	hi	Knots::on_domain: the re-expression's upper end, the caller's f64 parameter
 crates/geom-core/src/spline/knot_values.rs	1	constant	lo	Knots::on_domain: the re-expression's lower end, the caller's f64 parameter
@@ -106,9 +108,10 @@ crates/sweep/src/skin.rs	1	constant	k as f64 / steps	a sub-arc breakpoint k/m, s
 crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T
+crates/topo/src/bisect.rs	1	constant	escalate	the band's escalation width, a tolerance
 crates/topo/src/boolean/boxes.rs	1	constant	l as f64	a sample index
 crates/topo/src/boolean/boxes.rs	3	constant	k as f64	a sample index
-crates/topo/src/boolean/carrier_touch.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
+crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
 crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(POLE_CANDIDATES)	a candidate count
 crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(n)	a subdivision count
 crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(top)	a subdivision count
@@ -128,7 +131,6 @@ crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction o
 crates/topo/src/boolean/solid_contain.rs	1	constant	f64::from(k)	a decided whole-period count
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
-crates/topo/src/census/curved.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
 crates/topo/src/chart_bound.rs	1	constant	<fn>	a fixed direction of the 2-D ray schedule (SCHEDULE_2D)
 crates/topo/src/chart_bound.rs	1	constant	k	a ring shift count (RING_SHIFTS)
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
@@ -157,3 +159,4 @@ crates/topo/src/test_support_fixtures.rs	1	fixture	self.radius	a fixture surface
 crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	1	fixture	t1	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	10	fixture	<fn>	a fixture's f64 frame lifted into T
+crates/topo/src/vertex_section.rs	1	constant	band.escalate() / band.zero()	the band's K, the ratio of its two widths

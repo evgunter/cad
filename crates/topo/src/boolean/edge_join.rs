@@ -214,13 +214,7 @@ impl core::fmt::Display for JoinUndecided {
                         "whether an edge meeting another at a vertex on one curve {}",
                         geom_brep::ISO_FAMILY_CLAUSE
                     ),
-                    geom_brep::recourse::LeverOnly {
-                        lever: geom_core::COINCIDENCE_RECOURSE,
-                    }
-                    .recourse(
-                        geom_brep::recourse::RefusedArm::Undecided(diag),
-                        geom_brep::recourse::Reading::Build
-                    )
+                    diag.lever_ending(geom_core::COINCIDENCE_RECOURSE)
                 )
             ),
             JoinReading::ChartClass(e @ geom_brep::IsoFamilyRefusal::Image(_)) => write!(
@@ -911,9 +905,7 @@ fn join_one<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let spec = if join.planar {
-        let members = body
-            .kev_merged_members(join.he)
-            .map_err(BooleanError::Euler)?;
+        let members = body.kev_merged_members(join.he)?;
         members
             .iter()
             .find(|m| m.edge == join.kept)
@@ -924,9 +916,7 @@ fn join_one<T: Decide + crate::props::AtRestPolicy>(
     } else {
         joined_spec(body, w, join)?
     };
-    let killed = body
-        .kev_describing(join.he, &[(join.kept, spec)], tol)
-        .map_err(BooleanError::Euler)?;
+    let killed = body.kev_describing(join.he, &[(join.kept, spec)], tol)?;
     debug_assert_eq!(killed.killed_vertex, w, "the kill takes the joined vertex");
     if !join.planar {
         return Ok(());

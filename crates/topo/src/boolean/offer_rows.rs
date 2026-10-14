@@ -2344,11 +2344,13 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ContinuationContradicted
         | BooleanErrorKind::UnsupportedDeclarationClass
         | BooleanErrorKind::RimCuspArmUnbuilt
+        | BooleanErrorKind::HeldPierceUnbuilt
         | BooleanErrorKind::InvalidInput
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchConesOnSeparateKeys
         | BooleanErrorKind::PinchRaysInAFace
+        | BooleanErrorKind::CrossingsAlongAContactLine
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::PartnerAlongFace
         | BooleanErrorKind::NestingUnread
@@ -2362,6 +2364,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::LineageRow
+        | BooleanErrorKind::SplitLineage
         | BooleanErrorKind::EdgeUndescribed
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::TornComponent
@@ -2838,7 +2841,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 6),
+    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 3),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
@@ -2857,6 +2860,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
+    ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
+    ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
@@ -2922,6 +2927,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "vtxfac.rs",
         "classify_vertex_on_face",
         "Coincide::TangentSide",
+        1,
+    ),
+    ("vtxfac.rs", "faces_holding_pierce", "Coincide::Sectors", 1),
+    (
+        "vtxfac.rs",
+        "faces_holding_pierce",
+        "Coincide::VertexOnFace",
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
