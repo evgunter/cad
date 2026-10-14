@@ -664,6 +664,12 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let (Some(from0), Some(from1)) = (self.face_ents.get(f0), self.face_ents.get(f1)) else {
             return Ok(none);
         };
+        // An edge on a carrier that places no point covers nothing, and
+        // the fold's name for it stands
+        // (`work/emit/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
+        if let EdgeCarrier::Unread = EdgeCarrier::of_edge(self.body, k)? {
+            return Ok(none);
+        }
         let (d0, d1): (Vec<MemberFace>, Vec<MemberFace>) = (
             from0.iter().copied().collect(),
             from1.iter().copied().collect(),

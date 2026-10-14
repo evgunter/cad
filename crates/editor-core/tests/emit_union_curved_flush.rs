@@ -24,7 +24,7 @@ use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_rim_piece_ranks::signature;
-use crate::fixture::{frame, insert, len, len2, table, union_over};
+use crate::fixture::{frame, insert, len, len2, member_of, table, union_over};
 
 use editor_core::{
     EntityKey, EntityKind, Entry, Evaluation, ExtrudeSide, Formula, LoopProgram, Node, ProfileDoc,
@@ -115,14 +115,6 @@ fn one_table(runs: &[Run]) {
     let first = signature(first_ev, *first_union);
     for (at, _, ev, union) in rest {
         assert_eq!(first, signature(ev, *union), "{first_at} against {at}");
-    }
-}
-
-/// The node a published `From { read, .. }` name's read is defined by.
-fn member_of(doc: &ProfileDoc, name: &StableName) -> Option<RecipeNodeId> {
-    match name.path.first() {
-        Some(RoleSeg::From { read, .. }) => doc.operation_of(*read),
-        _ => None,
     }
 }
 

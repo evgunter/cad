@@ -1971,6 +1971,17 @@ pub fn out(doc: &ProfileDoc, node: RecipeNodeId) -> VarId {
         .unwrap_or_else(|| panic!("{node} defines an output"))
 }
 
+/// The member a union-minted name came from, or `None` for a name that
+/// is not a carried (`From`) row. Read off the member's READ, which is
+/// the only thing that answers: the inner name's minting node is the
+/// PROTOTYPE's where a member is a placement of one.
+pub fn member_of(doc: &ProfileDoc, name: &StableName) -> Option<RecipeNodeId> {
+    match name.path.first() {
+        Some(RoleSeg::From { read, .. }) => doc.operation_of(*read),
+        _ => None,
+    }
+}
+
 /// **One ENTITY of one member, in the UNION's own name space** — the
 /// row `member_view` puts into that member's operand table, and the
 /// shape a union's published table carries.
