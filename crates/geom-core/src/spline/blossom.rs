@@ -261,6 +261,20 @@ fn convex(t: Interval) -> (Interval, Interval) {
     (t, Interval::point(1.0) - t)
 }
 
+/// The thin convex step `x·(1 − t) + y·t` at the weights `(t, 1 − t)`
+/// ([`convex`]), and `x` itself where `y` is the same enclosure: a run
+/// of equal coefficients (a flat wall's constant derivative) stays
+/// exactly what it was, as [`Certification::between`] keeps it, where
+/// the plain step would widen it by `t`'s own width at every level.
+/// Sound: a convex combination of two values in one interval is in it.
+fn step(x: Interval, y: Interval, (t, s): (Interval, Interval)) -> Interval {
+    if x.lo().to_bits() == y.lo().to_bits() && x.hi().to_bits() == y.hi().to_bits() {
+        x
+    } else {
+        x * s + y * t
+    }
+}
+
 /// The Bernstein row on `[a, b]` of the segment whose row on `[s0, s1]`
 /// is `row`, by two de Casteljau splits: at `(a − s0)/(s1 − s0)`,
 /// keeping the right part (the row on `[a, s1]`), then at
@@ -295,7 +309,7 @@ pub(crate) fn split_restrict(
         let (t, s) = convex(ratio(a, s0));
         for r in 1..=p {
             for k in 0..=p - r {
-                d[k] = d[k] * s + d[k + 1] * t;
+                d[k] = step(d[k], d[k + 1], (t, s));
             }
         }
     }
@@ -305,7 +319,7 @@ pub(crate) fn split_restrict(
         let (t, s) = convex(ratio(b, a));
         for r in 1..=p {
             for k in (r..=p).rev() {
-                d[k] = d[k - 1] * s + d[k] * t;
+                d[k] = step(d[k - 1], d[k], (t, s));
             }
         }
     }
