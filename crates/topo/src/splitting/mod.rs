@@ -77,6 +77,7 @@ pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
 mod neighborhood;
+pub(crate) use neighborhood::{EntryFault, entry_side, wide_entry};
 // `pub(crate)` for `order::exact_band` alone: the bit-hairline band is
 // a shared DEVICE (audit note N6), and the boolean backstop's
 // sign-certainty arm decides against the same one rather than minting
@@ -390,9 +391,10 @@ pub enum SplitReduceError {
         errors: Vec<ValidationError>,
     },
     /// Whether a vertex lies on the plane is undecided (F6): its distance
-    /// lies in the ambiguity band, beyond ε, or cannot be read. No
-    /// snapping — resolution is an explicit repair/adoption op (D7
-    /// machinery).
+    /// from the plane, or from a section the plane ends at it
+    /// ([`crate::vertex_section`]), lies in the ambiguity band, beyond ε,
+    /// or cannot be read. No snapping — resolution is an explicit
+    /// repair/adoption op (D7 machinery).
     SliverVertex {
         /// The offending vertex.
         vertex: VertexKey,
@@ -1182,15 +1184,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                     side,
                     refusal: crate::boolean::JoinRefusal::of(&refusal),
                 })?;
-            result.naming.joined_lineage.extend(
-                joins
-                    .iter()
-                    .filter_map(|j| split_from.get(&j.gone).map(|&from| (j.gone, from))),
-            );
-            result
-                .naming
-                .edge_joins
-                .extend(joins.into_iter().map(|j| (side, j)));
+            result.naming.record_joins(side, &split_from, joins);
             // The side's tier-2 gate again, on the body as joined.
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;

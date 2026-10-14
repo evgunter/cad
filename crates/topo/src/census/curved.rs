@@ -42,9 +42,11 @@
 //! refuses typed, naming both edges.
 
 use geom::Curve3;
-use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Real, Sign, SupSpeed, Vec3};
+use geom_core::{Band, Decide, InfSpeed, Margin, MarginDiag, Point3, Real, Sign, SupSpeed, Vec3};
 
-use super::{CensusSubject, CensusUnsupportedCause, ValidationError, gap_is_zero};
+use super::{
+    CensusSubject, CensusUnsupportedCause, ValidationError, gap_is_zero, gap_zero_reading,
+};
 use crate::bisect::{Step, bisect};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId};
@@ -185,7 +187,7 @@ fn read<T: Decide>(
         .and_then(|d| body.curves.get(d.curve))
         .and_then(crate::null::CurveGeom::certified)
     else {
-        refuse(edge, "a record on an edge with no certified curve", errors);
+        refuse(edge, "a curved edge with no certified curve", errors);
         return None;
     };
     let carrier = curve.carrier().clone();
@@ -197,7 +199,7 @@ fn read<T: Decide>(
     if decided("pm_census_curved_speed_hi", span_reach, band, errors)? != Sign::Positive {
         refuse(
             edge,
-            "a record on a curved edge whose speed bound meters no reach",
+            "a curved edge whose speed bound meters no reach over its span",
             errors,
         );
         return None;
@@ -206,7 +208,7 @@ fn read<T: Decide>(
     if decided("pm_census_curved_speed_floor", length, band, errors)? != Sign::Positive {
         refuse(
             edge,
-            "a record on a curved edge whose least speed meters no length over its span",
+            "a curved edge whose least speed meters no length over its span",
             errors,
         );
         return None;
@@ -298,9 +300,49 @@ fn polish_pair<T: Decide>(a: &Read<T>, b: &Read<T>, (mut s, mut t): (T, T), slac
     (s, t)
 }
 
+/// **The pieces of `curve` over `span` that `q` may rest on**: the
+/// span halved, a piece decided clear of `q` when its middle point's
+/// distance less its reach ([`crate::bisect::reach`] of `hi`) decides
+/// positive, and kept when its reach stops at the band ([`stops`]). Every
+/// point of the span within the band of `q` lies in a kept piece. The one
+/// walk the foot search ([`feet`]) and pass 2′'s skip
+/// ([`may_rest_on`]) take; it decides nothing about the carrier's least
+/// speed, so it never refuses an edge `read` would.
+fn near_pieces<T: Decide>(
+    curve: &Curve3<T>,
+    span: (T, T),
+    hi: SupSpeed<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Vec<Piece<T>>, crate::bisect::Exhausted> {
+    let mut out = Vec::new();
+    bisect(
+        [Piece::whole(span)],
+        |p| -> Step<Piece<T>, core::convert::Infallible> {
+            let reach = p.reach(hi);
+            let gap = (curve.eval(p.mid()) - q).norm();
+            if surely(
+                "pm_census_ve_curved_clear",
+                gap - reach,
+                band,
+                Sign::Positive,
+            ) {
+                return Step::Settled;
+            }
+            if stops("pm_census_ve_curved_piece", reach, None, band) {
+                out.push(p);
+                return Step::Settled;
+            }
+            Step::Halve(p.halves())
+        },
+    )?;
+    Ok(out)
+}
+
 /// The parameters of `r`'s carrier where `q` may lie on it within the
-/// band (module docs): each polished foot. `None` past the budget
-/// (pushed).
+/// band (module docs): each polished foot — of [`Curve3::param_near`]'s
+/// parameter where the kind inverts in closed form, else of each piece
+/// [`near_pieces`] keeps. `None` past the budget (pushed).
 fn feet<T: Decide>(
     r: &Read<T>,
     q: Point3<T>,
@@ -311,36 +353,43 @@ fn feet<T: Decide>(
         let slack = (r.curve.eval(t) - q).norm();
         return Some(vec![polish_foot(r, q, t, slack)]);
     }
-    let mut out = Vec::new();
-    let walk = bisect(
-        [Piece::whole(r.span)],
-        |p| -> Step<Piece<T>, core::convert::Infallible> {
-            let (m, reach) = (p.mid(), p.reach(r.hi));
-            let gap = (r.curve.eval(m) - q).norm();
-            if surely(
-                "pm_census_ve_curved_clear",
-                gap - reach,
-                band,
-                Sign::Positive,
-            ) {
-                return Step::Settled;
-            }
-            if stops("pm_census_ve_curved_piece", reach, None, band) {
-                out.push(polish_foot(r, q, m, gap + reach));
-                return Step::Settled;
-            }
-            Step::Halve(p.halves())
-        },
-    );
-    if walk.is_err() {
+    let Ok(pieces) = near_pieces(&r.curve, r.span, r.hi, q, band) else {
         refuse(
             r.edge,
             "the census's foot search on a curved edge ran past its budget",
             errors,
         );
         return None;
-    }
-    Some(out)
+    };
+    Some(
+        pieces
+            .into_iter()
+            .map(|p| {
+                let m = p.mid();
+                let slack = (r.curve.eval(m) - q).norm() + p.reach(r.hi);
+                polish_foot(r, q, m, slack)
+            })
+            .collect(),
+    )
+}
+
+/// **Whether `q` may rest on `e`'s span** — pass 2′'s skip, a consumer of
+/// the curved lane's own walk ([`near_pieces`]): `false` only where every
+/// piece is decided clear of `q`, so a vertex the sweep passes by holds
+/// no touch the reading would have found; `true` where a piece survives,
+/// past the budget, or for an edge with no certified curve, leaving the
+/// question to the reading.
+pub(super) fn may_rest_on<T: Decide>(body: &Body<T>, e: EdgeKey, q: Point3<T>, band: Band) -> bool {
+    let Some(curve) = body
+        .edges
+        .get(e)
+        .and_then(|d| body.curves.get(d.curve))
+        .and_then(crate::null::CurveGeom::certified)
+    else {
+        return true;
+    };
+    let hi = crate::carrier_speed::speed_range(curve.carrier()).1;
+    near_pieces(curve.carrier(), curve.params(), hi, q, band).map_or(true, |p| !p.is_empty())
 }
 
 /// Whether `q` lies on `e`'s interior (module docs). `None` where a
@@ -352,8 +401,20 @@ pub(super) fn on_curved_interior<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
+    on_curved_interior_reading(body, e, q, band, errors).map(|on| on.is_some())
+}
+
+/// [`on_curved_interior`], keeping the reading: `Some(Some(margin))` on
+/// the interior, by the margin its gap decided Zero on; `Some(None)` not.
+pub(super) fn on_curved_interior_reading<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<MarginDiag>> {
     let r = read(body, e, band, errors)?;
-    on_interior(body, &r, q, band, errors)
+    on_interior_reading(body, &r, q, band, errors)
 }
 
 /// [`on_curved_interior`] on an edge already read. A foot off the
@@ -366,14 +427,25 @@ fn on_interior<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
+    on_interior_reading(body, r, q, band, errors).map(|on| on.is_some())
+}
+
+/// [`on_interior`], keeping the reading as [`on_curved_interior_reading`].
+fn on_interior_reading<T: Decide>(
+    body: &Body<T>,
+    r: &Read<T>,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<MarginDiag>> {
     let mut held = Vec::new();
     for t in feet(r, q, band, errors)? {
-        if interior_at(body, r, q, t, band, &mut held) == Some(true) {
-            return Some(true);
+        if let Some(Some(margin)) = interior_reading(body, r, q, t, band, &mut held) {
+            return Some(Some(margin));
         }
     }
     if held.is_empty() {
-        return Some(false);
+        return Some(None);
     }
     errors.extend(held);
     None
@@ -388,10 +460,22 @@ fn interior_at<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
+    interior_reading(body, r, q, t, band, errors).map(|on| on.is_some())
+}
+
+/// [`interior_at`], keeping the margin its gap decided Zero on.
+fn interior_reading<T: Decide>(
+    body: &Body<T>,
+    r: &Read<T>,
+    q: Point3<T>,
+    t: T,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<MarginDiag>> {
     let gap = Margin::norm3(q - r.curve.eval(t));
-    if !gap_is_zero("pm_census_ve_curved_gap", gap, band, errors)? {
-        return Some(false);
-    }
+    let Some(margin) = gap_zero_reading("pm_census_ve_curved_gap", gap, band, errors)? else {
+        return Some(None);
+    };
     // A closed edge's conventional vertex has no identity of its own:
     // its point is the edge's interior too.
     let start = body
@@ -400,14 +484,14 @@ fn interior_at<T: Decide>(
         .and_then(|d| body.half_edges.get(d.he_plus))
         .map(|h| h.start);
     if start.is_some_and(|v| crate::boolean::is_conventional_vertex(body, v)) {
-        return Some(true);
+        return Some(Some(margin));
     }
     let (t0, t1) = r.span;
-    let mut interior = Some(true);
+    let mut interior = Some(Some(margin));
     for (m, end) in [(t - t0, t0), (t1 - t, t1)] {
         match clear_of_end(r, q, m, end, band, errors) {
             Some(true) => {}
-            Some(false) => interior = interior.map(|_| false),
+            Some(false) => interior = interior.map(|_| None),
             None => interior = None,
         }
     }
