@@ -17,8 +17,8 @@ privately at each site that needs an extended-precision oracle, beside
 the public `geom_core::exact::two_sum`:
 
 - `crates/profile/src/dd.rs` (`Dd`, `two_sum`, `quick_two_sum`,
-  `two_prod`; test-only), added by PATHS PR 5032's fix pass for the
-  `radical_chord` accuracy row;
+  `two_prod`; test-only), the oracle of `seg.rs`
+  `circle_pair_points_sit_within_a_few_ulps_of_scale`;
 - `crates/test-utils/src/cone_cut.rs` (`Dd`, `two_sum`);
 - `crates/topo/src/boolean/conic_oracle/exact.rs` (`Dd`, `two_sum`);
 - `crates/sweep/examples/conic_past_band_probe.rs` (`Dd`, `two_sum`);

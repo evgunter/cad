@@ -132,6 +132,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
             origin: red.plane.origin,
             normal: red.plane.normal,
             plane_key: None,
+            branch: None,
         },
     };
 
@@ -1402,6 +1403,7 @@ mod torn_hop_rows {
                 origin: red.plane.origin,
                 normal: red.plane.normal,
                 plane_key: None,
+                branch: None,
             },
         };
         let certify =
@@ -1468,6 +1470,7 @@ mod placeholder_rows {
                     origin: plane.origin,
                     normal: plane.normal,
                     plane_key: None,
+                    branch: None,
                 },
             };
             for (face, lp) in [(seed.face, seed.r#loop), (lone.face, lone.r#loop)] {

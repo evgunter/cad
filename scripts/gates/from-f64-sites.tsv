@@ -63,8 +63,6 @@ crates/geom-brep/src/props/loop_area.rs	1	constant	*x	a Gauss node
 crates/geom-brep/src/ssi/certify.rs	1	constant	0.5 * (a + b)	a refined span's midpoint where the chain box's axis is read: a direction the certificate holds for whichever one it is handed
 crates/geom-brep/src/ssi/certify.rs	1	constant	mid	a pair tube chain box's midpoint: a point the chain chose, steering which determinant the certified graph margin is asked for
 crates/geom-brep/src/ssi/certify.rs	1	constant	w.mid	a window's midpoint where the transverse chart direction is read: a selection through the bracket, which the transversality margin certifies for any direction
-crates/geom-brep/src/ssi/enclose.rs	1	constant	um	a subdivision cell's midpoint: a point the exhaustiveness subdivision chose, the mean-value box's centre
-crates/geom-brep/src/ssi/enclose.rs	1	constant	vm	a subdivision cell's midpoint: a point the exhaustiveness subdivision chose, the mean-value box's centre
 crates/geom-brep/src/tangent.rs	1	constant	f64::from(crate::certify::CERT_SAMPLES - 1)	a sample count
 crates/geom-core/src/bisect.rs	1	constant	escalate	the band's escalation width, a tolerance
 crates/geom-core/src/dual.rs	1	constant	f64::from(n)	powi's exponent
