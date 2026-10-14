@@ -1378,3 +1378,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - 3 NITs stay: `continue` swallows any `Err` at `loop_winding.rs:644`; the vector-area cost is per loop, not per spiric; an earlier Indeterminate is lost if the finest count refuses.
   - 2 style notes stay: two span conventions in `spiric.rs`; the census count kept by hand.
   - Merge flow started: /home/user/m5066 = head + main (`9632a651c7`); `nextest.toml` auto-merged with the PR's one entry kept; topo in full plus spiric/torus/quad/census rows at 3 ε.
+- 2026-10-14 17:35 — **PR 5066 merged** (`07ade7cebb`) on local green: main merged twice at merge time (`9632a651c7`, then `2ba1d7fc01`). Topo 3027 and spiric/torus/quad/census 431 at 3 ε; then the PR's rows 566 at 3 ε. Row PR-5066: holdout, M, tallied 0; d5066 in the fix-pass column.
