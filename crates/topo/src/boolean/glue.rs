@@ -74,6 +74,7 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
                 }));
                 None
             }
+            // Unread, like in band: left to the stage that meets the pair (module doc).
             Err(PairUnread::Extent(_)) => None,
         };
         if let Some(class) = class {
@@ -236,6 +237,8 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
             }
             _ => continue,
         };
+        // A refusal adds no row: where the faces meet, a later decision
+        // refuses (`hone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         if let Ok((_, margin)) = section {
             rows.push(crate::Coincidence {
                 cells: [

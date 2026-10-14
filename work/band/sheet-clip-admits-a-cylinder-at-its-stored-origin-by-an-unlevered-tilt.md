@@ -2,11 +2,14 @@
 id: sheet-clip-admits-a-cylinder-at-its-stored-origin-by-an-unlevered-tilt
 kind: issue
 title: sheet_clip admits a cylinder by its stored origin's offset and an unlevered tilt gate
-status: open
+status: closed
 opened: 2026-10-07
 priority: P2
 cost: M
 refs: [cylinder-offsets-read-at-a-stored-origin-off-the-reach]
+closed: 2026-10-14
+pr: 5052
+branch: band/sheet-clip-levered-cylinder
 ---
 
 
@@ -29,3 +32,20 @@ region on the axis, and decide the tilt through a named margin levered
 at that region's extent from the foot.
 
 Found by `tang/cylinder-offsets-at-the-reach`'s sweep.
+
+## Closed
+
+Probed: a wrong `Kind::Cylinder` cannot make the clip unsound. Its
+`Clip::Z` is the boundary's span, and along a cylinder's ruling `z` is
+affine, so that span holds the face at every pose of the axis, ⊥
+included. The stored-origin gate's only harm was a lost clip: a coaxial
+wall stored 3 m along at half the zero band's lean returned `None`.
+`sheet_clip` now clips a cylinder or a plane at any pose and reads no
+origin. `sheet_fn` reads a plane's and a cylinder's slack at the foot of
+the reach box's centre, and `tilt`'s chord no longer cancels to zero in
+f64. Rows: `crates/sweep/src/blend/reach.rs`'s
+`the_clip_reads_one_span_at_every_stored_origin`,
+`a_clip_holds_its_face_at_every_pose`,
+`a_sheet_slack_reads_one_value_at_every_stored_origin`,
+`a_sheet_slack_encloses_the_distance`, `tilt_reads_the_chord`. The
+sweep's hit list is in PR 5052; nothing filed.
