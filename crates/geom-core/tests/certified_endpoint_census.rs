@@ -418,7 +418,6 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          and `mag`",
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
-    ("crates/geom-core/src/spline/blossom.rs", 2, 2, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
     (
         "crates/geom-core/src/sym/signed.rs",

@@ -267,15 +267,12 @@ fn convex(t: Interval) -> (Interval, Interval) {
 /// exactly what it was, as [`Certification::between`] keeps it, where
 /// the plain step would widen it by `t`'s own width at every level.
 /// Sound: a convex combination of two values in one interval is in it.
-/// The same enclosure means the same ends AND the same refusal: a
-/// certified `x` beside a refused `y` with its ends takes the general
-/// step, which carries `y`'s refusal, rather than coming back
-/// certified.
+/// The same enclosure means the same ends AND the same decoration
+/// ([`Interval::same_enclosure`]): a certified `x` beside a refused `y`
+/// with its ends, or a `Com` one beside a `Def` one, takes the general
+/// step, which carries the weaker, rather than coming back as `x`.
 fn step(x: Interval, y: Interval, (t, s): (Interval, Interval)) -> Interval {
-    if x.lo().to_bits() == y.lo().to_bits()
-        && x.hi().to_bits() == y.hi().to_bits()
-        && x.is_certified() == y.is_certified()
-    {
+    if x.same_enclosure(y) {
         x
     } else {
         x * s + y * t
@@ -882,6 +879,39 @@ mod tests {
             }
             let got = split_restrict(&[ok, ok], (0.0, 1.0), cut);
             assert!(got.iter().all(|c| c.is_certified()), "{got:?}");
+        }
+    }
+
+    /// **A weaker certified neighbour is not upgraded by the equal arm.**
+    /// A `Com` `[2, 3]` beside `floor([2.5, 3.5])` — the same ends, `Def`
+    /// (the hull across a step) — cut strictly inside comes back at `Def`
+    /// or below in either order, the level the general step carries; two
+    /// `Def` ones stay `Def`, and two `Com` ones `Com`. Red with the equal
+    /// arm comparing ends and `is_certified()` alone: the row
+    /// `[Com, Def]` came back `Com`.
+    #[test]
+    fn a_weaker_neighbour_with_the_same_ends_is_not_upgraded() {
+        use crate::real::Real;
+        use interval_transcendentals::Decoration;
+        let com = Interval::from_bounds(2.0, 3.0);
+        let def = Interval::from_bounds(2.5, 3.5).floor();
+        assert!(com.decoration() == Decoration::Com && def.decoration() == Decoration::Def);
+        assert!(
+            com.lo().to_bits() == def.lo().to_bits() && com.hi().to_bits() == def.hi().to_bits(),
+            "the probe needs the same ends: {com:?} {def:?}"
+        );
+        for cut in [(0.25, 0.5), (0.5, 0.75), (0.125, 0.875), (0.375, 0.375)] {
+            for row in [[com, def], [def, com]] {
+                let got = split_restrict(&row, (0.0, 1.0), cut);
+                assert!(
+                    got.iter().all(|c| c.decoration() <= Decoration::Def),
+                    "{row:?} cut to {cut:?} came back {got:?}"
+                );
+            }
+            for (x, level) in [(com, Decoration::Com), (def, Decoration::Def)] {
+                let got = split_restrict(&[x, x], (0.0, 1.0), cut);
+                assert!(got.iter().all(|c| c.decoration() == level), "{got:?}");
+            }
         }
     }
 
