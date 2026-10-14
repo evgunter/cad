@@ -21,10 +21,10 @@ use geom_core::{Band, Point3, Tol, Vec3};
 
 use super::{ball_off_face, clusters, edge_clear_of_ball, reach};
 use crate::body::Body;
-use crate::carrier_speed::speed_and_curvature_hi;
 use crate::entity::EdgeKey;
 use crate::euler::MevSite;
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+use geom_brep::carrier_speed::speed_and_curvature_hi;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -51,8 +51,8 @@ fn ellipse_in(
     Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     }
 }

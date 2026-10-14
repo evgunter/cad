@@ -21,14 +21,14 @@
 //!
 //! A piece that settles neither way is halved, until its ball is within
 //! the band's coincidence threshold (the boundary reading), a fixed
-//! depth, or [`crate::bisect`]'s piece budget. A reading that runs out
+//! depth, or [`geom_core::bisect`]'s piece budget. A reading that runs out
 //! of depth or budget is not a reading in the band: the walk names it
 //! as the edge it could not cross ([`super::containment::Uncrossable`]).
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3};
 
-use crate::bisect::{Step, bisect};
 use crate::validate::{decide, definitely_positive as positive};
+use geom_core::bisect::{Step, bisect};
 
 /// The rows a caller reads a spiric edge's boundary under — its own, so
 /// each caller's population stays separable in the telemetry.
@@ -183,7 +183,7 @@ impl<T: Decide> SpiricArc<T> {
         Bounds {
             h,
             center: self.point(vm),
-            reach: crate::bisect::reach(SupSpeed::new(speed), (p.va, p.vb)),
+            reach: geom_core::bisect::reach(SupSpeed::new(speed), (p.va, p.vb)),
             accel,
         }
     }

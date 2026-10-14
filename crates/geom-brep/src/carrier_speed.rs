@@ -1,18 +1,18 @@
 //! **A carrier's speed**, the metres one step of its parameter covers.
 //! [`speed_range`] bounds it on every kind and is its one spelling: a
-//! line's `|dir|`, a conic's semi-axes ([`geom_brep::Conic`], which
+//! line's `|dir|`, a conic's semi-axes ([`Conic`], which
 //! reads them as magnitudes in either stored order), a spiric's and a
 //! spline's bounds. [`speed_at`] and [`speed_hi`] answer the line and
 //! the conics alone, `None` for a spiric or spline carrier, which their
 //! callers read as a door that stays.
 
-use geom_brep::Conic;
+use crate::Conic;
 use geom_core::{InfSpeed, Real, SpanLocate, SupSpeed, Vec3};
 
 /// The speed `|C′(t)|` at `t`: a line's `|dir|`, a conic's
 /// [`Conic::speed_at`] held to its semi-axes, so a circle's is its
 /// radius exactly at every scalar.
-pub(crate) fn speed_at<T: SpanLocate>(carrier: &geom::Curve3<T>, t: T) -> Option<T> {
+pub fn speed_at<T: SpanLocate>(carrier: &geom::Curve3<T>, t: T) -> Option<T> {
     match Kind::of(carrier) {
         kind @ Kind::Line(_) => kind.closed_hi(),
         Kind::Conic(c) => Some(c.speed_at(t).max(c.speed_lo()).min(c.speed_hi())),
@@ -22,13 +22,13 @@ pub(crate) fn speed_at<T: SpanLocate>(carrier: &geom::Curve3<T>, t: T) -> Option
 
 /// The greatest speed over every `t`, [`speed_at`]'s bound: an
 /// ellipse's larger semi-axis.
-pub(crate) fn speed_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<T> {
+pub fn speed_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<T> {
     Kind::of(carrier).closed_hi()
 }
 
 /// [`speed_hi`] and [`curvature_hi`] together, `None` past
 /// [`speed_hi`]'s kinds.
-pub(crate) fn speed_and_curvature_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
+pub fn speed_and_curvature_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
     let kind = Kind::of(carrier);
     Some((kind.closed_hi()?, kind.curvature_hi()?))
 }
@@ -41,14 +41,14 @@ pub(crate) fn speed_and_curvature_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -
 /// or poison). A rational spline's bounds are certified at `Interval`;
 /// at `f64` they are the same expressions in round-to-nearest, not a
 /// bound at extreme weights.
-pub(crate) fn speed_range<T: SpanLocate>(carrier: &geom::Curve3<T>) -> (InfSpeed<T>, SupSpeed<T>) {
+pub fn speed_range<T: SpanLocate>(carrier: &geom::Curve3<T>) -> (InfSpeed<T>, SupSpeed<T>) {
     Kind::of(carrier).range()
 }
 
 /// A bound on `|C″(t)|` over every `t`: zero on a line, a conic's
 /// larger semi-axis, a spiric's [`geom::spiric_period_rate_bounds`];
 /// `None` on a spline, which has no bound here at every scalar.
-pub(crate) fn accel_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<T> {
+pub fn accel_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<T> {
     Kind::of(carrier).accel_hi()
 }
 
@@ -56,7 +56,7 @@ pub(crate) fn accel_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<T> {
 /// [`Conic::curvature_hi`] on a conic, and `|C″|/|C′|²` from
 /// [`accel_hi`] and the minor radius on a spiric (the curvature
 /// `|C′ × C″|/|C′|³` is at most that); `None` on a spline.
-pub(crate) fn curvature_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<T> {
+pub fn curvature_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<T> {
     Kind::of(carrier).curvature_hi()
 }
 

@@ -81,4 +81,4 @@ every ε (unit pin). No body door reaches it: the in-span row (one
 ball) or the shared-rim rows (`rim_circle_axis_parallel`, a spun ball)
 fire first. The gap is pinned bitwise symmetric, the k < 1 body rows
 pin `FallbackExtentUnsupported`, and the frame is
-`Conic::semi_axes`.
+`Conic::semi_axis_vectors`.

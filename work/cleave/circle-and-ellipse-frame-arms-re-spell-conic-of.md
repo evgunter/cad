@@ -23,6 +23,6 @@ Each can read `Conic::of(carrier)` once and keep only what differs (the
 span; the outline's ellipse flag). Doing so also drops their reads of
 `Curve3::Ellipse`'s field names, which PR 4861 renames.
 
-`geom_brep::Conic::semi_axes` (added on the same branch) is the one
-spelling of the frame `(major·u_ref, minor·v_ref)`; the outline's
+`geom_brep::Conic::semi_axis_vectors` (added on the same branch) is the one
+spelling of the frame `(semi_u·u_ref, semi_v·v_ref)`; the outline's
 `a`/`b` are exactly it.

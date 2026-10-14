@@ -146,7 +146,7 @@ pub(super) fn boundary_crossing<T: Decide>(
         let Some(t) = carrier.param_near(q, mid) else {
             return Ok(BoundaryCrossing::Unread);
         };
-        let Some(speed) = crate::carrier_speed::speed_at(carrier, t) else {
+        let Some(speed) = geom_brep::carrier_speed::speed_at(carrier, t) else {
             return Ok(BoundaryCrossing::Unread);
         };
         if !strictly_inside(t, t0, t1, speed, band)? {
@@ -173,7 +173,7 @@ fn escalated(diag: geom_core::Indeterminate) -> BooleanError {
 
 /// Whether `t` lies strictly inside `[t0, t1]`, each gap metred by
 /// `speed`, the carrier's speed at `t`
-/// ([`crate::carrier_speed::speed_at`]): the chord from
+/// ([`geom_brep::carrier_speed::speed_at`]): the chord from
 /// `t` to an end is the gap times that speed to second order in the
 /// gap, and a gap near the band is a few band widths long. An end is
 /// not inside: an endpoint's incidence is the endpoint arms' question.
@@ -225,7 +225,7 @@ impl<'a, T: Decide> Span<'a, T> {
     fn of(carrier: &'a geom::Curve3<T>, (t0, t1): (T, T)) -> Option<Self> {
         Some(Self {
             carrier,
-            reach: (t1 - t0) * crate::carrier_speed::speed_hi(carrier)?,
+            reach: (t1 - t0) * geom_brep::carrier_speed::speed_hi(carrier)?,
             at: carrier.eval(geom::mid_param(t0, t1)),
         })
     }
@@ -304,6 +304,7 @@ fn meetings<T: Decide>(
             vec![o1 + d1 * t]
         }
         (&Circle { .. }, &Circle { .. }, (Some(e), Some(f))) => {
+            // A circle's speed is its radius `|r|`.
             if !transverse(
                 e.axis.cross(f.axis).norm(),
                 e.speed_hi().max(f.speed_hi()),
@@ -407,7 +408,7 @@ fn one_curve_gap<T: Decide>(e: &geom_brep::Conic<T>, f: &geom_brep::Conic<T>) ->
 /// rotation that best matches the two, which maximizes
 /// `tr(Qᵀ·L_fᵀ·L_e)`.
 fn frame_gap<T: Decide>(e: &geom_brep::Conic<T>, f: &geom_brep::Conic<T>) -> T {
-    let ((e1, e2), (f1, f2)) = (e.semi_axes(), f.semi_axes());
+    let ((e1, e2), (f1, f2)) = (e.semi_axis_vectors(), f.semi_axis_vectors());
     let up = e1.cross(e2).dot(f1.cross(f2));
     let f2 = f2 * (up / up.abs());
     let (x, y) = (f1.dot(e1) + f2.dot(e2), f2.dot(e1) - f1.dot(e2));
@@ -514,7 +515,7 @@ fn ellipse_meets_plane<T: Decide>(
     let (u_ref, v_ref) = (e.u_ref, e.v_ref());
     let w = p0 - e.center;
     let (x0, y0, ux, uy) = (w.dot(u_ref), w.dot(v_ref), u.dot(u_ref), u.dot(v_ref));
-    let (a2, b2) = (e.major.powi(2), e.minor.powi(2));
+    let (a2, b2) = (e.semi_u.powi(2), e.semi_v.powi(2));
     let qa = b2 * ux.powi(2) + a2 * uy.powi(2);
     let qb = b2 * x0 * ux + a2 * y0 * uy;
     let qc = b2 * x0.powi(2) + a2 * y0.powi(2) - a2 * b2;
@@ -547,6 +548,7 @@ fn parallel_circles<T: Decide>(
     f: &geom_brep::Conic<T>,
     band: Band,
 ) -> Result<Vec<Point3<T>>, BooleanError> {
+    // A circle's speed is its radius `|r|`.
     let (c1, n1, r1, c2, r2) = (e.center, e.axis, e.speed_hi(), f.center, f.speed_hi());
     let sign = |row, margin| decide(row, margin, band).map_err(escalated);
     if off_plane(c2, c1, n1, band)? || one_curve(e, f, band)? {
@@ -712,8 +714,8 @@ mod meetings_rows {
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         }
     }
@@ -917,13 +919,13 @@ mod meetings_rows {
             let (
                 Curve3::Ellipse { axis: n1, .. },
                 Curve3::Ellipse {
-                    axis: n2, major, ..
+                    axis: n2, semi_u, ..
                 },
             ) = (e, f)
             else {
                 unreachable!("two ellipses")
             };
-            n1.cross(n2).norm() * major
+            n1.cross(n2).norm() * semi_u
         };
         for k in [0.1, 0.5, 0.9] {
             let d = k * z * (k * z / tilt_reach(k * z));
@@ -992,8 +994,8 @@ mod meetings_rows {
                     center: Point3::new(1.0, -2.0, 0.5),
                     axis: n,
                     u_ref: u,
-                    major,
-                    minor,
+                    semi_u: major,
+                    semi_v: minor,
                 };
                 let tilt = |hinge: Vec3<f64>, d: f64| {
                     let across = n.cross(hinge);
@@ -1014,11 +1016,11 @@ mod meetings_rows {
                         ..e
                     },
                     "major" => Conic {
-                        major: major + d,
+                        semi_u: major + d,
                         ..e
                     },
                     "minor" => Conic {
-                        minor: minor - d,
+                        semi_v: minor - d,
                         ..e
                     },
                     "tilt about û" => tilt(u, d),
@@ -1053,8 +1055,8 @@ mod meetings_rows {
                             f,
                             Conic {
                                 u_ref: f.v_ref(),
-                                major: f.minor,
-                                minor: f.major,
+                                semi_u: f.semi_v,
+                                semi_v: f.semi_u,
                                 ..f
                             },
                             Conic { axis: -f.axis, ..f },
@@ -1287,8 +1289,8 @@ mod crossing_rows {
         let section = Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.5),
             axis: Vec3::new(-0.8, 0.0, 1.0) * (1.0 / k),
-            major: k,
-            minor: 1.0,
+            semi_u: k,
+            semi_v: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.8) * (1.0 / k),
         };
         let crossing = |span| match boundary_crossing(&body, Operand::B, face, &section, span, band)
@@ -1351,11 +1353,11 @@ mod crossing_rows {
         let section = Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.5 - m * theta.cos()),
             axis: Vec3::new(-m, 0.0, 1.0) * (1.0 / k),
-            major: k,
-            minor: 1.0,
+            semi_u: k,
+            semi_v: 1.0,
             u_ref: Vec3::new(1.0, 0.0, m) * (1.0 / k),
         };
-        let speed = crate::carrier_speed::speed_at(&section, theta).unwrap();
+        let speed = geom_brep::carrier_speed::speed_at(&section, theta).unwrap();
         assert!((speed - 20.0).abs() < 0.1, "about 20 at θ*: {speed}");
         let read = |gap: f64| {
             boundary_crossing(

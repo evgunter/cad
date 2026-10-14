@@ -54,7 +54,7 @@
 //! (`sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`)
 //! asserts. So the reach either arm has MEASURED is still the
 //! orthonormal basis's atoms alone.
-//! `solid_contain.rs`'s second site, the Cardano root's
+//! `geom-brep/src/quartic.rs`'s second site, the Cardano root's
 //! `(A − B).copysign(−Q)`, is measured directly on the plate, the
 //! bracket and the annulus (0 atoms each; the run is OOM-killed on the
 //! next document on a small box), and covered on the other four by
@@ -81,7 +81,7 @@
 //! radius's sign);
 //! `sweep/src/revolve/axis.rs`'s radial extent;
 //! `sweep/src/blend/arms.rs`'s cone nappe;
-//! `topo/src/boolean/solid_contain.rs`'s `cbrt` and the Cardano
+//! `geom-brep/src/quartic.rs`'s `cbrt` and the Cardano
 //! root's sign transfer from `Q`. That list is not
 //! prose: `sym_rule_f_rows`'s
 //! `the_copysign_mint_sites_the_tree_holds_are_these` greps the

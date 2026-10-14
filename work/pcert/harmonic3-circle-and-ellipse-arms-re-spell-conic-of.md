@@ -18,5 +18,5 @@ arm reading `Conic::of(&carrier)` (`a = u_ref·major`,
 `b = v_ref()·minor`) covers both, and drops the read of
 `Curve3::Ellipse`'s field names, which PR 4861 renames.
 
-`Harmonic3`'s `a` and `b` are `Conic::semi_axes()`, added on the same
+`Harmonic3`'s `a` and `b` are `Conic::semi_axis_vectors()`, added on the same
 branch as the one spelling of that frame.
