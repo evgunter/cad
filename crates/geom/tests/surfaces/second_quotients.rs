@@ -38,7 +38,7 @@ fn read(q: &QuotientPiece<f64, 3>, nv: usize, st: (f64, f64), c: usize) -> f64 {
     tensor(&m, nv, st) / tensor(q.denom(), nv, st)
 }
 
-/// **Both axis kinds reproduce the jet.** A rational bicubic-by-
+/// **The span axis reproduces the jet.** A rational bicubic-by-
 /// biquadratic Bézier patch with weights varying in both directions,
 /// cut into `2 × 2` pieces, read at five parameters per direction
 /// against `ders` to `1e-8` of each partial's scale.
@@ -64,25 +64,11 @@ fn the_second_quotients_are_the_partials_pointwise() {
     let s = NurbsSurface::new(ku.clone(), kv.clone(), control.clone(), weights.clone()).unwrap();
     let points: Vec<[f64; 3]> = control.iter().map(|c| [c.x, c.y, c.z]).collect();
     let (hu, hv) = (ku.knots().to_vec(), kv.knots().to_vec());
-    #[allow(clippy::cast_precision_loss)]
-    let axes = [
-        (
-            "span",
-            CellAxis::Span(ku.span(ku.first_span()).unwrap(), &hu),
-            CellAxis::Span(kv.span(kv.first_span()).unwrap(), &hv),
-        ),
-        (
-            "bezier",
-            CellAxis::Bezier {
-                degree: p,
-                scale: p as f64,
-            },
-            CellAxis::Bezier {
-                degree: q,
-                scale: q as f64,
-            },
-        ),
-    ];
+    let axes = [(
+        "span",
+        CellAxis::Span(ku.span(ku.first_span()).unwrap(), &hu),
+        CellAxis::Span(kv.span(kv.first_span()).unwrap(), &hv),
+    )];
     for (kind, axis_u, axis_v) in axes {
         let ((cu, cv), pieces) = cell_second_quotients(
             (axis_u, axis_v),

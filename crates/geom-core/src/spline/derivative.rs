@@ -627,21 +627,12 @@ fn normalised<T: Real>(ws: &[T]) -> Option<(Vec<T>, T)> {
 }
 
 /// One axis of a cell block: a span of a knot vector, whose window
-/// the blossom reads into the span's Bernstein row, or a Bézier block
-/// already in Bernstein form.
+/// the blossom reads into the span's Bernstein row.
 #[derive(Clone, Copy, Debug)]
 pub enum CellAxis<'a, T> {
     /// The window of `span`, over the `held` knot values of the vector
     /// it indexes.
     Span(Span<'a>, &'a [T]),
-    /// A Bézier block of degree `degree`, whose derivative scale is
-    /// `degree/width` of its window.
-    Bezier {
-        /// The block's degree along the axis.
-        degree: usize,
-        /// `degree/width`.
-        scale: T,
-    },
 }
 
 /// A [`CellAxis`] resolved: its degree and how it reads a window.
@@ -652,10 +643,6 @@ enum Axis<'a, T> {
         p: usize,
         first: usize,
         ends: (T, T),
-    },
-    Bezier {
-        p: usize,
-        scale: T,
     },
 }
 
@@ -671,13 +658,12 @@ impl<'a, T: Real> Axis<'a, T> {
                     ends: (*held.get(s)?, *held.get(s + 1)?),
                 }
             }
-            CellAxis::Bezier { degree, scale } => Self::Bezier { p: degree, scale },
         })
     }
 
     fn p(&self) -> usize {
         match *self {
-            Self::Span { p, .. } | Self::Bezier { p, .. } => p,
+            Self::Span { p, .. } => p,
         }
     }
 
@@ -690,13 +676,12 @@ impl<'a, T: Real> Axis<'a, T> {
             Self::Span {
                 held, first, ends, ..
             } => span_row(w, held, first + order, ends),
-            Self::Bezier { .. } => Some(w.to_vec()),
         }
     }
 
     /// The derivative scale of the window's pair `k`: the span's
     /// [`pair_scale`] (its knot difference positive by the span
-    /// contract, module docs), or the Bézier block's one scale.
+    /// contract, module docs).
     fn scale(&self, k: usize) -> Option<T> {
         self.scale_at(1, k)
     }
@@ -705,22 +690,12 @@ impl<'a, T: Real> Axis<'a, T> {
     /// `order − 1` times: the degree-`p − order + 1` spline's own
     /// [`pair_scale`], read over the knot vector from index `order − 1`
     /// (on a span, `(p − r)/(u_{i+p+1} − u_{i+r+1})` with `r = order − 1`;
-    /// positive by the same span contract); on a Bézier block,
-    /// `(p − r)/width`.
+    /// positive by the same span contract).
     fn scale_at(&self, order: usize, k: usize) -> Option<T> {
         let r = order.checked_sub(1)?;
         match *self {
             Self::Span { held, p, first, .. } => {
                 pair_scale(held.get(r..)?, p.checked_sub(r)?, first + k)
-            }
-            Self::Bezier { p, scale } => {
-                if r == 0 {
-                    Some(scale)
-                } else {
-                    #[allow(clippy::cast_precision_loss)]
-                    let (deg, top) = (T::from_f64(p.checked_sub(r)? as f64), T::from_f64(p as f64));
-                    Some(scale * deg / top)
-                }
             }
         }
     }
@@ -884,7 +859,7 @@ impl<T: Real> Homogeneous<T> {
 /// coefficients at that degree (restriction commutes with the ring
 /// operations and preserves degree), so a quotient raised once and cut
 /// is the statement on each piece.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Raised<T, const D: usize> {
     numer: Grid<T, D>,
     denom: Grid<T, 1>,
@@ -1297,6 +1272,159 @@ fn cell_pieces<T: Real>(
     area: bool,
     second: bool,
 ) -> Option<CellPieces<T>> {
+    let whole = cell_whole(axes, block, second)?;
+    // Every quotient is formed once over the cell and halved into its
+    // pieces. With the second order the area is formed whatever `area`
+    // asks: it shares `W³` with the second partials, and
+    // `CellSecondQuotients` readers take it beside them.
+    let counts = (halving_count(splits.0), halving_count(splits.1));
+    let first = whole.first_raised(area || whole.second.is_some())?;
+    let (u, v) = (first.u.pieces(counts)?, first.v.pieces(counts)?);
+    let area: Vec<_> = match &first.area {
+        Some(a) => a.pieces(counts)?.into_iter().map(Some).collect(),
+        None => vec![None; u.len()],
+    };
+    let second: Vec<_> = match whole.second_raised() {
+        Some(s) => {
+            let (uu, uv, vv) = (
+                s.uu.pieces(counts)?,
+                s.uv.pieces(counts)?,
+                s.vv.pieces(counts)?,
+            );
+            uu.into_iter()
+                .zip(uv)
+                .zip(vv)
+                .map(|((uu, uv), vv)| Some(CellSecondQuotients { uu, uv, vv }))
+                .collect()
+        }
+        None => vec![None; u.len()],
+    };
+    let out = u
+        .into_iter()
+        .zip(v)
+        .zip(area)
+        .zip(second)
+        .map(|(((u, v), area), second)| (CellQuotients { u, v, area }, second))
+        .collect();
+    Some((counts, out))
+}
+
+/// **A cell block's first-order quotients, formed once** (module docs):
+/// `S_u = N_u/W²` and `S_v = N_v/W²` over the whole block, each raised
+/// to `W²`'s bidegree. [`Self::pieces`] halves them into a schedule's
+/// pieces, as [`cell_quotients`] reads them; at the interval scalar
+/// [`CellFirstQuotients::restrict`] first cuts them to a sub-rectangle,
+/// restriction commuting with the ring operations that formed them.
+#[derive(Clone, Debug)]
+pub struct CellFirstQuotients<T> {
+    u: Raised<T, 3>,
+    v: Raised<T, 3>,
+}
+
+/// The first-order quotients of `block` along `axes`, formed once over
+/// the block. `None` as [`cell_quotients`].
+pub fn cell_first_quotients<T: Real>(
+    axes: (CellAxis<'_, T>, CellAxis<'_, T>),
+    block: CellBlock<'_, T>,
+) -> Option<CellFirstQuotients<T>> {
+    let first = cell_whole(axes, block, false)?.first_raised(false)?;
+    Some(CellFirstQuotients {
+        u: first.u,
+        v: first.v,
+    })
+}
+
+impl<T: Real> CellFirstQuotients<T> {
+    /// `S_u` and `S_v` on the largest power of two at most `splits.0`
+    /// pieces along `u` and `splits.1` along `v`, row-major in `u` then
+    /// `v`, the area absent.
+    #[must_use]
+    pub fn pieces(&self, splits: (usize, usize)) -> Option<Vec<CellQuotients<T>>> {
+        let counts = (halving_count(splits.0), halving_count(splits.1));
+        let (u, v) = (self.u.pieces(counts)?, self.v.pieces(counts)?);
+        Some(
+            u.into_iter()
+                .zip(v)
+                .map(|(u, v)| CellQuotients { u, v, area: None })
+                .collect(),
+        )
+    }
+}
+
+impl CellFirstQuotients<crate::interval::Interval> {
+    /// The quotients on the part of the block over `[a, b]` along each
+    /// axis given a cut, the block spanning `[s0, s1]` along it: every
+    /// line of every numerator and weight power restricted to the cut
+    /// ([`super::restrict_segment`]), at the exact cut ends. An axis
+    /// given `None` is kept whole. A cut out of its span refuses every
+    /// coefficient it restricts.
+    #[must_use]
+    pub fn restrict(&self, cuts: (Option<AxisCut>, Option<AxisCut>)) -> Self {
+        Self {
+            u: self.u.restricted(cuts),
+            v: self.v.restricted(cuts),
+        }
+    }
+}
+
+/// One axis's cut: the span `(s0, s1)` the block covers and the part
+/// `(a, b)` of it to keep.
+pub type AxisCut = ((f64, f64), (f64, f64));
+
+impl<const D: usize> Raised<crate::interval::Interval, D> {
+    fn restricted(&self, cuts: (Option<AxisCut>, Option<AxisCut>)) -> Self {
+        Self {
+            numer: self.numer.restricted(cuts),
+            denom: self.denom.restricted(cuts),
+        }
+    }
+}
+
+impl<const D: usize> Grid<crate::interval::Interval, D> {
+    /// The grid restricted along each axis given a cut.
+    fn restricted(&self, (u, v): (Option<AxisCut>, Option<AxisCut>)) -> Self {
+        let g = u.map_or_else(|| self.clone(), |c| self.restricted_along(true, c));
+        match v {
+            Some(c) => g.restricted_along(false, c),
+            None => g,
+        }
+    }
+
+    /// Every line along `u` (`along_u`) or `v` restricted to the cut,
+    /// channel by channel.
+    fn restricted_along(&self, along_u: bool, (span, ends): AxisCut) -> Self {
+        let (nu, nv) = (self.nu(), self.nv);
+        let (n, lines) = if along_u { (nu, nv) } else { (nv, nu) };
+        let at = |line: usize, k: usize| {
+            if along_u {
+                k * nv + line
+            } else {
+                line * nv + k
+            }
+        };
+        let mut c = self.c.clone();
+        for line in 0..lines {
+            for d in 0..D {
+                let row: Vec<_> = (0..n).map(|k| self.c[at(line, k)].0[d]).collect();
+                for (k, x) in super::restrict_segment(&row, span, ends)
+                    .into_iter()
+                    .enumerate()
+                {
+                    c[at(line, k)].0[d] = x;
+                }
+            }
+        }
+        Self { nv, c }
+    }
+}
+
+/// A cell block's homogeneous grids over the whole block, with the
+/// second derivatives when `second`.
+fn cell_whole<T: Real>(
+    axes: (CellAxis<'_, T>, CellAxis<'_, T>),
+    block: CellBlock<'_, T>,
+    second: bool,
+) -> Option<Homogeneous<T>> {
     let (au, av) = (Axis::of(axes.0)?, Axis::of(axes.1)?);
     let (p, q) = (au.p(), av.p());
     let count = (p + 1) * (q + 1);
@@ -1383,7 +1511,7 @@ fn cell_pieces<T: Real>(
     } else {
         None
     };
-    let whole = Homogeneous {
+    Some(Homogeneous {
         second,
         a: cell_grid(&a, (&au, 0), (&av, 0))?,
         w: cell_grid(&w, (&au, 0), (&av, 0))?,
@@ -1391,41 +1519,7 @@ fn cell_pieces<T: Real>(
         wu: cell_grid(&wu_w, (&au, 1), (&av, 0))?,
         av: cell_grid(&av_w, (&au, 0), (&av, 1))?,
         wv: cell_grid(&wv_w, (&au, 0), (&av, 1))?,
-    };
-    // Every quotient is formed once over the cell and halved into its
-    // pieces. With the second order the area is formed whatever `area`
-    // asks: it shares `W³` with the second partials, and
-    // `CellSecondQuotients` readers take it beside them.
-    let counts = (halving_count(splits.0), halving_count(splits.1));
-    let first = whole.first_raised(area || whole.second.is_some())?;
-    let (u, v) = (first.u.pieces(counts)?, first.v.pieces(counts)?);
-    let area: Vec<_> = match &first.area {
-        Some(a) => a.pieces(counts)?.into_iter().map(Some).collect(),
-        None => vec![None; u.len()],
-    };
-    let second: Vec<_> = match whole.second_raised() {
-        Some(s) => {
-            let (uu, uv, vv) = (
-                s.uu.pieces(counts)?,
-                s.uv.pieces(counts)?,
-                s.vv.pieces(counts)?,
-            );
-            uu.into_iter()
-                .zip(uv)
-                .zip(vv)
-                .map(|((uu, uv), vv)| Some(CellSecondQuotients { uu, uv, vv }))
-                .collect()
-        }
-        None => vec![None; u.len()],
-    };
-    let out = u
-        .into_iter()
-        .zip(v)
-        .zip(area)
-        .zip(second)
-        .map(|(((u, v), area), second)| (CellQuotients { u, v, area }, second))
-        .collect();
-    Some((counts, out))
+    })
 }
 
 /// A cell's pieces per direction, and its pieces row-major in `u`
@@ -1584,15 +1678,12 @@ mod tests {
             .collect();
         let w: Vec<f64> = (0..n).map(|k| 1.0 + 0.25 * ((k * 7) % 5) as f64).collect();
         let a: Vec<[f64; 3]> = a.iter().zip(&w).map(|(x, w)| x.map(|c| c * w)).collect();
+        let kv = super::super::KnotVector::bezier(p, (0.0, 1.0)).expect("a Bézier vector");
+        let held = kv.knots().to_vec();
+        let span = kv.span(kv.first_span()).expect("its one span");
         let axes = (
-            super::CellAxis::Bezier {
-                degree: p,
-                scale: p as f64,
-            },
-            super::CellAxis::Bezier {
-                degree: q,
-                scale: q as f64,
-            },
+            super::CellAxis::Span(span, &held),
+            super::CellAxis::Span(span, &held),
         );
         let (counts, pieces) = super::cell_second_quotients(
             axes,
