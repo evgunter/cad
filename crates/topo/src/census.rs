@@ -2511,6 +2511,7 @@ fn edge_crossings<T: Decide>(
             MeetFault::Desync => CrossRefusal::Unread(
                 "the meeting reading of a census edge and a face boundary edge misread a carrier's kind",
             ),
+            MeetFault::Contradiction { readings } => CrossRefusal::Unread(readings),
         }
     })?;
     if met.shared.is_some() {

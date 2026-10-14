@@ -531,6 +531,7 @@ fn reads_meet<T: Decide>(
         }
         MeetFault::Unsupported { pose } => pose,
         MeetFault::Desync => "the meeting reading of two curved edges misread a carrier's kind",
+        MeetFault::Contradiction { readings } => readings,
     };
     refuse(ra.edge, what, errors);
     refuse(rb.edge, what, errors);

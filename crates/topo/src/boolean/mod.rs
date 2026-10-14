@@ -295,7 +295,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "curve_pair_pose_root_gap"
         | "curve_pair_pose_centres"
         | "curve_pair_pose_radii"
-        | "curve_pair_pose_one_curve" => "how two edges' carriers meet",
+        | "curve_pair_pose_one_curve"
+        | "curve_pair_pose_run" => "how two edges' carriers meet",
         "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
