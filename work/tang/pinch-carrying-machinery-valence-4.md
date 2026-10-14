@@ -8,8 +8,6 @@ github: 1377
 refs: [1353, 1372]
 priority: P1
 cost: H
-design: true
-needs_ev: true
 ---
 
 ## From GitHub issue 1377
@@ -75,9 +73,9 @@ Waits on `intent-stage4-is-built`, not on the whole program: the equal-radius fa
 
 E retires the prerequisite's channel. Equal radii are decided by their margin, and `RadiusEvidence` and `ParamSource` are deleted, so the family is recognised without a declaration. The pinch machinery itself is unbuilt: the intersecting equal-radius pair still refuses `GermFrameCylinderPinch` (`crates/topo/src/boolean/join.rs:2088`). The design and its sequencing stand, less item 1.
 
-## The question for Ev (2026-10-13)
+## Ev's decision (PR 5020, 2026-10-14)
 
-Weighed by a designer pair over two reconciliation rounds (row 133 of
+Approved by Ev. Weighed by a designer pair over two reconciliation rounds (row 134 of
 `docs/DESIGN-FORK-LOG.md`); both hold one recommendation. The August
 inventory is stale: nothing caps valence, and since PRs 4057 and 4728
 the boolean splits a pinch into one vertex per cone and holds several

@@ -132,3 +132,35 @@ as the user's lever, which PR 4335 forbids. Why a kernel limit and not
 a tilt lever: the same rule; D4 ¶1(i)'s last-resort ending applies.
 Labels and reports are on `analysis/design-fork/cleave-section-end-carrier-bound`
 and in the orchestrator's log.
+
+## Re-scoped by Ev's decision on PR 4812 (2026-10-12)
+
+Ev decided GERM's `conic-section-just-past-its-band-fails-certification-downstream`
+on PR 4812, in parallel with this design (`DESIGN-FORK-LOG` row 126).
+That decision supersedes part of the design above:
+- **End state.** A minted section conic is stored anchored on the arc
+  its edge uses. Its centre is derived and never stored, so the
+  far-centre term (b) is removed, not refused.
+- **No refusal at the arm.**
+- **Interim.** A miss within a carrier's own resolution ends as a
+  kernel limitation (D4 ¶1(i)'s last resort), and nothing that
+  certifies today starts refusing.
+- **Deferred.** A refusing resolution check waits for D4 ¶4.
+
+The units therefore become:
+1. The re-pose. Unchanged: a first step consistent with the end state
+   (PR 4861).
+2. `the-section-table-admits-a-curve-on-its-resolution` is re-scoped to
+   the end state: the anchored section conic, with no admission and no
+   arm refusal.
+3. This row, PR 4810. An escalated attachment pin on a section chord
+   is read against a per-kind resolution bound of its carrier over the
+   edge's span. Where that bound can explain the miss, the pin ends as
+   a kernel limitation with no lever. Where it cannot, the miss is the
+   input's, typed by provenance (`OnPlane` / `SquareToAxis`) with its
+   lever. A definite miss stays the gate's. Nothing that builds today
+   refuses.
+4. `the-split-reads-a-vertex-against-the-section-it-ends-not-the-plane`,
+   PR 4858. The section reading offers a lever only where its own
+   rounding bound admits it. An unresolved reading keeps the offset's
+   verdict, as main does, and refuses nothing new.

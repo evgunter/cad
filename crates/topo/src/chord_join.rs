@@ -559,7 +559,8 @@ impl core::fmt::Display for SplitJoinError {
             }
             Self::LineageRow(refusal) => write!(
                 f,
-                "the join's lineage records refused {refusal}. {}",
+                "{}. {}",
+                refusal.refused_by("join"),
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::Band(e) => write!(f, "{e}"),
@@ -822,8 +823,10 @@ impl ChordJoiner {
     pub(crate) fn new(band: Band) -> Self {
         Self {
             slivers: SecondaryMap::new(),
-            fragments: FragmentRows::default(),
-            absorbed: crate::lineage::Substitutions::default(),
+            fragments: FragmentRows::new(crate::lineage::LineageRows::FaceDivisions),
+            absorbed: crate::lineage::Substitutions::new(
+                crate::lineage::LineageRows::Substitutions,
+            ),
             band,
             pending: SecondaryMap::new(),
             completed: SecondaryMap::new(),
@@ -892,13 +895,19 @@ impl ChordJoiner {
     /// Consumes the recorded `(new face, divided-from face)` rows
     /// (naming emission; see the field docs).
     pub(crate) fn take_fragments(&mut self) -> FragmentRows {
-        core::mem::take(&mut self.fragments)
+        core::mem::replace(
+            &mut self.fragments,
+            FragmentRows::new(crate::lineage::LineageRows::FaceDivisions),
+        )
     }
 
     /// Consumes the recorded `(killed face, face holding its region)`
     /// rows (see the field docs).
     pub(crate) fn take_absorbed(&mut self) -> crate::lineage::Substitutions<FaceKey> {
-        core::mem::take(&mut self.absorbed)
+        core::mem::replace(
+            &mut self.absorbed,
+            crate::lineage::Substitutions::new(crate::lineage::LineageRows::Substitutions),
+        )
     }
 }
 
@@ -2856,19 +2865,26 @@ fn nearest_branch<T: Decide>(
         what: "a divided face's chart is the placeholder — it has no lever to decide a branch by",
     })?;
     let arm = crate::pcurves::joint_arm(chart, vertex);
-    crate::pcurves::lever_periods("split_window_branch", arm, gap, T::tau(), false, band)
-        .map(|k| T::from_f64(f64::from(k)))
-        .map_err(|miss| match miss {
-            geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
-            geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach => {
-                SplitJoinError::SectionInvariant {
-                    face,
-                    what: "a run edge's chart entry sits half a period, or past the branch \
+    crate::pcurves::lever_periods(
+        "split_window_branch",
+        arm,
+        gap,
+        T::tau(),
+        crate::pcurves::Orbit::Periods,
+        band,
+    )
+    .map(|k| T::from_f64(f64::from(k)))
+    .map_err(|miss| match miss {
+        geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
+        geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach => {
+            SplitJoinError::SectionInvariant {
+                face,
+                what: "a run edge's chart entry sits half a period, or past the branch \
                            reach, from the previous edge's exit — the two images name no \
                            common branch",
-                }
             }
-        })
+        }
+    })
 }
 
 /// `∫ (v − anchor) du` of a harmonic chart image from `t0` to `t1`, and
@@ -2902,9 +2918,23 @@ fn chart_v_du<T: Decide>(
     let Pcurve::Harmonic { p0, pa, pb, pl } = *p else {
         return Ok(None);
     };
+    // `sup |x·cos t + y·sin t| = √(x² + y²)`, spelled as
+    // `geom_brep::harmonic` spells it, whose helpers are crate-private.
+    let pair = |_site: &str, x: T, y: T| {
+        let norm = (x.powi(2) + y.powi(2)).sqrt();
+        #[cfg(test)]
+        let norm = mutants::pair(_site, x, y).unwrap_or(norm);
+        norm
+    };
+    // The gate admits a harmonic azimuth part of amplitude under the
+    // band at the radius, and the integral below reads `du = pl.x·dt`
+    // alone: the part it drops, `∫ (v − anchor)·(pb.x·cos t − pa.x·sin
+    // t) dt`, is at most `sup |v − anchor|·√(pa.x² + pb.x²)·|Δt|`, and
+    // nothing downstream adds it to the winding's slack
+    // (`work/hone/chart-v-du-drops-a-decided-zero-azimuth-harmonic-unbounded.md`).
     match decide(
         "split_chart_azimuth_linear",
-        Margin::levered(pa.x.abs() + pb.x.abs(), radius),
+        Margin::levered(pair("topo-gate", pa.x, pb.x), radius),
         band,
     )
     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -2918,13 +2948,31 @@ fn chart_v_du<T: Decide>(
             });
         }
     }
-    let v_var = (pa.y.abs() + pb.y.abs() + pl.y.abs()) * (t1 - t0).abs();
+    let v_var = (pair("topo-v-var", pa.y, pb.y) + pl.y.abs()) * (t1 - t0).abs();
     let half = T::from_f64(0.5);
     let dt = t1 - t0;
     let integral = (p0.y - anchor) * dt + pa.y * (t1.sin() - t0.sin())
         - pb.y * (t1.cos() - t0.cos())
         + pl.y * (t1 + t0) * dt * half;
     Ok(Some((pl.x * integral, v_var)))
+}
+
+/// [`chart_v_du`]'s harmonic pairs read as the sum of their
+/// coefficients again, one site at a time: a test build takes the sum
+/// at the site `PCERT_RADIAL_PAIR_MUTANT` names at compile time
+/// ([`mutants::SITES`]; `option_env!` because
+/// `scripts/gates/no-ambient-env.sh` forbids a runtime read). The rows
+/// that refuse each are in `v_du_rows`.
+#[cfg(test)]
+mod mutants {
+    use geom_core::Real;
+
+    pub(super) const SITES: [&str; 2] = ["topo-gate", "topo-v-var"];
+
+    pub(super) fn pair<T: Real>(site: &str, x: T, y: T) -> Option<T> {
+        debug_assert!(SITES.contains(&site), "an unlisted mutant site: {site}");
+        (option_env!("PCERT_RADIAL_PAIR_MUTANT") == Some(site)).then(|| x.abs() + y.abs())
+    }
 }
 
 /// A cylinder face's chart frame: the one destructure the wall-chart
@@ -4536,6 +4584,9 @@ mod torus_chord_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torus_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod v_du_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -6578,10 +6629,11 @@ mod segment_curve_tests {
 /// **A run's joint branch is a literal.** Over a box, an entry `k`
 /// periods from the previous exit as polynomials that are not constants,
 /// on a cylinder, at `k` either side of zero: the branch less `k` is the
-/// zero polynomial. And on a narrow cone (`sin α ≈ 0.01`), a continuous joint at a vertex
-/// decided clear of the apex but with its lever `d·sin α` under the band
-/// takes the image itself by the near-pole read, where every mark reads
-/// Zero or in band.
+/// zero polynomial. And on a narrow cone (`sin α ≈ 0.01`), a continuous
+/// joint at a vertex decided clear of the apex but with its lever
+/// `d·sin α` under the band takes a lift of its own point by the
+/// near-pole read, where every mark reads Zero or in band: the image
+/// itself at a zero gap, the image a period over at a whole turn's.
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod nearest_branch_rows {
@@ -6618,7 +6670,7 @@ mod nearest_branch_rows {
     }
 
     #[test]
-    fn a_narrow_cone_joint_clear_of_the_apex_takes_its_own_image() {
+    fn a_narrow_cone_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
         let band = Band::linear(Tol::witness()).unwrap();
         let alpha = 0.01f64;
         let cone = geom::Surface::Cone {
@@ -6637,12 +6689,28 @@ mod nearest_branch_rows {
                 Ok(Sign::Positive),
                 "d = {d:e}: the vertex is decided clear of the apex"
             );
+            let lever = d * alpha.sin();
             let got = nearest_branch(&cone, FaceKey::default(), vertex, 0.0, band);
             assert!(
                 matches!(got, Ok(k) if k == 0.0),
-                "d = {d:e} (lever {:e}): the continuous joint is its own branch: {got:?}",
-                d * alpha.sin()
+                "d = {d:e} (lever {lever:e}): the continuous joint is its own branch: {got:?}"
             );
+            // A whole turn's gap meets the image a period over; where a
+            // whole turn at the lever is itself within ε, every branch
+            // tried is, and the image itself is taken first.
+            let tau = core::f64::consts::TAU;
+            for turns in [1.0, -1.0] {
+                let want = if tau * lever < band.zero() {
+                    0.0
+                } else {
+                    turns
+                };
+                let got = nearest_branch(&cone, FaceKey::default(), vertex, turns * tau, band);
+                assert!(
+                    matches!(got, Ok(k) if k == want),
+                    "d = {d:e} (lever {lever:e}), gap {turns}·τ: the branch is {want}: {got:?}"
+                );
+            }
         }
     }
 }
