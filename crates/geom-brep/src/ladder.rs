@@ -120,7 +120,7 @@ pub fn refusing_cause(kept: Vec<Indeterminate>) -> Indeterminate {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::k_stats::{Bracket, decide_reported};
     use geom_core::predicate::Band;
