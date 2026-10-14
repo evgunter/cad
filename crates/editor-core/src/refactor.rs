@@ -396,10 +396,11 @@ fn in_id_order(old: &[Vec<StepId>], minted: &[Vec<StepId>]) -> Vec<Vec<StepId>> 
 /// built and inserted into `target`, and maps to the id the insert door
 /// minted for it; a profile's steps map to the ids the door minted for
 /// them, dealt out in the order of the ids they replace
-/// ([`in_id_order`]) by a recorded `SetProgram` that keeps every step
-/// where the door's program order differs. The maps are read off the
-/// door, never predicted, so they cannot disagree with what it minted. A node's label follows it in
-/// the edit after its insert, so a refusal raised while a later node is
+/// ([`in_id_order`]): where that is not the door's program order, a
+/// recorded `SetProgram` keeping every step moves them. The maps are
+/// read off the door, never predicted, so they cannot disagree with
+/// what it minted. A node's label follows it in the edit after its
+/// insert, so a refusal raised while a later node is
 /// carried speaks the carried ones with their labels.
 ///
 /// A gauge reference to a gauge `carried_gauge` answers for maps to its

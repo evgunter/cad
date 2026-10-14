@@ -643,7 +643,6 @@ mod tests {
         RoleSeg::Fragment(Qualifier::OrderAlong { rank, of })
     }
 
-    /// The identity image: the name written is the name meant.
     /// The canonical form a rewrite answers, where it answers one.
     fn formed(r: Result<Rewritten, ()>) -> StableName {
         match r {
@@ -652,6 +651,7 @@ mod tests {
         }
     }
 
+    /// The identity image: the name written is the name meant.
     fn same(n: &StableName) -> Result<StableName, ()> {
         Ok(n.clone())
     }
