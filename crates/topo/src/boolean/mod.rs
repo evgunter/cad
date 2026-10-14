@@ -3038,7 +3038,8 @@ pub enum BooleanError {
     /// Radius equality and coplanar axes are decided by their margins
     /// (`geom_brep::cylinder_cylinder_section`); at definitely unequal
     /// radii the locus is a space quartic, the skew pair's unbuilt
-    /// class ([`Self::GermFrameUnsupported`]).
+    /// class ([`Self::GermFrameUnsupported`]); a margin in band
+    /// escalates rather than claim either class.
     GermFrameCylinderPinch {
         /// The A-side germ face.
         a_face: FaceKey,

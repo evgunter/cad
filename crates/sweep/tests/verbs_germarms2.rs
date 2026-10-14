@@ -240,7 +240,7 @@ fn every_pose_of_the_family_answers_typed_and_pose_independently() {
 ///   general rung has not retired, and the dispatch has no arm
 ///   (`GermFrameUnsupported`). Its verdict on this pose is pinned at
 ///   both radii by
-///   `the_non_parallel_cylinder_pair_splits_on_coplanarity_alone`
+///   `the_non_parallel_cylinder_pair_splits_on_coplanarity_then_radius`
 ///   (`boolean::join`).
 /// - Parallel equal radii: the crossing events are a rim CIRCLE against
 ///   a wall, certified by the circle × cylinder root lane; at one height
