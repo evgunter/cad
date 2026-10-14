@@ -49,3 +49,10 @@ where main reads refused (0.0666318355989892 rad × 1.761587807094113 on
 r = 1, sin β = 0.000000000005677081873502136)`. The property is the same
 and the reading is a different class, so a fix for the line arm alone
 would not close it.
+
+## 2026-10-13: once at the default eps (EMIT, branch `emit/naming-refusals`)
+
+The fuzz failed once in a local `cargo nextest run -p topo --profile ci`
+at the default eps, on a branch whose topo diff touches only
+`boolean::ops::apply_cut_ins` and its caller. The seed was not kept;
+15 reruns passed.

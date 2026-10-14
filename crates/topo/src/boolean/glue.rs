@@ -282,17 +282,7 @@ pub(crate) fn touched<T: geom_core::Real>(
     rows.iter()
         .enumerate()
         .filter(|(_, row)| {
-            let [
-                RowCell::Input {
-                    input: Operand::A,
-                    cell: Cell::Face(fa),
-                },
-                RowCell::Input {
-                    input: Operand::B,
-                    cell: Cell::Face(fb),
-                },
-            ] = row.cells
-            else {
+            let Some((fa, fb)) = row.face_pair() else {
                 return true;
             };
             let (on_a, on_b) = (closure(Operand::A, fa), closure(Operand::B, fb));
