@@ -45,7 +45,7 @@ tangent's one point, each its owner's to weigh:
   arcs, and the chordal `arc_span` reading of that point refuses
   `TangentialContact` between arcs that are 1–3 cm apart, so the
   radial place does decide a verdict there. Its `a` now comes from the
-  clearances (`Circles::foot`), which takes out rounding of about
+  clearances (`geom_core::Circles2::foot`), which takes out rounding of about
   `u·r²/d` but keeps the point at the foot, so the amplification here
   is unchanged. The external arm takes
   `c₁ + û·r₁` and is already gap-optimal. **This point is read as a
@@ -74,7 +74,9 @@ tangent's one point, each its owner's to weigh:
 - `crates/topo/src/boolean/carrier_cross.rs`, the circle crossing's
   `apart`/`nested` Zero return of `foot` (CLEAVE/HONE).
 - `crates/topo/src/validate.rs`, the circle-circle edge-pair candidates'
-  tangent arm (RESTFRONT).
+  tangent arm (RESTFRONT). Its `a` now comes from the clearances
+  (`geom_core::Circles::radical`), as seg.rs's does; the point is
+  still the foot.
 - `crates/topo/src/boolean/join.rs` `parallel_radical_plane`, the same
   formula for two parallel cylinders' radical plane. One reviewer
   judged it crossing-only, because the frame dispatch refuses tangent

@@ -1719,6 +1719,7 @@ fn germ_facing(lean: f64) -> Result<(), BooleanError> {
         a_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
         b_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
         dir,
+        branch: super::super::Branch::Only,
     };
     let (p1, p2) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     let g1 = germ(Vec3::new(lean, 1.0, 0.0).normalize());
