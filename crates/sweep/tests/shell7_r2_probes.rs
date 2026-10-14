@@ -114,9 +114,11 @@ fn p3b_a_band_scale_major_radius_through_the_revolve_door() {
             eprintln!("[p3b] R = {major:e}: the revolve door refuses");
             continue;
         };
-        // A torus whose minor radius is within a few Kε of the band reads
-        // no orientation at rest: its aimed rays' torus split and its
-        // volume are both in band, and its own door says so.
+        // A torus whose minor radius is a few Kε reads no orientation at
+        // rest: both its faces' aims land on their shared boundary (the
+        // inner equator), each crossing there in band, and its volume
+        // over area is in band too; its own door says so. The open class
+        // (`work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
         let operand = match topo::AtRestBody::validate(rev.body.clone(), tol()) {
             Ok(operand) => operand,
             Err(e) => {

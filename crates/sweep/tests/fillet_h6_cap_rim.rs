@@ -542,6 +542,11 @@ fn print_the_arm_at_a_small_k() {
     }
 }
 
+/// The needle's one at-rest finding above the crossover: no face offers
+/// an aim, and its volume straddles zero by its own rounding.
+const NEEDLE_ORIENTATION: &str = "KPROBE tier3_error=OrientationUndecided { solid: SolidKey(1v1), \
+     reading: Volume { margin: None, aimed: 0, set_aside: [] } }";
+
 /// Runs [`print_the_arm_at_a_small_k`] in a child process at a K on
 /// each side of the crossover and reads the outcome back.
 fn at_k(k: &str, arm_factor: &str) -> String {
@@ -578,9 +583,13 @@ fn at_k(k: &str, arm_factor: &str) -> String {
 /// crossover `K* = √φ ≈ 1.272`, named here because this row is where
 /// the two sides of it are measured. So:
 ///
-/// - at the shipped **K = 10** the cap-rim `Smooth` arm is unreachable,
-///   and this same body — the worst admitted tilt on the shortest
-///   admitted arm — builds with every cap rim `Intersection`;
+/// - above the crossover (**K = 3** here, and the shipped K = 10 with
+///   it) the cap-rim `Smooth` arm is unreachable: this same body — the
+///   worst admitted tilt on the shortest admitted arm — builds with
+///   every cap rim `Intersection`. Its at-rest gate refuses only its
+///   orientation: the body is a needle a few `K·ε` across, the open
+///   class of
+///   `work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`;
 /// - at **K = 1.1**, below the crossover, the very same construction
 ///   reaches the arm: the four short rims keep the conventional
 ///   description, `extrude` hands the body back, and the at-rest gate
@@ -610,14 +619,14 @@ fn the_cap_rim_arm_is_unreachable_above_the_crossover_and_is_reached_below_it() 
         "above K* every cap rim must be an Intersection:\n{above}",
     );
     // The body is a needle a few `K·ε` across: no face of it holds a
-    // point certified inside, so check 7 aims no ray at it and its
-    // volume's sign is undecided, and it refuses the orientation alone
-    // (D1 tier 3) where no other check refuses it.
+    // point certified inside, so check 7 aims no ray at it, its volume
+    // straddles zero by its own rounding, and it refuses its orientation
+    // alone (D1 tier 3). Today's answer to the open class, pinned so its
+    // fix shows here
+    // (`work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
     assert!(
-        above.contains("KPROBE tier3=Ok")
-            || (above.contains("KPROBE tier3=Err n=1")
-                && above.contains("KPROBE tier3_error=OrientationUndecided")),
-        "above K* the built body must pass every check but its orientation:\n{above}",
+        above.contains("KPROBE tier3=Err n=1") && above.contains(NEEDLE_ORIENTATION),
+        "above K* the built body refuses its orientation alone:\n{above}",
     );
 
     // K = 1.1: below K*. The same construction reaches the arm — here

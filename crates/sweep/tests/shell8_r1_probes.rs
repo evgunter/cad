@@ -138,33 +138,52 @@ fn r1_a_scope_of_two_of_three_solids() {
 // Claim 3 — the roles read
 // ---------------------------------------------------------------------
 
-/// **The roles read is PER HOLLOW SOLID.** A shell's role is the side at
-/// infinity of its own faces, so a solid's roles involve no other
-/// solid's shells — and a plain neighbour, whose single shell is its
-/// boundary by arity, is never read. The read shares its reader, and its
-/// decisions' names, with check 10 at the result's gate, so it is not
-/// counted apart; what it rules out, a read escalating on a solid the
-/// caller did not ask about and refusing one it did, is pinned by every
-/// one of these bodies shelling.
+/// **The roles read is PER SOLID, counted at the funnel.** A shell's
+/// role is the side at infinity of its own faces, read off rays aimed at
+/// them (`side_at_infinity_*`), and a solid's orientation (check 7, at
+/// the result's gate) the same way: no read crosses another solid's
+/// faces. So the aimed-ray verdicts a shelling logs add up solid by
+/// solid: a plain pair reads twice what one plain block reads, and a
+/// hollow solid beside a plain one reads exactly what the two read
+/// apart. A read that involved a neighbour's shells — escalating on a
+/// solid the caller did not ask about, or refusing one it did — would
+/// break the sum.
 #[test]
 fn r1_the_roles_read_is_per_hollow_solid() {
-    let shelled = |what: &str, body: &Body<f64>| {
+    use geom_core::k_stats::Bracket;
+    let count = |what: &str, body: &Body<f64>| -> usize {
+        let bracket = Bracket::open();
         topo::shell(&finished("the operand", body.clone(), tol()), 0.02, tol())
             .unwrap_or_else(|e| panic!("{what} shells, got {e:?}"));
+        bracket
+            .finish()
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate.starts_with("side_at_infinity"))
+            .count()
     };
-    shelled(
-        "a plain pair",
-        &beside(
-            &block(2.0, 3.0, 4.0, Tol::witness()),
-            &block(2.0, 3.0, 4.0, Tol::witness()),
-            10.0,
-        ),
-    );
-    shelled(
+    let plain = || block(2.0, 3.0, 4.0, Tol::witness());
+    let one = count("a plain block", &plain());
+    let pair = count("a plain pair", &beside(&plain(), &plain(), 10.0));
+    let lone = count("the hollow solid alone", &hollow_box());
+    let mixed = count(
         "a hollow solid beside a plain one",
-        &beside(&hollow_box(), &block(2.0, 3.0, 4.0, Tol::witness()), 10.0),
+        &beside(&hollow_box(), &plain(), 10.0),
     );
-    shelled("the hollow solid alone", &hollow_box());
+    println!(
+        "[r1] side_at_infinity verdicts: plain={one}, plain-pair={pair}, hollow-alone={lone}, \
+         hollow+plain={mixed}"
+    );
+    assert!(
+        lone > one,
+        "the hollow solid reads its shells' roles: {lone} > {one}"
+    );
+    assert_eq!(pair, 2 * one, "a plain pair reads each block's own");
+    assert_eq!(
+        mixed,
+        lone + one,
+        "a hollow solid beside a plain one reads what each reads apart"
+    );
 }
 
 /// **A hollow solid beside a plain one still classifies correctly.**
