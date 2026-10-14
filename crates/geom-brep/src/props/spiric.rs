@@ -283,7 +283,7 @@ fn piece_speed(e: &SpiricEdgeQ, p: f64, q: f64) -> Option<f64> {
     }
     let (apart, _) =
         geom::spiric_rate_bounds(e.minor, e.offset, (pt(rho.lo()), pt(rho.hi())), pt(s.mag()));
-    let d_abs = geom_core::Real::abs(e.offset);
+    let d_abs = e.offset.sqr().sqrt();
     let x = (Interval::one() + c).clamped_to(0.0, 2.0);
     let delta = e.major - e.minor - d_abs;
     let phi = |x: f64| {
