@@ -932,3 +932,8 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - emit_topo keeps its caveat that the `pub` copies are writable from outside;
     - the origin walk row inherits the write-site check.
   - **CI:** green at aeed9184, and the PR also compiles merged with main.
+- 2026-10-14: PR 5093 (curve-pair reader stage (a): `bisect` moves to geom-core; `carrier_speed`, the half-angle ladder and the quartic sign ladder move to geom-brep) merges. No behaviour change.
+  - **Review:** approved with fixes. Every claim held, confirmed by mutants and by the old and new bodies diffed side by side.
+  - **Fixes:** the live audit doc re-pointed; the lower crates' docs state their contract rather than their topo callers; the quartic ladder's own doc moved down with it.
+  - **Deferred:** four findings go to stage (b) on the unit row: the root enums as one class, `TrigRoots::Uncertain`'s untyped refusal, the `rounding_charge` alias, and `PastDegreeTwo`.
+  - **CI:** green at 13e3b83, and the PR also compiles merged with main.
