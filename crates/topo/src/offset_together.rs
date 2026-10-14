@@ -280,7 +280,10 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
     while let Some(group) = work.pop() {
         let point = match solve(&group) {
             Ok(point) => point,
-            Err(refused) => {
+            // Only a corner the planes definitely leave without a point
+            // parts; an escalated joint solve is undecided, not refused,
+            // and propagates.
+            Err(refused @ ReplaceFaceError::TogetherCorner { .. }) => {
                 let parts = crate::replace_face::split_by_solid(body, &group);
                 if parts.len() < 2 {
                     return Err(refused);
@@ -288,6 +291,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                 work.extend(parts.into_iter().rev());
                 continue;
             }
+            Err(other) => return Err(other),
         };
         position.extend(group.iter().map(|&v| (v, point)));
         moved.push((group, point));

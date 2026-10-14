@@ -4062,7 +4062,12 @@ fn solve_corners<T: Decide>(
     work.reverse();
     while let Some(group) = work.pop() {
         let mark = (corners.rooted.len(), corners.solved.len());
+        // Only copies that definitely land apart part; an escalated
+        // joint solve is undecided, not refused, and propagates.
         if let Err(refused) = solve(group.clone(), &mut corners, &mut holds) {
+            if !matches!(refused, ReplaceFaceError::VertexDisagreement { .. }) {
+                return Err(refused);
+            }
             let parts = split_by_solid(body, &group);
             if parts.len() < 2 {
                 return Err(refused);
