@@ -93,3 +93,18 @@ whether D1's "structural sharing needs no record" covers a key a
 boolean shared on a value decision). PR 4823's pins hold this row's
 open state: they assert the shared keys, and name this row where a
 withheld record passes.
+
+## Since PR 4793
+
+Ev approved PR 4793 (2026-10-14). D1 now says that vertices an op
+decides are one point share one point key, whether they lie in one
+solid or two, and that the op's `VertexFusion` row, cited by the
+pair's vertex-vertex record, is for the lint, not the census. So a
+withheld vertex-vertex record passing at rest on its shared key is the
+design, not a hazard, and PR 4823's pins now say so rather than naming
+this row. The live question narrows to whether a boolean's records ride
+its operand type (an operand that holds them, or a door that takes a
+`BooleanBody`), because a plain reuse that drops them loses the lint's
+evidence; R1's and R2's measurements above add that it also loses the
+join's freeing, so a dropped record leaves a non-maximal edge at the
+lump's corner.

@@ -73,9 +73,7 @@ fn r6_pocketed_dice_kiss_e2e() {
     assert_eq!(
         validate_pseudomanifold(&assembly.body, &ContactRecords::default(), Tol::witness()),
         Ok(()),
-        "withheld, the kiss reads off its shared key: the open state of \
-         work/intent/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md, \
-         not the goal"
+        "withheld, the kiss reads off its shared key: ratified on PR 4793: the record is the lint's evidence, not the census's"
     );
     // Structure + exact oracles (the parts=2 discipline: shell count
     // is asserted HERE, not inferred from admesh part count).

@@ -226,8 +226,7 @@ fn assert_union(
     assert!(
         !errs.iter().any(overlap) && only_curved_within_reach(&r.body, &errs),
         "{what}: without its edge–edge record the overlap between the two shared \
-         keys reads as structure (the open state of \
-         work/intent/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md, \
-         not the goal): {errs:?}"
+         keys reads as structure (the shared ends ratified on PR 4793: the records are \
+         the lint's evidence, not the census's): {errs:?}"
     );
 }

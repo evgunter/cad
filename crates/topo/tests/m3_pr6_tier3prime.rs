@@ -9,9 +9,8 @@
 //! vertices the boolean decided one point, it put them on one point
 //! key, and the census reads the key as structure: withheld, the result
 //! stays green, and the scenario pins the shared key instead. That
-//! exception is the open state of the INTENT row
-//! `a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys`
-//! (ruling A, ahead of Ev's answer on PR 4793), not its goal. Scenarios are generic over
+//! exception is the design, ratified on PR 4793: the record is the
+//! lint's evidence, not the census's. Scenarios are generic over
 //! `T` (f64 ε rows via CI; the explicit Interval lane at the bottom,
 //! per suite convention).
 
@@ -26,12 +25,6 @@ use topo::{
     AtRestBody, BooleanBody, BooleanError, BooleanResult, ContactRecords, ValidationError,
     intersect, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold,
 };
-
-/// The row that decides whether a result reused without its records
-/// should pass at rest; the pins here hold its open state (ruling A's,
-/// ahead of Ev's answer on PR 4793), not its goal.
-const OPEN: &str =
-    "work/intent/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md";
 
 type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
@@ -92,7 +85,7 @@ fn assert_keyed<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(b: 
     assert_eq!(
         validate_pseudomanifold(&b.body, &ContactRecords::default(), Tol::witness()),
         Ok(()),
-        "withheld, the touch reads off its shared key: the open state of {OPEN}, not the goal"
+        "withheld, the touch reads off its shared key: ratified on PR 4793: the record is the lint's evidence, not the census's"
     );
 }
 

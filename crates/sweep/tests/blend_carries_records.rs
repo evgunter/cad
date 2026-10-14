@@ -11,12 +11,6 @@ use sweep::chamfer::chamfer_edges;
 use sweep::test_support::finished;
 use topo::{Backing, BooleanBody, BooleanResult, ContactRecords, union, validate_pseudomanifold};
 
-/// The row that decides whether a result reused without its records
-/// should pass at rest; the pins here hold its open state (ruling A's,
-/// ahead of Ev's answer on PR 4793), not its goal.
-const OPEN: &str =
-    "work/intent/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md";
-
 /// The blend size, meters.
 const R: f64 = 0.1;
 
@@ -107,7 +101,7 @@ fn a_blend_away_from_the_kiss_carries_it() {
     assert_eq!(
         validate_pseudomanifold(&chamfered.body, &ContactRecords::default(), tol()),
         Ok(()),
-        "chamfer: withheld, the kiss reads off its shared key: the open state of {OPEN}, not the goal"
+        "chamfer: withheld, the kiss reads off its shared key: ratified on PR 4793: the record is the lint's evidence, not the census's"
     );
 }
 

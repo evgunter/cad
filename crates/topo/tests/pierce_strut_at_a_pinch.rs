@@ -44,9 +44,8 @@ enum Kind {
 /// pinch line, which a kernel op called without `BooleanInputs` records
 /// does not carry into its result. A pinch line whose ends the union
 /// that made it put on shared point keys reads as structure, and
-/// passes ([`keyed_pinch`]): the open state of the INTENT row
-/// `a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys`
-/// (ruling A, ahead of Ev's answer on PR 4793), not its goal.
+/// passes ([`keyed_pinch`]): the shared ends are ratified on PR 4793,
+/// whose records are the lint's evidence, not the census's.
 type Row = (&'static str, Kind, bool, [usize; 3], f64, bool);
 
 /// The pinch `r` a union built, with each of its vertex-vertex records'

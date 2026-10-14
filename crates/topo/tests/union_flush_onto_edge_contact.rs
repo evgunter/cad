@@ -375,10 +375,9 @@ fn assert_pinch_records(records: &topo::ContactRecords) {
 /// decided), so the overlap between the two shared keys is structure,
 /// and the census passes it without the edge-edge row; the row stays,
 /// citing both ends' decisions, for the `unproven-coincidence` lint.
-/// Red if an end's two vertices sit on two keys. That the withheld row
-/// passes is the open state of the INTENT row
-/// `a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys`
-/// (ruling A, ahead of Ev on PR 4793), not its goal.
+/// Red if an end's two vertices sit on two keys. The shared ends
+/// are ratified on PR 4793: the records are the lint's evidence, not
+/// the census's.
 #[test]
 fn a_pinch_without_its_edge_edge_row_reads_its_shared_ends() {
     let tol = Tol::witness();
@@ -399,9 +398,8 @@ fn a_pinch_without_its_edge_edge_row_reads_its_shared_ends() {
     assert_eq!(
         validate_pseudomanifold(&pinch.body, &bounds, tol),
         Ok(()),
-        "the overlap between two shared keys reads as structure: the open state of \
-         work/intent/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md, \
-         not the goal"
+        "the overlap between two shared keys reads as structure (the shared ends \
+         ratified on PR 4793: the records are the lint's evidence, not the census's)"
     );
 }
 
