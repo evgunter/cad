@@ -417,15 +417,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
-                equal_radii: false,
-            },
-        ),
-        (
-            "GermFrameCylinderPinch (equal radii)",
-            BooleanError::GermFrameCylinderPinch {
-                a_face: face,
-                b_face: face,
-                equal_radii: true,
             },
         ),
         (

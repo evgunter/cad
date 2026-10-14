@@ -616,7 +616,7 @@ fn nan_bulge_poisons_to_a_typed_error() {
         ProfileError::Escalated { site, source } => {
             assert_eq!(site, EscalationSite::Segment(sref(0, 0)));
             assert_eq!(source.margin, MarginDiag::INVALID);
-            assert_eq!(source.predicate, Some("segment_straightness"));
+            assert_eq!(source.predicate, Some("arc_sweep_range"));
         }
         other => panic!("expected poison escalation, got {other:?}"),
     }

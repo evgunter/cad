@@ -2,12 +2,13 @@
 id: a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex
 kind: unit
 title: A section ellipse is re-posed at the principal vertex nearest its arc, with a signed span, so its parameter resolves to model scale
-status: review
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
 parent: a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join
 branch: cleave/section-ellipse-re-pose
+closed: 2026-10-14
 ---
 
 Part 1 of the design on

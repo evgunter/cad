@@ -2625,13 +2625,10 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
             b_face: b.0,
             b_kind: b.1.kind(),
         },
-        FrameError::IntersectingCylinderAxes { equal_radii } => {
-            BooleanError::GermFrameCylinderPinch {
-                a_face: a.0,
-                b_face: b.0,
-                equal_radii,
-            }
-        }
+        FrameError::CylinderNodes => BooleanError::GermFrameCylinderPinch {
+            a_face: a.0,
+            b_face: b.0,
+        },
         FrameError::OutsideInventory { conic, section } => {
             BooleanError::GermSectionOutsideInventory {
                 a_face: a.0,
@@ -2672,23 +2669,14 @@ pub(super) enum FrameError {
     /// it — a lockstep failure, not a frontier.
     Desync(&'static str),
     /// No frame: the kind pair has no section arm, or an armed pair's
-    /// pose has none (the cylinder × sphere node, or a pose not
-    /// definitely off the axis).
+    /// pose has none (the cylinder × sphere node, a pose not
+    /// definitely off the axis, or a cylinder pair whose locus is a
+    /// space quartic: skew axes, or intersecting axes at unequal radii).
     NoArm,
-    /// **A cylinder pair whose axes definitely INTERSECT.** Its locus
-    /// is never straight and is never one conic either, so it is
-    /// neither `Ok(None)` nor an arm — see
-    /// [`BooleanError::GermFrameCylinderPinch`] for the two shapes it
-    /// takes and why this dispatch can name neither.
-    ///
-    /// Whether the radii decided equal is carried, because it is what
-    /// decides WHICH of those two shapes the locus has: equal and the
-    /// section is the constructed ellipse pair, unequal and the pair
-    /// routes the general rung.
-    IntersectingCylinderAxes {
-        /// Whether the two radii decided equal.
-        equal_radii: bool,
-    },
+    /// **A cylinder pair whose axes definitely INTERSECT and whose radii
+    /// decide equal**: the section is the two bisector-plane ellipses,
+    /// crossing at two nodes ([`BooleanError::GermFrameCylinderPinch`]).
+    CylinderNodes,
     /// The section is a conic outside the inventory by decision (R1).
     OutsideInventory {
         /// The conic.
@@ -2956,9 +2944,12 @@ fn conic_section_frame_at<T: Decide>(
         // step 5) and it reads NO radius, so asking it here infers
         // nothing: a definite gap is SKEW, whose locus is a space quartic
         // — canal territory, the general rung — and keeps `NoArm`
-        // verbatim. A Zero gap means the axes meet, and that half gets
-        // its own named door because its locus is not one conic even
-        // when it is a conic pair.
+        // verbatim. A Zero gap means the axes meet, and there the
+        // section table decides the radii (`cc_radius_equality`): equal
+        // radii cut the two crossing ellipses, whose nodes are their own
+        // door (`CylinderNodes`); unequal radii cut the skew pair's space
+        // quartic class and keep `NoArm`; a radius margin in band
+        // escalates.
         //
         // Asked of the table's own row too
         // ([`geom_brep::cylinder_axes_coplanar`], `cc_axes_coplanar`),
@@ -3316,18 +3307,12 @@ fn pt_germ_frame<T: Decide>(
 const PT_TOUCHING_UNDER_A_GERM: &str = "bool_join_torus_section_touching_under_a_germ";
 
 /// **The intersecting-axes cylinder pair, routed by whether its radii
-/// decide equal.**
+/// decide equal** (`cylinder_cylinder_section`'s `cc_radius_equality`):
 ///
-/// The axes meet, so the locus is neither straight nor one conic and no
-/// frame can be named either way — but WHICH shape it has is a
-/// radius-equality question, decided by its margin in the section
-/// table (`cylinder_cylinder_section`'s `cc_radius_equality`):
-///
-/// * equal — the equal-radius closed form is REACHED: the table
-///   constructs the two bisector-plane ellipses, so the pinch the
-///   refusal names is a proven configuration — four arcs at two
-///   valence-4 vertices — rather than one of two possibilities;
-/// * unequal — the pair routes the general rung, a space quartic.
+/// * equal — the table constructs the two bisector-plane ellipses,
+///   which cross at two nodes ([`FrameError::CylinderNodes`]);
+/// * unequal — the locus is a space quartic, the skew pair's unbuilt
+///   class ([`FrameError::NoArm`]).
 fn intersecting_cylinder_axes<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
@@ -3343,12 +3328,8 @@ fn intersecting_cylinder_axes<T: Decide>(
     // outcome and every refusal is named, so a variant added to either
     // enum is a compile-time visit here rather than a silent desync.
     match geom_brep::cylinder_cylinder_section(sa, sb, reach, band) {
-        Ok(geom_brep::EqualCylinderSection::TwoEllipses { .. }) => {
-            FrameError::IntersectingCylinderAxes { equal_radii: true }
-        }
-        Err(geom_brep::SectionError::UnequalRadii) => {
-            FrameError::IntersectingCylinderAxes { equal_radii: false }
-        }
+        Ok(geom_brep::EqualCylinderSection::TwoEllipses { .. }) => FrameError::CylinderNodes,
+        Err(geom_brep::SectionError::UnequalRadii) => FrameError::NoArm,
         // The three parallel-axes answers, from a table whose
         // parallelism verdict this dispatch already took the other
         // way on the same margin.
@@ -3506,7 +3487,7 @@ fn cs_transverse_frame<T: Decide>(
 /// pinch door. This is exactly where the cylinder PAIR differs: its
 /// crossing ellipses lie in two DIFFERENT bisector planes with two
 /// different axes, and no single frame is right for both — hence
-/// [`FrameError::IntersectingCylinderAxes`] there and nothing like it
+/// [`FrameError::CylinderNodes`] there and nothing like it
 /// here.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 pub(super) fn cs_pair_frame<T: Decide>(
@@ -5535,10 +5516,10 @@ mod frame_dispatch_tests {
     /// Both refusal variants are the trap being closed, but they are
     /// NOT interchangeable per row, and the matcher is split so that
     /// the loosening is confined to where it is earned. Only a
-    /// CYLINDER PAIR can reach `IntersectingCylinderAxes` — the split
-    /// on coplanarity is the only producer of that variant — so those
-    /// rows admit either refusal here and the row below pins which one
-    /// each gets. Every other kind pair falls through to the
+    /// CYLINDER PAIR can reach `CylinderNodes` — the split on
+    /// coplanarity, then on radius equality, is the only producer of
+    /// that variant — so those rows admit either refusal here and the
+    /// row below pins which one each meeting pose gets. Every other kind pair falls through to the
     /// dispatch's final arm, where `NoArm` is the only reachable
     /// answer, and a row that accepted the pinch variant there would
     /// green through a mis-routed dispatch.
@@ -5585,10 +5566,7 @@ mod frame_dispatch_tests {
             let got = pair_section_frame(&a, &b, at(), None, band());
             if cylinder_pair {
                 assert!(
-                    matches!(
-                        got,
-                        Err(FrameError::NoArm | FrameError::IntersectingCylinderAxes { .. })
-                    ),
+                    matches!(got, Err(FrameError::NoArm | FrameError::CylinderNodes)),
                     "a cylinder pair with no arm must refuse rather than default to the \
                      straight chord"
                 );
@@ -5602,29 +5580,34 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// **The non-parallel cylinder pair splits on COPLANARITY, and on
-    /// nothing else.** Intersecting axes take the pinch door; skew
-    /// axes keep the general rung's `NoArm` verbatim. The split reads
-    /// no radius, so both rows run at equal AND unequal radii and get
-    /// the same answer — which is the never-infer rule made visible:
-    /// this dispatch cannot tell the two apart and does not try.
+    /// **The non-parallel cylinder pair splits on COPLANARITY, then on
+    /// radius equality.** Skew axes keep the general rung's `NoArm` at
+    /// any radii; intersecting axes take the nodes at equal radii and
+    /// `NoArm` at unequal ones, whose locus is the skew pair's space
+    /// quartic class (the table's `cc_radius_equality`).
     #[test]
-    fn the_non_parallel_cylinder_pair_splits_on_coplanarity_alone() {
+    fn the_non_parallel_cylinder_pair_splits_on_coplanarity_then_radius() {
         let z = Vec3::new(0.0, 0.0, 1.0);
         let x = Vec3::new(1.0, 0.0, 0.0);
-        for r in [1.0_f64, 0.4] {
-            // Axes meeting at the origin.
-            let meeting = pair_section_frame(
-                &cylinder(z),
-                &cylinder_at(Point3::new(0.0, 0.0, 0.0), x, r),
-                at(),
-                None,
-                band(),
-            );
-            assert!(
-                matches!(meeting, Err(FrameError::IntersectingCylinderAxes { .. })),
-                "r = {r}: intersecting axes take the pinch door"
-            );
+        for (r, equal) in [(1.0_f64, true), (0.4, false)] {
+            // Axes meeting at the origin, square and at a slant.
+            for partner in [x, Vec3::new(0.0, 1.0, 1.0).normalize()] {
+                let meeting = pair_section_frame(
+                    &cylinder(z),
+                    &cylinder_at(Point3::new(0.0, 0.0, 0.0), partner, r),
+                    at(),
+                    None,
+                    band(),
+                );
+                match (&meeting, equal) {
+                    (Err(FrameError::CylinderNodes), true) | (Err(FrameError::NoArm), false) => {}
+                    (other, _) => panic!(
+                        "r = {r}, partner {partner:?}: intersecting axes at {} radii, got {}",
+                        if equal { "equal" } else { "unequal" },
+                        outcome(other)
+                    ),
+                }
+            }
             // The same pair lifted along the common perpendicular
             // `a1 x a2` — the ONE direction that separates the axes. A
             // lift along either axis leaves them meeting, which is what
@@ -5659,38 +5642,34 @@ mod frame_dispatch_tests {
         );
     }
 
-    /// **The intersecting-axes cylinder pair carries the radius
-    /// equality its margin decides.**
-    ///
-    /// The frontier is the same either way — no conic frame exists for
-    /// a pair of crossing walls — but WHICH shape the locus has is a
-    /// radius-equality question, and the refusal carries the margin's
-    /// answer: equal radii reach the closed form
-    /// (`cylinder_cylinder_section`), which classifies the ellipse
-    /// pair; definitely unequal radii are the general rung's space
-    /// quartic.
+    /// **A radius margin in band at meeting axes escalates (D4)**: it
+    /// is neither the nodes nor the unequal pair's `NoArm`, each of which
+    /// claims a definite class. The partner's radius is `1 + 2·zero` of
+    /// the band, past the zero band and short of escalation's edge, so
+    /// the table's `cc_radius_equality` reads it in band; a dispatch that
+    /// mapped that escalation to `NoArm` (or to the nodes) reds here.
     #[test]
-    fn the_intersecting_axes_pair_carries_its_decided_radius_equality() {
+    fn an_in_band_radius_at_meeting_axes_escalates() {
         let z = Vec3::new(0.0, 0.0, 1.0);
-        let x = Vec3::new(1.0, 0.0, 0.0);
-        for (radius, equal) in [(1.0, true), (0.4, false)] {
+        let r = 1.0 + 2.0 * band().zero();
+        for partner in [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 1.0).normalize(),
+        ] {
             let got = pair_section_frame(
                 &cylinder(z),
-                &cylinder_at(Point3::new(0.0, 0.0, 0.0), x, radius),
+                &cylinder_at(Point3::new(0.0, 0.0, 0.0), partner, r),
                 at(),
                 None,
                 band(),
             );
-            match got {
-                Err(FrameError::IntersectingCylinderAxes { equal_radii }) => assert_eq!(
-                    equal_radii, equal,
-                    "radius {radius}: the refusal carries the decided equality"
-                ),
-                ref other => panic!(
-                    "radius {radius}: expected the pinch door, got {}",
-                    outcome(other)
-                ),
-            }
+            assert!(
+                matches!(&got, Err(FrameError::Escalated(diag))
+                    if diag.predicate == Some("cc_radius_equality")),
+                "partner {partner:?}, r = 1 + 2·zero: the radius margin is in band and must \
+                 escalate, got {}",
+                outcome(&got)
+            );
         }
     }
 
@@ -5955,7 +5934,7 @@ mod frame_dispatch_tests {
             Err(FrameError::Desync(_)) => "a desync",
             Err(FrameError::Escalated(_)) => "an escalation",
             Err(FrameError::RadiusEscalated { .. }) => "a radius escalation",
-            Err(FrameError::IntersectingCylinderAxes { .. }) => "the cylinder pinch",
+            Err(FrameError::CylinderNodes) => "the cylinder nodes",
             Err(FrameError::OutsideInventory { .. }) => "a conic outside the inventory",
             Err(FrameError::Spiric { .. }) => "a general spiric",
         }
@@ -6203,15 +6182,13 @@ mod frame_dispatch_interval_tests {
 
     /// **The MEETING arm.** Both axes run through the origin, so the
     /// signed gap along `a₁ × a₂` is the exact zero of a point
-    /// interval and the split answers `Zero` — the pinch door. Read as
-    /// an equality, not "pinch or escalates": an escalation here would
-    /// say the enclosure decided the lane rather than the geometry.
-    ///
-    /// Run at equal AND unequal radii, because the margin reads no
-    /// radius and the certified lane must not start inferring one.
+    /// interval and the split answers `Zero`: the nodes at equal radii,
+    /// the general rung at unequal ones. Read as an equality, not
+    /// "nodes or escalates": an escalation here would say the enclosure
+    /// decided the lane rather than the geometry.
     #[test]
-    fn meeting_axes_take_the_pinch_door_at_the_certified_scalar() {
-        for r in [1.0_f64, 0.5] {
+    fn meeting_axes_take_the_node_door_at_the_certified_scalar() {
+        for (r, equal) in [(1.0_f64, true), (0.5, false)] {
             let got = pair_section_frame(
                 &about_z(p3(0.0, 0.0, 0.0), 1.0),
                 &about_x(p3(0.0, 0.0, 0.0), r),
@@ -6220,8 +6197,12 @@ mod frame_dispatch_interval_tests {
                 band(),
             );
             assert!(
-                matches!(got, Err(FrameError::IntersectingCylinderAxes { .. })),
-                "r = {r}: meeting axes take the pinch door at the certified scalar"
+                if equal {
+                    matches!(got, Err(FrameError::CylinderNodes))
+                } else {
+                    matches!(got, Err(FrameError::NoArm))
+                },
+                "r = {r}: meeting axes at the certified scalar"
             );
         }
     }
@@ -6254,7 +6235,7 @@ mod frame_dispatch_interval_tests {
         }
         // The displacement direction is the ASSERTION, not a detail:
         // sliding along either AXIS leaves the two lines meeting, so
-        // those poses must still answer the pinch door. A gap measured
+        // those poses must still answer the node door. A gap measured
         // as any distance between the origins would flip these to
         // `NoArm`.
         for along in [p3(0.0, 0.0, 0.75), p3(0.75, 0.0, 0.0)] {
@@ -6266,7 +6247,7 @@ mod frame_dispatch_interval_tests {
                 band(),
             );
             assert!(
-                matches!(got, Err(FrameError::IntersectingCylinderAxes { .. })),
+                matches!(got, Err(FrameError::CylinderNodes)),
                 "{along:?}: a lift along an AXIS leaves the axes meeting"
             );
         }

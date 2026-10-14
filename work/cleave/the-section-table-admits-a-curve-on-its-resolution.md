@@ -2,12 +2,11 @@
 id: the-section-table-admits-a-curve-on-its-resolution
 kind: unit
 title: A minted section conic is stored anchored on the arc its edge uses, its centre derived (Ev, PR 4812)
-status: parked
+status: open
 opened: 2026-10-12
 priority: P2
 cost: H
 parent: a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join
-blocked_on: [a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex]
 ---
 
 Part 2 of the design on
