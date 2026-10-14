@@ -182,11 +182,22 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// tables are the old ones with each edge × edge vertex re-spelled: read
 /// as a set of (line, sense), every run is the pair it replaced, and no
 /// other row moved.
+/// **Re-pinned for the output stage's killed lineage** (`topo`'s
+/// output stage copies the records of the edges its merge kills into
+/// `BooleanNaming::killed_lineage`, which `KilledSplits` reads):
+/// `crossing_slots` only. The second subtract's merge of the two flush
+/// floors kills one stretch of the first cavity's bottom rim and keeps
+/// the next, whose lineage stopped at the stretch killed, so it was
+/// named a seam of the cavity's wall and the slot's floor. It is now a
+/// piece of that rim, and the floor corner where the slot's rim meets
+/// the cavity's wall moved from a touch of the wall to a crossing of the
+/// two rims, as the other three such corners are named. Every
+/// other document held its word.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xa5e9e0fd2bbaebcf),
     ("corner_table", 0x37758803526e4b40),
     ("heat_sink", 0xaa9e6024a43311a1),
-    ("crossing_slots", 0x30b0c4518dffbfa1),
+    ("crossing_slots", 0x9338d492da350a03),
     ("nested_islands_105", 0x8ab7c6f45f60f9dd),
     ("nested_islands_106_depth1", 0x2ba81ab7b5c23ae0),
     ("nested_islands_106_depth2", 0x4c2246499d325098),

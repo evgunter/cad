@@ -338,10 +338,10 @@ impl SplitNaming {
         split_from: &std::collections::BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>,
         joins: Vec<crate::boolean::EdgeJoin>,
     ) {
-        crate::boolean::edge_join::record_joined_lineage(
+        crate::boolean::edge_join::record_killed_lineage(
             &mut self.joined_lineage,
             split_from,
-            &joins,
+            joins.iter().map(|j| j.gone),
         );
         self.edge_joins.extend(joins.into_iter().map(|j| (side, j)));
     }
