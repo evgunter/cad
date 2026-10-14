@@ -444,3 +444,6 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
     - `saddle_wall_offset_fit` → `nurbs/main-reds-…-since-4984`;
     - `mass_props_are_thread_count_invariant` at four threads → `flux/main-red-…-since-4938`.
 — (FLUSH orchestrator)
+- 2026-10-14 — **PR 5008 merged** (`92a791b5`; `an-in-band-glue-verdict-…` closed). The refusal quotes the sector's bounds where an admitted tolerance decides them, else the glue door's in-band reading, else the corner's own. One admission function serves every `Sectors` refusal. Review: sequential arm, byte 179, single review, APPROVE. The glued-tilt volume refusals go to CLEAVE's P0 as evidence. Filed `a-door-refusal-with-no-offer-hides-the-looser-tolerance-that-glues` (P3).
+- 2026-10-14 — **PR 4990 [ev] merged** (`8b29c750`). Ev: "the recommendation sounds good", and asked why check 7 was only a lean ("three readers of one fact become one" is "an extremely good reason"). The answer was procedural: it restates a second ratified clause (D1), and neither designer had an argument against it on the merits. All three decisions land: the aimed-ray reader with a volume fallback, D10's in-band-shell clause deleted, and check 7 on the same reader. Main took rows 134–137, so the fork is row 138. Dispatched the implementation lane on `flush/shell-role-reader`.
+— (FLUSH orchestrator)
