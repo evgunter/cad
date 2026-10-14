@@ -948,3 +948,18 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
       - an eccentric ellipse refuses `Unsupported` on a listed arm.
     - Other findings: an unpinned meter, an oracle whose tolerance and families hide wrong answers, unscheduled refusal windows, and copies minted by the stack (`DegreeTwo` hand-written, `extreme_sign` byte-copied from topo).
   - **Next:** one fix pass is dispatched for both PRs.
+- 2026-10-14: curve-pair reader stage (b) merges: PR 5121 into b at ad82fd1a, then PR 5118 to main at 90ff973c.
+  - **Fix pass:**
+    - MAJOR A closed: each plane crossing seeds a polish to the closest pair, guarded by a clearance cull and by basin and convergence meters, and span ends are candidates too.
+    - MAJOR B closed: each conic's own swing is read.
+    - Count ≤ N is now unrepresentable (`Found`).
+    - The meter and touch mutants all go red.
+    - The oracle is tightened, with a decided floor.
+  - **Re-review (Opus):** both mergeable. 0 violations over 144 first-review probes, 2,100 built-to-meet draws and 1,968 adversarial poses.
+  - **Residue filed** as `curve-pair-reader-stage-b-review-residue` (P2):
+    - the touch refusal window, with a row that cannot go red on its loop;
+    - the basin floor misnamed √(κe), when the code computes ≈√(8κe);
+    - `line_conic` still reads the tilt;
+    - copies the fix minted.
+  - **Before merge:** main was merged into b2 with two list conflicts (nextest slow set, from-f64 tsv), both sides kept. Clippy, the gates and 30/30 reader tests pass on the merged tree. The final b tree equals it, and main had moved only by a STATUS render.
+  - **Stage (c) is next:** callers move onto `meet` and `Span::contact` (`carrier_cross` first, coordinating with cleave's 5058).
