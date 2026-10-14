@@ -35,3 +35,9 @@ first. Here `c`'s sign picks which generator the tangent line is, and
 `c` can straddle zero at `Interval`. Whether that wants a frame decision
 rather than a `copysign` is GERM's judgement. Until it lands, every PR's
 `gate ok` is red on this one row.
+
+**Also blocks NURBS** (2026-10-14): #5123 and #5163, each with every other row green.
+
+**Proposed patch** (NURBS build A), to apply only after the census is re-asked:
+- add `("crates/geom-brep/src/intersect.rs", 1)` to the expected table at `sym_rule_f_rows.rs:705-715`;
+- add a line naming "`geom-brep/src/intersect.rs`'s plane×cone apex tangent generator (the side `c` leans)" to `sym/manifest.rs`'s site list (around l.71-84).
