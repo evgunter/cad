@@ -185,6 +185,8 @@ mod edit_ruled_carve;
 mod edit_set_program;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
+#[path = "emit_ball_cut_by_brick.rs"]
+mod emit_ball_cut_by_brick;
 #[path = "emit_boolean_vertex_keys.rs"]
 mod emit_boolean_vertex_keys;
 #[path = "emit_union_member_order.rs"]
@@ -736,8 +738,6 @@ mod emit_edge_piece_locality;
 mod emit_nested_union_flat;
 #[path = "emit_pair_cut_and_merged.rs"]
 mod emit_pair_cut_and_merged;
-#[path = "emit_ball_cut_by_brick.rs"]
-mod emit_ball_cut_by_brick;
 #[path = "emit_seam_edge_merged.rs"]
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]

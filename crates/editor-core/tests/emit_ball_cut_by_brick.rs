@@ -1,86 +1,32 @@
-//! probe
+//! **A whole ball cut by a tilted brick**: the unit ball and the brick
+//! of [`emit_sphere_cut_in_cap`](crate::emit_sphere_cut_in_cap), whose
+//! near face cuts a cap of height 0.015 off the ball.
+//!
+//! The ball is one closed sphere group, so the kernel re-charts it
+//! (`topo::boolean::ops::apply_recuts`): it turns the ball about its
+//! centre until a pole lies on the brick's axis, keeping every key. The
+//! result's seam pieces and poles then descend from the ball's by key
+//! but lie off the ball's own seam and poles. The subtract names them by
+//! key; the union reads member vertices off the members' own bodies,
+//! finds none at the turned pole, and reads it as a meeting of the
+//! ball's two meridians with no other member, which no pairwise
+//! judgement classifies. Which reading is right is the open question of
+//! [`ROW`].
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{failure, run};
-use crate::fixture::{ang, insert, len, len2, on_frame, scl, xy_frame};
+use crate::emit_sphere_cut_in_cap::{ball, brick_toward, dir};
+use crate::fixture::insert;
 use editor_core::{
-    ExtrudeSide, LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId,
+    BooleanValue, EntityKey, EntityKind, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    ValuePayload,
 };
 use geom_core::Tol;
 
-fn ball(doc: ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
-    let meridian = LoopProgram::Chain(vec![
-        ProgramStep::At(len2([0.0, c - r])),
-        ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(len2([0.0, c + r])),
-            b: scl(1.0),
-        }),
-        ProgramStep::LineTo(ProgramTarget::Start),
-    ]);
-    let (doc, xy) = insert(doc, xy_frame());
-    let (doc, p) = insert(
-        doc,
-        Node::Profile(ProfileProgram {
-            frame: xy.into(),
-            loops: vec![meridian],
-            ids: Vec::new(),
-        }),
-    );
-    insert(
-        doc,
-        crate::fixture::revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
-    )
-}
+const ROW: &str =
+    "work/emit/a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side.md";
 
-fn dir(lat: f64, az: f64) -> [f64; 3] {
-    let (lat, az) = (lat.to_radians(), az.to_radians());
-    [lat.cos() * az.cos(), lat.sin(), lat.cos() * az.sin()]
-}
-
-fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
-fn brick_toward(
-    doc: ProfileDoc,
-    n: [f64; 3],
-    s: f64,
-    w: f64,
-    t: f64,
-) -> (ProfileDoc, RecipeNodeId) {
-    let k = cross([0.0, 1.0, 0.0], n);
-    let kn = k.iter().map(|x| x * x).sum::<f64>().sqrt();
-    let k = k.map(|x| x / kn);
-    let th = kn.atan2(n[1]);
-    let rot = |v: [f64; 3]| {
-        let (s_, c) = th.sin_cos();
-        let kv = cross(k, v);
-        let kd: f64 = k.iter().zip(v).map(|(a, b)| a * b).sum();
-        [0, 1, 2].map(|i| v[i] * c + kv[i] * s_ + k[i] * kd * (1.0 - c))
-    };
-    let (u, v) = (rot([0.0, 0.0, 1.0]), rot([1.0, 0.0, 0.0]));
-    let (doc, p) = on_frame(
-        doc,
-        n.map(|x| x * s),
-        u,
-        v,
-        vec![vec![(-w, -w), (w, -w), (w, w), (-w, w)]],
-    );
-    insert(
-        doc,
-        Node::Extrude {
-            profile: p.into(),
-            distance: len(t),
-            side: ExtrudeSide::Along,
-        },
-    )
-}
-
+/// The ball, the brick, and `op` over them, ball first or not.
 fn document(op: &str, ball_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let doc = ProfileDoc::empty_derived("ball_cut_by_brick", Tol::witness());
     let (doc, b) = ball(doc, 1.0, 0.0);
@@ -108,13 +54,68 @@ fn document(op: &str, ball_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
     (doc, [b, brick, out])
 }
 
+fn body_of(payload: &ValuePayload<f64>) -> &topo::Body<f64> {
+    match payload {
+        ValuePayload::Body(b) => b,
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        other => panic!("expected a body, got {other:?}"),
+    }
+}
+
+/// **Every op over the ball and the brick, in both orders**: the
+/// intersect and the union refuse at the turned pole ([`ROW`]); the
+/// subtract names, and cites one of the ball's poles at a point where
+/// the ball holds no vertex, the turned pole.
 #[test]
-fn probe() {
-    for op in ["intersect", "union", "subtract"] {
-        for bf in [true, false] {
-            let (doc, [b, brick, out]) = document(op, bf);
-            let ev = run(&doc);
-            eprintln!("PROBE {op} ball_first={bf}: ball {:?} brick {:?} out {:?}", failure(&ev, b), failure(&ev, brick), failure(&ev, out));
+fn a_ball_cut_by_a_brick_refuses_at_its_turned_pole_where_a_member_vertex_is_read() {
+    for (op, ball_first) in [
+        ("intersect", true),
+        ("intersect", false),
+        ("union", true),
+        ("union", false),
+        ("subtract", true),
+        ("subtract", false),
+    ] {
+        let what = format!("{op}, ball first: {ball_first}");
+        let (doc, [b, brick, out]) = document(op, ball_first);
+        let ev = run(&doc);
+        assert!(failure(&ev, b).is_none(), "{what}: the ball names");
+        assert!(failure(&ev, brick).is_none(), "{what}: the brick names");
+        if op != "subtract" {
+            let e = format!("{:?}", failure(&ev, out).expect("refuses"));
+            assert!(
+                e.contains("has a side no pairwise judgement classified"),
+                "{what}: refused other than at the turned pole ({ROW}): {e}"
+            );
+            continue;
         }
+        assert!(failure(&ev, out).is_none(), "{what}: the subtract names");
+        let ball = ev.value(b).expect("the ball's value");
+        let poles: Vec<_> = body_of(&ball.payload).vertex_points().map(|(_, p)| p).collect();
+        let value = ev.value(out).expect("the subtract's value");
+        let points: std::collections::BTreeMap<_, _> =
+            body_of(&value.payload).vertex_points().collect();
+        let turned: Vec<_> = value
+            .name_table
+            .iter()
+            .filter_map(|(n, e)| match (n.path.as_slice(), e) {
+                ([RoleSeg::From { of, .. }], Entry::Unique(r))
+                    if of.kind == EntityKind::Vertex
+                        && matches!(of.path.as_slice(), [RoleSeg::Pole(_)]) =>
+                {
+                    match r.key {
+                        EntityKey::Vertex(v) => Some(points[&v]),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(turned.len(), 1, "{what}: one of the ball's poles survives");
+        assert!(
+            poles.iter().all(|&p| (p - turned[0]).norm() > 0.1),
+            "{what}: the subtract cites a ball pole at {:?}, off the ball's own poles {poles:?}",
+            turned[0]
+        );
     }
 }
