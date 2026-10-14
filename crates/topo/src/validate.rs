@@ -388,7 +388,7 @@ use geom_brep::recourse::{
     Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized,
 };
 use geom_brep::{
-    CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
+    CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge,
     classify_material_pairing,
 };
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, NOT_YET_ENDING, Real, Sign, Tol};
@@ -1231,24 +1231,40 @@ pub enum ValidationError {
         edge: EdgeKey,
     },
     /// Tier 3, the must-carry's escalation for a pair: an edge stored
-    /// as `OnPair` — the join its two surfaces under-determine at the
-    /// ε it was built at — reads, at this run's ε, as a jet-determinate
-    /// tangency (every station definitely smooth, the second order
-    /// definitely positive) inside
+    /// as `OnPair` reads, at an ε finer than the one it was built at,
+    /// as a jet-determinate tangency (every station definitely smooth,
+    /// the second order definitely positive) inside
     /// [`geom_brep::tangent_certificate_lane`].
     ///
-    /// The under-determined reading is zero-side at the build's ε, and
-    /// a zero-side second-order margin turns definite as ε tightens: a
-    /// short tangent seam (sagitta below ε) the build could not resolve
-    /// is one this tolerance can. So the stored pair is the build's
-    /// honest answer and this run's question is finer than it: an
-    /// escalation, never a defect (D2: ε-tightening escalates, never
-    /// flips a valid body invalid), and not
-    /// [`ValidationError::TangentNotIntrinsic`], which a declared
-    /// `Chart` still refuses.
+    /// The run's ε is the build ε of every body a process holds (the
+    /// check-4 comment at `finer` says why), so this fires only on a
+    /// re-read at a finer band. A zero-side second-order margin turns
+    /// definite as ε tightens, and a short seam whose sagitta the build
+    /// could not resolve is one the finer band can: an escalation, never
+    /// a defect (D2: ε-tightening escalates, never flips a valid body
+    /// invalid). At the build ε the same reading is
+    /// [`ValidationError::TangentNotIntrinsic`], as for a declared
+    /// `Chart`.
     PairTangencyDetermined {
         /// The pair edge this tolerance reads as a determinate tangency.
         edge: EdgeKey,
+        /// The second-order sagitta that read definite
+        /// (`"tangent_second_order"`), at the edge's middle station.
+        sagitta: geom_core::MarginDiag,
+    },
+    /// Tier 3, the transverse arm's escalation for a pair: an edge
+    /// stored as `OnPair` reads, at an ε finer than the one it was
+    /// built at, definitely transverse at every station — the first
+    /// order its build read smooth turned definite. An escalation, as
+    /// [`ValidationError::PairTangencyDetermined`] is, for the same
+    /// reason; at the build ε the same reading is
+    /// [`ValidationError::TransverseNotIntrinsic`].
+    PairCornerDetermined {
+        /// The pair edge this tolerance reads as a corner.
+        edge: EdgeKey,
+        /// The wedge that read definite (`"dihedral_wedge"`), at the
+        /// edge's middle station.
+        wedge: geom_core::MarginDiag,
     },
     /// Tier 3 (check 4, material arm): the edge's two faces have
     /// opposed material sides along a shared tangent plane — the
@@ -3842,12 +3858,19 @@ impl fmt::Display for ValidationError {
                 "an edge where two faces meet tangentially is stored as a conventional \
                  curve, though their surfaces determine it. {DEFECT}"
             ),
-            Self::PairTangencyDetermined { .. } => write!(
+            Self::PairTangencyDetermined { sagitta, .. } => write!(
                 f,
-                "an edge stored as a smooth join its two surfaces leave undetermined reads, \
-                 at this tolerance, as a tangency they determine, so the body was built at a \
-                 looser tolerance than this. Recourse: rebuild the body at this tolerance, or \
-                 check it at the tolerance it was built at"
+                "an edge stored as a smooth join its two surfaces leave undetermined reads, at \
+                 a tolerance finer than the one it was built at, as a tangency they determine \
+                 ('tangent_second_order' {sagitta}). Recourse: rebuild the body at this \
+                 tolerance, or restate the edge as the tangency it is"
+            ),
+            Self::PairCornerDetermined { wedge, .. } => write!(
+                f,
+                "an edge stored as a smooth join its two surfaces leave undetermined reads, at \
+                 a tolerance finer than the one it was built at, as a corner ('dihedral_wedge' \
+                 {wedge}). Recourse: rebuild the body at this tolerance, or restate the edge as \
+                 the intersection it is"
             ),
             Self::NoDihedralArm { verdict, .. } => write!(
                 f,
@@ -7009,6 +7032,7 @@ pub(crate) fn tier3_local_checks_marked<
         let nurbs_adjacent = s_plus.spline_chart().is_some() || s_minus.spline_chart().is_some();
         let mut escalated = false;
         let mut readings = Vec::with_capacity(samples.len());
+        let mut wedges = Vec::with_capacity(samples.len());
         // An `OnPair` description claims the pair under-determines the
         // locus, which tier 3's must-carry predicate decides whatever
         // the authority record says.
@@ -7018,9 +7042,11 @@ pub(crate) fn tier3_local_checks_marked<
         );
         if !nurbs_adjacent {
             for &(p, _) in &samples {
-                match classify_dihedral(s_plus, s_minus, p, extent, band) {
-                    Ok(DihedralClass::Transverse) => readings.push(true),
-                    Ok(DihedralClass::Smooth) => readings.push(false),
+                match geom_brep::classify_dihedral_reported(s_plus, s_minus, p, extent, band) {
+                    Ok((class, wedge)) => {
+                        readings.push(class == DihedralClass::Transverse);
+                        wedges.push(wedge);
+                    }
                     Err(escalation) => {
                         errors.push(dihedral_finding(edge_key, escalation));
                         escalated = true;
@@ -7030,6 +7056,27 @@ pub(crate) fn tier3_local_checks_marked<
             }
         }
         let read = !nurbs_adjacent && !escalated;
+        // **Whether this check reads at an ε finer than the body was
+        // built at.** A body does not record its build ε, and needs
+        // not: `Tol` is committed once per process (`Tol::witness`,
+        // the `witness-not-ambient` gate keeps library code from
+        // minting one) and the kernel is serde-free (the
+        // `kernel-serde-free` gate), so no body reaches this process
+        // from a run at another ε — every body here was built at the
+        // run's `tol`. `band` is the ε this check reads at: the run's
+        // own in every door, a tighter one only where a caller
+        // re-reads a body finer (`topo::test_support::tier3_at`). If
+        // either gate ever relaxes, a body must carry its build ε and
+        // this comparison read that instead.
+        //
+        // At the build ε an `OnPair` the must-carry rule reads
+        // determinate (every station a corner, or a determinate
+        // tangency) is a wrong description, a defect as for a declared
+        // `Chart`. At a finer ε it is the build's honest
+        // under-determined reading turned definite, which escalates
+        // (D2: ε-tightening escalates, never flips a valid body
+        // invalid).
+        let finer = band.zero() < tol.eps();
         let all_transverse = read && readings.iter().all(|&t| t);
         let all_smooth = read && !readings.contains(&true);
         if read {
@@ -7039,7 +7086,14 @@ pub(crate) fn tier3_local_checks_marked<
             // means "the modeler declared this locus", so the
             // declaration is the datum it always was.
             if all_transverse && (on_pair || curve.authority().is_declared()) {
-                errors.push(ValidationError::TransverseNotIntrinsic { edge: edge_key });
+                errors.push(if on_pair && finer {
+                    ValidationError::PairCornerDetermined {
+                        edge: edge_key,
+                        wedge: wedges[wedges.len() / 2],
+                    }
+                } else {
+                    ValidationError::TransverseNotIntrinsic { edge: edge_key }
+                });
             }
             // A mixed edge (D2): the dihedral is continuous along it,
             // so neighbouring stations that disagree bracket an in-band
@@ -7201,15 +7255,23 @@ pub(crate) fn tier3_local_checks_marked<
             // — a Line-on-Cone tangency, say, is neither certifiable
             // nor demanded (fix pass, dev 7).
             //
-            // An `OnPair` was stated where the rule read the join
-            // under-determined, and that reading turns determinate as
-            // ε tightens: at this ε the pair is a tangency the
-            // surfaces determine, which a looser build ε could not
-            // resolve. That escalates (D2: ε-tightening escalates, never
-            // flips a valid body invalid); a declared `Chart` is the
-            // modeler's own claim and refuses as before.
-            errors.push(if on_pair {
-                ValidationError::PairTangencyDetermined { edge: edge_key }
+            // An `OnPair` read at a finer ε than it was built at
+            // (`finer`, above) escalates with the sagitta that turned
+            // definite, read at the middle station; at the build ε it
+            // is a defect, as a declared `Chart` is.
+            errors.push(if on_pair && finer {
+                let (p, tangent) = samples[samples.len() / 2];
+                ValidationError::PairTangencyDetermined {
+                    edge: edge_key,
+                    sagitta: match geom_brep::tangent_second_order(
+                        s_plus, s_minus, p, tangent, extent, band,
+                    )
+                    .verdict
+                    {
+                        Ok(decided) => decided.margin,
+                        Err(diag) => diag.margin,
+                    },
+                }
             } else {
                 ValidationError::TangentNotIntrinsic { edge: edge_key }
             });
@@ -12076,7 +12138,7 @@ mod tests {
             ("a near-tangent wedge", &floor, &tilted, 1.0, Reads::Angle),
         ];
         for (row, s1, s2, extent, want) in rows {
-            let escalation = classify_dihedral(s1, s2, Point3::origin(), extent, band)
+            let escalation = geom_brep::classify_dihedral(s1, s2, Point3::origin(), extent, band)
                 .expect_err("each pose escalates");
             let finding = dihedral_finding(EdgeKey::default(), escalation);
             let text = finding.to_string();

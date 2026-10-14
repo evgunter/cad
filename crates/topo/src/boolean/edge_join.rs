@@ -959,22 +959,8 @@ fn joined_spec<T: Decide>(
         // The joined edge is longer than either piece, and the
         // must-carry verdict reads its extent, so the pair is asked again
         // over the joined span.
-        geom_brep::EdgeDescription::OnPair { pair } => {
-            let [ka, kb] = pair.keys();
-            let surface = |k| {
-                body.get_surface(k).ok_or(desync(
-                    "a joined edge's pair names a surface the body lacks",
-                ))
-            };
-            let chord = carrier.eval(a).distance(carrier.eval(b));
-            geom_brep::reask_pair(
-                [(ka, surface(ka)?), (kb, surface(kb)?)],
-                carrier,
-                (a, b),
-                chord,
-                declared,
-                band,
-            )
+        geom_brep::EdgeDescription::OnPair { pair } => body
+            .reask_on(*pair, carrier, (a, b), declared, band)
             .map_err(|refusal| match refusal {
                 geom_brep::PairRefusal::InBand(escalation) => {
                     let (reading, diag) = geom_brep::DihedralReading::of_must_carry(escalation);
@@ -984,8 +970,7 @@ fn joined_spec<T: Decide>(
                     edge: join.kept,
                     stations: Some(stations),
                 },
-            })?
-        }
+            })?,
         geom_brep::EdgeDescription::Chart(c) => geom_brep::EdgeDescriptionSpec::Chart {
             surface: c.surface,
             image: if c.wrap { None } else { Some(c.pcurve.clone()) },

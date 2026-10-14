@@ -106,8 +106,7 @@ pub(crate) fn re_ask_on_pair<T: Decide>(
     declared: Option<MappedCurve<T>>,
     band: Band,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    let chord = carrier.eval(t0).distance(carrier.eval(t1));
-    geom_brep::reask_pair(surfaces, carrier, (t0, t1), chord, declared, band).map_err(|refusal| {
+    geom_brep::reask_pair(surfaces, carrier, (t0, t1), declared, band).map_err(|refusal| {
         match refusal {
             geom_brep::PairRefusal::Mixed(stations) => {
                 ReplaceFaceError::MixedEdge { edge, stations }

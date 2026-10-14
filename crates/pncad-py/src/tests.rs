@@ -6502,6 +6502,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "orphan_entity",
             "orphan_geometry",
             "outer_listed_as_ring",
+            "pair_corner_determined",
             "pair_tangency_determined",
             "parent_loop_mismatch",
             "pcurve",

@@ -3274,31 +3274,22 @@ fn re_anchored<T: Decide>(
         kept_before
     };
     if let geom_brep::EdgeDescriptionSpec::OnPair { pair, declared } = kept.description {
-        let surface = |k| {
-            let Some(s) = body.surfaces.get(k) else {
-                unreachable!("{k:?} is a surface of a finished wall's seam")
-            };
-            (k, s)
-        };
-        let [ka, kb] = pair.keys();
-        let chord = kept
-            .carrier
-            .eval(kept.param_start)
-            .distance(kept.carrier.eval(kept.param_end));
-        kept.description = geom_brep::reask_pair(
-            [surface(ka), surface(kb)],
-            &kept.carrier,
-            (kept.param_start, kept.param_end),
-            chord,
-            declared,
-            band,
-        )
-        .map_err(|refusal| match refusal {
-            geom_brep::PairRefusal::Mixed(stations) => ShellError::RimSeamMixed { edge, stations },
-            geom_brep::PairRefusal::InBand(escalation) => ShellError::Escalated {
-                source: escalation.diag(),
-            },
-        })?;
+        kept.description = body
+            .reask_on(
+                pair,
+                &kept.carrier,
+                (kept.param_start, kept.param_end),
+                declared,
+                band,
+            )
+            .map_err(|refusal| match refusal {
+                geom_brep::PairRefusal::Mixed(stations) => {
+                    ShellError::RimSeamMixed { edge, stations }
+                }
+                geom_brep::PairRefusal::InBand(escalation) => ShellError::Escalated {
+                    source: escalation.diag(),
+                },
+            })?;
     }
     Ok(kept)
 }

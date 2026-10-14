@@ -1216,7 +1216,14 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 smooth: 4,
             },
         },
-        ValidationError::PairTangencyDetermined { edge },
+        ValidationError::PairTangencyDetermined {
+            edge,
+            sagitta: geom_core::MarginDiag::value(5e-3),
+        },
+        ValidationError::PairCornerDetermined {
+            edge,
+            wedge: geom_core::MarginDiag::value(5e-3),
+        },
         ValidationError::ScaffoldAtRest { edge },
         ValidationError::JoinableVertexAtRest { vertex },
         ValidationError::JoinUndecidedAtRest {

@@ -1163,6 +1163,19 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     // the other product, a scaffold, or the other kind
                     // — is restated.
                     let pair = geom_brep::SurfacePair::new(s_self, s_other);
+                    let rest = crate::rest_locus(
+                        (s_self, surf_self),
+                        (s_other, surf_other),
+                        &spec.carrier,
+                        (spec.param_start, spec.param_end),
+                        band,
+                    )
+                    .map_err(|diag| {
+                        SplitFinishError::Euler(EulerOpError::RestCoincidenceUndecided {
+                            edge,
+                            diag,
+                        })
+                    })?;
                     let intrinsic =
                         matches!(demanded, geom_brep::MustCarryDescription::Intrinsic(_));
                     let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
@@ -1170,12 +1183,14 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         // this edge bounds two, so a wrap flag on it is
                         // restated.
                         geom_brep::EdgeDescription::Chart(ref ch) if ch.wrap => false,
-                        // A chart image is the conventional form only
-                        // where both faces lie on its surface.
+                        // A conventional form is coherent only where it
+                        // rests where the one home says it rests.
                         geom_brep::EdgeDescription::Chart(ref ch) => {
-                            !intrinsic && ch.surface == s_self && ch.surface == s_other
+                            !intrinsic && rest == geom_brep::RestLocus::Chart(ch.surface)
                         }
-                        geom_brep::EdgeDescription::OnPair { pair: p } => !intrinsic && p == pair,
+                        geom_brep::EdgeDescription::OnPair { pair: p } => {
+                            !intrinsic && rest == geom_brep::RestLocus::Pair(p)
+                        }
                         geom_brep::EdgeDescription::TangentIntersection { pair: p, .. } => {
                             intrinsic && p == pair
                         }
@@ -1187,7 +1202,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         // section to within the BAND: on a near-flush
                         // operand it is metered like any description
                         // (D4 ¶3).
-                        let mut description = demanded.spec(pair);
+                        let mut description = demanded.spec(rest);
                         if !intrinsic
                             && let geom_brep::EdgeAuthority::Declared(mc) = curve.authority()
                         {

@@ -566,9 +566,11 @@ fn adopt_edges(
             && let Some(mapped) =
                 mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1, nurbs_rim)
         {
-            // The conventional rung (D2): a locus two COINCIDENT
-            // surface records under-determine is the pair itself, and
-            // the rung's own gate has just metered the carrier onto it
+            // The conventional rung (D2): two COINCIDENT surface
+            // records are one carrier, so the locus rests in one
+            // record's chart, as `topo::rest_locus` decides (the
+            // carrier-equality ladder, over the edge's extent), and the
+            // rung's own gate has just metered the carrier onto it
             // (`carrier_on_surface`); one surface on both sides is an
             // image in its chart. The pushforward that used to BE the
             // description becomes the authority record beside it
@@ -588,10 +590,34 @@ fn adopt_edges(
                 EdgeDescriptionSpec::chart(
                     plane_of_pair(body, fs_plus, fs_minus).unwrap_or(fs_plus),
                 )
-            } else if fs_plus == fs_minus {
-                EdgeDescriptionSpec::chart(fs_plus)
             } else {
-                EdgeDescriptionSpec::on_pair(SurfacePair::new(fs_plus, fs_minus))
+                let surface = |k| {
+                    body.get_surface(k).map(|s| (k, s)).unwrap_or_else(|| {
+                        unreachable!("{k:?} is the surface of a face {edge_key:?} bounds")
+                    })
+                };
+                let band = geom_core::Band::linear(tol).map_err(|_| {
+                    resolve(
+                        "internal: the run's tolerance forms no band, which the importer's own \
+                     tolerance gate admits no file past",
+                    )
+                })?;
+                topo::rest_locus(
+                    surface(fs_plus),
+                    surface(fs_minus),
+                    &spec.carrier,
+                    (spec.t0, spec.t1),
+                    band,
+                )
+                .map_err(|diag| StepImportError::Assembly {
+                    id: edge_id,
+                    source: topo::EulerOpError::RestCoincidenceUndecided {
+                        edge: edge_key,
+                        diag,
+                    },
+                    file,
+                })?
+                .spec()
             };
             candidates.push((
                 AdoptionCandidate::MappedCurve,

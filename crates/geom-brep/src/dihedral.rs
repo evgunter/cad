@@ -311,6 +311,23 @@ pub fn classify_dihedral<T: Decide>(
         .map_err(WedgeEscalation::into_lever)
 }
 
+/// [`classify_dihedral`], keeping the wedge decision's reporting margin
+/// (`"dihedral_wedge"`): for a finding that quotes the angle it read,
+/// tier 3's escalation of a pair a tighter ε reads a corner.
+///
+/// # Errors
+///
+/// As [`classify_dihedral`].
+pub fn classify_dihedral_reported<T: Decide>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    p: Point3<T>,
+    extent: T,
+    band: Band,
+) -> Result<(DihedralClass, geom_core::MarginDiag), LeverEscalation> {
+    wedge_decided(s1, s2, p, extent, band).map_err(WedgeEscalation::into_lever)
+}
+
 /// Why [`wedge_decided`] could not classify: a rung of the levered
 /// reading, or no tangent plane to read an angle between.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -940,19 +957,41 @@ pub enum MustCarryDescription<T: Real> {
 }
 
 impl<T: Real> MustCarryDescription<T> {
-    /// The description stated fresh over `pair`, the pair the rule was
-    /// asked about: the intrinsic tangency, or the conventional one —
-    /// the pair itself where its two surfaces are distinct, and an image
-    /// in the one surface's chart where a split's two faces share it
-    /// (D2: a locus one chart defines).
+    /// The description stated fresh: the intrinsic tangency, or the
+    /// conventional one where the edge rests (`rest`, which the body's
+    /// one home decides: `topo::rest_locus`).
     #[must_use]
-    pub fn spec(self, pair: crate::SurfacePair) -> crate::EdgeDescriptionSpec<T> {
+    pub fn spec(self, rest: RestLocus) -> crate::EdgeDescriptionSpec<T> {
         match self {
             Self::Intrinsic(description) => description,
-            Self::Conventional => match pair.keys() {
-                [a, b] if a == b => crate::EdgeDescriptionSpec::chart(a),
-                _ => crate::EdgeDescriptionSpec::on_pair(pair),
-            },
+            Self::Conventional => rest.spec(),
+        }
+    }
+}
+
+/// **Where a conventional edge between two faces rests** (D2): in the
+/// chart of the one surface both faces lie on — one record, or two
+/// records of one carrier, whose incidence on both is incidence on one
+/// and so determines nothing — or as the pair of two distinct surfaces
+/// that under-determine it. Decided in one home, `topo`'s
+/// `topo::rest_locus`, which reads coincidence by the carrier-equality
+/// ladder; every door states what that home decides.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RestLocus {
+    /// The one surface's chart.
+    Chart(crate::SurfaceKey),
+    /// The pair of two distinct surfaces.
+    Pair(crate::SurfacePair),
+}
+
+impl RestLocus {
+    /// The conventional description resting there, derived from the
+    /// carrier: an image the door derives, or the pair.
+    #[must_use]
+    pub fn spec<T: Real>(self) -> crate::EdgeDescriptionSpec<T> {
+        match self {
+            Self::Chart(surface) => crate::EdgeDescriptionSpec::chart(surface),
+            Self::Pair(pair) => crate::EdgeDescriptionSpec::on_pair(pair),
         }
     }
 }
@@ -1050,13 +1089,15 @@ pub fn reask_pair<T: Decide>(
     surfaces: [(crate::SurfaceKey, &Surface<T>); 2],
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
-    chord: T,
     declared: Option<crate::mapped::MappedCurve<T>>,
     band: Band,
 ) -> Result<crate::EdgeDescriptionSpec<T>, PairRefusal> {
     let [(ka, a), (kb, b)] = surfaces;
     let (pair, [sa, sb]) = crate::SurfacePair::sorted(ka, a, kb, b);
     let witness = carrier.mid_point(t0, t1);
+    // The chord between the carrier's own ends over the interval: the
+    // one spelling every door's re-ask shares.
+    let chord = carrier.eval(t0).distance(carrier.eval(t1));
     let extent = crate::edge_extent(carrier, t0, t1, chord);
     match must_carry_over_edge(sa, sb, carrier, t0, t1, extent, band) {
         MustCarryVerdict::Transverse => {

@@ -530,3 +530,101 @@ mod lever_rows {
         );
     }
 }
+
+/// A surface's carrier description as its chart reads it — the outward
+/// side the chart's own normal, since the coincidence question
+/// ([`rest_locus`]) does not read material sides. `None` for a kind
+/// outside the ladder's inventory, as [`face_carrier`].
+fn chart_carrier<T: Decide>(surface: &geom::Surface<T>) -> Option<CarrierDesc<T>> {
+    match surface {
+        geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane {
+            origin: *origin,
+            normal: *normal,
+        }),
+        geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
+            center: *center,
+            radius: *radius,
+            outward: true,
+        }),
+        geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => Some(CarrierDesc::Cylinder {
+            origin: *origin,
+            axis: *axis,
+            radius: *radius,
+            outward: true,
+        }),
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(CarrierDesc::Torus {
+            center: *center,
+            axis: *axis,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
+            outward: true,
+        }),
+        _ => None,
+    }
+}
+
+/// **Where a conventional edge between the surfaces `a` and `b` rests**
+/// — the one home of D2's split between a locus one chart defines and
+/// one two surfaces under-determine ([`geom_brep::RestLocus`]); every
+/// door states what it decides.
+///
+/// - One surface record on both sides is one surface: its chart.
+/// - Two records are read by the carrier-equality ladder
+///   ([`super::carrier_eq::carrier_eq`], undeclared) over the edge's
+///   own extent, a ball about its carrier's middle as wide as the
+///   extent the must-carry rule levers on. A coincidence decided Zero
+///   is one carrier, and incidence on both of one carrier is incidence
+///   on one, which determines nothing: the edge rests in the chart of
+///   the pair's first key. Definitely distinct carriers are the pair,
+///   and so is a kind outside the ladder's inventory (a cone, a
+///   spline), which has no coincidence to read.
+///
+/// # Errors
+///
+/// The ladder's undecided reading — a coincidence in band, or a rung
+/// that could not decide — as the diagnostic that stopped it.
+pub fn rest_locus<T: Decide>(
+    a: (crate::SurfaceKey, &geom::Surface<T>),
+    b: (crate::SurfaceKey, &geom::Surface<T>),
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    band: Band,
+) -> Result<geom_brep::RestLocus, geom_core::Indeterminate> {
+    let ((ka, sa), (kb, sb)) = (a, b);
+    if ka == kb {
+        return Ok(geom_brep::RestLocus::Chart(ka));
+    }
+    let pair = geom_brep::SurfacePair::new(ka, kb);
+    let (Some(ca), Some(cb)) = (chart_carrier(sa), chart_carrier(sb)) else {
+        return Ok(geom_brep::RestLocus::Pair(pair));
+    };
+    let chord = carrier.eval(t0).distance(carrier.eval(t1));
+    let reach = ExtentBall::new(
+        carrier.mid_point(t0, t1),
+        geom_brep::edge_extent(carrier, t0, t1, chord),
+    );
+    let extent = super::ConsumedExtent::unwitnessed(reach);
+    match super::carrier_eq::carrier_eq(&ca, &cb, PlaneIdentity::NONE, &extent, band) {
+        Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite) => {
+            Ok(geom_brep::RestLocus::Chart(pair.keys()[0]))
+        }
+        Ok(CarrierRelation::Distinct) => Ok(geom_brep::RestLocus::Pair(pair)),
+        Err(
+            CarrierEqError::Escalated { diag, .. }
+            | CarrierEqError::Unsettled { diag }
+            | CarrierEqError::Contradicted { diag, .. },
+        ) => Err(diag),
+        Err(CarrierEqError::Undecided { coincidence, .. }) => Err(coincidence.reported()),
+    }
+}

@@ -2536,6 +2536,11 @@ pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
             diag,
         },
         DescribeRefusal::Mixed { edge, stations } => BooleanError::MixedSeam { edge, stations },
+        DescribeRefusal::Coincidence { diag, .. } => BooleanError::coincidence(
+            super::Coincide::Carriers,
+            super::DeclarationRead::Moot,
+            diag,
+        ),
     }
 }
 
@@ -2704,19 +2709,20 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     })?;
                 } else if stale {
                     // A locus the adjacent surfaces under-determine, of
-                    // any carrier kind, rests where it lies, on its
-                    // UNCHANGED carrier (only the description moves):
-                    // the pair of two distinct surfaces, or an image in
-                    // the chart of the one surface both faces lie on.
+                    // any carrier kind, rests where it lies
+                    // (`crate::rest_locus`), on its UNCHANGED carrier
+                    // (only the description moves): the pair of two
+                    // distinct surfaces, or an image in the chart of the
+                    // one surface both faces lie on.
                     let c = existing.as_ref().ok_or_else(corrupt)?;
-                    let (spec, failure) = if s1 == s2 {
-                        (c.restated_in_chart(s1), EdgeDescribeFailure::Chart)
-                    } else {
-                        (
-                            c.restated_on_pair(geom_brep::SurfacePair::new(s1, s2)),
-                            EdgeDescribeFailure::Pair,
-                        )
+                    let rest =
+                        crate::rest_locus((s1, surf1), (s2, surf2), c.carrier(), c.params(), band)
+                            .map_err(|diag| DescribeRefusal::Coincidence { edge, diag })?;
+                    let failure = match rest {
+                        geom_brep::RestLocus::Chart(_) => EdgeDescribeFailure::Chart,
+                        geom_brep::RestLocus::Pair(_) => EdgeDescribeFailure::Pair,
                     };
+                    let spec = c.restated_at(rest);
                     body.set_edge_curve(edge, spec, tol)
                         .map_err(|e| of_attachment(edge, failure, c.carrier().kind(), e))?;
                 }
@@ -5224,6 +5230,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         | V::SliverDihedral { .. }
         | V::MixedDihedral { .. }
         | V::PairTangencyDetermined { .. }
+        | V::PairCornerDetermined { .. }
         | V::JoinUndecidedAtRest { .. }
         | V::VolumeSignUnresolved { .. }
         | V::RingContactEscalated { .. }

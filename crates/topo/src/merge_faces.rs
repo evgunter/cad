@@ -680,6 +680,9 @@ pub(crate) enum DescribeRefusal {
         edge: EdgeKey,
         stations: Option<geom_brep::MixedStations>,
     },
+    /// Whether its two faces' surfaces are one carrier — where it rests
+    /// ([`crate::rest_locus`]) — is in band.
+    Coincidence { edge: EdgeKey, diag: Indeterminate },
 }
 
 /// The question an edge read in band of a face it bounds asks, about
@@ -831,7 +834,8 @@ impl DescribeRefusal {
             Self::Failed { edge, .. }
             | Self::Undecided { edge, .. }
             | Self::OffFace { edge, .. }
-            | Self::Mixed { edge, .. } => edge,
+            | Self::Mixed { edge, .. }
+            | Self::Coincidence { edge, .. } => edge,
         }
     }
 }
@@ -885,6 +889,10 @@ impl MergeCoplanarError {
                 face,
                 edge,
                 stations,
+            },
+            DescribeRefusal::Coincidence { diag, .. } => Self::Escalated {
+                decision: MergeDecision::NeighbourCoincidence,
+                diag,
             },
         }
     }
@@ -1708,6 +1716,9 @@ impl OpPlacement {
             | E::SplitSmoothEscalated { .. }
             | E::SplitSmoothBendEscalated { .. }
             | E::SplitSmoothRefuted { .. }
+            | E::RestCoincidenceUndecided { .. }
+            | E::RestJoinUndecided { .. }
+            | E::RestJoinMixed { .. }
             | E::KillTurnUndecided { .. }
             | E::SplitJointUndecided { .. }
             | E::PcurveSplit { .. }

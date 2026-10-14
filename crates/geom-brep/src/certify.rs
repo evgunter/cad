@@ -1259,6 +1259,17 @@ impl<T: Real> EdgeCurveSpec<T> {
         }
     }
 
+    /// A scaffold at rest where `rest` says it rests
+    /// ([`crate::RestLocus`]): [`EdgeCurveSpec::at_rest_in_chart`] or
+    /// [`EdgeCurveSpec::at_rest_on_pair`], as the one home decided.
+    #[must_use]
+    pub fn at_rest(self, rest: crate::RestLocus) -> Self {
+        match rest {
+            crate::RestLocus::Chart(surface) => self.at_rest_in_chart(surface, false),
+            crate::RestLocus::Pair(pair) => self.at_rest_on_pair(pair),
+        }
+    }
+
     /// The canonical full-period self-loop spec at `p`: a unit circle
     /// through `p` (center `p + x̂`, axis `ẑ`, parameters `0 … τ`),
     /// described as `p`'s trajectory under a full revolution about
@@ -2044,6 +2055,17 @@ impl<T: Real> EdgeCurve<T> {
                 EdgeAuthority::Derived => chart,
             },
             ..self.restated_spec()
+        }
+    }
+
+    /// This edge re-stated where `rest` says it rests
+    /// ([`crate::RestLocus`]): [`EdgeCurve::restated_in_chart`] or
+    /// [`EdgeCurve::restated_on_pair`], as the one home decided.
+    #[must_use]
+    pub fn restated_at(&self, rest: crate::RestLocus) -> EdgeCurveSpec<T> {
+        match rest {
+            crate::RestLocus::Chart(surface) => self.restated_in_chart(surface),
+            crate::RestLocus::Pair(pair) => self.restated_on_pair(pair),
         }
     }
 

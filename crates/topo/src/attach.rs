@@ -1247,48 +1247,51 @@ impl<T: Decide> Body<T> {
         Ok(new)
     }
 
-    /// Re-states `edge` where it rests, keeping its carrier, its
-    /// parameter interval and the pushforward that scaffolded it, as its
-    /// authority record: an image in the chart of the one surface both
-    /// its faces lie on (`at_rest_in_chart`), or the pair its two
-    /// distinct surfaces under-determine (`at_rest_on_pair`). Where it
-    /// rests is read off its faces, so no caller chooses a chart.
+    /// Re-states `edge` where it rests ([`crate::rest_locus`]), keeping
+    /// its carrier, its parameter interval and the pushforward that
+    /// scaffolded it, as its authority record. Where it rests is read
+    /// off its faces, so no caller chooses a chart, and a pair is stated
+    /// only where the must-carry rule, asked here over the edge
+    /// ([`geom_brep::reask_pair`]), reads the join under-determined: a
+    /// corner is stated as the pair's `Intersection` and a determinate
+    /// tangency as its `TangentIntersection`. A door that asked the rule
+    /// already gets the same answer again; one that did not (a same-key
+    /// lane, a revolve's rims) cannot state a pair the rule refutes.
     ///
-    /// This is D2's **conventional split**, at rest: where two
-    /// surfaces under-determine an edge's locus (one surface on both
-    /// sides, or a smooth pair whose jet is zero), the description
-    /// stays conventional rather than intrinsic — but the edge is
-    /// between two real faces now, so it is described where it rests
-    /// and not as the scaffolding the mint left (D3's transience fence;
-    /// the scaffolding door is for edges whose surfaces do not exist
-    /// yet).
+    /// This is D2's **conventional split**, at rest: the edge is between
+    /// two real faces now, so it is described where it rests and not as
+    /// the scaffolding the mint left (D3's transience fence; the
+    /// scaffolding door is for edges whose surfaces do not exist yet).
+    /// An edge already described keeps its description.
     ///
     /// **The carrier is RESTATED, never rebuilt.** Re-deriving it from
     /// the endpoints recomputes the direction and the interval from a
     /// sum that need not be bitwise what the edge was minted with,
     /// which silently moves geometry in a pass whose whole contract is
-    /// that only the DESCRIPTION moves. Through `at_rest_in_chart` the
-    /// pushforward that scaffolded the edge stays beside it as the
-    /// authority record, which is what keeps tier 3's prefer-intrinsic
-    /// reading unchanged.
+    /// that only the DESCRIPTION moves.
     ///
-    /// One home for a rule three sweep lanes read: `extrude`'s strut
-    /// join, `revolve::upgrade`'s join lanes, and `swept`'s
-    /// scaffold-retirement pass each spelled these two lines
-    /// themselves. It lives here, beside [`Body::set_edge_curve`],
-    /// because that is the certified mutation it performs and because
-    /// `topo` is the crate both callers already depend on.
+    /// One home for a rule the sweep lanes read: `extrude`'s strut
+    /// join, `revolve`'s join lanes and `swept`'s scaffold-retirement
+    /// pass. It lives here, beside [`Body::set_edge_curve`], because
+    /// that is the certified mutation it performs.
     ///
     /// # Errors
     ///
     /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
     /// resolve; [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
-    /// carries no certified geometry to re-state; and whatever
-    /// [`Body::set_edge_curve`] raises on the re-attachment.
+    /// carries no certified geometry to re-state;
+    /// [`EulerOpError::RestCoincidenceUndecided`] where whether its faces
+    /// lie on one surface is in band; [`EulerOpError::RestJoinUndecided`]
+    /// and [`EulerOpError::RestJoinMixed`] where the rule over a pair is
+    /// in band or mixed; and whatever [`Body::set_edge_curve`] raises on
+    /// the re-attachment.
     pub fn describe_at_rest(&mut self, edge: EdgeKey, tol: Tol) -> Result<(), EulerOpError>
     where
         T: crate::props::AtRestPolicy,
     {
+        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
+            error: CertifyError::Band(e),
+        })?;
         let data = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?;
         let curve_key = data.curve;
         let (s_plus, s_minus) = crate::readback::edge_sides_of(self, edge, data).surfaces();
@@ -1297,13 +1300,90 @@ impl<T: Decide> Body<T> {
             .certified()
             .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?
             .restated_spec();
-        let spec = if s_plus == s_minus {
-            restated.at_rest_in_chart(s_plus, false)
-        } else {
-            restated.at_rest_on_pair(geom_brep::SurfacePair::new(s_plus, s_minus))
+        let surface = |k: SurfaceKey| {
+            let Some(s) = self.surfaces.get(k) else {
+                unreachable!("{k:?} is the surface of a face {edge:?} bounds")
+            };
+            (k, s)
+        };
+        let rest = crate::rest_locus(
+            surface(s_plus),
+            surface(s_minus),
+            &restated.carrier,
+            (restated.param_start, restated.param_end),
+            band,
+        )
+        .map_err(|diag| EulerOpError::RestCoincidenceUndecided { edge, diag })?;
+        let spec = match (&restated.description, rest) {
+            (&EdgeDescriptionSpec::Scaffold(mc), geom_brep::RestLocus::Pair(pair)) => {
+                let description = self
+                    .reask_on(
+                        pair,
+                        &restated.carrier,
+                        (restated.param_start, restated.param_end),
+                        Some(mc),
+                        band,
+                    )
+                    .map_err(|refusal| match refusal {
+                        geom_brep::PairRefusal::Mixed(stations) => {
+                            EulerOpError::RestJoinMixed { edge, stations }
+                        }
+                        geom_brep::PairRefusal::InBand(escalation) => {
+                            EulerOpError::RestJoinUndecided {
+                                edge,
+                                diag: escalation.diag(),
+                            }
+                        }
+                    })?;
+                EdgeCurveSpec {
+                    description,
+                    ..restated
+                }
+            }
+            (_, rest) => restated.at_rest(rest),
         };
         self.set_edge_curve(edge, spec, tol)?;
         Ok(())
+    }
+
+    /// **The must-carry rule asked again over a pair of this body's
+    /// surfaces** ([`geom_brep::reask_pair`]), over `carrier` on
+    /// `interval`, `declared` riding an under-determined answer: the one
+    /// call shape every door that re-asks a pair on a body goes through
+    /// (the offset doors, whose moved surfaces are not yet the body's,
+    /// call [`geom_brep::reask_pair`] itself, the same shape).
+    ///
+    /// The pair's keys are links of a description the body holds, so a
+    /// key that does not resolve is a torn body, not a refusal.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::PairRefusal`] on an in-band or mixed verdict.
+    pub(crate) fn reask_on(
+        &self,
+        pair: geom_brep::SurfacePair,
+        carrier: &geom::Curve3<T>,
+        interval: (T, T),
+        declared: Option<geom_brep::MappedCurve<T>>,
+        band: Band,
+    ) -> Result<EdgeDescriptionSpec<T>, geom_brep::PairRefusal>
+    where
+        T: Decide,
+    {
+        let surface = |k: SurfaceKey| {
+            let Some(s) = self.surfaces.get(k) else {
+                unreachable!("{k:?} is a surface a description this body holds names")
+            };
+            (k, s)
+        };
+        let [ka, kb] = pair.keys();
+        geom_brep::reask_pair(
+            [surface(ka), surface(kb)],
+            carrier,
+            interval,
+            declared,
+            band,
+        )
     }
 
     /// Every edge described as a wrap edge whose two halves an operation

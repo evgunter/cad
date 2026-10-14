@@ -255,8 +255,8 @@ impl<T: Decide> Body<T> {
     /// under-determined, or in band, where its parent was
     /// jet-determinate.
     ///
-    /// Under-determined stores the conventional pair over the parent's
-    /// pair ([`geom_brep::EdgeDescriptionSpec::OnPair`]). A pair child is
+    /// Under-determined stores the conventional description where the
+    /// child rests ([`crate::rest_locus`]). A pair child is
     /// asked again too ([`geom_brep::reask_pair`]): its extent is not
     /// its parent's, and the verdict reads it.
     ///
@@ -283,30 +283,31 @@ impl<T: Decide> Body<T> {
                 (pair, witness)
             }
             geom_brep::EdgeDescriptionSpec::OnPair { pair, declared } => {
-                let [ka, kb] = pair.keys();
-                let description = geom_brep::reask_pair(
-                    [(ka, surface(ka)), (kb, surface(kb))],
-                    &spec.carrier,
-                    (spec.param_start, spec.param_end),
-                    p0.distance(p1),
-                    declared,
-                    band,
-                )
-                .map_err(|refusal| match refusal {
-                    geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::FirstOrder(
-                        escalation,
-                    )) => EulerOpError::SplitSmoothEscalated {
-                        edge,
-                        diag: escalation.diag(),
-                    },
-                    geom_brep::PairRefusal::InBand(
-                        geom_brep::MustCarryEscalation::SecondOrder(diag),
-                    ) => EulerOpError::SplitSmoothBendEscalated { edge, diag },
-                    geom_brep::PairRefusal::Mixed(stations) => EulerOpError::SplitSmoothRefuted {
-                        edge,
-                        mixed: Some(stations),
-                    },
-                })?;
+                let description = self
+                    .reask_on(
+                        pair,
+                        &spec.carrier,
+                        (spec.param_start, spec.param_end),
+                        declared,
+                        band,
+                    )
+                    .map_err(|refusal| match refusal {
+                        geom_brep::PairRefusal::InBand(
+                            geom_brep::MustCarryEscalation::FirstOrder(escalation),
+                        ) => EulerOpError::SplitSmoothEscalated {
+                            edge,
+                            diag: escalation.diag(),
+                        },
+                        geom_brep::PairRefusal::InBand(
+                            geom_brep::MustCarryEscalation::SecondOrder(diag),
+                        ) => EulerOpError::SplitSmoothBendEscalated { edge, diag },
+                        geom_brep::PairRefusal::Mixed(stations) => {
+                            EulerOpError::SplitSmoothRefuted {
+                                edge,
+                                mixed: Some(stations),
+                            }
+                        }
+                    })?;
                 return Ok(EdgeCurveSpec {
                     description,
                     ..spec
@@ -317,6 +318,14 @@ impl<T: Decide> Body<T> {
             | geom_brep::EdgeDescriptionSpec::Scaffold(_) => return Ok(spec),
         };
         let [ka, kb] = pair.keys();
+        let rest = crate::rest_locus(
+            (ka, surface(ka)),
+            (kb, surface(kb)),
+            &spec.carrier,
+            (spec.param_start, spec.param_end),
+            band,
+        )
+        .map_err(|diag| EulerOpError::RestCoincidenceUndecided { edge, diag })?;
         let description = geom_brep::must_carry_description(
             geom_brep::SmoothJoin {
                 surfaces: [(ka, surface(ka)), (kb, surface(kb))],
@@ -330,7 +339,7 @@ impl<T: Decide> Body<T> {
             |_, diag| EulerOpError::SplitSmoothBendEscalated { edge, diag },
             |mixed| EulerOpError::SplitSmoothRefuted { edge, mixed },
         )?
-        .spec(pair);
+        .spec(rest);
         Ok(EdgeCurveSpec {
             description,
             ..spec

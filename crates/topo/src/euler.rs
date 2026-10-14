@@ -805,6 +805,17 @@ fn require_chord_adjacent<T: Real>(
     require_description_adjacent(None, &spec.description, [Slot::Kept(old), after])
 }
 
+/// The lever of an edge at rest whose two faces' surfaces read in band
+/// of one carrier ([`EulerOpError::RestCoincidenceUndecided`]).
+pub(crate) const REST_COINCIDENCE_LEVER: &str =
+    "move the geometry so the edge's two faces lie clearly on one surface or clearly on two";
+
+/// The lever of an edge at rest whose faces' join reads in band or mixed
+/// along it ([`EulerOpError::RestJoinUndecided`],
+/// [`EulerOpError::RestJoinMixed`]).
+pub(crate) const REST_JOIN_LEVER: &str =
+    "move the geometry so the faces meet clearly smoothly or clearly at a corner along the edge";
+
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
 /// body is untouched whenever one of these is returned (the operators
 /// are atomic).
@@ -1282,6 +1293,34 @@ pub enum EulerOpError {
         /// `None` where every station reads a corner.
         mixed: Option<geom_brep::MixedStations>,
     },
+    /// [`Body::describe_at_rest`]: whether the edge's two faces lie on
+    /// one surface — two records of one carrier
+    /// ([`crate::rest_locus`]) — is in band.
+    RestCoincidenceUndecided {
+        /// The edge being described.
+        edge: EdgeKey,
+        /// The undecided coincidence's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
+    /// [`Body::describe_at_rest`] of an edge between two distinct
+    /// surfaces: a station of the must-carry rule over it is in band
+    /// ([`geom_brep::reask_pair`]), certifiable as neither the pair nor
+    /// what its surfaces would determine.
+    RestJoinUndecided {
+        /// The edge being described.
+        edge: EdgeKey,
+        /// The deciding station's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
+    /// [`Body::describe_at_rest`] of an edge between two distinct
+    /// surfaces: the must-carry rule over it reads a corner at one
+    /// station and smooth at its neighbour (D2's mixed edge).
+    RestJoinMixed {
+        /// The edge being described.
+        edge: EdgeKey,
+        /// The two neighbouring stations that disagree.
+        stations: geom_brep::MixedStations,
+    },
     /// [`Body::split_edge`] could not carry a parent half-edge's stored
     /// **pcurve row** across the split: the parent's chart image,
     /// restricted to a child's sub-interval, failed the certification
@@ -1621,6 +1660,21 @@ impl EulerOpError {
                  Recourse: {}",
                 crate::split::SMOOTH_PIECE_LEVER
             ),
+            Self::RestCoincidenceUndecided { diag, .. } => diag
+                .undecided(
+                    "whether an edge's two faces lie on one surface or on two",
+                    diag.ending(REST_COINCIDENCE_LEVER),
+                )
+                .to_string(),
+            Self::RestJoinUndecided { diag, .. } => diag
+                .undecided(
+                    "whether the faces along an edge at rest meet smoothly or at a corner",
+                    diag.ending(REST_JOIN_LEVER),
+                )
+                .to_string(),
+            Self::RestJoinMixed { stations, .. } => {
+                format!("along an edge at rest, {stations}. Recourse: {REST_JOIN_LEVER}")
+            }
             Self::PcurveSplit {
                 edge,
                 half_edge,
@@ -1928,6 +1982,31 @@ pub(crate) fn every_euler_op_error_once()
                 transverse: 3,
                 smooth: 4,
             }),
+        },
+        EulerOpError::RestCoincidenceUndecided {
+            edge: ek,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("carrier_cyl_radius"),
+                terminal_sliver: false,
+            },
+        },
+        EulerOpError::RestJoinUndecided {
+            edge: ek,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("tangent_second_order"),
+                terminal_sliver: false,
+            },
+        },
+        EulerOpError::RestJoinMixed {
+            edge: ek,
+            stations: geom_brep::MixedStations {
+                transverse: 3,
+                smooth: 4,
+            },
         },
         EulerOpError::SplitJointUndecided {
             edge: ek,
