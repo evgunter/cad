@@ -1918,8 +1918,8 @@ const N_RAYS: usize = 16;
 /// as an angle gets); the retry sequence is the same for every
 /// containment question.
 const RAY_BASE: f64 = 0.5;
-/// The golden angle, 2π·(1 − 1/φ).
-const RAY_STEP: f64 = 2.399_963_229_728_653;
+/// The golden angle ([`geom_core::GOLDEN_ANGLE`]).
+const RAY_STEP: f64 = geom_core::GOLDEN_ANGLE;
 
 impl<T: Decide> Profile<T> {
     /// Validates the profile and produces its canonical form — the gate

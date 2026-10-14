@@ -1427,13 +1427,23 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             }
         }
         // The gate read these roles with the same reader at the same
-        // band: check 10 finished the operand only with every one read
-        // and exactly one `Outer` per solid (two is its
-        // `SolidOuterShells`, none a `ShellWinding`).
-        if outer != 1 {
+        // band. Two or more `Outer` is check 10's `SolidOuterShells`,
+        // which it raises once every role reads. None is check 7's: a
+        // solid every one of whose shells reads `Void` is wound inside
+        // out on the shell a ray from infinity crosses first, so its own
+        // side at infinity reads `In` (`NegativeVolume`), and a volume
+        // that sums its shells' negative ones says the same. (Check 10's
+        // `ShellWinding` would catch it only where its witnesses read.)
+        if outer > 1 {
             unreachable!(
                 "{outer} outer shells under one solid of a finished operand, whose check 10 \
-                 read every role this reads"
+                 refuses two (SolidOuterShells)"
+            );
+        }
+        if outer == 0 {
+            unreachable!(
+                "no outer shell under one solid of a finished operand, whose check 7 refuses a \
+                 solid every shell of which is a void (NegativeVolume)"
             );
         }
     }

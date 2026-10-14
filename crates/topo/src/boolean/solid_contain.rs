@@ -4414,7 +4414,12 @@ fn at_hit(e: PointInSolidError) -> RayFault<PointInSolidError> {
 /// definitely further off the carrier than that ([`clear_of_carrier`]),
 /// so skipping it there is sound. A planar face lies in its outer loop's hull, and a wall face
 /// in the hull of its loops (each of its points is on a ruling segment
-/// between two boundary points), so each lies in this ball.
+/// between two boundary points), so each lies in this ball. A sphere or
+/// a torus face bulges past its loops' hull, by up to its radius (the
+/// tube's, for a torus), so this ball need not hold it: its arms meter
+/// their own crossings over their own extents, and the side-at-infinity
+/// reader, which needs a start beyond every face, widens this reach by
+/// each such face's whole ball (`side_reader`'s `beyond`).
 pub(crate) fn selection_reach<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],

@@ -287,25 +287,70 @@ fn aim_at<T: Decide>(
     )
 }
 
-/// Whether faces `a` and `b` meet: some vertex of one's loops is a vertex
-/// of the other's.
-fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -> bool {
-    let vertices = |face: FaceKey| -> Vec<crate::entity::VertexKey> {
-        let Some(f) = body.get_face(face) else {
-            return Vec::new();
+/// **How far from `aim` any face of the selection reaches**: the loops'
+/// reach ([`selection_reach`]), which holds a planar face (its outer
+/// loop's hull) and a wall (its rulings' segments), and for a sphere or a
+/// torus, which bulge past their loops' hull, the ball about `aim` that
+/// holds the whole surface (its centre's distance plus its radius, or its
+/// major plus its minor radius). An aimed ray starts twice this far from
+/// its aim, so its start lies beyond every face of the selection,
+/// whatever it is aimed at.
+///
+/// # Errors
+///
+/// A face or surface that does not resolve.
+fn beyond<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    aim: Point3<T>,
+) -> Result<T, PointInSolidError> {
+    let mut reach = selection_reach(body, faces, aim)?;
+    for &face in faces {
+        let surface = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .ok_or(PointInSolidError::CorruptFace { face })?;
+        let whole = match *surface {
+            geom::Surface::Sphere { center, radius, .. } => (aim - center).norm() + radius.abs(),
+            geom::Surface::Torus {
+                center,
+                major_radius,
+                minor_radius,
+                ..
+            } => (aim - center).norm() + major_radius.abs() + minor_radius.abs(),
+            _ => continue,
         };
-        core::iter::once(f.outer)
-            .chain(f.rings.iter().copied())
+        reach = reach.max(whole);
+    }
+    Ok(reach)
+}
+
+/// **Whether faces `a` and `b` meet**, so that a ray's two crossings of
+/// them in band of each other are a sharp corner and no pair: the gap
+/// between them closes at the cell they share.
+/// - A face meets itself: a curved face crossed twice in band (a ray
+///   grazing near its silhouette) is no pair either.
+/// - Two faces meet where they share an edge, or only a vertex (a
+///   pyramid's opposite flanks at its apex): some half-edge of one starts
+///   where a half-edge of the other does.
+///
+/// Both faces' loops are walked in place; nothing is collected.
+fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -> bool {
+    if a == b {
+        return true;
+    }
+    let starts = |face: FaceKey| {
+        body.get_face(face)
+            .into_iter()
+            .flat_map(|f| core::iter::once(f.outer).chain(f.rings.iter().copied()))
             .filter_map(|l| match body.get_loop(l)?.boundary {
                 LoopBoundary::Cycle { first } => Some(body.loop_walk(first).closed("loop", first)),
                 LoopBoundary::Empty { .. } => None,
             })
             .flatten()
             .filter_map(|h| body.get_half_edge(h).map(|he| he.start))
-            .collect()
     };
-    let of_a = vertices(a);
-    vertices(b).iter().any(|v| of_a.contains(v))
+    starts(a).any(|v| starts(b).any(|w| w == v))
 }
 
 /// The incidence an aimed ray meets its face at: `cos 60°` along the
@@ -314,11 +359,14 @@ const AIM_INCIDENCE: (f64, f64) = (0.5, 0.866_025_403_784_438_6);
 
 /// The turn about the face's normal its aimed ray's tangent component
 /// makes off the normal's frame (`Vec3::orthonormal_basis`), as
-/// `(sin, cos)` of the golden angle: an axis frame's tangent would lay
-/// the ray in a coordinate plane, parallel to every face of a box
-/// across it, where a turn the model has no reason to share lays it
-/// parallel to none.
-const AIM_TURN: (f64, f64) = (0.675_490_294_261_523_8, -0.737_368_878_078_319_7);
+/// `(sin, cos)` of the golden angle ([`geom_core::GOLDEN_ANGLE`], the
+/// one the ray schedules step by): an axis frame's tangent would lay the
+/// ray in a coordinate plane, parallel to every face of a box across it,
+/// where a turn the model has no reason to share lays it parallel to
+/// none.
+fn aim_turn() -> (f64, f64) {
+    geom_core::GOLDEN_ANGLE.sin_cos()
+}
 
 /// **The side at infinity of `sel`'s faces** — the one reader of a
 /// shell's role (D10, Booleans: `Out` is an outer boundary, `In` a
@@ -331,7 +379,7 @@ const AIM_TURN: (f64, f64) = (0.675_490_294_261_523_8, -0.737_368_878_078_319_7)
 /// leaves from twice the selection's reach from that point, beyond every
 /// face, so its start lies on the side at infinity, and meets the face at
 /// 60° from its outward normal ([`AIM_INCIDENCE`]), turned about it off
-/// the coordinate planes ([`AIM_TURN`]). Its closest crossing's outward
+/// the coordinate planes ([`aim_turn`]). Its closest crossing's outward
 /// sign is the side, as a schedule ray's is (point containment's), its decisions
 /// logged under the aimed rows ([`AIMED_ROWS`]). The first ray that
 /// decides answers.
@@ -346,6 +394,16 @@ const AIM_TURN: (f64, f64) = (0.675_490_294_261_523_8, -0.737_368_878_078_319_7)
 /// whose two closest crossings lie in band on faces that meet (a sharp
 /// corner, whose gap closes at the cell the faces share, and no pair) is
 /// set aside, and the next face is aimed at.
+///
+/// **The face-boundary band is the other half, and the slack does not
+/// cover it.** A crossing within `Kε` of a face's loop boundary
+/// (`point_in_loop_boundary`, or a curved face's trim, in band) cannot be
+/// placed in or out of the face, so its ray is set aside however
+/// definite every pair is. A planar face's aim is certified more than
+/// `Kε` inside it, so the aimed face's own crossing clears its boundary;
+/// the faces the ray crosses on the way are not chosen, and on a body
+/// thin in two directions every crossing lies near an edge. Such a body
+/// offers no ray that reads (`work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
 ///
 /// **The volume only where no face offers an aim that reads.**
 /// Where no aimed ray decided and none read in band, `volume` reads
@@ -409,10 +467,10 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
             .ok_or(PointInSolidError::CorruptFace { face })?
             .shell;
         let (b1, b2) = normal.orthonormal_basis();
-        let (turn_sin, turn_cos) = AIM_TURN;
+        let (turn_sin, turn_cos) = aim_turn();
         let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
         let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
-        let from = aim + out * (selection_reach(body, faces, aim)? * T::from_f64(2.0));
+        let from = aim + out * (beyond(body, faces, aim)? * T::from_f64(2.0));
         let d = (aim - from).normalize();
         let reach = selection_reach(body, faces, from)?;
         let crossings = match ray_crossings(body, sel, from, d, reach, band, AIMED_ROWS) {
