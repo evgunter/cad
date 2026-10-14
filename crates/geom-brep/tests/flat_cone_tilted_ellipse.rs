@@ -16,6 +16,7 @@
 
 test_utils::gated_to![
     "crates/geom-brep/src/intersect.rs",
+    "crates/geom-brep/tests/shared/",
     "crates/test-utils/src/cone_cut.rs"
 ];
 
