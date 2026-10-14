@@ -1118,19 +1118,12 @@ fn face_geo<T: Decide>(
                     .sense,
             })
         }
-        // A kind `ray_crosses` admits with no arm here: the refusal a
-        // ray meets, though the pre-filter, reading the same predicate,
-        // did not foresee it.
-        Some(s) => {
-            debug_assert!(
-                !ray_crosses(s.kind()),
-                "ray_crosses admits a kind face_geo has no arm for"
-            );
-            Err(PointInSolidError::KindUnsupported {
-                face,
-                kind: s.kind(),
-            })
-        }
+        // Refused above through `uncrossable`: only the match's
+        // exhaustiveness reaches here, and it refuses the same way.
+        Some(s) => Err(PointInSolidError::KindUnsupported {
+            face,
+            kind: s.kind(),
+        }),
         None => Err(PointInSolidError::CorruptFace { face }),
     }
 }
@@ -6397,6 +6390,62 @@ mod pre_filter_tests {
         assert!(
             matches!(&ray, Err(RayFault::Fatal(e)) if *e == want),
             "a ray meets the same refusal"
+        );
+    }
+
+    /// The brick with a point of `faces[0]` removed: that planar face's
+    /// in-face walk refuses (`Desync`), and its plane still reads.
+    fn with_unwalkable_first_face(body: &mut Body<f64>, faces: &[FaceKey]) {
+        let point = body
+            .half_edges
+            .values()
+            .find(|he| {
+                body.loops
+                    .get(he.parent_loop)
+                    .is_some_and(|l| l.face == faces[0])
+            })
+            .and_then(|he| body.vertices.get(he.start))
+            .map(|v| v.point)
+            .expect("the first face has a vertex");
+        body.points.remove(point);
+    }
+
+    /// **The walk refusal a spline face now answers instead of.** On a
+    /// selection whose first planar face's in-face walk refuses, the
+    /// first aim used to return that refusal; with a spline face in the
+    /// selection no aim is taken, so the volume reads, limited by the
+    /// spline face. Without the spline face the walk's refusal stands.
+    #[test]
+    fn a_spline_face_reads_the_volume_where_a_planar_aims_walk_refuses() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let (mut body, faces) = brick_and_faces(tol);
+        with_unwalkable_first_face(&mut body, &faces);
+        let sel = SolidFaces::select(&body, faces.clone()).expect("the faces select");
+        let read = side_at_infinity(&body, &sel, band, || {
+            Err::<SolidContainment, _>("the volume")
+        });
+        assert!(
+            read.is_err(),
+            "without a spline face the first aim's walk refusal is the answer"
+        );
+
+        let spline = *faces.last().expect("a brick has faces");
+        let key = body.get_face(spline).expect("the face resolves").surface;
+        *body.surfaces.get_mut(key).expect("its surface resolves") = Surface::nurbs_placeholder();
+        let sel = SolidFaces::select(&body, faces).expect("the faces select");
+        let read = side_at_infinity(&body, &sel, band, || {
+            Err::<SolidContainment, _>("the volume")
+        });
+        assert!(
+            matches!(
+                &read,
+                Ok(Err(SideUnread::Fallback {
+                    volume: "the volume",
+                    limit: Some(PointInSolidError::KindUnsupported { face, .. }),
+                })) if *face == spline
+            ),
+            "with one, the volume reads, limited by the spline face"
         );
     }
 
