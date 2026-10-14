@@ -1001,6 +1001,13 @@ fn face_geo<T: Decide>(
     charts: &ChartGroups,
     band: Band,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
+    // The kinds this dispatch has an arm for are [`ray_crosses`]'s, and
+    // it refuses the others through it, as the reader's pre-filter does
+    // ([`side_at_infinity`]): one predicate, so a new arm is a new kind
+    // there or it is never reached.
+    if let Some(e) = uncrossable(body, face)? {
+        return Err(e);
+    }
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
@@ -1109,8 +1116,14 @@ fn face_geo<T: Decide>(
                     .sense,
             })
         }
+        // A kind `ray_crosses` admits with no arm here: the refusal a
+        // ray meets, though the pre-filter, reading the same predicate,
+        // did not foresee it.
         Some(s) => {
-            debug_assert!(!ray_crosses(s.kind()), "face_geo and ray_crosses disagree");
+            debug_assert!(
+                !ray_crosses(s.kind()),
+                "ray_crosses admits a kind face_geo has no arm for"
+            );
             Err(PointInSolidError::KindUnsupported {
                 face,
                 kind: s.kind(),
@@ -1120,9 +1133,11 @@ fn face_geo<T: Decide>(
     }
 }
 
-/// **Whether the ray test has an arm for a surface kind** — the kinds
-/// [`face_geo`] reads, and no other. Wildcard-free, so a new kind is
-/// decided here; `face_geo`'s refusal arm asserts the two agree.
+/// **Whether the ray test has an arm for a surface kind** — the one
+/// list of them: [`face_geo`] refuses every other kind through
+/// [`uncrossable`] before its dispatch, and the side-at-infinity reader
+/// casts no ray at a selection holding one. Wildcard-free, so a new kind
+/// is decided here.
 const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
     use geom::SurfaceKind;
     match kind {
@@ -6751,5 +6766,100 @@ mod joint_branch_rows {
             matches!(joint, Ok(None)),
             "the walk does not meet on either branch: {joint:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod pre_filter_tests {
+    use super::*;
+    use crate::test_support_fixtures::brick;
+    use geom_core::k_stats::Bracket;
+
+    /// A unit brick, and its faces.
+    fn brick_and_faces(tol: Tol) -> (Body<f64>, Vec<FaceKey>) {
+        let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let faces = body.faces().map(|(k, _)| k).collect();
+        (body, faces)
+    }
+
+    /// The predicates an aimed ray logs.
+    fn aimed(log: &geom_core::k_stats::Recorded) -> Vec<&'static str> {
+        log.verdicts
+            .iter()
+            .map(|v| v.predicate)
+            .filter(|p| p.starts_with("side_at_infinity"))
+            .collect()
+    }
+
+    /// **A selection holding a spline face casts no aimed ray**, and
+    /// reads the volume with that face's refusal as its limit — the
+    /// refusal every ray would have met at it, whatever it aimed at.
+    #[test]
+    fn a_spline_face_casts_no_ray_and_limits_the_volume_as_a_ray_would() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let (mut body, faces) = brick_and_faces(tol);
+        let spline = *faces.last().expect("a brick has faces");
+        let key = body.get_face(spline).expect("the face resolves").surface;
+        *body.surfaces.get_mut(key).expect("its surface resolves") = Surface::nurbs_placeholder();
+        let sel = SolidFaces::select(&body, faces).expect("the faces select");
+
+        let bracket = Bracket::open();
+        let read = side_at_infinity(&body, &sel, band, || {
+            Err::<SolidContainment, _>("the volume")
+        });
+        let log = bracket.finish();
+
+        let want = PointInSolidError::KindUnsupported {
+            face: spline,
+            kind: geom::SurfaceKind::Nurbs,
+        };
+        assert!(
+            matches!(
+                &read,
+                Ok(Err(SideUnread::Fallback {
+                    volume: "the volume",
+                    limit: Some(e),
+                })) if *e == want
+            ),
+            "the volume reads, limited by the spline face"
+        );
+        assert_eq!(aimed(&log), Vec::<&str>::new(), "no aimed ray is cast");
+        // The limit is the one a ray meets at that face, from anywhere.
+        let ray = ray_crossings(
+            &body,
+            &sel,
+            Point3::new(5.0, 4.0, 3.0),
+            Vec3::new(-1.0, -0.8, -0.6).normalize(),
+            10.0,
+            band,
+            AIMED_ROWS,
+        );
+        assert!(
+            matches!(&ray, Err(RayFault::Fatal(e)) if *e == want),
+            "a ray meets the same refusal"
+        );
+    }
+
+    /// **A selection with no spline face still casts its rays**, and the
+    /// volume is not read where one decides.
+    #[test]
+    fn a_selection_with_no_spline_face_still_aims() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let (body, faces) = brick_and_faces(tol);
+        let sel = SolidFaces::select(&body, faces).expect("the faces select");
+
+        let bracket = Bracket::open();
+        let read = side_at_infinity(&body, &sel, band, || -> Result<SolidContainment, ()> {
+            panic!("the volume is read only where no aim decides")
+        });
+        let log = bracket.finish();
+
+        assert!(
+            matches!(read, Ok(Ok(SolidContainment::Out))),
+            "an aim reads the side"
+        );
+        assert!(!aimed(&log).is_empty(), "an aimed ray is cast");
     }
 }
