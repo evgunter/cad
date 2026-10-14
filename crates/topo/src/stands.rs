@@ -236,6 +236,11 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
     }
 
     for &face in faces {
+        if std::env::var("SECT_DUMP").is_ok() {
+            let pip = planar_interior_point(body, face, band);
+            let pts = face_loop_points(body, face);
+            eprintln!("LADDER face {face:?} interior {:?} loops {:?}", pip.as_ref().map(|o| o.map(|q| (q.x, q.y, q.z))).ok(), pts.ok().map(|l| l.iter().map(|v| v.len()).collect::<Vec<_>>()));
+        }
         if let Some(q) = planar_interior_point(body, face, band)?
             && let Some(s) = side(q)?
         {
@@ -295,6 +300,9 @@ fn face_interior_point<T: Decide>(
         }
     }
     for q in across_edges(body, face, normal, band)? {
+        if std::env::var("SECT_DUMP").is_ok() {
+            eprintln!("ACROSS {face:?} q ({:?}, {:?}, {:?}) -> {:?}", q.x, q.y, q.z, certified_in_face(body, face, normal, q, band).is_ok_and(|b| b));
+        }
         if certified_in_face(body, face, normal, q, band)? {
             return Ok(Some(q));
         }
@@ -360,6 +368,10 @@ fn across_edges<T: Decide>(
         let (t0, t1) = curve.params();
         let t = curve.carrier().deriv(geom::mid_param(t0, t1));
         let w = normal.cross(if plus { t } else { -t }).normalize();
+        if std::env::var("SECT_DUMP").is_ok() {
+            let mp = curve.mid_point();
+            eprintln!("FOOT {face:?} t0 {t0:?} t1 {t1:?} mid ({:?},{:?},{:?}) w {:?} plus {plus} carrier {:?} he {he:?} edge {e:?}", mp.x, mp.y, mp.z, w, curve.carrier());
+        }
         if [w.x, w.y, w.z].iter().all(|c| !c.is_poison()) {
             feet.push((curve.mid_point(), w));
         }

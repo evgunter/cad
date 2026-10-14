@@ -3732,15 +3732,13 @@ fn path_ring_side<T: Decide>(
 /// segment's curve and halves are links, mid-operation
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]): a miss panics, and a torn
 /// curve is not an uncertified one.
-#[allow(clippy::too_many_arguments)] // one internal lane, each argument a named duty
 fn along_edge_spec<T: Decide>(
     body: &Body<T>,
-    band: Band,
     lane: &JoinLane<'_, T>,
     segment: Option<EdgeKey>,
     face: FaceKey,
     (u1, u2): (VertexKey, VertexKey),
-    leave: Departure<T>,
+    site: ChordSite,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
     let (JoinLane::AlongEdge, Some(edge)) = (lane, segment) else {
         return Ok(None);
@@ -3788,13 +3786,11 @@ fn along_edge_spec<T: Decide>(
                     what: StaleSite::WHAT,
                 })?;
             let carrier = curve.carrier().clone();
+            let closed = tied.contains(&e_start) && tied.contains(&e_end);
             let forward = match (tied.contains(&e_start), tied.contains(&e_end)) {
                 (true, false) => true,
                 (false, true) => false,
-                // A closed edge, both of whose ends are the chord's one
-                // site: the chord is its whole circle, run the way the
-                // section leaves that site.
-                (true, true) => closed_edge_runs_forward(&carrier, t0, leave, face, band)?,
+                (true, true) => closed_chord_runs_forward(body, edge, site, face)?,
                 (false, false) => {
                     return Err(SplitJoinError::SectionInvariant {
                         face,
@@ -3810,7 +3806,19 @@ fn along_edge_spec<T: Decide>(
                     .reversed()
                     .and_then(|back| EdgeCurveSpec::arc_of_circle(back, -t1, -t0))
             };
-            Ok(spec)
+            // A whole-turn scaffold circle reads as a null edge's
+            // placeholder (`containment::carrier_loop`), so a closed
+            // edge's copy is stated in the chart of the face it divides,
+            // which it lies on.
+            Ok(if closed {
+                let surface = body.get_face(face).ok_or_else(|| corrupt_face(face))?.surface;
+                spec.map(|spec| EdgeCurveSpec {
+                    description: geom_brep::EdgeDescriptionSpec::chart(surface),
+                    ..spec
+                })
+            } else {
+                spec
+            })
         }
         _ => Err(SplitJoinError::SectionInvariant {
             face,
@@ -3820,44 +3828,59 @@ fn along_edge_spec<T: Decide>(
     }
 }
 
-/// Whether a closed circle edge's chord runs along the carrier from
-/// `t0`, its start: its unit tangent there agrees with `leave`, decided
-/// as [`arc_leaving`] decides a germ's cosine, levered by the radius.
-fn closed_edge_runs_forward<T: Decide>(
-    carrier: &geom::Curve3<T>,
-    t0: T,
-    leave: Departure<T>,
+/// **Which way a closed edge's chord runs**, where both ends of the
+/// segment's `edge` are the chord's one site: the chord is the whole
+/// circle, and `mef` decides only which loop each of its halves joins
+/// ([`MefSite::Chords`]: the minus half bounds the new face, the run
+/// from `he1` up to `he2`, and the plus half, which runs along the
+/// spec, stays in the old loop). The loop that keeps the edge's own half
+/// also holds the null edge's two halves at the site, and bounds no area
+/// (the sliver the cut leaves as the null face), so the chord's half
+/// there runs against the edge's half. The spec therefore runs along
+/// the edge's half where that half is in the new face's run, and
+/// against it where it stays in the old loop: forward along the carrier
+/// where that agrees with the half being `he_plus`.
+fn closed_chord_runs_forward<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    site: ChordSite,
     face: FaceKey,
-    band: Band,
 ) -> Result<bool, SplitJoinError> {
-    let geom::Curve3::Circle { radius, .. } = *carrier else {
-        return Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "a closed edge's chord on a carrier that is not a circle",
-        });
+    let invariant = |what| SplitJoinError::SectionInvariant { face, what };
+    let ChordSite::Mef(MefSite::Chords { he1, he2 }) = site else {
+        return Err(invariant(
+            "a closed edge's chord planned at a site that is not two halves of one loop",
+        ));
     };
-    if leave.datum != Datum::Germ {
-        return Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "a closed edge's chord handed a departure that is no germ's direction",
-        });
+    let e = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+    let loop_of = |he: HalfEdgeKey| {
+        body.get_half_edge(he)
+            .map(|h| h.parent_loop)
+            .ok_or_else(|| corrupt_he(he))
+    };
+    let split = loop_of(he1)?;
+    let own = match (loop_of(e.he_plus)? == split, loop_of(e.he_minus)? == split) {
+        (true, false) => e.he_plus,
+        (false, true) => e.he_minus,
+        _ => {
+            return Err(invariant(
+                "a closed edge's chord splits a loop holding other than one of its halves",
+            ));
+        }
+    };
+    let mut in_run = false;
+    let mut he = he1;
+    if he1 != he2 {
+        for _ in 0..body.half_edges.len() {
+            in_run |= he == own;
+            he = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.next;
+            if he == he2 {
+                return Ok(in_run == (own == e.he_plus));
+            }
+        }
+        return Err(invariant("a closed edge's chord run never reaches its end"));
     }
-    let along = leave.dir.dot(carrier.deriv(t0)) / radius;
-    match decide(
-        "chord_arc_leave_germ",
-        Margin::levered(along, radius),
-        band,
-    )
-    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-    {
-        Sign::Positive => Ok(true),
-        Sign::Negative => Ok(false),
-        Sign::Zero => Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "the section's direction of departure handed to a chord end has no \
-                   component along the section there",
-        }),
-    }
+    Ok(in_run == (own == e.he_plus))
 }
 
 /// **The site of a vertex**: every vertex null edges tie it to, itself
@@ -4259,10 +4282,17 @@ impl ChordJoiner {
             halves.0
         };
         let (u1, u2) = chord.ends;
-        let leave = leave.from(chord.from, face)?;
-        let spec = match along_edge_spec(body, self.band, &lane, plan.locus, face, (u1, u2), leave)? {
+        let spec = match along_edge_spec(body, &lane, plan.locus, face, (u1, u2), chord.site)? {
             Some(spec) => Some(spec),
-            None => chord_spec(body, self.band, lane, face, u1, u2, leave)?,
+            None => chord_spec(
+                body,
+                self.band,
+                lane,
+                face,
+                u1,
+                u2,
+                leave.from(chord.from, face)?,
+            )?,
         };
         Ok(Some(SegmentCurve {
             halves: (chord.from, to),
@@ -6481,13 +6511,6 @@ mod torn_hop_rows {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    /// A germ departure for the rows that read no closed edge.
-    fn leave() -> Departure<f64> {
-        Departure {
-            dir: Vec3::new(1.0, 0.0, 0.0),
-            datum: Datum::Germ,
-        }
-    }
 
     fn cyl_sheet() -> (Body<f64>, FaceKey) {
         let mut body = Body::<f64>::new();
@@ -6710,8 +6733,9 @@ mod torn_hop_rows {
         let edge = body.get_half_edge(he).unwrap().edge;
         let u1 = body.get_half_edge(he).unwrap().start;
         let u2 = body.half_edge_end(he).unwrap();
+        let site = super::ChordSite::Mef(crate::euler::MefSite::Chords { he1: he, he2: he });
         let spec = |b: &Body<f64>, segment| {
-            super::along_edge_spec(b, band(), &JoinLane::AlongEdge, Some(segment), face, (u1, u2), leave())
+            super::along_edge_spec(b, &JoinLane::AlongEdge, Some(segment), face, (u1, u2), site)
                 .map(|s| s.is_some())
         };
         assert!(
@@ -6785,8 +6809,9 @@ mod torn_hop_rows {
         let he = body.get_edge(edge).unwrap().he_plus;
         let u1 = body.get_half_edge(he).unwrap().start;
         let u2 = body.half_edge_end(he).unwrap();
+        let site = super::ChordSite::Mef(crate::euler::MefSite::Chords { he1: he, he2: he });
         let spec = |b: &Body<f64>| {
-            super::along_edge_spec(b, band(), &JoinLane::AlongEdge, Some(edge), face, (u1, u2), leave())
+            super::along_edge_spec(b, &JoinLane::AlongEdge, Some(edge), face, (u1, u2), site)
                 .map(|s| s.is_some())
         };
         assert!(spec(&body).unwrap(), "a rim segment's chord is its own arc");

@@ -1027,6 +1027,40 @@ pub(super) struct Connected {
     pub along: [Vec<(EdgeKey, EdgeKey)>; 2],
 }
 
+#[allow(clippy::all)]
+fn sect_dump<T: Decide>(red: &BooleanReduction<T>, open: &[OpenRecord<T>]) {
+    {
+        let dump = |body: &Body<T>, he: HalfEdgeKey, tag: &str| {
+            let h = body.get_half_edge(he).unwrap();
+            let l = h.parent_loop;
+            let lp = body.get_loop(l).unwrap();
+            let face = lp.face;
+            let fd = body.get_face(face).unwrap();
+            let kind = body.get_surface(fd.surface).map(|s| s.kind());
+            eprintln!("  {tag} he {he:?} edge {:?} loop {l:?} face {face:?} {kind:?} outer? {}", h.edge, fd.outer == l);
+            let mut c = he;
+            for _ in 0..40 {
+                let d = body.get_half_edge(c).unwrap();
+                let e = body.get_edge(d.edge).unwrap();
+                let cg = body.edge_curve_linked(d.edge, e);
+                let nul = cg.null_scaffold().is_some();
+                eprintln!("     he {c:?} edge {:?} start {:?} null {nul}", d.edge, d.start);
+                c = d.next;
+                if c == he { break; }
+            }
+        };
+        for r in open {
+            eprintln!("record a_edge {:?} b_edge {:?}", r.a_edge, r.b_edge);
+            for s in 0..2 {
+                let g = r.a[s].0;
+                eprintln!(" slot {s} used {} a_locus {:?} b_locus {:?} a_face {:?} b_face {:?} branch {:?} dir {:?}", r.a[s].1, g.a_locus, g.b_locus, g.a_face, g.b_face, g.branch, g.dir);
+                dump(&red.a, g.he, "A");
+                dump(&red.b, r.b[s].0.he, "B");
+            }
+        }
+    }
+}
+
 /// The lockstep joining sweep (module docs). Mutates both annotated
 /// clones in `red` in place; returns the completed polygon pairs in
 /// completion order, with [`NullFacePair::Boolean`] records set.
@@ -1040,6 +1074,9 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     let desync = |what| BooleanError::JoinDesync { what };
     place_nodes_of_germs(red, (a_pristine, b_pristine), band)?;
     let segments = join_segments(red, band)?;
+    if std::env::var("SECT_DUMP").is_ok() {
+        sect_dump(red, &open_records(red)?);
+    }
     // A segment along an edge of both solids is that edge in both: each
     // solid's chord copies its own edge and no section is read (the
     // germ's two faces may share one carrier), so it takes no kind arm.
@@ -1539,36 +1576,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     for r in &open {
         if one_site(red, r, band)?.is_some() {
             single_site += 1;
-        }
-    }
-    if single_site != 0 && std::env::var("SECT_DUMP").is_ok() {
-        let dump = |body: &Body<T>, he: HalfEdgeKey, tag: &str| {
-            let h = body.get_half_edge(he).unwrap();
-            let l = h.parent_loop;
-            let lp = body.get_loop(l).unwrap();
-            let face = lp.face;
-            let fd = body.get_face(face).unwrap();
-            let kind = body.get_surface(fd.surface).map(|s| s.kind());
-            eprintln!("  {tag} he {he:?} edge {:?} loop {l:?} face {face:?} {kind:?} outer? {}", h.edge, fd.outer == l);
-            let mut c = he;
-            for _ in 0..40 {
-                let d = body.get_half_edge(c).unwrap();
-                let e = body.get_edge(d.edge).unwrap();
-                let cg = body.edge_curve_linked(d.edge, e);
-                let nul = cg.null_scaffold().is_some();
-                eprintln!("     he {c:?} edge {:?} start {:?} null {nul}", d.edge, d.start);
-                c = d.next;
-                if c == he { break; }
-            }
-        };
-        for r in &open {
-            eprintln!("record a_edge {:?} b_edge {:?}", r.a_edge, r.b_edge);
-            for s in 0..2 {
-                let g = r.a[s].0;
-                eprintln!(" slot {s} used {} a_locus {:?} b_locus {:?} a_face {:?} b_face {:?} branch {:?} dir {:?}", r.a[s].1, g.a_locus, g.b_locus, g.a_face, g.b_face, g.branch, g.dir);
-                dump(&red.a, g.he, "A");
-                dump(&red.b, r.b[s].0.he, "B");
-            }
         }
     }
     if single_site != 0 {
@@ -4704,6 +4711,14 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
             tol,
         )
     };
+    if std::env::var("SECT_DUMP").is_ok() {
+        for l in [outer, ring] {
+            let fs = region_faces(body, face, l)?;
+            let kinds: Vec<_> = fs.iter().map(|&f| (f, body.get_face(f).and_then(|d| body.get_surface(d.surface)).map(|s| s.kind()))).collect();
+            let pts: Vec<_> = fs.iter().map(|&f| body.get_face(f).and_then(|d| body.get_surface(d.surface)).map(|s| format!("{s:?}").chars().take(90).collect::<String>())).collect();
+            eprintln!("ROLES face {face:?} loop {l:?} regions {kinds:?} {pts:?} reading {:?}", side(l).map(|r| matches!(r, Reading::Side(_))));
+        }
+    }
     loop_roles(face, (outer, side(outer)?), (ring, side(ring)?))
 }
 
