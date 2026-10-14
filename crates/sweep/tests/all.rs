@@ -112,6 +112,7 @@ mod a_wall_seam_takes_the_column_it_lies_on;
 mod an_annular_tube_through_a_plate;
 #[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
 mod an_arc_rim_picks_the_row_it_lies_on;
+mod review_5137_r2_probes;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "an_inside_out_thin_tube_operand.rs"]
