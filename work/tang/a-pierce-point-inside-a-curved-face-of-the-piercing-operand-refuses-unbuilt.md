@@ -2,7 +2,8 @@
 id: a-pierce-point-inside-a-curved-face-of-the-piercing-operand-refuses-unbuilt
 kind: issue
 title: A pierce point inside a curved face of the piercing operand, or a plane face holding one over a curved pierced face, refuses unbuilt
-status: open
+status: dispatched
+branch: tang/pierce-held-built
 opened: 2026-10-13
 priority: P3
 cost: M
