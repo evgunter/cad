@@ -1224,7 +1224,13 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             angle: span,
             breaks: breaks.clone(),
         };
-        let walks_up = is_plus(body, half_edge) == half_edge_face(body, half_edge).1.sense;
+        let r5137 = std::env::var("R5137_MUT").unwrap_or_default();
+        let walks_up = match r5137.as_str() {
+            "nosense" => is_plus(body, half_edge),
+            "noplus" => half_edge_face(body, half_edge).1.sense,
+            "invert" => is_plus(body, half_edge) != half_edge_face(body, half_edge).1.sense,
+            _ => is_plus(body, half_edge) == half_edge_face(body, half_edge).1.sense,
+        };
         let rows = [(cv0, true), (cv1, false)]
             .into_iter()
             .flat_map(|(v, low)| {
@@ -1232,7 +1238,22 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                     .map(|(p0x, sign, forward)| (low == (forward == walks_up), image(v, p0x, sign)))
             });
         let (own_side, far_side): (Vec<_>, Vec<_>) = rows.partition(|(own, _)| *own);
-        let candidates = own_side.into_iter().chain(far_side).map(|(_, image)| image);
+        let new_order: Vec<_> = own_side.into_iter().chain(far_side).map(|(_, image)| image).collect();
+        let old_order: Vec<_> = [cv0, cv1].into_iter().flat_map(|v| {
+            [(cu0, cu1 - cu0), (cu1, cu0 - cu1)].map(|(p0x, sign)| image(v, p0x, sign))
+        }).collect();
+        if std::env::var("R5137_CENSUS").is_ok() {
+            let holds = old_order.iter().filter(|c| matches!(probe_pick("r5137", &carrier, (t0, span), surface, band, [(*c).clone()]), Ok(Some(_)))).count();
+            let a = probe_pick("r5137", &carrier, (t0, span), surface, band, old_order.clone()).ok().flatten();
+            let b = probe_pick("r5137", &carrier, (t0, span), surface, band, new_order.clone()).ok().flatten();
+            let differ = format!("{a:?}") != format!("{b:?}");
+            let line = format!("R5137 holds={holds} differ={differ} test={:?}\n", std::thread::current().name());
+            use std::io::Write as _;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/home/user/census5137.txt") {
+                let _ = f.write_all(line.as_bytes());
+            }
+        }
+        let candidates = if r5137 == "old" { old_order } else { new_order };
         match probe_pick(
             "pcurve_iso_arc_row_direction",
             &carrier,
