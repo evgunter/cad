@@ -826,3 +826,97 @@ fn t11_the_metred_hull_is_widened_by_every_envelope_slack() {
         h.v_min.lo()
     );
 }
+
+// ---- review 5070 r2 probes ----
+mod review_5070_r2 {
+    use super::*;
+
+    fn chord() -> NurbsCurve3<Interval> {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        NurbsCurve3::new(
+            Knots::from(knots).lift(Real::from_f64),
+            vec![
+                Point3::new(iv(0.5), iv(-0.5), iv(0.0)),
+                Point3::new(iv(0.5), iv(0.5), iv(0.0)),
+            ],
+            vec![Real::one(); 2],
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn p1_eval_in_span_direct_vs_located() {
+        let c = chord();
+        let w = c.span_at(0.5).expect("a span");
+        for (a, b) in [(0.0, 1.0), (0.0, 0.5), (0.1, 0.9), (0.4, 0.6), (0.49, 0.51)] {
+            let t = iv(a).enclosure_hull(iv(b));
+            let direct = w.eval_in_span(t);
+            let located = c.eval(t);
+            // hand: basis N0 = 1 - t, N1 = t
+            let n0 = Interval::one() - t;
+            let n1 = t;
+            let wacc = n0 + n1;
+            let numx = n0 * iv(0.5) + n1 * iv(0.5);
+            let numy = n0 * iv(-0.5) + n1 * iv(0.5);
+            eprintln!(
+                "t=[{a},{b}] direct x={:?} y={:?} | located x={:?} y={:?} | w_acc={:?} numx={:?} numy={:?} | numx/1 vs numy/1 (division skipped)",
+                direct.x, direct.y, located.x, located.y, wacc, numx, numy
+            );
+            let image = geom_brep::chart_pcurve(&Curve3::Nurbs(Arc::new(chord())), &base_plane(), band()).unwrap();
+            let e = image.eval(t);
+            eprintln!("   projected eval u={:?} v={:?} width_v={:e}", e.x, e.y, e.y.hi() - e.y.lo());
+        }
+    }
+
+    /// Two-span degree-1 net and a degree-2 net: is the poison specific to
+    /// the denominator, and does a multi-span walk add span-extension blow-up?
+    #[test]
+    fn p2_other_nets() {
+        let k2 = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let c2 = NurbsCurve3::new(
+            Knots::from(k2).lift(Real::from_f64),
+            vec![
+                Point3::new(iv(0.5), iv(-0.5), iv(0.0)),
+                Point3::new(iv(0.5), iv(0.0), iv(0.0)),
+                Point3::new(iv(0.5), iv(0.5), iv(0.0)),
+            ],
+            vec![Real::one(); 3],
+        )
+        .unwrap();
+        for (a, b) in [(0.0, 1.0), (0.1, 0.9), (0.0, 0.5), (0.1, 0.4)] {
+            let t = iv(a).enclosure_hull(iv(b));
+            let p = c2.eval(t);
+            eprintln!("2-span t=[{a},{b}] x={:?} y={:?}", p.x, p.y);
+        }
+        let k3 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let c3 = NurbsCurve3::new(
+            Knots::from(k3).lift(Real::from_f64),
+            vec![
+                Point3::new(iv(0.5), iv(-0.5), iv(0.0)),
+                Point3::new(iv(0.5), iv(0.0), iv(0.0)),
+                Point3::new(iv(0.5), iv(0.5), iv(0.0)),
+            ],
+            vec![Real::one(); 3],
+        )
+        .unwrap();
+        for (a, b) in [(0.0, 1.0), (0.1, 0.9), (0.4, 0.6)] {
+            let t = iv(a).enclosure_hull(iv(b));
+            let p = c3.eval(t);
+            eprintln!("deg2 t=[{a},{b}] x={:?} y={:?}", p.x, p.y);
+        }
+    }
+
+    /// The T9b thresholds: margins of the inner assertion.
+    #[test]
+    fn p3_t9b_margins() {
+        let image = geom_brep::chart_pcurve(&Curve3::Nurbs(Arc::new(chord())), &base_plane(), band()).unwrap();
+        let inner = image.eval(iv(0.1).enclosure_hull(iv(0.9)));
+        let wy = inner.y.hi() - inner.y.lo();
+        let wx = inner.x.hi() - inner.x.lo();
+        eprintln!("wx={wx:e} wy={wy:e} wy-4={:e} 5*0.8={:e}", wy - 4.0, 5.0 * 0.8);
+        let hull = image.chart_box(iv(0.0), iv(1.0));
+        eprintln!("box u=[{:?},{:?}] v=[{:?},{:?}]", hull.u_min, hull.u_max, hull.v_min, hull.v_max);
+        let sub = image.chart_box(iv(0.1), iv(0.9));
+        eprintln!("box over [0.1,0.9] u=[{:?},{:?}] v=[{:?},{:?}]", sub.u_min, sub.u_max, sub.v_min, sub.v_max);
+    }
+}
