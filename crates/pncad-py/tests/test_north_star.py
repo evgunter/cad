@@ -721,8 +721,8 @@ class TestBossplate(unittest.TestCase):
 
     The three-arc rim is the scene's point (the seam is three walls,
     not two), and it is `circle_split` — the declared-subdivision
-    carrier — not the `circle` primitive, whose private lowering is
-    two semicircles. The Rust scene's closed form is asserted
+    carrier — not the `circle` primitive, which lowers to one full
+    turn. The Rust scene's closed form is asserted
     verbatim, and its three-seam-arc census is not: the vertex count
     of the authored loop is checked instead, which is where the claim
     is actually made."""
@@ -2715,10 +2715,10 @@ class TestTeapot(unittest.TestCase):
     #: How many sections the skin is fitted through.
     SPOUT_STATIONS: ClassVar[int] = 7
     #: And how many ARCS each circular section is authored as. FOUR,
-    #: not a plain `circle`: a `circle` loop is two segments, so each
-    #: lateral wall would span a semicircle -- two rational Beziers
-    #: joined at an interior knot of multiplicity = degree, a C0 crease
-    #: the tessellator refuses by name. `work/mesh`'s
+    #: not a plain `circle`: a `circle` loop is one segment, so its
+    #: lateral wall would span a full turn -- four rational Beziers
+    #: joined at interior knots of multiplicity = degree, C0 creases
+    #: the tessellator refuses by name. `work/tess`'s
     #: `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`
     #: carries that; `circle_split` is the door.
     #:

@@ -493,13 +493,9 @@ fn corm<S: Scalar>(
 /// The stem's **foot**: the straight basal internode, a plain circular
 /// cylinder standing in the corm's socket and rising to the world
 /// origin, where the turtle's first arc begins.
-///
-/// Three 120° arcs of one carrier (`circle_split`), not a whole
-/// circle: a boolean operand's curved wall must be maximal-faced, and
-/// the split count is part of what the seam looks like.
 fn foot<S: Scalar>(z0: f64, z1: f64, r: f64, tol: Tol) -> Body<S> {
-    let rim = pncad::profile::circle_split(p2(0.0, 0.0), S::from_f64(r), 3, S::from_f64(0.0), tol)
-        .expect("the foot's three-arc rim authors");
+    let rim = pncad::profile::circle(p2(0.0, 0.0), S::from_f64(r), tol)
+        .expect("the foot's rim authors");
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
     let profile = validated(plane, vec![rim.into()], tol).expect("foot profile validates");
     extrude(

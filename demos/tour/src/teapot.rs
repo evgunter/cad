@@ -403,11 +403,11 @@ const SPOUT_STATIONS: usize = 7;
 const _: () = assert!(SPOUT_STATIONS == 7);
 /// **How many arcs each circular section is authored as.**
 ///
-/// FOUR, not a plain `LoopProgram::Circle`: a `Circle` loop is two
-/// segments, so each lateral wall would span a semicircle — two
-/// rational Béziers joined at an interior knot of multiplicity =
-/// degree, a C⁰ crease the TESSELLATOR refuses by name. That is
-/// `work/mesh`'s
+/// FOUR, not a plain `LoopProgram::Circle`: a `Circle` loop is one
+/// segment, so its lateral wall would span a full turn — four
+/// rational Béziers joined at interior knots of multiplicity =
+/// degree, C⁰ creases the TESSELLATOR refuses by name. That is
+/// `work/tess`'s
 /// `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`,
 /// and `CircleSplit(4)` is the door through it.
 ///

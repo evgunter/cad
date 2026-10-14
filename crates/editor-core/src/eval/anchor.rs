@@ -36,7 +36,7 @@
 //! The match is exact: canonical loops are EXACT reindexings of their
 //! input (validate's own contract), starting at the authored vertex 0.
 //! Uniqueness needs positions AND arcs — an arc's sweep sign pins the
-//! orientation parity, which positions alone cannot decide at n = 2
+//! orientation parity, which positions alone cannot decide at n ≤ 2
 //! (see `derive_naming`).
 
 use profile::{ConstructedLoop, Segment, SegmentKind, ValidatedProfile};
@@ -496,12 +496,12 @@ fn arc_bits(arc: geom_core::Arc2<f64>) -> [u64; 4] {
 ///
 /// The match covers vertex POSITIONS, each validated segment's KIND and
 /// an arc's carrier and sweep, and the constructed joint set. Positions
-/// alone are NOT enough (PR #291 review MAJOR-1, both reviewers,
-/// executed): on a 2-vertex loop the forward and reversed maps agree on
-/// every position (index arithmetic mod 2), so a reversed hole circle —
-/// `circle()` lowers CCW, canonicalization orients holes CW — would
-/// recover `reversed: false` and swap the two semicircles' program
-/// names. The arcs disambiguate the parity exactly: canonicalization's
+/// alone are NOT enough: on a loop of one or two vertices the forward
+/// and reversed maps agree on every position (index arithmetic mod n),
+/// so a reversed hole circle — `circle()` lowers CCW, canonicalization
+/// orients holes CW — would recover `reversed: false`, and a two-arc
+/// `circle_split` hole would swap its arcs' program names. The arcs
+/// disambiguate the parity exactly: canonicalization's
 /// reversal copies each stored carrier and NEGATES its sweep
 /// (bit-exact) and reindexes the segments (canonical segment k =
 /// program segment n−1−k traversed backward), while the identity

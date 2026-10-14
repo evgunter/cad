@@ -229,7 +229,7 @@ class TestTheLatticeWalks(unittest.TestCase):
 
     def test_the_complete_loop_carrier_forms_are_one_step(self):
         self.assertEqual(circle(ORIGIN, 1 * m).step_count, 1)
-        self.assertEqual(circle(ORIGIN, 1 * m).vertex_count, 2)
+        self.assertEqual(circle(ORIGIN, 1 * m).vertex_count, 1)
         split = circle_split(ORIGIN, 1 * m, 3, 0 * rad)
         self.assertEqual(split.step_count, 1)
         self.assertEqual(split.vertex_count, 3)
@@ -367,7 +367,7 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
 
     def test_the_sign_gates(self):
         self.refuses("nonpositive_circle_radius", lambda: circle(ORIGIN, 0 * m))
-        self.refuses("circle_split_count", lambda: circle_split(ORIGIN, 1 * m, 1, 0 * rad))
+        self.refuses("circle_split_count", lambda: circle_split(ORIGIN, 1 * m, 0, 0 * rad))
         self.refuses("zero_direction", lambda: Open.toward(0.0, 0.0))
         # A director past the ~1e154 overflow band is NOT a zero
         # direction and does not get that word: the norm overflows to

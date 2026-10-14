@@ -4009,7 +4009,7 @@ impl<T: Real> InPlane<T> {
 /// whole boundary — every vertex, and every edge's arc on its carrier
 /// ([`carrier_box`]). The vertices alone are not enough: an arc bowing
 /// out of the vertex hull carries region past it, and an extruded
-/// disc's cap has its two vertices on one diameter. A poisoned term
+/// disc's cap has one vertex, or two on one diameter. A poisoned term
 /// poisons all four ends. `None` for a face with no boundary member to
 /// fold.
 #[track_caller]

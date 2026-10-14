@@ -1667,8 +1667,9 @@ impl<T: Real> ValidatedLoop<T> {
     ///
     /// **What it reports, exactly.** Any tangent-continuous arc
     /// answers, not only arcs an author reached through fillet sugar —
-    /// a full circle lowered as two tangent semicircles presents the
-    /// same shape and is listed too. This is a read of the loop's
+    /// a `circle_split`'s arcs present the same shape and are listed
+    /// too, while a `circle`, one full turn with no joint, is not. This
+    /// is a read of the loop's
     /// structure, not a verdict about intent, and the docs say so
     /// rather than the answer guessing.
     ///
