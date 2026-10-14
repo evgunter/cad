@@ -3178,7 +3178,8 @@ pub(crate) fn shell_role<T: Decide>(
     quad: Option<QuadLane<T>>,
 ) -> Result<ShellRole, ShellClassifyError> {
     use crate::boolean::SolidContainment;
-    use crate::boolean::solid_contain::{SideUnread, SolidFaces, side_at_infinity};
+    use crate::boolean::solid_contain::SolidFaces;
+    use crate::side_reader::{SideUnread, side_at_infinity};
     let record = body.get_shell(shell);
     if record
         .and_then(|s| body.get_solid(s.solid))

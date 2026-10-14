@@ -195,6 +195,7 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by verify-at-use and the detector's
 // candidate-generation mode BY CONSTRUCTION.
+pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
     PairFace, PairUnread, carrier_pair_decided, carrier_pair_relation, carrier_pair_verdict,
     face_carrier, flush_pair_relation, rest_locus,
@@ -202,8 +203,8 @@ pub use carrier_pair::{
 pub(crate) use contact_verify::rest_pair_reading;
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
-    AimedPair, PointInSolidError, SolidContainment, SolidFaces, point_in_solid,
-    point_in_solid_faces, point_in_solid_of,
+    PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
+    point_in_solid_of,
 };
 pub use voids::{
     VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void, insert_voids,

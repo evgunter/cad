@@ -1598,7 +1598,8 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
 /// the top at 60° meets the floor first and the top `2·gap` further on.
 /// An in-band pair is refused as the result gate refuses it.
 fn aimed_pair(gap: f64) -> Result<(), BooleanError> {
-    use super::super::solid_contain::{SideUnread, SolidFaces, side_at_infinity};
+    use super::super::solid_contain::SolidFaces;
+    use crate::side_reader::{SideUnread, side_at_infinity};
     use crate::test_support_fixtures::brick;
     let tol = Tol::witness();
     let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);

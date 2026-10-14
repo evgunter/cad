@@ -5969,7 +5969,8 @@ fn plus_v_errors<T: Decide>(
     band: Band,
 ) -> Vec<ValidationError> {
     use crate::boolean::SolidContainment;
-    use crate::boolean::solid_contain::{SideUnread, SolidFaces, side_at_infinity};
+    use crate::boolean::solid_contain::SolidFaces;
+    use crate::side_reader::{SideUnread, side_at_infinity};
     let mut errors = Vec::new();
     if let Some(PlusVVerdict::Uncomputable(source)) = walked {
         errors.push(ValidationError::VolumeUncomputable {
