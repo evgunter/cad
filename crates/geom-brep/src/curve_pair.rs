@@ -26,6 +26,7 @@
 //! **The walk is the closed forms' differential test oracle** (the rows),
 //! never a runtime fallback.
 
+mod polish;
 pub mod pose;
 pub mod span;
 mod walk;
@@ -100,11 +101,13 @@ pub struct Meeting<T: geom_core::Real> {
 /// What [`meet`] found.
 #[derive(Clone, Debug)]
 pub struct Meetings<T: geom_core::Real> {
-    /// `Some` where the pose read the carriers as one curve: `points` are
-    /// then the overlap's witnesses, and every point of the overlap meets.
+    /// `Some` where the pose read the carriers as one curve. `points` are
+    /// then the overlap's witnesses that read on both spans, and every
+    /// point of the overlap meets; none read on both where the spans
+    /// share no run of the curve, which is `Some` with no points.
     pub shared: Option<Sense>,
-    /// The meetings, each read on both spans. Points a walk polishes onto
-    /// one crossing may repeat it.
+    /// The meetings, each read on both spans. Two candidates polished onto
+    /// one crossing, by the walk or across planes, may repeat it.
     pub points: Vec<Meeting<T>>,
 }
 
@@ -125,25 +128,25 @@ pub enum MeetFault {
     Desync,
 }
 
+impl From<Indeterminate> for MeetFault {
+    fn from(diag: Indeterminate) -> Self {
+        Self::Escalated(diag)
+    }
+}
+
 /// [`meet`]'s refusal, with every meeting it had decided before it: a
 /// consumer may read those, never the refusal, as an answer (D4).
 #[derive(Clone, Debug)]
 pub struct MeetRefusal<T: geom_core::Real> {
     /// Why.
     pub fault: MeetFault,
-    /// The meetings decided before the refusal.
+    /// Meetings decided before the refusal: a subset of the spans'
+    /// meetings, never the complete set.
     pub found: Vec<Meeting<T>>,
 }
 
-impl<T: geom_core::Real> From<PoseRefusal> for MeetRefusal<T> {
-    fn from(refusal: PoseRefusal) -> Self {
-        let fault = match refusal {
-            PoseRefusal::Escalated(diag) => MeetFault::Escalated(diag),
-            PoseRefusal::Unsettled(why) => MeetFault::Unsettled(why),
-            PoseRefusal::Unsupported { pose } => MeetFault::Unsupported { pose },
-            // `meet` reads a walk pair by the walk, never its pose.
-            PoseRefusal::Walked { .. } | PoseRefusal::Desync => MeetFault::Desync,
-        };
+impl<T: geom_core::Real> From<MeetFault> for MeetRefusal<T> {
+    fn from(fault: MeetFault) -> Self {
         Self {
             fault,
             found: Vec::new(),
@@ -176,15 +179,15 @@ fn outcome<T: Decide>(
     b: &Span<'_, T>,
     band: Band,
 ) -> Result<Meetings<T>, MeetRefusal<T>> {
-    let (shared, candidates): (Option<Sense>, &[Candidate<T>]) = match pose {
-        Pose::Coincident { sense, witnesses } => (Some(*sense), witnesses),
-        Pose::Tangent(c) => (None, core::slice::from_ref(c)),
-        Pose::Generic(cs) => (None, cs),
-        Pose::Concentric | Pose::Parallel | Pose::Apart => (None, &[]),
+    let (shared, candidates): (Option<Sense>, Vec<Candidate<T>>) = match pose {
+        Pose::Coincident { sense, witnesses } => (Some(*sense), witnesses.clone()),
+        Pose::Tangent(c) => (None, [vec![*c], pose::end_candidates(a, b)].concat()),
+        Pose::Generic(cs) => (None, [cs.clone(), pose::end_candidates(a, b)].concat()),
+        Pose::Concentric | Pose::Parallel | Pose::Apart => (None, Vec::new()),
     };
     let mut points = Vec::new();
     let mut held = None;
-    for c in candidates {
+    for c in &candidates {
         let on_a = a.contact(c.point, c.ta, band).map(Contact::hit);
         let on_b = b.contact(c.point, c.tb, band).map(Contact::hit);
         match (on_a, on_b) {

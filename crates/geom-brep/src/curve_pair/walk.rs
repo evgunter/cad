@@ -37,9 +37,6 @@ use super::span::Span;
 use super::{MeetFault, MeetRefusal, Meeting, Meetings};
 use crate::roots::Unsettled;
 
-/// The Gauss–Newton steps a candidate is polished by.
-const POLISH_STEPS: usize = 4;
-
 /// A span as the walk reads it: with its bounds on `|C″|` and on the
 /// curvature, `None` on a spline.
 struct Read<'r, 's, T: Decide> {
@@ -116,63 +113,29 @@ fn surely<T: Decide>(name: &'static str, margin: T, band: Band, sign: Sign) -> b
     decide(name, Margin::of(margin), band) == Ok(sign)
 }
 
-/// The band polish steps are decided in: exact, so a step is kept only
-/// where it is definitely shorter than its bound.
-fn exact_band() -> Option<Band> {
-    Band::new(f64::from_bits(1), f64::from_bits(2)).ok()
-}
-
-/// Whether a polish step that moves its point `moved` metres is kept:
-/// while it moves less than `bound`. A polished parameter is read, never
+/// Whether a polish step that moves its point `moved` metres is taken:
+/// while it moves less than `16·slack`, sixteen times the most the
+/// polished point can lie from where it started, so a step that runs off
+/// along the carrier is dropped. A polished parameter is read, never
 /// trusted, so the bound can lose a meeting's foot but never invent one.
-fn step_kept<T: Decide>(moved: T, bound: T) -> bool {
-    exact_band().is_some_and(|exact| {
+///
+/// The comparison is a decision, not a `<`, because an enclosure that
+/// straddles it is neither taken nor dropped by a `<`; the band is the
+/// least pair of positive `f64`s, so it reads the sign alone.
+fn step_taken<T: Decide>(moved: T, slack: T) -> bool {
+    Band::new(f64::from_bits(1), f64::from_bits(2)).is_ok_and(|exact| {
         surely(
             "curve_pair_walk_polish_step",
-            bound - moved,
+            slack * T::from_f64(16.0) - moved,
             exact,
             Sign::Positive,
         )
     })
 }
 
-/// Gauss–Newton from `t` toward `r`'s foot of `q`, each step kept while it
-/// moves the point less than `16·slack` metres along the carrier.
-fn polish_foot<T: Decide>(r: &Read<'_, '_, T>, q: Point3<T>, mut t: T, slack: T) -> T {
-    let bound = slack * T::from_f64(16.0);
-    for _ in 0..POLISH_STEPS {
-        let (p, d) = r.curve().ders1(t);
-        let dt = T::zero() - (p - q).dot(d) / d.dot(d);
-        if step_kept(d.norm() * dt.abs(), bound) {
-            t = t + dt;
-        }
-    }
-    t
-}
-
-/// Gauss–Newton from `(s, t)` toward where `a` and `b` meet, kept as
-/// [`polish_foot`]'s steps are.
-fn polish_pair<T: Decide>(
-    a: &Read<'_, '_, T>,
-    b: &Read<'_, '_, T>,
-    (mut s, mut t): (T, T),
-    slack: T,
-) -> (T, T) {
-    let bound = slack * T::from_f64(16.0);
-    for _ in 0..POLISH_STEPS {
-        let (pa, da) = a.curve().ders1(s);
-        let (pb, db) = b.curve().ders1(t);
-        let d = pa - pb;
-        let (aa, bb, ab) = (da.dot(da), db.dot(db), da.dot(db));
-        let (ad, bd) = (da.dot(d), db.dot(d));
-        let det = aa * bb - ab.powi(2);
-        let (ds, dt) = ((ab * bd - bb * ad) / det, (aa * bd - ab * ad) / det);
-        if step_kept(da.norm() * ds.abs() + db.norm() * dt.abs(), bound) {
-            s = s + ds;
-            t = t + dt;
-        }
-    }
-    (s, t)
+/// Gauss–Newton from `t` toward `r`'s foot of `q` (`step_taken`).
+fn polish_foot<T: Decide>(r: &Read<'_, '_, T>, q: Point3<T>, t: T, slack: T) -> T {
+    super::polish::foot(|t| r.curve().ders1(t), q, t, |m| step_taken(m, slack))
 }
 
 /// Whether a piece of reach `reach` is small enough to stop at, decided on
@@ -352,26 +315,22 @@ pub(super) fn meet<T: Decide>(
         Read2::Missed => {}
         Read2::Held(diag) => held = held.or(Some(diag)),
     };
-    let mid = |r: &Read<'_, '_, T>| {
-        let (t0, t1) = r.span.params();
-        r.curve().eval(geom::mid_param(t0, t1))
-    };
-    let mut points = vec![mid(&ra), mid(&rb)];
+    let mut points = Vec::new();
     for (r, other) in [(&ra, &rb), (&rb, &ra)] {
-        let (t0, t1) = r.span.params();
         let (o0, o1) = other.span.params();
+        let mut ends = Vec::new();
         for q in [other.curve().eval(o0), other.curve().eval(o1)] {
             let Ok(ts) = feet(r, q, band) else {
                 return Err(exhausted(found));
             };
-            for t in ts {
-                let t = r.span.branch(t);
-                points.extend([
-                    r.curve().eval(geom::mid_param(t0, t)),
-                    r.curve().eval(geom::mid_param(t, t1)),
-                ]);
-            }
+            ends.extend(ts);
         }
+        points.extend(
+            r.span
+                .witness_params(ends)
+                .into_iter()
+                .map(|t| r.curve().eval(t)),
+        );
     }
     for q in points {
         let (Ok(ta), Ok(tb)) = (feet(&ra, q, band), feet(&rb, q, band)) else {
@@ -393,7 +352,12 @@ pub(super) fn meet<T: Decide>(
                 let slack = (ra.curve().eval(ma) - rb.curve().eval(mb)).norm()
                     + pa.reach(ra.hi())
                     + pb.reach(rb.hi());
-                let (s, t) = polish_pair(&ra, &rb, (ma, mb), slack);
+                let (s, t, _) = super::polish::pair(
+                    |s| ra.curve().ders1(s),
+                    |t| rb.curve().ders1(t),
+                    (ma, mb),
+                    |m| step_taken(m, slack),
+                );
                 let t = polish_foot(&rb, ra.curve().eval(s), t, slack);
                 let s = polish_foot(&ra, rb.curve().eval(t), s, slack);
                 let q = ra.curve().eval(s);

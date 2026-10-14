@@ -12,6 +12,7 @@ use geom::{Curve3, CurveKind};
 use geom_core::{Band, Point3, Vec3};
 
 use super::{Arm, Hit, MeetFault, Meetings, Method, Pose, Sense, Span, meet, method, pose};
+use crate::roots::Unsettled;
 
 pub(super) const ZERO: f64 = 1e-9;
 
@@ -83,7 +84,7 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             let w = q - center;
             let h = w.dot(axis);
             let rho = (w - axis * h).norm();
-            ((rho - radius).powi(2) + h.powi(2)).sqrt()
+            ((rho - radius.abs()).powi(2) + h.powi(2)).sqrt()
         }
         Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
             panic!("no independent distance to a {:?}", c.kind())
@@ -217,14 +218,25 @@ fn a_line_meets_a_circle_through_its_plane_or_in_it() {
 }
 
 /// **Two circles cut from one sphere**, their planes tilted by `θ`, built
-/// to meet: the candidates are each circle's point on the other's plane,
-/// read in its own angle, and land on both circles at every tilt the
-/// band reads as definite, and in one plane below it.
+/// to meet: they cross at an angle of about `θ`. Above the tangency floor
+/// (`√(κ·e)`, about `10⁻⁴` here) every meeting lands on both circles;
+/// below it the circles stay within the band's escalation `e` of each
+/// other over a run of about `e/θ`, the polish's basin meter refuses
+/// (`Unsettled::Meter`) rather than place one point on it; and in one
+/// plane the coplanar arm decides.
 #[test]
 fn circles_on_one_sphere_meet_on_both_at_any_tilt() {
     let centre = Point3::new(3.7, -2.1, 0.4);
     let radius = 1.3;
-    for theta in [1e-2_f64, 1e-4, 1e-5, 1e-6, 1e-7, 1e-11] {
+    for (theta, decided) in [
+        (1e-2_f64, true),
+        (1e-3, true),
+        (3e-4, true),
+        (1e-4, false),
+        (1e-5, false),
+        (1e-7, false),
+        (1e-11, true),
+    ] {
         // Two planes through `centre + (0, h, 0)`, the second turned by
         // `θ` about the line there along `x`: the circles meet on it.
         let h = 0.5;
@@ -239,6 +251,13 @@ fn circles_on_one_sphere_meet_on_both_at_any_tilt() {
         let b = circle(c2.to_array(), n2.to_array(), r2);
         let label = format!("tilt {theta:e}");
         let m = meets((&a, (0.05, TAU - 0.05)), (&b, (0.05, TAU - 0.05)));
+        if !decided {
+            assert!(
+                matches!(m, Err(ref r) if matches!(r.fault, MeetFault::Unsettled(Unsettled::Meter))),
+                "{label}: below the tangency floor, {m:?}"
+            );
+            continue;
+        }
         let m = m.unwrap_or_else(|e| panic!("{label}: {e:?}"));
         assert!(!m.points.is_empty(), "{label}: they meet");
         on_both(&label, &m, &a, &b);
@@ -248,33 +267,97 @@ fn circles_on_one_sphere_meet_on_both_at_any_tilt() {
 /// **Two coplanar circles near tangency, centres `d` apart (cleave's
 /// pin).** The crossing layer placed the touch of `d = 1e-8`,
 /// `Δr = 0.9d` at `c₁ + e·(d² + r₁² − r₂²)/2d`, 0.1 m off both circles,
-/// and read the edges clear. That pose's near extreme sits at the band's
-/// zero threshold, a rounding past it, so the reader escalates there; a
-/// little either side, every meeting lies on both circles, and the walk
-/// agrees that they meet.
+/// and read the edges clear. Here, on that pose and a little either side
+/// of it, the reader never misplaces: a decided answer meets inside both
+/// spans with every meeting on both circles, a refusal is typed, and the
+/// walk agrees wherever both decide.
 #[test]
 fn a_near_tangent_coplanar_pair_is_placed_on_both_circles() {
     let a = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
     let (sa, sb) = ((-PI + 0.1, PI - 0.1), (0.2, TAU - 0.2));
-    let reproduction = circle([1e-8, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0 + 9e-9);
-    let got = meets((&a, sa), (&reproduction, sb));
-    assert!(
-        matches!(got, Err(ref r) if matches!(r.fault, MeetFault::Escalated(_)) && r.found.is_empty()),
-        "the reproduction: {got:?}"
-    );
     for (label, d, r2) in [
+        ("the reproduction, d = 1e-8, Δr = 0.9d", 1e-8, 1.0 + 9e-9),
         ("d = 1e-8, Δr = 0.95d", 1e-8, 1.0 + 9.5e-9),
         ("d = 1e-8, Δr = −0.95d", 1e-8, 1.0 - 9.5e-9),
         ("d = 3e-8, Δr = 1e-8", 3e-8, 1.0 + 1e-8),
     ] {
         let b = circle([d, 0.0, 0.0], [0.0, 0.0, 1.0], r2);
-        let m = meets((&a, sa), (&b, sb)).unwrap_or_else(|e| panic!("{label}: {e:?}"));
-        assert!(interiors_meet(&m), "{label}: {m:?}");
-        on_both(label, &m, &a, &b);
+        let got = meets((&a, sa), (&b, sb));
+        let found = match &got {
+            Ok(m) => {
+                assert!(interiors_meet(m), "{label}: decided no meeting: {m:?}");
+                &m.points
+            }
+            Err(r) => &r.found,
+        };
+        on_both(
+            label,
+            &Meetings {
+                shared: None,
+                points: found.clone(),
+            },
+            &a,
+            &b,
+        );
         let walk = super::walk::meet(&Span::new(&a, sa), &Span::new(&b, sb), band());
-        if let Ok(w) = walk {
+        if let (Ok(_), Ok(w)) = (&got, walk) {
             assert!(interiors_meet(&w), "{label}: the walk finds no meeting");
         }
+    }
+}
+
+/// **A decided coplanar touch is the extreme's own point.** Two circles
+/// in one plane `0.3` of a zero short of tangency, outside each other
+/// (the near extreme in the zero band) and one inside the other (the far
+/// extreme): each is `Pose::Tangent` at the point of tangency, which lies
+/// on both circles and meets inside both spans; so does the first stored
+/// with a negative radius, its points half a turn on.
+#[test]
+fn a_decided_coplanar_touch_lies_on_both_circles() {
+    let a = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let mut flipped = a.clone();
+    if let Curve3::Circle { radius, .. } = &mut flipped {
+        *radius = -1.0;
+    }
+    for (label, a, b, at, ta) in [
+        (
+            "outside, the first stored with a negative radius",
+            flipped,
+            circle([1.5 + 0.3 * ZERO, 0.0, 0.0], [0.0, 0.0, 1.0], 0.5),
+            Point3::new(1.0, 0.0, 0.0),
+            PI,
+        ),
+        (
+            "outside",
+            a.clone(),
+            circle([1.5 + 0.3 * ZERO, 0.0, 0.0], [0.0, 0.0, 1.0], 0.5),
+            Point3::new(1.0, 0.0, 0.0),
+            0.0,
+        ),
+        (
+            "inside",
+            a.clone(),
+            circle([1.0 - 0.3 * ZERO, 0.0, 0.0], [0.0, 0.0, 1.0], 2.0),
+            Point3::new(-1.0, 0.0, 0.0),
+            PI,
+        ),
+    ] {
+        let (sa, sb) = (
+            Span::new(&a, (ta - 1.0, ta + 1.0)),
+            Span::new(&b, (0.1, TAU - 0.1)),
+        );
+        let got = pose(&sa, &sb, band()).unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        let Pose::Tangent(touch) = got else {
+            panic!("{label}: a touch, got {got:?}");
+        };
+        assert!(
+            (touch.point - at).norm() <= ZERO,
+            "{label}: the touch is the point of tangency, {:?}",
+            touch.point
+        );
+        let m = meet(&sa, &sb, band()).unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        assert!(interiors_meet(&m), "{label}: {m:?}");
+        on_both(label, &m, &a, &b);
     }
 }
 
@@ -348,4 +431,142 @@ fn coplanar_conics_with_an_ellipse() {
         matches!(got, Err(ref r) if matches!(r.fault, MeetFault::Unsupported { .. })),
         "{got:?}"
     );
+}
+
+/// What a pair whose least distance is in the zero band may answer: a
+/// meeting on both interiors, or a refusal. A decided answer with no
+/// meeting prunes an in-band decision (D4).
+fn meets_or_refuses(label: &str, got: &Result<Meetings<f64>, super::MeetRefusal<f64>>) {
+    if let Ok(m) = got {
+        assert!(interiors_meet(m), "{label}: decided no meeting: {m:?}");
+    }
+}
+
+/// A unit circle in `z = 0` through the origin along `x̂`, and a unit
+/// circle through `h·ẑ` along `ŷ` in a plane turned `tilt` about `ŷ`:
+/// they cross at a right angle, their planes `tilt` apart, and their
+/// least distance is `h`, at the origin. Each span runs a radian either
+/// side of it.
+fn shallow_circles(tilt: f64, h: f64) -> [(Curve3<f64>, (f64, f64)); 2] {
+    let (s, c) = tilt.sin_cos();
+    let e = Vec3::new(c, 0.0, -s);
+    let a = circle([0.0, -1.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let at_b = Point3::new(0.0, 0.0, h);
+    let b = circle((at_b - e).to_array(), [s, 0.0, c], 1.0);
+    let tb = b.param_near(at_b, 0.0).unwrap();
+    let ta = PI / 2.0;
+    [(a, (ta - 1.0, ta + 1.0)), (b, (tb - 1.0, tb + 1.0))]
+}
+
+/// **Two curves in nearly parallel planes, crossing at a wide angle half
+/// a zero apart, meet** (or refuse): the meeting is not where either
+/// crosses the other's plane, which lies `h/sin(tilt)` along it. Circle
+/// × circle, line × circle and circle × line.
+#[test]
+fn an_in_band_miss_across_nearly_parallel_planes_meets() {
+    for tilt in [1e-5, 1e-4, 1e-3] {
+        let [(a, sa), (b, sb)] = shallow_circles(tilt, 0.5 * ZERO);
+        let label = format!("circles, tilt {tilt:e}");
+        let got = meets((&a, sa), (&b, sb));
+        meets_or_refuses(&label, &got);
+        let m = got.unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        on_both(&label, &m, &a, &b);
+        let x = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        for (label, got) in [
+            (
+                format!("line × circle, tilt {tilt:e}"),
+                meets((&x, (-1.0, 1.0)), (&b, sb)),
+            ),
+            (
+                format!("circle × line, tilt {tilt:e}"),
+                meets((&b, sb), (&x, (-1.0, 1.0))),
+            ),
+        ] {
+            meets_or_refuses(&label, &got);
+            let m = got.unwrap_or_else(|e| panic!("{label}: {e:?}"));
+            on_both(&label, &m, &x, &b);
+        }
+    }
+}
+
+/// A unit circle `a` turned `tilt` about `x̂`, its lowest point at
+/// `(0, 0, h)` and its angle there `−π/2`, and a unit circle `b` in
+/// `z = 0` crossing `a`'s shadow at a right angle... `angle` off its
+/// tangent, `along` radians round `a` from that lowest point.
+fn touching_circles(tilt: f64, h: f64, along: f64, angle: f64) -> [(Curve3<f64>, (f64, f64)); 2] {
+    let (s, c) = tilt.sin_cos();
+    let a = circle([0.0, c, h + s], [0.0, -s, c], 1.0);
+    let x = Point3::new(along.sin(), c * (1.0 - along.cos()), 0.0);
+    let dir = along + angle;
+    let b_center = x + Vec3::new(-dir.sin(), dir.cos(), 0.0);
+    let b = circle(b_center.to_array(), [0.0, 0.0, 1.0], 1.0);
+    let tb = b.param_near(x, 0.0).unwrap();
+    let ta = -PI / 2.0 + along;
+    [(a, (ta - 1.0, ta + 1.0)), (b, (tb - 1.0, tb + 1.0))]
+}
+
+/// **A circle whose lowest point touches the other's plane within the
+/// band meets the other where it crosses its shadow**, not at that
+/// lowest point, which lies a millimetre from the crossing: their least
+/// distance there is `6.5·10⁻¹⁰`, in the zero band, so the answer is a
+/// meeting or a refusal; where the touch's in-band run is short against
+/// the angle the shadow is crossed at, a meeting on both.
+#[test]
+fn a_touch_of_the_other_plane_meets_where_the_curves_do() {
+    let along: f64 = 1e-3;
+    let pose_of = |tilt: f64, angle: f64| {
+        let lift = tilt.sin() * (1.0 - along.cos());
+        touching_circles(tilt, 6.5e-10 - lift, along, angle.to_radians())
+    };
+    for tilt in [1.2e-8_f64, 1e-7, 1e-6] {
+        for angle in [2.0, 5.0, 20.0, -20.0] {
+            let [(a, sa), (b, sb)] = pose_of(tilt, angle);
+            meets_or_refuses(
+                &format!("tilt {tilt:e}, crossing {angle}°"),
+                &meets((&a, sa), (&b, sb)),
+            );
+        }
+    }
+    let [(a, sa), (b, sb)] = pose_of(1e-4, 90.0);
+    let m = meets((&a, sa), (&b, sb)).unwrap();
+    assert!(interiors_meet(&m), "tilt 1e-4, square: {m:?}");
+    on_both("tilt 1e-4, square", &m, &a, &b);
+}
+
+/// **A thin ellipse lying in a circle's plane, its own plane turned
+/// about its long axis, crosses the circle in that plane.** The planes'
+/// tilt read at the long semi-axis is definite, but the ellipse's swing
+/// above the circle's plane, at most its short semi-axis times the tilt,
+/// reads zero: it lies in that plane, and the in-plane arm decides.
+#[test]
+fn a_thin_ellipse_in_the_circles_plane_crosses_it_there() {
+    for (b_over_a, tilt) in [(1e-3, 5e-7), (1e-2, 5e-8)] {
+        let (s, c) = f64::sin_cos(tilt);
+        let e = ellipse(
+            [0.0, 0.0, 0.0],
+            [0.0, -s, c],
+            [1.0, 0.0, 0.0],
+            1.0,
+            b_over_a,
+        );
+        let k = circle([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.5);
+        let label = format!("b/a {b_over_a:e}, tilt {tilt:e}");
+        for (got, order) in [
+            (
+                meets((&e, (-PI, PI)), (&k, (0.1, TAU - 0.1))),
+                "ellipse first",
+            ),
+            (
+                meets((&k, (0.1, TAU - 0.1)), (&e, (-PI, PI))),
+                "circle first",
+            ),
+        ] {
+            let m = got.unwrap_or_else(|r| panic!("{label}, {order}: {r:?}"));
+            assert_eq!(m.points.len(), 2, "{label}, {order}: {m:?}");
+            for p in &m.points {
+                let off = distance(&k, p.point);
+                assert!(off <= ZERO, "{label}, {order}: {off:e} off the circle");
+            }
+        }
+    }
 }

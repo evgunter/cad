@@ -90,8 +90,8 @@
 use geom_brep::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, MAX_DEGREE, RootSlack, half_angle_roots,
 };
-use geom_brep::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
-use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
+use geom_brep::roots::{OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_signs};
+use geom_core::{Band, Decide, Margin, Sign};
 
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
@@ -165,7 +165,7 @@ pub(super) fn constant_residual_roots<T: Decide>(
     row: &'static str,
     band: Band,
 ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-    match span_signs(row, value, spread, band)? {
+    match spread_signs(row, value, spread, band)? {
         (Sign::Positive, _) | (_, Sign::Negative) => Ok(Roots::Miss),
         (Sign::Zero, Sign::Zero) => Ok(Roots::On(OnCarrier)),
         _ => Err(Unsettled::Tangency.into()),
@@ -305,7 +305,7 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     let phi = sin_part.atan2(cos_part);
     // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
     // zero (module docs).
-    let past = |near: T| two * (near.abs() / swing).sqrt().asin();
+    let past = |near: T| geom_brep::roots::arc_past(near.abs() / swing);
     let half_chord = (lo_value + hi_value).select_le_zero(past(hi_value), T::pi() - past(lo_value));
     // The roots on the branch of the span's middle: sound at every scalar
     // by `ring_path::branch`'s window re-centring argument. Its readers
@@ -320,37 +320,4 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
         near_mid(phi - half_chord),
         near_mid(phi + half_chord),
     ]))
-}
-
-/// The signs of both ends of `[value − spread, value + spread]`, each
-/// decided under `row`: the one reading of a value known only to within
-/// `spread`.
-///
-/// # Errors
-///
-/// The band's escalation when either end lies in its gap.
-pub(super) fn span_signs<T: Decide>(
-    row: &'static str,
-    value: T,
-    spread: T,
-    band: Band,
-) -> Result<(Sign, Sign), Indeterminate> {
-    let below = decide(row, Margin::of(value - spread), band)?;
-    let above = decide(row, Margin::of(value + spread), band)?;
-    Ok((below, above))
-}
-
-/// The sign of an extreme read as `value` with error at most `noise`
-/// ([`span_signs`]): ends that disagree read `Zero`. `noise` must bound
-/// the whole error, rounding included, and a caller's charge may hold no
-/// slack beyond that (the conic × quadric door's true error reaches
-/// 0.99999999 of it), so no term of it can be trimmed.
-fn extreme_sign<T: Decide>(
-    row: &'static str,
-    value: T,
-    noise: T,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    let (below, above) = span_signs(row, value, noise, band)?;
-    Ok(if below == above { below } else { Sign::Zero })
 }

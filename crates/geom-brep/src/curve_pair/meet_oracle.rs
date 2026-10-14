@@ -1,21 +1,29 @@
-//! **The walk as the closed forms' differential oracle**, outside the
-//! band: a counterexample search over line, circle and ellipse pairs
-//! drawn to meet, to near-miss, and to sit near the poses the closed forms
+//! **The walk as the closed forms' differential oracle**, and the
+//! band's contract checked apart from both: a counterexample search over
+//! line, circle and ellipse pairs drawn to meet, to miss inside the zero
+//! band, to miss outside it, and to sit near the poses the closed forms
 //! decide by a `Zero` (near-tangent coplanar circles, circles in nearly
-//! parallel planes). Three checks, each apart from the reader's own
-//! arithmetic:
+//! parallel planes, curves crossing at a wide angle in nearly parallel
+//! planes). The checks, each apart from the reader's own arithmetic:
 //!
-//! - where both decide whether the interiors meet (an answer, or a
-//!   meeting decided before a refusal), they agree, unless the spans'
-//!   least distance is in the band;
-//! - where a draw is built to meet inside both spans, each answer says so;
-//! - every meeting the closed forms place on a line or a circle lies on
-//!   it.
+//! - **a decided "no" is never in the band**: a draw built with its least
+//!   distance inside the zero band inside both spans never reads as
+//!   decided apart, and where the closed forms decide "no" and the walk
+//!   does not agree, the spans' least distance (sampled and polished
+//!   independently) is past the zero band;
+//! - every meeting the closed forms decide lies on both spans, by an
+//!   independent distance (exact on a line or a circle, sampled and
+//!   polished on an ellipse).
 //!
-//! The walk cannot clear two circles that stay within a few bands of each
-//! other round a long arc, and runs past its budget there: on the grazing
-//! and tilted draws it is the built-in meeting that checks the closed
-//! forms.
+//! **Where the walk is vacuous.** It cannot clear two circles that stay
+//! within a few bands of each other round a long arc, and runs past its
+//! budget there: on most grazing and tilted draws it refuses, and the
+//! comparison with it is empty. There the built-in meeting and the
+//! independent least distance are what check the closed forms.
+//!
+//! A pinned draw (`the_closed_forms_decide_most_draws`) holds the
+//! reader to deciding: a reader that refused everywhere would pass every
+//! check above.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
@@ -33,7 +41,7 @@ use geom::Curve3;
 use geom_core::{Point3, Vec3};
 use test_utils::fuzz;
 
-use super::meet_rows::{ZERO, band, distance, interiors_meet, u_for};
+use super::meet_rows::{ZERO, band, distance, u_for};
 use super::{MeetRefusal, Meetings, Span, meet};
 
 /// A random unit vector.
@@ -74,7 +82,7 @@ fn through(rng: &mut fuzz::Rng, kind: usize, x: Point3<f64>) -> (Curve3<f64>, f6
     let b = if kind == 1 {
         a
     } else {
-        a * rng.range(0.2, 0.9)
+        a * rng.log_uniform(1e-3, 0.9)
     };
     let t = rng.range(-PI, PI);
     let center = x - u * (a * t.cos()) - v * (b * t.sin());
@@ -138,18 +146,14 @@ fn least(t0: f64, t1: f64, samples: usize, f: impl Fn(f64) -> f64) -> (f64, f64)
 }
 
 /// The least distance between the two spans, sampled and polished apart
-/// from the reader: `None` where it lies within a millionth of a span
-/// end, where an interior meeting is not the question.
-fn least_distance(a: &Span<'_, f64>, b: &Span<'_, f64>) -> Option<f64> {
+/// from the reader.
+fn least_distance(a: &Span<'_, f64>, b: &Span<'_, f64>) -> f64 {
     let to_b = |q: Point3<f64>| {
         let (t0, t1) = b.params();
-        least(t0, t1, 400, |t| (b.carrier().eval(t) - q).norm())
+        least(t0, t1, 200, |t| (b.carrier().eval(t) - q).norm()).1
     };
     let (t0, t1) = a.params();
-    let (ta, d) = least(t0, t1, 2000, |t| to_b(a.carrier().eval(t)).1);
-    let tb = to_b(a.carrier().eval(ta)).0;
-    let near_end = |t: f64, (s0, s1): (f64, f64)| (t - s0).abs().min((t - s1).abs()) < 1e-6;
-    (!near_end(ta, a.params()) && !near_end(tb, b.params())).then_some(d)
+    least(t0, t1, 500, |t| to_b(a.carrier().eval(t))).1
 }
 
 /// One drawn pose: its family, two carriers with their spans, and
@@ -170,7 +174,8 @@ fn inside(t: f64, (t0, t1): (f64, f64), margin: f64) -> bool {
 }
 
 /// Two random carriers through one point, the second moved off it by
-/// `apart` along a random direction (zero: they meet there).
+/// `apart` along a random direction: within the zero band, their least
+/// distance is in it there.
 fn crossing(rng: &mut fuzz::Rng, apart: f64) -> Drawn {
     let x = Point3::new(
         rng.range(-3.0, 3.0),
@@ -182,10 +187,102 @@ fn crossing(rng: &mut fuzz::Rng, apart: f64) -> Drawn {
     let off = direction(rng) * apart;
     let (b, tb) = through(rng, kb, x + off);
     Drawn {
-        family: if apart == 0.0 { "crossing" } else { "apart" },
+        family: if apart == 0.0 {
+            "crossing"
+        } else if apart <= ZERO {
+            "near-miss"
+        } else {
+            "apart"
+        },
         a: (a, about(rng, ka > 0, ta)),
         b: (b, about(rng, kb > 0, tb)),
-        meets: apart == 0.0,
+        meets: apart <= ZERO,
+    }
+}
+
+/// A carrier of kind `kind` (0 line, 1 circle, 2 ellipse) in the plane
+/// through `x` square to `n`, running along the unit `t` there, and its
+/// parameter at `x`.
+fn along(
+    rng: &mut fuzz::Rng,
+    kind: usize,
+    x: Point3<f64>,
+    n: Vec3<f64>,
+    t: Vec3<f64>,
+) -> (Curve3<f64>, f64) {
+    if kind == 0 {
+        let at = rng.range(-2.0, 2.0);
+        return (
+            Curve3::Line {
+                origin: x - t * at,
+                dir: t,
+            },
+            at,
+        );
+    }
+    let a = rng.log_uniform(0.3, 3.0);
+    let b = if kind == 1 {
+        a
+    } else {
+        a * rng.log_uniform(1e-3, 0.9)
+    };
+    let theta = rng.range(-PI, PI);
+    // The tangent at `theta` is `cos α·û + sin α·v̂`: turn the frame so it
+    // is `t`.
+    let alpha = (b * theta.cos()).atan2(-a * theta.sin());
+    let u = t * alpha.cos() - n.cross(t) * alpha.sin();
+    let v = n.cross(u);
+    let center = x - u * (a * theta.cos()) - v * (b * theta.sin());
+    let carrier = if kind == 1 {
+        Curve3::Circle {
+            center,
+            axis: n,
+            radius: a,
+            u_ref: u,
+        }
+    } else {
+        Curve3::Ellipse {
+            center,
+            axis: n,
+            semi_u: a,
+            semi_v: b,
+            u_ref: u,
+        }
+    };
+    (carrier, theta)
+}
+
+/// Two carriers crossing at a wide angle in planes `τ` apart, the second
+/// moved off the first square to both by a draw inside the zero band:
+/// their least distance is in it, where neither crosses the other's
+/// plane.
+fn shallow(rng: &mut fuzz::Rng) -> Drawn {
+    let x = Point3::new(
+        rng.range(-3.0, 3.0),
+        rng.range(-3.0, 3.0),
+        rng.range(-3.0, 3.0),
+    );
+    let n1 = direction(rng);
+    let in_plane = |rng: &mut fuzz::Rng, n: Vec3<f64>| {
+        let w = direction(rng);
+        (w - n * w.dot(n)).normalize()
+    };
+    let ta = in_plane(rng, n1);
+    let hinge = in_plane(rng, n1);
+    let tau = rng.log_uniform(1e-7, 1e-2);
+    let n2 = n1 * tau.cos() + hinge.cross(n1) * tau.sin();
+    let ta2 = (ta - n2 * ta.dot(n2)).normalize();
+    let phi = rng.range(0.3, PI - 0.3);
+    let tb = ta2 * phi.cos() + n2.cross(ta2) * phi.sin();
+    let h = rng.range(0.0, 0.95) * ZERO;
+    let (ka, kb) = (rng.below(3), rng.below(3));
+    let (a, sa) = along(rng, ka, x, n1, ta);
+    let (b, sb) = along(rng, kb, x + ta.cross(tb).normalize() * h, n2, tb);
+    Drawn {
+        family: "shallow",
+        a: (a, about(rng, ka > 0, sa)),
+        b: (b, about(rng, kb > 0, sb)),
+        meets: true,
     }
 }
 
@@ -271,54 +368,89 @@ fn tilted(rng: &mut fuzz::Rng) -> Drawn {
     }
 }
 
-/// Whether an answer, or the meetings a refusal decided, say the
-/// interiors meet: `None` for a refusal that decided none.
+/// Whether an answer, or the meetings a refusal decided, say the spans
+/// meet, at an end or inside: `None` for a refusal that decided none.
 fn verdict(got: &Result<Meetings<f64>, MeetRefusal<f64>>) -> Option<bool> {
     match got {
-        Ok(m) => Some(interiors_meet(m)),
-        Err(r) => interiors_meet(&Meetings {
-            shared: None,
-            points: r.found.clone(),
-        })
-        .then_some(true),
+        Ok(m) => Some(!m.points.is_empty()),
+        Err(r) => (!r.found.is_empty()).then_some(true),
     }
 }
 
-/// **The three checks** (module docs).
-#[test]
-fn the_closed_forms_agree_with_the_walk_outside_the_band() {
-    let mut rng = fuzz::start("curve_pair::meet_oracle");
-    let (mut compared, mut placed) = (0usize, 0usize);
-    let mut refused = std::collections::BTreeMap::<String, usize>::new();
-    for i in 0..fuzz::scaled(240) {
-        let drawn = match i % 4 {
-            0 => crossing(&mut rng, 0.0),
-            1 => {
-                let apart = rng.log_uniform(1e-7, 1e-1);
-                crossing(&mut rng, apart)
-            }
-            2 => grazing(&mut rng),
-            _ => tilted(&mut rng),
-        };
+/// `q`'s distance from the span's carrier over the span, sampled and
+/// polished apart from the reader: exact on a line or a circle.
+fn off_span(s: &Span<'_, f64>, q: Point3<f64>) -> f64 {
+    match s.carrier() {
+        c @ (Curve3::Line { .. } | Curve3::Circle { .. }) => distance(c, q),
+        c => {
+            let (t0, t1) = s.params();
+            least(t0, t1, 2000, |t| (c.eval(t) - q).norm()).1
+        }
+    }
+}
+
+/// What a run of draws measured.
+#[derive(Default)]
+struct Tally {
+    /// Draws the closed forms answered, a decided meeting before a
+    /// refusal included.
+    decided: usize,
+    /// Draws.
+    drawn: usize,
+    /// Draws both the closed forms and the walk decided.
+    compared: usize,
+    /// Meetings checked on a span.
+    placed: usize,
+    /// Refusals, by family, side and kind.
+    refused: std::collections::BTreeMap<String, usize>,
+}
+
+/// One draw of family `i % 6`.
+fn draw(rng: &mut fuzz::Rng, i: usize) -> Drawn {
+    match i % 6 {
+        0 => crossing(rng, 0.0),
+        1 => {
+            let apart = rng.log_uniform(1e-7, 1e-1);
+            crossing(rng, apart)
+        }
+        2 => {
+            let apart = rng.range(0.05, 0.95) * ZERO;
+            crossing(rng, apart)
+        }
+        3 => grazing(rng),
+        4 => tilted(rng),
+        _ => shallow(rng),
+    }
+}
+
+/// **The checks** (module docs) over `n` draws.
+fn run(rng: &mut fuzz::Rng, n: usize) -> Tally {
+    let mut tally = Tally::default();
+    for i in 0..n {
+        let drawn = draw(rng, i);
         let (a, b) = (
             Span::new(&drawn.a.0, drawn.a.1),
             Span::new(&drawn.b.0, drawn.b.1),
         );
         let label = format!("draw {i} ({}), {}", drawn.family, fuzz::replay());
         let closed = meet(&a, &b, band());
+        tally.drawn += 1;
+        let by_closed = verdict(&closed);
+        tally.decided += usize::from(by_closed.is_some());
         assert!(
-            !(drawn.meets && verdict(&closed) == Some(false)),
-            "{label}: built to meet, the closed forms read no meeting"
+            !(drawn.meets && by_closed == Some(false)),
+            "{label}: built with its least distance in the zero band, the closed forms decide \
+             no meeting"
         );
-        if let Ok(m) = &closed {
-            for p in &m.points {
-                for c in [&drawn.a.0, &drawn.b.0] {
-                    if matches!(c, Curve3::Line { .. } | Curve3::Circle { .. }) {
-                        let off = distance(c, p.point);
-                        assert!(off <= ZERO, "{label}: a meeting lies {off:e} off a carrier");
-                        placed += 1;
-                    }
-                }
+        let decided = match &closed {
+            Ok(m) => m.points.as_slice(),
+            Err(r) => r.found.as_slice(),
+        };
+        for p in decided {
+            for s in [&a, &b] {
+                let off = off_span(s, p.point);
+                assert!(off <= ZERO, "{label}: a meeting lies {off:e} off a span");
+                tally.placed += 1;
             }
         }
         let walked = super::walk::meet(&a, &b, band());
@@ -328,31 +460,58 @@ fn the_closed_forms_agree_with_the_walk_outside_the_band() {
         ] {
             if let Some(fault) = fault {
                 let kind = format!("{fault:?}");
-                let kind = kind.split(['(', ' ']).next().unwrap_or("").to_owned();
-                *refused
+                let kind = kind.split([' ', '{']).next().unwrap_or("").to_owned();
+                *tally
+                    .refused
                     .entry(format!("{} {side} {kind}", drawn.family))
                     .or_default() += 1;
             }
         }
-        let (Some(by_closed), Some(by_walk)) = (verdict(&closed), verdict(&walked)) else {
-            continue;
-        };
-        assert!(
-            !drawn.meets || by_walk,
-            "{label}: built to meet, the walk reads no meeting"
-        );
-        compared += 1;
-        if by_closed == by_walk {
+        let by_walk = verdict(&walked);
+        if let (Some(_), Some(_)) = (by_closed, by_walk) {
+            tally.compared += 1;
+            assert!(
+                !drawn.meets || by_walk == Some(true),
+                "{label}: built to meet, the walk reads no meeting"
+            );
+        }
+        // A decided meeting lies on both spans (above). A decided "no"
+        // the walk does not share is held to the least distance.
+        if by_closed != Some(false) || by_walk == Some(false) {
             continue;
         }
-        let Some(least) = least_distance(&a, &b) else {
-            continue;
-        };
+        let least = least_distance(&a, &b);
         assert!(
-            (0.1 * ZERO..100.0 * ZERO).contains(&least),
-            "{label}: the closed forms read meet = {by_closed}, the walk {by_walk}, and the \
-             spans' least distance is {least:e}"
+            least > ZERO,
+            "{label}: the closed forms decide no meeting, the walk {by_walk:?}, and the spans' \
+             least distance is {least:e}"
         );
     }
-    println!("[curve_pair::meet_oracle] compared {compared}, placed {placed}, refused {refused:?}");
+    tally
+}
+
+/// **The checks** (module docs), a counterexample search.
+#[test]
+fn the_closed_forms_agree_with_the_walk_outside_the_band() {
+    let mut rng = fuzz::start("curve_pair::meet_oracle");
+    let t = run(&mut rng, fuzz::scaled(240));
+    println!(
+        "[curve_pair::meet_oracle] drawn {}, decided {}, compared {}, placed {}, refused {:?}",
+        t.drawn, t.decided, t.compared, t.placed, t.refused
+    );
+}
+
+/// **The closed forms decide most draws**, on a pinned draw: the checks
+/// above pass a reader that refuses everywhere, and this does not.
+#[test]
+fn the_closed_forms_decide_most_draws() {
+    let mut rng = fuzz::pinned("curve_pair::meet_oracle::decided", 0x5121_c0de);
+    let t = run(&mut rng, 120);
+    assert!(
+        t.decided * 10 >= t.drawn * 7,
+        "the closed forms decided {} of {} draws; refused {:?}",
+        t.decided,
+        t.drawn,
+        t.refused
+    );
 }

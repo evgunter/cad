@@ -18,7 +18,8 @@
 
 use core::convert::Infallible;
 
-use geom_core::Indeterminate;
+use geom_core::k_stats::decide;
+use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign};
 
 /// A root finder's decided answer about a residual along a carrier
 /// (module docs).
@@ -74,7 +75,7 @@ impl From<Infallible> for OnCarrier {
     }
 }
 
-impl<T: geom_core::Real, const N: usize, C> Roots<T, N, C> {
+impl<T: Real, const N: usize, C> Roots<T, N, C> {
     /// `roots` as a decided answer: [`Roots::Miss`] for none,
     /// [`Roots::Certified`] for one to `N`, and `None` for more than `N`,
     /// a count the finder cannot hold.
@@ -102,7 +103,7 @@ impl<T, const N: usize, C> Roots<T, N, C> {
     }
 }
 
-impl<T: geom_core::Real, const M: usize, C: Into<OnCarrier>> Roots<T, M, C> {
+impl<T: Real, const M: usize, C: Into<OnCarrier>> Roots<T, M, C> {
     /// The same answer in a finder's shape with room for `N ≥ M` roots
     /// and an [`OnCarrier`] arm.
     #[must_use]
@@ -182,4 +183,47 @@ impl From<Indeterminate> for RootRefusal {
     fn from(diag: Indeterminate) -> Self {
         Self::Escalated(diag)
     }
+}
+
+/// The signs of both ends of `[value − spread, value + spread]`, each
+/// decided under `row`: the one reading of a value known only to within
+/// `spread`.
+///
+/// # Errors
+///
+/// The band's escalation when either end lies in its gap.
+pub fn spread_signs<T: Decide>(
+    row: &'static str,
+    value: T,
+    spread: T,
+    band: Band,
+) -> Result<(Sign, Sign), Indeterminate> {
+    let below = decide(row, Margin::of(value - spread), band)?;
+    let above = decide(row, Margin::of(value + spread), band)?;
+    Ok((below, above))
+}
+
+/// The sign of a residual's extreme read as `value` with error at most
+/// `noise` ([`spread_signs`]): ends that disagree read `Zero`. `noise`
+/// must bound the whole error, rounding included.
+///
+/// # Errors
+///
+/// As [`spread_signs`].
+pub fn extreme_sign<T: Decide>(
+    row: &'static str,
+    value: T,
+    noise: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let (below, above) = spread_signs(row, value, noise, band)?;
+    Ok(if below == above { below } else { Sign::Zero })
+}
+
+/// The angle from an extreme of a first harmonic `c₀ + A·cos ψ` to its
+/// roots, where that extreme has crossed zero by `ratio` of the swing
+/// `2A` (`ratio ∈ [0, 1]`): `2·asin(√ratio)`, which reads the extreme to
+/// its own relative precision.
+pub fn arc_past<T: Real>(ratio: T) -> T {
+    T::from_f64(2.0) * ratio.sqrt().asin()
 }

@@ -156,6 +156,19 @@ impl<'a, T: Decide> Span<'a, T> {
         }
     }
 
+    /// **The parameters a shared run of this span and another is read
+    /// at**: this span's middle, and halfway between each of its ends and
+    /// each of `feet`, the feet on this carrier of the other span's ends.
+    /// A positive-length overlap of the two spans holds one of them.
+    pub fn witness_params(&self, feet: impl IntoIterator<Item = T>) -> Vec<T> {
+        let mut ts = vec![geom::mid_param(self.t0, self.t1)];
+        for t in feet {
+            let t = self.branch(t);
+            ts.extend([geom::mid_param(self.t0, t), geom::mid_param(t, self.t1)]);
+        }
+        ts
+    }
+
     /// **Where `q`, read at the carrier's parameter `t`, sits against the
     /// span** (module docs).
     ///
