@@ -541,7 +541,10 @@ fn a_crossing_read_in_band_is_not_settled_by_an_end_beside_the_other_crossing() 
 /// `g`, so within the band of tangency at angle 0 for `|g| ≤ ε`, and
 /// apart by `d(1 − cos θ) − g` at angle `θ`.
 fn near_concentric(d: f64, g: f64) -> ((Point2<f64>, f64), (Point2<f64>, f64)) {
-    ((Point2::new(0.0, 0.0), 1.0), (Point2::new(d, 0.0), 1.0 - d + g))
+    (
+        (Point2::new(0.0, 0.0), 1.0),
+        (Point2::new(d, 0.0), 1.0 - d + g),
+    )
 }
 
 fn rim((c, r): (Point2<f64>, f64), angle: f64) -> Point2<f64> {
