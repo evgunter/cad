@@ -1343,3 +1343,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - the germ item closed into the box item, with a seam note on PR 5012's rows and charge and on K's lower bound;
     - FLUX's turned-frame QuadratureBudget defect filed;
     - the c5 item's stale front matter refreshed.
+- 2026-10-14 10:40 — Check-in. 5066's fix pass is nearly done: the body section is written and the lane is timing its new rows before the final push. Item 5 (the winding tries finer counts before refusing) moves loops toward decided answers: Uncertified 1 415 → 141, decided 1 324 → 2 133. That is answer-moving in the answering direction, so as with 4927 I'll dispatch a focused delta review on the fix-pass commits once they are pushed. pt-section-gaps lane is working. Re-armed for 11:36.
