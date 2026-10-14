@@ -103,9 +103,23 @@ as a fillet that does.
 re-word the crossing refusal's recourse to the reorder (and to what is
 true where none exists). (2) The concave bar. (3) The one-cycle members:
 blind bore, pin, boss, dimple. (4) Whole shells and the seal, sharing
-`insert_void`'s bookkeeping. The lint and an editor reorder action
+`insert_void`'s bookkeeping. Step 2: PR 5099. The lint and an editor reorder action
 (re-point plus the selection unwrap, one action) run beside any step;
 the crossing arm waits on the intersection table.
 
 Two designers (fork-log row 140) recommended this from their first
 reports; it replaces row 139's case-by-case recommendation.
+
+## Findings (step 2: the concave bar)
+
+- **Built** for the plane–plane fillet and chamfer and the ruled cut-off:
+  a cut-off's cap ring read inside its sliver carries its crease on
+  either convexity (`surgery.rs`, the `CapMeter` list), and nothing else
+  reads the side — the fill's section is the convex removal's region,
+  the prism reading is geometry, the carve topology. Rows:
+  `crates/sweep/tests/band_concave_bar.rs`, `editor-core`
+  `edit_concave_bar`.
+- **Filed:** `an-oblique-caps-inside-reading-charges-a-ring-its-major-semi-axis`
+  (a hair inside the fillet's arc at a leaning wall reads a bound, both
+  sides alike).
+
