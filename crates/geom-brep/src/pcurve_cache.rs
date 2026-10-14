@@ -10293,6 +10293,29 @@ mod fitted_lane_tests {
         }
     }
 
+    /// REVIEW 5041 PROBE: a fitted image a millimetre off its carrier —
+    /// a stored contradiction — and the limb and at-rest ending it gets.
+    #[test]
+    fn review_5041_fitted_limb_at_rest() {
+        use crate::recourse::Reading;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let wall = flat_wall();
+        let off = NurbsCurve2::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![Point2::new(0.0, 0.5 + 1e-3), Point2::new(1.0, 0.5 + 1e-3)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        for (name, carrier, img) in [
+            ("lifted carrier", line(1e-3), image()),
+            ("image off in-plane", line(0.0), off),
+        ] {
+            let e = fitted_lane(&carrier, &img, &wall, (0.0, 1.0), band).unwrap_err();
+            eprintln!("{name}: {e:?}\n  at rest: {:?}\n  build: {e}", e.ending(Reading::AtRest));
+        }
+        panic!("probe output above");
+    }
+
     /// **A line carrier enters as its exact net, against the chart
     /// alone.** On its image the bound is the composite's rounding; a
     /// carrier lifted off the chart refuses at the hull, and an image
