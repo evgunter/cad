@@ -117,10 +117,10 @@ pub enum Provenance {
     /// PR 1): the new interior vertex, the new (second-child) edge, and
     /// both its half-edges.
     ///
-    /// **A copy of these records is as sound as the records.** Two
+    /// **A copy of these records is as sound as the records.** Three
     /// naming tables copy them out of a body before a kill drops them:
-    /// a split's `SplitNaming::joined_lineage` and a Boolean's
-    /// `DiscardRow::boundary_chains`. A body holds one record per edge,
+    /// a split's `SplitNaming::joined_lineage`, and a Boolean's
+    /// `BooleanNaming::joined_lineage` and `DiscardRow::boundary_chains`. A body holds one record per edge,
     /// written when the key is minted (here, or by a graft forwarding
     /// one) and never rewritten, and an arena never hands a key out
     /// twice; so every copied hop is the one record its edge held, a

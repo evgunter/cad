@@ -65,9 +65,9 @@ pub(crate) struct Obstacles<K> {
     /// `parents_of` named each a fragment of).
     by_parent: BTreeMap<K, Vec<usize>>,
     /// Edge → the edge it was split from, as each recorded result's
-    /// provenance and each discard's chains state it, so an edge a later
-    /// step killed — with a discarded face, or by joining it into
-    /// another — still leads to its parent.
+    /// provenance, each step's joined lineage and each discard's chains
+    /// state it, so an edge a step killed — with a discarded face, or by
+    /// joining it into another — still leads to its parent.
     split_from: BTreeMap<EdgeKey, EdgeKey>,
     /// Edge → the edges an output stage's join made it out of, besides
     /// itself.
@@ -145,6 +145,10 @@ impl<K: Ord + Clone> Obstacles<K> {
                 self.split_from.insert(k, *edge);
             }
         }
+        // An edge this step split and its join killed lost its record
+        // with the kill; the boolean copied it out first.
+        self.split_from
+            .extend(naming.joined_lineage.iter().map(|(&g, &f)| (g, f)));
         let earlier: BTreeSet<EdgeKey> = self
             .discards
             .iter()

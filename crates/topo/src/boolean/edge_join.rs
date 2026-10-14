@@ -596,6 +596,10 @@ pub(crate) fn joinable_at_rest<T: Decide>(
 /// after the merge and its re-description, before the records are
 /// carried.
 ///
+/// Also returns, for each `gone` edge that held a `SplitEdge` record,
+/// the edge it was split from, read before the kills drop the record
+/// ([`super::BooleanNaming::joined_lineage`]).
+///
 /// # Errors
 ///
 /// As [`Body::join_edges`].
@@ -605,19 +609,30 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     recorded: &BTreeSet<VertexKey>,
     band: Band,
     tol: Tol,
-) -> Result<Vec<EdgeJoin>, BooleanError> {
+) -> Result<(Vec<EdgeJoin>, BTreeMap<EdgeKey, EdgeKey>), BooleanError> {
+    let split_from: BTreeMap<EdgeKey, EdgeKey> = body
+        .edges()
+        .filter_map(|(e, _)| match body.edge_provenance_of(e) {
+            Some(crate::provenance::Provenance::SplitEdge { edge }) => Some((e, *edge)),
+            _ => None,
+        })
+        .collect();
     // The boolean's own surgery body, re-minted whole after the carry:
     // no staging and no re-mint here.
     let free = free_vertices(body, recorded);
     let (joined, _) = join_all(body, band, tol, &|_| true, &free)?;
+    let mut lineage = BTreeMap::new();
     for j in &joined {
         desc.substitute((Cell::Vertex(j.vertex), Cell::Edge(j.kept)))?;
         desc.substitute((Cell::Edge(j.gone), Cell::Edge(j.kept)))?;
         if let Some(v) = j.conventional {
             desc.substitute((Cell::Vertex(v), Cell::Edge(j.kept)))?;
         }
+        if let Some(&from) = split_from.get(&j.gone) {
+            lineage.insert(j.gone, from);
+        }
     }
-    Ok(joined)
+    Ok((joined, lineage))
 }
 
 /// **Why the join refused**, as a door that is not the boolean carries

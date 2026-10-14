@@ -345,6 +345,13 @@ pub struct BooleanNaming {
     /// row's vertex and `gone` edge are dead, and its `kept` edge holds
     /// their interiors (maximal edges, `docs/DESIGN.md`'s merge stage).
     pub edge_joins: Vec<super::EdgeJoin>,
+    /// Killed edge → the edge it was split from, for each `gone` edge of
+    /// [`Self::edge_joins`] that held a `SplitEdge` record: a kill takes
+    /// its edge's birth record with it, so an edge this op split and
+    /// then joined away leads to its parent only through this copy,
+    /// taken before the kills (as the Split's
+    /// `SplitNaming::joined_lineage`).
+    pub joined_lineage: BTreeMap<EdgeKey, EdgeKey>,
 }
 
 impl Default for BooleanNaming {
@@ -378,6 +385,7 @@ impl Default for BooleanNaming {
             null_copies: Default::default(),
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
             edge_joins: Default::default(),
+            joined_lineage: Default::default(),
         }
     }
 }
@@ -815,7 +823,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         discarded[usize::from(row.operand == Operand::B)].insert(row.face);
     }
     let recorded = carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
-    let (merged, edge_joins) = finish_output(
+    let (merged, edge_joins, joined_lineage) = finish_output(
         &mut body,
         &mut desc,
         &declared_pairs,
@@ -874,6 +882,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         null_copies,
         cone_splits,
         edge_joins,
+        joined_lineage,
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,
@@ -2374,6 +2383,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     (
         crate::merge_faces::MergeCoplanarOutcome,
         Vec<super::EdgeJoin>,
+        BTreeMap<EdgeKey, EdgeKey>,
     ),
     BooleanError,
 > {
@@ -2393,8 +2403,8 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     let merged = body.merge_coplanar_faces_unjoined(declared, tol)?;
     desc.absorb_merge(&merged)?;
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
-    let edge_joins = join_stage(body, desc, recorded, band, tol)?;
-    Ok((merged, edge_joins))
+    let (edge_joins, joined_lineage) = join_stage(body, desc, recorded, band, tol)?;
+    Ok((merged, edge_joins, joined_lineage))
 }
 
 /// One output stage's vertices, each with its point rendered
@@ -6764,7 +6774,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             ];
             let recorded =
                 carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
-            let (merged, edge_joins) = finish_output(
+            let (merged, edge_joins, joined_lineage) = finish_output(
                 &mut body,
                 &mut desc,
                 &declared_pairs,
@@ -6803,6 +6813,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 edge_classes: red.edge_classes.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
+                joined_lineage,
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -6867,7 +6878,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         &desc,
         [&discarded[0], &discarded[1]],
     )?;
-    let (merged, edge_joins) = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
+    let (merged, edge_joins, joined_lineage) = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
     let output = output_substitutions(&merged, &edge_joins)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
@@ -6894,6 +6905,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             edge_classes: red.edge_classes.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
+            joined_lineage: joined_lineage.clone(),
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -6908,6 +6920,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             edge_classes: red.edge_classes.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
+            joined_lineage: joined_lineage.clone(),
             ..BooleanNaming::default()
         },
     };
