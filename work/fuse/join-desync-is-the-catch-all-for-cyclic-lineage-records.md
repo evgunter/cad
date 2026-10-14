@@ -1,7 +1,7 @@
 ---
 id: join-desync-is-the-catch-all-for-cyclic-lineage-records
 kind: issue
-title: BooleanError::JoinDesync, named and displayed as an A/B lockstep break, has become the catch-all for cyclic lineage records (fragment, split, absorption), beside dedicated cycle variants elsewhere
+title: The split-hop naming tables (SplitNaming::joined_lineage, DiscardRow::boundary_chains) are chased by readers that bound or refuse a cycle, not checked where they are written; JoinDesync no longer carries any lineage cycle
 status: open
 opened: 2026-10-02
 priority: P3
@@ -85,3 +85,42 @@ reader-checked, or, better, an edge division list in the
 the walks are total; and a ruling on the two provenance-only sites
 above. The null-edge copy chase (`uncopied`) is filed apart:
 `null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader`.
+
+## Narrowed by `fuse/lineage-rows-refuse-at-append` (2026-10-13)
+
+With PRs 4868 and 4981 and this one, `BooleanError::JoinDesync` carries
+no lineage cycle:
+
+- the null-edge copy chase (`ops::uncopied`, PR 4981) reads a
+  `VertexCopies` list checked at append, and is total;
+- the reduction's edge splits and the zip's copies per cone are
+  checked at append (`EdgeSplits` over `crate::lineage::EdgeDivisions`,
+  `crate::lineage::ConeCopies`), so `split_root`, `ops::input_cell`'s
+  root and `Settler::settle_cones` are total and refuse nothing;
+- the two provenance-only arms above (`discard.rs`'s "a discarded
+  edge's split lineage is cyclic", `join.rs`'s "an OnEdge germ's edge
+  has a cyclic split lineage") are not A/B lockstep breaks, so they no
+  longer say they are: they refuse `BooleanError::SplitLineage`, which
+  carries the same `SplitLineageCycle` editor-core's
+  `NamingError::SplitLineage` carries, so a provenance cycle is spelled
+  one way in both crates. They stay reader-checked: whether provenance
+  can be checked where `Body::split_edge` writes it, and the walk given
+  one home, is `origin/the-split-edge-lineage-walk-has-four-homes`.
+
+The `JoinDesync` arms that remain and are not A/B lockstep breaks
+either are torn-body reads (`topotail/torn-body-refusal-families-beyond-the-six-doors`)
+and the graft doors' caller errors
+(`issues/graft-door-caller-errors-are-join-desync`); neither is a
+lineage cycle.
+
+**What this row now holds** is the second bullet above: the
+split-hop naming tables. `SplitNaming::joined_lineage`
+(`crates/topo/src/splitting/finish.rs`, written in
+`splitting/mod.rs`) is chased by `emit_topo::chase_split_lineage`,
+bounded and refusing `SplitLineageCycle`; `DiscardRow::boundary_chains`
+is read as `KilledSplits` by `emit_topo::chase_edge_to_table` (bounded,
+refusing `SplitLineageCycle`) and inline by `names/borders.rs`'s
+`reached`, which ends in `bug("a piece edge's split lineage is
+cyclic")`. Each row maps a split's minted piece to the edge it was
+split from, so an `EdgeDivisions`-shaped list written where the rows
+are written would make the three walks total and their refusals go.

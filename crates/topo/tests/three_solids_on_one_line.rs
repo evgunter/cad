@@ -518,7 +518,7 @@ fn a_third_prism_crossing_the_wedges_about_the_line_builds_or_refuses_typed() {
 /// corner. Applying the intersection or subtraction to each piece
 /// before the pieces are joined builds sound against the analytic
 /// oracle (the union's recourse orders are the row above); so does
-/// every op, order and slot with the bridge's corner moved 1e-3 off the
+/// every op, order and slot with the bridge's corner moved 1e-2 off the
 /// line along x or y, clear of the input tolerance.
 #[test]
 fn an_edge_crossing_both_wedges_refuses_typed_in_every_op_and_its_recourse_builds() {
@@ -604,7 +604,10 @@ fn an_edge_crossing_both_wedges_refuses_typed_in_every_op_and_its_recourse_build
             sound(&what, &body, &|q| holds(line(q), prisms[2].holds(q)));
         }
     }
-    for (dx, dy) in [(1e-3, 0.0), (0.0, 1e-3)] {
+    // The move leaves a sliver whose side reading is second order in
+    // it (about d²), so d = 1e-2 reads about 1e-4, past
+    // K·ε at the coarsest tolerance row.
+    for (dx, dy) in [(1e-2, 0.0), (0.0, 1e-2)] {
         let mut moved = prisms[2];
         moved.foot[0].0 += dx;
         moved.foot[0].1 += dy;
