@@ -9,8 +9,6 @@ refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H
 design: true
-branch: germ/plane-torus-chord-spiric
-pr: 4927
 ---
 
 ## From GitHub issue 1057

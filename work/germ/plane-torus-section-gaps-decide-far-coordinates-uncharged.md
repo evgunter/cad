@@ -2,12 +2,13 @@
 id: plane-torus-section-gaps-decide-far-coordinates-uncharged
 kind: issue
 title: The plane×torus section decides its axis-plane and cap gaps on far coordinates' rounding
-status: open
+status: closed
 opened: 2026-10-14
 priority: P2
 cost: M
-design: true
-refs: [torus-circle-arc-classifies-far-frame-carriers-uncharged]
+refs: [torus-circle-arc-classifies-far-frame-carriers-uncharged, no-door-rejects-geometry-past-eps-f64-resolution]
+closed: 2026-10-14
+branch: germ/pt-section-gaps
 ---
 
 
@@ -61,3 +62,46 @@ be read as holding it. That needs its own argument, as it does in
 `torus-circle-arc-classifies-far-frame-carriers-uncharged`. The
 alternative is to stand down (escalate) inside the resolution. Hence
 `design: true`.
+
+## Ruled (2026-10-14): no charge at the section; the far reading is the box's
+
+Weighed by two independent designers and reconciled, then decided by
+the orchestrator under Ev's standing discretion (PR 4895). It is not a
+design fork at the section, and no ratified text moves.
+
+- **No resolution charge at the section.** A Zero at
+  `pt_axis_plane_gap` or `pt_cap_gap` accepts a coincidence and mints
+  geometry from it (the meridian pair, the tangent circle). Charging
+  the gaps with the coordinates' resolution would widen that
+  acceptance with distance from the origin: a tolerance that grows
+  with position, which D4 ¶1 forbids.
+- **The far readings are not the section's to fix.** Every misread
+  above sits at `1e5`–`1e6` m, 100–1000× outside D4 ¶4's 1 km session
+  box, which nothing enforces yet. That is
+  `work/scalar/no-door-rejects-geometry-past-eps-f64-resolution.md`,
+  which now carries a seam note pointing here.
+- **Inside the box the section reads as at the origin.** Both
+  designers measured turned and axis-aligned frames out to `1e3`–`5e3`
+  m at ε `1e-12` and at `EPS_MIN`: every class builds or refuses
+  exactly as at the origin. From about `7e3`–`1e4` m `transform_rigid`
+  already refuses a turned torus or bar.
+- **The frame rule (D10) still applied.** The gaps now read the
+  difference of stored points, `d = n·(q − c)` and
+  `h = n·(q − c)/(a·n)`, as `plane_sphere_section` and the cone and
+  cylinder arms already do. A designer measured, at the box edge at
+  `EPS_MIN`, the escalations falling from 4 to 0, and at `3e3` m the
+  wrong kinds from 150 to 0.
+
+## Closed (`germ/pt-section-gaps`)
+
+- `geom_brep::plane_torus_section` reads `d = n.dot(q - c)` and
+  `h = n.dot(q - c) / a.dot(n)`.
+- The section's far-frame row is now
+  `ring_path::far_frame_rows::a_torus_circle_the_section_lane_mints_in_the_box_reads_its_kind_at_the_origin`:
+  frames out to the box's edge at scales 1 and `1e2`, read at the run's
+  ε and at `EPS_MIN`, asserting no other section and no other kind.
+  Against the old gaps it finds 6 meridian sections refused at the box
+  edge (scale 1, `EPS_MIN`); with the change, none.
+- `sweep` `spiric_rim::the_minted_rim_survives_a_rigid_re_pose` holds
+  its fields to four ulps of the carrier's reach rather than one ulp
+  of each field: the offset moved by `2.8e-17` at `1/128`.
