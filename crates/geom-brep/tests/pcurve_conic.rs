@@ -236,8 +236,8 @@ fn rational_quadratic_arc(e: &Curve3<f64>, t0: f64, t1: f64) -> NurbsCurve3<f64>
     let Curve3::Ellipse {
         center,
         axis,
-        semi_u: major,
-        semi_v: minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = *e
     else {
@@ -246,13 +246,13 @@ fn rational_quadratic_arc(e: &Curve3<f64>, t0: f64, t1: f64) -> NurbsCurve3<f64>
     let v_ref = axis.cross(u_ref);
     let at = |theta: f64| -> Point3<f64> {
         let (s, c) = theta.sin_cos();
-        center + (u_ref * (major * c) + v_ref * (minor * s))
+        center + (u_ref * (semi_u * c) + v_ref * (semi_v * s))
     };
     let shoulder = |alpha: f64, delta: f64| -> Point3<f64> {
         let m = alpha + delta * 0.5;
         let (s, c) = m.sin_cos();
         let k = 1.0 / (delta * 0.5).cos();
-        center + (u_ref * (major * c) + v_ref * (minor * s)) * k
+        center + (u_ref * (semi_u * c) + v_ref * (semi_v * s)) * k
     };
     let span = t1 - t0;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]

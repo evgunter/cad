@@ -172,8 +172,8 @@ fn plane_cylinder_tilted_is_the_exact_ellipse() {
     };
     // Axes: a = r/cos φ, b = r.
     let Curve3::Ellipse {
-        semi_u: major,
-        semi_v: minor,
+        semi_u,
+        semi_v,
         center,
         axis,
         ..
@@ -181,8 +181,8 @@ fn plane_cylinder_tilted_is_the_exact_ellipse() {
     else {
         panic!("carrier is an ellipse");
     };
-    assert!((major - 2.0 / phi.cos()).abs() < 1e-12);
-    assert_eq!(minor, 2.0);
+    assert!((semi_u - 2.0 / phi.cos()).abs() < 1e-12);
+    assert_eq!(semi_v, 2.0);
     // The carrier's plane is the cutting plane; the center is on the
     // cylinder axis and on the plane.
     assert!((center.x - 1.0).abs() < 1e-12 && (center.y - 2.0).abs() < 1e-12);
@@ -377,16 +377,11 @@ fn equal_cylinders_split_into_two_ellipses() {
     }
     // Both are genuine ellipses centered at the axes' intersection.
     for e in [&e1, &e2] {
-        let Curve3::Ellipse {
-            center,
-            semi_v: minor,
-            ..
-        } = e
-        else {
+        let Curve3::Ellipse { center, semi_v, .. } = e else {
             panic!("carrier is an ellipse");
         };
         assert!(center.x.abs() < 1e-12 && center.y.abs() < 1e-12 && center.z.abs() < 1e-12);
-        assert_eq!(*minor, 1.5);
+        assert_eq!(*semi_v, 1.5);
     }
 }
 
@@ -646,8 +641,8 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
         let Curve3::Ellipse {
             center,
             axis,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             u_ref,
         } = e
         else {
@@ -662,7 +657,7 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
             let t = (q - apex).dot(n) / g.dot(n);
             assert!(t > 0.0, "phi {phi}: the ellipse lies on the +axis nappe");
             let d = (apex + g * t) - center;
-            let lhs = (d.dot(u_ref) / major).powi(2) + (d.dot(v_ref) / minor).powi(2);
+            let lhs = (d.dot(u_ref) / semi_u).powi(2) + (d.dot(v_ref) / semi_v).powi(2);
             assert!((lhs - 1.0).abs() < 1e-12, "phi {phi}, u {u}: {lhs}");
         }
         // The major vertices are the in-plane generators' crossings:
@@ -672,10 +667,9 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
             apex + g * ((q - apex).dot(n) / g.dot(n))
         };
         assert!(
-            ((hit(1.0) - hit(-1.0)).norm() - 2.0 * major).abs() < 1e-12,
+            ((hit(1.0) - hit(-1.0)).norm() - 2.0 * semi_u).abs() < 1e-12,
             "phi {phi}: major"
         );
-        assert!(major > minor, "phi {phi}: the constructor's ordering");
         // Residuals against both surfaces, at the carrier's own samples.
         for i in 0..=16 {
             let p = e.eval(f64::from(i) / 16.0 * core::f64::consts::TAU);
@@ -692,15 +686,10 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
     for phi in [0.04f64, 0.02, 0.01] {
         let s =
             plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band()).unwrap();
-        let PlaneConeSection::TiltedEllipse(Curve3::Ellipse {
-            semi_u: major,
-            semi_v: minor,
-            ..
-        }) = s
-        else {
+        let PlaneConeSection::TiltedEllipse(Curve3::Ellipse { semi_u, semi_v, .. }) = s else {
             panic!("phi {phi}: expected the ellipse, got {s:?}");
         };
-        for axis in [major, minor] {
+        for axis in [semi_u, semi_v] {
             let rel = (axis / rim - 1.0).abs();
             assert!(rel > 0.0 && rel < 2.0 * phi * phi, "phi {phi}: {rel:e}");
         }

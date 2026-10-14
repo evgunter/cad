@@ -1008,8 +1008,8 @@ mod torus_rows {
                         geom::Curve3::Ellipse {
                             center,
                             axis,
-                            semi_u: major,
-                            semi_v: minor,
+                            semi_u,
+                            semi_v,
                             u_ref,
                         },
                         geom::Surface::Torus {
@@ -1051,7 +1051,7 @@ mod torus_rows {
                     writeln!(
                         out,
                         "ETDUMP {{\"family\": \"{name}\", \"eps\": {eps:?}, \"center\": {}, \"axis\": {}, \
-                         \"u_ref\": {}, \"major\": {major:?}, \"minor\": {minor:?}, \"hub\": {}, \
+                         \"u_ref\": {}, \"major\": {semi_u:?}, \"minor\": {semi_v:?}, \"hub\": {}, \
                          \"t_axis\": {}, \"R\": {major_radius:?}, \"r\": {minor_radius:?}, \
                          \"t0\": {t0:?}, \"t1\": {t1:?}, \"answer\": \"{answer}\", \"roots\": {roots:?}, \
                          \"residuals\": {bounds:?}}}",

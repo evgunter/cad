@@ -91,11 +91,7 @@ pub(crate) fn endpoint_params(
             // case (atan2 is scale-invariant per axis).
             let v_ref = axis.cross(*u_ref);
             let (maj, min) = match carrier {
-                Curve3::Ellipse {
-                    semi_u: major,
-                    semi_v: minor,
-                    ..
-                } => (*major, *minor),
+                Curve3::Ellipse { semi_u, semi_v, .. } => (*semi_u, *semi_v),
                 _ => (1.0, 1.0),
             };
             // Each angle is refused where it is derived, so the

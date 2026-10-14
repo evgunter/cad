@@ -1,4 +1,4 @@
-//! **A section ellipse nearly along a cylinder's axis builds at every ε
+//! **A section ellipse nearly along a cylinder's axis splits at every ε
 //! row**, once each chord seams it at the principal vertex nearest its
 //! arc. A plane `θ` off the axis cuts an ellipse of semi-axis about
 //! `r/θ` along it, and the face's part of it sits at its minor vertices:
@@ -12,18 +12,25 @@
 //! - **Planes through the axis**, normal `(cos φ, sin φ, θ)`,
 //!   `θ = 1e-6 … 3e-4`: 96 poses.
 //!
-//! At ε = 1e-6 the smallest tilts read in band of along the axis, and at
-//! ε = 1e-9 the seam-vertex planes at `θ = 1e-4` read a sector at the
-//! vertex in band: those refuse upstream as the input's readings, as they
-//! do on main. No pose at any row refuses at a chord's attachment.
-//!
-//! Every pose was measured at its row.
+//! **Every split side is validated at rest**, and each row states every
+//! pose's outcome exactly: both sides valid, or the refusal named in
+//! its table, so a pose that flips either way reds the row. The
+//! at-rest refusals are tier 3's frame check on a section ellipse
+//! (`UnrepresentableCurveDatum { Ellipse, URef, Length | Tilt }`): its
+//! margin is `ε − δ·A`, the frame's own rounding `δ` amplified by the
+//! semi-axis `A ≈ r/θ`, up to 1e6 here ([`FRAME_RESIDUE`]). Upstream
+//! refusals are the input's readings at that row: in band of along the
+//! axis, or a sector at the vertex in band. No pose at any row refuses
+//! at a chord's attachment.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tol, Vec3};
-use topo::splitting::{SplitError, SplitReduceError, split};
-use topo::{AtRestBody, SplitJoinError};
+use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use topo::splitting::{SplitError, split};
+use topo::{AtRestBody, Body, BooleanError, SplitJoinError, ValidationError};
+
+/// The row that owns the at-rest frame refusals these tables name.
+const FRAME_RESIDUE: &str = "work/restfront/tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis.md";
 
 /// The unit cylinder about `z`, `0 ≤ z ≤ 1`, its seam vertices at
 /// `(±1, 0, 0)` and `(±1, 0, 1)`.
@@ -49,26 +56,110 @@ fn cut(
     split(body, &plane, tol)
 }
 
-/// A refusal at a chord's attachment: the join's Euler operation, which
-/// carries the section curve's own miss.
-fn at_a_chord(e: &SplitError) -> bool {
-    matches!(e, SplitError::Join(SplitJoinError::Euler(_)))
+/// Why tier 3 refuses one side, or `None` where it is valid at rest.
+fn at_rest(body: &Body<f64>, tol: Tol) -> Option<String> {
+    let errors = AtRestBody::validate(body.clone(), tol).err()?;
+    Some(
+        errors
+            .iter()
+            .map(|e| match e {
+                ValidationError::UnrepresentableCurveDatum {
+                    kind: geom::CurveKind::Ellipse,
+                    datum,
+                    measure,
+                    end,
+                    ..
+                } => format!("{datum:?} {measure:?} {end:?}"),
+                other => variant(&format!("{other:?}"), 1),
+            })
+            .collect::<Vec<_>>()
+            .join(" & "),
+    )
+}
+
+/// A pose's outcome: `ok` where both sides are valid at rest, else each
+/// refused side and why, or the split's own refusal by its stage and
+/// variant.
+fn outcome(r: Result<topo::SplitResult<f64>, SplitError>, tol: Tol) -> String {
+    match r {
+        Ok(res) => {
+            let sides: Vec<String> = [("above", &res.above), ("below", &res.below)]
+                .into_iter()
+                .filter_map(|(side, part)| Some(format!("{side} {}", at_rest(part.body()?, tol)?)))
+                .collect();
+            if sides.is_empty() {
+                "ok".to_owned()
+            } else {
+                sides.join(", ")
+            }
+        }
+        Err(SplitError::Join(SplitJoinError::Euler(e))) => format!("chord {e:?}"),
+        Err(e) => format!("refused {}", variant(&format!("{e:?}"), 2)),
+    }
+}
+
+/// The first `depth` variant names of a `Debug` rendering.
+fn variant(text: &str, depth: usize) -> String {
+    text.split(['(', ' ', '{'])
+        .filter(|w| !w.is_empty())
+        .take(depth)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn is_eps(eps: f64, row: f64) -> bool {
     (eps - row).abs() <= 1e-3 * row
 }
 
-/// The coin-flip family builds at ε = 1e-12 and 1e-6, and at 1e-9 all
-/// but the `θ = 1e-4` planes, which read the sector at their vertex in
-/// band (`SliverSector`).
+/// The table for this run's ε row.
+fn row<'a>(eps: f64, rows: [&'a [(&'a str, &'a str)]; 3]) -> &'a [(&'a str, &'a str)] {
+    if is_eps(eps, 1e-6) {
+        rows[0]
+    } else if is_eps(eps, 1e-9) {
+        rows[1]
+    } else {
+        rows[2]
+    }
+}
+
+/// Every pose not in `want` is `ok`; every pose in it is as it says.
+fn check(got: &[(String, String)], want: &[(&str, &str)]) {
+    let mut wrong = Vec::new();
+    for (tag, out) in got {
+        let expected = want
+            .iter()
+            .find(|(t, _)| t == tag)
+            .map_or("ok", |(_, w)| *w);
+        if out != expected {
+            wrong.push(format!("{tag}: {out} (want {expected})"));
+        }
+    }
+    for (tag, _) in want {
+        assert!(
+            got.iter().any(|(t, _)| t == tag),
+            "the table names a pose the row never cuts: {tag}"
+        );
+    }
+    let table: Vec<String> = got
+        .iter()
+        .filter(|(_, o)| o != "ok")
+        .map(|(t, o)| format!("(\"{t}\", \"{o}\"),"))
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "poses off their table (at-rest frame refusals are {FRAME_RESIDUE}'s):\n{}\n\nthe run's table:\n{}",
+        wrong.join("\n"),
+        table.join("\n"),
+    );
+}
+
+/// The coin-flip family at each row.
 #[test]
-fn planes_nearly_along_the_axis_through_a_seam_vertex_build() {
+fn planes_nearly_along_the_axis_through_a_seam_vertex_split() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let cyl = cylinder(tol);
-    let mut wrong = Vec::new();
-    let mut built = 0;
+    let mut got = Vec::new();
     for th in [3e-5, 1e-4, 3e-4] {
         for (vx, vz) in [(1.0, 0.0), (-1.0, 1.0)] {
             for c in [
@@ -76,48 +167,266 @@ fn planes_nearly_along_the_axis_through_a_seam_vertex_build() {
             ] {
                 let n = Vec3::new(0.0, 1.0, th);
                 let o = Point3::new(vx, 0.0, vz) + n / n.norm() * (c * eps);
-                let tag = format!("θ {th:e} vertex ({vx}, 0, {vz}) c {c}");
-                match cut(&cyl, o, n, tol) {
-                    Ok(_) => built += 1,
-                    Err(SplitError::Reduce(SplitReduceError::SliverSector { .. }))
-                        if is_eps(eps, 1e-9) && th == 1e-4 => {}
-                    Err(e) => wrong.push(format!("{tag}: {e:?}")),
-                }
+                got.push((
+                    format!("θ {th:e} ({vx}, {vz}) c {c}"),
+                    outcome(cut(&cyl, o, n, tol), tol),
+                ));
             }
         }
     }
-    let want = if is_eps(eps, 1e-9) { 54 } else { 66 };
-    assert!(
-        wrong.is_empty() && built == want,
-        "{built} of {want} built:\n{}",
-        wrong.join("\n")
+    check(
+        &got,
+        row(eps, [COIN_FLIP_1E6, COIN_FLIP_1E9, COIN_FLIP_1E12]),
     );
 }
 
-/// The through-axis planes build at ε = 1e-12 and 1e-9; at 1e-6 the
-/// `θ = 3e-4` ones do. No pose at any row refuses at a chord.
+/// The through-axis family at each row.
 #[test]
-fn planes_through_the_axis_nearly_along_it_build() {
+fn planes_through_the_axis_nearly_along_it_split() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let cyl = cylinder(tol);
-    let mut wrong = Vec::new();
+    let mut got = Vec::new();
     for th in [1e-6, 3e-6, 1e-5, 3e-5, 1e-4, 3e-4] {
         for k in 0..8 {
             let phi = 0.4 + f64::from(k) * 0.7;
             for z in [0.5, 0.3] {
                 let n = Vec3::new(phi.cos(), phi.sin(), th);
-                let tag = format!("θ {th:e} φ {phi:.1} z {z}");
-                let builds = !is_eps(eps, 1e-6) || th == 3e-4;
-                match cut(&cyl, Point3::new(0.0, 0.0, z), n, tol) {
-                    Ok(_) => {}
-                    Err(e) if at_a_chord(&e) || builds => {
-                        wrong.push(format!("{tag}: {e:?}"));
+                got.push((
+                    format!("θ {th:e} φ {phi:.1} z {z}"),
+                    outcome(cut(&cyl, Point3::new(0.0, 0.0, z), n, tol), tol),
+                ));
+            }
+        }
+    }
+    check(&got, row(eps, [THROUGH_1E6, THROUGH_1E9, THROUGH_1E12]));
+}
+
+/// **A section ellipse reads back its major direction**, wherever its
+/// seam is: a chord nearly along the axis is seamed at a minor vertex,
+/// across the axis, and `edge_pose`'s `u_ref` is still the direction
+/// along it.
+#[test]
+fn a_near_axial_sections_readback_u_ref_is_its_major_direction() {
+    let tol = Tol::witness();
+    let cyl = cylinder(tol);
+    let res = cut(
+        &cyl,
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::new(0.4, 0.9, 1e-3),
+        tol,
+    )
+    .expect("the plane splits the cylinder");
+    let mut seamed_across = 0;
+    for body in [res.above.body(), res.below.body()].into_iter().flatten() {
+        for (edge, _) in body.edges() {
+            let Ok(&geom::Curve3::Ellipse { u_ref, .. }) =
+                topo::readback::edge_carrier_ref(body, edge)
+            else {
+                continue;
+            };
+            if u_ref.z.abs() < 0.5 {
+                seamed_across += 1;
+            }
+            let pose = topo::readback::edge_pose(body, edge).expect("an ellipse has a pose");
+            let major = pose.u_ref.expect("an ellipse fixes a u_ref");
+            assert!(
+                major.z.abs() > 0.999,
+                "edge {edge:?}: u_ref {major:?} is not along the axis"
+            );
+        }
+    }
+    assert!(
+        seamed_across > 0,
+        "no section chord is seamed across the axis: the row reads nothing"
+    );
+}
+
+/// **FLUX's quadrature pose builds**: the cylinder against a slab whose
+/// inner face is tilted `±1e-2` about `y` through a point just inside
+/// the seam ruling, in both orders, for ∪, ∩ and ∖, at every row.
+#[test]
+fn a_slab_face_nearly_along_a_ruling_builds() {
+    type Op = fn(
+        &AtRestBody<f64>,
+        &AtRestBody<f64>,
+        Tol,
+    ) -> Result<topo::BooleanResult<f64>, BooleanError>;
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let cyl = cylinder(tol);
+    let rect = |x0: f64, y0: f64, x1: f64, y1: f64| {
+        [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
+            .to_vec()
+    };
+    let ops: [(&str, Op); 3] = [
+        ("∪", topo::union),
+        ("∩", topo::intersect),
+        ("∖", topo::subtract),
+    ];
+    let mut wrong = Vec::new();
+    for dd in [-50.0 * eps, -1e3 * eps] {
+        for t in [1e-2, -1e-2] {
+            let slab = AtRestBody::validate(
+                sweep::test_support::prism_at(rect(1.0 + dd, -2.0, 3.0, 2.0), 0.25, 0.5, tol),
+                tol,
+            )
+            .expect("a valid slab");
+            let turn = Affine3::rotation_about_axis(
+                Point3::new(1.0 + dd, 0.0, 0.5),
+                Vec3::new(0.0, 1.0, 0.0),
+                t,
+            );
+            let slab = AtRestBody::validate(
+                topo::transform_rigid(&slab, &geom_core::test_support::rigid(&turn, tol), tol)
+                    .expect("a rigid turn"),
+                tol,
+            )
+            .expect("a valid tilted slab");
+            for (order, a, b) in [("cyl, slab", &cyl, &slab), ("slab, cyl", &slab, &cyl)] {
+                for (name, op) in ops {
+                    if let Err(e) = op(a, b, tol) {
+                        wrong.push(format!("dd {dd:e} t {t:e} {name}({order}): {e:?}"));
                     }
-                    Err(_) => {}
                 }
             }
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+const COIN_FLIP_1E6: &[(&str, &str)] = &[
+    ("θ 3e-5 (1, 0) c 0", "above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c 0.5", "above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c -0.5", "above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c 0.8", "above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c -0.8", "above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c 0.9", "above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c -0.9", "above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c 0.99", "above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c -0.99", "above VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c 0", "below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c 0.5", "below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c -0.5", "below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c 0.8", "below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c -0.8", "below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c 0.9", "below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c -0.9", "below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c 0.99", "below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c -0.99", "below VolumeUncomputable"),
+];
+const COIN_FLIP_1E9: &[(&str, &str)] = &[
+    ("θ 1e-4 (1, 0) c 0", "refused Reduce SliverSector"),
+    ("θ 1e-4 (1, 0) c 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-4 (1, 0) c 0.8", "refused Reduce SliverSector"),
+    ("θ 1e-4 (1, 0) c 0.9", "refused Reduce SliverSector"),
+    ("θ 1e-4 (1, 0) c 0.99", "refused Reduce SliverSector"),
+    ("θ 1e-4 (1, 0) c 50", "refused Reduce SliverSector"),
+    ("θ 1e-4 (-1, 1) c 0", "refused Reduce SliverSector"),
+    ("θ 1e-4 (-1, 1) c -0.5", "refused Reduce SliverSector"),
+    ("θ 1e-4 (-1, 1) c -0.8", "refused Reduce SliverSector"),
+    ("θ 1e-4 (-1, 1) c -0.9", "refused Reduce SliverSector"),
+    ("θ 1e-4 (-1, 1) c -0.99", "refused Reduce SliverSector"),
+    ("θ 1e-4 (-1, 1) c -50", "refused Reduce SliverSector"),
+];
+const COIN_FLIP_1E12: &[(&str, &str)] = &[];
+const THROUGH_1E6: &[(&str, &str)] = &[
+    ("θ 1e-6 φ 0.4 z 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-6 φ 0.4 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-6 φ 1.1 z 0.5", "refused Join Escalated"),
+    ("θ 1e-6 φ 1.1 z 0.3", "refused Join Escalated"),
+    ("θ 1e-6 φ 1.8 z 0.5", "refused Join Escalated"),
+    ("θ 1e-6 φ 1.8 z 0.3", "refused Join Escalated"),
+    ("θ 1e-6 φ 2.5 z 0.5", "refused Join Escalated"),
+    ("θ 1e-6 φ 2.5 z 0.3", "refused Join Escalated"),
+    ("θ 1e-6 φ 3.2 z 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-6 φ 3.2 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-6 φ 3.9 z 0.5", "refused Join Escalated"),
+    ("θ 1e-6 φ 3.9 z 0.3", "refused Join Escalated"),
+    ("θ 1e-6 φ 4.6 z 0.5", "refused Join Escalated"),
+    ("θ 1e-6 φ 4.6 z 0.3", "refused Join Escalated"),
+    ("θ 1e-6 φ 5.3 z 0.5", "refused Join Escalated"),
+    ("θ 1e-6 φ 5.3 z 0.3", "refused Join Escalated"),
+    ("θ 3e-6 φ 0.4 z 0.5", "refused Reduce SliverSector"),
+    ("θ 3e-6 φ 0.4 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-6 φ 1.1 z 0.5", "refused Reduce SliverSector"),
+    ("θ 3e-6 φ 1.1 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-6 φ 1.8 z 0.5", "refused Join Escalated"),
+    ("θ 3e-6 φ 1.8 z 0.3", "refused Join Escalated"),
+    ("θ 3e-6 φ 2.5 z 0.5", "refused Reduce SliverSector"),
+    ("θ 3e-6 φ 2.5 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-6 φ 3.2 z 0.5", "refused Reduce SliverSector"),
+    ("θ 3e-6 φ 3.2 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-6 φ 3.9 z 0.5", "refused Reduce SliverSector"),
+    ("θ 3e-6 φ 3.9 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-6 φ 4.6 z 0.5", "refused Join Escalated"),
+    ("θ 3e-6 φ 4.6 z 0.3", "refused Join Escalated"),
+    ("θ 3e-6 φ 5.3 z 0.5", "refused Reduce SliverSector"),
+    ("θ 3e-6 φ 5.3 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 0.4 z 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 0.4 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 1.1 z 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 1.1 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 1.8 z 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 1.8 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 2.5 z 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 2.5 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 3.2 z 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 3.2 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 3.9 z 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 3.9 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 4.6 z 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 4.6 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 5.3 z 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-5 φ 5.3 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-5 φ 0.4 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-5 φ 1.1 z 0.5", "refused Reduce SliverSector"),
+    ("θ 3e-5 φ 1.1 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-5 φ 1.8 z 0.5", "refused Reduce SliverSector"),
+    ("θ 3e-5 φ 1.8 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-5 φ 2.5 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-5 φ 3.9 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-5 φ 4.6 z 0.5", "refused Reduce SliverSector"),
+    ("θ 3e-5 φ 4.6 z 0.3", "refused Reduce SliverSector"),
+    ("θ 3e-5 φ 5.3 z 0.5", "refused Reduce SliverSector"),
+    ("θ 3e-5 φ 5.3 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-4 φ 1.8 z 0.3", "refused Reduce SliverSector"),
+    ("θ 1e-4 φ 4.6 z 0.5", "refused Reduce SliverSector"),
+    ("θ 1e-4 φ 4.6 z 0.3", "refused Reduce SliverSector"),
+];
+const THROUGH_1E9: &[(&str, &str)] = &[];
+const THROUGH_1E12: &[(&str, &str)] = &[
+    ("θ 1e-6 φ 3.9 z 0.5", "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper"),
+    ("θ 1e-6 φ 3.9 z 0.3", "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper"),
+    ("θ 1e-6 φ 5.3 z 0.5", "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper"),
+    ("θ 1e-6 φ 5.3 z 0.3", "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper"),
+    ("θ 3e-6 φ 1.1 z 0.5", "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper"),
+    ("θ 3e-6 φ 1.1 z 0.3", "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper"),
+    ("θ 3e-6 φ 1.8 z 0.5", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
+    ("θ 3e-6 φ 1.8 z 0.3", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
+    ("θ 3e-6 φ 2.5 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 3e-6 φ 2.5 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 3e-6 φ 3.9 z 0.5", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
+    ("θ 3e-6 φ 3.9 z 0.3", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
+    ("θ 3e-6 φ 5.3 z 0.5", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
+    ("θ 3e-6 φ 5.3 z 0.3", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
+    ("θ 1e-5 φ 0.4 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 1e-5 φ 0.4 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 1e-5 φ 2.5 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 1e-5 φ 2.5 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 3e-5 φ 0.4 z 0.5", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
+    ("θ 3e-5 φ 0.4 z 0.3", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
+    ("θ 3e-5 φ 1.1 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 3e-5 φ 1.1 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 3e-5 φ 2.5 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 3e-5 φ 2.5 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 3e-5 φ 3.9 z 0.5", "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper"),
+    ("θ 3e-5 φ 3.9 z 0.3", "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper"),
+    ("θ 3e-5 φ 5.3 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 3e-5 φ 5.3 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 1e-4 φ 1.1 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 1e-4 φ 1.1 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 1e-4 φ 2.5 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    ("θ 1e-4 φ 2.5 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+];

@@ -4697,10 +4697,10 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Ellipse {
                                 center,
                                 ref axis,
-                                semi_u: major,
-                                semi_v: minor,
+                                semi_u,
+                                semi_v,
                                 u_ref,
-                            } => conic(center, axis, u_ref, major, minor),
+                            } => conic(center, axis, u_ref, semi_u, semi_v),
                             geom::Curve3::Spiric { .. } => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
                                 crate::carrier_speed::speed_range(curve.carrier()).1,

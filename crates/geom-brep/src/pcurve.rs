@@ -113,8 +113,8 @@ pub fn ellipse_pcurve_on_plane(
     let &Curve3::Ellipse {
         center,
         axis,
-        semi_u: major,
-        semi_v: minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = carrier
     else {
@@ -145,8 +145,8 @@ pub fn ellipse_pcurve_on_plane(
     let e_v = axis.cross(u_ref);
     let w0 = center - q;
     let c2 = Point2::new(w0.dot(pu), w0.dot(pv));
-    let a2 = Point2::new(u_ref.dot(pu) * major, u_ref.dot(pv) * major);
-    let b2 = Point2::new(e_v.dot(pu) * minor, e_v.dot(pv) * minor);
+    let a2 = Point2::new(u_ref.dot(pu) * semi_u, u_ref.dot(pv) * semi_u);
+    let b2 = Point2::new(e_v.dot(pu) * semi_v, e_v.dot(pv) * semi_v);
     // D9: all trig through the geom_core::Real routes (libm) — std
     // f64 trig differs cross-platform in the last ulp, and PR 6 will
     // STORE these caches (M2 fix, adversarial review).

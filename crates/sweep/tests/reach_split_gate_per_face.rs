@@ -365,8 +365,8 @@ impl Rim {
         let geom::Curve3::Ellipse {
             center,
             axis,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             u_ref,
         } = &self.ellipse
         else {
@@ -375,7 +375,7 @@ impl Rim {
         let spline = conic_arc_segments(
             *center,
             (*u_ref, axis.cross(*u_ref)),
-            (*major, *minor),
+            (*semi_u, *semi_v),
             self.params,
             n,
             domain,

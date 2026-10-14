@@ -2094,14 +2094,14 @@ fn require_cone_ellipse<T: Decide>(
     let Curve3::Ellipse {
         center,
         axis: n,
-        semi_u: major,
-        semi_v: minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = e.carrier
     else {
         return Err(PropsError::Unimplemented);
     };
-    let (a, b) = (u_ref * major, n.cross(u_ref) * minor);
+    let (a, b) = (u_ref * semi_u, n.cross(u_ref) * semi_v);
     let (cos2, sin2) = (cos_a.powi(2), sin_a.powi(2));
     let perp = |p: Vec3<T>| p - axis * p.dot(axis);
     let m = |p: Vec3<T>, q: Vec3<T>| perp(p).dot(perp(q)) * cos2 - p.dot(axis) * q.dot(axis) * sin2;
@@ -2207,13 +2207,9 @@ fn require_cone_conic_spans<T: Decide>(
     for e in edges {
         match e.carrier {
             Curve3::Circle { radius, .. } => require_rim_span(e, radius, band)?,
-            Curve3::Ellipse {
-                semi_u: major,
-                semi_v: minor,
-                ..
-            } => require_span_within_period(
+            Curve3::Ellipse { semi_u, semi_v, .. } => require_span_within_period(
                 e,
-                major.abs().min(minor),
+                semi_u.abs().min(semi_v),
                 band,
                 [
                     "props_cone_ellipse_span_forward",
@@ -2233,11 +2229,9 @@ fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
     match e.carrier {
         Curve3::Line { .. } => Ok((e.p1() - e.p0()).norm()),
         Curve3::Circle { radius, .. } => Ok(radius * (e.t1 - e.t0).abs()),
-        Curve3::Ellipse {
-            semi_u: major,
-            semi_v: minor,
-            ..
-        } => Ok(major.max(minor) * (e.t1 - e.t0).abs()),
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            Ok(geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * (e.t1 - e.t0).abs())
+        }
         Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
     }
 }

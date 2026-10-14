@@ -68,7 +68,9 @@ use crate::geometry::SurfaceKey;
 use geom::CurveKind;
 
 /// **A frame read off stored geometry**: an origin plus the carrier's
-/// own reference directions, verbatim.
+/// own reference directions, verbatim but for an ellipse's `u_ref`,
+/// which is read off its semi-axes ([`Curve3::major_frame`]): its seam
+/// may sit at either principal vertex.
 ///
 /// The triad is right-handed where it is complete: `u_ref`,
 /// `v_ref = axis × u_ref` ([`Pose::v_ref`]), `axis`.
@@ -538,13 +540,13 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             u_ref: None,
             sense: true,
         }),
+        ellipse @ Curve3::Ellipse { center, axis, .. } => Ok(Pose {
+            origin: *center,
+            axis: *axis,
+            u_ref: ellipse.major_frame().map(|f| f.major_dir),
+            sense: true,
+        }),
         Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        }
-        | Curve3::Ellipse {
             center,
             axis,
             u_ref,

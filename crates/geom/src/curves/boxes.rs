@@ -320,8 +320,8 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     let Curve3::Ellipse {
         center,
         axis,
-        semi_u: major,
-        semi_v: minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = carrier
     else {
@@ -330,8 +330,8 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     // Endpoint hull: always inside the box (2 points — never empty).
     let mut b = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
 
-    let a = Brk::of(*major);
-    let bm = Brk::of(*minor);
+    let a = Brk::of(*semi_u);
+    let bm = Brk::of(*semi_v);
     let (ax, ay, az) = (Brk::of(axis.x), Brk::of(axis.y), Brk::of(axis.z));
     let (ux, uy, uz) = (Brk::of(u_ref.x), Brk::of(u_ref.y), Brk::of(u_ref.z));
     // v = axis × u_ref, bracket-wise (the same fixed component order as

@@ -130,12 +130,8 @@ impl<T: Decide> ConicBend<T> {
             // at least `b`, so the arc is at least `b·span` long. The
             // lift bound holds while the tangent turns at most a quarter
             // turn at the greatest curvature.
-            geom::Curve3::Ellipse {
-                semi_u: major,
-                semi_v: minor,
-                ..
-            } => {
-                let (a, b) = (major.abs().max(minor.abs()), major.abs().min(minor.abs()));
+            geom::Curve3::Ellipse { semi_u, semi_v, .. } => {
+                let (a, b) = geom::Curve3::semi_axes_by_size(semi_u, semi_v);
                 let most = a / b.powi(2);
                 BendBounds::Planar {
                     least: b / a.powi(2),

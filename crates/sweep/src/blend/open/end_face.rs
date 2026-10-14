@@ -397,7 +397,7 @@ impl<T: Bounds> SectionFrame<T> {
                 semi_u,
                 semi_v,
                 ..
-            } => self.scaled(c - center) + semi_u.abs().max(semi_v.abs()) / self.minor,
+            } => self.scaled(c - center) + Curve3::semi_axes_by_size(semi_u, semi_v).0 / self.minor,
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
         };
         Some(self.minor * (T::one() - rho))
@@ -433,7 +433,7 @@ impl<T: Bounds> SectionFrame<T> {
                 semi_u,
                 semi_v,
                 ..
-            } => self.scaled(c - center) - semi_u.abs().max(semi_v.abs()) / self.minor,
+            } => self.scaled(c - center) - Curve3::semi_axes_by_size(semi_u, semi_v).0 / self.minor,
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
         };
         Some(self.minor * (rho - T::one()))
@@ -618,11 +618,10 @@ fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
             semi_u,
             semi_v,
             ..
-        } => Some((
-            center,
-            semi_u.abs().max(semi_v.abs()),
-            semi_u.abs().min(semi_v.abs()),
-        )),
+        } => {
+            let (outer, inner) = Curve3::semi_axes_by_size(semi_u, semi_v);
+            Some((center, outer, inner))
+        }
         _ => None,
     };
     let about = |(o, outer, inner): (Point3<T>, T, T), (carrier, window): Piece<'_, T>| {
@@ -1059,7 +1058,9 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
             Curve3::Line { .. } => InfSpeed::new(T::one()),
             Curve3::Circle { radius, .. } => InfSpeed::new(radius),
             // An ellipse's speed is never below its minor semi-axis.
-            Curve3::Ellipse { semi_u, semi_v, .. } => InfSpeed::new(semi_u.min(semi_v)),
+            Curve3::Ellipse { semi_u, semi_v, .. } => {
+                InfSpeed::new(Curve3::semi_axes_by_size(semi_u, semi_v).1)
+            }
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                 return Err(unbuilt_geometry(
                     EntityId::Edge(rim),

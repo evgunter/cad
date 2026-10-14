@@ -5729,8 +5729,8 @@ mod frame_dispatch_tests {
                     let geom::Curve3::Ellipse {
                         center,
                         axis,
-                        semi_u: major,
-                        semi_v: minor,
+                        semi_u,
+                        semi_v,
                         u_ref,
                     } = *e
                     else {
@@ -5742,7 +5742,7 @@ mod frame_dispatch_tests {
                     // curve, and no projection lane is involved.
                     let v_ref = axis.cross(u_ref);
                     let w = pinch - center;
-                    let t = (w.dot(v_ref) / minor).atan2(w.dot(u_ref) / major);
+                    let t = (w.dot(v_ref) / semi_v).atan2(w.dot(u_ref) / semi_u);
                     let d = (e.eval(t) - pinch).norm();
                     assert!(
                         d < 1e-12,

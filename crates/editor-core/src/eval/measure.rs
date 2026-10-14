@@ -514,10 +514,10 @@ fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Opt
         // the reach is the larger MAGNITUDE.
         Curve3::Ellipse {
             center,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             ..
-        } => Some(from(*center) + major.abs().max(minor.abs())),
+        } => Some(from(*center) + geom::Curve3::semi_axes_by_size(*semi_u, *semi_v).0),
         // Every point of the spiric lies on its torus, within `R + r` of
         // the torus centre.
         Curve3::Spiric {

@@ -497,16 +497,16 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                         assert!(center.z.abs() < 1e-12, "{what}: the circle is the bottom's");
                     }
                     Curve3::Ellipse {
-                        semi_u: major,
-                        semi_v: minor,
+                        semi_u,
+                        semi_v,
                         axis,
                         ..
                     } => {
                         ellipses += 1;
-                        assert_eq!(minor, R, "{what}: minor = r");
+                        assert_eq!(semi_v, R, "{what}: minor = r");
                         assert!(
-                            (major - R / n.z).abs() < 1e-14,
-                            "{what}: major = r / cos φ, got {major}"
+                            (semi_u - R / n.z).abs() < 1e-14,
+                            "{what}: major = r / cos φ, got {semi_u}"
                         );
                         assert!(
                             axis.cross(n).norm() < 1e-14,
@@ -548,8 +548,8 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let n = Vec3::new(phi.sin(), 0.0, phi.cos());
     let oblique = cap_transverse(v, n, tau, R, 1.0, band).expect("an oblique cap is the ellipse");
     let EndSection::Ellipse(Curve3::Ellipse {
-        semi_u: major,
-        semi_v: minor,
+        semi_u,
+        semi_v,
         u_ref: u_major,
         axis: normal,
         ..
@@ -557,8 +557,8 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     else {
         panic!("a definite departure picks the ellipse, got {oblique:?}");
     };
-    assert_eq!(minor, R, "the minor semi-axis is the radius");
-    assert!((major - R / phi.cos()).abs() < 1e-15, "major = r / cos φ");
+    assert_eq!(semi_v, R, "the minor semi-axis is the radius");
+    assert!((semi_u - R / phi.cos()).abs() < 1e-15, "major = r / cos φ");
     assert!(
         u_major.dot(n).abs() < 1e-15 && u_major.y.abs() < 1e-15,
         "the major axis is the tilt's trace in the cap, got {u_major:?}"

@@ -233,16 +233,16 @@ impl<'a, T: Decide> Span<'a, T> {
 fn conic<T: geom_core::Real>(
     center: Point3<T>,
     axis: Vec3<T>,
-    major: T,
-    minor: T,
+    semi_u: T,
+    semi_v: T,
     u_ref: Vec3<T>,
 ) -> geom_brep::Conic<T> {
     geom_brep::Conic {
         center,
         axis,
         u_ref,
-        major,
-        minor,
+        semi_u,
+        semi_v,
     }
 }
 
@@ -346,12 +346,12 @@ fn meetings<T: Decide>(
             &Ellipse {
                 center,
                 axis,
-                semi_u: major,
-                semi_v: minor,
+                semi_u,
+                semi_v,
                 u_ref,
             },
         ) => {
-            let e = conic(center, axis, major, minor, u_ref);
+            let e = conic(center, axis, semi_u, semi_v, u_ref);
             let den = dir.dot(axis);
             if !transverse(den, a.reach.max(e.speed_hi()), band)? {
                 return Ok(off_plane(a.at, center, axis, band)?.then(Vec::new));
@@ -369,14 +369,14 @@ fn meetings<T: Decide>(
             &Ellipse {
                 center,
                 axis,
-                semi_u: major,
-                semi_v: minor,
+                semi_u,
+                semi_v,
                 u_ref,
             },
         ) => {
             // Read parallel, every point of the circle stays within the
             // band of its centre's distance from the plane.
-            let e = conic(center, axis, major, minor, u_ref);
+            let e = conic(center, axis, semi_u, semi_v, u_ref);
             if !transverse(n1.cross(axis).norm(), r1.max(e.speed_hi()), band)? {
                 return Ok(off_plane(c1, center, axis, band)?.then(Vec::new));
             }
@@ -438,7 +438,7 @@ fn one_curve<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let shape = |c: &geom_brep::Conic<T>| {
         let (u, v) = (c.u_ref, c.v_ref());
-        let (a2, b2) = (c.major.powi(2), c.minor.powi(2));
+        let (a2, b2) = (c.semi_u.powi(2), c.semi_v.powi(2));
         let col = |w: Vec3<T>| u * (a2 * u.dot(w)) + v * (b2 * v.dot(w));
         [
             col(Vec3::new(T::one(), T::zero(), T::zero())),
@@ -554,7 +554,7 @@ fn ellipse_meets_plane<T: Decide>(
     let (u_ref, v_ref) = (e.u_ref, e.v_ref());
     let w = p0 - e.center;
     let (x0, y0, ux, uy) = (w.dot(u_ref), w.dot(v_ref), u.dot(u_ref), u.dot(v_ref));
-    let (a2, b2) = (e.major.powi(2), e.minor.powi(2));
+    let (a2, b2) = (e.semi_u.powi(2), e.semi_v.powi(2));
     let qa = b2 * ux.powi(2) + a2 * uy.powi(2);
     let qb = b2 * x0 * ux + a2 * y0 * uy;
     let qc = b2 * x0.powi(2) + a2 * y0.powi(2) - a2 * b2;
@@ -958,15 +958,13 @@ mod meetings_rows {
             let (
                 Curve3::Ellipse { axis: n1, .. },
                 Curve3::Ellipse {
-                    axis: n2,
-                    semi_u: major,
-                    ..
+                    axis: n2, semi_u, ..
                 },
             ) = (e, f)
             else {
                 unreachable!("two ellipses")
             };
-            n1.cross(n2).norm() * major
+            n1.cross(n2).norm() * semi_u
         };
         for k in [0.1, 0.5, 0.9] {
             let d = k * z * (k * z / tilt_reach(k * z));

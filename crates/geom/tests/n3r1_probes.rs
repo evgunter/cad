@@ -323,8 +323,8 @@ mod interval_support {
                                 Curve3::Ellipse {
                                     center,
                                     axis,
-                                    semi_u: major,
-                                    semi_v: minor,
+                                    semi_u,
+                                    semi_v,
                                     u_ref,
                                 } => ellipse(
                                     Point3::new(
@@ -333,8 +333,8 @@ mod interval_support {
                                         pick(center.z, kc),
                                     ),
                                     Vec3::new(pick(axis.x, ka), pick(axis.y, ka), pick(axis.z, ka)),
-                                    pick(*major, kr),
-                                    pick(*minor, 2 - kr),
+                                    pick(*semi_u, kr),
+                                    pick(*semi_v, 2 - kr),
                                     Vec3::new(
                                         pick(u_ref.x, ku),
                                         pick(u_ref.y, 2 - ku),

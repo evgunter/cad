@@ -2240,13 +2240,11 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
         // radius. The ellipse's semi-axes carry no order and no sign
         // (`Conic`), so its radius is the smaller MAGNITUDE — `minor`
         // itself for a frame stored in the ordinary order.
-        Curve3::Ellipse {
-            semi_u: major,
-            semi_v: minor,
-            ..
-        } => {
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
             let half_span = (t1 - t0) * T::from_f64(0.5);
-            chord.max(major.abs().min(minor.abs()) * (T::one() - half_span.cos()))
+            chord.max(
+                geom::Curve3::semi_axes_by_size(semi_u, semi_v).1 * (T::one() - half_span.cos()),
+            )
         }
         Curve3::Spiric { minor_radius, .. } => {
             let half_span = (t1 - t0) * T::from_f64(0.5);
@@ -2716,11 +2714,7 @@ fn run_checks<T: Decide>(
         // (`IntervalNotForward`), as this gate has always refused one. A
         // negative `major` (its `u_ref` flipped, the same locus) it
         // admits, as it always has; tier 3 refuses it on its value.
-        Curve3::Ellipse {
-            semi_u: major,
-            semi_v: minor,
-            ..
-        } => span_at_floor(major.abs().min(*minor))?,
+        Curve3::Ellipse { semi_u, semi_v, .. } => span_at_floor(semi_u.abs().min(*semi_v))?,
         Curve3::Spiric { minor_radius, .. } => span_at_floor(*minor_radius)?,
         Curve3::Line { .. } => {
             forward(Margin::of(span))?;

@@ -3339,13 +3339,13 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
         Curve3::Ellipse {
             center,
             axis,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => Some(Harmonic3 {
             c: center,
-            a: u_ref * major,
-            b: axis.cross(u_ref) * minor,
+            a: u_ref * semi_u,
+            b: axis.cross(u_ref) * semi_v,
             l: Vec3::zero(),
         }),
         // A spiric has no `{1, cos, sin, t}` form (its `m` channel is
@@ -3715,11 +3715,9 @@ fn param_rate<T: SpanLocate>(carrier: &Curve3<T>) -> InfSpeed<T> {
         Curve3::Circle { radius, .. } => InfSpeed::new(radius),
         // The smaller semi-axis MAGNITUDE: the semi-axes carry no order
         // and no sign (`Conic`); `minor` for the ordinary order.
-        Curve3::Ellipse {
-            semi_u: major,
-            semi_v: minor,
-            ..
-        } => InfSpeed::new(major.abs().min(minor.abs())),
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            InfSpeed::new(geom::Curve3::semi_axes_by_size(semi_u, semi_v).1)
+        }
         Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
     }
 }

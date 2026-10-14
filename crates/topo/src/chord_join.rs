@@ -994,52 +994,14 @@ impl<T: Real> SectionConic<T> {
         self.normal.cross(self.seam) * (self.sb * theta.cos()) - self.seam * (self.sa * theta.sin())
     }
 
-    /// **The same ellipse seamed at the principal vertex nearest `theta`**,
-    /// in this frame's eccentric anomaly: of the vertices at `0`, `π/2`,
-    /// `π` and `3π/2`, the one whose axis `theta`'s cosine or sine
-    /// dominates, a tie at an odd multiple of `π/4` keeping this seam's
-    /// axis, and on either axis the vertex its sign points to, a zero
-    /// pointing forward. A quarter turn `θ = s + π/2` reads
-    /// `center + (normal × seam)·(sb·cos s) − seam·(sa·sin s)`: the seam
-    /// turns to `normal × seam` and the semi-axes swap. Near the new seam
-    /// the parameter is near zero, so it resolves to the scale of the arc
-    /// rather than `ulp(π/2)` times the semi-axis across it. A circle is
-    /// returned as it is: its parameter resolves to its radius everywhere.
+    /// **The same conic seamed at the principal vertex nearest `theta`**,
+    /// in this frame's eccentric anomaly ([`geom::Curve3::seamed_near`]).
+    /// A circle is returned as it is: its parameter resolves to its
+    /// radius everywhere.
     fn seamed_near(self, theta: T) -> Self {
-        let geom::Curve3::Ellipse { .. } = self.carrier else {
-            return self;
-        };
-        let (s, c) = theta.sin_cos();
-        let across = self.normal.cross(self.seam);
-        let pick = |d: T, a: Vec3<T>, b: Vec3<T>| {
-            Vec3::new(
-                d.select_le_zero(a.x, b.x),
-                d.select_le_zero(a.y, b.y),
-                d.select_le_zero(a.z, b.z),
-            )
-        };
-        // ≤ 0 where the seam's axis is the nearer.
-        let axis = s.abs() - c.abs();
-        let along = pick(T::zero() - c, self.seam, -self.seam);
-        let turned = pick(T::zero() - s, across, -across);
-        let seam = pick(axis, along, turned);
-        let (sa, sb) = (
-            axis.select_le_zero(self.sa, self.sb),
-            axis.select_le_zero(self.sb, self.sa),
-        );
-        Self {
-            center: self.center,
-            normal: self.normal,
-            seam,
-            sa,
-            sb,
-            carrier: geom::Curve3::Ellipse {
-                center: self.center,
-                axis: self.normal,
-                semi_u: sa,
-                semi_v: sb,
-                u_ref: seam,
-            },
+        match self.carrier.seamed_near(theta).and_then(section_conic) {
+            Some(seamed) => seamed,
+            None => self,
         }
     }
 }
@@ -1102,7 +1064,7 @@ impl<T: Real> SectionCurve<T> {
     /// semi-axis, whichever its seam lies along, an oval's own extent.
     fn lever(&self) -> T {
         match self {
-            Self::Conic(c) => c.sa.abs().max(c.sb.abs()),
+            Self::Conic(c) => geom::Curve3::semi_axes_by_size(c.sa, c.sb).0,
             Self::Oval(o) => o.extent,
         }
     }
@@ -1532,10 +1494,10 @@ fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
         geom::Curve3::Ellipse {
             center,
             axis,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             u_ref,
-        } => (center, axis, u_ref, major, minor),
+        } => (center, axis, u_ref, semi_u, semi_v),
         geom::Curve3::Circle {
             center,
             axis,

@@ -2452,7 +2452,10 @@ pub(super) fn piece_distance<T: Bounds>(
             semi_v,
             ..
         } => {
-            let (d, major) = ((center - c).norm(), semi_u.abs().max(semi_v.abs()));
+            let (d, major) = (
+                (center - c).norm(),
+                Curve3::semi_axes_by_size(semi_u, semi_v).0,
+            );
             Some(((d - major).max(T::zero()), d + major))
         }
         _ => CircleFrame::of(carrier).map(|k| k.distance((ta, tb), c)),
@@ -2485,8 +2488,8 @@ pub(super) fn piece_along<T: Bounds>(
         Curve3::Ellipse {
             center,
             axis,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let v = axis.cross(u_ref);
@@ -2496,7 +2499,7 @@ pub(super) fn piece_along<T: Bounds>(
                 radius: T::one(),
                 u_ref,
             };
-            let lifted = u_ref * (major * u_ref.dot(u)) + v * (minor * v.dot(u));
+            let lifted = u_ref * (semi_u * u_ref.dot(u)) + v * (semi_v * v.dot(u));
             let (low, high) = unit.along((ta, tb), center, lifted);
             let mid = (center - c).dot(u);
             Some((mid + low, mid + high))
@@ -3375,13 +3378,13 @@ fn boxed_reach<T: Bounds>(
                 Curve3::Ellipse {
                     center,
                     axis,
-                    semi_u: major,
-                    semi_v: minor,
+                    semi_u,
+                    semi_v,
                     u_ref,
                 } => {
                     let mid = (*center - c).dot(u);
-                    let amp = ((*major * u_ref.dot(u)).powi(2)
-                        + (*minor * axis.cross(*u_ref).dot(u)).powi(2))
+                    let amp = ((*semi_u * u_ref.dot(u)).powi(2)
+                        + (*semi_v * axis.cross(*u_ref).dot(u)).powi(2))
                     .sqrt();
                     Some((low.max(mid - amp), high.min(mid + amp)))
                 }

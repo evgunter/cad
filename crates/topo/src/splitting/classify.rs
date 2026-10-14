@@ -513,7 +513,7 @@ fn conic_plane_meet<T: Decide>(
         Ok(candidates) => candidates,
         Err(meet) => return meet,
     };
-    let (s_u, s_v) = (conic.major, conic.minor);
+    let (s_u, s_v) = (conic.semi_u, conic.semi_v);
     span_roots(candidates, t0, t1, s_u, s_v, band)
 }
 
@@ -531,8 +531,8 @@ pub(crate) fn conic_plane_candidates<T: Decide>(
         center,
         axis,
         u_ref,
-        major: s_u,
-        minor: s_v,
+        semi_u: s_u,
+        semi_v: s_v,
     } = conic;
     let v_ref = axis.cross(u_ref);
     let d0 = (center - plane_origin).dot(plane_normal);
@@ -1224,8 +1224,8 @@ mod tests {
                     center: Point3::new(0.0, 0.0, off * e),
                     axis: Vec3::unit_x(),
                     u_ref: Vec3::unit_z(),
-                    major: 2.0 * e,
-                    minor: 2.0 * e,
+                    semi_u: 2.0 * e,
+                    semi_v: 2.0 * e,
                 };
                 let normal = Vec3::new(0.0, 0.0, nz);
                 let got = conic_plane_candidates(conic, Point3::origin(), normal, band);

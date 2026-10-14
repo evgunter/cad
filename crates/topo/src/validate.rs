@@ -4884,8 +4884,8 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   ([`geom::Surface::representability_margins`],
 ///   [`geom::Curve3::representability_margins`]); these are not
 ///   certified: `work/restfront/unlevered-frame-conventions-are-uncertified-at-rest.md`.
-///   Nor is an ellipse's `major > minor` ordering:
-///   `work/restfront/an-ellipse-stored-minor-over-major-passes-tier-3.md`.
+///   An ellipse's semi-axes carry no order to certify: its `u_ref` is
+///   either principal direction.
 ///
 /// # Errors
 ///

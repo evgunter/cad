@@ -568,8 +568,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         Curve3::Ellipse {
             center,
             axis,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let axis = (axis + nudge(s, 3)).normalize();
@@ -577,8 +577,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
             Curve3::Ellipse {
                 center: center + nudge(s, 1),
                 axis,
-                semi_u: scaled(s, major),
-                semi_v: scaled(s, minor),
+                semi_u: scaled(s, semi_u),
+                semi_v: scaled(s, semi_v),
                 u_ref,
             }
         }

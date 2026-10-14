@@ -190,14 +190,14 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
         Curve3::Ellipse {
             center,
             axis,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => Curve3::Ellipse {
             center: p(center),
             axis: v(axis),
-            semi_u: T::from_f64(major),
-            semi_v: T::from_f64(minor),
+            semi_u: T::from_f64(semi_u),
+            semi_v: T::from_f64(semi_v),
             u_ref: v(u_ref),
         },
         _ => unreachable!(),
@@ -398,8 +398,8 @@ fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
     let Curve3::Ellipse {
         center,
         axis,
-        semi_u: major,
-        semi_v: minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = section(c)
     else {
@@ -408,8 +408,8 @@ fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
     let stretched = |k: f64| Curve3::Ellipse {
         center,
         axis,
-        semi_u: major * (1.0 + k),
-        semi_v: minor,
+        semi_u: semi_u * (1.0 + k),
+        semi_v: semi_v,
         u_ref,
     };
     // The distance is linear in a small stretch: read its slope at one.
@@ -583,19 +583,14 @@ fn an_ellipse_span_is_metered_at_its_smaller_semi_axis() {
         let tilt = ((1.0 - 1.0 / (squash * squash)).sqrt() * c.alpha.cos()).asin();
         let (s, co) = c.alpha.sin_cos();
         let e = section_at(&c, tilt, (1e3 * b.escalate() / s.min(co)).max(0.05));
-        let Curve3::Ellipse {
-            semi_u: major,
-            semi_v: minor,
-            ..
-        } = e
-        else {
+        let Curve3::Ellipse { semi_u, semi_v, .. } = e else {
             unreachable!()
         };
         assert!(
-            (major / minor - squash).abs() < 0.01 * squash,
-            "{c:?}: the section is {major} by {minor}"
+            (semi_u / semi_v - squash).abs() < 0.01 * squash,
+            "{c:?}: the section is {semi_u} by {semi_v}"
         );
-        let cap = |over: f64| -> Spec { vec![(e.clone(), 0.0, TAU + over / minor)] };
+        let cap = |over: f64| -> Spec { vec![(e.clone(), 0.0, TAU + over / semi_v)] };
         for (lane, got) in verdicts(&c, &cap(0.6 * b.zero())) {
             assert_eq!(got, Ok(()), "{c:?} {lane}: an overrun within the bound");
         }

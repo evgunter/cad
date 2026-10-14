@@ -35,13 +35,16 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
         match *c.carrier() {
             Curve3::Circle { radius, .. } => assert_eq!(radius, D, "{what}: a circle end"),
             Curve3::Ellipse {
-                semi_u: major,
-                semi_v: minor,
+                semi_u,
+                semi_v,
                 axis,
                 ..
             } => {
                 ellipses += 1;
-                assert!((minor - D).abs() < 1e-15, "{what}: minor = r, got {minor}");
+                assert!(
+                    (semi_v - D).abs() < 1e-15,
+                    "{what}: minor = r, got {semi_v}"
+                );
                 let band = out
                     .blend_faces
                     .iter()
@@ -55,8 +58,8 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
                     .expect("a cylinder band");
                 let cos = axis.dot(band).abs();
                 assert!(
-                    (major - D / cos).abs() < 1e-12,
-                    "{what}: major = r / cos θ, got {major} vs {}",
+                    (semi_u - D / cos).abs() < 1e-12,
+                    "{what}: major = r / cos θ, got {semi_u} vs {}",
                     D / cos
                 );
                 let (t0, t1) = c.params();

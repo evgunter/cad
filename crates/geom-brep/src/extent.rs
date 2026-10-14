@@ -400,10 +400,10 @@ impl<T: Real> Reach<T> {
                 Curve3::Circle { center, radius, .. } => (*center - pivot).norm() + radius.abs(),
                 Curve3::Ellipse {
                     center,
-                    semi_u: major,
-                    semi_v: minor,
+                    semi_u,
+                    semi_v,
                     ..
-                } => (*center - pivot).norm() + major.abs().max(minor.abs()),
+                } => (*center - pivot).norm() + geom::Curve3::semi_axes_by_size(*semi_u, *semi_v).0,
                 Curve3::Spiric {
                     center,
                     major_radius,
@@ -528,12 +528,12 @@ impl<T: Real> Reach<T> {
                 Curve3::Ellipse {
                     center,
                     axis: k,
-                    semi_u: major,
-                    semi_v: minor,
+                    semi_u,
+                    semi_v,
                     u_ref,
                 } => conic_arc_range(
                     (*center, *u_ref, k.cross(*u_ref)),
-                    (*major, *minor),
+                    (*semi_u, *semi_v),
                     (*t0, *t1),
                     pivot,
                     dir,
@@ -922,11 +922,7 @@ mod tests {
             for carrier in carriers {
                 let (a, b) = match carrier {
                     Curve3::Circle { radius, .. } => (radius, radius),
-                    Curve3::Ellipse {
-                        semi_u: major,
-                        semi_v: minor,
-                        ..
-                    } => (major, minor),
+                    Curve3::Ellipse { semi_u, semi_v, .. } => (semi_u, semi_v),
                     _ => unreachable!(),
                 };
                 let big = a.abs().max(b.abs());

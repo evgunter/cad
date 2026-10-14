@@ -105,15 +105,15 @@ impl<'a, T: Real> Kind<'a, T> {
             geom::Curve3::Ellipse {
                 center,
                 axis,
-                semi_u: major,
-                semi_v: minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => Self::Conic(Conic {
                 center: *center,
                 axis: *axis,
                 u_ref: *u_ref,
-                major: *major,
-                minor: *minor,
+                semi_u: *semi_u,
+                semi_v: *semi_v,
             }),
             geom::Curve3::Spiric {
                 major_radius,

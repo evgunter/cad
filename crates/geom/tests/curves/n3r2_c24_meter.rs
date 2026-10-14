@@ -31,10 +31,10 @@ fn bench(carrier: &Curve3<f64>, n: u32) -> (f64, f64) {
         Curve3::Ellipse {
             center,
             axis,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             u_ref,
-        } => (*center, *u_ref, axis.cross(*u_ref), *major, *minor),
+        } => (*center, *u_ref, axis.cross(*u_ref), *semi_u, *semi_v),
         _ => panic!("conic only"),
     };
     let _ = center;

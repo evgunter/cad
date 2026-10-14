@@ -64,8 +64,8 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     let &Curve3::Ellipse {
         center,
         axis,
-        semi_u: major,
-        semi_v: minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = e
     else {
@@ -74,8 +74,8 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     Curve3::Ellipse {
         center,
         axis: -axis,
-        semi_u: major,
-        semi_v: minor,
+        semi_u: semi_u,
+        semi_v: semi_v,
         u_ref,
     }
 }
@@ -336,7 +336,7 @@ fn read_off_the_sum(
         &Pcurve::FocalSection(focal),
         &Curve3::Ellipse {
             center,
-            semi_u: major,
+            semi_u,
             u_ref: e_u,
             ..
         },
@@ -349,7 +349,7 @@ fn read_off_the_sum(
     };
     let radial = |v: Vec3<f64>| v - axis * v.dot(axis);
     let w = center - apex;
-    let start = (radial(w) + radial(e_u * major)) * w.dot(axis).signum();
+    let start = (radial(w) + radial(e_u * semi_u)) * w.dot(axis).signum();
     let u0 = start.dot(axis.cross(u_ref)).atan2(start.dot(u_ref));
     Pcurve::FocalSection(FocalImage { u0, ..focal })
 }
@@ -732,8 +732,8 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
     let Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = exact
     else {
@@ -742,8 +742,8 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
     let carrier = Curve3::Ellipse {
         center: center + u_ref * (0.3 * eps()),
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     };
     let off = off_cone(&carrier, &surface);
@@ -752,10 +752,10 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
         Err(e) => return refused(format!("a carrier {off:e} off the cone: {e}")),
     };
     let miss = whole_turn_miss(&image, &carrier, &surface);
-    let bound = off / alpha.cos() + 4.0 * f64::EPSILON * major / k;
+    let bound = off / alpha.cos() + 4.0 * f64::EPSILON * semi_u / k;
     assert!(
         miss < bound,
-        "carrier {off:e} off the cone (k {k:e}, A {major:e}): image misses by {miss:e}, \
+        "carrier {off:e} off the cone (k {k:e}, A {semi_u:e}): image misses by {miss:e}, \
          past {bound:e}"
     );
 }

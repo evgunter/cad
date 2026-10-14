@@ -204,13 +204,13 @@ fn cap_transverse_trio_at_the_certified_scalar() {
     let phi = 0.3f64;
     let oblique = cap_transverse(v, v3(phi.sin(), 0.0, phi.cos()), tau, radius, lever, band)
         .expect("an oblique cap is the ellipse");
-    let EndSection::Ellipse(geom::Curve3::Ellipse { semi_u: major, .. }) = oblique else {
+    let EndSection::Ellipse(geom::Curve3::Ellipse { semi_u, .. }) = oblique else {
         panic!("a definite departure picks the ellipse, got {oblique:?}");
     };
     let expected = 0.1 / phi.cos();
     assert!(
-        major.lo() <= expected && expected <= major.hi() && major.hi() - major.lo() < 1e-15,
-        "the major axis encloses r / cos φ: {major:?}"
+        semi_u.lo() <= expected && expected <= semi_u.hi() && semi_u.hi() - semi_u.lo() < 1e-15,
+        "the major axis encloses r / cos φ: {semi_u:?}"
     );
     // In band: a departure between the band's zero and its escalate.
     let t = 0.5 * (band.zero() + band.escalate());

@@ -177,18 +177,11 @@ fn an_oblique_cut_off_is_named_by_its_elliptic_end_arcs_and_feet() {
                         .expect("a certified end curve");
                     match (chamfer, curve.carrier()) {
                         (true, geom::Curve3::Line { .. }) => {}
-                        (
-                            false,
-                            geom::Curve3::Ellipse {
-                                semi_u: major,
-                                semi_v: minor,
-                                ..
-                            },
-                        ) => {
-                            assert!((minor - 0.1).abs() < 1e-15, "minor = r, got {minor}");
+                        (false, geom::Curve3::Ellipse { semi_u, semi_v, .. }) => {
+                            assert!((semi_v - 0.1).abs() < 1e-15, "minor = r, got {semi_v}");
                             assert!(
-                                (major - 0.1 / cos).abs() < 1e-12,
-                                "major = r / cos θ, got {major}"
+                                (semi_u - 0.1 / cos).abs() < 1e-12,
+                                "major = r / cos θ, got {semi_u}"
                             );
                         }
                         (_, other) => panic!("chamfer {chamfer}: an end curve, got {other:?}"),

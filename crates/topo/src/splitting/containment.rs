@@ -866,10 +866,10 @@ impl<T: Decide> ConicArc<T> {
             geom::Curve3::Ellipse {
                 center,
                 axis,
-                semi_u: major,
-                semi_v: minor,
+                semi_u,
+                semi_v,
                 u_ref,
-            } => (ConicKind::Ellipse, center, axis, u_ref, major, minor),
+            } => (ConicKind::Ellipse, center, axis, u_ref, semi_u, semi_v),
             _ => return Ok(None),
         };
         let lever = a.min(b);
@@ -1663,10 +1663,10 @@ pub(crate) fn carrier_ball<T: Decide>(
         geom::Curve3::Circle { center, radius, .. } => Some((center, radius)),
         geom::Curve3::Ellipse {
             center,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             ..
-        } => Some((center, major.max(minor))),
+        } => Some((center, geom::Curve3::semi_axes_by_size(semi_u, semi_v).0)),
         // The arc from its midpoint: no point of it lies further from
         // `P(mid)` than the oval's speed bound times half the parameter
         // width.
@@ -1962,10 +1962,13 @@ fn certify_plane<T: Decide>(
             Some(&geom::Curve3::Ellipse {
                 center,
                 axis,
-                semi_u: major,
-                semi_v: minor,
+                semi_u,
+                semi_v,
                 ..
-            }) => margins.extend([off(center), tilt(axis, major.max(minor))]),
+            }) => margins.extend([
+                off(center),
+                tilt(axis, geom::Curve3::semi_axes_by_size(semi_u, semi_v).0),
+            ]),
             Some(&geom::Curve3::Spiric {
                 center,
                 u_ref,

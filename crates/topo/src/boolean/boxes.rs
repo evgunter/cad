@@ -2322,15 +2322,15 @@ pub(crate) fn edge_box_rule<T: Real>(
         geom::Curve3::Ellipse {
             center,
             axis,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => EdgeBoxRule::ConicAmplitude {
             carrier,
             center: *center,
             axis: *axis,
-            semi_u: *major,
-            semi_v: *minor,
+            semi_u: *semi_u,
+            semi_v: *semi_v,
             u_ref: *u_ref,
             params,
         },
@@ -5281,10 +5281,10 @@ pub(crate) mod tests {
             Curve3::Ellipse {
                 center,
                 axis,
-                semi_u: major,
-                semi_v: minor,
+                semi_u,
+                semi_v,
                 u_ref,
-            } => (*center, *u_ref * *major, axis.cross(*u_ref) * *minor),
+            } => (*center, *u_ref * *semi_u, axis.cross(*u_ref) * *semi_v),
             other => panic!("a conic sector's rim is a conic, got {other:?}"),
         }
     }

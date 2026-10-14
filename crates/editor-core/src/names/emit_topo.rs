@@ -3525,12 +3525,12 @@ pub(super) fn param_along<T: Decide>(
         Curve3::Ellipse {
             center,
             axis,
-            semi_u: major,
-            semi_v: minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let w = p - *center;
-            let (x, y) = (w.dot(*u_ref) / *major, w.dot(axis.cross(*u_ref)) / *minor);
+            let (x, y) = (w.dot(*u_ref) / *semi_u, w.dot(axis.cross(*u_ref)) / *semi_v);
             let (s, c) = near.sin_cos();
             Some(near + (y * c - x * s).atan2(x * c + y * s))
         }

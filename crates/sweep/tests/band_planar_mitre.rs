@@ -179,13 +179,9 @@ fn an_extruded_pentagon_cap_rim_turns_at_every_vertex() {
                         .and_then(|g| g.certified())
                         .expect("a certified mitre");
                     match *c.carrier() {
-                        geom::Curve3::Ellipse {
-                            semi_u: major,
-                            semi_v: minor,
-                            ..
-                        } => {
-                            assert!((minor - D).abs() < 1e-12, "the minor semi-axis is r");
-                            major
+                        geom::Curve3::Ellipse { semi_u, semi_v, .. } => {
+                            assert!((semi_v - D).abs() < 1e-12, "the minor semi-axis is r");
+                            semi_u
                         }
                         ref other => panic!("a fillet mitre is an ellipse, got {other:?}"),
                     }

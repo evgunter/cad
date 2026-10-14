@@ -182,14 +182,14 @@ impl<T: Real> Curve3<T> {
             Curve3::Ellipse {
                 center,
                 axis,
-                semi_u: major,
-                semi_v: minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => Curve3::Ellipse {
                 center: center.map(&f),
                 axis: axis.map(&f),
-                semi_u: f(*major),
-                semi_v: f(*minor),
+                semi_u: f(*semi_u),
+                semi_v: f(*semi_v),
                 u_ref: u_ref.map(&f),
             },
             Curve3::Spiric {
