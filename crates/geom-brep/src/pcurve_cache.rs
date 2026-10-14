@@ -4745,7 +4745,10 @@ fn incidence<T: Decide>(
 
 /// The furthest a branch may sit from the one it is read against, in
 /// whole periods, before [`whole_periods`] refuses it
-/// ([`BranchMiss::OutOfReach`]).
+/// ([`BranchMiss::OutOfReach`]). A caller whose orbit steps in a
+/// fraction of a period (`topo`'s sphere walk, in half periods) counts
+/// the same whole periods through [`whole_step_count`], so the cap is
+/// one distance on every orbit.
 ///
 /// **Why a cap, and why four.** The search steps one period at a time
 /// from `k = 0`, two sign decisions a step, so an uncapped search over
@@ -4759,6 +4762,12 @@ fn incidence<T: Decide>(
 /// or its branch read off its winding. The refusal says so by type
 /// rather than as a residual
 /// (`work/pcert/whole-periods-caps-a-branch-at-four-periods.md`).
+///
+/// **What a branch's reach is.** The marks decide a branch up to this
+/// many whole periods from the search's start. Where they miss, `topo`'s
+/// loop walk reads its near-pole offsets (`lever_periods`), at most one
+/// whole period around the read's centre, so the walk's reach is this
+/// cap plus that read's offsets.
 pub const MAX_BRANCH_PERIODS: i32 = 4;
 
 /// Why [`whole_periods`] decided no branch.
@@ -4773,7 +4782,7 @@ pub enum BranchMiss {
     /// twin as its own orbit point, with half the period, so a twin is
     /// never this).
     OnMark,
-    /// The gap is more than [`MAX_BRANCH_PERIODS`] periods out.
+    /// The gap is more than [`MAX_BRANCH_PERIODS`] whole periods out.
     OutOfReach,
 }
 
@@ -4816,6 +4825,27 @@ pub fn whole_period_count<T: Decide>(
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<i32, BranchMiss> {
+    whole_step_count(name, gap, (period, 1), meter, band)
+}
+
+/// [`whole_period_count`] on an orbit that steps `step` at a time,
+/// `per` steps to a whole period (a sphere's image and its twin, half a
+/// period apart, are `per = 2`): the whole number of steps `k` with
+/// `|gap − k·step| < step/2`. The search stops at
+/// [`MAX_BRANCH_PERIODS`] WHOLE periods, `MAX_BRANCH_PERIODS·per`
+/// steps, so the cap is the same distance whatever the step.
+///
+/// # Errors
+///
+/// [`whole_periods`]'.
+pub fn whole_step_count<T: Decide>(
+    name: &'static str,
+    gap: T,
+    (period, per): (T, i32),
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<i32, BranchMiss> {
+    let reach = MAX_BRANCH_PERIODS * per;
     let half = T::from_f64(0.5);
     let mark = |k: i32, side: T| {
         decide(
@@ -4836,7 +4866,7 @@ pub fn whole_period_count<T: Decide>(
                 Sign::Positive => {
                     k += 1;
                     (below, above) = (true, false);
-                    if k > MAX_BRANCH_PERIODS {
+                    if k > reach {
                         return Err(BranchMiss::OutOfReach);
                     }
                     continue;
@@ -4850,7 +4880,7 @@ pub fn whole_period_count<T: Decide>(
                 Sign::Negative => {
                     k -= 1;
                     (below, above) = (false, true);
-                    if k < -MAX_BRANCH_PERIODS {
+                    if k < -reach {
                         return Err(BranchMiss::OutOfReach);
                     }
                     continue;

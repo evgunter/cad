@@ -3782,8 +3782,8 @@ pub(crate) enum PinMiss {
     Discontinuity,
     /// A decision escalated.
     Escalated(Indeterminate),
-    /// The gap is more than [`geom_brep::MAX_BRANCH_PERIODS`] steps of
-    /// the orbit from the predecessor's exit.
+    /// The gap is more than [`geom_brep::MAX_BRANCH_PERIODS`] whole
+    /// periods from the predecessor's exit.
     OutOfReach,
 }
 
@@ -4047,8 +4047,10 @@ impl AzimuthRule {
 /// nearest orbit points in the chart metric.
 ///
 /// The integer counts the orbit's steps, so on a sphere it counts half
-/// periods, and `geom_brep::MAX_BRANCH_PERIODS` bounds half periods
-/// there: half its reach in whole periods.
+/// periods. `geom_brep::MAX_BRANCH_PERIODS` bounds whole periods on
+/// every orbit (`geom_brep::whole_step_count`, with
+/// [`Orbit::per_period`] steps to the period), so on a sphere the marks
+/// read twice as many steps.
 ///
 /// **What that room buys, and where it is not enough.** Where it exceeds
 /// the joint bound below (the chart ends `≤ 4ε` apart in metres), the
@@ -4308,6 +4310,16 @@ impl Orbit {
         }
     }
 
+    /// How many of its steps make a whole period: the cap
+    /// ([`geom_brep::MAX_BRANCH_PERIODS`]) counts whole periods on every
+    /// orbit.
+    pub(crate) const fn per_period(self) -> i32 {
+        match self {
+            Self::Periods => 1,
+            Self::HalfPeriodsWithTwin => 2,
+        }
+    }
+
     /// The step of `period` this orbit counts in.
     pub(crate) fn step<T: Real>(self, period: T) -> T {
         match self {
@@ -4387,8 +4399,8 @@ pub(crate) fn lever_periods<T: Decide>(
     orbit: Orbit,
     band: Band,
 ) -> Result<i32, BranchMiss> {
-    let step = orbit.step(period);
-    match whole_period_count(name, gap, step, |g| arm.meter(g), band) {
+    let step = (orbit.step(period), orbit.per_period());
+    match geom_brep::whole_step_count(name, gap, step, |g| arm.meter(g), band) {
         Err(miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark)) => {
             near_pole_gap_closes(arm, gap, period, orbit, band).ok_or(miss)
         }
@@ -6511,6 +6523,15 @@ mod pole_slit_tests {
     /// down, rim arc. Returns the body, the cap and the cap's loop
     /// members.
     fn slit_cap() -> (Body<f64>, FaceKey, Vec<crate::HalfEdgeKey>) {
+        slit_cap_below(1.0).expect("the slit cap mints")
+    }
+
+    /// [`slit_cap`] with its first rim arc's carrier parameter
+    /// `periods` whole periods below the azimuth it covers, or the
+    /// minting pass's refusal.
+    fn slit_cap_below(
+        periods: f64,
+    ) -> Result<(Body<f64>, FaceKey, Vec<crate::HalfEdgeKey>), super::PcurveMintError> {
         let tol = Tol::witness();
         let v0 = 0.5;
         let mut body = Body::<f64>::new();
@@ -6556,7 +6577,7 @@ mod pole_slit_tests {
                 at(PI, v0),
                 // A period below the azimuth it covers, `[0, π]`: its
                 // image's base sits a period below the slit's.
-                rim(-2.0 * PI, -PI),
+                rim(-2.0 * PI * periods, PI - 2.0 * PI * periods),
                 tol,
             )
             .unwrap();
@@ -6612,13 +6633,13 @@ mod pole_slit_tests {
             tol,
         )
         .unwrap();
-        crate::mint_pcurves(&mut body, tol).unwrap();
+        crate::mint_pcurves(&mut body, tol)?;
         let LoopBoundary::Cycle { first } = body.get_loop(cap_loop).unwrap().boundary else {
             panic!("the cap's loop is a cycle")
         };
         let members = body.loop_cycle(first).unwrap();
         assert_eq!(members.len(), 4, "rim arc, slit up, slit down, rim arc");
-        (body, cap, members)
+        Ok((body, cap, members))
     }
 
     /// The cap's stored rows — each half-edge's image and joint element —
@@ -6640,6 +6661,48 @@ mod pole_slit_tests {
     /// loop-anchored-past-a-pole-slit`: the pass refused `LoopNotClosed`
     /// where the walk from the anchor carried the pole's free azimuth
     /// gap into its closure).
+    #[test]
+    /// **The branch cap counts whole periods on the sphere too.** The
+    /// slit cap's first rim arc, its carrier parameter `p` periods below
+    /// the azimuth it covers, sits `p + 1` whole periods from the slit's
+    /// image across their joint. That is `2(p + 1)` of the sphere orbit's
+    /// half steps, and as many whole periods from its re-derivation in
+    /// check 4. At `p = 3` both reads sit exactly at
+    /// `geom_brep::MAX_BRANCH_PERIODS` (4) whole periods: the cap mints,
+    /// re-mints from every anchor and reads clean. At `p = 4` it refuses
+    /// typed, `BranchOutOfReach`. A cap counted in the sphere walk's half
+    /// steps refuses from `p = 2`.
+    #[test]
+    fn a_pole_slit_cap_at_the_branch_cap_mints_and_one_period_more_refuses() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (mut body, cap, members) =
+            slit_cap_below(3.0).unwrap_or_else(|e| panic!("at the cap the slit cap mints: {e:?}"));
+        let cap_loop = body.get_half_edge(members[0]).unwrap().parent_loop;
+        let minted = rows(&body, &members);
+        for &anchor in &members {
+            body.get_loop_mut(cap_loop).unwrap().boundary = LoopBoundary::Cycle { first: anchor };
+            crate::mint_pcurves_of(&mut body, &[cap], Tol::witness())
+                .unwrap_or_else(|e| panic!("anchored at {anchor:?}, the pass refuses: {e:?}"));
+            assert_eq!(rows(&body, &members), minted, "anchored at {anchor:?}");
+            assert_eq!(
+                super::validate_pcurves(&body, band),
+                vec![],
+                "anchored at {anchor:?}"
+            );
+        }
+        let past = slit_cap_below(4.0).map(|_| ());
+        assert!(
+            matches!(
+                past,
+                Err(super::PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::BranchOutOfReach,
+                    ..
+                })
+            ),
+            "a period past the cap refuses typed: {past:?}"
+        );
+    }
+
     #[test]
     fn a_pole_slit_loop_re_mints_from_every_anchor() {
         let (mut body, cap, members) = slit_cap();
