@@ -1478,3 +1478,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Step 3 with the two-split restriction (A) beats step 2:** shelling 126 vs 139 s, r1 64 vs 76 s. Rung counts and margins are identical; 0–0.37% of meets fall outside, against 69–88% for step 2's cut.
   - **#5059** carries a compensated (double-word) midpoint, width ~16u² of the terms at a cancellation.
   - Order: #5059 (main merge, then FULL) → step 3 (FULL).
+- 2026-10-14 10:22Z — **Friction:** #5104's test step 8 (default ε) went red at 3a366af7, and no session could name the failing row.
+  - `get_job_logs` returns only the job's last 5000 lines, and later steps push step 8's FAIL line out of that window.
+  - Job re-run is 403 ("Resource not accessible by integration"); the log blob URL is proxy-blocked; the annotations say only "exit code 100".
+  - Locally at the same head and profile: 13972/13972. Suspected cause: the seed-varying enclose fuzzer filed on SSIARITH.
+  - Re-running via a legitimate main merge.
