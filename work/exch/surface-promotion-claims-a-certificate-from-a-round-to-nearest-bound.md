@@ -42,3 +42,12 @@ is the same shape on the curve side.
 Is the surface promotion meant to be certified (re-check the envelope
 at `Interval`, or round each term outward), or is it an f64 estimate
 by D4 ¶2, whose doc should then stop calling it a certificate?
+
+## Addendum (PCERT, from PR 5128's review, 2026-10-14)
+
+The question is wider than the stretch term. Per PR 5128's reviewers,
+the promotion's bound also reads the grid residual, which is
+round-to-nearest at f64 too and dominates the bound. So making only
+`stretch_sup` outward would not make the f64 promotion certified. The
+choice is about the whole bound: certify it at Interval, or word the
+f64 lane as an estimate.

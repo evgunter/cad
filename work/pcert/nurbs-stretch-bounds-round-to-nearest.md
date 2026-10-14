@@ -49,12 +49,41 @@ of step-import:
 
 The f64 value always lies inside the certified bracket. Its gap to the
 upper end is about one ulp at the median. The larger gaps are the
-Interval enclosure's own width on wide nets, not an f64 under-read.
-Every f64 consumer uses it as a lever or as a Lipschitz term inside a
-bound that is already computed in round-to-nearest, so rounding only
-this read outward would certify nothing at f64. The torus arm's `R + r`
-is the same: at most half an ulp below at f64, and outward at Interval.
+Interval enclosure's own width on wide nets, not an f64 under-read:
+- p99 is 5.2e-9, from `surfaces_stretch_sup::the_bound_covers_random_rational_nets`,
+  on nets whose sup runs 1e4 to 5e6;
+- the max, 1.0, is one reading, geom's
+  `surfaces_stretch_sup::six_decades_of_weight_are_covered`, `v`
+  channel. There the f64 value is exactly 0 and the enclosure is
+  `[0, 3.0e-15]`: a net with no extent along `v`, whose true stretch is
+  0. f64 did not under-read, and the upper end is finite.
 
-The one f64 consumer whose wording claims a certificate is step-import's
-whole-patch promotion; that question is filed for EXCH as
-`work/exch/surface-promotion-claims-a-certificate-from-a-round-to-nearest-bound.md`.
+The torus arm's `R + r` behaves the same: at most half an ulp below at
+f64, and outward at Interval.
+
+**Two f64 consumers word their result as certified.**
+- **step-import's whole-patch promotion.** Filed for EXCH as
+  `work/exch/surface-promotion-claims-a-certificate-from-a-round-to-nearest-bound.md`.
+- **topo's `chart_region::certified_arms`, spline arm.** It reads
+  `chart_stretch_inf`'s `sup_u` and `sup_v`, which are this sup, into
+  `trace_sup = (sup_u/inf_u)² + (sup_v/inf_v)²`. Its skew discount `ρ`
+  rises as the trace falls, so a sup read low raises the arm that the
+  function's name calls certified.
+  - At Interval, `nurbs_stretch_bounds` is outward, and the arm is a
+    bound.
+  - At f64, D4 ¶2 covers it: the per-axis infs, `area_inf` and the
+    trace and determinant arithmetic around it are round-to-nearest
+    too, so rounding only this read outward would certify nothing
+    there.
+  - Whether `certified_arms` should claim a certificate at f64, or stop
+    saying so, is the owner's question: filed for CHART as
+    `work/chart/certified-arms-reads-a-round-to-nearest-stretch-at-f64.md`.
+
+**Re-taking the census.** The probe instruments geom's
+`NurbsSurface::stretch_sup` itself: every suite that reads a stretch
+logs through it, so it cannot be an `#[ignore]`d row. It is on the
+branch `pcert/census-probes` (f44ce42a). Run there:
+`PCERT_STRETCH_LOG=/tmp/stretch.log cargo nextest run --release --profile ci -p geom -p geom-brep -p topo -p sweep -p step-import`.
+Each line reads `STRETCH f_u lo_u hi_u f_v lo_v hi_v <test>`. The
+re-take reproduces the max row exactly (`six_decades_of_weight_are_covered`,
+`v`: `0`, `[0, 3.04e-15]`).

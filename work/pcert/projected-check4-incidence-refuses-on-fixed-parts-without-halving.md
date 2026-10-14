@@ -35,10 +35,17 @@ release ci, 10,512 tests pass):
   at this scalar" and 6 are sector refusals; none is about incidence.
 - No envelope exceeds the band's zero. The largest envelope / zero is
   0.89.
-- fixed / refined incidence: median 1.00, p90 1.11, max 5.65. The large
-  ratios are all `envelope_lemma_fuzz` rows whose carriers are
-  deliberately off the surface (incidence 1e-7 to 7e-3), which refuse
-  whatever the bound.
+- fixed / refined incidence over all 279 reads: median 1.00, p90 1.11,
+  max 5.65. **Every read above 1.012 (71 of them) is an
+  `envelope_lemma_fuzz::projected` row.**
+  - 66 have carriers deliberately off the surface (incidence `1e-8` to
+    `7e-3`), and refuse whatever the bound. 57 of those are
+    `the_projected_envelope_dominates_the_sampled_displacement`.
+  - 5 sit at rounding scale (`7e-16` to `1.5e-14`), where the ratio is
+    noise.
+  - The 43 reads from rows outside the fuzz, honest carriers, have
+    fixed / refined at most **1.0026**. The p90 of 1.11 is the fuzz
+    rows', not theirs.
 - **No read lies in [0.1ε, 10ε]**, and none has fixed > ε ≥ refined.
 
 **Constructed poses** (unit cylinder, ε = 1e-9):
@@ -48,8 +55,17 @@ release ci, 10,512 tests pass):
   points alternating ±δ radially): fixed / refined is 1.012, 1.005 and
   1.011.
 
-The 8-part Bernstein read is within about 1.2% of the true sup on
-honest carriers. Halving could flip a verdict only for a carrier whose
-true miss sits within about 1% under the band, after the other terms.
-The halving path (`ssi::certify::subdivide`, as `net_offset_sup` uses)
-stays available if a row ever lands in that sliver.
+The 8-part Bernstein read is within about 0.3% of the 64-cut read on the
+suites' honest rows. On the constructed sign-changing carriers it is
+within 1.2%. Halving could flip a verdict only for a carrier whose true
+miss sits within about 1% under the band, after the other terms. That
+is a false refusal in the sliver, and a fitted carrier near ε can reach
+it. It is filed as its own row:
+`work/pcert/projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band.md`
+(P4). The reason not to halve today sits at `projected::INCIDENCE_CUTS`.
+
+**Re-taking the census.** The probe instruments
+`projected_envelope`'s Net arm, so it cannot be an `#[ignore]`d row. It
+is on the branch `pcert/census-probes` (f44ce42a). Run there:
+`PCERT_P4_LOG=/tmp/p4.log cargo nextest run --release --profile ci -p geom-brep -p topo -p sweep -p step-import -p mesh -p editor-core`.
+Each line reads `P4INC fixed refined <test>`.

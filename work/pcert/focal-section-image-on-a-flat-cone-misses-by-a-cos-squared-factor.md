@@ -58,32 +58,51 @@ re-derive it from the carrier where it does not have to divide by
 ## Closed: fixed by GERM's PR #5043 (PCERT, 2026-10-14)
 
 The `1/cos²α` was not in the image. It was in the carrier the image is
-minted from. `plane_cone_section`'s `TiltedEllipse` arm read
+minted from: `plane_cone_section`'s `TiltedEllipse` arm read
 `K = c² − sin²α` and a centre that cancels to `K` along the normal.
 #5043 reads `K = −D·M` and the centre off the apex's foot.
 
 The item's probe (`sweep/examples/conic_past_band_probe.rs`, cone
-family, `α = 1.55`, ε = 1e-12), re-run on main after #5043:
+family, `α = 1.55`), re-run on main after #5043:
 
-| S | f | whole-turn map residual before → after | split at 1e-12 |
-|---|---|---|---|
-| 0.01 | 0.5 | 7.2e-14 → 4.2e-16 | splits |
-| 0.01 | 0.9 | 2.4e-13 → 1.6e-15 | splits (was `Pcurves(Certify)`) |
-| 1 | 0.5 | 7.2e-12 → 3.6e-14 | splits (was `Join(Euler(Escalated))`) |
-| 1 | 0.8 | 7.8e-12 → 7.4e-14 | splits (was `Join(Euler(Escalated))`) |
+| ε | S | f | whole-turn map residual, before → after | after, in `u·A` | split |
+|---|---|---|---|---|---|
+| 1e-12 | 0.01 | 0.5 | 7.2e-14 → 4.2e-16 | 5 | splits |
+| 1e-12 | 0.01 | 0.9 | 2.4e-13 → 1.6e-15 | 5 | splits (was `Pcurves(Certify)`) |
+| 1e-12 | 1 | 0.5 | 7.2e-12 → 3.6e-14 | 5 | splits (was `Join(Euler(Escalated))`) |
+| 1e-12 | 1 | 0.8 | 7.8e-12 → 7.4e-14 | 5 | splits (was `Join(Euler(Escalated))`) |
+| 1e-9 | 100 | 0.5 | 7.2e-10 → 3.6e-12 | 5 | splits (was refused) |
+| 1e-9 | 100 | 0.8, 0.9 | → 8.1e-12, 1.5e-11 | 5 | splits |
 
-The residual is now about `5·u·A`, where before it was about
-`1000·u·A`.
+Every row's residual is now about `5·u·A`, where `A` is the larger
+semi-axis and `u = f64::EPSILON/2`. It was about `1000·u·A` before.
 
-Two rows the item's table did not have still refuse:
-- `S = 1`, `f = 0.999` (`k = 0.045`, near the parabola) escalates at
-  the edge's `EndpointStart`, margin `1.28e-12`, at the band's own
-  scale.
-- At `S = 100`, ε = 1e-12, the probe cannot build the operand at all.
+**What still refuses, and why it has no item here.**
+- **`S = 1`, `f = 0.999`** (`k = 0.045`) escalates at the edge's
+  `EndpointStart`, margin `1.28e-12`, at the band's own scale. That is
+  the near-parabola mechanism, uniform in `α`, and not this item's flat
+  factor. It is GERM's open
+  `conic-section-just-past-its-band-fails-certification-downstream` and
+  `a-steep-frustum-cut-at-a-shallow-tilt-refuses-at-the-endpoint-gate-at-1e-12`.
+- **`S = 100` at ε = 1e-12.** The probe cannot build the operand: its
+  extent is about 9.7e3, so `u·extent ≈ 2.2e-12 ≥ ε`, and the band sits
+  below f64's resolution of the operand itself. The section's image
+  escalates there too, `MapResidual` at `f` 0.5, 0.8 and 0.9 (whole-turn
+  residual 3.6e-12 to 1.5e-11, about `5·u·A` again). That is the same
+  resolution floor, not the flat factor, so it has no item of its own.
 
-Row: `flat_cone_tilted_ellipse::a_flat_cones_section_images_and_certifies_at_its_own_resolution`.
-- `α = 1.55`, `f` 0.5, 0.8 and 0.9, on its own band `(1e-12, 1e-11)`.
-- Each image certifies over a whole turn with an envelope within 64 `u`
-  of the section's size.
-- The arm's old `K` reds all three poses: `MapResidual` at 0.5, and
-  `ChartIncidence` at 0.8 and 0.9.
+**Row.**
+`pcurve_cone_section::a_flat_cones_section_images_and_certifies_at_its_own_resolution`:
+- The item's own frustum pose (`skew_section`): `α = 1.55`, height 0.1,
+  `f` of 0.5, 0.8 and 0.9.
+- Each image certifies over a whole turn on its own band
+  `(1e-12, 1e-11)`, with an envelope within 48 `u` of the section's
+  size, three times the carrier's own allowance in
+  `flat_cone_tilted_ellipse.rs`.
+- The ceiling binds below the band's zero at every pose. Today's
+  envelopes read 27, 8 and 31 `u`.
+- These red every pose:
+  - the arm's old `K`;
+  - the arm's old centre;
+  - the centre moved 30 `u` back along the major axis (64, 86 and
+    70 `u`).
