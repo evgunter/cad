@@ -139,6 +139,7 @@
 
 use core::fmt;
 
+use crate::Readable;
 use crate::spline::SpanLocate;
 use crate::tolerance::{EPS_MIN, Tol};
 
@@ -1410,7 +1411,8 @@ impl Shows {
         match self {
             Self::Offer(v) => format!(
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
-                 {v:e} m"
+                 {} m",
+                Readable(v)
             ),
             Self::Refused => match refused {
                 RefusedReading::AsShown => lever_recourse(lever, no_size),
@@ -1481,9 +1483,10 @@ impl FileCoincidence {
         otherwise: &str,
     ) -> String {
         let eps_in = self.eps_in;
+        let eps_shown = Readable(eps_in);
         let stopgap = format!(
             "Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance to \
-             ε_in = {eps_in:e} m"
+             ε_in = {eps_shown} m"
         );
         let within = match miss {
             MissReading::Banded(margin, band) => match margin.magnitudes() {
@@ -1495,7 +1498,7 @@ impl FileCoincidence {
                 return match bound.within(eps_in) {
                     Some(Within::Wholly) => format!(
                         "The certificate's bound on this miss lies within the file's declared \
-                         coincidence distance ε_in = {eps_in:e} m. {stopgap}; this refusal may \
+                         coincidence distance ε_in = {eps_shown} m. {stopgap}; this refusal may \
                          indicate a kernel bug worth reporting"
                     ),
                     Some(Within::Partly) | None => otherwise.to_owned(),
@@ -1511,7 +1514,7 @@ impl FileCoincidence {
         };
         let head = format!(
             "This miss lies beyond the tolerance and {lies} the file's declared coincidence \
-             distance ε_in = {eps_in:e} m"
+             distance ε_in = {eps_shown} m"
         );
         match (source, within) {
             (MissSource::File, Within::Wholly) => {
@@ -1880,24 +1883,27 @@ impl MarginDiag {
             ..
         } = words;
         let eps_in = file.eps_in;
+        let eps_shown = Readable(eps_in);
         let (Some((near, _)), Some(within)) = (self.magnitudes(), self.within(eps_in)) else {
             return self.sized_recourse(band, words);
         };
         let untold = match within {
             Within::Wholly => format!(
                 "This {size} is within the file's declared coincidence distance ε_in = \
-                 {eps_in:e} m, so the file cannot tell it from zero."
+                 {eps_shown} m, so the file cannot tell it from zero."
             ),
             Within::Partly => format!(
                 "This {size} may lie within the file's declared coincidence distance ε_in = \
-                 {eps_in:e} m, so the file might not tell it from zero."
+                 {eps_shown} m, so the file might not tell it from zero."
             ),
         };
         match self.shows(band, passes) {
             Shows::Offer(below) => format!(
                 "{untold} Recourse: {lever}, or, if this {size} is intended, re-export the file \
-                 with its uncertainty declared below {near:e} m and tighten the tolerance below \
-                 {below:e} m"
+                 with its uncertainty declared below {} m and tighten the tolerance below \
+                 {} m",
+                Readable(near),
+                Readable(below)
             ),
             Shows::Floor => format!("{untold} Recourse: {lever}; {}", floor_note(size)),
             // Decided at this tolerance already, yet a size the file cannot
@@ -1941,11 +1947,29 @@ impl MarginDiag {
     }
 
     /// The reading as a sentence carries it: each number as
-    /// [`crate::Readable`] renders it, so a round `2` reads `2` and
-    /// `5e-10` reads `5e-10`.
+    /// [`Readable`] renders it, so a round `2` reads `2` and `5e-10`
+    /// reads `5e-10`, and a zero of either sign reads `0`.
     #[must_use]
     pub fn readable(self) -> impl fmt::Display {
-        fmt::from_fn(move |f| self.render(f, |x, f| fmt::Display::fmt(&crate::Readable(*x), f)))
+        fmt::from_fn(move |f| self.render(f, |x, f| readable_number(*x, f)))
+    }
+
+    /// [`Self::readable`] of how far the reading lies below zero, for a
+    /// payload that states a decided negative as a positive amount: `-m`,
+    /// or `[-hi, -lo]` for an enclosure.
+    #[must_use]
+    pub fn readable_below_zero(self) -> impl fmt::Display {
+        fmt::from_fn(move |f| match self.0 {
+            Reading::Value(m, ..) => readable_number(-m, f),
+            Reading::Enclosure { lo, hi, .. } => {
+                f.write_str("[")?;
+                readable_number(-hi, f)?;
+                f.write_str(", ")?;
+                readable_number(-lo, f)?;
+                f.write_str("]")
+            }
+            Reading::Invalid => self.render(f, |x, f| readable_number(*x, f)),
+        })
     }
 
     /// Writes the reading with `f`'s own number format applied to each
@@ -1967,6 +1991,12 @@ impl MarginDiag {
             Reading::Invalid => f.write_str("invalid (NaN or a refused enclosure)"),
         }
     }
+}
+
+/// One number of a reading as [`Readable`] renders it, a zero of
+/// either sign as `0`.
+fn readable_number(x: f64, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fmt::Display::fmt(&Readable(if x == 0.0 { 0.0 } else { x }), f)
 }
 
 /// The reading as text: `m`, `[lo, hi]`, or
@@ -3439,16 +3469,18 @@ mod tests {
                 ("is within", "cannot tell")
             };
             format!(
-                "This length {lies} the file's declared coincidence distance ε_in = {eps_in:e} m, \
-                 so the file {tells} it from zero. Recourse: L"
+                "This length {lies} the file's declared coincidence distance ε_in = {} m, so \
+                 the file {tells} it from zero. Recourse: L",
+                Readable(eps_in)
             )
         };
         let offer = |eps_in: f64, near: f64, partly: bool| {
             format!(
                 "{}, or, if this length is intended, re-export the file with its uncertainty \
-                 declared below {near:e} m and tighten the tolerance below {:e} m",
+                 declared below {} m and tighten the tolerance below {} m",
                 head(eps_in, partly),
-                band.tolerance_deciding(near)
+                Readable(near),
+                Readable(band.tolerance_deciding(near))
             )
         };
         let both = |eps_in: f64, near: f64| offer(eps_in, near, false);
@@ -3611,6 +3643,17 @@ mod tests {
             "[0, 2e-9]"
         );
         assert_eq!(MarginDiag::value(2.0).readable().to_string(), "2");
+        assert_eq!(MarginDiag::value(-0.0).readable().to_string(), "0");
+        assert_eq!(
+            MarginDiag::enclosure(-3e-9, -2e-9)
+                .readable_below_zero()
+                .to_string(),
+            "[2e-9, 3e-9]"
+        );
+        assert_eq!(
+            MarginDiag::value(-0.5).readable_below_zero().to_string(),
+            "0.5"
+        );
         assert_eq!(
             MarginDiag::INVALID.to_string(),
             "invalid (NaN or a refused enclosure)"

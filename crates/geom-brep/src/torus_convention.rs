@@ -80,16 +80,15 @@ impl TorusConvention {
                 format!("{whose} tube radius is not shown above zero (margin {margin} m)")
             }
             (Self::Tube, Refused::Negative { .. }) => {
-                format!("{whose} tube radius is negative (margin {margin} m)")
+                format!("{whose} tube radius is below zero (margin {margin} m)")
             }
             (Self::Ring, Refused::Zero(_)) => format!(
-                "{whose} tube radius is not shown smaller than its ring radius \
-                 (margin {margin} m)"
+                "{whose} tube radius is not shown smaller than its ring's (margin {margin} m)"
             ),
             (Self::Ring, Refused::Negative { .. }) => {
                 format!(
-                    "{whose} tube radius is larger than its ring radius (margin {margin} m), a \
-                     spindle torus"
+                    "{whose} tube radius is larger than its ring's (margin {margin} m), so the \
+                     surface is a spindle"
                 )
             }
         }
@@ -132,22 +131,30 @@ mod tests {
                 "a torus face's tube radius is not shown above zero (margin 0 m)",
             ),
             (
+                TorusConvention::Tube.refused(whose, zero(-0.0)),
+                "a torus face's tube radius is not shown above zero (margin 0 m)",
+            ),
+            (
                 TorusConvention::Ring.refused(whose, zero(5e-10)),
-                "a torus face's tube radius is not shown smaller than its ring radius (margin \
-                 5e-10 m)",
+                "a torus face's tube radius is not shown smaller than its ring's (margin 5e-10 m)",
             ),
             (
                 TorusConvention::Tube.refused(whose, negative),
-                "a torus face's tube radius is negative (margin -0.5 m)",
+                "a torus face's tube radius is below zero (margin -0.5 m)",
             ),
             (
                 TorusConvention::Ring.refused(whose, negative),
-                "a torus face's tube radius is larger than its ring radius (margin -0.5 m), a \
-                 spindle torus",
+                "a torus face's tube radius is larger than its ring's (margin -0.5 m), so the \
+                 surface is a spindle",
             ),
         ];
         for (got, want) in rows {
             assert_eq!(got, want);
+            assert_eq!(
+                crate::recourse::repeated_words(&got),
+                Vec::<String>::new(),
+                "a word said twice: {got}"
+            );
         }
     }
 }

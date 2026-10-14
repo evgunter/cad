@@ -253,9 +253,9 @@ impl Refused {
         }
     }
 
-    /// `zero` on the zero arm, which shows the quantity only not to be
-    /// there, and `negative` on the definite arm, which decided it: a
-    /// payload hedges only what its verdict left open.
+    /// `zero` on the zero arm, whose reading did not show the quantity
+    /// positive, and `negative` on the definite arm, which decided it
+    /// below zero: a payload hedges only what its verdict left open.
     #[must_use]
     pub(crate) fn worded(self, zero: &'static str, negative: &'static str) -> &'static str {
         match self {

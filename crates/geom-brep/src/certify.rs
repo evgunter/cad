@@ -617,9 +617,9 @@ impl core::fmt::Display for CertifyError {
                 verdict: Refused::Negative { margin },
             } => write!(
                 f,
-                "the stored parameter interval runs backwards (length {} m) — it must increase \
-                 from the edge's start vertex to its end",
-                margin.readable()
+                "the stored interval runs backwards by {} m — the edge's parameter must increase \
+                 from its start vertex to its end",
+                margin.readable_below_zero()
             ),
             Self::SpanMeterCollapsed { verdict } => write!(
                 f,
@@ -628,11 +628,22 @@ impl core::fmt::Display for CertifyError {
                 verdict.worded("not shown above", "below"),
                 verdict.margin().readable()
             ),
-            Self::ArmCollapsed { sample, verdict } => write!(
+            Self::ArmCollapsed {
+                sample,
+                verdict: verdict @ Refused::Zero(_),
+            } => write!(
                 f,
-                "at sample {sample} the edge is {} {} (margin {} m)",
-                verdict.worded("not shown", "not"),
+                "at sample {sample} the edge is not shown {} (margin {} m)",
                 crate::DIHEDRAL_ARM_CLAUSE,
+                verdict.margin().readable()
+            ),
+            Self::ArmCollapsed {
+                sample,
+                verdict: verdict @ Refused::Negative { .. },
+            } => write!(
+                f,
+                "at sample {sample} the length the faces' angle is measured over is below zero \
+                 (margin {} m)",
                 verdict.margin().readable()
             ),
             Self::WindingExceeded => write!(
@@ -692,9 +703,9 @@ impl core::fmt::Display for CertifyError {
             ),
             Self::TubeNotSeparated { verdict } => write!(
                 f,
-                "the certified lower bound on how far the faces curve apart along the edge \
-                 is {} zero (margin {} m), so the certificate cannot prove they fix where it \
-                 runs, though its description says they do",
+                "the certified lower bound on how far the faces curve apart is {} zero (margin \
+                 {} m) along the whole edge, so they are not proved to fix where it runs, though \
+                 its description says they do",
                 verdict.worded("not shown above", "below"),
                 verdict.margin().readable()
             ),
@@ -5530,11 +5541,10 @@ mod tests {
             (
                 reversed,
                 Reading::Build,
-                "the stored parameter interval runs backwards (length -0.001 m) — it must \
-                 increase from the edge's start vertex to its end. Recourse: move the geometry so \
-                 this edge runs forward over a clear length; an edge of no length, or a reversed \
-                 one, is one no kernel construction mints, so this is a kernel defect worth \
-                 reporting",
+                "the stored interval runs backwards by 0.001 m — the edge's parameter must \
+                 increase from its start vertex to its end. Recourse: move the geometry so this \
+                 edge runs forward over a clear length; an edge of no length, or a reversed one, \
+                 is one no kernel construction mints, so this is a kernel defect worth reporting",
             ),
             (
                 in_band(-5e-10),
@@ -6479,8 +6489,8 @@ mod tests {
             ),
             (
                 forward(below),
-                "the stored parameter interval runs backwards (length -5e-9 m) — it must \
-                 increase from the edge's start vertex to its end",
+                "the stored interval runs backwards by 5e-9 m — the edge's parameter must \
+                 increase from its start vertex to its end",
             ),
             (
                 meter(zero(sized)),
@@ -6505,8 +6515,8 @@ mod tests {
             ),
             (
                 arm(below),
-                "at sample 4 the edge is not long enough, for how its faces curve, to measure \
-                 their angle (margin -5e-9 m)",
+                "at sample 4 the length the faces' angle is measured over is below zero (margin \
+                 -5e-9 m)",
             ),
             (
                 crossing(None, zero(sized)),
@@ -6541,19 +6551,20 @@ mod tests {
             ),
             (
                 tube(zero(sized)),
-                "the certified lower bound on how far the faces curve apart along the edge is \
-                 not shown above zero (margin 5e-10 m), so the certificate cannot prove they \
-                 fix where it runs, though its description says they do",
+                "the certified lower bound on how far the faces curve apart is not shown above \
+                 zero (margin 5e-10 m) along the whole edge, so they are not proved to fix where \
+                 it runs, though its description says they do",
             ),
             (
                 tube(below),
-                "the certified lower bound on how far the faces curve apart along the edge is \
-                 below zero (margin -5e-9 m), so the certificate cannot prove they fix where it \
+                "the certified lower bound on how far the faces curve apart is below zero \
+                 (margin -5e-9 m) along the whole edge, so they are not proved to fix where it \
                  runs, though its description says they do",
             ),
         ];
-        // A zero arm claims no size; a definite arm states its verdict
-        // and hedges nothing.
+        // No payload claims no size or names a cause its verdict did not
+        // decide, and a definite arm hedges nothing. A zero arm's whole
+        // render, ending included, claims no size either.
         let claims = [
             "no length",
             "not long enough",
@@ -6565,6 +6576,12 @@ mod tests {
         for (error, payload) in rows {
             let text = error.to_string();
             assert_eq!(text, payload, "{error:?}");
+            for claim in claims {
+                assert!(
+                    !text.contains(claim),
+                    "the payload claims {claim:?}: {text}"
+                );
+            }
             assert_eq!(
                 crate::recourse::repeated_words(&text),
                 Vec::<String>::new(),

@@ -311,8 +311,8 @@ impl core::fmt::Display for MeterError {
                 ..
             } => write!(
                 f,
-                "the offset distance's magnitude passes the face's radius of curvature on the \
-                 side it bends toward, {} m (margin {} m), so the result folds over itself",
+                "the offset distance's magnitude passes the face's curvature radius on its \
+                 bending side, {} m (margin {} m), so the result folds over itself",
                 Readable(*reach),
                 verdict.margin().readable()
             ),
@@ -1069,9 +1069,8 @@ mod tests {
             ),
             (
                 headroom(negative(-1e-4)),
-                "the offset distance's magnitude passes the face's radius of curvature on the \
-                 side it bends toward, 0.001 m (margin -0.0001 m), so the result folds over \
-                 itself",
+                "the offset distance's magnitude passes the face's curvature radius on its bending \
+                 side, 0.001 m (margin -0.0001 m), so the result folds over itself",
             ),
         ];
         for (error, want) in rows {
