@@ -33,31 +33,36 @@
 //! (`bool_circle_torus_sub_*`), each root metered for its slack
 //! (`bool_circle_torus_sub_root_slack`, "The root slack" below).
 //!
-//! # The noise meter's floor, and what it costs
+//! # The harmonics' noise, and the jet
 //!
 //! `F`'s harmonics are sums of terms as large as `(|C₀ − c|² + ρ²)²` —
-//! `ρ⁴` for a large circle. `F = 2r·res·Q` with `Q ≥ R² − r²` on a ring
-//! torus, so the floor on `|F|` per metre of residual the meter divides
-//! by is `2r(R² − r²)`.
+//! `ρ⁴` for a large circle — which cancel to the small values `F` takes
+//! where the carrier passes the tube. `F = 2r·res·Q` with `Q ≥ R² − r²`
+//! on a ring torus, so the floor on `|F|` per metre of residual is
+//! `2r(R² − r²)`, and the harmonics' rounding is a residual error past
+//! the band once `ρ⁴ ≳ 10ε·r·R²/(u·HARMONIC_NOISE_ULPS)`: from
+//! `ρ ≈ 50` at the default band against a torus `R = 1, r = 0.25`.
 //!
-//! What supports the ladder's premise here is measurement, not proof:
-//! the delta review's fuzz — about 12k cases around the refusal
-//! threshold, some 50k in all — found no wrong answer from the metered
-//! door, and a maximum root error of 4.8e-10 m on the parallel arm.
-//! That supports the premise at the poses it drew; it does not bound the
-//! amplification. The ladder's answers are not read: the subdivision
-//! answers ([`super::circle_roots`], "The half-angle ladder, and the
-//! subdivision that answers").
+//! So the subdivision does not read its Taylor terms from the harmonics.
+//! The jet ([`geom_brep::conic_torus_jet`]) reads `F`, `F′`, `F″` and
+//! `F‴` at the carrier point, by the chain rule through `|q|²` and
+//! `q·â`: every term is at the point's own scale (`|q| ≤ R + 2r` near the
+//! tube, one power of the carrier's speed per derivative), and its
+//! running bound carries the point's own rounding, `u` of `|C₀| + |c|`.
+//! Nothing is truncated: Taylor's remainder takes the one global bound on
+//! `|F⁗|` the harmonics give, `Σ k⁴Aₖ` with their noise charged, which is
+//! rounded only relative to the amplitudes it bounds. What the walk's
+//! decisions carry then grows like `u·ρ`, not `u·ρ⁴`. The noise still
+//! meters the ladder, which reads the harmonics and only escalates
+//! ([`super::circle_roots`], "The half-angle ladder, and the subdivision
+//! that answers").
 //!
-//! **What the noise costs.** Measured when the ladder answered: against
-//! a torus `R = 1, r = 0.25` at the default band, grazing circles at
-//! `ρ = 10` were answered and from `ρ = 30` every one refused — where
-//! the unmetered door had certified misses on real dips and phantom
-//! pairs on clearances from `ρ = 100`. The threshold scales as
-//! `ρ⁴ ≲ 10ε·r·R²/(u·HARMONIC_NOISE_ULPS)`. The meter now only keeps the
-//! ladder from running past it; the subdivision charges the same noise
-//! to every Taylor term, so such a pose refuses `Unsettled` there
-//! (`a_large_circles_dip_below_its_own_noise_is_not_certified_away`).
+//! What remains at large `ρ` is the point's own rounding: at `ρ = 1000`
+//! a crossing as shallow as a `1.6e-8` m dip is placed `u·|C|` over its
+//! slope from the truth, past the default band, and its root slack
+//! refuses (`no_wrong_certified_answer_across_circle_radii`); a torus far
+//! from the origin is read the same way
+//! (`a_graze_in_a_far_frame_is_answered_truly_or_not_at_all`).
 //!
 //! # The lever
 //!
@@ -342,9 +347,9 @@ pub(super) fn circle_torus_roots<T: Decide>(
     // `F` along the carrier from the torus's one home along a conic
     // ([`geom_brep::ConicTorusHarmonics`]): of degree two on a circle, its
     // third and fourth harmonics no more than the frame's rounding, which
-    // the noise carries. The walk charges the `j`-th derivative `2ʲ·noise`
-    // (Bernstein at degree two), and theirs is up to `4ʲ·dropped`, so they
-    // are charged sixteen-fold: that covers every `j ≤ 4` it reads.
+    // the noise carries. The walk's bound on `|F⁗|` charges `2⁴·noise`
+    // (Bernstein at degree two), and theirs is up to `4⁴·dropped`, so they
+    // are charged sixteen-fold.
     let conic = geom_brep::Conic::circle(center, axis, radius, u_ref);
     let h = geom_brep::conic_torus_harmonics(&conic, t_center, t_axis, major_radius, minor_radius);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
@@ -352,6 +357,11 @@ pub(super) fn circle_torus_roots<T: Decide>(
     let harmonics = DegreeTwo::new(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
     // The lever (module docs, "The lever").
     let lever = (two * radius).min(major_radius + minor_radius);
+    // The walk's Taylor terms, read at the point (module docs, "The
+    // harmonics' noise, and the jet").
+    let jet = |theta| {
+        geom_brep::conic_torus_jet(&conic, t_center, t_axis, major_radius, minor_radius, theta)
+    };
     door_half_angle_roots(
         &harmonics,
         |theta| geom_brep::implicit_residual(torus, point_at(theta)),
@@ -366,6 +376,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
                 // overstates it (`work/hone/circle-torus-clear-margin-reads-the-floor.md`).
                 f_per_metre_hi: h.f_per_metre_lo,
                 residual_reach: None,
+                jet: Some(&jet),
             },
             speed_lo: radius,
             lever,
@@ -1473,82 +1484,163 @@ mod tests {
         }
     }
 
-    /// **The ρ-sweep: no wrong certified answer at any radius** (delta
-    /// review of PR 3375). At the default band, pinned (the depths are
-    /// chosen against it: the shallowest just past its escalation
-    /// threshold), circles grazing the tube with an extremum depth of
-    /// ±{1.6e-8, 1e-7, 1e-6, 1e-5} m, at radii 10, 30, 100 and
-    /// 300 m and four azimuths. Every answer the door gives must match
-    /// the direct-residual oracle on the arc — a dip's two roots, or a
-    /// clearance's none; `Unsettled` is always allowed. Unmetered, the
-    /// door certified misses on dips and phantom pairs on clearances from
-    /// `ρ = 100` up.
-    #[test]
-    fn no_wrong_certified_answer_across_circle_radii() {
-        let mut answered = [0u32; 4];
-        for (i, rho) in [10.0_f64, 30.0, 100.0, 300.0].into_iter().enumerate() {
-            for alpha in [0.3_f64, 1.9, 3.4, 5.1] {
-                for depth in [-1e-5, -1e-6, -1e-7, -1.6e-8, 1.6e-8, 1e-7, 1e-6, 1e-5] {
-                    let pose = grazing(rho, alpha, depth);
-                    let (t0, t1) = (-0.4, 0.6);
-                    let truth = direct_roots(pose, t0, t1, 200_000);
+    /// The door on [`grazing`] poses of radius `rho` at four azimuths and
+    /// each of `depths`, under `band`. Every answer must match the
+    /// direct-residual oracle on the arc — a dip's two roots, each within
+    /// `band`'s escalation threshold of the truth (span and trim decide
+    /// on it), or a clearance's none. Answers the number answered and
+    /// each refusal with its depth.
+    fn graze_answers(rho: f64, depths: &[f64], band: Band) -> (u32, Vec<(f64, Option<Unsettled>)>) {
+        graze_answers_at([0.0; 3], rho, depths, band)
+    }
+
+    /// [`graze_answers`] with the torus and the carrier moved to `far`.
+    /// The carrier's centre rounds there, and the oracle reads the pose
+    /// it rounded to, moved back exactly (Sterbenz: `far` dwarfs the
+    /// pose).
+    fn graze_answers_at(
+        far: [f64; 3],
+        rho: f64,
+        depths: &[f64],
+        band: Band,
+    ) -> (u32, Vec<(f64, Option<Unsettled>)>) {
+        let (mut answered, mut refused) = (0, Vec::new());
+        let far_torus = geom::Surface::Torus {
+            center: Point3::from_array(far),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: R,
+            minor_radius: RT,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for alpha in [0.3_f64, 1.9, 3.4, 5.1] {
+            for &depth in depths {
+                let placed = grazing(rho, alpha, depth);
+                let at_far: [f64; 3] = core::array::from_fn(|i| placed.c[i] + far[i]);
+                let pose = Pose {
+                    c: core::array::from_fn(|i| at_far[i] - far[i]),
+                    ..placed
+                };
+                let (t0, t1) = (-0.4, 0.6);
+                // Fine about the graze at `θ = 0`, whose two roots are a
+                // few hundred micrometres apart at `ρ = 1000`.
+                let truth: Vec<f64> = [
+                    direct_roots(pose, t0, -1e-3, 5_000),
+                    direct_roots(pose, -1e-3, 1e-3, 20_000),
+                    direct_roots(pose, 1e-3, t1, 5_000),
+                ]
+                .concat();
+                // Moved far, the centre's rounding can move a shallow
+                // graze across the tube's surface.
+                if far == [0.0; 3] {
                     assert_eq!(
                         truth.len(),
                         if depth < 0.0 { 2 } else { 0 },
                         "the fixture: ρ {rho}, α {alpha}, depth {depth}: {truth:?}"
                     );
-                    let label = format!("ρ {rho}, α {alpha}, depth {depth}");
-                    let got = roots_of(
-                        Point3::from_array(pose.c),
-                        v3(pose.n),
-                        pose.rho,
-                        v3(pose.u),
-                        t0,
-                        t1,
-                        &torus(),
-                        fixed_band(),
-                    )
-                    .unwrap();
-                    match got {
-                        Err(Unsettled::AtApex) => panic!("{label}: a torus has no apex"),
-                        Err(_) => {}
-                        Ok(CircleRoots::On(_)) => panic!("{label}: not on the torus"),
-                        Ok(CircleRoots::Miss) => {
-                            assert!(truth.is_empty(), "{label}: a certified miss on a dip");
-                            answered[i] += 1;
+                }
+                let label = format!("ρ {rho}, α {alpha}, depth {depth}");
+                let got = roots_of(
+                    Point3::from_array(at_far),
+                    v3(pose.n),
+                    pose.rho,
+                    v3(pose.u),
+                    t0,
+                    t1,
+                    &far_torus,
+                    band,
+                );
+                match got {
+                    // An escalation is a refusal too; it names no `Unsettled`.
+                    Err(BooleanError::Escalated { .. }) => refused.push((depth, None)),
+                    Err(e) => panic!("{label}: {e:?}"),
+                    Ok(Err(why)) => refused.push((depth, Some(why))),
+                    Ok(Ok(CircleRoots::On(_))) => panic!("{label}: not on the torus"),
+                    Ok(Ok(CircleRoots::Miss)) => {
+                        assert!(truth.is_empty(), "{label}: a certified miss on a dip");
+                        answered += 1;
+                    }
+                    Ok(Ok(CircleRoots::Certified(found))) => {
+                        let (count, thetas) = (found.count(), found.roots());
+                        let mut got: Vec<f64> = thetas[..count]
+                            .iter()
+                            .copied()
+                            .filter(|t| (t0..=t1).contains(t))
+                            .collect();
+                        got.sort_by(f64::total_cmp);
+                        assert_eq!(got.len(), truth.len(), "{label}: {got:?} vs {truth:?}");
+                        for (a, b) in got.iter().zip(&truth) {
+                            assert!(
+                                (a - b).abs() * rho < band.escalate(),
+                                "{label}: root {a} vs {b}, {} m apart",
+                                (a - b).abs() * rho
+                            );
                         }
-                        Ok(CircleRoots::Certified(found)) => {
-                            let (count, thetas) = (found.count(), found.roots());
-                            let mut got: Vec<f64> = thetas[..count]
-                                .iter()
-                                .copied()
-                                .filter(|t| (t0..=t1).contains(t))
-                                .collect();
-                            got.sort_by(f64::total_cmp);
-                            assert_eq!(got.len(), truth.len(), "{label}: {got:?} vs {truth:?}");
-                            for (a, b) in got.iter().zip(&truth) {
-                                // A certified root must be the truth's
-                                // point to within the band's escalation
-                                // threshold (the fixture's band): span and
-                                // trim decide on it.
-                                assert!(
-                                    (a - b).abs() * rho < 1e-8,
-                                    "{label}: root {a} vs {b}, {} m apart",
-                                    (a - b).abs() * rho
-                                );
-                            }
-                            answered[i] += 1;
-                        }
+                        answered += 1;
                     }
                 }
             }
         }
-        println!("answered per radius (of 32): {answered:?}");
-        assert!(
-            answered[0] >= 16,
-            "at ρ = 10 the door still answers: {answered:?}"
-        );
+        (answered, refused)
     }
+
+    /// **The ρ-sweep: every radius answered, and truly** (delta review
+    /// of PR 3375). At the default band, pinned (the depths are chosen
+    /// against it: the shallowest just past its escalation threshold),
+    /// circles grazing the tube with an extremum depth of
+    /// ±{1.6e-8, 1e-7, 1e-6, 1e-5} m, at radii 10 to 1000 m
+    /// ([`graze_answers`]). The walk reads its Taylor terms at the point
+    /// (module docs, "The harmonics' noise, and the jet"):
+    /// through the harmonics' `ρ⁴` noise it refused every pose from
+    /// `ρ = 30`. At `ρ = 1000` the shallowest dip's crossings are too
+    /// shallow for the point's own rounding, `u·|C|`, to place within
+    /// the band, and its root slack refuses.
+    #[test]
+    fn no_wrong_certified_answer_across_circle_radii() {
+        let depths = [-1e-5, -1e-6, -1e-7, -1.6e-8, 1.6e-8, 1e-7, 1e-6, 1e-5];
+        for rho in [10.0, 30.0, 100.0, 300.0, 1000.0] {
+            let (answered, refused) = graze_answers(rho, &depths, fixed_band());
+            if rho < 1000.0 {
+                assert_eq!(answered, 32, "ρ {rho}: refused {refused:?}");
+            } else {
+                assert_eq!(answered, 28, "ρ {rho}: refused {refused:?}");
+                assert!(
+                    refused
+                        .iter()
+                        .all(|&(d, why)| d == -1.6e-8 && why == Some(Unsettled::Meter)),
+                    "ρ {rho}: refused {refused:?}"
+                );
+            }
+        }
+    }
+
+    /// **A far frame's rounding is charged.** A torus `3·10⁵` m from the
+    /// origin rounds the carrier's points by some `3·10⁻¹¹` m, past the
+    /// band at `ε = 1e-12`. Circles grazing it by ±{2e-11, 5e-11, 2e-10}
+    /// m are answered truly or refused ([`graze_answers_at`]): read
+    /// uncharged, a dip of `2e-11` m at `ρ = 10` was a certified miss.
+    #[test]
+    fn a_graze_in_a_far_frame_is_answered_truly_or_not_at_all() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let depths = [-2e-10, -5e-11, -2e-11, 2e-11, 5e-11, 2e-10];
+        for rho in [1.0, 10.0, 100.0] {
+            graze_answers_at([3e5, 1e5, 0.0], rho, &depths, band);
+        }
+    }
+
+    /// **The same sweep at a coarse band**: at `ε = 1e-6` the harmonics'
+    /// noise passed the band from `ρ ≈ 500`, and circles of 300 m and
+    /// 1 km grazing the tube by ±{1.6e-5, 1e-4, 1e-3} m refused there.
+    /// Read at the point, every one is answered, and truly.
+    #[test]
+    fn a_kilometre_circle_grazing_the_tube_is_answered_at_a_coarse_band() {
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let depths = [-1e-3, -1e-4, -1.6e-5, 1.6e-5, 1e-4, 1e-3];
+        for rho in [300.0, 1000.0] {
+            let (answered, refused) = graze_answers(rho, &depths, band);
+            assert_eq!(answered, 24, "ρ {rho}: refused {refused:?}");
+        }
+    }
+
     /// The general arm's shallow crossings at `ε = 1e-12` that the `f64`
     /// lane once placed tens of bands from the truth, each as `[t0, t1 |
     /// centre | axis | ρ | u_ref | torus centre | torus axis | R, r]` with

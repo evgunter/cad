@@ -913,6 +913,7 @@ fn coplanar_ellipse_circle<T: Decide>(
         f_per_metre: r,
         f_per_metre_hi: T::from_f64(3.0) * r,
         residual_reach: Some(r),
+        jet: None,
     };
     let residual = |theta: T| (ke.point(theta) - kc.center).norm() - r;
     match certified_subdivision(&poly, &residual, &frame, &COPLANAR_ROWS, None, band) {
