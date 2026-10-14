@@ -2926,9 +2926,12 @@ fn conic_section_frame_at<T: Decide>(
         // step 5) and it reads NO radius, so asking it here infers
         // nothing: a definite gap is SKEW, whose locus is a space quartic
         // — canal territory, the general rung — and keeps `NoArm`
-        // verbatim. A Zero gap means the axes meet, and that half gets
-        // its own named door because its locus is not one conic even
-        // when it is a conic pair.
+        // verbatim. A Zero gap means the axes meet, and there the
+        // section table decides the radii (`cc_radius_equality`): equal
+        // radii cut the two crossing ellipses, whose nodes are their own
+        // door (`CylinderNodes`); unequal radii cut the skew pair's space
+        // quartic class and keep `NoArm`; a radius margin in band
+        // escalates.
         //
         // Asked of the table's own row too
         // ([`geom_brep::cylinder_axes_coplanar`], `cc_axes_coplanar`),
@@ -5497,10 +5500,10 @@ mod frame_dispatch_tests {
     /// Both refusal variants are the trap being closed, but they are
     /// NOT interchangeable per row, and the matcher is split so that
     /// the loosening is confined to where it is earned. Only a
-    /// CYLINDER PAIR can reach `CylinderNodes` — the split
-    /// on coplanarity is the only producer of that variant — so those
-    /// rows admit either refusal here and the row below pins which one
-    /// each gets. Every other kind pair falls through to the
+    /// CYLINDER PAIR can reach `CylinderNodes` — the split on
+    /// coplanarity, then on radius equality, is the only producer of
+    /// that variant — so those rows admit either refusal here and the
+    /// row below pins which one each meeting pose gets. Every other kind pair falls through to the
     /// dispatch's final arm, where `NoArm` is the only reachable
     /// answer, and a row that accepted the pinch variant there would
     /// green through a mis-routed dispatch.
@@ -5571,21 +5574,23 @@ mod frame_dispatch_tests {
         let z = Vec3::new(0.0, 0.0, 1.0);
         let x = Vec3::new(1.0, 0.0, 0.0);
         for (r, equal) in [(1.0_f64, true), (0.4, false)] {
-            // Axes meeting at the origin.
-            let meeting = pair_section_frame(
-                &cylinder(z),
-                &cylinder_at(Point3::new(0.0, 0.0, 0.0), x, r),
-                at(),
-                None,
-                band(),
-            );
-            match (&meeting, equal) {
-                (Err(FrameError::CylinderNodes), true) | (Err(FrameError::NoArm), false) => {}
-                (other, _) => panic!(
-                    "r = {r}: intersecting axes at {} radii, got {}",
-                    if equal { "equal" } else { "unequal" },
-                    outcome(other)
-                ),
+            // Axes meeting at the origin, square and at a slant.
+            for partner in [x, Vec3::new(0.0, 1.0, 1.0).normalize()] {
+                let meeting = pair_section_frame(
+                    &cylinder(z),
+                    &cylinder_at(Point3::new(0.0, 0.0, 0.0), partner, r),
+                    at(),
+                    None,
+                    band(),
+                );
+                match (&meeting, equal) {
+                    (Err(FrameError::CylinderNodes), true) | (Err(FrameError::NoArm), false) => {}
+                    (other, _) => panic!(
+                        "r = {r}, partner {partner:?}: intersecting axes at {} radii, got {}",
+                        if equal { "equal" } else { "unequal" },
+                        outcome(other)
+                    ),
+                }
             }
             // The same pair lifted along the common perpendicular
             // `a1 x a2` — the ONE direction that separates the axes. A
@@ -5619,6 +5624,37 @@ mod frame_dispatch_tests {
             ),
             "parallel cylinder axes meet in rulings"
         );
+    }
+
+    /// **A radius margin in band at meeting axes escalates (D4)**: it
+    /// is neither the nodes nor the unequal pair's `NoArm`, each of which
+    /// claims a definite class. The partner's radius is `1 + 2·zero` of
+    /// the band, past the zero band and short of escalation's edge, so
+    /// the table's `cc_radius_equality` reads it in band; a dispatch that
+    /// mapped that escalation to `NoArm` (or to the nodes) reds here.
+    #[test]
+    fn an_in_band_radius_at_meeting_axes_escalates() {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let r = 1.0 + 2.0 * band().zero();
+        for partner in [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 1.0).normalize(),
+        ] {
+            let got = pair_section_frame(
+                &cylinder(z),
+                &cylinder_at(Point3::new(0.0, 0.0, 0.0), partner, r),
+                at(),
+                None,
+                band(),
+            );
+            assert!(
+                matches!(&got, Err(FrameError::Escalated(diag))
+                    if diag.predicate == Some("cc_radius_equality")),
+                "partner {partner:?}, r = 1 + 2·zero: the radius margin is in band and must \
+                 escalate, got {}",
+                outcome(&got)
+            );
+        }
     }
 
     /// **The pinch is a property of the whole intersecting

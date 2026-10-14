@@ -20,7 +20,7 @@ Opened 2026-08-31; 0 comments.
 
 ## What this is
 
-The intersecting equal-radius cyl×cyl family's section is two bisector-plane ellipses that always cross at `p ± r·(â₁×â₂)` — self-intersections of the section curve, physically the two sharp points of a Steinmetz solid where the walls are mutually tangent. Producing the union/intersection body requires representing **valence-4 pinch vertices** (four arc branches meeting at a point), which the current B-rep vocabulary excludes end to end.
+The intersecting equal-radius cyl×cyl family's section is two bisector-plane ellipses that always cross at `p ± r·(â₁×â₂)` — self-intersections of the section curve, physically the two sharp points of a Steinmetz solid where the walls are mutually tangent. Producing the union/intersection body requires building **valence-4 vertices** (four arc branches meeting at a point). The at-rest vocabulary already admits them; what is missing is the Boolean's minting of the node (Ev's decision below).
 
 ## The measured inventory of what must widen (from PR-1/PR-2; the ordinal-109 dual is re-verifying — fold its findings in before speccing)
 
