@@ -883,8 +883,8 @@ impl CertCheck {
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
                 no_size: Some(NoSize::same(
-                    "a vanishing speed floor means the spline stalls or turns back, or that the \
-                     floor has reached its limit, which is worth reporting",
+                    "if it does neither, the speed floor has reached its limit, which is worth \
+                     reporting",
                 )),
             }),
             Self::ParamWinding => Ending::Sized(SizedDecision {
@@ -1099,9 +1099,11 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// carrier's own axis by the swept angle
     /// ([`crate::MappedSource::RevolvedPoint`], the same
     /// geometry-derived posture as [`Self::line_between`]'s
-    /// `ExtrudedPoint`). This is the conventional description for a
-    /// circular locus the adjacent surfaces UNDER-determine (D2's
-    /// split — e.g. a seam between coplanar faces).
+    /// `ExtrudedPoint`). Like every scaffold it describes a TRANSIENT
+    /// edge: one that comes to rest is restated in a chart
+    /// ([`Self::at_rest_in_chart`]), and an edge already at rest is
+    /// re-homed by [`EdgeCurve::restated_in_chart`], which declares
+    /// nothing the edge did not.
     ///
     /// `None` for a non-circle carrier: no other kind has this
     /// rotation pushforward, and the caller owns its own honest
@@ -1377,11 +1379,11 @@ impl<T: Decide> EdgeCurve<T> {
     ///    after checks 2–5: for circle carriers the interval is
     ///    determined up to a joint whole-period translation of both
     ///    ends (geometrically invisible); for lines it is fully
-    ///    determined. *Which connected component* of the intersection
+    ///    determined. *Which branch* of the intersection
     ///    locus the witness selects remains unverifiable before
     ///    marching exists (M3) — the mid-pin verifies the carrier
     ///    traverses the witness's arc, not that the witness sits on
-    ///    the component the modeler intended.
+    ///    the branch the modeler intended.
     /// 6. `Intersection` of two analytic surfaces over a `Nurbs`
     ///    carrier, through the [`NurbsLane`]
     ///    ([`EdgeCurve::certify_via`], [`EdgeCurve::recertify_via`]):
@@ -1972,6 +1974,24 @@ impl<T: Real> EdgeCurve<T> {
             carrier: self.carrier.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
+        }
+    }
+
+    /// This edge re-homed in `surface`'s chart: an image the door
+    /// derives from the carrier, carrier and interval verbatim, and the
+    /// authority record as it was. A declared locus stays declared; a
+    /// derived one is not given a declaration. The conventional
+    /// restatement for an edge at rest whose description no longer
+    /// names a chart it lies in.
+    #[must_use]
+    pub fn restated_in_chart(&self, surface: SurfaceKey) -> EdgeCurveSpec<T> {
+        let chart = EdgeDescriptionSpec::chart(surface);
+        EdgeCurveSpec {
+            description: match self.authority {
+                EdgeAuthority::Declared(mc) => chart.declared_by(mc),
+                EdgeAuthority::Derived => chart,
+            },
+            ..self.restated_spec()
         }
     }
 
@@ -5166,9 +5186,11 @@ mod tests {
     /// construction mints one, a kernel defect at a build and a kernel or
     /// file defect over stored geometry, and an enclosure across zero,
     /// which shows neither a size nor its absence, the lever alone; a
-    /// reversed span and the winding
-    /// bound's only refusal are stored contradictions (the lever at a
-    /// build, the file's defect ending over stored geometry). The
+    /// span reversed past the band ends at a build exactly as one
+    /// reversed in band does (D4 ¶1 (iv)); it and the winding bound's
+    /// only refusal are stored contradictions (the file's defect ending
+    /// over stored geometry), the winding bound's the lever alone at a
+    /// build. The
     /// tangent tube's Zero is band-decided and its Negative the
     /// certificate's limit, the lever alone everywhere; the plane × NURBS
     /// tube's Zero quotes `m/K` where its clearance is positive. No
@@ -5215,7 +5237,7 @@ mod tests {
             let rows = [
                 (forward(zero(5e-10)), tightened(span, "length", "5e-11")),
                 (forward(zero(0.0)), no_span.clone()),
-                (forward(zero(-5e-10)), no_span),
+                (forward(zero(-5e-10)), no_span.clone()),
                 // An enclosure across zero shows no size, nor that there
                 // is none: the lever alone, its payload printing it.
                 (
@@ -5227,7 +5249,13 @@ mod tests {
                     },
                     span.to_owned(),
                 ),
-                (forward(negative(-1e-3)), definite(span)),
+                (
+                    forward(negative(-1e-3)),
+                    match reading {
+                        Reading::Build => no_span,
+                        Reading::AtRest => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
+                    },
+                ),
                 (CertifyError::WindingExceeded, definite(winding)),
                 (
                     separated(zero(5e-10)),
@@ -5239,6 +5267,13 @@ mod tests {
                 (tube(zero(0.0)), cross.to_owned()),
                 (tube(negative(-5e-9)), definite(cross)),
             ];
+            if reading == Reading::Build {
+                assert_eq!(
+                    forward(negative(-1e-3)).ending(reading),
+                    forward(zero(-5e-10)).ending(reading),
+                    "a span reversed past the band ends as one reversed in band"
+                );
+            }
             for (error, want) in rows {
                 let got = error.ending(reading).unwrap();
                 assert_eq!(got, want, "{reading:?}: {error:?}");
@@ -5631,16 +5666,16 @@ mod tests {
     /// **The import door reads certification as at rest, with its ε_in
     /// words** (D4 ¶1), over every check and every arm: the door's ending
     /// is the at-rest one, except that a band-decided arm of a sized
-    /// decision whose margin's nearer end lies at or below ε_in ends in
-    /// one sentence, whichever arm the run's band placed it on: the file
-    /// does not state the size, and keeping it takes declaring the file's
-    /// uncertainty below it and tightening, together, or else the lever
-    /// alone, with no decision's note, an enclosure across zero's
-    /// included — and a residual's
-    /// miss within ε_in but beyond ε, or a certified bound on it wholly
-    /// within ε_in, names setting ε to ε_in as a stopgap. An ε_in below every margin leaves every ending at rest
-    /// but a reading at zero's. No ending at the door blames the kernel
-    /// alone, or carries a second recourse.
+    /// decision whose margin's nearer end lies within ε_in ends in one
+    /// sentence, whichever arm the run's band placed it on: the file
+    /// cannot tell the size from zero, and keeping it takes declaring the
+    /// file's uncertainty below it and tightening, together, or else the
+    /// lever alone, with no decision's note, an enclosure across zero's
+    /// included — and a residual's miss within ε_in but beyond ε, or a
+    /// certified bound on it wholly within ε_in, names setting ε to ε_in
+    /// as a stopgap. An ε_in below every margin leaves every ending at
+    /// rest but a reading at zero's. No ending at the door blames the
+    /// kernel alone, or carries a second recourse.
     #[test]
     fn the_import_door_reads_at_rest_with_its_eps_in_words() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -5692,10 +5727,10 @@ mod tests {
                     RefusedArm::Zero(Classified { margin, .. }) => Some(margin),
                     RefusedArm::SignCertain(_) | RefusedArm::Straddle => None,
                 };
-                // A reading at or across zero has its nearer end below
+                // A reading at or across zero has its nearer end within
                 // every ε_in, so even the narrow one reads it in the door's
-                // sentence: "is below" where the whole reading is, "may lie
-                // below" where only that end is, then the lever alone. The
+                // sentence: "is within" where the whole reading is, "may lie
+                // within" where only that end is, then the lever alone. The
                 // door cannot tell a zero the file stores from a rounded
                 // one, so no decision's note rides there.
                 let reaches_zero = match banded.map(MarginDiag::diagnostic_f64_for_error_text) {
@@ -5712,16 +5747,16 @@ mod tests {
                     (Ending::Sized(sized), Some(far))
                         if !(sized.passes.passes_zero() && matches!(arm, RefusedArm::Zero(_))) =>
                     {
-                        let (lies, states) = if far <= narrow.eps_in() {
-                            ("is below", "does not state")
+                        let (lies, tells) = if far <= narrow.eps_in() {
+                            ("is within", "cannot tell")
                         } else {
-                            ("may lie below", "may not state")
+                            ("may lie within", "might not tell")
                         };
                         assert_eq!(
                             narrow_door,
                             format!(
                                 "This {} {lies} the file's declared coincidence distance ε_in = \
-                                 {:e} m, so the file {states} it. Recourse: {}",
+                                 {:e} m, so the file {tells} it from zero. Recourse: {}",
                                 sized.size,
                                 narrow.eps_in(),
                                 sized.lever
@@ -5750,8 +5785,9 @@ mod tests {
                         // One sentence for every band-decided arm, the
                         // run's placement of it picking no other words.
                         assert!(
-                            door.starts_with(&format!("This {} is below the file's", sized.size))
-                                && door.contains("so the file does not state it. Recourse: "),
+                            door.starts_with(&format!("This {} is within the file's", sized.size))
+                                && door
+                                    .contains("so the file cannot tell it from zero. Recourse: "),
                             "{check:?} {arm:?}: {door}"
                         );
                         if at_rest.contains("tighten") {
@@ -5995,8 +6031,8 @@ mod tests {
     /// **The collapsed-arm gates' definite refusals read the import door
     /// like every sized decision's** (D4 ¶1): a collapsed transversality
     /// arm and a collapsed span meter end through [`recourse`] at the door, so
-    /// a zero within the file's ε_in is a size the file does not state,
-    /// not the at-rest offer to tighten alone.
+    /// a zero within the file's ε_in is a size the file cannot tell from
+    /// zero, not the at-rest offer to tighten alone.
     #[test]
     fn the_collapsed_arm_gates_read_the_import_door() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -6022,7 +6058,7 @@ mod tests {
                 "{check:?}: the door's ending is the decision's"
             );
             assert!(
-                door.contains("so the file does not state it. Recourse: ")
+                door.contains("so the file cannot tell it from zero. Recourse: ")
                     && door.contains(" m and tighten the tolerance below 5e-11 m"),
                 "{check:?}: {door}"
             );
@@ -6093,8 +6129,8 @@ mod tests {
             text,
             "at sample 4 the edge is not shown long enough, for how its faces curve, to measure \
              their angle (margin 0e0 m). Recourse: move the geometry so that edge is clearly \
-             longer and no face curves tightly there; an edge of no length, or a face curving to \
-             a point as a cone does, leaves no angle to measure",
+             longer and no face curves tightly there; an edge of no length or a cone's point \
+             leaves no angle to measure; a radius below zero is a defect",
         );
     }
 
@@ -6236,7 +6272,7 @@ mod tests {
         }
         for (error, note) in [
             (forward(zero(none)), "an edge of no length"),
-            (meter(zero(none)), "a vanishing speed floor"),
+            (meter(zero(none)), "the speed floor has reached its limit"),
             (arm(zero(none)), "an edge of no length"),
         ] {
             let text = error.render(Reading::Build);

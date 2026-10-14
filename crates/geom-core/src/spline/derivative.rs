@@ -546,30 +546,25 @@ fn product<T: Real, const A: usize, const B: usize, const C: usize>(
     if mu > QUOTIENT_MAX_DEGREE || mv > QUOTIENT_MAX_DEGREE {
         return None;
     }
+    let row = |m: usize| (0..=m).map(|i| binomial(m, i)).collect::<Vec<_>>();
+    let (ca, cb, da, db) = (row(ma), row(mb), row(na), row(nb));
     let mut acc: Vec<Option<Vector<T, C>>> = vec![None; (mu + 1) * (mv + 1)];
-    for i in 0..=ma {
-        for j in 0..=na {
-            let x = a.get(i, j)?.0;
-            for k in 0..=mb {
-                for l in 0..=nb {
-                    let term = Vector(mul(x, b.get(k, l)?.0))
-                        .times(binomial(ma, i) * binomial(mb, k))
-                        .times(binomial(na, j) * binomial(nb, l));
-                    let slot = acc.get_mut((i + k) * (mv + 1) + j + l)?;
+    for (i, (x_row, ci)) in a.c.chunks_exact(na + 1).zip(&ca).enumerate() {
+        for (j, (x, dj)) in x_row.iter().zip(&da).enumerate() {
+            for (k, (y_row, ck)) in b.c.chunks_exact(nb + 1).zip(&cb).enumerate() {
+                let slots = acc.get_mut((i + k) * (mv + 1) + j..)?;
+                for ((y, dl), slot) in y_row.iter().zip(&db).zip(slots) {
+                    let term = Vector(mul(x.0, y.0)).times(ci * ck).times(dj * dl);
                     *slot = Some(slot.map_or(term, |s| s + term));
                 }
             }
         }
     }
+    let (cu, cv) = (row(mu), row(mv));
     let c = acc
         .into_iter()
-        .enumerate()
-        .map(|(n, s)| {
-            Some(
-                s?.over(binomial(mu, n / (mv + 1)))
-                    .over(binomial(mv, n % (mv + 1))),
-            )
-        })
+        .zip(cu.iter().flat_map(|u| cv.iter().map(move |v| (u, v))))
+        .map(|(s, (u, v))| Some(s?.over(*u).over(*v)))
         .collect::<Option<Vec<_>>>()?;
     Grid::new(mv + 1, c)
 }
@@ -1538,7 +1533,7 @@ pub fn stretch_pieces<T: Real>(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
+#[allow(clippy::cast_precision_loss, clippy::expect_used)]
 mod tests {
     use super::span_derivative_scale;
     use crate::Bounds;
@@ -1564,6 +1559,92 @@ mod tests {
         f64::MAX,
     ];
     const DEGREES: [usize; 5] = [1, 2, 3, 5, 7];
+
+    /// An interval's two ends and its certification, as bits.
+    fn bits(x: Interval) -> (u64, u64, bool) {
+        (x.lo().to_bits(), x.hi().to_bits(), x.is_certified())
+    }
+
+    /// A coefficient with a width, so every product rounds outward.
+    fn coefficient(rng: &mut test_utils::fuzz::Rng) -> Interval {
+        let lo = rng.range(-2.0, 2.0);
+        Interval::from_bounds(lo, lo + rng.range(0.0, 1e-9))
+    }
+
+    fn grid<const D: usize>(
+        rng: &mut test_utils::fuzz::Rng,
+        (m, n): (usize, usize),
+    ) -> super::Grid<Interval, D> {
+        let c = (0..(m + 1) * (n + 1))
+            .map(|_| super::Vector(core::array::from_fn(|_| coefficient(rng))))
+            .collect();
+        super::Grid::new(n + 1, c).expect("a nonempty grid")
+    }
+
+    fn grid_bits<const D: usize>(g: &super::Grid<Interval, D>) -> Vec<(u64, u64, bool)> {
+        g.c.iter().flat_map(|v| v.0.map(bits)).collect()
+    }
+
+    /// [`super::product`]'s fold before its binomials were tabled: the
+    /// association it keeps.
+    fn product_reference<const A: usize, const B: usize, const C: usize>(
+        a: &super::Grid<Interval, A>,
+        b: &super::Grid<Interval, B>,
+        mul: impl Fn([Interval; A], [Interval; B]) -> [Interval; C],
+    ) -> Option<super::Grid<Interval, C>> {
+        use super::{Vector, binomial};
+        let ((ma, na), (mb, nb)) = (a.degree(), b.degree());
+        let (mu, mv) = (ma + mb, na + nb);
+        let mut acc: Vec<Option<Vector<Interval, C>>> = vec![None; (mu + 1) * (mv + 1)];
+        for i in 0..=ma {
+            for j in 0..=na {
+                let x = a.get(i, j)?.0;
+                for k in 0..=mb {
+                    for l in 0..=nb {
+                        let term = Vector(mul(x, b.get(k, l)?.0))
+                            .times(binomial(ma, i) * binomial(mb, k))
+                            .times(binomial(na, j) * binomial(nb, l));
+                        let slot = acc.get_mut((i + k) * (mv + 1) + j + l)?;
+                        *slot = Some(slot.map_or(term, |s| s + term));
+                    }
+                }
+            }
+        }
+        let c = acc
+            .into_iter()
+            .enumerate()
+            .map(|(n, s)| {
+                Some(
+                    s?.over(binomial(mu, n / (mv + 1)))
+                        .over(binomial(mv, n % (mv + 1))),
+                )
+            })
+            .collect::<Option<Vec<_>>>()?;
+        super::Grid::new(mv + 1, c)
+    }
+
+    /// **The Bernstein product folds as it always did, bit for bit**:
+    /// the same terms, multiplied by the same binomials in the same
+    /// association, summed in the same order, at the interval scalar,
+    /// where any change of association or order moves an outward
+    /// rounding.
+    #[test]
+    fn the_product_folds_as_its_reference() {
+        let mut rng = test_utils::fuzz::start("derivative::product_reference");
+        for case in 0..test_utils::fuzz::scaled(40) {
+            let da = (rng.below(5), rng.below(5));
+            let db = (rng.below(5), rng.below(5));
+            let (a, b) = (grid::<3>(&mut rng, da), grid::<1>(&mut rng, db));
+            let got = super::product(&a, &b, super::by_weight).expect("in the ceiling");
+            let want = product_reference(&a, &b, super::by_weight).expect("in the ceiling");
+            assert_eq!(
+                grid_bits(&got),
+                grid_bits(&want),
+                "case {case}: {da:?} × {db:?} — {}",
+                test_utils::fuzz::replay()
+            );
+        }
+    }
 
     /// The spelling every routed site wrote before it called the helper.
     fn literal<T: Real>(p: usize, lo: T, hi: T) -> T {

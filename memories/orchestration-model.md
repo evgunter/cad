@@ -153,7 +153,11 @@ Ev's standing instructions for implementation work:
   its own Claude Code Remote session rather than as a subagent here.
 - **Friction is a finding (Ev, 2026-09-28)** — say so when something
   slows you down. The bars: CI takes 15 min at most and typically
-  under 10, and so does any local development step; binaries are
+  under 10, and so does any local development step. A PR whose diff
+  seeds geom-core, geom, geom-brep or topo is the one exception: its
+  CI takes 25 min at most, since its cold build alone is 16–20 min on
+  4-vCPU hosted runners. Time queued for a runner counts against
+  neither bar and is a finding of its own. Binaries are
   small enough to run a full complement of lanes. Beyond flagging it,
   you may dispatch a lane to fix it, and self-merge the fix when it
   contradicts no established standard. When it does, propose it
