@@ -88,6 +88,7 @@ pub mod pcurve_cache;
 pub mod props;
 pub mod quartic;
 pub mod recourse;
+pub mod roots;
 pub(crate) mod shape_operator;
 mod sphere_circle;
 pub mod ssi;

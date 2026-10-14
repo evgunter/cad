@@ -5,7 +5,9 @@
 //! and the `sqrt`-chain cube root its Ferrari resolvent is built on.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Sign};
+
+use crate::roots::{RootRefusal, Roots, Unsettled};
 
 /// **The two roots of `a·t² + 2b·t + c`**, `[(−b − √disc)/a,
 /// (−b + √disc)/a]` with `disc = b² − a·c` decided positive by the
@@ -33,38 +35,11 @@ pub fn quadratic_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
     ]
 }
 
-/// What [`depressed_quartic_roots`] found: the quartic's real-root count
-/// certified (none, or that many roots), not certain, or certified and
-/// contradicted by the roots constructed. Only [`QuarticRoots::Miss`] and
-/// [`QuarticRoots::Certified`] are answers; the other two are the ladder
-/// declining one, and a caller decides what declining costs it.
-#[derive(Debug, Clone, Copy)]
-pub enum QuarticRoots<T> {
-    /// A certified count of ZERO: the quartic has no real root.
-    Miss,
-    /// The real-root count is not certain at this tolerance: a repeated
-    /// root, or a classifying sign in the band (rungs 1, 3 and 4 of
-    /// [`depressed_quartic_roots`], and an uncertain `p`/`D`). Neither a
-    /// miss nor an answer.
-    Uncertain,
-    /// A certified count, and that many roots, unordered.
-    Certified {
-        /// How many of `ts` are roots: 2 or 4.
-        count: usize,
-        /// The roots, `ts[..count]`.
-        ts: [T; 4],
-    },
-    /// The roots constructed disagree in number with the count
-    /// certified. Never an answer: one of the two is wrong, and where
-    /// measured it is the certified count (rung 5 of
-    /// [`depressed_quartic_roots`]).
-    CountDisagrees {
-        /// The count the sign ladder certified.
-        certified: usize,
-        /// The count the factorization built.
-        constructed: usize,
-    },
-}
+/// What [`depressed_quartic_roots`] answers: a certified count of zero,
+/// or a certified count (2 or 4) and that many roots, unordered, in the
+/// `y` variable. A monic quartic is never a zero constant, so it has no
+/// [`Roots::On`] arm.
+pub type QuarticRoots<T> = Roots<T, 4>;
 
 /// A real cube root, built from `sqrt` alone — and a TRUNCATED one, with
 /// the truncation covered by a magnitude argument rather than by
@@ -310,7 +285,7 @@ pub struct QuarticRows {
 /// its row in [`QuarticRows`]:
 ///
 /// 1. **`disc` Zero**: the quartic has a repeated real root.
-///    [`QuarticRoots::Uncertain`].
+///    [`Unsettled::Tangency`].
 /// 2. **`odd` Zero**: `q̂` is in band and the quartic is BIQUADRATIC.
 ///    Not a degeneracy but a different closed form: `y²` solves a
 ///    quadratic and the roots come out of two square roots, which is also
@@ -326,15 +301,15 @@ pub struct QuarticRows {
 ///    chosen.
 /// 3. **`split_lead` non-Positive**: the resolvent's largest real root
 ///    is not positive, which contradicts its own constant term `−q̂² < 0`
-///    on the branch that computed it. [`QuarticRoots::Uncertain`]. It is
+///    on the branch that computed it. [`Unsettled::Resolvent`]. It is
 ///    NOT only a rounding-scale contradiction: a `q̂` small enough that
 ///    the root `≈ q̂²/c1` falls inside the band, but large enough to clear
 ///    rung 2, reaches it too, a legitimate root refused on its size
 ///    (`work/inside/torus-split-lead-escalates-a-legitimately-small-resolvent-root.md`).
 /// 4. **`split` Zero**: one of the two quadratic factors has a zero
 ///    discriminant, i.e. a double root, which contradicts the definite
-///    discriminant of rung 1. [`QuarticRoots::Uncertain`].
-/// 5. **[`QuarticRoots::CountDisagrees`]**: the roots CONSTRUCTED
+///    discriminant of rung 1. [`Unsettled::Tangency`].
+/// 5. **[`Unsettled::CountDisagrees`]**: the roots CONSTRUCTED
 ///    disagree in number with the count CERTIFIED by rung 1. Where
 ///    measured exactly, the construction is right and rung 1 is wrong:
 ///    `Δ`'s `f64` evaluation carries rounding far past the band that no
@@ -344,12 +319,13 @@ pub struct QuarticRows {
 ///    `torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`
 ///    and `a_far_ray_reaches_the_count_disagreement`). This rung catches
 ///    the defect only where the two counts differ; where the noise flips
-///    the count to [`QuarticRoots::Miss`], the answer is wrong and
+///    the count to [`Roots::Miss`], the answer is wrong and
 ///    nothing here sees it.
 ///
 /// # Errors
 ///
-/// [`geom_core::Indeterminate`] — an in-band classifying sign.
+/// [`RootRefusal::Escalated`], an in-band classifying sign, and
+/// [`RootRefusal::Unsettled`], the rungs above that certify no count.
 #[allow(clippy::too_many_lines)] // one closed form and its ladder
 pub fn depressed_quartic_roots<T: Decide>(
     p: T,
@@ -358,7 +334,7 @@ pub fn depressed_quartic_roots<T: Decide>(
     lever: T,
     rows: &QuarticRows,
     band: Band,
-) -> Result<QuarticRoots<T>, Indeterminate> {
+) -> Result<QuarticRoots<T>, RootRefusal> {
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
     let disc = T::from_f64(256.0) * s.powi(3) - T::from_f64(128.0) * p.powi(2) * s.powi(2)
@@ -369,7 +345,7 @@ pub fn depressed_quartic_roots<T: Decide>(
     let disc_sign = decide(rows.disc, Margin::over_lever(disc, lever.powi(11)), band)?;
     let count = match disc_sign {
         Sign::Negative => 2usize,
-        Sign::Zero => return Ok(QuarticRoots::Uncertain),
+        Sign::Zero => return Err(Unsettled::Tangency.into()),
         Sign::Positive => {
             let shape = decide(rows.shape, Margin::over_lever(p, lever), band)?;
             let depth = decide(
@@ -385,12 +361,12 @@ pub fn depressed_quartic_roots<T: Decide>(
                 (Sign::Positive, _) | (_, Sign::Positive) => 0,
                 // One of the two is on its own zero while the other does
                 // not settle the question: the count is not certain.
-                _ => return Ok(QuarticRoots::Uncertain),
+                _ => return Err(Unsettled::Tangency.into()),
             }
         }
     };
     if count == 0 {
-        return Ok(QuarticRoots::Miss);
+        return Ok(Roots::Miss);
     }
     // The two quadratic factors of the depressed quartic, as
     // `(y² + α y + β)(y² − α y + γ)`. The biquadratic arm is the
@@ -408,7 +384,7 @@ pub fn depressed_quartic_roots<T: Decide>(
                 Sign::Positive => {}
                 // A repeated `y²`, or none at all with a count that says
                 // otherwise: neither is a certified pair of factors.
-                Sign::Zero | Sign::Negative => return Ok(QuarticRoots::Uncertain),
+                Sign::Zero | Sign::Negative => return Err(Unsettled::Tangency.into()),
             }
             let [lo, hi] = quadratic_roots(T::one(), T::zero() - p / two, s, inner / four);
             ((T::zero(), hi), (T::zero(), lo))
@@ -432,7 +408,7 @@ pub fn depressed_quartic_roots<T: Decide>(
             );
             match decide(rows.split_lead, Margin::over_lever(z, lever), band)? {
                 Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Ok(QuarticRoots::Uncertain),
+                Sign::Zero | Sign::Negative => return Err(Unsettled::Resolvent.into()),
             }
             let alpha = z.max(T::zero()).sqrt();
             let half_gap = q_hat / alpha;
@@ -451,7 +427,7 @@ pub fn depressed_quartic_roots<T: Decide>(
         let inner = a.powi(2) - four * c;
         match decide(rows.split, Margin::over_lever(inner, lever), band)? {
             Sign::Negative => continue,
-            Sign::Zero => return Ok(QuarticRoots::Uncertain),
+            Sign::Zero => return Err(Unsettled::Tangency.into()),
             Sign::Positive => {}
         }
         for y in quadratic_roots(T::one(), a / two, c, inner / four) {
@@ -464,12 +440,13 @@ pub fn depressed_quartic_roots<T: Decide>(
     // compares is the CONSTRUCTED count against the CERTIFIED one, the
     // one place the sign ladder and the factorization are made to agree.
     if found != count {
-        return Ok(QuarticRoots::CountDisagrees {
+        return Err(Unsettled::CountDisagrees {
             certified: count,
             constructed: found,
-        });
+        }
+        .into());
     }
-    Ok(QuarticRoots::Certified { count, ts })
+    Ok(Roots::Certified { count, roots: ts })
 }
 
 #[cfg(test)]

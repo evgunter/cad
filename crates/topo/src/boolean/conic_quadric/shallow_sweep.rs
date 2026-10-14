@@ -198,14 +198,16 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
 /// The door's certified roots as `(lo, hi)` pairs (`pair` reads one), or
 /// what it answered instead.
 fn answer<T: Decide>(
-    got: Result<CircleRoots<T>, BooleanError>,
+    got: Result<Result<CircleRoots<T>, Unsettled>, BooleanError>,
     pair: fn(T) -> (f64, f64),
 ) -> Result<Vec<(f64, f64)>, String> {
     match got {
-        Ok(CircleRoots::Certified { count, thetas }) => {
-            Ok(thetas[..count].iter().map(|&t| pair(t)).collect())
-        }
-        Ok(other) => Err(format!("{other:?}")),
+        Ok(Ok(CircleRoots::Certified {
+            count,
+            roots: thetas,
+        })) => Ok(thetas[..count].iter().map(|&t| pair(t)).collect()),
+        Ok(Ok(other)) => Err(format!("{other:?}")),
+        Ok(Err(why)) => Err(format!("unsettled: {why:?}")),
         Err(e) => Err(format!("refused: {e:?}")),
     }
 }
@@ -277,7 +279,9 @@ fn no_certified_root_of_a_shallow_ladder_crossing_is_placed_past_the_band() {
                     }
                     Err(what) if what == "Miss" => (!truth.roots.is_empty())
                         .then(|| format!("Miss on {} true roots", truth.roots.len())),
-                    Err(what) if what == "Uncertain" || what.starts_with("refused") => None,
+                    Err(what) if what.starts_with("unsettled") || what.starts_with("refused") => {
+                        None
+                    }
                     Err(what) => Some(format!("certified {what}")),
                 };
                 if let Some(why) = why {

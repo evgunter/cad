@@ -75,7 +75,12 @@ fn distance(s: &geom::Surface<f64>, p: Point3<f64>) -> f64 {
         .fold(f64::INFINITY, f64::min)
 }
 
-fn door(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1: f64) -> CircleRoots<f64> {
+fn door(
+    e: &geom::Curve3<f64>,
+    s: &geom::Surface<f64>,
+    t0: f64,
+    t1: f64,
+) -> Result<CircleRoots<f64>, Unsettled> {
     conic_quadric_roots(e, t0, t1, s, band()).unwrap()
 }
 
@@ -100,7 +105,11 @@ fn assert_matches_oracle(
     want: usize,
 ) -> Vec<f64> {
     let t1 = t0 + 1.0;
-    let CircleRoots::Certified { count, thetas } = door(e, s, t0, t1) else {
+    let Ok(CircleRoots::Certified {
+        count,
+        roots: thetas,
+    }) = door(e, s, t0, t1)
+    else {
         panic!("{label}: certified roots, got {:?}", door(e, s, t0, t1));
     };
     assert_eq!(count, want, "{label}: the certified count");
@@ -230,14 +239,14 @@ fn a_coaxial_circle_lies_on_the_cone_or_misses_it() {
     let s = cone([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], a);
     let on = circle([0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 2.0 * a.tan());
     assert!(
-        matches!(door(&on, &s, 0.0, TAU), CircleRoots::OnSurface),
+        matches!(door(&on, &s, 0.0, TAU), Ok(CircleRoots::On(_))),
         "the rim circle lies on the cone, got {:?}",
         door(&on, &s, 0.0, TAU)
     );
     for r in [0.5, 1.2] {
         let off = circle([0.0, 0.0, 2.0], [0.0, 0.0, 1.0], r);
         assert!(
-            matches!(door(&off, &s, 0.0, TAU), CircleRoots::Miss),
+            matches!(door(&off, &s, 0.0, TAU), Ok(CircleRoots::Miss)),
             "radius {r} at height 2 misses, got {:?}",
             door(&off, &s, 0.0, TAU)
         );
@@ -271,7 +280,7 @@ fn a_narrow_cones_near_coaxial_circle_is_not_on_it() {
     );
     let got = door(&rim, &s, 0.0, TAU);
     assert!(
-        matches!(got, CircleRoots::Uncertain | CircleRoots::Miss),
+        matches!(got, Err(_) | Ok(CircleRoots::Miss)),
         "a circle {res} off the cone is not on it, got {got:?}"
     );
 }
@@ -279,7 +288,7 @@ fn a_narrow_cones_near_coaxial_circle_is_not_on_it() {
 /// **At the apex the door refuses.** A circle through the apex in a
 /// meridian plane, and a circle crossing a nappe a few zero bands from
 /// the apex, at each of the three ε rows: neither a root nor a miss is
-/// answered, and the refusal is `Uncertain` — the subdivision cannot read
+/// answered, and the refusal is refused `Unsettled` — the subdivision cannot read
 /// a definite side beside the apex, or the slack meter refuses the root
 /// it isolates there, before the apex rung reads it
 /// ([`off_the_apex`]'s docs; the rung's own row is below).
@@ -293,14 +302,14 @@ fn a_root_at_the_apex_refuses() {
         for (label, e) in [("through the apex", through), ("beside the apex", near)] {
             let got = conic_quadric_roots(&e, 0.0, TAU, &s, band);
             assert!(
-                matches!(got, Ok(CircleRoots::Uncertain)),
+                matches!(got, Ok(Err(_))),
                 "ε {eps}, {label}: refused, got {got:?}"
             );
         }
     }
 }
 
-/// **The apex rung answers `AtApex` for a root at the apex**, and for
+/// **The apex rung refuses `AtApex` for a root at the apex**, and for
 /// one in the escalation band of it, and leaves roots definitely off it
 /// standing: the rung read directly, on certified roots the door would
 /// hand it (the door's own meters refuse such a root first, above).
@@ -322,7 +331,7 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
         all[..thetas.len()].copy_from_slice(thetas);
         CircleRoots::Certified {
             count: thetas.len(),
-            thetas: all,
+            roots: all,
         }
     };
     for (label, shift) in [
@@ -331,20 +340,19 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
         ("in its escalation band", 0.5 * (b.zero() + b.escalate())),
     ] {
         let got = off_the_apex(&conic, apex, certified(&[at(shift), at(1.0)]), b);
-        assert!(matches!(got, CircleRoots::AtApex), "{label}: got {got:?}");
+        assert!(
+            matches!(got, Err(Unsettled::AtApex)),
+            "{label}: got {got:?}"
+        );
     }
     let clear = certified(&[at(3.0 * b.escalate()), at(1.0)]);
     let got = off_the_apex(&conic, apex, clear, b);
     assert!(
-        matches!(got, CircleRoots::Certified { count: 2, .. }),
+        matches!(got, Ok(CircleRoots::Certified { count: 2, .. })),
         "roots definitely off the apex stand, got {got:?}"
     );
-    for other in [
-        CircleRoots::Miss,
-        CircleRoots::OnSurface,
-        CircleRoots::Uncertain,
-    ] {
-        let label = format!("{other:?}");
+    for other in [CircleRoots::Miss, CircleRoots::On(OnCarrier)] {
+        let label = format!("{:?}", Ok::<_, Unsettled>(other));
         let got = off_the_apex(&conic, apex, other, b);
         assert_eq!(
             format!("{got:?}"),
@@ -401,12 +409,15 @@ fn a_root_the_slack_meter_cannot_place_refuses() {
         );
         let got = conic_quadric_roots(&e, -0.5, 0.5, &s, band);
         assert!(
-            matches!(got, Ok(CircleRoots::Uncertain)),
+            matches!(got, Ok(Err(_))),
             "d = {d:e}: a root charged {charge:e} is refused, got {got:?}"
         );
     }
     let e = crossing(0.3);
-    let Ok(CircleRoots::Certified { count, thetas }) = conic_quadric_roots(&e, -0.5, 0.5, &s, band)
+    let Ok(Ok(CircleRoots::Certified {
+        count,
+        roots: thetas,
+    })) = conic_quadric_roots(&e, -0.5, 0.5, &s, band)
     else {
         panic!("far from the apex the roots are certified")
     };
@@ -434,7 +445,7 @@ fn a_root_the_slack_meter_cannot_place_refuses() {
 ///   its own ([`assert_placed`]);
 /// - a `Miss` is never certified for a carrier that crosses the cone or
 ///   comes within the zero band of it;
-/// - `OnSurface` only for a carrier whose every sampled point lies within
+/// - `On` only for a carrier whose every sampled point lies within
 ///   the zero band of the cone.
 #[test]
 fn certified_answers_hold_against_the_quadric_form() {
@@ -501,7 +512,10 @@ fn certified_answers_hold_against_the_quadric_form() {
                 .map(|k| distance(&s, e.eval(at(k))))
                 .fold(f64::INFINITY, f64::min);
             match found {
-                CircleRoots::Certified { count, thetas } => {
+                Ok(CircleRoots::Certified {
+                    count,
+                    roots: thetas,
+                }) => {
                     certified += 1;
                     for &t in &thetas[..count] {
                         let p = e.eval(t);
@@ -515,19 +529,19 @@ fn certified_answers_hold_against_the_quadric_form() {
                     }
                     assert_placed(&label, &e, &s, &thetas[..count], &truth, eps);
                 }
-                CircleRoots::Miss => {
+                Ok(CircleRoots::Miss) => {
                     misses += 1;
                     assert!(
                         changes == 0 && closest > eps,
                         "{label}: a Miss {closest} from the cone, {changes} sign changes"
                     );
                 }
-                CircleRoots::OnSurface => {
+                Ok(CircleRoots::On(_)) => {
                     let (_, far) = extremes(|t| distance(&s, e.eval(t)), mid - PI, mid + PI);
                     assert!(far <= eps, "{label}: OnSurface, but a point lies {far} off");
                 }
-                CircleRoots::AtApex => apex += 1,
-                CircleRoots::Uncertain => uncertain += 1,
+                Err(Unsettled::AtApex) => apex += 1,
+                Err(_) => uncertain += 1,
             }
         }
         println!(
@@ -608,7 +622,10 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                 .map(|j| distance(&s, e.eval(at(j))))
                 .fold(f64::INFINITY, f64::min);
             match found {
-                CircleRoots::Certified { count, thetas } => {
+                Ok(CircleRoots::Certified {
+                    count,
+                    roots: thetas,
+                }) => {
                     certified += 1;
                     for &t in &thetas[..count] {
                         let p = e.eval(t);
@@ -622,15 +639,15 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                     }
                     assert_placed(&label, &e, &s, &thetas[..count], &truth, eps);
                 }
-                CircleRoots::Miss => {
+                Ok(CircleRoots::Miss) => {
                     misses += 1;
                     assert!(
                         changes == 0 && closest > eps,
                         "{label}: a Miss {closest} from the cone, {changes} sign changes"
                     );
                 }
-                CircleRoots::OnSurface => panic!("{label}: no such circle lies on a cone"),
-                CircleRoots::AtApex | CircleRoots::Uncertain => refused += 1,
+                Ok(CircleRoots::On(_)) => panic!("{label}: no such circle lies on a cone"),
+                Err(Unsettled::AtApex) | Err(_) => refused += 1,
             }
         }
         println!("ε {eps}: {certified} certified, {misses} misses, {refused} refused");

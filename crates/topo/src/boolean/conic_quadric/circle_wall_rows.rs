@@ -94,14 +94,18 @@ fn oracle(pose: Pose, t0: f64, t1: f64, w: [f64; 3]) -> Vec<f64> {
     crossings(|t| off_wall(pose, t, w[0], w[1], w[2]), t0, t1)
 }
 
-fn door(pose: Pose, t0: f64, t1: f64, w: [f64; 3]) -> CircleRoots<f64> {
+fn door(pose: Pose, t0: f64, t1: f64, w: [f64; 3]) -> Result<CircleRoots<f64>, Unsettled> {
     conic_quadric_roots(&pose.carrier(), t0, t1, &wall(w[0], w[1], w[2]), band()).unwrap()
 }
 
 /// The door's roots on `[t0, t1]` match the oracle's, in number and
 /// to well inside the band, and every one lies on the wall.
 fn assert_matches_oracle(label: &str, pose: Pose, t0: f64, t1: f64, w: [f64; 3], want: usize) {
-    let CircleRoots::Certified { count, thetas } = door(pose, t0, t1, w) else {
+    let Ok(CircleRoots::Certified {
+        count,
+        roots: thetas,
+    }) = door(pose, t0, t1, w)
+    else {
         panic!(
             "{label}: expected certified roots, got {:?}",
             door(pose, t0, t1, w)
@@ -145,7 +149,7 @@ fn assert_matches_oracle(label: &str, pose: Pose, t0: f64, t1: f64, w: [f64; 3],
 /// side. At the default band: a depth inside the zero band is no
 /// certified answer either way, and a definite depth is two certified
 /// crossings, each on the wall — or, on the 50 m and 500 m walls,
-/// `Uncertain`: there the `f64` residual's rounding places the shallow
+/// `Unsettled`: there the `f64` residual's rounding places the shallow
 /// roots 2e-10 to 4.6e-10 m from the true ones (the exact oracle), and
 /// the root slack, which must read inside the zero band, refuses them.
 /// The half-angle ladder alone certified a `Miss` at depth 1e-9 m on a
@@ -173,19 +177,23 @@ fn a_graze_is_read_by_its_depth() {
         let got = conic_quadric_roots(&pose.carrier(), -1.0, 1.0, &wall(0.0, 0.0, r), band);
         if f64::abs(depth) <= band.zero() * 10.0 {
             assert!(
-                matches!(got, Ok(CircleRoots::Uncertain) | Err(_)),
+                matches!(got, Ok(Err(_)) | Err(_)),
                 "{label}: a graze in the band, got {got:?}"
             );
             continue;
         }
         if !placed {
             assert!(
-                matches!(got, Ok(CircleRoots::Uncertain)),
+                matches!(got, Ok(Err(_))),
                 "{label}: roots the band cannot place refuse on their slack, got {got:?}"
             );
             continue;
         }
-        let Ok(CircleRoots::Certified { count, thetas }) = got else {
+        let Ok(Ok(CircleRoots::Certified {
+            count,
+            roots: thetas,
+        })) = got
+        else {
             panic!("{label}: two certified crossings, got {got:?}");
         };
         assert_eq!(count, 2, "{label}");
@@ -238,11 +246,11 @@ fn a_tilted_circle_matches_the_oracle_at_two_and_four_roots() {
 /// radius, centred on its axis and tilted by `tilt` — at most
 /// `tilt²/2r` inside the wall anywhere — at a tenth of that reach (`A₂` a
 /// hundredth of the zero band, the tilt definitely past the escalation
-/// threshold) lies on the wall to within the band, and is `OnSurface`;
+/// threshold) lies on the wall to within the band, and is `On`;
 /// read on its tilt it took the ladder, which cannot read a constant
-/// residual and answered `Uncertain`. At ten times that reach (`A₂`
+/// residual and refused `Unsettled`. At ten times that reach (`A₂`
 /// definite) it touches the wall from inside at `θ = 0` and `π`: the
-/// ladder's, and never `OnSurface` nor a `Miss`.
+/// ladder's, and never `On` nor a `Miss`.
 #[test]
 fn the_second_harmonic_band_reaches_past_the_tilt_band() {
     let band = band();
@@ -279,7 +287,7 @@ fn the_second_harmonic_band_reaches_past_the_tilt_band() {
                     "{label}: on the wall, {deepest:e} at most"
                 );
                 assert!(
-                    matches!(got, Ok(CircleRoots::OnSurface)),
+                    matches!(got, Ok(Ok(CircleRoots::On(_)))),
                     "{label}: on the wall to within the band, got {got:?}"
                 );
             } else {
@@ -290,9 +298,9 @@ fn the_second_harmonic_band_reaches_past_the_tilt_band() {
                 assert!(
                     !matches!(
                         got,
-                        Ok(CircleRoots::OnSurface
-                            | CircleRoots::Miss
-                            | CircleRoots::Certified { .. })
+                        Ok(Ok(CircleRoots::On(_))
+                            | Ok(CircleRoots::Miss)
+                            | Ok(CircleRoots::Certified { .. }))
                     ),
                     "{label}: a tangency from inside, got {got:?}"
                 );
@@ -306,9 +314,9 @@ fn the_second_harmonic_band_reaches_past_the_tilt_band() {
 /// the residual `−A₂(1 − cos 2θ)`: it touches the wall at `θ = 0` and `π`
 /// and lies `2A₂` inside it at `±π/2`. With `A₂` at seven tenths of the
 /// zero band the arm takes it, and its true greatest distance from the
-/// wall, `1.4·zero`, is past the zero band: no `OnSurface`. Read with
+/// wall, `1.4·zero`, is past the zero band: no `On`. Read with
 /// the dropped harmonic uncharged, the residual's constant part `−A₂` sits
-/// inside the band and the arm answered `OnSurface`.
+/// inside the band and the arm answered `On`.
 #[test]
 fn a_near_square_circle_inside_the_band_by_its_second_harmonic_is_not_on_the_wall() {
     let band = band();
@@ -339,7 +347,7 @@ fn a_near_square_circle_inside_the_band_by_its_second_harmonic_is_not_on_the_wal
         );
         let got = conic_quadric_roots(&pose.carrier(), -0.5, 0.5, &wall(0.0, 0.0, r), band);
         assert!(
-            !matches!(got, Ok(CircleRoots::OnSurface)),
+            !matches!(got, Ok(Ok(CircleRoots::On(_)))),
             "{label}: {:e} off the wall, got {got:?}",
             -lo
         );
@@ -367,7 +375,7 @@ fn a_circle_clear_of_the_wall_is_a_miss_in_either_arm() {
         ),
     ] {
         assert!(
-            matches!(door(pose, 0.0, 6.0, w), CircleRoots::Miss),
+            matches!(door(pose, 0.0, 6.0, w), Ok(CircleRoots::Miss)),
             "{label}: {:?}",
             door(pose, 0.0, 6.0, w)
         );
@@ -382,11 +390,11 @@ fn a_coaxial_circle_is_on_the_wall_or_a_miss_off_it() {
     let w = [0.3, -0.4, 1.0];
     assert!(matches!(
         door(flat(0.3, -0.4, 5.0, 1.0), 0.0, 6.0, w),
-        CircleRoots::OnSurface
+        Ok(CircleRoots::On(_))
     ));
     assert!(matches!(
         door(flat(0.3, -0.4, 5.0, 0.6), 0.0, 6.0, w),
-        CircleRoots::Miss
+        Ok(CircleRoots::Miss)
     ));
 }
 
@@ -397,10 +405,7 @@ fn a_coaxial_circle_is_on_the_wall_or_a_miss_off_it() {
 /// (`in_band_sweep::an_exact_tangency_is_escalated_at_every_tilt`).
 #[test]
 fn a_tangent_circle_square_to_the_axis_is_uncertain() {
-    assert!(matches!(
-        door(flat(0.0, 0.0, 0.0, 1.0), 0.0, 6.0, [2.0, 0.0, 1.0]),
-        CircleRoots::Uncertain
-    ));
+    assert!(door(flat(0.0, 0.0, 0.0, 1.0), 0.0, 6.0, [2.0, 0.0, 1.0]).is_err());
 }
 
 /// **The first-harmonic arm's meter refuses an unreadable reading.** A
@@ -413,10 +418,7 @@ fn the_first_harmonic_noise_meter_refuses_a_reading_in_the_band_gap() {
         return;
     }
     let got = door(flat(0.0, 0.0, 0.0, 1.0), -1.0, 1.0, [2001.0, 0.0, 1.0]);
-    assert!(
-        matches!(got, CircleRoots::Uncertain),
-        "the noise meter refuses, got {got:?}"
-    );
+    assert!(got.is_err(), "the noise meter refuses, got {got:?}");
 }
 
 /// The interval lane, in both arms: every certified root enclosure
@@ -443,7 +445,11 @@ fn the_interval_lane_encloses_the_oracle_roots() {
             band(),
         )
         .unwrap();
-        let CircleRoots::Certified { count, thetas } = got else {
+        let Ok(CircleRoots::Certified {
+            count,
+            roots: thetas,
+        }) = got
+        else {
             panic!("{label}: expected certified roots, got {got:?}");
         };
         let mid = (t0 + t1) / 2.0;

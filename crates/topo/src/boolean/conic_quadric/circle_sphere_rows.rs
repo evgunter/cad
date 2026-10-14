@@ -35,7 +35,7 @@ fn circle<T: Real>(rho: f64) -> geom::Curve3<T> {
     }
 }
 
-fn roots(c: [f64; 3], r: f64, t0: f64, t1: f64) -> CircleRoots<f64> {
+fn roots(c: [f64; 3], r: f64, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Unsettled> {
     conic_quadric_roots(&circle(1.0), t0, t1, &sphere(c, r), band()).unwrap()
 }
 
@@ -63,7 +63,11 @@ fn default_band() -> bool {
 fn a_crossing_sphere_meets_the_carrier_at_two_points_on_it() {
     let (c, r) = ([0.8, 0.6, 0.3], 0.5);
     let (t0, t1) = (-1.0, 4.0);
-    let CircleRoots::Certified { count: 2, thetas } = roots(c, r, t0, t1) else {
+    let Ok(CircleRoots::Certified {
+        count: 2,
+        roots: thetas,
+    }) = roots(c, r, t0, t1)
+    else {
         panic!("a sphere through the circle crosses it twice");
     };
     let ts = [thetas[0], thetas[1]];
@@ -90,7 +94,11 @@ fn a_crossing_sphere_meets_the_carrier_at_two_points_on_it() {
 fn roots_are_reported_within_pi_of_an_arc_past_the_branch_cut() {
     let (c, r) = ([1.0, -0.1, 0.0], 0.3);
     let (t0, t1) = (5.0, 7.5);
-    let CircleRoots::Certified { count: 2, thetas } = roots(c, r, t0, t1) else {
+    let Ok(CircleRoots::Certified {
+        count: 2,
+        roots: thetas,
+    }) = roots(c, r, t0, t1)
+    else {
         panic!("the sphere straddles the circle at θ ≈ 0");
     };
     let ts = [thetas[0], thetas[1]];
@@ -109,7 +117,7 @@ fn a_sphere_clear_of_the_carrier_is_a_miss_on_either_side() {
     // about the origin swallows the circle.
     for (c, r) in [([3.0, 0.0, 0.0], 0.5), ([0.1, 0.0, 0.2], 2.0)] {
         assert!(
-            matches!(roots(c, r, 0.0, 6.0), CircleRoots::Miss),
+            matches!(roots(c, r, 0.0, 6.0), Ok(CircleRoots::Miss)),
             "sphere {c:?} r {r} misses the circle"
         );
         let first = off_sphere(0.0, c, r) > 0.0;
@@ -122,20 +130,20 @@ fn a_sphere_clear_of_the_carrier_is_a_miss_on_either_side() {
 
 /// **A coaxial carrier is decided by its one residual.** Centred on
 /// the circle's axis the residual is constant: definitely off the
-/// sphere is a miss, on it is `OnSurface`.
+/// sphere is a miss, on it is `On`.
 #[test]
 fn a_coaxial_carrier_is_a_miss_off_the_sphere_and_coaxial_on_it() {
     assert!(matches!(
         roots([0.0, 0.0, 0.7], 1.6, 0.0, 6.0),
-        CircleRoots::Miss
+        Ok(CircleRoots::Miss)
     ));
     assert!(matches!(
         roots([0.0, 0.0, 0.7], 0.5, 0.0, 6.0),
-        CircleRoots::Miss
+        Ok(CircleRoots::Miss)
     ));
     assert!(matches!(
         roots([0.0, 0.0, 0.5], 1.25_f64.sqrt(), 0.0, 6.0),
-        CircleRoots::OnSurface
+        Ok(CircleRoots::On(_))
     ));
 }
 
@@ -165,7 +173,7 @@ fn a_near_coaxial_carrier_reaching_the_zero_band_is_not_a_miss() {
             Band::new(zero, k * zero).unwrap(),
         );
         assert!(
-            !matches!(got, Ok(CircleRoots::Miss)),
+            !matches!(got, Ok(Ok(CircleRoots::Miss))),
             "K = {k}: a residual reaching the zero band certified a miss"
         );
     }
@@ -174,10 +182,7 @@ fn a_near_coaxial_carrier_reaching_the_zero_band_is_not_a_miss() {
 #[test]
 fn a_tangent_sphere_is_uncertain() {
     // Externally tangent at (1, 0, 0): a touch, not a crossing.
-    assert!(matches!(
-        roots([1.5, 0.0, 0.0], 0.5, 0.0, 6.0),
-        CircleRoots::Uncertain
-    ));
+    assert!(roots([1.5, 0.0, 0.0], 0.5, 0.0, 6.0).is_err());
 }
 
 /// **The noise meter, isolated.** On a crossing the slack reads at
@@ -204,7 +209,7 @@ fn the_noise_meter_refuses_a_definite_and_an_unreadable_reading() {
         )
         .unwrap();
         assert!(
-            matches!(got, CircleRoots::Uncertain),
+            got.is_err(),
             "a sphere {far} m off: the noise meter refuses, got {got:?}"
         );
     }
@@ -222,7 +227,7 @@ fn fine_band() -> Band {
 /// not its rounding.
 const R: f64 = 0.75;
 
-fn near_tangent(delta: f64, band: Band) -> CircleRoots<f64> {
+fn near_tangent(delta: f64, band: Band) -> Result<CircleRoots<f64>, Unsettled> {
     conic_quadric_roots(
         &circle(1.0),
         -1.0,
@@ -245,7 +250,11 @@ fn a_near_tangent_crossing_is_placed_within_the_finest_band() {
     for delta in [2f64.powi(-14), 2f64.powi(-17), 2f64.powi(-20)] {
         let d = 1.0 + R - delta;
         let want = 2.0 * (delta * (2.0 * R - delta) / (4.0 * d)).sqrt().asin();
-        let CircleRoots::Certified { count: 2, thetas } = near_tangent(delta, fine_band()) else {
+        let Ok(CircleRoots::Certified {
+            count: 2,
+            roots: thetas,
+        }) = near_tangent(delta, fine_band())
+        else {
             panic!("δ = {delta:e}: the extremes straddle, so two roots");
         };
         let ts = [thetas[0], thetas[1]];
@@ -273,10 +282,7 @@ fn a_near_tangent_crossing_is_placed_within_the_finest_band() {
 #[test]
 fn the_root_slack_meter_refuses_a_shallow_crossing() {
     let got = near_tangent(2f64.powi(-33), fine_band());
-    assert!(
-        matches!(got, CircleRoots::Uncertain),
-        "the root-slack meter refuses: {got:?}"
-    );
+    assert!(got.is_err(), "the root-slack meter refuses: {got:?}");
 }
 
 /// **The root-slack meter refuses an unreadable reading — and that
@@ -290,10 +296,7 @@ fn the_root_slack_meter_refuses_a_shallow_crossing() {
 #[test]
 fn the_root_slack_meter_refuses_a_reading_in_the_band_gap() {
     let got = near_tangent(2f64.powi(-23), fine_band());
-    assert!(
-        matches!(got, CircleRoots::Uncertain),
-        "the root-slack meter refuses: {got:?}"
-    );
+    assert!(got.is_err(), "the root-slack meter refuses: {got:?}");
 }
 
 /// **The half-chord is read from the extreme nearer zero.** A sphere
@@ -315,8 +318,10 @@ fn a_small_sphere_grazing_a_large_circle_is_placed_from_its_near_extreme() {
         let d = rho + r - nominal;
         let delta = (rho + r) - d;
         let want = 2.0 * (delta * (2.0 * r - delta) / (4.0 * d * rho)).sqrt().asin();
-        let CircleRoots::Certified { count: 2, thetas } =
-            conic_quadric_roots(&circle(rho), -1.0, 1.0, &sphere([d, 0.0, 0.0], r), band).unwrap()
+        let Ok(CircleRoots::Certified {
+            count: 2,
+            roots: thetas,
+        }) = conic_quadric_roots(&circle(rho), -1.0, 1.0, &sphere([d, 0.0, 0.0], r), band).unwrap()
         else {
             panic!("δ = {delta:e}: the small sphere crosses the circle twice");
         };
@@ -357,7 +362,7 @@ fn a_frame_that_is_not_orthonormal_is_charged_for_it() {
     )
     .unwrap();
     assert!(
-        matches!(got, CircleRoots::Uncertain),
+        got.is_err(),
         "a crossing the factored form misreads is refused, got {got:?}"
     );
 }
@@ -410,7 +415,7 @@ impl SlackTerms {
             near: rho * near / swing / slope,
             far_share: rho * far / swing / slope,
             phase: rho * h.phase_error / h.e_u.hypot(h.e_v),
-            angle: rho * super::super::circle_roots::rounding_charge(core::f64::consts::TAU),
+            angle: rho * geom_brep::rounding_charge(core::f64::consts::TAU),
             noise: lo_n.max(hi_n),
             lo: h.lo,
             hi: h.hi,
@@ -510,7 +515,7 @@ fn each_term_of_the_root_slack_decides_a_pose() {
         )
         .unwrap();
         assert!(
-            matches!(got, CircleRoots::Uncertain),
+            got.is_err(),
             "{label}: the slack with this term lies in the gap, so the door refuses, got {got:?}"
         );
     }
@@ -529,7 +534,11 @@ fn the_interval_lane_encloses_the_oracle_roots() {
         band(),
     )
     .unwrap();
-    let CircleRoots::Certified { count: 2, thetas } = got else {
+    let Ok(CircleRoots::Certified {
+        count: 2,
+        roots: thetas,
+    }) = got
+    else {
         panic!("interval lane: expected two roots, got {got:?}");
     };
     let ts = [thetas[0], thetas[1]];

@@ -92,10 +92,12 @@ impl Pose {
             &self.torus(),
             band,
         ) {
-            Ok(CircleRoots::Certified { count, thetas }) => {
-                Ok(thetas[..count].iter().map(|&t| pair(t)).collect())
-            }
-            Ok(other) => Err(format!("{other:?}")),
+            Ok(Ok(CircleRoots::Certified {
+                count,
+                roots: thetas,
+            })) => Ok(thetas[..count].iter().map(|&t| pair(t)).collect()),
+            Ok(Ok(other)) => Err(format!("{other:?}")),
+            Ok(Err(why)) => Err(format!("unsettled: {why:?}")),
             Err(e) => Err(format!("refused: {e:?}")),
         }
     }
@@ -250,7 +252,9 @@ fn judge(
             Some(format!("Miss on {} true roots", truth.roots.len()))
         }
         Err(what)
-            if what.starts_with("Miss") || what.starts_with("refused") || what == "Uncertain" =>
+            if what.starts_with("Miss")
+                || what.starts_with("refused")
+                || what.starts_with("unsettled") =>
         {
             None
         }

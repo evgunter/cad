@@ -56,7 +56,7 @@
 //! pairs on clearances from `ρ = 100`. The threshold scales as
 //! `ρ⁴ ≲ 10ε·r·R²/(u·HARMONIC_NOISE_ULPS)`. The meter now only keeps the
 //! ladder from running past it; the subdivision charges the same noise
-//! to every Taylor term, so such a pose answers `Uncertain` there
+//! to every Taylor term, so such a pose refuses `Unsettled` there
 //! (`a_large_circles_dip_below_its_own_noise_is_not_certified_away`).
 //!
 //! # The lever
@@ -98,7 +98,7 @@
 //!   constant residual then decides it, its spread from the in-band
 //!   offset and tilt charged (`bool_circle_torus_coaxial_residual`,
 //!   [`super::circle_roots`], "A constant residual"): zero is
-//!   [`CircleRoots::OnSurface`] (a rim circle of the torus), and
+//!   [`Roots::On`] (a rim circle of the torus), and
 //!   definite a [`CircleRoots::Miss`].
 //! - **Parallel axes** (the circle's plane perpendicular to `â`, off
 //!   the axis — the lily's pose): `h` is constant, the plane meets the
@@ -117,31 +117,33 @@
 //!   cannot answer. It is decided before the ladder, on one margin
 //!   bounding every carrier point's distance from the torus
 //!   (`bool_circle_torus_meridian`, [`meridian_deviation`]): Zero is
-//!   [`CircleRoots::OnSurface`], in band an escalation, and a definite
+//!   [`Roots::On`], in band an escalation, and a definite
 //!   deviation takes the ladder. The reduction records an
-//!   `OnSurface` arc only under `reduce::lying_on`'s certificates.
+//!   `On` arc only under `reduce::lying_on`'s certificates.
 //! - **A Villarceau circle** also has `F ≡ 0` and no rung: the ladder
-//!   answers it `Uncertain`, so no arm records it as lying on the
-//!   carrier. The reduction still reads an `Uncertain` span through
+//!   answers it `Unsettled`, so no arm records it as lying on the
+//!   carrier. The reduction still reads an `Unsettled` refusal span through
 //!   `carrier_touch::off_face`, which can place every touch off the
 //!   face.
 //! - **A tangency** — the carrier grazing the tube, a double root — is a
 //!   contour-reach margin in band on the parallel arm, and on the
 //!   general arm a piece neither clear nor monotone down to the band's
-//!   width, answered `Uncertain` (module docs of [`super::circle_roots`],
+//!   width, refused `Unsettled` (module docs of [`super::circle_roots`],
 //!   "The half-angle ladder, and the subdivision that answers").
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{
-    CircleRoots, constant_residual_roots, door_half_angle_roots, rounding_charge, span_signs,
+    CircleRoots, constant_residual_roots, door_half_angle_roots, door_refusal, span_signs,
 };
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
 use geom_brep::half_angle::{
-    HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly,
+    DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
 };
 use geom_brep::quartic::QuarticRows;
+use geom_brep::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
+use geom_brep::rounding_charge;
 
 /// The circle × torus lane's ladder rows.
 const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
@@ -188,14 +190,15 @@ fn escalated(diag: Indeterminate) -> BooleanError {
 /// parallel arm, a meridian deviation, or one of the ladder's. An
 /// in-band sign at the coaxial tilt is not an error: the pose takes the
 /// ladder. A meridian deviation read negative is a
-/// [`BooleanError::ClassificationInvariant`].
+/// [`BooleanError::ClassificationInvariant`]. A count the door cannot
+/// certify is the inner [`Unsettled`].
 pub(super) fn circle_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
     torus: &geom::Surface<T>,
     band: Band,
-) -> Result<CircleRoots<T>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
     let (
         &geom::Curve3::Circle {
             center,
@@ -260,37 +263,41 @@ pub(super) fn circle_torus_roots<T: Decide>(
                     .max(T::zero())
                     .sqrt();
                 let spread = two * delta * (g0 + two * delta) / minor_radius;
-                constant_residual_roots(
-                    constant,
-                    spread,
-                    "bool_circle_torus_coaxial_residual",
-                    band,
-                )
-                .map(CircleRoots::from)
-                .map_err(escalated)
+                Ok(door_refusal(
+                    constant_residual_roots(
+                        constant,
+                        spread,
+                        "bool_circle_torus_coaxial_residual",
+                        band,
+                    ),
+                    BooleanDecision::ArcTorusRoots,
+                )?
+                .map(Roots::widen))
             }
-            Ok(Sign::Positive) => parallel_axes_roots(
-                &ParallelPose {
-                    center,
-                    radius,
-                    u_ref,
-                    v_ref,
-                    w_perp,
-                    offset,
-                    h0,
-                    tilt,
-                    t0,
-                    t1,
-                },
-                torus,
-                major_radius,
-                minor_radius,
-                band,
-            )
-            .map_err(escalated),
+            Ok(Sign::Positive) => door_refusal(
+                parallel_axes_roots(
+                    &ParallelPose {
+                        center,
+                        radius,
+                        u_ref,
+                        v_ref,
+                        w_perp,
+                        offset,
+                        h0,
+                        tilt,
+                        t0,
+                        t1,
+                    },
+                    torus,
+                    major_radius,
+                    minor_radius,
+                    band,
+                ),
+                BooleanDecision::ArcTorusRoots,
+            ),
             // A negative length is not an answer; an in-band one is a
             // near-coaxial pose neither arm can stand behind.
-            Ok(Sign::Negative) | Err(_) => Ok(CircleRoots::Uncertain),
+            Ok(Sign::Negative) | Err(_) => Ok(Err(Unsettled::SignInBand)),
         };
     }
 
@@ -318,7 +325,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
             minor_radius,
         ) + rounding;
         match decide("bool_circle_torus_meridian", Margin::of(deviation), band) {
-            Ok(Sign::Zero) => return Ok(CircleRoots::OnSurface),
+            Ok(Sign::Zero) => return Ok(Ok(Roots::On(OnCarrier))),
             Ok(Sign::Positive) => {}
             Ok(Sign::Negative) => {
                 return Err(BooleanError::ClassificationInvariant {
@@ -339,7 +346,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
     let h = geom_brep::conic_torus_harmonics(&conic, t_center, t_axis, major_radius, minor_radius);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
-    let harmonics = TrigPoly::second(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
+    let harmonics = DegreeTwo::new(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
     // The lever (module docs, "The lever").
     let lever = (two * radius).min(major_radius + minor_radius);
     door_half_angle_roots(
@@ -490,7 +497,7 @@ enum Band3 {
 /// `x·√(r² − h₀²)/r`: deciding on the reach certified crossings whose
 /// bump the band cannot see. Each extreme is therefore placed by its own
 /// residual (`bool_circle_torus_contour_residual`), and a bump in band
-/// is `Uncertain`.
+/// is refused `Unsettled`.
 ///
 /// **The tilt the pose was admitted with is carried, not dropped.** The
 /// pose is parallel only to within the band: the carrier's height
@@ -512,7 +519,7 @@ fn parallel_axes_roots<T: Decide>(
     major_radius: T,
     minor_radius: T,
     band: Band,
-) -> Result<CircleRoots<T>, Indeterminate> {
+) -> Result<CircleRoots<T>, RootRefusal> {
     let &ParallelPose {
         center,
         radius,
@@ -532,7 +539,7 @@ fn parallel_axes_roots<T: Decide>(
         (Sign::Positive, _) => {}
         // Definitely past the top or bottom of the tube, even charged.
         (_, Sign::Negative) => return Ok(CircleRoots::Miss),
-        _ => return Ok(CircleRoots::Uncertain),
+        _ => return Err(Unsettled::Tangency.into()),
     }
     let rho_max = radius + offset;
     let rho_min = (radius - offset).abs();
@@ -570,7 +577,7 @@ fn parallel_axes_roots<T: Decide>(
     };
     let (Some(far), Some(near)) = (place(theta0, rho_max)?, place(theta0 + T::pi(), rho_min)?)
     else {
-        return Ok(CircleRoots::Uncertain);
+        return Err(Unsettled::Tangency.into());
     };
     let half = ((minor_radius.powi(2) - h0.powi(2)).max(T::zero())).sqrt();
     // Contour ρ− lies between the extremes iff the near one is in the
@@ -614,11 +621,11 @@ fn parallel_axes_roots<T: Decide>(
             / (two * radius * offset);
         let slack = radius * (charge / slope + rounding / sin_spread);
         match decide("bool_circle_torus_root_slack", Margin::of(slack), band) {
-            Ok(Sign::Positive) => return Ok(CircleRoots::Uncertain),
+            Ok(Sign::Positive) => return Err(Unsettled::Meter.into()),
             // A NaN slack (a zero slope, which the placements above have
             // already refused as a graze) is `Err` and refuses too.
             Ok(Sign::Zero | Sign::Negative) => {}
-            Err(_) => return Ok(CircleRoots::Uncertain),
+            Err(_) => return Err(Unsettled::Meter.into()),
         }
         // Each root on the branch of the span's middle: sound at every
         // scalar by `ring_path::branch`'s window re-centring argument.
@@ -634,7 +641,10 @@ fn parallel_axes_roots<T: Decide>(
     Ok(if count == 0 {
         CircleRoots::Miss
     } else {
-        CircleRoots::Certified { count, thetas }
+        CircleRoots::Certified {
+            count,
+            roots: thetas,
+        }
     })
 }
 
@@ -668,7 +678,7 @@ mod tests {
         t1: T,
         torus: &geom::Surface<T>,
         band: Band,
-    ) -> Result<CircleRoots<T>, BooleanError> {
+    ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
         let carrier = geom::Curve3::Circle {
             center,
             axis,
@@ -756,7 +766,7 @@ mod tests {
         out
     }
 
-    fn door(pose: Pose, t0: f64, t1: f64) -> CircleRoots<f64> {
+    fn door(pose: Pose, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Unsettled> {
         roots_of(
             Point3::from_array(pose.c),
             v3(pose.n),
@@ -772,7 +782,11 @@ mod tests {
 
     /// The door's roots that fall in `[t0, t1]`, sorted.
     fn in_arc(pose: Pose, t0: f64, t1: f64) -> (usize, Vec<f64>) {
-        let CircleRoots::Certified { count, thetas } = door(pose, t0, t1) else {
+        let Ok(CircleRoots::Certified {
+            count,
+            roots: thetas,
+        }) = door(pose, t0, t1)
+        else {
             panic!("expected a certified count");
         };
         let mut ts: Vec<f64> = thetas[..count]
@@ -868,7 +882,7 @@ mod tests {
             u: [1.0, 0.0, 0.0],
         };
         assert!(
-            matches!(door(pose, 2.0, 4.0), CircleRoots::Uncertain),
+            door(pose, 2.0, 4.0).is_err(),
             "a graze is not a certified count"
         );
     }
@@ -879,8 +893,8 @@ mod tests {
     /// at a tube distance `δ = −8.2e-10` inside, and `θ = 0` is turned to
     /// where its residual is lowest, past the escalation threshold at
     /// `K = 1.5`; elsewhere the residual is positive, so the carrier
-    /// crosses the tube. Escalating or answering `OnSurface` or
-    /// `Uncertain` is sound; `Miss` is not.
+    /// crosses the tube. Escalating or answering `On` or
+    /// `Unsettled` is sound; `Miss` is not.
     #[test]
     fn a_near_coaxial_carrier_spanning_zero_is_not_a_miss() {
         let zero = 1e-9;
@@ -927,7 +941,7 @@ mod tests {
                 Band::new(zero, k * zero).unwrap(),
             );
             assert!(
-                !matches!(got, Ok(CircleRoots::Miss)),
+                !matches!(got, Ok(Ok(CircleRoots::Miss))),
                 "K = {k}: a carrier crossing the tube certified a miss"
             );
         }
@@ -949,9 +963,9 @@ mod tests {
             let got = door(pose, 0.0, 1.0);
             assert!(
                 if on {
-                    matches!(got, CircleRoots::OnSurface)
+                    matches!(got, Ok(CircleRoots::On(_)))
                 } else {
-                    matches!(got, CircleRoots::Miss)
+                    matches!(got, Ok(CircleRoots::Miss))
                 },
                 "coaxial at z {z}, radius {rho}: {got:?}"
             );
@@ -968,7 +982,7 @@ mod tests {
             rho: RT,
             u: [1.0, 0.0, 0.0],
         };
-        assert!(matches!(door(pose, 0.0, 1.0), CircleRoots::OnSurface));
+        assert!(matches!(door(pose, 0.0, 1.0), Ok(CircleRoots::On(_))));
     }
 
     /// Clear of the torus: a certified zero count.
@@ -980,7 +994,7 @@ mod tests {
             rho: 1.0,
             u: [0.3_f64.cos(), 0.0, -(0.3_f64.sin())],
         };
-        assert!(matches!(door(pose, 0.0, 1.0), CircleRoots::Miss));
+        assert!(matches!(door(pose, 0.0, 1.0), Ok(CircleRoots::Miss)));
     }
 
     /// The pole lands ON the torus at the arc's antipode: the first
@@ -1011,7 +1025,7 @@ mod tests {
             rho: RT,
             u: [1.0, 0.0, 0.0],
         };
-        assert!(matches!(door(pose, 2.0, 4.0), CircleRoots::Uncertain));
+        assert!(door(pose, 2.0, 4.0).is_err());
     }
 
     /// The parallel pose passing a few millimetres INSIDE a contour's
@@ -1040,7 +1054,7 @@ mod tests {
                 Band::new(eps, 10.0 * eps).unwrap(),
             )
             .unwrap();
-            let CircleRoots::Certified { count, .. } = got else {
+            let Ok(CircleRoots::Certified { count, .. }) = got else {
                 panic!("ε {eps}: a certified count, got {got:?}");
             };
             assert_eq!(count, 2, "ε {eps}: the inner contour only");
@@ -1082,7 +1096,11 @@ mod tests {
                 band(),
             )
             .unwrap();
-            let CircleRoots::Certified { count, thetas } = got else {
+            let Ok(CircleRoots::Certified {
+                count,
+                roots: thetas,
+            }) = got
+            else {
                 panic!("interval lane: expected a certified count");
             };
             let want = oracle(pose, -3.1, 3.1);
@@ -1140,7 +1158,7 @@ mod tests {
     /// roots on it (the reviewer's oracle, on its pose, found two; this
     /// pose's `f64` oracle happens to resolve all four, which is not a
     /// certificate). At zero tilt and at a tilt of 9e-10 m, the door must
-    /// refuse — `Uncertain`, or an escalation.
+    /// refuse — `Unsettled`, or an escalation.
     #[test]
     fn a_parallel_bump_past_a_contour_inside_the_band_is_uncertain() {
         let h = RT - 1e-4;
@@ -1155,7 +1173,7 @@ mod tests {
                 rho,
                 u: [1.0, 0.0, 0.0],
             };
-            // An in-band bump is a refusal either way: `Uncertain`, or
+            // An in-band bump is a refusal either way: `Unsettled`, or
             // the band's own escalation when the margin lands in its gap.
             let got = roots_of(
                 Point3::from_array(pose.c),
@@ -1170,7 +1188,7 @@ mod tests {
             assert!(
                 matches!(
                     &got,
-                    Ok(CircleRoots::Uncertain)
+                    Ok(Err(_))
                         | Err(BooleanError::Escalated {
                             decision: BooleanDecision::ArcTorusRoots,
                             diag: Indeterminate {
@@ -1187,7 +1205,7 @@ mod tests {
     /// identically zero along them, so its coefficients are rounding
     /// noise and the conditioning ratio can read anything. A meridian
     /// circle, at several azimuths, is the meridian rung's
-    /// `OnSurface`; a Villarceau circle has no rung, and the pole's own
+    /// `On`; a Villarceau circle has no rung, and the pole's own
     /// residual decision refuses it.
     #[test]
     fn circles_lying_on_the_torus_are_meridians_or_uncertain() {
@@ -1220,9 +1238,9 @@ mod tests {
                 let want_meridian = i % 2 == 0;
                 assert!(
                     if want_meridian {
-                        matches!(got, CircleRoots::OnSurface)
+                        matches!(got, Ok(CircleRoots::On(_)))
                     } else {
-                        matches!(got, CircleRoots::Uncertain)
+                        got.is_err()
                     },
                     "pose {i} (a {}), arc [{t0}, {t1}]: {got:?}",
                     if want_meridian {
@@ -1282,14 +1300,14 @@ mod tests {
             rho: 1.0,
             u: [1.0, 0.0, 0.0],
         };
-        assert!(matches!(door(pose, -3.0, 3.0), CircleRoots::Miss));
+        assert!(matches!(door(pose, -3.0, 3.0), Ok(CircleRoots::Miss)));
     }
 
     /// **The tilt a parallel pose was admitted with is charged.** The far
     /// point's residual is 1.05e-8 m — past the band's escalation
     /// threshold on its own — but the carrier is tilted 9e-10 m, and the
     /// charged margin falls back into the band: the crossing pair is not
-    /// certified (a refusal: `Uncertain`, or the band's escalation).
+    /// certified (a refusal: `Unsettled`, or the band's escalation).
     #[test]
     fn the_admitted_tilt_is_charged_against_the_bump() {
         let h = RT - 1e-4;
@@ -1317,7 +1335,7 @@ mod tests {
         assert!(
             matches!(
                 &got,
-                Ok(CircleRoots::Uncertain)
+                Ok(Err(_))
                     | Err(BooleanError::Escalated {
                         decision: BooleanDecision::ArcTorusRoots,
                         diag: Indeterminate {
@@ -1410,10 +1428,10 @@ mod tests {
         )
         .unwrap();
         assert!(
-            !matches!(got, CircleRoots::Miss),
+            !matches!(got, Ok(CircleRoots::Miss)),
             "a real dip is not a certified miss: {got:?}"
         );
-        if let CircleRoots::Certified { count, .. } = got {
+        if let Ok(CircleRoots::Certified { count, .. }) = got {
             assert_eq!(count, 2, "the whole turn holds the dip's two roots");
         }
         // The interval lane encloses the rounding the meter estimates,
@@ -1433,7 +1451,7 @@ mod tests {
             fixed_band(),
         );
         assert!(
-            !matches!(got, Ok(CircleRoots::Miss)),
+            !matches!(got, Ok(Ok(CircleRoots::Miss))),
             "interval lane: a real dip is not a certified miss: {got:?}"
         );
     }
@@ -1465,7 +1483,7 @@ mod tests {
     /// ±{1.6e-8, 1e-7, 1e-6, 1e-5} m, at radii 10, 30, 100 and
     /// 300 m and four azimuths. Every answer the door gives must match
     /// the direct-residual oracle on the arc — a dip's two roots, or a
-    /// clearance's none; `Uncertain` is always allowed. Unmetered, the
+    /// clearance's none; `Unsettled` is always allowed. Unmetered, the
     /// door certified misses on dips and phantom pairs on clearances from
     /// `ρ = 100` up.
     #[test]
@@ -1495,14 +1513,17 @@ mod tests {
                     )
                     .unwrap();
                     match got {
-                        CircleRoots::Uncertain => {}
-                        CircleRoots::OnSurface => panic!("{label}: not on the torus"),
-                        CircleRoots::AtApex => panic!("{label}: a torus has no apex"),
-                        CircleRoots::Miss => {
+                        Err(Unsettled::AtApex) => panic!("{label}: a torus has no apex"),
+                        Err(_) => {}
+                        Ok(CircleRoots::On(_)) => panic!("{label}: not on the torus"),
+                        Ok(CircleRoots::Miss) => {
                             assert!(truth.is_empty(), "{label}: a certified miss on a dip");
                             answered[i] += 1;
                         }
-                        CircleRoots::Certified { count, thetas } => {
+                        Ok(CircleRoots::Certified {
+                            count,
+                            roots: thetas,
+                        }) => {
                             let mut got: Vec<f64> = thetas[..count]
                                 .iter()
                                 .copied()
@@ -1650,10 +1671,12 @@ mod tests {
             },
         };
         match roots_of(p(2), w(5), at(v[8]), w(9), at(v[0]), at(v[1]), &torus, band) {
-            Ok(CircleRoots::Certified { count, thetas }) => {
-                Ok(thetas[..count].iter().map(|&t| pair(t)).collect())
-            }
-            Ok(other) => Err(format!("{other:?}")),
+            Ok(Ok(CircleRoots::Certified {
+                count,
+                roots: thetas,
+            })) => Ok(thetas[..count].iter().map(|&t| pair(t)).collect()),
+            Ok(Ok(other)) => Err(format!("{other:?}")),
+            Ok(Err(why)) => Err(format!("unsettled: {why:?}")),
             Err(e) => Err(format!("refused: {e:?}")),
         }
     }
@@ -1687,7 +1710,9 @@ mod tests {
             ] {
                 let roots = match got {
                     Ok(roots) => roots,
-                    Err(what) if what == "Uncertain" || what.starts_with("refused") => continue,
+                    Err(what) if what.starts_with("unsettled") || what.starts_with("refused") => {
+                        continue;
+                    }
                     Err(what) => {
                         panic!("{label} ({lane}): a refusal or the true roots, got {what}")
                     }
@@ -1756,7 +1781,11 @@ mod tests {
                 fixed_band(),
             );
             if tilt == 0.0 {
-                let Ok(CircleRoots::Certified { count, thetas }) = got else {
+                let Ok(Ok(CircleRoots::Certified {
+                    count,
+                    roots: thetas,
+                })) = got
+                else {
                     panic!("untilted: a certified count, got {got:?}");
                 };
                 assert_eq!(count, 4, "untilted: both contours");
@@ -1773,7 +1802,7 @@ mod tests {
                 }
             } else {
                 assert!(
-                    matches!(got, Ok(CircleRoots::Uncertain)),
+                    matches!(got, Ok(Err(_))),
                     "tilt {tilt}: roots displaced past the band are not certified: {got:?}"
                 );
             }

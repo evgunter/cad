@@ -6369,7 +6369,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 let d = k.dot(offset);
                 let (cos_part, sin_part) = (cr * k.dot(cu), cr * k.dot(ca.cross(cu)));
                 let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
-                let noise = super::circle_roots::rounding_charge(offset.norm() + cr);
+                let noise = geom_brep::rounding_charge(offset.norm() + cr);
                 let roots = super::circle_roots::first_harmonic_roots(
                     &super::circle_roots::FirstHarmonic {
                         lo: d - amplitude,
@@ -6387,10 +6387,11 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     band,
                 )?;
                 let thetas = match roots {
-                    super::circle_roots::FirstHarmonicRoots::Miss => continue,
-                    super::circle_roots::FirstHarmonicRoots::Certified(thetas) => thetas.to_vec(),
-                    super::circle_roots::FirstHarmonicRoots::OnSurface
-                    | super::circle_roots::FirstHarmonicRoots::Uncertain => {
+                    Ok(geom_brep::roots::Roots::Miss) => continue,
+                    Ok(geom_brep::roots::Roots::Certified { count, roots }) => {
+                        roots[..count].to_vec()
+                    }
+                    Ok(geom_brep::roots::Roots::On(_)) | Err(_) => {
                         return Err(refuse(
                             "a boundary arc of the sphere face meets the cut's meridian plane \
                              where its roots are not certified",

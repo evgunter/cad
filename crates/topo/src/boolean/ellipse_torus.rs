@@ -19,7 +19,8 @@
 //! circle × torus door's metering: `F`'s rounding charged against its
 //! term bound, read in residual metres through the floor
 //! `2r(R² − r²)` on `|F|` per metre of residual. Its answers are
-//! `Certified`, `Miss` or `Uncertain`, never an escalation.
+//! `Certified` or `Miss`, or an [`Unsettled`] refusal, never an
+//! escalation.
 //!
 //! **Every root's slack is charged from the computation's own running
 //! bound** (`bool_ellipse_torus_root_slack`): the residual at the root,
@@ -29,8 +30,8 @@
 //! smaller of the carrier's and the surface's ceilings on `|F|` per
 //! metre of residual — at the carrier's top speed, must be definitely
 //! inside the band ([`geom_brep::half_angle::RootSlack`]). A shallow
-//! crossing whose root the representation cannot place refuses as
-//! `Uncertain` there.
+//! crossing whose root the representation cannot place refuses
+//! [`Unsettled::Meter`] there.
 //!
 //! A piece is read CLEAR in residual metres through the surface's
 //! ceiling `2r((2R + 2r)² + 3r²)`, capped at `r/2` — the bound
@@ -40,10 +41,12 @@
 use geom_core::{Band, Decide};
 
 use super::BooleanError;
-use super::circle_roots::{CircleRoots, rounding_charge};
+use super::circle_roots::CircleRoots;
 use geom_brep::half_angle::{
     RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
 };
+use geom_brep::roots::{Roots, Unsettled};
+use geom_brep::rounding_charge;
 /// The torus arm's subdivision rows (module docs).
 const TORUS_ROWS: SubdivisionRows = SubdivisionRows {
     clear: "bool_ellipse_torus_sub_clear",
@@ -61,14 +64,15 @@ const TORUS_ROWS: SubdivisionRows = SubdivisionRows {
 /// [`BooleanError::ClassificationInvariant`] when `carrier` is not an
 /// ellipse or `surface` not a torus — the caller dispatched on those
 /// kinds, so a mismatch is a desync, never an answer. The subdivision
-/// answers `Certified`, `Miss` or `Uncertain` and never escalates.
+/// never escalates; a count it cannot certify is the inner
+/// [`Unsettled`].
 pub(super) fn ellipse_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<CircleRoots<T>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
     let (
         geom::Curve3::Ellipse { .. },
         Some(conic),
@@ -111,7 +115,7 @@ fn torus_walk<T: Decide>(
     surface: &geom::Surface<T>,
     slack: Option<&'static str>,
     band: Band,
-) -> Result<CircleRoots<T>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
     let (center, axis, major_radius, minor_radius) = torus;
     let h = geom_brep::conic_torus_harmonics(conic, center, axis, major_radius, minor_radius);
     let placed = |theta: T| {
@@ -142,7 +146,7 @@ fn torus_walk<T: Decide>(
         meter.as_ref(),
         band,
     )
-    .into())
+    .map(Roots::widen))
 }
 
 #[cfg(test)]
@@ -172,7 +176,12 @@ mod tests {
         )
     }
 
-    fn door(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1: f64) -> CircleRoots<f64> {
+    fn door(
+        e: &geom::Curve3<f64>,
+        s: &geom::Surface<f64>,
+        t0: f64,
+        t1: f64,
+    ) -> Result<CircleRoots<f64>, Unsettled> {
         ellipse_torus_roots(e, t0, t1, s, band()).unwrap()
     }
 
@@ -202,7 +211,7 @@ mod tests {
     ///   charge over the floor on `|F|/|res|`), carried along the arc at
     ///   the least true crossing slope, is two orders inside the zero
     ///   band. Past that (the off-axis pose at ε 1e-12, whose noise places
-    ///   a root only to ~5e-12 m) an `Uncertain` is the honest answer.
+    ///   a root only to ~5e-12 m) an `Unsettled` refusal is the honest answer.
     #[test]
     fn torus_crossings_match_the_true_distance() {
         let flat = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 0.53, 0.5);
@@ -276,10 +285,10 @@ mod tests {
                     .fold(f64::INFINITY, f64::min);
                 let resolvable = 100.0 * noise / slope <= band.zero();
                 match ellipse_torus_roots(e, t0, t0 + 1.0, s, band).unwrap() {
-                    CircleRoots::Certified { .. } => {
+                    Ok(CircleRoots::Certified { .. }) => {
                         assert_matches_oracle(label, e, s, t0, *want);
                     }
-                    CircleRoots::Uncertain if !resolvable => {}
+                    Err(_) if !resolvable => {}
                     other => panic!(
                         "{label} at {t0}: {other:?} where the band places a root to {:e} m",
                         noise / slope
@@ -313,7 +322,7 @@ mod tests {
             ),
         ] {
             assert!(
-                matches!(door(&flat, &s, 0.0, TAU), CircleRoots::Miss),
+                matches!(door(&flat, &s, 0.0, TAU), Ok(CircleRoots::Miss)),
                 "{label}: got {:?}",
                 door(&flat, &s, 0.0, TAU)
             );
@@ -482,7 +491,10 @@ mod torus_rows {
                         fuzz::replay()
                     );
                     match found {
-                        CircleRoots::Certified { count, thetas } => {
+                        Ok(CircleRoots::Certified {
+                            count,
+                            roots: thetas,
+                        }) => {
                             certified += 1;
                             assert_eq!(
                                 count,
@@ -502,7 +514,7 @@ mod torus_rows {
                                 );
                             }
                         }
-                        CircleRoots::Miss => {
+                        Ok(CircleRoots::Miss) => {
                             misses += 1;
                             assert!(
                                 truth.roots.is_empty() && truth.residual_depth >= 10.0 * eps,
@@ -511,7 +523,7 @@ mod torus_rows {
                                 truth.roots
                             );
                         }
-                        CircleRoots::Uncertain => uncertain += 1,
+                        Err(_) => uncertain += 1,
                         other => panic!("{label}: {other:?}"),
                     }
                 }
@@ -554,7 +566,13 @@ mod torus_rows {
         }
 
         /// The door's answer, and the walk's with no slack meter.
-        fn answers(&self, band: Band) -> (CircleRoots<f64>, CircleRoots<f64>) {
+        fn answers(
+            &self,
+            band: Band,
+        ) -> (
+            Result<CircleRoots<f64>, Unsettled>,
+            Result<CircleRoots<f64>, Unsettled>,
+        ) {
             let (e, s) = self.build();
             let conic = geom_brep::Conic::of(&e).unwrap();
             let torus = (
@@ -577,7 +595,7 @@ mod torus_rows {
     /// the carrier is about 1e-5, so its `f64` rounding moves the bisected
     /// root by tens of zero bands. The true roots are the 40-digit ones
     /// `scripts/oracles/ellipse_torus_mpmath.py` finds from the stored
-    /// values. The door answers `Uncertain` for both, and never a `Miss`
+    /// values. The door refuses `Unsettled` for both, and never a `Miss`
     /// (they cross); any root it certified would have to lie within the
     /// zero band, as arc length, of a true one. On the first the meter is
     /// what decides: with no slack meter the walk certifies all four of its
@@ -676,8 +694,11 @@ mod torus_rows {
             let (door, bare) = pose.answers(band);
             let meter_decides = k == 0;
             match door {
-                CircleRoots::Uncertain => {}
-                CircleRoots::Certified { count, thetas } => {
+                Err(_) => {}
+                Ok(CircleRoots::Certified {
+                    count,
+                    roots: thetas,
+                }) => {
                     let off = worst(pose, &thetas[..count], truth);
                     assert!(off <= band.zero(), "case {k}: a root {off:e} m of arc off");
                 }
@@ -685,12 +706,16 @@ mod torus_rows {
             }
             if !meter_decides {
                 assert!(
-                    matches!(bare, CircleRoots::Uncertain),
+                    bare.is_err(),
                     "case {k}: the walk declines on its own, got {bare:?}"
                 );
                 continue;
             }
-            let CircleRoots::Certified { count, thetas } = bare else {
+            let Ok(CircleRoots::Certified {
+                count,
+                roots: thetas,
+            }) = bare
+            else {
                 panic!("case {k}: the unmetered walk certifies, got {bare:?}");
             };
             let off = worst(pose, &thetas[..count], truth);
@@ -788,14 +813,17 @@ mod torus_rows {
                 let band = Band::new(eps, 10.0 * eps).unwrap();
                 let label = format!("seam {seam}, ε {eps}");
                 match pose.answers(band).0 {
-                    CircleRoots::Certified { count, thetas } => {
+                    Ok(CircleRoots::Certified {
+                        count,
+                        roots: thetas,
+                    }) => {
                         assert_eq!(count, 6, "{label}: {:?}", &thetas[..count]);
                         for &t in &thetas[..count] {
                             let arc = arc_off(&e, t, &truth);
                             assert!(arc <= eps, "{label}: root {t} is {arc:e} m of arc off");
                         }
                     }
-                    CircleRoots::Uncertain => {
+                    Err(_) => {
                         assert!(
                             eps != 1e-9,
                             "{label}: the door resolves the pose, yet refused"
@@ -973,11 +1001,11 @@ mod torus_rows {
         for (term, pose) in &poses {
             let (door, bare) = pose.answers(band);
             assert!(
-                matches!(bare, CircleRoots::Certified { .. }),
+                matches!(bare, Ok(CircleRoots::Certified { .. })),
                 "{term}: the unmetered walk certifies the pose, got {bare:?}"
             );
             assert!(
-                matches!(door, CircleRoots::Uncertain),
+                door.is_err(),
                 "{term}: the meter refuses the root it cannot place, got {door:?}"
             );
         }
@@ -1025,11 +1053,12 @@ mod torus_rows {
                         unreachable!("the pose is an ellipse and a torus")
                     };
                     let (answer, roots) = match ellipse_torus_roots(&e, t0, t1, &s, band) {
-                        Ok(CircleRoots::Certified { count, thetas }) => {
-                            ("certified", thetas[..count].to_vec())
-                        }
-                        Ok(CircleRoots::Miss) => ("miss", vec![]),
-                        Ok(CircleRoots::Uncertain) => ("uncertain", vec![]),
+                        Ok(Ok(CircleRoots::Certified {
+                            count,
+                            roots: thetas,
+                        })) => ("certified", thetas[..count].to_vec()),
+                        Ok(Ok(CircleRoots::Miss)) => ("miss", vec![]),
+                        Ok(Err(_)) => ("uncertain", vec![]),
                         other => panic!("{other:?}"),
                     };
                     let conic = geom_brep::Conic::of(&e).expect("an ellipse");

@@ -173,7 +173,7 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
             }
             let d = d.normalize();
             let got = line_torus_roots(o, d, center, axis, big_r, r, band());
-            let Ok(QuarticRoots::Certified { count, ts }) = got else {
+            let Ok(QuarticRoots::Certified { count, roots: ts }) = got else {
                 continue;
             };
             if k % 2 == 1 {
