@@ -20,3 +20,9 @@ Every PR's CI is red on this row until it moves. Of #5123's run, 13,532 of 13,53
 ## What is open
 
 Re-run the census, move the table and the manifest header list, and merge. Germ's adjudication note on `copysign` sites (`log.md`, "A class, recorded at adjudication") also applies to the new site.
+
+**Proposed patch** (NURBS build A), to apply only after the census is re-asked:
+- add `("crates/geom-brep/src/intersect.rs", 1)` to the expected table at `crates/geom-core/tests/sym_rule_f_rows.rs:705-715`;
+- add a line naming "`geom-brep/src/intersect.rs`'s plane×cone apex tangent generator (the side `c` leans)" to `crates/geom-core/src/sym/manifest.rs`'s site list (around l.71-84).
+
+The site is `half_turn.copysign(c)` at `crates/geom-brep/src/intersect.rs:2440`.
