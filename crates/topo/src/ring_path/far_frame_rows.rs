@@ -552,6 +552,7 @@ fn circle_kind(read: Result<Option<LoopArc<f64>>, Indeterminate>) -> String {
         Ok(Some(LoopArc::Conic(Conic { own: Some(own), .. }))) => match own.split {
             LoopSplit::Side { .. } => "meridian".into(),
             LoopSplit::Radius { .. } => format!("parallel {}", own.positive),
+            LoopSplit::Bisector { .. } => "bisector".into(),
         },
         Ok(Some(_)) => "another arc".into(),
     }
