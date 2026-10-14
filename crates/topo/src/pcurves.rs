@@ -4361,13 +4361,26 @@ fn near_pole_gap_closes<T: Decide>(
     orbit: &[i32],
     band: Band,
 ) -> Option<i32> {
-    orbit.iter().copied().find(|&m| {
+    let got = orbit.iter().copied().find(|&m| {
         let off = gap - T::from_f64(f64::from(m)) * step;
         matches!(
             decide("pcurve_loop_pole_gap", arm.meter(off), band),
             Ok(Sign::Zero)
         )
-    })
+    });
+    if let Some(m) = got {
+        let old_ok = if orbit.len() == 5 { m.abs() <= 1 } else { m == 0 };
+        if !old_ok {
+            #[allow(clippy::print_stderr)]
+            {
+                use std::io::Write as _;
+                let line = format!("PROBE5028 m={m} orbit={orbit:?} test={:?}\n", std::thread::current().name());
+                let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/claude-0/-home-user-cad/8efdf886-c995-562b-aec1-defe3e1c7702/scratchpad/probe5028.log").unwrap();
+                f.write_all(line.as_bytes()).unwrap();
+            }
+        }
+    }
+    got
 }
 
 /// **A joint's whole orbit steps by the marks, with the near-pole
