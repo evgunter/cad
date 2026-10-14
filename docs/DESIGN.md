@@ -864,7 +864,12 @@ because two readings of one fact are two predicates that can decide it
 differently inside the band (D4). An outcome takes the pose reading's
 answer and decides no pose of its own. A consumer serving fewer pairs
 matches on the reading's answer and refuses the rest typed; it never
-matches on kinds to choose a method. A total evaluator's poison for a
+matches on kinds to choose a method. Which pairs a reading serves is
+derived from the reading, never kept beside it: where a consumer asks
+at kind level before it holds the operands, the reading dispatches
+through its own kind-level description (kinds to arm, then the arm's
+method), so the description cannot disagree with what the reading
+does. A total evaluator's poison for a
 kind with no closed form is not a decision, and no reading reads it
 without first refusing on kind. Readings over bare carriers live in the
 lowest crate that can state them, `geom` for one carrier and a point
