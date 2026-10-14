@@ -284,10 +284,10 @@ pub(in crate::boolean) fn truth(
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
-        } => (center, axis, (major, minor), u_ref),
+        } => (center, axis, (semi_u, semi_v), u_ref),
         _ => panic!("the exact oracle reads circles and ellipses"),
     };
     let (anchor, form) = match *surface {

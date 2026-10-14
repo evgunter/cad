@@ -265,8 +265,8 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
     let carrier = Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 1.0),
         axis: Vec3::unit_z(),
-        major: 1.0,
-        minor: 0.5,
+        semi_u: 1.0,
+        semi_v: 0.5,
         u_ref: Vec3::unit_x(),
     };
     let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));

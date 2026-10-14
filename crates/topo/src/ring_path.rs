@@ -622,15 +622,15 @@ impl<T: Real> LoopArc<T> {
             geom::Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => Some(Self::Conic(Conic {
                 centre: center,
                 axis,
                 u_ref,
-                a: major,
-                b: minor,
+                a: semi_u,
+                b: semi_v,
                 span,
                 own: None,
             })),
@@ -664,7 +664,9 @@ impl<T: Decide> LoopArc<T> {
                 origin: c.centre,
                 normal: c.axis,
                 span: c.span,
-                speed: c.b,
+                // The conic's least speed, its smaller semi-axis: the
+                // seam may sit at either principal vertex.
+                speed: c.a.abs().min(c.b.abs()),
                 own: c.own,
             }),
             Self::Oval(o) => Some(SectionArc {
