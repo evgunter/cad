@@ -168,7 +168,8 @@ both operands (`site_cell`) as
 The chords (`chord_join.rs`):
 
 - **the closed edge's side** copies the edge whole in every lane
-  (`along_edge_spec`, `closed_at`). A self-loop's direction is free in
+  (`closed_edge_spec`, on the plan's closed edge, which `closed_at`
+  reads once in `JoinPlan::of`). A self-loop's direction is free in
   topology, so it is read from the chord's `mef` site
   (`closed_chord_runs_forward`): the loop keeping the edge's half is the
   zero-area sliver, whose chord half runs against it. The copy is
@@ -179,10 +180,12 @@ The chords (`chord_join.rs`):
   ring does: promoted, joined, and the one face its chord walls off
   goes back as the old face's ring (`lone_ring` returns `LoneRing`).
 - **a pierce of a sphere face** sides the two whole conics with
-  `RimSide::Sphere`: a plane cuts the sphere in the conic alone, so the
-  region of each conic loop lies on the side of its plane `n × t`
-  points to, and the hole is the one whose side holds the old face's
-  outer loop.
+  `RimSide::Sphere`: a plane cuts the sphere in the conic alone, into
+  two caps, and the old face's outer loop lies in one of them; each
+  conic loop's region is the cap `n × t` points into, and the hole is
+  the one whose cap holds the outer loop. `RimSide::of` is the one
+  table of the faces a pierce is sided on, read by the join's
+  `closes_at_its_site` and by `join_lone_ring` alike.
 
 Witnesses: `crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`
 (a boss on and under a plate at four azimuths, beside a ring and over a
@@ -193,9 +196,22 @@ two-arc form. F4d (`a_plane_across_a_one_face_wall.rs`
 (`germ_plane_torus_chord.rs` `two_loops_on_one_face_pair_build_their_true_bodies`)
 now build to their closed forms; their refusal rows are gone.
 
-Still refused `SingleSiteSectionLoop`: a closed edge piercing a face
-other than a plane or a sphere (a cone, a cylinder, a torus, whose
-plane can cut the face in more than the conic), and a plane tangent at
-a wrap edge's end vertex. D10: no declared contact is read or recorded
-by the arm, and the REST lane's `section_segments` is unchanged.
+A closed edge lying in a cone, a cylinder or a torus face (whose plane
+can cut the face in more than the conic) has no `RimSide` arm, and the
+join would refuse it `SingleSiteSectionLoop`; no pose reaches the join
+today, because the crossing layer refuses first
+(`CurvedPierceUnsupported`, or `CurvedBooleanUnsupported` for a disc on
+a torus's parallel). Filed as
+`a-closed-edge-lying-in-a-cone-cylinder-or-torus-face-has-no-join-arm`,
+and pinned at the crossing layer by the witness file. A plane tangent
+at a wrap edge's end vertex still refuses `SingleSiteSectionLoop`. D10:
+no declared contact is read or recorded by the arm, and the REST lane's
+`section_segments` is unchanged.
+
+The dual review found a wrong body next to this arm but not in it: a
+boss over a hole tangent inside its rim, both vertices at the tangent
+point, unites as two shells, on `main` as here
+(`work/cleave/a-boss-over-a-hole-tangent-inside-its-rim-at-its-vertex-unites-as-two-shells.md`).
+The germ-face blind spot the PR disclosed is
+`a-closed-edges-germ-read-on-a-planar-face-would-take-the-placeholder-chord`.
 

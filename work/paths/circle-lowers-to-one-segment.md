@@ -55,7 +55,18 @@ class build in every op and both orders, at their closed forms
 (`crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`): a boss
 on a plate (the parked unit's witness), the coaxial equal-cylinder
 union, a rim inside a ball face, a puck and its rounding ring. Still
-refused typed: a one-segment rim piercing a cone, cylinder or torus
-face. The four other regression groups the 2026-10-14 log entry names
+refused typed: a one-segment rim lying in a cone, cylinder or torus
+face, at the crossing layer (`CurvedPierceUnsupported`; SECT's
+`a-closed-edge-lying-in-a-cone-cylinder-or-torus-face-has-no-join-arm`).
+The four other regression groups the 2026-10-14 log entry names
 still need attributing when the unit resumes.
+
+**A likely second blocker** (CLEAVE, P0):
+`work/cleave/a-boss-over-a-hole-tangent-inside-its-rim-at-its-vertex-unites-as-two-shells.md`.
+A one-segment boss over a hole or pocket tangent inside its rim, both
+vertices at the tangent point, unites as two shells sharing the
+crescent, silently (tier 3′ fails; production does not run it). Today
+that needs both circles phased alike by hand; once `circle()` lowers
+to one segment every circle's vertex sits at azimuth 0, so a boss over
+a pocket tangent inside it on the `+x` side builds the wrong body.
 
