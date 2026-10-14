@@ -7,6 +7,7 @@
 
 test_utils::gated_to![
     "crates/topo/src/splitting/spiric_arc.rs",
+    "crates/geom-core/src/bisect.rs",
     "crates/topo/src/splitting/containment.rs",
     "crates/topo/src/boolean/solid_contain.rs",
     "crates/geom/src/curves.rs",

@@ -23,6 +23,9 @@
 
 test_utils::gated_to![
     "crates/topo/src/boolean/circle_roots.rs",
+    "crates/geom-brep/src/half_angle.rs",
+    "crates/geom-brep/src/quartic.rs",
+    "crates/geom-core/src/bisect.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/linalg/",
 ];

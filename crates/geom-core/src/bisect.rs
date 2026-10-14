@@ -3,11 +3,11 @@
 //! visit, cut in two, or answering the walk's question, under one piece
 //! budget (D9). The visit is the parameter — what clears a piece, how
 //! small a piece may get, and what a piece too small to cut answers are
-//! the caller's: `boolean::carrier_touch` (a curve against a surface's
-//! carrier), `boolean::circle_roots` (a residual round a turn),
-//! `splitting::spiric_arc` (a spiric arc against a point, a segment or
-//! a ray) and `census::curved` (a curve against a point or another
-//! curve). Beside it, the two lengths a walk near a tangency reads
+//! the caller's: `geom_brep::half_angle` (a residual round a turn), and
+//! in `topo` `boolean::carrier_touch` (a curve against a surface's
+//! carrier), `splitting::spiric_arc` (a spiric arc against a point, a
+//! segment or a ray) and `census::curved` (a curve against a point or
+//! another curve). Beside it, the two lengths a walk near a tangency reads
 //! alike: a piece's [`reach`] and the [`tangency_floor`].
 //!
 //! The core owns the budget and not a depth: what "too deep" means is
@@ -17,18 +17,18 @@
 //! it answers there as at the budget;
 //! `census::curved` counts a piece's cuts only to halve the pair's
 //! shallower side first, and stops on a length (the floor, the band);
-//! `circle_roots` stops on a decided width in metres. A cap the core
+//! `half_angle` stops on a decided width in metres. A cap the core
 //! imposed would be a second budget, binding where the first already
 //! does.
 
-use geom_core::{Margin, Real, SupSpeed};
+use crate::{Margin, Real, SupSpeed};
 
 /// The most pieces one walk reads before it gives up. Sized from a
 /// measurement taken once, on 2026-10-13, with nothing that re-takes it:
 /// a count is a property of the bounds and not a contract, so no row
 /// pins one and the figures are dated. Over the `topo` and `sweep`
 /// suites at ε 1e-9 a walk that answered read at most 117 pieces in
-/// `circle_roots`, 249 in `carrier_touch`, 271 in `spiric_arc`'s point
+/// `half_angle`, 249 in `carrier_touch`, 271 in `spiric_arc`'s point
 /// and ray readings, 367 in `census::curved` and 2559 in `spiric_arc`'s
 /// segment reading. Three rows run a walk past it by construction, each
 /// a reading with no answer outside the band: `sweep`'s
@@ -40,10 +40,10 @@ use geom_core::{Margin, Real, SupSpeed};
 /// tangency's own half-length both scale with `√(K·ε)`, so the pieces a
 /// touch keeps open per level do not depend on K; the levels down to the
 /// floor grow as `½·log₂(1/(K·ε))`, a few more per decade of either.
-pub(crate) const PIECE_BUDGET: usize = 4096;
+pub const PIECE_BUDGET: usize = 4096;
 
 /// What a visit makes of a piece.
-pub(crate) enum Step<P, R> {
+pub enum Step<P, R> {
     /// Nothing more to read in it.
     Settled,
     /// Read its two halves, the first before the second.
@@ -54,12 +54,12 @@ pub(crate) enum Step<P, R> {
 
 /// The walk ran past [`PIECE_BUDGET`].
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Exhausted;
+pub struct Exhausted;
 
 /// Walks `roots` in order, each depth first, earlier half first, until
 /// every piece is settled (`Ok(None)`) or a visit stops the walk with
 /// its answer (`Ok(Some(_))`).
-pub(crate) fn bisect<P, R>(
+pub fn bisect<P, R>(
     roots: impl IntoIterator<Item = P>,
     mut visit: impl FnMut(P) -> Step<P, R>,
 ) -> Result<Option<R>, Exhausted> {
@@ -83,7 +83,7 @@ pub(crate) fn bisect<P, R>(
 /// The most metres a point of a piece `(a, b)` lies from its middle
 /// point, on a carrier whose speed is at most `hi`: half the run,
 /// metered.
-pub(crate) fn reach<T: Real>(hi: SupSpeed<T>, (a, b): (T, T)) -> T {
+pub fn reach<T: Real>(hi: SupSpeed<T>, (a, b): (T, T)) -> T {
     Margin::metered_sup((b - a).abs(), hi).value() * T::from_f64(0.5)
 }
 
@@ -95,6 +95,6 @@ pub(crate) fn reach<T: Real>(hi: SupSpeed<T>, (a, b): (T, T)) -> T {
 /// clears a piece in there, so cutting finer only multiplies pieces;
 /// an eighth of it keeps the piece that holds the touch within
 /// `escalate/128` of the other.
-pub(crate) fn tangency_floor<T: Real>(rho: T, escalate: f64) -> T {
+pub fn tangency_floor<T: Real>(rho: T, escalate: f64) -> T {
     (rho * T::from_f64(escalate)).sqrt() / T::from_f64(8.0)
 }
