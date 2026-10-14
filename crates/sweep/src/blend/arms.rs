@@ -138,8 +138,8 @@ pub struct CornerBall<T: Real> {
     /// carve reads [`CornerBall::center`] and mints the production
     /// chart one level up (`build`'s octant chart pick), because the
     /// iso-rectangle criterion needs the corner's incident LINKS and
-    /// third support, which three normals cannot see. This chart (pole
-    /// at the side's own `±Σn` contact) exists so the arm is
+    /// third support, which three normals cannot see. This chart
+    /// ([`corner_chart`] over the side's own feet) exists so the arm is
     /// measurable as a value, coherent on both sides.
     pub surface: Surface<T>,
     /// The ball centre — the point at distance `r` from all three
@@ -975,6 +975,40 @@ impl<T: Real> Ruling<T> {
     }
 }
 
+/// **The chart of a corner patch**, from the unit directions
+/// `[f_x, f_y, f_c]` from the ball centre to the patch's three feet.
+/// Returns `(u_ref, axis)`: the pole is `±f_c`, the seam meridian runs
+/// through `f_x`, and `f_y` lies at `u ∈ (0, π)`.
+///
+/// **Neither pole lies inside the patch off a vertex.** Each boundary
+/// circle is a great circle (an edge cylinder of radius `r` whose axis
+/// passes through the centre touches the sphere along the great circle
+/// normal to that axis), and the one through feet `i` and `j` is the
+/// arc of directions `⊥ n_i × n_j`; so the patch is the spherical
+/// triangle of nonnegative combinations of the `f_i`. One pole is `f_c`,
+/// a vertex. The other, `−f_c`, is not in it: `−f_c = Σ λ_i f_i` with
+/// `λ ≥ 0` gives `(1 + λ_c) f_c + λ_x f_x + λ_y f_y = 0`, which the
+/// independence of the three normals (predicate 6's margin) forbids.
+/// The same independence keeps the patch inside an open hemisphere
+/// (the one about the dual direction `w` with `w·f_i = 1`), so no
+/// patch is large enough to hold an antipodal pair and none is refused.
+///
+/// **The sign is folded, not branched**: `axis = f_c·sign(f_c·(f_x × f_y))`,
+/// spelled as a positive multiple so it is total over `T` and poisons
+/// where the feet are dependent. It makes `(axis × u_ref)·f_y > 0`, so
+/// the patch spans `u ∈ [0, θ]` with `θ < π`, bounded by the meridians
+/// through `f_x` and `f_y` and the arc `f_x f_y`, which is the equator
+/// exactly when `f_x, f_y ⊥ f_c` (the iso-rectangle `build`'s octant
+/// pick scores for). A sphere chart's normal is radial outward under
+/// either pole, so the fold never touches a face's sense.
+#[must_use]
+pub fn corner_chart<T: Real>(feet: [Vec3<T>; 3]) -> (Vec3<T>, Vec3<T>) {
+    let [f_x, f_y, f_c] = feet;
+    let turn = f_c.dot(f_x.cross(f_y));
+    let axis = (f_c * turn).normalize();
+    (perp_unit(f_x, axis), axis)
+}
+
 /// **The corner ball** of a uniform trihedral vertex: the sphere of
 /// radius `r` tangent to all three support planes — from inside the
 /// material at a convex corner, from inside the VOID at a concave one.
@@ -997,14 +1031,10 @@ impl<T: Real> Ruling<T> {
 /// it holds on either side: only which side of each plane the tangency
 /// circles sit on follows the sign.
 ///
-/// **The stored chart follows the side too.** Its pole aims at the
-/// patch's CENTRE — the point of the patch farthest from all three
-/// boundary circles, along `+Σn` from the ball centre at a convex
-/// corner and `−Σn` at a concave one; deliberately not any foot, and
-/// not the production chart (whose pole is the third foot up to
-/// sign — `build`'s pick, which needs the corner's links). A stored
-/// chart whose pole aimed away from the patch it charts under one arm
-/// is the half-derived corner issue 644 names.
+/// **The stored chart is [`corner_chart`]'s**, over the side's own
+/// foot directions `±n_i` (`+` convex, `−` concave) in argument order,
+/// so its pole is the third foot or that foot's antipode and the
+/// patch holds no chart singularity off its vertices.
 #[must_use]
 pub fn corner_ball<T: Real>(
     verts: [Point3<T>; 3],
@@ -1029,16 +1059,16 @@ pub fn corner_ball<T: Real>(
     // Cramer: c = (rhs₁·(n₂×n₃) + rhs₂·(n₃×n₁) + rhs₃·(n₁×n₂)) / det.
     let num = n2.cross(n3) * rhs[0] + n3.cross(n1) * rhs[1] + n1.cross(n2) * rhs[2];
     let c = Point3::new(num.x / det, num.y / det, num.z / det);
-    // The patch-centre direction: toward the feet, which lie along
-    // `n_i` at a convex rest and along `−n_i` at a concave one — the
-    // same fold as the centre's, `−signed/r`.
-    let patch_centre = ((n1 + n2 + n3) * (-signed / radius)).normalize();
+    // The feet lie along `n_i` from a convex rest and along `−n_i` from
+    // a concave one — the same fold as the centre's, `−signed/r`.
+    let side = -signed / radius;
+    let (u_ref, axis) = corner_chart([n1 * side, n2 * side, n3 * side]);
     CornerBall {
         surface: Surface::Sphere {
             center: c,
             radius,
-            axis: patch_centre,
-            u_ref: perp_unit(n1, patch_centre),
+            axis,
+            u_ref,
         },
         center: c,
         independence: det.abs(),

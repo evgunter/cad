@@ -246,11 +246,18 @@ fn both_blends_evaluate_in_one_document() {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED (`die_fillet` only) when a fillet corner's chart pole
+/// became its third foot by construction (`sweep::blend::arms::corner_chart`):
+/// on the die's box corners the axis is the same unit vector, now
+/// spelled `n_c·(±1)` rather than `n_a × n_b`, so four corner charts of
+/// each blend flip the sign of a ZERO component (`-0.0` ↔ `0.0`) in
+/// their `Debug`. No point or value moved: `m10_p_fence` held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xa2cc_a1d4_0619_11eau64),
+        ("die_fillet", 0x30a3_6d39_2cea_720au64),
         ("die_chamfer", 0xe357_7e62_ae47_31f6),
     ] {
         let doc = corpus::documents()

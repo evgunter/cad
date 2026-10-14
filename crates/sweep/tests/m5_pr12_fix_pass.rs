@@ -203,10 +203,11 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 /// a right angle; so the rounded body lies strictly between the clip's
 /// volume and that less `r²·Σℓ`.
 ///
-/// **And the pin on the octant's pcurve rows.** The oblique corners'
-/// contact circles are GENERAL circles of their sphere's chart — neither
-/// polar nor meridian — so they have no closed-form image, and store
-/// their projected image. Every half-edge of every corner face carries
+/// **And the pin on the octant's pcurve rows.** An oblique corner's
+/// pole is one of its feet, so two of its contact circles are meridians
+/// and the third, opposite the pole, is a GENERAL circle of its sphere's
+/// chart — neither polar nor meridian — with no closed-form image, and
+/// stores its projected image. Every half-edge of every corner face carries
 /// a certified row, some of them `Projected`, each one re-derived and
 /// certified at `Interval` with every densely sampled displacement's
 /// certified lower bound under its envelope and that under the band,
@@ -265,7 +266,7 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     assert_eq!(
         topo::validate_geometric(&f.body, Tol::witness()),
         Ok(()),
-        "tier 3 meters the spherical triangles, and check 6 exempts them"
+        "tier 3 meters the spherical triangles, and check 6 reads their sides"
     );
     let total_length: f64 = edges
         .iter()

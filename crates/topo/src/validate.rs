@@ -1352,10 +1352,10 @@ pub enum ValidationError {
     ///   its faces overlap and passes
     ///   (`work/flux/a-seam-region-whose-boundary-carries-both-poles-is-unread.md`);
     /// * a one-loop sphere face with a chart pole off its loop on EACH
-    ///   side — a rim-only cap, a tilted cap or a blend corner patch
-    ///   holding a pole. Under either sense it holds a pole, which
-    ///   breaks the rule that a chart singularity inside a face is a
-    ///   vertex of it, so its loop says nothing about the bit; refusing
+    ///   side — a rim-only cap or a tilted cap holding a pole. Under
+    ///   either sense it holds a pole, which breaks the rule that a
+    ///   chart singularity inside a face is a vertex of it, so its loop
+    ///   says nothing about the bit; refusing
     ///   such a face is this validity's rule to state, not check 6's;
     /// * conic-trimmed faces the quadrature lane owns, and NURBS.
     ///
