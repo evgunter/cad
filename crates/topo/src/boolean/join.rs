@@ -926,7 +926,7 @@ fn one_site_segments<T: Decide>(
             for (g, _) in &other.a {
                 if g.a_locus == g0.a_locus && g.b_locus == g0.b_locus && g.branch == g0.branch {
                     return Err(desync(
-                        "a one-site record on a wrap edge shares its loop with another record",
+                        "a one-site record shares its loop with another record",
                     ));
                 }
             }
