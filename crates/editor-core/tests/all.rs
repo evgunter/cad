@@ -736,6 +736,8 @@ mod emit_edge_piece_locality;
 mod emit_nested_union_flat;
 #[path = "emit_pair_cut_and_merged.rs"]
 mod emit_pair_cut_and_merged;
+#[path = "emit_ball_cut_by_brick.rs"]
+mod emit_ball_cut_by_brick;
 #[path = "emit_seam_edge_merged.rs"]
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]
