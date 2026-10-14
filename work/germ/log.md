@@ -1421,3 +1421,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Locally on head + main: `reach_cone_split` 7/7 at 3 ε (two expected skips at 1e-12). Hosted CI green.
   - NIT, left: the skips won't go red when their items are fixed.
 - 2026-10-14 20:08 — **Dispatched** `a-flat-frustums-revolve-refuses-its-rim-image-at-1e-12` (P3, M): session_01LdXE6a73LGvw8RaiJktDrF, branch `germ/flat-frustum-revolve`. It also un-skips 5164's (1.55, 100) pose if the fix allows.
+- 2026-10-14 20:50 — Check-in. All four lanes are active, with no new PRs:
+  - degenerate-torus: running its default-ε battery;
+  - circle-torus: fix and rows done, oracle hunts running;
+  - ellipse locus bound: CI ε battery green at 2 of 3 ε;
+  - flat frustum: a cone-ruling fix, 5 of 6 rows building.
+  PR 5156: no comment from Ev yet; CI green.
