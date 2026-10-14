@@ -2491,7 +2491,8 @@ fn equal_crossing_axes<T: Decide>(
     band: Band,
 ) -> Option<Section<T>> {
     let zero = |name, m| sign(name, Margin::of(m), band) == Some(Sign::Zero);
-    if !(zero("section_cylinder_pair_equal", r1 - r2) && zero("section_cylinder_pair_meet", delta)) {
+    if !(zero("section_cylinder_pair_equal", r1 - r2) && zero("section_cylinder_pair_meet", delta))
+    {
         return None;
     }
     let sin2 = d1.cross(d2).norm_squared();

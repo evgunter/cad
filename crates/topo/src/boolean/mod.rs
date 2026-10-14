@@ -4892,9 +4892,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     verified
         .coincidences
         .extend(glue::coaxial_rows(a_operand, b_operand, decls, band)?);
-    verified
-        .coincidences
-        .extend(glue::crossing_cylinder_rows(a_operand, b_operand, decls, band)?);
+    verified.coincidences.extend(glue::crossing_cylinder_rows(
+        a_operand, b_operand, decls, band,
+    )?);
     let declared = GluedPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(
         a_operand,

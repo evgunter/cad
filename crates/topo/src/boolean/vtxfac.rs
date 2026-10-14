@@ -1153,7 +1153,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Operand::B => ((contact.face, s.face), (pierced, own)),
         };
         let dir = pierce_germ_dir(s, n_pierced.vec(), out, band)?;
-        Ok((cells, dir, germ_branch((&*piercing_body, pierced_body), piercing, cells, p, band)?))
+        Ok((
+            cells,
+            dir,
+            germ_branch((&*piercing_body, pierced_body), piercing, cells, p, band)?,
+        ))
     };
     let run_germs = runs
         .iter()

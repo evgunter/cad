@@ -85,7 +85,6 @@ fn shape(got: &Loops) -> String {
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::OutsideInventory { .. }) => "outside the inventory".into(),
         Err(FrameError::RadiusEscalated { .. }) => "radius escalated".into(),
-        Err(FrameError::CylinderNodes) => "cylinder nodes".into(),
     }
 }
 
@@ -315,9 +314,12 @@ fn a_site_on_the_axis_trace_is_a_desync_not_a_loop() {
     ] {
         let loops = served(frame(&p), pose);
         assert!(
-            matches!(loops.at(site, band()), Err(BooleanError::JoinDesync { .. })),
+            matches!(
+                loops.branch_at(site, band()),
+                Err(BooleanError::JoinDesync { .. })
+            ),
             "{pose}: got {:?}",
-            loops.at(site, band())
+            loops.branch_at(site, band())
         );
     }
 }

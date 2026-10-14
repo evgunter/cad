@@ -997,6 +997,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
+    place_nodes_of_germs(red, (a_pristine, b_pristine), band)?;
     let segments = join_segments(red, band)?;
     // A segment along an edge of both solids is that edge in both: each
     // solid's chord copies its own edge and no section is read (the
@@ -1009,9 +1010,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
     // The bisector lane's planes, read once per wall pair before any
-    // surgery, so every segment on one branch rides one plane; and
-    // each face pair's nodes placed in its faces.
-    let bisectors = bisector_planes(red, (a_pristine, b_pristine), &segments, &arms, band)?;
+    // surgery, so every segment on one branch rides one plane.
+    let bisectors = bisector_planes(red, &segments, &arms, band)?;
     let mut sa = SolidJoin::new(red, Operand::A, band);
     let mut sb = SolidJoin::new(red, Operand::B, band);
     let mut completed: Vec<UnresolvedPair> = Vec::new();
@@ -1251,7 +1251,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                         .ok_or(desync("a bisector segment's wall pair has no planes"))?
                         .pick(germ.branch)?;
                     GermLane::Bisector {
-                        plane: (lp.center, germ_normal(germ_reach(&red.a)?, lp.center, lp.axis)?),
+                        plane: (
+                            lp.center,
+                            germ_normal(germ_reach(&red.a)?, lp.center, lp.axis)?,
+                        ),
                         branch: germ.branch,
                     }
                 }
@@ -1368,8 +1371,22 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             Some(GermLane::Radical(radical)) => {
                 let datum = |own, partner| AuxDatum::Radical { own, partner };
                 (
-                    sa.split_curve(&mut red.a, &plan_a, radical, datum(ka, kb), germ.branch, leave_a,)?,
-                    sb.split_curve(&mut red.b, &plan_b, radical, datum(kb, ka), germ.branch, leave_b,)?,
+                    sa.split_curve(
+                        &mut red.a,
+                        &plan_a,
+                        radical,
+                        datum(ka, kb),
+                        germ.branch,
+                        leave_a,
+                    )?,
+                    sb.split_curve(
+                        &mut red.b,
+                        &plan_b,
+                        radical,
+                        datum(kb, ka),
+                        germ.branch,
+                        leave_b,
+                    )?,
                 )
             }
             // Each wall's own section table decides its rulings against
@@ -1380,8 +1397,22 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             Some(GermLane::Rulings(radical)) => {
                 let datum = |own, partner| AuxDatum::Radical { own, partner };
                 let curves = (
-                    sa.split_curve(&mut red.a, &plan_a, radical, datum(ka, kb), germ.branch, leave_a,)?,
-                    sb.split_curve(&mut red.b, &plan_b, radical, datum(kb, ka), germ.branch, leave_b,)?,
+                    sa.split_curve(
+                        &mut red.a,
+                        &plan_a,
+                        radical,
+                        datum(ka, kb),
+                        germ.branch,
+                        leave_a,
+                    )?,
+                    sb.split_curve(
+                        &mut red.b,
+                        &plan_b,
+                        radical,
+                        datum(kb, ka),
+                        germ.branch,
+                        leave_b,
+                    )?,
                 );
                 rulings_are_straight([
                     (&curves.0, Operand::A, germ.a_face),
@@ -1396,8 +1427,22 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     branch,
                 };
                 (
-                    sa.split_curve(&mut red.a, &plan_a, plane, datum(ka, kb), germ.branch, leave_a,)?,
-                    sb.split_curve(&mut red.b, &plan_b, plane, datum(kb, ka), germ.branch, leave_b,)?,
+                    sa.split_curve(
+                        &mut red.a,
+                        &plan_a,
+                        plane,
+                        datum(ka, kb),
+                        germ.branch,
+                        leave_a,
+                    )?,
+                    sb.split_curve(
+                        &mut red.b,
+                        &plan_b,
+                        plane,
+                        datum(kb, ka),
+                        germ.branch,
+                        leave_b,
+                    )?,
                 )
             }
             Some(GermLane::EdgePlane { on, root, plane }) => {
@@ -1405,10 +1450,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 match on {
                     Operand::A => (
                         sa.curve(&mut red.a, &plan_a, JoinLane::AlongEdge, leave_a)?,
-                        sb.split_curve(&mut red.b, &plan_b, plane, datum, germ.branch, leave_b,)?,
+                        sb.split_curve(&mut red.b, &plan_b, plane, datum, germ.branch, leave_b)?,
                     ),
                     Operand::B => (
-                        sa.split_curve(&mut red.a, &plan_a, plane, datum, germ.branch, leave_a,)?,
+                        sa.split_curve(&mut red.a, &plan_a, plane, datum, germ.branch, leave_a)?,
                         sb.curve(&mut red.b, &plan_b, JoinLane::AlongEdge, leave_b)?,
                     ),
                 }
@@ -1541,20 +1586,15 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
 /// ellipses ([`face_pair_section_loops`]) before any surgery divides a
 /// face, the first reading of a wall pair standing for every segment on
 /// it, so the chords of one branch lie in one plane.
-///
-/// Each face pair is then asked where the section's two nodes lie
-/// ([`place_nodes`]): a node outside either face leaves the pair's
-/// section two disjoint arcs of the ellipses there, which the lane
-/// joins; a node in both faces is a crossing of the section inside the
-/// pair, which this lane does not build.
 fn bisector_planes<T: Decide>(
     red: &BooleanReduction<T>,
-    pristine: (&Body<T>, &Body<T>),
     segments: &[SectionSegment<T>],
     arms: &[Option<KindArm>],
     band: Band,
-) -> Result<BTreeMap<(crate::geometry::SurfaceKey, crate::geometry::SurfaceKey), SectionLoops<T>>, BooleanError>
-{
+) -> Result<
+    BTreeMap<(crate::geometry::SurfaceKey, crate::geometry::SurfaceKey), SectionLoops<T>>,
+    BooleanError,
+> {
     let desync = |what| BooleanError::JoinDesync { what };
     let surface = |body: &Body<T>, f: FaceKey| {
         body.get_face(f)
@@ -1562,7 +1602,6 @@ fn bisector_planes<T: Decide>(
             .ok_or(desync("germ face surface no longer resolves"))
     };
     let mut planes = BTreeMap::new();
-    let mut placed = std::collections::BTreeSet::new();
     for (seg, arm) in segments.iter().zip(arms) {
         if *arm != Some(KindArm::Bisector) {
             continue;
@@ -1570,15 +1609,51 @@ fn bisector_planes<T: Decide>(
         let (fa, fb) = (seg.germ.a_face, seg.germ.b_face);
         let key = (surface(&red.a, fa)?, surface(&red.b, fb)?);
         if !planes.contains_key(&key) {
-            let loops = face_pair_section_loops((&red.a, fa), (&red.b, fb), band)?
-                .ok_or(desync("a bisector segment's face pair has no section loops"))?;
+            let loops = face_pair_section_loops((&red.a, fa), (&red.b, fb), band)?.ok_or(
+                desync("a bisector segment's face pair has no section loops"),
+            )?;
             planes.insert(key, loops);
-        }
-        if placed.insert((fa, fb)) {
-            place_nodes(pristine, (fa, fb), band)?;
         }
     }
     Ok(planes)
+}
+
+/// **Where the nodes of every germ's cylinder pair lie**, read before
+/// any matching: each germ inside a face of each operand on a cylinder
+/// pair whose section is the two bisector-plane ellipses (its branch is
+/// one of them) has its face pair's nodes placed ([`place_nodes`]),
+/// once per face pair. A node outside either face leaves the pair's
+/// section two disjoint arcs there, which the bisector lane joins. A
+/// node in both faces is a crossing of the section inside the pair:
+/// along an arc through it each wall's sector changes side of the other
+/// solid, so no two germs bound it, and the node itself is not built.
+fn place_nodes_of_germs<T: Decide>(
+    red: &BooleanReduction<T>,
+    pristine: (&Body<T>, &Body<T>),
+    band: Band,
+) -> Result<(), BooleanError> {
+    let wall = |body: &Body<T>, f: FaceKey| {
+        matches!(
+            body.get_face(f).and_then(|fd| body.get_surface(fd.surface)),
+            Some(geom::Surface::Cylinder { .. })
+        )
+    };
+    let mut placed = std::collections::BTreeSet::new();
+    for germ in red.null_edges_of(Operand::A).flat_map(|r| r.germs) {
+        let (super::Locus::InFace(fa), super::Locus::InFace(fb)) = (germ.a_locus, germ.b_locus)
+        else {
+            continue;
+        };
+        if germ.branch == super::Branch::Only
+            || !wall(&red.a, fa)
+            || !wall(&red.b, fb)
+            || !placed.insert((fa, fb))
+        {
+            continue;
+        }
+        place_nodes(pristine, (fa, fb), band)?;
+    }
+    Ok(())
 }
 
 /// **Where an equal cylinder pair's nodes lie in its two faces**: `p ±
@@ -1624,7 +1699,9 @@ fn place_nodes<T: Decide>(
         },
     ) = (&sa, &sb)
     else {
-        return Err(desync("nodes asked of a face pair that is not two cylinders"));
+        return Err(desync(
+            "nodes asked of a face pair that is not two cylinders",
+        ));
     };
     // The axes' meeting point, as the section table reads it: the
     // foot on axis 1 of axis 2's nearest point.
@@ -1634,8 +1711,10 @@ fn place_nodes<T: Decide>(
     let n = cross * (r.abs() / cross.norm());
     for node in [p + n, p - n] {
         let mut outside = false;
-        for (body, face) in [(a, fa), (b, fb)] {
-            match curved_face_placement(body, face, node, band).map_err(BooleanError::Containment)? {
+        for (operand, body, face) in [(Operand::A, a, fa), (Operand::B, b, fb)] {
+            match curved_face_placement(body, face, node, band)
+                .map_err(|e| super::reduce::esc(e, operand, face))?
+            {
                 CurvedPlacement::Trim(Some(super::FaceContainment::Out)) => outside = true,
                 CurvedPlacement::Trim(_) => {}
                 CurvedPlacement::OffCarrier => {
@@ -2869,6 +2948,25 @@ pub(super) fn pair_section_frame<T: Decide>(
     one_loop(pair_section_frame_at(sa, sb, at, extent, band))
 }
 
+/// Whether `sa` and `sb`, handed without their faces, are an equal
+/// cylinder pair with meeting axes: the dispatch serves the two
+/// bisector-plane ellipses, told apart by the bisector split.
+#[cfg(test)]
+pub(super) fn serves_cylinder_nodes<T: Decide>(
+    sa: &geom::Surface<T>,
+    sb: &geom::Surface<T>,
+    at: geom_core::Point3<T>,
+    band: Band,
+) -> bool {
+    matches!(
+        pair_section_frame_at(sa, sb, at, FrameExtent::Radii, band),
+        Ok(Some(SectionLoops::Two {
+            split: LoopSplit::Bisector { .. },
+            ..
+        }))
+    )
+}
+
 /// A one-loop section's frame as its `(centre, axis)`, for the rows of
 /// the pairs whose sections are one loop.
 #[cfg(test)]
@@ -2940,7 +3038,11 @@ impl<T: Decide> SectionLoops<T> {
     /// bisector ellipses everywhere but where they cross
     /// (`bool_germ_bisector_branch`), so a `Zero` there is a germ at a
     /// node, `Ok(None)`. An undecided margin escalates.
-    pub(super) fn branch_at(&self, p: geom_core::Point3<T>, band: Band) -> Result<Option<super::Branch>, BooleanError> {
+    pub(super) fn branch_at(
+        &self,
+        p: geom_core::Point3<T>,
+        band: Band,
+    ) -> Result<Option<super::Branch>, BooleanError> {
         let split = match self {
             Self::One(_) => return Ok(Some(super::Branch::Only)),
             Self::Two { split, .. } => split,
@@ -2954,10 +3056,12 @@ impl<T: Decide> SectionLoops<T> {
             Ok(Sign::Negative) => Ok(Some(super::Branch::Negative)),
             Ok(Sign::Zero) => match split {
                 LoopSplit::Bisector { .. } => Ok(None),
-                LoopSplit::Side { .. } | LoopSplit::Radius { .. } => Err(BooleanError::JoinDesync {
-                    what: "a germ site lies on neither loop of its section (its loop margin is \
+                LoopSplit::Side { .. } | LoopSplit::Radius { .. } => {
+                    Err(BooleanError::JoinDesync {
+                        what: "a germ site lies on neither loop of its section (its loop margin is \
                            in the band)",
-                }),
+                    })
+                }
             },
             Err(diag) => Err(join_escalate(diag)),
         }
@@ -3011,14 +3115,13 @@ pub(super) fn germ_branch<T: Decide>(
             .and_then(|fd| body.get_surface(fd.surface))
             .map(geom::Surface::kind)
     };
+    // A face that does not resolve reads no section here; the join
+    // refuses it where it reads the pair.
     match (kind(body_a, face_a), kind(body_b, face_b)) {
-        (Some(Plane), Some(Torus)) | (Some(Torus), Some(Plane)) | (Some(Cylinder), Some(Cylinder)) => {}
-        (Some(_), Some(_)) => return Ok(super::Branch::Only),
-        _ => {
-            return Err(BooleanError::JoinDesync {
-                what: "germ face surface no longer resolves",
-            });
-        }
+        (Some(Plane), Some(Torus))
+        | (Some(Torus), Some(Plane))
+        | (Some(Cylinder), Some(Cylinder)) => {}
+        _ => return Ok(super::Branch::Only),
     }
     let Some(loops) = face_pair_section_loops((body_a, face_a), (body_b, face_b), band)? else {
         return Ok(super::Branch::Only);
@@ -3559,7 +3662,9 @@ pub(super) fn crossing_cylinder_margins<T: Decide>(
     (body_b, face_b): (&Body<T>, FaceKey),
     band: Band,
 ) -> Option<[geom_core::MarginDiag; 2]> {
-    let surf = |body: &Body<T>, f: FaceKey| body.get_face(f).and_then(|fd| body.get_surface(fd.surface));
+    fn surf<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Option<&geom::Surface<T>> {
+        body.get_face(f).and_then(|fd| body.get_surface(fd.surface))
+    }
     let (sa, sb) = (surf(body_a, face_a)?, surf(body_b, face_b)?);
     let (
         &geom::Surface::Cylinder {
@@ -3618,9 +3723,7 @@ fn intersecting_cylinder_axes<T: Decide>(
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { e1, e2, .. }) => {
             let (
                 geom::Curve3::Ellipse {
-                    center,
-                    axis: n1,
-                    ..
+                    center, axis: n1, ..
                 },
                 geom::Curve3::Ellipse { axis: n2, .. },
                 geom::Surface::Cylinder { axis: a1, .. },
@@ -4948,7 +5051,9 @@ mod self_check_rows {
 mod frame_dispatch_tests {
     use geom_core::{Point3, Tol, Vec3};
 
-    use super::{FrameError, cs_pair_frame, frame_refusal, pair_section_frame};
+    use super::{
+        FrameError, cs_pair_frame, frame_refusal, pair_section_frame, serves_cylinder_nodes,
+    };
 
     /// The point the rows read the frame's axis rows at.
     fn at() -> Point3<f64> {
@@ -5883,14 +5988,18 @@ mod frame_dispatch_tests {
             (node_sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
         ];
         for (a, b, cylinder_pair) in curved_pairs {
-            let got = pair_section_frame(&a, &b, at(), None, band());
             if cylinder_pair {
                 assert!(
-                    matches!(got, Err(FrameError::NoArm | FrameError::CylinderNodes)),
+                    serves_cylinder_nodes(&a, &b, at(), band())
+                        || matches!(
+                            pair_section_frame(&a, &b, at(), None, band()),
+                            Err(FrameError::NoArm)
+                        ),
                     "a cylinder pair with no arm must refuse rather than default to the \
                      straight chord"
                 );
             } else {
+                let got = pair_section_frame(&a, &b, at(), None, band());
                 assert!(
                     matches!(got, Err(FrameError::NoArm)),
                     "a non-cylinder pair with no arm must refuse with NoArm exactly — \
@@ -5911,20 +6020,19 @@ mod frame_dispatch_tests {
         let x = Vec3::new(1.0, 0.0, 0.0);
         for (r, equal) in [(1.0_f64, true), (0.4, false)] {
             // Axes meeting at the origin.
-            let meeting = pair_section_frame(
-                &cylinder(z),
-                &cylinder_at(Point3::new(0.0, 0.0, 0.0), x, r),
-                at(),
-                None,
-                band(),
-            );
-            match (&meeting, equal) {
-                (Err(FrameError::CylinderNodes), true) | (Err(FrameError::NoArm), false) => {}
-                (other, _) => panic!(
-                    "r = {r}: intersecting axes at {} radii, got {}",
-                    if equal { "equal" } else { "unequal" },
-                    outcome(other)
-                ),
+            let (sa, sb) = (cylinder(z), cylinder_at(Point3::new(0.0, 0.0, 0.0), x, r));
+            if equal {
+                assert!(
+                    serves_cylinder_nodes(&sa, &sb, at(), band()),
+                    "r = {r}: intersecting axes at equal radii serve the nodes"
+                );
+            } else {
+                let got = pair_section_frame(&sa, &sb, at(), None, band());
+                assert!(
+                    matches!(got, Err(FrameError::NoArm)),
+                    "r = {r}: intersecting axes at unequal radii, got {}",
+                    outcome(&got)
+                );
             }
             // The same pair lifted along the common perpendicular
             // `a1 x a2` — the ONE direction that separates the axes. A
@@ -6221,7 +6329,6 @@ mod frame_dispatch_tests {
             Err(FrameError::Desync(_)) => "a desync",
             Err(FrameError::Escalated(_)) => "an escalation",
             Err(FrameError::RadiusEscalated { .. }) => "a radius escalation",
-            Err(FrameError::CylinderNodes) => "the cylinder nodes",
             Err(FrameError::OutsideInventory { .. }) => "a conic outside the inventory",
             Err(FrameError::Spiric { .. }) => "a general spiric",
         }
@@ -6417,7 +6524,7 @@ mod frame_dispatch_tests {
 mod frame_dispatch_interval_tests {
     use geom_core::{Interval, Point3, Real, Tol, Vec3};
 
-    use super::{FrameError, pair_section_frame};
+    use super::{FrameError, pair_section_frame, serves_cylinder_nodes};
 
     fn iv(x: f64) -> Interval {
         Interval::from_f64(x)
@@ -6476,18 +6583,18 @@ mod frame_dispatch_interval_tests {
     #[test]
     fn meeting_axes_take_the_node_door_at_the_certified_scalar() {
         for (r, equal) in [(1.0_f64, true), (0.5, false)] {
-            let got = pair_section_frame(
-                &about_z(p3(0.0, 0.0, 0.0), 1.0),
-                &about_x(p3(0.0, 0.0, 0.0), r),
-                at(),
-                None,
-                band(),
+            let (sa, sb) = (
+                about_z(p3(0.0, 0.0, 0.0), 1.0),
+                about_x(p3(0.0, 0.0, 0.0), r),
             );
             assert!(
                 if equal {
-                    matches!(got, Err(FrameError::CylinderNodes))
+                    serves_cylinder_nodes(&sa, &sb, at(), band())
                 } else {
-                    matches!(got, Err(FrameError::NoArm))
+                    matches!(
+                        pair_section_frame(&sa, &sb, at(), None, band()),
+                        Err(FrameError::NoArm)
+                    )
                 },
                 "r = {r}: meeting axes at the certified scalar"
             );
@@ -6526,15 +6633,13 @@ mod frame_dispatch_interval_tests {
         // as any distance between the origins would flip these to
         // `NoArm`.
         for along in [p3(0.0, 0.0, 0.75), p3(0.75, 0.0, 0.0)] {
-            let got = pair_section_frame(
-                &about_z(p3(0.0, 0.0, 0.0), 1.0),
-                &about_x(along, 1.0),
-                at(),
-                None,
-                band(),
-            );
             assert!(
-                matches!(got, Err(FrameError::CylinderNodes)),
+                serves_cylinder_nodes(
+                    &about_z(p3(0.0, 0.0, 0.0), 1.0),
+                    &about_x(along, 1.0),
+                    at(),
+                    band()
+                ),
                 "{along:?}: a lift along an AXIS leaves the axes meeting"
             );
         }
