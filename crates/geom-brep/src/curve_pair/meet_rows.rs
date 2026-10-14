@@ -459,12 +459,20 @@ fn shallow_circles(tilt: f64, h: f64) -> [(Curve3<f64>, (f64, f64)); 2] {
 }
 
 /// **Two curves in nearly parallel planes, crossing at a wide angle half
-/// a zero apart, meet** (or refuse): the meeting is not where either
-/// crosses the other's plane, which lies `h/sin(tilt)` along it. Circle
-/// × circle, line × circle and circle × line.
+/// a zero apart, meet**: the meeting is not where either crosses the
+/// other's plane, which lies `h/sin(tilt)` along it. Circle × circle, line
+/// × circle and circle × line. At a tilt of `2·10⁻⁸` the run within the
+/// band about the crossing is half a metre, and the polish's basin meter
+/// refuses (`Unsettled::Meter`).
 #[test]
 fn an_in_band_miss_across_nearly_parallel_planes_meets() {
-    for tilt in [1e-5, 1e-4, 1e-3] {
+    let [(a, sa), (b, sb)] = shallow_circles(2e-8, 0.5 * ZERO);
+    let got = meets((&a, sa), (&b, sb));
+    assert!(
+        matches!(got, Err(ref r) if matches!(r.fault, MeetFault::Unsettled(Unsettled::Meter))),
+        "tilt 2e-8: {got:?}"
+    );
+    for tilt in [1e-7, 1e-5, 1e-3] {
         let [(a, sa), (b, sb)] = shallow_circles(tilt, 0.5 * ZERO);
         let label = format!("circles, tilt {tilt:e}");
         let got = meets((&a, sa), (&b, sb));
@@ -636,4 +644,22 @@ fn a_circle_reads_as_an_equal_ellipse_does() {
         let as_ellipse = shape(meets((&e, sb), (&a, sa)));
         assert_eq!(as_circle, as_ellipse, "gap {gap:e}, tilt {tilt:e}");
     }
+}
+
+/// **A crossing past a segment's end at a shallow angle meets at that
+/// end**: two lines `5·10⁻⁸` rad apart cross a millimetre past the first
+/// segment's end, where the other line passes `5·10⁻¹¹` from it.
+#[test]
+fn a_shallow_crossing_past_a_segment_meets_at_its_end() {
+    let phi: f64 = 5e-8;
+    let x = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let y = line([1.0, 0.0, 0.0], [phi.cos(), phi.sin(), 0.0]);
+    let m = meets((&x, (-1.0, 1.0 - 1e-3)), (&y, (-1.0, 1.0))).unwrap();
+    assert!(
+        m.points
+            .iter()
+            .any(|p| matches!((p.on_a, p.on_b), (Hit::End, Hit::On { .. }))),
+        "the segment's end meets the other line: {m:?}"
+    );
+    on_both("past a segment", &m, &x, &y);
 }
