@@ -405,7 +405,7 @@ fn lantern<S: Scalar>(
     // flower axis (into the flower), u the in-plane radial — the
     // flower axis turned a quarter turn in the plant's own plane,
     // i.e. crossed with ŷ.
-    let plane = sketch_frame(attach, dir.cross(Vec3::unit_y()), dir, tol).embed();
+    let plane = sketch_frame(attach, dir.cross(Vec3::unit_y()), dir, tol).embed_computed();
     revolve(
         &validated(
             plane,
@@ -674,7 +674,7 @@ fn bud<S: Scalar>(
         // their tips, not their bellies.
         let spine = axis_frame::<f64>(attach, dir * ct + l * st, rad(phi - 0.5 * span), tol);
         let a = spine.w().get();
-        let plane = sketch_frame(attach, spine.u().get(), a, tol).embed();
+        let plane = sketch_frame(attach, spine.u().get(), a, tol).embed_computed();
         revolve(
             &validated(
                 plane,
