@@ -1,4 +1,4 @@
-//! [`Span::contact`] on each of its four answers and its refusal, on a
+//! [`Span::contact`] on each of its answers and its refusal, on a
 //! line, a circle and an ellipse: an enumeration of poses, each placed a
 //! stated number of zero bands from the place it tests.
 
@@ -50,6 +50,7 @@ fn name(got: Result<Contact<f64>, geom_core::Indeterminate>) -> &'static str {
         Ok(Contact::Carrier) => "carrier",
         Ok(Contact::On { .. }) => "on",
         Ok(Contact::End) => "end",
+        Ok(Contact::Past) => "past",
         Err(_) => "escalated",
     }
 }
@@ -92,6 +93,24 @@ fn a_point_reads_off_on_at_an_end_or_past_the_span() {
             ("thirty zeros past the end", 30.0 * ZERO, 0.0, "carrier"),
             ("well past the end", 0.2, 0.0, "carrier"),
             ("well past the end, off it", 0.2, 30.0 * ZERO, "off"),
+            (
+                "well past the end, in the gap off it",
+                0.2,
+                3.0 * ZERO,
+                "past",
+            ),
+            (
+                "thirty zeros past, in the gap off it",
+                30.0 * ZERO,
+                3.0 * ZERO,
+                "past",
+            ),
+            (
+                "in the gap past the end and off it",
+                3.0 * ZERO,
+                3.0 * ZERO,
+                "escalated",
+            ),
         ] {
             let (q, t) = at(along, off);
             let got = name(span.contact(q, t, b));

@@ -615,8 +615,10 @@ stated here and not enforced.
 The same rule governs curve pairs. Two carrier spans (a carrier and a
 parameter interval) meet through one exhaustive `(CurveKind, CurveKind)`
 table, and every candidate it proposes is settled by one point-on-span
-reading (`Off`, `Carrier`, `On`, `End`). Line, circle and ellipse pairs
-are closed forms that solve in one conic's angle and measure in metres; a
+reading (`Off`, `Carrier`, `On`, `End`, and `Past` where the band
+places the point past the span but neither on its carrier nor off it).
+Line, circle and ellipse pairs are closed forms that solve in one conic's
+angle and measure in metres; a
 pair with a spiric or spline side is the certified bisection walk, which
 is also the closed forms' differential test oracle. A candidate generator's
 in-band decision escalates and never prunes, and a candidate admitted under

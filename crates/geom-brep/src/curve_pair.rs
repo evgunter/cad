@@ -214,4 +214,6 @@ mod meet_oracle;
 #[cfg(test)]
 mod meet_rows;
 #[cfg(test)]
+mod one_curve_rows;
+#[cfg(test)]
 mod span_rows;

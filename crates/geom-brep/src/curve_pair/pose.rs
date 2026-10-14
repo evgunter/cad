@@ -34,27 +34,29 @@
 //!   Both definite: the first conic's height above the second's plane,
 //!   `(C₁(θ) − c₂)·n̂₂`, is a first harmonic in its own angle whose roots
 //!   are where it crosses that plane, and each candidate is the closest
-//!   pair polished from one (below). In one plane:
+//!   pair polished from one (below). In one plane, **one reading decides
+//!   whether two conics are one curve**, whatever their kinds
+//!   (`curve_pair_pose_one_curve`, `one_curve_gap`): each conic is
+//!   `c + L·x` over the unit circle, `L = [a·û, b·v̂]`, and the centres'
+//!   gap plus `‖L₁ − L₂Q‖` for the best rotation `Q` bounds how far a
+//!   point of either lies from the other, a tilt out of the plane
+//!   included. Read zero is [`Pose::Coincident`]. Past it:
 //!   - **two circles**: their centres' distance `d`
 //!     (`curve_pair_pose_centres`). Zero is one centre, and the radii's gap
 //!     with `d` and the slant as its spread (`curve_pair_pose_radii`)
-//!     decides one curve or [`Pose::Concentric`]. Definite, the first
-//!     circle's distance from the second's centre runs between `|r₁ − d|`
-//!     and `r₁ + d`, so its distance from the second circle has those
-//!     extremes less `r₂`, exactly; and its square is a first harmonic in
-//!     the first circle's angle, whose roots are read from the extremes
-//!     (below);
-//!   - **a circle and an ellipse**: one curve when the bound
-//!     `|Δc| + max(|a − r|, |b − r|)` plus the slant reads zero
-//!     (`curve_pair_pose_one_curve`); otherwise the ellipse's distance
-//!     from the circle, `|E(θ) − c| − r`, whose square less `r²` is of
-//!     degree two in the ellipse's angle, goes to the certified
-//!     subdivision ([`crate::half_angle::certified_subdivision`]);
-//!   - **two ellipses**: one curve when the frames' bound
-//!     `|Δc| + min_Q ‖L₁ − L₂Q‖`, `L = [a·û, b·v̂]` over the eight signed
-//!     permutations `Q`, plus the slant reads zero. Two ellipses in one
-//!     plane that are not one curve have no metre residual here, and
-//!     refuse typed ([`MeetFault::Unsupported`]).
+//!     decides [`Pose::Concentric`]; read zero all round, their distance
+//!     has no extreme to place a touch at, and refuses
+//!     [`Unsettled::Tangency`]. Definite, the first circle's distance from
+//!     the second's centre runs between `|r₁ − d|` and `r₁ + d`, so its
+//!     distance from the second circle has those extremes less `r₂`,
+//!     exactly; and its square is a first harmonic in the first circle's
+//!     angle, whose roots are read from the extremes (below);
+//!   - **a circle and an ellipse**: the ellipse's distance from the
+//!     circle, `|E(θ) − c| − r`, whose square less `r²` is of degree two in
+//!     the ellipse's angle, goes to the certified subdivision
+//!     ([`crate::half_angle::certified_subdivision`]);
+//!   - **two ellipses** have no metre residual here, and refuse typed
+//!     ([`MeetFault::Unsupported`]).
 //!
 //! # A first harmonic's roots, and a double root
 //!
@@ -98,9 +100,9 @@
 //!
 //! - **its basin** (`curve_pair_pose_basin`): over that reach each
 //!   tangent turns by at most its carrier's curvature times the reach, so
-//!   `sin φ − 4(κ₁ + κ₂)·2(ℓ + e)`, `φ` the angle between the tangents
+//!   `sin φ − 2(κ₁ + κ₂)·2(ℓ + e)`, `φ` the angle between the tangents
 //!   where the polish starts, levered as the tilt is, must read positive:
-//!   the tangents then stay within a quarter of the angle between them,
+//!   the tangents then keep at least half the angle between them,
 //!   the closest pair is the one stationary pair there, and the polish
 //!   contracts toward it;
 //! - **its convergence** (`curve_pair_pose_polish`): the polish's last
@@ -702,15 +704,13 @@ fn conic_conic<T: Decide>(
         return transverse(&ka, &kb, ha, swing_a, noise, lever, band);
     };
     let oriented = |k: &Conic<T>| k.axis * (k.semi_u * k.semi_v);
-    let cosine = unit(oriented(&ka)).dot(unit(oriented(&kb)));
-    let foot_a = |q: Point3<T>| conic_foot(&ka, q);
-    let foot_b = |q: Point3<T>| conic_foot(&kb, q);
-    let coincident = || -> Result<Pose<T>, MeetFault> {
-        Ok(Pose::Coincident {
-            sense: sense(cosine, lever, band)?,
+    if one_curve(&ka, &kb, band)? {
+        let (foot_a, foot_b) = (|q| conic_foot(&ka, q), |q| conic_foot(&kb, q));
+        return Ok(Pose::Coincident {
+            sense: sense(unit(oriented(&ka)).dot(unit(oriented(&kb))), lever, band)?,
             witnesses: witnesses(a, b, &foot_a, &foot_b),
-        })
-    };
+        });
+    }
     let place = |theta: T| {
         let point = ka.point(theta);
         Candidate {
@@ -720,54 +720,65 @@ fn conic_conic<T: Decide>(
         }
     };
     match coplanar {
-        Coplanar::Circles => coplanar_circles(&ka, &kb, (noise, slant), &place, &coincident, band),
-        Coplanar::EllipseCircle => {
-            let w = ka.center - kb.center;
-            let r = kb.semi_u.abs();
-            let bound =
-                w.norm() + (ka.semi_u.abs() - r).abs().max((ka.semi_v.abs() - r).abs()) + slant;
-            if !definite(row::ONE_CURVE, Margin::of(bound), band)? {
-                return coincident();
-            }
-            coplanar_ellipse_circle(a, &ka, &kb, &place, band)
-        }
-        Coplanar::Ellipses => {
-            if !definite(
-                row::ONE_CURVE,
-                Margin::of(frame_gap(&ka, &kb) + slant),
-                band,
-            )? {
-                return coincident();
-            }
-            Err(MeetFault::Unsupported {
-                pose: "two ellipses in one plane that are not one curve",
-            })
-        }
+        Coplanar::Circles => coplanar_circles(&ka, &kb, (noise, slant), &place, band),
+        Coplanar::EllipseCircle => coplanar_ellipse_circle(a, &ka, &kb, &place, band),
+        Coplanar::Ellipses => Err(MeetFault::Unsupported {
+            pose: "two ellipses in one plane that are not one curve",
+        }),
     }
 }
 
-/// A bound on how far a point of one coplanar ellipse lies from the
-/// other: the centres' gap plus the least, over the eight signed
-/// permutations `Q` of the frame, Frobenius norm of `L₁ − L₂Q`,
-/// `L = [a·û, b·v̂]`, which pairs each point `c₁ + L₁x` of the first with
-/// the point `c₂ + L₂Qx` of the second.
+/// **Whether two conics read in one plane are one curve** (module docs):
+/// [`one_curve_gap`] read zero.
+///
+/// # Errors
+///
+/// The band's escalation.
+pub(super) fn one_curve<T: Decide>(
+    e: &Conic<T>,
+    f: &Conic<T>,
+    band: Band,
+) -> Result<bool, MeetFault> {
+    Ok(!definite(
+        row::ONE_CURVE,
+        Margin::of(one_curve_gap(e, f)),
+        band,
+    )?)
+}
+
+/// **The one-curve reading's margin** (module docs): a bound on how far
+/// a point of either conic lies from the other, a tilt out of the plane
+/// included. Each conic is `c + L·x` over the unit circle's `x`, with
+/// `L = [a·û, b·v̂]`. For any orthogonal `Q`, pairing `c_e + L_e·x` with
+/// `c_f + L_f·Q·x` pairs every point of each with a point of the other
+/// within `|c_e − c_f| + ‖L_e − L_f·Q‖` ([`frame_gap`]). The stored order
+/// and signs of the semi-axes change `L` by an orthogonal factor, which
+/// `Q` absorbs. The gap read from either side is the same but for
+/// rounding, and the larger is taken, so the gap does not depend on the
+/// order of the pair.
+pub(super) fn one_curve_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
+    (e.center - f.center).norm() + frame_gap(e, f).max(frame_gap(f, e))
+}
+
+/// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
+/// frame the way up `e`'s is (the sign of `(a·b·n̂)_e · (a·b·n̂)_f`) and
+/// then by the rotation that best matches the two, which maximizes
+/// `tr(Qᵀ·L_fᵀ·L_e)`.
 fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
-    let (e1, e2) = (e.u_ref * e.semi_u, e.v_ref() * e.semi_v);
-    let (f1, f2) = (f.u_ref * f.semi_u, f.v_ref() * f.semi_v);
-    let pair = |p: Vec3<T>, q: Vec3<T>| ((e1 - p).norm_squared() + (e2 - q).norm_squared()).sqrt();
-    let neg = |v: Vec3<T>| v * (T::zero() - T::one());
-    let gaps = [
-        pair(f1, f2),
-        pair(neg(f1), neg(f2)),
-        pair(f1, neg(f2)),
-        pair(neg(f1), f2),
-        pair(f2, f1),
-        pair(neg(f2), neg(f1)),
-        pair(f2, neg(f1)),
-        pair(neg(f2), f1),
-    ];
-    let least = gaps.into_iter().fold(gaps[0], |x, y| x.min(y));
-    (e.center - f.center).norm() + least
+    let ((e1, e2), (f1, f2)) = (e.semi_axis_vectors(), f.semi_axis_vectors());
+    let up = e1.cross(e2).dot(f1.cross(f2));
+    let f2 = f2 * (up / up.abs());
+    let (x, y) = (f1.dot(e1) + f2.dot(e2), f2.dot(e1) - f1.dot(e2));
+    let h = (x.powi(2) + y.powi(2)).sqrt();
+    let (cos, sin) = (x / h, y / h);
+    let d1 = e1 - (f1 * cos + f2 * sin);
+    let d2 = e2 - (f2 * cos - f1 * sin);
+    let half = T::from_f64(0.5);
+    let (mid, off) = (
+        (d1.dot(d1) + d2.dot(d2)) * half,
+        (d1.dot(d1) - d2.dot(d2)) * half,
+    );
+    (mid + (off.powi(2) + d1.dot(d2).powi(2)).sqrt()).sqrt()
 }
 
 /// `ka`'s height above `kb`'s plane, `(c0, cp, sp)` with the swing read
@@ -840,7 +851,6 @@ fn coplanar_circles<T: Decide>(
     kb: &Conic<T>,
     (noise, slant): (T, T),
     place: &impl Fn(T) -> Candidate<T>,
-    coincident: &impl Fn() -> Result<Pose<T>, MeetFault>,
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ra, rb) = (ka.semi_u.abs(), kb.semi_u.abs());
@@ -848,10 +858,12 @@ fn coplanar_circles<T: Decide>(
     let w = w - ka.axis * w.dot(ka.axis);
     let d = w.norm();
     if !definite(row::CENTRES, Margin::norm3(w), band)? {
+        // Not one curve, yet their distance, between `|r₁ − r₂| ∓ d` and
+        // the slant, reads zero all round: no extreme to place a touch at.
         return if constant(row::RADII, ra - rb, d + noise + slant, band)? {
             Ok(Pose::Concentric)
         } else {
-            coincident()
+            Err(MeetFault::Unsettled(Unsettled::Tangency))
         };
     }
     // `|C₁(θ) − c₂|` runs between `|r₁ − d|` and `r₁ + d`; its square

@@ -721,10 +721,13 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// and 0.9 the rims are one curve within the band, and every op
 /// refuses `FallbackExtentUnsupported` further on. At 2 and 5 a seam
 /// ruling's crossing with the other rim's plane lies `k·ε` from the
-/// ruling's end, and every op refuses `Escalated` on
-/// `bool_carrier_cross_in_span`. At 30 and 80 the rims are definitely
-/// two curves, which no closed form here places, and every op refuses
-/// `CurvedPierceUnsupported`. None reads the rims' crossings away.
+/// ruling's end, and every op refuses `Escalated` on the point-on-span
+/// reading's chord to that end (`curve_pair_span_end_chord`). At 30 and
+/// 80 the rims are definitely two curves, which no closed form here
+/// places, and every op refuses `CurvedPierceUnsupported`, but for the
+/// three with the first rod first at 80, which escalate on the sector
+/// reading's `conic_bend` before reaching that frontier. None reads the
+/// rims' crossings away.
 #[test]
 fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let tol = Tol::witness();
@@ -748,12 +751,17 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                 };
                 assert_eq!(
                     diag.predicate,
-                    Some("bool_carrier_cross_in_span"),
+                    Some("curve_pair_span_end_chord"),
                     "{label}: on the span row"
                 );
             } else {
+                let sector = matches!(
+                    &res,
+                    Err(BooleanError::Escalated { diag, .. }) if diag.predicate == Some("conic_bend")
+                );
                 assert!(
-                    matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                    matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. }))
+                        || (k > 50.0 && op.starts_with('t') && sector),
                     "{label}: two curves unplaced: {res:?}"
                 );
             }
