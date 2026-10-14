@@ -74,8 +74,8 @@ use crate::blend::admit::AdmittedOpen;
 use crate::blend::battery::EndSection;
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
-    ContactCarrier, Described, SourceFaces, chord_site, face_of_half, halves_of, not_intact, op,
-    open_trimline, point_of, unbuilt_chain, unbuilt_geometry,
+    ContactCarrier, Described, SourceFaces, chord_site, disagrees, face_of_half, halves_of, op,
+    open_trimline, point_of, unbuilt_chain, unbuilt_geometry, unresolved,
 };
 use geom_brep::EdgeCurveSpec;
 
@@ -137,13 +137,13 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
         // is metered against the region the cut removes ([`CapSliver`])
         // by the same pass.
         let (hp, hm) = halves_of(body, edge)
-            .ok_or_else(|| not_intact(EntityId::Edge(edge), "a ruled link's edge"))?;
+            .ok_or_else(|| unresolved(EntityId::Edge(edge), "a ruled link's edge"))?;
         for (face, half) in [(l.face_a, hp), (l.face_b, hm)] {
             let fd = body
                 .get_face(face)
-                .ok_or_else(|| not_intact(EntityId::Face(face), "a ruled link's support"))?;
+                .ok_or_else(|| unresolved(EntityId::Face(face), "a ruled link's support"))?;
             if face_of_half(body, half) != Some(face) {
-                return Err(not_intact(
+                return Err(disagrees(
                     EntityId::Edge(edge),
                     "a ruled link's half-edges do not lie in the faces the verdict names",
                 ));
@@ -164,7 +164,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
             // predicate 6 tagged this end `EndFace` and the verdict
             // carries it.
             let Some((_, section)) = end_faces.iter().find(|(e, _)| *e == v) else {
-                return Err(not_intact(
+                return Err(disagrees(
                     EntityId::Vertex(v),
                     "a ruled link's end is not among the end faces the verdict classified",
                 ));
@@ -251,7 +251,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     // crease, the near rim piece out of the other — so the new face is
     // the STRIP and the support keeps its key. ----
     let (hp, hm) = halves_of(body, crease)
-        .ok_or_else(|| not_intact(EntityId::Edge(crease), "the crease being carved"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(crease), "the crease being carved"))?;
     let mut trims: Vec<EdgeKey> = Vec::with_capacity(2);
     for (face, half, feet) in [
         (l.face_a, hp, [cuts[0].a.vertex, cuts[1].a.vertex]),
@@ -259,14 +259,14 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     ] {
         let (he1, he2, x, y) = chord_site(body, face, |row| row.0 == half, 1, 2)?;
         if !((x == feet[0] && y == feet[1]) || (x == feet[1] && y == feet[0])) {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Face(face),
                 "a support's cycle around the crease is not flanked by its two feet",
             ));
         }
         let (px, py) = (
-            point_of(body, x).ok_or_else(|| not_intact(EntityId::Vertex(x), "a foot"))?,
-            point_of(body, y).ok_or_else(|| not_intact(EntityId::Vertex(y), "a foot"))?,
+            point_of(body, x).ok_or_else(|| unresolved(EntityId::Vertex(x), "a foot"))?,
+            point_of(body, y).ok_or_else(|| unresolved(EntityId::Vertex(y), "a foot"))?,
         );
         let created = body
             .mef(
@@ -303,11 +303,11 @@ fn band_face<T: Decide>(
     support: FaceKey,
 ) -> Result<FaceKey, BlendError> {
     let (hp, hm) = halves_of(body, trim)
-        .ok_or_else(|| not_intact(EntityId::Edge(trim), "a trimline this carve minted"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(trim), "a trimline this carve minted"))?;
     match (face_of_half(body, hp), face_of_half(body, hm)) {
         (Some(f1), Some(f2)) if f1 == support => Ok(f2),
         (Some(f1), Some(_)) => Ok(f1),
-        _ => Err(not_intact(
+        _ => Err(unresolved(
             EntityId::Edge(trim),
             "both halves of a trimline this carve minted bound a face",
         )),
