@@ -1299,3 +1299,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - Graded M. Arm byte 219, mod 3 = 0 → **HOLDOUT** pair. Dispatched r5066a and r5066b concurrently (local Opus; brief sha256 `2cd5cb0e886e`).
   - **5043**'s fix pass pushed `184cb16195`; hosted test running, body section pending. Re-armed for 04:27.
 - 2026-10-14 04:30 — Check-in. **5043's fix pass is done** (head `184cb16195`). All four items handled: rows now draw c<0, and mutants A and B are red; the two old cancelling copies now use the stable form; docs say the bound is on distance, not on fields; no consumer reads `major` as field-accurate. Hosted CI is red only on the known `mass_props_are_thread_count_invariant`. Local verify (vpr.sh) is running. r5066a and r5066b are reviewing. Re-armed for 05:28.
+- 2026-10-14 06:20 — **PR 5043 merged** (`cc7c881b67`); the TiltedEllipse item closes.
+  - Verify: locally on head + main, geom-brep 1313, topo 3001 and sweep 2661 green at three ε. Main merged again at merge time (`5215298a4f`); the PR's cone/ellipse rows (109) green at three ε.
+  - Hosted CI is red only on the known `mass_props_are_thread_count_invariant`.
+  - Row `PR-5043.md` last: sequential, M, byte 35, tallied 0, major false.
+  - r5066a and r5066b are still reviewing.
