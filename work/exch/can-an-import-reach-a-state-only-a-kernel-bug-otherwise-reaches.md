@@ -54,4 +54,9 @@ When and how should an import be validated? Can a body that passed import hold a
 - Is the import door its own reading, distinct from at rest?
 - Which refusals belong there, typed and naming the file, rather than past it, where they panic?
 
-Weigh it with the designer pair before it goes to Ev, and link the other PR Ev mentioned once it is identified.
+Weigh it with the designer pair before it goes to Ev.
+
+## Waiting on this
+
+- `[ev]` PR 5134 (ENCL, the proven-zero fork): whether a definite contradiction past the import door panics.
+- `[ev]` PR 5113 (PCERT, "what certification owes a row at a band-sized lever"): its decision 2 "waits on your design conversation about imports" (Ev named it as the same question, 2026-10-14).
