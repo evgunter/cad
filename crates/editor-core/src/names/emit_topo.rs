@@ -67,10 +67,10 @@ struct Side<'a, T: Decide> {
 /// **The kills' hops are copies of the same records.** `killed` comes
 /// from `BooleanNaming::discards`' boundary chains ([`KilledSplits`]),
 /// which copy the clone's `SplitEdge` records before the kills drop
-/// them, so the argument covers them too (`topo::Provenance::SplitEdge`
-/// says why a copy is as sound as its records). The bound and the
-/// refusal are the provenance walk's, which nothing checks where
-/// `Body::split_edge` writes it
+/// them, so as the kernel writes them they are as acyclic as the records
+/// (`topo::Provenance::SplitEdge`). They are public fields a caller can
+/// also write, and nothing checks the records where `Body::split_edge`
+/// writes them, so this walk keeps its own bound and refusal
 /// (`work/origin/the-split-edge-lineage-walk-has-four-homes.md`).
 ///
 /// Where the lineage stops at a key the table does not name and a kill

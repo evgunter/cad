@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P1
 cost: M
-refs: [a-split-half-loses-the-lineage-of-a-twice-crossed-edge, a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank]
+refs: [a-split-half-loses-the-lineage-of-a-twice-crossed-edge, a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank, join-desync-is-the-catch-all-for-cyclic-lineage-records]
 ---
 
 
@@ -66,3 +66,5 @@ it asks for should take the copies as another record lookup:
 - `borders.rs`'s `Obstacles::up_lineage` (~`borders.rs:280`), which
   reads `split_from` (each body's records merged with the chains' hops)
   and refuses `bug("a piece edge's split lineage is cyclic")`.
+
+Inherited from `join-desync-is-the-catch-all-for-cyclic-lineage-records`, beyond the readers: nothing checks the `SplitEdge` records where `Body::split_edge` writes them, and the two copies (`SplitNaming::joined_lineage`, `DiscardRow::boundary_chains`) are `pub` fields a caller can write. The fix checks acyclicity where the records are written, or says at the write site why it cannot. It also decides whether the copies stay writable from outside the kernel. The readers' bounds are unreachable only once both hold.
