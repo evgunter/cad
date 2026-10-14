@@ -415,3 +415,56 @@ fn at_a_dual_a_split_seam_takes_its_stated_column() {
         );
     }
 }
+
+/// **A stated column is offered before the closed forms.** Split a
+/// seam at `t = 1/6` and `t = 1/2`: the middle child's stated map is
+/// the parent's, `v = t`, and the whole-domain closed form for it is
+/// `v = 3(t − 1/6)`. The two are different lines through the same
+/// point at the probe (`t = 1/4`, `v = 1/4`), so both hold there, and
+/// the order decides. Each of the child's halves derives the stated
+/// map, which certifies; the closed form does not.
+#[test]
+fn a_stated_column_is_offered_before_the_closed_form_it_crosses() {
+    let mut body = semicircle_prism();
+    let seam = body
+        .pcurves()
+        .find(|(_, c)| matches!(c.pcurve(), Pcurve::IsoLine { pl, .. } if pl.x == 0.0))
+        .map(|(h, _)| body.get_half_edge(h).unwrap().edge)
+        .expect("the prism has a seam on a column");
+    let params = |b: &Body<f64>, e| {
+        b.get_curve_geom(b.get_edge(e).unwrap().curve)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap()
+            .params()
+    };
+    assert_eq!(params(&body, seam), (0.0, 1.0), "the seam runs t = 0..1");
+    let upper = body.split_edge(seam, 1.0 / 6.0, tol()).unwrap().new_edge;
+    let middle = [upper, body.split_edge(upper, 0.5, tol()).unwrap().new_edge]
+        .into_iter()
+        .find(|&e| params(&body, e) == (1.0 / 6.0, 0.5))
+        .expect("the middle child spans t = 1/6 .. 1/2");
+    let (t0, t1) = params(&body, middle);
+    let edge = body.get_edge(middle).unwrap();
+    for h in [edge.he_plus, edge.he_minus] {
+        let face = body.face_of_half_edge(h).unwrap();
+        let chart = body
+            .get_surface(body.get_face(face).unwrap().surface)
+            .unwrap()
+            .clone();
+        let image = derived(&body, h).unwrap();
+        let Pcurve::IsoLine { p0, pl } = image else {
+            panic!("{h:?}: a sub-seam takes an iso line: {image:?}")
+        };
+        assert_eq!(
+            (pl.x, pl.y, p0.y),
+            (0.0, 1.0, 0.0),
+            "{h:?}: the stated map v = t, not the closed form through the same probe point"
+        );
+        let curve = body
+            .get_curve_geom(edge.curve)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap();
+        geom_brep::PcurveCache::certify(image, t0, t1, curve.carrier(), &chart, band())
+            .unwrap_or_else(|e| panic!("{h:?}: the stated column certifies: {e:?}"));
+    }
+}
