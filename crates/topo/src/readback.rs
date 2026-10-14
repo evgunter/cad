@@ -514,7 +514,9 @@ pub fn edge_carrier_kind<T: Real>(
 /// The carrier is a cache certified against the edge's intensional
 /// description (D4 ¶2), so what comes back is the concrete curve the
 /// model actually holds, and its `u_ref` is the seam convention that
-/// curve carries. A [`Curve3::Line`] answers with `u_ref: None`: it
+/// curve carries — but for a [`Curve3::Ellipse`], whose seam may sit at
+/// either principal vertex: its `u_ref` is its major direction
+/// ([`Curve3::major_frame`]). A [`Curve3::Line`] answers with `u_ref: None`: it
 /// fixes a direction and no perpendicular (rule 3). A
 /// [`Curve3::Spiric`] answers its stored TORUS frame — `origin` the
 /// torus centre (off the curve, by `≥ R − r − |offset|`), `axis` the

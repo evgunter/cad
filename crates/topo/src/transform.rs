@@ -451,8 +451,8 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
         } => Curve3::Ellipse {
             center: map.transform_point(center),
             axis: map_vec(map, axis),
-            semi_u: semi_u,
-            semi_v: semi_v,
+            semi_u,
+            semi_v,
             u_ref: map_vec(map, u_ref),
         },
         // The same argument: a rigid map preserves both radii, the

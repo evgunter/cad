@@ -50,11 +50,12 @@ pose's outcome):
   `URef Tilt`, at either end.
 - **Coin-flip planes** (through a seam vertex, normal `(0, 1, θ)`, 66
   poses): none refuse.
-- Before the turned seam was normalized, PR 4861's review counted, by θ
-  for the minted / turned / turned-and-normalized frame: 3e-6: 11/49/42,
-  1e-5: 21/44/40, 1e-4: 10/33/12, 3e-4: 0/15/0. Main refused these poses
-  earlier, at the join, so the refusal has moved stage rather than
-  appeared.
+- **Off-axis planes** (CLEAVE's census family `axial`, 704 poses): 38
+  refuse at rest this way.
+- Before the turned seam was normalized, PR 4861's review counted 22
+  coin-flip, 42 through-axis and 45 off-axis poses refusing this way.
+  Main refuses every one of these poses earlier, at the join's endpoint
+  pin, so the refusal has moved stage; it has not appeared from nothing.
 
 The ε = 1e-6 and 1e-9 rows show no such refusal: there `ε/A` is above
 `ulp` for every `A` here.

@@ -74,8 +74,8 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     Curve3::Ellipse {
         center,
         axis: -axis,
-        semi_u: semi_u,
-        semi_v: semi_v,
+        semi_u,
+        semi_v,
         u_ref,
     }
 }

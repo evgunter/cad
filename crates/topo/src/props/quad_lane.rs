@@ -333,8 +333,8 @@ fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Cu
         } => Curve3::Ellipse {
             center: shift(center),
             axis,
-            semi_u: semi_u,
-            semi_v: semi_v,
+            semi_u,
+            semi_v,
             u_ref,
         },
         Curve3::Spiric {

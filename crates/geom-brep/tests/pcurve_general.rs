@@ -300,8 +300,8 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
             Curve3::Ellipse {
                 center: center + Vec3::new(0.0, 0.0, 1e-3),
                 axis,
-                semi_u: semi_u,
-                semi_v: semi_v,
+                semi_u,
+                semi_v,
                 u_ref,
             }
         }),

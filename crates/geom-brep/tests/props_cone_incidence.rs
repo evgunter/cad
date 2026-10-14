@@ -409,7 +409,7 @@ fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
         center,
         axis,
         semi_u: semi_u * (1.0 + k),
-        semi_v: semi_v,
+        semi_v,
         u_ref,
     };
     // The distance is linear in a small stretch: read its slope at one.

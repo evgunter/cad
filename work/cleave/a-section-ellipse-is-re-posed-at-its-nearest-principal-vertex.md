@@ -55,31 +55,40 @@ and PCERT's (`pcurve_cache.rs` / `chart_pcurve`) ground; the PR announces it.
 
 ## Built (branch cleave/section-ellipse-re-pose)
 
-- `chord_join::SectionConic::seamed_near` seams each section chord's
-  ellipse at the principal vertex nearest the arc's middle (the
-  dominant of its eccentric anomaly's cosine and sine; a tie keeps the
-  seam's axis, a zero points forward), through `chord_arc` at both chord
-  lanes; `oriented_arc` reads each span forward from its own start.
-  Circles keep their seam.
-- `Curve3::Ellipse { semi_u, semi_v }`, `u_ref` a principal direction,
-  either order; `AxesSwapped` retired, `ellipse_minor_positive` reads
-  the smaller semi-axis. `Curve3::major_frame` reads which semi-axis
-  is the major one by magnitude (a tie keeps the seam), for
-  `solid_contain`'s wall seat and `end_face`'s round-end frame;
-  `Curve3::section_frame(axis)` reads it off a surface of revolution's
-  axis, for the cone focal section (through `FocalImage::t0`), where a
-  near-circle's semi-axes round past each other. Readers that levered
-  or bounded by one semi-axis now take the larger or smaller
-  magnitude: `arc_leaving`, `carrier_cross` (merged from main as
-  `speed_hi`), `quad_lane::length_bound`, `surgery::piece_distance`,
-  `end_face`'s depth, `ring_path`'s in-span lever.
-- Measured at all three ε (CLEAVE's census probe, on PR 4810's branch):
-  the coin-flip family builds 66/66 at 1e-12 and 1e-6 and 54/66 at
-  1e-9, where the `θ = 1e-4` planes refuse `SliverSector` at reduce as
-  on main; through-axis planes `θ = 1e-6…3e-4` build 96/96 at 1e-12 and
-  1e-9; the cone family is unchanged; FLUX's tilted-slab ∩ cylinder
-  (`walltilt t1e-2`) builds 12/12 at every ε.
-- Pins: `sweep` `section_ellipse_seam_poses`, `topo`
-  `chord_join::seam_rows`, `geom` `the_major_frame_is_read_from_the_semi_axes` and
-  `a_section_frame_is_read_off_the_axis_of_revolution`,
-  `geom-brep` `pcurve_cone_section` at every principal seam.
+- `geom::Curve3::seamed_near` seams an ellipse at the principal vertex
+  nearest a parameter. It picks the dominant of the eccentric anomaly's
+  cosine and sine; a tie keeps the seam's axis, and a zero points
+  forward. Its quarter turn, `Curve3::quarter_turned_where`,
+  renormalizes the turned seam. `chord_join::SectionConic::seamed_near`
+  routes through it at both chord lanes, and so do `major_frame` and
+  `section_frame`. `oriented_arc` reads each span forward from its own
+  start. Circles keep their seam.
+- `Curve3::Ellipse { semi_u, semi_v }`: `u_ref` is a principal
+  direction, in either order. `AxesSwapped` is retired.
+  `Curve3::semi_axes_by_size` is the one reading of the larger and the
+  smaller semi-axis. Every inline spelling routes through it, as does
+  `geom_brep::Conic` (fields `semi_u`/`semi_v`). Aliased `major`/`minor`
+  binds of the two fields are renamed to the fields.
+- `topo::readback::edge_pose` reads an ellipse's `u_ref` through
+  `major_frame`, so `Pose::u_ref` stays its major direction.
+- Measured at rest (every split side validated; CLEAVE's probe on head
+  against main `98353b4835`):
+  - coin-flip family, ε = 1e-12: 66/66 valid at rest, where main
+    refused 56 at the join's endpoint pin;
+  - through-axis planes, ε = 1e-12: 64/96 valid. The other 32 refuse at
+    rest on the frame margin, which is RESTFRONT's
+    `tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis`.
+    Main refused all 96 at the join.
+  - ε = 1e-9 and 1e-6: unchanged from main. That includes 18 coin-flip
+    poses at 1e-6 whose sliver side refuses `VolumeUncomputable` at
+    rest, as on main.
+  - The off-axis family (704 poses, 1e-12) has 89 more valid and 1
+    regression (`w0.7 φ3.9 θ1e-4 z0.5`, now the join's `EndpointStart`
+    pin), and some poses changed stage. The PR body lists them.
+- Pins: `sweep` `section_ellipse_seam_poses`, which tables every pose's
+  outcome at rest per ε row and carries the readback and slab rows;
+  `topo` `chord_join::seam_rows`; `geom`
+  `a_reseam_goes_to_the_vertex_its_direction_names`,
+  `the_major_frame_is_read_from_the_semi_axes` and
+  `a_section_frame_is_read_off_the_axis_of_revolution`; and `geom-brep`
+  `pcurve_cone_section` at every principal seam.

@@ -18,10 +18,12 @@
 //! at-rest refusals are tier 3's frame check on a section ellipse
 //! (`UnrepresentableCurveDatum { Ellipse, URef, Length | Tilt }`): its
 //! margin is `ε − δ·A`, the frame's own rounding `δ` amplified by the
-//! semi-axis `A ≈ r/θ`, up to 1e6 here ([`FRAME_RESIDUE`]). Upstream
-//! refusals are the input's readings at that row: in band of along the
-//! axis, or a sector at the vertex in band. No pose at any row refuses
-//! at a chord's attachment.
+//! semi-axis `A ≈ r/θ`, up to 1e6 here ([`FRAME_RESIDUE`]). At
+//! ε = 1e-6 the `θ = 3e-5` coin-flip planes leave a wall face of in-band
+//! width, which refuses at rest as `VolumeUncomputable`
+//! ([`SLIVER_RESIDUE`]). Upstream refusals are the input's readings at
+//! that row: in band of along the axis, or a sector at the vertex in
+//! band. No pose at any row refuses at a chord's attachment.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -31,6 +33,10 @@ use topo::{AtRestBody, Body, BooleanError, SplitJoinError, ValidationError};
 
 /// The row that owns the at-rest frame refusals these tables name.
 const FRAME_RESIDUE: &str = "work/restfront/tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis.md";
+
+/// The row that owns the at-rest volume refusals of an in-band sliver.
+const SLIVER_RESIDUE: &str =
+    "work/cleave/a-split-leaves-an-in-band-sliver-wall-face-that-refuses-only-at-rest.md";
 
 /// The unit cylinder about `z`, `0 ≤ z ≤ 1`, its seam vertices at
 /// `(±1, 0, 0)` and `(±1, 0, 1)`.
@@ -147,7 +153,8 @@ fn check(got: &[(String, String)], want: &[(&str, &str)]) {
         .collect();
     assert!(
         wrong.is_empty(),
-        "poses off their table (at-rest frame refusals are {FRAME_RESIDUE}'s):\n{}\n\nthe run's table:\n{}",
+        "poses off their table (at-rest frame refusals are {FRAME_RESIDUE}'s, \
+         at-rest volume refusals {SLIVER_RESIDUE}'s):\n{}\n\nthe run's table:\n{}",
         wrong.join("\n"),
         table.join("\n"),
     );
@@ -397,36 +404,132 @@ const THROUGH_1E6: &[(&str, &str)] = &[
 ];
 const THROUGH_1E9: &[(&str, &str)] = &[];
 const THROUGH_1E12: &[(&str, &str)] = &[
-    ("θ 1e-6 φ 3.9 z 0.5", "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper"),
-    ("θ 1e-6 φ 3.9 z 0.3", "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper"),
-    ("θ 1e-6 φ 5.3 z 0.5", "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper"),
-    ("θ 1e-6 φ 5.3 z 0.3", "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper"),
-    ("θ 3e-6 φ 1.1 z 0.5", "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper"),
-    ("θ 3e-6 φ 1.1 z 0.3", "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper"),
-    ("θ 3e-6 φ 1.8 z 0.5", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
-    ("θ 3e-6 φ 1.8 z 0.3", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
-    ("θ 3e-6 φ 2.5 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 3e-6 φ 2.5 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 3e-6 φ 3.9 z 0.5", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
-    ("θ 3e-6 φ 3.9 z 0.3", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
-    ("θ 3e-6 φ 5.3 z 0.5", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
-    ("θ 3e-6 φ 5.3 z 0.3", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
-    ("θ 1e-5 φ 0.4 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 1e-5 φ 0.4 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 1e-5 φ 2.5 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 1e-5 φ 2.5 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 3e-5 φ 0.4 z 0.5", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
-    ("θ 3e-5 φ 0.4 z 0.3", "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower"),
-    ("θ 3e-5 φ 1.1 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 3e-5 φ 1.1 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 3e-5 φ 2.5 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 3e-5 φ 2.5 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 3e-5 φ 3.9 z 0.5", "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper"),
-    ("θ 3e-5 φ 3.9 z 0.3", "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper"),
-    ("θ 3e-5 φ 5.3 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 3e-5 φ 5.3 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 1e-4 φ 1.1 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 1e-4 φ 1.1 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 1e-4 φ 2.5 z 0.5", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
-    ("θ 1e-4 φ 2.5 z 0.3", "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower"),
+    (
+        "θ 1e-6 φ 3.9 z 0.5",
+        "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper",
+    ),
+    (
+        "θ 1e-6 φ 3.9 z 0.3",
+        "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper",
+    ),
+    (
+        "θ 1e-6 φ 5.3 z 0.5",
+        "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper",
+    ),
+    (
+        "θ 1e-6 φ 5.3 z 0.3",
+        "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper",
+    ),
+    (
+        "θ 3e-6 φ 1.1 z 0.5",
+        "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper",
+    ),
+    (
+        "θ 3e-6 φ 1.1 z 0.3",
+        "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper",
+    ),
+    (
+        "θ 3e-6 φ 1.8 z 0.5",
+        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+    ),
+    (
+        "θ 3e-6 φ 1.8 z 0.3",
+        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+    ),
+    (
+        "θ 3e-6 φ 2.5 z 0.5",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 3e-6 φ 2.5 z 0.3",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 3e-6 φ 3.9 z 0.5",
+        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+    ),
+    (
+        "θ 3e-6 φ 3.9 z 0.3",
+        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+    ),
+    (
+        "θ 3e-6 φ 5.3 z 0.5",
+        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+    ),
+    (
+        "θ 3e-6 φ 5.3 z 0.3",
+        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+    ),
+    (
+        "θ 1e-5 φ 0.4 z 0.5",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 1e-5 φ 0.4 z 0.3",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 1e-5 φ 2.5 z 0.5",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 1e-5 φ 2.5 z 0.3",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 3e-5 φ 0.4 z 0.5",
+        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+    ),
+    (
+        "θ 3e-5 φ 0.4 z 0.3",
+        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+    ),
+    (
+        "θ 3e-5 φ 1.1 z 0.5",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 3e-5 φ 1.1 z 0.3",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 3e-5 φ 2.5 z 0.5",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 3e-5 φ 2.5 z 0.3",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 3e-5 φ 3.9 z 0.5",
+        "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper",
+    ),
+    (
+        "θ 3e-5 φ 3.9 z 0.3",
+        "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper",
+    ),
+    (
+        "θ 3e-5 φ 5.3 z 0.5",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 3e-5 φ 5.3 z 0.3",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 1e-4 φ 1.1 z 0.5",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 1e-4 φ 1.1 z 0.3",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 1e-4 φ 2.5 z 0.5",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
+    (
+        "θ 1e-4 φ 2.5 z 0.3",
+        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+    ),
 ];

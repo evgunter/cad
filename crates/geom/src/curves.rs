@@ -1018,8 +1018,8 @@ impl<T: Real> Curve3<T> {
             } => Curve3::Ellipse {
                 center,
                 axis: -axis,
-                semi_u: semi_u,
-                semi_v: semi_v,
+                semi_u,
+                semi_v,
                 u_ref,
             },
             Curve3::Spiric {
@@ -1075,8 +1075,8 @@ impl<T: Real> Curve3<T> {
             } => Curve3::Ellipse {
                 center: center + by,
                 axis,
-                semi_u: semi_u,
-                semi_v: semi_v,
+                semi_u,
+                semi_v,
                 u_ref,
             },
             Curve3::Spiric {
