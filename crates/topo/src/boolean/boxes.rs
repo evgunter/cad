@@ -3411,6 +3411,72 @@ pub(crate) mod tests {
         }
     }
 
+    /// REVIEW PROBE (PR 5140): walls whose arcs bulge PAST their
+    /// vertices — the quarter wall at `[0, π/2]` keeps its arc inside
+    /// the vertex box, so a vertex-only hull would pass the PR's row.
+    /// These spans put azimuth extrema strictly inside the arc. Both
+    /// lanes, under the PR's two undecided bands; dense samples.
+    #[test]
+    fn review_probe_5140_bulging_cylinder_walls_box_by_their_boundary() {
+        let (z0, z1) = (-0.25, 0.75);
+        let pi = core::f64::consts::PI;
+        for (u0, u1) in [
+            (pi / 4.0, 3.0 * pi / 4.0),
+            (0.3, 0.3 + 6.0),
+            (-pi / 2.0 + 0.1, pi / 2.0 - 0.1),
+        ] {
+            let (body, face) = cyl_wall(1.0, u0, u1, z0, z1);
+            for (what, band) in [
+                ("in band", Band::new(0.5, 5.0).unwrap()),
+                ("decided zero", Band::new(2.0, 20.0).unwrap()),
+            ] {
+                assert!(
+                    UnitVec3::levered(Vec3::unit_z(), BOX_CYLINDER_AXIS, band, 1.0).is_err(),
+                    "{what}: anti-vacuity"
+                );
+                let pad = sweep_pad(band);
+                let b = face_box(&body, face, pad, band)
+                    .unwrap_or_else(|e| panic!("{what}: must box, got {e:?}"));
+                let (lo, hi) = crate::census::face_reach(&body, face, band)
+                    .unwrap_or_else(|| panic!("{what}: census must claim"));
+                for i in 0..=64 {
+                    for j in 0..=4 {
+                        let u = u0 + (u1 - u0) * f64::from(i) / 64.0;
+                        let z = z0 + (z1 - z0) * f64::from(j) / 4.0;
+                        let p = [u.cos(), u.sin(), z];
+                        let (blo, bhi) = ([b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]);
+                        let (clo, chi) = ([lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]);
+                        for k in 0..3 {
+                            assert!(
+                                blo[k] <= p[k] && p[k] <= bhi[k],
+                                "[{u0},{u1}] {what}: bracket box misses u {u}, z {z} axis {k}: {b:?}"
+                            );
+                            assert!(
+                                clo[k] <= p[k] && p[k] <= chi[k],
+                                "[{u0},{u1}] {what}: census misses u {u}, z {z} axis {k}"
+                            );
+                        }
+                    }
+                }
+                // Not looser than the slab it replaces at a decided band:
+                // the hull must be no wider than the clipped slab, up to
+                // the pad (it is the clip's second operand).
+                let decided = face_box(&body, face, pad, witness_band()).unwrap();
+                for (n, h, s) in [
+                    ("min_x", b.min_x, decided.min_x),
+                    ("max_x", b.max_x, decided.max_x),
+                    ("min_y", b.min_y, decided.min_y),
+                    ("max_y", b.max_y, decided.max_y),
+                ] {
+                    assert!(
+                        (h - s).abs() <= 2.0 * pad + 1e-9,
+                        "[{u0},{u1}] {what}: hull {n} {h} vs decided slab {s}"
+                    );
+                }
+            }
+        }
+    }
+
     /// The exact range of `f` over the arc `[0, span]`: the endpoints,
     /// plus each listed critical angle the run actually reaches. Stated
     /// here rather than folded into the row so the expectation is a
