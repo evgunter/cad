@@ -160,8 +160,8 @@ fn f64_block() -> String {
 /// the receipt COUNTS the walk's decisions, not what the tier proves.
 fn budget() -> SymBudget {
     SymBudget {
-        max_terms: 32,
-        max_degree: 4,
+        max_terms: std::env::var("FLUSH_TERMS").ok().and_then(|v| v.parse().ok()).unwrap_or(32),
+        max_degree: std::env::var("FLUSH_DEG").ok().and_then(|v| v.parse().ok()).unwrap_or(4),
     }
 }
 
@@ -274,6 +274,7 @@ fn receipts(bodies: &[(&'static str, SymBody)], budget: SymBudget) -> Vec<Receip
     for &(name, build) in bodies {
         for door in ["mass_properties", "validate_geometric"] {
             let ((refused, built), end) = with_session(budget, || {
+                eprintln!("FLUSHSESSION {name} {door}");
                 let body = build();
                 let built = geom_core::sym::session_counts().expect("a session is installed");
                 geom_core::sym::report::start_shape_report();
@@ -380,6 +381,9 @@ fn check_against_golden(threads: usize) {
     let eps = Tol::witness().get().eps;
     let (f64_block, receipts) =
         on_pool(threads, || (f64_block(), receipts(&sym_bodies(), budget())));
+    for r in &receipts {
+        eprintln!("FLUSHRECEIPT {} {} refused={}: {:?}", r.name, r.door, r.refused, r.counts);
+    }
     for r in &receipts {
         if let Err(why) = dispute_coverage(&r.counts) {
             panic!("{} {}: {why}: {:?}", r.name, r.door, r.counts);

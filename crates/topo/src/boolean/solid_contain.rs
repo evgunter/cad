@@ -6059,8 +6059,48 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     let faces = sel.faces();
     let (mut in_band, mut at_a_corner, mut limit) = (None, None, None);
     let (along, across) = AIM_INCIDENCE;
+    // PROBE: a face the ray test has no arm for faults every ray at
+    // `face_geo`, whatever it aims at, so no aim can read.
+    if std::env::var_os("FLUSH_PREFILTER").is_some() {
+        for &face in faces {
+            let f = body
+                .get_face(face)
+                .ok_or(PointInSolidError::CorruptFace { face })?;
+            match body.get_surface(f.surface) {
+                Some(
+                    Surface::Plane { .. }
+                    | Surface::Cylinder { .. }
+                    | Surface::Cone { .. }
+                    | Surface::Sphere { .. }
+                    | Surface::Torus { .. },
+                ) => {}
+                Some(s) => {
+                    let e = PointInSolidError::KindUnsupported { face, kind: s.kind() };
+                    return Ok(volume().map_err(|volume| SideUnread::Fallback {
+                        volume,
+                        limit: Some(e),
+                    }));
+                }
+                None => return Err(PointInSolidError::CorruptFace { face }),
+            }
+        }
+    }
+    let dbg = std::env::var_os("FLUSH_DBG").is_some();
+    let report = |face: FaceKey, before: Option<geom_core::sym::SymCounts>, outcome: &str| {
+        if let (true, Some(b), Some(a)) = (dbg, before, geom_core::sym::session_counts()) {
+            eprintln!(
+                "FLUSHAIM {face:?} {outcome} exp={} frz={} sym={} num={}",
+                a.checks_expanded - b.checks_expanded,
+                a.checks_frozen - b.checks_frozen,
+                a.symbolic - b.symbolic,
+                a.numeric - b.numeric
+            );
+        }
+    };
     for &face in faces {
+        let before = geom_core::sym::session_counts();
         let Some((aim, normal)) = aim_at(body, sel, face, band)? else {
+            report(face, before, "no-aim");
             continue;
         };
         let shell = body
@@ -6077,10 +6117,18 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
         let crossings = match ray_crossings(body, sel, from, d, reach, band, AIMED_ROWS) {
             Ok(crossings) => crossings,
             Err(RayFault::Blocked(e) | RayFault::Fatal(e)) => {
+                report(face, before, &format!("blocked {e}"));
                 limit.get_or_insert(e);
                 continue;
             }
-            Err(RayFault::InBand(_) | RayFault::Graze | RayFault::Unread) => continue,
+            Err(RayFault::InBand(_)) => {
+                report(face, before, "crossing-in-band");
+                continue;
+            }
+            Err(RayFault::Graze | RayFault::Unread) => {
+                report(face, before, "graze-or-unread");
+                continue;
+            }
         };
         // The pair's gap is read as a magnitude, the distance between the
         // two crossings whichever the scan met first.
@@ -6101,17 +6149,23 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
             }
         };
         match crossings.closest(AIMED_ROWS.order, band, pair) {
-            Ok(Some((outward, _, _))) => return Ok(Ok(side_before(outward))),
+            Ok(Some((outward, _, _))) => {
+                report(face, before, "DECIDED");
+                return Ok(Ok(side_before(outward)));
+            }
             // Two faces that meet at a vertex are no pair: their gap closes
             // at the cell they share, and a ray crossing a sharp corner
             // near it reads in band however definite every pair is.
             Err(RayFault::InBand(pair)) if meet(body, pair.near, pair.far) => {
+                report(face, before, "corner-pair");
                 at_a_corner.get_or_insert(pair);
             }
             Err(RayFault::InBand(pair)) => {
+                report(face, before, "pair-in-band");
                 in_band.get_or_insert(pair);
             }
-            Ok(None) | Err(_) => {}
+            Ok(None) => report(face, before, "no-crossing"),
+            Err(_) => report(face, before, "closest-other"),
         }
     }
     if let Some(pair) = in_band {

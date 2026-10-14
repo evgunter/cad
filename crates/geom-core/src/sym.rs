@@ -3773,6 +3773,9 @@ fn form_in(
             // function of the parameters is exactly an indeterminate.
             #[cfg(feature = "sym-profile-testing")]
             profile::record_unrecorded(profile::Walk::of(early, registry));
+            if std::env::var_os("FLUSH_DBG").is_some() && !early && !registry {
+                eprintln!("FLUSHFREEZE unrecorded");
+            }
             let f = frozen(sess, id);
             // NOT published, and everything built from it is tainted:
             // `note`'s own comment says why.
@@ -3908,6 +3911,20 @@ fn form_in(
             } else {
                 combined
             };
+            if std::env::var_os("FLUSH_DBG").is_some() && !early && !registry {
+                let why = match &combined {
+                    None => Some("combine-none".to_owned()),
+                    Some(f) if !within(budget, f) => Some(format!(
+                        "budget terms={} deg={}",
+                        f.num.terms().len().max(f.den.terms().len()),
+                        f.num.degree().max(f.den.degree())
+                    )),
+                    _ => None,
+                };
+                if let Some(why) = why {
+                    eprintln!("FLUSHFREEZE {:?} {why}", node.op);
+                }
+            }
             let made = combined.filter(|f| within(budget, f));
             #[cfg(feature = "sym-profile-testing")]
             profile::record_node(
