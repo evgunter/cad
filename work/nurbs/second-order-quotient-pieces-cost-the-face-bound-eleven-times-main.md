@@ -2,8 +2,10 @@
 id: second-order-quotient-pieces-cost-the-face-bound-eleven-times-main
 kind: issue
 title: The second-order quotient pieces cost the rational face bound 11-15x main's: per-piece restriction, half of it interval-by-f64 multiplies
-status: open
+status: closed
 opened: 2026-10-13
+closed: 2026-10-14
+branch: nurbs/quotient-products-once
 ---
 
 
@@ -55,3 +57,25 @@ rounding) where two rounded products would do.
   faster, so a smaller count may meet the same sizing, but the count
   moves cell granularity, the census and the offset goldens, so it is
   a measurement before it is a change.
+
+## Closed (2026-10-14)
+
+`nurbs/quotient-products-once` forms every quotient's products once
+over the cell or span and halves them into pieces by de Casteljau at
+½: sums unscaled, one exact `2⁻ʳ` scale per output. `Cut`,
+`cut_both`, `piece_weights`, `pieces_exact`, `piece_count`, `combine`
+and `restrict` are gone, the curve meters (`speed_pieces`,
+`accel_pieces`) included, and with them the exactness ceiling: every
+degree reads the count its schedule asks for. Local, opt-level 1,
+`--test-threads 1`, against main `72ad4910` (5047 in):
+
+| row | main | branch |
+|---|---|---|
+| `rational_face_bound_dominates_sampled_hessian` | 0.87 s | 0.45–0.50 s |
+| `probe1_signed_reading_encloses_random_rational_sweep` | 10.1 s | 6.8–7.0 s |
+| `every_cell_bound_dominates_its_own_sampled_hessian` | 1.38 s | 0.93–0.99 s |
+
+The face bound stays about 6× `c16eaf57`'s. Its remaining levers (an
+exact-scale door in the interval arithmetic, fewer pieces) are
+`interval-scale-by-an-exact-f64-pays-a-general-product`
+(`work/issues/`).
