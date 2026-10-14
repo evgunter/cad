@@ -50,7 +50,7 @@ use core::f64::consts::PI;
 use geom::Curve3;
 use geom_core::{Bounds, Interval, Point3};
 use sweep::blend::build::{Blended, fillet_edges};
-use sweep::blend::{BlendDecision, BlendError};
+use sweep::blend::{BlendDecision, BlendError, Breach};
 use sweep::test_support::{assert_naming_totality, at_rest, realized};
 use topo::boolean::BooleanOp;
 use topo::{Body, ContactRecords, EdgeKey, mass_properties, validate_geometric};
@@ -738,12 +738,18 @@ fn the_skewed_boxs_fillet_refuses_at_interval_as_its_plain_cut_off_does() {
         ("the turn", &iedges[..]),
     ] {
         match fillet_edges(&ibody, edges, iv(D), tol()) {
-            Err(e) => assert!(
-                matches!(&e.error, BlendError::BodyNotIntact { detail, .. }
-                    if detail.contains("does not run forward from one foot")),
-                "{what}: the cut-off's arc reads backward, got {:?}",
-                e.error
-            ),
+            Err(e) => {
+                assert!(
+                    matches!(&e.error, BlendError::BodyNotIntact { breach: Breach::Disagrees, detail, .. }
+                        if detail.contains("does not run forward from one foot")),
+                    "{what}: the cut-off's arc reads backward, got {:?}",
+                    e.error
+                );
+                assert!(
+                    !e.to_string().contains("did not resolve"),
+                    "{what}: every key here resolved, and the refusal says so: {e}"
+                );
+            }
             Ok(_) => panic!("{what}: built at Interval; the filed item is fixed, flip this row"),
         }
     }
