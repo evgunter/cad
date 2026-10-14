@@ -124,9 +124,18 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// and the pieces whose ends cite them. No name moved: read as a set of
 /// (line, sense), every run is the pair it replaced. The maxima and the
 /// scoped row held.
+///
+/// The full total rose by 154 with the output stage's killed lineage
+/// (the records of the edges the merge kills, copied into
+/// `BooleanNaming::joined_lineage`). In `crossing_slots` and its world
+/// copy, a stretch of the first cavity's rim said as a seam of two faces
+/// is said as the piece of that rim it is, and a floor corner said as a
+/// touch of a wall is said as a crossing of two rims, as are the pieces
+/// whose ends cite it. The longer sentences are the right names, not a
+/// regression. The percentiles, the maxima and the scoped row held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 43, 57, 55_705]),
-    ("full", [19, 122, 196, 411_498]),
+    ("full", [19, 122, 196, 411_652]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -195,7 +204,14 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// the other body and … the first", in `corner_table` and
 /// `crossing_slots`, the two documents whose pair booleans meet edge to
 /// edge (`lib_g16_corpus_name_digests` moved those two rows alone).
-const SAID_DIGEST: u64 = 0x825d_ab47_ca34_6a4c;
+///
+/// The output stage's killed lineage moved it with [`NAME_WORDS`]: in
+/// `crossing_slots`, a stretch of the first cavity's rim named as a
+/// seam is a piece of that rim, the floor corner it ends at is a
+/// crossing of two rims rather than a touch, and the pieces ending at
+/// that corner say other words (`lib_g16_corpus_name_digests` moved
+/// that row alone).
+const SAID_DIGEST: u64 = 0x12fd_0ab6_c8ef_ed02;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

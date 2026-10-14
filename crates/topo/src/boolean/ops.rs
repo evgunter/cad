@@ -345,12 +345,13 @@ pub struct BooleanNaming {
     /// row's vertex and `gone` edge are dead, and its `kept` edge holds
     /// their interiors (maximal edges, `docs/DESIGN.md`'s merge stage).
     pub edge_joins: Vec<super::EdgeJoin>,
-    /// Killed edge → the edge it was split from, for each `gone` edge of
-    /// [`Self::edge_joins`] that held a `SplitEdge` record: a kill takes
-    /// its edge's birth record with it, so an edge this op split and
-    /// then joined away leads to its parent only through this copy,
-    /// taken before the kills (as the Split's
-    /// `SplitNaming::joined_lineage`).
+    /// Killed edge → the edge it was split from, for each edge the
+    /// output stage killed that held a `SplitEdge` record: an edge the
+    /// merge of coplanar faces killed, and each `gone` edge of
+    /// [`Self::edge_joins`]. A kill takes its edge's birth record with
+    /// it, so an edge this op split and then merged or joined away leads
+    /// to its parent only through this copy, taken before the kills (as
+    /// the Split's `SplitNaming::joined_lineage`).
     pub joined_lineage: BTreeMap<EdgeKey, EdgeKey>,
 }
 
@@ -2368,7 +2369,8 @@ pub(super) struct OutputStage {
     pub(super) merged: crate::merge_faces::MergeCoplanarOutcome,
     /// The joins, in the order made ([`BooleanNaming::edge_joins`]).
     pub(super) edge_joins: Vec<super::EdgeJoin>,
-    /// The joined-away edges' parents ([`BooleanNaming::joined_lineage`]).
+    /// The parents of the edges the merge and the join killed
+    /// ([`BooleanNaming::joined_lineage`]).
     pub(super) joined_lineage: BTreeMap<EdgeKey, EdgeKey>,
 }
 
@@ -2407,10 +2409,21 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
             );
         }
     });
+    let split_from = super::edge_join::split_records(body);
     let merged = body.merge_coplanar_faces_unjoined(declared, tol)?;
+    let mut killed_lineage = BTreeMap::new();
+    super::edge_join::record_joined_lineage(
+        &mut killed_lineage,
+        &split_from,
+        split_from
+            .keys()
+            .copied()
+            .filter(|&e| body.get_edge(e).is_none()),
+    );
     desc.absorb_merge(&merged)?;
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
-    let (edge_joins, joined_lineage) = join_stage(body, desc, recorded, band, tol)?;
+    let (edge_joins, mut joined_lineage) = join_stage(body, desc, recorded, band, tol)?;
+    joined_lineage.extend(killed_lineage);
     Ok(OutputStage {
         merged,
         edge_joins,

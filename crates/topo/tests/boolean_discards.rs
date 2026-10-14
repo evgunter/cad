@@ -197,3 +197,59 @@ fn an_edge_split_and_joined_away_in_one_step_records_its_parent() {
         );
     }
 }
+
+/// **An edge the boolean split and its own merge killed keeps its
+/// parent** (`BooleanNaming::joined_lineage`): a pocket is cut into a
+/// plate, then a slot whose floor is flush with the pocket's runs out
+/// through the pocket's wall. The slot cuts the pocket's bottom rim
+/// under that wall; the stretch between the slot's sides lies between
+/// the two floors, which the merge makes one face, killing the stretch
+/// with its birth record while the stretch past it lives on.
+#[test]
+fn an_edge_split_and_merged_away_in_one_step_records_its_parent() {
+    let tol = Tol::witness();
+    let plate: topo::AtRestBody<f64> =
+        finished("plate", brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol), tol);
+    let pocket = finished("pocket", brick((1.0, 3.0), (1.0, 3.0), (0.5, 2.0), tol), tol);
+    let slot = finished("slot", brick((2.0, 5.0), (1.5, 2.5), (0.5, 2.0), tol), tol);
+    let pocketed = match subtract(&plate, &pocket, tol) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("the pocket cuts: {other:?}"),
+    };
+    let out = match subtract(&pocketed.body, &slot, tol) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("the slot cuts: {other:?}"),
+    };
+    let naming = &out.naming;
+    let gone: BTreeSet<EdgeKey> = naming.edge_joins.iter().map(|j| j.gone).collect();
+    let merged: Vec<(EdgeKey, EdgeKey)> = naming
+        .joined_lineage
+        .iter()
+        .filter(|(g, _)| !gone.contains(g))
+        .map(|(&g, &f)| (g, f))
+        .collect();
+    assert!(
+        !merged.is_empty(),
+        "a rim stretch the slot cut lies between the merged floors: {:?}",
+        naming.joined_lineage
+    );
+    for (g, from) in merged {
+        assert!(out.body.get_edge(g).is_none(), "{g:?} is dead");
+        // Its parent, followed through any parent the output stage also
+        // killed, is a live edge: the rim stretch the merge kept.
+        let mut up = from;
+        let mut hops = 0;
+        while let Some(&p) = naming.joined_lineage.get(&up) {
+            up = p;
+            hops += 1;
+            assert!(
+                hops <= naming.joined_lineage.len(),
+                "{g:?}'s lineage cycles"
+            );
+        }
+        assert!(
+            out.body.get_edge(naming.joined_edge(up)).is_some(),
+            "{g:?}'s lineage reaches a live edge, not {up:?}"
+        );
+    }
+}

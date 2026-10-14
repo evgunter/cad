@@ -341,7 +341,7 @@ impl SplitNaming {
         crate::boolean::edge_join::record_joined_lineage(
             &mut self.joined_lineage,
             split_from,
-            &joins,
+            joins.iter().map(|j| j.gone),
         );
         self.edge_joins.extend(joins.into_iter().map(|j| (side, j)));
     }

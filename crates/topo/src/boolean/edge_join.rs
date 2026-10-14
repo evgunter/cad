@@ -653,7 +653,7 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
             desc.substitute((Cell::Vertex(v), Cell::Edge(j.kept)))?;
         }
     }
-    record_joined_lineage(&mut lineage, &split_from, &joined);
+    record_joined_lineage(&mut lineage, &split_from, joined.iter().map(|j| j.gone));
     Ok((joined, lineage))
 }
 
@@ -669,22 +669,21 @@ pub(crate) fn split_records<T: Real>(body: &Body<T>) -> BTreeMap<EdgeKey, EdgeKe
         .collect()
 }
 
-/// Writes into `lineage` each of `joins`' `gone` edges that held a
-/// record in `split_from` ([`split_records`], taken before the kills),
-/// with the edge it was split from. An edge recorded twice names one
-/// parent: a body holds one record per edge.
+/// Writes into `lineage` each of the `killed` edges that held a record
+/// in `split_from` ([`split_records`], taken before the kills), with the
+/// edge it was split from. An edge recorded twice names one parent: a
+/// body holds one record per edge.
 pub(crate) fn record_joined_lineage(
     lineage: &mut BTreeMap<EdgeKey, EdgeKey>,
     split_from: &BTreeMap<EdgeKey, EdgeKey>,
-    joins: &[EdgeJoin],
+    killed: impl IntoIterator<Item = EdgeKey>,
 ) {
-    for j in joins {
-        if let Some(&from) = split_from.get(&j.gone) {
-            let earlier = lineage.insert(j.gone, from);
+    for gone in killed {
+        if let Some(&from) = split_from.get(&gone) {
+            let earlier = lineage.insert(gone, from);
             debug_assert!(
                 earlier.is_none_or(|e| e == from),
-                "{:?} recorded with two parents ({earlier:?}, {from:?})",
-                j.gone
+                "{gone:?} recorded with two parents ({earlier:?}, {from:?})"
             );
         }
     }

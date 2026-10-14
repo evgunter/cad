@@ -51,7 +51,8 @@ kill drops them:
 - `SplitNaming::joined_lineage`, written by `SplitNaming::record_joins`
   (`crates/topo/src/splitting/finish.rs`);
 - `BooleanNaming::joined_lineage`, written by `edge_join::join_stage`
-  (`crates/topo/src/boolean/edge_join.rs`);
+  (`crates/topo/src/boolean/edge_join.rs`) and, for the edges the
+  merge kills, by `boolean::ops::finish_output`;
 - `DiscardRow::boundary_chains` (`crates/topo/src/boolean/discard.rs`).
 
 The two `joined_lineage` tables share one snapshot of the records
@@ -65,7 +66,8 @@ cycle refusals left in the readers belong to this row, and the one walk
 it asks for should take the copies as another record lookup:
 
 - `emit_topo::chase_edge_to_table` (~`emit_topo.rs:99`), which steps
-  through the chains' hops (`KilledSplits`) and refuses
+  through the chains' hops and the boolean's `joined_lineage`
+  (`KilledSplits`) and refuses
   `SplitLineageCycle` past its hop bound;
 - `emit_topo::chase_split_lineage` (~`emit_topo.rs:191`), which steps
   through `joined_lineage` where a half holds no record, and refuses
