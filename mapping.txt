@@ -1,0 +1,1 @@
+fork: band feature semantics (crossing + Boolean semantics), 2026-10-14. byte 205 (odd): A = Fable, B = Opus. protocol 26db1af89e
