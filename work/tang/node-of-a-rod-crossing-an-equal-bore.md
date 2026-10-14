@@ -2,8 +2,9 @@
 id: node-of-a-rod-crossing-an-equal-bore
 kind: issue
 title: The node of a rod crossing a bore of its radius refuses NodeUnbuilt: A's Out sectors and B's In sectors are different ones, which a pierce ring cannot pair
-status: open
+status: dispatched
 opened: 2026-10-14
+branch: tang/node-rod-bore
 ---
 
 
