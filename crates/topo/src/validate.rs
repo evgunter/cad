@@ -9374,6 +9374,14 @@ impl<T: Real> AtRestBody<T> {
     }
 }
 
+/// [`Unfinished::SCAFFOLDING_RECOURSE`], as a literal so
+/// [`Unfinished::SCAFFOLDING_REFUSAL`] can end in it.
+macro_rules! scaffolding_recourse {
+    () => {
+        "finish that edit first"
+    };
+}
+
 /// **Why an operand that carries no verdict is not a finished body** —
 /// the three promises [`AtRestBody::gate_unverdicted`] reads.
 #[derive(Clone, Debug)]
@@ -9393,9 +9401,14 @@ pub enum Unfinished {
 impl Unfinished {
     /// What every door refusing an operand with scaffolding at rest says
     /// after naming the operand.
-    pub const SCAFFOLDING_REFUSAL: &'static str = "is not a finished solid: it still \
-        carries what an edit left behind, such as a strut or an empty loop, so it is \
-        refused. Recourse: finish that edit first";
+    pub const SCAFFOLDING_REFUSAL: &'static str = concat!(
+        "is not a finished solid: it still carries what an edit left behind, such as a \
+         strut or an empty loop, so it is refused. Recourse: ",
+        scaffolding_recourse!()
+    );
+    /// The advice [`Self::SCAFFOLDING_REFUSAL`] ends in, for a refusal
+    /// that meets the same scaffolding in a body no door gated.
+    pub const SCAFFOLDING_RECOURSE: &'static str = scaffolding_recourse!();
     /// What every door refusing an inside-out operand says after naming
     /// the operand: true of a solid check 7 decides negative and of a
     /// shell check 10 finds bounding negative material.

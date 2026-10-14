@@ -92,7 +92,7 @@ use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, LoopKey, SurfaceKey, Ver
 
 use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
-    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, link_carrier, outward,
+    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
 };
 use super::surgery::{degenerate, disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
@@ -938,7 +938,7 @@ impl<T: Real> Station<T> {
 
 fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, BlendError> {
     let at = EntityId::Edge(link.edge);
-    let (carrier, t0, t1) = link_carrier(body, link.edge)?;
+    let (carrier, t0, t1) = carrier_of(body, link.edge)?;
     let p = carrier.eval(geom::mid_param(t0, t1));
     let off_trim = || disagrees(at, "a link's trimline is neither a line nor a circle");
     let fa = foot_on(&link.blend.trim_a.0, p).ok_or_else(off_trim)?;
@@ -2003,9 +2003,7 @@ fn boundary_reading<T: Decide>(
                 .get_half_edge(he)
                 .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face's boundary"))?
                 .edge;
-            let Some((c, t0, t1)) = carrier_of(body, edge) else {
-                continue;
-            };
+            let (c, t0, t1) = carrier_of(body, edge)?;
             for i in 0..EDGE_SAMPLES {
                 fold(c.eval(geom_brep::schedule_param(t0, t1, i, EDGE_SAMPLES)));
             }
@@ -2106,7 +2104,7 @@ fn prism_inside<T: Decide>(
             let w = body
                 .half_edge_end(he)
                 .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face edge's end"))?;
-            let Some((Curve3::Line { dir, .. }, _, _)) = carrier_of(body, edge) else {
+            let (Curve3::Line { dir, .. }, _, _) = carrier_of(body, edge)? else {
                 return Ok(None);
             };
             if !ring_vertices.contains(&u) || !ring_vertices.contains(&w) {
@@ -2394,7 +2392,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     let boxes = FaceBoxes::of(body, band).map_err(|e| {
         degenerate(
             EntityId::Face(e.0),
-            "a face's cylinder carrier, which its box reads",
+            "a face's stored surface, which its box reads",
         )
     })?;
     // Two chains that share a vertex meet there in a corner or a turn,

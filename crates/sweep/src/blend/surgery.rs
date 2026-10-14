@@ -273,7 +273,8 @@ pub(super) fn disagrees(at: EntityId, detail: &'static str) -> BlendError {
 
 /// **Row 1**, construction scaffolding at `at`: an edge with no
 /// certified carrier, or a lone-vertex cycle. Tier 2 refuses both at
-/// rest, so no operand a door admits reaches it.
+/// rest, so the build doors never reach it; a direct battery caller
+/// ([`super::battery::run_battery_for`]) reads a raw body and does.
 pub(super) fn scaffolding(at: EntityId, detail: &'static str) -> BlendError {
     let breach = Breach::Scaffolding;
     BlendError::BodyNotIntact { at, breach, detail }
@@ -2229,12 +2230,7 @@ fn metered_piece<'b, T: Decide>(
     opens: &[AdmittedOpen<'_, T>],
     rims: &[RimPlan<'_, T>],
 ) -> Result<MeteredPiece<'b, T>, BlendError> {
-    let Some((stored, window)) = stored_piece(body, edge)? else {
-        return Err(scaffolding(
-            EntityId::Edge(edge),
-            "a support's boundary edge carries no certified carrier",
-        ));
-    };
+    let (stored, window) = stored_piece(body, edge)?;
     Ok(
         match co_requested_trim(edge, face, stored, window, opens, rims)? {
             Some((trim, w)) => (Cow::Owned(trim), w),
@@ -2416,29 +2412,32 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 /// covers.
 pub(super) type Piece<'b, T> = (&'b Curve3<T>, (T, T));
 
-/// **An edge's stored carrier and window**, where its geometry is
-/// certified: the point set every clearance below reads is the carrier
-/// over that window, never the whole carrier.
-///
-/// # Errors
-///
-/// [`BlendError::BodyNotIntact`] when the edge or its curve row does
-/// not resolve; `None` for a null edge, which the caller refuses as
-/// [`scaffolding`] in its own words.
-pub(super) fn stored_piece<T: Decide>(
+/// **An edge's certified carrier as stored**, each way of having none
+/// refused as itself: an edge or a curve row that does not resolve is
+/// [`unresolved`]; a null edge, which has no carrier by type, is
+/// [`scaffolding`].
+pub(super) fn certified_curve<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
-) -> Result<Option<Piece<'_, T>>, BlendError> {
+) -> Result<&topo::EdgeCurve<T>, BlendError> {
+    let at = EntityId::Edge(edge);
     let e = body
         .get_edge(edge)
-        .ok_or_else(|| unresolved(EntityId::Edge(edge), "a boundary edge a clearance reads"))?;
-    let geom = body.get_curve_geom(e.curve).ok_or_else(|| {
-        unresolved(
-            EntityId::Edge(edge),
-            "a boundary edge's curve row a clearance reads",
-        )
-    })?;
-    Ok(geom.certified().map(|c| (c.carrier(), c.params())))
+        .ok_or_else(|| unresolved(at, "an edge the blend reads"))?;
+    body.get_curve_geom(e.curve)
+        .ok_or_else(|| unresolved(at, "an edge's curve row"))?
+        .certified()
+        .ok_or_else(|| scaffolding(at, "an edge carries no certified carrier"))
+}
+
+/// **An edge's stored carrier and window** ([`certified_curve`]): the
+/// point set every clearance below reads is the carrier over that
+/// window, never the whole carrier.
+pub(super) fn stored_piece<T: Real>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Result<Piece<'_, T>, BlendError> {
+    certified_curve(body, edge).map(|c| (c.carrier(), c.params()))
 }
 
 /// **How near and how far one boundary piece comes to a point `c`**:
@@ -2756,7 +2755,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
         .collect();
     for o in opens {
         let l = o.link();
-        let mid = edge_midpoint(body, l.edge)?;
+        let mid = certified_curve(body, l.edge)?.mid_point();
         for face in [l.face_a, l.face_b] {
             let (origin, _) = open_trimline(l, face)?;
             // The inward unit: from the sharp edge toward the trim,
@@ -2768,7 +2767,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             // battery seeds `plane_plane_blend` with the carrier
             // evaluated at `(t0 + t1)/2`, the trim origin is that point
             // displaced by a combination of the two support normals
-            // (both ⊥ the tangent `dir`), and `edge_midpoint` above
+            // (both ⊥ the tangent `dir`), and `mid_point` above
             // reproduces the SAME `(t0 + t1)/2` construction on the
             // same stored carrier — so `origin - mid` is purely
             // transverse by shared construction, never by
@@ -2848,13 +2847,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 if s.rims.contains(&edge) {
                     continue;
                 }
-                let Some((carrier, window)) = stored_piece(body, edge)? else {
-                    return Err(scaffolding(
-                        EntityId::Edge(edge),
-                        "a cycle edge of an end face beside a cut-off carries no certified \
-                         carrier",
-                    ));
-                };
+                let (carrier, window) = stored_piece(body, edge)?;
                 let margin = s.clearance(carrier, window).ok_or_else(|| {
                     unbuilt_geometry(
                         EntityId::Edge(edge),
@@ -3030,13 +3023,7 @@ fn strip_clearance<T: Decide + Bounds>(
             {
                 continue;
             }
-            let Some((carrier, window)) = stored_piece(body, edge)? else {
-                return Err(scaffolding(
-                    EntityId::Edge(edge),
-                    "a boundary edge of a planar support beside a requested edge's strip carries \
-                     no certified carrier",
-                ));
-            };
+            let (carrier, window) = stored_piece(body, edge)?;
             let reach = |u: Vec3<T>| match carrier {
                 Curve3::Line { .. } | Curve3::Circle { .. } => piece_along(carrier, window, o, u),
                 Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
@@ -3120,12 +3107,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         }
         seen.push(face);
         let ((ci, si), _) = rim_trim_circles(l.edge, &l.blend, l.face_a == face)?;
-        let Some((rim_carrier, _)) = stored_piece(body, l.edge)? else {
-            return Err(scaffolding(
-                EntityId::Edge(l.edge),
-                "a rim arc carries no certified carrier",
-            ));
-        };
+        let (rim_carrier, _) = stored_piece(body, l.edge)?;
         let Some(rim_frame) = CircleFrame::of(rim_carrier) else {
             return Err(unbuilt_geometry(
                 EntityId::Edge(l.edge),
@@ -3401,22 +3383,6 @@ fn boxed_reach<T: Bounds>(
     }
 }
 
-/// A link edge's midpoint (the trimline inward direction's anchor).
-fn edge_midpoint<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Result<Point3<T>, BlendError> {
-    let at = EntityId::Edge(edge);
-    let e = body
-        .get_edge(edge)
-        .ok_or_else(|| unresolved(at, "a link edge, for its midpoint"))?;
-    let Some(c) = body
-        .get_curve_geom(e.curve)
-        .ok_or_else(|| unresolved(at, "a link edge's curve row, for its midpoint"))?
-        .certified()
-    else {
-        return Err(scaffolding(at, "a link edge carries no certified carrier"));
-    };
-    Ok(c.mid_point())
-}
-
 // ------------------------------------------------------------------
 // The description pass's vocabulary: what every phase — the two open
 // bands in `open/` and the two rim phases below — records for
@@ -3474,18 +3440,9 @@ fn rim_carrier<T: Decide>(
     let ed = body
         .get_edge(e)
         .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge"))?;
+    let c = certified_curve(body, e)?;
     let host_half = host_side_half(body, link, host)
         .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's host-side half"))?;
-    let Some(c) = body
-        .get_curve_geom(ed.curve)
-        .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's curve row"))?
-        .certified()
-    else {
-        return Err(scaffolding(
-            EntityId::Edge(e),
-            "a rim edge carries no certified carrier",
-        ));
-    };
     let Curve3::Circle { axis, u_ref, .. } = *c.carrier() else {
         return Err(unbuilt_geometry(
             EntityId::Edge(e),
@@ -3621,19 +3578,7 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
     seam: EdgeKey,
     target: Point3<T>,
 ) -> Result<Option<T>, BlendError> {
-    let sd = body
-        .get_edge(seam)
-        .ok_or_else(|| unresolved(EntityId::Edge(seam), "a support edge the band splits"))?;
-    let Some(sc) = body
-        .get_curve_geom(sd.curve)
-        .ok_or_else(|| unresolved(EntityId::Edge(seam), "a split support edge's curve row"))?
-        .certified()
-    else {
-        return Err(scaffolding(
-            EntityId::Edge(seam),
-            "a support edge the band splits carries no certified carrier",
-        ));
-    };
+    let sc = certified_curve(body, seam)?;
     let (st0, st1) = sc.params();
     // THE PERIOD GUARD, and it is CHECKED rather than assumed — the
     // function docs derive why it is what makes the principal branch
@@ -5691,49 +5636,17 @@ mod tests {
         );
     }
 
-    /// **Scaffolding and a degenerate carrier each refuse as their own
-    /// breach**, never as an unsupported shape with the shape recourse.
-    /// A null edge mev'd off a cube corner reaches `split_param_in_span`
-    /// with no certified carrier (`Scaffolding`); a cube face re-charted
-    /// onto a cylinder whose axis has no length reaches the band reach's
-    /// face boxes (`Degenerate`). Neither is reachable through a door:
-    /// tier 2 refuses the null edge, and no finishing door mints a
-    /// zero-axis cylinder.
+    /// **A degenerate carrier refuses as its own breach**, never as a
+    /// disagreement or an unsupported shape with the shape recourse: a
+    /// cube face re-charted onto a cylinder whose axis has no length
+    /// reaches the band reach's face boxes. No door reaches it — the
+    /// at-rest gate refuses the chart, and the battery passes it — so
+    /// the row is crate-internal. Scaffolding's row is public
+    /// (`scaffolding_on_a_blend_support_face_does_not_finish`).
     #[test]
-    fn scaffolding_and_a_degenerate_carrier_refuse_as_their_own_breach() {
+    fn a_degenerate_carrier_refuses_as_its_own_breach() {
         let tail = "so the body is not intact there. There is no way through";
         let shape = crate::blend::FILLET3_GEOMETRY_RECOURSE;
-
-        let mut body: topo::Body<f64> = cube(L, Tol::witness());
-        let v = body.vertices().next().map(|(k, _)| k).expect("a vertex");
-        let he = body.get_vertex(v).and_then(|d| d.emanating).expect("a fan");
-        let null = body
-            .mev_null(
-                topo::MevSite::Fan { he1: he, he2: he },
-                topo::NewVertexSide::Below,
-            )
-            .expect("a null strut mev's off a cube corner")
-            .edge;
-        let Err(e) = super::split_param_in_span(&body, null, Point3::origin()) else {
-            panic!("a null edge has no carrier to split");
-        };
-        assert!(
-            matches!(
-                e,
-                BlendError::BodyNotIntact {
-                    breach: Breach::Scaffolding,
-                    ..
-                }
-            ),
-            "a null edge is Scaffolding: {e:?}"
-        );
-        let text = e.to_string();
-        assert!(
-            text.ends_with(&format!(
-                "is construction scaffolding a finished body does not hold, {tail}"
-            )) && !text.contains(shape),
-            "{text}"
-        );
 
         let mut body = cube(L, Tol::witness());
         let link = crate::test_support::all_links(&body, Tol::witness())

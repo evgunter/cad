@@ -2788,7 +2788,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             E::BodyNotIntact {
                 at: EntityId::Face(face),
                 breach: Breach::Degenerate,
-                detail: "a face's cylinder carrier, which its box reads",
+                detail: "a face's stored surface, which its box reads",
             },
         ),
         (
@@ -5421,7 +5421,7 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
             ("UnsupportedChain", "unbuilt_chain"),
             ("UnsupportedRunOut", "unbuilt_run_out"),
             ("UnsupportedGeometry", "unbuilt_geometry"),
-            ("BodyNotIntact", "disagrees"),
+            ("BodyNotIntact", longest_breach()),
         ] {
             let needle = format!("{arm} {{");
             for (at, _) in code.match_indices(&needle) {
@@ -5455,6 +5455,39 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
         }
     }
     out
+}
+
+/// The helper of the breach whose `BodyNotIntact` rendering is longest,
+/// measured rather than assumed, so a kind added or reworded moves it.
+/// The match is exhaustive: a new kind does not compile here until it
+/// is named, and then belongs in the list.
+fn longest_breach() -> &'static str {
+    use sweep::blend::{BlendError, Breach};
+    let helper = |breach| match breach {
+        Breach::Unresolved => "unresolved",
+        Breach::Unwalked => "unwalked",
+        Breach::Disagrees => "disagrees",
+        Breach::Scaffolding => "scaffolding",
+        Breach::Degenerate => "degenerate",
+    };
+    let at = topo::EntityId::Face(topo::FaceKey::default());
+    [
+        Breach::Unresolved,
+        Breach::Unwalked,
+        Breach::Disagrees,
+        Breach::Scaffolding,
+        Breach::Degenerate,
+    ]
+    .into_iter()
+    .max_by_key(|&breach| {
+        let detail = "";
+        BlendError::BodyNotIntact { at, breach, detail }
+            .to_string()
+            .split_whitespace()
+            .count()
+    })
+    .map(helper)
+    .expect("a breach to measure")
 }
 
 /// A plain Rust string literal's value: `\`-newline continuations and

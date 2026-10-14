@@ -49,9 +49,8 @@ use crate::blend::naming::BlendNaming;
 use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
     ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, disagrees, face_of_half,
-    halves_of, op, piece_along, piece_distance, point_of, retire_fragment, scaffolding,
-    split_fragment, split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out,
-    unresolved,
+    halves_of, op, piece_along, piece_distance, point_of, retire_fragment, split_fragment,
+    split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out, unresolved,
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, classify};
 
@@ -1028,12 +1027,7 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
             foot_param(body, rim, v0, f0)?,
             foot_param(body, rim, v1, f1)?,
         );
-        let Some((carrier, _)) = stored_piece(body, rim)? else {
-            return Err(scaffolding(
-                EntityId::Edge(rim),
-                "an end face's rim carries no certified carrier",
-            ));
-        };
+        let (carrier, _) = stored_piece(body, rim)?;
         let rate = match *carrier {
             Curve3::Line { .. } => InfSpeed::new(T::one()),
             Curve3::Circle { radius, .. } => InfSpeed::new(radius),
@@ -1093,12 +1087,7 @@ fn rim_piece<T: Decide + Bounds>(
         .get_edge(rim)
         .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?
         .he_plus;
-    let Some((carrier, (t0, t1))) = stored_piece(body, rim)? else {
-        return Err(scaffolding(
-            EntityId::Edge(rim),
-            "an end face's rim carries no certified carrier",
-        ));
-    };
+    let (carrier, (t0, t1)) = stored_piece(body, rim)?;
     let t = foot_param(body, rim, vertex, foot)?;
     if body.get_half_edge(he_plus).map(|h| h.start) == Some(vertex) {
         Ok((carrier, (t0, t)))

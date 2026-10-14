@@ -24,8 +24,10 @@ recourse does not address:
   `SurgeryInvariant`; it is not a shape.
 - `surgery.rs` `split_param_in_span`: "a split edge's stored window is not
   under one period" is met by a circle or ellipse edge whose window spans a
-  whole period — a carrier kind the recourse names as read, so following
-  the sentence changes nothing.
+  whole period. For a circle, a carrier kind the recourse names as read,
+  following the sentence changes nothing. For an ellipse the recourse does
+  partly apply, since it names only lines and circles, but it misses the
+  fact the site met: the window, not the kind.
 
 ## What the taker owes
 

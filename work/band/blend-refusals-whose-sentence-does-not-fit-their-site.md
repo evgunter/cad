@@ -24,18 +24,21 @@ Two blend sites whose refusal sentence does not fit what they met, left by PR 50
 `Breach` carries two more kinds (`crates/sweep/src/blend/mod.rs`), each
 with its own constructor in `surgery.rs`: `Scaffolding` — "{at} is
 construction scaffolding a finished body does not hold" (`scaffolding`),
-for a null edge with no certified carrier or a lone-vertex cycle; and
-`Degenerate` — "{at}'s stored carrier is degenerate under the run's band"
-(`degenerate`), for the face-box read in `reach.rs` `band_reach` that a
-cylinder with no decided axis or radius length refuses. Every site that
-met a null edge or a lone-vertex cycle and rendered `UnsupportedGeometry`
-with the shape recourse (`surgery.rs`, `open/end_face.rs`, `battery.rs`
-`screened_loop`) now refuses `BodyNotIntact`/`Scaffolding` with no
-recourse; the reads that folded an unresolved curve row or a null edge
-into one `None` (`stored_piece`, `rim_carrier`, `split_param_in_span`,
-`edge_midpoint`, `reach.rs` `station`, and the battery's four
-`ChainNotConnected` folds, now `battery::link_carrier`) refuse each cause
-as itself. Rows: `body_not_intact_renders_each_breach_as_its_own_cause`
-pins the texts; `scaffolding_and_a_degenerate_carrier_refuse_as_their_own_breach`
-reaches one real refusal per new kind. The sweep's out-of-fence residue
-is `blend-two-geometry-refusals-meet-no-shape`.
+for a null edge with no certified carrier or a lone-vertex cycle, ending
+in the recourse the at-rest gate gives the same state
+(`topo::Unfinished::SCAFFOLDING_RECOURSE`); and `Degenerate` — "{at}'s
+stored carrier is degenerate under the run's band" (`degenerate`), for the
+face-box read in `reach.rs` `band_reach`. Every site that met a null edge
+or a lone-vertex cycle and rendered `UnsupportedGeometry` with the shape
+recourse (`surgery.rs`, `open/end_face.rs`, `battery.rs` `screened_loop`)
+now refuses `BodyNotIntact`/`Scaffolding`. Every read of an edge's
+carrier goes through `surgery::certified_curve`, which refuses an edge or
+curve row that does not resolve as `unresolved` and a null edge as
+`scaffolding`, where reads used to fold those into one `None` or into
+`ChainNotConnected`. Rows: `body_not_intact_renders_each_breach_as_its_own_cause`
+pins the texts; `the_raw_battery_refuses_a_null_strut_as_scaffolding_with_the_doors_advice`
+reaches `Scaffolding` through the public `run_battery_for`, and
+`a_degenerate_carrier_refuses_as_its_own_breach` reaches `Degenerate`
+crate-internally (no door admits its body). The residue is
+`blend-two-geometry-refusals-meet-no-shape` and
+`blend-reach-may-refuse-a-valid-thin-cylinder-as-degenerate`.
