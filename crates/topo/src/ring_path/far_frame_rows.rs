@@ -697,7 +697,9 @@ fn a_torus_circle_the_section_lane_mints_in_the_box_reads_its_kind_at_the_origin
     }
     let mut by_class = std::collections::BTreeMap::<&str, usize>::new();
     for o in &other_section {
-        *by_class.entry(o.split(" at ").next().unwrap_or(o)).or_default() += 1;
+        *by_class
+            .entry(o.split(" at ").next().unwrap_or(o))
+            .or_default() += 1;
     }
     assert!(
         other_section.is_empty(),
