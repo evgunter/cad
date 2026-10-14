@@ -1041,3 +1041,11 @@ Signed (CLEAVE orchestrator).
   - Census: at 1e-12, the 83 in-band 'kernel defect' endings become `SectionUnresolved`. Nothing newly refuses or builds at any ε, and M1–M4 are red.
   - Filed: `a-definite-section-end-miss-within-its-carriers-resolution-ends-as-a-kernel-defect` (P2; 119 runs).
   - Full review dispatched: soundness of the bound (is 32 derived?), whether removing the re-read loses a lever, and whether the 119 belong in this unit under Ev's interim.
+- 2026-10-14 — PR 5100 fix pass green (`9c363d9d94`).
+  - The pin asserts `ResultNotAtRest` exactly; all three mutants are red.
+  - One renderer, `write_result_not_at_rest`.
+  - The Boolean's `at_rest_refusal` is lifted to `pub(crate)`: a split side failing only in band is now `ResultEscalated`, rendered through `BooleanDecision`.
+  - 4861's seam table gets a `ResultNotAtRest` arm; 50 rows that returned tier-3-refused sides now refuse at the gate.
+  - Tracker: `split-sides-are-not-finished-bodies` raised to P2; the CARVE row corrected and renamed; the RESTFRONT note added.
+  - Filed: CLEAVE P2 `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out` (40 of 784 at 1e-9) and P3 `the-at-rest-result-gate-and-its-typing-live-in-five-homes`.
+  - Narrow re-review resumed.
