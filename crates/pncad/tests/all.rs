@@ -374,6 +374,8 @@ fn breach_is_matchable(breach: Breach) -> &'static str {
         Breach::Unresolved => "unresolved",
         Breach::Unwalked => "unwalked",
         Breach::Disagrees => "disagrees",
+        Breach::Scaffolding => "scaffolding",
+        Breach::Degenerate => "degenerate",
     }
 }
 

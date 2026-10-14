@@ -66,6 +66,33 @@ pub enum Contact<T> {
     End,
 }
 
+/// A [`Contact`] that places the point on the span: what a meeting
+/// holds on each side.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Hit<T> {
+    /// [`Contact::On`].
+    On {
+        /// The parameter, on the branch about the span's middle.
+        t: T,
+        /// The carrier reading's margin.
+        margin: MarginDiag,
+    },
+    /// [`Contact::End`].
+    End,
+}
+
+impl<T> Contact<T> {
+    /// The contact as a [`Hit`], or `None` where it places the point off
+    /// the span.
+    pub fn hit(self) -> Option<Hit<T>> {
+        match self {
+            Self::On { t, margin } => Some(Hit::On { t, margin }),
+            Self::End => Some(Hit::End),
+            Self::Off | Self::Carrier => None,
+        }
+    }
+}
+
 /// One end of a span against a point on its carrier.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum EndSide {
@@ -127,6 +154,19 @@ impl<'a, T: Decide> Span<'a, T> {
             }
             Curve3::Line { .. } | Curve3::Nurbs(_) => t,
         }
+    }
+
+    /// **The parameters a shared run of this span and another is read
+    /// at**: this span's middle, and halfway between each of its ends and
+    /// each of `feet`, the feet on this carrier of the other span's ends.
+    /// A positive-length overlap of the two spans holds one of them.
+    pub fn witness_params(&self, feet: impl IntoIterator<Item = T>) -> Vec<T> {
+        let mut ts = vec![geom::mid_param(self.t0, self.t1)];
+        for t in feet {
+            let t = self.branch(t);
+            ts.extend([geom::mid_param(self.t0, t), geom::mid_param(t, self.t1)]);
+        }
+        ts
     }
 
     /// **Where `q`, read at the carrier's parameter `t`, sits against the

@@ -96,6 +96,7 @@ pub mod ssi;
 pub mod tangent;
 pub mod torus_convention;
 
+pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
     IntersectionDraft, NurbsLane, edge_extent, folded_parallelism, sample_param, schedule_param,
@@ -106,11 +107,12 @@ pub use description::{
 };
 pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, DihedralReading, MATERIAL_PAIRING,
-    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MustCarryDescription,
-    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder, SecondOrderWalk,
-    SmoothJoin, Station, StationHook, classify_dihedral, classify_material_pairing,
-    classify_material_pairing_as, folded_lever_arm, interior_stations, material_kappa_rel,
-    must_carry_description, must_carry_over_edge, second_order_walk, tangent_second_order,
+    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations, MustCarryDescription,
+    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, RestLocus, SecondOrder,
+    SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
+    classify_dihedral_reported, classify_material_pairing, classify_material_pairing_as,
+    folded_lever_arm, interior_stations, material_kappa_rel, must_carry_description,
+    must_carry_over_edge, reask_pair, second_order_walk, tangent_second_order,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
@@ -170,9 +172,9 @@ pub use pcurve_cache::{
     BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
     FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS,
     NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
-    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WallTorus,
+    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, whole_period_count, whole_periods,
+    chart_stretch_sup_v, whole_period_count, whole_period_walk, whole_periods,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

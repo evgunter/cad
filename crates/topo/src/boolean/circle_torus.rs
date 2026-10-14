@@ -134,7 +134,7 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{
-    CircleRoots, constant_residual_roots, door_half_angle_roots, door_refusal, span_signs,
+    CircleRoots, constant_residual_roots, door_half_angle_roots, door_refusal,
 };
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
@@ -538,7 +538,7 @@ fn parallel_axes_roots<T: Decide>(
     let two = T::from_f64(2.0);
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let depth = (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius);
-    match span_signs("bool_circle_torus_plane_height", depth, charge_h, band)? {
+    match geom_brep::roots::spread_signs("bool_circle_torus_plane_height", depth, charge_h, band)? {
         (Sign::Positive, _) => {}
         // Definitely past the top or bottom of the tube, even charged.
         (_, Sign::Negative) => return Ok(CircleRoots::Miss),
@@ -561,7 +561,12 @@ fn parallel_axes_roots<T: Decide>(
             torus,
             center + u_ref * (radius * c) + v_ref * (radius * s),
         );
-        match span_signs("bool_circle_torus_contour_residual", res, charge, band)? {
+        match geom_brep::roots::spread_signs(
+            "bool_circle_torus_contour_residual",
+            res,
+            charge,
+            band,
+        )? {
             (_, Sign::Negative) => return Ok(Some(Band3::Tube)),
             (Sign::Positive, _) => {}
             _ => return Ok(None),
