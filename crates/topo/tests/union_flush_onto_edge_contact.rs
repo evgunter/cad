@@ -946,12 +946,18 @@ fn three_pieces_two_of_whose_cuts_tie_build_in_every_op() {
 /// at the new pinch end.** The 80°–190° wedge sheared off the axis, so
 /// the pinch line runs inside its corner and leaves through its top
 /// face, and a brick holding the axis, which its top face crosses. Each
-/// op builds, the sheared one's volumes agreeing with each other, and
-/// passes 3′: where a result keeps the pinch's two pieces at the top
-/// face's crossing, the carried edge-edge row's split lineage records
-/// the two split vertices there. Red if the pinch records no edge-edge
-/// row, or the row is not carried: 3′ refuses `VertexVertex` at
-/// (0,0,1) in `pinch ∖ cutter`, both intersections and `block ∩ pinch`.
+/// op but `cutter ∖ pinch` builds, the sheared one's volumes agreeing
+/// with each other, and passes 3′: where a result keeps the pinch's two
+/// pieces at the top face's crossing, the carried edge-edge row's split
+/// lineage records the two split vertices there. Red if the pinch
+/// records no edge-edge row, or the row is not carried: 3′ refuses
+/// `VertexVertex` at (0,0,1) in `pinch ∖ cutter`, both intersections and
+/// `block ∩ pinch`.
+///
+/// `cutter ∖ pinch` keeps the pinch line inside the cutter, where the
+/// complement of the pinch's two quadrants is the other two: the
+/// pinch's two edges re-pair across the bricks, which ∖ does not build,
+/// so it refuses `BooleanError::Revert`.
 #[test]
 fn a_pinch_line_through_a_face_keeps_its_records_at_the_new_end() {
     let tol = Tol::witness();
@@ -1005,9 +1011,16 @@ fn a_pinch_line_through_a_face_keeps_its_records_at_the_new_end() {
         intersect_in(&pinch.body, &cutter, &ab, tol),
     );
     let swapped = volume_of("cutter ∪ pinch", union_in(&cutter, &pinch.body, &ba, tol));
-    let cutter_less = volume_of(
-        "cutter ∖ pinch",
-        subtract_in(&cutter, &pinch.body, &ba, tol),
+    let refusal = subtract_in(&cutter, &pinch.body, &ba, tol);
+    assert!(
+        matches!(
+            refusal,
+            Err(BooleanError::Revert {
+                operand: topo::Operand::B,
+                ..
+            })
+        ),
+        "cutter ∖ pinch: {refusal:?}, not the revert's refusal"
     );
     let common_swapped = volume_of(
         "cutter ∩ pinch",
@@ -1017,7 +1030,6 @@ fn a_pinch_line_through_a_face_keeps_its_records_at_the_new_end() {
     let cutter_volume = area(&triangle(80.0, 190.0)) * 0.5;
     for (what, got, want) in [
         ("pinch ∖ cutter + ∩", pinch_less + common, 2.0),
-        ("cutter ∖ pinch + ∩", cutter_less + common, cutter_volume),
         ("∪", union, 2.0 + cutter_volume - common),
         ("∪ swapped", swapped, union),
         ("∩ swapped", common_swapped, common),

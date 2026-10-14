@@ -4877,6 +4877,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rest_piece_unread",
             "result_invalid",
             "result_volume_implausible",
+            "revert",
             "rim_cusp_arm_unbuilt",
             "scaffolding_operand",
             "seam_orientation",
