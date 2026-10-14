@@ -210,7 +210,11 @@ fn an_edge_split_and_merged_away_in_one_step_records_its_parent() {
     let tol = Tol::witness();
     let plate: topo::AtRestBody<f64> =
         finished("plate", brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol), tol);
-    let pocket = finished("pocket", brick((1.0, 3.0), (1.0, 3.0), (0.5, 2.0), tol), tol);
+    let pocket = finished(
+        "pocket",
+        brick((1.0, 3.0), (1.0, 3.0), (0.5, 2.0), tol),
+        tol,
+    );
     let slot = finished("slot", brick((2.0, 5.0), (1.5, 2.5), (0.5, 2.0), tol), tol);
     let pocketed = match subtract(&plate, &pocket, tol) {
         Ok(BooleanResult::Body(r)) => r,
