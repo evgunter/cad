@@ -38,20 +38,51 @@ fn cylinder(phi: f64) -> AtRestBody<f64> {
     AtRestBody::validate(turned, tol()).expect("the turned cylinder is finished")
 }
 
-/// The two findings the ellipse's centre-form rounding, amplified by its
-/// semi-major axis `1/sin ψ`, reaches at rest: the wall's loop that
-/// does not close within the band at `v` (check 7), and a frame whose
-/// rounding the arm lifts past ε (check 1,
-/// `ValidationError::UnrepresentableCurveDatum`).
+/// The findings the ellipse's centre-form rounding, amplified by its
+/// semi-major axis `1/sin ψ`, reaches at rest, each ending as the
+/// carrier's own limit and never with a lever:
+///
+/// - check 7, the wall's loop read not closed within the band at `v`
+///   (`PropsCheck::Inventory`): "no way through yet";
+/// - check 7, the wall's quadrature budget spent: loosening as the last
+///   resort;
+/// - check 1, a frame whose rounding the arm lifts past ε
+///   (`UnrepresentableCurveDatum` on the ellipse's `u_ref`), which still
+///   ends as a defect
+///   (`work/restfront/tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis.md`).
 fn carrier_resolution(e: &ValidationError) -> bool {
-    matches!(
-        e,
-        ValidationError::VolumeUncomputable { .. }
-            | ValidationError::UnrepresentableCurveDatum {
-                kind: geom::CurveKind::Ellipse,
-                ..
-            }
-    )
+    use geom_brep::props::{PropsCheck, PropsError};
+    use topo::MassPropsError;
+    let msg = e.to_string();
+    let ending = match e {
+        ValidationError::VolumeUncomputable {
+            source:
+                MassPropsError::Face {
+                    source:
+                        PropsError::Escalated {
+                            check: PropsCheck::Inventory,
+                            ..
+                        },
+                    ..
+                },
+            ..
+        } => msg.contains(geom_core::NOT_YET_ENDING),
+        ValidationError::VolumeUncomputable {
+            source:
+                MassPropsError::Face {
+                    source: PropsError::QuadratureBudget { .. },
+                    ..
+                },
+            ..
+        } => msg.ends_with(geom_core::KERNEL_LIMIT_LAST_RESORT),
+        ValidationError::UnrepresentableCurveDatum {
+            kind: geom::CurveKind::Ellipse,
+            datum: geom::CurveDatum::URef,
+            ..
+        } => true,
+        _ => false,
+    };
+    ending && !msg.contains("tighten") && !msg.contains("move the")
 }
 
 /// Every pose: `φ` (the seam's azimuth), `ψ` (the tilt), `L` (the stored
@@ -99,26 +130,48 @@ fn a_split_through_a_seam_vertex_returns_no_side_tier_three_refuses() {
                             refused_at_rest += 1;
                             assert!(
                                 !errors.is_empty() && errors.iter().all(carrier_resolution),
-                                "{pose}: the gate's findings are the ellipse's own rounding, \
-                                 not {errors:?}"
+                                "{pose}: every finding is the ellipse's own rounding, ending \
+                                 with no lever: {errors:?}"
                             );
                             let msg = err.to_string();
                             assert!(
                                 msg.contains("did not pass the at-rest gate")
-                                    && !msg.contains("tighten")
-                                    && !msg.contains("move the"),
-                                "{pose}: a miss of the carrier's own offers no lever: {msg}"
+                                    && msg.ends_with(&errors[0].to_string()),
+                                "{pose}: the refusal renders its first finding whole: {msg}"
                             );
                         }
-                        Err(err) => assert!(
-                            psi < 1e-3,
-                            "{pose}: a tilt of 10⁻³ off the wall builds at every ε row: {err:?}"
-                        ),
+                        Err(err) => {
+                            assert!(
+                                psi < 1e-3,
+                                "{pose}: a tilt of 10⁻³ off the wall builds at every ε row: \
+                                 {err:?}"
+                            );
+                            assert!(
+                                !matches!(
+                                    err,
+                                    SplitError::Finish(
+                                        SplitFinishError::ResultInvalid { .. }
+                                            | SplitFinishError::ResultEscalated { .. }
+                                    )
+                                ),
+                                "{pose}: a side the at-rest gate refuses on the carrier's \
+                                 findings is `ResultNotAtRest`: {err:?}"
+                            );
+                        }
                     }
                 }
             }
         }
     }
     assert!(answered >= 20, "the ψ = 10⁻³ poses answer: {answered}");
+    // Measured: 26 at ε = 1e-9, 28 at 1e-12, none at 1e-6, where
+    // the semi-axis's rounding stays inside ε.
+    if tol().eps() <= 1e-9 {
+        assert!(
+            refused_at_rest > 0,
+            "the witness poses reach the at-rest gate at ε = {:e}",
+            tol().eps()
+        );
+    }
     eprintln!("answered {answered}, refused at the at-rest gate {refused_at_rest}");
 }

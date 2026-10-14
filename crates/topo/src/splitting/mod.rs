@@ -1114,8 +1114,11 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// ([`SplitFinishError::ResultInvalid`]) and, as sorted into its
 /// solids, at the scalar's at-rest gate
 /// ([`crate::AtRestPolicy::gate_at_rest`], the gate the Boolean's result
-/// passes; [`SplitFinishError::ResultNotAtRest`]), so no side is
-/// returned that [`crate::validate_geometric`] refuses. A pinch side's
+/// passes, its findings typed as the Boolean types them:
+/// [`SplitFinishError::ResultEscalated`] for shells in band,
+/// [`SplitFinishError::ResultNotAtRest`] otherwise). So at a certifying
+/// scalar no side is returned that [`crate::validate_geometric`]
+/// refuses; at a dual the gate runs nothing beyond tier 2. A pinch side's
 /// touching pieces need no contact record, since their copies of the
 /// pinched vertex share its point key, and the ON verdict that pinched
 /// them is in [`SplitResult::coincidences`].
@@ -1144,8 +1147,20 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
         if let finish::SplitPart::Body(body) = part {
             crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), None)
                 .map_err(SplitError::Pieces)?;
-            T::gate_at_rest(body, tol)
-                .map_err(|errors| SplitFinishError::ResultNotAtRest { side, errors })?;
+            T::gate_at_rest(body, tol).map_err(|errors| match crate::validate::at_rest_refusal(
+                errors,
+            ) {
+                crate::validate::AtRestRefusal::InBand { decision, diag } => {
+                    SplitFinishError::ResultEscalated {
+                        side,
+                        decision,
+                        diag,
+                    }
+                }
+                crate::validate::AtRestRefusal::Kernel(errors) => {
+                    SplitFinishError::ResultNotAtRest { side, errors }
+                }
+            })?;
         }
     }
     Ok(result)

@@ -142,7 +142,8 @@ use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{
-    AtRestBody, InBandShell, ValidationError, decide, scaffolds_at_rest, validate, validate_closed,
+    AtRestBody, AtRestRefusal, ValidationError, decide, scaffolds_at_rest, validate,
+    validate_closed,
 };
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
@@ -5090,173 +5091,14 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     Ok(kept)
 }
 
-/// **How the finished-body gate types what it found** (D10, Booleans):
-/// a result holds no in-band pair or shell, and one that does is the
-/// operands' ill-conditioning, which definite cuts can compose. So where
-/// every finding is born of a margin certified in band, the refusal is
-/// [`BooleanError::Escalated`] on the shell whose certified enclosure
-/// binds the offer (nearest zero: a tolerance deciding it decides every
-/// other), naming how many more lie in band; its recourse is a smaller
-/// tolerance or moved parts. Any other finding is the kernel's own
-/// defect, and the refusal is [`BooleanError::ResultInvalid`] carrying
-/// every finding. Each finding's arm is [`finding_arm`]'s.
+/// **How the finished-body gate's refusal reads at the Boolean**: the
+/// shared typing ([`crate::validate::at_rest_refusal`]), an in-band shell
+/// as [`BooleanError::Escalated`] on [`BooleanDecision::ShellRole`] and
+/// the kernel's findings as [`BooleanError::ResultInvalid`].
 fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
-    let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
-    in_band
-        .and_then(|shells| escalated(&shells))
-        .unwrap_or(BooleanError::ResultInvalid { errors })
-}
-
-/// The refusal for `shells`, the result's in-band shells: on the one
-/// whose enclosure binds the offer, naming how many more there are.
-/// `None` where there are none.
-fn escalated(shells: &[InBandShell]) -> Option<BooleanError> {
-    let binding = shells.iter().copied().reduce(|a, b| {
-        if a.sliver
-            .reading()
-            .margin
-            .binds_before(b.sliver.reading().margin)
-        {
-            a
-        } else {
-            b
-        }
-    })?;
-    Some(BooleanError::Escalated {
-        decision: BooleanDecision::ShellRole {
-            solid: binding.solid,
-            shell: binding.shell,
-            others: shells.len() - 1,
-        },
-        diag: *binding.sliver.reading(),
-    })
-}
-
-/// **Which of Q1's arms one finding of the finished-body gate is**: the
-/// shell and certified margin of a finding certified in band, or `None`
-/// for the kernel's. Every finding states its arm here.
-fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
-    use crate::props::ShellClassifyError;
-    use ValidationError as V;
-    match finding {
-        // In band: a shell whose volume over its area, re-derived in
-        // interval arithmetic, lies wholly inside one sliver band.
-        // The certificate decides, whatever words the walk's ends gave the
-        // refusal: a walk that read zero is refuted by it.
-        V::ShellRoleUndecided {
-            solid,
-            error:
-                ShellClassifyError::Escalated { shell, .. }
-                | ShellClassifyError::ZeroVolume { shell, .. }
-                | ShellClassifyError::Straddles { shell }
-                | ShellClassifyError::Props { shell, .. },
-            sliver: Some(certified),
-        } => Some(InBandShell {
-            solid: *solid,
-            shell: *shell,
-            sliver: **certified,
-        }),
-        // Undecided, and not certified in band: a role read whose
-        // enclosure the arithmetic left wider than the band or straddling
-        // its edge (`work/tally/a-threshold-straddling-in-band-shell-is-typed-the-kernels.md`),
-        // or poisoned; or a band that does not form.
-        V::ShellRoleUndecided { .. } => None,
-        // Undecided at a point margin the gate has not shown conditioned
-        // (`work/tally/the-door-gates-other-in-band-findings-are-typed-the-kernels.md`).
-        V::DegenerateTorusEscalated { .. }
-        | V::PlanarFaceEscalated { .. }
-        | V::PlanarBoundaryEscalated { .. }
-        | V::SliverDihedral { .. }
-        | V::JoinUndecidedAtRest { .. }
-        | V::VolumeSignUnresolved { .. }
-        | V::RingContactEscalated { .. }
-        | V::RingNestingUndecided { .. }
-        | V::RingPairContactEscalated { .. }
-        | V::PinchCornerEscalated { .. } => None,
-        // The census's findings: the door runs no census
-        // (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
-        V::UnrecordedContact { .. }
-        | V::StaleContactDeclaration { .. }
-        | V::ContactContradicted { .. }
-        | V::CensusEscalated { .. }
-        | V::CensusUnsupported { .. }
-        | V::CensusLaneUnsupported { .. }
-        | V::CensusUndecidable { .. }
-        | V::ArcEndOffCorner { .. }
-        | V::InstanceInterference { .. } => None,
-        // A certificate that failed or a lane that cannot run: the
-        // kernel's.
-        V::Band { .. }
-        | V::UncertifiableSurface { .. }
-        | V::PoisonedSurfaceDescription { .. }
-        | V::ApproxCertification { .. }
-        | V::ApproxLaneUnsupported { .. }
-        | V::PoisonedSurfaceDatum { .. }
-        | V::UnrepresentableSurfaceDatum { .. }
-        | V::PoisonedCurveDatum { .. }
-        | V::UnrepresentableCurveDatum { .. }
-        | V::EdgeCertification { .. }
-        | V::VolumeUncomputable { .. }
-        | V::Pcurve { .. } => None,
-        // Definite findings: a kernel defect.
-        V::DanglingDescription { .. }
-        | V::DegenerateTorus { .. }
-        | V::DescriptionNotAdjacent { .. }
-        | V::PlanarFaceResidual { .. }
-        | V::PlanarBoundaryResidual { .. }
-        | V::TransverseNotIntrinsic { .. }
-        | V::ScaffoldAtRest { .. }
-        | V::JoinableVertexAtRest { .. }
-        | V::TangentNotIntrinsic { .. }
-        | V::LaminaWedge { .. }
-        | V::NoDihedralArm { .. }
-        | V::LoopRoleInverted { .. }
-        | V::CurvedSenseInverted { .. }
-        | V::NegativeVolume { .. }
-        | V::SliverInsideOut { .. }
-        | V::RingMeetsOuter { .. }
-        | V::RingOutsideOuter { .. }
-        | V::RingMeetsRing { .. }
-        | V::PinchCornerCrossed { .. }
-        | V::ShellWinding { .. }
-        | V::SolidOuterShells { .. }
-        | V::DanglingTopology { .. }
-        | V::DanglingGeometry { .. }
-        | V::NextPrevMismatch { .. }
-        | V::LoopCycleOverrun { .. }
-        | V::ParentLoopMismatch { .. }
-        | V::UnreachableHalfEdge { .. }
-        | V::EdgeHalvesIdentical { .. }
-        | V::EdgeSlotBackpointerMismatch { .. }
-        | V::HalfEdgeUnclaimed { .. }
-        | V::HalfEdgeMultiplyClaimed { .. }
-        | V::EdgeNotAntiparallel { .. }
-        | V::EmanatingStartMismatch { .. }
-        | V::EmptyLoopVertexWithEmanating { .. }
-        | V::LoneVertexWithIncidence { .. }
-        | V::VertexOrbitOverrun { .. }
-        | V::OrbitForeignMember { .. }
-        | V::SplitVertexOrbit { .. }
-        | V::OuterListedAsRing { .. }
-        | V::BackPointerMismatch { .. }
-        | V::OrphanEntity { .. }
-        | V::MultiplyOwned { .. }
-        | V::OrphanGeometry { .. }
-        | V::SolidWithoutShells { .. }
-        | V::ShellWithoutFaces { .. }
-        | V::EdgeAcrossShells { .. }
-        | V::ComponentEulerViolation { .. }
-        | V::MissingProvenance { .. }
-        | V::LeakedProvenance { .. }
-        | V::ScaffoldingEmptyLoop { .. }
-        | V::ScaffoldingStrutVertex { .. }
-        | V::ShellDisconnected { .. }
-        | V::NullScaffoldShared { .. }
-        | V::LeakedNullFaceRecord { .. }
-        | V::StaleNullFaceLoop { .. }
-        | V::StaleNullFaceOwnership { .. }
-        | V::NullEdgeAtRest { .. }
-        | V::NullFaceAtRest { .. } => None,
+    match crate::validate::at_rest_refusal(errors) {
+        AtRestRefusal::InBand { decision, diag } => BooleanError::Escalated { decision, diag },
+        AtRestRefusal::Kernel(errors) => BooleanError::ResultInvalid { errors },
     }
 }
 

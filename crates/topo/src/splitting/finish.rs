@@ -481,12 +481,9 @@ pub enum SplitFinishError {
     },
     /// A finished side fails tier 2 ([`crate::validate_closed`]): a
     /// split never returns a body that is not a closed solid. Reached
-    /// by a kernel defect, or by an operand that was not a closed
-    /// solid to begin with: the operand is never validated, and the
-    /// one tier-2 finding the reduction refuses is an empty OUTER loop
-    /// on a face rule (a) measures at an ON vertex
-    /// ([`super::SplitReduceError::UnboundedFace`], via
-    /// `rules::face_extent`). `side` is in the caller's orientation.
+    /// by a kernel defect: [`super::split`] reads its operand's tier 2
+    /// at every scalar before it cuts (`gate_finished`). `side` is in the
+    /// caller's orientation.
     ResultInvalid {
         /// The side whose body failed.
         side: PlaneSide,
@@ -495,16 +492,28 @@ pub enum SplitFinishError {
     },
     /// A side, sorted into its solids, fails the scalar's at-rest gate
     /// ([`crate::AtRestPolicy::gate_at_rest`]: [`crate::validate_geometric`]
-    /// at a certifying scalar), the gate the Boolean's result passes: a
-    /// split never returns a body its validator refuses. Each finding
-    /// carries its own ending, as the Boolean's
-    /// [`crate::BooleanError::ResultInvalid`] carries it. `side` is in
-    /// the caller's orientation.
+    /// at a certifying scalar, nothing at a dual), the gate the Boolean's
+    /// result passes, on findings that are the kernel's: at a certifying
+    /// scalar a split never returns a side its validator refuses. Typed and
+    /// worded as the Boolean's [`crate::BooleanError::ResultInvalid`], each
+    /// finding with its own ending. `side` is in the caller's orientation.
     ResultNotAtRest {
         /// The side whose body failed.
         side: PlaneSide,
         /// The validator's findings.
         errors: Vec<crate::validate::ValidationError>,
+    },
+    /// A side fails the at-rest gate only on shells whose role it
+    /// certified in band: the Boolean's [`crate::BooleanError::Escalated`]
+    /// on [`crate::BooleanDecision::ShellRole`], at this door. `side` is in
+    /// the caller's orientation.
+    ResultEscalated {
+        /// The side whose body failed.
+        side: PlaneSide,
+        /// [`crate::BooleanDecision::ShellRole`] on the binding shell.
+        decision: crate::BooleanDecision,
+        /// The binding shell's certified reading.
+        diag: geom_core::Indeterminate,
     },
     /// The join a side ends with ([`crate::Body::join_edges`]) refused
     /// on that side's body.
@@ -646,22 +655,21 @@ impl core::fmt::Display for SplitFinishError {
                     side.word()
                 )
             }
-            Self::ResultNotAtRest { side, errors } => match errors.as_slice() {
-                [first, ..] => write!(
-                    f,
-                    "the piece on the {} side of the plane did not pass the at-rest gate, so \
-                     no body is returned ({} finding(s)); the first: {first}",
-                    side.word(),
-                    errors.len(),
-                ),
-                [] => write!(
-                    f,
-                    "the piece on the {} side of the plane did not pass the at-rest gate, so \
-                     no body is returned. {}",
-                    side.word(),
-                    geom_core::KERNEL_DEFECT_ENDING
-                ),
-            },
+            Self::ResultNotAtRest { side, errors } => crate::validate::write_result_not_at_rest(
+                f,
+                format_args!("the piece on the {} side of the plane", side.word()),
+                errors,
+            ),
+            Self::ResultEscalated {
+                side,
+                decision,
+                diag,
+            } => write!(
+                f,
+                "the piece on the {} side of the plane: {}",
+                side.word(),
+                decision.render(diag)
+            ),
             Self::ResultInvalid { side, errors } => match errors.as_slice() {
                 [first, ..] => write!(
                     f,
