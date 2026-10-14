@@ -107,3 +107,46 @@ fn an_imported_lofts_cap_rims_are_derived_when_the_cap_moves() {
         );
     }
 }
+
+/// Review 5097 r2 probe: the row's AFTER predicate already holds
+/// BEFORE the offset, so it cannot tell a re-derived rim from an
+/// untouched one; the carriers' heights can.
+#[test]
+fn review_5097_r2_after_predicate_holds_before_the_move() {
+    let text = step_export::step_string(
+        &twisted_loft(),
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .unwrap();
+    let Ok(StepImport::Solid { mut body, .. }) =
+        import_step(&text, &ImportOptions::default(), Tol::witness())
+    else {
+        panic!()
+    };
+    let cap = top_cap(&body);
+    let cap_surface = body.get_face(cap).unwrap().surface;
+    let after_pred = |rim: &geom_brep::EdgeCurve<f64>| {
+        matches!(rim.description(), geom_brep::EdgeDescription::Intersection { .. })
+            && !rim.authority().is_declared()
+    };
+    let before = rims(&body, cap);
+    println!(
+        "before: after-predicate holds on all {}: {}",
+        before.len(),
+        before.iter().all(after_pred)
+    );
+    let z = |r: &geom_brep::EdgeCurve<f64>| {
+        let (a, b) = r.params();
+        r.carrier().eval(0.5 * (a + b)).z
+    };
+    println!("before z: {:?}", before.iter().map(z).collect::<Vec<_>>());
+    topo::replace_face_offset(&mut body, cap, -0.05, Tol::witness()).unwrap();
+    let after = rims(&body, cap);
+    let cap_surface_after = body.get_face(cap).unwrap().surface;
+    println!(
+        "after z: {:?}; cap surface key same: {}",
+        after.iter().map(z).collect::<Vec<_>>(),
+        cap_surface == cap_surface_after
+    );
+}
