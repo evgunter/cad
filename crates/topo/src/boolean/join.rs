@@ -3844,7 +3844,7 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::SectionError::RadiusEscalated { .. }
             | geom_brep::SectionError::DegenerateOperand { .. }
             | geom_brep::SectionError::CoincidentSurfaces
-            | geom_brep::SectionError::DegenerateTorus
+            | geom_brep::SectionError::DegenerateTorus(_)
             | geom_brep::SectionError::BeyondOperandExtent { .. }
             | geom_brep::SectionError::Carrier(geom::EllipseInvalid::MinorNotPositive)
             | geom_brep::SectionError::Spiric(_),

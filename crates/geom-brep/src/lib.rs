@@ -193,4 +193,4 @@ pub use ssi::{
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
 };
-pub use torus_convention::TorusConvention;
+pub use torus_convention::{TorusConvention, TorusRefusal, TorusVerdict};

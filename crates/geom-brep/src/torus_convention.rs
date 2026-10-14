@@ -2,13 +2,15 @@
 //! (i)/(iv)): its two halves' subjects, levers and decided facts, in
 //! the lowest crate that can name a [`SizedDecision`], so every door
 //! that refuses a torus outside the convention reads one table:
-//! `topo`'s pierce normal and tier 3 today, and the doors below `topo`
-//! ([`crate::intersect`]'s plane×torus section, [`crate::offset`]'s
-//! realized ring) when they carry the decision. The margins themselves
-//! are decided in `geom` ([`geom::torus_tube`], [`geom::ring_torus`]),
-//! beside the type whose convention they state.
+//! `topo`'s pierce normal and tier 3, and [`crate::intersect`]'s
+//! plane×torus section, which carries the half and its verdict as a
+//! [`TorusRefusal`]. The margins themselves are decided in `geom`
+//! ([`geom::torus_tube`], [`geom::ring_torus`]), beside the type whose
+//! convention they state.
 
-use crate::recourse::{Refused, SizedDecision, SizedPass, StoredDefinite};
+use geom_core::{Band, Decided, Indeterminate};
+
+use crate::recourse::{Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
 
 /// **A half of the ring-torus convention `R > r > 0`**, as a decision.
 /// A torus outside it (no tube, a horn, a spindle) has no
@@ -87,6 +89,88 @@ impl TorusConvention {
             (Self::Ring, Refused::Negative { .. }) => {
                 format!("{whose} tube radius is larger than its ring radius (a spindle torus)")
             }
+        }
+    }
+}
+
+/// **A torus refused at one half of its ring convention**, in band or
+/// decided: the half and its verdict, carried from the door that decides
+/// it to the one that renders it, whose `Display` ends in the half's one
+/// lever ([`TorusConvention::sized`]) read at a build.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TorusRefusal {
+    /// The half that refused.
+    pub convention: TorusConvention,
+    /// How it refused.
+    pub verdict: TorusVerdict,
+}
+
+/// How a half of the ring convention refused.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TorusVerdict {
+    /// The margin landed in the band, or was poisoned.
+    Undecided(Indeterminate),
+    /// The margin was decided zero or negative.
+    Refused(Refused),
+}
+
+impl TorusRefusal {
+    /// The refusal `convention`'s half gives on `decided` at `band`, or
+    /// `None` where the half holds.
+    #[must_use]
+    pub fn of(
+        convention: TorusConvention,
+        decided: Result<Decided, Indeterminate>,
+        band: Band,
+    ) -> Option<Self> {
+        let verdict = match decided {
+            Err(diag) => TorusVerdict::Undecided(diag),
+            Ok(decided) => TorusVerdict::Refused(Refused::of(decided, band)?),
+        };
+        Some(Self {
+            convention,
+            verdict,
+        })
+    }
+
+    /// Both halves of the convention on a torus of radii `major` and
+    /// `minor`, the tube first ([`geom::ring_torus`] says why): the first
+    /// that refuses.
+    ///
+    /// # Errors
+    ///
+    /// The refusing half's [`TorusRefusal`].
+    pub fn require<T: geom_core::Decide>(major: T, minor: T, band: Band) -> Result<(), Self> {
+        let tube = Self::of(TorusConvention::Tube, geom::torus_tube(minor, band), band);
+        match tube.or_else(|| {
+            Self::of(
+                TorusConvention::Ring,
+                geom::ring_torus(major, minor, band),
+                band,
+            )
+        }) {
+            None => Ok(()),
+            Some(refusal) => Err(refusal),
+        }
+    }
+}
+
+impl core::fmt::Display for TorusRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let sized = self.convention.sized();
+        match &self.verdict {
+            TorusVerdict::Undecided(diag) => diag
+                .undecided(
+                    self.convention.subject(),
+                    sized.recourse(RefusedArm::Undecided(diag), Reading::Build),
+                )
+                .fmt(f),
+            TorusVerdict::Refused(verdict) => write!(
+                f,
+                "{}. {}",
+                self.convention.refused("a torus's", *verdict),
+                sized.recourse(verdict.arm(), Reading::Build)
+            ),
         }
     }
 }
