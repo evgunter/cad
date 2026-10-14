@@ -167,22 +167,29 @@ The units therefore become:
 
 ## Built: PR 4810 reworked on Ev's PR 4812 decision (2026-10-14)
 
-- **The bound.** `geom::Curve3::resolution(t0, t1)` charges a carrier
-  32 roundings of what its points are summed from (centre or origin,
-  radius or semi-axes) plus the parameter's. Lines, circles and ellipses
-  have one; spirics and splines have none and keep the gate's refusal.
-  The anchored conic tightens it in that one place.
-- **The rule.** `chord_join::SectionEnds::refusal`: an escalated end pin,
-  or a stood-in circle's surface residual, on a carrier whose resolution
-  `K` times over reads Zero (`vertex_section::resolved`, the same rule
-  PR 4858's reading admits by) is the input's, typed `OnPlane` /
-  `SquareToAxis` with its lever. Past it, the pin is
-  `SplitJoinError::SectionUnresolved`: D4 ¶1 (i)'s last resort, with no
-  lever. A definite miss stays the gate's. The plane re-read and
-  `edge_on_faces_reading`'s endpoint arm are gone.
-- **Measured** (census probe, merged main): the 83 near-axial poses at
-  1e-12 that ended "kernel defect" now end `SectionUnresolved`; every
-  typed pose stays typed; nothing that built refuses. Admitted carriers
-  read ρ ≤ 7.8e-15 and unresolved ones ρ ≥ 2.0e-11, against a line at
-  `ε/K` = 1e-13.
-- Filed: `a-definite-section-end-miss-within-its-carriers-resolution-ends-as-a-kernel-defect`.
+- **The bound.** `geom_brep::carrier_resolution::resolution(carrier,
+  t0, t1)`: `u·speed_hi·(32·reach + τ)`, read relative to the edge's
+  window, so it is the same wherever the part sits (the coordinates'
+  rounding at the model's extent is the band's own headroom, Q1).
+  Lines, circles and ellipses have one; spirics and splines have none
+  and keep the gate's refusal. A guard holds it against the exact miss
+  of every section table's carriers (worst an eighth of it). The
+  anchored conic tightens it in that one place.
+- **The rule.** `chord_join::section_pin_refusal`, admitting through
+  `validate::resolved` (also `vertex_section`'s rule):
+  - an escalated end pin, or a stood-in circle's surface residual, on a
+    carrier whose resolution `K` times over reads Zero is the input's,
+    typed `OnPlane` / `SquareToAxis` with its lever;
+  - past it, an escalated end pin, residual or witness is
+    `SectionUnresolved { Undecided }`, D4 ¶1 (i)'s last resort, no lever;
+  - a definite end miss that the resolution covers to within the zero
+    band is `SectionUnresolved { Past }` (Ev's interim reads every miss
+    within a carrier's resolution so); any other definite miss stays the
+    gate's.
+- A torus's concentric circles carry the square reading, as a rim does.
+- **Measured** (census probe, merged main): the 83 in-band and 119
+  definite near-axial poses at 1e-12 that ended "kernel defect" now end
+  `SectionUnresolved`; every typed pose stays typed; the torus square
+  poses read `SquareToAxis`; nothing that built refuses.
+- Filed: `a-torus-meridian-circle-is-a-stood-in-section-read-on-its-own-plane`,
+  `three-readings-of-a-points-rounding-charge-it-three-ways`.
