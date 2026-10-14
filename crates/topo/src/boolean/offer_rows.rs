@@ -2418,7 +2418,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermSectionOutsideInventory
         | BooleanErrorKind::GermSectionSpiric
-        | BooleanErrorKind::GermFrameCylinderPinch
+        | BooleanErrorKind::NodeUnbuilt
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::LineageRow
         | BooleanErrorKind::SplitLineage
@@ -2694,8 +2694,19 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "strut_order", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
-    ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
-    ("join.rs", "frame_refusal", "Coincide::Section", 1),
+    (
+        "join.rs",
+        "crossing_cylinder_reading",
+        "BooleanDecision::Radius",
+        1,
+    ),
+    ("join.rs", "cs_pair_frame", "BooleanDecision::Radius", 1),
+    (
+        "join.rs",
+        "cylinder_pair_axes",
+        "BooleanDecision::CylinderAxes",
+        1,
+    ),
     ("join.rs", "join_escalate", "Coincide::Join", 1),
     ("join.rs", "parallel_radical_plane", "Coincide::Section", 1),
     (
@@ -2712,6 +2723,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("join.rs", "rotational_sense", "SelfCheck::ArcFacing", 1),
+    ("join.rs", "section", "BooleanDecision::Coincidence", 1),
+    ("join.rs", "section", "Coincide::Section", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
@@ -2997,6 +3010,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
+    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 3),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
