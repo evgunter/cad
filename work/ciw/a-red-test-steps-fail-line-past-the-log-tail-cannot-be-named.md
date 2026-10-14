@@ -1,0 +1,51 @@
+---
+id: a-red-test-steps-fail-line-past-the-log-tail-cannot-be-named
+kind: issue
+title: A red test step whose FAIL line falls outside the last 5000 log lines cannot be named from a session
+status: open
+opened: 2026-10-14
+refs: [5104, an-all-tier-diff-with-no-crate-seed-runs-no-slow-row]
+---
+
+
+## Found
+
+PR #5104 at 3a366af7, run 38541955556, job 115778948969 (`test`):
+step 8 "test (default eps)" was red, and the later steps (ε 1e-6/1e-12 over
+the whole workspace, doc-tests) were green. Neither the lane nor its
+orchestrator could name the failing row:
+
+- **The tail is the wrong part.** The GitHub MCP `get_job_logs` returns at most the last 5000 lines of a
+  job. A TIER=all `test` job prints about 14 000 `PASS` lines per suite
+  step, so step 8's `FAIL` and `Summary` lines fall outside that tail.
+  The tail holds only the 1e-12 step.
+- **The full log is unreachable.** The full log archive
+  (`get_workflow_run_logs_url`) is served from
+  `results-receiver.actions.githubusercontent.com`, and the session's
+  egress proxy refuses that host with a 403.
+- **No re-run is possible.** `rerun_failed_jobs` returns 403 "Resource not accessible by
+  integration", for both the lane and the orchestrator.
+- **No annotation names it.** The check run's annotations say only "Process completed with exit
+  code 100".
+
+The row did not reproduce: four local default-ε runs at that head passed
+13972/13972, and a later merge of main ran green. So the red was never
+attributed. If it was a fuzzer, its seed is lost, and a fuzz counterexample that cannot be
+read is one that cannot be pinned (`docs/prompts/implementer-discipline.md` §8).
+
+## Wanted
+
+Every nextest step writes what failed where a session can read it
+without the log tail:
+- either append nextest's failure list (test name plus the `[fuzz] … seed=` line)
+  to `$GITHUB_STEP_SUMMARY`;
+- or emit one `::error title=<test>::<seed / first panic line>`
+  annotation per failure, readable through the check-run annotations API.
+
+Both survive any later step's output volume.
+
+Related: `an-all-tier-diff-with-no-crate-seed-runs-no-slow-row` (same PR,
+the other gap it exposed: the slow set is skipped when a TIER=all diff
+seeds no crate).
+
+— build-time lane (NURBS), 2026-10-14

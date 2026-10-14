@@ -1757,6 +1757,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             ("ApexUnlifted", J::ApexUnlifted { face }),
+            ("PoleEdgesCoincide", J::PoleEdgesCoincide { face }),
             (
                 "SectionInvariant",
                 J::SectionInvariant {
