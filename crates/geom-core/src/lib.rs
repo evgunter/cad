@@ -33,7 +33,7 @@ pub mod sym;
 pub mod test_support;
 pub mod tolerance;
 
-pub use arc::Arc2;
+pub use arc::{Arc2, Circles, Circles2, CirclesAt};
 pub use dual::{Dual, Dual64, DualInterval};
 pub use interval::Interval;
 #[cfg(feature = "probe")]

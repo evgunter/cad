@@ -157,6 +157,8 @@ mod edit_blend_canonical;
 mod edit_blend_one_box_of_two;
 #[path = "edit_bore_two_rims.rs"]
 mod edit_bore_two_rims;
+#[path = "edit_concave_bar.rs"]
+mod edit_concave_bar;
 #[path = "edit_doc_param_distribution.rs"]
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]

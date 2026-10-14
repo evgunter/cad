@@ -1167,16 +1167,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
             // Every finisher ends with the join (`docs/DESIGN.md`, maximal edges).
             let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
             // Taken before the kills, which drop it (`SplitNaming::joined_lineage`).
-            let split_from: std::collections::BTreeMap<
-                crate::entity::EdgeKey,
-                crate::entity::EdgeKey,
-            > = body
-                .edges()
-                .filter_map(|(e, _)| match body.edge_provenance_of(e) {
-                    Some(crate::provenance::Provenance::SplitEdge { edge }) => Some((e, *edge)),
-                    _ => None,
-                })
-                .collect();
+            let split_from = crate::boolean::edge_join::split_records(body);
             // On this run's own output: a refusal discards it.
             let joins = body
                 .join_edges_within(band, tol, &|_| true)

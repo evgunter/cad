@@ -204,6 +204,7 @@ fn edge_pairs(body: &Body<f64>) -> Vec<(String, usize)> {
                 let kind = match c.description() {
                     geom_brep::EdgeDescription::Intersection { .. } => "Intersection",
                     geom_brep::EdgeDescription::TangentIntersection { .. } => "TangentIntersection",
+                    geom_brep::EdgeDescription::OnPair { .. } => "OnPair",
                     geom_brep::EdgeDescription::Chart(ch) => {
                         if ch.wrap {
                             "Chart/seam"

@@ -2,7 +2,9 @@
 id: rigid-map-chart-readings-fuzz-reds-past-its-rounding-bound
 kind: issue
 title: ssi/enclose: the rigid-map chart-readings fuzzer reds past its 256-ulp rounding bound at a recorded seed
-status: open
+status: closed
+branch: nurbs/rigid-map-chart-allowance
+closed: 2026-10-14
 priority: P2
 cost: E
 opened: 2026-10-14
@@ -35,11 +37,53 @@ Met at the default effort in a local 1e-12 run. It reproduces on main at `9f97c7
 - The same transverse margin moved, from 0.002672789803881874 to 0.0026727898038855606: about 3.7e-15 absolute.
 - So effort 1 meets it too, and the per-PR gate can turn red on it.
 
-## A third seed (CLEAVE, PR 4810's CI, 2026-10-14)
+## Resolution (NURBS build A, 2026-10-14)
 
-Run 38559879516, at the default-ε row, on a branch that leaves
-`crates/geom-brep/` unchanged against main:
+**The fuzzer's assertion was stricter than the statement; no bound is
+wrong.** Both items are one defect: every recorded seed fails on the
+same reading, the two-span patch's second-window transverse margin
+(0.0027 seated).
 
-- Reproduce with `CAD_FUZZ_SEED=0x02ca45d5a69168ee CAD_FUZZ_EFFORT=1`.
-- Case: "two-span patch" again, a rigid map about `(0.2923, 0.3162, 0.4222)`
-  through `(-0.9421, 0.2088, 1.1689)` by 3.5580.
+That margin is `mig(n·d_k) / stretch`, where each `d_k` is no longer
+than the stretch. So the coefficients it reads, and their rounding,
+sit at the stretch's scale, and a small margin is a cancellation among
+them. Its rounding is relative to one (the most a margin can read),
+not to its own value. `within_rounding` read every reading relative to
+itself, which for a margin of 0.0027 asks for about 370 times less
+than its arithmetic carries.
+
+Measured over 4000 random maps on every wall of the row, in units of
+`ε·(1 + reach)·scale`:
+
+| reading | relative to | worst move |
+|---|---|---|
+| speeds and pads | own value | 78 |
+| margins | own value | 257, the two-span margin |
+| margins | one | 8.1 (9.44 worst measured, at `CAD_FUZZ_EFFORT=64`) |
+
+The allowance was 256 throughout. After review it is 256 for speeds and
+pads and 32 for margins: about three times the worst measured margin
+move, and about eight times more sensitive than 256.
+
+**Fix** (`crates/geom-brep/src/ssi/enclose.rs`, test module only):
+`within_rounding` takes a `Magnitude`: `Own` for speeds and pads (at 256
+ulps) and `Unit` for margins (at 32). The test and helper docs say why.
+
+**Pinned:** `the_recorded_rigid_maps_move_a_small_margin_by_its_stretchs_rounding`
+holds all four recorded maps as fixed rows:
+
+- `0x8371abdecebb95f9` (effort 8);
+- `0x166d62361818555e`;
+- `0xdfa19917eaceb89e` (1e-6);
+- `0x1d0a3b646ab0444b` (1e-12).
+
+Each row checks that every speed and pad stays within its rounding at
+its own value, every margin within its rounding at one, and every floor
+decides as seated. Reading the margins at `Own` instead reds it.
+
+**Checked:**
+
+- All four seeds pass the fuzzer.
+- 40 fresh seeds at effort 8 (about 10 000 maps × 7 walls) pass.
+- A production mutant making the margin frame-dependent by `1e-10`
+  relative reds both the fuzzer and the pinned row.
