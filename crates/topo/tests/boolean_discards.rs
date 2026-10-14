@@ -148,3 +148,38 @@ fn a_through_slot_records_the_strip_it_discards_between_two_kept_pieces() {
         "four plate faces lose a middle strip to the slot"
     );
 }
+
+/// **An edge the boolean split and its own join killed keeps its
+/// parent** (`BooleanNaming::joined_lineage`): two bricks overlapping
+/// along x, flush on their other four sides, union into one brick. Each
+/// operand's long edges are cut where the other's end face crosses
+/// them, and the join makes each long edge of the result again, killing
+/// pieces the cut minted, whose birth records die with them.
+#[test]
+fn an_edge_split_and_joined_away_in_one_step_records_its_parent() {
+    let tol = Tol::witness();
+    let a: topo::AtRestBody<f64> =
+        finished("a", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol);
+    let b: topo::AtRestBody<f64> =
+        finished("b", brick((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol), tol);
+    let out = match topo::union(&a, &b, tol) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("the union builds: {other:?}"),
+    };
+    let naming = &out.naming;
+    let gone: BTreeSet<EdgeKey> = naming.edge_joins.iter().map(|j| j.gone).collect();
+    assert!(
+        !naming.joined_lineage.is_empty(),
+        "a piece the cut minted is joined away: {:?}",
+        naming.edge_joins
+    );
+    for (g, from) in &naming.joined_lineage {
+        assert!(gone.contains(g), "{g:?} is a joined-away edge");
+        assert!(out.body.get_edge(*g).is_none(), "{g:?} is dead");
+        assert_ne!(g, from, "{g:?} names a parent other than itself");
+        assert!(
+            out.body.get_edge(*from).is_some() || gone.contains(from),
+            "{g:?}'s parent {from:?} is live, or joined away itself"
+        );
+    }
+}
