@@ -59,10 +59,9 @@ use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_v
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
-    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EntityKind,
-    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload, VarName,
-    evaluate,
+    AssertionRelation, AssertionVerdict, Dimension, Distribution, DocEdit, EntityKind, EvalOptions,
+    Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload, VarName,
 };
 use geom_core::{Bounds, Tol};
 
