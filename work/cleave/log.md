@@ -1097,3 +1097,10 @@ Signed (CLEAVE orchestrator).
   - Re-review dispatched.
 - 2026-10-14 — Main red caused by CLEAVE: `reach_cone_split::steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt` at 1e-12. GERM's #5164 pinned `(1.3, 100)` as splitting at 1e-12 with tier 3 skipped. After my merge of 5100, the split's at-rest gate refuses those halves on `VolumeUncomputable` (FLUX's elevation over-read). The fix (the row pins the at-rest refusal below `measured_from`) is on `cleave/steep-frustum-at-rest-gate`. Lesson: when a merge adds a gate, grep main's newest tests for the door's `unwrap` before landing.
 - 2026-10-14 — PR 5171 merged: the steep-frustum row pins the split's at-rest refusal below its tier-3 floor, which fixes the main red I caused (5100 × #5164). FLUX's row has a note to lift the floor once its over-read is fixed.
+- 2026-10-14 — PR 4810 fix pass (`2753f15012`). `gate ok` is red only on GERM's copysign census.
+  - MINOR-1: a window-relative bound (`carrier_resolution`). The x0 sweep, 0 m to 30 km, ends `OnPlane` with a lever that builds.
+  - MINOR-2: the 119 definite misses become `Unresolved{Past}`.
+  - MINOR-3: an exact-rational guard at a quarter of the bound.
+  - MINOR-4: torus concentric circles become `SquareToAxis`.
+  - Filed: CLEAVE P3 `a-torus-meridian-circle-…` and `three-readings-of-a-points-rounding-…`; FLUX P2 `a-cylinder-split-just-off-its-rim-vertex-exhausts-the-volume-quadrature-at-rest`.
+  - Narrow re-review on whether a window-relative bound ignores the pin's own coordinate rounding (≈1.1e-13 at 1 km vs ε/K), and on levers that refuse on one side.
