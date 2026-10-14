@@ -6,8 +6,6 @@ status: open
 opened: 2026-10-13
 priority: P2
 cost: H
-needs_ev: true
-design: true
 ---
 
 
@@ -24,6 +22,17 @@ crossing it still refuses."
 
 On the concave side the band adds material in a region F that is air in
 the source. Three shapes meet F, and one shape meets both sides.
+
+## Ruled (Ev, PR 4963, 2026-10-14)
+
+As recommended below: Boolean semantics is the blend's definition
+(convex `S − R`, concave `S ∪ F`). A crossing refuses as an unbuilt
+case, with the intention to build it once the Boolean serves the
+band × feature surface pairs ("keeping the intention makes sense"). A
+mouth the fill covers is sealed. An advisory lint, for every operation,
+reports a feature an op makes vanish or change type unasked.
+`docs/DESIGN.md`'s void-insertion convention gains the blend's seal as
+its fourth producer. The build order is the one below.
 
 ## The question
 
