@@ -7,6 +7,7 @@ opened: 2026-10-12
 priority: P3
 cost: M
 design: true
+needs_ev: true
 branch: germ/circular-axes-band-gap
 ---
 
@@ -71,37 +72,57 @@ carrier `PlaneCylinderSection::Rim`'s public contract excludes ("carrier
 axis is the CYLINDER axis, u_ref the cylinder's seam",
 `intersect.rs` `PlaneCylinderSection`).
 
-## The fork (needs a decision, not picked)
+## The question
 
-- **A. Serve the flat circle where `ellipse_axes_distinct` reads Zero.**
-  This is sound (above) and is what D3's one kind per configuration and
-  `EllipseInvalid::CircularAxes`'s own text prescribe ("this
-  configuration is a Circle"). It moves a public contract: either
-  `Rim`'s axis may be the plane normal, or a new variant is added
-  (likewise `PlaneConeSection::AxisNormalCircle` for the cone sibling
-  below). Every consumer would have to take a circle that is exact on
-  the plane and within ε of the wall: the germ frame
-  (`join.rs` `conic_section_frame_at`'s match on `Rim`), the chord lanes
-  (`chord_join.rs` `agreed_section` and `section_case`), `offset_derive.rs`
-  `section_closed`,
-  and the cylinder face's pcurve, which is no longer an iso-line. The
-  in-band sub-band (a − b ∈ (ε, Kε)) still escalates, and its
-  recourse still names no tilt.
-- **B. Refuse the whole span between the two Zero bands as one
-  decision, typed with the tilt lever.** The table reads the tilt once
-  (`pc_rim_alignment`). On a definite tilt it reads the semi-axis
-  difference r·(sec θ − 1) itself, before the constructor, and refuses
-  its Zero and in-band arms as one decision. The recourse: "square the
-  plane to the axis (r·sin θ under ε), or tilt it until the ellipse's
-  semi-axes differ by more than Kε (θ past about √(2Kε/r))". There is
-  precedent in the tree: the fillet end cap already does this
-  (`sweep/src/blend/battery.rs` `cap_transverse` maps both
-  `CircularAxes` and `Escalated` to `BlendDecision::CapEllipse`, whose
-  `FILLET3_CAP_ELLIPSE_RECOURSE` names exactly this tilt). No existing
-  error changes meaning, but the table's public `SectionError` returns
-  a different, typed refusal at these tilts. A configuration within ε
-  of a circle is refused, and the user must move the plane by about
-  √(2Kεr) of length to clear it.
+In the gap, the plane is decided off square to the axis, and the
+section is decided to be within ε of a circle. Which kind does the
+kernel mint there? That turns on what `Circle` is: the kind of a POSE
+(the plane decided square to the axis), or the kind of a CURVE (a locus
+within ε of a circle). Refusing is not a candidate. Both designers, and
+the measurements above, find a sound carrier at every gap pose, and no
+reader downstream needs the refusal.
+
+- **Ellipse: `Circle` is the kind of the pose.** The pose reading alone
+  decides: square gives the rim `Circle`, off square gives the exact
+  `Ellipse`, however near-circular.
+  - `ellipse_axes_distinct`, `EllipseInvalid::CircularAxes` and the
+    "double gate" sentences on `plane_cylinder_section` and
+    `plane_cone_section` go.
+  - The carrier keeps C1's zero residual by construction.
+  - What remains refused is the pose's own band, with its own lever.
+  - Reading a near-circular ellipse's major direction off its semi-axes
+    is ill-conditioned (about u/sin θ). Every reader must take it from
+    the surface's axis (`Curve3::section_frame`, which the cone's
+    `FocalSection` already uses).
+  - Measured with the gate deleted: every gap pose splits at three ε,
+    and a tilted cylinder minus a box builds at every gap pose (volume
+    within 3.7e-14 relative).
+  - Text that moves:
+    - the `Curve3::ellipse` and `EllipseInvalid` docs;
+    - `crates/sweep/README.md`'s cut-off-cap clause ("the ellipse door's
+      own verdict on its axes is the second decision … `CapEllipse`");
+    - `docs/GERM-CONE-SECTOR-SPEC.md` row 7.
+- **Circle: `Circle` is the kind of the curve.** `ellipse_axes_distinct`
+  stays the one reading of a conic's kind, and on Zero the door mints
+  the `Circle` it decided (in the cutting plane, radius b).
+  - A circular locus then has one kind whatever cut it, compared by
+    centre, axis and radius.
+  - The carrier misses the section by a − b ≤ ε, the margin that
+    decided it.
+  - It moves C1 (`crates/geom-brep/README.md`: a tilted section is a
+    rung-2 `Ellipse` with zero residual by construction).
+  - The section variants' payload contracts change as well.
+  - The cone's chart has no image for a tilted circle
+    (`Grazer::ConeCircle` refuses it). That image would have to be
+    built.
+  - The in-band span a − b ∈ (ε, Kε) still escalates: 9–15 of 150
+    probe poses per ε.
+
+Either way, `curve_pair::pose`'s `Coplanar::Ellipses` one-curve bound
+(`frame_gap`) compares frames point by parameter, not loci. It already
+refuses two derivations of one ordinary tilted ellipse whose frames
+differ by rounding (r = 100, tilt 1e-4, ε = 1e-12, on main). That is
+filed as its own item and fixed independently of this decision.
 
 ## Siblings (same shape, swept 2026-10-14)
 
