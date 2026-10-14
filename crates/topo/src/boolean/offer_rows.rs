@@ -2841,7 +2841,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 6),
+    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 3),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
@@ -2860,6 +2860,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
+    ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
+    ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
