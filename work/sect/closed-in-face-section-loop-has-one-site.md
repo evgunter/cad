@@ -127,3 +127,22 @@ equator build to their closed forms. Pinned by
 `a_section_circle_along_an_equator_edge_refuses_typed`. This is the
 in-face circle class F4d names, on a torus: the equator edge lies in
 the partner's face and sits at its own site.
+
+## Measured by PATHS unit 4 (`paths/circle-lowers-to-one-segment`, 2026-10-14)
+
+With `circle` lowered to one segment, the in-face class is the
+ordinary boss on a plate. A `profile::circle` cylinder r = 0.3 standing
+on the top face of the brick `[−1, 1]² × [−0.5, 0]` refuses
+`plate ∪ boss` with `Join(BooleanJoin(SingleSiteSectionLoop { count: 1 }))`;
+the same boss at `circle_split` n = 2 or 3 builds, and a through hole,
+a blind hole and a sunk boss build at every n. In the workspace suite
+the class turns these rows from building to refusing:
+`pi_seam_and_kiss_through_the_boolean` (`a_cap_abutting_on_the_rim…`,
+`a_puck_and_its_rounding_ring…`, `a_rim_inside_the_partners_face…`),
+`a_tube_ending_on_a_ball::a_rim_inside_one_ball_face_holes_it`,
+`cylinder_sphere_frame::a_ball_across_a_cylinder_wall…`,
+`verbs_cylcyl_probe` (coaxial equal-radius union),
+`verbs_cylsph_opening` (coaxial union), editor-core's
+`peg_in_bore_union` and `intent_s5_b_interference::a_pin_bottoming…`,
+and the tour's lily (`foot ∪ corm` at the socket). Unit 4 is held on
+this row.
