@@ -8,6 +8,7 @@ priority: P3
 cost: M
 refs: [descendant-chase-spends-its-budget-into-a-dropped-contact-record, 3874]
 closed: 2026-10-14
+pr: 5086
 ---
 
 
