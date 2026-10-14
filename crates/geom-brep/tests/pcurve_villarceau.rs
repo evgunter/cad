@@ -655,3 +655,65 @@ fn the_tube_rate_and_tube_period_gates_refuse_typed() {
         got.err()
     );
 }
+
+/// PROBE (not for merge): the Villarceau image's miss on a thin tube far
+/// from the origin, for `torus-villarceau-arm-reads-its-vertex-direction-
+/// off-a-small-vector`'s closing note. Run with `--no-capture`.
+#[test]
+fn probe_villarceau_small_vector() {
+    for (frame, axis) in [
+        ("aligned", Vec3::new(0.0, 0.0, 1.0)),
+        ("skew", Vec3::new(0.1, 0.2, 1.0).normalize()),
+    ] {
+        for big_l in [0.0, 1e3, 1e6] {
+            for r in [0.7, 1e-2, 1e-4] {
+                let big = 2.0;
+                let seed = Vec3::unit_x();
+                let u_ref = (seed - axis * seed.dot(axis)).normalize();
+                let center = Point3::new(0.3 + big_l, -0.2 - 0.6 * big_l, 0.5 + 0.4 * big_l);
+                let surface = Surface::Torus {
+                    center,
+                    axis,
+                    major_radius: big,
+                    minor_radius: r,
+                    u_ref,
+                };
+                let phi: f64 = 0.37;
+                let d = u_ref * phi.cos() + axis.cross(u_ref) * phi.sin();
+                let tilt = (r / big).asin();
+                let lean = d.cross(axis) * tilt.cos() + axis * tilt.sin();
+                let carrier = Curve3::Circle {
+                    center: center + d * r,
+                    axis: d.cross(lean),
+                    radius: big,
+                    u_ref: d * 0.4_f64.cos() + lean * 0.4_f64.sin(),
+                };
+                let Ok(img) = chart_pcurve(&carrier, &surface, band()) else {
+                    println!("PROBE {frame} L {big_l:e} r {r:e}: refused");
+                    continue;
+                };
+                let miss = (0..4096)
+                    .map(|i| {
+                        let t = TAU * f64::from(i) / 4096.0;
+                        let uv = img.eval(t);
+                        surface.eval(uv.x, uv.y).distance(carrier.eval(t))
+                    })
+                    .fold(0.0, f64::max);
+                let off = (0..4096)
+                    .map(|i| {
+                        let p = carrier.eval(TAU * f64::from(i) / 4096.0) - center;
+                        let h = p.dot(axis);
+                        let rho = (p - axis * h).norm();
+                        (((rho - big).powi(2) + h * h).sqrt() - r).abs()
+                    })
+                    .fold(0.0, f64::max);
+                let cert =
+                    geom_brep::PcurveCache::certify(img, 0.0, 1.0, &carrier, &surface, band())
+                        .is_ok();
+                println!(
+                    "PROBE {frame} L {big_l:e} r {r:e}: miss {miss:.2e} off-torus {off:.1e} certifies {cert}"
+                );
+            }
+        }
+    }
+}
