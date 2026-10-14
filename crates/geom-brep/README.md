@@ -579,7 +579,10 @@ record is one surface; two records the carrier-equality ladder reads
 as one carrier over the faces' region are one surface too, since
 incidence on both is incidence on one, and the edge rests in the first
 record's chart; two distinct carriers, or a kind outside the ladder,
-are the pair; the chart collapse and its fence are
+are the pair; and a coincidence in band, a rung that cannot decide, or
+a region that does not read is the pair too, an answer rather than a
+guess, since the pair's certificate (incidence on both surfaces) holds
+whether or not they are one carrier. The chart collapse and its fence are
 `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
 area read a face carrying a `General` pcurve through the trimmed
 quadrature lane (`crates/topo/src/props/quad_lane.rs`), and tessellation through the
