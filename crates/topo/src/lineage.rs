@@ -12,10 +12,11 @@
 //! op's `lineage()` states its fates from them. A Boolean also records
 //! three lists of minted cells it reads back, checked the same way:
 //! each operand's null-edge copies (`NullEdgeCopies`) and edge splits
-//! (`EdgeDivisions`), and the zip's copies per cone ([`ConeCopies`]);
-//! a split records its edge splits too ([`SplitEdgeDivisions`]). All
-//! five are one list of minted cells ([`Minted`]), each tagged with
-//! what it records ([`tag`]).
+//! (`EdgeDivisions`), and the zip's cone copies ([`ConeCopies`]); a
+//! split records its edge splits too ([`SplitEdgeDivisions`]). All five
+//! are one list of minted cells ([`Minted`]). Every list carries the
+//! [`LineageRows`] arm that names it, given where it is made: that enum
+//! is the one roster of lists.
 //! [`Descent`] is the walk division and copy rows need: a cell and
 //! every piece the rows divide off it, or every copy they make of it.
 
@@ -371,7 +372,8 @@ pub enum LineageRows {
     /// One operand's null-edge copy list in a Boolean (`NullEdgeCopies`),
     /// the operand naming the clone as above.
     NullEdgeCopies(crate::boolean::Operand),
-    /// A zip's copy-per-cone list ([`ConeCopies`]).
+    /// A zip's cone copy list ([`ConeCopies`]): one row per copy it made
+    /// of a pinch vertex, one per cone.
     ConeCopies,
 }
 
@@ -442,6 +444,27 @@ pub struct RowRefusal {
     pub key: Cell,
 }
 
+impl RowRefusal {
+    /// The refusal of `list` for a row whose defect is about `key`: the
+    /// one place a list builds one.
+    pub(crate) fn of<K: LineageKey>(list: LineageRows, defect: RowDefect, key: K) -> Self {
+        Self {
+            rows: list,
+            defect,
+            key: key.cell(),
+        }
+    }
+
+    /// The clause every op's refusal opens with, `op` naming the op
+    /// whose records refused the row (`"Boolean"`, `"split"`, `"join"`):
+    /// each op's message adds what follows from it and the kernel-defect
+    /// ending.
+    #[must_use]
+    pub fn refused_by(self, op: &str) -> String {
+        format!("the {op}'s lineage records refused {self}")
+    }
+}
+
 impl core::fmt::Display for RowRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
@@ -484,83 +507,6 @@ impl LineageKey for crate::entity::VertexKey {
     }
 }
 
-/// **What a lineage list records**, as a refusal names it: a fact about
-/// the list, not its key (the same key type is held by lists that
-/// record different things). A list carries its tag ([`tag`] holds
-/// them); a tag that is the same for every list it names is a unit
-/// type, so the list has a [`Default`].
-pub trait ListTag: Copy + core::fmt::Debug + Eq {
-    /// The list, as [`RowRefusal::rows`] names it.
-    fn rows(self) -> LineageRows;
-}
-
-/// The tags of the lineage lists, one per thing a list records.
-pub mod tag {
-    use super::{LineageRows, ListTag};
-    use crate::boolean::Operand;
-
-    /// A substitution list's ([`super::Substitutions`]).
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-    pub struct Substitution;
-    /// A vertex fusion list's ([`super::Fusions`]).
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-    pub struct Fusion;
-    /// A face division list's ([`super::FaceDivisions`]).
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-    pub struct FaceDivision;
-    /// A split's edge division list's ([`super::SplitEdgeDivisions`]).
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-    pub struct SplitEdgeDivision;
-    /// A zip's copy-per-cone list's ([`super::ConeCopies`]).
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-    pub struct ConeCopy;
-    /// One operand's edge division list's in a Boolean
-    /// (`EdgeDivisions`): the operand names whose clone the keys are
-    /// keys of, since the two clones' keys can be equal.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub(crate) struct EdgeDivision(pub(crate) Operand);
-    /// One operand's null-edge copy list's in a Boolean
-    /// (`NullEdgeCopies`), the operand naming the clone as above.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub(crate) struct NullEdgeCopy(pub(crate) Operand);
-
-    impl ListTag for Substitution {
-        fn rows(self) -> LineageRows {
-            LineageRows::Substitutions
-        }
-    }
-    impl ListTag for Fusion {
-        fn rows(self) -> LineageRows {
-            LineageRows::Fusions
-        }
-    }
-    impl ListTag for FaceDivision {
-        fn rows(self) -> LineageRows {
-            LineageRows::FaceDivisions
-        }
-    }
-    impl ListTag for SplitEdgeDivision {
-        fn rows(self) -> LineageRows {
-            LineageRows::EdgeDivisions(None)
-        }
-    }
-    impl ListTag for ConeCopy {
-        fn rows(self) -> LineageRows {
-            LineageRows::ConeCopies
-        }
-    }
-    impl ListTag for EdgeDivision {
-        fn rows(self) -> LineageRows {
-            LineageRows::EdgeDivisions(Some(self.0))
-        }
-    }
-    impl ListTag for NullEdgeCopy {
-        fn rows(self) -> LineageRows {
-            LineageRows::NullEdgeCopies(self.0)
-        }
-    }
-}
-
 /// **A substitution list**: rows `(dead, by)`, each saying `by` holds
 /// `dead`'s interior now, in the order the stages retired them.
 /// [`Self::push`] refuses a row that maps a key to itself or names a
@@ -572,30 +518,39 @@ pub mod tag {
 ///
 /// One rule, two instances: over cells and faces (the boolean's
 /// descendant map and its naming's substitutions) and over vertices
-/// ([`Fusions`]), each naming its own list ([`tag`]).
+/// ([`Fusions`]). A list carries the [`LineageRows`] a refusal names it
+/// by, given where it is made ([`Self::new`]): the key type does not
+/// say what a list records.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Substitutions<K: LineageKey = Cell, L: ListTag = tag::Substitution> {
-    tag: L,
+pub struct Substitutions<K: LineageKey = Cell> {
+    tag: LineageRows,
     rows: Vec<(K, K)>,
     by_dead: std::collections::BTreeMap<K, K>,
 }
 
 /// **A vertex fusion list**: the fusions `(dead, kept)` in the order
-/// their `kev`s ran, the vertex instance of [`Substitutions`]: each key
-/// folds onto one survivor ([`Substitutions::survivor`]).
-pub type Fusions = Substitutions<crate::entity::VertexKey, tag::Fusion>;
+/// their `kev`s ran, the vertex instance of [`Substitutions`], made as
+/// `Substitutions::new(LineageRows::Fusions)`: each key folds onto one
+/// survivor ([`Substitutions::survivor`]).
+pub type Fusions = Substitutions<crate::entity::VertexKey>;
 
-impl<K: LineageKey, L: ListTag + Default> Default for Substitutions<K, L> {
-    fn default() -> Self {
+impl<K: LineageKey> Substitutions<K> {
+    /// An empty list, named `tag` in a refusal.
+    #[must_use]
+    pub fn new(tag: LineageRows) -> Self {
         Self {
-            tag: L::default(),
+            tag,
             rows: Vec::new(),
             by_dead: std::collections::BTreeMap::new(),
         }
     }
-}
 
-impl<K: LineageKey, L: ListTag> Substitutions<K, L> {
+    /// The list a refusal names this one as.
+    #[must_use]
+    pub fn tag(&self) -> LineageRows {
+        self.tag
+    }
+
     /// Appends the row `(dead, by)`.
     ///
     /// # Errors
@@ -604,13 +559,7 @@ impl<K: LineageKey, L: ListTag> Substitutions<K, L> {
     /// [`RowDefect::NamesRetired`] where an earlier row retired either;
     /// the list is left as it was.
     pub(crate) fn push(&mut self, (dead, by): (K, K)) -> Result<(), RowRefusal> {
-        let refuse = |defect, key: K| {
-            Err(RowRefusal {
-                rows: self.tag.rows(),
-                defect,
-                key: key.cell(),
-            })
-        };
+        let refuse = |defect, key: K| Err(RowRefusal::of(self.tag, defect, key));
         if dead == by {
             return refuse(RowDefect::SelfRow, dead);
         }
@@ -673,7 +622,7 @@ impl<K: LineageKey, L: ListTag> Substitutions<K, L> {
     }
 }
 
-impl<'a, K: LineageKey, L: ListTag> IntoIterator for &'a Substitutions<K, L> {
+impl<'a, K: LineageKey> IntoIterator for &'a Substitutions<K> {
     type Item = &'a (K, K);
     type IntoIter = core::slice::Iter<'a, (K, K)>;
 
@@ -686,9 +635,11 @@ impl<'a, K: LineageKey, L: ListTag> IntoIterator for &'a Substitutions<K, L> {
 /// from)` in the order they were minted. [`Self::push`] refuses a row
 /// whose two cells are one ([`RowDefect::SelfRow`]), or whose minted
 /// cell an earlier row names ([`RowDefect::NotFresh`]); the list is left
-/// as it was. Each instance is an alias naming what it records
-/// ([`FaceDivisions`], [`SplitEdgeDivisions`], [`ConeCopies`], and a
-/// Boolean's per-operand `EdgeDivisions` and `NullEdgeCopies`).
+/// as it was. A list carries the [`LineageRows`] a refusal names it by,
+/// given where it is made ([`Self::new`]); each instance is an alias
+/// naming what it records ([`FaceDivisions`], [`SplitEdgeDivisions`],
+/// [`ConeCopies`], and a Boolean's per-operand `EdgeDivisions` and
+/// `NullEdgeCopies`), with the arm of the same name.
 ///
 /// **The invariant: a minted cell is new to the list.** A mint hands
 /// out a fresh key, and an arena never hands out a key it handed out
@@ -704,8 +655,8 @@ impl<'a, K: LineageKey, L: ListTag> IntoIterator for &'a Substitutions<K, L> {
 /// that reused a bare key would break the invariant, and [`Self::push`]
 /// would refuse the row rather than let the list cycle.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Minted<K, L> {
-    tag: L,
+pub struct Minted<K> {
+    tag: LineageRows,
     rows: Vec<(K, K)>,
     /// Each minted cell → the cell it was minted from.
     from: BTreeMap<K, K>,
@@ -715,37 +666,32 @@ pub struct Minted<K, L> {
 
 /// **A face division list**: a division mints its new face (`mef`,
 /// `mfkrh`), so each row is `(new face, divided-from face)`.
-pub type FaceDivisions = Minted<FaceKey, tag::FaceDivision>;
+pub type FaceDivisions = Minted<FaceKey>;
 
 /// **A split's edge division list**: each piece a crossing split minted
 /// (`Body::split_edge`), `(new edge, divided-from edge)`.
-pub type SplitEdgeDivisions = Minted<crate::entity::EdgeKey, tag::SplitEdgeDivision>;
+pub type SplitEdgeDivisions = Minted<crate::entity::EdgeKey>;
 
-/// **A copy-per-cone list**: one row per split a Boolean's zip made of
+/// **A cone copy list**: one row per split a Boolean's zip made of
 /// a pinch so each cone of the result's boundary there holds a vertex of
 /// its own (`BooleanNaming::cone_splits`). A split mints its copy
 /// (`mev_null`), so each row is `(copy, vertex it copies)`.
-pub type ConeCopies = Minted<crate::entity::VertexKey, tag::ConeCopy>;
+pub type ConeCopies = Minted<crate::entity::VertexKey>;
 
 /// **One operand's edge division list in a Boolean**: one row per edge
 /// its reduction split (`Body::split_edge`), `(new edge, divided-from
 /// edge)`.
-pub(crate) type EdgeDivisions = Minted<crate::entity::EdgeKey, tag::EdgeDivision>;
+pub(crate) type EdgeDivisions = Minted<crate::entity::EdgeKey>;
 
 /// **One operand's null-edge copy list in a Boolean**: one row per end
 /// of a null edge other than the vertex it was minted at. A null edge
 /// mints its copy (`mev`), so each row is `(copy, vertex it copies)`.
-pub(crate) type NullEdgeCopies = Minted<crate::entity::VertexKey, tag::NullEdgeCopy>;
+pub(crate) type NullEdgeCopies = Minted<crate::entity::VertexKey>;
 
-impl<K, L: Default> Default for Minted<K, L> {
-    fn default() -> Self {
-        Self::new(L::default())
-    }
-}
-
-impl<K, L> Minted<K, L> {
-    /// An empty list naming itself `tag`.
-    pub(crate) fn new(tag: L) -> Self {
+impl<K> Minted<K> {
+    /// An empty list, named `tag` in a refusal.
+    #[must_use]
+    pub fn new(tag: LineageRows) -> Self {
         Self {
             tag,
             rows: Vec::new(),
@@ -767,7 +713,13 @@ impl<K, L> Minted<K, L> {
     }
 }
 
-impl<K: LineageKey, L: ListTag> Minted<K, L> {
+impl<K: LineageKey> Minted<K> {
+    /// The list a refusal names this one as.
+    #[must_use]
+    pub fn tag(&self) -> LineageRows {
+        self.tag
+    }
+
     /// Appends `(new, from)`.
     ///
     /// # Errors
@@ -786,11 +738,7 @@ impl<K: LineageKey, L: ListTag> Minted<K, L> {
             self.rows.push((new, from));
             return Ok(());
         };
-        Err(RowRefusal {
-            rows: self.tag.rows(),
-            defect,
-            key: new.cell(),
-        })
+        Err(RowRefusal::of(self.tag, defect, new))
     }
 
     /// The cell `cell` was minted from, where a row minted it.
@@ -811,8 +759,9 @@ impl<K: LineageKey, L: ListTag> Minted<K, L> {
     }
 }
 
-impl FaceDivisions {
-    /// The list of `rows`, each added in turn as [`Self::push`] adds it:
+impl Minted<FaceKey> {
+    /// The face division list of `rows`, each added in turn as
+    /// [`Self::push`] adds it:
     /// the one way to build a list outside the kernel, where a mint
     /// records its own rows. Only a face division list can be built
     /// there: the others are the kernel's records of its own mints.
@@ -823,7 +772,7 @@ impl FaceDivisions {
     pub fn from_rows(
         rows: impl IntoIterator<Item = (FaceKey, FaceKey)>,
     ) -> Result<Self, RowRefusal> {
-        let mut list = Self::default();
+        let mut list = Self::new(LineageRows::FaceDivisions);
         rows.into_iter().try_for_each(|row| list.push(row))?;
         Ok(list)
     }
@@ -942,7 +891,7 @@ mod tests {
     fn a_substitution_list_refuses_a_self_row_and_a_row_naming_a_retired_cell() {
         let f = faces(3);
         let [a, b, c] = [f[0], f[1], f[2]].map(Cell::Face);
-        let mut list: Substitutions = Substitutions::default();
+        let mut list: Substitutions = Substitutions::new(LineageRows::Substitutions);
         list.push((a, b)).unwrap();
         let refused = |defect, key| {
             Err(RowRefusal {
@@ -993,7 +942,7 @@ mod tests {
     #[test]
     fn a_face_division_list_refuses_a_self_row_and_a_new_face_it_already_names() {
         let f = faces(4);
-        let mut list = FaceDivisions::default();
+        let mut list = FaceDivisions::new(LineageRows::FaceDivisions);
         list.push((f[1], f[0])).unwrap();
         let refused = |defect, face| {
             Err(RowRefusal {
@@ -1065,7 +1014,7 @@ mod tests {
         let mut arena: SlotMap<FaceKey, ()> = SlotMap::with_key();
         let parent = arena.insert(());
         let piece = arena.insert(());
-        let mut list = FaceDivisions::default();
+        let mut list = FaceDivisions::new(LineageRows::FaceDivisions);
         list.push((piece, parent)).unwrap();
         arena.remove(parent);
         let reused = arena.insert(());
@@ -1074,40 +1023,29 @@ mod tests {
             .expect("a key minted into a reused slot is new to the list");
     }
 
-    /// **A refusal names the list, not the key type**: lists over one
-    /// key type that record different things name themselves apart
-    /// ([`tag`]). Red if the tag is read off the key again (vertex
-    /// substitutions would say "vertex fusion", and a split's edge
-    /// divisions a Boolean operand's).
+    /// **Every list the kernel makes names itself by what it records,
+    /// not by its key type**: the lists in a Boolean's and a split's
+    /// naming, made by their `Default`s, carry their own arm, though
+    /// vertex fusions and cone copies share a key type, and so do the
+    /// split's and an operand's edge divisions. Red if a `Default`
+    /// hands a list another list's arm.
     #[test]
-    fn a_refusal_names_the_list_whatever_its_key() {
-        use crate::boolean::Operand;
-        use crate::entity::{EdgeKey, VertexKey};
-        let mut vertices: SlotMap<VertexKey, ()> = SlotMap::with_key();
+    fn every_list_the_kernel_makes_names_itself() {
+        let boolean = crate::BooleanNaming::default();
+        assert_eq!(boolean.vertex_merges.tag(), LineageRows::Fusions);
+        assert_eq!(boolean.substitutions.tag(), LineageRows::Substitutions);
+        assert_eq!(boolean.face_fragments_a.tag(), LineageRows::FaceDivisions);
+        assert_eq!(boolean.face_fragments_b.tag(), LineageRows::FaceDivisions);
+        assert_eq!(boolean.cone_splits.tag(), LineageRows::ConeCopies);
+        let split = crate::splitting::SplitNaming::default();
+        assert_eq!(split.face_fragments.tag(), LineageRows::FaceDivisions);
+        assert_eq!(split.edge_pieces.tag(), LineageRows::EdgeDivisions(None));
+        let mut vertices: SlotMap<crate::entity::VertexKey, ()> = SlotMap::with_key();
         let v = vertices.insert(());
-        let mut edges: SlotMap<EdgeKey, ()> = SlotMap::with_key();
-        let e = edges.insert(());
-        let named = |r: Result<(), RowRefusal>| r.unwrap_err().rows;
         assert_eq!(
-            named(Substitutions::<VertexKey>::default().push((v, v))),
-            LineageRows::Substitutions
-        );
-        assert_eq!(named(Fusions::default().push((v, v))), LineageRows::Fusions);
-        assert_eq!(
-            named(ConeCopies::default().push((v, v))),
-            LineageRows::ConeCopies
-        );
-        assert_eq!(
-            named(NullEdgeCopies::new(tag::NullEdgeCopy(Operand::B)).push((v, v))),
-            LineageRows::NullEdgeCopies(Operand::B)
-        );
-        assert_eq!(
-            named(SplitEdgeDivisions::default().push((e, e))),
-            LineageRows::EdgeDivisions(None)
-        );
-        assert_eq!(
-            named(EdgeDivisions::new(tag::EdgeDivision(Operand::A)).push((e, e))),
-            LineageRows::EdgeDivisions(Some(Operand::A))
+            boolean.vertex_merges.clone().push((v, v)).unwrap_err().rows,
+            LineageRows::Fusions,
+            "a refusal names the list's own arm"
         );
     }
 
@@ -1120,7 +1058,8 @@ mod tests {
         use crate::entity::EdgeKey;
         let mut arena: SlotMap<EdgeKey, ()> = SlotMap::with_key();
         let e: Vec<EdgeKey> = (0..4).map(|_| arena.insert(())).collect();
-        let mut list = EdgeDivisions::new(tag::EdgeDivision(crate::boolean::Operand::B));
+        let mut list =
+            EdgeDivisions::new(LineageRows::EdgeDivisions(Some(crate::boolean::Operand::B)));
         list.push((e[1], e[0])).unwrap();
         let refused = |key, defect| {
             Err(RowRefusal {
@@ -1147,7 +1086,7 @@ mod tests {
         );
     }
 
-    /// **A copy-per-cone list refuses a copy it already names**, so a
+    /// **A cone copy list refuses a copy it already names**, so a
     /// vertex's copies form a tree: its [`Descent`] lists each once, and
     /// [`ConeCopies::root`] reaches the split vertex. Red if the push takes a non-fresh row (the copy of
     /// a copy's original would close a cycle the forward walk could not
@@ -1157,7 +1096,7 @@ mod tests {
         use crate::entity::VertexKey;
         let mut arena: SlotMap<VertexKey, ()> = SlotMap::with_key();
         let v: Vec<VertexKey> = (0..4).map(|_| arena.insert(())).collect();
-        let mut list = ConeCopies::default();
+        let mut list = ConeCopies::new(LineageRows::ConeCopies);
         for row in [(v[1], v[0]), (v[2], v[1]), (v[3], v[0])] {
             list.push(row).unwrap();
         }
@@ -1189,7 +1128,7 @@ mod tests {
         let mut arena: SlotMap<VertexKey, ()> = SlotMap::with_key();
         let original = arena.insert(());
         let copy = arena.insert(());
-        let mut list = NullEdgeCopies::new(tag::NullEdgeCopy(crate::boolean::Operand::A));
+        let mut list = NullEdgeCopies::new(LineageRows::NullEdgeCopies(crate::boolean::Operand::A));
         list.push((copy, original)).unwrap();
         arena.remove(original);
         let reused = arena.insert(());
@@ -1209,7 +1148,7 @@ mod tests {
         use crate::entity::VertexKey;
         let mut arena: SlotMap<VertexKey, ()> = SlotMap::with_key();
         let v: Vec<VertexKey> = (0..4).map(|_| arena.insert(())).collect();
-        let mut list = NullEdgeCopies::new(tag::NullEdgeCopy(crate::boolean::Operand::A));
+        let mut list = NullEdgeCopies::new(LineageRows::NullEdgeCopies(crate::boolean::Operand::A));
         list.push((v[1], v[0])).unwrap();
         let refused = |key, defect| {
             Err(RowRefusal {

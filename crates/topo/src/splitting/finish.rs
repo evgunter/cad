@@ -285,7 +285,7 @@ impl<T: Real> SplitResult<T> {
 /// so a key resolves in whichever side kept the entity (and only
 /// there). Rows are historical: entries whose entity survived in
 /// neither side (discarded scaffolding) simply resolve nowhere.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SplitNaming {
     /// The section faces each side keeps, with their side, in section
     /// completion order (the join's sweep order and its per-face line
@@ -325,6 +325,24 @@ pub struct SplitNaming {
     /// joined edge's cover is read through to the operand edges it lies
     /// along.
     pub joined_lineage: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
+}
+
+impl Default for SplitNaming {
+    // Each lineage list names itself where it is made (`LineageRows`).
+    fn default() -> Self {
+        Self {
+            sections: Default::default(),
+            face_fragments: crate::lineage::FaceDivisions::new(
+                crate::lineage::LineageRows::FaceDivisions,
+            ),
+            edge_pieces: crate::lineage::SplitEdgeDivisions::new(
+                crate::lineage::LineageRows::EdgeDivisions(None),
+            ),
+            vertex_pairs: Default::default(),
+            edge_joins: Default::default(),
+            joined_lineage: Default::default(),
+        }
+    }
 }
 
 /// Typed failure of the finish step.

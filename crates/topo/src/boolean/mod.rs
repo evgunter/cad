@@ -592,14 +592,20 @@ pub(crate) struct EdgeSplit {
 #[derive(Clone, Debug)]
 pub(crate) struct EdgeSplits {
     divisions: [crate::lineage::EdgeDivisions; 2],
-    /// Each operand's minted vertices, one per row of its divisions.
+    /// Each operand's minted vertices, one per row of its divisions and
+    /// in the same order: [`Self::push`] is the one writer of both, and
+    /// pushes the vertex only once the division's row is in, so the
+    /// `i`-th vertex is the one minted between the `i`-th row's two
+    /// edges (asserted where they are read together, [`Self::of`]).
     vertices: [Vec<VertexKey>; 2],
 }
 
 impl Default for EdgeSplits {
     fn default() -> Self {
         let of = |operand| {
-            crate::lineage::EdgeDivisions::new(crate::lineage::tag::EdgeDivision(operand))
+            crate::lineage::EdgeDivisions::new(crate::lineage::LineageRows::EdgeDivisions(Some(
+                operand,
+            )))
         };
         Self {
             divisions: [of(Operand::A), of(Operand::B)],
@@ -629,6 +635,11 @@ impl EdgeSplits {
     ) -> impl Iterator<Item = (crate::entity::EdgeKey, VertexKey, crate::entity::EdgeKey)> + '_
     {
         let side = usize::from(operand == Operand::B);
+        debug_assert_eq!(
+            self.divisions[side].rows().len(),
+            self.vertices[side].len(),
+            "one minted vertex per edge division row"
+        );
         self.divisions[side]
             .rows()
             .iter()
@@ -4291,13 +4302,8 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::LineageRow { rows, defect, key } => write!(
                 f,
-                "the Boolean's lineage records refused {}, so no body is returned. \
-                 {KERNEL_DEFECT_ENDING}",
-                crate::lineage::RowRefusal {
-                    rows: *rows,
-                    defect: *defect,
-                    key: *key,
-                }
+                "{}, so no body is returned. {KERNEL_DEFECT_ENDING}",
+                crate::lineage::RowRefusal::of(*rows, *defect, *key).refused_by("Boolean")
             ),
             Self::EdgeUndescribed {
                 failure,
@@ -5498,7 +5504,9 @@ impl<T: Real> Default for NullEdges<T> {
         Self {
             records: Vec::new(),
             copies: [Operand::A, Operand::B].map(|operand| {
-                crate::lineage::NullEdgeCopies::new(crate::lineage::tag::NullEdgeCopy(operand))
+                crate::lineage::NullEdgeCopies::new(crate::lineage::LineageRows::NullEdgeCopies(
+                    operand,
+                ))
             }),
         }
     }

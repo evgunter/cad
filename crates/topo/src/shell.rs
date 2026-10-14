@@ -1211,7 +1211,10 @@ pub struct RimNaming {
     /// the first piece keeps that very key, so its row maps the seam to
     /// itself, which a mint list refuses. The rows are a map from each
     /// piece to the seam it divides, written once per rim from two keys
-    /// the surgery holds, and no row is chased past its second column.
+    /// the surgery holds. `Shelled::lineage` still reads them through
+    /// `lineage::roots` and `Descent` as if they were mints, which drops
+    /// the outer rim's seam and lists the void rim's twin among its own
+    /// pieces (`work/shell/shell-lineage-drops-an-outer-rims-divided-seam.md`).
     pub seam_pieces: Vec<(EdgeKey, EdgeKey)>,
 }
 

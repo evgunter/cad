@@ -758,7 +758,8 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     on_vertices: &mut Vec<VertexKey>,
     tol: Tol,
 ) -> Result<crate::lineage::SplitEdgeDivisions, SplitReduceError> {
-    let mut pieces = crate::lineage::SplitEdgeDivisions::default();
+    let mut pieces =
+        crate::lineage::SplitEdgeDivisions::new(crate::lineage::LineageRows::EdgeDivisions(None));
     let band = geom_core::Band::linear(tol)?;
     // Snapshot: splitting adds edges; only operand edges can cross (a
     // split child's remaining crossing is handled through the parent's

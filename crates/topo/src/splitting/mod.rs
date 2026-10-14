@@ -785,7 +785,8 @@ impl core::fmt::Display for SplitReduceError {
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
             Self::LineageRow(refusal) => write!(
                 f,
-                "the split's lineage records refused {refusal}. {}",
+                "{}. {}",
+                refusal.refused_by("split"),
                 geom_core::KERNEL_DEFECT_ENDING
             ),
         }
