@@ -374,6 +374,7 @@ impl Default for BooleanNaming {
             discards: Default::default(),
             covered: Default::default(),
             edge_classes: Default::default(),
+            chart_cuts: Default::default(),
             null_copies: Default::default(),
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
             edge_joins: Default::default(),
