@@ -4777,6 +4777,39 @@ pub fn whole_period_count<T: Decide>(
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<i32, BranchMiss> {
+    whole_period_walk(name, gap, period, meter, band).map_err(|stop| stop.miss)
+}
+
+/// Where [`whole_period_walk`] stopped short of a branch: the miss, and
+/// for a mark (undecided, or the gap on it) the two branches `[j, j + 1]`
+/// that mark lies between. A reach miss has none.
+#[derive(Clone, Debug)]
+pub struct WalkStop {
+    /// Why no branch was decided.
+    pub miss: BranchMiss,
+    /// The branches either side of the mark the walk stopped on.
+    pub astride: Option<[i32; 2]>,
+}
+
+/// [`whole_period_count`], reporting where the walk stopped
+/// ([`WalkStop`]). The walk steps one period at a time from `0`, and
+/// every mark it crosses is decided on the side it crosses, so the mark
+/// it stops on is the first, from `0`, that the gap does not clear.
+/// Where that mark decides Zero ([`BranchMiss::OnMark`]) the gap is
+/// within the band's zero of it in the meter's units; the branches
+/// astride it are the orbit points either side of that mark.
+///
+/// # Errors
+///
+/// [`WalkStop`]: a mark undecided, the gap on a mark (each with the
+/// branches astride it), or the gap out of reach.
+pub fn whole_period_walk<T: Decide>(
+    name: &'static str,
+    gap: T,
+    period: T,
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<i32, WalkStop> {
     let half = T::from_f64(0.5);
     let mark = |k: i32, side: T| {
         decide(
@@ -4785,34 +4818,44 @@ pub fn whole_period_count<T: Decide>(
             band,
         )
     };
+    let stop = |miss, astride| WalkStop {
+        miss,
+        astride: Some(astride),
+    };
+    let reach = WalkStop {
+        miss: BranchMiss::OutOfReach,
+        astride: None,
+    };
     let mut k = 0;
     // What is already known about the marks either side of `k`: moving
     // up one period learns the lower mark, moving down the upper.
     let (mut below, mut above) = (false, false);
     loop {
         if !above {
-            match mark(k, half).map_err(BranchMiss::Undecided)? {
+            match mark(k, half).map_err(|c| stop(BranchMiss::Undecided(c), [k, k + 1]))? {
                 Sign::Negative => {}
-                Sign::Zero => return Err(BranchMiss::OnMark),
+                Sign::Zero => return Err(stop(BranchMiss::OnMark, [k, k + 1])),
                 Sign::Positive => {
                     k += 1;
                     (below, above) = (true, false);
                     if k > MAX_BRANCH_PERIODS {
-                        return Err(BranchMiss::OutOfReach);
+                        return Err(reach);
                     }
                     continue;
                 }
             }
         }
         if !below {
-            match mark(k, T::zero() - half).map_err(BranchMiss::Undecided)? {
+            match mark(k, T::zero() - half)
+                .map_err(|c| stop(BranchMiss::Undecided(c), [k - 1, k]))?
+            {
                 Sign::Positive => {}
-                Sign::Zero => return Err(BranchMiss::OnMark),
+                Sign::Zero => return Err(stop(BranchMiss::OnMark, [k - 1, k])),
                 Sign::Negative => {
                     k -= 1;
                     (below, above) = (false, true);
                     if k < -MAX_BRANCH_PERIODS {
-                        return Err(BranchMiss::OutOfReach);
+                        return Err(reach);
                     }
                     continue;
                 }

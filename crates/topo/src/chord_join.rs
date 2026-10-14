@@ -2922,9 +2922,11 @@ fn run_azimuth_images<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::Escalated`] where a mark is in band;
-/// [`SplitJoinError::SectionInvariant`] where the gap sits on a mark or
-/// past the branch reach, or the chart is the placeholder.
+/// [`SplitJoinError::Escalated`] where a mark is in band, or the gap
+/// sits on a mark with a branch the near-pole read tries in band;
+/// [`SplitJoinError::SectionInvariant`] where the gap sits on a mark off
+/// every branch that read tries, or past the branch reach, or the chart
+/// is the placeholder.
 fn nearest_branch<T: Decide>(
     surface: &geom::Surface<T>,
     face: FaceKey,
@@ -6888,6 +6890,54 @@ mod nearest_branch_rows {
         }
     }
 
+    /// **A gap on a mark answers by the band at the lever, however many
+    /// turns out**, as the loop walk's joint does: the branches astride
+    /// the walk's mark sit `π·lever` off, so in band the split escalates
+    /// and past it the gap names no common branch.
+    #[test]
+    fn a_half_turn_gap_answers_by_the_band_at_every_turn_count() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let alpha = 0.01f64;
+        let cone = geom::Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (pi, tau) = (core::f64::consts::PI, core::f64::consts::TAU);
+        let esc = band.escalate();
+        let at = |lever: f64, gap: f64| {
+            let d = lever / alpha.sin();
+            let vertex = Point3::new(lever, 0.0, d * alpha.cos());
+            nearest_branch(&cone, FaceKey::default(), vertex, gap, band)
+        };
+        for f in [0.55, 0.7, 0.75, 0.85, 0.95, 0.99] {
+            let lever = f * esc / pi;
+            for turns in [0.5, -0.5, 1.5, -1.5, 2.5, -2.5, 3.5, -3.5] {
+                let got = at(lever, turns * tau);
+                assert!(
+                    matches!(got, Err(SplitJoinError::Escalated { .. })),
+                    "π·lever {f}·escalate, gap {turns}τ: in band: {got:?}"
+                );
+            }
+        }
+        let past = 1.01 * esc / pi;
+        for turns in [0.5, -2.5, 3.5] {
+            let got = at(past, turns * tau);
+            assert!(
+                matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
+                "π·lever 1.01·escalate, gap {turns}τ: decided off: {got:?}"
+            );
+        }
+        for (turns, k) in [(2.0, 2), (-2.0, -2)] {
+            let got = at(0.75 * esc / pi, turns * tau);
+            assert!(
+                matches!(got, Ok(b) if b == k),
+                "gap {turns}τ: the branch is {k}: {got:?}"
+            );
+        }
+    }
+
     #[test]
     fn a_narrow_cone_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -6930,6 +6980,19 @@ mod nearest_branch_rows {
                     "d = {d:e} (lever {lever:e}), gap {turns}·τ: the branch is {want}: {got:?}"
                 );
             }
+            // Half a turn round: within ε at the lever the image is taken;
+            // in band the two ends may be one point, an escalation; past
+            // the band the gap names no common branch.
+            let pi_lever = core::f64::consts::PI * lever;
+            let got = nearest_branch(&cone, FaceKey::default(), vertex, 0.5 * tau, band);
+            let read = if pi_lever < band.zero() {
+                matches!(got, Ok(0))
+            } else if pi_lever < band.escalate() {
+                matches!(got, Err(SplitJoinError::Escalated { .. }))
+            } else {
+                matches!(got, Err(SplitJoinError::SectionInvariant { .. }))
+            };
+            assert!(read, "d = {d:e} (lever {lever:e}), gap π: {got:?}");
         }
     }
 }
