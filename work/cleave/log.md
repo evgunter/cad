@@ -966,3 +966,28 @@ Signed (CLEAVE orchestrator).
   - part 3 (PR 4810) carries the interim relabel at the join;
   - part 4 (PR 4858) must refuse nothing new.
   PR 4858's re-review is FIX-FIRST on exactly this. Its `SectionUnresolved` refuses poses main builds tier-3-valid: 6 of 7 at ψ = 3e-4, and all at ψ = 1e-4 and 1e-5, at 1e-9. Fix pass sent. Lesson: before building a design, re-read the target rows on current main for seam notes.
+- 2026-10-14 — PR 4856 merged at `a1b214d8d7`. Its last run was red only on three main reds, all filed: FLUX's thread-count golden, and NURBS's saddle-wall fit and lily tessellation table. Main had moved only in `certify.rs`, and the merged tree passes clippy on geom-brep, topo and sweep. The DESIGN.md `TransverseNotIntrinsic` sentence is restored to the meaning of b846df1f10 without claiming to be exhaustive; the derived-chart question stays on restfront's row. Row `a-rod-rim-across-a-tube-ellipse-union-is-undescribed-in-one-order` closed.
+- 2026-10-14 — Dispatched P3 cleanups that stay clear of the ellipse and vertex fences:
+  - `boolean-join-resolves-germ-face-surfaces-in-three-closures` and `an-in-band-axis-parallelism-offers-a-proximity-lever`, together on `cleave/join-face-surface-one-home`;
+  - `carrier-cross-one-curve-reads-tilt-apart-and-conic-helper-copies-conic-of` on `cleave/carrier-cross-one-curve`.
+- 2026-10-14 — Ev asked on [ev] PR 4795: 'how is the top of a convex wedge represented?', then 'what happens if we glue a plane to its tip?'. Answered: a convex top is one edge, and a tip touching a face is one edge in edge-on-face contact (two solids by D1/3901 unless joined elsewhere). The second question showed the D1 sentence was too broad, because a face's own 180° side is no wedge. Narrowed it in 7e245eea9b to 'two material wedges, each bounded by two faces at an angle', adding that 'an edge touching a face from outside its wedge stays one edge, in contact with that face'. PR 4858's second fix pass (`efa3830bc7`) brings it in line with Ev's 4812 ruling: an unresolved reading keeps the offset's verdict, so nothing new refuses. Its CI is red only on the two filed main reds. Short re-review resumed. Filed: P1 `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body` (a pre-existing invalid Ok body) and P3 `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways`.
+- 2026-10-14 — PR 4861 review: CHANGES. The design holds: the parameter miss falls about 1000×, no old-convention reader survives in the kernel, and the re-baselines are justified. But at 1e-12 the at-rest gate refuses 64 of the 162 claimed-building poses with `UnrepresentableCurveDatum`. Tier 3's frame margin reads ε − δ·A, and the unnormalized turned seam worsens it, while the pins only assert that split returned Ok. The public `Pose::u_ref` readback now returns the minor direction for re-seamed chords, and the FLUX pose credit is wrong (it already builds on main). Fix pass sent:
+  - normalize the seam;
+  - validate the pins at rest;
+  - derive the major direction at readback;
+  - give 'larger semi-axis' and the quarter turn one home at the curve;
+  - rename the remaining `major`/`minor` names;
+  - pin the tie-break;
+  - correct the PR body;
+  - close restfront's minor-over-major row;
+  - file the tier-3 frame-margin residue on its owner (Ev's 4812 interim).
+- 2026-10-14 — The container restarted.
+  - Resumed: the two P3 lanes (join.rs, and carrier_cross).
+  - Lost: the 4858 short re-review and the 4861 fix-pass lane.
+    - The 4858 re-review was re-created.
+    - The 4861 lane was re-created from the recovered fix-pass brief. The old lane's clone was mid-merge of main, with no fix-pass code yet; the new lane chooses whether to finish or abort that merge.
+  - No new Ev comment on 4795.
+  - Noted the new CLAUDE.md rule: a blocking question about an open PR goes on that PR, with `[ev]` added to its title and the question at the top of its body.
+- 2026-10-14 — PR 4858 third review: MERGE. Head's output is byte-identical to main's on 222 witness rows across three ε. The one newly refusing row in the full ψ×δ ladder sits exactly on the zero band's edge, and is the intended in-band refusal with a lever. No lever is offered on an unadmitted reading, `plane_offset_rounded` is bit-identical at every door, every mutation goes red, and nothing regressed. Its MINORs are filed as P2 `vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings`: the quotient has no room>0 precondition, the sine charge is asserted rather than derived, and offset/side is spelled several ways. I merged main into the PR (197 behind, splitting files touched): clippy is clean on geom-core, geom-brep, topo and sweep, the 22 pins pass, and the merge is pushed (`d938ebc42c`) and waiting on CI.
+- 2026-10-14 — PR 4858 merged at `0adcbf0ea0` on a green head; main had moved 35 commits, none in its files. Part 4 (`the-split-reads-a-vertex-against-the-section-it-ends-not-the-plane`) is closed. Now on main from it: P1 `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body` (a pre-existing invalid Ok, also on main), P2 `vertex-section-quotient-...` (on the tracker branch), and P3 `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways`.
+- 2026-10-14 — Dispatched P1 `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body` (`cleave/seam-split-invalid-ok`). The split's result gate passes halves its own `validate_geometric` refuses. Two separate questions: why the gate accepts them, and whether the near-axial ellipse's amplified error should end under Ev's 4812 interim kernel-limitation ending. The lane measures on main and on 4861's branch.
