@@ -7,6 +7,13 @@
 //! the endpoints belong to whatever holds it (a loop's vertex table, a
 //! sketch segment's `a` and `b`), which is why its one evaluation,
 //! [`Arc2::point_from`], takes the start point as an argument.
+//!
+//! Two carriers in one plane, how they sit and where they cross, are
+//! [`Circles`] and [`Circles2`].
+
+mod pair;
+
+pub use pair::{Circles, Circles2};
 
 use crate::linalg::{Point2, Vec2};
 use crate::real::SymRegistration;

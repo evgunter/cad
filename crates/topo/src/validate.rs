@@ -8357,7 +8357,7 @@ fn ring_outer_meeting<T: Decide>(
         crate::boolean::loop_circle(body, outer, band),
         crate::boolean::loop_circle(body, ring, band),
     ) {
-        return match circle_pair(o.center, o.radius, r.center, r.radius, band) {
+        return match circle_pair(circles_of(o.center, o.radius, r.center, r.radius), band) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
             Ok(
                 CirclePair::ExternallyTangent
@@ -8416,19 +8416,29 @@ enum CirclePair {
     Nested,
 }
 
-/// [`CirclePair`] for the circles `(c1, r1)` and `(c2, r2)`, which lie
-/// in one plane. The outer decide runs first and settles two circles
-/// far apart on its own; an escalation on either is returned rather
-/// than read as either side of it.
-fn circle_pair<T: Decide>(
+/// The circles `(c1, r1)` and `(c2, r2)`, which lie in one plane, as
+/// [`circle_pair`] decides them and arm 5 places their meeting points.
+fn circles_of<T: Real>(
     c1: geom_core::Point3<T>,
     r1: T,
     c2: geom_core::Point3<T>,
     r2: T,
+) -> geom_core::Circles<T> {
+    geom_core::Circles::new((c2 - c1).norm(), r1, r2)
+}
+
+/// [`CirclePair`] for two coplanar circles. The outer decide runs first
+/// and settles two circles far apart on its own; an escalation on
+/// either is returned rather than read as either side of it.
+fn circle_pair<T: Decide>(
+    circles: geom_core::Circles<T>,
     band: Band,
 ) -> Result<CirclePair, Indeterminate> {
-    let d = (c2 - c1).norm();
-    match decide("ring_outer_circles_apart", Margin::of(d - (r1 + r2)), band)? {
+    match decide(
+        "ring_outer_circles_apart",
+        Margin::of(circles.external()),
+        band,
+    )? {
         Sign::Positive => return Ok(CirclePair::Apart),
         Sign::Zero => return Ok(CirclePair::ExternallyTangent),
         Sign::Negative => {}
@@ -8436,7 +8446,7 @@ fn circle_pair<T: Decide>(
     Ok(
         match decide(
             "ring_outer_circles_nested",
-            Margin::of((r1 - r2).abs() - d),
+            Margin::of(-circles.internal()),
             band,
         )? {
             Sign::Positive => CirclePair::Nested,
@@ -8589,14 +8599,14 @@ fn segments_meet<T: Decide>(
                 ..
             },
         ) => {
-            let (existence, tangent) = match circle_pair(c1, r1, c2, r2, band) {
+            let circles = circles_of(c1, r1, c2, r2);
+            let (existence, tangent) = match circle_pair(circles, band) {
                 Ok(CirclePair::Apart | CirclePair::Nested) => return EdgePair::Apart,
                 Ok(CirclePair::Crossing) => (None, false),
                 Ok(CirclePair::ExternallyTangent | CirclePair::InternallyTangent) => (None, true),
                 Err(source) => (Some(source), true),
             };
-            let w = c2 - c1;
-            let d = w.norm();
+            let d = circles.d();
             if tangent {
                 // Concentric within the band with radii equal within
                 // it is ONE circle, and two arcs of one circle share a
@@ -8613,13 +8623,22 @@ fn segments_meet<T: Decide>(
                 }
             }
             // The radical line's foot on the centre line, and the
-            // half-chord either side of it; at a tangency the foot is
-            // the touching point (`a = ±r1`) and the chord ends are
-            // asked too, as on a line.
-            let u = w.normalize();
+            // half-chord either side of it. A secant's half-chord is
+            // read unclamped: its four factors are the margins just
+            // decided definite, so its square is positive at every
+            // scalar. At a tangency, or with the existence margin in
+            // the band, the foot is the touching point and the chord
+            // ends are asked too, as on a line; there the circles may
+            // stand apart or nested by up to the band, where the chord
+            // does not exist and its ends are the foot.
+            let u = (c2 - c1).normalize();
             let v = normal.cross(u);
-            let a = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d * T::from_f64(2.0));
-            let half_chord = ((r1 - a) * (r1 + a)).max(T::zero()).sqrt();
+            let a = circles.radical();
+            let half_chord = if tangent {
+                circles.half_chord_squared().max(T::zero()).sqrt()
+            } else {
+                circles.half_chord()
+            };
             let foot = c1 + u * a;
             let candidates = if tangent {
                 vec![foot, foot + v * half_chord, foot - v * half_chord]
@@ -14659,12 +14678,12 @@ mod tests {
             (4.0, CirclePair::InternallyTangent),
             (2.0, CirclePair::Nested),
         ] {
-            let got = circle_pair(o, 5.0, Point3::new(x, 0.0, 0.0), 1.0, band);
+            let got = circle_pair(circles_of(o, 5.0, Point3::new(x, 0.0, 0.0), 1.0), band);
             assert_eq!(got, Ok(want), "centre at x = {x}");
         }
         // Symmetric in the pair: the larger circle as the second one.
         assert_eq!(
-            circle_pair(Point3::new(4.0, 0.0, 0.0), 1.0, o, 5.0, band),
+            circle_pair(circles_of(Point3::new(4.0, 0.0, 0.0), 1.0, o, 5.0), band),
             Ok(CirclePair::InternallyTangent)
         );
     }
@@ -15136,15 +15155,20 @@ mod tests {
         );
     }
 
-    /// **Two arcs that cross are never read apart, at radii orders of
+    /// **Two arcs that cross are read meeting, at radii orders of
     /// magnitude apart**, in either order and at `f64` and `Interval`:
     /// the two arc pairs of `arc-arc-secant-arm-misses-crossings-at-unequal-radii`
     /// (r = 62.76 × 1.28e-7, and r = 80.44 × 0.0317, crossing 2.0e-11
     /// inside the large arc's end), each trim counter-clockwise. A
     /// crossing placed by a difference of squares sits off the smaller
-    /// circle by up to its radius, and the pair reads `Apart`.
+    /// circle by up to its radius, and the pair reads `Apart` (or, at
+    /// `Interval`, escalates).
+    ///
+    /// The second half pins the backstop a secant's unclamped
+    /// half-chord relies on: a candidate that is the poison is read
+    /// unsure by both trims, never apart.
     #[test]
-    fn arcs_crossing_at_unequal_radii_are_never_read_apart() {
+    fn arcs_crossing_at_unequal_radii_read_meeting() {
         use geom_core::Interval;
         type Arc = (f64, f64, f64, f64, f64);
         fn read<T: Decide>(first: Arc, second: Arc, band: Band) -> &'static str {
@@ -15206,11 +15230,26 @@ mod tests {
                     ("f64", read::<f64>(p, q, band)),
                     ("Interval", read::<Interval>(p, q, band)),
                 ] {
-                    if got == "Apart" {
-                        wrong.push(format!("{scalar}: {name}{order}: read Apart"));
+                    if got != "Meet" {
+                        wrong.push(format!("{scalar}: {name}{order}: read {got}"));
                     }
                 }
             }
+        }
+        let poison = Point3::new(f64::NAN, f64::NAN, 0.0);
+        let arc = |(x, y, r, t0, t1): Arc| MeetSegment::Arc {
+            center: Point3::new(x, y, 0.0),
+            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            radius: r,
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            t0,
+            t1,
+        };
+        if !matches!(
+            meet_at(None, &[poison], arc(second_big), arc(second_small), band),
+            EdgePair::Unsure(_)
+        ) {
+            wrong.push("a poisoned candidate is not read unsure".to_owned());
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
