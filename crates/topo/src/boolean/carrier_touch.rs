@@ -77,7 +77,10 @@ pub(super) fn off_face<T: Decide + Bounds>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let (Some(rho), Some((speed, bend))) = (reach(surface), speed_bound(carrier)) else {
+    let (Some(rho), Some((speed, bend))) = (
+        reach(surface),
+        crate::carrier_speed::speed_and_curvature_hi(carrier),
+    ) else {
         return Ok(false);
     };
     let Some(clusters) = clusters(surface, carrier, (speed, bend), rho, (t0, t1), band) else {
@@ -116,17 +119,6 @@ fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
         | geom::Surface::Nurbs(_)
         | geom::Surface::Approx(_) => None,
     }
-}
-
-/// Bounds on the curve's speed, metres per unit of its parameter
-/// ([`crate::carrier_speed::speed_hi`]), and on its curvature
-/// ([`crate::carrier_speed::curvature_hi`]); `None` past the speed's
-/// kinds (a spiric, a spline).
-fn speed_bound<T: Decide>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
-    Some((
-        crate::carrier_speed::speed_hi(carrier)?,
-        crate::carrier_speed::curvature_hi(carrier)?,
-    ))
 }
 
 /// A point's signed distance from the carrier, its foot on it, and the

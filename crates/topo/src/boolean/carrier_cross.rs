@@ -229,23 +229,6 @@ impl<'a, T: Decide> Span<'a, T> {
     }
 }
 
-/// An ellipse carrier's frame, its fields as bound.
-fn conic<T: geom_core::Real>(
-    center: Point3<T>,
-    axis: Vec3<T>,
-    major: T,
-    minor: T,
-    u_ref: Vec3<T>,
-) -> geom_brep::Conic<T> {
-    geom_brep::Conic {
-        center,
-        axis,
-        u_ref,
-        major,
-        minor,
-    }
-}
-
 /// The isolated points where the swept edge `a` and the boundary edge
 /// `b` can meet, beyond the boundary vertices the caller already holds:
 /// empty where they meet only along a shared stretch or not at all,
@@ -260,7 +243,11 @@ fn meetings<T: Decide>(
     band: Band,
 ) -> Result<Option<Vec<Point3<T>>>, BooleanError> {
     use geom::Curve3::{Circle, Ellipse, Line};
-    Ok(Some(match (a.carrier, b.carrier) {
+    let conics = (
+        geom_brep::Conic::of(a.carrier),
+        geom_brep::Conic::of(b.carrier),
+    );
+    Ok(Some(match (a.carrier, b.carrier, conics) {
         (
             &Line { origin, dir },
             &Circle {
@@ -269,6 +256,7 @@ fn meetings<T: Decide>(
                 radius,
                 ..
             },
+            _,
         )
         | (
             &Circle {
@@ -278,6 +266,7 @@ fn meetings<T: Decide>(
                 ..
             },
             &Line { origin, dir },
+            _,
         ) => {
             let den = dir.dot(axis);
             if !transverse(den, radius, band)? {
@@ -299,6 +288,7 @@ fn meetings<T: Decide>(
                 origin: o2,
                 dir: d2,
             },
+            _,
         ) => {
             let n = d1.cross(d2);
             let s = n.norm();
@@ -324,6 +314,7 @@ fn meetings<T: Decide>(
                 radius: r2,
                 ..
             },
+            _,
         ) => {
             if !transverse(n1.cross(n2).norm(), r1.max(r2), band)? {
                 return Ok(Some(parallel_circles(c1, n1, r1, c2, r2, band)?));
@@ -341,17 +332,7 @@ fn meetings<T: Decide>(
         // alike; its edge then stays within the band of its distance at
         // its point, so a definite distance there certifies that the
         // edge misses the plane.
-        (
-            &Line { origin, dir },
-            &Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            },
-        ) => {
-            let e = conic(center, axis, major, minor, u_ref);
+        (&Line { origin, dir }, &Ellipse { center, axis, .. }, (_, Some(e))) => {
             let den = dir.dot(axis);
             if !transverse(den, a.reach.max(e.speed_hi()), band)? {
                 return Ok(off_plane(a.at, center, axis, band)?.then(Vec::new));
@@ -366,40 +347,19 @@ fn meetings<T: Decide>(
                 radius: r1,
                 ..
             },
-            &Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            },
+            &Ellipse { center, axis, .. },
+            (_, Some(e)),
         ) => {
             // Read parallel, every point of the circle stays within the
             // band of its centre's distance from the plane.
-            let e = conic(center, axis, major, minor, u_ref);
             if !transverse(n1.cross(axis).norm(), r1.max(e.speed_hi()), band)? {
                 return Ok(off_plane(c1, center, axis, band)?.then(Vec::new));
             }
             circle_meets_plane(c1, n1, r1, center, axis, band)?
         }
-        (&Ellipse { .. }, &Line { .. } | &Circle { .. }) => return meetings(b, a, band),
-        (
-            &Ellipse {
-                center: c1,
-                axis: n1,
-                major: a1,
-                minor: b1,
-                u_ref: u1,
-            },
-            &Ellipse {
-                center: c2,
-                axis: n2,
-                major: a2,
-                minor: b2,
-                u_ref: u2,
-            },
-        ) => {
-            let (e, f) = (conic(c1, n1, a1, b1, u1), conic(c2, n2, a2, b2, u2));
+        (&Ellipse { .. }, &Line { .. } | &Circle { .. }, _) => return meetings(b, a, band),
+        (&Ellipse { .. }, &Ellipse { .. }, (Some(e), Some(f))) => {
+            let (c1, n1, c2, n2) = (e.center, e.axis, f.center, f.axis);
             // Read parallel, each ellipse stays within the band of its
             // centre's distance from the other's plane, so a definite
             // distance between the planes certifies that they share no
@@ -421,37 +381,23 @@ fn meetings<T: Decide>(
     }))
 }
 
-/// Whether two ellipses in one plane, within the band, are one curve.
-/// The margin bounds, to first order, how far a point of one lies from
-/// the other: the centres' gap, the change in each semi-axis (larger
-/// with larger, smaller with smaller, whatever order they are stored
-/// in), and the turn between the frames. That last term is read off each
-/// ellipse's shape `M = a²·û ûᵀ + b²·v̂ v̂ᵀ`, which neither the order nor
-/// the sign of the stored axes changes: a turn by `φ` moves a point
-/// normally by at most `φ·(a − b)` (the tangential part of its offset
-/// from the centre is at most `a − b`) and changes `M` by
-/// `√2·φ·(a² − b²)` in Frobenius norm, so `|ΔM| / (a + b)` bounds it.
+/// Whether two ellipses whose planes read parallel are, within the
+/// band, one curve. The margin bounds how far a point of either lies
+/// from the other, tilt out of the plane included. Each ellipse is
+/// `c + L·x` over the unit circle's `x`, with `L = [a·û, b·v̂]`. For any
+/// orthogonal `Q`, pairing `c_e + L_e·x` with `c_f + L_f·Q·x` pairs every
+/// point of each with a point of the other within
+/// `|c_e − c_f| + ‖L_e − L_f·Q‖` ([`frame_gap`]). The stored order and
+/// signs of the semi-axes change `L` by an orthogonal factor, which `Q`
+/// absorbs. The gap read from either side is the same but for rounding,
+/// and the larger is taken, so the margin does not depend on the order
+/// of the pair.
 fn one_curve<T: Decide>(
     e: &geom_brep::Conic<T>,
     f: &geom_brep::Conic<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let shape = |c: &geom_brep::Conic<T>| {
-        let (u, v) = (c.u_ref, c.v_ref());
-        let (a2, b2) = (c.major.powi(2), c.minor.powi(2));
-        let col = |w: Vec3<T>| u * (a2 * u.dot(w)) + v * (b2 * v.dot(w));
-        [
-            col(Vec3::new(T::one(), T::zero(), T::zero())),
-            col(Vec3::new(T::zero(), T::one(), T::zero())),
-            col(Vec3::new(T::zero(), T::zero(), T::one())),
-        ]
-    };
-    let (me, mf) = (shape(e), shape(f));
-    let turn = (0..3).fold(T::zero(), |sum, i| sum + (me[i] - mf[i]).dot(me[i] - mf[i]));
-    let gap = (e.center - f.center).norm()
-        + (e.speed_hi() - f.speed_hi()).abs()
-        + (e.speed_lo() - f.speed_lo()).abs()
-        + turn.sqrt() / (e.speed_hi() + e.speed_lo());
+    let gap = (e.center - f.center).norm() + frame_gap(e, f).max(frame_gap(f, e));
     match decide(
         "bool_carrier_cross_ellipses_one_curve",
         Margin::of(gap),
@@ -461,6 +407,29 @@ fn one_curve<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => Ok(false),
         Err(diag) => Err(escalated(diag)),
     }
+}
+
+/// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
+/// frame the way up `e`'s is (the sign of `(a·b·n̂)_e · (a·b·n̂)_f`,
+/// near `±a·b·a′·b′` where the planes are parallel) and then by the
+/// rotation that best matches the two, which maximizes
+/// `tr(Qᵀ·L_fᵀ·L_e)`.
+fn frame_gap<T: Decide>(e: &geom_brep::Conic<T>, f: &geom_brep::Conic<T>) -> T {
+    let (e1, e2) = (e.u_ref * e.major, e.v_ref() * e.minor);
+    let (f1, f2) = (f.u_ref * f.major, f.v_ref() * f.minor);
+    let up = e1.cross(e2).dot(f1.cross(f2));
+    let f2 = f2 * (up / up.abs());
+    let (x, y) = (f1.dot(e1) + f2.dot(e2), f2.dot(e1) - f1.dot(e2));
+    let h = (x.powi(2) + y.powi(2)).sqrt();
+    let (cos, sin) = (x / h, y / h);
+    let d1 = e1 - (f1 * cos + f2 * sin);
+    let d2 = e2 - (f2 * cos - f1 * sin);
+    let half = T::from_f64(0.5);
+    let (mid, off) = (
+        (d1.dot(d1) + d2.dot(d2)) * half,
+        (d1.dot(d1) - d2.dot(d2)) * half,
+    );
+    (mid + (off.powi(2) + d1.dot(d2).powi(2)).sqrt()).sqrt()
 }
 
 /// Whether `p` lies definitely off the plane through `on` with unit
@@ -625,7 +594,7 @@ mod meetings_rows {
     //! of two carriers is among the candidates, a pair that meets only
     //! along a stretch or nowhere has none, and a pair with no closed
     //! form says so.
-    use super::{Span, meetings};
+    use super::{Span, meetings, one_curve};
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -982,6 +951,149 @@ mod meetings_rows {
                     unread || (k < 0.2 && escalated),
                     "k = {k}, {order}: two crossing sections are not one curve: {got:?}"
                 );
+            }
+        }
+    }
+
+    /// **Two ellipses are one curve only where each lies within the band
+    /// of the other**, a tilt out of the plane counted like any other
+    /// move. An ellipse in a skew plane, of semi-axis ratio 1 to 100 at
+    /// two sizes, against itself moved so that its farthest point leaves
+    /// it by `d`: its centre within the plane and off it, each semi-axis,
+    /// a turn in the plane (`d = (a − b)·φ`), and a tilt about either
+    /// axis and the diagonal (`d` = the tilt times the extent across the
+    /// hinge). Each is stored as built, with its semi-axes in the other
+    /// order, and upside down. With `z` the band's zero, `d = 0.6·z` is
+    /// one curve, `1.5·z` is not, and twice the escalation edge is
+    /// definitely two, read the same in either order. A circle turned
+    /// in its plane is itself.
+    #[test]
+    fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
+        use crate::boolean::BooleanError;
+        use geom_brep::Conic;
+        let b = band();
+        let z = b.zero();
+        let turn = |x: Vec3<f64>, k: Vec3<f64>, t: f64| {
+            let (s, c) = t.sin_cos();
+            x * c + k.cross(x) * s + k * (k.dot(x) * (1.0 - c))
+        };
+        let n = Vec3::new(1.0, 2.0, 3.0).normalize();
+        let u = n.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
+        let v = n.cross(u);
+        let read = |e: &Conic<f64>, f: &Conic<f64>| {
+            let (ef, fe) = (one_curve(e, f, b), one_curve(f, e, b));
+            let key = |r: &Result<bool, BooleanError>| match r {
+                Ok(one) => Some(*one),
+                Err(BooleanError::Escalated { .. }) => None,
+                Err(other) => panic!("only a band reading refuses: {other:?}"),
+            };
+            assert_eq!(key(&ef), key(&fe), "either order: {e:?} {f:?}");
+            key(&ef)
+        };
+        for ratio in [1.0, 1.001, 2.0, 10.0, 100.0] {
+            for size in [0.01, 1.0] {
+                let (major, minor) = (ratio * size, size);
+                let e = Conic {
+                    center: Point3::new(1.0, -2.0, 0.5),
+                    axis: n,
+                    u_ref: u,
+                    major,
+                    minor,
+                };
+                let tilt = |hinge: Vec3<f64>, d: f64| {
+                    let across = n.cross(hinge);
+                    let reach = (major * across.dot(u)).hypot(minor * across.dot(v));
+                    Conic {
+                        axis: turn(n, hinge, d / reach),
+                        u_ref: turn(u, hinge, d / reach),
+                        ..e
+                    }
+                };
+                let mut poses: Vec<(&str, Box<dyn Fn(f64) -> Conic<f64>>)> = vec![
+                    (
+                        "centre in the plane",
+                        Box::new(|d| Conic {
+                            center: e.center + (u + v).normalize() * d,
+                            ..e
+                        }),
+                    ),
+                    (
+                        "centre off the plane",
+                        Box::new(|d| Conic {
+                            center: e.center + n * d,
+                            ..e
+                        }),
+                    ),
+                    (
+                        "major",
+                        Box::new(|d| Conic {
+                            major: major + d,
+                            ..e
+                        }),
+                    ),
+                    (
+                        "minor",
+                        Box::new(|d| Conic {
+                            minor: minor - d,
+                            ..e
+                        }),
+                    ),
+                    ("tilt about û", Box::new(|d| tilt(u, d))),
+                    ("tilt about v̂", Box::new(|d| tilt(v, d))),
+                    (
+                        "tilt about û + v̂",
+                        Box::new(|d| tilt((u + v).normalize(), d)),
+                    ),
+                ];
+                if ratio > 1.1 {
+                    poses.push((
+                        "turn",
+                        Box::new(|d| Conic {
+                            u_ref: turn(u, n, d / (major - minor)),
+                            ..e
+                        }),
+                    ));
+                }
+                for (what, pose) in &poses {
+                    for (d, want) in [
+                        (0.6 * z, Some(true)),
+                        (1.5 * z, None),
+                        (2.0 * b.escalate(), Some(false)),
+                    ] {
+                        let f = pose(d);
+                        let stored = [
+                            f,
+                            Conic {
+                                u_ref: f.v_ref(),
+                                major: f.minor,
+                                minor: f.major,
+                                ..f
+                            },
+                            Conic { axis: -f.axis, ..f },
+                        ];
+                        for g in stored {
+                            let got = read(&e, &g);
+                            let fits = match want {
+                                None => got != Some(true),
+                                _ => got == want,
+                            };
+                            assert!(
+                                fits,
+                                "a/b = {ratio}, b = {size}, {what} by {} z: {got:?}",
+                                d / z
+                            );
+                        }
+                    }
+                }
+                if ratio == 1.0 {
+                    for angle in [0.3, 2.0] {
+                        let f = Conic {
+                            u_ref: turn(u, n, angle),
+                            ..e
+                        };
+                        assert_eq!(read(&e, &f), Some(true), "a circle turned {angle}");
+                    }
+                }
             }
         }
     }
