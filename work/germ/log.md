@@ -1304,3 +1304,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Hosted CI is red only on the known `mass_props_are_thread_count_invariant`.
   - Row `PR-5043.md` last: sequential, M, byte 35, tallied 0, major false.
   - r5066a and r5066b are still reviewing.
+- 2026-10-14 06:10 — Dispatched the torus-circle-arc far-frame item (measure first): session_01PHep6zneg9Yvyc69Heeg5d, branch germ/torus-circle-arc-far-frames.
