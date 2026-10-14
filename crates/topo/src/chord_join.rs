@@ -1923,9 +1923,11 @@ fn chord_spec<T: Decide>(
                      dividing, and no operator removes a surface a later chord still names"
                 )
             });
+            // The section face is not minted yet: only the face the
+            // ruling divides names its region.
             let rest = crate::rest_locus(
-                (wall_key, &wall),
-                (plane_key, plane),
+                body,
+                [(wall_key, Some(face)), (plane_key, None)],
                 &carrier,
                 (s1, s2),
                 band,

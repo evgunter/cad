@@ -186,9 +186,13 @@ fn restated_edges_keep_carrier_bits() {
         else {
             continue;
         };
-        // Only edges restated to the conventional pair by the split's
-        // smooth arm.
-        if !matches!(c.description(), EdgeDescription::OnPair { .. }) {
+        // Only edges restated conventionally by the split's smooth arm:
+        // between two coplanar records, one carrier, an image in the
+        // first's chart (`topo::rest_locus`).
+        let (sp, sm) = topo::readback::edge_sides(below, k)
+            .expect("a live edge")
+            .surfaces();
+        if sp == sm || !matches!(c.description(), EdgeDescription::Chart(_)) {
             continue;
         }
         let Some((_, carrier0, t0, t1)) = before.iter().find(|(bk, ..)| *bk == k) else {

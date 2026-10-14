@@ -1294,21 +1294,19 @@ impl<T: Decide> Body<T> {
         })?;
         let data = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?;
         let curve_key = data.curve;
-        let (s_plus, s_minus) = crate::readback::edge_sides_of(self, edge, data).surfaces();
+        let sides = crate::readback::edge_sides_of(self, edge, data);
+        let (s_plus, s_minus) = sides.surfaces();
         let restated = self
             .edge_curve(edge, curve_key)
             .certified()
             .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?
             .restated_spec();
-        let surface = |k: SurfaceKey| {
-            let Some(s) = self.surfaces.get(k) else {
-                unreachable!("{k:?} is the surface of a face {edge:?} bounds")
-            };
-            (k, s)
-        };
         let rest = crate::rest_locus(
-            surface(s_plus),
-            surface(s_minus),
+            self,
+            [
+                (s_plus, Some(sides.plus.face)),
+                (s_minus, Some(sides.minus.face)),
+            ],
             &restated.carrier,
             (restated.param_start, restated.param_end),
             band,

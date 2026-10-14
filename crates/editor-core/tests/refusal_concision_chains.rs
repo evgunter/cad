@@ -4293,6 +4293,16 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             ("Escalated", S::Escalated { source: diag() }),
             ("Pcurve", S::Pcurve { source: pcurve() }),
             (
+                "RimSeamMixed",
+                S::RimSeamMixed {
+                    edge: topo::EdgeKey::default(),
+                    stations: geom_brep::MixedStations {
+                        transverse: 3,
+                        smooth: 4,
+                    },
+                },
+            ),
+            (
                 "Join",
                 S::Join {
                     refusal: join_refusal(),

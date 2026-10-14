@@ -1069,16 +1069,16 @@ fn a_nested_aligned_touch_answers_every_op() {
     }
 }
 
-/// **A pair read at a tighter ε escalates; it never turns invalid**
-/// (D2's ε-stability). The wall piece of a shoulder `c·√(2ε)` deep
-/// (`c ≤ 1`, under-determined at the run's ε) stores its seam as
-/// `OnPair` and is clean at the run's ε. Read at `ε / 1000`, the
-/// seam's sagitta `c²ε` is far above `K·ε/1000`, so the rule reads the
-/// tangency determinate: tier 3 escalates it
-/// (`PairTangencyDetermined`), never `TangentNotIntrinsic`, the
-/// refusal it raised before.
+/// **A derived pair read at a finer ε escalates; it never turns
+/// invalid** (D2's ε-stability). The wall piece of a shoulder `c·√(2ε)`
+/// deep (`c ≤ 1`, under-determined at the run's ε) stores its seam as a
+/// derived `OnPair` and is clean at the run's ε. Read down a ladder of
+/// finer ε, every finding is an escalation — the second order in band
+/// (`SliverDihedral`) on the way, then the tangency the finer band
+/// resolves (`PairTangencyDetermined`, its sagitta `c²ε` far above
+/// `K·ε/1000`) — and never `TangentNotIntrinsic`.
 #[test]
-fn a_pair_read_at_a_tighter_eps_escalates_rather_than_turning_invalid() {
+fn a_pair_read_at_a_finer_eps_escalates_rather_than_turning_invalid() {
     let eps = tol().eps();
     for c in [0.25, 0.5, 0.8] {
         let wall = topo::split(&shoulder(c * (2.0 * eps).sqrt()), &shoulder_cut(), tol())
@@ -1097,13 +1097,125 @@ fn a_pair_read_at_a_tighter_eps_escalates_rather_than_turning_invalid() {
             vec![],
             "c = {c}: clean at the ε it was built at"
         );
-        let tighter = topo::test_support::tier3_at(&wall, eps / 1000.0, tol());
+        for ratio in [2.0, 10.0, 100.0, 1000.0] {
+            let finer = topo::test_support::tier3_at(&wall, eps / ratio, tol());
+            assert!(
+                finer.iter().all(|e| matches!(
+                    e,
+                    topo::ValidationError::SliverDihedral { .. }
+                        | topo::ValidationError::PairTangencyDetermined { .. }
+                )),
+                "c = {c}: at ε / {ratio} every finding escalates, got {finer:?}"
+            );
+        }
+        let finest = topo::test_support::tier3_at(&wall, eps / 1000.0, tol());
         assert!(
             matches!(
-                tighter[..],
+                finest[..],
                 [topo::ValidationError::PairTangencyDetermined { .. }]
             ),
-            "c = {c}: at ε / 1000 the pair escalates, got {tighter:?}"
+            "c = {c}: at ε / 1000 the pair's tangency resolves, got {finest:?}"
         );
     }
+}
+
+/// The shoulder seam a piece holds, by key ([`shoulder_seam`]'s edge).
+fn shoulder_seam_edge(piece: &Body<f64>) -> EdgeKey {
+    let eps = tol().eps();
+    let on_the_ruling = |p: Point3<f64>| p.x.abs() <= eps && (p.y - 1.0).abs() <= eps;
+    let point = |v| *piece.get_point(piece.get_vertex(v).unwrap().point).unwrap();
+    let seams: Vec<_> = piece
+        .edges()
+        .filter(|(_, e)| {
+            let start = piece.get_half_edge(e.he_plus).unwrap().start;
+            let end = piece.half_edge_end(e.he_plus).unwrap();
+            on_the_ruling(point(start)) && on_the_ruling(point(end))
+        })
+        .map(|(k, _)| k)
+        .collect();
+    let [seam] = seams[..] else {
+        panic!("one seam on the ruling, got {}", seams.len())
+    };
+    seam
+}
+
+/// **A pair stated over a determinate tangency is a defect at the build
+/// ε** (the third review's witness). The shoulder `3√K·√(2ε)` deep
+/// stores its seam as the intrinsic tangency; restated by hand as the
+/// pair (`Body::set_edge_curve`, which certifies incidence alone), tier 3
+/// at the ε the body was built at reads the rule determinate and refuses
+/// `TangentNotIntrinsic`, as for a declared `Chart`: nothing was
+/// tightened, so the pair is a wrong description, not a reading a finer
+/// ε resolved. Only at a finer ε does it escalate.
+#[test]
+fn a_pair_stated_over_a_determinate_tangency_is_a_defect_at_the_build_eps() {
+    let eps = tol().eps();
+    let depth = 3.0 * tol().k().sqrt() * (2.0 * eps).sqrt();
+    let mut wall = topo::split(&shoulder(depth), &shoulder_cut(), tol())
+        .expect("the shoulder cuts at its seam")
+        .above
+        .body()
+        .expect("material on the wall's side")
+        .clone();
+    assert_eq!(shoulder_seam(&wall).0, "TangentIntersection");
+    let seam = shoulder_seam_edge(&wall);
+    let curve = wall
+        .get_curve_geom(wall.get_edge(seam).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .clone();
+    let pair = curve
+        .description()
+        .pair()
+        .expect("the tangency names its pair");
+    wall.set_edge_curve(seam, curve.restated_on_pair(pair), tol())
+        .expect("the pair certifies by incidence");
+    assert_eq!(
+        topo::test_support::tier3_at(&wall, eps, tol()),
+        vec![topo::ValidationError::TangentNotIntrinsic { edge: seam }],
+        "at the build ε the hand-stated pair is a defect"
+    );
+    let finer = topo::test_support::tier3_at(&wall, eps / 1000.0, tol());
+    assert!(
+        matches!(
+            finer[..],
+            [topo::ValidationError::PairTangencyDetermined { edge, .. }] if edge == seam
+        ),
+        "at ε / 1000 it escalates, got {finer:?}"
+    );
+}
+
+/// **The transverse arm, alike** (ruling 1 of the third review): a
+/// brick's edge, two planes at a right angle, restated by hand as their
+/// pair, refuses `TransverseNotIntrinsic` at the build ε and escalates
+/// `PairCornerDetermined`, with the wedge it read, at a finer one. No
+/// door builds a derived pair a finer ε reads a corner (the review's
+/// probes found none), so the row states one.
+#[test]
+fn a_pair_stated_over_a_corner_is_a_defect_at_the_build_eps_and_escalates_finer() {
+    let eps = tol().eps();
+    let mut cube = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let (edge, curve) = cube
+        .edges()
+        .find_map(|(k, e)| {
+            let c = cube.get_curve_geom(e.curve)?.certified()?;
+            c.description().pair().map(|_| (k, c.clone()))
+        })
+        .expect("a brick edge between two planes");
+    let pair = curve.description().pair().unwrap();
+    cube.set_edge_curve(edge, curve.restated_on_pair(pair), tol())
+        .expect("the pair certifies by incidence");
+    assert_eq!(
+        topo::test_support::tier3_at(&cube, eps, tol()),
+        vec![topo::ValidationError::TransverseNotIntrinsic { edge }],
+        "at the build ε the hand-stated pair is a defect"
+    );
+    let finer = topo::test_support::tier3_at(&cube, eps / 1000.0, tol());
+    assert!(
+        matches!(
+            finer[..],
+            [topo::ValidationError::PairCornerDetermined { edge: e, .. }] if e == edge
+        ),
+        "at ε / 1000 it escalates, got {finer:?}"
+    );
 }

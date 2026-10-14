@@ -2715,9 +2715,14 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     // distinct surfaces, or an image in the chart of the
                     // one surface both faces lie on.
                     let c = existing.as_ref().ok_or_else(corrupt)?;
-                    let rest =
-                        crate::rest_locus((s1, surf1), (s2, surf2), c.carrier(), c.params(), band)
-                            .map_err(|diag| DescribeRefusal::Coincidence { edge, diag })?;
+                    let rest = crate::rest_locus(
+                        body,
+                        [(s1, Some(sides.plus.face)), (s2, Some(sides.minus.face))],
+                        c.carrier(),
+                        c.params(),
+                        band,
+                    )
+                    .map_err(|diag| DescribeRefusal::Coincidence { edge, diag })?;
                     let failure = match rest {
                         geom_brep::RestLocus::Chart(_) => EdgeDescribeFailure::Chart,
                         geom_brep::RestLocus::Pair(_) => EdgeDescribeFailure::Pair,
@@ -2790,20 +2795,24 @@ pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> Boo
 /// - under-determined ⇒ `false`: the conventional description is the
 ///   honest one (coplanar planes' exact-zero jet lands here, so a planar
 ///   split keeps its chord description);
-/// - a station that reads the seam a corner ⇒
-///   [`BooleanError::MixedSeam`] with the two stations that disagree:
-///   the seam is smooth at its witness and a corner elsewhere, so the
-///   dihedral passes through the band at a point no station read, and
-///   the seam is certifiable as neither (D2);
-/// - every station a corner ⇒ [`BooleanError::MixedSeam`] with no
-///   stations: the corner refutes the smooth reading at the witness,
-///   which is not a station on every carrier (a line's is its vertices'
-///   midpoint), as the smooth-premise doors refuse it;
-/// - in band at a station ⇒ the typed escalation of the reading that
-///   raised it: the seam's first-order arm or wedge, by rung, as
-///   [`seam_class`] ends it, or its second-order bend
+/// - a station that reads the seam a corner ⇒ [`SeamRefusal::Mixed`]
+///   with the two stations that disagree, which the describe pass words
+///   as [`BooleanError::MixedSeam`] naming its edge: the seam is smooth
+///   at its witness and a corner elsewhere, so the dihedral passes
+///   through the band at a point no station read, and the seam is
+///   certifiable as neither (D2);
+/// - every station a corner ⇒ [`SeamRefusal::Mixed`] with no stations:
+///   the corner refutes the smooth reading at the witness, which is not
+///   a station on every carrier (a line's is its vertices' midpoint), as
+///   the smooth-premise doors refuse it;
+/// - in band at a station ⇒ [`SeamRefusal::Undecided`], worded as the
+///   typed escalation of the reading that raised it
+///   ([`seam_refusal`]): the seam's first-order arm or wedge, by rung,
+///   as [`seam_class`] ends it, or its second-order bend
 ///   ([`BooleanDecision::SeamJet`]). Certifiable as neither, so never
 ///   folded into either description (D4 ¶3).
+///
+/// Edge-free: the describe pass names the edge where it words a refusal.
 #[cfg(test)]
 pub(super) fn seam_must_carry<T: Decide>(
     surf1: &geom::Surface<T>,
@@ -2813,22 +2822,15 @@ pub(super) fn seam_must_carry<T: Decide>(
     t1: T,
     extent: T,
     band: Band,
-) -> Result<SeamReading, BooleanError> {
-    must_carry_reading(surf1, surf2, carrier, t0, t1, extent, band).map_err(|refusal| match refusal
-    {
-        SeamRefusal::Undecided(reading, diag) => seam_refusal(reading, diag),
-        SeamRefusal::Mixed(stations) => BooleanError::MixedSeam {
-            edge: crate::entity::EdgeKey::default(),
-            stations,
-        },
-    })
+) -> Result<SeamReading, SeamRefusal> {
+    must_carry_reading(surf1, surf2, carrier, t0, t1, extent, band)
 }
 
 /// Why a seam smooth at its witness has no description: a station
 /// undecided, with the reading that raised it and its diagnostics, or
 /// one that reads a corner ([`seam_must_carry`]).
 #[derive(Clone, Copy, Debug)]
-enum SeamRefusal {
+pub(super) enum SeamRefusal {
     Undecided(DihedralReading, Indeterminate),
     Mixed(Option<geom_brep::MixedStations>),
 }
@@ -8633,7 +8635,7 @@ mod tests {
         carrier: &geom::Curve3<f64>,
         (t0, t1): (f64, f64),
         extent: f64,
-    ) -> [Result<super::SeamReading, BooleanError>; 2] {
+    ) -> [Result<super::SeamReading, super::SeamRefusal>; 2] {
         let witness = carrier.eval((t0 + t1) / 2.0);
         [(s1, s2), (s2, s1)].map(|(a, b)| {
             assert!(
@@ -8644,6 +8646,17 @@ mod tests {
                 "the row's seam reads smooth at its witness"
             );
             seam_must_carry(a, b, carrier, t0, t1, extent, band())
+        })
+    }
+
+    /// A seam refusal undecided at a station, worded as the describe pass
+    /// words it ([`super::seam_refusal`]); any other answer, as read.
+    fn worded(
+        got: Result<super::SeamReading, super::SeamRefusal>,
+    ) -> Result<super::SeamReading, Result<BooleanError, super::SeamRefusal>> {
+        got.map_err(|refusal| match refusal {
+            super::SeamRefusal::Undecided(reading, diag) => Ok(super::seam_refusal(reading, diag)),
+            mixed @ super::SeamRefusal::Mixed(_) => Err(mixed),
         })
     }
 
@@ -8661,11 +8674,11 @@ mod tests {
             .into_iter()
             .enumerate()
         {
-            match got {
-                Err(BooleanError::Escalated {
+            match worded(got) {
+                Err(Ok(BooleanError::Escalated {
                     decision: BooleanDecision::SeamJet,
                     diag,
-                }) => assert_eq!(
+                })) => assert_eq!(
                     diag.predicate,
                     Some("tangent_second_order"),
                     "order {order}: the escalation is the station's sagitta"
@@ -8684,14 +8697,14 @@ mod tests {
         let (floor, cylinder, ruling) = resting();
         let extent = in_band();
         for (a, b) in [(&floor, &cylinder), (&cylinder, &floor)] {
-            let got = seam_must_carry(a, b, &ruling, 0.0, 1.0, extent, band());
+            let got = worded(seam_must_carry(a, b, &ruling, 0.0, 1.0, extent, band()));
             assert!(
                 matches!(
                     got,
-                    Err(BooleanError::Escalated {
+                    Err(Ok(BooleanError::Escalated {
                         decision: BooleanDecision::LeverArm(LeverArm::Seam),
                         ..
-                    })
+                    }))
                 ),
                 "an in-band arm is the seam lever's refusal, got {got:?}"
             );
@@ -8730,15 +8743,17 @@ mod tests {
         }
     }
 
-    /// **A seam that reads a corner at every station refuses typed, with
-    /// no stations**: the floor and a plane through its ruling at 45°
-    /// meet at a clear corner all along it. The describe pass asks the
-    /// rule of a seam it read smooth at the witness, which is not a
-    /// station on every carrier (a line's is its vertices' midpoint), so
-    /// the corner everywhere refutes that reading, as the smooth-premise
-    /// doors refuse it, rather than being assumed away.
+    /// **A corner at every station maps to the seam's typed refusal, with
+    /// no stations.** What this row shows is the mapping: the floor and a
+    /// plane through its ruling at 45° read a corner at every station
+    /// (and at the witness too, so the describe pass's smooth arm would
+    /// not ask these surfaces). The arm asks the rule of a seam it read
+    /// smooth at the witness, which is not a station on every carrier (a
+    /// line's is its vertices' midpoint); where such a seam reads a corner
+    /// at every station, this is the refusal it gets, as the
+    /// smooth-premise doors refuse it, rather than a panic.
     #[test]
-    fn a_seam_a_corner_at_every_station_refuses_typed() {
+    fn a_corner_at_every_station_maps_to_the_seams_typed_refusal() {
         let (floor, _, ruling) = resting();
         let s = std::f64::consts::FRAC_1_SQRT_2;
         let tilted = geom::Surface::Plane {
@@ -8749,13 +8764,8 @@ mod tests {
         for (a, b) in [(&floor, &tilted), (&tilted, &floor)] {
             let got = seam_must_carry(a, b, &ruling, 0.0, 1.0, 1.0, band());
             assert!(
-                matches!(got, Err(BooleanError::MixedSeam { stations: None, .. })),
+                matches!(got, Err(super::SeamRefusal::Mixed(None))),
                 "a corner at every station refuses typed, got {got:?}"
-            );
-            let text = got.unwrap_err().to_string();
-            assert!(
-                text.contains("a corner at every station"),
-                "the refusal says so: {text}"
             );
         }
     }
@@ -8836,13 +8846,10 @@ mod tests {
             assert!(
                 matches!(
                     got,
-                    Err(BooleanError::MixedSeam {
-                        stations: Some(geom_brep::MixedStations {
-                            transverse: 3,
-                            smooth: 4
-                        }),
-                        ..
-                    })
+                    Err(super::SeamRefusal::Mixed(Some(geom_brep::MixedStations {
+                        transverse: 3,
+                        smooth: 4
+                    })))
                 ),
                 "order {order}: a seam that is a corner somewhere refuses as mixed, got {got:?}"
             );
@@ -8909,11 +8916,11 @@ mod tests {
         {
             assert!(
                 matches!(
-                    got,
-                    Err(BooleanError::Escalated {
+                    worded(got),
+                    Err(Ok(BooleanError::Escalated {
                         decision: BooleanDecision::SeamWedge,
                         ..
-                    })
+                    }))
                 ),
                 "order {order}: the in-band wedge refuses as the seam's wedge, got {got:?}"
             );

@@ -1658,6 +1658,14 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
         band(),
     )
     .map(|_| ())
+    .map_err(|refusal| match refusal {
+        super::super::ops::SeamRefusal::Undecided(reading, diag) => {
+            super::super::ops::seam_refusal(reading, diag)
+        }
+        mixed @ super::super::ops::SeamRefusal::Mixed(_) => {
+            panic!("a resting cylinder reads smooth at every station, got {mixed:?}")
+        }
+    })
 }
 
 /// A re-cut sphere of radius 1 whose polar axis leans off the escape
@@ -2775,6 +2783,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
+    ("ops.rs", "of_describe", "Coincide::Carriers", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
     ("ops.rs", "escalated", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),

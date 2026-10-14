@@ -573,7 +573,13 @@ surface's per-sample residual, as `Intersection` meters it) and named
 by no chart, and `EdgeDescription::Chart { surface, pcurve, wrap }` for
 a locus one chart defines (wraps, iso lines, splits whose two faces
 share one surface, stated spline isos), with `EdgeAuthority` recording
-who declared the locus; the chart collapse and its fence are
+who declared the locus. Which form an edge between two faces takes is
+decided in one home, `topo::rest_locus` (`RestLocus`): one surface
+record is one surface; two records the carrier-equality ladder reads
+as one carrier over the faces' region are one surface too, since
+incidence on both is incidence on one, and the edge rests in the first
+record's chart; two distinct carriers, or a kind outside the ladder,
+are the pair; the chart collapse and its fence are
 `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
 area read a face carrying a `General` pcurve through the trimmed
 quadrature lane (`crates/topo/src/props/quad_lane.rs`), and tessellation through the
@@ -679,12 +685,14 @@ only when both move one reading, as a residual and its span sag do. Tier 3 has t
 definitely-tangent edge carries a recorded `ContactMark` (`Tangent` when
 jet-determinate, `SmoothUnderdetermined` when the surfaces
 under-determine the locus, e.g. a G2 sketch join), and the must-carry
-rule fires only on `ContactMark::Tangent`: a declared locus there
-refuses `TangentNotIntrinsic`, and an `OnPair` (whose claim is that the
-pair under-determines it) escalates `PairTangencyDetermined`. Its
-under-determined reading was zero-side at the ε it was built at, and
-that reading turns definite as ε tightens, so the pair escalates rather
-than flipping invalid. An edge whose stations read definitely
+rule fires only on `ContactMark::Tangent`, refusing a declared locus or
+an `OnPair` there `TangentNotIntrinsic`. Read at an ε finer than the
+body was built at — every body a process holds was built at the run's
+ε, so only a re-read at a finer band is — a derived `OnPair` escalates
+instead (`PairTangencyDetermined`, with the sagitta it read; the
+transverse arm's twin is `PairCornerDetermined`): a zero-side reading
+turns definite as ε tightens, and the escalation is the finer band's
+question, not a defect. An edge whose stations read definitely
 transverse at one and definitely smooth at its neighbour brackets an
 unsampled in-band point and is refused (`MixedDihedral`, naming the two
 stations); `must_carry_over_edge` answers it `MustCarryVerdict::Mixed`,

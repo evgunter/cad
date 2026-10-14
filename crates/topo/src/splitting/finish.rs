@@ -1164,8 +1164,8 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     // — is restated.
                     let pair = geom_brep::SurfacePair::new(s_self, s_other);
                     let rest = crate::rest_locus(
-                        (s_self, surf_self),
-                        (s_other, surf_other),
+                        body,
+                        [(s_self, Some(face)), (s_other, Some(other_face))],
                         &spec.carrier,
                         (spec.param_start, spec.param_end),
                         band,
@@ -1912,11 +1912,13 @@ mod smooth_arm_rows {
             .expect("a flush neighbour describes conventionally");
         let curve = body.get_edge(edge).unwrap().curve;
         let stored = body.get_curve_geom(curve).unwrap().certified().unwrap();
+        // The neighbour is now a second record of the section's plane:
+        // one carrier, so the edge rests in the first record's chart.
         match stored.description() {
-            geom_brep::EdgeDescription::OnPair { pair } => assert_eq!(
-                *pair,
-                geom_brep::SurfacePair::new(s_self, s_other),
-                "restated as the pair of the section and its neighbour"
+            geom_brep::EdgeDescription::Chart(chart) => assert_eq!(
+                chart.surface,
+                geom_brep::SurfacePair::new(s_self, s_other).keys()[0],
+                "restated in the first record's chart"
             ),
             other => panic!("an under-determined edge keeps no tangency, got {other:?}"),
         }

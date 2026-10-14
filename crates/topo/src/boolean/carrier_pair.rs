@@ -574,47 +574,85 @@ fn chart_carrier<T: Decide>(surface: &geom::Surface<T>) -> Option<CarrierDesc<T>
     }
 }
 
-/// **Where a conventional edge between the surfaces `a` and `b` rests**
-/// — the one home of D2's split between a locus one chart defines and
-/// one two surfaces under-determine ([`geom_brep::RestLocus`]); every
-/// door states what it decides.
+/// **Where a conventional edge between two surfaces rests** — the one
+/// home of D2's split between a locus one chart defines and one two
+/// surfaces under-determine ([`geom_brep::RestLocus`]); every door
+/// states what it decides.
 ///
 /// - One surface record on both sides is one surface: its chart.
 /// - Two records are read by the carrier-equality ladder
-///   ([`super::carrier_eq::carrier_eq`], undeclared) over the edge's
-///   own extent, a ball about its carrier's middle as wide as the
-///   extent the must-carry rule levers on. A coincidence decided Zero
-///   is one carrier, and incidence on both of one carrier is incidence
-///   on one, which determines nothing: the edge rests in the chart of
-///   the pair's first key. Definitely distinct carriers are the pair,
-///   and so is a kind outside the ladder's inventory (a cone, a
-///   spline), which has no coincidence to read.
+///   ([`super::carrier_eq::carrier_eq`], undeclared) over the region
+///   the description is consumed on: a ball enclosing the edge's own
+///   extent and each named face's boundary vertices (`sides`' faces,
+///   where the face exists yet; a chord minted before its section face
+///   names only the face it divides). The faces, not the edge alone:
+///   two planes meeting smoothly over a short edge are still two
+///   surfaces where their faces spread. A coincidence decided Zero is
+///   one carrier, and incidence on both of one carrier is incidence on
+///   one, which determines nothing: the edge rests in the chart of the
+///   pair's first key. Definitely distinct carriers are the pair, and
+///   so is a kind outside the ladder's inventory (a cone, a spline),
+///   which has no coincidence to read.
+///
+/// Each side's surface is `body`'s at its key, a link of the edge being
+/// described.
 ///
 /// # Errors
 ///
 /// The ladder's undecided reading — a coincidence in band, or a rung
-/// that could not decide — as the diagnostic that stopped it.
+/// that could not decide — as the diagnostic that stopped it, or a
+/// region that does not read (`"rest_locus_extent"`).
+///
+/// # Panics
+///
+/// Where a side's surface or face does not resolve: links of the edge
+/// being described.
 pub fn rest_locus<T: Decide>(
-    a: (crate::SurfaceKey, &geom::Surface<T>),
-    b: (crate::SurfaceKey, &geom::Surface<T>),
+    body: &Body<T>,
+    sides: [(crate::SurfaceKey, Option<FaceKey>); 2],
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<geom_brep::RestLocus, geom_core::Indeterminate> {
-    let ((ka, sa), (kb, sb)) = (a, b);
+    let [(ka, fa), (kb, fb)] = sides;
     if ka == kb {
         return Ok(geom_brep::RestLocus::Chart(ka));
     }
     let pair = geom_brep::SurfacePair::new(ka, kb);
-    let (Some(ca), Some(cb)) = (chart_carrier(sa), chart_carrier(sb)) else {
+    let surface = |k: crate::SurfaceKey| {
+        body.get_surface(k)
+            .unwrap_or_else(|| unreachable!("{k:?} is a surface the described edge lies on"))
+    };
+    let (Some(ca), Some(cb)) = (chart_carrier(surface(ka)), chart_carrier(surface(kb))) else {
         return Ok(geom_brep::RestLocus::Pair(pair));
     };
+    let on = |f: Option<FaceKey>| {
+        f.map_or_else(Vec::new, |f| {
+            face_witnesses(body, f)
+                .unwrap_or_else(|| unreachable!("{f:?} is a face the described edge bounds"))
+        })
+    };
+    let (on_a, on_b) = (on(fa), on(fb));
     let chord = carrier.eval(t0).distance(carrier.eval(t1));
-    let reach = ExtentBall::new(
+    let edge = ExtentBall::new(
         carrier.mid_point(t0, t1),
         geom_brep::edge_extent(carrier, t0, t1, chord),
     );
-    let extent = super::ConsumedExtent::unwitnessed(reach);
+    let parts: Vec<_> = core::iter::once(edge)
+        .chain(on_a.iter().chain(&on_b).map(|&p| ExtentBall::point(p)))
+        .collect();
+    let Some(reach) = ExtentBall::enclosing(&parts).and_then(ExtentBall::readable) else {
+        return Err(geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::INVALID,
+            band,
+            predicate: Some("rest_locus_extent"),
+            terminal_sliver: false,
+        });
+    };
+    let extent = super::ConsumedExtent {
+        reach,
+        on: [&on_a, &on_b],
+    };
     match super::carrier_eq::carrier_eq(&ca, &cb, PlaneIdentity::NONE, &extent, band) {
         Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite) => {
             Ok(geom_brep::RestLocus::Chart(pair.keys()[0]))

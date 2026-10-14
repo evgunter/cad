@@ -1231,7 +1231,8 @@ pub enum ValidationError {
         edge: EdgeKey,
     },
     /// Tier 3, the must-carry's escalation for a pair: an edge stored
-    /// as `OnPair` reads, at an ε finer than the one it was built at,
+    /// as a derived `OnPair` reads, at an ε finer than the one it was
+    /// built at,
     /// as a jet-determinate tangency (every station definitely smooth,
     /// the second order definitely positive) inside
     /// [`geom_brep::tangent_certificate_lane`].
@@ -1242,23 +1243,23 @@ pub enum ValidationError {
     /// definite as ε tightens, and a short seam whose sagitta the build
     /// could not resolve is one the finer band can: an escalation, never
     /// a defect (D2: ε-tightening escalates, never flips a valid body
-    /// invalid). At the build ε the same reading is
-    /// [`ValidationError::TangentNotIntrinsic`], as for a declared
+    /// invalid). At the build ε, or on a declared pair, the same reading
+    /// is [`ValidationError::TangentNotIntrinsic`], as for a declared
     /// `Chart`.
     PairTangencyDetermined {
         /// The pair edge this tolerance reads as a determinate tangency.
         edge: EdgeKey,
         /// The second-order sagitta that read definite
-        /// (`"tangent_second_order"`), at the edge's middle station.
+        /// (`"tangent_second_order"`), at the walk's first station.
         sagitta: geom_core::MarginDiag,
     },
     /// Tier 3, the transverse arm's escalation for a pair: an edge
-    /// stored as `OnPair` reads, at an ε finer than the one it was
-    /// built at, definitely transverse at every station — the first
+    /// stored as a derived `OnPair` reads, at an ε finer than the one
+    /// it was built at, definitely transverse at every station — the first
     /// order its build read smooth turned definite. An escalation, as
     /// [`ValidationError::PairTangencyDetermined`] is, for the same
-    /// reason; at the build ε the same reading is
-    /// [`ValidationError::TransverseNotIntrinsic`].
+    /// reason; at the build ε, or on a declared pair, the same reading
+    /// is [`ValidationError::TransverseNotIntrinsic`].
     PairCornerDetermined {
         /// The pair edge this tolerance reads as a corner.
         edge: EdgeKey,
@@ -7006,10 +7007,11 @@ pub(crate) fn tier3_local_checks_marked<
         // surface among them, keeps its conventional description (the
         // D2 conventional split), an escalation reports `SliverDihedral`
         // and exempts the edge, and a mixed sample set is refused
-        // (`MixedDihedral`). A definitely-transverse edge reads so at
-        // every tighter ε too; a smooth reading does not, so a
-        // conventional edge whose stations read transverse at a tighter
-        // ε than it was built at is refused here
+        // (`MixedDihedral`). A smooth reading can turn transverse as ε
+        // tightens: a derived `OnPair` read so at a finer ε than its
+        // build escalates (`PairCornerDetermined`, at `finer` below),
+        // and a declared conventional description refuses here as on
+        // main
         // (`work/tang/a-declared-tangent-seam-flips-invalid-when-eps-tightens.md`).
         //
         // **Nurbs-adjacent edges are exempt BY KIND** (M6-3 flip B —
@@ -7077,6 +7079,11 @@ pub(crate) fn tier3_local_checks_marked<
         // (D2: ε-tightening escalates, never flips a valid body
         // invalid).
         let finer = band.zero() < tol.eps();
+        // Only a DERIVED pair escalates: a door stated it, at the rule's
+        // reading. A declared one is the modeler's claim and refuses as
+        // a declared `Chart` does on main
+        // (`work/tang/a-declared-tangent-seam-flips-invalid-when-eps-tightens.md`).
+        let escalates = on_pair && finer && !curve.authority().is_declared();
         let all_transverse = read && readings.iter().all(|&t| t);
         let all_smooth = read && !readings.contains(&true);
         if read {
@@ -7086,7 +7093,7 @@ pub(crate) fn tier3_local_checks_marked<
             // means "the modeler declared this locus", so the
             // declaration is the datum it always was.
             if all_transverse && (on_pair || curve.authority().is_declared()) {
-                errors.push(if on_pair && finer {
+                errors.push(if escalates {
                     ValidationError::PairCornerDetermined {
                         edge: edge_key,
                         wedge: wedges[wedges.len() / 2],
@@ -7168,6 +7175,8 @@ pub(crate) fn tier3_local_checks_marked<
         // this closes was precisely that the first-order pass cannot
         // see it.
         let mut arm: Option<MaterialArmOutcome> = None;
+        // The walk's sagitta, where it read every station determinate.
+        let mut sagitta = geom_core::MarginDiag::INVALID;
         #[allow(clippy::if_same_then_else)]
         let mark = if nurbs_adjacent {
             ContactMark::Unmarked
@@ -7201,7 +7210,10 @@ pub(crate) fn tier3_local_checks_marked<
                 &mut stations,
             );
             let (jet_determinate, escalation) = match walk {
-                geom_brep::SecondOrderWalk::Determinate => (true, None),
+                geom_brep::SecondOrderWalk::Determinate(margin) => {
+                    sagitta = margin;
+                    (true, None)
+                }
                 // One zero-side station denies the WHOLE edge its
                 // determinacy — on the opposed arm, the lamina refusal:
                 // a wedge end is legal only where the surfaces determine
@@ -7255,22 +7267,14 @@ pub(crate) fn tier3_local_checks_marked<
             // — a Line-on-Cone tangency, say, is neither certifiable
             // nor demanded (fix pass, dev 7).
             //
-            // An `OnPair` read at a finer ε than it was built at
-            // (`finer`, above) escalates with the sagitta that turned
-            // definite, read at the middle station; at the build ε it
-            // is a defect, as a declared `Chart` is.
-            errors.push(if on_pair && finer {
-                let (p, tangent) = samples[samples.len() / 2];
+            // A derived `OnPair` read at a finer ε than it was built at
+            // (`escalates`, above) escalates with the sagitta that
+            // turned definite, the walk's own; at the build ε, or
+            // declared, it is a defect, as a declared `Chart` is.
+            errors.push(if escalates {
                 ValidationError::PairTangencyDetermined {
                     edge: edge_key,
-                    sagitta: match geom_brep::tangent_second_order(
-                        s_plus, s_minus, p, tangent, extent, band,
-                    )
-                    .verdict
-                    {
-                        Ok(decided) => decided.margin,
-                        Err(diag) => diag.margin,
-                    },
+                    sagitta,
                 }
             } else {
                 ValidationError::TangentNotIntrinsic { edge: edge_key }

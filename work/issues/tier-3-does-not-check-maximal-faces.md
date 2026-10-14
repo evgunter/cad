@@ -11,23 +11,35 @@ cost: M
 
 ## Finding
 
-Filed from PR 4998's reviews (the first review's side point, restated in the second).
+Filed from PR 4998's reviews (the first review's side point, restated in
+the second and third).
 
-D1 asks for maximal faces. The boolean door enforces that on its operands (`gate_maximal_faces`, `crates/topo/src/boolean/reduce.rs:773`). Tier 3 (`topo::validate_geometric`) has no such check. So a body can pass `AtRestBody::validate` and then be refused `NonMaximalFaces` when used as an operand.
+D1 asks for maximal faces. The boolean door enforces that on its operands
+(`gate_maximal_faces`, `crates/topo/src/boolean/reduce.rs:773`). Tier 3
+(`topo::validate_geometric`) has no such check. So a body can pass
+`AtRestBody::validate` and then be refused `NonMaximalFaces` when it is
+used as an operand.
 
-**Witness.** `sweep/tests/split_edge_on_faces_poses.rs`, `a_smooth_edge_at_the_zero_bands_edge_states_the_pair_and_builds`:
+**Where it shows.** A split leaves its coplanar artifacts for the
+caller's opt-in merge: F7, in the module docs of
+`topo::splitting::finish`. A section face flush with a face of the body
+is one such artifact. The piece carrying it is tier-3 valid, refuses as
+a boolean operand until `merge_coplanar_faces` runs, and is a legal
+operand after it.
 
-- Each `PAIR_POSES` split builds a piece that tier 3 calls valid.
-- Unioned with a far brick, the unmerged piece refuses `NonMaximalFaces`. The cause is that the section face and the flush prism face it meets are left unmerged.
-- After `merge_coplanar_faces` the piece is a legal operand.
-
-That gap is F7's caller-merge obligation: a split leaves its coplanar artifacts for the caller's opt-in merge (the module docs of `topo::splitting::finish`). The obligation is documented, but nothing at rest checks it.
+PR 4998's first fix pass pinned this on its `PAIR_POSES` rows. Those
+rows went away in its third pass, because their section and prism faces
+now read as one carrier and the poses refuse at the split, as on main.
+So no row pins the gap today.
 
 ## What it needs
 
-One of these:
+One of the following, so that the at-rest contract and the boolean's
+gate say the same thing:
 
-- Tier 3 gains a maximal-faces check, at least as a reading the at-rest gate can report. Every finisher that leaves coplanar artifacts on purpose would then have to say so.
-- Or D1's maximal-faces clause states that maximality is an operand gate rather than an at-rest invariant, so that the two doors' answers are the documented split.
-
-Either way, the at-rest contract and the boolean's gate should say the same thing.
+- **Check it at rest.** Tier 3 gains a maximal-faces check, at least as
+  a reading the at-rest gate can report. Every finisher that leaves
+  coplanar artifacts on purpose then says so.
+- **State the split.** D1's maximal-faces clause says that maximality is
+  an operand gate rather than an at-rest invariant, so the two doors'
+  answers are the documented split.

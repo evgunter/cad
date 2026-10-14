@@ -99,12 +99,14 @@ fn half_revolve_axis_edge_stays_conventional() {
     // its locus and the description stays conventional (the D2 split;
     // tier 3 permits it).
     //
-    // A smooth join at rest says where it rests — the pair of the two
-    // cap planes, naming neither's chart — while the pushforward the
-    // sweep scaffolded it from stays beside it as the authority record
-    // (U2 Q3). Both halves are asserted: the locus is NOT intrinsically
-    // described (no Intersection the coplanar pair could not support),
-    // and a profile entity is what determined it.
+    // A smooth join at rest says where it rests: the two cap planes are
+    // two records of one carrier, which determine nothing incidence on
+    // one does not, so it rests in the chart of the pair's first record
+    // (`topo::rest_locus`), while the pushforward the sweep scaffolded
+    // it from stays beside it as the authority record (U2 Q3). Both
+    // halves are asserted: the locus is NOT intrinsically described (no
+    // Intersection the coplanar pair could not support), and a profile
+    // entity is what determined it.
     let vp = validated(vec![square()]);
     let t = revolve(&vp, axis_y(), Revolution::Partial(PI), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -118,10 +120,10 @@ fn half_revolve_axis_edge_stays_conventional() {
         panic!("partial revolve");
     };
     let key = |f: &topo::FaceKey| t.body.get_face(*f).unwrap().surface;
-    assert_declared_pair(
+    assert_declared_image_in(
         &t.body,
         start_meridians[0][3],
-        [key(start_cap), key(end_cap)],
+        geom_brep::SurfacePair::new(key(start_cap), key(end_cap)).keys()[0],
     );
     assert!(signed_volume(&t.body) > 0.0);
 }

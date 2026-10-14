@@ -5,14 +5,12 @@
 //! edge `e`, so at `|d| = ε` the edge's far vertex lies on the zero
 //! band's edge. The split reads that vertex on the plane, and the edge
 //! with it. Its carrier, read one rounding past the vertex, can then
-//! read just in band of a surface it lies on, at one of two sites: the
-//! describe pass's transverse arm (an `Intersection` residual), or the
-//! promotion's re-chart (the restated image). Each refuses typed as the
-//! edge's own reading, with the lever, never as a kernel defect or the
-//! fit's last resort. The describe pass's smooth arm states the pair
-//! (`OnPair`), certified by the edge's incidence on both planes, read
-//! directly rather than through a derived chart image; the poses it
-//! used to refuse at build, valid at rest ([`PAIR_POSES`]).
+//! read just in band of a surface it lies on, at one of three sites: the
+//! describe pass's transverse arm (an `Intersection` residual), its
+//! smooth arm (the image in the section chart), or the promotion's
+//! re-chart (the restated image). Each refuses typed as the edge's own
+//! reading, with the lever, never as a kernel defect or the fit's last
+//! resort.
 //!
 //! The lever tells the truth: the far vertex moved onto the plane
 //! (`d = 0`), or the edge tilted off it at a clear angle on either side,
@@ -21,8 +19,8 @@
 //!
 //! Each ε row has its own poses, every one measured refusing at that row
 //! (`examples/split_near_tangent_census_probe.rs`), beside the site it
-//! refused at before the typing: `surface` the transverse arm,
-//! `rechart` the promotion.
+//! refused at before the typing: `surface` the transverse arm, `chart`
+//! the smooth arm, `rechart` the promotion.
 //!
 //! [`NtPrism::near_normal`]: crate::common::differential::NtPrism::near_normal
 
@@ -34,33 +32,28 @@ use topo::splitting::{SplitError, SplitFinishError, split};
 use crate::common::differential::nt_prisms;
 
 /// `(ε, prism, edge, sixteenths, tilt)`, each beside its site.
-const POSES: [(f64, &str, usize, f64, f64); 15] = [
-    (1e-9, "Ltop", 0, 5.0, 1e-9),     // surface
-    (1e-9, "w345", 2, 10.0, 1e-9),    // surface
-    (1e-9, "asym", 2, 14.0, -1e-9),   // surface
-    (1e-9, "Ltop", 0, 12.0, 1e-9),    // rechart
-    (1e-9, "convex", 1, 0.0, 1e-9),   // rechart
-    (1e-6, "w345", 2, 1.0, 1e-6),     // surface
-    (1e-6, "w60", 2, 6.0, 1e-6),      // surface
-    (1e-6, "w345", 2, 13.0, -1e-6),   // surface
-    (1e-6, "Ltop", 0, 12.0, -1e-6),   // rechart
-    (1e-6, "convex", 1, 1.0, 1e-6),   // rechart
-    (1e-12, "w345", 2, 13.0, 1e-12),  // surface
-    (1e-12, "w345", 2, 13.0, -1e-12), // surface
-    (1e-12, "Ltop", 0, 12.0, 1e-12),  // rechart
-    (1e-12, "convex", 1, 0.0, 1e-12), // rechart
-    (1e-12, "asym", 2, 4.0, -1e-12),  // rechart
-];
-
-/// The poses that refused at the smooth arm while it stated an image in
-/// the section chart, `(ε, prism, edge, sixteenths, tilt)`.
-const PAIR_POSES: [(f64, &str, usize, f64, f64); 6] = [
-    (1e-9, "Ltop", 2, 0.0, -1e-9),
-    (1e-9, "Lmirror", 2, 4.0, 1e-9),
-    (1e-6, "Ltop", 2, 1.0, 1e-6),
-    (1e-6, "vee300", 2, 0.0, 1e-6),
-    (1e-12, "Ltop", 2, 0.0, 1e-12),
-    (1e-12, "notch307", 2, 0.0, 1e-12),
+const POSES: [(f64, &str, usize, f64, f64); 21] = [
+    (1e-9, "Ltop", 0, 5.0, 1e-9),       // surface
+    (1e-9, "w345", 2, 10.0, 1e-9),      // surface
+    (1e-9, "asym", 2, 14.0, -1e-9),     // surface
+    (1e-9, "Ltop", 2, 0.0, -1e-9),      // chart
+    (1e-9, "Lmirror", 2, 4.0, 1e-9),    // chart
+    (1e-9, "Ltop", 0, 12.0, 1e-9),      // rechart
+    (1e-9, "convex", 1, 0.0, 1e-9),     // rechart
+    (1e-6, "w345", 2, 1.0, 1e-6),       // surface
+    (1e-6, "w60", 2, 6.0, 1e-6),        // surface
+    (1e-6, "w345", 2, 13.0, -1e-6),     // surface
+    (1e-6, "Ltop", 2, 1.0, 1e-6),       // chart
+    (1e-6, "vee300", 2, 0.0, 1e-6),     // chart
+    (1e-6, "Ltop", 0, 12.0, -1e-6),     // rechart
+    (1e-6, "convex", 1, 1.0, 1e-6),     // rechart
+    (1e-12, "w345", 2, 13.0, 1e-12),    // surface
+    (1e-12, "w345", 2, 13.0, -1e-12),   // surface
+    (1e-12, "Ltop", 2, 0.0, 1e-12),     // chart
+    (1e-12, "notch307", 2, 0.0, 1e-12), // chart
+    (1e-12, "Ltop", 0, 12.0, 1e-12),    // rechart
+    (1e-12, "convex", 1, 0.0, 1e-12),   // rechart
+    (1e-12, "asym", 2, 4.0, -1e-12),    // rechart
 ];
 
 const LEVER: &str = "Recourse: move the split plane or the geometry so each edge and vertex that \
@@ -122,94 +115,6 @@ fn an_edge_at_the_zero_bands_edge_refuses_typed_and_its_lever_builds() {
             if let Err(e) = cut(moved) {
                 wrong.push(format!("{tag} moved to d{moved:e}: {e:?}"));
             }
-        }
-    }
-    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
-}
-
-/// At each ε row, each [`PAIR_POSES`] split builds, every piece tier-3
-/// valid: the smooth edge at the zero band's edge is the pair's
-/// conventional locus, and its incidence on both planes reads within ε.
-/// The section face and the flush prism face it meets there are left
-/// unmerged, as every coplanar artifact of a split is (F7, the module
-/// docs of `topo::splitting::finish`): the piece carrying them refuses
-/// as a boolean operand until the caller's `merge_coplanar_faces`, and
-/// is a legal one after it.
-#[test]
-fn a_smooth_edge_at_the_zero_bands_edge_states_the_pair_and_builds() {
-    let tol = Tol::witness();
-    let eps = tol.eps();
-    let rows: Vec<_> = PAIR_POSES
-        .iter()
-        .filter(|p| (p.0 - eps).abs() <= 1e-3 * eps)
-        .collect();
-    assert!(
-        !rows.is_empty(),
-        "no poses are pinned at ε = {eps:e}: the rows are ε = 1e-9, 1e-6 and 1e-12"
-    );
-    let prisms = nt_prisms();
-    let mut wrong = Vec::new();
-    for &&(_, name, edge, a, d) in &rows {
-        let pr = prisms.iter().find(|p| p.name == name).unwrap();
-        let m = pr.near_normal(edge, a, d);
-        let n = Vec3::new(m[0], m[1], m[2]);
-        let plane = topo::test_support::split_plane(
-            Point3::new(pr.v[0], pr.v[1], pr.v[2]),
-            n / n.norm(),
-            tol,
-        );
-        let tag = format!("{name} nt e{edge} a{a} d{d:e}");
-        match split(&pr.body(tol), &plane, tol) {
-            Ok(halves) => {
-                for piece in [&halves.above, &halves.below]
-                    .into_iter()
-                    .filter_map(|p| p.body())
-                {
-                    if let Err(errors) = topo::validate_geometric(piece, tol) {
-                        wrong.push(format!("{tag}: a piece is invalid at rest: {errors:?}"));
-                        continue;
-                    }
-                    let operand = |b: &topo::Body<f64>| {
-                        let far = topo::AtRestBody::validate(
-                            sweep::test_support::brick(
-                                (50.0, 51.0),
-                                (50.0, 51.0),
-                                (50.0, 51.0),
-                                tol,
-                            ),
-                            tol,
-                        )
-                        .unwrap();
-                        topo::AtRestBody::validate(b.clone(), tol)
-                            .map_err(|e| format!("{e:?}"))
-                            .and_then(|a| {
-                                topo::union(&a, &far, tol)
-                                    .map(|_| ())
-                                    .map_err(|e| format!("{e:?}"))
-                            })
-                    };
-                    // The split leaves the section face and its flush
-                    // neighbour unmerged (F7: merging is the caller's
-                    // opt-in), so the piece carrying the pair is not yet an
-                    // operand; merged, it is.
-                    match operand(piece) {
-                        Ok(()) => {}
-                        Err(e) if e.starts_with("NonMaximalFaces") => {}
-                        Err(e) => {
-                            wrong.push(format!("{tag}: unmerged piece refuses otherwise: {e}"))
-                        }
-                    }
-                    let mut merged = piece.clone();
-                    if let Err(e) = merged.merge_coplanar_faces(tol) {
-                        wrong.push(format!("{tag}: the coplanar merge refuses: {e:?}"));
-                        continue;
-                    }
-                    if let Err(e) = operand(&merged) {
-                        wrong.push(format!("{tag}: merged piece is no operand: {e}"));
-                    }
-                }
-            }
-            Err(e) => wrong.push(format!("{tag}: {e:?}")),
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));

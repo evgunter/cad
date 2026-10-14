@@ -634,8 +634,9 @@ impl<T: Real> StationHook<T> for () {
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SecondOrderWalk<B> {
-    /// Every station read `Positive`.
-    Determinate,
+    /// Every station read `Positive`; the first station's reporting
+    /// margin, the sagitta a finding that quotes the walk names.
+    Determinate(geom_core::MarginDiag),
     /// The first station not `Positive` read `Zero`/`Negative`.
     UnderDetermined,
     /// The first station not `Positive` was in band.
@@ -672,6 +673,7 @@ pub fn second_order_walk<T: Decide, H: StationHook<T>>(
     band: Band,
     hook: &mut H,
 ) -> SecondOrderWalk<H::Break> {
+    let mut first = None;
     for (p, tau) in stations {
         let station = Station {
             p,
@@ -681,16 +683,23 @@ pub fn second_order_walk<T: Decide, H: StationHook<T>>(
         if let ControlFlow::Break(b) = hook.before_decision(&station) {
             return SecondOrderWalk::Stopped(b);
         }
-        match second_order_verdict(&station.jet, station.arm, band).map(|d| d.sign) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) => return SecondOrderWalk::UnderDetermined,
+        match second_order_verdict(&station.jet, station.arm, band) {
+            Ok(Decided {
+                sign: Sign::Positive,
+                margin,
+            }) => {
+                first.get_or_insert(margin);
+            }
+            Ok(_) => return SecondOrderWalk::UnderDetermined,
             Err(source) => return SecondOrderWalk::InBand(source),
         }
         if let ControlFlow::Break(b) = hook.after_positive(&station) {
             return SecondOrderWalk::Stopped(b);
         }
     }
-    SecondOrderWalk::Determinate
+    // No station at all reads nothing, the vacuous determinacy the
+    // empty walk has always answered; its margin is the unreadable one.
+    SecondOrderWalk::Determinate(first.unwrap_or(geom_core::MarginDiag::INVALID))
 }
 
 /// [`tangent_second_order`]'s reading: the verdict, and the two
@@ -854,12 +863,12 @@ pub fn must_carry_over_edge<T: Decide>(
         band,
         &mut (),
     ) {
-        SecondOrderWalk::Determinate
+        SecondOrderWalk::Determinate(_)
             if crate::tangent::tangent_certificate_lane(carrier, s1, s2) =>
         {
             MustCarryVerdict::JetDeterminate
         }
-        SecondOrderWalk::Determinate | SecondOrderWalk::UnderDetermined => {
+        SecondOrderWalk::Determinate(_) | SecondOrderWalk::UnderDetermined => {
             MustCarryVerdict::UnderDetermined
         }
         SecondOrderWalk::InBand(source) => {
@@ -2230,7 +2239,10 @@ mod tests {
         let all: Vec<usize> = (0..interior).collect();
 
         let mut s = Script::default();
-        assert_eq!(walk::<f64>(2.0, &mut s), SecondOrderWalk::Determinate);
+        assert!(matches!(
+            walk::<f64>(2.0, &mut s),
+            SecondOrderWalk::Determinate(_)
+        ));
         assert_eq!((&s.before, &s.after), (&all, &all), "an unbroken walk");
 
         let mut s = Script {
@@ -2281,9 +2293,9 @@ mod tests {
             (answer, n)
         };
         let interior = usize::try_from(crate::CERT_SAMPLES - 2).expect("a small count");
-        assert_eq!(
-            metered(&mut Script::default()),
-            (SecondOrderWalk::Determinate, interior),
+        let (answer, n) = metered(&mut Script::default());
+        assert!(
+            matches!(answer, SecondOrderWalk::Determinate(_)) && n == interior,
             "an unbroken walk decides every station"
         );
         assert_eq!(

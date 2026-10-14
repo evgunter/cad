@@ -194,12 +194,13 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
 
 /// Re-describes a full-revolve meridian as its wall's wrap edge (D1)
 /// when both its halves bound one face on a periodic wall surface — a
-/// lamina wall, closed on itself across it. Otherwise it is an image at
-/// rest in that wall's chart: a plane wall's meridian (module docs — a
-/// plane's chart closes in no direction, and one surface on both sides
-/// determines no locus, so D2's conventional split applies), and a wire
-/// wall's angle-0 meridian, which parts its two π-bands rather than
-/// closing either. Carrier and interval kept verbatim either way.
+/// lamina wall, closed on itself across it. Otherwise it rests where
+/// [`topo::Body::describe_at_rest`] reads it resting (`topo::rest_locus`):
+/// a plane wall's meridian (module docs — a plane's chart closes in no
+/// direction, and one surface on both sides determines no locus, so D2's
+/// conventional split applies), and a wire wall's angle-0 meridian,
+/// which parts its two π-bands rather than closing either. Carrier and
+/// interval kept verbatim either way.
 pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -218,11 +219,10 @@ pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
         })
         .faces();
     if is_plane || f_plus != f_minus {
-        // The meridian is at rest in that wall's chart, and the
-        // scaffolding door it was minted through is for edges whose
-        // surfaces do not exist yet (D3's transience fence). So it is
-        // described where it rests, as an ordinary chart image owing
-        // the one meter.
+        // The meridian is at rest, and the scaffolding door it was
+        // minted through is for edges whose surfaces do not exist yet
+        // (D3's transience fence). So it is described where it rests
+        // (`Body::describe_at_rest`, which asks the rule over a pair).
         body.describe_at_rest(edge, tol)?;
         return Ok(());
     }

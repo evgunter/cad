@@ -3282,16 +3282,52 @@ fn re_anchored<T: Decide>(
                 declared,
                 band,
             )
-            .map_err(|refusal| match refusal {
-                geom_brep::PairRefusal::Mixed(stations) => {
-                    ShellError::RimSeamMixed { edge, stations }
-                }
-                geom_brep::PairRefusal::InBand(escalation) => ShellError::Escalated {
-                    source: escalation.diag(),
-                },
-            })?;
+            .map_err(|refusal| rim_seam_refusal(edge, refusal))?;
     }
     Ok(kept)
+}
+
+/// The shell's refusal of a wall seam the rim shortens, whose pair the
+/// must-carry rule refuses over the kept stretch ([`re_anchored`]).
+fn rim_seam_refusal<T: Real>(edge: EdgeKey, refusal: geom_brep::PairRefusal) -> ShellError<T> {
+    match refusal {
+        geom_brep::PairRefusal::Mixed(stations) => ShellError::RimSeamMixed { edge, stations },
+        geom_brep::PairRefusal::InBand(escalation) => ShellError::Escalated {
+            source: escalation.diag(),
+        },
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod rim_seam_rows {
+    use super::{ShellError, rim_seam_refusal};
+    use crate::entity::EdgeKey;
+
+    /// **A shortened seam read mixed refuses as the rim's seam**, naming
+    /// the two stations and ending in the shell's lever. No door is known
+    /// to build the pose (a kept stretch whose stations straddle a crease
+    /// the full seam's did not), so the row pins the refusal the re-ask
+    /// maps to rather than a body that reaches it.
+    #[test]
+    fn a_mixed_rim_seam_refuses_naming_its_stations() {
+        let stations = geom_brep::MixedStations {
+            transverse: 3,
+            smooth: 4,
+        };
+        let refusal: ShellError<f64> =
+            rim_seam_refusal(EdgeKey::default(), geom_brep::PairRefusal::Mixed(stations));
+        let ShellError::RimSeamMixed { stations: got, .. } = refusal else {
+            panic!("a mixed re-ask is the rim seam's refusal, got {refusal:?}");
+        };
+        assert_eq!(got, stations);
+        let text = refusal.to_string();
+        assert!(
+            text.starts_with("a wall seam the rim shortens, ")
+                && text.ends_with("Recourse: change the wall thickness, or move the geometry"),
+            "the refusal names the seam and the shell's lever: {text}"
+        );
+    }
 }
 
 /// The half-edges of `r#loop` in cycle order. Every loop the seamed
