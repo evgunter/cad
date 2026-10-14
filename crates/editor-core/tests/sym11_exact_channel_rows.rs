@@ -65,12 +65,30 @@ use crate::m10_9_pins_interval::measured_studies;
 /// 1869]`, pad `[340, 277, 314]` → `[1319, 1159, 2916]`. The
 /// attribution of those values, merge by merge, is in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
+///
+/// Check 4 reading one vector at its norm where it summed its parts
+/// moves only `frozen` again. On the plate, the annulus and the link,
+/// each site measured by reverting it alone: the turning cylinder's
+/// pair against its class circle +72, +52, +36, and the cylinder class
+/// selector's radial circle at its exact sup (`radial_amplitude`) +16,
+/// +24, +8; together 641 → 729, 828 → 904, 498 → 542. On the bracket
+/// and the pad, which the settlement above carries past validation,
+/// the two together move the bracket's `frozen` 1869 → 1975 and the
+/// pad's 2916 → 2985. The pad's replay past the ceiling refuses at
+/// check 4 with no term over the band alone, so the refusal decides
+/// every term of the envelope, 9 where there were 11, and its
+/// `symbolic` reads 1319 → 1317.
+/// The fidelity channels' norm and the retired `Tilt` and
+/// `Orientation` slots move no column here.
+/// The pcurve envelope's orthonormal chart squaring its frame by cross
+/// products (`geom::square_frame`) moves only the frozen counts: bracket
+/// 1975 → 1969, pad 2985 → 2976.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1048, 654, 641]),
-    ("r1_annulus", [566, 399, 828]),
-    ("r2_link", [356, 259, 498]),
-    ("r2_filleted_bracket", [1453, 1008, 1869]),
-    ("r2_rounded_pad", [1319, 1159, 2916]),
+    ("two_hole_plate", [1048, 654, 729]),
+    ("r1_annulus", [566, 399, 904]),
+    ("r2_link", [356, 259, 542]),
+    ("r2_filleted_bracket", [1453, 1008, 1969]),
+    ("r2_rounded_pad", [1317, 1159, 2976]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

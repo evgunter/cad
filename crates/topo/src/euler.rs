@@ -1315,9 +1315,9 @@ pub enum EulerOpError {
     /// joint the kill bridges across it has no element to write. Either
     /// whether the half's ends meet escalated, or they meet and the
     /// joint decision there missed: a mark at the vertex escalated, or
-    /// the gap reads on a mark and meets no orbit point at the vertex's
-    /// lever, or the periods lie past the branch reach. Raised in the
-    /// plan phase, so the body is untouched.
+    /// the gap reads on a mark and meets no orbit point the near-pole
+    /// read tries at the vertex's lever, or the periods lie past the
+    /// branch reach. Raised in the plan phase, so the body is untouched.
     KillTurnUndecided {
         /// The killed half-edge whose turn was not decided.
         half_edge: HalfEdgeKey,
@@ -5934,8 +5934,9 @@ mod tests {
                     finding: crate::PcurveMintError::Certify {
                         half_edge: spline_half,
                         error: geom_brep::PcurveCertifyError::IsoUnsupported {
-                            what: "the carrier's start point lies on neither chart boundary — \
-                                   not a boundary iso of this face's chart",
+                            what: "no boundary row of this chart, in either u direction, \
+                                   holds the circle at the interior probe — not an arc rim \
+                                   spanning the chart's u domain",
                         },
                     },
                 },
