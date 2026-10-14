@@ -176,3 +176,29 @@ fn r1_many_sided_coin_cost() {
     }
     let _ = Point3::new(0.0, 0.0, 0.0);
 }
+
+/// A boolean whose result is a needle `w × w` across, every pair of its
+/// cells `w` apart: how the door types it.
+#[test]
+#[ignore = "review probe"]
+fn r1_a_needle_result_at_the_door() {
+    let ke = tol().k() * tol().eps();
+    for pose in poses().into_iter().take(3) {
+        for m in [1.2, 1.5, 2.0, 3.0, 5.0] {
+            let w = m * ke;
+            let a = rest(prism(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)], (0.0, 1.0), &pose)).unwrap();
+            let b = rest(prism(
+                &[(-1.0, 1.0 - w), (3.0, 1.0 - w), (3.0, 2.0), (-1.0, 2.0)],
+                (1.0 - w, 2.0),
+                &pose,
+            ))
+            .unwrap();
+            let r = match topo::intersect(&a, &b, tol()) {
+                Ok(BooleanResult::Body(_)) => "built".to_owned(),
+                Ok(BooleanResult::Empty) => "empty".to_owned(),
+                Err(e) => short(&e),
+            };
+            eprintln!("{} needle w={m}Kε: {r}", pose.label);
+        }
+    }
+}
