@@ -142,8 +142,8 @@ fn pipe<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, tol: Tol) -> Body<T> {
     let ellipse = Curve3::Ellipse {
         center: f.p((0.0, 0.0, z0 + h)),
         axis: -f.v::<T>(n),
-        major: T::from_f64(r / c),
-        minor: T::from_f64(r),
+        semi_u: T::from_f64(r / c),
+        semi_v: T::from_f64(r),
         u_ref: f.v(major),
     };
     let mut body = Body::<T>::new();

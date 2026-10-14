@@ -354,14 +354,14 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
             geom::Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => OutlineEdge::Conic(
                 Conic {
                     centre: center,
-                    a: u_ref * major,
-                    b: axis.cross(u_ref) * minor,
+                    a: u_ref * semi_u,
+                    b: axis.cross(u_ref) * semi_v,
                 },
                 true,
             ),

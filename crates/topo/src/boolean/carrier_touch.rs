@@ -375,13 +375,13 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             ..
         } => {
             // The annulus between the semi-axis magnitudes, whichever is
             // stored first.
-            let (lo, hi) = (major.abs().min(minor.abs()), major.abs().max(minor.abs()));
+            let (hi, lo) = geom::Curve3::semi_axes_by_size(semi_u, semi_v);
             let (h, rho) = split(center, axis);
             let g = (rho - hi).max(lo - rho).max(T::zero());
             (g.powi(2) + h.powi(2)).sqrt()

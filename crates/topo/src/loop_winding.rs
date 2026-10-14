@@ -263,16 +263,16 @@ impl<T: Real> ConicFrame<T> {
             geom::Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => (
                 center,
                 axis,
                 u_ref,
-                major,
-                minor,
-                major.abs().max(minor.abs()),
+                semi_u,
+                semi_v,
+                geom::Curve3::semi_axes_by_size(semi_u, semi_v).0,
             ),
             geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                 return None;
