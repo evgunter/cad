@@ -2038,8 +2038,9 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 
     // Agreement: same face, no verdict.
     assert_eq!(
-        idpass::disagreement(
+        idpass::compare(
             &index,
+            &DisplayView::none(),
             answer(7, id),
             Some(7),
             Ok(std::slice::from_ref(&hit.name))
@@ -2049,26 +2050,40 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     // A stale answer is not a verdict at all — nor is one with nothing
     // outstanding, which is the leave case.
     assert_eq!(
-        idpass::disagreement(&index, answer(6, id), Some(7), Ok(&[])),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(6, id),
+            Some(7),
+            Ok(&[])
+        ),
         None
     );
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), None, Ok(&[])),
+        idpass::compare(&index, &DisplayView::none(), answer(7, id), None, Ok(&[])),
         None
     );
     // Nothing under the cursor on both sides is agreement.
     assert_eq!(
-        idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), Ok(&[])),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(7, IdMap::NOTHING),
+            Some(7),
+            Ok(&[])
+        ),
         None
     );
     // A real disagreement reports both sides.
-    let report = idpass::disagreement(
+    let Some(idpass::IdNews::Disagreement(report)) = idpass::compare(
         &index,
+        &DisplayView::none(),
         answer(7, IdMap::NOTHING),
         Some(7),
         Ok(std::slice::from_ref(&hit.name)),
-    )
-    .expect("nothing vs a face is a disagreement");
+    ) else {
+        panic!("nothing vs a face is a disagreement");
+    };
     assert_eq!(report.from_gpu, idpass::IdAnswer::Nothing);
     assert_eq!(report.from_ray, vec![hit.name.clone()]);
     assert!(report.to_string().contains("disagree"));
@@ -2096,13 +2111,26 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         .clone();
     let tied = [hit.name.clone(), second];
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), Some(7), Ok(&tied)),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(7, id),
+            Some(7),
+            Ok(&tied)
+        ),
         None,
         "the id pass named one of the tied faces, which is agreement"
     );
     let outside_id = *index.ids_of(&outside).first().expect("that face is drawn");
-    let report = idpass::disagreement(&index, answer(7, outside_id), Some(7), Ok(&tied))
-        .expect("a face outside the tie is a disagreement");
+    let Some(idpass::IdNews::Disagreement(report)) = idpass::compare(
+        &index,
+        &DisplayView::none(),
+        answer(7, outside_id),
+        Some(7),
+        Ok(&tied),
+    ) else {
+        panic!("a face outside the tie is a disagreement");
+    };
     assert_eq!(report.from_ray, tied.to_vec());
     assert!(
         report.to_string().contains("tied between"),
@@ -2207,8 +2235,9 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
 
     // The defect, pinned: the hover's name against the patch's.
     assert!(
-        idpass::disagreement(
+        idpass::compare(
             &index,
+            &DisplayView::none(),
             answer(7, id),
             Some(7),
             Ok(std::slice::from_ref(&edge.name))
@@ -2218,7 +2247,13 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
     );
     // The fix: the ray side answers the question the id buffer asked.
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), Some(7), Ok(&named)),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(7, id),
+            Some(7),
+            Ok(&named)
+        ),
         None,
         "the face under the cursor is what the id buffer named"
     );
@@ -2255,8 +2290,9 @@ fn a_twin_copys_face_is_a_disagreement() {
         panic!("the left copy draws the twin face once");
     };
     assert!(
-        idpass::disagreement(
+        idpass::compare(
             &index,
+            &DisplayView::none(),
             answer(3, *other),
             Some(3),
             Ok(std::slice::from_ref(&hit.name))
