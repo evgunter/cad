@@ -1311,3 +1311,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - It adds one doc sentence and one pinning row, with no kernel change, and files `plane-torus-section-gaps-decide-far-coordinates-uncharged` (P2, `design: true`): at 1e-12 the section lane's own `d` and `h` gaps read far rounding, minting other sections or refusing.
     - **Tier: orchestrator's read** (memories/orchestration-model.md), since it is a measurement row plus a doc sentence. No review lane and no dual-review row. I read the diff; I merge once hosted CI is green.
   - r5066a is active (report updated 07:17). Re-armed for 08:32.
+- 2026-10-14 08:45 — **PR 5103 merged** (`bd3b295211`) on an orchestrator's read: hosted CI green, measurement only. The torus-circle-arc item closes.
+  - **Design fork dispatched** for the new P2 `plane-torus-section-gaps-decide-far-coordinates-uncharged` (`design: true`). Inside the coordinates' resolution, should the section accept the special case (meridian, tangent circle) or stand down?
+  - The problem statement gives no candidates (sha256 `c8763bf2f2b5`); designers are told not to read the item's "The question" section.
+  - Blinding byte 90 (even → Opus = A), committed to `analysis/design-fork/pt-section-gaps`.
+  - Designers A and B dispatched concurrently as local subagents, lane dirs `germ-fork-ptgap-{a,b}`.
+  - r5066a is still reviewing.
