@@ -2,10 +2,13 @@
 id: a-limb-two-refusal-of-an-exact-closed-form-reads-as-an-off-surface-carrier
 kind: issue
 title: a limb-2 refusal of an exact closed-form carrier reads at rest as 'the declared carrier is off the surface' when the miss is the kernel's degree-1 image
-status: open
+status: closed
 opened: 2026-10-14
 priority: P2
 cost: M
+closed: 2026-10-14
+branch: pcert/limb-two-image-too-coarse
+pr: 5160
 ---
 
 
