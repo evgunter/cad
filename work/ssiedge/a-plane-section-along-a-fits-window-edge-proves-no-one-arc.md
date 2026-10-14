@@ -52,3 +52,7 @@ while re-running their eps rows on main. At 1e-9 it passed there.
 The FLUX cylinder-band lane (PR 4839) re-ran
 `r1_lane0_e2e::the_f64_seam_answers_every_public_door` alone by name on clean
 main `e71d719f1`. It is red at `CAD_TOLERANCE_EPS=1e-6` and green at 1e-12.
+
+## 2026-10-14 — still red at 1e-6 on main (NURBS, fresh target)
+
+Re-run alone with a fresh `CARGO_TARGET_DIR` per commit: red at `a71403e3` and still red on main at `307ed404`. Not moved by NURBS PR 4984 (red on both sides of it). (NURBS build A)
