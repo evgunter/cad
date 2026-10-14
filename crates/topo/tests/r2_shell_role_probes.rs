@@ -37,7 +37,7 @@ fn slab(t: f64, r: [[f64; 3]; 3], c: [f64; 3], tol: Tol) -> Body<f64> {
 
 fn short<E: core::fmt::Debug>(e: &E) -> String {
     let s = format!("{e:?}");
-    s.chars().take(110).collect()
+    s.chars().take(2000).collect()
 }
 
 const POSES: [([f64; 3], f64); 7] = [
@@ -146,5 +146,57 @@ fn r2_many_face_cost() {
         println!(
             "R2 cost n={n} validate_prism={t_val:?} subtract={t_sub:?} classify={t_cls:?} at_rest_cavity={t_rest:?} roles={roles:?} rest={again:?}"
         );
+    }
+}
+
+/// A needle `1 × w × w`: every pair across it is `w` apart, but every
+/// face is only `w` wide, so a planar face's certified interior point
+/// may not exist; does check 7 still read its orientation?
+#[test]
+#[ignore = "review probe"]
+fn r2_needles() {
+    let tol = Tol::witness();
+    let e = tol.eps();
+    for m in [10.5, 12.0, 15.0, 19.0, 21.0, 25.0, 30.0, 40.0] {
+        let w = m * e;
+        let built = std::panic::catch_unwind(|| common::brick::<f64>((0.0, 1.0), (0.0, w), (0.0, w), tol));
+        let Ok(raw) = built else {
+            println!("R2N eps={e:e} m={m} needle does not build");
+            continue;
+        };
+        let solo = AtRestBody::validate(raw.clone(), tol).map(|_| ());
+        let inv = AtRestBody::validate(raw.revert(), tol).map(|_| ());
+        println!(
+            "R2N eps={e:e} m={m} solo={} inv={} classify={:?}",
+            short(&solo),
+            short(&inv),
+            classify_shells(&raw, tol).map(|c| c.iter().map(|c| c.role).collect::<Vec<_>>()),
+        );
+    }
+}
+
+/// The inverted needle's faces: each face's plane and its vertices.
+#[test]
+#[ignore = "review probe"]
+fn r2_needle_faces() {
+    let tol = Tol::witness();
+    let w = 30.0 * tol.eps();
+    let raw = common::brick::<f64>((0.0, 1.0), (0.0, w), (0.0, w), tol).revert();
+    for (k, f) in raw.faces() {
+        let s = raw.get_surface(f.surface);
+        let mut vs = Vec::new();
+        let lp = raw.get_loop(f.outer).expect("loop");
+        if let topo::LoopBoundary::Cycle { first } = lp.boundary {
+            let mut h = first;
+            loop {
+                let he = raw.get_half_edge(h).expect("he");
+                vs.push(format!("{:?}", he.start));
+                h = he.next;
+                if h == first {
+                    break;
+                }
+            }
+        }
+        println!("R2F face={k:?} sense={} surface={s:?} verts={vs:?}", f.sense);
     }
 }
