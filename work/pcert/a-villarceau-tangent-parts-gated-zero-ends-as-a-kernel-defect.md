@@ -7,6 +7,7 @@ opened: 2026-10-12
 priority: P3
 cost: E
 closed: 2026-10-14
+pr: 5089
 ---
 
 (Found in review of ENCL's PR 4874, `unsized-fit-reads-a-rejected-zero-on-the-undecided-arm-as-the-last-resort`. That PR first added "no unsized decision is a gate" to `Unsized`'s doc, with a `debug_assert!` on the gate tag. This site falsifies both, so both came out.)
