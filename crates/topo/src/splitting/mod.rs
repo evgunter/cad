@@ -77,6 +77,7 @@ pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
 mod neighborhood;
+pub(crate) use neighborhood::{EntryFault, entry_side, wide_entry};
 // `pub(crate)` for `order::exact_band` alone: the bit-hairline band is
 // a shared DEVICE (audit note N6), and the boolean backstop's
 // sign-certainty arm decides against the same one rather than minting
@@ -263,8 +264,8 @@ pub struct SplitReduction<T: Real> {
     /// the operand ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
     /// Each piece a crossing split minted, `(new edge, divided-from
-    /// edge)` in mint order.
-    pub edge_pieces: Vec<(EdgeKey, EdgeKey)>,
+    /// edge)` in mint order, checked as each was minted.
+    pub edge_pieces: crate::lineage::SplitEdgeDivisions,
 }
 
 /// **A knife edge the split would mint and cannot declare.** The plane
@@ -390,9 +391,10 @@ pub enum SplitReduceError {
         errors: Vec<ValidationError>,
     },
     /// Whether a vertex lies on the plane is undecided (F6): its distance
-    /// lies in the ambiguity band, beyond ε, or cannot be read. No
-    /// snapping — resolution is an explicit repair/adoption op (D7
-    /// machinery).
+    /// from the plane, or from a section the plane ends at it
+    /// ([`crate::vertex_section`]), lies in the ambiguity band, beyond ε,
+    /// or cannot be read. No snapping — resolution is an explicit
+    /// repair/adoption op (D7 machinery).
     SliverVertex {
         /// The offending vertex.
         vertex: VertexKey,
@@ -522,6 +524,11 @@ pub enum SplitReduceError {
     /// An underlying Euler operation refused (`split_edge` includes the
     /// certified-interiority refusals and escalations).
     Euler(EulerOpError),
+    /// The crossing insertion's edge division list refused a row where
+    /// a split added it ([`crate::lineage::SplitEdgeDivisions`]): a
+    /// kernel defect, since each split records the piece it just
+    /// minted.
+    LineageRow(crate::lineage::RowRefusal),
 }
 
 /// **How the reading a [`SplitReduceError::SliverSector`] refuses
@@ -778,6 +785,12 @@ impl core::fmt::Display for SplitReduceError {
                  refused: {source}"
             ),
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::LineageRow(refusal) => write!(
+                f,
+                "{}. {}",
+                refusal.refused_by("split"),
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
         }
     }
 }
