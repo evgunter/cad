@@ -2,10 +2,11 @@
 id: an-arc-stored-past-a-full-turn-builds-as-a-line
 kind: issue
 title: An arc stored with a sweep past a full turn whose quarter-tangent rounds to a sub-eps sagitta builds as a line, so arc_sweep_range never refuses it
-status: open
+status: dispatched
 opened: 2026-10-13
 priority: P1
 cost: E
+branch: paths/arc-past-full-turn
 ---
 
 Found by a review of #5032 (`arc-arc-secant-arm-misses-crossings-at-unequal-radii`);
