@@ -1290,3 +1290,6 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Outcome diff pose by pose: only refused → served (2 poses at unset, 6 at 1e-12), each within 1.55 u·size. geom-brep 1309, topo 2994 and sweep 2651 at three ε.
   - MINORs: the rows never draw c<0, so two |c| mutants stay green; two old cancelling centre copies remain, in cone_frame_rows and reach_cone_split.
   - Fix pass dispatched: session_01Swy8zgyJ1niNJoPexkaghB (4 items). Row at merge: sequential, M, byte 35, tallied 0, major false.
+- 2026-10-14 02:30 — Confirmed the fix-pass lane's slow-set reds on main `e9e5df7c8a`.
+  - **Red at 1e-12:** both `rigid_map_near_eps_approx` rows, with d = 0.05 reaching no refusal. They were already red at `6f2656af50`, before PR 4966 merged, so 4966 is not the cause. Filed on ENCL (P2) as `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main`: PR 5056, merged `e521ff8a2c`.
+  - **Not red on main at 1e-6:** `three_solids_on_one_line::an_edge_crossing_both_wedges…` passes; not filed.
