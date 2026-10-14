@@ -12,7 +12,7 @@
 //! v̂ sin θ`, the cross term `2ρ(C₀ − c)·e(θ)` is the only
 //! `θ`-dependence of `S`, since `|e(θ)| = 1`), so `F` is a
 //! trigonometric polynomial of degree TWO, and the shared half-angle
-//! ladder ([`super::circle_roots::half_angle_roots`]) solves it — Bézout's
+//! ladder ([`geom_brep::half_angle::half_angle_roots`]) solves it — Bézout's
 //! eight for a conic against a quartic surface loses four to the
 //! circular points at infinity, through which both the circle and the
 //! (bicircular) torus pass. At most four crossings per turn. The
@@ -79,7 +79,7 @@
 //! along the arc by that rounding over the slope, far past the band while
 //! the point still reads on the surface. Each certified root therefore
 //! carries its slack (`bool_circle_torus_sub_root_slack`,
-//! [`super::circle_roots::RootSlack`]): `F` at the root, read in its
+//! [`geom_brep::half_angle::RootSlack`]): `F` at the root, read in its
 //! factored form `((ρ − R)² + h² − r²)·((ρ + R)² + h² − r²)` with a
 //! running bound on its rounding ([`geom_brep::conic_torus_implicit`]),
 //! bounds the true `|F|` there, so the true root lies within that over
@@ -134,12 +134,14 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{
-    CircleRoots, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
-    TrigPoly, constant_residual_roots, half_angle_roots, rounding_charge, span_signs,
+    CircleRoots, constant_residual_roots, door_half_angle_roots, rounding_charge, span_signs,
 };
-use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
+use geom_brep::half_angle::{
+    HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly,
+};
+use geom_brep::quartic::QuarticRows;
 
 /// The circle × torus lane's ladder rows.
 const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
@@ -160,7 +162,6 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
         side: "bool_circle_torus_sub_side",
         width: "bool_circle_torus_sub_width",
     },
-    decision: BooleanDecision::ArcTorusRoots,
 };
 
 /// The general arm's root-slack row (module docs, "The root slack").
@@ -341,7 +342,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
     let harmonics = TrigPoly::second(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
     // The lever (module docs, "The lever").
     let lever = (two * radius).min(major_radius + minor_radius);
-    half_angle_roots(
+    door_half_angle_roots(
         &harmonics,
         |theta| geom_brep::implicit_residual(torus, point_at(theta)),
         HalfAngleFrame {
@@ -374,6 +375,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
             },
             f_per_metre_hi: T::one(),
         },
+        BooleanDecision::ArcTorusRoots,
         band,
     )
 }
@@ -585,7 +587,7 @@ fn parallel_axes_roots<T: Decide>(
         ),
     ];
     let mid = (t0 + t1) / two;
-    let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
+    let mut thetas = [T::zero(); 2 * geom_brep::half_angle::MAX_DEGREE];
     let mut count = 0usize;
     for (contour, hit) in crossed {
         if !hit {

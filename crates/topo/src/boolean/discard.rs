@@ -49,6 +49,12 @@ pub struct DiscardRow {
     /// `face`. The discard deletes these edges' lineage from the
     /// result, so a later reader that meets an ancestor here can still
     /// tell that the edge bounded this face.
+    ///
+    /// Each chain is a copy of the clone's `SplitEdge` records read up
+    /// to its root, so two discards that share an ancestor each carry
+    /// its hop, with the one parent the record names
+    /// ([`crate::provenance::Provenance::SplitEdge`] says why a copy is
+    /// as sound as the records).
     pub boundary_chains: Vec<Vec<EdgeKey>>,
     /// Each stretch where a kept face holding part of this face's region
     /// through a coincident copy (`BooleanNaming::covered`) runs into

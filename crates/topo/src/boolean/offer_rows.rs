@@ -239,6 +239,29 @@ cases! {
     // one a smaller tolerance clears.
     thin_wedge_in_band_over_its_faces: "Coincidence(Sectors)", 2e-9 * sin_deg(5.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 5.0, 2e-9);
+    // Tilted inside the zero band at its arm, so the corner reads the
+    // pair one plane, and in band over the two faces at the glue door:
+    // at every opening the bounds' margin is the one a smaller tolerance
+    // clears, not the glue door's and not the corner's offset.
+    flat_wedge_at_2_degrees: "Coincidence(Sectors)", Z * sin_deg(2.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Union, 2.0, Z);
+    flat_wedge_at_5_degrees: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Union, 5.0, Z);
+    flat_wedge_at_20_degrees: "Coincidence(Sectors)", Z * sin_deg(20.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Union, 20.0, Z);
+    flat_wedge_at_60_degrees: "Coincidence(Sectors)", Z * sin_deg(60.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Union, 60.0, Z);
+    flat_wedge_at_90_degrees: "Coincidence(Sectors)", Z * sin_deg(90.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Union, 90.0, Z);
+    flat_wedge_cut_from_a_block: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Subtract, 5.0, Z);
+    flat_wedge_meeting_a_block: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Intersect, 5.0, Z);
+    // Sunk into the block, its re-run meets the crossing insertion.
+    flat_wedge_sunk_at_5_degrees: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+        sunk_wedge_in_a_block(5.0, Z);
+    flat_wedge_sunk_at_20_degrees: "Coincidence(Sectors)", Z * sin_deg(20.0), Public, Valued =>
+        sunk_wedge_in_a_block(20.0, Z);
     // The coincfr4 review's wedges (W1–W4), on its own poses: turned,
     // scaled, hanging from the bottom face, and tilted into the block,
     // each through the three public ops.
@@ -1030,6 +1053,27 @@ fn wedge_on_a_block(
     let tol = Tol::witness();
     super::super::boolean_op_with(
         op,
+        &block,
+        &wedge,
+        &super::super::BooleanInputs::default(),
+        super::super::SweepStrategy::Realized,
+        tol,
+    )
+    .map(|_| ())
+}
+
+/// The union of a block and a wedge sunk half its height into the
+/// block's top, cornered on it as [`wedge_on_a_block`]'s.
+fn sunk_wedge_in_a_block(opening_deg: f64, tilt: f64) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let (block, wedge) =
+        crate::test_support_fixtures::wedge_on_a_block_top(opening_deg, tilt, 0.5, 0.5, tol);
+    let (block, wedge) = (
+        finished("the lane's block", block, tol),
+        finished("the lane's sunk wedge", wedge, tol),
+    );
+    super::super::boolean_op_with(
+        super::super::BooleanOp::Union,
         &block,
         &wedge,
         &super::super::BooleanInputs::default(),
@@ -2348,7 +2392,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::InvalidInput
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
-        | BooleanErrorKind::PinchConesOnSeparateKeys
         | BooleanErrorKind::PinchRaysInAFace
         | BooleanErrorKind::CrossingsAlongAContactLine
         | BooleanErrorKind::VertexReadTwice
@@ -2598,7 +2641,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
-    ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
+    (
+        "circle_torus.rs",
+        "circle_torus_roots",
+        "BooleanDecision::ArcTorusRoots",
+        1,
+    ),
     (
         "circle_torus.rs",
         "escalated",
@@ -2657,6 +2705,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
+    ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
+    ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (
         "mod.rs",
@@ -2765,7 +2815,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
     ("recl.rs", "resolve_edge_sector", "Coincide::TangentSide", 1),
-    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 2),
+    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 1),
     ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
         "reduce.rs",
@@ -2841,7 +2891,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 6),
+    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 3),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
@@ -2860,6 +2910,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
+    ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
+    ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
@@ -2919,7 +2971,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "vtxfac.rs",
         "classify_vertex_on_face",
         "Coincide::Sectors",
-        2,
+        1,
     ),
     (
         "vtxfac.rs",

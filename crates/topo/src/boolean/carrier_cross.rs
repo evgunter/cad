@@ -144,7 +144,7 @@ pub(super) fn boundary_crossing<T: Decide>(
         let Some(t) = carrier.param_near(q, mid) else {
             return Ok(BoundaryCrossing::Unread);
         };
-        let Some(speed) = crate::carrier_speed::speed_at(carrier, t) else {
+        let Some(speed) = geom_brep::carrier_speed::speed_at(carrier, t) else {
             return Ok(BoundaryCrossing::Unread);
         };
         if !strictly_inside(t, t0, t1, speed, band)? {
@@ -171,7 +171,7 @@ fn escalated(diag: geom_core::Indeterminate) -> BooleanError {
 
 /// Whether `t` lies strictly inside `[t0, t1]`, each gap metred by
 /// `speed`, the carrier's speed at `t`
-/// ([`crate::carrier_speed::speed_at`]): the chord from
+/// ([`geom_brep::carrier_speed::speed_at`]): the chord from
 /// `t` to an end is the gap times that speed to second order in the
 /// gap, and a gap near the band is a few band widths long. An end is
 /// not inside: an endpoint's incidence is the endpoint arms' question.
@@ -223,7 +223,7 @@ impl<'a, T: Decide> Span<'a, T> {
     fn of(carrier: &'a geom::Curve3<T>, (t0, t1): (T, T)) -> Option<Self> {
         Some(Self {
             carrier,
-            reach: (t1 - t0) * crate::carrier_speed::speed_hi(carrier)?,
+            reach: (t1 - t0) * geom_brep::carrier_speed::speed_hi(carrier)?,
             at: carrier.eval(geom::mid_param(t0, t1)),
         })
     }
@@ -1205,7 +1205,7 @@ mod crossing_rows {
             minor: 1.0,
             u_ref: Vec3::new(1.0, 0.0, m) * (1.0 / k),
         };
-        let speed = crate::carrier_speed::speed_at(&section, theta).unwrap();
+        let speed = geom_brep::carrier_speed::speed_at(&section, theta).unwrap();
         assert!((speed - 20.0).abs() < 0.1, "about 20 at θ*: {speed}");
         let read = |gap: f64| {
             boundary_crossing(

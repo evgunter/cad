@@ -209,6 +209,27 @@ impl<T: geom_core::Real> BoolSector<T> {
     }
 }
 
+impl<T: Decide> BoolSector<T> {
+    /// **Whether the sector's bounds read off the plane through its
+    /// vertex with unit normal `n`** (`bool_sector_coplanar`), on the
+    /// steeper bound's first-order departure ([`Reach::departure`]):
+    /// what a smaller tolerance reads off the plane first, and the
+    /// sector with it. `Err` where it does not decide off, with that
+    /// margin.
+    pub(super) fn bounds_off(
+        &self,
+        n: Vec3<T>,
+        band: Band,
+    ) -> Result<NonzeroSign, geom_core::Indeterminate> {
+        let steeper = self
+            .start_reach
+            .departure(self.start, n)
+            .abs()
+            .max(self.end_reach.departure(self.end, n).abs());
+        crate::validate::decide_nonzero("bool_sector_coplanar", Margin::of(steeper), band)
+    }
+}
+
 /// One corner of a vertex neighborhood as its orbit reads it, before
 /// any subdivision: the corner after orbit half-edge `he`, sweeping CCW
 /// around its face's outward normal from `start` (the next orbit

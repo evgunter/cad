@@ -655,3 +655,73 @@ fn the_tube_rate_and_tube_period_gates_refuse_typed() {
         got.err()
     );
 }
+
+/// **Near a horn torus the plane gate is cheap, and its in-band arm is
+/// reached through the door.** On its own band `(1e-9, 1e-8)` (so the
+/// row reads the same at every ε row), on `R = 2`, `R − r = 1e-6`: the
+/// Villarceau circle moved along its own normal by `3e-9` or `6e-9` is
+/// read on the torus by the incidence test, at either phase of its pinch
+/// against the 64 samples, and the gates escalate on
+/// `pcurve_torus_villarceau_plane`. Moved `3e-8`, with the pinch on a
+/// sample, it is read on the torus with the plane gate past the band and
+/// refused as grazing it. This is the Villarceau ladder's undecided arm
+/// read through `chart_pcurve`: a ladder that read an in-band gate as
+/// Zero would image the circle.
+#[test]
+fn a_plane_gate_in_band_near_the_horn_escalates_on_it() {
+    let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+    let big = 2.0;
+    let r = big - 1e-6;
+    let surface = Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: big,
+        minor_radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let st = r / big;
+    let n = Vec3::new(-st, 0.0, (1.0 - st * st).sqrt());
+    // The pinch, where the circle comes nearest the axis, lies along −y
+    // from its centre.
+    let pinch = Vec3::new(0.0, -1.0, 0.0);
+    let side = n.cross(pinch);
+    let moved = |by: f64, half: f64| {
+        let psi = half * TAU / 64.0;
+        Curve3::Circle {
+            center: Point3::new(0.0, r, 0.0) + n * by,
+            axis: n,
+            radius: big,
+            u_ref: pinch * psi.cos() - side * psi.sin(),
+        }
+    };
+    let mut wrong = Vec::new();
+    for half in [0.0, 0.5] {
+        for by in [3e-9, 6e-9] {
+            let got = chart_pcurve(&moved(by, half), &surface, band);
+            if !matches!(
+                &got,
+                Err(PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::ChartIncidence,
+                    cause: geom_core::Indeterminate {
+                        predicate: Some("pcurve_torus_villarceau_plane"),
+                        ..
+                    },
+                    ..
+                })
+            ) {
+                wrong.push(format!("moved {by:e}, phase {half}: {got:?}"));
+            }
+        }
+    }
+    let got = chart_pcurve(&moved(3e-8, 0.0), &surface, band);
+    if !matches!(
+        got,
+        Err(PcurveCertifyError::CarrierGrazesChart {
+            grazer: Grazer::TorusCircle,
+            ..
+        })
+    ) {
+        wrong.push(format!("moved 3e-8: {got:?}"));
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
