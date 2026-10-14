@@ -34,3 +34,12 @@ least whether a finding was declined, so a consumed feature the author
 meant to remove is not re-raised on every evaluation. That storage is
 D10's lint machinery, which is why this row is INTENT's and not BAND's or
 COINCIDE's. Weigh it with the other lints before building.
+
+**Ruled (Ev, PR 4963, 2026-10-14): the lint is op-agnostic.** "An
+advisory lint, for every operation, reports a feature an op makes vanish
+or change type unasked": every operation, not the blend and the Boolean
+alone (a union that seals a hole reports as a fillet that does); it is
+advisory and never gates; it reads the naming record and the body's
+counts (a hole sealed or made blind, a void removed, a solid absorbed or
+removed). The ruling's item is
+`work/band/a-concave-fill-and-a-whole-shell-inside-a-bands-region.md`.

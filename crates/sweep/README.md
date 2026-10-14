@@ -42,8 +42,12 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 ## The band's reach (predicate 2)
 
 A band changes the material between its supports and its blend surface:
-a convex band removes it, a concave one adds it. Predicate 2 meters that
-region — the band's REACH — against every face of the body that is not
+a convex band removes it, a concave one adds it. The blend's result is
+that change as a Boolean (C8): `S − R` under a convex band and `S ∪ F`
+under a concave one, the region read from the supports' carriers and
+the band's ends, so a feature in or across the region has the result
+set algebra gives it whether or not the surgery builds it. Predicate 2
+meters that region — the band's REACH — against every face of the body that is not
 a support of the chain, in any shell, and reads each face as clear of
 it, wholly inside it, or crossing it. A feature wholly inside the reach
 goes with that material, as a feature wholly inside a Boolean's tool goes
@@ -54,11 +58,37 @@ reader of one of its names resolves `Vanished` with the blend's verdict
 as the cause (`PredicateFlip`). The carve is built at a convex
 straight band's cut-off: the ruled fillet's, and the plane–plane
 fillet's and chamfer's (below). A request whose inside readings lie
-anywhere else — a void or an island with no cap cycle, a hole whose
-mouth a concave fill covers — refuses: `BlendError::WhollyInside`, or a
-bound where the feature's wall meets the end face's plane. A face crossing the
-reach would need the band trimmed by it, which the surgery has no step
-for, and refuses. The supports' own
+anywhere else — a void or an island with no cap cycle, a blind feature,
+a hole whose mouth a concave fill covers — refuses as a case the rule
+defines and the surgery does not build: `BlendError::WhollyInside`, or a
+bound where the feature's wall meets the end face's plane.
+
+A face crossing the reach refuses as an unbuilt case too: building it
+needs the band face cut against the faces that cross it, which the
+surgery has no step for, and most of those surface pairs are outside
+the Boolean's intersection table. Such a feature meets the clearance
+screen (`FaceClearanceUncertified`), the reach (`FaceClearance`) or a
+ring meter (`RingClearance`), and those recourses
+(`FILLET3_CLEARANCE_RECOURSE`, `FILLET3_RING_RECOURSE`) name the
+reorder beside a smaller blend and moving the feature clear: a feature
+that came after the edge is applied after the blend instead, so
+`fillet(subtract(body, hole))` becomes `subtract(fillet(body), hole)`.
+The blend's edges are then re-picked on the earlier body, since a
+selection written on the feature's output names the feature's node
+(`From { read, of }`, N1 in `crates/editor-core/src/names/README.md`)
+and does not resolve upstream; an edge the feature split re-picks as
+its whole parent edge. The reorder gives the same body for a feature
+of the band's own sign (a hole under a convex band, a protrusion under
+a fill), set difference and union each commuting with themselves, and
+the other body for the opposite sign. A feature born with the edge (a
+hole in an extruded profile) has no reorder, and the sentence's
+condition says so. The reordered request builds where the Boolean
+serves the band against the feature, a chamfer's plane strip against a
+bore, and refuses at the Boolean where it does not yet, a fillet's
+cylinder against a skew bore
+(`blend_recourse_followability::the_reorder_leg_builds_where_the_boolean_serves_the_band`).
+
+The supports' own
 boundary features are judged first, by the battery's screen and the
 surgery's exact ring and boundary meters; the reach runs after them,
 before any mutation. A face not certified clear is read against each
@@ -382,7 +412,14 @@ inside each end face's sliver goes at `ΔV = −(A − A_feature)·L`, at a
 perpendicular end face and at oblique ones, and its wall's name
 resolves `Vanished` on the blend's clearance flip after a size edit
 puts it inside (`crates/sweep/tests/band_planar_consume.rs`,
-`editor-core` `edit_planar_carve`).
+`editor-core` `edit_planar_carve`). A feature through a turn's overrun
+is not taken: the overrun's sliver is read through the far band's
+triangle, a bound larger than the overrun, so its wall refuses as a
+bound
+(`band_turn_overrun_chamfer::a_slot_through_the_overrun_is_never_consumed`).
+Nor is a void inside the union of a mitre's two bands: "wholly inside"
+is read band by band, so one crossing a band's region refuses as a
+crossing (`band_planar_mitre`).
 
 The battery's other Zero verdicts are coincidences decided from values
 too, and record the same way: a junction chain G1 reads tangent is a

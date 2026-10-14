@@ -57,7 +57,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands::half_round_end;
-use geom_core::{Band, Point2, Sign, Tol, Vec2, Vec3};
+use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::battery::corner_config;
@@ -1263,5 +1263,112 @@ fn the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple() {
     assert!(
         !err.to_string().contains(FILLET3_RING_RECOURSE),
         "and the caller reads the clearance recourse here, not the ring one"
+    );
+}
+
+/// The brick `[−2, 2]² × [0, 2.5]`'s top front edge, `y = −2, z = 2.5`,
+/// on `body` — the one line edge whose midpoint is there.
+fn top_front_edge(body: &Body<f64>) -> Vec<EdgeKey> {
+    let at = line_edges(body)
+        .into_iter()
+        .filter(|k| {
+            let g = body
+                .get_edge(*k)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+                .unwrap();
+            let (t0, t1) = g.params();
+            let m = g.carrier().eval((t0 + t1) / 2.0);
+            (m.y + 2.0).abs() < 1e-9 && (m.z - 2.5).abs() < 1e-9
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(at.len(), 1, "one top front edge");
+    at
+}
+
+/// **The reorder leg of the clearance and ring recourses — "if the
+/// feature came after the edge, blend before it, re-picking the edges
+/// there".**
+///
+/// A bore of radius `0.1` along `z` at `(0, −1.8)` crosses the band a
+/// `0.4` blend of the brick's top front edge puts there: its ring lies
+/// in the top face's strip and its wall runs down through the band. The
+/// blend defines the result (`S − R`) and does not build a crossing, so
+/// the request on the bored brick refuses under both verbs; the ring is
+/// a boundary feature of the support, so the clearance screen answers
+/// first and the caller reads the clearance sentence. Followed: the edge is re-picked on the brick, blended,
+/// and the bore subtracted after. The chamfer's band is a plane strip,
+/// which the Boolean serves against the bore's cylinder, so the
+/// reordered request builds, tier-3 valid. The fillet's band is a
+/// cylinder skew to the bore's, a pair the Boolean does not serve yet,
+/// so the reordered fillet refuses at the Boolean: the leg is the
+/// sentence's, the gap the intersection table's.
+#[test]
+fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
+    use crate::common::bores::bored_brick;
+    use crate::common::cavity::{brick, rod};
+    let d = 0.4;
+    let bored = bored_brick(0.0, -1.8, 0.1);
+    let edge = top_front_edge(&bored);
+    for chamfer in [true, false] {
+        let err = refusal(&bored, &edge, d, "the bore crosses the band", chamfer);
+        assert!(
+            matches!(err, BlendError::FaceClearanceUncertified { .. }),
+            "chamfer {chamfer}: the bore's ring is in the strip, so the screen answers, \
+             got {err:?}"
+        );
+        carries(&err, FILLET3_CLEARANCE_RECOURSE, "a bore crossing the band");
+    }
+    let block = brick(Point3::new(-2.0, -2.0, 0.0), Point3::new(2.0, 2.0, 2.5));
+    let bore = rod(Point2::new(0.0, -1.8), 0.1, -0.5, 3.5);
+    let edge = top_front_edge(&block);
+    let rest = sweep::test_support::at_rest(&block, tol());
+    let blended = |chamfer: bool| {
+        let out = if chamfer {
+            chamfer_edges(&rest, &edge, d, tol())
+        } else {
+            fillet_edges(&rest, &edge, d, tol())
+        };
+        out.unwrap_or_else(|e| panic!("chamfer {chamfer}: the brick's edge blends: {e}"))
+            .body
+    };
+    let cut = |b: &Body<f64>| {
+        topo::subtract(
+            &sweep::test_support::at_rest(b, tol()),
+            &sweep::test_support::at_rest(&bore, tol()),
+            tol(),
+        )
+    };
+    let chamfered = cut(&blended(true))
+        .unwrap_or_else(|e| panic!("the bore after the chamfer builds: {e}"))
+        .body()
+        .expect("the bore leaves material")
+        .body
+        .clone()
+        .into_body();
+    validate_geometric(&chamfered, tol())
+        .unwrap_or_else(|e| panic!("the reordered chamfer is tier-3 valid, got {e:?}"));
+    // `S − R − H`: the brick, less the chamfer's prism `d²/2 · 4`, less
+    // the bore up to the chamfer plane `z = 2.1 + (y + 2)`, which is
+    // linear across the bore's disc and so averages to its centre's 2.3.
+    let (v, pad) = crate::band_planar_cut_off::volume_enclosure(&chamfered);
+    let closed = 40.0 - d * d / 2.0 * 4.0 - std::f64::consts::PI * 0.01 * 2.3;
+    assert!(
+        (v - closed).abs() <= pad + 1e-9,
+        "the reordered chamfer is the rule's `S − R − H`: {v} ± {pad} vs {closed}"
+    );
+    let filleted = cut(&blended(false));
+    assert!(
+        matches!(
+            filleted,
+            Err(topo::boolean::BooleanError::GermFrameUnsupported {
+                a_kind: geom::SurfaceKind::Cylinder,
+                b_kind: geom::SurfaceKind::Cylinder,
+                ..
+            })
+        ),
+        "the bore after the fillet: the Boolean does not serve the band's cylinder against \
+         the skew bore yet; once it does, this row flips to a build. Got {:?}",
+        filleted.err()
     );
 }

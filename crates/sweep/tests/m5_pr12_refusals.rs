@@ -434,11 +434,7 @@ fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
         "a ring exactly on the trim circle refuses: {exact}"
     );
     let escalated = refuse(0.9 + in_band());
-    assert_same_recourse(
-        &definite,
-        &escalated,
-        "enlarge the support face it sets back on",
-    );
+    assert_same_recourse(&definite, &escalated, "enlarge the support face,");
 }
 
 #[test]
