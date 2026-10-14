@@ -107,3 +107,22 @@
   - With 1 and 2 applied, still slower than step 2 on r1 and no faster on shelling: then take (B) with `split_restrict`.
   - Variant 2 moves a rung or margin: then keep the 2×2 halving.
   - The cut is no longer dominant and the rows are still more than 2× pre-4954: then the remaining excess is elsewhere.
+
+### Postscript round: A's answer (received 13:05Z) — NOT blind
+- **Blindness breach, orchestrator's error.** I appended B's answer to this record (13:03Z) before A had answered, and A's brief told it to read this record. A disclosed reading it. The two answers are therefore not independent. Recorded as a protocol finding: append a postscript answer only after both are in.
+- **Recommends the same direction as B:** keep step 3 ("the cut restricts the formed quotients"); reject (B) and (D′). Its reasons for (B) and (D′) match B's, plus one addition: (B)'s looseness is structural (differentiating after restriction amplifies by degree/width).
+- **Its distinct lever:** the restriction *step's weight*. `Interval::between` is about 15 interval operations per step, built for the blossom door's general ratios. On a window ratio, a thin convex step (about 3 operations, clamped) should give about 5× on the restriction, preserving readings within rounding.
+- **Order to measure:** (1) thin-ratio step, with meet statistics; (2) axis-lazy (same as B); (3) one restriction per window across doors, i.e. a window-reading object; (4) batching; (5) one-piece cut, last and only if needed, checked on rungs, margins and the flat wall.
+- **Fallback if 1–4 still lose on r1:** restrict the cell's formed low-degree grids (A, W, A_u, W_u, A_v, W_v), never re-differentiate, and form the window's products from them. That is an orchestrator call, not Ev's.
+- Both rows stay above 2× pre-4954 even with the cut free; the remainder is a separate row.
+
+### Outcome of the postscript round: CONVERGED on direction (13:07Z)
+- Keep step 3's semantics. (B) and (D′) are rejected by both.
+- Measurement order, merging both answers:
+  1. thin-ratio restriction step (A), with meet statistics;
+  2. axis-lazy restriction (A, B);
+  3. a window-reading object, restricting once across doors (A);
+  4. batching (A, B);
+  5. one-piece cut, only if the rows are still over target, checked on rungs, margins and the flat wall at 1e-9 (A, B).
+- Falsifier fallbacks, in order: A's "restrict the formed low-degree grids", then (B) with `split_restrict`.
+- No ratified text changes. No Ev, no fork-log row.
