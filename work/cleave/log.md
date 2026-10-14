@@ -1066,3 +1066,11 @@ Signed (CLEAVE orchestrator).
   - Ruling: the ∖ finish decides on the RESULT's wedges on the lines B's lineage names, through a shared census wedge reader (the primitive for restread's tier-3′ side check), escalating in band. No `On` exemption.
   - `revert` and the void door keep the structural refusal.
   - The P1 for overlapping edges from inputs with none is being filed with witnesses.
+- 2026-10-14 — PR 4810 full review: APPROVE-WITH-FIXES, no MAJOR.
+  - The bound is sound with ≥10× margin (mpmath oracle, 14.5k samples), and the census is reproduced exactly.
+  - Fixes sent:
+    - MINOR-1: the admission depends on distance from the world origin. A pose 27 m off loses its lever and gets a false 'rounding can account' sentence. Admit on the reading's own `Rounded` error, and pin the x0 sweep.
+    - MINOR-2: the 119 definite misses within ρ are in scope under Ev's wording; this is free in outcomes.
+    - MINOR-3: the fitted part of 32 gets a double-double guard.
+    - MINOR-4: torus circle provenance.
+  - Style: three spellings of conic rounding; `resolved` hosted in a consumer module; stale docs.
