@@ -843,6 +843,46 @@ is at minimum representable. Same design for curves (line / circle /
 ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
 
+**One reading per question.** Every decision the kernel takes about
+geometric carriers is a *reading*: of one carrier and a point (its
+residual, distance, foot and chart coordinates); of a carrier pair's
+*pose*, one classification per pair (apart, coincident ±, coaxial,
+parallel axes, point touch, line tangent, generic, in band), whose
+trileans are its parts and are decided once; or of a pair *outcome*
+(the section's carrier, C5; the section's components and their
+witnesses; two spans' meetings; a curve's crossings of a surface).
+**Total**: a reading is one exhaustive match over its kind or kind
+pair. An unlisted arm refuses typed, naming what it lacks; no arm
+answers a default value; one method is fixed per arm at write time, and
+a second method for the same question exists only as a test oracle. A
+stage may precede the method only if it is total in kind, decides the
+same question soundly at the same band, and cannot change the verdict
+by which stage decided (a box cull before exact roots); a method
+reached because another declined is a fallback, and is forbidden.
+**One**: each question has one reading, which every consumer reads,
+because two readings of one fact are two predicates that can decide it
+differently inside the band (D4). An outcome takes the pose reading's
+answer and decides no pose of its own. A consumer serving fewer pairs
+matches on the reading's answer and refuses the rest typed; it never
+matches on kinds to choose a method. Which pairs a reading serves is
+derived from the reading, never kept beside it: where a consumer asks
+at kind level before it holds the operands, the reading dispatches
+through its own kind-level description (kinds to arm, then the arm's
+method), so the description cannot disagree with what the reading
+does. A total evaluator's poison for a
+kind with no closed form is not a decision, and no reading reads it
+without first refusing on kind. Readings over bare carriers live in the
+lowest crate that can state them, `geom` for one carrier and a point
+and `geom-brep` for carrier pairs; readings over trimmed faces and
+solids live in `topo` and reach carrier facts only through those.
+Exempt: kind-agnostic methods (boxes, BVH, subdivision, clearance),
+identity of stored bits on which no topology decision depends, test
+oracles, and reading a record (a declaration, or an edge that already
+is the section). Import is not exempt: it reads the same readings with
+the file's own coincidence distance as the band. C5
+(`crates/geom-brep/README.md`) is this rule's instance for surface and
+curve pairs.
+
 ### D4 (agreed): Single strict global tolerance; operations fail loudly
 
 No per-entity tolerances that grow as operations get sloppy (the Open
@@ -991,6 +1031,8 @@ Five commitments:
    is for reporting only, never a value a decision reads.
    Geometry that can't meet ε almost always indicates a modeling
    mistake; surfacing it beats absorbing it.
+   A typed refusal is never read as a verdict: a consumer may only
+   take it down a path that decides the question itself.
 4. **Fixed internal units — meters and radians — with a documented
    model size range**: the session box is 1 km, no coordinate larger
    in magnitude; geometry outside the range is rejected at
@@ -1621,8 +1663,8 @@ Each layer depends only on the layers below it.
 | `geom-core` | The `Real` scalar trait (`f64`, `Interval`, `Dual<T>`, `Sym`), points/vectors/transforms (hand-rolled, fixed-dim), the predicate vocabulary (`Decide`, `Margin<T>`, `MarginDiag`), `Tolerance`, root finding, spline hulls |
 | `interval-transcendentals` | The interval scalar's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
-| `geom` | Analytic + NURBS types, evaluators, closest-point, curve×surface intersection. Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
-| `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, the curve-pair meeting reader (one point-on-span reading, one total curve-kind-pair table), certified mass properties, offset surfaces |
+| `geom` | Analytic + NURBS types, evaluators, closest-point and the other one-carrier readings (D3). Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
+| `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, the curve-pair meeting reader (one point-on-span reading, one total curve-kind-pair table), the carrier-pair pose and the curve×surface crossing (D3), certified mass properties, offset surfaces |
 | `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
 | `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/contact-record machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |

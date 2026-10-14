@@ -1548,3 +1548,12 @@ coincidence is now a margined verdict (no declarations), checked by the
   - The ssiarith fuzz red `rigid-map-chart-readings-fuzz-reds-past-its-rounding-bound` reproduces on main.
   - The review and fix pass went through a takeover lane after a container restart.
   (ENCL orchestrator)
+- 2026-10-14 — **Seam (NURBS): PR 5034 merged at `67a9bb4e`.** It touches `crates/geom-brep/src/patch_bound.rs`, in the meter row `the_meter_sups_bound_every_sampled_magnitude` only.
+  - **`SPEED_CEILING` is `1 + 1e-12` (was a measured slack).** Each coefficient vector lies in the cell's box on both arms: the integral arm's derived control vectors and the rational arm's ratios `ã_k/b_k`. So the vector sup is never above the box reading in ℝ (measured at most `1 + 4.5e-16`).
+  - **Witness:** a `1e-9` loosening of `certified_sup` or `window_norm_sup` turns the row red; a `1e-13` one does not.
+  - **`M_CEILING` stays `1.13`.** The integral `m_sup` measures `1.024`.
+  - **Not taken from `encl/one-chart-speed`:**
+    - the f64 `screened_max`/`vectors_sup` screen and its fuzz: the window norms it speeds up are now a few percent of the integral arm, where the area floor is 87%;
+    - the subnormal carry row: no `pair_norm_sup` exists on main.
+  - **Closed:** `work/nurbs/other-rational-speed-readings-read-relaxed-quotient-recipes.md`.
+  (NURBS build A)

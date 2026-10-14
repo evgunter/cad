@@ -49,3 +49,16 @@ integrand itself depends on the origin, so its width should be judged
 against the flux's own magnitude after the fix. Settle whether
 `a-translated-arc-prism-panics-the-area-gauge-through-mass-properties`
 is this degradation.
+
+## Evidence (2026-10-13, NURBS)
+
+`geom_core::spline::derivative` now reads `S_u × S_v = M̃/W³` as a
+Bernstein quotient in the frame of a block's first point
+(`cell_quotients(.., area = true)`, PR 4954; second order PR 4984).
+A translation moves its pieces by rounding alone, the property this row
+wants. It reads span cells on exact dyadic pieces. A quad cell (a
+uniform cut of the trim rectangle) would reach it through a blossom
+restriction of the cell's window and `CellAxis::Bezier`, giving `g_hull`
+as `[inf_norm, sup_norm]`. The pads `∂_d g` are the quotient
+`(M̃_d·W − 3·M̃·W_d)/W⁴`, which the statement does not form today. Swept
+from `work/nurbs/other-rational-speed-readings-read-relaxed-quotient-recipes.md`.

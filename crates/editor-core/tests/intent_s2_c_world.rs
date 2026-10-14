@@ -60,7 +60,7 @@ const PRE_C: [(&str, &str); 34] = [
     ("die_composed", "182b02846757307e/88"),
     ("die_composed_tour", "ca0b8371cb38e973/328"),
     ("plate_param", "fd7b71fa51270532/88"),
-    ("kiss_carry", "fabe53fd5101f503/88"),
+    ("kiss_carry", "9efdca7b404d4e52/85"),
     ("tube_ring", "c342379c65eab6d1/10"),
     ("tube_arc", "19b8e0af8227889b/16"),
     ("hollow_tube_elbow", "9ae3e25a75d4fecd/28"),
