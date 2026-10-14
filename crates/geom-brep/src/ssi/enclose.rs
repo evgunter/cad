@@ -1864,7 +1864,12 @@ pub(super) mod tests {
                     0.5 * b + 0.1 * a * a,
                     0.2 * ((iu * 7 + iv * 3) % 5) as f64 - 0.3 * a,
                 ));
-                weights.push(1.0 + spread * (((3 * iu + 2 * iv) % 5) as f64 - 2.0) / 2.0);
+                let step = (((3 * iu + 2 * iv) % 5) as f64 - 2.0) / 2.0;
+                weights.push(if spread < 1.0 {
+                    1.0 + spread * step
+                } else {
+                    spread.powf(step)
+                });
             }
         }
         NurbsSurface::new(ku, kv, control, weights).expect("valid net")
@@ -1873,7 +1878,9 @@ pub(super) mod tests {
     /// The nets the dominance rows read beyond the rational wall and
     /// the two-span patch: polynomial and near-polynomial weights,
     /// non-uniform knots, and higher degree, where the quotient's own
-    /// slack is small.
+    /// slack is small. A `spread` below one reads the weights as
+    /// `1 ± spread`, at one and above as `spread^{±1}`
+    /// ([`wide_weight_nets`]).
     fn varied_nets() -> Vec<(&'static str, NurbsSurface<f64>)> {
         let cubic_nonuniform = vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.45, 1.0, 1.0, 1.0, 1.0];
         let quadratic_nonuniform = vec![0.0, 0.0, 0.0, 0.6, 1.0, 1.0, 1.0];
@@ -1911,6 +1918,34 @@ pub(super) mod tests {
             (
                 "quartic × linear, weights 0.4 to 1.6",
                 varied_net(4, quartic, 1, linear, 0.6),
+            ),
+        ]
+    }
+
+    /// Nets with weights spread over decades, for the dominance rows: a
+    /// cut's restriction and halving run there on weight powers up to
+    /// eighteen orders apart (`W³` at `10^{±3}`).
+    fn wide_weight_nets() -> Vec<(&'static str, NurbsSurface<f64>)> {
+        vec![
+            (
+                "cubic × quadratic, non-uniform, weights 1e-3 to 1e3",
+                varied_net(
+                    3,
+                    vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.45, 1.0, 1.0, 1.0, 1.0],
+                    2,
+                    vec![0.0, 0.0, 0.0, 0.6, 1.0, 1.0, 1.0],
+                    1e3,
+                ),
+            ),
+            (
+                "quartic × linear, weights 1e-2 to 1e2",
+                varied_net(
+                    4,
+                    vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.35, 1.0, 1.0, 1.0, 1.0, 1.0],
+                    1,
+                    vec![0.0, 0.0, 1.0, 1.0],
+                    1e2,
+                ),
             ),
         ]
     }
@@ -1958,6 +1993,7 @@ pub(super) mod tests {
     #[test]
     fn each_cells_derivative_box_holds_the_sampled_derivative() {
         let mut nets = varied_nets();
+        nets.extend(wide_weight_nets());
         nets.push(("rational wall", rational_wall(0.0)));
         nets.push(("two-span patch", multiplicity_2_patch()));
         let n = 16;
@@ -2041,7 +2077,7 @@ pub(super) mod tests {
                 t,
             ));
         }
-        for (name, net) in varied_nets() {
+        for (name, net) in varied_nets().into_iter().chain(wide_weight_nets()) {
             cases.push((name.to_string(), net.clone(), net, 0.0));
         }
         let n = 16;
