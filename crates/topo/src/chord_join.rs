@@ -559,7 +559,8 @@ impl core::fmt::Display for SplitJoinError {
             }
             Self::LineageRow(refusal) => write!(
                 f,
-                "the join's lineage records refused {refusal}. {}",
+                "{}. {}",
+                refusal.refused_by("join"),
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::Band(e) => write!(f, "{e}"),
@@ -822,8 +823,10 @@ impl ChordJoiner {
     pub(crate) fn new(band: Band) -> Self {
         Self {
             slivers: SecondaryMap::new(),
-            fragments: FragmentRows::default(),
-            absorbed: crate::lineage::Substitutions::default(),
+            fragments: FragmentRows::new(crate::lineage::LineageRows::FaceDivisions),
+            absorbed: crate::lineage::Substitutions::new(
+                crate::lineage::LineageRows::Substitutions,
+            ),
             band,
             pending: SecondaryMap::new(),
             completed: SecondaryMap::new(),
@@ -892,13 +895,19 @@ impl ChordJoiner {
     /// Consumes the recorded `(new face, divided-from face)` rows
     /// (naming emission; see the field docs).
     pub(crate) fn take_fragments(&mut self) -> FragmentRows {
-        core::mem::take(&mut self.fragments)
+        core::mem::replace(
+            &mut self.fragments,
+            FragmentRows::new(crate::lineage::LineageRows::FaceDivisions),
+        )
     }
 
     /// Consumes the recorded `(killed face, face holding its region)`
     /// rows (see the field docs).
     pub(crate) fn take_absorbed(&mut self) -> crate::lineage::Substitutions<FaceKey> {
-        core::mem::take(&mut self.absorbed)
+        core::mem::replace(
+            &mut self.absorbed,
+            crate::lineage::Substitutions::new(crate::lineage::LineageRows::Substitutions),
+        )
     }
 }
 

@@ -1379,11 +1379,11 @@ impl<T: Decide> EdgeCurve<T> {
     ///    after checks 2–5: for circle carriers the interval is
     ///    determined up to a joint whole-period translation of both
     ///    ends (geometrically invisible); for lines it is fully
-    ///    determined. *Which connected component* of the intersection
+    ///    determined. *Which branch* of the intersection
     ///    locus the witness selects remains unverifiable before
     ///    marching exists (M3) — the mid-pin verifies the carrier
     ///    traverses the witness's arc, not that the witness sits on
-    ///    the component the modeler intended.
+    ///    the branch the modeler intended.
     /// 6. `Intersection` of two analytic surfaces over a `Nurbs`
     ///    carrier, through the [`NurbsLane`]
     ///    ([`EdgeCurve::certify_via`], [`EdgeCurve::recertify_via`]):

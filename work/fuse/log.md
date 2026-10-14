@@ -872,7 +872,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - `the-localization-core-is-half-unified`, re-scoped to `containment::spiric_speed`, `offset_axial::param_speeds`, the test copies, the depth idioms, `feet`'s stop and the `16·slack` guard;
     - `near-concentric-arcs-…`, pinned with its analysis.
   - **Filed:** `issues/geom-brep-keeps-six-subdivision-walks-of-its-own`.
-- 2026-10-13 — The curve-meeting design fork (`two-curve-curve-meeting-finders`) is weighed by an Opus and a Fable designer and sent to Ev as `[ev]` PR 5027 (fork-log row 133).
+- 2026-10-13 — The curve-meeting design fork (`two-curve-curve-meeting-finders`) is weighed by an Opus and a Fable designer and sent to Ev as `[ev]` PR 5027 (fork-log row 134).
   - **Converged after three rounds:** one reader with one point-on-span reading; a total kind-pair table; closed forms in one conic's angle; the walk used as an oracle; no runtime fallback.
   - **Ev's fork:** the home, `geom-brep` or `geom`.
   - **Measured on the way:** two silent `carrier_cross` defects, filed on cleave as P1 (#5024, #5026).

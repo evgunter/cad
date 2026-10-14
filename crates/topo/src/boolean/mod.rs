@@ -238,6 +238,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         }
         // The coincidences these names decide.
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
+        crate::vertex_section::VERTEX_SECTION_SIDE => crate::vertex_section::VERTEX_SECTION_SUBJECT,
         "bool_held_carrier_datum" => {
             "whether a face lies on the carrier of a face its pierce point's vertex bounds"
         }
@@ -583,22 +584,33 @@ pub(crate) struct EdgeSplit {
     pub(crate) child: crate::entity::EdgeKey,
 }
 
-/// A Boolean reduction's edge splits ([`EdgeSplit`]) in split order,
-/// each operand's `(child, parent)` checked where the split is recorded
-/// ([`crate::lineage::EdgeDivisions`]): a split mints its child, so the
-/// rows cannot cycle, and the walk from a piece back to the operand edge
-/// it lies on ([`Self::root`]) ends.
+/// A Boolean reduction's edge splits ([`EdgeSplit`]), each operand's
+/// in split order: its `(child, parent)` rows checked where each split
+/// is recorded ([`crate::lineage::EdgeDivisions`]), and beside each row
+/// the vertex the split minted between them. A split mints its child, so
+/// the rows cannot cycle, and the walk from a piece back to the operand
+/// edge it lies on ([`Self::root`]) ends.
 #[derive(Clone, Debug)]
 pub(crate) struct EdgeSplits {
-    rows: Vec<EdgeSplit>,
     divisions: [crate::lineage::EdgeDivisions; 2],
+    /// Each operand's minted vertices, one per row of its divisions and
+    /// in the same order: [`Self::push`] is the one writer of both, and
+    /// pushes the vertex only once the division's row is in, so the
+    /// `i`-th vertex is the one minted between the `i`-th row's two
+    /// edges (asserted where they are read together, [`Self::of`]).
+    vertices: [Vec<VertexKey>; 2],
 }
 
 impl Default for EdgeSplits {
     fn default() -> Self {
+        let of = |operand| {
+            crate::lineage::EdgeDivisions::new(crate::lineage::LineageRows::EdgeDivisions(Some(
+                operand,
+            )))
+        };
         Self {
-            rows: Vec::new(),
-            divisions: [Operand::A, Operand::B].map(crate::lineage::EdgeDivisions::new),
+            divisions: [of(Operand::A), of(Operand::B)],
+            vertices: [Vec::new(), Vec::new()],
         }
     }
 }
@@ -611,15 +623,29 @@ impl EdgeSplits {
     /// The division list's refusal where `split`'s child is not one the
     /// split minted: an earlier split names it.
     pub(crate) fn push(&mut self, split: EdgeSplit) -> Result<(), crate::lineage::RowRefusal> {
-        self.divisions[usize::from(split.operand == Operand::B)]
-            .push((split.child, split.parent))?;
-        self.rows.push(split);
+        let side = usize::from(split.operand == Operand::B);
+        self.divisions[side].push((split.child, split.parent))?;
+        self.vertices[side].push(split.vertex);
         Ok(())
     }
 
-    /// The splits, in the order made.
-    pub(crate) fn rows(&self) -> &[EdgeSplit] {
-        &self.rows
+    /// `operand`'s splits, in the order made: `(parent, vertex, child)`.
+    fn of(
+        &self,
+        operand: Operand,
+    ) -> impl Iterator<Item = (crate::entity::EdgeKey, VertexKey, crate::entity::EdgeKey)> + '_
+    {
+        let side = usize::from(operand == Operand::B);
+        debug_assert_eq!(
+            self.divisions[side].rows().len(),
+            self.vertices[side].len(),
+            "one minted vertex per edge division row"
+        );
+        self.divisions[side]
+            .rows()
+            .iter()
+            .zip(&self.vertices[side])
+            .map(|(&(child, parent), &vertex)| (parent, vertex, child))
     }
 
     /// The edge of `operand`'s input the piece `edge` of its clone lies
@@ -631,6 +657,37 @@ impl EdgeSplits {
         edge: crate::entity::EdgeKey,
     ) -> crate::entity::EdgeKey {
         self.divisions[usize::from(operand == Operand::B)].root(edge)
+    }
+
+    /// The edge of `operand`'s clone a split minted `v` on, where one did.
+    pub(crate) fn minted_on(
+        &self,
+        operand: Operand,
+        v: VertexKey,
+    ) -> Option<crate::entity::EdgeKey> {
+        self.of(operand)
+            .find(|&(_, vertex, _)| vertex == v)
+            .map(|(parent, _, _)| parent)
+    }
+
+    /// The keys of `edge`'s pieces after `operand`'s splits, in order
+    /// along it (a split keeps the parent's leading span, so its child is
+    /// the piece right after the parent), and every vertex a split minted
+    /// on it.
+    pub(crate) fn pieces(
+        &self,
+        operand: Operand,
+        edge: crate::entity::EdgeKey,
+    ) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
+        let mut keys = vec![edge];
+        let mut minted = Vec::new();
+        for (parent, vertex, child) in self.of(operand) {
+            if let Some(i) = keys.iter().position(|&k| k == parent) {
+                keys.insert(i + 1, child);
+                minted.push(vertex);
+            }
+        }
+        (keys, minted)
     }
 }
 
@@ -869,7 +926,7 @@ impl GlueVerdict {
 /// operation's own decisions ([`glue::decided_declarations`]) or the
 /// pairs it was given ([`BooleanInputs::given`]), in arena keys, each
 /// pair under the class its relation makes it.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Glue {
     /// Cross-operand glued face pairs, each with its class:
     /// classification treats a `Rest` or continuation pair's carriers as
@@ -884,6 +941,59 @@ pub(crate) struct Glue {
     /// Whether the operation decides its own coincidences or is given
     /// them ([`Verdicts`]).
     pub(crate) verdicts: Verdicts,
+    /// The pairs the glue door read in band and left unglued, each with
+    /// the reading it could not decide ([`InBandPair`]).
+    pub(crate) in_band: Vec<InBandPair>,
+}
+
+/// **A pair the glue door read in band** over both faces and left
+/// unglued: its faces and what the carrier ladder could not decide
+/// there, which a corner meeting the pair quotes where it binds
+/// ([`unglued_corner`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct InBandPair {
+    /// The A-operand face.
+    pub(crate) a: FaceKey,
+    /// The B-operand face.
+    pub(crate) b: FaceKey,
+    /// The undecided reading.
+    pub(crate) reading: DoorReading,
+}
+
+/// What the glue door could not decide of an undeclared pair: a rung of
+/// the plane ladder in band, or a coincidence measure undecided with the
+/// orientation already decided.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum DoorReading {
+    /// [`carrier_eq::CarrierEqError::Escalated`].
+    Rung {
+        rung: PlaneRung,
+        diag: Indeterminate,
+    },
+    /// [`carrier_eq::CarrierEqError::Undecided`].
+    Coincidence {
+        coincidence: carrier_eq::CoincidenceMeasure,
+        relation: CarrierRelation,
+    },
+}
+
+impl DoorReading {
+    /// The reading of an undeclared pair's refusal; `None` for the
+    /// refusals only a declared reading gives.
+    pub(crate) fn of(refusal: carrier_eq::CarrierEqError) -> Option<Self> {
+        match refusal {
+            carrier_eq::CarrierEqError::Escalated { rung, diag } => Some(Self::Rung { rung, diag }),
+            carrier_eq::CarrierEqError::Undecided {
+                coincidence,
+                relation,
+            } => Some(Self::Coincidence {
+                coincidence,
+                relation,
+            }),
+            carrier_eq::CarrierEqError::Unsettled { .. }
+            | carrier_eq::CarrierEqError::Contradicted { .. } => None,
+        }
+    }
 }
 
 /// **Where a boolean's coincidence verdicts come from.** An operation
@@ -925,6 +1035,7 @@ impl Glue {
             records_a: records_a.clone(),
             records_b: records_b.clone(),
             verdicts,
+            in_band: Vec::new(),
         }
     }
 }
@@ -982,6 +1093,9 @@ pub(crate) struct GluedPairs<T: Real> {
     /// declared pair has one: the production constructor
     /// ([`Self::build`]) refuses a pair whose extent does not read.
     extent: std::collections::BTreeMap<(FaceKey, FaceKey), carrier_pair::PairExtent<T>>,
+    /// What the glue door read of each pair it left in band,
+    /// `(A face, B face)` ([`Glue::in_band`]).
+    in_band: std::collections::BTreeMap<(FaceKey, FaceKey), DoorReading>,
 }
 
 impl<T: Real> Default for GluedPairs<T> {
@@ -991,6 +1105,7 @@ impl<T: Real> Default for GluedPairs<T> {
             verified: VerifiedGlue::default(),
             one_sided: std::collections::BTreeMap::new(),
             extent: std::collections::BTreeMap::new(),
+            in_band: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -1050,6 +1165,55 @@ pub(crate) fn unglued_coincidence(
             terminal_sliver: false,
         },
     )
+}
+
+/// **An unglued pair a corner reads one carrier, refused on the reading
+/// that binds it**: the one whose clearing the operation waits on.
+///
+/// - `bounds`, the sector's bounds' reading off the other carrier
+///   ([`sectors::BoolSector::bounds_off`]), where a smaller tolerance a run
+///   admits decides it: that tolerance reads the sector off the carrier
+///   and the corner with it ([`Coincide::Sectors`]).
+/// - Else the glue door's in-band reading over both faces
+///   ([`GluedPairs::door_refusal`]): the sector lies on the other carrier
+///   at every tolerance, and only a glue clears the pair. The door's
+///   reading never offers a tolerance itself (a margin in band shows no
+///   size a smaller tolerance passes), so it is never weighed against the
+///   bounds.
+/// - Else `corner`, the corner's own refusal, on its standing off two
+///   carriers it lies on.
+///
+/// Both arms reach here only for a planar pair: an undeclared curved
+/// pair keeps its frontier refusal before the ladder runs.
+pub(crate) fn unglued_corner<T: Real>(
+    declared: &GluedPairs<T>,
+    pair: (Operand, FaceKey, Operand, FaceKey),
+    senses: Option<CarrierRelation>,
+    bounds: Option<Indeterminate>,
+    corner: impl FnOnce() -> BooleanError,
+) -> BooleanError {
+    match bounds.filter(Indeterminate::offers_tolerance) {
+        Some(diag) => BooleanError::coincidence(
+            Coincide::Sectors,
+            sectors_read(declared, pair, senses),
+            diag,
+        ),
+        None => declared.door_refusal(pair, senses).unwrap_or_else(corner),
+    }
+}
+
+/// **What a sector's coplanar refusal reads of the pair's declaration**
+/// ([`Coincide::Sectors`]): the one-carrier class the pair's `senses` make
+/// it, which would bridge the residue against a planar face. A caller
+/// passes `None` where no class settles it: a tilt decided off, or a
+/// pierced face that is not a plane.
+pub(crate) fn sectors_read<T: Real>(
+    declared: &GluedPairs<T>,
+    pair: (Operand, FaceKey, Operand, FaceKey),
+    senses: Option<CarrierRelation>,
+) -> DeclarationRead {
+    let admitted = senses.and_then(GlueClass::of_senses);
+    declared.read(&[pair], Coincide::Sectors, admitted.as_slice())
 }
 
 /// An undecided coincidence measure between `pair` as the Boolean
@@ -1422,7 +1586,39 @@ impl<T: Real> GluedPairs<T> {
             verified,
             one_sided,
             extent: std::collections::BTreeMap::new(),
+            in_band: decls
+                .in_band
+                .iter()
+                .map(|p| ((p.a, p.b), p.reading))
+                .collect(),
         }
+    }
+
+    /// **The glue door's refusal of a pair it read in band**, in its
+    /// words at the pair's door ([`PlaneDoor::OnPair`]); `None` where the
+    /// door decided the pair or never read it. `senses` is the
+    /// orientation the caller read of the two faces, which a rung's door
+    /// admits a class by.
+    fn door_refusal(
+        &self,
+        pair: (Operand, FaceKey, Operand, FaceKey),
+        senses: Option<CarrierRelation>,
+    ) -> Option<BooleanError> {
+        let (o1, f1, o2, f2) = pair;
+        let reading = *self.in_band.get(&Self::key(o1, f1, o2, f2)?)?;
+        Some(match reading {
+            DoorReading::Rung { rung, diag } => {
+                BooleanError::plane_identity(rung, self.on_pair_door(pair, senses), diag)
+            }
+            DoorReading::Coincidence {
+                coincidence,
+                relation,
+            } => undecided_coincidence(
+                coincidence,
+                [(o1, f1), (o2, f2)],
+                self.carriers_read(pair, relation),
+            ),
+        })
     }
 
     /// `(f1, f2)` as the `(A face, B face)` key, for a cross-operand
@@ -1835,7 +2031,7 @@ pub struct BooleanReduction<T: Real> {
     pub null_edges: Vec<BoolNullEdgeRecord<T>>,
     /// Each operand's null-edge copies, checked as each null edge was
     /// recorded ([`NullEdges::extend`]).
-    pub(crate) copies: [crate::lineage::VertexCopies; 2],
+    pub(crate) copies: [crate::lineage::NullEdgeCopies; 2],
     /// The cross-body correspondence pairs.
     pub null_pairs: Vec<NullEdgePairRecord>,
     /// Pierced-face ring insertions.
@@ -4269,13 +4465,8 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::LineageRow { rows, defect, key } => write!(
                 f,
-                "the Boolean's lineage records refused {}, so no body is returned. \
-                 {KERNEL_DEFECT_ENDING}",
-                crate::lineage::RowRefusal {
-                    rows: *rows,
-                    defect: *defect,
-                    key: *key,
-                }
+                "{}, so no body is returned. {KERNEL_DEFECT_ENDING}",
+                crate::lineage::RowRefusal::of(*rows, *defect, *key).refused_by("Boolean")
             ),
             Self::EdgeUndescribed {
                 failure,
@@ -5468,14 +5659,18 @@ struct Touch<T: Real> {
 /// minted ([`crate::null::mev_null_run`]).
 struct NullEdges<T: Real> {
     records: Vec<BoolNullEdgeRecord<T>>,
-    copies: [crate::lineage::VertexCopies; 2],
+    copies: [crate::lineage::NullEdgeCopies; 2],
 }
 
 impl<T: Real> Default for NullEdges<T> {
     fn default() -> Self {
         Self {
             records: Vec::new(),
-            copies: [Operand::A, Operand::B].map(crate::lineage::VertexCopies::new),
+            copies: [Operand::A, Operand::B].map(|operand| {
+                crate::lineage::NullEdgeCopies::new(crate::lineage::LineageRows::NullEdgeCopies(
+                    operand,
+                ))
+            }),
         }
     }
 }
