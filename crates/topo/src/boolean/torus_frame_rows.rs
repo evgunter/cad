@@ -80,6 +80,7 @@ fn shape(got: &Loops) -> String {
         Ok(Some(loops)) => format!("loops {loops:?}"),
         Ok(None) => "straight".into(),
         Err(FrameError::Escalated(d)) => format!("escalated {:?}", d.predicate),
+        Err(FrameError::AxesEscalated(d)) => format!("axes escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
         Err(FrameError::Spiric { loops, section }) => format!("spiric {loops:?} {section}"),
         Err(FrameError::NoArm) => "no arm".into(),

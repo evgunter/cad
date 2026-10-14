@@ -2636,6 +2636,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "strut_order", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
+    (
+        "join.rs",
+        "frame_refusal",
+        "BooleanDecision::CylinderAxes",
+        1,
+    ),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
     ("join.rs", "join_escalate", "Coincide::Join", 1),

@@ -464,19 +464,18 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
 }
 
 /// The unit rod about `(1, 1)` over `z ∈ [−0.5, 0.5]` tipped `theta`
-/// about `x` through its centre, against the unit rod about the origin
-/// over `z ∈ [−1, 1]`. Their walls cross along the rulings at `(1, 0)`
-/// and `(0, 1)`, which are a seam ruling of each rod
+/// about `axis` through its centre, against the unit rod about the
+/// origin over `z ∈ [−1, 1]`. Their walls cross along the rulings at
+/// `(1, 0)` and `(0, 1)`, which are a seam ruling of each rod
 /// ([`rod`]'s seams stand at `x ± r`): each germ runs along one
 /// solid's edge inside the other's wall face, so no germ's frame reads
 /// the axes, and the join reads them first.
-fn seams_on_the_walls(theta: f64) -> Pose {
+fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
     let tol = Tol::witness();
-    let m =
-        Affine3::rotation_about_axis(Point3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), theta);
+    let m = Affine3::rotation_about_axis(Point3::new(1.0, 1.0, 0.0), axis, theta);
     let b = rod(1.0, (1.0, 1.0), (-0.5, 0.5));
     Pose {
-        label: format!("seams on the walls, tipped {theta:e}"),
+        label: format!("seams on the walls, tipped {theta:e} about {axis:?}"),
         a: rod(1.0, (0.0, 0.0), (-1.0, 1.0)),
         b: finished(
             "the tipped rod",
@@ -490,34 +489,56 @@ fn seams_on_the_walls(theta: f64) -> Pose {
 }
 
 /// **The join reads the axes of a pair no frame read, at the frame's
-/// lever.** [`seams_on_the_walls`] upright builds SOUND in every op and
-/// order. Tipped `1.5·zero / 3.2`, the tip reads about `1.7·zero` over
-/// the walls' span (about 3.7, the diameter of their faces' vertices),
-/// in the band, and every op escalates the walls' coincidence on
-/// `cc_axes_parallel`; at the radius it would read `0.47·zero`,
-/// parallel, and take the rulings arm with the axes apart.
+/// lever, and refuses an in-band reading as their angle.**
+/// [`seams_on_the_walls`] upright builds SOUND in every op and order.
+/// Tipped `1.5·zero / 3.2` about `x` or about `y`, the tip reads about
+/// `1.7·zero` over the walls' span (about 3.7, the diameter of their
+/// faces' vertices), in the band, and every op escalates
+/// `cc_axes_parallel` as the axes' own decision, whose lever is a turn;
+/// at the radius it would read `0.47·zero`, parallel, and take the
+/// rulings arm with the axes apart. Both ways the lever offers end
+/// where it says: turned back to `0.5·zero / 3.2` every op builds
+/// SOUND, and turned a tenth of a radian every op ends at a typed
+/// refusal, none a defect and none this decision.
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
+    const LEVER: &str =
+        "Recourse: turn one part so the two cylinders' axes are clearly parallel, or clearly not";
     let tol = Tol::witness();
     let zero = geom_core::Band::linear(tol).unwrap().zero();
-    let bad = unsound(&[seams_on_the_walls(0.0)]);
+    let axes = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)];
+    let mut building = vec![seams_on_the_walls(axes[0], 0.0)];
+    building.extend(axes.map(|axis| seams_on_the_walls(axis, 0.5 * zero / 3.2)));
+    let bad = unsound(&building);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
-    let tipped = seams_on_the_walls(1.5 * zero / 3.2);
-    for (op, r, _) in tipped.runs() {
-        assert!(
-            matches!(
-                &r,
-                Err(BooleanError::Escalated {
-                    decision: topo::BooleanDecision::Coincidence(
-                        topo::Coincide::Section,
-                        topo::DeclarationRead::Moot
-                    ),
-                    diag,
-                }) if diag.predicate == Some("cc_axes_parallel")
-            ),
-            "{} | {op}: {:?}",
-            tipped.label,
-            r.map(|_| "a body")
-        );
+    for axis in axes {
+        let tipped = seams_on_the_walls(axis, 1.5 * zero / 3.2);
+        for (op, r, _) in tipped.runs() {
+            assert!(
+                matches!(
+                    &r,
+                    Err(e @ BooleanError::Escalated {
+                        decision: topo::BooleanDecision::CylinderAxes,
+                        diag,
+                    }) if diag.predicate == Some("cc_axes_parallel")
+                        && e.to_string().ends_with(LEVER)
+                ),
+                "{} | {op}: {:?}",
+                tipped.label,
+                r.map(|_| "a body").map_err(|e| e.to_string())
+            );
+        }
+        let turned = seams_on_the_walls(axis, 0.1);
+        for (op, r, _) in turned.runs() {
+            let Err(e) = r else {
+                panic!("{} | {op}: a body", turned.label);
+            };
+            let (key, defect) = topo::test_support::offer_key(&e);
+            assert!(
+                !defect && key != "CylinderAxes",
+                "{} | {op}: {key}: {e}",
+                turned.label
+            );
+        }
     }
 }

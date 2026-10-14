@@ -100,6 +100,7 @@ fn shape(frame: &Frame) -> String {
         Ok(Some((c, a))) => format!("frame {c:?} {a:?}"),
         Ok(None) => "straight".into(),
         Err(FrameError::Escalated(d)) => format!("escalated {:?}", d.predicate),
+        Err(FrameError::AxesEscalated(d)) => format!("axes escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
         Err(FrameError::OutsideInventory { conic, section }) => {
             format!("outside {conic:?} {section}")

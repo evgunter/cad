@@ -227,6 +227,11 @@ pub enum BooleanDecision {
     /// Where a straight edge crosses a cylinder wall: a rung of the line
     /// × wall quadratic.
     WallRoots(WallRung),
+    /// Whether the axes of a cylinder face of each solid are parallel,
+    /// so the walls meet in rulings: the sine between the axes levered
+    /// at the walls' span (`cc_axes_parallel`, read where the join takes
+    /// the pair's section).
+    CylinderAxes,
     /// How many times a straight edge crosses a torus: the certified
     /// count of the line × torus quartic's real roots.
     TorusRoots,
@@ -1410,6 +1415,9 @@ impl BooleanDecision {
             Self::WallRoots(WallRung::Discriminant) => {
                 "whether an edge crosses a cylinder wall, grazes it or misses it"
             }
+            Self::CylinderAxes => {
+                "whether the axes of a cylinder face of each solid are parallel"
+            }
             Self::TorusRoots => "how many times an edge crosses a torus",
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
             Self::SphereRoots => "whether an edge crosses a sphere, grazes it or misses it",
@@ -1566,6 +1574,13 @@ impl BooleanDecision {
                 "turn the edge clearly away from the direction of the cylinder's axis",
                 "edge's drift off the cylinder's axis",
                 SizedPass::Positive,
+            ),
+            // Only a zero passes, along the rulings: a definite tilt goes
+            // on to the skew and meeting-axes doors, which are frontiers,
+            // so no smaller tolerance decides it passing. The margin is
+            // the axes' drift over the walls' span, which a turn moves.
+            Self::CylinderAxes => Ending::Lever(
+                "turn one part so the two cylinders' axes are clearly parallel, or clearly not",
             ),
             // Two roots pass at every arm; a miss passes where both ends
             // are off the wall and refuses where one is on it (a miss
@@ -1931,6 +1946,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::WallRoots => {
                     WallRung::iter().map(BooleanDecision::WallRoots).collect()
                 }
+                BooleanDecisionKind::CylinderAxes => vec![BooleanDecision::CylinderAxes],
                 BooleanDecisionKind::TorusRoots => vec![BooleanDecision::TorusRoots],
                 BooleanDecisionKind::ArcTorusRoots => vec![BooleanDecision::ArcTorusRoots],
                 BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
@@ -2236,6 +2252,13 @@ pub(in crate::boolean) mod tests {
                     "Recourse: turn the edge clearly away from the direction of the cylinder's \
                      axis",
                     SizedPass::Positive,
+                ),
+            ),
+            BooleanDecision::CylinderAxes => (
+                "whether the axes of a cylinder face of each solid are parallel",
+                Ending::Lever(
+                    "Recourse: turn one part so the two cylinders' axes are clearly parallel, or \
+                     clearly not",
                 ),
             ),
             BooleanDecision::WallRoots(WallRung::Discriminant) => (
