@@ -6775,8 +6775,16 @@ mod rim_holding_rows {
             super::edges_holding(p, pieces.iter().map(|&k| (k, &body, k)), bnd).unwrap()
         };
         let chord_mid = at(45.0) + (at(120.0) - at(45.0)) * 0.5;
-        assert_eq!(held(at(80.0)), vec![pieces[1]], "on the arc, inside the middle piece");
-        assert_eq!(held(chord_mid), Vec::<EdgeKey>::new(), "the middle piece's chord");
+        assert_eq!(
+            held(at(80.0)),
+            vec![pieces[1]],
+            "on the arc, inside the middle piece"
+        );
+        assert_eq!(
+            held(chord_mid),
+            Vec::<EdgeKey>::new(),
+            "the middle piece's chord"
+        );
         let mut split = held(at(45.0));
         split.sort_unstable();
         let mut ends = vec![pieces[0], pieces[1]];

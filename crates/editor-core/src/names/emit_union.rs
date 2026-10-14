@@ -674,8 +674,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         if !is_straight(self.body, k) {
             return Ok(none);
         }
-        let (d0, d1): (Vec<MemberFace>, Vec<MemberFace>) =
-            (from0.iter().copied().collect(), from1.iter().copied().collect());
+        let (d0, d1): (Vec<MemberFace>, Vec<MemberFace>) = (
+            from0.iter().copied().collect(),
+            from1.iter().copied().collect(),
+        );
         let candidates = joined_candidates(&d0, &d1, |i| Ok(self.member_by_index(i)?.body), true)?;
         let mut named = Vec::with_capacity(candidates.len());
         for ((i, r), arc) in candidates {
@@ -1278,12 +1280,11 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 if at != Sign::Zero {
                     continue;
                 }
-                let name = m
-                    .table
-                    .name_ref_of(&ent(0, EntityKey::Vertex(w)))
-                    .ok_or(NamingError::Emission {
+                let name = m.table.name_ref_of(&ent(0, EntityKey::Vertex(w))).ok_or(
+                    NamingError::Emission {
                         what: "a member vertex a union vertex sits at is unnamed in its member",
-                    })?;
+                    },
+                )?;
                 let c = (m.read, name.clone());
                 if least.as_ref().is_none_or(|(l, _)| c < *l) {
                     least = Some((c, m.table.is_tied(name.name())));
@@ -1408,7 +1409,9 @@ fn cite_member_edges<T: geom_core::Decide>(
         let cited = match (member_vertex, crossing) {
             (Some((vertex, true)), _) => {
                 let Entry::Unique(e) = entry else {
-                    return Err(bug("a union vertex read at a member vertex is no one vertex"));
+                    return Err(bug(
+                        "a union vertex read at a member vertex is no one vertex",
+                    ));
                 };
                 tie.push(entity_name(name.node, &vertex), e);
                 continue;
@@ -3784,7 +3787,9 @@ mod tests {
             let name = self.table.name_of(&ent(0, a)).unwrap().clone();
             let mut t = NameTable::new();
             for (n, e) in self.table.iter() {
-                let Entry::Unique(e) = e else { unreachable!("an extrude ties nothing") };
+                let Entry::Unique(e) = e else {
+                    unreachable!("an extrude ties nothing")
+                };
                 if e.key != a && e.key != b {
                     t.insert(n.clone(), *e).unwrap();
                 }
@@ -3836,7 +3841,9 @@ mod tests {
         fn face_and_edge(&self) -> (topo::FaceKey, topo::EdgeKey, [topo::FaceKey; 2]) {
             let inc = Incidence::of(&self.body).unwrap();
             let (&k, fs) = inc.edge_faces.iter().next().unwrap();
-            let [f0, f1] = fs.as_slice() else { panic!("a cube edge has two faces") };
+            let [f0, f1] = fs.as_slice() else {
+                panic!("a cube edge has two faces")
+            };
             (*f0, k, [*f0, *f1])
         }
     }
@@ -3856,7 +3863,11 @@ mod tests {
             .find(|g| !fs.contains(g))
             .unwrap();
         m.tie(EntityKey::Face(f), EntityKey::Face(other));
-        let edge = m.table.name_ref_of(&ent(0, EntityKey::Edge(k))).unwrap().clone();
+        let edge = m
+            .table
+            .name_ref_of(&ent(0, EntityKey::Edge(k)))
+            .unwrap()
+            .clone();
         let members = m.members();
         let flush = m.flush(&members);
         let cover = flush.edge_cover(k, &fs).unwrap();
@@ -3881,11 +3892,27 @@ mod tests {
         let members = m.members();
         let flush = m.flush(&members);
         let cited = |v| flush.least_vertex(v).unwrap();
-        let tied_ref = m.table.name_ref_of(&ent(0, EntityKey::Vertex(v0))).unwrap().clone();
+        let tied_ref = m
+            .table
+            .name_ref_of(&ent(0, EntityKey::Vertex(v0)))
+            .unwrap()
+            .clone();
         assert_eq!(*tied_ref, tied);
-        assert_eq!(cited(v0), Some(((m.read, tied_ref.clone()), true)), "candidate 0");
-        assert_eq!(cited(v1), Some(((m.read, tied_ref.clone()), true)), "candidate 1");
-        let own = m.table.name_ref_of(&ent(0, EntityKey::Vertex(v2))).unwrap().clone();
+        assert_eq!(
+            cited(v0),
+            Some(((m.read, tied_ref.clone()), true)),
+            "candidate 0"
+        );
+        assert_eq!(
+            cited(v1),
+            Some(((m.read, tied_ref.clone()), true)),
+            "candidate 1"
+        );
+        let own = m
+            .table
+            .name_ref_of(&ent(0, EntityKey::Vertex(v2)))
+            .unwrap()
+            .clone();
         assert_eq!(cited(v2), Some(((m.read, own), false)), "an untied vertex");
 
         let fold_name = |i: u64| StableName {
@@ -3897,8 +3924,10 @@ mod tests {
             }],
         };
         let mut t = NameTable::new();
-        t.insert(fold_name(0), ent(0, EntityKey::Vertex(v0))).unwrap();
-        t.insert(fold_name(1), ent(0, EntityKey::Vertex(v1))).unwrap();
+        t.insert(fold_name(0), ent(0, EntityKey::Vertex(v0)))
+            .unwrap();
+        t.insert(fold_name(1), ent(0, EntityKey::Vertex(v1)))
+            .unwrap();
         let lines = EdgeLines {
             member: BTreeMap::new(),
             seam: BTreeMap::new(),

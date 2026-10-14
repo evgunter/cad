@@ -829,7 +829,11 @@ fn a_run_of_seams_says_each_seam_by_its_faces() {
         })
         .cloned()
         .collect();
-    assert_eq!(runs.len(), 2, "two vertices are runs of three seams: {runs:?}");
+    assert_eq!(
+        runs.len(),
+        2,
+        "two vertices are runs of three seams: {runs:?}"
+    );
     for (form, by) in [("in full", full), ("within the evaluation", within)] {
         let said: Vec<String> = runs.iter().map(|n| by.name(n).to_string()).collect();
         for s in &said {
@@ -838,7 +842,10 @@ fn a_run_of_seams_says_each_seam_by_its_faces() {
                 3,
                 "{form}: each seam is said by its faces: {s}"
             );
-            assert!(!s.contains("an edge"), "{form}: no seam is said as an edge: {s}");
+            assert!(
+                !s.contains("an edge"),
+                "{form}: no seam is said as an edge: {s}"
+            );
         }
         assert_ne!(said[0], said[1], "{form}: the two runs read apart");
     }
