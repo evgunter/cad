@@ -4753,12 +4753,13 @@ fn incidence<T: Decide>(
 /// its start, two sign decisions a step; uncapped, a gap `n` periods from
 /// the start costs `2n` decisions, and over an unbounded box it would not
 /// terminate. What the cap means depends on the start:
-/// - The loop walk starts at the gap's own estimate ([`branch_estimate`]),
-///   so the cap bounds the estimate's error, at most a step on either
-///   side of a half-step mark, plus the near-pole read's offsets where
-///   the marks miss (`topo`'s `lever_periods`, at most one whole period
-///   around the read's centre). A carrier stated any number of periods
-///   off the azimuth it covers is then in reach
+/// - The loop walk searches from zero and, where that runs out of reach,
+///   again from the gap's own estimate ([`whole_step_count_any`],
+///   [`branch_estimate`]). There the cap bounds the estimate's error, at
+///   most a step on either side of a half-step mark, plus the near-pole
+///   read's offsets where the marks miss (`topo`'s `lever_periods`, at
+///   most one whole period around the read's centre). A carrier stated
+///   any number of periods off the azimuth it covers is then in reach
 ///   (`topo`'s `a_carrier_stated_periods_off_its_azimuth_mints`).
 /// - Check 4's fidelity ([`whole_periods`]) and the other callers of
 ///   [`whole_period_count`] start at zero, so for them the cap bounds the
@@ -4849,6 +4850,34 @@ pub fn branch_estimate<T: Decide>(gap: T, step: T) -> Option<i32> {
     // below is exact wherever this bound lets it through.
     #[allow(clippy::cast_possible_truncation)]
     (k.is_finite() && k.abs() <= 1e6).then_some(k as i32)
+}
+
+/// [`whole_step_count`] for a gap with no bound on how far out it sits
+/// (the loop walk's joint gap carries a carrier's own parameter offset,
+/// which nothing bounds): searched from zero as every caller does, and
+/// where that runs out of reach, searched again from the gap's own
+/// estimate ([`branch_estimate`]). Where the search from zero answers,
+/// the answer and every decision behind it are that search's; a gap past
+/// its reach is decided by the marks around the estimate instead of
+/// refused.
+///
+/// # Errors
+///
+/// [`whole_periods`]'.
+pub fn whole_step_count_any<T: Decide>(
+    name: &'static str,
+    gap: T,
+    (step, per): (T, i32),
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<i32, BranchMiss> {
+    match whole_step_count(name, gap, (step, per), 0, &meter, band) {
+        Err(BranchMiss::OutOfReach) => match branch_estimate(gap, step) {
+            Some(from) => whole_step_count(name, gap, (step, per), from, meter, band),
+            None => Err(BranchMiss::OutOfReach),
+        },
+        read => read,
+    }
 }
 
 /// [`whole_period_count`] on an orbit that steps `step` at a time,

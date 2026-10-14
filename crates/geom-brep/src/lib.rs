@@ -171,6 +171,7 @@ pub use pcurve_cache::{
     PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WallTorus,
     branch_estimate, chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf,
     chart_stretch_sup, chart_stretch_sup_v, whole_period_count, whole_periods, whole_step_count,
+    whole_step_count_any,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

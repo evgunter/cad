@@ -75,7 +75,15 @@ walk's joint gap.
 
 ## Closed (PCERT, 2026-10-14)
 
-The loop walk's branch search now starts at the gap's own estimate,
+Where the loop walk's branch search from zero runs out of reach, it now
+searches again from the gap's own estimate
+(`geom_brep::whole_step_count_any`, `geom_brep::branch_estimate`). The
+search from zero is kept first, so every answer it already gave, and
+every decision behind it, stays as it was. A first cut that started
+every search at the estimate moved pinned decision streams in six
+editor-core rows, and one answer: a narrow-cone joint whose gap of
+exactly π ties the estimate to 1 read its far mark first, in band at
+that lever, and escalated instead of answering `OnMark`. The estimate,
 `geom_brep::branch_estimate`:
 - It is `⌊gap/step + ½⌋`, through `Real::periodic_branch`, read as an
   integer where the scalar's floor is a point bracket.
@@ -108,7 +116,7 @@ Rows:
   - a straddled mark 40.5 periods out, ending `OnMark`.
 
 Mutants:
-- The search started at zero reds the door row.
+- The search never retried from the estimate reds the door row.
 - `Orbit::per_period` read as 1 on the sphere is not reachable through
   the walk, because the estimate keeps the search within a step. The unit
   row pins the counting in `whole_step_count`.

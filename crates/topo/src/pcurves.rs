@@ -4175,11 +4175,10 @@ fn decide_joint<T: Decide>(
     let kv = match polar_arm(surface) {
         Some(polar) => {
             let gap = prev.y - sheet.eval(entry_t).y;
-            geom_brep::whole_step_count(
+            geom_brep::whole_step_count_any(
                 "pcurve_loop_branch",
                 gap,
                 (tau, 1),
-                geom_brep::branch_estimate(gap, tau).unwrap_or(0),
                 |g| Margin::levered(g, polar),
                 band,
             )
@@ -4404,12 +4403,10 @@ pub(crate) fn lever_periods<T: Decide>(
     band: Band,
 ) -> Result<i32, BranchMiss> {
     let step = orbit.step(period);
-    let from = geom_brep::branch_estimate(gap, step).unwrap_or(0);
-    match geom_brep::whole_step_count(
+    match geom_brep::whole_step_count_any(
         name,
         gap,
         (step, orbit.per_period()),
-        from,
         |g| arm.meter(g),
         band,
     ) {
@@ -6767,10 +6764,10 @@ mod pole_slit_tests {
 
     /// **A carrier stated whole periods off its azimuth mints.** Nothing
     /// bounds where a circle carrier's parameter runs against the azimuth
-    /// it covers, so the loop walk's joint gap carries that offset. The
-    /// walk's branch search starts at the gap's own estimate
-    /// (`geom_brep::branch_estimate`) and the marks decide from there, so any
-    /// offset is in reach:
+    /// it covers, so the loop walk's joint gap carries that offset. Where
+    /// the walk's branch search from zero runs out of reach, it searches
+    /// again from the gap's own estimate (`geom_brep::whole_step_count_any`)
+    /// and the marks decide from there, so any offset is in reach:
     /// - the slit cap with its first rim arc 3 and 10 periods below,
     ///   which the walk refused `BranchOutOfReach` with its search started
     ///   at zero (from 2 periods, its cap then counted in the sphere's
