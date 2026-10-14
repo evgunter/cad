@@ -1372,3 +1372,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The ring-path ruling/crest item is unprioritized and is not reached through the public ops. To mark P4 with the next GERM PR that touches `work/`.
   - **Dispatched** the P3 `a-plane-cone-apex-tangent-reads-a-residue-generator-off-the-tangency`, which serves wrong geometry (a generator ~2e-5 off the tangency) and costs E. Implementer: session_01GDFC3FaSKmBFBjRrhpTLEC, branch `germ/pn-apex-tangent-generator`. The arm is drawn at review.
 - 2026-10-14 16:50 — **PR 5152** (apex tangent generator) opened at head `c601f19551`: the Zero arm serves the extremum `gen_at(φ + π/2·sign(c) + π/2)`; a new row (red on main at 3 ε) and the strengthened apex fuzz oracle (913/959 contradictions on main, 0 after); found not reachable end to end. Graded M. Arm byte 137, mod 3 = 2 → **SEQUENTIAL**. Dispatched r5152 (local Opus; brief at scratchpad/dr5152/brief.md). Asked d5066 to finalize (no writes since 15:48).
+- 2026-10-14 17:00 — **d5066 report** (delta review of fix-pass commits d794645563 and b5919546d4, not tallied): no MAJOR, no correctness MINOR.
+  - Executed: 0 wrong definite signs over ~5.7k loops against a 34-digit mpmath oracle at 3 ε; 0 length bounds under the arc in ~50k readings.
+  - Both mutants red on their rows. `window_rates` is a pure refactor, slightly stricter.
+  - 3 NITs stay: `continue` swallows any `Err` at `loop_winding.rs:644`; the vector-area cost is per loop, not per spiric; an earlier Indeterminate is lost if the finest count refuses.
+  - 2 style notes stay: two span conventions in `spiric.rs`; the census count kept by hand.
+  - Merge flow started: /home/user/m5066 = head + main (`9632a651c7`); `nextest.toml` auto-merged with the PR's one entry kept; topo in full plus spiric/torus/quad/census rows at 3 ε.
