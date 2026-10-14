@@ -1446,7 +1446,9 @@ pub(crate) mod tests {
     /// which a Möbius reparameterization makes genuinely curve in
     /// parameter. Dropping any of the integral arm's centred cross
     /// bound's three spread terms reads under a sampled magnitude; a
-    /// speed or `m_sup` loosened by a fifth reads over its box ceiling.
+    /// speed loosened by `1e-9` of itself reads over its box ceiling
+    /// (one far below the ceiling's `1e-12`, `1e-13` say, does not), and
+    /// `m_sup` loosened by a fifth.
     /// The rational arm's terms are the quotient statement's, whose own
     /// rows drop them (`geom_core::spline::derivative`).
     ///
@@ -1456,15 +1458,18 @@ pub(crate) mod tests {
     #[test]
     fn the_meter_sups_bound_every_sampled_magnitude() {
         use geom_core::interval::{dot, norm_sq};
-        // Measured worst over the fixtures at four splits per span, against
-        // the box reading in the fixture's own frame: the speeds at `1.0`×
-        // on every fixture (to an ulp: on the rational arm the box is the
-        // same quotient's coordinate range), `m_sup` at `1.024`× (the
-        // integral arm; at most `1.0`× on the rational fixtures, `0.90`×
-        // strong-`v`, where the box cross product loses the correlation
-        // the area quotient keeps). Each ceiling is that worst with about
-        // a tenth to spare.
-        const SPEED_CEILING: f64 = 1.1;
+        // The speeds are never above the box in ℝ, on either arm: each
+        // coefficient vector (the integral arm's derived control vectors,
+        // the rational arm's ratios `ã_k/b_k`) lies in the box, whose
+        // norm sup is the box reading. So the speed ceiling is the claim
+        // itself, `1` plus rounding: measured at most `1 + 4.5e-16`.
+        // `m_sup` has no such claim on the integral arm — the cross of two
+        // hulls is not the box of the cross — and measures `1.024`× there
+        // (at most `1.0`× on the rational fixtures, `0.90`× strong-`v`,
+        // where the box cross product loses the correlation the area
+        // quotient keeps); its ceiling is that worst with about a tenth to
+        // spare.
+        const SPEED_CEILING: f64 = 1.0 + 1e-12;
         const M_CEILING: f64 = 1.13;
         let names = ["‖S_u‖", "‖S_v‖", "‖S_u × S_v‖"];
         for (name, n) in [

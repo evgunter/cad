@@ -2,7 +2,7 @@
 id: boolean-join-resolves-germ-face-surfaces-in-three-closures
 kind: issue
 title: boolean::join resolves a germ's face surfaces in three closures with one message
-status: dispatched
+status: review
 opened: 2026-10-13
 priority: P3
 cost: E
