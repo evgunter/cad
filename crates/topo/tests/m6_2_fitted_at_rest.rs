@@ -1,37 +1,31 @@
-//! **M6-2 acceptance: a fitted rung-3 pcurve cache in a body AT REST**
-//! — the row M5 PR 9's spec asked for, the M5 exit walk carried as row
-//! 2, and the SSI generic-`T` lift's own acceptance obligation.
+//! **M6-2 acceptance: a rung-3 edge in a body AT REST** — the row M5
+//! PR 9's spec asked for, the M5 exit walk carried as row 2, and the SSI
+//! generic-`T` lift's own acceptance obligation.
 //!
-//! Until this unit the invariant "every fitted cache at rest carries
-//! the full C2 certificate — hull sup-norm plus uniqueness tube" was
-//! true only VACUOUSLY: `Pcurve::Fitted` did not exist, because its
-//! certificate could not be derived anywhere but `f64` (M5-LOG PR 9c
-//! deviation 2). Both halves moved in M6-2, so the row is now a real
-//! one, and it is stated at both scalars the lift was for:
+//! The cylinder×sphere fixture's small loop of the kernel's own
+//! traced-and-fitted branch, restricted to an edge carrier, certified
+//! into a body, and minted. Its between-samples statement lives where C2
+//! and C4 put it:
 //!
-//! - **`f64`** (this file's outer rows) — the cylinder×sphere fixture's
-//!   small loop of the kernel's own traced-and-fitted branch, restricted
-//!   to an edge carrier, certified into a body, and
-//!   its cylinder-chart image stored as a `Pcurve::Fitted` cache whose
-//!   certificate is RE-DERIVED at rest by the tier-3 pcurve pass;
-//! - **`Interval`** (the `certified` module) — the same body at the
-//!   interval scalar. This is the non-negotiable half: it is the
-//!   evidence that the enclosure/certification stack actually left
-//!   `f64`, and it is asserted enclosure-style (bracketing), never by
-//!   equality.
+//! - **the edge's certificate** (`geom_brep::analytic_rung3`) holds C2's
+//!   three limbs: the carrier's offset from EACH operand over the whole
+//!   span (limbs 1–2), and the uniqueness tube (limb 3) — over a chain
+//!   of boxes around the carrier the pair's crossing is one arc spanning
+//!   it. `mev` runs it through the scalar's lane, and tier 3 re-derives
+//!   it;
+//! - **the face's rows** are the projected image, the chart's inverse
+//!   applied to the carrier (C4), whose envelope bounds `|S(P(t)) − C(t)|`
+//!   over the whole span, and carry no pair certificate.
+//!
+//! Stated at both scalars the lift was for: **`f64`** (the outer rows)
+//! and **`Interval`** (the `certified` module), enclosure-style.
 //!
 //! **ε posture.** No ε literal appears here. Every margin is compared
-//! against the run's own resolved band, and the fixture stands down
-//! through the SSI door's own typed `FitSampleBudget` refusal when a
-//! tight ε demands more march samples than the named budget allows —
-//! the `m5_pr7_ssi.rs` discipline, so the 1e-6 / default / 1e-12 rows
-//! of the hosted matrix each state something true.
+//! against the run's own resolved band.
 //!
-//! **What this row does NOT do**, so nobody reads more into it: it does
-//! not wire the cyl×sphere JOIN lane (`run_azimuth_window` has no
-//! window analog for a fitted chord — banked past M6). The edge is
-//! built through the public certification doors, exactly as
-//! `m5_pr7_split_meter.rs`'s rung-3 scaffold is.
+//! **What this row does NOT do**: it does not wire the cyl×sphere JOIN
+//! lane (banked past M6). The edge is built through the public
+//! certification doors.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -40,133 +34,222 @@ use crate::fixture;
 use geom_brep::{EnvelopeStatement, Pcurve};
 use geom_core::Band;
 use geom_core::Tol;
-use test_utils::vacuity;
 
-/// The full at-rest run at `f64`: build, validate, and read the
-/// certificate the tier-3 pass re-derived.
+/// The full at-rest run at `f64`: build, read the minted rows, run the
+/// edge's analytic rung-3 certificate, validate.
 #[test]
-fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
-    let Some(built) = fixture::build::<f64>() else {
-        vacuity::stood_down(
-            &format!(
-                "M6-2 rung-3 edge at rest, f64 lane, eps = {:e}",
-                Tol::witness().get().eps
-            ),
-            "the cylinder×sphere fixture stood down on the SSI door's typed \
-             FitSampleBudget refusal at this ε — the budget row pins that outcome. \
-             THIS RUN ASSERTS NOTHING about the at-rest body: neither that the cache it \
-             carries is fitted, nor that the tier-3 pass re-derives the full C2 \
-             certificate over it",
-        );
-        return;
-    };
+fn a_rung3_edge_at_rest_carries_its_projected_rows_and_its_edge_the_tube() {
+    let built = fixture::build::<f64>();
     let band = Band::linear(Tol::witness()).unwrap();
-
-    // 1. The cache at rest IS fitted — the variant reached a body.
     for he in [built.he_plus, built.he_minus] {
         let cache = built
             .body
             .pcurve(he)
-            .expect("both half-edges carry a cache");
+            .expect("both half-edges carry a minted row");
         assert!(
-            matches!(cache.pcurve(), Pcurve::Fitted(_)),
-            "the stored chart image is the fitted (rung-3) variant"
+            matches!(cache.pcurve(), Pcurve::Projected(_)),
+            "ROW: the stored image is the projected one: {cache:?}"
         );
         let cert = cache.certificate();
-        // 2. The full C2 certificate is present — hull sup-norm AND
-        //    uniqueness tube. A schedule-max-only cache is exactly what
-        //    this row exists to forbid.
-        let ssi = cert
-            .ssi
-            .expect("a fitted cache carries the SSI certificate");
+        assert_eq!(cert.statement, EnvelopeStatement::MapResidualProjected);
         assert!(
-            ssi.tube_boxes > 0,
-            "the uniqueness tube proved one-arc-ness over a real box chain"
+            cert.envelope <= band.zero(),
+            "ROW: certified sup bound within ε"
         );
-        assert!(
-            ssi.tube_radius > 0.0 && ssi.tube_transversality > 0.0,
-            "the tube has a certified radius and a definitely-positive margin"
-        );
-        assert_eq!(
-            cert.statement,
-            EnvelopeStatement::OnLocusHull,
-            "an analytic chart's fitted envelope is the on-locus hull bound"
-        );
-        assert_eq!(
-            cert.envelope, ssi.hull_sup,
-            "the envelope IS the hull bound"
-        );
-        // 3. Both statements are inside the run's band, and they are
-        //    SEPARATE numbers (a sampled max is not a sup bound).
-        assert!(cert.max_residual <= band.zero(), "sampled max within ε");
-        assert!(cert.envelope <= band.zero(), "certified sup bound within ε");
     }
-
-    // 4. The tier-3 pcurve pass RE-DERIVES it and finds nothing.
-    let findings = topo::pcurves::validate_pcurves(&built.body, band);
+    // The limbs are the edge's: they certify on the operand pair, and the
+    // same carrier against a degenerate pair (its own surface twice,
+    // nowhere transverse) passes limbs 1–2 and refuses on the tube — the
+    // limb is live, not vacuous.
+    let span = built.carrier.domain();
+    geom_brep::analytic_rung3(&built.carrier, span, &built.cylinder, &built.sphere, band)
+        .expect("TUBE: the pair's crossing is one arc spanning the carrier");
+    let degenerate =
+        geom_brep::analytic_rung3(&built.carrier, span, &built.cylinder, &built.cylinder, band);
     assert!(
-        findings.is_empty(),
-        "the at-rest pcurve pass re-derives the whole certificate: {findings:?}"
+        matches!(
+            degenerate,
+            Err(geom_brep::AnalyticRung3Refusal::TubeStraddles { .. }
+                | geom_brep::AnalyticRung3Refusal::TubeNotOneArc { .. })
+        ),
+        "TUBE: a pair that crosses nowhere has no tube: {degenerate:?}"
     );
+    let findings = topo::pcurves::validate_pcurves(&built.body, band);
+    assert!(findings.is_empty(), "AT-REST: {findings:?}");
+    // The edge's own re-certification with the lane in hand runs the
+    // analytic rung-3 certificate, tube included.
+    let ek = built.body.get_half_edge(built.he_plus).unwrap().edge;
+    let edge = built.body.get_edge(ek).unwrap();
+    let Some(topo::CurveGeom::Certified(curve)) = built.body.get_curve_geom(edge.curve) else {
+        panic!("the rung-3 edge is certified")
+    };
+    let point = |he| {
+        let v = built.body.get_half_edge(he).unwrap().start;
+        *built
+            .body
+            .get_point(built.body.get_vertex(v).unwrap().point)
+            .unwrap()
+    };
+    curve
+        .recertify_via(
+            point(built.he_plus),
+            point(built.he_minus),
+            |k| built.body.get_surface(k).cloned(),
+            band,
+            Some(geom_brep::NurbsLane::certified()),
+        )
+        .expect("AT-REST: the edge re-certifies with its tube");
 }
 
-// **RETIRED (2026-08-13 test-time audit):
-// `a_corrupted_fitted_cache_fails_the_at_rest_pass`.** It built this
-// file's cyl×sphere fixture at `f64`, attached `fixture::foreign_cache`
-// to `he_plus`, ran `validate_pcurves`, and asserted
-// `!findings.is_empty()` — the re-derivation is not a formality.
-//
-// The gate that owns that claim now is
-// `review_m6_2_probes::the_foreign_arc_cache_fails_on_the_map_residual\
-// _against_the_edges_carrier`: SAME fixture (`fixture::build::<f64>()`),
-// SAME corruption (`fixture::foreign_cache`), SAME half-edge, SAME
-// `validate_pcurves` call — and instead of "some finding", it requires
-// the finding to be `PcurveMintError::Certify` on `he_plus` carrying
-// `PcurveCertifyError::ResidualExceeded { check: PcurveCheck::\
-// MapResidual }`. A non-empty findings list is implied by that match
-// existing, so the retired row's assertion is a strict weakening of the
-// successor's. Nothing is lost.
-
-/// The `Dual` lane's refusing side, executed rather than assumed: a
-/// fitted cache cannot be certified by a scalar that may not certify
-/// (D1, 2026-08-19 — a dual now carries a bracket and still may not
-/// reach certification arithmetic, C9), and it says so.
-///
-/// **The asserted substring changed with D1, and it had to.** This row
-/// used to require the message to contain `"bracket"`, which was the
-/// reason the refusal gave: *"this scalar carries no bracket to reach the
-/// ring with"*. That sentence is now false — a dual carries the value
-/// channel's bracket — so the message says the true reason instead, and
-/// this row asserts the true reason. It is the assertion that keeps the
-/// user-facing string honest, so it is the one place that must move when
-/// the string does: `msg.contains("bracket")` passing again would mean
-/// someone reintroduced the stale claim.
+/// **A producer's closing mint re-derives the row.** The mint has a
+/// route to this face's rung-3 carrier (the projected image), so a
+/// second mint and a rigid map — which ends with that mint — leave
+/// projected rows, the same bits for the mint, and tier 3 reads the body
+/// clean.
 #[test]
-fn the_dual_lane_refuses_a_fitted_cache_typed() {
-    let Some(built) = fixture::build::<f64>() else {
-        vacuity::stood_down(
-            &format!(
-                "M6-2 dual-lane refusal, eps = {:e}",
-                Tol::witness().get().eps
-            ),
-            "the cylinder×sphere fixture stood down on the SSI door's typed \
-             FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about the \
-             dual lane: neither that it refuses a fitted cache typed, nor that the \
-             refusal names the lane and its post-D1 reason instead of re-asserting the \
-             premise D1 invalidated",
-        );
-        return;
+fn a_producers_closing_mint_re_derives_the_projected_row() {
+    let built = fixture::build::<f64>();
+    let band = Band::linear(Tol::witness()).unwrap();
+    let image = |b: &topo::Body<f64>, he| {
+        b.pcurve(he)
+            .map(|c| format!("{:?} {:?}", c.params(), c.pcurve()))
     };
-    let err = fixture::certify_at_dual(&built);
-    let msg = format!("{err}");
+    let mut minted = built.body.clone();
+    topo::mint_pcurves(&mut minted, Tol::witness()).unwrap();
+    for he in [built.he_plus, built.he_minus] {
+        assert!(image(&built.body, he).is_some());
+        assert_eq!(
+            image(&minted, he),
+            image(&built.body, he),
+            "the mint is idempotent on the row"
+        );
+    }
+    let moved = topo::transform_rigid(
+        &built.body,
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(0.25, -0.5, 1.0)).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
+    for he in [built.he_plus, built.he_minus] {
+        let carried = moved.pcurve(he).expect("the mapped body keeps the row");
+        assert!(matches!(carried.pcurve(), Pcurve::Projected(_)));
+    }
+    let findings = topo::pcurves::validate_pcurves(&moved, band);
+    assert!(findings.is_empty(), "{findings:?}");
+}
+
+/// **A split restricts the projected row.** Each child keeps the
+/// parent's image (the same net, pieces and branch centres) over its
+/// own sub-interval, re-certified through the door that minted it, and
+/// tier 3 reads the split body clean.
+#[test]
+fn a_split_restricts_the_projected_row_to_each_child() {
+    let built = fixture::build::<f64>();
+    let band = Band::linear(Tol::witness()).unwrap();
+    let parent = |he| {
+        let c = built.body.pcurve(he).expect("the parent carries its row");
+        (c.params(), format!("{:?}", c.pcurve()))
+    };
+    let (plus, minus) = (parent(built.he_plus), parent(built.he_minus));
+    let (t0, t1) = plus.0;
+    let t = 0.5 * (t0 + t1);
+    let mut body = built.body.clone();
+    let ek = body.get_half_edge(built.he_plus).unwrap().edge;
+    let split = body
+        .split_edge(ek, t, Tol::witness())
+        .expect("the split carries the rows");
+    for (he, image, span) in [
+        (built.he_plus, &plus.1, (t0, t)),
+        (split.he_plus, &plus.1, (t, t1)),
+        (split.he_minus, &minus.1, (t, t1)),
+        (built.he_minus, &minus.1, (t0, t)),
+    ] {
+        let cache = body.pcurve(he).expect("every child half carries a row");
+        assert!(
+            matches!(cache.pcurve(), Pcurve::Projected(_)),
+            "{he:?}: {cache:?}"
+        );
+        assert_eq!(
+            &format!("{:?}", cache.pcurve()),
+            image,
+            "{he:?}: the parent's image, restricted"
+        );
+        assert_eq!(cache.params(), span, "{he:?}: the child's own interval");
+        assert!(cache.certificate().envelope <= band.zero(), "{he:?}");
+    }
+    let findings = topo::pcurves::validate_pcurves(&body, band);
+    assert!(findings.is_empty(), "AT-REST after the split: {findings:?}");
+}
+
+/// **The `Dual` lane holds neither door, and each refusal says why.**
+/// The edge's own certificate states C2's limbs through the NURBS lane
+/// and a net's projected row reads its hull terms through the fitted
+/// door, and a dual holds neither (D1, 2026-08-19: certification
+/// arithmetic, C9, is not reachable from it), so the dual's mev refuses
+/// the edge naming the dual, before any row is in question. At `f64`, the same row
+/// offered with the door withheld refuses at check 4 naming `f64`, and
+/// its text does not deny `f64` the right it has; the dual's own refusal
+/// names every scalar whose fitted door answers `Some`.
+#[test]
+fn the_dual_holds_neither_lane_and_each_refusal_names_its_scalar() {
+    use geom_brep::{PcurveCache, PcurveCertifyError};
+    use geom_core::{Dual64, Real};
+    use topo::AtRestPolicy;
+    let band = Band::linear(Tol::witness()).unwrap();
+    let dual = fixture::try_build::<Dual64>().map(|_| ());
     assert!(
-        msg.contains("dual") && msg.contains("may not certify"),
-        "the refusal names the lane and the true reason it has none: {msg}"
+        matches!(
+            dual,
+            Err(topo::EulerOpError::NurbsLaneUnsupported { scalar: "dual", .. })
+        ),
+        "DUAL: the mev refuses the rung-3 edge, naming the scalar: {dual:?}"
+    );
+
+    let built = fixture::build::<f64>();
+    let carrier = geom::Curve3::Nurbs(std::sync::Arc::clone(&built.carrier));
+    let Pcurve::Projected(image) = built.body.pcurve(built.he_plus).unwrap().pcurve().clone()
+    else {
+        panic!("the minted row is projected")
+    };
+    let (t0, t1) = built.carrier.domain();
+    let err = PcurveCache::certify_projected(*image, t0, t1, &carrier, &built.cylinder, band, None)
+        .expect_err("WITHHELD: a net's projected row with no door refuses");
+    assert!(
+        matches!(
+            err,
+            PcurveCertifyError::FittedLaneUnsupported { scalar: "f64" }
+        ),
+        "WITHHELD: the refusal is the fitted-lane one, naming the scalar: {err:?}"
+    );
+    let withheld = format!("{err}");
+    assert!(
+        withheld.contains("f64 scalar") && !withheld.contains("may not certify"),
+        "TEXT: the refusal names f64 and does not deny it the right it has: {withheld}"
+    );
+    let msg = format!(
+        "{}",
+        PcurveCertifyError::FittedLaneUnsupported {
+            scalar: <Dual64 as Real>::NAME
+        }
     );
     assert!(
-        !msg.contains("no bracket") && !msg.contains("carries no bracket"),
-        "the refusal must not re-assert the premise D1 invalidated: {msg}"
+        msg.contains("dual scalar") && msg.contains("certification rights"),
+        "TEXT: the refusal names the scalar and who holds the door: {msg}"
     );
+    fn replay_list_names<T: AtRestPolicy>(msg: &str) {
+        let name = T::NAME;
+        assert!(
+            T::fitted_lane().is_some(),
+            "TEXT: {name} is checked against the replay list, so it must hold the door"
+        );
+        assert!(
+            msg.contains(name),
+            "TEXT: the refusal's replay list omits {name}, whose fitted door answers Some: {msg}"
+        );
+    }
+    replay_list_names::<f64>(&msg);
+    replay_list_names::<geom_core::interval::Interval>(&msg);
+    replay_list_names::<geom_core::Sym<f64>>(&msg);
 }
 
 /// ε is never a literal here; this row states what the file relies on.
@@ -184,148 +267,40 @@ mod certified {
     use super::fixture;
     use geom_brep::{EnvelopeStatement, Pcurve};
     use geom_core::Tol;
-    use geom_core::{Band, Bounds, Interval};
-    use test_utils::vacuity;
+    use geom_core::{Band, Bounds, Interval, Real};
 
-    /// The same body, at the interval scalar: the C2 certificate is
-    /// DERIVED there, every claim is a bracketing claim — **and it
-    /// DOMINATES the `f64` lane's.**
-    ///
-    /// # One interval build, one f64 build, every interval-lane claim
-    ///
-    /// The dominance claim was its own row (`the_interval_bounds_\
-    /// dominate_the_f64_ones`) until the test-cost audit. It built the
-    /// SAME two fixtures this row builds — `fixture::build::<Interval>()`
-    /// and `fixture::build::<f64>()`, both restricting the first quarter
-    /// of the one traced cylinder×sphere locus — and read the SAME
-    /// certificate off `he_plus`. Under nextest's process-per-test
-    /// isolation the `OnceLock` in `fixture/mod.rs` shares nothing
-    /// between test processes, so the split paid the trace twice over
-    /// and the `f64` assembly twice; the `f64` build folded in here is
-    /// the one the `OnceLock` was written for.
-    ///
-    /// What the split bought and a merged row cannot is failure
-    /// ISOLATION: a broken interval derivation and a broken cross-scalar
-    /// dominance now surface under one test id. So every assertion below
-    /// NAMES its property — `INTERVAL`, `ENCLOSURE`, `TUBE`, `AT-REST`,
-    /// `DOMINANCE`, `THIN` — and the message alone says which one broke.
-    /// Keep that discipline when adding assertions here.
+    /// The same body at the interval scalar: the rows are minted there,
+    /// their envelope is an enclosure inside the band, the edge's analytic
+    /// rung-3 certificate holds on the lifted pair, and the at-rest pass re-derives it
+    /// all. Each assertion names its property.
     #[test]
-    fn the_fitted_certificate_is_derived_at_the_interval_scalar_and_dominates_f64() {
-        let Some(built) = fixture::build::<Interval>() else {
-            vacuity::stood_down(
-                &format!(
-                    "M6-2 fitted certificate at the interval scalar, eps = {:e}",
-                    Tol::witness().get().eps
-                ),
-                "the cylinder×sphere fixture stood down on the SSI door's typed \
-                 FitSampleBudget refusal at this ε — THIS RUN CONTRIBUTES NO INTERVAL-LANE \
-                 COVERAGE: neither the derived-at-Interval certificate nor its dominance \
-                 over the f64 lane was asserted",
-            );
-            return;
-        };
+    fn the_projected_rows_and_the_tube_certify_at_the_interval_scalar() {
+        let built = fixture::build::<Interval>();
         let band = Band::linear(Tol::witness()).unwrap();
-        let cache = built
-            .body
-            .pcurve(built.he_plus)
-            .expect("the interval body carries the cache");
-        assert!(
-            matches!(cache.pcurve(), Pcurve::Fitted(_)),
-            "INTERVAL: the stored chart image is the fitted (rung-3) variant"
-        );
-        let cert = cache.certificate();
-        let ssi = cert.ssi.expect(
-            "INTERVAL: the interval lane derives the SSI certificate — it is not an f64 shadow",
-        );
-        assert_eq!(
-            cert.statement,
-            EnvelopeStatement::OnLocusHull,
-            "INTERVAL: an analytic chart's fitted envelope is the on-locus hull bound"
-        );
-
-        // Enclosure-style, never equality: every certified quantity is
-        // an enclosure whose UPPER end is what the band admitted, and
-        // whose bracket contains a non-negative residual.
-        for (what, v) in [
-            ("sampled max", cert.max_residual),
-            ("envelope", cert.envelope),
-            ("on-locus max", ssi.on_locus_max),
-            ("hull sup", ssi.hull_sup),
-        ] {
+        for he in [built.he_plus, built.he_minus] {
+            let cache = built
+                .body
+                .pcurve(he)
+                .expect("INTERVAL: the interval body carries the minted row");
             assert!(
-                v.lo() <= v.hi(),
-                "ENCLOSURE {what}: a well-formed enclosure"
+                matches!(cache.pcurve(), Pcurve::Projected(_)),
+                "INTERVAL: the stored image is the projected one"
             );
+            let cert = cache.certificate();
+            assert_eq!(cert.statement, EnvelopeStatement::MapResidualProjected);
+            let env = cert.envelope;
+            assert!(env.lo() <= env.hi(), "ENCLOSURE: a well-formed enclosure");
             assert!(
-                v.lo() >= 0.0,
-                "ENCLOSURE {what}: a magnitude encloses no negatives"
-            );
-            assert!(
-                v.hi() <= band.zero(),
-                "ENCLOSURE {what}: the whole enclosure is within ε"
+                env.hi() <= band.zero(),
+                "ENCLOSURE: the whole enclosure is within ε ({:e})",
+                env.hi()
             );
         }
-        // The tube's margin is definitely positive at the interval
-        // scalar — its LOWER end clears zero, which is the one-arc
-        // proof surviving the widening.
-        assert!(
-            ssi.tube_transversality.lo() > 0.0,
-            "TUBE: the transversality margin's enclosure excludes zero"
-        );
-        assert!(ssi.tube_boxes > 0, "TUBE: a real box chain");
-
-        // And the at-rest pass re-derives all of it at Interval.
+        let (a, b) = built.carrier.domain();
+        let span = (Interval::from_f64(a), Interval::from_f64(b));
+        geom_brep::analytic_rung3(&built.carrier, span, &built.cylinder, &built.sphere, band)
+            .expect("TUBE: the lifted pair's crossing is one arc spanning the carrier");
         let findings = topo::pcurves::validate_pcurves(&built.body, band);
         assert!(findings.is_empty(), "AT-REST: {findings:?}");
-
-        // ---- The cross-scalar half -----------------------------------
-        //
-        // The interval certificate is not merely present but HONEST: its
-        // bounds dominate the `f64` lane's, because the same computation
-        // at the interval scalar can only widen.
-        //
-        // The quantity compared is deliberately `on_locus_max`, limb 1's
-        // **evaluated** residual, and not `envelope`: the envelope is the
-        // C9 certification hull bound, an `f64`, lifted through `from_f64`, so it
-        // is THIN at both scalars and a comparison of it would pass by
-        // exact equality — a row with no teeth. `on_locus_max` is computed
-        // by evaluating `implicit_residual` at the scalar, so the interval
-        // lane genuinely widens it, and dominance there is a real claim
-        // about the lift.
-        //
-        // INVARIANT: the `f64` build here shares the memoized trace with
-        // the interval one above, which is what makes this a claim about
-        // the LIFT and not about two independent traces agreeing — see
-        // `fixture/mod.rs`'s `branch_or_budget`. A row that ever wants
-        // two independent traces must call `trace_branch` and say why.
-        let fl = fixture::build::<f64>()
-            .expect("DOMINANCE: the f64 lane shares the memoized trace the interval lane used");
-        let fc = fl.body.pcurve(fl.he_plus).unwrap().certificate();
-        let f_ssi = fc.ssi.expect("DOMINANCE: f64 certificate");
-        assert!(
-            ssi.on_locus_max.hi() >= f_ssi.on_locus_max,
-            "DOMINANCE: the interval on-locus residual's upper end dominates the f64 one \
-             ({} vs {})",
-            ssi.on_locus_max.hi(),
-            f_ssi.on_locus_max
-        );
-        // The envelope is deliberately NOT compared across scalars.
-        // It is `T::from_f64` of a C9 certification bound, so it is thin at both
-        // — but "thin" is not "the same number": the tube ladder's
-        // extent and lever arm are evaluated at `T`
-        // (`carrier_diameter`), so the interval lane can select a
-        // different rung and land on a different certificate
-        // STRUCTURE, and neither direction of a cross-scalar
-        // comparison of the resulting bound is guaranteed. The hosted
-        // ε = 1e-6 row executed exactly that: the two lanes' envelopes
-        // are both thin and not equal. What IS sound is the dominance
-        // asserted above, on the quantity that is genuinely evaluated
-        // at the scalar.
-        assert_eq!(
-            cert.envelope.lo(),
-            cert.envelope.hi(),
-            "THIN: the ring-derived bound is thin at the interval scalar"
-        );
     }
 }

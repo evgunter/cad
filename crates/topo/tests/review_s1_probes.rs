@@ -20,22 +20,19 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::Tol;
 use topo::{
-    Body, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, subtract_with,
-    union_with, validate_geometric, validate_pseudomanifold,
+    BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate_geometric,
+    validate_pseudomanifold,
 };
 
-fn glued(a: &Body<f64>, b: &Body<f64>, volume: f64) -> topo::BooleanBody<f64> {
-    let g = match union_with(
-        a,
-        b,
-        &flush_declarations(a, b, Tol::witness()),
-        Tol::witness(),
-    )
-    .expect("declared union builds")
-    {
+fn glued(
+    a: &topo::AtRestBody<f64>,
+    b: &topo::AtRestBody<f64>,
+    volume: f64,
+) -> topo::BooleanBody<f64> {
+    let g = match union(a, b, Tol::witness()).expect("declared union builds") {
         BooleanResult::Body(g) => g,
         BooleanResult::Empty => panic!("REST union cannot be empty"),
     };
@@ -64,8 +61,16 @@ fn glued(a: &Body<f64>, b: &Body<f64>, volume: f64) -> topo::BooleanBody<f64> {
 /// brick bottom), with one pierce site per solid. Builds exactly.
 #[test]
 fn probe_overhang_partial_both_faces() {
-    let plate = brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
-    let over = brick((2.0, 6.0), (2.0, 6.0), (1.0, 2.0), Tol::witness());
+    let plate = finished(
+        "plate",
+        brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let over = finished(
+        "over",
+        brick((2.0, 6.0), (2.0, 6.0), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     glued(&plate, &over, 32.0);
 }
 
@@ -84,9 +89,21 @@ fn probe_overhang_partial_both_faces() {
 /// equal to the exact one.
 #[test]
 fn probe_symmetric_two_patch_bridge() {
-    let a = brick((0.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let bridge_blank = brick((0.0, 3.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
-    let notch = brick((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5), Tol::witness());
+    let a = finished(
+        "a",
+        brick((0.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let bridge_blank = finished(
+        "bridge_blank",
+        brick((0.0, 3.0), (0.0, 1.0), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let notch = finished(
+        "notch",
+        brick((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5), Tol::witness()),
+        Tol::witness(),
+    );
     let BooleanResult::Body(b) = subtract(&bridge_blank, &notch, Tol::witness()).unwrap() else {
         panic!("bridge subtract yields a body");
     };
@@ -103,50 +120,14 @@ fn probe_symmetric_two_patch_bridge() {
     );
 }
 
-/// PROBE 3 (review F3): a second false-declaration shape — planes
-/// nearly-but-not coincident (1/16 apart) declared coincident, riding
-/// a genuine REST contact so the lane actually runs. Refuses
-/// `DeclarationContradicted`, never a silent no-op.
-#[test]
-fn probe_near_miss_false_declaration_contradicts() {
-    let bot = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let top = brick::<f64>((0.0625, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
-    let mut decls = flush_declarations(&bot, &top, Tol::witness());
-    assert!(
-        !decls.coincident_faces.is_empty(),
-        "genuine contact declared"
-    );
-    let side_of = |b: &Body<f64>, x: f64| -> topo::FaceKey {
-        b.faces()
-            .find(|(_, f)| match b.get_surface(f.surface) {
-                Some(&topo::Surface::Plane { origin, normal, .. }) => {
-                    normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-12
-                }
-                _ => false,
-            })
-            .map(|(k, _)| k)
-            .unwrap()
-    };
-    decls.coincident_faces.push(topo::FacePairDeclaration::rest(
-        side_of(&bot, 0.0),
-        side_of(&top, 0.0625),
-    ));
-    let err = union_with(&bot, &top, &decls, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::ContactContradicted { .. }),
-        "near-miss false declaration must contradict: {err:?}"
-    );
-}
-
 /// PROBE 4 (review F5 → MINOR-1's counterexample): the three-wall
 /// notch fill — B exactly plugs A's U-notch, interiors disjoint.
-/// The ∖ does NOT resolve structurally: the containment fallback's
-/// probe set exhausts (every candidate lands ON the mate's boundary)
-/// and A ∖ B refuses `Containment(RayExhausted)` — a PRE-EXISTING
-/// refusal path, unchanged by S1; pinned here as the counterexample
-/// that keeps the "∖/∩ resolve structurally" claim per-fixture. The
-/// declared UNION of the same mate builds exactly (three-patch chain
-/// glue, volume 6).
+/// The ∖ reaches the containment fallback: every vertex of B lies on
+/// A's boundary, and the midpoint of an edge along B's open side
+/// (y = 2), such as (1.5, 2, 0), lies outside A, so B classifies Out at
+/// the edge tier and A ∖ B is A. The
+/// UNION of the same mate builds exactly (three-patch chain glue,
+/// volume 6).
 #[test]
 fn probe_subtract_notch_rests_on_b() {
     let a = prism_z::<f64>(
@@ -165,15 +146,22 @@ fn probe_subtract_notch_rests_on_b() {
         Tol::witness(),
     )
     .body;
+    let a = finished("a", a, Tol::witness());
     assert_eq!(mass_properties(&a, Tol::witness()).unwrap().volume, 5.0);
-    let b = brick((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness());
-    let decls = flush_declarations(&a, &b, Tol::witness());
-    assert!(!decls.coincident_faces.is_empty());
-    let err = subtract_with(&a, &b, &decls, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::Containment(_)),
-        "notch-fill ∖ refuses through the containment fallback \
-         (pre-existing, unchanged): {err:?}"
+    let b = finished(
+        "b",
+        brick((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let BooleanResult::Body(sub) = subtract(&a, &b, Tol::witness())
+        .expect("an edge along B's open side decides it lies outside A")
+    else {
+        panic!("A ∖ B keeps A's material");
+    };
+    assert_eq!(sub.kind, BooleanResultKind::OperandA);
+    assert_eq!(
+        mass_properties(&sub.body, Tol::witness()).unwrap().volume,
+        5.0
     );
     glued(&a, &b, 6.0);
 }

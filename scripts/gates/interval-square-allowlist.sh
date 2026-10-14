@@ -272,9 +272,6 @@ ALLOWLISTED_HOMES=(
 # entry exists, that its site is still there, and that no candidate
 # arrives without one.
 CENSUS_REGISTER=(
-  # The projector conjugation: `free1` and `p2` are `Mat3<f64>`, so
-  # there is no enclosure to straddle zero and no `powi` to reach for.
-  "three-factor|crates/editor-core/src/mate/coset.rs|free1 * p2 * free1|1|not an enclosure: Mat3<f64> matrix arithmetic, and the repeated factor is a matrix rather than a scalar"
   # The odd-power Taylor terms of `sin_step`. What makes them safe is
   # not that the powers differ but that every factor is NONNEGATIVE:
   # `a1 = pt(s.abs())` and `a2 = a1.sqr()`, so no product here straddles

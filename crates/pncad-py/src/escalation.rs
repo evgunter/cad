@@ -22,24 +22,26 @@
 //! here both doors reach it under every feature — the
 //! `crate::mate_payload` argument, one rung down.
 
-use pncad::geom_core::{Indeterminate, MarginDiag};
+use pncad::geom_core::{ErrorTextReading, Indeterminate};
 
 /// What the classifier saw, flattened: every field present, `None`
 /// where the margin's own arm does not carry one.
 ///
-/// The three margin fields are the arms of [`MarginDiag`] and exactly
-/// one of them is set at a time — a value, an enclosure's pair, or
+/// The three margin fields are the arms of [`ErrorTextReading`] and
+/// exactly one of them is set at a time — a value, an enclosure's pair, or
 /// none at all for a poisoned margin. Reading WHICH is not branching
 /// on the margin: what the escalation contract forbids is recovering
 /// the number to make the sign decision the classifier refused; what
 /// the arms separate is whether there was a number at all.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Escalation {
-    /// The in-band margin, when the classifier saw a value.
+    /// The in-band margin, when the classifier saw a value. For error
+    /// text only, not a decision input.
     pub margin: Option<f64>,
-    /// The enclosure's lower bound, when it saw an enclosure.
+    /// The enclosure's lower bound, when it saw an enclosure. For
+    /// error text only, not a decision input.
     pub margin_low: Option<f64>,
-    /// Its upper bound.
+    /// Its upper bound. For error text only, not a decision input.
     pub margin_high: Option<f64>,
     /// The band's coincidence threshold.
     pub zero: f64,
@@ -52,16 +54,18 @@ pub struct Escalation {
 
 /// Project one escalation.
 ///
-/// The match over [`MarginDiag`] is exhaustive with no wildcard: an
-/// arm added kernel-side is a compile error here rather than a
-/// margin that silently reaches both doors as three `None`s.
+/// A payload conversion for the Python exception's fields, so the
+/// numbers come through the reporting margin's one door. The match
+/// over [`ErrorTextReading`] is exhaustive with no wildcard: an arm
+/// added kernel-side is a compile error here rather than a margin that
+/// silently reaches both doors as three `None`s.
 pub fn escalation(diag: &Indeterminate) -> Escalation {
-    let (margin, margin_low, margin_high) = match diag.margin {
-        MarginDiag::Value(m) => (Some(m), None, None),
-        MarginDiag::Enclosure { lo, hi } => (None, Some(lo), Some(hi)),
+    let (margin, margin_low, margin_high) = match diag.margin.diagnostic_f64_for_error_text() {
+        ErrorTextReading::Value(m) => (Some(m), None, None),
+        ErrorTextReading::Enclosure { lo, hi } => (None, Some(lo), Some(hi)),
         // A poisoned margin is the absence of a number, not a
         // number: the band still crosses.
-        MarginDiag::Invalid => (None, None, None),
+        ErrorTextReading::Invalid => (None, None, None),
     };
     Escalation {
         margin,

@@ -65,3 +65,14 @@ TRIM's, filed by TRIM-2 PR-1 at the moment the fence landed
 (`docs/prompts/implementer-discipline.md` §6: disclosing a residue is
 not scheduling it). The file `geom-brep/src/props/quad.rs` is PROPS's
 ground; the fence is TRIM's because the lane is.
+
+## Reached (2026-10-09)
+
+The *Why it was fenced* premise no longer holds: a fixture reaches the
+window. `box_with_approx_cap` (`crates/sweep/tests/common/approx.rs`)
+with one side wall moved by `topo::replace_face_offset` gives the fitted
+cap a `General` image on its fit's chart (a plane × fit section), and
+tier 3's check 7 refuses the cap's volume at `TRIM_NC_WINDOW`
+(`crates/geom-brep/src/props/quad.rs:4246`), pinned by
+`encl_curved_loft_shell::a_moved_plane_meets_a_fitted_cap_along_their_certified_section`.
+Filed as `work/quad/a-fitted-face-trimmed-by-a-section-has-no-volume-rule.md`.

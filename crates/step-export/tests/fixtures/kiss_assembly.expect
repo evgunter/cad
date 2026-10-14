@@ -4,13 +4,10 @@
 # these lines against the live kernel). scripts/check_step.sh consumes
 # EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
 #
-# KERNEL_SOLIDS=1 vs EXPECT_SOLIDS=2 is a DOCUMENTED divergence, not an
-# error: natively this body is ONE solid carrying TWO kissing shells
-# (both outward), and STEP cannot state that grouping — a
-# MANIFOLD_SOLID_BREP carries exactly one closed shell — so the
-# exported file, and any faithful import of it, has 2 solids / 2
-# shells. The divergence IS the semantics of the two field families.
-KERNEL_SOLIDS=1
+# The two kissing pieces are two solids natively (a solid is one piece
+# of material, and pieces that only touch are distinct), so the native
+# census and the export agree: 2 solids / 2 shells.
+KERNEL_SOLIDS=2
 KERNEL_SHELLS=2
 KERNEL_FACES=22
 KERNEL_EDGES=48

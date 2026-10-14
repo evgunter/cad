@@ -17,7 +17,9 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_3, PI, TAU};
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
+use geom_brep::props::{
+    FaceContribution, LoopEdge, PropsError, curved_face, curved_face_loops, planar_face,
+};
 use geom_core::{Point3, Vec3};
 
 // ---------------------------------------------------------------------
@@ -362,13 +364,10 @@ fn check_patch(what: &str, s: &Surface<f64>, rect: [f64; 4], sigma: f64, flip_ri
     let lp = patch_loop(s, rect, sigma, flip_rims);
     // `sigma` IS the face's sense bit: the loop above is built so the
     // outward normal is `sigma × chart normal`, which is what
-    // `Face::sense` records. Passing `true` for both rows was harmless
-    // while no closed form read the bit on a rim-bearing face; the
-    // sphere's interior-side premise reads it, and a `sigma = −1` loop
+    // `Face::sense` records. The sphere's flux reads the bit and holds
+    // it against the side its loop encodes, so a `sigma = −1` loop
     // under `sense = true` is the contradiction tier 3's check 6
-    // exists to catch, not a legal face. The numbers are unchanged:
-    // the flux side is still `linear_rim_side`'s, read off the
-    // boundary.
+    // exists to catch, not a legal face.
     let got: FaceContribution<f64> = curved_face(s, &lp.edges, sigma > 0.0, band())
         .unwrap_or_else(|e| panic!("{what}: closed form refused a legal iso-rectangle: {e:?}"));
     let (area, flux) = oracle(s, rect, sigma);
@@ -632,7 +631,10 @@ fn reflex_major_arc_vector_area_matches_dense_polyline() {
 }
 
 // ---------------------------------------------------------------------
-// Assignment 3 (unit level): out-of-inventory boundaries refuse typed.
+// Assignment 3 (unit level): a boundary this lane cannot fold refuses
+// typed — and the variant says WHICH of the two it is, by the premise
+// the residual checked: `OffSurface` where no valid body could get
+// there, `NotIsoRectangle` where a valid face can.
 // ---------------------------------------------------------------------
 
 #[test]
@@ -651,9 +653,9 @@ fn out_of_inventory_boundaries_refuse_typed() {
     assert!(
         matches!(
             curved_face(&s, &lp.edges, true, b),
-            Err(PropsError::NotIsoRectangle { .. })
+            Err(PropsError::OffSurface { .. })
         ),
-        "wrong-radius rim must refuse"
+        "a wrong-radius circle is nowhere on the cylinder, so it refuses OFF-SURFACE"
     );
     // (c) non-axial line on a cylinder.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
@@ -663,9 +665,9 @@ fn out_of_inventory_boundaries_refuse_typed() {
     assert!(
         matches!(
             curved_face(&s, &lp.edges, true, b),
-            Err(PropsError::NotIsoRectangle { .. })
+            Err(PropsError::OffSurface { .. })
         ),
-        "tilted meridian must refuse"
+        "a tilted line is nowhere on the cylinder, so it refuses OFF-SURFACE"
     );
     // (d) line edge on a sphere.
     let sp = sph();
@@ -673,20 +675,21 @@ fn out_of_inventory_boundaries_refuse_typed() {
     assert!(
         matches!(
             curved_face(&sp, &[e], true, b),
-            Err(PropsError::NotIsoRectangle { .. })
+            Err(PropsError::SphereLoop {
+                what: "sphere boundary edge is not a circle"
+            })
         ),
         "line on sphere must refuse"
     );
-    // (e) torus face without a meridian (two full rims only — a
-    // full-period tube band: outside the M2 inventory reachable here).
+    // (e) torus face without a meridian (two full rims, each its own
+    // loop — a full-period tube band: outside the M2 inventory reachable
+    // here).
     let t = tor();
-    let rims = vec![
-        rim_edge(&t, 0.2, 0.0, TAU, true, (0, 0), false),
-        rim_edge(&t, 1.0, 0.0, TAU, false, (1, 1), false),
-    ];
+    let lower = [rim_edge(&t, 0.2, 0.0, TAU, true, (0, 0), false)];
+    let upper = [rim_edge(&t, 1.0, 0.0, TAU, false, (1, 1), false)];
     assert!(
         matches!(
-            curved_face(&t, &rims, true, b),
+            curved_face_loops(&t, &[&lower, &upper], true, b),
             Err(PropsError::NotIsoRectangle { .. })
         ),
         "torus without meridian must refuse"
@@ -716,7 +719,10 @@ fn out_of_inventory_boundaries_refuse_typed() {
 /// silently with a fabricated contribution. The fix adds the
 /// `props_rim_center_on_axis` / `props_rim_axis_parallel` /
 /// per-surface meridian incidence residuals; the off-axis rim now
-/// refuses typed (`NotIsoRectangle`), matching the module docs.
+/// refuses typed, and since a cylinder's only on-surface circles are its
+/// cross-sections the premise is an INCIDENCE one, so the refusal is
+/// `PropsError::OffSurface` — a defect of the kernel or of the file,
+/// told apart from a valid face outside the inventory.
 #[test]
 fn off_surface_boundaries_must_refuse_typed() {
     let axis = Vec3::new(0.0, 0.0, 1.0);
@@ -748,8 +754,8 @@ fn off_surface_boundaries_must_refuse_typed() {
     assert!(
         matches!(
             curved_face(&s, &edges, true, band()),
-            Err(PropsError::NotIsoRectangle {
-                what: "props_rim_center_on_axis"
+            Err(PropsError::OffSurface {
+                what: "props_cylinder_circle_off_axis"
             })
         ),
         "off-surface rim (center off the axis) must be a typed refusal, \
@@ -757,19 +763,18 @@ fn off_surface_boundaries_must_refuse_typed() {
     );
 }
 
-/// The torus `s_f` inference trusts the loop-local vertex tags: a
-/// caller that LIES (tags the meridian anchor onto the far rim) gets a
-/// silently flipped sign. This is a documented caller contract (tags
-/// come from `topo`'s flattening, first-seen order), not a public
-/// surface — pinned here so the trust boundary is explicit.
+/// The torus reader trusts no vertex tags: its chart Green form reads
+/// the loop's geometry and its cyclic order, so a caller that lies
+/// about the tags (the two rims' tag pairs swapped — a lie no topo
+/// flattening produces) gets the same flux, and both match the oracle.
+/// The old reader took its side from the rim tagged onto the anchor
+/// meridian's `t0` vertex, which made the tags load-bearing.
 #[test]
-fn torus_tag_contract_is_load_bearing() {
+fn torus_flux_reads_no_tags() {
     let s = tor();
     let rect = [0.1, 1.8, -0.7, 0.9];
     let mut lp = patch_loop(&s, rect, 1.0, false);
     let honest = curved_face(&s, &lp.edges, true, band()).unwrap();
-    // Swap the two rims' tag pairs (a lie no topo flattening produces:
-    // the loop is otherwise untouched).
     let (r0, r1) = (lp.edges[0].clone(), lp.edges[2].clone());
     lp.edges[0].start = r1.start;
     lp.edges[0].end = r1.end;
@@ -778,8 +783,9 @@ fn torus_tag_contract_is_load_bearing() {
     let lied = curved_face(&s, &lp.edges, true, band()).unwrap();
     let (_, flux) = oracle(&s, rect, 1.0);
     assert_rel("honest torus flux", honest.flux, flux, 1e-9);
-    assert!(
-        (lied.flux - honest.flux).abs() > 1e-6,
-        "tag lie must actually change the anchored term (proves the tags are load-bearing)"
+    assert_eq!(
+        lied.flux.to_bits(),
+        honest.flux.to_bits(),
+        "a tag lie moves nothing the Green form reads"
     );
 }

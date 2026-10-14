@@ -8,11 +8,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{OrthoFrame, Point2, Point3, Vec3};
+use geom_core::{Point2, Point3, RigidMotion, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::test_support::{corners, prism, prism_on, sketch_from_axes};
 use sweep::{Extrusion, extrude};
 use topo::Body;
@@ -135,9 +136,16 @@ fn probe_c_needle_extent_ratio() {
             eprintln!("{label}: profile validation refuses (typed, upstream)");
             continue;
         };
-        let body = extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
-            .expect("extrude")
-            .body;
+        let body = extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .expect("extrude")
+        .body;
         if let Some(m) = tessellate_or_typed(&body, 1e-2, label) {
             let v = signed_volume(&m);
             assert!(((v - len) / len).abs() < 1e-9, "{label}: volume {v}");
@@ -151,7 +159,7 @@ fn probe_c_needle_extent_ratio() {
 /// the coordinates themselves allow.
 #[test]
 fn probe_d_huge_offset_tiny_face() {
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(1.0e8, 1.0e8, 1.0e8)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(1.0e8, 1.0e8, 1.0e8)));
     let poly = [(0.0, 0.0), (1.0e-3, 0.0), (1.0e-3, 1.0e-3), (0.0, 1.0e-3)];
     let body = prism_on(plane, corners(&poly), 1.0e-3, Tol::witness());
     let m = tessellate_or_typed(&body, 1e-6, "huge-offset").expect("must tessellate");

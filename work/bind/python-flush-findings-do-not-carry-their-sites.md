@@ -17,6 +17,8 @@ a `SitedRef { at, name }`, and `at` — the operand or member the entity
 is read at — is what says which side of the boolean the name belongs
 to. Rust's `FlushFinding` carries both halves, so
 `find_flush_candidates` → `declare_all` is total.
+(`Node::Declare` was deleted by PR 3902; a pair is now a
+`DeclaredPair` in a `Node::Boolean`'s or `Node::Union`'s `declare`.)
 
 The Python binding carries the site but does not expose it.
 `crates/pncad-py/src/py/flush.rs`'s `FlushFinding` publishes `a` and

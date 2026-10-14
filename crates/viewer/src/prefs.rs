@@ -36,7 +36,8 @@
 //!   like; nothing here can be that. A newer viewer's key must not
 //!   stop an older one from opening.
 //! - **An unknown VALUE reports and falls back**
-//!   ([`Notice::UnknownTheme`], [`Notice::UnknownPreset`]) — a theme
+//!   ([`Notice::UnknownTheme`], [`Notice::UnknownPreset`],
+//!   [`Notice::UnknownUnit`]) — a theme
 //!   may be renamed between versions, and the file is a memory of an
 //!   older session rather than an instruction typed just now. **A
 //!   name given on the command line is refused instead**, because
@@ -62,7 +63,10 @@
 
 use std::path::PathBuf;
 
+use pncad::quantity::{UNITS, UnitDef, UnitQuantity, unit_by_symbol};
+
 use crate::input::{self, InputMap};
+use crate::props::Notation;
 use crate::theme::Theme;
 
 /// The TOML table appearance settings live under.
@@ -71,6 +75,12 @@ const APPEARANCE: &str = "appearance";
 const KEYS: &str = "keys";
 /// The TOML table file-dialog settings live under.
 const FILES: &str = "files";
+/// The TOML table the working notation lives under.
+const NOTATION: &str = "notation";
+/// The key naming the working length unit, by symbol.
+const LENGTH: &str = "length";
+/// The key naming the working angle unit, by symbol.
+const ANGLE: &str = "angle";
 /// The key naming a [`Theme`].
 const THEME: &str = "theme";
 /// The key naming an [`InputMap`] preset.
@@ -82,8 +92,9 @@ const LAST_DIR: &str = "last_dir";
 /// What a viewer remembers between runs.
 ///
 /// Names, not values, wherever a registry exists to resolve one: the
-/// file records *which* theme and which key preset, and the registry
-/// says what each is. A palette copied into the preferences file would be a second
+/// file records *which* theme, which key preset and which units the
+/// working notation reads in (by symbol, against `quantity::UNITS`),
+/// and the registry says what each is. A palette copied into the preferences file would be a second
 /// definition able to drift from the real one, and would freeze a
 /// theme's colours at whatever they were the day it was written. The
 /// one value here is [`Self::last_dir`], a directory — there is no
@@ -101,6 +112,12 @@ pub struct Prefs {
     /// dialog policy (`crate::frame::dialog_dir`) falls through it
     /// rather than refusing over it.
     pub last_dir: Option<PathBuf>,
+    /// The working notation's length unit, by symbol (`mm`), or `None`
+    /// for the default ([`Notation::DEFAULT`]).
+    pub length_unit: Option<String>,
+    /// The working notation's angle unit, by symbol (`deg`), or `None`
+    /// for the default.
+    pub angle_unit: Option<String>,
 }
 
 /// Something worth telling a person about a file that still loaded.
@@ -120,6 +137,16 @@ pub enum Notice {
     UnknownTheme(String),
     /// An input preset name no longer in the registry.
     UnknownPreset(String),
+    /// A working-notation unit symbol that names no unit of the
+    /// quantity its key is for.
+    UnknownUnit {
+        /// The quantity the key names a unit of: `length` or `angle`.
+        quantity: &'static str,
+        /// The symbol the file gave.
+        symbol: String,
+        /// The default's symbol, which stands instead.
+        default: &'static str,
+    },
 }
 
 impl std::fmt::Display for Notice {
@@ -142,6 +169,14 @@ impl std::fmt::Display for Notice {
                     "preferences: no input preset called `{name}`; using the default"
                 )
             }
+            Self::UnknownUnit {
+                quantity,
+                symbol,
+                default,
+            } => write!(
+                f,
+                "preferences: no {quantity} unit called `{symbol}`; using `{default}`"
+            ),
         }
     }
 }
@@ -183,14 +218,18 @@ impl Prefs {
         for (key, value) in &table {
             match key.as_str() {
                 APPEARANCE => {
-                    prefs.theme = section(value, APPEARANCE, THEME, &mut notices);
+                    [prefs.theme] = section(value, APPEARANCE, [THEME], &mut notices);
                 }
                 KEYS => {
-                    prefs.keys = section(value, KEYS, PRESET, &mut notices);
+                    [prefs.keys] = section(value, KEYS, [PRESET], &mut notices);
                 }
                 FILES => {
-                    prefs.last_dir =
-                        section(value, FILES, LAST_DIR, &mut notices).map(PathBuf::from);
+                    let [dir] = section(value, FILES, [LAST_DIR], &mut notices);
+                    prefs.last_dir = dir.map(PathBuf::from);
+                }
+                NOTATION => {
+                    [prefs.length_unit, prefs.angle_unit] =
+                        section(value, NOTATION, [LENGTH, ANGLE], &mut notices);
                 }
                 other => notices.push(Notice::UnknownKey(other.to_owned())),
             }
@@ -210,8 +249,9 @@ impl Prefs {
             "# pncad viewer preferences.\n\
              #\n\
              # The theme and the key preset are NAMES, resolved against\n\
-             # the viewer's own registries — an unknown name is reported\n\
-             # and the default stands. The last directory is a path, and\n\
+             # the viewer's own registries, and so are the notation's\n\
+             # unit symbols — an unknown name is reported and the default\n\
+             # stands. The last directory is a path, and\n\
              # one that has gone is passed over. Either way an old file\n\
              # never stops a new viewer opening.\n",
         );
@@ -232,7 +272,10 @@ impl Prefs {
         );
         match &self.keys {
             Some(name) => out.push_str(&format!("{PRESET} = {}\n", toml_string(name))),
-            None => out.push_str(&format!("# {PRESET} = \"{}\"\n", input::PRESETS[0].0)),
+            None => {
+                let (default, _) = input::PRESETS[0];
+                out.push_str(&format!("# {PRESET} = \"{default}\"\n"));
+            }
         }
         out.push_str(&format!("\n[{FILES}]\n"));
         out.push_str(
@@ -251,6 +294,38 @@ impl Prefs {
             )),
             None => out.push_str(&format!("# {LAST_DIR} = \"\"\n")),
         }
+        out.push_str(&format!("\n[{NOTATION}]\n"));
+        out.push_str(
+            "# The working notation: the units a value nobody wrote reads\n\
+             # in, and the creation forms write in. By symbol.\n",
+        );
+        for (key, unit, quantity, default) in [
+            (
+                LENGTH,
+                &self.length_unit,
+                UnitQuantity::Length,
+                Notation::DEFAULT.length.symbol(),
+            ),
+            (
+                ANGLE,
+                &self.angle_unit,
+                UnitQuantity::Angle,
+                Notation::DEFAULT.angle.symbol(),
+            ),
+        ] {
+            out.push_str("# One of: ");
+            let symbols: Vec<&str> = UNITS
+                .into_iter()
+                .filter(|row| row.quantity() == quantity)
+                .map(|row| row.symbol())
+                .collect();
+            out.push_str(&symbols.join(", "));
+            out.push('\n');
+            match unit {
+                Some(symbol) => out.push_str(&format!("{key} = {}\n", toml_string(symbol))),
+                None => out.push_str(&format!("# {key} = \"{default}\"\n")),
+            }
+        }
         out
     }
 
@@ -264,6 +339,35 @@ impl Prefs {
                 None => (Theme::DEFAULT, Some(Notice::UnknownTheme(name.clone()))),
             },
         }
+    }
+
+    /// The working notation these preferences name, with a notice for
+    /// each unit symbol that names no unit of its quantity — and that
+    /// unit alone falls back to the default, as an unknown theme does.
+    pub fn resolve_notation(&self) -> (Notation, Vec<Notice>) {
+        let mut notation = Notation::DEFAULT;
+        let mut notices = Vec::new();
+        if let Some(symbol) = &self.length_unit {
+            match unit_by_symbol(symbol).and_then(UnitDef::as_length) {
+                Some(unit) => notation.length = unit,
+                None => notices.push(Notice::UnknownUnit {
+                    quantity: LENGTH,
+                    symbol: symbol.clone(),
+                    default: Notation::DEFAULT.length.symbol(),
+                }),
+            }
+        }
+        if let Some(symbol) = &self.angle_unit {
+            match unit_by_symbol(symbol).and_then(UnitDef::as_angle) {
+                Some(unit) => notation.angle = unit,
+                None => notices.push(Notice::UnknownUnit {
+                    quantity: ANGLE,
+                    symbol: symbol.clone(),
+                    default: Notation::DEFAULT.angle.symbol(),
+                }),
+            }
+        }
+        (notation, notices)
     }
 
     /// The input preset these preferences name, with a notice if the
@@ -287,33 +391,33 @@ fn toml_string(value: &str) -> toml::Value {
     toml::Value::String(value.to_owned())
 }
 
-/// One `[section]` with one string key in it, reporting anything else
-/// it finds rather than refusing over it.
-fn section(
+/// One `[section]` holding the string keys `wanted`, answered in that
+/// order, reporting anything else it finds rather than refusing over
+/// it.
+fn section<const N: usize>(
     value: &toml::Value,
     section: &str,
-    wanted: &str,
+    wanted: [&str; N],
     notices: &mut Vec<Notice>,
-) -> Option<String> {
+) -> [Option<String>; N] {
+    let mut found = [const { None }; N];
     let Some(table) = value.as_table() else {
         notices.push(Notice::WrongType {
             key: section.to_owned(),
             expected: "a table",
         });
-        return None;
+        return found;
     };
-    let mut found = None;
     for (key, value) in table {
-        if key == wanted {
-            match value.as_str() {
-                Some(name) => found = Some(name.to_owned()),
+        match wanted.iter().position(|wanted| wanted == key) {
+            Some(at) => match value.as_str() {
+                Some(name) => found[at] = Some(name.to_owned()),
                 None => notices.push(Notice::WrongType {
                     key: format!("{section}.{key}"),
                     expected: "a string",
                 }),
-            }
-        } else {
-            notices.push(Notice::UnknownKey(format!("{section}.{key}")));
+            },
+            None => notices.push(Notice::UnknownKey(format!("{section}.{key}"))),
         }
     }
     found

@@ -12,12 +12,31 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Point2, Real};
+use geom_core::{Arc2, Point2, Real};
 use profile::RawLoop;
 use profile::{
-    ArcSweep, Center, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
-    PathError, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
+    ArcSweep, Center, ClosedLoop, ConstructedLoop, CornerReason, CornerRefusal, FilletLeg,
+    FilletLegCarrier, Open, PathError, Profile, ProfileLoop, Segment, SketchPlane, Start,
+    test_support::bulge_loop,
 };
+
+/// The quarter tangent `tan(Δθ/4)` a stored segment's sweep reads as —
+/// zero for a line: the bulge the segment would be written with. It is
+/// DERIVED from the stored sweep, so it rounds away from an authored
+/// bulge (`1` comes back `0.9999999999999999`); a comparison of stored
+/// bits belongs on [`segment_bits`].
+pub fn quarter_tan(segment: &Segment<f64>) -> f64 {
+    match segment {
+        Segment::Line => 0.0,
+        Segment::Arc(arc) => arc.quarter_tan(),
+    }
+}
+
+/// Every stored field of a segment, spelled bit for bit: the kind, and
+/// an arc's centre, radius and sweep.
+pub fn segment_bits<T: Real>(segment: &Segment<T>) -> String {
+    format!("{segment:?}")
+}
 
 /// **The one accessor**: a refusal's corner entries, in the order the
 /// kernel reported them (nearest the bracketing anchors first), or the
@@ -121,8 +140,8 @@ pub fn frame_of(
     o: geom_core::Point3<f64>,
     u: geom_core::Vec3<f64>,
     v: geom_core::Vec3<f64>,
-) -> geom_core::OrthoFrame<f64> {
-    geom_core::OrthoFrame::gram_schmidt(
+) -> geom_core::RigidMotion<f64> {
+    geom_core::RigidMotion::gram_schmidt(
         o,
         u,
         v,
@@ -157,12 +176,50 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
     )
 }
 
+/// A fixture profile carried to the guided door the way the evaluator
+/// carries a document: each loop lifted to its program
+/// ([`profile::lift`]), replayed at `f64` recording its structure, and
+/// replayed at `T` guided by that record. Returns the pass-1 profile
+/// (the recorded `f64` replays, which is what `validate_recording`
+/// records the canonical structure of) and the guided profile at `T`.
+///
+/// Guided validation takes only loops a guided replay constructed
+/// ([`profile::ConstructedProfile`]), so a fixture reaches it through its
+/// program; the pass-1 profile, not the fixture, is the one its record
+/// describes, because the lift's `Center` writer re-derives an arc's
+/// sweep and can move bits.
+pub fn replayed<T: profile::ArcCarrierScalar>(
+    p: &Profile<f64>,
+) -> (
+    profile::ConstructedProfile<f64>,
+    profile::ConstructedProfile<T>,
+) {
+    let mut recorded = Vec::with_capacity(p.loops.len());
+    let mut guided = Vec::with_capacity(p.loops.len());
+    for (li, lp) in p.loops.iter().enumerate() {
+        let program = profile::lift(lp, tol()).unwrap_or_else(|e| panic!("loop {li} lifts: {e:?}"));
+        let (rec, structure) = profile::replay_recording(&program, tol())
+            .unwrap_or_else(|e| panic!("loop {li} replays at f64: {e:?}"));
+        let lifted: Vec<profile::Step<T>> =
+            program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
+        guided.push(
+            profile::replay_guided(&lifted, &structure, tol())
+                .unwrap_or_else(|e| panic!("loop {li} replays guided: {e:?}")),
+        );
+        recorded.push(rec);
+    }
+    (
+        profile::ConstructedProfile::new(p.plane, recorded),
+        profile::ConstructedProfile::new(p.plane.map(T::from_f64), guided),
+    )
+}
+
 /// Replays a recorded `f64` program at `T`, at the suite tolerance: each
 /// step lifted through `Step::map_scalar(T::from_f64)`, the exact
 /// embedding.
 pub fn try_replay_at<T: profile::ArcCarrierScalar>(
     program: &[profile::Step<f64>],
-) -> Result<ProfileLoop<T>, profile::ReplayError<T>> {
+) -> Result<ConstructedLoop<T>, profile::ReplayError<T>> {
     let lifted: Vec<profile::Step<T>> = program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
     profile::replay(&lifted, tol())
 }
@@ -220,7 +277,8 @@ pub fn circle_v(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
 /// corners of radius `r`.
 pub fn rounded_rect(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
     let b = quarter_bulge();
-    let mut lp = chain(&[
+    // Every joint is an exact quarter-arc/side tangency.
+    chain(&[
         (r, 0.0, 0.0),
         (w - r, 0.0, b),
         (w, r, 0.0),
@@ -229,24 +287,24 @@ pub fn rounded_rect(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
         (r, h, b),
         (0.0, h - r, 0.0),
         (0.0, r, b),
-    ]);
-    // Every joint is an exact quarter-arc/side tangency — declared
-    // (the #101 discipline).
-    let n = lp.vertices().len();
-    lp = lp.with_tangent_joints((0..n).collect());
-    lp
+    ])
 }
 
 /// The demo bracket's filleted-corner shape: an L with one r = 0.5
-/// tangent fillet, authored through the PATHS algebra (which declares
-/// its two joints by construction) — the mixed declared/undeclared
-/// fixture (2 tangent joints of 7).
+/// tangent fillet, authored through the PATHS algebra (which constructs
+/// its two tangent joints) — the mixed fixture (2 tangent joints of 7),
+/// as a table ([`bracket_constructed`] keeps the provenance).
 ///
 /// The fillet's corner is never authored: the incoming ray leaves
 /// (3, 1) toward −x, the arrival side runs +y and ends at its own
 /// anchor (1, 3), and the r = 0.5 arc is inserted at the carriers'
 /// intersection, trimming both to T₁ = (1.5, 1) and T₂ = (1, 1.5).
 pub fn bracket() -> ProfileLoop<f64> {
+    bracket_constructed().into_loop()
+}
+
+/// [`bracket`], keeping the joints its fillet constructed.
+pub fn bracket_constructed() -> ConstructedLoop<f64> {
     let closed = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(3.0, 0.0), Tol::witness())
@@ -265,7 +323,7 @@ pub fn bracket() -> ProfileLoop<f64> {
         .expect("top side")
         .line_to(Start, Tol::witness())
         .expect("the straight seam closes");
-    pinned(closed)
+    pinned_constructed(closed)
 }
 
 /// A lens (lune): a semicircular arc out and a shallower arc back —
@@ -330,6 +388,11 @@ pub fn near_tangent_hole(eps: f64) -> Profile<f64> {
 /// subset: wrap the chain's result and keep asserting whatever the test
 /// was already asserting on the loop.
 pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
+    pinned_constructed(closed).into_loop()
+}
+
+/// [`pinned`], keeping the joints the chain's constructors made.
+pub fn pinned_constructed(closed: ClosedLoop<f64>) -> ConstructedLoop<f64> {
     let replayed = match profile::replay(&closed.program, Tol::witness()) {
         Ok(lp) => lp,
         Err(e) => panic!("the recorded program refused at replay: {e}"),
@@ -367,36 +430,179 @@ pub fn assert_pieces_name_one_segment_each(closed: &ClosedLoop<f64>) {
 }
 
 /// **A fillet's run lies on its own side's carrier**: a run in on the
-/// incoming side's, a run out on the arrival side's — straight where
-/// that side is a ray, an arc where the fused verb authored an arc
-/// carrier for it. A segment on any other carrier is the piece of the
-/// step that drew it, so a run of the wrong kind is a later step's
-/// segment credited to the fillet: a name on it would move to whatever
-/// the fillet's run becomes once that step is dropped.
+/// incoming side's, a run out on the arrival side's. A segment on any
+/// other carrier is the piece of the step that drew it, so a run off
+/// its carrier is a later step's segment credited to the fillet: a name
+/// on it would move to whatever the fillet's run becomes once that step
+/// is dropped.
+///
+/// A run meets its fillet's arc at one vertex `s`, where the side's
+/// carrier is tangent to the arc. So a ray side's run is straight, on
+/// the arc's tangent line at `s` and along it in the arc's travel
+/// sense, and an arc side's run lies on the one circle tangent there
+/// that the side's spec also pins: its centre, its radius and side, or
+/// a point it passes through, and winds the way that circle's centre
+/// sits from the fillet arc. The run's far end, its apex and its two
+/// quarter points are measured from that circle, never the run's own
+/// circle rebuilt from its chord, and the largest of their misses is
+/// compared against the run's escalation threshold Kε — the point
+/// deviation production's `PendingRunOut::rides` decides, in the same
+/// convention (the apex is `Arc2::apex`'s), and for the same
+/// reason: it rounds at ε·R whatever the run's length, and samples a
+/// quarter turn apart see a long arc whose ends alone look right.
 pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
-    use profile::{PieceRole, Step};
-    for (k, p) in closed.structure.pieces.iter().enumerate() {
-        let straight = !matches!(closed.loop_.segments()[k], profile::Segment::Arc { .. });
-        // (incoming side straight, arrival side straight) per fillet verb.
+    use profile::{ArcData, ArcSide, PieceRole, Segment, Step, Target};
+    let tol = Tol::witness();
+    let reach = tol.k() * tol.eps();
+    let pieces = &closed.structure.pieces;
+    let verts = closed.loop_.vertices();
+    let segs = closed.loop_.segments();
+    let n = verts.len();
+    for (k, p) in pieces.iter().enumerate() {
+        // The incoming and arrival carriers per fillet verb: `None` is
+        // a ray, `Some` the fused verb's authored arc spec.
         let sides = match &closed.program[p.step] {
-            Step::Fillet { .. } => (true, true),
-            Step::FilletArc { .. } => (true, false),
-            Step::ArcFillet { .. } => (false, true),
-            Step::ArcFilletArc { .. } => (false, false),
+            Step::Fillet { .. } => (None, None),
+            Step::FilletArc { spec, .. } => (None, Some(*spec)),
+            Step::ArcFillet { spec, .. } => (Some(*spec), None),
+            Step::ArcFilletArc { spec, spec2, .. } => (Some(*spec), Some(*spec2)),
             _ => continue,
         };
-        let want = match p.role {
-            PieceRole::RunIn => sides.0,
-            PieceRole::RunOut => sides.1,
+        // The side's carrier, the fillet arc's segment, and the vertex
+        // the run shares with it.
+        let (carrier, arc_at, s) = match p.role {
+            PieceRole::RunIn => (sides.0, (k + 1) % n, verts[(k + 1) % n]),
+            PieceRole::RunOut => (sides.1, (k + n - 1) % n, verts[k]),
             PieceRole::Leg | PieceRole::Arc | PieceRole::Piece(_) => continue,
         };
         assert_eq!(
-            straight,
-            want,
-            "segment {k} is {p} but is {} while that side's carrier is {}",
-            if straight { "straight" } else { "an arc" },
-            if want { "a ray" } else { "a circle" },
+            pieces[arc_at],
+            profile::Piece {
+                step: p.step,
+                role: PieceRole::Arc,
+            },
+            "segment {k} is {p}, so segment {arc_at} beside it is that fillet's arc"
         );
+        let Segment::Arc(Arc2 {
+            centre: fc,
+            sweep: fs,
+            ..
+        }) = segs[arc_at]
+        else {
+            panic!("segment {arc_at} is {p}'s fillet arc but is straight");
+        };
+        // The arc's unit tangent at `s`, in its travel sense, and its
+        // left normal. A run leaves or reaches `s` along that tangent.
+        let (rx, ry) = (s.x - fc.x, s.y - fc.y);
+        let rl = rx.hypot(ry);
+        let (tx, ty) = (-ry / rl * fs.signum(), rx / rl * fs.signum());
+        let (lx, ly) = (-ty, tx);
+        let other = if p.role == PieceRole::RunIn {
+            verts[k]
+        } else {
+            verts[(k + 1) % n]
+        };
+        let what = format!("segment {k} is {p}");
+        match (carrier, segs[k]) {
+            (None, Segment::Line) => {
+                let across = tx * (other.y - s.y) - ty * (other.x - s.x);
+                assert!(
+                    across.abs() <= reach,
+                    "{what} but leaves its ray's line by {across:e} (Kε = {reach:e})"
+                );
+                // The ray is a half-line: a run in reaches `s` along
+                // it, a run out leaves `s` along it.
+                let (ox, oy) = (other.x - s.x, other.y - s.y);
+                let ahead = if p.role == PieceRole::RunIn {
+                    -(tx * ox + ty * oy)
+                } else {
+                    tx * ox + ty * oy
+                };
+                assert!(
+                    ahead > 0.0,
+                    "{what} but runs backward along its ray's line ({ahead:e})"
+                );
+            }
+            (Some(spec), Segment::Arc(Arc2 { sweep, .. })) => {
+                // The side's circle: the one tangent to the fillet arc
+                // at `s` that the spec also pins, with its centre at
+                // `s + λ·left` — its centre, its radius and side, or a
+                // point it passes through.
+                let through = |q: Point2<f64>| {
+                    let (qx, qy) = (q.x - s.x, q.y - s.y);
+                    (qx * qx + qy * qy) / (2.0 * (lx * qx + ly * qy))
+                };
+                let lambda = match spec {
+                    ArcData::Center { c, .. } => {
+                        let (cx, cy) = (c.x - s.x, c.y - s.y);
+                        let along = tx * cx + ty * cy;
+                        assert!(
+                            along.abs() <= reach,
+                            "{what} but its side's centre {c:?} is {along:e} off the fillet \
+                             arc's normal (Kε = {reach:e})"
+                        );
+                        lx * cx + ly * cy
+                    }
+                    ArcData::Radius { r, side, .. }
+                    | ArcData::Sweep { r, side, .. }
+                    | ArcData::ArcLen { r, side, .. } => {
+                        let left = side == ArcSide::Left;
+                        assert_eq!(sweep > 0.0, left, "{what} but winds against {side:?}");
+                        if left { r } else { -r }
+                    }
+                    ArcData::Via { q, .. } => through(q),
+                    ArcData::Bulge {
+                        target: Target::Point(q),
+                        b,
+                    } => {
+                        assert_eq!(sweep > 0.0, b > 0.0, "{what} but winds against b = {b}");
+                        through(q)
+                    }
+                    ArcData::Bulge { target, .. } => {
+                        panic!("{what}: a bulge spec with a {target:?} target authors no circle")
+                    }
+                };
+                // A centre on the fillet arc's left winds the side's
+                // circle counter-clockwise in the arc's travel sense.
+                assert_eq!(
+                    sweep > 0.0,
+                    lambda > 0.0,
+                    "{what} but winds against its side's circle {spec:?} (λ = {lambda:e})"
+                );
+                let (cx, cy, radius) = (s.x + lambda * lx, s.y + lambda * ly, lambda.abs());
+                let apex = |a: Point2<f64>, e: Point2<f64>, b: f64| {
+                    let (hx, hy) = ((e.x - a.x) / 2.0, (e.y - a.y) / 2.0);
+                    Point2::new(a.x + hx + hy * b, a.y + hy - hx * b)
+                };
+                let (a, e, bulge) = (
+                    verts[k],
+                    verts[(k + 1) % n],
+                    quarter_tan(&closed.loop_.segments()[k]),
+                );
+                let mid = apex(a, e, bulge);
+                let quarter = bulge / (1.0 + (1.0 + bulge * bulge).sqrt());
+                let samples = [
+                    ("end", other),
+                    ("apex", mid),
+                    ("first quarter", apex(a, mid, quarter)),
+                    ("last quarter", apex(mid, e, quarter)),
+                ];
+                let misses = samples.map(|(at, q)| (at, (q.x - cx).hypot(q.y - cy) - radius));
+                let off = misses.iter().fold(0.0f64, |w, (_, m)| w.max(m.abs()));
+                assert!(
+                    off <= reach,
+                    "{what} but is {off:e} off its side's circle {spec:?} (Kε = {reach:e}): \
+                     {misses:?}"
+                );
+            }
+            (carrier, seg) => panic!(
+                "{what} but is {seg:?} while that side's carrier is {}",
+                match carrier {
+                    None => "a ray".to_owned(),
+                    Some(spec) => format!("the circle of {spec:?}"),
+                }
+            ),
+        }
     }
 }
 
@@ -448,15 +654,8 @@ pub fn assert_spans_partition(closed: &ClosedLoop<f64>) {
 }
 
 /// Bit-level loop identity: vertex count, every coordinate and bulge by
-/// `to_bits`, and the declared joints as a MULTISET.
-///
-/// Order is not semantic, so the lists are sorted — but they are NOT
-/// deduped: the two sides here come from the same emission machinery
-/// driven two ways, so a replay that declared one joint twice where the
-/// lowering declared it once is a real divergence, and deduping would
-/// hide it. (The looser set-compare belongs in `path_differential.rs`,
-/// where the two sides are the algebra and the hand builder.)
-pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f64>) {
+/// `to_bits`, and the constructed joints.
+pub fn assert_bit_identical(lowered: &ConstructedLoop<f64>, replayed: &ConstructedLoop<f64>) {
     assert_eq!(
         lowered.vertices().len(),
         replayed.vertices().len(),
@@ -471,16 +670,16 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
         assert_eq!(a.x.to_bits(), b.x.to_bits(), "vertex {i} x");
         assert_eq!(a.y.to_bits(), b.y.to_bits(), "vertex {i} y");
         assert_eq!(
-            lowered.bulges()[i].to_bits(),
-            replayed.bulges()[i].to_bits(),
-            "vertex {i} bulge"
+            segment_bits(&lowered.segments()[i]),
+            segment_bits(&replayed.segments()[i]),
+            "segment {i}"
         );
     }
-    let mut la = lowered.tangent_joints().to_vec();
-    let mut lb = replayed.tangent_joints().to_vec();
-    la.sort_unstable();
-    lb.sort_unstable();
-    assert_eq!(la, lb, "declared tangent joints (multiset)");
+    assert_eq!(
+        lowered.constructed_joints(),
+        replayed.constructed_joints(),
+        "constructed tangent joints"
+    );
 }
 
 /// The census corpus: closed chains whose union covers every declared
@@ -611,7 +810,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .to(Start, Tol::witness())
         .unwrap();
 
-    // 5. The declared tangent joint and the unique tangent arc.
+    // 5. The constructed tangent joint and the unique tangent arc.
     let tangent_arc = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(2.0, 0.0), Tol::witness())
@@ -623,7 +822,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .unwrap();
 
     // 6. Two quarter arcs on one carrier — the half-disc equator —
-    //    the second through the lattice's own declared-joint
+    //    the second through the lattice's own constructed-joint
     //    spelling, `.tangent().tangent_arc_to(p)`.
     let subdivided = Open
         .at(Point2::new(0.0, -0.5))
@@ -918,7 +1117,7 @@ pub fn arc_arc(case: [f64; 8], r: f64) -> Result<ProfileLoop<f64>, PathError<f64
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())?;
-    Ok(closed.loop_)
+    Ok(closed.loop_.into_loop())
 }
 
 /// **Grid A**, PR 1895's grid verbatim: R_in in {0.2, 0.4, 0.15}, R_out
@@ -982,7 +1181,7 @@ pub fn line_arc(
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **The line×arc grid**: R ∈ {2, 1, 0.5}, sx ∈ {0.2, 0.8, 1.4, 1.9},

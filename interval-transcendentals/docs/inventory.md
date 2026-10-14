@@ -54,8 +54,8 @@ why the crate's scope sentence names them apart from it.
 
 | Entry point | Callers |
 |---|---|
-| `hull` | `crates/geom-core/src/interval.rs`'s `copysign`/`min`/`max` tangent-hull paths |
-| `intersection` | none today; it is the 1788-strict reference point that `docs/semantics-diffs.md` §D7 defines `hull`'s deliberate divergence AGAINST, and its `Trv` cap and empty/NaI taxonomy are pinned by a unit test in `src/ops.rs` |
+| `hull` | `crates/geom-core/src/interval.rs`'s `copysign`/`min`/`max` tangent-hull paths, and `crates/geom-core/src/interval/certification.rs`'s `hull` |
+| `intersection` | `crates/geom-core/src/interval/certification.rs`'s `clamped_to`, for its endpoints only (it keeps the enclosure's own decoration over `intersection`'s `Trv`); it is also the 1788-strict reference point that `docs/semantics-diffs.md` §D7 defines `hull`'s deliberate divergence AGAINST |
 
 ## Explicitly NOT built (nobody calls them)
 

@@ -62,3 +62,14 @@ Two refusals of the same tools arrive at `commit` or evaluation, not at
 admission, and the same seat judgement could answer them: a boolean with
 one node in both seats (`DuplicateInput`), and a projection's instance
 index past the landed pattern's count.
+
+## At the merge with main (2026-10-13)
+
+The shape is live: `tool_commit_row` still draws a bare
+`ui.button(kind.commit())`. Several examples above are gone on main.
+Revolve has no axis seat (`e71b0f19ab`), so its door requires a
+Profile only. The split seat is retired (`97d948120e`), so the
+projection and transform examples about a split's half no longer
+apply. `DuplicateInput` is gone: the boolean door does not refuse a
+node spelled twice. Body seats now also pass `require_read`/`admits_read`
+beside `require_kind`, and a fix should compare against both.

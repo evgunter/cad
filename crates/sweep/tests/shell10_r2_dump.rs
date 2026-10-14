@@ -24,6 +24,7 @@ use crate::common::charts::{charts_of, moves_by};
 use crate::common::pcurve_rows::rows;
 use crate::common::shell_operands::{tube, vessel};
 use crate::shell8_common::{beside, cap, deep_dump, tol};
+use sweep::test_support::finished;
 
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -109,7 +110,12 @@ fn dump(label: &str, body: &Body<f64>) {
 }
 
 fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[topo::FaceKey]) {
-    match topo::shell_open(body, t, open, tol()) {
+    match topo::shell_open(
+        &finished("the operand", body.clone(), tol()),
+        t,
+        open,
+        tol(),
+    ) {
         Ok(s) => dump(label, &s.body),
         Err(e) => println!("[r2dump] {label}: shell_open Err {e}"),
     }

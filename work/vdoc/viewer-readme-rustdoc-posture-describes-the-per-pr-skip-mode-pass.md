@@ -15,7 +15,7 @@ Found by the 2026-09-28 tracker sweep that closed MIRROR
 `crates/viewer/README.md` §*Rustdoc posture* (from `:2022`) argues which
 rustdoc pass reads the renderer-free half on a PR — the skip mode keyed
 on `run_viewer_toolkit` / `VIEWER_TOOLKIT_SEEDS` against a closure-keyed
-scope, and the open hole for `Refusal::NoSuchParam`'s link into
+scope, and the open hole for `Refusal::NoSuchVariable`'s link into
 `editor_core`. Since the CI-latency cut (`work/ciw/latency-cut.md`) no PR
 runs rustdoc at all: `nightly.yml`'s `rustdoc (gate, every root)` runs
 `scripts/doc-gate.sh` without skip mode, so the all-features pass reads

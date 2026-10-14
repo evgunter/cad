@@ -117,74 +117,102 @@ fn sans_epsilon(t: &str) -> String {
 }
 
 /// `(document, both-direction name digest, persisted-text digest)`.
+///
+/// **Re-pinned for INTENT-LITERALS PR C** (a slot holds a variable):
+/// every node is minted from slots that hold variable ids, a typed
+/// value's variable drawn from what it holds, so every node id moved
+/// and with it every row this hashes. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched across the change.
+///
+/// **Re-pinned for INTENT-LITERALS PR D** (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own; every other row held its word.
+///
+/// **Re-pinned for INTENT stage 2 PR C** (the product is the world):
+/// every document now places its bodies, so its text holds the
+/// placement nodes and their outputs (`roots` is gone from it) and its
+/// tables hold each copy's names under its placement. What each
+/// document delivers did not move: `intent_s2_c_world`'s migration
+/// check holds each product to its pre-C digest.
+///
+/// **Re-pinned for INTENT stage 2 PR D** (a measure is one primitive):
+/// `measured_web` alone. Its measure holds the distance and the web is
+/// a definition the assertion reads, so the measure's mint preimage,
+/// its id and its saved text moved; every other row held its word, and
+/// the id-masked geometry fence held untouched.
+///
+/// **Re-pinned for INTENT stage 2 PR E** (a selection is a variable):
+/// the seven documents that blend, shell, frame on a face or measure —
+/// `measured_web`, `die_fillet`, `die_chamfer`, `face_sketch`,
+/// `die_composed`, `die_composed_tour` and `reshaped_rod` — now mint a
+/// selection variable each such node reads, so their node ids moved and
+/// every row naming them; every other row held its word, and the
+/// id-masked geometry fence held untouched.
+///
+/// **Re-pinned for INTENT stage 3 PR A** (a revolve's axis is a line on
+/// the node): the five documents that revolve — `kitchen_sink`,
+/// `die_pips`, `die_tool`, `die_composed` and `die_composed_tour` —
+/// hold no in-plane axis datum,
+/// so their later node ids moved and every row naming them; every other
+/// row held its word, and no point moved. Re-taken merged over
+/// FORK-DM4 unit 1 (PR 4527), whose names keyed by read had moved the
+/// same rows on main.
+///
+/// **Re-pinned for the killed-lineage chase** (`emit_topo`'s
+/// `KilledSplits`): `crossing_slots` only. Its second slot's bottom rim
+/// reaches the result in pieces split off around stretches the subtract
+/// killed. Those pieces were read as chords, and one was named a seam of
+/// the first slot's floor and the second slot's wall. They are now
+/// pieces of that rim. Two floor corners moved with them: one from a
+/// junction of three seam lines to a crossing of the rim, and one from
+/// a face crossing to the seam vertex of two edges that touch. Every
+/// other document held its word.
+///
+/// **Re-pinned for the vertex run** (N2: an `EdgeCrossing` is a run of
+/// (line, sense) in name order): `corner_table` and `crossing_slots`,
+/// the two documents whose pair booleans meet edge to edge. Their
+/// tables are the old ones with each edge × edge vertex re-spelled: read
+/// as a set of (line, sense), every run is the pair it replaced, and no
+/// other row moved; the persisted text did not move.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0xb374_4362_5948_39b7, 0x761a_f473_27a2_3b44),
-    ("corner_table", 0x7eb2_f246_c561_7112, 0x0a37_a848_31df_bf60),
-    ("heat_sink", 0x7d09_ac22_52a7_47b9, 0x3375_3cf0_fdb6_5919),
-    (
-        "crossing_slots",
-        0xbd3b_93ee_2450_9ffa,
-        0xbf26_b5e4_84a9_ad0a,
-    ),
-    (
-        "nested_islands_105",
-        0x387b_3229_dce0_5a4c,
-        0x1c75_f4e0_cce6_e417,
-    ),
+    ("die", 0xd72f039cbf03dff5, 0xc4419fe7887fa041),
+    ("corner_table", 0x9ea78d8780a1cd68, 0xcc1c35defda29f84),
+    ("heat_sink", 0x28a1b80da248137b, 0xf4af7c24a597adea),
+    ("crossing_slots", 0x3086170ae41a9a89, 0xfd8f77c1f5dd4008),
+    ("nested_islands_105", 0x909dbef37a66ff00, 0xfbb23451ffa46126),
     (
         "nested_islands_106_depth1",
-        0xfa25_af41_b6b2_1ea5,
-        0xf822_ee43_3d39_ee1a,
+        0x31a05d43c63ec0e0,
+        0xa9f1d8928f8afff8,
     ),
     (
         "nested_islands_106_depth2",
-        0xc738_135b_72e9_6c2a,
-        0xeea6_6bf6_d480_7d43,
+        0xfb94a02ed6d329e7,
+        0xfb5a08f4fe601def,
     ),
-    (
-        "declared_tangency",
-        0x30be_3e49_eeb2_29c2,
-        0xe7ed_ae6e_23c3_1324,
-    ),
-    ("kitchen_sink", 0x8c5f_54f8_1597_182f, 0x1e96_2ad9_9ae0_695b),
-    ("cut_cylinder", 0x85fe_0bc1_dca6_e66f, 0x1acb_c031_25df_2455),
-    ("measured_web", 0x1d3e_d965_4f21_be77, 0x2dcf_01be_e7f3_2f27),
-    ("boss_union", 0x5b9a_c367_89e7_cb9d, 0xb687_201a_05b6_6f05),
-    ("die_fillet", 0x57a2_a97c_910f_55c9, 0x5e5d_220c_5da9_b301),
-    ("die_chamfer", 0x57a2_a97c_910f_55c9, 0xb433_5ab7_38ef_ddf2),
-    ("die_pips", 0xf50a_0866_b9f3_6327, 0xb3b5_8824_7df9_e4b3),
-    (
-        "heat_sink_fins",
-        0x3d11_1f6c_5b0b_2f5d,
-        0x805b_442f_7fea_41cc,
-    ),
-    ("die_tool", 0x5f4d_0f55_51bc_c9c2, 0xad5d_d38c_d57b_202d),
-    ("face_sketch", 0x3daa_e163_9d28_6ce0, 0x2fd6_61aa_8fe9_a4ef),
-    ("part_select", 0x4c2a_35db_6554_94de, 0xb6d8_fba1_2403_14c9),
-    ("loft_prism", 0x1732_9dcf_7d73_6ff8, 0x154a_59f7_74bc_9fdd),
-    ("die_composed", 0x5d90_737f_3765_fd41, 0xf6bf_0e99_9ea5_ff48),
-    (
-        "die_composed_tour",
-        0x54c3_d84b_3670_2e85,
-        0x166a_646f_2bce_1e04,
-    ),
-    ("plate_param", 0xc9c5_9dfd_d322_3b42, 0xde95_ae41_3e46_e947),
-    ("kiss_carry", 0xd1f5_3821_c576_c77a, 0x7470_5d73_a4cf_11b0),
-    ("tube_ring", 0xafab_a990_cf48_8327, 0xfa5c_b8c9_1200_9d34),
-    ("tube_arc", 0x916d_ce74_bf3e_314d, 0xdb49_2b2d_e26e_db41),
-    (
-        "hollow_tube_elbow",
-        0x228e_a8ef_876d_7cf7,
-        0xa603_e468_f99b_e976,
-    ),
-    (
-        "hollow_tube_ring",
-        0x2124_0759_7a30_b1cf,
-        0x9042_40e2_bb0f_c1b0,
-    ),
-    // The first persisted `SetProgram` in the tree: its text digest
-    // is the first taken over a log holding one.
-    ("reshaped_rod", 0xf59c_be60_a9b4_eb8d, 0x8681_dccd_c405_47ed),
+    ("declared_tangency", 0xe7249c941ad4e6dd, 0x4ef7c39092eca21a),
+    ("kitchen_sink", 0x5a7d3b3ed8e09af1, 0x4f34742aaeaa5d3c),
+    ("cut_cylinder", 0x366fa42a35257323, 0x0b1584874c6521a2),
+    ("measured_web", 0x2d097b245fc55683, 0xe50e6ef2701011c2),
+    ("boss_union", 0x74cf52484fc485b5, 0x68bcb37795f66fb1),
+    ("die_fillet", 0x5f66bd80c3d330ba, 0xcc827f4ab84ab2f7),
+    ("die_chamfer", 0x1bcc33b8f554b03e, 0x955720216d75cf9a),
+    ("die_pips", 0x4ec20f70889e7162, 0xa4282ad9313d4347),
+    ("heat_sink_fins", 0x248682fac9898b5a, 0xbdeed2f79c7c0af9),
+    ("die_tool", 0xfcc650b447308395, 0x257df21a520356e8),
+    ("face_sketch", 0x25f0c5c4ab521837, 0x6ff3c25647b7831b),
+    ("part_select", 0xe08422a647eb3501, 0x4fba54c848554e94),
+    ("loft_prism", 0x9f15f3e0cf1e8ace, 0xc7ef1ffc56e06ac4),
+    ("die_composed", 0xb46772e78d36a18c, 0xe8e716c077c42cec),
+    ("die_composed_tour", 0xd17ab9b94d3343fe, 0xf7c0a1ee810ee567),
+    ("plate_param", 0x234a7b9c5eb3d7c1, 0xe9e582f56c7ce4e9),
+    ("kiss_carry", 0x60c1e65c8178fd2f, 0xc3d2696f3427398b),
+    ("tube_ring", 0x33da3ceb7454021f, 0x9a8176ec901ca54c),
+    ("tube_arc", 0xebcfe2751352a77e, 0xe780b5fe37d515b4),
+    ("hollow_tube_elbow", 0xb1be521411cf3616, 0x27d7a90771dfe921),
+    ("hollow_tube_ring", 0x46f61613d1f6a156, 0x39c2fbc857b67ef1),
+    ("reshaped_rod", 0xb8646c19a710753e, 0xf096667c4f3cb66c),
 ];
 
 #[test]

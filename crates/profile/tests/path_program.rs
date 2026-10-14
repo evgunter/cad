@@ -25,7 +25,7 @@
 
 use crate::common;
 
-use common::{coverage_corpus, pinned};
+use common::{coverage_corpus, pinned, pinned_constructed};
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{
@@ -449,14 +449,19 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
         1,
         "a circle program is exactly one step"
     );
-    let lowered = pinned(closed);
+    let lowered = pinned_constructed(closed);
     assert_eq!(lowered.vertices().len(), 2);
     assert_eq!(lowered.vertices()[0].x.to_bits(), 2.25_f64.to_bits());
     assert_eq!(lowered.vertices()[1].x.to_bits(), 0.75_f64.to_bits());
-    assert_eq!(lowered.bulges()[0].to_bits(), 1.0_f64.to_bits());
-    assert!(
-        lowered.tangent_joints().is_empty(),
-        "same-carrier joints declare nothing — there is no tangency to claim"
+    assert_eq!(
+        sweep_of(&lowered, 0).to_bits(),
+        (4.0 * geom_core::Real::atan(1.0_f64)).to_bits(),
+        "a semicircle, lowered from the bulge 1"
+    );
+    assert_eq!(
+        lowered.constructed_joints(),
+        &[0, 1],
+        "the form constructs its two joints: one carrier continuing through each"
     );
     validate_ok(&lowered);
 }
@@ -464,20 +469,23 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
 /// **`circle_split`'s declared subdivision (LIB-SWITCH corpus ruling).**
 /// One carrier, `n` structural vertices: the program is one step, the
 /// replay reproduces the lowering from `(centre, r, n, phase)` alone,
-/// every bulge is `tan(π/(2n))`, and nothing is declared tangent
-/// (same-carrier identities, exactly `circle`'s posture).
+/// every bulge is `tan(π/(2n))`, and every joint is constructed — one
+/// carrier continuing through it, exactly `circle`'s posture.
 #[test]
 fn circle_split_is_a_one_step_program_with_structural_seams() {
     let closed =
         profile::circle_split(Point2::new(1.0, 0.5), 0.4, 3, 0.25, Tol::witness()).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::CircleSplit]);
-    let lowered = pinned(closed);
+    let lowered = pinned_constructed(closed);
     assert_eq!(lowered.vertices().len(), 3, "n vertices, n arcs");
     // Expected values through the SAME libm-pure trig the lowering uses
     // (geom-core `Real`; std's tan/sin_cos may differ by an ulp).
     let expected_bulge = geom_core::Real::tan(std::f64::consts::PI / 6.0);
-    for b in lowered.bulges() {
-        assert_eq!(b.to_bits(), expected_bulge.to_bits());
+    for k in 0..lowered.segments().len() {
+        assert_eq!(
+            sweep_of(&lowered, k).to_bits(),
+            (4.0 * geom_core::Real::atan(expected_bulge)).to_bits()
+        );
     }
     // Vertex k at centre + r·(cos θ_k, sin θ_k), θ_k = phase + k·2π/n.
     for (k, v) in lowered.vertices().iter().enumerate() {
@@ -486,9 +494,10 @@ fn circle_split_is_a_one_step_program_with_structural_seams() {
         assert_eq!(v.x.to_bits(), (1.0 + 0.4 * c).to_bits());
         assert_eq!(v.y.to_bits(), (0.5 + 0.4 * s).to_bits());
     }
-    assert!(
-        lowered.tangent_joints().is_empty(),
-        "structural subdivisions declare nothing — one carrier, no tangency claim"
+    assert_eq!(
+        lowered.constructed_joints(),
+        &[0, 1, 2],
+        "every structural subdivision is a constructed joint of the one carrier"
     );
     validate_ok(&lowered);
 }
@@ -515,7 +524,7 @@ fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
 /// **The half-disc equator through the lattice's own spelling** (the
 /// need `arc_continue` served, re-authored — BOOL-10, Ev's ruling of
 /// 2026-09-13: the sixth round already admits adjacent same-carrier
-/// arcs as declared tangent joints, so no second verb and no split form
+/// arcs as constructed tangent joints, so no second verb and no split form
 /// is needed). Two quarter arcs on ONE carrier: the first authored
 /// (`arc_to(Bulge { .. })`, bulge tan(π/8)), the second
 /// `.tangent().tangent_arc_to(p)` — its joint DECLARED, its arc derived
@@ -555,7 +564,7 @@ fn the_equator_through_tangent_arc_to_is_arc_continues_table_bit_for_bit() {
             Verb::LineTo
         ],
     );
-    let lowered = pinned(closed);
+    let lowered = pinned_constructed(closed);
     assert_eq!(lowered.vertices().len(), 3);
     let v1 = lowered.vertices()[1];
     assert_eq!(
@@ -563,14 +572,15 @@ fn the_equator_through_tangent_arc_to_is_arc_continues_table_bit_for_bit() {
         (0.5f64.to_bits(), 0.0f64.to_bits()),
         "the equator vertex is the authored point exactly"
     );
-    assert_eq!(lowered.bulges()[0].to_bits(), q.to_bits());
+    let sweep_from = |b: f64| (4.0 * geom_core::Real::atan(b)).to_bits();
+    assert_eq!(sweep_of(&lowered, 0).to_bits(), sweep_from(q));
     assert_eq!(
-        lowered.bulges()[1].to_bits(),
-        0x3fda827999fcef33,
-        "the derived bulge is the retired verb's, bit for bit (got {:#x})",
-        lowered.bulges()[1].to_bits()
+        sweep_of(&lowered, 1).to_bits(),
+        sweep_from(f64::from_bits(0x3fda827999fcef33)),
+        "the arc is lowered from the retired verb's derived bulge, bit for bit (got {:#x})",
+        sweep_of(&lowered, 1).to_bits()
     );
-    assert_eq!(lowered.tangent_joints(), &[1], "the joint is declared");
+    assert_eq!(lowered.constructed_joints(), &[1], "the joint is declared");
     validate_ok(&lowered);
 }
 
@@ -1185,24 +1195,26 @@ fn an_arc_no_radius_drew_records_no_emission() {
     );
 }
 
-/// The carrier radius of the segment LEAVING vertex `i`, read back
-/// off the stored chord-and-bulge the way a reader classifies it —
-/// `r = c(1 + b²) / (4|b|)` for chord `c` and bulge `b = tan(θ/4)`.
+/// The carrier radius of the segment LEAVING vertex `i`, as stored.
 /// `None` where the stored segment is straight.
 ///
 /// The emission record names a segment; this is what says the segment
 /// it names is the arc the authored radius drew, rather than a
 /// neighbour that happens to be an arc too.
 fn stored_radius(closed: &ClosedLoop<f64>, i: usize) -> Option<f64> {
-    let vs = closed.loop_.vertices();
-    let b = closed.loop_.bulges()[i];
-    if b == 0.0 {
-        return None;
+    match closed.loop_.segments()[i] {
+        profile::Segment::Line => None,
+        profile::Segment::Arc(arc) => Some(arc.radius),
     }
-    let a = vs[i];
-    let z = vs[(i + 1) % vs.len()];
-    let chord = (z - a).norm_squared().sqrt();
-    Some(chord * (1.0 + b * b) / (4.0 * b.abs()))
+}
+
+/// The sweep segment `k` stores; a line has none, and asking for one
+/// is the row's own mistake.
+fn sweep_of(lp: &ProfileLoop<f64>, k: usize) -> f64 {
+    match lp.segments()[k] {
+        profile::Segment::Arc(arc) => arc.sweep,
+        profile::Segment::Line => panic!("segment {k} is a line"),
+    }
 }
 
 /// **The EXACT-FIT close records its fillet on the closing segment,
@@ -1668,4 +1680,152 @@ fn a_carrier_form_draws_piece_k_for_its_segment_k() {
     );
     pinned(circle);
     pinned(split);
+}
+
+/// **The role lists admit what their verbs draw and nothing else**: a
+/// fillet's three roles, a leg's one, a carrier's `Piece(k)` below its
+/// count, and nothing on a binder.
+#[test]
+fn a_role_list_admits_its_verbs_roles_only() {
+    use profile::PieceRole::{Arc, Leg, Piece, RunIn, RunOut};
+    use profile::{RoleList, Verb};
+    assert_eq!(RoleList::of(Verb::At).named(), &[] as &[profile::PieceRole]);
+    assert_eq!(RoleList::of(Verb::LineTo).named(), &[Leg]);
+    assert_eq!(
+        RoleList::of(Verb::ArcFilletArc).named(),
+        &[RunIn, Arc, RunOut]
+    );
+    assert!(
+        !RoleList::of(Verb::Line).admits(Arc, 0),
+        "a leg verb draws no arc"
+    );
+    assert!(
+        !RoleList::of(Verb::Fillet).admits(Leg, 0),
+        "a fillet draws no leg"
+    );
+    assert!(
+        RoleList::of(Verb::CircleSplit).admits(Piece(2), 3),
+        "piece 2 of 3"
+    );
+    assert!(
+        !RoleList::of(Verb::CircleSplit).admits(Piece(3), 3),
+        "piece 3 of 3"
+    );
+    assert!(
+        !RoleList::of(Verb::Circle).admits(Leg, 2),
+        "a carrier draws no leg"
+    );
+    let answered: Vec<RoleList> = Verb::ALL.iter().map(|v| RoleList::of(*v)).collect();
+    for list in RoleList::ALL {
+        assert!(answered.contains(&list), "{list:?} is no verb's list");
+    }
+    for list in &answered {
+        assert!(
+            RoleList::ALL.contains(list),
+            "{list:?} is missing from RoleList::ALL"
+        );
+    }
+}
+
+/// **A record naming a role its verb's list lacks is a kernel bug**,
+/// and the check every closing verb runs says so.
+#[test]
+#[should_panic(expected = "does not hold")]
+fn a_record_off_its_role_list_fails_loud() {
+    let t = Tol::witness();
+    let mut circle = profile::circle(Point2::new(0.0, 0.0), 1.0, t).unwrap();
+    circle.structure.pieces[1].role = profile::PieceRole::Piece(2);
+    circle.structure.check_role_lists(&circle.program);
+}
+
+/// **A fused verb's authored arrival arc is its fillet's `RunOut`,
+/// wherever it is drawn.** A `Via` or `Radius` arrival is emitted by a
+/// LATER binder step, and the emission site claims the arc as the run
+/// out; no geometric reading stands between the arc and its name. Far
+/// from the origin at a tight ε the arc's radial misses round past the
+/// band, and a reading refused the chain as a near-coincidence on the
+/// arrival carrier or named the arc the binder's `Leg`, a role no fused
+/// list holds.
+///
+/// Each scene is translated to two far corners. At every ε row it
+/// either builds and names its arrival arc the fused step's `RunOut`,
+/// or refuses with the geometry's own refusal — never on the naming
+/// decision. Where the geometry decides, it builds: at every ε of 1e-6
+/// and wider everywhere, and the `Via` close at (−1.35e6, 819) at
+/// 1e-11 too, which the carrier reading refused. At 1e-12 every scene
+/// at these corners refuses on the fillet arc's own storage decision,
+/// which rounds at ε·|coordinate| as the carrier reading did.
+#[test]
+fn a_fused_arrival_arc_far_from_the_origin_is_its_run_out() {
+    use profile::PieceRole::RunOut;
+    use profile::{ArcSide, Radius, Sweep, Via};
+    let t = Tol::witness();
+    let eps = t.eps();
+    let s2 = core::f64::consts::SQRT_2;
+    // `(scene, corner, the fused step, whether this ε must build it)`.
+    let far = (-1.35e6, 819.0);
+    let other = (85000.0, 40000.0);
+    let rows = [
+        ("via", far, 3, eps >= 1e-11),
+        ("via", other, 3, eps >= 1e-6),
+        ("radius", far, 4, eps >= 1e-6),
+        ("radius", other, 4, eps >= 1e-6),
+    ];
+    for (scene, (ox, oy), fused, must_build) in rows {
+        let p = |x: f64, y: f64| Point2::new(x + ox, y + oy);
+        let built = if scene == "via" {
+            Open.at(p(0.0, 2.0))
+                .line_to(p(0.0, 0.0), t)
+                .unwrap()
+                .toward(2.0, 0.0, t)
+                .unwrap()
+                .fillet_arc(
+                    0.5,
+                    Via {
+                        q: p(s2, s2),
+                        p: Start,
+                    },
+                    t,
+                )
+                .and_then(|a| a.toward(-1.0, 0.0, t))
+        } else {
+            Open.at(p(0.0, 0.0))
+                .angle(0.0, t)
+                .unwrap()
+                .line(4.0, t)
+                .unwrap()
+                .tangent()
+                .arc_fillet_arc(
+                    Sweep {
+                        r: 2.0,
+                        side: ArcSide::Left,
+                        angle: 0.6,
+                    },
+                    0.25,
+                    Radius {
+                        r: 3.0,
+                        side: ArcSide::Left,
+                    },
+                    t,
+                )
+                .and_then(|a| a.at(p(2.0, 6.0)).toward(-1.0, 0.0, t))
+                .and_then(|a| a.line(2.0, t))
+                .and_then(|a| a.line_to(Start, t))
+        };
+        let label = format!("{scene} at ({ox}, {oy}), eps {eps:e}");
+        match built {
+            Ok(closed) => assert!(
+                pieces_of(&closed).contains(&(fused, RunOut)),
+                "{label}: {:?}",
+                pieces_of(&closed)
+            ),
+            Err(e) => {
+                assert!(!must_build, "{label} refused: {e}");
+                assert!(
+                    !e.to_string().contains("arrival carrier"),
+                    "{label} refused on the naming decision: {e}"
+                );
+            }
+        }
+    }
 }

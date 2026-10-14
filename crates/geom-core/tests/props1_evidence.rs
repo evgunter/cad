@@ -203,7 +203,7 @@ fn mirror_is_accurate_at_f64_over_the_corpus() {
 /// judged against its own tiny ulp. The doc quotes this metric and the
 /// adversarial row in `props1_review_rows.rs` gates its worst value.
 fn reconstruction_ulps(sum: Vec3<f64>, v: Vec3<f64>) -> f64 {
-    let biggest = v.x.abs().max(v.y.abs()).max(v.z.abs());
+    let biggest = v.norm_inf();
     let ulp = f64::from_bits(biggest.to_bits() + 1) - biggest;
     [(sum.x - v.x), (sum.y - v.y), (sum.z - v.z)]
         .into_iter()

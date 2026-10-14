@@ -194,10 +194,12 @@ impl DInterval {
         Self::make(self.lo, self.hi, dec)
     }
 
-    /// Does the enclosure contain the real number `x`? (`false` for
-    /// empty/NaI: they contain no real.)
+    /// Does the enclosure contain the real number `x`? `false` for
+    /// empty/NaI, which contain no real, and for a non-finite `x`: `±inf`
+    /// and NaN are not real numbers, so an unbounded side does not admit
+    /// its infinity.
     pub fn contains(&self, x: f64) -> bool {
-        !self.is_nai() && !self.is_empty() && self.lo <= x && x <= self.hi
+        x.is_finite() && !self.is_nai() && !self.is_empty() && self.lo <= x && x <= self.hi
     }
 
     /// Propagation guard: if either operand is NaI the result is NaI; if
@@ -253,6 +255,26 @@ mod tests {
                 .with_dec_capped(Decoration::Ill)
                 .is_nai()
         );
+    }
+
+    #[test]
+    fn contains_admits_no_non_real_probe() {
+        for x in [
+            DInterval::entire(),
+            DInterval::from_bounds(0.0, f64::INFINITY),
+            DInterval::from_bounds(f64::NEG_INFINITY, 0.0),
+        ] {
+            for p in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+                assert!(!x.contains(p), "[{}, {}] contains {p}", x.lo(), x.hi());
+            }
+            assert!(x.contains(0.0), "[{}, {}] contains 0", x.lo(), x.hi());
+        }
+        for p in [f64::MAX, -f64::MAX] {
+            assert!(
+                DInterval::entire().contains(p),
+                "entire contains the finite {p}"
+            );
+        }
     }
 
     #[test]

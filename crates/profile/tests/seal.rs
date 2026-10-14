@@ -11,10 +11,8 @@
 //! [`profile::ProfileLoop`]. A row here could only observe the seal's
 //! consequences, never a compile error.
 
-use geom_core::{Point2, Tol};
-use profile::{
-    Profile, ProfileError, ProfileLoop, RawLoop, Segment, SketchPlane, test_support::bulge_loop,
-};
+use geom_core::{Arc2, Point2, Tol};
+use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane, test_support::bulge_loop};
 
 /// The read surface is COMPLETE: every accessor, exercised against a
 /// door-built loop.
@@ -36,24 +34,16 @@ fn accessors_read_back_everything_the_doors_wrote() {
     ];
     let lp: ProfileLoop<f64> = bulge_loop(vs.clone());
 
-    // vertices() and bulges() return the chain's positions and
-    // bulges, bit for bit.
-    for ((got, b), (pos, bulge)) in lp.vertices().iter().zip(lp.bulges()).zip(&vs) {
+    // vertices() returns the chain's positions bit for bit, and each
+    // segment's kind is its bulge's: a line exactly at a zero bulge.
+    for ((got, s), (pos, bulge)) in lp.vertices().iter().zip(lp.segments()).zip(&vs) {
         assert_eq!(got.x.to_bits(), pos.x.to_bits());
         assert_eq!(got.y.to_bits(), pos.y.to_bits());
-        assert_eq!(b.to_bits(), bulge.to_bits());
+        assert_eq!(matches!(s, profile::Segment::Line), *bulge == 0.0);
     }
 
-    // ProfileLoop: vertices() is the chain in traversal order;
-    // tangent_joints() is empty until declared.
+    // ProfileLoop: vertices() is the chain in traversal order.
     assert_eq!(lp.vertices().len(), vs.len());
-    assert!(lp.tangent_joints().is_empty());
-
-    // The declaring door round-trips through the accessor verbatim —
-    // no sorting, no dedup (validation owns that; see the accessor's
-    // normative docs).
-    let declared = lp.with_tangent_joints(vec![2, 0, 2]);
-    assert_eq!(declared.tangent_joints(), &[2, 0, 2]);
 
     // The polygon door: every bulge zero, chain order preserved.
     let poly: ProfileLoop<f64> = RawLoop::polygon([
@@ -62,7 +52,6 @@ fn accessors_read_back_everything_the_doors_wrote() {
         Point2::new(0.0, 2.0),
     ]);
     assert_eq!(poly.vertices().len(), 3);
-    assert!(poly.bulges().iter().all(|&b| b == 0.0));
     assert!(
         poly.segments()
             .iter()
@@ -72,29 +61,27 @@ fn accessors_read_back_everything_the_doors_wrote() {
 
     // reversed() survives the seal: it reads and rebuilds through the
     // same private representation, and it is still an involution.
-    let there_and_back = declared.reversed().reversed();
-    assert_eq!(there_and_back.tangent_joints(), declared.tangent_joints());
-    for (a, b) in there_and_back.vertices().iter().zip(declared.vertices()) {
+    let there_and_back = lp.reversed().reversed();
+    for (a, b) in there_and_back.vertices().iter().zip(lp.vertices()) {
         assert_eq!(a.x.to_bits(), b.x.to_bits());
     }
-    for (a, b) in there_and_back.bulges().iter().zip(declared.bulges()) {
-        assert_eq!(a.to_bits(), b.to_bits());
+    for (a, b) in there_and_back.segments().iter().zip(lp.segments()) {
+        assert_eq!(format!("{a:?}"), format!("{b:?}"));
     }
 }
 
 /// **The canonical door writes the stored form verbatim.** Every
-/// segment it is handed reads back bit for bit, with the bulge kept
-/// beside it zero for a line and tan(Δθ/4) for an arc. It can also
-/// write a table the bulge form cannot — a one-segment full circle —
-/// and deciding that table is `validate`'s: it refuses it by arity.
+/// segment it is handed reads back bit for bit. It can also write a
+/// table the bulge form cannot — a one-segment full circle — and
+/// deciding that table is `validate`'s: it admits it, D1's full turn.
 #[test]
 fn the_canonical_door_writes_the_stored_form_verbatim() {
     let bits = |x: &dyn core::fmt::Debug| format!("{x:?}");
-    let arc = Segment::Arc {
+    let arc = Segment::Arc(Arc2 {
         centre: Point2::new(1.0, 0.5),
         radius: 0.5,
         sweep: std::f64::consts::PI,
-    };
+    });
     let chain = [
         (Point2::new(0.0, 0.0), Segment::Line),
         (Point2::new(1.0, 0.0), arc),
@@ -105,33 +92,22 @@ fn the_canonical_door_writes_the_stored_form_verbatim() {
         assert_eq!(bits(&lp.vertices()[k]), bits(&pos), "vertex {k}");
         assert_eq!(bits(&lp.segments()[k]), bits(&segment), "segment {k}");
     }
-    let want = [0.0, (std::f64::consts::PI / 4.0).tan(), 0.0];
-    for (k, (got, want)) in lp.bulges().iter().zip(want).enumerate() {
-        assert_eq!(got.to_bits(), want.to_bits(), "bulge {k}");
-    }
-    assert!(lp.tangent_joints().is_empty());
 
     let circle: ProfileLoop<f64> = RawLoop::new([(
         Point2::new(1.0, 0.0),
-        Segment::Arc {
+        Segment::Arc(Arc2 {
             centre: Point2::new(0.0, 0.0),
             radius: 1.0,
             sweep: std::f64::consts::TAU,
-        },
+        }),
     )]);
     assert_eq!(circle.segments().len(), 1);
-    let refusal = Profile::new(SketchPlane::xy(), vec![circle])
-        .validate(Tol::witness())
-        .err();
+    let validated = Profile::new(SketchPlane::xy(), vec![circle]).validate(Tol::witness());
     assert!(
-        matches!(
-            refusal,
-            Some(ProfileError::TooFewVertices {
-                loop_index: 0,
-                count: 1
-            })
-        ),
-        "a one-segment circle is refused by arity, got {refusal:?}"
+        validated
+            .as_ref()
+            .is_ok_and(|v| v.loops()[0].segments().len() == 1),
+        "a one-segment circle validates as one segment (D1's full turn), got {validated:?}"
     );
 }
 

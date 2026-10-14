@@ -6,15 +6,15 @@
 //! would mean one of the two channels does not contain its real. That
 //! is a soundness defect and a panic is the honest answer; what this
 //! file measures is that it never happens on the documents the tier is
-//! measured on — at the scale each certifies whole at, and at the
-//! scale past its ceiling, where the leaves refuse and the residuals
-//! are the widest the drive ever sees.
+//! measured on — at the scale each certifies whole at, and past its
+//! ceiling, where the residuals are the widest the drive ever sees.
 //!
 //! The nominal half is pinned by the gating row
 //! `m10_9_no_registrant_lies_on_any_measured_document`, which replays
 //! the same five documents and now reads the dispute column too. This
-//! file is the ceiling-plus-δ half, which is a second whole-box replay
-//! of each — too heavy for the gate and cheap to re-take by hand.
+//! file is the ceiling-plus-δ half, a second whole-box replay of each.
+//! It runs in the slow set: the bracket replays whole past its ceiling
+//! and the pad reaches its extrude, about 20 s in a release build.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -28,20 +28,74 @@ use geom_core::{SymCounts, SymRules, Tol};
 use crate::m10_9_pins_interval::measured_studies;
 
 /// **THE RECEIPTS PAST EACH CEILING**, in `measured_studies`' order,
-/// as `[symbolic_zero, registered, numeric, frozen]`. Identical at
+/// as `[symbolic, numeric, frozen]`. Identical at
 /// ε = 1e-6, 1e-9 and 1e-12: the atoms a residual carries do not
 /// depend on the band, and neither does what the tier proves about
 /// them.
-const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
-    ("two_hole_plate", [803, 140, 470, 1044]),
-    ("r1_annulus", [328, 140, 209, 1056]),
-    ("r2_link", [214, 76, 175, 556]),
-    ("r2_filleted_bracket", [428, 141, 341, 1096]),
-    // +28 `symbolic_zero` and +84 `numeric` from the must-carry rule's
-    // per-station dihedral gate (16 edges x 7 stations of
-    // `dihedral_wedge`).
-    ("r2_rounded_pad", [882, 128, 1055, 2750]),
+///
+/// The plate and the annulus refuse nowhere the bisection reaches, and
+/// replay whole at [`PAST_NO_CEILING`]. The link stops at the
+/// extrude's attachment gate (`carrier_matches_mapped_source`). The
+/// bracket's and the pad's over-band span readings (`arc_span`,
+/// `line_span`) are settled by the segments' ends, which lie on the
+/// other carrier, so the bracket replays whole and the pad stops at
+/// its extrude's pcurve certification (`pcurve_envelope`). How each value
+/// moved since SYM-11 (2026-09-21), merge by merge, is attributed in
+/// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
+///
+/// INTENT-LITERALS PR C (a slot holds a variable) adds one theorem per
+/// formula written at a slot, an anonymous definition bound through the
+/// non-finite door: plate +1, annulus +2, link +2, bracket +3, the pad
+/// unmoved; `numeric` and `frozen` hold. The same deltas
+/// move `m10_9_pins_interval`'s and `sym_9_retry_interval`'s rows.
+///
+/// An intrinsic edge description's surfaces becoming a set
+/// (`geom_brep::SurfacePair`) moves only `frozen`, measured on the tree
+/// holding every change above: 612 → 641, 804 → 828, 486 → 498,
+/// 806 → 830, 302 → 314, and no decision column. The cause is the
+/// transversality wedge (`geom_brep::dihedral::wedge_decided`'s
+/// `n1.cross(n2)`), which the certificate takes in key order and the
+/// extrude's dihedral in builder order: symmetric in value up to sign
+/// but not in form, so a document that reads one edge's wedge in both
+/// orientations builds two hash-consed forms where it built one.
+///
+/// Settling an in-band span reading on the segments' ends takes the
+/// bracket and the pad past validation, which adds the extrude's
+/// stages to their counts: bracket `[626, 464, 830]` → `[1453, 1008,
+/// 1869]`, pad `[340, 277, 314]` → `[1319, 1159, 2916]`. The
+/// attribution of those values, merge by merge, is in
+/// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
+///
+/// Check 4 reading one vector at its norm where it summed its parts
+/// moves only `frozen` again. On the plate, the annulus and the link,
+/// each site measured by reverting it alone: the turning cylinder's
+/// pair against its class circle +72, +52, +36, and the cylinder class
+/// selector's radial circle at its exact sup (`radial_amplitude`) +16,
+/// +24, +8; together 641 → 729, 828 → 904, 498 → 542. On the bracket
+/// and the pad, which the settlement above carries past validation,
+/// the two together move the bracket's `frozen` 1869 → 1975 and the
+/// pad's 2916 → 2985. The pad's replay past the ceiling refuses at
+/// check 4 with no term over the band alone, so the refusal decides
+/// every term of the envelope, 9 where there were 11, and its
+/// `symbolic` reads 1319 → 1317.
+/// The fidelity channels' norm and the retired `Tilt` and
+/// `Orientation` slots move no column here.
+/// The pcurve envelope's orthonormal chart squaring its frame by cross
+/// products (`geom::square_frame`) moves only the frozen counts: bracket
+/// 1975 → 1969, pad 2985 → 2976.
+const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
+    ("two_hole_plate", [1048, 654, 729]),
+    ("r1_annulus", [566, 399, 904]),
+    ("r2_link", [356, 259, 542]),
+    ("r2_filleted_bracket", [1453, 1008, 1969]),
+    ("r2_rounded_pad", [1317, 1159, 2976]),
 ];
+
+/// The scale, in multiples of ε, a document with no measured refusal
+/// replays at. Not the bisection's top, `1e6·ε`: at ε = 1e-6 that is a
+/// scale of one, and the annulus's extrude refuses there geometrically
+/// before the tier is asked what it is here to be asked.
+const PAST_NO_CEILING: f64 = 1e5;
 
 /// One whole-box replay at `Sym<Interval>`, ON ITS OWN THREAD: the
 /// session's counts and the first node that refused, or the panic's
@@ -79,8 +133,10 @@ fn replay_on_a_thread(
 
 /// **THE STOP CLAUSE'S ROW.** The five measured documents replayed at
 /// `Sym<Interval>` past their ceilings — `Study::refuses_at`, the
-/// scale the measured bracket says the drive refuses at — where every
-/// leaf's residuals are the widest the corpus produces. The exact
+/// scale the measured bracket says the drive refuses at, or
+/// [`PAST_NO_CEILING`] for a document that refuses nowhere the
+/// bisection reaches — where every leaf's residuals are the widest the
+/// corpus produces. The exact
 /// witness contradicts its own form at NONE of them, at any ε.
 ///
 /// **The receipts are ASSERTED, not recorded in prose**, so a re-take
@@ -88,19 +144,14 @@ fn replay_on_a_thread(
 /// [`PAST_THE_CEILING`] is the measurement, identical at ε = 1e-6,
 /// 1e-9 and 1e-12.
 ///
-/// **WHEN IT IS RE-TAKEN: by hand, at each SYM unit's close**, because
-/// nothing schedules it — it is `#[ignore]`d (five whole-box replays
-/// of the corpus on top of the ones the gating rows already pay, about
-/// two minutes) and no sweep names it. The register of that obligation
-/// is the unit item, not this comment:
-/// `work/sym/sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`
-/// while it is open, and the SYM log after it closes.
+/// **What runs it: the slow set** (`.config/nextest.toml`), on every PR
+/// whose diff touches `editor-core`, and every night at every ε row.
 #[test]
-#[ignore = "evidence-only: five whole-box replays past the measured ceilings; re-taken by hand at each SYM unit's close"]
 fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let mut fired = 0;
+    let mut moved = Vec::new();
     for (study, want) in measured_studies(tol).into_iter().zip(PAST_THE_CEILING) {
         let name = study.name;
         assert_eq!(
@@ -108,36 +159,30 @@ fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
             "PAST_THE_CEILING is read positionally against `measured_studies`, and the two \
              have gone out of order"
         );
-        let doc = (study.at)(study.refuses_at * eps);
+        let past = study.refuses_at.unwrap_or(PAST_NO_CEILING);
+        let doc = (study.at)(past * eps);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         match replay_on_a_thread(doc, ParamBox::of(&analyzed), tol) {
             Ok((refusal, counts)) => {
                 println!("   {name} at eps={eps:e}, ceiling + δ: {counts:?} -> {refusal:?}");
-                assert_eq!(
-                    [
-                        counts.symbolic_zero,
-                        counts.registered,
-                        counts.numeric,
-                        counts.frozen
-                    ],
-                    want.1,
-                    "{name} at eps={eps:e}: the receipt past the ceiling moved. This row is \
-                     the measurement SYM-11 argued the dispute column's zero from, so a \
-                     number that moved is a decision that moved and is a finding, not a \
-                     table to refresh: {counts:?}"
-                );
-                assert_eq!(
-                    counts.registrations_contradicted, 0,
-                    "{name}: a registered identity was contradicted past the ceiling — \
-                     that is an axiom a constructor stated and this box disproves: {counts:?}"
-                );
-                assert_eq!(
-                    counts.theorems_disputed, 0,
-                    "{name}: this lane's witness is EXACT, so the theorem-vs-numeric \
-                     contradiction is routed to the `debug_assert!` and never to this \
-                     column — a count here is `Interval::WITNESS` having moved, not a \
-                     document behaving badly: {counts:?}"
-                );
+                let got = [counts.symbolic, counts.numeric, counts.frozen];
+                if got != want.1 {
+                    moved.push(format!("{name}: {got:?}, stored {:?}", want.1));
+                }
+                if counts.registrations_contradicted != 0 {
+                    moved.push(format!(
+                        "{name}: a registered identity was contradicted past the ceiling — \
+                         that is an axiom a constructor stated and this box disproves: {counts:?}"
+                    ));
+                }
+                if counts.theorems_disputed != 0 {
+                    moved.push(format!(
+                        "{name}: this lane's witness is EXACT, so the theorem-vs-numeric \
+                         contradiction is routed to the `debug_assert!` and never to this \
+                         column — a count here is `Interval::WITNESS` having moved, not a \
+                         document behaving badly: {counts:?}"
+                    ));
+                }
             }
             Err(message) => {
                 println!("   {name} at eps={eps:e}, ceiling + δ: the CONTRADICTION FIRED");
@@ -153,5 +198,12 @@ fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
          cannot both be right, so one of the two channels does not contain its real. That \
          is a soundness defect in a channel and a DIFFERENT unit: stop, file it with the \
          render, and report"
+    );
+    assert!(
+        moved.is_empty(),
+        "at eps={eps:e}, past the ceiling (a receipt is [symbolic, numeric, frozen]). This row is the measurement SYM-11 argued the dispute column's \
+         zero from, so a number that moved is a decision that moved and is a finding, not a \
+         table to refresh:\n{}",
+        moved.join("\n")
     );
 }

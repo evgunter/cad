@@ -6,11 +6,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BifurcationKind, BranchCertification, BranchMarginEvidence, CancelToken, CapEnd, ContactClass,
+    Attr, BifurcationKind, BranchCertification, BranchMarginEvidence, CancelToken, CapEnd,
     Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
-    ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, StableName, WitnessAge,
+    ProfileDoc, RecipeNodeId, Resolution, Rgba8, RoleSeg, RunCtx, StableName, WitnessAge,
     WitnessBifurcation, WitnessDatum, evaluate, resolve,
 };
 use fixture::{insert, len, on_frame, step};
@@ -41,8 +42,9 @@ fn block(
     let (doc, e) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, p, e)
@@ -56,19 +58,18 @@ fn cap(node: RecipeNodeId) -> StableName {
     }
 }
 
-/// The same cap, read at the node that mints it — what a declaration
-/// sited at that node says.
-fn sited(node: RecipeNodeId) -> SitedRef {
-    SitedRef::at_mint(cap(node))
-}
-
-/// Three disjoint blocks + a Declare pairing A's cap with B's cap.
+/// Disjoint blocks A, B, C, with a colour attached to A's cap and to
+/// B's: two reference sites no selection holds, which a body-less
+/// `Rebind` repairs.
 struct Three {
     doc: ProfileDoc,
     a: RecipeNodeId,
     b: RecipeNodeId,
     c: RecipeNodeId,
-    decl: RecipeNodeId,
+}
+
+fn red() -> Attr {
+    Attr::Color(Rgba8::opaque(200, 30, 30))
 }
 
 fn three() -> Three {
@@ -76,19 +77,33 @@ fn three() -> Three {
     let (doc, _, a) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let (doc, _, b) = block(doc, (2.0, 3.0), (0.0, 1.0));
     let (doc, _, c) = block(doc, (4.0, 5.0), (0.0, 1.0));
-    let (doc, decl) = insert(doc, Node::declare_rest(vec![(sited(a), sited(b))]));
-    Three { doc, a, b, c, decl }
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetAppearance {
+            name: cap(a),
+            attr: red(),
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetAppearance {
+            name: cap(b),
+            attr: red(),
+        },
+    );
+    Three { doc, a, b, c }
 }
 
 // ---- Rebind: semantics ----
 
 #[test]
-fn rebind_rewrites_declare_sites_one_shot() {
+fn rebind_moves_a_reference_one_shot() {
     let t = three();
     let applied = t
         .doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap(t.b),
                 to: cap(t.c),
             },
@@ -96,24 +111,16 @@ fn rebind_rewrites_declare_sites_one_shot() {
             &editor_core::RefusingReach,
         )
         .unwrap();
-    assert!(applied.record.structural, "Declare payloads changed");
-    let Some(Node::Declare { pairs }) = applied.doc.node(t.decl) else {
-        panic!("declare survives");
-    };
-    assert_eq!(
-        pairs,
-        &vec![(
-            (sited(t.a), SitedRef::new(t.b, cap(t.c))),
-            ContactClass::Rest
-        )]
-    );
+    assert!(applied.doc.appearance_of(&cap(t.b)).is_none());
+    assert!(applied.doc.appearance_of(&cap(t.c)).is_some());
     // One-shot: no alias table — a SECOND rebind of the same source
-    // now finds no references (the site says cap(c) already).
+    // now finds no references.
     assert_eq!(
         applied
             .doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: cap(t.a),
                 },
@@ -121,20 +128,19 @@ fn rebind_rewrites_declare_sites_one_shot() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindNoReferences { name: cap(t.b) }
+        EditError::RebindNoReferences {
+            name: applied.doc.spoken_name(&cap(t.b))
+        }
     );
     // Purity: the input document is untouched.
-    let Some(Node::Declare { pairs }) = t.doc.node(t.decl) else {
-        panic!()
-    };
-    assert_eq!(pairs, &vec![((sited(t.a), sited(t.b)), ContactClass::Rest)]);
+    assert!(t.doc.appearance_of(&cap(t.b)).is_some());
+    assert!(t.doc.appearance_of(&cap(t.c)).is_none());
 }
 
 #[test]
 fn rebind_repairs_a_stranded_name_after_node_gone() {
     let t = three();
-    // Delete B (allowed: Declare names are refs, not DAG edges) —
-    // cap(b) strands as NodeGone; Rebind is THE repair.
+    // Delete B — cap(b) strands as NodeGone; Rebind is THE repair.
     let (doc, _) = step(t.doc, DocEdit::DeleteNode { id: t.b });
     let ev = run(&doc, None);
     assert!(matches!(
@@ -145,21 +151,14 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
     let (doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body: None,
             from: cap(t.b),
             to: cap(t.c),
         },
     );
+    assert!(doc.appearance_of(&cap(t.b)).is_none());
+    assert!(doc.appearance_of(&cap(t.c)).is_some());
     let ev = run(&doc, None);
-    let Some(Node::Declare { pairs }) = doc.node(t.decl) else {
-        panic!()
-    };
-    assert_eq!(
-        pairs,
-        &vec![(
-            (sited(t.a), SitedRef::new(t.b, cap(t.c))),
-            ContactClass::Rest
-        )]
-    );
     assert!(matches!(
         resolve(
             RunCtx {
@@ -182,6 +181,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: cap(t.b),
                 },
@@ -189,7 +189,9 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindIdentity { name: cap(t.b) }
+        EditError::RebindIdentity {
+            name: t.doc.spoken_name(&cap(t.b))
+        }
     );
     // Kind mismatch: a face reference cannot become a body.
     let body_c = StableName {
@@ -201,6 +203,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: body_c,
                 },
@@ -219,6 +222,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         doc_del
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: cap(t.c),
                 },
@@ -226,14 +230,17 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindTargetMissingNode { name: cap(t.c) }
+        EditError::RebindTargetMissingNode {
+            name: doc_del.spoken_name(&cap(t.c))
+        }
     );
     // Never-minted source id: a typo, not a NodeGone repair.
-    let foreign = cap(RecipeNodeId(9999));
+    let foreign = cap(RecipeNodeId::new(0, 9999));
     assert_eq!(
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: foreign.clone(),
                     to: cap(t.c),
                 },
@@ -241,14 +248,17 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindUnknownName { name: foreign }
+        EditError::RebindUnknownName {
+            name: t.doc.spoken_name(&foreign)
+        }
     );
     // Zero document sites.
     assert_eq!(
         t.doc
             .apply(
                 &DocEdit::Rebind {
-                    from: cap(t.a), // A's cap is the LEFT of the pair; it IS referenced
+                    body: None,
+                    from: cap(t.a), // A's cap carries a colour; it IS referenced
                     to: cap(t.c),
                 },
                 Tol::witness(),
@@ -257,12 +267,13 @@ fn rebind_refusal_doors_are_typed_and_specific() {
             .map(|_| ())
             .err(),
         None,
-        "left-hand pair names are references too"
+        "an appearance key is a reference"
     );
     assert_eq!(
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.c), // referenced nowhere
                     to: cap(t.a),
                 },
@@ -270,7 +281,9 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindNoReferences { name: cap(t.c) }
+        EditError::RebindNoReferences {
+            name: t.doc.spoken_name(&cap(t.c))
+        }
     );
 }
 
@@ -312,12 +325,14 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::WitnessOnNonSketch { node: extrude }
+        EditError::WitnessOnNonSketch {
+            node: doc.spoken(extrude)
+        }
     );
     assert_eq!(
         doc.apply(
             &DocEdit::ReWitness {
-                node: RecipeNodeId(9999),
+                node: RecipeNodeId::new(0, 9999),
                 witness: w.clone(),
             },
             Tol::witness(),
@@ -325,7 +340,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
         )
         .unwrap_err(),
         EditError::UnknownNode {
-            id: RecipeNodeId(9999)
+            id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 9999))
         }
     );
     // Replay determinism: same edits, bit-identical document
@@ -410,7 +425,9 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::DuplicateWitnessEntry { node: p1 }
+        EditError::DuplicateWitnessEntry {
+            node: doc.spoken(p1)
+        }
     );
     assert_eq!(
         doc.apply(
@@ -422,7 +439,9 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::WitnessOnNonSketch { node: e1 }
+        EditError::WitnessOnNonSketch {
+            node: doc.spoken(e1)
+        }
     );
 }
 
@@ -478,7 +497,7 @@ fn witness_bifurcation_payload_and_diagnosis_arm_compose() {
         },
         implicated: vec![
             Implicated::Constraint(3),
-            Implicated::Entity(cap(RecipeNodeId(0))),
+            Implicated::Entity(cap(RecipeNodeId::new(0, 0))),
         ],
         witness_age: WitnessAge {
             solved_under: b"d=12".to_vec(),
@@ -491,4 +510,48 @@ fn witness_bifurcation_payload_and_diagnosis_arm_compose() {
     };
     assert_eq!(*inner, bif);
     assert_eq!(inner.kind, BifurcationKind::FoldProximity);
+}
+
+// ---- SetExtrudeSide ----
+
+/// **`SetExtrudeSide` moves an extrude's side and refuses every other
+/// kind typed.** The edit is structural (the side is recipe payload no
+/// slot carries), leaves its input document untouched, and at a node
+/// that has no side refuses `SetExtrudeSideOnNonExtrude` naming it.
+#[test]
+fn set_extrude_side_flips_an_extrude_and_refuses_another_kind() {
+    let doc = ProfileDoc::empty_derived("m4_pr4_edits", Tol::witness());
+    let (doc, profile, extrude) = block(doc, (0.0, 1.0), (0.0, 1.0));
+    let side_of = |doc: &ProfileDoc| match doc.node(extrude) {
+        Some(Node::Extrude { side, .. }) => *side,
+        other => panic!("an extrude, got {other:?}"),
+    };
+    assert_eq!(side_of(&doc), ExtrudeSide::Along);
+    let applied = doc
+        .apply(
+            &DocEdit::SetExtrudeSide {
+                node: extrude,
+                side: ExtrudeSide::Against,
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap();
+    assert!(applied.record.structural);
+    assert_eq!(side_of(&applied.doc), ExtrudeSide::Against);
+    assert_eq!(side_of(&doc), ExtrudeSide::Along, "purity: input untouched");
+    assert_eq!(
+        doc.apply(
+            &DocEdit::SetExtrudeSide {
+                node: profile,
+                side: ExtrudeSide::Against,
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach
+        )
+        .unwrap_err(),
+        EditError::SetExtrudeSideOnNonExtrude {
+            node: doc.spoken(profile)
+        }
+    );
 }

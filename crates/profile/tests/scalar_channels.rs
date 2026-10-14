@@ -17,7 +17,8 @@ use geom_core::{Dual, Dual64, Sign};
 use profile::{LoopRole, SegmentKind, ValidatedProfile};
 
 /// The decision skeleton of a canonical form: roles, per-segment kind
-/// and turn, and the value-channel bits of every canonical vertex — the
+/// and turn, and the value-channel bits of every canonical vertex and
+/// arc sweep — the
 /// part that must agree bit-for-bit across scalar instantiations.
 type Skeleton = Vec<(bool, Vec<(u64, u64, u64, i8)>)>;
 
@@ -34,7 +35,10 @@ fn skeleton_f64(vp: &ValidatedProfile<f64>) -> Skeleton {
                         (
                             v.x.to_bits(),
                             v.y.to_bits(),
-                            s.bulge.to_bits(),
+                            match s.kind {
+                                SegmentKind::Arc { arc, .. } => arc.sweep.to_bits(),
+                                SegmentKind::Line => 0,
+                            },
                             kind_code(&s.kind),
                         )
                     })
@@ -57,7 +61,10 @@ fn skeleton_dual(vp: &ValidatedProfile<Dual64>) -> Skeleton {
                         (
                             v.x.value.to_bits(),
                             v.y.value.to_bits(),
-                            s.bulge.value.to_bits(),
+                            match s.kind {
+                                SegmentKind::Arc { arc, .. } => arc.sweep.value.to_bits(),
+                                SegmentKind::Line => 0,
+                            },
                             dual_kind_code(&s.kind),
                         )
                     })
@@ -112,12 +119,12 @@ fn dual_accepts_exactly_like_f64_with_identical_canonical_values() {
 /// whole reason guided replay exists.
 #[test]
 fn dual_guided_lands_on_the_identical_skeleton() {
-    let base = annulus();
+    let (base, replayed) = common::replayed::<Dual64>(&annulus());
     let f = base.validate(tol()).expect("annulus validates at f64");
     let (_, canonical) = base
         .validate_recording(tol())
         .expect("and records its structure");
-    let d = lift::<Dual64>(&base)
+    let d = replayed
         .validate_guided(tol(), &canonical)
         .expect("the guided Dual pass certifies the pinned canonical form");
     assert_eq!(skeleton_f64(&f), skeleton_dual(&d));

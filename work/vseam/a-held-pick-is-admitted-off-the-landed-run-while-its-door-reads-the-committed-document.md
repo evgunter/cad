@@ -60,3 +60,11 @@ is the same disagreement with the previewed document instead of the
 landed one. The VNEWS row
 `a-face-or-edge-delete-is-live-on-a-feature-the-committed-document-no-longer-holds`
 is this shape in the properties pane.
+
+## At the merge with main (2026-10-13)
+
+The first bullet is moot: the in-plane axis datum kind and its frame
+seat are retired on main (`e71b0f19ab`), so no add-datum door asks for
+a `Frame`. The other two are live. The face-frame gate is now
+`face_frame_seat_drawn` (`session/refuse.rs`), and `add_profile_ui`'s
+gate is unchanged.

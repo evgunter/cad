@@ -269,16 +269,16 @@ fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
     let err = build(2.0, TubeWindow::Full, 0.5, f64::NAN).expect_err("a poisoned wall refuses");
     let msg = err.to_string();
     assert!(matches!(err, TubeError::Escalated { .. }), "{msg}");
-    let TubeError::Escalated { source } = &err else {
+    let TubeError::Escalated { decision, source } = &err else {
         unreachable!()
     };
-    assert!(
-        matches!(source.predicate, Some("tube_wall")),
-        "the poisoned wall escalates at tube_wall, got {:?}",
-        source.predicate
+    assert_eq!(
+        (*decision, source.predicate),
+        (sweep::TubeDecision::Wall, Some("tube_wall")),
+        "the poisoned wall escalates at tube_wall"
     );
     assert!(
-        msg.starts_with("the hollow tube escalated:"),
+        msg.starts_with("whether the hollow tube's "),
         "a hollow-only predicate must name the hollow door: {msg}"
     );
     // And a SHARED arm does not claim either door: a reversed window
@@ -688,7 +688,7 @@ fn short(e: &TubeError) -> String {
 /// cavity insertion then carries as its containment evidence.
 ///
 /// The frame is not in this ordering and cannot be: the door takes an
-/// `OrthoFrame`, so a frame that is wrong refuses at its own mint,
+/// `RigidMotion`, so a frame that is wrong refuses at its own mint,
 /// before this door is called at all.
 #[test]
 fn r2_wall_verdicts_preempt_the_window_verdicts() {

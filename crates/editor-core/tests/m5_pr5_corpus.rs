@@ -21,7 +21,7 @@ use topo::Body;
 use topo::Curve3;
 
 fn split_node(doc: &editor_core::ProfileDoc) -> RecipeNodeId {
-    *doc.order()
+    *doc.ids()
         .iter()
         .find(|id| matches!(doc.node(**id), Some(Node::Split { .. })))
         .expect("cut_cylinder carries a Split node")

@@ -36,3 +36,33 @@ line and is kept as the record of why the file was filed there.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## One site fixed, and the two copies have diverged (PR 3532, 2026-09-30)
+
+The `merge_faces.rs` site is fixed by PR 3532: `Body::edge_chord_len`
+there now takes the two start vertices the adjacency scan already
+resolved and returns `Result<T, DanglingRef>`, so a vertex or point
+that does not resolve refuses naming it and no `1` stands in for the
+arm. The two functions are no longer copies: `boolean/reduce.rs`'s
+free `edge_chord_len(body, edge) -> Option<T>` still walks
+edge → half-edges → vertices → points and folds every failure into
+`None`. What remains is that file's two sites: the default at
+`reduce.rs`'s declared-pair arm (`edge_chord_len(body, edge_key).unwrap_or_else(T::one)`,
+~`:606`) and the `Option`-returning helper itself (~`:653`). The fix
+there can follow the `merge_faces` shape (pass the resolved ends in, or
+return the key that failed) and still owes its scale twin.
+
+## The reduce.rs sites are gone (PR 3992, 2026-10-03)
+
+`boolean/reduce.rs`'s `edge_chord_len` and its `unwrap_or_else(T::one)`
+default are deleted. The maximal-faces gate now levers at the shared
+edge's extent (`readback::edge_extent`, `geom_brep::edge_extent` over
+the edge's certified carrier), and a lookup that fails on the way
+panics naming the record (D2 row 4); no length stands in. Rows:
+`boolean::reduce::neighbour_extent_rows::a_dangling_curve_panics_naming_the_edge`
+(a mutant restoring a `1` default reds it), and the scale twin
+`neighbours_across_a_closed_edge::a_disc_on_its_hosts_plane_refuses_as_coplanar_neighbours`
+(the same pair at 1e-3, 1 and 1e3). The merge's site no longer reads an
+edge length at all: it levers at the pair's reach
+(`boolean::rest::pair_extent`). Nothing of this row remains open that
+this branch knows of; its owner closes it.

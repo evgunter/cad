@@ -29,7 +29,7 @@ const L_PROFILE: [(f64, f64); 6] = [
 
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 
@@ -59,7 +59,7 @@ fn crossings(errors: &[ValidationError]) -> Vec<&ValidationError> {
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeFacePierce { .. }
                         | CensusContact::EdgeEdgeCross { .. },
                     ..
@@ -155,28 +155,29 @@ fn the_straddle_declared_as_far_as_the_vocabulary_reaches() {
         .expect_err("the undeclared touches refuse");
     let mut records = ContactRecords::default();
     for e in &errors {
-        if let ValidationError::UndeclaredContact {
+        if let ValidationError::UnrecordedContact {
             contact: CensusContact::VertexOnFace { vertex, face },
             ..
         } = e
         {
-            records.b_on_a.push(VfContact {
-                vertex: *vertex,
-                face: *face,
-            });
+            records.extend([topo::Cited::new(
+                topo::Contact::new(&body, topo::Cell::Vertex(*vertex), topo::Cell::Face(*face))
+                    .unwrap(),
+                topo::Cites::decided(0),
+            )]);
         }
     }
     let residue = validate_pseudomanifold(&body, &records, Tol::witness());
     println!(
         "straddle declared ({} v-on-f records): {residue:?}",
-        records.b_on_a.len()
+        records.vertex_face().count()
     );
     let kinds: Vec<String> = match &residue {
         Ok(()) => vec![],
         Err(errs) => errs
             .iter()
             .map(|e| match e {
-                ValidationError::UndeclaredContact { contact, .. } => {
+                ValidationError::UnrecordedContact { contact, .. } => {
                     format!("Undeclared:{}", contact_kind(contact))
                 }
                 other => format!("{other:?}").chars().take(40).collect(),
@@ -241,7 +242,7 @@ fn a_pierce_between_a_and_c_leaves_the_a_b_pair_to_its_own_findings() {
     let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
     let piercer = common::brick::<f64>((2.3, 2.7), (-0.5, 0.5), (0.3, 0.7), Tol::witness());
     let mut body = assembly(&l.body, &part);
-    topo::graft_disjoint(&mut body, &piercer, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &piercer).unwrap();
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("the pierce refuses");
     assert!(!crossings(&errors).is_empty(), "{errors:?}");
@@ -283,7 +284,7 @@ fn a_hollow_part_in_the_concavity_clears() {
             .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
             .collect(),
     };
-    insert_void(&mut part, solid, hole, &evidence, Tol::witness()).unwrap();
+    insert_void(&mut part, solid, hole, &evidence).unwrap();
     assert_eq!(part.shells().count(), 2);
     let body = assembly(&l.body, &part);
     assert_eq!(
@@ -304,9 +305,8 @@ fn a_hollow_part_in_the_concavity_clears() {
 fn the_per_solid_door_reads_the_container_s_own_sign_at_infinity() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    let complement = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness())
-        .revert()
-        .unwrap();
+    let complement =
+        common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()).revert();
     let far = common::brick::<f64>((50.0, 53.0), (50.0, 53.0), (50.0, 53.0), Tol::witness());
     let body = assembly(&complement, &far);
     let [comp, _] = solids(&body)[..] else {
@@ -412,7 +412,7 @@ fn a_vertex_touching_straddler_is_decided_by_its_inside_corner() {
     let touches: Vec<VfContact> = errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::VertexOnFace { vertex, face },
                 ..
             } => Some(VfContact {
@@ -449,10 +449,12 @@ fn a_vertex_touching_straddler_is_decided_by_its_inside_corner() {
         1,
         "{errors:?}"
     );
-    let records = ContactRecords {
-        b_on_a: touches,
-        ..Default::default()
-    };
+    let records = topo::test_support::records(
+        &body,
+        touches
+            .into_iter()
+            .map(|c| (topo::Cell::Vertex(c.vertex), topo::Cell::Face(c.face))),
+    );
     let declared = validate_pseudomanifold(&body, &records, tol).unwrap_err();
     assert_eq!(declared.len(), 1, "{declared:?}");
     assert!(inside_corner(&declared[0]), "{declared:?}");

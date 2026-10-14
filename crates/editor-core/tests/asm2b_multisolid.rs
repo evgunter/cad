@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
@@ -24,7 +25,8 @@ use geom_core::Tol;
 
 // ---- Evaluation through the shared part store ----
 
-/// A one-solid part: a unit square extruded 1 tall, centered at `cx`.
+/// A one-solid part: a unit square extruded 1 tall, centered at `cx`,
+/// placed in its world.
 fn part(label: &str, cx: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
@@ -34,17 +36,19 @@ fn part(label: &str, cx: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, 0.5)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
-    doc
+    fixture::place(doc, body).0
 }
 
-/// An assembly instantiating `refs` in order, each a root, the i-th
+/// An assembly instantiating `refs` in order, each placed in the world
+/// at the identity, the i-th
 /// displaced `spacing * i` along +x so the solids stay disjoint.
 fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -57,16 +61,19 @@ fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<Reci
             let dx = spacing * i as f64;
             let (next, _) = step(
                 doc,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(&Frame::translation([
+                        dx, 0.0, 0.0,
+                    ]))),
+                    fresh: Vec::new(),
                 },
             );
             doc = next;
         }
         ids.push(id);
     }
-    (doc, ids)
+    (fixture::place_all(doc, &ids), ids)
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
@@ -80,11 +87,7 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 /// comparing the two sorted lists pairs each vertex with its own moved
 /// self, and every difference must be the translation exactly.
 fn xs(body: &topo::Body<f64>) -> Vec<f64> {
-    let mut v: Vec<f64> = body
-        .vertices()
-        .filter_map(|(_, e)| body.get_point(e.point))
-        .map(|p| p.x)
-        .collect();
+    let mut v: Vec<f64> = body.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
     v.sort_by(f64::total_cmp);
     v
 }
@@ -163,7 +166,8 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
 // ---- Row 3: names across all N solids, doubly wrapped ----
 
 /// Row 3 — every name of a doubly-nested instance is
-/// `InPart(InPart(part-local))` minted at the OUTER instantiate node;
+/// `InPart(Placed(InPart(Placed(part-local))))` minted at the OUTER
+/// instantiate node, each level's copy named under its placement (A10);
 /// the four copies' name sets are pairwise disjoint; and each name
 /// resolves to its own copy (the cross-wiring probe).
 #[test]
@@ -181,8 +185,8 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
     }
 
     // Shape: the body name is the instance's own output; every other
-    // name wraps a name that itself wraps a part-local one — the
-    // sub-assembly's instantiate node is the inner minter.
+    // name wraps the sub-assembly's copy of a name that itself wraps a
+    // part-local one — the sub-assembly's placements mint its copies.
     let mut inner_nodes = std::collections::BTreeSet::new();
     for (names, node) in [(&a, a_ids[0]), (&b, a_ids[1])] {
         for name in names {
@@ -190,9 +194,11 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
             match &name.path[..] {
                 [RoleSeg::InPart { of }] => {
                     assert_eq!(of.kind, name.kind, "the wrapper preserves the kind");
-                    match &of.path[..] {
+                    let (_, copied) = of.copy_of().expect("the sub-assembly's copy");
+                    match &copied.path[..] {
                         [RoleSeg::InPart { of: inner }] => {
                             assert_eq!(inner.kind, name.kind);
+                            assert!(inner.copy_of().is_some(), "the part's copy: {inner:?}");
                             inner_nodes.insert(of.node);
                         }
                         other => panic!("expected a doubly wrapped name, got {other:?}"),
@@ -206,32 +212,53 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
     assert_eq!(
         inner_nodes.len(),
         2,
-        "the two solids come from the sub-assembly's two instantiate nodes"
+        "the two solids come from the sub-assembly's two placements"
     );
 
     // Cross-wiring probe: one part-local vertex name, wrapped under
     // each of the four (outer, inner) pairs, lands in FOUR distinct
-    // positions — one per copy.
+    // positions — one per copy. The inner halves are the sub-assembly's
+    // two copies of that one part-local vertex.
+    let wrapped = |name: &StableName| -> StableName {
+        let [RoleSeg::InPart { of }] = &name.path[..] else {
+            panic!("wrapped: {name:?}");
+        };
+        (**of).clone()
+    };
+    let part_local = |inner: &StableName| -> StableName {
+        let (_, copied) = inner.copy_of().expect("a copy");
+        let [RoleSeg::InPart { of }] = &copied.path[..] else {
+            panic!("wrapped: {copied:?}");
+        };
+        (**of).clone()
+    };
     let vertex = a
         .iter()
         .find(|n| n.kind == EntityKind::Vertex)
         .expect("a vertex name");
-    let RoleSeg::InPart { of: inner } = &vertex.path[0] else {
-        panic!("wrapped");
-    };
+    let core = part_local(&wrapped(vertex));
+    let inners: Vec<StableName> = a
+        .iter()
+        .filter(|n| n.kind == EntityKind::Vertex)
+        .map(wrapped)
+        .filter(|inner| part_local(inner) == core)
+        .collect();
+    assert_eq!(
+        inners
+            .iter()
+            .map(|inner| inner.node)
+            .collect::<std::collections::BTreeSet<_>>(),
+        inner_nodes,
+        "one copy of the vertex under each of the sub-assembly's placements"
+    );
     let mut seen = std::collections::BTreeSet::new();
     for outer in &a_ids {
-        for inner_node in &inner_nodes {
+        for inner in &inners {
             let name = StableName {
                 kind: vertex.kind,
                 node: *outer,
                 path: vec![RoleSeg::InPart {
-                    of: StableName {
-                        kind: inner.kind,
-                        node: *inner_node,
-                        path: inner.path.clone(),
-                    }
-                    .into(),
+                    of: inner.clone().into(),
                 }],
             };
             let p = editor_core::vertex_position(&ev, *outer, &name).expect("resolves");
@@ -282,7 +309,7 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
 
 // ---- Row 4: placements over a multi-solid instance ----
 
-/// Row 4 — `SetPlacement` on a multi-solid instance moves ALL of its
+/// Row 4 — `SetOffset` on a multi-solid instance moves ALL of its
 /// solids rigidly (every vertex x by exactly the translation, volume
 /// unchanged bit for bit), and the document's content pin moves with
 /// the edit.
@@ -301,9 +328,12 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
 
     let (moved, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([7.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                7.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(
@@ -331,6 +361,11 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
 
 /// FNV-1a 64 over an evaluation's name tables in node order, arena
 /// keys included — the replay-identity digest (M4 PR 3's shape).
+///
+/// The assembly's own node ids are read as their positions in its
+/// evaluation order: an instance's id is minted from its insert, which
+/// states the part's content pin, and the pin covers the part's
+/// recorded ε, so the id itself moves with CI's ε row.
 fn digest(ev: &Evaluation<f64>) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let mut feed = |s: &str| {
@@ -339,11 +374,16 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
             h = h.wrapping_mul(0x1000_0000_01b3);
         }
     };
-    for id in &ev.order {
-        feed(&format!("#{id:?}"));
+    let at_position = |text: String| {
+        ev.order.iter().enumerate().fold(text, |text, (at, id)| {
+            text.replace(&format!("{id:?}"), &format!("RecipeNodeId(@{at})"))
+        })
+    };
+    for (at, id) in ev.order.iter().enumerate() {
+        feed(&format!("#{at}"));
         if let Some(v) = ev.value(*id) {
             for (n, e) in v.name_table.iter() {
-                feed(&format!("{n:?}={e:?};"));
+                feed(&at_position(format!("{n:?}={e:?};")));
             }
         }
     }
@@ -365,15 +405,16 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// pinned byte-wise where it is ε-free (`pncad`'s `plate_param`
 /// fixture) and observed here as a round-trip.
 ///
-/// RE-BLESSED for the sketch frame: the digest feeds node ids and
-/// `StableName`s, and a profile's plane became a node, so the part
-/// gained one and its later nodes renumbered. The VOLUME bits and the
-/// solid count beside it are id-free and did not move, which is the
-/// half of this row that is about geometry. Re-blessed again when a
-/// profile's pieces became named by minted step ids: the walls' names
-/// spell `{ step, role }` where they spelled a canonical position, and
-/// the volume and solid count did not move.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 10_137_957_801_290_129_231;
+/// The digest feeds node ids and `StableName`s, so it moves whenever
+/// the mint gives the part's nodes or steps other ids; the VOLUME bits
+/// and the solid count beside it are id-free, which is the half of this
+/// row that is about geometry.
+/// INTENT-LITERALS PR C moved it — a node's id is minted from slots
+/// holding variable ids — and only it. INTENT stage 2 C moved it again
+/// (the world placements are nodes of their own, and a part's names
+/// reach an instance under its placement's copy) with the volume bits
+/// and the solid count held.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 16_284_647_170_726_297_371;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

@@ -448,7 +448,7 @@ prints the two under their own column names, on adjacent lines, so a
 phrase in an older document is resolved by reading the report rather
 than by trusting a transcription of one.
 
-Over the whole tour, at each scene's own δ:
+Over the whole tour, each body at the δ the tour renders it at:
 
 ```
 1025 faces, 1,149,528 triangles

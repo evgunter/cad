@@ -9,7 +9,7 @@ cost: E
 ---
 
 Seen by the `preview-error-picks-its-tone-by-hand-in-a-comment` lane
-(2026-09-28): `app::properties_pane_tests::an_undeclared_parameter_is_said_once_in_the_pane`
+(2026-09-28): `app::properties_pane_tests::an_undeclared_variable_is_said_once_in_the_pane`
 failed under a full parallel `cargo test -p viewer --features app --lib`
 and passed alone. The lane read the failing frame as one that caught an
 evaluation still running.

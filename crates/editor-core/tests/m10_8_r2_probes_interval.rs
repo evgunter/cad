@@ -20,13 +20,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
+use editor_core::ExtrudeSide;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
-    select_where,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::{SymRules, Tol};
 
@@ -34,8 +34,8 @@ use crate::fixture::{Recorder, len, len2, scl, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::nominal_box;
 
-fn plen(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn plen(n: &'static str) -> Formula {
+    Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The pad's half-width and half-height, in metres.
@@ -52,17 +52,17 @@ const BORE: f64 = 1.0e-3;
 ///
 /// `scale` multiplies every tolerance, so `1.0` is the study a user
 /// would ask for.
-pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::Continuous {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static(n),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     declare(
@@ -113,18 +113,19 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
         ProgramStep::CloseTo,
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![pad_loop],
         ids: Vec::new(),
     }));
     let thickness = len(1.2e-3);
     let body = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: thickness.clone(),
+        side: ExtrudeSide::Along,
     });
 
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: plen("bore_r"),
@@ -132,8 +133,9 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_profile,
+        profile: bore_profile.into(),
         distance: thickness,
+        side: ExtrudeSide::Along,
     });
 
     let refs = {
@@ -144,14 +146,14 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,
@@ -166,21 +168,19 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
     };
 
     // web = distance(corner wall, bore wall) − corner_r − bore_r.
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(
-            MeasureExpr::value(plen("corner_r")),
-            MeasureExpr::value(plen("bore_r")),
-        )
-        .expect("Length + Length"),
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let web = Formula::sub(
+        r.len_of(measured.outputs[0]),
+        Formula::add(plen("corner_r"), plen("bore_r")).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
+
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: web,
         bound: len(0.0),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
+    let measure = crate::fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
 }
 
@@ -255,10 +255,7 @@ fn r2_end_to_end_rounded_pad_study() {
                 &analyzed,
                 &DriveConfig {
                     max_leaves: 64,
-                    symbolic: SymbolicDials {
-                        rules,
-                        ..SymbolicDials::default()
-                    },
+                    symbolic: crate::m10_8_harness::dials(rules),
                     ..DriveConfig::default()
                 },
                 tol,

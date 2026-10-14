@@ -178,7 +178,7 @@ turned into a design constraint rather than worked around.
 **The measurement, per shape, as a RETRY at the nominal, on five of the
 six documents** (the dev nominal replay; R2's rounded pad does not
 return one on the measuring box —
-`work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`):
+`work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`):
 
 | shape, as a RETRY | plate | annulus | boss | bracket | link |
 | --- | --- | --- | --- | --- | --- |

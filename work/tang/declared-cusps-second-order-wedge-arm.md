@@ -2,12 +2,13 @@
 id: declared-cusps-second-order-wedge-arm
 kind: issue
 title: Implementation - declared cusps, the second-order wedge arm (#131 ruling)
-status: open
+status: parked
 opened: 2026-08-23
 github: 941
 refs: [131, 1423, 1439]
 priority: P1
 cost: H
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## From GitHub issue 941
@@ -20,7 +21,7 @@ Inventory, roughly in dependency order:
 
 1. **The material-side wedge check** (the named deferral in `crates/topo/src/validate.rs`, "what tier 3 does NOT yet check"). Today's dihedral pass is unsigned — wedge 0, 2π, and the legal π all classify `Smooth` (`crates/geom-brep/src/dihedral.rs`, `DihedralClass::{Transverse, Smooth}`), so the ratified invariant has no enforcement at all. Build the edge-local material pairing and implement the full verdict table: transverse with θ = ε/r margin legal; π legal (smooth seam); 0/2π legal iff declared + κ_rel margin; osculation escalates; undeclared refuses; lamina (conformal patch) refuses. Revert symmetry is a test obligation: `revert` maps a valid declared-cusp body to a valid declared-slit body, bit-faithfully.
 2. **The authoring door** (PATHS): a cusp analogue of `.tangent()` that authors the reverse-tangent junction exactly and emits the declaration; retire `PathError::JunctionCusp`'s "there is no declaration door for cusps" text (pinned by `crates/profile/tests/path_property.rs::turn_pi_refuses_as_cusp_naming_the_absent_declaration_door`) in favor of naming the verb. The profile *data* gate already accepts declared carrier-tangent cusp joints (`judge_joints` is direction-agnostic; `crates/profile/tests/declared_tangency.rs`), so only the algebra needs the verb.
-3. **Boolean routing**: the curved crossing layer today returns byte-identical `CurvedPierceUnsupported` errors for an exact kiss and a 25% interpenetration (`boolean/reduce.rs`, the `bool_circle_curved_clearance` arm collapses `Zero | Negative`). When that layer lands, definite-tangent must route to the declaration ladder (declared ⇒ build the cusp/slit edge from the closed-form locus; undeclared ⇒ the undeclared-tangency refusal), never to the pierce frontier. The locus side already exists: `cylinder_cylinder_section` returns the exact `TangentLine`, and `tangent_locus` (M9-2) certifies the parallel-cylinder kiss.
+3. **Boolean routing**: the curved crossing layer today returns byte-identical `CurvedPierceUnsupported` errors for an exact kiss and a 25% interpenetration (`boolean/reduce.rs`, the `bool_conic_curved_clearance` arm collapses `Zero | Negative`). When that layer lands, definite-tangent must route to the declaration ladder (declared ⇒ build the cusp/slit edge from the closed-form locus; undeclared ⇒ the undeclared-tangency refusal), never to the pierce frontier. The locus side already exists: `cylinder_cylinder_section` returns the exact `TangentLine`, and `tangent_locus` (M9-2) certifies the parallel-cylinder kiss.
 4. **M9-3 emission**: the join-lane spec admits `Rest` + `Tangent` declarations but only reconciles the wedge-π tube chain; a declared-`Tangent` join whose result carries material on one side of the locus emits a wedge-0/2π edge under this ruling (or the F2 doubled form). The spec needs that arm before `Tangent` joins ship.
 5. **Consumer sweep**: every wedge-conditioned consumer names its wedge-0/2π answer or refuses typed at the consumer — fillet/chamfer (a knife edge is unfilletable at any radius), offset/shell, mesh (normal conditioning and sizing at the cusp band — anisotropic-sliver territory), boolean sector classification, export. Typed refusal is an acceptable first answer everywhere; silence is not.
 
@@ -60,13 +61,16 @@ executed on its branch. Item 3 is now where the boolean's wedge-end
 door has to go: since PR 3362, tier 3 passes a jet-determinate cusp
 nobody declared, so the refusal has to be the op's.
 
-- **Declared kisses still reach the pierce frontier.** Two unit
-  cylinders kissing externally (`(0,0)` and `(2,0)`), unioned with
-  each side-face pair declared `Tangent`, return
-  `CurvedPierceUnsupported` for every pair. A cylinder kissing a box
-  face along a ruling, declared `Tangent` on the right pair, gives the
-  same result. The declaration verifies and the crossing layer then
-  refuses.
+- **An external kiss is not this arm's.** Two unit cylinders kissing
+  externally (`(0,0)` and `(2,0)`) leave no junction under any op: C7
+  (`crates/topo/README.md`) reads them as two solids touching along the
+  ruling, and every op answers since PR 4781
+  (`wedge_end_doors::two_discs_kissing_externally_touch_at_every_op`,
+  `verbs_cylcyl_r1_review_probes::externally_tangent_walls_touch_at_every_op`).
+  A box whose edge lies on a cylinder's ruling, the two edges coincident
+  end to end, answers the same; staggered, it refuses
+  `CurvedBooleanUnsupported`
+  (`work/contacthold/a-same-side-slab-past-the-round-stops-at-curved-boolean-unsupported.md`).
 - **An internal kiss has no declaration.** A subtract of an internally
   tangent cylinder (`(0,1) r 1` out of `(0,2) r 2`) would leave the
   profile's lune as a solid. Declared `Tangent` on each of the four
@@ -75,8 +79,35 @@ nobody declared, so the refusal has to be the op's.
   only. When item 3 lands, the boolean form of a crescent has no
   declaration to route through. The profile's `.cusp()` is its only
   author.
-- The undeclared rows are pinned in
+- The rows that would build a wedge end are pinned in
   `crates/sweep/tests/wedge_end_doors.rs`
-  (`a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op`).
-  That row names the frontier's refusal kinds, so it will go red when
-  this item lands and has to move to the undeclared-tangency refusal.
+  (`a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op`):
+  the internal kiss's subtract and a plane cutter tangent to a hole
+  wall. That row names the frontier's refusal kinds, so it goes red
+  when this item lands.
+
+## Note from CLEAVE (2026-10-03): the interior-locus case is this arm's, and is live
+
+CLEAVE's designer pair on `work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md` converged that a declared `Tangent` union whose locus is interior to a face (a rod resting on a plate along a ruling) is item 4's doubled form — two coincident distinct wedge-2π slit edges, one shell, no record — and that the two-row answer DEV-1 shipped deviates from it. Reachable today through two public unions (declared rest, then a bridge) to a one-shell body with an edgeless contact that every at-rest gate passes. Measured: the zero-area two-edge ring the doubled form puts on a plane face passes every validator today; the owed consumer arm is `sector_shape` (a ~2π sector between two distinct coincident edges) and split's reduce / the boolean's sectors through it. Restore the C7 sentence `585b3422f` dropped. CLEAVE lands the interim typed refusal (`cleave/tangent-interior-refuse`); the arm stays here.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: its open items route a definite tangency to the declaration ladder (a Tangent declaration, a stored tangent-joint flag); both retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Re-pointed by stage 4 G (`tangent-joints-are-derived`)
+
+G retired the stored tangent-joint flag: a profile's cusp joint is now
+constructed (`.cusp()`) or decided Zero from its carriers and recorded
+as `Relation::Tangent { aligned: false }`, and a raw-authored cusp
+builds the same strut (`sweep/tests/a_swept_cusp_is_legal_at_rest.rs`,
+`a_raw_authored_cusp_is_legal_like_the_door`). What is left is the
+boolean's half (items 3 and 4: a Tangent declaration routing a definite
+tangency), which waits on stage 4 E (`booleans-glue-on-zero`).
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.
+
+## Parked on INTENT stage 4 (2026-10-12)
+
+This row acts on declared contacts: a declared `Seam` / `Rest` pair, or a declared tangency. D10's stage 4 retires the declared pairs, the undeclared refusals and the stored tangent-joint flags, so widening it now would widen a path D10 is removing. It is parked on `intent-stage4-is-built` and is re-read against the built code when that row closes (TANG orchestrator).

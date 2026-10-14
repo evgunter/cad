@@ -10,6 +10,7 @@ use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::arms::chamfer_strip;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
@@ -29,9 +30,8 @@ const D: f64 = 0.1;
 /// two bodies' vertex SETS can be compared bit for bit.
 fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
     let mut pts: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(k, _)| body.get_vertex(k))
-        .filter_map(|v| body.get_point(v.point))
+        .vertex_points()
+        .map(|(_, p)| p)
         .map(|p| (p.x, p.y, p.z))
         .collect();
     pts.sort_by(|a, b| a.partial_cmp(b).expect("finite coordinates"));
@@ -46,8 +46,13 @@ fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
 #[test]
 fn the_chamfered_cube() {
     let body = cube(L, Tol::witness());
-    let out = chamfer_edges(&body, &query::all_edges(&body), D, Tol::witness())
-        .expect("a cube's twelve edges chamfer");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &query::all_edges(&body),
+        D,
+        Tol::witness(),
+    )
+    .expect("a cube's twelve edges chamfer");
     let out_body = out.body;
 
     assert_eq!(topo::validate(&out_body), Ok(()), "tier 1");
@@ -107,7 +112,13 @@ fn the_chamfered_cube() {
 fn the_chamfer_records_every_birth_and_death() {
     let body = cube(L, Tol::witness());
     let source_edges = query::all_edges(&body);
-    let out = chamfer_edges(&body, &source_edges, D, Tol::witness()).expect("chamfers");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &source_edges,
+        D,
+        Tol::witness(),
+    )
+    .expect("chamfers");
     let rec = out.naming.expect("the surgery is the only producer");
 
     assert_eq!(rec.blends.len(), 12, "a strip per source edge");
@@ -165,7 +176,7 @@ fn the_chamfer_records_every_birth_and_death() {
 /// something either form promises.
 #[test]
 fn fillet_and_chamfer_agree_on_a_right_corner() {
-    let body = cube(L, Tol::witness());
+    let body = sweep::test_support::finished("body", cube(L, Tol::witness()), Tol::witness());
     let edges = query::all_edges(&body);
     let filleted = fillet_edges(&body, &edges, D, Tol::witness()).expect("fillets");
     let chamfered = chamfer_edges(&body, &edges, D, Tol::witness()).expect("chamfers");
@@ -195,13 +206,7 @@ fn fillet_and_chamfer_agree_on_a_right_corner() {
     for w in &want {
         let near = got
             .iter()
-            .filter(|g| {
-                (g.0 - w.0)
-                    .abs()
-                    .max((g.1 - w.1).abs())
-                    .max((g.2 - w.2).abs())
-                    <= 1e-15
-            })
+            .filter(|g| Vec3::new(g.0 - w.0, g.1 - w.1, g.2 - w.2).norm_inf() <= 1e-15)
             .count();
         assert_eq!(
             near, 1,
@@ -210,24 +215,28 @@ fn fillet_and_chamfer_agree_on_a_right_corner() {
     }
 }
 
-/// **A partial request refuses typed as a RUN-OUT** — the first thing
-/// a consumer tries. One edge of a cube terminates at two trivalent
-/// corners whose other four edges are not requested, which is a
-/// property of the REQUEST, not of the corners' configuration.
+/// **One edge of a cube is cut off at both end faces** — the first
+/// thing a consumer tries. Each end is a trivalent corner whose other
+/// two edges are not requested, so the band ends in each end face's
+/// plane section: a chord, the strip a prism of section `d²/2`.
 #[test]
-fn one_edge_of_a_cube_refuses_as_a_run_out() {
+fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
     let body = cube(L, Tol::witness());
     let edges = query::all_edges(&body);
-    let err = chamfer_edges(&body, &edges[..1], D, Tol::witness())
-        .expect_err("a partially-requested corner is a run-out");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges[..1],
+        D,
+        Tol::witness(),
+    )
+    .expect("one edge of a cube chamfers");
+    let removed = L.powi(3)
+        - topo::mass_properties(&out.body, Tol::witness())
+            .expect("closed-form props")
+            .volume;
     assert!(
-        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
-        "the request's coverage is what ran out: {err:?}"
-    );
-    let text = format!("{err}");
-    assert!(
-        text.contains("not implemented"),
-        "the refusal names the unbuilt door: {text}"
+        (removed - D * D / 2.0 * L).abs() < 1e-12,
+        "the strip removes its prism: {removed}"
     );
 }
 
@@ -239,8 +248,13 @@ fn one_edge_of_a_cube_refuses_as_a_run_out() {
 fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
     let cyl = cylinder(0.5, 1.0);
     let edges = query::all_edges(&cyl);
-    let err = chamfer_edges(&cyl, &edges, D, Tol::witness())
-        .expect_err("a plane–cylinder rim has no ruled strip");
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&cyl, Tol::witness()),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .expect_err("a plane–cylinder rim has no ruled strip");
     assert!(
         matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
         "the arm table is what refused: {err:?}"
@@ -264,8 +278,13 @@ fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
 fn an_l_brackets_inner_edge_refuses_on_its_corner_configuration() {
     let bracket = l_bracket();
     let inner = concave_edge(&bracket);
-    let err = chamfer_edges(&bracket, &[inner], D, Tol::witness())
-        .expect_err("v1 does not chamfer a concave edge");
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&bracket, Tol::witness()),
+        &[inner],
+        D,
+        Tol::witness(),
+    )
+    .expect_err("v1 does not chamfer a concave edge");
     match err.error {
         BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },
@@ -325,9 +344,16 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a circle is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a circular prism")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a circular prism")
+    .body
 }
 
 /// An L-bracket: the six-vertex L profile extruded by 1 m. Its one
@@ -349,9 +375,16 @@ fn l_bracket() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the L is a valid profile");
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .expect("the bracket extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the bracket extrudes")
+    .body
 }
 
 /// The bracket's one concave edge: the vertical wall–wall edge over the

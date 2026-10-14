@@ -4,8 +4,9 @@
 //! A name's own [`StableName::node`] is the node whose op EMITTED it,
 //! which is not the same question. A fillet emits a name for every
 //! entity of its output, its target's untouched faces included:
-//! `FromTarget(inner)` says "this is the target's entity `inner`,
-//! carried through", and `inner` carries the target's own node. So the
+//! `From { read, of: inner }` says "this is the entity `inner` of the
+//! target `read`, carried through", and `inner` carries the target's own
+//! node. So the
 //! node a drawn face should be attributed to is found by descending
 //! the carry-through segments until a CREATING role is reached, and
 //! the entity was minted where that descent stops.
@@ -14,12 +15,13 @@
 //!
 //! Only the OUTERMOST segment decides ([`RolePath`](super::RolePath)'s
 //! composition puts the op's own role first and its qualifiers after,
-//! so `[FromA(f), Fragment(q)]` is "A's face `f`, the `q` piece of it"
+//! so `[From { read, of: f }, Fragment(q)]` is "face `f` of `read`, the
+//! `q` piece of it"
 //! — carried, not minted). Three answers exist and each is a
 //! statement about the entity, not about the op:
 //!
 //! - **carried** — the entity existed in an operand and this op passed
-//!   it through, whole (`FromA`/`FromB`/`FromTarget`), copied
+//!   it through, whole (`From`), copied
 //!   (`Instance`, `OnToolVertex`) or shortened (`SplitFragment`,
 //!   `BandCut`). The argument IS the operand's name, so the walk
 //!   continues there;
@@ -38,7 +40,7 @@
 //! ORIGINAL minting node in [`StableName::node`] by construction, so
 //! the walk answers it without ever seeing the op.
 
-use crate::names::role::{RoleSeg, StableName, name_free_seg};
+use crate::names::role::{RoleSeg, SplitHalf, StableName, name_free_seg};
 use crate::node::RecipeNodeId;
 
 /// **Where a named entity came from**: the recipe nodes its derivation
@@ -79,18 +81,40 @@ impl NameOrigin {
 }
 
 /// What one role segment says about the entity it names.
-enum SegOrigin<'a> {
-    /// The entity existed in an operand; the name is its name there.
-    Carried(&'a StableName),
+pub(crate) enum SegOrigin<'a> {
+    /// The entity existed in an operand; the name is its name there,
+    /// and the [`CarriedAs`] says what the op did to it on the way.
+    Carried(&'a StableName, CarriedAs),
     /// This op made the entity.
     Minted,
     /// A segment the partition does not place.
     Unclassified,
 }
 
+/// **How an operand's entity was carried through** — the module docs'
+/// three ways, with what tells two carried copies of one entity apart.
+#[derive(Clone, Copy)]
+pub(crate) enum CarriedAs {
+    /// Passed through whole from the input the op read through `read`:
+    /// a member, a seat or a target.
+    From(crate::VarId),
+    /// Copied into the product's world by a world placement, the same
+    /// entity at another pose.
+    Placed,
+    /// Shortened to the part on one side of a split.
+    Split(SplitHalf),
+    /// Copied onto one side of a split, where the tool plane passed
+    /// through it.
+    ToolCopy(SplitHalf),
+    /// Copied into a pattern's instance `i`.
+    Instance(u32),
+    /// Shortened where a blend band's trimline cut it.
+    Cut,
+}
+
 /// Read the outermost segment's verdict — the whole classification,
 /// stated once (module docs).
-fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
+pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
     match seg {
         // The name-free roles are the sweep, split and boolean
         // primitives: an entity born of the recipe rather than of an
@@ -99,20 +123,20 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
 
         // Carried through: the argument is the entity's own name one
         // level down.
-        RoleSeg::FromA(of)
-        | RoleSeg::FromB(of)
-        | RoleSeg::FromMember { of, .. }
-        | RoleSeg::FromTarget(of)
-        | RoleSeg::SplitFragment { parent: of, .. }
-        | RoleSeg::OnToolVertex { of, .. }
-        | RoleSeg::Instance { of, .. }
-        | RoleSeg::BandCut(of) => SegOrigin::Carried(of),
+        RoleSeg::From { read, of } => SegOrigin::Carried(of, CarriedAs::From(*read)),
+        RoleSeg::Placed { of } => SegOrigin::Carried(of, CarriedAs::Placed),
+        RoleSeg::SplitFragment { parent, side } => SegOrigin::Carried(parent, CarriedAs::Split(*side)),
+        RoleSeg::OnToolVertex { of, side } => SegOrigin::Carried(of, CarriedAs::ToolCopy(*side)),
+        RoleSeg::Instance { of, i } => SegOrigin::Carried(of, CarriedAs::Instance(*i)),
+        RoleSeg::BandCut(of) => SegOrigin::Carried(of, CarriedAs::Cut),
 
         // Minted here. The names these carry are the entities the op
         // worked AGAINST — a blend's source edge, a seam's two
         // crossing faces, a section's operand face — and the entity
         // named is none of them.
         RoleSeg::Seam { .. }
+        | RoleSeg::Crossing { .. }
+        | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::BlendFace(_)
@@ -120,6 +144,8 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -172,7 +198,7 @@ pub fn attribute(name: &StableName) -> NameOrigin {
             };
         };
         match origin(seg) {
-            SegOrigin::Carried(inner) => at = inner,
+            SegOrigin::Carried(inner, _) => at = inner,
             SegOrigin::Minted => {
                 let minted = Some(at.node);
                 return NameOrigin { chain, minted };
@@ -194,11 +220,11 @@ mod tests {
     use super::*;
     use crate::names::role::{CapEnd, EntityKind, ProfileEdgeRef, Qualifier};
 
-    const EXTRUDE: RecipeNodeId = RecipeNodeId(1);
-    const CUT: RecipeNodeId = RecipeNodeId(2);
-    const FILLET: RecipeNodeId = RecipeNodeId(3);
-    const PATTERN: RecipeNodeId = RecipeNodeId(4);
-    const INSTANCE: RecipeNodeId = RecipeNodeId(5);
+    const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1);
+    const CUT: RecipeNodeId = RecipeNodeId::new(0, 2);
+    const FILLET: RecipeNodeId = RecipeNodeId::new(0, 3);
+    const PATTERN: RecipeNodeId = RecipeNodeId::new(0, 4);
+    const INSTANCE: RecipeNodeId = RecipeNodeId::new(0, 5);
 
     /// A cap face of the extrude — a name-free role, minted where it
     /// is emitted.
@@ -216,10 +242,13 @@ mod tests {
         StableName {
             kind: EntityKind::Face,
             node: EXTRUDE,
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: crate::node::StepId(0),
-                role: crate::names::PieceRole::Leg,
-            })],
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: crate::node::StepId::new(0, 0),
+                    role: crate::names::PieceRole::Leg,
+                }
+                .into(),
+            )],
         }
     }
 
@@ -243,7 +272,7 @@ mod tests {
     /// extrude's, and the walk says so.
     #[test]
     fn a_carried_face_belongs_to_the_operand_it_came_from() {
-        let carried = crate::names::carried(FILLET, cap());
+        let carried = crate::names::carried(FILLET, crate::VarId::new(1, 77), cap());
         let it = attribute(&carried);
         assert_eq!(it.minted_by(), Some(EXTRUDE));
         assert_eq!(it.chain(), [FILLET, EXTRUDE].as_slice());
@@ -272,7 +301,10 @@ mod tests {
             kind: EntityKind::Face,
             node: CUT,
             path: vec![
-                RoleSeg::FromA(cap().into()),
+                RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: cap().into(),
+                },
                 RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
             ],
         };
@@ -283,8 +315,20 @@ mod tests {
     /// fillet is still the extrude's.
     #[test]
     fn the_walk_descends_as_far_as_the_carry_through_goes() {
-        let cut = at(CUT, RoleSeg::FromA(cap().into()));
-        let filleted = at(FILLET, RoleSeg::FromTarget(cut.into()));
+        let cut = at(
+            CUT,
+            RoleSeg::From {
+                read: crate::names::FOLD_A,
+                of: cap().into(),
+            },
+        );
+        let filleted = at(
+            FILLET,
+            RoleSeg::From {
+                read: crate::VarId::new(1, 77),
+                of: cut.into(),
+            },
+        );
         let it = attribute(&filleted);
         assert_eq!(it.minted_by(), Some(EXTRUDE));
         assert_eq!(it.chain(), [FILLET, CUT, EXTRUDE].as_slice());

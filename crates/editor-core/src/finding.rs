@@ -1,7 +1,7 @@
 //! **The document layer's finding sink** (DISCIPLINES-DESIGN DS8;
 //! #981 part 1): one composition and one list rendering for the
 //! layer's finding surfaces — the checks report and refusal, the
-//! undeclared-contact refusal, and the assembly at-rest gate — so a
+//! unrecorded-contact refusal, and the assembly at-rest gate — so a
 //! new finding kind plugs into a shared shape instead of hand-rolling
 //! another renderer.
 //!

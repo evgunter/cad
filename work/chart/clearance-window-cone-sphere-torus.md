@@ -4,7 +4,6 @@ kind: issue
 title: Cone, sphere and torus clearance windows keep M10-5's whole-carrier rectangles
 status: open
 opened: 2026-09-13
-refs: [clearance-window-tightening-needs-chart-boundary]
 priority: P1
 cost: H
 ---

@@ -12,6 +12,8 @@ use crate::common::operands::{slab as plate, three_arc_cylinder};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -29,8 +31,8 @@ fn boss() -> Body<f64> {
 
 #[test]
 fn the_boss_union_lands_end_to_end() {
-    let a = plate();
-    let b = boss();
+    let a = finished("the plate", plate(), Tol::witness());
+    let b = finished("the boss", boss(), Tol::witness());
     let out = topo::union(&a, &b, Tol::witness()).expect("the first transverse curved boolean");
     let body = &out.body().expect("a seamed result").body;
 
@@ -81,9 +83,10 @@ fn the_boss_union_lands_end_to_end() {
 #[test]
 fn the_curved_inventory_is_admitted_and_the_bogus_record_is_stale() {
     let b = boss();
-    let mut contacts = topo::ContactRecords::default();
-    let v = b.vertices().next().unwrap().0;
-    contacts.vv.push(topo::VvContact { a: v, b: v });
+    let mut vs = b.vertices().map(|(k, _)| k);
+    let (v, w) = (vs.next().unwrap(), vs.next().unwrap());
+    let contacts =
+        topo::test_support::records(&b, [(topo::Cell::Vertex(v), topo::Cell::Vertex(w))]);
     let errs = topo::validate_pseudomanifold(&b, &contacts, Tol::witness())
         .expect_err("the bogus record is refused");
     assert!(
@@ -94,7 +97,7 @@ fn the_curved_inventory_is_admitted_and_the_bogus_record_is_stale() {
     assert!(
         errs.iter()
             .any(|e| matches!(e, topo::ValidationError::StaleContactDeclaration { .. })),
-        "a == b is not a contact — the record is stale: {errs:?}"
+        "two vertices apart are not a contact — the record is stale: {errs:?}"
     );
 }
 
@@ -110,7 +113,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
     // The boss RESTING on the plate: sketched at the plate's top.
     let boss_on_top = three_arc_cylinder(Point2::new(2.0, 2.0), 0.5, 1.0, 0.6, 0.0);
     let mut body = a.clone();
-    topo::graft_disjoint(&mut body, &boss_on_top, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &boss_on_top).unwrap();
 
     // UNDECLARED: the census finds the boss cap's rim-joint vertices
     // resting on the plate's top face — the hard error, typed.
@@ -119,7 +122,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
             .expect_err("an undeclared touching assembly is the F1 hard error");
     assert!(
         errs.iter()
-            .any(|e| matches!(e, topo::ValidationError::UndeclaredContact { .. })),
+            .any(|e| matches!(e, topo::ValidationError::UnrecordedContact { .. })),
         "{errs:?}"
     );
     assert!(
@@ -144,18 +147,18 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
         })
         .expect("the plate's top face");
     let mut records = topo::ContactRecords::default();
-    for (vk, v) in body.vertices() {
-        let p = body.get_point(v.point).unwrap();
+    for (vk, p) in body.vertex_points() {
         let on_rim = (p.z - 1.0).abs() < 1e-9
             && ((p.x - 2.0).powi(2) + (p.y - 2.0).powi(2) - 0.25).abs() < 1e-9;
         if on_rim {
-            records.a_on_b.push(topo::VfContact {
-                vertex: vk,
-                face: top_face,
-            });
+            records.extend([topo::Cited::new(
+                topo::Contact::new(&body, topo::Cell::Vertex(vk), topo::Cell::Face(top_face))
+                    .unwrap(),
+                topo::Cites::decided(0),
+            )]);
         }
     }
-    assert_eq!(records.a_on_b.len(), 3, "the three arc joints");
+    assert_eq!(records.vertex_face().count(), 3, "the three arc joints");
     assert_eq!(
         topo::validate_pseudomanifold(&body, &records, Tol::witness()),
         Ok(()),
@@ -193,9 +196,16 @@ fn r1_cradle(bulge: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// **R1 probe (claim 1), FIXED by the union pass (F1): a conformal
@@ -234,7 +244,7 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
         "pin is tier-3"
     );
     let mut body = cradle.clone();
-    topo::graft_disjoint(&mut body, &pin, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &pin).unwrap();
     assert_eq!(
         topo::validate_geometric(&body, Tol::witness()),
         Ok(()),
@@ -269,27 +279,26 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
         "the backstop names the undecidable pair: {errs:?}"
     );
     // The DECLARED direction: a patch record naming the cross-key
-    // pair cannot certify either — it escalates through the chart
-    // predicate's divergence posture (PR deviation 1) or refuses
-    // typed; either way the honest lane for this real assembly class
-    // does not exist yet.
+    // pair certifies — both walls store their rows at rest, so the chart
+    // region measures the contact — and what is left is the backstop's
+    // refusal of the pairs nothing declares.
     let bite = faces[0];
     let pin_wall = *faces.last().unwrap();
     let mut records = topo::ContactRecords::default();
-    records.patches.push(topo::PatchContact {
-        face_a: bite,
-        face_b: pin_wall,
-    });
+    records.extend([topo::Cited::new(
+        topo::Contact::new(&body, topo::Cell::Face(bite), topo::Cell::Face(pin_wall)).unwrap(),
+        topo::Cites::decided(0),
+    )]);
     let errs = topo::validate_pseudomanifold(&body, &records, Tol::witness())
-        .expect_err("the cross-key record cannot certify");
+        .expect_err("the undeclared curved proximities still refuse");
+    let names =
+        |e: &topo::ValidationError, f: topo::FaceKey| format!("{e:?}").contains(&format!("{f:?}"));
     assert!(
-        errs.iter().any(|e| matches!(
-            e,
-            topo::ValidationError::CensusEscalated { .. }
-                | topo::ValidationError::CensusUnsupported { .. }
-                | topo::ValidationError::ContactContradicted { .. }
-        )),
-        "{errs:?}"
+        errs.iter().all(
+            |e| matches!(e, topo::ValidationError::CensusUndecidable { .. })
+                && !(names(e, bite) && names(e, pin_wall))
+        ),
+        "the declared pair certifies; only the backstop speaks, about other pairs: {errs:?}"
     );
 }
 
@@ -339,7 +348,10 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
         &Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap(),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -350,7 +362,7 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
         "plate is tier-3"
     );
     let mut body = plate.clone();
-    topo::graft_disjoint(&mut body, &ball, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &ball).unwrap();
     let verdict =
         topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
     println!("ball-cap-in-plate verdict: {verdict:?}");
@@ -363,7 +375,7 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
         errs.iter().any(|e| matches!(
             e,
             topo::ValidationError::CensusUndecidable { .. }
-                | topo::ValidationError::UndeclaredContact { .. }
+                | topo::ValidationError::UnrecordedContact { .. }
         )),
         "loud somehow: {errs:?}"
     );
@@ -395,7 +407,10 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
         &Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tol::witness())
             .unwrap(),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -438,7 +453,7 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
         "ball tier-3"
     );
     let mut body = pac.clone();
-    topo::graft_disjoint(&mut body, &ball, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &ball).unwrap();
     let verdict =
         topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
     println!("reflex-arc cap + tangent ball verdict: {verdict:?}");

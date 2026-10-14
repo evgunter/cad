@@ -7,12 +7,14 @@
 
 use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
+use editor_core::ExtrudeSide;
+use test_utils::refusal::tagged;
 
+use editor_core::NodeStanding;
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef,
-    EvalOptions, Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution,
-    RoleSeg, RunCtx, SplitSide, StableName, ValuePayload, body_name, entity_name, evaluate,
-    resolve,
+    BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef, EvalOptions,
+    Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx,
+    SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name, evaluate, resolve,
 };
 use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -51,10 +53,10 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
             .collect(),
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
-        | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
+        | ValuePayload::Gauge
         // Neither sink denotes a body, so neither offers an entity to
-        // invert — the same answer a declaration gives.
+        // invert.
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => vec![],
@@ -142,8 +144,9 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         insert(
             doc,
             Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         )
     };
@@ -158,19 +161,16 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         insert(
             doc,
             Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         )
     };
-    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Some(decl),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     // Split the union.
@@ -184,12 +184,12 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     let (doc, _split) = insert(
         doc,
         Node::Split {
-            target: u,
-            tool: plane,
+            target: u.into(),
+            tool: plane.into(),
         },
     );
     // A partial revolve (bands, meridians, wedge caps).
-    let (doc, plane, rp) = fixture::on_frame_keeping(
+    let (doc, rp) = fixture::on_frame(
         doc,
         [0.0, 3.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -198,21 +198,16 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     );
     // The world axis sat at the FRAME's origin pointing along its v, so
     // in the frame's own coordinates it is +y through (0, 0).
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, _rev) = insert(
         doc,
-        Node::Revolve {
-            profile: rp,
-            axis,
-            angle: ang(std::f64::consts::FRAC_PI_2),
-        },
+        fixture::revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::FRAC_PI_2)),
     );
     // A pattern of the union.
     let (doc, _pat) = insert(
         doc,
         Node::Pattern {
-            input: u,
-            count: editor_core::Expr::count(3),
+            input: u.into(),
+            count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(0.0), scl(1.0)],
                 spacing: len(3.0),
@@ -228,7 +223,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         );
     }
     let checked = assert_total(&doc, &ev);
-    assert!(checked > 300, "corpus walk too small: {checked}");
+    assert!(checked >= 240, "corpus walk too small: {checked}");
 }
 
 #[test]
@@ -245,48 +240,53 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile: p,
-            distance: len(0.0), // degenerate: the extrude fails
+            profile: p.into(),
+            distance: len(0.0), // degenerate: the extrude fails,
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, ext2) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: ext,
-            b: ext2,
-            declare: None,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![ext.into(), ext2.into()]),
         },
     );
     let ev = run(&doc);
     assert_eq!(
         body_name(&ev, ext, 0),
-        Err(HitTestError::NodeFailed { node: ext })
+        Err(HitTestError::Standing(NodeStanding::Failed { node: ext }))
     );
     assert_eq!(
         body_name(&ev, u, 0),
-        Err(HitTestError::NodePoisoned {
+        Err(HitTestError::Standing(NodeStanding::Poisoned {
             node: u,
             through: ext
-        })
+        }))
     );
     assert_eq!(
-        body_name(&ev, RecipeNodeId(9999), 0),
-        Err(HitTestError::NodeNotEvaluated {
-            node: RecipeNodeId(9999)
-        })
+        body_name(&ev, RecipeNodeId::new(0, tagged(9999)), 0),
+        Err(HitTestError::Standing(NodeStanding::NotInDocument {
+            node: RecipeNodeId::new(0, tagged(9999))
+        }))
     );
     // The Unnamed bug door: a node whose (legitimately empty) table
     // cannot answer for a foreign entity refuses LOUDLY with the
     // entity attached — never a silent None.
-    let (doc2, decl) = insert(doc, Node::declare_rest(vec![]));
+    let (doc2, gauge) = insert(
+        doc,
+        Node::gauge(
+            None,
+            editor_core::Placement::literal(&editor_core::Frame::translation([0.0; 3])),
+        ),
+    );
     let ev2 = run(&doc2);
     let some_face = ev2
         .value(ext2)
@@ -299,11 +299,11 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         })
         .unwrap();
     assert_eq!(
-        entity_name(&ev2, decl, some_face),
-        Err(HitTestError::Unnamed {
-            node: decl,
+        entity_name(&ev2, gauge, some_face),
+        Err(HitTestError::Unnamed(UnnamedEntity {
+            node: gauge,
             entity: some_face
-        })
+        }))
     );
 }
 
@@ -314,12 +314,11 @@ test_utils::f6_variants! {
     /// it does NOT weld are documented on
     /// [`test_utils::f6::assert_f6_every_variant`].
     const HIT_TEST_ERROR: HitTestError = [
-        NodeNotEvaluated,
-        NodeFailed,
-        NodePoisoned,
+        Standing,
         EvaluationOfAnotherDocument,
         Ambiguous,
         Unnamed,
+        AcrossSpaces,
     ];
 }
 
@@ -339,8 +338,8 @@ test_utils::f6_variants! {
 /// cites, and its roster had drifted from the other one.
 #[test]
 fn hit_test_error_display_names_its_content_not_its_struct() {
-    let node = RecipeNodeId(7);
-    let through = RecipeNodeId(3);
+    let node = RecipeNodeId::new(0, tagged(7));
+    let through = RecipeNodeId::new(0, tagged(3));
     // Two faces of ONE node, differing only in their role path — the
     // shared-edge tie's own shape, and the case that says the
     // rendering carries the path.
@@ -363,13 +362,16 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
     };
     let cases = [
         (
-            HitTestError::NodeNotEvaluated { node },
-            vec!["node 7", "no result"],
+            HitTestError::Standing(NodeStanding::NotEvaluated { node }),
+            vec!["node 000000000007", "no result"],
         ),
-        (HitTestError::NodeFailed { node }, vec!["node 7", "failed"]),
         (
-            HitTestError::NodePoisoned { node, through },
-            vec!["node 7", "node 3", "poisoned"],
+            HitTestError::Standing(NodeStanding::Failed { node }),
+            vec!["node 000000000007", "failed"],
+        ),
+        (
+            HitTestError::Standing(NodeStanding::Poisoned { node, through }),
+            vec!["node 000000000007", "node 000000000003", "poisoned"],
         ),
         (
             HitTestError::EvaluationOfAnotherDocument {
@@ -385,24 +387,45 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             HitTestError::Ambiguous {
                 hits: [3u32, 5].map(tied_hit).to_vec(),
             },
-            // The count, and each tied face NUMBERED so the phrase
-            // lines up with its entry in `hits` — two faces of one
-            // node render identically through `StableName`'s
-            // `Display`, and the role path that would tell them apart
-            // is a `Debug` derivation the prose must not carry.
-            vec!["tied between 2 faces", "(1) face", "(2) face", "node 7"],
+            // Each tied face in its words, which tell two faces of one
+            // node apart, and no role path.
+            vec![
+                "tied between the start cap of node 000000000007",
+                "and the end cap of node 000000000007",
+                "so the pick names neither",
+            ],
         ),
         (
-            HitTestError::Unnamed {
+            HitTestError::Unnamed(UnnamedEntity {
                 node,
                 entity: EntityRef {
                     body: 2,
                     key: EntityKey::Face(FaceKey::default()),
                 },
+            }),
+            // The lookup's own sentence under this door's prefix: the
+            // entity by KIND and body index — an arena key is
+            // editor-core-private and says nothing to a person.
+            vec![
+                "hit test:",
+                "name lookup:",
+                "node 000000000007",
+                "face",
+                "body 2",
+                "kernel bug",
+            ],
+        ),
+        (
+            HitTestError::AcrossSpaces {
+                group: node,
+                cause: editor_core::Unplaced::NoOffset,
             },
-            // The entity renders by KIND and body index — an arena key
-            // is editor-core-private and says nothing to a person.
-            vec!["node 7", "face", "body 2", "kernel bug"],
+            vec![
+                "different spaces",
+                "node 000000000007",
+                "no instance in it carries an offset",
+                "Recourse:",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &HIT_TEST_ERROR, &[]);

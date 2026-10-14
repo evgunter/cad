@@ -12,9 +12,9 @@
 use crate::common;
 
 use common::{annulus, lift, near_tangent_hole, profile, rect, tangent_hole, tol};
-use geom_core::{Interval, MarginDiag, Real, Sign};
+use geom_core::{ErrorTextReading, Interval, Real, Sign};
 use geom_core::{Point2, Tol};
-use profile::{LoopRole, ProfileError, RawLoop, SegmentKind};
+use profile::{LoopRole, ProfileError, SegmentKind};
 
 #[test]
 fn rectangle_validates_at_interval() {
@@ -68,7 +68,7 @@ fn exact_tangency_is_the_same_typed_error_at_interval() {
 fn near_tangency_escalates_via_an_in_band_enclosure() {
     // The internal clearance is −5ε: at Interval the margin enclosure
     // lies wholly inside the open sliver band — the terminal case the
-    // subdivision driver cannot refine (MarginDiag::Enclosure carries
+    // subdivision driver cannot refine (MarginKind::Enclosure carries
     // the bounds; escalation is the only sound outcome, Q1).
     let eps = tol().eps();
     let err = lift::<Interval>(&near_tangent_hole(eps))
@@ -77,8 +77,8 @@ fn near_tangency_escalates_via_an_in_band_enclosure() {
     match err {
         ProfileError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("carrier_circles_internal"));
-            match source.margin {
-                MarginDiag::Enclosure { lo, hi } => {
+            match source.margin.diagnostic_f64_for_error_text() {
+                ErrorTextReading::Enclosure { lo, hi } => {
                     assert!(
                         lo > -10.0 * eps && hi < -eps,
                         "enclosure [{lo:e}, {hi:e}] should sit inside the negative band"
@@ -119,31 +119,50 @@ fn interval_decisions_match_f64_on_the_fixture_suite() {
 }
 
 #[test]
-fn declared_tangency_discipline_holds_at_interval() {
-    // The #101 discipline at the interval scalar: the fillet-authored
-    // bracket's rounding-level tangency margins enclose inside the
-    // Zero region (definite Zero, no escalation), and the discipline's
-    // refusals agree with f64 variant-for-variant.
-    let declared = profile(vec![common::bracket()]);
-    lift::<Interval>(&declared)
-        .validate(tol())
-        .expect("declared bracket validates at Interval");
-
-    let undeclared = common::bracket().with_tangent_joints(Vec::new());
-    // joint 1 is a corner
-    let contradicted = common::bracket().with_tangent_joints(vec![1, 3, 4]);
-    for lp in [undeclared, contradicted] {
-        let p = profile(vec![lp]);
-        let at_f64 = p.validate(tol()).expect_err("must refuse at f64");
-        let at_iv = lift::<Interval>(&p)
-            .validate(tol())
-            .expect_err("must refuse at Interval");
-        assert_eq!(
-            core::mem::discriminant(&at_f64),
-            core::mem::discriminant(&at_iv),
-            "f64: {at_f64:?}, interval: {at_iv:?}"
-        );
+fn tangent_joints_are_derived_alike_at_interval() {
+    // D1's profile tangency at the interval scalar: the fillet-authored
+    // bracket's rounding-level tangency margins enclose inside the Zero
+    // region (definite Zero, no escalation), so as a table its two
+    // joints are decided and recorded at both scalars alike, and a
+    // contradicted construction refuses at both variant-for-variant.
+    fn decided<T: Real>(vp: &profile::ValidatedProfile<T>) -> Vec<usize> {
+        vp.loops()[0]
+            .decided_joints()
+            .iter()
+            .map(|d| d.joint)
+            .collect()
     }
+    let table = profile(vec![common::bracket()]);
+    let at_f64 = table.validate(tol()).expect("the bracket validates at f64");
+    let at_iv = lift::<Interval>(&table)
+        .validate(tol())
+        .expect("the bracket validates at Interval");
+    assert_eq!(decided(&at_f64), vec![3, 4]);
+    assert_eq!(
+        decided(&at_iv),
+        decided(&at_f64),
+        "one derived set at both scalars"
+    );
+
+    // Joint 1 is a corner.
+    fn lie<T: Real>(lp: profile::ProfileLoop<T>) -> profile::ConstructedLoop<T> {
+        profile::ConstructedLoop::fixture(lp, vec![1, 3, 4])
+    }
+    let at_f64 =
+        profile::ConstructedProfile::new(profile::SketchPlane::xy(), vec![lie(common::bracket())])
+            .validate(tol())
+            .expect_err("must refuse at f64");
+    let at_iv = profile::ConstructedProfile::new(
+        profile::SketchPlane::xy(),
+        vec![lie(common::bracket().map_scalar(Interval::from_f64))],
+    )
+    .validate(tol())
+    .expect_err("must refuse at Interval");
+    assert!(
+        matches!(at_f64, ProfileError::TangencyContradicted { joint: 1, .. }),
+        "f64: {at_f64:?}"
+    );
+    assert_eq!(at_iv, at_f64, "interval: {at_iv:?}");
 }
 
 // ------------------------------- arc-carrier fillet corners at the interval
@@ -188,10 +207,14 @@ fn arc_leg_fillet_constructs_and_validates_at_interval() {
         )
         .expect("the arc-carrier fillet constructs at Interval")
         .loop_;
-    assert_eq!(lp.tangent_joints(), [2, 3]);
-    profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+    assert_eq!(lp.constructed_joints(), [2, 3]);
+    let vp = profile::ConstructedProfile::new(profile::SketchPlane::xy(), vec![lp])
         .validate(tol())
         .expect("the arc-leg fillet validates at Interval");
+    assert!(
+        vp.loops()[0].decided_joints().is_empty(),
+        "both constructed"
+    );
 }
 
 /// `fillet_leg_fit`, in-band row: at r = 1 both sides are consumed
@@ -292,11 +315,13 @@ fn vesica_near_pick_agrees_with_the_f64_lane_at_interval() {
         .zip(iv.loop_.vertices())
         .enumerate()
     {
-        for (what, exact, enc) in [
-            ("x", a.x, b.x),
-            ("y", a.y, b.y),
-            ("bulge", f.loop_.bulges()[k], iv.loop_.bulges()[k]),
-        ] {
+        let mut channels = vec![("x", a.x, b.x), ("y", a.y, b.y)];
+        if let (profile::Segment::Arc(e), profile::Segment::Arc(i)) =
+            (f.loop_.segments()[k], iv.loop_.segments()[k])
+        {
+            channels.push(("sweep", e.sweep, i.sweep));
+        }
+        for (what, exact, enc) in channels {
             assert!(
                 enc.lo() <= exact && exact <= enc.hi(),
                 "vertex {k}: the {what} enclosure [{}, {}] excludes the f64 lane's {exact}",

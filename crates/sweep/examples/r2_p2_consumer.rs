@@ -3,14 +3,15 @@
 //! Independent of the unit's own rows. It rebuilds the unit's fixture
 //! from public API only and asks the questions the unit's row does not:
 //!
-//!  1. Does the mint pass's OWN mate lookup find an operand pair for
-//!     the interior column? (`mint_face` calls `mate_surface`; the
-//!     unit's row hand-picks the plane instead, and says so.)
-//!  2. What does `certify_general` do with the mate the mint would
-//!     actually hand it?
-//!  3. Does the WIDENED cap-rim branch's `IsoLine` output certify?
+//!  1. What does `certify_general` answer for the interior column's
+//!     derived image, against its chart alone?
+//!  2. Does the WIDENED cap-rim branch's `IsoLine` output certify?
 //!     (The whole-body mint refuses during the WALK, so no row in the
 //!     tree ever puts that output through `run_iso_checks`.)
+//!
+//! The fixture is built through public doors only: both re-charts go
+//! through `Body::set_face_surfaces_describing`, so the seam's
+//! description names the surface its bowed face wears.
 //!
 //! Run: cargo run -p sweep --example r2_p2_consumer
 #![allow(clippy::print_stdout, clippy::too_many_lines)]
@@ -19,11 +20,41 @@
 use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
-use topo::{Body, FaceSurface, Pcurve};
+use topo::{Body, Pcurve, Rechart};
+
+/// `face` onto a fresh chart, `surface`, outward-facing. Every edge the
+/// move would strand is restated as an image in the chart of its OTHER
+/// face, which does not move: the edges here are carried by NURBS
+/// curves, whose image in a plane is not derived, and `set_edge_curve`
+/// upgrades an edge to its plane × NURBS intersection afterwards.
+/// Returns the chart's key.
+fn recharted(
+    body: &mut Body<f64>,
+    face: topo::FaceKey,
+    surface: Surface<f64>,
+    tol: Tol,
+) -> Result<topo::SurfaceKey, topo::EulerOpError> {
+    let charts = vec![Rechart::new(surface, face, true)];
+    let mut specs = body.carried_redescriptions(&charts)?;
+    for (edge, spec) in &mut specs {
+        let e = body.get_edge(*edge).unwrap();
+        let (he, other) = [e.he_plus, e.he_minus]
+            .into_iter()
+            .map(|he| (he, body.face_of_half_edge(he).unwrap()))
+            .find(|(_, f)| *f != face)
+            .unwrap();
+        let mut image = EdgeDescriptionSpec::chart(body.get_face(other).unwrap().surface);
+        if let EdgeDescriptionSpec::Chart { image: slot, .. } = &mut image {
+            *slot = body.pcurve(he).map(|row| row.pcurve().clone());
+        }
+        spec.description = image;
+    }
+    Ok(body.set_face_surfaces_describing(charts, &specs, tol)?[0])
+}
 
 fn prism(scale: f64) -> Body<f64> {
     let square = move || -> sweep::Section {
@@ -132,22 +163,33 @@ fn main() {
         let (a, b) = c.params();
         (c.carrier().clone(), a, b)
     };
-    let plane = body
-        .set_face_surface(
-            flat_face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -SCALE, 0.0),
-                normal: Vec3::new(0.0, -1.0, 0.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
-        )
-        .expect("flat wall restates as a plane");
-    body.set_edge_curve_nurbs_lane(
+    // Widen the bowed wall's chart first, while the seam is an image in
+    // the flat wall's chart and so moves with neither; the minting pass
+    // restates the wall's rows in the widened chart.
+    let old_chart = match body.get_surface(bowed) {
+        Some(Surface::Nurbs(n)) => n.as_ref().clone(),
+        _ => panic!(),
+    };
+    let widened = widened_u_chart(&old_chart);
+    let bowed_face = body.faces().find(|(_, f)| f.surface == bowed).unwrap().0;
+    let new_key = recharted(&mut body, bowed_face, widened, tol).expect("rechart");
+    topo::mint_pcurves_of(&mut body, &[bowed_face], tol).expect("the widened wall mints");
+    let plane = recharted(
+        &mut body,
+        flat_face,
+        Surface::Plane {
+            origin: Point3::new(0.0, -SCALE, 0.0),
+            normal: Vec3::new(0.0, -1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+        tol,
+    )
+    .expect("flat wall restates as a plane");
+    body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: plane,
-                s2: bowed,
+                pair: SurfacePair::new(plane, new_key),
                 witness: carrier.eval((t0 + t1) * 0.5),
             },
             carrier,
@@ -159,59 +201,11 @@ fn main() {
     .expect("the seam re-describes");
     body.detach_pcurve(he_bowed);
 
-    // Widen the bowed wall's chart.
-    let old_chart = match body.get_surface(bowed) {
-        Some(Surface::Nurbs(n)) => n.as_ref().clone(),
-        _ => panic!(),
-    };
-    let widened = widened_u_chart(&old_chart);
-    let bowed_face = body.faces().find(|(_, f)| f.surface == bowed).unwrap().0;
-    let new_key = body
-        .set_face_surface(bowed_face, FaceSurface::New(widened))
-        .expect("rechart");
     let chart = match body.get_surface(new_key) {
         Some(Surface::Nurbs(n)) => n.as_ref().clone(),
         _ => panic!(),
     };
     println!("widened chart u domain = {:?}", chart.knots_u().domain());
-
-    // ---- Q1: would the mint's OWN mate lookup find an operand pair? ----
-    // `mate_surface` (private) reads `Intersection{s1,s2}` from the
-    // edge's description and requires the FACE'S CURRENT surface key
-    // to be one of the pair. Replicated here verbatim.
-    let desc_pair = {
-        let e = body
-            .get_edge(body.get_half_edge(he_bowed).unwrap().edge)
-            .unwrap();
-        match body.get_curve_geom(e.curve) {
-            Some(topo::CurveGeom::Certified(c)) => match *c.description() {
-                geom_brep::EdgeDescription::Intersection { s1, s2, .. } => Some((s1, s2)),
-                _ => None,
-            },
-            _ => None,
-        }
-    };
-    let own = body
-        .get_face(
-            body.get_loop(body.get_half_edge(he_bowed).unwrap().parent_loop)
-                .unwrap()
-                .face,
-        )
-        .unwrap()
-        .surface;
-    let mate_found = match desc_pair {
-        Some((s1, s2)) => own == s1 || own == s2,
-        None => false,
-    };
-    println!("\nQ1  description pair = {desc_pair:?}, face's CURRENT surface = {own:?}");
-    println!(
-        "Q1  mate_surface would return: {}",
-        if mate_found {
-            "Some(mate)"
-        } else {
-            "None  <-- the mint hands certify_general None"
-        }
-    );
 
     // ---- Q2: the derivation, and the mint's own certification call. ----
     let out = topo::pcurve_of(&body, he_bowed, band);
@@ -236,41 +230,19 @@ fn main() {
                 let (a, b) = c.params();
                 (c.carrier().clone(), a, b)
             };
-            let window = out.as_ref().unwrap().chart_box(ct0, ct1);
             let surf = Surface::Nurbs(Arc::new(chart.clone()));
-            // (a) with the mate the MINT would supply (None):
-            let with_mint_mate = PcurveCache::certify_general(
+            let got = PcurveCache::certify_general(
                 Arc::clone(image),
                 ct0,
                 ct1,
                 &cc,
                 &surf,
-                None,
-                window,
                 band,
+                <f64 as topo::AtRestPolicy>::fitted_lane(),
             );
             println!(
-                "Q2  certify_general(mate = what mint_face supplies) -> {:?}",
-                with_mint_mate
-                    .as_ref()
-                    .map(|_| "Ok(cache)")
-                    .map_err(|e| format!("{e:?}"))
-            );
-            // (b) with the hand-picked plane the unit's row supplies:
-            let plane_surf = body.get_surface(plane).cloned().unwrap();
-            let with_hand_mate = PcurveCache::certify_general(
-                Arc::clone(image),
-                ct0,
-                ct1,
-                &cc,
-                &surf,
-                Some(&plane_surf),
-                window,
-                band,
-            );
-            println!(
-                "Q2  certify_general(mate = hand-picked plane)        -> {}",
-                match &with_hand_mate {
+                "Q2  certify_general -> {}",
+                match &got {
                     Ok(c) => format!("Ok, envelope {:e}", c.certificate().envelope),
                     Err(e) => format!("{e:?}"),
                 }
@@ -322,32 +294,14 @@ fn main() {
             Ok(p) => format!("{p:?}"),
             Err(e) => format!("REFUSED {e:?}"),
         };
-        println!(
-            "  {he:?}: carrier {} -> {kind}",
-            match &cc {
-                geom::Curve3::Line { .. } => "Line",
-                geom::Curve3::Nurbs(_) => "Nurbs",
-                geom::Curve3::Circle { .. } => "Circle",
-                geom::Curve3::Spiric { .. } => "Spiric",
-                _ => "other",
-            }
-        );
+        println!("  {he:?}: carrier {} -> {kind}", cc.kind().name());
         if let Ok(p) = d {
             boxes.push((he, p, ct0, ct1));
         }
     }
     if boxes.len() == cleared.loop_cycle(first).unwrap().len() {
-        // Every half-edge derived: build the face window exactly as
-        // `mint_face` does, then certify each one.
-        let mut window = None;
-        for (_, p, a, b) in &boxes {
-            let bx = p.chart_box(*a, *b);
-            window = Some(match window {
-                None => bx,
-                Some(acc) => geom_brep::ChartWindow::<f64>::hull(acc, bx),
-            });
-        }
-        let window = window.unwrap();
+        // Every half-edge derived: certify each one against its carrier
+        // and the chart, exactly as `mint_face` does.
         println!("\nQ4  all derived — now the CERTIFICATION door on each:");
         for (he, p, a, b) in &boxes {
             let e = cleared
@@ -358,20 +312,16 @@ fn main() {
             };
             let cc = c.carrier().clone();
             let r = match p {
-                Pcurve::General(img) => {
-                    let mate = None;
-                    PcurveCache::certify_general(
-                        Arc::clone(img),
-                        *a,
-                        *b,
-                        &cc,
-                        &surf,
-                        mate,
-                        window,
-                        band,
-                    )
-                }
-                other => PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, window, band),
+                Pcurve::General(img) => PcurveCache::certify_general(
+                    Arc::clone(img),
+                    *a,
+                    *b,
+                    &cc,
+                    &surf,
+                    band,
+                    <f64 as topo::AtRestPolicy>::fitted_lane(),
+                ),
+                other => PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, band),
             };
             println!(
                 "  {he:?}: {}",
@@ -387,23 +337,11 @@ fn main() {
             boxes.len(),
             cleared.loop_cycle(first).unwrap().len()
         );
-        // Q5: force the question anyway — build the window from the
-        // half-edges that DID derive (the true trim region up to the
-        // one refusing seam, whose image is the other interior column
-        // and lies inside it) and put each derived pcurve through the
-        // certification door by hand. This is the measurement no row
-        // in the tree takes: does the WIDENED cap-rim branch's output
-        // actually certify?
-        let mut window: Option<geom_brep::ChartWindow<f64>> = None;
-        for (_, p, a, b) in &boxes {
-            let bx = p.chart_box(*a, *b);
-            window = Some(match window {
-                None => bx,
-                Some(acc) => geom_brep::ChartWindow::<f64>::hull(acc, bx),
-            });
-        }
-        let window = window.unwrap();
-        println!("\nQ5  the certification door, forced (window = hull of the 3 derived boxes):");
+        // Q5: force the question anyway — put each half-edge that DID
+        // derive through the certification door by hand. This is the
+        // measurement no row in the tree takes: does the WIDENED
+        // cap-rim branch's output actually certify?
+        println!("\nQ5  the certification door, forced, on the derived half-edges:");
         for (he, p, a, b) in &boxes {
             let e = cleared
                 .get_edge(cleared.get_half_edge(*he).unwrap().edge)
@@ -414,21 +352,20 @@ fn main() {
             let cc = c.carrier().clone();
             let (label, r) = match p {
                 Pcurve::General(img) => (
-                    "General (mate = what mint_face supplies: None)",
+                    "General",
                     PcurveCache::certify_general(
                         Arc::clone(img),
                         *a,
                         *b,
                         &cc,
                         &surf,
-                        None,
-                        window,
                         band,
+                        <f64 as topo::AtRestPolicy>::fitted_lane(),
                     ),
                 ),
                 other => (
                     "IsoLine from the WIDENED cap-rim branch",
-                    PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, window, band),
+                    PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, band),
                 ),
             };
             println!(

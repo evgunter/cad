@@ -237,3 +237,13 @@ Nothing in `src` lifts a `Step`. The two rungs under it,
 `pub(crate)`, because nothing outside the ladder lifts a bare target or
 spec. So the new member adds one `pub` door to this row's population,
 not three.
+
+## `pinned_plane` is gone (EDIT, 2026-10-11, PR 4741)
+
+The 2026-09-15 disposition of `Affine3::try_map` and
+`SketchPlane::try_map` as "consumed" rested on `editor-core`'s
+`pinned_plane`. That function was deleted when the loft started
+reading its sections' planes at the lane scalar. Both are now the
+same verdict as `Vec3::try_map` and `Mat3::try_map`: no production
+consumer. Re-run the census before deciding on them.
+

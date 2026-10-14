@@ -2,8 +2,9 @@
 id: dangling-two-lanes-argument-is-restated-outside-danglingref
 kind: issue
 title: The Dangling two-lanes argument is restated in pncad and pncad-py instead of pointing at DanglingRef
-status: open
+status: closed
 opened: 2026-09-26
+closed: 2026-10-04
 priority: P4
 cost: E
 ---
@@ -52,3 +53,14 @@ wrap, `git grep -n -i -E 'stale or$'` (`display_contract.rs`, plus two
 unrelated hits in `topo/src/shell.rs` and `viewer/src/pickindex.rs`) and
 `'foreign handle'` (`readback.rs`). **Blind spot**: a restatement that
 uses neither phrase.
+
+## Closed
+
+There are no longer two lanes to restate. `DanglingRef` is deleted:
+a read-back's one typed miss is the caller's key
+(`ReadbackError::Dangling { what: EntityId }`), and a geometry key a
+live record names that does not resolve panics naming the record (D2
+row 4). The re-export rustdoc in `crates/pncad/src/select.rs`, the tag
+doc in `crates/pncad-py/src/tags.rs` and the stub in `pncad.pyi` now
+state the one lane; `dangling_geometry` is gone from
+`readback_error_tag`.

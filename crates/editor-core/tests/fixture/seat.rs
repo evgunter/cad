@@ -19,6 +19,7 @@
 use editor_core::{Evaluation, ProfileDoc, StableName, product_named};
 use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, Point3};
+use geom_core::real::Real;
 
 /// **A named planar face's own frame, read out of the body the
 /// product GATHERS and its own name table**: a point on it, its
@@ -80,16 +81,15 @@ pub fn seat_map(
 }
 
 /// The largest absolute difference between two rigid maps, over all
-/// twelve numbers.
+/// twelve numbers. Both folds go through [`Real::max`], so a NaN
+/// anywhere makes the gap NaN: every caller's `<=` and `>` then fail
+/// rather than read a smaller gap with the poisoned column dropped.
 pub fn map_gap(x: &Affine3<f64>, y: &Affine3<f64>) -> f64 {
-    let cols = |m: &Affine3<f64>| [m.linear.c0, m.linear.c1, m.linear.c2, m.translation];
-    let (cx, cy) = (cols(x), cols(y));
-    (0..4)
-        .flat_map(|i| {
-            let (u, v) = (cx[i], cy[i]);
-            [(u.x - v.x).abs(), (u.y - v.y).abs(), (u.z - v.z).abs()]
-        })
-        .fold(0.0_f64, f64::max)
+    x.cols()
+        .into_iter()
+        .zip(y.cols())
+        .map(|(u, v)| (u - v).norm_inf())
+        .fold(0.0_f64, Real::max)
 }
 
 /// The seat, measured in the product and checked three ways: the two

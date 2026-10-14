@@ -29,16 +29,16 @@ fn banner(text: &str) {
 fn show_tree(session: &DocSession) {
     for row in session.tree_rows() {
         let indent = "  ".repeat(row.depth);
-        let root = if row.root { " ▸root" } else { "" };
+        let world = if row.placed { " ▸world" } else { "" };
         let message = row
             .status
             .message()
             .map(|m| format!("  [{m}]"))
             .unwrap_or_default();
         println!(
-            "   {indent}{} {}{root}{message}",
+            "   {indent}{} {}{world}{message}",
             row.status.badge(),
-            row.kind
+            row.spoken
         );
     }
 }
@@ -76,10 +76,10 @@ fn main() {
     let rows = session.tree_rows();
     assert!(!tree::has_faults(&rows), "the ring evaluates clean");
 
-    // Select the revolve (the root) and inspect its slots.
+    // Select the revolve (the placed body) and inspect its slots.
     let revolve = rows
         .iter()
-        .find(|row| row.kind == "Revolve")
+        .find(|row| row.spoken.kind() == Some("Revolve"))
         .expect("the ring has a revolve")
         .id;
     session.perform(SessionOp::Select(Selection::Node(revolve)));
@@ -217,15 +217,15 @@ fn main() {
     println!("   Reevaluate landed a full run in {:?}", start.elapsed());
 
     // The seam recovers: an edit resubmits and the run completes.
-    let params = viewer::props::param_rows(session.doc());
-    if let Some(param) = params.first() {
-        println!("   nudging parameter {} to resubmit", param.name.0);
-        session.perform(SessionOp::SetParam {
-            name: param.name.clone(),
+    let variables = viewer::props::variable_rows(session.doc());
+    if let Some(param) = variables.first() {
+        println!("   nudging variable {} to resubmit", param.label);
+        session.perform(SessionOp::SetVariable {
+            var: param.var,
             value: param.value,
         });
     } else {
-        // No document parameter: re-request through undo-at-root's
+        // No document variable: re-request through undo-at-root's
         // refusal path would not resubmit, so re-open instead.
         session.perform(SessionOp::Open(dir.join("diefillet.pncad")));
     }
@@ -326,9 +326,9 @@ fn main() {
             .into_owned();
         let mut this_doc_failed = false;
         for row in &rows {
-            if row.kind == "InstantiatePart" {
+            if row.spoken.kind() == Some("InstantiatePart") {
                 match &row.status {
-                    RowStatus::Failed { message } => {
+                    RowStatus::Failed { message, .. } => {
                         instantiate_failures += 1;
                         this_doc_failed = true;
                         println!("   {file}: InstantiatePart FAILED [{message}]");

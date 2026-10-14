@@ -1,0 +1,1214 @@
+//! **INTENT stage 3 PR A — a pose is a defined variable**
+//! (`docs/INTENT-STAGE3-SPEC.md` §2 and §10 rows 1–4): a face reads as
+//! a plane with its outward normal, a seat holds its kind, a
+//! construction refuses its degenerate case, and a revolve's axis is a
+//! line in its profile's plane.
+//!
+//! Pose values are bound at their readers and held nowhere, so a row
+//! reads one through [`editor_core::eval::bound_pose`], as the reader
+//! at the named seat would bind it.
+
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::result_large_err
+)]
+
+use std::sync::Arc;
+
+use crate::fixture::{self, ang, len, scl};
+use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
+use editor_core::eval::bound_pose;
+use editor_core::pose::{PoseConstruction, PoseDef, PoseReadFault};
+use editor_core::{
+    CancelToken, CapEnd, Dimension, Distribution, DocEdit, EditError, EvalOptions, Evaluation,
+    ExtrudeSide, Formula, FreeVar, LoopProgram, Node, NodeErrorKind, NodeResult, Operand,
+    OperandSlot, PoseValue, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SlotKind, UnitSym,
+    VarId, VarKind, VarName, all_faces, evaluate, face_carrier_kind,
+};
+use geom::SurfaceKind;
+use geom_core::{Bounds, Decide, Decided, Interval, Sign, Sym, Tol, UnitVec3};
+
+fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+}
+
+/// A cylinder of radius 1 and height 2 standing on the world xy plane,
+/// and its extrude node.
+fn cylinder() -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("s3a_cylinder", Tol::witness());
+    let (doc, plane) = fixture::insert(
+        doc,
+        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            frame: plane.into(),
+            loops: vec![LoopProgram::Circle {
+                centre: [len(0.0), len(0.0)],
+                radius: len(1.0),
+            }],
+            ids: Vec::new(),
+        }),
+    );
+    fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(2.0),
+            side: ExtrudeSide::Along,
+        },
+    )
+}
+
+/// A unit box as an extruded square on the world xy plane.
+fn unit_box() -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = fixture::on_frame(
+        ProfileDoc::empty_derived("s3a_box", Tol::witness()),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    )
+}
+
+fn pose(def: PoseDef<Operand, Formula>) -> Operand {
+    Operand::Pose(Box::new(def))
+}
+
+fn select(at: RecipeNodeId, name: editor_core::StableName) -> Operand {
+    Operand::select(Operand::output(at, 0), vec![name])
+}
+
+/// `body` split by `tool`, inserted, and the pose variable the split's
+/// tool reads.
+fn split_by(doc: ProfileDoc, body: RecipeNodeId, tool: Operand) -> (ProfileDoc, VarId) {
+    let (doc, split) = fixture::insert(
+        doc,
+        Node::Split {
+            target: Operand::output(body, 0).into(),
+            tool,
+        },
+    );
+    let Some(Node::Split { tool, .. }) = doc.node(split) else {
+        panic!("a split")
+    };
+    let tool = *tool;
+    (doc, tool)
+}
+
+fn near(a: f64, b: f64, what: &str) {
+    assert!((a - b).abs() <= 1e-12, "{what}: {a} vs {b}");
+}
+
+/// **Row 1 — a face reads as a plane, with its outward normal.** Both
+/// caps of a cylinder: the top's normal is world +z, the bottom's −z,
+/// whatever sense the carrier was minted with; the curved wall has no
+/// plane and refuses `PoseRead` naming its cylinder.
+#[test]
+fn a_face_reads_as_its_plane_with_the_outward_normal() {
+    for (end, z, nz) in [(CapEnd::End, 2.0, 1.0), (CapEnd::Start, 0.0, -1.0)] {
+        let (doc, cyl) = cylinder();
+        let cap = fixture::fname(cyl, RoleSeg::Cap(end));
+        let (doc, plane) = split_by(
+            doc,
+            cyl,
+            pose(PoseDef::Plane {
+                face: select(cyl, cap),
+            }),
+        );
+        let ev = eval(&doc);
+        let value = bound_pose(&doc, &ev, OperandSlot::Tool, plane, Tol::witness());
+        let Ok(PoseValue::Plane { origin, normal }) = value else {
+            panic!("{end:?}: a plane, not {value:?}");
+        };
+        near(origin.z, z, "the plane passes through the cap");
+        let n = UnitVec3::get(normal);
+        near(n.x, 0.0, "no tilt");
+        near(n.y, 0.0, "no tilt");
+        near(n.z, nz, "the outward normal");
+    }
+
+    let (doc, cyl) = cylinder();
+    let ev = eval(&doc);
+    let wall = all_faces(&ev, cyl)
+        .into_iter()
+        .find(|n| face_carrier_kind(&ev, cyl, n) == Ok(SurfaceKind::Cylinder))
+        .expect("a cylindrical wall");
+    let (doc, plane) = split_by(
+        doc,
+        cyl,
+        pose(PoseDef::Plane {
+            face: select(cyl, wall),
+        }),
+    );
+    let ev = eval(&doc);
+    let refused = bound_pose(&doc, &ev, OperandSlot::Tool, plane, Tol::witness());
+    assert!(
+        matches!(
+            refused,
+            Err(NodeErrorKind::PoseRead {
+                pose: VarKind::Plane,
+                fault: PoseReadFault::NotPlanar {
+                    carrier: SurfaceKind::Cylinder
+                },
+            })
+        ),
+        "{refused:?}"
+    );
+}
+
+/// **Row 2 — a seat holds its kind.** A split's tool reads a plane: an
+/// axis defined there refuses `SlotVarKind` at the door, expecting a
+/// plane; a frame projected to its plane is admitted, and splits.
+#[test]
+fn a_split_tool_refuses_an_axis_and_admits_a_projected_frame() {
+    let (doc, cube) = unit_box();
+    let edge = fixture::rim_edge(cube, CapEnd::End, fixture::piece(&doc, cube, 0, 0));
+    let refused = fixture::insert_refused(
+        &doc,
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: pose(PoseDef::Axis {
+                of: Operand::select(Operand::output(cube, 0), vec![edge]),
+            }),
+        },
+    );
+    assert!(
+        matches!(
+            &refused,
+            EditError::SlotVarKind {
+                found: VarKind::Axis,
+                expected: SlotKind::Is(VarKind::Plane),
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
+
+    let (doc, frame) = fixture::insert(
+        doc,
+        fixture::frame([0.0, 0.0, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, split) = fixture::insert(
+        doc,
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: pose(PoseDef::Project {
+                of: Operand::output(frame, 0),
+                to: VarKind::Plane,
+            }),
+        },
+    );
+    let ev = eval(&doc);
+    assert!(
+        matches!(ev.nodes.get(&split), Some(NodeResult::Ok(_))),
+        "{:?}",
+        ev.nodes.get(&split)
+    );
+}
+
+/// **Row 3 — a construction refuses its degenerate case.** The frame
+/// through an edge's line and a point picks its `x` towards the point;
+/// a point ON the line leaves no such direction, and the construction
+/// refuses `PoseDegenerate` rather than choose a roll. Off the line, the
+/// frame stands at the point's foot.
+#[test]
+fn a_frame_through_an_axis_and_a_point_on_it_refuses() {
+    // The top rim over the square's canonical edge 0 runs from
+    // canonical vertex 0 to vertex 1; vertex 2 is the corner off it.
+    let through = |vertex: usize| {
+        let (doc, cube) = unit_box();
+        let edge = fixture::rim_edge(cube, CapEnd::End, fixture::piece(&doc, cube, 0, 0));
+        let point = fixture::cap_vertex(cube, CapEnd::End, fixture::vpiece(&doc, cube, 0, vertex));
+        let (doc, plane) = split_by(
+            doc,
+            cube,
+            pose(PoseDef::Project {
+                of: pose(PoseDef::Through {
+                    axis: pose(PoseDef::Axis {
+                        of: select(cube, edge),
+                    }),
+                    point: pose(PoseDef::Point {
+                        of: select(cube, point),
+                    }),
+                }),
+                to: VarKind::Plane,
+            }),
+        );
+        let ev = eval(&doc);
+        bound_pose(&doc, &ev, OperandSlot::Tool, plane, Tol::witness())
+    };
+
+    for on in [0, 1] {
+        let refused = through(on);
+        assert!(
+            matches!(
+                refused,
+                Err(NodeErrorKind::PoseDegenerate {
+                    construction: PoseConstruction::Through
+                })
+            ),
+            "vertex {on}: {refused:?}"
+        );
+    }
+
+    // Off the line: the frame's plane passes through the point's foot
+    // on the edge — an end of it, a corner of the box — normal to the
+    // edge, which runs along a world axis.
+    let Ok(PoseValue::Plane { origin, normal }) = through(2) else {
+        panic!("a plane off the line");
+    };
+    for c in [origin.x, origin.y, origin.z] {
+        assert!(c.abs() <= 1e-12 || (c - 1.0).abs() <= 1e-12, "{origin:?}");
+    }
+    near(origin.z, 1.0, "the foot is on the top rim");
+    let n = UnitVec3::get(normal);
+    let mut along = [n.x.abs(), n.y.abs(), n.z.abs()];
+    along.sort_by(f64::total_cmp);
+    near(along[2], 1.0, "normal along the edge");
+    near(n.z, 0.0, "the top rim is horizontal");
+}
+
+/// The revolve row's document: a washer section on the world xz plane,
+/// revolved a full turn about the line through the frame's origin along
+/// `(t, 1)`, `t` a free parameter of width `width`. (On a frame tilted
+/// out of the world planes the revolve itself does not certify at
+/// `Interval` even at ε/128: issue 1191's class, not the axis's.)
+fn tilted_revolve(width: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let mut doc = ProfileDoc::empty_derived("s3a_revolve", Tol::witness());
+    doc = editor_core::apply(
+        &doc,
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("t"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
+                dim: Dimension::Scalar,
+                value: 0.0,
+                display_unit: UnitSym::canonical_for(Dimension::Scalar),
+                distribution: Some(Distribution::Uniform {
+                    lo: -width,
+                    hi: width,
+                }),
+            }),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("declares")
+    .doc;
+    let (doc, plane, profile) = fixture::on_frame_keeping(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![fixture::square(2.0, 0.0, 0.5)],
+    );
+    let (doc, revolve) = fixture::insert(
+        doc,
+        Node::Revolve {
+            profile: profile.into(),
+            axis_origin: [len(0.0), len(0.0)],
+            axis_direction: [
+                Formula::named(VarName::from_static("t"), Dimension::Scalar),
+                scl(1.0),
+            ],
+            angle: ang(std::f64::consts::TAU),
+        },
+    );
+    (doc, plane, revolve)
+}
+
+/// **Row 4 — a revolve's axis cannot leave its profile's plane.** Its
+/// axis output is its 2-D line lifted through the plane's axes, so the
+/// direction's margin against the plane's normal is identically zero —
+/// decided `Zero` at the symbolic scalar for every value of the box,
+/// and enclosing zero at `Interval`.
+#[test]
+fn a_revolves_axis_lies_in_its_profiles_plane_over_a_box() {
+    let width = Tol::witness().eps() / 64.0;
+    let (doc, plane, revolve) = tilted_revolve(width);
+    let axis = doc.output(revolve, 1).expect("a revolve defines its axis");
+    let opts = EvalOptions {
+        param_box: Some(Arc::new(ParamBox::of(&analyzed_box(
+            &doc,
+            &AnalysisPolicy::default(),
+        )))),
+        ..EvalOptions::default()
+    };
+    let frame = doc.output(plane, 0).expect("a frame defines its pose");
+
+    fn margin<T: editor_core::eval::EvalScalar>(
+        doc: &ProfileDoc,
+        ev: &Evaluation<T>,
+        frame: VarId,
+        axis: VarId,
+    ) -> T {
+        let Ok(PoseValue::Frame(f)) =
+            bound_pose(doc, ev, OperandSlot::Frame, frame, Tol::witness())
+        else {
+            panic!("the profile's frame");
+        };
+        let lifted = bound_pose(doc, ev, OperandSlot::Axis, axis, Tol::witness());
+        let Ok(PoseValue::Axis { dir, .. }) = lifted else {
+            panic!("the revolve's axis: {lifted:?}");
+        };
+        let n = UnitVec3::get(f.u()).cross(UnitVec3::get(f.v()));
+        n.dot(UnitVec3::get(dir))
+    }
+
+    let ev = evaluate::<Interval>(&doc, None, &CancelToken::new(), &opts, Tol::witness());
+    let m = margin(&doc, &ev, frame, axis);
+    assert!(m.lo() <= 0.0 && 0.0 <= m.hi(), "{m:?}");
+
+    let budget = geom_core::SymBudget {
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    let (decided, _) = geom_core::sym::with_session(budget, || {
+        let ev = evaluate::<Sym<Interval>>(&doc, None, &CancelToken::new(), &opts, Tol::witness());
+        margin(&doc, &ev, frame, axis).sign_within(fixture::band())
+    });
+    assert!(
+        matches!(
+            decided,
+            Ok(Decided {
+                sign: Sign::Zero,
+                ..
+            })
+        ),
+        "{decided:?}"
+    );
+}
+
+/// **A construction reads what was written, through a pose too** (D10):
+/// a split's tool defined as a cap's plane moved by a measured length
+/// reads the measure, and the door refuses it as it refuses a slot
+/// reading one — naming the split's tool.
+#[test]
+fn a_pose_moved_by_a_measured_length_is_observed() {
+    let (doc, cube) = unit_box();
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            fixture::cap_ref(cube, CapEnd::Start),
+            fixture::cap_ref(cube, CapEnd::End),
+        ],
+    );
+    let out = fixture::output(&doc, measure);
+    let cap = fixture::fname(cube, RoleSeg::Cap(CapEnd::End));
+    let refused = fixture::insert_refused(
+        &doc,
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: pose(PoseDef::Standoff {
+                plane: pose(PoseDef::Plane {
+                    face: select(cube, cap),
+                }),
+                by: Formula::mul(Formula::var(out, Dimension::Length), scl(-0.5)).unwrap(),
+            }),
+        },
+    );
+    assert!(
+        matches!(
+            &refused,
+            EditError::ConstructionReadsObserved {
+                slot: editor_core::SlotId::Operand(OperandSlot::Tool),
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
+}
+
+/// A ring of three boxes about the line two in-frame planes meet in:
+/// `a` through `a_origin` with normal `a_normal`, `b` the world plane
+/// `y = 0`. The pattern is the `Meet`'s reader.
+fn ring_about_a_meet(a_origin: [f64; 3], a_normal: [f64; 3]) -> String {
+    let (doc, p) = fixture::on_frame(
+        ProfileDoc::empty_derived("s3a_meet", Tol::witness()),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(2.0, 0.5), (3.0, 0.5), (3.0, 1.5), (2.0, 1.5)]],
+    );
+    let (doc, block) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, world) = fixture::insert(
+        doc,
+        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let plane = |origin: [f64; 3], normal: [f64; 3]| {
+        pose(PoseDef::InFrame {
+            frame: Operand::output(world, 0),
+            coords: editor_core::pose::PoseCoords::Plane {
+                origin: origin.map(len),
+                normal: normal.map(scl),
+            },
+        })
+    };
+    let (doc, ring) = fixture::insert(
+        doc,
+        Node::Pattern {
+            input: block.into(),
+            count: Formula::count(3),
+            kind: editor_core::PatternKind::Circular {
+                axis: pose(PoseDef::Meet {
+                    a: plane(a_origin, a_normal),
+                    b: plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+                }),
+                step: ang(std::f64::consts::FRAC_PI_2),
+            },
+        },
+    );
+    let ev = eval(&doc);
+    format!("{:?}", ev.value(ring).expect("the ring builds").payload)
+}
+
+/// The numbers in a value's printed form, and the text between them:
+/// two values have one outcome — one topology, one set of decisions —
+/// when the text agrees exactly and only the numbers may move.
+fn numbers_and_shape(printed: &str) -> (Vec<f64>, String) {
+    let mut numbers = Vec::new();
+    let mut shape = String::new();
+    let mut rest = printed;
+    while let Some(at) = rest.find(|c: char| c.is_ascii_digit() || c == '-') {
+        let tail = &rest[at..];
+        let len = tail
+            .find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | '-' | 'e' | '+')))
+            .unwrap_or(tail.len());
+        match tail[..len].parse::<f64>() {
+            Ok(x) if tail[..len].contains('.') => {
+                shape.push_str(&rest[..at]);
+                shape.push('#');
+                numbers.push(x);
+            }
+            _ => shape.push_str(&rest[..at + len.max(1)]),
+        }
+        rest = &tail[len.max(1)..];
+    }
+    shape.push_str(rest);
+    (numbers, shape)
+}
+
+/// **A `Meet`'s representative is a function of its definition, and no
+/// reader's outcome depends on it** (the orchestrator's ruling (a)):
+/// its point is "nearest `a`'s origin", and `a`'s origin is itself a
+/// plane's representative, so moving `a`'s origin within its plane
+/// moves the line's point along the line. A ring about the line keeps
+/// its outcome — every vertex, edge, face and decision — whichever
+/// point it is built about; its coordinates may differ at the rounding
+/// level, and nowhere more.
+///
+/// Along a world axis the rotation's pivot only slides along that axis
+/// and the arithmetic is exact, so the ring is bit-identical. Off the
+/// axes each coordinate of a copy is `R·(p − c) + c` for the pivot `c`:
+/// the two shifts each round at half an ulp of the larger of `|p|` and
+/// `|c|`, and the rotation's three-term dot products add about three
+/// ulps of `|p − c|`, so a coordinate moves by at most about 8 ulps of
+/// the scale `S = max(|p|, |c|)`. The row allows 16 ulps of `S`, with
+/// `S` the largest coordinate or pivot in play (here 6).
+#[test]
+fn a_meets_representative_moves_no_readers_outcome() {
+    // Planes x = 0 and y = 0 meet in the z axis; `a`'s origin slides
+    // within x = 0, so the line's point slides along z.
+    let at_origin = ring_about_a_meet([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    for moved in [[0.0, 4.0, 8.0], [0.0, -0.75, 3.0], [0.0, 0.1, 0.3]] {
+        assert_eq!(
+            ring_about_a_meet(moved, [1.0, 0.0, 0.0]),
+            at_origin,
+            "a's origin at {moved:?}"
+        );
+    }
+    // Tilted: `a` has normal (0.6, 0, 0.8) and meets `y = 0` along
+    // (−0.8, 0, 0.6); its origin slides within `a`.
+    let normal = [0.6, 0.0, 0.8];
+    let (base, shape) = numbers_and_shape(&ring_about_a_meet([0.0; 3], normal));
+    let bound = 16.0 * f64::EPSILON * 6.0;
+    let mut moved_any = false;
+    for moved in [[0.8, 0.0, -0.6], [4.0, 1.0, -3.0], [1.2, 0.0, -0.9]] {
+        let (numbers, other) = numbers_and_shape(&ring_about_a_meet(moved, normal));
+        assert_eq!(other, shape, "a's origin at {moved:?}: the outcome moved");
+        assert_eq!(numbers.len(), base.len());
+        for (x, y) in numbers.iter().zip(&base) {
+            assert!(
+                (x - y).abs() <= bound,
+                "a's origin at {moved:?}: {x} against {y}"
+            );
+        }
+        moved_any |= numbers != base;
+    }
+    // The tilted case is where the rounding shows; a row that never saw
+    // it would not be measuring the bound.
+    assert!(
+        moved_any,
+        "off the axes the representative reaches the bits"
+    );
+}
+
+/// **A representative is deterministic** (D9: bits are a function of
+/// the reads): the same definition, built and evaluated twice, gives
+/// the ring bit for bit.
+#[test]
+fn a_meets_representative_is_a_function_of_its_definition() {
+    let normal = [0.6, 0.0, 0.8];
+    for origin in [[0.0; 3], [4.0, 1.0, -3.0]] {
+        assert_eq!(
+            ring_about_a_meet(origin, normal),
+            ring_about_a_meet(origin, normal),
+            "a's origin at {origin:?}"
+        );
+    }
+}
+
+/// **The four pose subgroup families have no representative yet**, and
+/// the coset door says so typed, naming the pair, rather than building
+/// one: a point's (`Spherical`), a direction's (`Parallel`) and the
+/// pure translations meet every mate family in the table, but no mate
+/// folds them until INTENT stage 3 C, which owns these arms
+/// (`work/intent/a-mate-relates-two-poses.md`).
+#[test]
+fn a_fold_reaching_a_pose_family_refuses_naming_the_pair() {
+    use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, SubgroupFamily, intersect};
+    use geom_core::linalg::{Affine3, Point3, Vec3};
+    let band = geom_core::predicate::Band::linear(Tol::witness()).expect("a band");
+    let unit = |v: Vec3<f64>| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).unwrap();
+    let z = unit(Vec3::new(0.0, 0.0, 1.0));
+    let coset = |subgroup| Coset {
+        subgroup,
+        representative: Affine3::identity(),
+    };
+    let pose_families = [
+        (
+            Subgroup::Spherical {
+                point: Point3::origin(),
+            },
+            SubgroupFamily::Spherical,
+        ),
+        (
+            Subgroup::Parallel { direction: z },
+            SubgroupFamily::Parallel,
+        ),
+        (Subgroup::Translation, SubgroupFamily::Translation),
+        (
+            Subgroup::PlaneTranslation { normal: z },
+            SubgroupFamily::PlaneTranslation,
+        ),
+    ];
+    let mate = (
+        Subgroup::Cylindrical {
+            point: Point3::origin(),
+            direction: z,
+        },
+        SubgroupFamily::Cylindrical,
+    );
+    let arm = Arm::of(0.0, 1.0).expect("a metre is in range");
+    for (pose, family) in pose_families {
+        for ((held, h), (added, a)) in [((pose, family), mate), (mate, (pose, family))] {
+            let refused = intersect(coset(held), coset(added), band, arm);
+            assert!(
+                matches!(
+                    refused,
+                    Err(FoldStop::NoRepresentative { held, added }) if held == h && added == a
+                ),
+                "{h:?} against {a:?}: {refused:?}"
+            );
+        }
+    }
+}
+
+/// The tool of the content-key row: the plane normal to the line where
+/// `f1`'s `x = 0` meets `f2`'s `z = 0`, through the foot of a point
+/// written in `point_frame`.
+fn meet_through_tool(f1: RecipeNodeId, f2: RecipeNodeId, point_frame: RecipeNodeId) -> Operand {
+    use editor_core::pose::PoseCoords;
+    let in_frame = |frame: RecipeNodeId, coords| {
+        pose(PoseDef::InFrame {
+            frame: Operand::output(frame, 0),
+            coords,
+        })
+    };
+    pose(PoseDef::Project {
+        of: pose(PoseDef::Through {
+            axis: pose(PoseDef::Meet {
+                a: in_frame(
+                    f1,
+                    PoseCoords::Plane {
+                        origin: [0.0; 3].map(len),
+                        normal: [1.0, 0.0, 0.0].map(scl),
+                    },
+                ),
+                b: in_frame(
+                    f2,
+                    PoseCoords::Plane {
+                        origin: [0.0; 3].map(len),
+                        normal: [0.0, 0.0, 1.0].map(scl),
+                    },
+                ),
+            }),
+            point: in_frame(
+                point_frame,
+                PoseCoords::Point {
+                    position: [0.5; 3].map(len),
+                },
+            ),
+        }),
+        to: VarKind::Plane,
+    })
+}
+
+/// **Two pose trees reaching the same operations in another
+/// arrangement key apart** (the dual review's MAJOR): a tool whose
+/// point is written in `f1` and one whose point is written in `f2`
+/// read the same two frames, so their upstream lists are equal; their
+/// content keys must still differ, or the memo serves one tool's halves
+/// for the other's.
+#[test]
+fn a_pose_trees_leaves_are_keyed_by_the_port_they_read() {
+    let (doc, cube) = unit_box();
+    let (doc, f1) = fixture::insert(
+        doc,
+        fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, f2) = fixture::insert(
+        doc,
+        fixture::frame([0.3, 0.2, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (first, split) = fixture::insert(
+        doc,
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: meet_through_tool(f1, f2, f1),
+        },
+    );
+    let ev_first = eval(&first);
+    let second = editor_core::apply(
+        &first,
+        &DocEdit::SetParam {
+            node: split,
+            slot: editor_core::SlotId::Operand(OperandSlot::Tool),
+            value: editor_core::SlotValue::Read(meet_through_tool(f1, f2, f2)),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("re-tools")
+    .doc;
+    let fresh = eval(&second);
+    let memo = evaluate::<f64>(
+        &second,
+        Some(&ev_first),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let ok = |ev: &Evaluation<f64>| match ev.nodes.get(&split) {
+        Some(NodeResult::Ok(v)) => (v.content_key, format!("{:?}", v.payload)),
+        other => panic!("the split builds: {other:?}"),
+    };
+    let ((key_first, body_first), (key_second, body_second)) = (ok(&ev_first), ok(&fresh));
+    assert_ne!(body_first, body_second, "premise: the two tools cut apart");
+    assert_ne!(key_first, key_second, "two tools, one content key");
+    assert_eq!(ok(&memo).1, body_second, "the memo served the other tool");
+}
+
+/// **Row 1 on a reversed face**: a revolved washer's two annuli are
+/// minted with opposite senses, and each still reads its outward
+/// normal — the lower one −z, the upper one +z — so a reader that took
+/// the carrier's chart axis instead would turn one of them inward.
+#[test]
+fn both_annuli_of_a_revolved_washer_read_outward() {
+    let (doc, _plane, profile) = fixture::on_frame_keeping(
+        ProfileDoc::empty_derived("s3a_annuli", Tol::witness()),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![fixture::square(2.0, 0.0, 0.5)],
+    );
+    let (doc, washer) = fixture::insert(
+        doc,
+        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+    );
+    let ev = eval(&doc);
+    let annuli: Vec<_> = all_faces(&ev, washer)
+        .into_iter()
+        .filter(|n| face_carrier_kind(&ev, washer, n) == Ok(SurfaceKind::Plane))
+        .collect();
+    assert_eq!(annuli.len(), 2);
+    let mut doc = doc;
+    let mut planes = Vec::new();
+    for face in annuli {
+        let (next, plane) = split_by(
+            doc,
+            washer,
+            pose(PoseDef::Plane {
+                face: select(washer, face),
+            }),
+        );
+        doc = next;
+        planes.push(plane);
+    }
+    let ev = eval(&doc);
+    let mut heights = Vec::new();
+    for plane in planes {
+        let value = bound_pose(&doc, &ev, OperandSlot::Tool, plane, Tol::witness());
+        let Ok(PoseValue::Plane { origin, normal }) = value else {
+            panic!("a plane, not {value:?}");
+        };
+        let n = UnitVec3::get(normal);
+        near(n.z.abs(), 1.0, "an annulus is horizontal");
+        assert!(
+            n.z * origin.z > 0.0,
+            "inward: origin {origin:?}, normal {n:?}"
+        );
+        heights.push(origin.z);
+    }
+    heights.sort_by(f64::total_cmp);
+    near(heights[0], -0.5, "the lower annulus");
+    near(heights[1], 0.5, "the upper annulus");
+}
+
+/// **The same, when the scalar becomes observed later** (the dual
+/// review's second MAJOR): the standoff reads a free `k` the split's
+/// insert minted before any measure, and a later redefinition makes
+/// `k` a measured length. Definition order now sees the pose
+/// definition's reads, so the walk that finds observed variables meets
+/// the pose after `k` and the redefinition refuses.
+#[test]
+fn a_pose_whose_scalar_becomes_observed_refuses_the_redefinition() {
+    let (doc, cube) = unit_box();
+    let k = VarName::from_static("k");
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: k.clone(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, -0.25)),
+        },
+    );
+    let cap = fixture::fname(cube, RoleSeg::Cap(CapEnd::End));
+    let (doc, _split) = split_by(
+        doc,
+        cube,
+        pose(PoseDef::Standoff {
+            plane: pose(PoseDef::Plane {
+                face: select(cube, cap),
+            }),
+            by: Formula::named(k.clone(), Dimension::Length),
+        }),
+    );
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            fixture::cap_ref(cube, CapEnd::Start),
+            fixture::cap_ref(cube, CapEnd::End),
+        ],
+    );
+    let out = fixture::output(&doc, measure);
+    let refused = editor_core::apply(
+        &doc,
+        &DocEdit::DefineVar {
+            var: k.into(),
+            def: editor_core::VarDecl::defined(
+                Formula::mul(Formula::var(out, Dimension::Length), scl(-0.25)).unwrap(),
+            ),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    assert!(
+        matches!(
+            refused,
+            Err(EditError::ConstructionReadsObserved {
+                slot: editor_core::SlotId::Operand(OperandSlot::Tool),
+                ..
+            })
+        ),
+        "{refused:?}"
+    );
+}
+
+/// The flip-standoff document the door rows read: a split whose tool is
+/// the top cap's plane, flipped, moved by a free length; and that
+/// split's tool variable.
+fn flipped_standoff() -> (ProfileDoc, VarId) {
+    let (doc, cube) = unit_box();
+    let cap = fixture::fname(cube, RoleSeg::Cap(CapEnd::End));
+    split_by(
+        doc,
+        cube,
+        pose(PoseDef::Standoff {
+            plane: pose(PoseDef::Flip {
+                pose: pose(PoseDef::Plane {
+                    face: select(cube, cap),
+                }),
+            }),
+            by: len(0.25),
+        }),
+    )
+}
+
+/// **The edit door normalises a flip of a flip** (FORK-S3M: an
+/// involution normalised to one side): a tool written `Flip(Flip(p))`
+/// is stored as `p`'s definition, never a flip; a point flipped twice
+/// still refuses, because a flip admits only what has a sense.
+#[test]
+fn the_door_normalises_a_flip_of_a_flip() {
+    let (doc, cube) = unit_box();
+    let cap = fixture::fname(cube, RoleSeg::Cap(CapEnd::End));
+    let plane = || {
+        pose(PoseDef::Plane {
+            face: select(cube, cap.clone()),
+        })
+    };
+    let (doc, tool) = split_by(
+        doc,
+        cube,
+        pose(PoseDef::Flip {
+            pose: pose(PoseDef::Flip { pose: plane() }),
+        }),
+    );
+    assert!(
+        matches!(
+            doc.var(tool).map(editor_core::Var::def),
+            Some(editor_core::VarDef::Pose(PoseDef::Plane { .. }))
+        ),
+        "stored {:?}",
+        doc.var(tool).map(editor_core::Var::def)
+    );
+    let corner = fixture::cap_vertex(
+        cube,
+        CapEnd::End,
+        fixture::vpiece(&unit_box().0, cube, 0, 0),
+    );
+    let refused = fixture::insert_refused(
+        &unit_box().0,
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: pose(PoseDef::Flip {
+                pose: pose(PoseDef::Flip {
+                    pose: pose(PoseDef::Point {
+                        of: select(cube, corner),
+                    }),
+                }),
+            }),
+        },
+    );
+    assert!(
+        matches!(
+            &refused,
+            EditError::SlotVarKind {
+                found: VarKind::Point,
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
+}
+
+/// **The load door refuses a pose definition no edit door writes**
+/// (`Walk::Pose`): a saved document, hand-edited three ways — a flip
+/// reading a length, a standoff by a plane, a flip of a flip — refuses
+/// `PoseShape` naming each fault, and the file as saved round-trips.
+#[test]
+fn the_load_door_refuses_a_malformed_pose_definition() {
+    let (doc, tool) = flipped_standoff();
+    let Some(editor_core::VarDef::Pose(PoseDef::Standoff { plane: flip, by })) =
+        doc.var(tool).map(editor_core::Var::def)
+    else {
+        panic!("a standoff tool");
+    };
+    let (flip, by) = (*flip, *by);
+    let Some(editor_core::VarDef::Pose(PoseDef::Flip { pose: face_plane })) =
+        doc.var(flip).map(editor_core::Var::def)
+    else {
+        panic!("a flipped plane");
+    };
+    let id = |var: VarId| serde_json::to_string(&var).unwrap();
+    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("saves");
+    let back = editor_core::persist::load(&text, Tol::witness()).expect("loads as saved");
+    assert_eq!(
+        editor_core::persist::save(&back.snapshot, &back.edits, Tol::witness()).unwrap(),
+        text,
+        "round-trips bit-identical"
+    );
+    let flip_reads = format!("\"pose\": {}", id(*face_plane));
+    let standoff = format!("\"plane\": {},\n              \"by\": {}", id(flip), id(by));
+    assert!(
+        text.contains(&flip_reads) && text.contains(&standoff),
+        "the wire spelling moved"
+    );
+    for (mutated, fault) in [
+        (
+            text.replace(&flip_reads, &format!("\"pose\": {}", id(by))),
+            "ReadKind",
+        ),
+        (
+            text.replace(
+                &standoff,
+                &format!(
+                    "\"plane\": {},\n              \"by\": {}",
+                    id(flip),
+                    id(*face_plane)
+                ),
+            ),
+            "ScalarKind",
+        ),
+        (
+            text.replace(
+                &format!("\"Standoff\": {{\n              {standoff}\n            }}"),
+                &format!(
+                    "\"Flip\": {{\n              \"pose\": {}\n            }}",
+                    id(flip)
+                ),
+            ),
+            "DoubleFlip",
+        ),
+    ] {
+        assert_ne!(mutated, text, "{fault}: the mutation applied");
+        let refused = editor_core::persist::load(&mutated, Tol::witness());
+        let said = format!("{refused:?}");
+        assert!(
+            refused.is_err() && said.contains("PoseShape") && said.contains(fault),
+            "{fault}: {said}"
+        );
+    }
+}
+
+/// **A revolve's axis output is the line its body turns about**
+/// (claim 6's second half): on a frame tilted out of the world planes,
+/// about an axis line off the frame's origin and off its axes, the
+/// port-1 axis and the axis read off the body's conical wall are
+/// one line — parallel, and each origin on the other — to the last
+/// few ulps. Swapping the axis line's coordinates moves port 1 off the
+/// body's axis.
+#[test]
+fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
+    let (doc, _plane, profile) = fixture::on_frame_keeping(
+        ProfileDoc::empty_derived("s3a_port1", Tol::witness()),
+        [0.25, -0.5, 0.75],
+        [0.6, 0.0, 0.8],
+        [-0.64, 0.6, 0.48],
+        vec![fixture::square(2.0, 0.0, 0.5)],
+    );
+    let (doc, revolve) = fixture::insert(
+        doc,
+        fixture::revolve_about(profile, (0.25, 0.5), (0.3, 1.0), ang(std::f64::consts::TAU)),
+    );
+    let ev = eval(&doc);
+    // The square's sides are oblique to the axis, so its walls are
+    // cones; each carries the body's axis.
+    let wall = all_faces(&ev, revolve)
+        .into_iter()
+        .find(|n| face_carrier_kind(&ev, revolve, n) == Ok(SurfaceKind::Cone))
+        .expect("a conical wall");
+    let (doc, ring) = fixture::insert(
+        doc,
+        Node::Pattern {
+            input: Operand::output(revolve, 0),
+            count: Formula::count(2),
+            kind: editor_core::PatternKind::Circular {
+                axis: pose(PoseDef::Axis {
+                    of: select(revolve, wall),
+                }),
+                step: ang(std::f64::consts::FRAC_PI_2),
+            },
+        },
+    );
+    let ev = eval(&doc);
+    let axis_of = |var| match bound_pose(&doc, &ev, OperandSlot::Axis, var, Tol::witness()) {
+        Ok(PoseValue::Axis { origin, dir }) => (origin, UnitVec3::get(dir)),
+        other => panic!("an axis, not {other:?}"),
+    };
+    let port = doc.output(revolve, 1).expect("a revolve defines its axis");
+    let Some(Node::Pattern {
+        kind: editor_core::PatternKind::Circular { axis: read, .. },
+        ..
+    }) = doc.node(ring)
+    else {
+        panic!("the ring");
+    };
+    let ((o1, d1), (o2, d2)) = (axis_of(port), axis_of(*read));
+    let slack = 8.0 * f64::EPSILON * 4.0;
+    assert!(d1.cross(d2).norm() <= slack, "{d1:?} against {d2:?}");
+    let off = |o: geom_core::Point3<f64>, at: geom_core::Point3<f64>, d: geom_core::Vec3<f64>| {
+        (o - at).cross(d).norm()
+    };
+    assert!(
+        off(o1, o2, d2) <= slack,
+        "port 1's origin off the wall's axis: {o1:?}"
+    );
+    assert!(
+        off(o2, o1, d1) <= slack,
+        "the wall's origin off port 1: {o2:?}"
+    );
+}
+
+/// A subgroup's Lie algebra as twists `(ω, v)` (`v` the velocity of the
+/// point at the origin), as a spanning list.
+fn algebra(g: &editor_core::Subgroup<f64>) -> Vec<[f64; 6]> {
+    use editor_core::Subgroup as S;
+    use geom_core::Vec3;
+    let twist = |w: Vec3<f64>, v: Vec3<f64>| [w.x, w.y, w.z, v.x, v.y, v.z];
+    let zero = Vec3::new(0.0, 0.0, 0.0);
+    let axes = [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    ];
+    // A rotation about the line through `p` along `d`.
+    let turn = |p: geom_core::Point3<f64>, d: Vec3<f64>| {
+        let p = p - geom_core::Point3::origin();
+        twist(d, p.cross(d))
+    };
+    let across = |n: Vec3<f64>| axes.iter().map(move |&a| twist(zero, a - n * a.dot(n)));
+    match *g {
+        S::Se3 => axes
+            .iter()
+            .flat_map(|&a| [twist(a, zero), twist(zero, a)])
+            .collect(),
+        S::Planar { normal } => {
+            let n = UnitVec3::get(normal);
+            std::iter::once(twist(n, zero)).chain(across(n)).collect()
+        }
+        S::Cylindrical { point, direction } => {
+            let d = UnitVec3::get(direction);
+            vec![turn(point, d), twist(zero, d)]
+        }
+        S::Prismatic { direction } => vec![twist(zero, UnitVec3::get(direction))],
+        S::Revolute { point, direction } => vec![turn(point, UnitVec3::get(direction))],
+        S::Spherical { point } => axes.iter().map(|&a| turn(point, a)).collect(),
+        S::Parallel { direction } => std::iter::once(twist(UnitVec3::get(direction), zero))
+            .chain(axes.iter().map(|&a| twist(zero, a)))
+            .collect(),
+        S::Translation => axes.iter().map(|&a| twist(zero, a)).collect(),
+        S::PlaneTranslation { normal } => across(UnitVec3::get(normal)).collect(),
+        S::Trivial | S::Empty => Vec::new(),
+    }
+}
+
+/// The rank of a list of six-vectors, by elimination at `1e-9`.
+fn rank(rows: &[[f64; 6]]) -> usize {
+    let mut m: Vec<[f64; 6]> = rows.to_vec();
+    let mut r = 0;
+    for col in 0..6 {
+        let Some(pivot) = (r..m.len()).max_by(|&a, &b| m[a][col].abs().total_cmp(&m[b][col].abs()))
+        else {
+            break;
+        };
+        if m[pivot][col].abs() < 1e-9 {
+            continue;
+        }
+        m.swap(r, pivot);
+        for i in 0..m.len() {
+            if i != r {
+                let f = m[i][col] / m[r][col];
+                let pivot_row = m[r];
+                for (x, p) in m[i].iter_mut().zip(pivot_row) {
+                    *x -= f * p;
+                }
+            }
+        }
+        r += 1;
+    }
+    r
+}
+
+/// **The one `Subgroup` table is closed and right over all eleven
+/// families** (the coset module's proof obligation, executed): for
+/// every pair drawn from a sample of each family in general and in
+/// special position, the table's answer is a member of the lattice and
+/// spans exactly the intersection of the two Lie algebras — computed
+/// here independently, as subspaces of the twists — and the answer is
+/// the same in both orders.
+#[test]
+fn the_subgroup_table_spans_the_intersection_of_every_pair() {
+    use editor_core::Subgroup as S;
+    use editor_core::mate::coset::{Arm, intersect_subgroups};
+    use geom_core::{Point3, Vec3};
+    let band = geom_core::predicate::Band::linear(Tol::witness()).expect("a band");
+    let unit = |x: f64, y: f64, z: f64| {
+        UnitVec3::new(Vec3::new(x, y, z), topo::query::DATUM_UNIT_NORM, band).unwrap()
+    };
+    let dirs = [
+        unit(0.0, 0.0, 1.0),
+        unit(1.0, 0.0, 0.0),
+        unit(1.0, 0.0, 1.0),
+    ];
+    let points = [
+        Point3::origin(),
+        Point3::new(0.0, 1.0, 0.0),
+        Point3::new(1.0, 2.0, -0.5),
+    ];
+    let mut sample = vec![S::Se3, S::Translation, S::Trivial];
+    for &d in &dirs {
+        sample.push(S::Planar { normal: d });
+        sample.push(S::Prismatic { direction: d });
+        sample.push(S::Parallel { direction: d });
+        sample.push(S::PlaneTranslation { normal: d });
+        for &p in &points {
+            sample.push(S::Cylindrical {
+                point: p,
+                direction: d,
+            });
+            sample.push(S::Revolute {
+                point: p,
+                direction: d,
+            });
+        }
+    }
+    for &p in &points {
+        sample.push(S::Spherical { point: p });
+    }
+    let arm = Arm::of(0.0, 1.0).expect("a metre is in range");
+    let mut pairs = 0;
+    for a in &sample {
+        for b in &sample {
+            let met = intersect_subgroups(*a, *b, band, arm).expect("decided");
+            let back = intersect_subgroups(*b, *a, band, arm).expect("decided");
+            assert_eq!(met.family(), back.family(), "{a:?} ∩ {b:?} is unordered");
+            let (ga, gb, gm) = (algebra(a), algebra(b), algebra(&met));
+            // dim(A ∩ B) = dim A + dim B − dim(A + B).
+            let both = [ga.clone(), gb.clone()].concat();
+            let wanted = rank(&ga) + rank(&gb) - rank(&both);
+            assert_eq!(rank(&gm), wanted, "{a:?} ∩ {b:?} = {met:?}: the dimension");
+            for side in [&ga, &gb] {
+                let joined = [side.clone(), gm.clone()].concat();
+                assert_eq!(
+                    rank(&joined),
+                    rank(side),
+                    "{a:?} ∩ {b:?} = {met:?} leaves {side:?}"
+                );
+            }
+            pairs += 1;
+        }
+    }
+    assert!(
+        pairs > 900,
+        "the sample is the whole lattice: {pairs} pairs"
+    );
+}

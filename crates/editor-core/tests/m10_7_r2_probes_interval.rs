@@ -22,22 +22,22 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
-    select_where,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::Tol;
 
 use crate::fixture::{Recorder, len, scl, xy_frame};
 
-fn plen(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn plen(n: &'static str) -> Formula {
+    Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The nominal arm of the bracket, in metres.
@@ -56,17 +56,17 @@ const BORE_B_X: f64 = 2.2e-3;
 ///
 /// `scale` multiplies every tolerance together, so `1.0` is the study a
 /// user would actually ask for and a smaller number is a narrower one.
-pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::Continuous {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static(n),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     // The arm is a uniform tolerance; the fillet radius is a uniform
@@ -103,7 +103,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let plane = r.insert(xy_frame());
 
     // The L, with a PARAMETRIC fillet at its inner corner — the arc.
-    let pt = |x: Expr, y: Expr| ProgramTarget::Point([x, y]);
+    let pt = |x: Formula, y: Formula| ProgramTarget::Point([x, y]);
     let bracket_loop = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
         ProgramStep::LineTo(pt(plen("arm"), len(0.0))),
@@ -122,20 +122,21 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![bracket_loop],
         ids: Vec::new(),
     }));
     // THE DIVISION: the plate is a quarter of the arm thick.
-    let thickness = Expr::div(plen("arm"), scl(4.0)).expect("Length / Scalar");
+    let thickness = Formula::div(plen("arm"), scl(4.0)).expect("Length / Scalar");
     let _body = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: thickness.clone(),
+        side: ExtrudeSide::Along,
     });
 
-    let bore = |r: &mut Recorder, x: f64, radius: &str| {
+    let bore = |r: &mut Recorder, x: f64, radius: &'static str| {
         let profile = r.insert(Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(x), len(0.5e-3)],
                 radius: plen(radius),
@@ -143,8 +144,9 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: thickness.clone(),
+            side: ExtrudeSide::Along,
         })
     };
     let bore_a = bore(&mut r, BORE_A_X, "bore_a");
@@ -158,14 +160,14 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,
@@ -178,22 +180,20 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         vec![wall(bore_a), wall(bore_b)]
     };
 
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(
-            MeasureExpr::value(plen("bore_a")),
-            MeasureExpr::value(plen("bore_b")),
-        )
-        .expect("Length + Length"),
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let web = Formula::sub(
+        r.len_of(measured.outputs[0]),
+        Formula::add(plen("bore_a"), plen("bore_b")).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
+
     let nominal_web = BORE_B_X - BORE_A_X - 2.0 * BORE;
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: web,
         bound: len(nominal_web - 5.0e-5),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
+    let measure = crate::fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
 }
 
@@ -252,9 +252,9 @@ fn r2_end_to_end_bracket_study() {
                         v.receipt(),
                         v.decisions()
                     );
-                    println!("{}", v.render(&analyzed));
+                    println!("{}", v.render(&doc, &analyzed));
                     let stack = editor_core::stackup::stackup(
-                        &doc, measure, &analyzed, &v, None, false, tol,
+                        &doc, measure, &analyzed, &v, None, false, None, tol,
                     );
                     println!("   stackup: {stack:?}");
                     let a = editor_core::drive::assertion_at(&doc, assertion, v.root(), dials, tol);
@@ -385,7 +385,7 @@ fn r2_a_zero_term_budget_reproduces_the_tier_off_verdict() {
     // tier-off run installs no session and counts nothing.
     let strip = |s: &str| {
         s.lines()
-            .filter(|l| !l.starts_with("decisions symbolic_zero"))
+            .filter(|l| !l.starts_with("decisions symbolic="))
             .collect::<Vec<_>>()
             .join("\n")
     };
@@ -426,8 +426,9 @@ fn r2_what_a_real_study_gets_today() {
                 for l in v.refused().iter().take(4) {
                     println!("   refused: {:?}", l.reason);
                 }
-                let s =
-                    editor_core::stackup::stackup(&doc, measure, &analyzed, &v, None, false, tol);
+                let s = editor_core::stackup::stackup(
+                    &doc, measure, &analyzed, &v, None, false, None, tol,
+                );
                 println!("   stackup: {s:?}");
                 println!(
                     "   assertion: {:?}",
@@ -441,7 +442,7 @@ fn r2_what_a_real_study_gets_today() {
         ParamBox::of(&analyzed)
             .axes()
             .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
+            .map(|n| (*n, BoxAxis::Fixed))
             .collect(),
     );
     let _ = Arc::new(nominal);
@@ -455,9 +456,9 @@ fn r2_what_a_real_study_gets_today() {
 #[cfg(feature = "probe")]
 fn collinear_walls() -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new("w"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("w"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 4.0e-3,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -465,16 +466,16 @@ fn collinear_walls() -> ProfileDoc {
                 lo: -1.0e-5,
                 hi: 1.0e-5,
             }),
-        },
+        }),
     });
     let plane = r.insert(xy_frame());
     // The middle vertex of the bottom edge splits ONE straight edge in
     // two: segments 0 and 1 are collinear by construction, whatever `w`
     // does, so `side_planes_cosurface` is a genuine IDENTITY here and
     // not a coincidence at the nominal.
-    let w = || Expr::param(ParamName::new("w"), Dimension::Length);
+    let w = || Formula::named(VarName::from_static("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             // The DECLARED straight continuation: `LineTo` at a zero-turn
@@ -482,7 +483,7 @@ fn collinear_walls() -> ProfileDoc {
             // — an undeclared zero-turn joint), so the split vertex is
             // authored the way the vocabulary spells it.
             ProgramStep::LineTo(ProgramTarget::Point([
-                Expr::div(w(), scl(2.0)).expect("Length / Scalar"),
+                Formula::div(w(), scl(2.0)).expect("Length / Scalar"),
                 len(0.0),
             ])),
             ProgramStep::ContinueTo(ProgramTarget::Point([w(), len(0.0)])),
@@ -493,8 +494,9 @@ fn collinear_walls() -> ProfileDoc {
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -520,7 +522,7 @@ fn r2_collinear_walls_should_discharge_side_planes_cosurface() {
             ParamBox::of(&analyzed)
                 .axes()
                 .keys()
-                .map(|n| (n.clone(), BoxAxis::Fixed))
+                .map(|n| (*n, BoxAxis::Fixed))
                 .collect(),
         );
         let opts = editor_core::EvalOptions {
@@ -544,7 +546,7 @@ fn r2_collinear_walls_should_discharge_side_planes_cosurface() {
         for s in geom_core::k_stats::take_samples() {
             let e = rows.entry(s.predicate).or_default();
             match s.outcome {
-                geom_core::k_stats::SampleOutcome::SymbolicZero => e.0 += 1,
+                geom_core::k_stats::SampleOutcome::Symbolic => e.0 += 1,
                 _ => e.1 += 1,
             }
         }

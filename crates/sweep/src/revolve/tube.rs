@@ -1,6 +1,6 @@
 //! **`tube_along_arc` — the world-coordinate tube/torus door** (M6-3
 //! Leg F; the Ev-ratified rider, #175 thread). A ring-torus body
-//! from its INTENT parameters: the spine FRAME (an [`OrthoFrame`] —
+//! from its INTENT parameters: the spine FRAME (an [`RigidMotion`] —
 //! its origin the ring centre, its `w` the spine axis, its `u` the
 //! reference radial the window is measured from), the major radius, an
 //! arc window (or a full ring), and the tube's minor
@@ -59,13 +59,13 @@
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Mat3, OrthoFrame, Point2, Point3, Real, Sign,
+    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Real, RigidMotion, Sign,
     Tol, Vec2,
 };
 
 use super::axis::AxisFrame;
 use super::{RevolveAxis, RevolveError, Revolved, SweptSeg, full, partial};
-use crate::swept::SweptKind;
+use crate::swept::Traversed;
 
 /// The traversed window of the spine arc.
 #[derive(Clone, Copy, Debug)]
@@ -143,8 +143,12 @@ pub enum TubeError {
         /// between the two stored radii did not clear it.
         eps: f64,
     },
-    /// A window or wall classification escalated.
+    /// A window or wall classification escalated. The door builds it
+    /// only where it meters `decision` under its own name, so `source`
+    /// carries `decision.predicate()`.
     Escalated {
+        /// The classification that escalated.
+        decision: TubeDecision,
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
@@ -154,10 +158,83 @@ pub enum TubeError {
     Revolve(RevolveError),
 }
 
-/// The `k_stats` names only [`tube_along_arc_hollow`] can reach. An
-/// escalation carrying one of these came from the hollow door, and
-/// its message must say so — the solid door cannot produce it.
-const HOLLOW_PREDICATES: [&str; 3] = ["tube_wall", "tube_wall_bore", "tube_wall_gap"];
+/// The classifications a tube door takes before it builds, each a
+/// [`TubeError::Escalated`] when it escalates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TubeDecision {
+    /// The wall is thicker than the run's threshold.
+    Wall,
+    /// The minor radius less the wall leaves a bore.
+    WallBore,
+    /// The two radii the walls store stay distinct.
+    WallGap,
+    /// The arc window ends after it starts, metered at the outer
+    /// equator.
+    WindowSpan,
+    /// The arc window stays short of a full turn, metered at the outer
+    /// equator.
+    WindowHeadroom,
+}
+
+impl TubeDecision {
+    /// Every tube decision.
+    pub const ALL: [Self; 5] = [
+        Self::Wall,
+        Self::WallBore,
+        Self::WallGap,
+        Self::WindowSpan,
+        Self::WindowHeadroom,
+    ];
+
+    /// The `k_stats` name the decision is metered under.
+    #[must_use]
+    pub const fn predicate(self) -> &'static str {
+        match self {
+            Self::Wall => "tube_wall",
+            Self::WallBore => "tube_wall_bore",
+            Self::WallGap => "tube_wall_gap",
+            Self::WindowSpan => "tube_window_span",
+            Self::WindowHeadroom => "tube_window_headroom",
+        }
+    }
+
+    /// Whether only the hollow door takes the decision. The window is
+    /// both doors', so its refusal names "the tube".
+    #[must_use]
+    pub const fn hollow(self) -> bool {
+        matches!(self, Self::Wall | Self::WallBore | Self::WallGap)
+    }
+
+    /// Whether the margin is a size the user chose: the wall's three
+    /// are lengths, the window's two are angles.
+    #[must_use]
+    pub const fn sized(self) -> bool {
+        matches!(self, Self::Wall | Self::WallBore | Self::WallGap)
+    }
+
+    /// What the decision asks of the door's input, after "whether
+    /// {door}'s".
+    const fn question(self) -> &'static str {
+        match self {
+            Self::Wall => "wall is thicker than the run's threshold",
+            Self::WallBore => "wall leaves a bore",
+            Self::WallGap => "inner and outer radii stay distinct",
+            Self::WindowSpan => "arc window ends after it starts",
+            Self::WindowHeadroom => "arc window stays short of a full turn",
+        }
+    }
+
+    /// The ending of this decision's escalation: a size's tolerance
+    /// where [`Self::sized`], the lever alone otherwise (D4 ¶1 (i)).
+    #[must_use]
+    pub fn ending(self, diag: &Indeterminate) -> String {
+        if self.sized() {
+            diag.ending(geom_core::COINCIDENCE_RECOURSE)
+        } else {
+            diag.lever_ending(geom_core::COINCIDENCE_RECOURSE)
+        }
+    }
+}
 
 /// Which door a refusal belongs to, as far as the refusal itself can
 /// honestly say.
@@ -172,10 +249,7 @@ const HOLLOW_PREDICATES: [&str; 3] = ["tube_wall", "tube_wall_bore", "tube_wall_
 /// depend on it.)
 fn door(e: &TubeError) -> &'static str {
     match e {
-        TubeError::Escalated { source } => match source.predicate {
-            Some(p) if HOLLOW_PREDICATES.contains(&p) => "the hollow tube",
-            _ => "the tube",
-        },
+        TubeError::Escalated { decision, .. } if decision.hollow() => "the hollow tube",
         TubeError::NonpositiveWall { .. }
         | TubeError::WallExceedsRadius { .. }
         | TubeError::WallGapCollapsed { .. } => "the hollow tube",
@@ -200,23 +274,29 @@ impl core::fmt::Display for TubeError {
             ),
             Self::NonpositiveWall { eps } => write!(
                 f,
-                "{door}'s wall is not definitely thicker than the run's threshold of {eps} m \
-                 (tube_wall). Recourse: supply a thicker wall, or drop the wall for a solid \
-                 tube"
+                "{door}'s wall is not definitely thicker than the run's threshold of {eps} \
+                 m. Recourse: supply a thicker wall, or drop the wall for a solid tube"
             ),
             Self::WallExceedsRadius { eps } => write!(
                 f,
                 "{door}'s wall leaves no bore: the minor radius minus the wall is not \
-                 definitely positive (tube_wall_bore; threshold {eps} m). Recourse: supply a \
+                 definitely positive (threshold {eps} m). Recourse: supply a \
                  thinner wall, or drop the wall for a solid tube"
             ),
             Self::WallGapCollapsed { eps } => write!(
                 f,
                 "{door}'s inner and outer radii would be stored as one value at this outer \
-                 radius (tube_wall_gap; threshold {eps} m). Recourse: supply a thicker wall, \
+                 radius (threshold {eps} m). Recourse: supply a thicker wall, \
                  or a smaller outer radius"
             ),
-            Self::Escalated { source } => write!(f, "{door} escalated: {source}"),
+            Self::Escalated { decision, source } => write!(
+                f,
+                "{}",
+                source.undecided(
+                    format_args!("whether {door}'s {}", decision.question()),
+                    decision.ending(source),
+                )
+            ),
             Self::Revolve(e) => write!(f, "{e}"),
         }
     }
@@ -235,11 +315,11 @@ impl std::error::Error for TubeError {}
 /// ring-torus convention (`R > r > 0`) refuses through the shared
 /// `axis_arc_clearance`/`axis_vertex_radius` decides as
 /// [`TubeError::Revolve`]. Nothing here refuses the FRAME: an
-/// [`OrthoFrame`] is orthonormal by its type, decided at whichever
+/// [`RigidMotion`] is orthonormal by its type, decided at whichever
 /// mint built it, so the axis and the reference radial arrive as facts
 /// rather than as claims this door has to re-examine.
-pub fn tube_along_arc<T: Decide + geom_brep::PcurveFittedLane>(
-    frame: OrthoFrame<T>,
+pub fn tube_along_arc<T: Decide + topo::AtRestPolicy>(
+    frame: RigidMotion<T>,
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
@@ -269,8 +349,8 @@ pub fn tube_along_arc<T: Decide + geom_brep::PcurveFittedLane>(
 // struct would hide which numbers the body stores verbatim. The frame
 // is not such a subset: it is one intent, an origin and a spin, and it
 // arrives carrying the decision that its axes are orthonormal.
-pub fn tube_along_arc_hollow<T: Decide + geom_brep::PcurveFittedLane>(
-    frame: OrthoFrame<T>,
+pub fn tube_along_arc_hollow<T: Decide + topo::AtRestPolicy>(
+    frame: RigidMotion<T>,
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
@@ -282,8 +362,8 @@ pub fn tube_along_arc_hollow<T: Decide + geom_brep::PcurveFittedLane>(
 
 /// Both doors' body (module docs). `wall` present ⇔ hollow.
 #[allow(clippy::too_many_arguments)]
-fn build<T: Decide + geom_brep::PcurveFittedLane>(
-    frame: OrthoFrame<T>,
+fn build<T: Decide + topo::AtRestPolicy>(
+    frame: RigidMotion<T>,
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
@@ -306,7 +386,17 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
     let band = Band::linear(tol).map_err(TubeError::Band)?;
     // The angle lever arm: the outer equator (D4 ¶1).
     let arm = major_radius + minor_radius;
-    let esc = |source| TubeError::Escalated { source };
+    let classify = |decision: TubeDecision, margin: Margin<T>| {
+        let name = decision.predicate();
+        decide(name, margin, band).map_err(|source| {
+            debug_assert_eq!(
+                source.predicate,
+                Some(name),
+                "the escalation names its decision"
+            );
+            TubeError::Escalated { decision, source }
+        })
+    };
 
     // ---- The wall, decided FIRST: nothing is minted behind it, and
     // the verdicts here are the annulus's containment evidence (fn
@@ -337,14 +427,14 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
     let inner_radius = match wall {
         None => None,
         Some(wall) => {
-            match decide("tube_wall", Margin::of(wall), band).map_err(esc)? {
+            match classify(TubeDecision::Wall, Margin::of(wall))? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
                     return Err(TubeError::NonpositiveWall { eps });
                 }
             }
             let inner = minor_radius - wall;
-            match decide("tube_wall_bore", Margin::of(inner), band).map_err(esc)? {
+            match classify(TubeDecision::WallBore, Margin::of(inner))? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
                     return Err(TubeError::WallExceedsRadius { eps });
@@ -353,7 +443,7 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
             // The REALIZED gap: `minor_radius - inner`, the difference
             // of the two numbers the walls will store, not of the two
             // the caller wrote.
-            match decide("tube_wall_gap", Margin::of(minor_radius - inner), band).map_err(esc)? {
+            match classify(TubeDecision::WallGap, Margin::of(minor_radius - inner))? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
                     return Err(TubeError::WallGapCollapsed { eps });
@@ -368,12 +458,12 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
         TubeWindow::Full => (T::tau(), true),
         TubeWindow::Arc { t0, t1 } => {
             let span = t1 - t0;
-            match decide("tube_window_span", Margin::levered(span, arm), band).map_err(esc)? {
+            match classify(TubeDecision::WindowSpan, Margin::levered(span, arm))? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(TubeError::DegenerateWindow),
             }
             let headroom = Margin::levered(T::tau() - span, arm);
-            match decide("tube_window_headroom", headroom, band).map_err(esc)? {
+            match classify(TubeDecision::WindowHeadroom, headroom)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(TubeError::FullRangeWindow),
             }
@@ -454,16 +544,15 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
     Ok(out)
 }
 
-/// The circle of `radius` about `center` as a two-arc swept
+/// The circle of `radius` about `centre` as a two-arc swept
 /// traversal: the half-circle from `(cx + radius, 0)` to
-/// `(cx - radius, 0)` and the one back, with `center` and `radius`
+/// `(cx - radius, 0)` and the one back, with `centre` and `radius`
 /// stored as given.
 ///
 /// A hand-written COPY OF `swept::swept_segments` for a known two-arc
-/// input instead of a call: that builder takes a `ValidatedLoop`,
-/// whose arc centre and radius come back from bulge arithmetic, and
-/// storing the caller's numbers instead of reconstructing them is
-/// this door's entire reason to exist (module docs). So the
+/// input instead of a call: that builder takes a `ValidatedLoop`, and
+/// this door has none — it stores the caller's numbers as given, which
+/// is its entire reason to exist (module docs). So the
 /// convention is shared with `swept_segments` and the code is not:
 /// **a change to that builder is a change to this function.**
 /// (Phrased with the marker vocabulary on purpose: a duplication
@@ -471,8 +560,10 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
 /// duplication nothing will find. S131.)
 ///
 /// The two arguments are the two bits `swept_segments` carries. `turn`
-/// is the TRAVERSAL's own sense (its bulge follows: `+1` for a
-/// positive half-turn, `-1` for a negative one). `reversed` says
+/// is the TRAVERSAL's own sense (its sweep follows: `−π` where
+/// [`crate::swept::turn_negates`] reads the turn as clockwise, `+π`
+/// otherwise — the crate's one reading, so the sweep and the carrier's
+/// axis and span agree at every turn). `reversed` says
 /// whether this traversal is the reversal of its canonical chain,
 /// which is what permutes the canonical labels — the involution's
 /// `(n - j) % n` / `n - 1 - j` written out for `n = 2`. The three
@@ -483,28 +574,19 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
 /// hole loop (canonical clockwise, reversed with the outer) is
 /// `(Positive, true)`.
 fn circle_traversal<T: Real>(
-    center: Point2<T>,
+    centre: Point2<T>,
     radius: T,
     turn: Sign,
     reversed: bool,
 ) -> Vec<SweptSeg<T>> {
     let (lo, hi) = (
-        Point2::new(center.x - radius, T::zero()),
-        Point2::new(center.x + radius, T::zero()),
+        Point2::new(centre.x - radius, T::zero()),
+        Point2::new(centre.x + radius, T::zero()),
     );
-    let bulge = match turn {
-        Sign::Positive => T::one(),
-        Sign::Negative | Sign::Zero => T::zero() - T::one(),
-    };
     let arc = |a, b, canonical_vertex, canonical_segment| SweptSeg {
         a,
         b,
-        bulge,
-        kind: SweptKind::Arc {
-            center,
-            radius,
-            turn,
-        },
+        kind: Traversed::half_turn(centre, radius, turn),
         canonical_vertex,
         canonical_segment,
     };
@@ -512,5 +594,88 @@ fn circle_traversal<T: Real>(
         vec![arc(hi, lo, 0, 1), arc(lo, hi, 1, 0)]
     } else {
         vec![arc(hi, lo, 0, 0), arc(lo, hi, 1, 1)]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use crate::swept::arc_span;
+    use profile::SegmentKind;
+
+    /// **A tube escalation ends by its decision's kind.** The wall's
+    /// three are lengths the caller chose, so their refusal offers the
+    /// tolerance a value in the band gives; the window's two are angles,
+    /// so theirs is the lever alone on every reading, with the
+    /// unreadable-margin note on poison.
+    #[test]
+    fn a_tube_escalation_ends_by_its_decisions_kind() {
+        use crate::swept::undecided_fixtures::{LEVER, SIZED, expected, readings};
+        let cases = [
+            (
+                TubeDecision::Wall,
+                "whether the hollow tube's wall is thicker than the run's threshold",
+                SIZED,
+            ),
+            (
+                TubeDecision::WallBore,
+                "whether the hollow tube's wall leaves a bore",
+                SIZED,
+            ),
+            (
+                TubeDecision::WallGap,
+                "whether the hollow tube's inner and outer radii stay distinct",
+                SIZED,
+            ),
+            (
+                TubeDecision::WindowSpan,
+                "whether the tube's arc window ends after it starts",
+                LEVER,
+            ),
+            (
+                TubeDecision::WindowHeadroom,
+                "whether the tube's arc window stays short of a full turn",
+                LEVER,
+            ),
+        ];
+        assert_eq!(cases.map(|(d, ..)| d), TubeDecision::ALL);
+        for (decision, subject, endings) in cases {
+            for (source, text) in readings(decision.predicate())
+                .into_iter()
+                .zip(expected(subject, endings))
+            {
+                assert_eq!(
+                    TubeError::Escalated { decision, source }.to_string(),
+                    text,
+                    "{decision:?}"
+                );
+            }
+        }
+    }
+
+    /// **The traversal's sweep agrees with the crate's reading of its
+    /// turn**, at every turn `Sign` has, `Zero` included: each half-turn
+    /// arc's span (its sweep signed by its turn) is `π`, bit for bit. A
+    /// sweep minted against another reading of `Zero` gives `−π` here.
+    #[test]
+    fn the_traversals_sweep_reads_its_turn_as_the_carrier_does() {
+        for turn in [Sign::Positive, Sign::Negative, Sign::Zero] {
+            for reversed in [false, true] {
+                for seg in circle_traversal(Point2::new(2.0_f64, 0.0), 1.0, turn, reversed) {
+                    let SegmentKind::Arc { arc, turn: t } = seg.kind.get() else {
+                        panic!("a circle traversal is arcs");
+                    };
+                    let span = arc_span(t, arc);
+                    assert_eq!(
+                        span.to_bits(),
+                        core::f64::consts::PI.to_bits(),
+                        "{turn:?} reversed={reversed}: sweep {} against its turn",
+                        arc.sweep
+                    );
+                }
+            }
+        }
     }
 }

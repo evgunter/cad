@@ -15,9 +15,8 @@
 //! Shared`), restoring the writer-side sharing that the per-face
 //! record emission flattened — this is what makes a seam edge's
 //! same-surface-both-sides state visible to the ladder. `same_sense`
-//! lands via [`topo::Body::set_face_sense`] exactly as read (the
-//! corpus's reversed faces are deliberate kernel output — honored,
-//! never healed).
+//! is stated beside the surface exactly as read (the corpus's reversed
+//! faces are deliberate kernel output — honored, never healed).
 //!
 //! # Phase C — the edge ladder (D7 stage 2)
 //!
@@ -43,10 +42,10 @@
 //! at the kernel's own ε.
 
 use geom::Curve3;
-use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
+use geom::{Surface, SurfaceData};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, SurfacePair};
 use geom_core::spline::SplineError;
-use geom_core::{Affine3, Point2, Point3};
+use geom_core::{Affine3, FileCoincidence, Point2, Point3};
 use topo::{Body, FaceKey, FaceSurface, LoopKey};
 
 use crate::assemble::Assembled;
@@ -54,17 +53,20 @@ use crate::entities::SolidSpec;
 use crate::error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
 use geom_core::Tol;
 
-/// Runs phases B and C for one assembled solid (module docs).
+/// Runs phases B and C for one assembled solid (module docs), and
+/// returns the body face per file face, in `CLOSED_SHELL` order.
 pub(crate) fn finish(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
-) -> Result<(), StepImportError> {
-    let face_keys = designate_faces(body, solid, asm)?;
-    rotate_loop_firsts(body, solid, asm, tol)?;
-    attach_surfaces(body, solid, &face_keys)?;
-    adopt_edges(body, solid, asm, tol)
+    file: FileCoincidence,
+) -> Result<Vec<FaceKey>, StepImportError> {
+    let face_keys = designate_faces(body, solid, asm, file)?;
+    rotate_loop_firsts(body, solid, asm, tol, file)?;
+    attach_surfaces(body, solid, &face_keys, file)?;
+    adopt_edges(body, solid, asm, tol, file)?;
+    Ok(face_keys)
 }
 
 /// The body loop realizing target loop `l`.
@@ -102,10 +104,12 @@ fn designate_faces(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     asm: &Assembled,
+    file: FileCoincidence,
 ) -> Result<Vec<FaceKey>, StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
+        file,
     };
     // Normalize: promote every ring-designated realized loop.
     for l in 0..asm.target.loops.len() {
@@ -119,7 +123,7 @@ fn designate_faces(
             })?
             .outer;
         if outer != lk {
-            body.mfkrh_plug(lk).map_err(op_err)?;
+            body.mfkrh_plug(lk, true).map_err(op_err)?;
         }
     }
     // Re-mint outer faces in FILE order (fixed-point discipline): the
@@ -153,7 +157,7 @@ fn designate_faces(
                 what: "internal: no parking face for the face-order re-mint",
             })?;
             body.kfmrh(park, f_cur).map_err(op_err)?;
-            body.mfkrh_plug(lk).map_err(op_err)?;
+            body.mfkrh_plug(lk, true).map_err(op_err)?;
         }
     }
     // Designate: each file face's rings become rings of its outer's
@@ -186,10 +190,12 @@ fn rotate_loop_firsts(
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
+    file: FileCoincidence,
 ) -> Result<(), StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
+        file,
     };
     for seq in &asm.target.loops {
         let t = asm.use_he[seq[0]];
@@ -235,78 +241,28 @@ fn rotate_loop_firsts(
 
 /// A surface's exact structural signature: variant tag + field bits,
 /// the dedup key that restores writer-side surface-key sharing
-/// (bitwise identity — an exact structural comparison, no ε).
+/// (bitwise identity — an exact structural comparison, no ε). An
+/// analytic kind's fields are [`Surface::data`]'s, so a field a variant
+/// gains is a field of the key.
 fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
     let p = |p: Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
-    let v = |v: geom_core::Vec3<f64>| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
-    match *surface {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => [&[0u64][..], &p(origin), &v(normal), &v(u_ref)].concat(),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => [
-            &[1u64][..],
-            &p(origin),
-            &v(axis),
-            &[radius.to_bits()],
-            &v(u_ref),
-        ]
-        .concat(),
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => [
-            &[2u64][..],
-            &p(apex),
-            &v(axis),
-            &[half_angle.to_bits()],
-            &v(u_ref),
-        ]
-        .concat(),
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => [
-            &[3u64][..],
-            &p(center),
-            &[radius.to_bits()],
-            &v(axis),
-            &v(u_ref),
-        ]
-        .concat(),
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        } => [
-            &[4u64][..],
-            &p(center),
-            &v(axis),
-            &[major_radius.to_bits(), minor_radius.to_bits()],
-            &v(u_ref),
-        ]
-        .concat(),
-        // The full structural payload: degrees, knot values, control
-        // bits, weight bits (M7-3). A tag-only arm here was the
-        // silent-wrong-body trap: once NURBS surfaces parse, every
-        // wall in a body would share ONE surface key — four distinct
-        // walls collapsing to one surface, exactly the class of wrong
-        // the dedup exists to prevent — so the signature hashes every
-        // field the record states, like the analytic arms above.
-        // Counts lead each variable-length section so two payloads
-        // with different shapes cannot alias by concatenation.
+    let tag: u64 = match surface {
+        Surface::Plane { .. } => 0,
+        Surface::Cylinder { .. } => 1,
+        Surface::Cone { .. } => 2,
+        Surface::Sphere { .. } => 3,
+        Surface::Torus { .. } => 4,
+        Surface::Nurbs(_) => 5,
+        Surface::Approx(_) => 6,
+    };
+    match surface.data() {
+        SurfaceData::Analytic(data) => core::iter::once(tag)
+            .chain(
+                data.into_iter()
+                    .flat_map(|(_, value)| value.scalars())
+                    .map(f64::to_bits),
+            )
+            .collect(),
         // No import path mints one (STEP's OFFSET_SURFACE is not read),
         // so this arm exists to keep the signature TOTAL rather than to
         // dedup: a tag alone would alias every approximating surface to
@@ -316,11 +272,20 @@ fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
         // need, and it is not written until one exists — so the arm
         // signs a tag that can alias only with itself and no import
         // reaches it.
-        Surface::Approx(_) => vec![6u64],
-        Surface::Nurbs(ref payload) => {
+        SurfaceData::Approx(_) => vec![tag],
+        // The full structural payload: degrees, knot values, control
+        // bits, weight bits (M7-3). A tag-only arm here was the
+        // silent-wrong-body trap: once NURBS surfaces parse, every
+        // wall in a body would share ONE surface key — four distinct
+        // walls collapsing to one surface, exactly the class of wrong
+        // the dedup exists to prevent — so the signature hashes every
+        // field the record states, like the analytic arm above.
+        // Counts lead each variable-length section so two payloads
+        // with different shapes cannot alias by concatenation.
+        SurfaceData::Nurbs(payload) => {
             let (nu, nv) = payload.control_counts();
             let mut sig = vec![
-                5u64,
+                tag,
                 payload.knots_u().degree() as u64,
                 payload.knots_v().degree() as u64,
                 payload.knots_u().knots().len() as u64,
@@ -343,22 +308,28 @@ fn attach_surfaces(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     face_keys: &[FaceKey],
+    file: FileCoincidence,
 ) -> Result<(), StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
+        file,
     };
     let mut seen: std::collections::BTreeMap<Vec<u64>, topo::SurfaceKey> =
         std::collections::BTreeMap::new();
     for (spec, &fk) in solid.faces.iter().zip(face_keys) {
         let sig = surface_sig(&spec.surface);
         let surface = match seen.get(&sig) {
-            Some(&key) => FaceSurface::Shared(key),
-            None => FaceSurface::New(spec.surface.clone()),
+            Some(&key) => FaceSurface::Shared {
+                key,
+                sense: spec.sense,
+            },
+            None => FaceSurface::New {
+                surface: spec.surface.clone(),
+                sense: spec.sense,
+            },
         };
-        let attached = body
-            .set_face_surface_and_sense(fk, surface, spec.sense)
-            .map_err(op_err)?;
+        let attached = body.set_face_surface(fk, surface).map_err(op_err)?;
         seen.insert(sig, attached);
     }
     Ok(())
@@ -370,6 +341,7 @@ fn adopt_edges(
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
+    file: FileCoincidence,
 ) -> Result<(), StepImportError> {
     for (&edge_id, spec) in &solid.edges {
         let (fwd, rev) = asm
@@ -386,23 +358,21 @@ fn adopt_edges(
             .get_half_edge(he_plus)
             .ok_or(resolve("internal: a realized half-edge does not resolve"))?
             .edge;
-        let face_surface = |body: &Body<f64>, he| -> Result<topo::SurfaceKey, StepImportError> {
-            let loop_key = body
-                .get_half_edge(he)
-                .ok_or(resolve("internal: a realized half-edge does not resolve"))?
-                .parent_loop;
-            let face = body
-                .get_loop(loop_key)
-                .ok_or(resolve("internal: a realized loop does not resolve"))?
-                .face;
-            Ok(body
-                .get_face(face)
-                .ok_or(resolve("internal: a realized face does not resolve"))?
-                .surface)
-        };
-        let fs_plus = face_surface(body, he_plus)?;
-        let fs_minus = face_surface(body, he_minus)?;
-        let witness = spec.carrier.eval((spec.t0 + spec.t1) / 2.0);
+        let sides = topo::readback::edge_sides(body, edge_key).unwrap_or_else(|_| {
+            unreachable!(
+                "{he_plus:?}'s edge names {edge_key:?}, which does not resolve: every public \
+                 door keeps the body tier-1-valid"
+            )
+        });
+        // Assembly realizes a file edge's forward use as the edge's
+        // `he_plus`; the surface pair below is ordered by the file's uses.
+        if (sides.plus.half_edge, sides.minus.half_edge) != (he_plus, he_minus) {
+            return Err(resolve(
+                "internal: a realized edge's two uses are not its he_plus and he_minus",
+            ));
+        }
+        let (fs_plus, fs_minus) = sides.surfaces();
+        let witness = spec.carrier.mid_point(spec.t0, spec.t1);
         let p_start = solid.vertices[&spec.start];
         let p_end = solid.vertices[&spec.end];
 
@@ -462,16 +432,14 @@ fn adopt_edges(
             candidates.push((
                 AdoptionCandidate::Intersection,
                 EdgeDescriptionSpec::Intersection {
-                    s1: fs_plus,
-                    s2: fs_minus,
+                    pair: SurfacePair::new(fs_plus, fs_minus),
                     witness,
                 },
             ));
             candidates.push((
                 AdoptionCandidate::TangentIntersection,
                 EdgeDescriptionSpec::TangentIntersection {
-                    s1: fs_plus,
-                    s2: fs_minus,
+                    pair: SurfacePair::new(fs_plus, fs_minus),
                     witness,
                 },
             ));
@@ -586,8 +554,12 @@ fn adopt_edges(
                         | Surface::Torus { .. }
                 )
             });
-            if periodic {
-                candidates.push((AdoptionCandidate::Seam, EdgeDescriptionSpec::seam(fs_plus)));
+            // A wrap edge is a fact about one face: both its uses bound
+            // it (D1). Two faces on one surface meet at an ordinary
+            // edge, which takes the conventional rung below.
+            let (f_plus, f_minus) = sides.faces();
+            if periodic && f_plus == f_minus {
+                candidates.push((AdoptionCandidate::Wrap, EdgeDescriptionSpec::wrap(fs_plus)));
             }
         }
         if conventional
@@ -633,15 +605,27 @@ fn adopt_edges(
             ));
         }
 
-        // A band-minted seam generator (M7-5, R1 fix pass m2): the
-        // mint's D1 statement is that this edge IS the surface's
-        // u_ref half-plane seam, so the only honest description is
-        // `Seam` — the conventional mapped-curve rung is withheld,
-        // and a seam that cannot certify refuses with the ladder's
-        // own typed report instead of silently downgrading to a
-        // certified body whose "seam" is off the half-plane.
+        // An edge both of whose uses bound one face is that face's wrap
+        // edge (D1), whichever rung describes it — a closed spline
+        // wall's boundary column as much as an analytic generator —
+        // and tier 3 refuses it described otherwise. Certification
+        // then decides whether the chart closes across it.
+        let (f_plus, f_minus) = sides.faces();
+        if f_plus == f_minus {
+            for (_, description) in &mut candidates {
+                if let EdgeDescriptionSpec::Chart { wrap, .. } = description {
+                    *wrap = true;
+                }
+            }
+        }
+
+        // A band-minted generator: the mint's D1 statement is that
+        // this edge is the band face's wrap edge, so the only honest
+        // description is a wrap — the conventional mapped-curve rung
+        // is withheld, and a generator that cannot certify as one
+        // refuses with the ladder's own typed report.
         if solid.band_seams.contains(&edge_id) {
-            candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Seam));
+            candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Wrap));
         }
 
         let mut attempts = Vec::new();
@@ -653,24 +637,25 @@ fn adopt_edges(
                 param_start: spec.t0,
                 param_end: spec.t1,
             };
-            // The plane × NURBS attach door (M7-8): the importer is
-            // exactly the caller that has a declared carrier and needs
-            // it certified against a described NURBS wall, and it runs
-            // at `f64`, which carries the lane. Every other rung is
-            // unaffected — the door differs only in whether that one
-            // certificate is reachable.
-            match body.set_edge_curve_nurbs_lane(edge_key, attempt, tol) {
+            // A declared carrier against a described NURBS wall (M7-8)
+            // certifies through the plane × NURBS lane, which `f64`'s
+            // policy holds and `set_edge_curve` reads.
+            match body.set_edge_curve(edge_key, attempt, tol) {
                 Ok(_) => {
                     adopted = true;
                     break;
                 }
-                Err(refusal) => attempts.push(AdoptionAttempt { candidate, refusal }),
+                Err(refusal) => attempts.push(AdoptionAttempt {
+                    candidate,
+                    refusal: refusal.from_driver(),
+                }),
             }
         }
         if !adopted {
             return Err(StepImportError::Adoption {
                 id: edge_id,
                 attempts,
+                file,
             });
         }
     }
@@ -759,11 +744,9 @@ fn iso_curve_candidates(
                 continue;
             }
             // Not a rung condition: `boundary_iso_u` is a control-net
-            // copy, and the only refusal it can build is a weight on
-            // the extracted column that is not positive and finite —
-            // which `geom::NurbsSurface::new` already refuses of the
-            // whole net. Carried out to the ladder rather than read as
-            // "not this shape".
+            // copy whose one refusal — a bad weight on the column — is
+            // what `geom::NurbsSurface::new` already refuses. Carried out to
+            // the ladder rather than read as "not this shape".
             let iso = geom_brep::boundary_iso_u(wp.as_ref(), end)?;
             // The column's `u` is the payload's own KNOT domain end
             // (#327), never a `[0, 1]` literal: an imported chart
@@ -939,27 +922,29 @@ fn mapped_self_description(
     nurbs_rim: bool,
 ) -> Option<MappedCurve<f64>> {
     match carrier {
-        Curve3::Line { origin, dir } if nurbs_rim => {
-            line_frame(*origin, *dir).map(|place| MappedCurve::PlacedSegment {
+        Curve3::Line { origin, dir } if nurbs_rim => line_frame(*origin, *dir).map(|place| {
+            MappedCurve::whole(MappedSource::PlacedSegment {
                 segment: geom_brep::SketchSegment::Line {
                     a: Point2::new(t0, 0.0),
                     b: Point2::new(t1, 0.0),
                 },
                 place,
             })
-        }
-        Curve3::Line { .. } => Some(MappedCurve::ExtrudedPoint {
+        }),
+        Curve3::Line { .. } => Some(MappedCurve::whole(MappedSource::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
-        }),
-        Curve3::Circle { center, axis, .. } => Some(MappedCurve::RevolvedPoint {
-            point: Point2::new(0.0, 0.0),
-            place: Affine3::translation(p_start - Point3::origin()),
-            axis_origin: *center,
-            axis_dir: *axis,
-            angle: t1 - t0,
-        }),
+        })),
+        Curve3::Circle { center, axis, .. } => {
+            Some(MappedCurve::whole(MappedSource::RevolvedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: Affine3::translation(p_start - Point3::origin()),
+                axis_origin: *center,
+                axis_dir: *axis,
+                angle: t1 - t0,
+            }))
+        }
         Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }
@@ -1063,8 +1048,7 @@ fn arc_rim_on_wall_boundary(
         }
         let mut worst = 0.0f64;
         for i in 0..geom_brep::CERT_SAMPLES {
-            let f = f64::from(i) / f64::from(geom_brep::CERT_SAMPLES - 1);
-            let q = iso.eval(d0 + (d1 - d0) * f);
+            let q = iso.eval(geom_brep::sample_param(d0, d1, i));
             let w = q - center;
             // The axial component, bound by name (the tripwire note
             // in [`line_frame`], same shape).
@@ -1102,11 +1086,11 @@ enum ArcRimRefusal {
     /// meters. This is the gate's own verdict.
     Residual(f64),
     /// A wall boundary column would not re-wrap as a curve, so the
-    /// gate has no locus to meter the rim against. A weight on that
-    /// column is not a positive finite number — a state
-    /// `geom::NurbsSurface::new` refuses of the whole net, so no body
-    /// this reader assembles reaches it — and the refusal names the
-    /// offending weight rather than being reported as a rim
+    /// gate has no locus to meter the rim against. The wall's stored
+    /// net disagrees with its own knot vector or holds a bad weight on
+    /// that column — a state `geom::NurbsSurface::new` refuses, so no
+    /// body this reader assembles reaches it — and the refusal names
+    /// which invariant broke rather than being reported as a rim
     /// deviation.
     ChartRow(SplineError),
 }
@@ -1282,8 +1266,7 @@ fn carrier_on_surface(
         return false;
     }
     (0..geom_brep::CERT_SAMPLES).all(|i| {
-        let f = f64::from(i) / f64::from(geom_brep::CERT_SAMPLES - 1);
-        let p = carrier.eval(t0 + (t1 - t0) * f);
+        let p = carrier.eval(geom_brep::sample_param(t0, t1, i));
         ((p - origin).dot(normal) / n).abs() <= eps
     })
 }

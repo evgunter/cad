@@ -70,8 +70,8 @@
 //! correspondence is re-worded, the other when the word stops reaching
 //! the user.
 
-use geom_core::{Decide, Tol, Vec3};
-use topo::query::DatumValue;
+use crate::PoseValue;
+use geom_core::{Decide, Tol};
 use topo::splitting::SplitNaming;
 use topo::{Body, SplitPlane};
 use verbs::{Verb, VerbRecord};
@@ -81,7 +81,7 @@ use crate::node::RecipeNodeId;
 
 /// The split's naming emitter: this node's id, the two sides (each
 /// present or empty), the birth record, the target's id, table and
-/// body, the tool plane's normal, and the tolerance, in.
+/// body, and the tolerance, in.
 pub(crate) type SplitEmitter<T> = fn(
     RecipeNodeId,
     Option<&Body<T>>,
@@ -90,7 +90,6 @@ pub(crate) type SplitEmitter<T> = fn(
     RecipeNodeId,
     &NameTable,
     &Body<T>,
-    Vec3<T>,
     Tol,
 ) -> Result<names::Emitted, NamingError>;
 
@@ -103,7 +102,7 @@ pub(crate) struct SplitVerb<T: Decide> {
     /// value as a parting plane, per instance: a plane datum is one, an
     /// axis or a point is not. `None` is the document-layer refusal's
     /// cue, never a default plane.
-    pub(crate) tool: fn(&DatumValue<T>) -> Option<SplitPlane<T>>,
+    pub(crate) tool: fn(&PoseValue<T>) -> Option<SplitPlane<T>>,
     /// What the tool operand is EXPECTED to be, in the words the
     /// `WrongOperand` refusal carries when it is not.
     pub(crate) tool_expected: &'static str,
@@ -145,23 +144,22 @@ fn split_record<T: Decide>(record: VerbRecord<T>) -> Option<SplitNaming> {
     }
 }
 
-/// A plane datum is a parting plane; no other datum kind is. A FRAME
-/// carries a plane's worth of placement and is still refused: a frame
-/// is a sketch's coordinate system, and reading one as a parting
-/// plane would let a split be authored against a profile's frame
-/// silently rather than against a plane the document names. The
-/// datum's normal is unit by construction (`UnitVec3`), which is the
-/// convention the kernel's plane states and does not check.
-fn plane_of<T: Decide>(datum: &DatumValue<T>) -> Option<SplitPlane<T>> {
+/// A plane pose is a parting plane; no other pose kind is. A FRAME
+/// carries a plane's worth of placement and is still refused: a slot
+/// holds its kind, and a frame reaches a split as its plane only
+/// through the projection that says so (D10). The pose's normal is the
+/// [`UnitVec3`](geom_core::UnitVec3) witness the kernel's split plane
+/// takes, and its sense says which half is above.
+fn plane_of<T: Decide>(datum: &PoseValue<T>) -> Option<SplitPlane<T>> {
     match datum {
-        DatumValue::Plane { origin, normal } => Some(SplitPlane {
+        PoseValue::Plane { origin, normal } => Some(SplitPlane {
             origin: *origin,
-            normal: normal.get(),
+            normal: *normal,
         }),
-        DatumValue::Axis { .. }
-        | DatumValue::Point { .. }
-        | DatumValue::Frame { .. }
-        | DatumValue::AxisInPlane { .. } => None,
+        PoseValue::Axis { .. }
+        | PoseValue::Point { .. }
+        | PoseValue::Direction { .. }
+        | PoseValue::Frame { .. } => None,
     }
 }
 
@@ -184,7 +182,7 @@ pub(crate) fn split<T: Decide>() -> SplitVerb<T> {
 #[cfg(test)]
 #[allow(clippy::expect_used)] // a fixture that will not build is a failure, not a value
 mod tests {
-    use geom_core::{Band, Point3, UnitVec3};
+    use geom_core::{Band, Point3, UnitVec3, Vec3};
     use topo::DATUM_UNIT_NORM;
     use verbs::VerbKind;
 
@@ -194,10 +192,11 @@ mod tests {
     /// structural check every sibling module makes.
     #[test]
     fn the_correspondence_builds_the_split() {
-        let plane = SplitPlane {
-            origin: Point3::new(0.0, 0.0, 0.5),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            geom_core::Tol::witness(),
+        );
         let v: Verb<f64> = (split::<f64>().build)(plane);
         assert_eq!(
             v.kind(),
@@ -208,10 +207,10 @@ mod tests {
 
     /// **The tool reading takes a plane and nothing else**, and the
     /// label its refusal carries says so. An axis and a point are two
-    /// of the other datum kinds a document can hand a split (a frame
-    /// and an in-plane axis are the rest, refused by the same
-    /// exhaustive arm), and each is refused by the reading rather
-    /// than read as some plane.
+    /// of the other pose kinds a document can hand a split (a direction
+    /// and a frame are the rest, refused by the same exhaustive arm),
+    /// and each is refused by the reading rather than read as some
+    /// plane.
     #[test]
     fn the_tool_reading_takes_a_plane_only() {
         let corr = split::<f64>();
@@ -219,16 +218,16 @@ mod tests {
         let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), DATUM_UNIT_NORM, band)
             .expect("a unit direction");
         let origin = Point3::new(0.0, 0.0, 0.5);
-        let plane = (corr.tool)(&DatumValue::Plane { origin, normal: up })
+        let plane = (corr.tool)(&PoseValue::Plane { origin, normal: up })
             .expect("a plane datum is a parting plane");
-        assert_eq!(plane.normal.z, 1.0);
+        assert_eq!(plane.normal.get().z, 1.0);
         assert_eq!(plane.origin.z, 0.5);
         assert!(
-            (corr.tool)(&DatumValue::Axis { origin, dir: up }).is_none(),
+            (corr.tool)(&PoseValue::Axis { origin, dir: up }).is_none(),
             "an axis was read as a parting plane"
         );
         assert!(
-            (corr.tool)(&DatumValue::Point { position: origin }).is_none(),
+            (corr.tool)(&PoseValue::Point { position: origin }).is_none(),
             "a point was read as a parting plane"
         );
         // Byte-exact, not `contains`: this label is DOCUMENT-REACHABLE

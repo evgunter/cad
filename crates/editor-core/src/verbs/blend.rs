@@ -44,11 +44,13 @@ use super::SlotJoin;
 use crate::names::{self, NameTable, NamingError};
 use crate::node::{RecipeNodeId, SlotId};
 
-/// A verb's naming emitter: this node's id, its operand's id and table,
-/// the result body and its birth record, in.
+/// A verb's naming emitter: this node's id, its operand's id, the read
+/// it took the operand through and its table, the result body and its
+/// birth record, in.
 pub(crate) type Emitter<T> = fn(
     RecipeNodeId,
     RecipeNodeId,
+    crate::VarId,
     &NameTable,
     &Body<T>,
     &BlendNaming,

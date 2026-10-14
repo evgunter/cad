@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{Node, PersistError, ProfileDoc, REGENERATE_RECOURSE, load, save};
 use fixture::{insert, len, on_frame};
@@ -45,8 +46,9 @@ fn small() -> String {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     save(&doc, &[], Tol::witness()).expect("saves")
@@ -64,12 +66,14 @@ fn split(text: &str) -> (String, serde_json::Value) {
 
 /// The extrude node's externally-tagged object (`{"Extrude": {...}}`).
 ///
-/// Node 2: the fixture is a sketch frame, the profile drawn on it, and
-/// the extrude over that.
+/// The fixture is a sketch frame, the profile drawn on it, and the
+/// extrude over that: the one node spelled `Extrude`.
 fn extrude_mut(v: &mut serde_json::Value) -> &mut serde_json::Map<String, serde_json::Value> {
-    v["snapshot"]["nodes"]["2"]
+    v["snapshot"]["nodes"]
         .as_object_mut()
-        .expect("node 2 is an object")
+        .and_then(|nodes| nodes.values_mut().find(|n| n.get("Extrude").is_some()))
+        .and_then(serde_json::Value::as_object_mut)
+        .expect("the extrude is an object")
 }
 
 fn join(header: &str, v: &serde_json::Value) -> String {
@@ -160,30 +164,68 @@ fn a_missing_required_field_refuses_naming_it() {
 /// row above. The ADDITIVE half cannot be measured with bytes older
 /// than a break, so this exemplar is written by today's writer and kept
 /// minimal: nothing newer than {Datum, Profile, Extrude} appears in it.
-/// Re-frozen again when a profile's steps gained minted ids (the
-/// program's `ids` and the document's `next_step`), the same kind of
-/// break.
+/// It is re-frozen, by today's writer, at each such break: last when an
+/// operand became a read of a variable, so its table holds the three
+/// nodes' outputs and the profile and the extrude read the outputs
+/// before them, and the profile's operand field took its one name,
+/// `frame`.
 const OLDER_SHAPED: &str = concat!(
-    "id: 12c74470374c7c76269f22a931efab85\n",
-    "{\"snapshot\":{\"id\":\"12c74470374c7c76269f22a931efab85\",\"next_id\":3,\"next_step\":5,\"nodes\":{\"0",
-    "\":{\"Datum\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"un",
-    "it\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal",
-    "\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0",
-    ",\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"uni",
-    "t\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}}],\"v\":[{\"Lit",
-    "eral\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":1.0,\"d",
-    "im\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":",
-    "\"\"}}]}}},\"1\":{\"Profile\":{\"plane\":0,\"loops\":[{\"Chain\":[{\"At\":[{\"Literal\":",
-    "{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":",
-    "\"Length\",\"unit\":\"m\"}}]},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\"",
-    ":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m",
-    "\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":",
-    "\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{",
-    "\"Point\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":",
-    "{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[0,1,2,3,4]]}},\"2\":",
-    "{\"Extrude\":{\"profile\":1,\"distance\":{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",",
-    "\"unit\":\"m\"}}}}},\"order\":[0,1,2],\"roots\":[2],\"placements\":{},\"params\":{},\"ep",
-    "silon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "id: da925a30e31f7fdaa7044e3e5ba4ae17\n",
+    "{\"snapshot\":{\"id\":\"da925a30e31f7fdaa7044e3e5ba4ae17\",\"mint\":{\"chain\":\"5d28910d3b",
+    "2f6ef6b5465cd99f255ab6de869b2eaff65bc0cfc6200b45ffd778\",\"log\":[{\"var\":\"1:b639d84",
+    "4bab8e826\"},{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:fb5fef638c30912c\"},{\"var\":\"4:",
+    "ee1d73a8dc8f8ad6\"},{\"var\":\"5:f9047724cc168290\"},{\"var\":\"6:2fdd1f61b8b90439\"},{\"v",
+    "ar\":\"7:5cdde09d996c5c61\"},{\"var\":\"8:af949e9d2cd2d001\"},{\"var\":\"9:135249424cb8e0e",
+    "7\"},{\"node\":\"10:54a0180a83275575\"},{\"var\":\"11:7b9b7a031545bc84\"},{\"var\":\"12:aa1a",
+    "1f25549ff844\"},{\"var\":\"13:ce0b2c4bfce400e2\"},{\"var\":\"14:826a2b7c495117a7\"},{\"var",
+    "\":\"15:74ce4ff170398ca6\"},{\"var\":\"16:4b36daafb7685c2b\"},{\"var\":\"17:c9a0e5f82154ce",
+    "3e\"},{\"var\":\"18:73bc05541afded5a\"},{\"var\":\"19:e51d8c264d945b32\"},{\"node\":\"20:fe7",
+    "be5bb524c1ab3\"},{\"step\":\"21:9fe386cec8abaedb\"},{\"step\":\"22:3e2fb0ac72647b8e\"},{\"",
+    "step\":\"23:465379dd775c12be\"},{\"step\":\"24:0495217d37468ca6\"},{\"step\":\"25:f252c518",
+    "f0a50982\"},{\"var\":\"26:430f4189a776294e\"},{\"var\":\"27:ba3d8dce8cc42ae6\"},{\"node\":\"",
+    "28:431c72536b7ab1f8\"},{\"var\":\"29:5d28910d3b2f6ef6\"}]},\"nodes\":{\"10:54a0180a83275",
+    "575\":{\"Datum\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3:f",
+    "b5fef638c30912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b9",
+    "0439\"],\"v\":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"",
+    "20:fe7be5bb524c1ab3\":{\"Profile\":{\"frame\":\"11:7b9b7a031545bc84\",\"loops\":[{\"Chain\"",
+    ":[{\"At\":[\"12:aa1a1f25549ff844\",\"13:ce0b2c4bfce400e2\"]},{\"LineTo\":{\"Point\":[\"14:8",
+    "26a2b7c495117a7\",\"15:74ce4ff170398ca6\"]}},{\"LineTo\":{\"Point\":[\"16:4b36daafb7685c",
+    "2b\",\"17:c9a0e5f82154ce3e\"]}},{\"LineTo\":{\"Point\":[\"18:73bc05541afded5a\",\"19:e51d8",
+    "c264d945b32\"]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[\"21:9fe386cec8abaedb\",\"22:3e2fb0ac",
+    "72647b8e\",\"23:465379dd775c12be\",\"24:0495217d37468ca6\",\"25:f252c518f0a50982\"]]}},",
+    "\"28:431c72536b7ab1f8\":{\"Extrude\":{\"profile\":\"26:430f4189a776294e\",\"distance\":\"27",
+    ":ba3d8dce8cc42ae6\",\"side\":\"along\"}}},\"vars\":{\"1:",
+    "b639d844bab8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"",
+    "value\":0.0,\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"",
+    "Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:fb5fef",
+    "638c30912c\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
+    ":0.0,\"display_unit\":\"m\"}}}},\"4:ee1d73a8dc8f8ad6\":{\"kind\":\"Scalar\",\"def\":{\"Free\":",
+    "{\"Continuous\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"5:f9047724cc168",
+    "290\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"d",
+    "isplay_unit\":\"\"}}}},\"6:2fdd1f61b8b90439\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Contin",
+    "uous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"7:5cdde09d996c5c61\":{\"k",
+    "ind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_u",
+    "nit\":\"\"}}}},\"8:af949e9d2cd2d001\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"",
+    "dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"9:135249424cb8e0e7\":{\"kind\":\"Sc",
+    "alar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}",
+    "}}},\"11:7b9b7a031545bc84\":{\"kind\":\"Frame\",\"def\":{\"Output\":{\"node\":\"10:54a0180a83",
+    "275575\",\"port\":0}}},\"12:aa1a1f25549ff844\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Conti",
+    "nuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"13:ce0b2c4bfce400e2\":",
+    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"displa",
+    "y_unit\":\"m\"}}}},\"14:826a2b7c495117a7\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuou",
+    "s\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"15:74ce4ff170398ca6\":{\"ki",
+    "nd\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_un",
+    "it\":\"m\"}}}},\"16:4b36daafb7685c2b\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{",
+    "\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"17:c9a0e5f82154ce3e\":{\"kind\":",
+    "\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":",
+    "\"m\"}}}},\"18:73bc05541afded5a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim",
+    "\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"19:e51d8c264d945b32\":{\"kind\":\"Len",
+    "gth\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}",
+    "}}},\"26:430f4189a776294e\":{\"kind\":\"Profile\",\"def\":{\"Output\":{\"node\":\"20:fe7be5bb",
+    "524c1ab3\",\"port\":0}}},\"27:ba3d8dce8cc42ae6\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Con",
+    "tinuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"29:5d28910d3b2f6ef6",
+    "\":{\"kind\":\"Body\",\"def\":{\"Output\":{\"node\":\"28:431c72536b7ab1f8\",\"port\":0}}}},\"eps",
+    "ilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );
 
@@ -211,7 +253,7 @@ fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
     assert_ne!(text, OLDER_SHAPED, "the ε rewrite must land");
     let loaded = load(&text, Tol::witness()).expect("an older-shaped document loads");
     assert_eq!(
-        loaded.doc.order().len(),
+        loaded.doc.ids().len(),
         3,
         "frame, profile and extrude, as written"
     );
@@ -239,4 +281,37 @@ fn bytes_that_are_not_json_stay_parse() {
             other => panic!("{body:?} must refuse Parse, got {other:?}"),
         }
     }
+}
+
+/// **A document saved before an extrude carried its side refuses
+/// typed, naming the first thing this build cannot read.** The bytes
+/// are `crates/pncad/tests/plate_param.pncad` exactly as main held it
+/// before the side became structural (Ev, #3551), frozen here so the
+/// row reads real history rather than a mutation of today's save. They
+/// predate ids as pairs too, and an id spelled as one integer is the
+/// first thing the parser meets that this build cannot read, so the
+/// refusal names it and carries the regenerate recourse once. It is kept as
+/// `.cad`, as `bool13_goldens/`' older bytes are: refusal evidence, not
+/// a member of the `*.pncad` corpus the load rows walk.
+#[test]
+fn a_document_from_before_the_extrude_side_refuses_unreadable() {
+    let text = include_str!("before_extrude_side/plate_param.cad");
+    assert!(
+        !text.contains("\"side\""),
+        "the frozen bytes predate the field"
+    );
+    let err = load(text, Tol::witness()).unwrap_err();
+    assert!(
+        matches!(err, PersistError::Unreadable { .. }),
+        "an unknown variant is Unreadable: {err:?}"
+    );
+    let msg = err.to_string();
+    // The first thing this build cannot read in bytes that old is a
+    // slot written as an expression where a slot now holds its
+    // variable's id.
+    assert!(
+        msg.contains("expected an id: its mint ordinal"),
+        "the refusal names what it cannot read: {msg}"
+    );
+    assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
 }

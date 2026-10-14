@@ -22,15 +22,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::time::Instant;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, select_where,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Selector, SitedRef,
+    SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
@@ -43,8 +44,8 @@ use crate::m10_8_harness::{ceiling, dials, nominal_box};
 
 /// The variants, named. `none` is M10-7's tier; `A_top` the unit's
 /// first cut (rule A over the top residual); `A0` R1's constant fold;
-/// `AB_early` R1's bounded per-node A/B alongside; the `C_early` rows
-/// the fix pass's rule C in the early walk; `shipped` what ships.
+/// `AB_early` R1's bounded per-node A/B alongside; `shipped` what
+/// ships.
 fn variants() -> Vec<(&'static str, SymRules)> {
     let n = SymRules::none();
     vec![
@@ -67,26 +68,6 @@ fn variants() -> Vec<(&'static str, SymRules)> {
             "A0+AB_top",
             SymRules {
                 const_fold: true,
-                sqrt_square: true,
-                pythagoras: true,
-                ..n
-            },
-        ),
-        (
-            "A0+C_early",
-            SymRules {
-                const_fold: true,
-                early: true,
-                signed_root: true,
-                ..n
-            },
-        ),
-        (
-            "A0+C_early+AB_top",
-            SymRules {
-                const_fold: true,
-                early: true,
-                signed_root: true,
                 sqrt_square: true,
                 pythagoras: true,
                 ..n
@@ -122,7 +103,7 @@ fn theorems_by_predicate(shapes: &[DecisionShape]) -> BTreeMap<&'static str, (u6
     for s in shapes {
         let e = out.entry(s.predicate).or_default();
         match s.outcome {
-            ShapeOutcome::Theorem | ShapeOutcome::SignGated => e.0 += 1,
+            ShapeOutcome::Symbolic => e.0 += 1,
             _ => e.1 += 1,
         }
     }
@@ -177,7 +158,7 @@ fn r1_variants_whole_box_and_nominal_split() {
             let dt = t.elapsed().as_secs_f64();
             let th: u64 = shapes
                 .iter()
-                .filter(|s| matches!(s.outcome, ShapeOutcome::Theorem))
+                .filter(|s| matches!(s.outcome, ShapeOutcome::Symbolic))
                 .count() as u64;
             println!(
                 "   {label:<12} {dt:>7.2}s counts={counts:?} theorems(report)={th}; first refusal: {}",
@@ -254,17 +235,17 @@ fn r1_ceilings_per_variant() {
 /// `scale` multiplies every tolerance; `1.0` is the study a user would
 /// ask for.
 pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let plen = |n: &str| Expr::param(ParamName::new(n), Dimension::Length);
+    let plen = |n: &'static str| Formula::named(VarName::from_static(n), Dimension::Length);
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::Continuous {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static(n),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     declare(
@@ -294,9 +275,9 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         },
     );
     let plane = r.insert(xy_frame());
-    let thickness = Expr::div(plen("outer_r"), scl(5.0)).expect("Length / Scalar");
+    let thickness = Formula::div(plen("outer_r"), scl(5.0)).expect("Length / Scalar");
     let disc_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: plen("outer_r"),
@@ -304,11 +285,12 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         ids: Vec::new(),
     }));
     let disc = r.insert(Node::Extrude {
-        profile: disc_profile,
+        profile: disc_profile.into(),
         distance: thickness.clone(),
+        side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [plen("offset"), len(0.0)],
             radius: plen("bore_r"),
@@ -316,8 +298,9 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_profile,
+        profile: bore_profile.into(),
         distance: thickness,
+        side: ExtrudeSide::Along,
     });
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
@@ -327,14 +310,14 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,
@@ -347,12 +330,13 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         vec![wall(disc), wall(bore)]
     };
     // wall = distance(outer wall, bore wall) = outer_r − offset − bore_r.
-    let wall = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(Node::measure(wall, refs).expect("both indices in range"));
+    let wall = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let measured = r.measure(&[wall], &refs);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(2.25e-3 - 1.0e-4),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }
@@ -395,10 +379,17 @@ fn r1_annulus_end_to_end() {
                         v.decisions()
                     );
                     if scale == 1.0 || name == "TIER OFF" {
-                        println!("{}", v.render(&analyzed));
+                        println!("{}", v.render(&doc, &analyzed));
                     }
                     let stack = editor_core::stackup::stackup(
-                        &doc, measure, &analyzed, &v, None, false, tol,
+                        &doc,
+                        crate::fixture::output(&doc, measure),
+                        &analyzed,
+                        &v,
+                        None,
+                        false,
+                        None,
+                        tol,
                     );
                     println!("   stackup: {stack:?}");
                     let a = editor_core::drive::assertion_at(&doc, assertion, v.root(), d, tol);

@@ -2,10 +2,14 @@
 id: offset-doors-small-doc-and-message-drift
 kind: issue
 title: Offset doors: a door name printed on another door's errors, stale shell.rs module docs, two conventions for a move's distance, and stale test prose
-status: open
+status: closed
 opened: 2026-09-28
 priority: P4
 cost: E
+rides_with: replace-face-refusals-open-with-a-stage-prefix-and-name-keys
+pr: 4163
+branch: shell/refusal-text
+closed: 2026-10-06
 ---
 
 
@@ -23,3 +27,17 @@ The two designers who weighed `dup/the-chart-partition-has-a-topo-src-home-and-a
 - **Stale test prose.** `sweep/tests/sf2a_r2_probes.rs`'s `r2a_one_move_spanning_two_planes` says "nothing checks it". The doors refuse that case now (`TogetherChartMixed`), and `ChartMove`'s docs say so.
 
 A fifth finding is not repeated here: one chart split across two moves gets past the doors' checks. It is part of the redesign question on the dup row. If the redesign is not taken, it becomes its own row here: a structural refusal when two moves name one surface key.
+
+## Added (SHELL orchestrator, 2026-10-06)
+
+5. `verbs_shell::shell_runs_no_intersection_machinery`'s doc says the
+   winding predicate has "three owners"; it has one home now,
+   `topo::loop_winding::WINDING_PREDICATE` (item 2 of the closed
+   `shell-offset-three-followups`).
+
+Rides `replace-face-refusals-open-with-a-stage-prefix-and-name-keys`
+(bullet 1 is that row's text); bullets 2–4 are prose and go with it.
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4163)
+
+Rode `replace-face-refusals-open-with-a-stage-prefix-and-name-keys`. See its closing note.

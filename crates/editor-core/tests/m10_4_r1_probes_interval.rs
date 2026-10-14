@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box, std_deviation};
 use editor_core::drive::{DriveConfig, drive};
@@ -22,21 +23,20 @@ use editor_core::stackup::{
     sensitivities, stackup,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
-    LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ParamValue, ProfileDoc,
-    ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    SitedRef, UnitSym, ValuePayload, evaluate, seed_env,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
+    LoopProgram, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileLift, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, SitedRef, UnitSym, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
 use fixture::{Recorder, ang, len, scl};
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
-fn param(n: &str, dim: Dimension) -> Expr {
-    Expr::param(name(n), dim)
+fn param(n: &'static str, dim: Dimension) -> Formula {
+    Formula::named(name(n), dim)
 }
 
 fn eps() -> f64 {
@@ -50,8 +50,8 @@ fn uniform(half: f64) -> Distribution {
     }
 }
 
-fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> DocParam {
-    DocParam::Continuous {
+fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> FreeVar {
+    FreeVar::Continuous {
         dim,
         value,
         display_unit: UnitSym::canonical_for(dim),
@@ -76,22 +76,16 @@ fn eval_f64(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn opts(seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
+fn opts(doc: &ProfileDoc, seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
-        seed: seed.map(name),
+        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))),
         profile_lift: lift,
         ..EvalOptions::default()
     }
 }
 
-fn measured(ev: &Evaluation<Dual64>, id: RecipeNodeId) -> Dual64 {
-    match ev.result(id) {
-        Some(editor_core::NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => *value,
-            other => panic!("node {id:?} is a {}", other.kind_name()),
-        },
-        other => panic!("node {id:?} did not evaluate: {other:?}"),
-    }
+fn measured(doc: &ProfileDoc, ev: &Evaluation<Dual64>, var: editor_core::VarId) -> Dual64 {
+    fixture::reading(doc, ev, var).unwrap_or_else(|| panic!("{var:?} did not read"))
 }
 
 // ------------------------------------------------------------ fixtures
@@ -108,7 +102,7 @@ fn stepped_shaft(
     h2: f64,
     d1: Option<Distribution>,
     d2: Option<Distribution>,
-) -> (ProfileDoc, RecipeNodeId) {
+) -> (ProfileDoc, editor_core::VarId) {
     stepped_shaft_sized(1.0, h1, h2, d1, d2)
 }
 
@@ -118,63 +112,63 @@ fn stepped_shaft_sized(
     h2: f64,
     d1: Option<Distribution>,
     d2: Option<Distribution>,
-) -> (ProfileDoc, RecipeNodeId) {
+) -> (ProfileDoc, editor_core::VarId) {
     use editor_core::{CapEnd, RoleSeg};
 
     use fixture::fname;
 
     let (o, i) = (size, 0.5 * size);
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("h1"),
-        value: continuous(Dimension::Length, h1, d1),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, h1, d1)),
     });
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("h2"),
-        value: continuous(Dimension::Length, h2, d2),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, h2, d2)),
     });
     // One frame, named by both profiles: two sketches meant to share
     // a plane bind the same id, which is how sharing is said now.
     let frame = r.insert(fixture::xy_frame());
     let base_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-o, -o), (o, -o), (o, o), (-o, o)]).expect("finite corners"),
         ],
         ids: Vec::new(),
     }));
     let base = r.insert(Node::Extrude {
-        profile: base_p,
+        profile: base_p.into(),
         distance: param("h1", Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-i, -i), (i, -i), (i, i), (-i, i)]).expect("finite corners"),
         ],
         ids: Vec::new(),
     }));
     let boss_raw = r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: param("h2", Dimension::Length),
+        side: ExtrudeSide::Along,
     });
-    let boss = r.insert(Node::Transform {
-        input: boss_raw,
-        translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let boss = r.insert(Node::transform(
+        boss_raw,
+        editor_core::Step::Rigid {
+            translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
     ];
-    let m = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            refs,
-        )
-        .expect("indices in range"),
-    );
+    let m = r
+        .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)
+        .outputs[0];
     (r.doc, m)
 }
 
@@ -184,15 +178,15 @@ fn stepped_shaft_sized(
 fn scalar_measure(
     nominal: f64,
     dist: Distribution,
-    build: impl Fn(&dyn Fn() -> MeasureExpr) -> MeasureExpr,
-) -> (ProfileDoc, RecipeNodeId) {
+    build: impl Fn(&dyn Fn() -> Formula) -> Formula,
+) -> (ProfileDoc, editor_core::VarId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("a"),
-        value: continuous(Dimension::Scalar, nominal, Some(dist)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Scalar, nominal, Some(dist))),
     });
-    let a = || MeasureExpr::value(param("a", Dimension::Scalar));
-    let m = r.insert(Node::measure(build(&a), Vec::new()).expect("no references to address"));
+    let a = || param("a", Dimension::Scalar);
+    let m = r.define("m", build(&a));
     (r.doc, m)
 }
 
@@ -200,13 +194,13 @@ fn scalar_measure(
 /// second leg is a sharp `arc_to` through a point, with the profile's
 /// x-extent driven by a document parameter `w`. Extruded by a literal;
 /// the measure is the distance between the two x-walls, which is `w`.
-fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
+fn arc_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
     use fixture::{fname, wall};
 
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("w"),
-        value: continuous(Dimension::Length, w, None),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, w, None)),
     });
     // A chain: (0,0) -> (w,0) [line, seg 0] -> (w,1) [line, seg 1] ->
     // arc through (w/2, 1.25) to (0,1) [seg 2] -> close [seg 3]. Both
@@ -214,7 +208,7 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     // ARC's derived centre/radius are parameter-driven through both its
     // via point and its endpoints — a lane the polygon fixtures never
     // touch.
-    let half_w = Expr::mul(param("w", Dimension::Length), scl(0.5)).expect("Length · Scalar");
+    let half_w = Formula::mul(param("w", Dimension::Length), scl(0.5)).expect("Length · Scalar");
     let chain = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
         ProgramStep::LineTo(ProgramTarget::Point([
@@ -233,13 +227,14 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     ]);
     let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall; their
     // distance is `w`, so ∂m/∂w = 1 exactly.
@@ -247,13 +242,9 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
         SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 3))),
         SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 1))),
     ];
-    let m = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            refs,
-        )
-        .expect("indices in range"),
-    );
+    let m = r
+        .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)
+        .outputs[0];
     (r.doc, m)
 }
 
@@ -285,7 +276,7 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
                 &doc,
                 None,
                 &CancelToken::new(),
-                &opts(None, ProfileLift::Pinned),
+                &opts(&doc, None, ProfileLift::Pinned),
                 Tol::witness(),
             );
             assert_eq!(d.order, e.order, "{}", stringify!($t));
@@ -314,7 +305,7 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
     );
     // NOTE: `-0.0` on this fixture (`+0.0` on the plate the unit's own
     // row uses) — the "exactly zero" law is IEEE-zero, not bit-zero.
-    assert_eq!(measured(&unseeded, m).deriv, 0.0);
+    assert_eq!(measured(&doc, &unseeded, m).deriv, 0.0);
 }
 
 // -------------------------------------------- claim 2: seed hygiene
@@ -325,23 +316,20 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
 /// and the schedule does not leak (rayon vs sequential, bit for bit).
 #[test]
 fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
-    let (doc, m) = stepped_shaft(1.0, 0.5, None, None);
+    // Toleranced, so the driver's entries are the two steps (VR8).
+    let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(0.1)), Some(uniform(0.1)));
     let f = eval_f64(&doc);
-    let Some(editor_core::NodeResult::Ok(v)) = f.result(m) else {
-        panic!("the shaft measures at f64")
-    };
-    let ValuePayload::Measure { value: nominal, .. } = v.payload else {
-        panic!("a measure")
-    };
+    let nominal = fixture::reading(&doc, &f, m).expect("the shaft measures at f64");
     assert!((nominal - 1.5).abs() < 1e-12, "nominal {nominal}");
     for p in ["h1", "h2"] {
         for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
             let d = measured(
+                &doc,
                 &evaluate(
                     &doc,
                     None,
                     &CancelToken::new(),
-                    &opts(Some(p), lift),
+                    &opts(&doc, Some(p), lift),
                     Tol::witness(),
                 ),
                 m,
@@ -355,8 +343,8 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
         }
     }
     // Schedule independence at the driver, on this document.
-    let seq = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("ok");
-    let par = sensitivities(&doc, m, None, None, true, Tol::witness()).expect("ok");
+    let seq = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
+    let par = sensitivities(&doc, m, None, None, true, None, Tol::witness()).expect("ok");
     assert_eq!(seq, par);
     assert_eq!(seq.len(), 2);
 }
@@ -376,24 +364,27 @@ fn r1_dl2_two_passes_share_a_subgraph_without_aliasing() {
         &doc,
         None,
         &CancelToken::new(),
-        &opts(Some("h1"), ProfileLift::Guided),
+        &opts(&doc, Some("h1"), ProfileLift::Guided),
         Tol::witness(),
     );
     let on_h2_fresh: Evaluation<Dual64> = evaluate(
         &doc,
         None,
         &CancelToken::new(),
-        &opts(Some("h2"), ProfileLift::Guided),
+        &opts(&doc, Some("h2"), ProfileLift::Guided),
         Tol::witness(),
     );
     let on_h2_threaded: Evaluation<Dual64> = evaluate(
         &doc,
         Some(&on_h1),
         &CancelToken::new(),
-        &opts(Some("h2"), ProfileLift::Guided),
+        &opts(&doc, Some("h2"), ProfileLift::Guided),
         Tol::witness(),
     );
-    let (fresh, threaded) = (measured(&on_h2_fresh, m), measured(&on_h2_threaded, m));
+    let (fresh, threaded) = (
+        measured(&doc, &on_h2_fresh, m),
+        measured(&doc, &on_h2_threaded, m),
+    );
     assert_eq!(
         threaded.deriv.to_bits(),
         fresh.deriv.to_bits(),
@@ -403,9 +394,10 @@ fn r1_dl2_two_passes_share_a_subgraph_without_aliasing() {
     assert_eq!(threaded.value.to_bits(), fresh.value.to_bits());
     // Keys: the measure is downstream of both seeds, so the two passes
     // must key it differently — the memo cannot alias them.
+    let measure = doc.operation_of(m).expect("the value is a measure's");
     assert_ne!(
-        on_h1.value(m).map(|v| v.content_key),
-        on_h2_fresh.value(m).map(|v| v.content_key),
+        on_h1.value(measure).map(|v| v.content_key),
+        on_h2_fresh.value(measure).map(|v| v.content_key),
         "two seeds must not share the measure's key"
     );
     // And something WAS served: the boss's own profile is outside both
@@ -450,14 +442,15 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         &doc,
         &DocEdit::SetParam {
             node: doc
-                .order()
+                .ids()
                 .iter()
                 .copied()
                 .filter(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
                 .nth(1)
                 .expect("the shaft has a boss extrude"),
             slot: editor_core::SlotId::Distance,
-            expr: len(0.75),
+            value: len(0.75).into(),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -485,6 +478,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         Some(&handed),
         Some(&verdict),
         false,
+        None,
         Tol::witness(),
     );
     assert!(
@@ -501,6 +495,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         &verdict,
         Some(&handed),
         false,
+        None,
         Tol::witness(),
     );
     assert!(
@@ -516,11 +511,11 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
     // drives anything), which is the proof that the certified chamber
     // is not this document's — read without a chamber, where it is
     // honestly `LocalOnly`.
-    let entries = sensitivities(&edited, m, Some(&handed), None, false, Tol::witness())
+    let entries = sensitivities(&edited, m, Some(&handed), None, false, None, Tol::witness())
         .expect("the pairing hook is satisfied by a fresh anchor");
     match entries
         .iter()
-        .find(|s| s.param == name("h2"))
+        .find(|s| s.param == edited.var_named("h2").expect("declared"))
         .map(|s| &s.outcome)
     {
         Some(SensitivityOutcome::Derivative { value, .. }) => {
@@ -567,6 +562,7 @@ fn r1_another_documents_verdict_certifies_this_one() {
         &a_verdict,
         None,
         false,
+        None,
         Tol::witness(),
     );
     assert!(
@@ -578,7 +574,15 @@ fn r1_another_documents_verdict_certifies_this_one() {
         ),
         "A's verdict must not price B: {report:?}"
     );
-    let entries = sensitivities(&b_doc, b_m, None, Some(&a_verdict), false, Tol::witness());
+    let entries = sensitivities(
+        &b_doc,
+        b_m,
+        None,
+        Some(&a_verdict),
+        false,
+        None,
+        Tol::witness(),
+    );
     assert!(
         matches!(
             entries,
@@ -600,10 +604,12 @@ fn r1_another_documents_verdict_certifies_this_one() {
 /// clause is about.
 #[test]
 fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
-    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
-        MeasureExpr::max(a(), MeasureExpr::neg(a())).expect("Scalar lattice max")
+    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> Formula| {
+        Formula::max(a(), Formula::neg(a()).expect("a shallow negation"))
+            .expect("Scalar lattice max")
     });
-    let entries = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("no refusal");
+    let entries =
+        sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     match &entries[0].outcome {
         SensitivityOutcome::Derivative { value, .. } => {
             assert!(
@@ -625,10 +631,11 @@ fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
 #[test]
 fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
     // m = a / a at a = 0 → 0/0 in the VALUE channel as well.
-    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
-        MeasureExpr::div(a(), a()).expect("Scalar / Scalar")
+    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> Formula| {
+        Formula::div(a(), a()).expect("Scalar / Scalar")
     });
-    let entries = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("no refusal");
+    let entries =
+        sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     println!(
         "EVIDENCE-ONLY r1 0/0-value outcome: {:?}",
         entries[0].outcome
@@ -653,13 +660,22 @@ fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
 /// enclosure, its top must exceed the linearized top.
 #[test]
 fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
-    let (doc, m) = scalar_measure(2.0, uniform(1.0), |a: &dyn Fn() -> MeasureExpr| {
-        MeasureExpr::mul(MeasureExpr::mul(a(), a()).expect("scalar"), a()).expect("scalar")
+    let (doc, m) = scalar_measure(2.0, uniform(1.0), |a: &dyn Fn() -> Formula| {
+        Formula::mul(Formula::mul(a(), a()).expect("scalar"), a()).expect("scalar")
     });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(16), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness())
-        .expect("a certified arithmetic box");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("a certified arithmetic box");
     assert!(
         (report
             .nominal
@@ -725,7 +741,7 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
 /// Band: refuses.
 #[test]
 fn r1_std_deviation_matches_an_independent_quadrature() {
-    let p = name("p");
+    let p = editor_core::SpokenVar::new(editor_core::VarId::new(0, 0), Some(name("p")));
     // Uniform.
     let u = std_deviation(&p, &Distribution::Uniform { lo: -3.0, hi: 1.0 }).expect("uniform");
     assert!((u - 4.0 / f64::sqrt(12.0)).abs() < 1e-14, "uniform σ {u}");
@@ -782,7 +798,17 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(half)), Some(uniform(2.0 * half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness()).expect("ok");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("ok");
     let s1 = (2.0 * half) / f64::sqrt(12.0);
     let s2 = (4.0 * half) / f64::sqrt(12.0);
     let want = (s1 * s1 + s2 * s2).sqrt();
@@ -807,13 +833,25 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness()).expect("ok");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("ok");
     match &report.rss {
         Rss::UnavailableBecause { blockers } => {
             assert_eq!(blockers.len(), 1, "{blockers:?}");
             assert_eq!(
                 blockers[0],
-                Unavailable::BandHasNoMeasure { param: name("h2") }
+                Unavailable::BandHasNoMeasure {
+                    var: doc.spoken_var(doc.var_named("h2").expect("declared"))
+                }
             );
         }
         other => panic!("{other:?}"),
@@ -826,7 +864,17 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(half)), None);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness()).expect("ok");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("ok");
     match report.rss {
         Rss::Advisory { sigma } => assert!(
             (sigma - s1).abs() <= 1e-9 * s1,
@@ -847,11 +895,12 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
 fn r1_an_arc_carrying_profile_propagates_the_seed() {
     let (doc, m) = arc_slab(2.0);
     let guided = measured(
+        &doc,
         &evaluate(
             &doc,
             None,
             &CancelToken::new(),
-            &opts(Some("w"), ProfileLift::Guided),
+            &opts(&doc, Some("w"), ProfileLift::Guided),
             Tol::witness(),
         ),
         m,
@@ -862,11 +911,12 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
     );
     assert!(guided.deriv.is_finite(), "an arc profile's seed is finite");
     let pinned = measured(
+        &doc,
         &evaluate(
             &doc,
             None,
             &CancelToken::new(),
-            &opts(Some("w"), ProfileLift::Pinned),
+            &opts(&doc, Some("w"), ProfileLift::Pinned),
             Tol::witness(),
         ),
         m,
@@ -907,9 +957,19 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
         verdict.certified().len(),
         verdict.refused().len()
     );
-    let entries = sensitivities(&doc, m, None, Some(&verdict), false, Tol::witness()).expect("ok");
+    let entries =
+        sensitivities(&doc, m, None, Some(&verdict), false, None, Tol::witness()).expect("ok");
     println!("EVIDENCE-ONLY r1 ±0.1 sensitivities: {entries:?}");
-    let got = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness());
+    let got = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    );
     println!("EVIDENCE-ONLY r1 ±0.1 stackup: {got:?}");
     match got {
         Ok(report) => {
@@ -921,7 +981,10 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
                 panic!("DATUM changed — the chamber is {:?}", report.chamber)
             };
             for name in ["h1", "h2"] {
-                let (lo, hi) = leaf.get(&ParamName::new(name)).expect("the axis").span();
+                let (lo, hi) = leaf
+                    .get(doc.var_named(name).expect("declared"))
+                    .expect("the axis")
+                    .span();
                 assert!(
                     (lo + 0.1).abs() < 1e-12 && (hi - 0.1).abs() < 1e-12,
                     "{name}: [{lo}, {hi}]"
@@ -941,11 +1004,12 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
 fn r1_seed_env_refuses_a_foreign_name() {
     let (a, _) = stepped_shaft(1.0, 0.5, None, None);
     assert!(
-        seed_env::<Dual64, _>(&a, a.param_env::<Dual64>(), &name("nope")).is_err(),
+        seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), editor_core::VarId::new(0, 0)).is_err(),
         "an unknown name refuses"
     );
     // And the bindings it does produce carry exactly one unit tangent.
-    let env = seed_env::<Dual64, _>(&a, a.param_env::<Dual64>(), &name("h1")).expect("h1");
+    let env = seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), a.var_named("h1").expect("h1"))
+        .expect("h1");
     let mut ones = 0_usize;
     let mut zeros = 0_usize;
     for v in env.bindings.values() {
@@ -959,6 +1023,15 @@ fn r1_seed_env_refuses_a_foreign_name() {
             }
         }
     }
+    let continuous = env
+        .bindings
+        .values()
+        .filter(|v| matches!(v, ParamValue::Continuous { .. }))
+        .count();
     assert_eq!(ones, 1, "exactly one seeded lift");
-    assert_eq!(zeros, 1, "every other lift is exactly zero");
+    assert_eq!(
+        zeros,
+        continuous - 1,
+        "every other lift, the typed values' included, is exactly zero"
+    );
 }

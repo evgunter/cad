@@ -9,12 +9,17 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-# The variant rosters behind `topo`'s sample-coverage row
+# Test-only. Three things ride it: the `test_support` module (the
+# suites' one reading of a reporting margin's upper end, and `rigid`,
+# their one admission of a fixture map at the decided rigidity door),
+# `PatchSpans::cell_coeffs` (one Bernstein coefficient, read by
+# geom-brep's composite rows), and the
+# variant rosters behind `topo`'s sample-coverage row
 # (`topo::test_support_samples`): with this on, the enums a
 # `topo::ValidationError` renders through derive a companion
 # discriminant enum (`strum::EnumDiscriminants`), so a variant added
 # here is a gap in that row by construction, not by a hand-kept list.
-# Test-only: enabled through `topo`'s `test-support` alone.
+# Enabled by `topo`'s `test-support` and by geom-brep's dev-dependencies.
 test-support = ["dep:strum"]
 # K-telemetry recording scalar (`k_stats::Probe`), opt-in. Probe is a
 # `Real` instantiation like `Interval`, so every generic-over-`Real` body
@@ -74,6 +79,13 @@ identity-pass-testing = []
 # one thread-local flag read. The NAME ends in `-testing` so `test-features-dev-only.sh`
 # proves it reachable through dev-dependency edges only.
 sym-profile-testing = []
+# **THE RE-VALUATION INSTRUMENT** (`sym::revalue`): every decision a
+# `Sym` lane takes, recorded with its margin's node, and that node's DAG
+# evaluated at another parameter point — the guard that a computed value
+# never re-entered the symbolic lane as a constant (FORK-S4F). Test-only
+# for the reason the profile above is: with it off, the hook in
+# `Sym::sign_within` does not exist.
+sym-revalue-testing = []
 
 [dependencies]
 # Optional: `test-support` above.
@@ -88,8 +100,8 @@ num-traits = { workspace = true }
 # libm error pads, pure Rust over the same `libm` this crate already
 # carries, and a separate workspace root so its own gmp-backed
 # certification oracle never enters this graph. A NORMAL dependency. It
-# is also the differential oracle the
-# ring's default-lane tests read (`tests/ring_interval_differential.rs`).
+# is also the differential oracle `tests/interval_backend_differential.rs`
+# reads.
 interval-transcendentals = { workspace = true }
 # D9 addendum idiom 1 for a walk whose units decide through the funnel
 # (`k_stats::map_detached`): the map lives beside `detached` and

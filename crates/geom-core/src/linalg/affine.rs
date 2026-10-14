@@ -10,7 +10,7 @@
 use core::convert::Infallible;
 use core::ops::Mul;
 
-use crate::linalg::{Mat3, Point3, Vec3};
+use crate::linalg::{Mat3, Point3, UnitVec3, Vec3};
 use crate::real::Real;
 
 /// An affine map of the 3-D affine space: `p ↦ linear·p + translation`.
@@ -30,7 +30,7 @@ impl<T: Real> Affine3<T> {
     ///
     /// Everything it stores, it stores VERBATIM. Where a caller builds
     /// a placement from a base point — the frame witness's
-    /// [`OrthoFrame::to_affine`](crate::OrthoFrame::to_affine) is where
+    /// [`RigidMotion::to_affine`](crate::RigidMotion::to_affine) is where
     /// that happens — the translation is the subtraction
     /// `origin − Point3::origin()`: componentwise `x − (+0.0)`, which
     /// IEEE 754 leaves at `x` for every bit pattern (`−0.0`, `±inf` and
@@ -42,6 +42,33 @@ impl<T: Real> Affine3<T> {
             linear,
             translation,
         }
+    }
+
+    /// The four columns of the map's augmented matrix: the linear
+    /// part's [`Mat3::cols`], then the translation. Binds both fields
+    /// by pattern, so a field added to this type is an E0027 here.
+    pub const fn cols(self) -> [Vec3<T>; 4] {
+        let Self {
+            linear,
+            translation,
+        } = self;
+        let [c0, c1, c2] = linear.cols();
+        [c0, c1, c2, translation]
+    }
+
+    /// The twelve components in [`Self::cols`] order — the three linear
+    /// columns, each `x, y, z`, then the translation — every one bound
+    /// by pattern through [`Self::cols`] and [`Vec3::to_array`], so a
+    /// field added at any of the three levels fails to compile here
+    /// rather than falling outside a reader of the twelve. This is the
+    /// order [`Self::try_map`] visits them in.
+    pub const fn components(self) -> [T; 12] {
+        let [c0, c1, c2, t] = self.cols();
+        let [a, b, c] = c0.to_array();
+        let [d, e, f] = c1.to_array();
+        let [g, h, i] = c2.to_array();
+        let [j, k, l] = t.to_array();
+        [a, b, c, d, e, f, g, h, i, j, k, l]
     }
 
     /// The identity map.
@@ -97,8 +124,13 @@ impl<T: Real> Affine3<T> {
     }
 
     /// The rotation by `angle` radians (right-hand rule) about the axis
-    /// through `point` with direction `axis` — revolve's constructor
-    /// (the M0 watchlist item, landing with its first consumer).
+    /// through `point` with direction `axis`, as a map: the placement a
+    /// turn composes into another placement (`rotation · place`), or
+    /// applies to a whole body. A single turned point is
+    /// [`Self::rotate_point_about_axis`], by W1
+    /// (`crates/geom-core/README.md`): this map's translation levers an
+    /// angle's width by the anchor's distance from the coordinate
+    /// origin, where the point's spelling levers it by the radius.
     ///
     /// Semantically `T(q) ∘ R ∘ T(−q)` for `q` the displacement of
     /// `point` from the coordinate origin; computed directly as
@@ -108,33 +140,83 @@ impl<T: Real> Affine3<T> {
     /// the scalar's business, and it differs: all-NaN at `f64`, entire
     /// `[−∞, ∞]` at `Interval`. Either way nothing the map produces is
     /// ever a certified finite value) and `translation = (I − R)·q`,
-    /// one application of
-    /// the anchor operator ([`Mat3::identity_minus_rotation_about`]) to
-    /// the anchor displacement, in exactly that order (D9). Fixed
-    /// points: the axis line, up to rounding.
+    /// one application of the anchor operator
+    /// ([`Mat3::identity_minus_rotation_about`]) to the anchor
+    /// displacement, in exactly that order (D9). Fixed points: the axis
+    /// line, up to rounding.
     ///
-    /// **The anchor is mentioned once.** The equivalent `q − R·q` is
-    /// the same point over the reals, but it subtracts and re-adds the
-    /// anchor, and interval arithmetic cannot cancel a repeated
-    /// operand: at `T = Interval` that spelling returns the identity
-    /// map (`angle = 0`) carrying `2·width(point)` of translation,
-    /// which `transform_point` then adds to every point the map
-    /// touches. Here the factors that vanish with the angle multiply
-    /// the anchor instead: `≈ θ·width(q)` near zero, and at `angle = 0`
-    /// exactly zero at `f64`. At `Interval` "exactly zero" is not
-    /// available — the backend's `sin` at the exact point `0` encloses
-    /// `[−2e-323, 2e-323]`, so the operator carries subnormal dust that
-    /// no spelling here can remove. That dust still *multiplies* the
-    /// anchor, so the residue is proportional to the anchor's own scale
-    /// (`|q| + width(q)`, ~2.6e-322 for a metre-scale anchor) rather
-    /// than to `width(q)` alone — small, but not independent of the
-    /// operand, and not a constant.
+    /// **Inside the map the anchor is mentioned once.** The equivalent
+    /// translation `q − R·q` subtracts and re-adds the anchor, and
+    /// interval arithmetic cannot cancel a repeated operand: at
+    /// `T = Interval` it returns the identity map (`angle = 0`)
+    /// carrying `2·width(point)` of translation, which every point the
+    /// map touches would then pay. Here the factors that vanish with
+    /// the angle multiply the anchor instead: `≈ θ·width(q)` near zero,
+    /// and at `angle = 0` exactly zero at `f64`. At `Interval` "exactly
+    /// zero" is not available — the backend's `sin` at the exact point
+    /// `0` encloses `[−2e-323, 2e-323]`, so the operator carries
+    /// subnormal dust proportional to the anchor's own scale
+    /// (`|q| + width(q)`, ~2.6e-322 for a metre-scale anchor).
     pub fn rotation_about_axis(point: Point3<T>, axis: Vec3<T>, angle: T) -> Self {
-        let q = point - Point3::origin();
+        Self::anchored_rotation(point - Point3::origin(), axis.normalize(), angle)
+    }
+
+    /// [`Self::rotation_about_axis`]'s arithmetic over a unit axis `n`
+    /// as given and the anchor displacement `q`: linear part the
+    /// Rodrigues rotation, translation `(I − R)·q`. The one body of
+    /// this map and of
+    /// [`RigidMotion::rotation_about_axis`](super::RigidMotion::rotation_about_axis),
+    /// which differ only in whether the axis is normalized first.
+    pub(in crate::linalg) fn anchored_rotation(q: Vec3<T>, n: Vec3<T>, angle: T) -> Self {
         Self::from_parts(
-            Mat3::rotation_about(axis, angle),
-            Mat3::identity_minus_rotation_about(axis, angle) * q,
+            Mat3::rodrigues(n, angle),
+            Mat3::identity_minus_rodrigues(n, angle) * q,
         )
+    }
+
+    /// The point `p` turned by `angle` radians (right-hand rule) about
+    /// the axis through `point` with direction `axis`, spelled
+    /// `q + R·(p − q)`: the offset from the axis is turned, then the
+    /// axis point added back, in exactly that order (D9). `R` is
+    /// [`Mat3::rotation_about`], same axis normalization and poison.
+    ///
+    /// This is the spelling of a single turned point, chosen by W1
+    /// (`crates/geom-core/README.md`): the angle's width reaches the
+    /// answer times the radius `|p − q|`, where
+    /// `rotation_about_axis(..).transform_point(p)`, `R·p + (I − R)·q`,
+    /// levers it by the coordinates `|p| + |q|`. On an axis through the
+    /// coordinate origin the two are equal.
+    ///
+    /// What it gives up is the turned point's independence from the
+    /// axis point's width: `q` is mentioned twice. At `Interval`, with
+    /// `p` exact and `q` a box `w` wide in each coordinate, the offset
+    /// `p − q` is `w` wide in each coordinate; row `i` of `R` turns it
+    /// into a box `Σⱼ|Rᵢⱼ|·w` wide, and adding `q` back adds `w`. So
+    /// coordinate `i` of the answer is `(1 + Σⱼ|Rᵢⱼ|)·w` wide, plus
+    /// the rotation's own enclosure times the radius. `R`'s rows are
+    /// unit vectors, so `Σⱼ|Rᵢⱼ| ≤ √3`, and the bound is `(1 + √3)·w`.
+    /// It is `2·w` at the zero turn, where `R` is the identity, and up
+    /// to `(1 + √2)·w` about a coordinate axis, where a row's third
+    /// entry is zero.
+    pub fn rotate_point_about_axis(
+        point: Point3<T>,
+        axis: Vec3<T>,
+        angle: T,
+        p: Point3<T>,
+    ) -> Point3<T> {
+        point + Mat3::rotation_about(axis, angle) * (p - point)
+    }
+
+    /// [`Self::rotate_point_about_axis`] about a [`UnitVec3`] witness,
+    /// not normalized a second time ([`Mat3::rotation_about_unit`]):
+    /// the same spelling, `q + R·(p − q)`.
+    pub fn rotate_point_about_unit_axis(
+        point: Point3<T>,
+        axis: UnitVec3<T>,
+        angle: T,
+        p: Point3<T>,
+    ) -> Point3<T> {
+        point + Mat3::rotation_about_unit(axis, angle) * (p - point)
     }
 
     /// Applies the map to a point: `linear·p + translation`, where `p`'s
@@ -227,6 +309,131 @@ mod tests {
     fn rigid3() -> impl Strategy<Value = Affine3<f64>> {
         (vec3(), -10.0..10.0f64, vec3())
             .prop_map(|(axis, theta, t)| Affine3::from_parts(Mat3::rotation_about(axis, theta), t))
+    }
+
+    /// The determinism the module docs claim for a fixed evaluation
+    /// order, and only that: two spellings of one product — the
+    /// operators, and the documented order written out over scalars —
+    /// agree bit for bit wherever the output is not NaN, and agree on
+    /// being NaN where it is (a NaN's sign and payload are not claimed).
+    /// The operands are an enumeration over finite values that include
+    /// both zeros, subnormals and magnitudes whose products overflow.
+    #[test]
+    fn two_spellings_of_a_product_agree_bitwise_off_nan() {
+        const TABLE: [f64; 10] = [
+            0.0,
+            -0.0,
+            5e-324,
+            -f64::MIN_POSITIVE,
+            1e-160,
+            -1.5,
+            3.0,
+            1e154,
+            -1e300,
+            f64::MAX,
+        ];
+        let n = TABLE.len();
+        let map = |offset: usize, stride: usize| {
+            let e = |j: usize| TABLE[(offset + stride * j) % n];
+            Affine3::from_parts(
+                Mat3::from_cols(
+                    Vec3::new(e(0), e(1), e(2)),
+                    Vec3::new(e(3), e(4), e(5)),
+                    Vec3::new(e(6), e(7), e(8)),
+                ),
+                Vec3::new(e(9), e(10), e(11)),
+            )
+        };
+        // Row i of `m` applied to `v`, in `Mat3`'s documented order.
+        let row = |m: Mat3<f64>, i: usize, v: Vec3<f64>| {
+            let pick = |c: Vec3<f64>| [c.x, c.y, c.z][i];
+            (pick(m.c0) * v.x + pick(m.c1) * v.y) + pick(m.c2) * v.z
+        };
+        let apply =
+            |m: Mat3<f64>, v: Vec3<f64>| Vec3::new(row(m, 0, v), row(m, 1, v), row(m, 2, v));
+        let (mut compared, mut minus_zeros) = (0usize, 0usize);
+        let mut agree = |what: &str, k: usize, got: f64, want: f64| {
+            if got.is_nan() || want.is_nan() {
+                assert!(
+                    got.is_nan() && want.is_nan(),
+                    "{what} #{k}: {got:e} vs {want:e}"
+                );
+            } else {
+                assert_eq!(
+                    got.to_bits(),
+                    want.to_bits(),
+                    "{what} #{k}: {got:e} vs {want:e}"
+                );
+                compared += 1;
+                minus_zeros += usize::from(got == 0.0 && got.is_sign_negative());
+            }
+        };
+        let all = |x: f64| {
+            Affine3::from_parts(
+                Mat3::from_cols(Vec3::new(x, x, x), Vec3::new(x, x, x), Vec3::new(x, x, x)),
+                Vec3::new(x, x, x),
+            )
+        };
+        let operands: Vec<_> = (0..n)
+            .map(|o| map(o, 1))
+            .chain((0..n).map(|o| map(o, 3)))
+            .chain([all(-0.0), all(0.0)])
+            .collect();
+        let pairs = operands
+            .iter()
+            .flat_map(|&a| operands.iter().map(move |&b| (a, b)));
+        for (k, (a, b)) in pairs.enumerate() {
+            let ab = a * b;
+            let lin = [b.linear.c0, b.linear.c1, b.linear.c2].map(|c| apply(a.linear, c));
+            let t = apply(a.linear, b.translation) + a.translation;
+            for (got, want) in [
+                (ab.linear.c0, lin[0]),
+                (ab.linear.c1, lin[1]),
+                (ab.linear.c2, lin[2]),
+                (ab.translation, t),
+            ] {
+                agree("product", k, got.x, want.x);
+                agree("product", k, got.y, want.y);
+                agree("product", k, got.z, want.z);
+            }
+            let p = Point3::new(TABLE[k % n], TABLE[(k / n + 4) % n], TABLE[(k + 7) % n]);
+            let q = a.transform_point(p);
+            let r = apply(a.linear, Vec3::new(p.x, p.y, p.z)) + a.translation;
+            agree("point", k, q.x, r.x);
+            agree("point", k, q.y, r.y);
+            agree("point", k, q.z, r.z);
+        }
+        // Cancellation: per component `((1 + 2^53) + 0) − 2^53` is 0 in the
+        // documented order and 1 in any order that meets `2^53` and
+        // `−2^53` first, so a regrouped sum in either arm moves it.
+        let two52 = 4_503_599_627_370_496.0;
+        let ones = Vec3::new(1.0, 1.0, 1.0);
+        let cancel = Affine3::from_parts(
+            Mat3::from_cols(ones, ones * two52, Vec3::zero()),
+            ones * (-2.0 * two52),
+        );
+        let v = Vec3::new(1.0, 2.0, 0.0);
+        let want = apply(cancel.linear, v) + cancel.translation;
+        assert_eq!(
+            want.x, 0.0,
+            "cancellation fixture: the documented order gives 0"
+        );
+        let shift = Affine3::from_parts(Mat3::identity(), v);
+        for (what, got) in [
+            (
+                "cancellation point",
+                cancel.transform_point(Point3::new(v.x, v.y, v.z)) - Point3::origin(),
+            ),
+            ("cancellation product", (cancel * shift).translation),
+        ] {
+            agree(what, 0, got.x, want.x);
+            agree(what, 0, got.y, want.y);
+            agree(what, 0, got.z, want.z);
+        }
+        assert!(
+            compared >= 7_000 && minus_zeros > 0,
+            "the table reached {compared} non-NaN entries, {minus_zeros} of them −0"
+        );
     }
 
     #[test]
@@ -689,10 +896,12 @@ mod tests {
     /// The twelve components in the order the walk visits them: the
     /// three columns, each `x, y, z`, then the translation. Written
     /// out by hand, so it is an INDEPENDENT statement of where each
-    /// component belongs — a transposition inside the walk
-    /// disagrees with it, which is the whole reason the walk rows
-    /// compare against this and not against another call to the walk.
-    fn components<T: Real>(a: Affine3<T>) -> [T; 12] {
+    /// component belongs — a transposition inside the walk, or inside
+    /// the [`Affine3::components`] door, disagrees with it, which is
+    /// the whole reason the walk rows and the door's own row compare
+    /// against this and not against another call to the code under
+    /// test.
+    fn hand_components<T: Real>(a: Affine3<T>) -> [T; 12] {
         let (l, t) = (a.linear, a.translation);
         [
             l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y, l.c2.z, t.x, t.y, t.z,
@@ -700,7 +909,7 @@ mod tests {
     }
 
     fn bits(a: Affine3<f64>) -> [u64; 12] {
-        components(a).map(f64::to_bits)
+        hand_components(a).map(f64::to_bits)
     }
 
     /// A placement with twelve DISTINCT components and no symmetry —
@@ -758,7 +967,7 @@ mod tests {
     #[test]
     fn both_walks_lift_to_another_scalar_in_the_same_places() {
         let channels = |d: Affine3<Dual64>| {
-            let c = components(d);
+            let c = hand_components(d);
             (c.map(|x| x.value.to_bits()), c.map(|x| x.deriv.to_bits()))
         };
         for (o, u, v) in frame_corpus() {
@@ -845,7 +1054,7 @@ mod tests {
                 Ok(_) => panic!("component {k} refused, so the walk must not answer Ok"),
                 Err(e) => assert_eq!(
                     e.to_bits(),
-                    components(a)[k].to_bits(),
+                    hand_components(a)[k].to_bits(),
                     "the refusal carried out is component {k}'s"
                 ),
             }
@@ -1014,5 +1223,42 @@ mod tests {
         assert_eq!(door.1, hand.1, "the order f sees the components in");
         assert_eq!(door.1.len(), 12, "twelve calls, no more");
         assert_eq!(door.0, hand.0, "the twelve results land in the same places");
+    }
+
+    /// The readout doors against literals and against the hand
+    /// spelling: `distinct`'s twelve distinct components in
+    /// [`Affine3::try_map`]'s visit order, so a transposed column, a
+    /// dropped translation or a reversed walk reds this row on a value
+    /// rather than on another call. Then the door against
+    /// [`hand_components`] by bits over the storage corpus, where the
+    /// signed zeros, the infinities and the NaN live.
+    #[test]
+    fn cols_and_components_read_out_in_the_walk_order() {
+        for (o, u, v) in frame_corpus() {
+            let a = Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
+            assert_eq!(
+                a.components().map(f64::to_bits),
+                bits(a),
+                "components at {o:?} {u:?} {v:?}"
+            );
+        }
+        let a = distinct();
+        assert_eq!(
+            a.components(),
+            [
+                1.0, 2.0, 3.0, 4.0, 5.5, -6.0, -7.25, 0.5, 8.0, 10.0, 11.0, 12.0
+            ],
+            "components"
+        );
+        assert_eq!(
+            a.cols().map(Vec3::to_array),
+            [
+                [1.0, 2.0, 3.0],
+                [4.0, 5.5, -6.0],
+                [-7.25, 0.5, 8.0],
+                [10.0, 11.0, 12.0]
+            ],
+            "cols: three linear columns, then the translation"
+        );
     }
 }

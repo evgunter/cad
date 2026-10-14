@@ -29,6 +29,7 @@ use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
 use topo::Body;
@@ -70,7 +71,10 @@ fn skewed_prism_ringed(nu: f64, outer: &[(f64, f64)], ring: &[(f64, f64)], h: f6
     }
     extrude(
         &validated(plane, loops),
-        Extrusion::Distance(h),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude")

@@ -32,7 +32,7 @@
 //! in-band margin, poison and a ring copy that was never emitted all
 //! read as "not certified".
 //!
-//! The parity walk is `ray_parity`'s, under this module's own K rows
+//! The parity walk is `ray_walk`'s, under this module's own K rows
 //! and `chart_region`'s shared [`SCHEDULE_2D`] — the same sixteen
 //! directions, because the grazing configurations those obliques
 //! answer are the same ones here.
@@ -43,12 +43,12 @@ use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Vec2};
 
 use crate::chart_region::SCHEDULE_2D;
 use crate::pcurves::PcurveMintError;
-use crate::ray_parity::{self, ParityRows};
+use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::validate::decide;
 
 /// The K rows the outside test meters through. Distinct from
 /// `chart_region.rs`'s and from `containment.rs`'s: a chart-boundary
-/// cell margin is its own population (`ray_parity`'s module docs), and
+/// cell margin is its own population (`ray_walk`'s module docs), and
 /// this value is a roster entry in `docs/K-REPORT.md`.
 const ROWS: ParityRows = ParityRows {
     segment: "chart_bound_segment",
@@ -460,10 +460,14 @@ impl<T: Real> MetredBound<T> {
     }
 }
 
-/// A metred chart rectangle: the cell the consumer is asking about.
-/// Its four bounds are exact `f64` structure (a subdivision cell's
-/// corners are the driver's own arithmetic), and a POINT is this with
-/// zero extent.
+/// A metred chart rectangle: the cell the consumer is asking about, and
+/// a POINT is this with zero extent.
+///
+/// Its bounds are `f64` the driver computed — a subdivision of its
+/// window, rounded outward onto the metred chart — so they are a
+/// function of whatever the window is a function of, not constants of
+/// the query, and they enter the decisions through
+/// [`Real::from_computed`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MetredRect {
     /// Lower first-parameter bound, metres.
@@ -543,8 +547,8 @@ impl<T: Decide> MetredBound<T> {
             }
         }
         let q = Point2::new(
-            T::from_f64(0.5 * (rect.u_min + rect.u_max)),
-            T::from_f64(0.5 * (rect.v_min + rect.v_max)),
+            T::from_computed(0.5 * (rect.u_min + rect.u_max)),
+            T::from_computed(0.5 * (rect.v_min + rect.v_max)),
         );
         for lp in &self.loops {
             let verts: Vec<Point2<T>> = lp.edges.iter().map(MetredEdge::a).collect();
@@ -591,10 +595,10 @@ fn edge_clears<T: Decide>(edge: &MetredEdge<T>, rect: MetredRect, band: Band) ->
 /// one of them separates.
 fn box_separates<T: Decide>(w: &ChartWindow<T>, rect: MetredRect, band: Band) -> bool {
     [
-        T::from_f64(rect.u_min) - w.u_max,
-        w.u_min - T::from_f64(rect.u_max),
-        T::from_f64(rect.v_min) - w.v_max,
-        w.v_min - T::from_f64(rect.v_max),
+        T::from_computed(rect.u_min) - w.u_max,
+        w.u_min - T::from_computed(rect.u_max),
+        T::from_computed(rect.v_min) - w.v_max,
+        w.v_min - T::from_computed(rect.v_max),
     ]
     .into_iter()
     .any(|gap| matches!(decide(GAP, Margin::of(gap), band), Ok(Sign::Positive)))
@@ -613,7 +617,7 @@ fn normal_separates<T: Decide>(a: Point2<T>, b: Point2<T>, rect: MetredRect, ban
     let lever = n.norm();
     let (mut all_positive, mut all_negative) = (true, true);
     for (cu, cv) in rect.corners() {
-        let w = Vec2::new(T::from_f64(cu) - a.x, T::from_f64(cv) - a.y);
+        let w = Vec2::new(T::from_computed(cu) - a.x, T::from_computed(cv) - a.y);
         match decide(GAP, Margin::over_lever(n.dot(w), lever), band) {
             Ok(Sign::Positive) => all_negative = false,
             Ok(Sign::Negative) => all_positive = false,
@@ -627,8 +631,8 @@ fn normal_separates<T: Decide>(a: Point2<T>, b: Point2<T>, rect: MetredRect, ban
 }
 
 /// Stage (2) for one polygon: the ray-parity verdict at `q`, or `None`
-/// when the walk cannot answer (on the boundary, every schedule member
-/// grazing, or an escalated margin). The first definite verdict counts.
+/// when the walk cannot answer (on the boundary or in its band, or no
+/// schedule member deciding). The first definite verdict counts.
 ///
 /// The schedule is `chart_region`'s [`SCHEDULE_2D`], shared rather
 /// than re-cut: its sixteen members are two axes plus fourteen oblique
@@ -638,20 +642,119 @@ fn normal_separates<T: Decide>(a: Point2<T>, b: Point2<T>, rect: MetredRect, ban
 /// axis-only schedule is not a smaller version of that; it is the
 /// configuration the fourteen exist to answer.
 fn parity<T: Decide>(verts: &[Point2<T>], q: Point2<T>, band: Band) -> Option<bool> {
-    if !matches!(ray_parity::on_boundary(verts, q, &ROWS, band), Ok(false)) {
+    if !matches!(ray_walk::on_boundary(verts, q, &ROWS, band), Ok(false)) {
         return None;
     }
-    for m in &SCHEDULE_2D {
-        let d = m.map(T::from_f64);
-        // The in-plane perpendicular of a 2-D member, which is in-plane
-        // by construction and of fixed nonzero `f64` length — so there
-        // is no arm predicate to decide (`SCHEDULE_2D`'s own docs).
-        let side = Vec2::new(-d.y, d.x);
-        match ray_parity::ray_verdict(verts, q, d, side, &ROWS, band) {
-            Ok(Some(inside)) => return Some(inside),
-            Ok(None) => {}
-            Err(_) => return None,
-        }
+    ray_walk::walk(
+        &SCHEDULE_2D,
+        |m| {
+            let d = m.map(T::from_f64);
+            // The in-plane perpendicular of a 2-D member, which is in-plane
+            // by construction and of fixed nonzero `f64` length — so there
+            // is no arm predicate to decide (`SCHEDULE_2D`'s own docs).
+            let side = Vec2::new(-d.y, d.x);
+            RayFault::of(
+                ray_walk::ray_verdict(verts, q, d, side, &ROWS, band),
+                |_| (),
+            )
+        },
+        || (),
+    )
+    .ok()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// **A ray read in band is set aside, and a later ray answers**: the
+    /// square's right side carries a vertex `3e-9` off the first schedule
+    /// member's ray line from its centre — in the band of
+    /// `chart_bound_side` — and the cell's parity is still read, by `+y`.
+    /// Giving up on the cell at the first in-band ray answered `None`.
+    #[test]
+    fn a_ray_read_in_band_is_set_aside_and_a_later_ray_answers() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let poly = [
+            Point2::new(0.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 1.0 + 3e-9),
+            Point2::new(2.0, 2.0),
+            Point2::new(0.0, 2.0),
+        ];
+        assert_eq!(parity(&poly, Point2::new(1.0, 1.0), band), Some(true));
+        assert_eq!(parity(&poly, Point2::new(3.0, 1.0), band), Some(false));
     }
-    None
+}
+
+#[cfg(test)]
+mod from_computed_rows {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use crate::revalue_pin::{Revalued, S, revalued};
+    use geom_core::{SupSpeed, Tol};
+
+    /// The cell enters as a computed value: built at `Sym<f64>` over the
+    /// triangle `(0, 0), (x, 0), (0, x)` with `x` the parameter, and cells
+    /// the driver's `f64` arithmetic on that window places — one past each
+    /// side of its box, so each box gap separates one, and one past the
+    /// hypotenuse inside its box, which only the edge's normal separates.
+    /// No decision re-values to the cells `p0` asked about.
+    #[test]
+    fn the_query_cell_enters_as_computed() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let found = revalued([1.0, 1.0 + 1.0e-3], |p, x| {
+            let zero = S::zero();
+            let verts = [(zero, zero), (x, zero), (zero, x)];
+            let outer = ChartLoop {
+                edges: (0..3)
+                    .map(|i| {
+                        let (a, b) = (verts[i], verts[(i + 1) % 3]);
+                        ChartEdge::Segment {
+                            a: Point2::new(a.0, a.1),
+                            b: Point2::new(b.0, b.1),
+                        }
+                    })
+                    .collect(),
+                ring: false,
+            };
+            let one = S::one();
+            let bound = ChartBound::assembled(
+                outer,
+                Vec::new(),
+                None,
+                ChartArm::Rate(SupSpeed::new(one)),
+                band,
+            )
+            .unwrap()
+            .metred((one, one));
+            let (near, far) = (0.25 * p, 0.5 * p);
+            for (name, cell) in [
+                ("right", MetredRect::new(p + 0.25, p + 0.5, near, far)),
+                ("left", MetredRect::new(-far, -near, near, far)),
+                ("above", MetredRect::new(near, far, p + 0.25, p + 0.5)),
+                ("below", MetredRect::new(near, far, -far, -near)),
+                (
+                    "past the hypotenuse",
+                    MetredRect::new(0.6 * p, 0.7 * p, 0.6 * p, 0.7 * p),
+                ),
+            ] {
+                assert!(
+                    bound.certifies_outside(cell, band),
+                    "the cell {name} of the triangle is outside it"
+                );
+            }
+            Vec::new()
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 15,
+                opaque: 73,
+                laundered: 0,
+            },
+            "every gap, normal and parity decision reads a cell; the ray schedule's own rows do not"
+        );
+    }
 }

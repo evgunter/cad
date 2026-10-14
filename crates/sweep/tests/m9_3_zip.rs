@@ -1,23 +1,28 @@
 //! M9-3 PR-B — the zip and the marks: the two-peg kernel path
 //! (CONTACT-DESIGN's considered-not-built demo, now built): plate P
 //! with two pegs, plate Q with two through-bores, mated on one plane;
-//! three declared `Rest` contact groups (one planar + two
+//! three `Rest` contact groups (one planar + two
 //! cylindrical); the union removes all three patches as interior,
 //! the bore walls vanish (full engagement), and the volume is exactly
 //! additive (the C7-lane statement).
+//!
+//! Acceptance (ii) is the kissing rounds: two convex quarter-round
+//! walls touching externally along one ruling, a wedge-2π rim. (The
+//! wedge-π G1 "tube chain" is a different fixture, the torus chain in
+//! `mate7a_torus_rest.rs`.)
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands::{plate6 as plate, plate6_cyl};
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::readback::euler_counts;
-use topo::{
-    Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
-};
+use topo::{AtRestBody, BooleanResult, mass_properties};
 
-fn body_of(r: BooleanResult<f64>) -> Body<f64> {
+fn body_of(r: BooleanResult<f64>) -> AtRestBody<f64> {
     match r {
         BooleanResult::Body(b) => b.body,
         BooleanResult::Empty => panic!("a two-peg operand cannot be empty"),
@@ -26,75 +31,25 @@ fn body_of(r: BooleanResult<f64>) -> Body<f64> {
 
 /// Plate P: base [0,1] with two pegs rising to z = 2 (embedded boss
 /// unions — the shipped transverse lane).
-fn plate_with_pegs() -> Body<f64> {
-    let p0 = plate(0.0);
-    let p1 = body_of(topo::union(&p0, &plate6_cyl(2.0, 0.4, 1.6, 0.5), Tol::witness()).unwrap());
-    body_of(topo::union(&p1, &plate6_cyl(4.0, 0.4, 1.6, 0.5), Tol::witness()).unwrap())
+fn plate_with_pegs() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let peg = |cx: f64| finished("a peg", plate6_cyl(cx, 0.4, 1.6, 0.5), tol);
+    let p0 = finished("plate P", plate(0.0), tol);
+    let p1 = body_of(topo::union(&p0, &peg(2.0), tol).unwrap());
+    body_of(topo::union(&p1, &peg(4.0), tol).unwrap())
 }
 
 /// Plate Q: z ∈ [1, 2] with two through-bores (the shipped transverse
 /// subtracts).
-fn plate_with_bores() -> Body<f64> {
-    let q0 = plate(1.0);
-    let q1 = body_of(topo::subtract(&q0, &plate6_cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap());
-    body_of(topo::subtract(&q1, &plate6_cyl(4.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
+fn plate_with_bores() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let bore = |cx: f64| finished("a bore", plate6_cyl(cx, 0.8, 1.4, 0.5), tol);
+    let q0 = finished("plate Q", plate(1.0), tol);
+    let q1 = body_of(topo::subtract(&q0, &bore(2.0), tol).unwrap());
+    body_of(topo::subtract(&q1, &bore(4.0), tol).unwrap())
 }
 
-/// The cylinder faces of a body whose axis x is near `cx`.
-fn walls_at(body: &Body<f64>, cx: f64) -> Vec<topo::FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { origin, .. }) if (origin.x - cx).abs() < 0.5
-            )
-        })
-        .map(|(k, _)| k)
-        .collect()
-}
-
-/// The planar face at height `z` facing `up`.
-fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
-    let hits: Vec<_> = body
-        .faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => {
-                (origin.z - z).abs() < 1e-12 && (normal.z > 0.5) == up
-            }
-            _ => false,
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let [f] = hits[..] else {
-        panic!("expected exactly one z = {z} face (up = {up}), got {hits:?}");
-    };
-    f
-}
-
-/// The three declared contact groups: the mating plane (P top × Q
-/// bottom) and the two cylinder bands, each peg declared against its
-/// own bore's walls only (cross-peg pairs are DISTINCT carriers and
-/// would be contradicted — correctly).
-fn declarations(p: &Body<f64>, q: &Body<f64>) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(p, 1.0, true),
-        plane_face(q, 1.0, false),
-        ContactClass::Rest,
-    ));
-    for cx in [2.0, 4.0] {
-        for &fa in &walls_at(p, cx) {
-            for &fb in &walls_at(q, cx) {
-                decls
-                    .coincident_faces
-                    .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-            }
-        }
-    }
-    decls
-}
-
-/// Acceptance (i): the two-peg kernel path — three declared contacts,
+/// Acceptance (i): the two-peg kernel path — three contact groups,
 /// union succeeds, volume EXACTLY additive (vol(P∪Q) = vol(P)+vol(Q):
 /// interiors are disjoint, nothing is discarded — and the π terms of
 /// the pegs and bores cancel against 48 exactly).
@@ -104,9 +59,7 @@ fn two_peg_plate_union_is_exactly_additive() {
     let q = plate_with_bores();
     let vp = mass_properties(&p, Tol::witness()).unwrap().volume;
     let vq = mass_properties(&q, Tol::witness()).unwrap().volume;
-    let decls = declarations(&p, &q);
-    let out =
-        topo::union_with(&p, &q, &decls, Tol::witness()).expect("the two-peg kernel path unions");
+    let out = topo::union(&p, &q, Tol::witness()).expect("the two-peg kernel path unions");
     let BooleanResult::Body(bb) = out else {
         panic!("a two-peg union cannot be empty");
     };
@@ -130,11 +83,12 @@ fn two_peg_plate_union_is_exactly_additive() {
     }
     // Topology pinned: ONE shell, genus 0 (every handle the bores
     // opened is closed by its peg). Euler–Poincaré with rings:
-    // V − E + F − R = 2(S − H); each peg's circular seam survives as
-    // an inner ring on the surrounding planar face, so R = 2.
+    // V − E + F − R = 2(S − H); each peg's end is flush with Q's top,
+    // a continuation the union merges, so no circular seam
+    // survives as a ring: R = 0.
     let counts = euler_counts(&body);
     assert_eq!(counts.s, 1, "one shell");
-    assert_eq!(counts.r, 2, "one surviving circular ring per peg seam");
+    assert_eq!(counts.r, 0, "the flush peg ends merge into the top face");
     assert_eq!(
         counts.genus(),
         Ok(0),
@@ -146,11 +100,13 @@ fn two_peg_plate_union_is_exactly_additive() {
 }
 
 // -------------------------------------------------------------------
-// Acceptance (ii): the tube-chain rim on the DEV-1 carriers — two
-// EQUAL-RADIUS quarter-round walls meeting G1 along a shared tangent
-// ruling (the parallel-cylinder witness lane), mated by a declared
-// planar Rest with the wall pairs declared Tangent. The rim survives
-// the zip as the wedge-π smooth seam and carries the INTRINSIC
+// Acceptance (ii): the kissing-rounds rim on the DEV-1 carriers — two
+// EQUAL-RADIUS convex quarter-round walls (axes (2,·,0) and (2,·,2))
+// kissing externally along one ruling, opposite outward normals there
+// (the parallel-cylinder witness lane), mated by a planar Rest with
+// the wall pairs Tangent. The rim survives the zip
+// as the wedge-2π kiss, a slit interior to material, and carries the
+// INTRINSIC
 // `TangentIntersection` description (the D6 smooth ladder's mint —
 // the jet is determinate: κ_rel = 1/r + 1/r definite).
 // -------------------------------------------------------------------
@@ -164,103 +120,59 @@ fn lying_plane() -> SketchPlane<f64> {
     ))
 }
 
-fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> Body<f64> {
-    let profile = Profile::new(
-        lying_plane(),
-        vec![bulge_loop(vertices).with_tangent_joints(tangent_joints)],
+fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
+    let profile = Profile::new(lying_plane(), vec![bulge_loop(vertices)])
+        .validate(Tol::witness())
+        .unwrap();
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
     )
-    .validate(Tol::witness())
-    .unwrap();
-    extrude(&profile, Extrusion::Distance(4.0), Tol::witness())
-        .unwrap()
-        .body
+    .unwrap()
+    .body;
+    finished("the lying extrusion", body, Tol::witness())
 }
 
 /// Body A: slab x ∈ [0,3], z ∈ [0,1], its top-right profile edge
 /// rounded by a radius-1 quarter arc tangent to z = 1 at x = 2
 /// (cylinder axis (2, ·, 0)); y ∈ [0, 4].
-fn quarter_round_below() -> Body<f64> {
+fn quarter_round_below() -> AtRestBody<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
-    lying_extrude(
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(1.0, 0.0), 0.0),
-            (Point2::new(1.0, 2.0), b90),
-            (Point2::new(0.0, 3.0), 0.0),
-        ],
-        vec![2],
-    )
+    lying_extrude(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 2.0), b90),
+        (Point2::new(0.0, 3.0), 0.0),
+    ])
 }
 
 /// Body B: slab x ∈ [0.5, 3], z ∈ [1, 3], its bottom-right profile
 /// edge rounded by a radius-1 quarter arc tangent to z = 1 at x = 2
 /// (cylinder axis (2, ·, 2)); rests on A's top face; y ∈ [0, 4].
-fn quarter_round_above() -> Body<f64> {
+fn quarter_round_above() -> AtRestBody<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
-    lying_extrude(
-        vec![
-            (Point2::new(1.0, 0.5), 0.0),
-            (Point2::new(1.0, 2.0), -b90),
-            (Point2::new(2.0, 3.0), 0.0),
-            (Point2::new(3.0, 3.0), 0.0),
-            (Point2::new(3.0, 0.5), 0.0),
-        ],
-        vec![1, 2],
-    )
-}
-
-fn cyl_face(body: &Body<f64>) -> topo::FaceKey {
-    let hits: Vec<_> = body
-        .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let [f] = hits[..] else {
-        panic!("expected exactly one wall face, got {hits:?}");
-    };
-    f
+    lying_extrude(vec![
+        (Point2::new(1.0, 0.5), 0.0),
+        (Point2::new(1.0, 2.0), -b90),
+        (Point2::new(2.0, 3.0), 0.0),
+        (Point2::new(3.0, 3.0), 0.0),
+        (Point2::new(3.0, 0.5), 0.0),
+    ])
 }
 
 #[test]
-fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
+fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
     let a = quarter_round_below();
     let b = quarter_round_above();
     let va = mass_properties(&a, Tol::witness()).unwrap().volume;
     let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
-    let mut decls = BooleanDeclarations::none();
-    // The mate: B rests on A's top face.
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(&a, 1.0, true),
-        plane_face(&b, 1.0, false),
-        ContactClass::Rest,
-    ));
-    // The tangencies, all in the DEV-1 witness lane: wall × wall
-    // (parallel cylinders), and each wall against the other body's
-    // mating plane (plane × cylinder along the same ruling).
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        cyl_face(&a),
-        cyl_face(&b),
-        ContactClass::Tangent,
-    ));
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(&a, 1.0, true),
-        cyl_face(&b),
-        ContactClass::Tangent,
-    ));
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        cyl_face(&a),
-        plane_face(&b, 1.0, false),
-        ContactClass::Tangent,
-    ));
-    let out =
-        topo::union_with(&a, &b, &decls, Tol::witness()).expect("the tube-chain rim union runs");
+    let out = topo::union(&a, &b, Tol::witness()).expect("the kissing-rounds union runs");
     let BooleanResult::Body(bb) = out else {
-        panic!("a tube-chain union cannot be empty");
+        panic!("a kissing-rounds union cannot be empty");
     };
     let body = bb.body;
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
@@ -281,7 +193,7 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     );
 
     // The rim: the seam edges between the two cylinder walls — the
-    // wedge-π smooth junction — carry the INTRINSIC tangency
+    // wedge-2π kiss — carry the INTRINSIC tangency
     // description on their line carrier (D6's smooth ladder; U2's
     // taxonomy, no new variant).
     let face_kind = |he| {
@@ -289,15 +201,15 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
             .and_then(|h| body.get_loop(h.parent_loop))
             .and_then(|l| body.get_face(l.face))
             .and_then(|f| body.get_surface(f.surface))
-            .map(geom_brep::SurfaceKind::of)
+            .map(geom::Surface::kind)
     };
     let mut rim_edges = Vec::new();
     for (k, e) in body.edges() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if face_kind(e.he_plus) == Some(geom_brep::SurfaceKind::Cylinder)
-            && face_kind(e.he_minus) == Some(geom_brep::SurfaceKind::Cylinder)
+        if face_kind(e.he_plus) == Some(geom::SurfaceKind::Cylinder)
+            && face_kind(e.he_minus) == Some(geom::SurfaceKind::Cylinder)
         {
             rim_edges.push(k);
             assert!(
@@ -305,7 +217,7 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
                     c.description(),
                     geom_brep::EdgeDescription::TangentIntersection { .. }
                 ),
-                "the G1 rim is intrinsically described: {:?}",
+                "the kissing rim is intrinsically described: {:?}",
                 c.description()
             );
         }
@@ -316,11 +228,9 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     // The rim is a wedge-2π edge — the ruling's "kissing union, a slit
     // interior to material" — and its tangency is jet-determinate, so
     // under D1's second-order arm it is legal at rest, derived from the
-    // body exactly as a π seam is. The intent was declared where the
-    // tangency was created: this op was GIVEN the wall × wall `Tangent`
-    // mate above.
+    // body exactly as a π seam is.
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
-        panic!("the tube-chain rim body must be tier-3 valid: {errs:?}");
+        panic!("the kissing-rounds body must be tier-3 valid: {errs:?}");
     }
     // The tier-3 contact mark agrees: the rim EDGE ITSELF is the
     // must-carry's own regime (jet-determinate tangency), satisfied
@@ -353,8 +263,8 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
         let e = body.get_edge(k).expect("marked edge exists");
         let kinds = [face_kind(e.he_plus), face_kind(e.he_minus)];
         assert!(
-            kinds.contains(&Some(geom_brep::SurfaceKind::Plane))
-                && kinds.contains(&Some(geom_brep::SurfaceKind::Cylinder)),
+            kinds.contains(&Some(geom::SurfaceKind::Plane))
+                && kinds.contains(&Some(geom::SurfaceKind::Cylinder)),
             "the surviving authored joint is the plane-wall/round-wall seam: {kinds:?}"
         );
     }
@@ -362,7 +272,7 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     // V − E + F − R = 2(S − H).
     let counts = euler_counts(&body);
     assert_eq!(counts.s, 1, "one shell");
-    assert_eq!(counts.r, 0, "no ring loops in the tube chain");
+    assert_eq!(counts.r, 0, "no ring loops in the kissing rounds");
     assert_eq!(
         counts.genus(),
         Ok(0),
@@ -371,6 +281,79 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     // 3′ judges the rim as tier 3 does — its local battery reads no
     // record — over the contacts the op itself emitted.
     if let Err(errs) = topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()) {
-        panic!("the tube chain must be pseudomanifold-clean: {errs:?}");
+        panic!("the kissing rounds must be pseudomanifold-clean: {errs:?}");
     }
+}
+
+/// A slab under the upper quarter round, wide enough that the round's
+/// rim vertices land INSIDE its top face (x ∈ [0, 5], y ∈ [−1, 5],
+/// z ∈ [0, 1]).
+fn wide_slab_below() -> AtRestBody<f64> {
+    let plane = SketchPlane::new(Affine3::from_parts(
+        geom_core::Mat3::from_cols(Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y()),
+        Vec3::new(0.0, -1.0, 0.0),
+    ));
+    let profile = Profile::new(
+        plane,
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 5.0), 0.0),
+            (Point2::new(0.0, 5.0), 0.0),
+        ])],
+    )
+    .validate(Tol::witness())
+    .unwrap();
+    let slab = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 6.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    finished("the wide slab", slab, Tol::witness())
+}
+
+/// **A `Tangent` CURVED sector at a vertex on a face is lumped
+/// whole.** The quarter round rests on a slab whose top face contains
+/// its rim vertices, so the vertex-on-face door meets the round's wall
+/// sector with both bounds `On`: the tangency ruling, and the arc,
+/// which departs in the plane. The boolean verifies the tangency by its
+/// witness, the door lumps the sector and the classification completes
+/// — the slab minus the round is the slab, and their intersection is
+/// empty. (The union is not asserted:
+/// at `ε = 1e-6` it refuses `ClassificationInvariant` at the run's germ,
+/// filed with the band-edge split below.)
+///
+/// What tells the whole-sector lump from a per-bound reading here is a
+/// defect: read per bound, the ruling is `On` and so is the arc, whose
+/// lever arm is the sliver the band-edge split leaves
+/// (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`),
+/// and two consecutive `On`s refuse. With the split fixed the arc reads
+/// its own side and per bound should pass too
+/// (`work/tang/vtxfac-tangent-sector-should-descend-per-bound.md`).
+#[test]
+fn a_tangent_curved_sector_on_a_face_lumps_whole() {
+    let a = wide_slab_below();
+    let b = quarter_round_above();
+    let va = mass_properties(&a, Tol::witness()).unwrap().volume;
+    let diff = topo::subtract(&a, &b, Tol::witness())
+        .expect("the tangent sector lumps and the difference runs");
+    let BooleanResult::Body(diff) = diff else {
+        panic!("the slab minus a body resting on it is the slab, not empty");
+    };
+    let v = mass_properties(&diff.body, Tol::witness()).unwrap().volume;
+    assert!(
+        (v - va).abs() <= 4.0 * va * f64::EPSILON,
+        "the slab minus the round is the slab: {v} vs {va}"
+    );
+    let meet = topo::intersect(&a, &b, Tol::witness())
+        .expect("the tangent sector lumps and the intersection runs");
+    assert!(
+        matches!(meet, BooleanResult::Empty),
+        "a resting contact encloses no volume"
+    );
 }

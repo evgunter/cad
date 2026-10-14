@@ -83,7 +83,7 @@ fn arc_arc(
             Tol::witness(),
         )
         .and_then(|s| s.line_to(Start, Tol::witness()))
-        .map(|closed| closed.loop_);
+        .map(|closed| closed.loop_.into_loop());
     (res, [c1, c2], [head, next])
 }
 

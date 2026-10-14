@@ -7,7 +7,7 @@
 //!   off it — the mirror of the m5_s12 fixture (there the sphere is the
 //!   cutter). The crossing insertion splits the ball's seam meridians,
 //!   which are `MappedCurve` over `Arc`, so the split rides
-//!   `SketchSegment::restrict`/`eval` end-to-end and re-certifies
+//!   `MappedCurve::restrict`/`eval` end-to-end and re-certifies
 //!   against `carrier_matches_mapped_source`. The row asserts the
 //!   subtraction decides definitely at the certified scalar and that
 //!   the volume enclosure contains the closed form (ball minus a
@@ -50,14 +50,21 @@ mod certified {
 
     use geom_core::{Bounds, Interval, Real, Tol, Vec3};
 
-    use crate::common::sphere_recut::{RECUT_MAPPED_ENCLOSURE_HI, plate, recut_ball};
-    use sweep::test_support::ball_poled_y;
-    use topo::{Body, mass_properties};
+    use crate::common::sphere_recut::{
+        RECUT_DECIDES_FROM, RECUT_HI_PER_EPS, RECUT_MAPPED_ENCLOSURE_HI, RECUT_PIN_EPS, plate,
+        recut_ball,
+    };
+    use sweep::test_support::{ball_poled_y, finished};
+    use topo::{AtRestBody, mass_properties};
 
     /// A block covering the ball laterally, spanning `z ∈ [z0, z0 + len]`
     /// — the cap cutter.
-    fn block(z0: f64, len: f64) -> Body<Interval> {
-        sweep::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (z0, z0 + len), Tol::witness())
+    fn block(z0: f64, len: f64) -> AtRestBody<Interval> {
+        finished(
+            "the block",
+            sweep::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (z0, z0 + len), Tol::witness()),
+            Tol::witness(),
+        )
     }
 
     /// E1: the ball as LEFT operand, its cap chopped by a block — the
@@ -69,9 +76,13 @@ mod certified {
         const R: f64 = 0.6;
         const Z_CUT: f64 = 0.3;
         let cut = topo::subtract(
-            &ball_poled_y(
-                Interval::from_f64(R),
-                Vec3::new(Interval::zero(), Interval::zero(), Interval::zero()),
+            &finished(
+                "the ball",
+                ball_poled_y(
+                    Interval::from_f64(R),
+                    Vec3::new(Interval::zero(), Interval::zero(), Interval::zero()),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
             ),
             &block(Z_CUT, 1.0),
@@ -99,20 +110,20 @@ mod certified {
         );
     }
 
-    /// E2: the m5_s12 sphere-recut fixture, re-run; below the constant
-    /// the escalation's `hi` must be *at* the measured value — a
+    /// E2: the m5_s12 sphere-recut fixture, re-run; in the escalation
+    /// arm, at the pin's ε, the escalation's `hi` must be *at* the measured value — a
     /// tightening of the arc chain that moves it is loud here even when
     /// it does not cross the band (the shipped row's silent window).
     #[test]
     fn e2_recut_escalation_hi_is_pinned_to_the_measured_constant() {
-        if Tol::witness().eps() >= RECUT_MAPPED_ENCLOSURE_HI {
-            // Above the constant the row's DEFINITE arm owns the claim.
+        if Tol::witness().eps() >= RECUT_DECIDES_FROM {
+            // From there up the m5 row's DEFINITE arm owns the claim.
             return;
         }
         // The m5_s12 fixture itself: its 3x3x0.8 plate, minus the unit
         // ball at (1.5, 1.5, 0.5).
-        let plate = plate();
-        let ball = recut_ball();
+        let plate = finished("the plate", plate(), Tol::witness());
+        let ball = finished("the recut ball", recut_ball(), Tol::witness());
         let cut = topo::subtract(&plate, &ball, Tol::witness());
         let Err(topo::BooleanError::CrossingInsertion { source, .. }) = cut else {
             panic!("below the constant the chain must escalate, got {cut:?}");
@@ -124,7 +135,9 @@ mod certified {
             panic!("expected a certification escalation, got {source:?}");
         };
         assert_eq!(check, geom_brep::CertCheck::MappedSource);
-        let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+        let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+            cause.margin.diagnostic_f64_for_error_text()
+        else {
             panic!("expected an enclosure margin, got {:?}", cause.margin);
         };
         assert_eq!(lo, 0.0);
@@ -132,18 +145,23 @@ mod certified {
             "e2: eps={:e}  escalation hi={hi:e}  constant={RECUT_MAPPED_ENCLOSURE_HI:e}",
             Tol::witness().eps()
         );
-        // Pinned EXACTLY: measured bit-reproducible at eps = 1e-12
-        // (hi == the constant, digit for digit — the escalating sample
-        // is the schedule max). Any chain change that moves the
-        // enclosure, in either direction, is loud here — including the
-        // partial tightenings that land between the band and the
-        // constant, which the shipped row's `hi ≤ 2·constant` ceiling
-        // admits silently.
-        assert!(
-            hi == RECUT_MAPPED_ENCLOSURE_HI,
-            "the escalation hi {hi:e} is not the measured constant \
-             {RECUT_MAPPED_ENCLOSURE_HI:e} — the arc chain moved and the m5 row's constant \
-             is stale (re-measure and re-state)"
-        );
+        // Pinned EXACTLY at the ε it was measured at: any chain change
+        // that moves the enclosure, in either direction, is loud here —
+        // including the partial tightenings that land between the band
+        // and the constant. Elsewhere in the arm it tracks ε.
+        let eps = Tol::witness().eps();
+        if eps == RECUT_PIN_EPS {
+            assert!(
+                hi == RECUT_MAPPED_ENCLOSURE_HI,
+                "the escalation hi {hi:e} is not the measured constant \
+                 {RECUT_MAPPED_ENCLOSURE_HI:e} — the arc chain moved and the constant is stale \
+                 (re-measure and re-state)"
+            );
+        } else {
+            assert!(
+                hi <= RECUT_HI_PER_EPS * eps,
+                "the escalation hi {hi:e} is over {RECUT_HI_PER_EPS}·ε at ε = {eps:e}"
+            );
+        }
     }
 }

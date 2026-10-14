@@ -107,14 +107,14 @@ fn only_doc() -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
-/// The PREDICATE a refusal names, out of the refusal's own message —
-/// the quoted name after `predicate `. The whole message is a
+/// The PREDICATE a refusal names, out of the refusal's `Debug` —
+/// the quoted name in `predicate: Some(..)`. The whole message is a
 /// paragraph of recourse; what a census row wants is which predicate
 /// ended the replay.
 fn refusal_predicate(refusal: &str) -> String {
     refusal
-        .split_once("predicate '")
-        .and_then(|(_, rest)| rest.split_once('\''))
+        .split_once("predicate: Some(\"")
+        .and_then(|(_, rest)| rest.split_once('"'))
         .map_or_else(|| head(refusal, 60), |(name, _)| name.to_owned())
 }
 

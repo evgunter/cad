@@ -1,7 +1,5 @@
-//! The wire form of a contact class — the mate node's `class` field
-//! and, through [`pairs`], a [`Node::Declare`](crate::Node) payload's
-//! classes. ONE vocabulary, one wire spelling of it, one table
-//! (ASM-R2a D-1).
+//! The wire form of a contact class — the mate node's `class` field.
+//! ONE vocabulary, one wire spelling of it, one table (ASM-R2a D-1).
 //!
 //! Lowercase because the class vocabulary was minted straight into a
 //! `with` module at the v11 break and never had a derive to match; see
@@ -39,11 +37,9 @@
 //!   costs a lookup and it catches a `tag` that answers for a class
 //!   the search cannot then find. That refusal has no test row and can
 //!   have none — in a build whose read table is complete, nothing
-//!   constructs the state it guards — exactly as the sibling
-//!   `boolean_op` module's does; what the suite reaches is the admit
-//!   path, through the schema round trip.
+//!   constructs the state it guards; what the suite reaches is the
+//!   admit path, through the schema round trip.
 
-use crate::node::SitedRef;
 use serde::de::Error as _;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serializer};
@@ -84,28 +80,41 @@ fn known() -> String {
         .join(", ")
 }
 
-/// The spelling to write for `class`, or the reason there is none —
-/// the ONE write-side door, so no caller can skip the round trip.
+/// The spelling to write for `value`, or the reason there is none —
+/// the ONE write-side round trip, shared by the mate's class and the
+/// declare payload's coincidences, so no write direction can skip it.
 ///
-/// The check is belt-and-braces over [`ContactClass::ALL`]: a class
+/// The check is belt-and-braces over the kernel's enumeration: a value
 /// this build spells but cannot read back is refused at the write
-/// rather than committed to a file.
-fn spelling(class: ContactClass) -> Result<&'static str, String> {
-    let Some(t) = tag(class) else {
+/// rather than committed to a file. `what` names the vocabulary and
+/// `known` quotes its read table.
+fn round_trip<V: Copy + PartialEq>(
+    value: V,
+    tag: impl Fn(V) -> Option<&'static str>,
+    untag: impl Fn(&str) -> Option<V>,
+    what: &str,
+    known: impl Fn() -> String,
+) -> Result<&'static str, String> {
+    let Some(t) = tag(value) else {
         return Err(format!(
-            "this build has no wire spelling for the contact class (a newer kernel's \
+            "this build has no wire spelling for the {what} (a newer kernel's \
              vocabulary) — refusing to write a guessed tag. {}",
             topo::FIT_DEFERRAL
         ));
     };
-    if untag(t) != Some(class) {
+    if untag(t) != Some(value) {
         return Err(format!(
-            "the contact class spelled '{t}' is missing from this build's read table ({}) — \
+            "the {what} spelled '{t}' is missing from this build's read table ({}) — \
              refusing to write a file this build could not open",
             known()
         ));
     }
     Ok(t)
+}
+
+/// The spelling to write for a mate's `class` ([`round_trip`]).
+fn spelling(class: ContactClass) -> Result<&'static str, String> {
+    round_trip(class, tag, untag, "contact class", known)
 }
 
 /// Serializes the class as its stable lowercase spelling.
@@ -138,46 +147,4 @@ fn unknown(spelling: &str) -> String {
 pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<ContactClass, D::Error> {
     let spelling = String::deserialize(de)?;
     untag(&spelling).ok_or_else(|| D::Error::custom(unknown(&spelling)))
-}
-
-/// The declare payload's `((a, b), class)` list, spelling its classes
-/// with the same table as the single-class form above.
-pub(crate) mod pairs {
-    use super::{ContactClass, SitedRef, spelling, unknown, untag};
-    use serde::de::Error as _;
-    use serde::ser::Error as _;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    type Pairs = Vec<((SitedRef, SitedRef), ContactClass)>;
-
-    /// # Errors
-    ///
-    /// A class with no spelling in this build, or none this build
-    /// could read back, refuses rather than inventing one — the same
-    /// write-side door the single-class form uses.
-    pub(crate) fn serialize<S: Serializer>(pairs: &Pairs, ser: S) -> Result<S::Ok, S::Error> {
-        let mut out = Vec::with_capacity(pairs.len());
-        for ((a, b), class) in pairs {
-            let t = spelling(*class).map_err(|why| {
-                S::Error::custom(format!("persist: declared contact class: {why}"))
-            })?;
-            out.push(((a, b), t));
-        }
-        out.serialize(ser)
-    }
-
-    /// # Errors
-    ///
-    /// An unknown spelling refuses typed, quoting the same table and
-    /// the same deferral as the single-class form.
-    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pairs, D::Error> {
-        let raw: Vec<((SitedRef, SitedRef), String)> = Vec::deserialize(de)?;
-        raw.into_iter()
-            .map(|(pair, t)| {
-                untag(&t)
-                    .map(|class| (pair, class))
-                    .ok_or_else(|| D::Error::custom(unknown(&t)))
-            })
-            .collect()
-    }
 }

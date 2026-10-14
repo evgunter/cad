@@ -22,7 +22,7 @@
 //! (`Ok`/`Failed`/`Poisoned`), the payload's arm, and the payload's
 //! stored geometry read through the scalar's own value channel — every
 //! body point, every datum frame, every profile loop's vertices and
-//! bulges, plus arena counts.
+//! arc carriers, plus arena counts.
 //!
 //! It does NOT read curve carriers, surface geometry, or pcurves, and
 //! it does not read a `Failed` node's error or a `Poisoned` node's
@@ -62,7 +62,7 @@
 //! scalar-free or `f64`-only channels a caller compares directly.
 
 use editor_core::{
-    AssertionVerdict, BooleanValue, DatumValue, Dimension, Evaluation, NodeResult, RecipeNodeId,
+    AssertionVerdict, BooleanValue, Dimension, Evaluation, NodeResult, PoseValue, RecipeNodeId,
     SplitSide, ValuePayload,
 };
 use geom_core::{Decide, Dual64};
@@ -184,7 +184,8 @@ impl Digest {
 /// through the scalar's value channel. The single feed both entry
 /// points below share.
 fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, id: RecipeNodeId) {
-    d.u64(id.0);
+    d.u64(u64::from(id.0.ordinal()));
+    d.u64(id.0.digest());
     match ev.result(id) {
         None => d.u64(0),
         Some(NodeResult::Failed(_)) => d.u64(1),
@@ -192,43 +193,28 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
         Some(NodeResult::Ok(v)) => {
             d.u64(3);
             match &v.payload {
-                ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
+                ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
                     d.u64(10);
                     d.point3(*origin);
                     d.vec3(normal.get());
                 }
-                ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
+                ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
                     d.u64(11);
                     d.point3(*origin);
                     d.vec3(dir.get());
                 }
-                ValuePayload::Datum(DatumValue::Point { position }) => {
+                ValuePayload::Datum(PoseValue::Point { position }) => {
                     d.u64(12);
                     d.point3(*position);
                 }
-                ValuePayload::Datum(DatumValue::Frame(f)) => {
+                ValuePayload::Datum(PoseValue::Frame(f)) => {
                     d.u64(23);
                     d.point3(f.origin());
                     d.vec3(f.u().get());
                     d.vec3(f.v().get());
                 }
-                // Tag 24, appended: an in-plane axis is its own
-                // payload, and BOTH its spellings are digested —
-                // the sketch pair is what a revolve consumes, so a
-                // drift there that the world lift happened to hide
-                // must still move the digest.
-                ValuePayload::Datum(DatumValue::AxisInPlane {
-                    plane_origin,
-                    plane_dir,
-                    origin,
-                    dir,
-                }) => {
-                    d.u64(24);
-                    d.scalar(plane_origin.x);
-                    d.scalar(plane_origin.y);
-                    d.scalar(plane_dir.x);
-                    d.scalar(plane_dir.y);
-                    d.point3(*origin);
+                ValuePayload::Datum(PoseValue::Direction { dir }) => {
+                    d.u64(26);
                     d.vec3(dir.get());
                 }
                 ValuePayload::Profile(p) => {
@@ -238,7 +224,19 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                         for (v, s) in lp.vertices().iter().zip(lp.segments()) {
                             d.scalar(v.x);
                             d.scalar(v.y);
-                            d.scalar(s.bulge);
+                            match s.kind {
+                                profile::SegmentKind::Line => d.u64(0),
+                                profile::SegmentKind::Arc { arc, turn } => {
+                                    d.u64(match turn {
+                                        geom_core::Sign::Negative => 2,
+                                        geom_core::Sign::Zero | geom_core::Sign::Positive => 1,
+                                    });
+                                    d.scalar(arc.centre.x);
+                                    d.scalar(arc.centre.y);
+                                    d.scalar(arc.radius);
+                                    d.scalar(arc.sweep);
+                                }
+                            }
                         }
                     }
                 }
@@ -270,11 +268,8 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                         d.body(b);
                     }
                 }
-                ValuePayload::Declarations(pairs) => {
-                    d.u64(19);
-                    d.u64(pairs.len() as u64);
-                }
                 ValuePayload::Mate(_) => d.u64(20),
+                ValuePayload::Gauge => d.u64(25),
                 // The measured quantity IS a lane value, so it is
                 // digested through the same value-channel bracket
                 // every coordinate takes.

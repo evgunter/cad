@@ -19,31 +19,36 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::authoring::{p3, polygon};
-use pncad::profile::{Profile, SketchPlane};
+use pncad::authoring::{p3, polygon, validated};
+use pncad::document::ExtrudeSide;
+use pncad::profile::SketchPlane;
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{Body, BooleanResultKind};
+use pncad::topo::{AtRestBody, BooleanResultKind};
 
-use crate::booleans::{Verdict, check, describe, expect_seamed};
+use crate::booleans::{Verdict, check, describe, expect_seamed, finished};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::geom_core::{OrthoFrame, Tol};
+use pncad::geom_core::{RigidMotion, Tol};
 
 /// The one box builder: axis-aligned `[x0,x1] x [y0,y1] x [z0,z1]`,
-/// a rectangle on a z-offset xy sketch plane extruded up.
-pub fn slab<S: Scalar>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> Body<S> {
+/// a rectangle on a z-offset xy sketch plane extruded up, finished as
+/// a boolean operand.
+pub fn slab<S: Scalar>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> AtRestBody<S> {
     let lp =
         polygon(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], tol).expect("slab rectangle");
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(tol)
-        .expect("slab profile validation");
-    // Raw extrude output IS boolean-consumable since PR 5's
-    // extrude-operand description remap (proven by the PR 5.5 review's
-    // die e2e).
-    extrude(&profile, Extrusion::Distance(S::from_f64(z.1 - z.0)), tol)
-        .expect("extrude slab")
-        .body
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
+    let profile = validated(plane, vec![lp], tol).expect("slab profile validation");
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(z.1 - z.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("extrude slab")
+    .body;
+    finished("slab", body, tol)
 }
 
 // ---------------------------------------------------------------
@@ -68,7 +73,7 @@ pub(crate) fn die<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String) 
     let four = [(n, n), (n, p), (p, n), (p, p)].to_vec();
     let five = [(n, n), (n, p), (p, n), (p, p), (z, z)].to_vec();
     let six = [(n, n), (n, z), (n, p), (p, n), (p, z), (p, p)].to_vec();
-    type PipBox<S> = fn((f64, f64), (f64, f64), Tol) -> Body<S>;
+    type PipBox<S> = fn((f64, f64), (f64, f64), Tol) -> AtRestBody<S>;
     let px: PipBox<S> = |a, b, tol| slab(IN, a, b, tol);
     let nx: PipBox<S> = |a, b, tol| slab(OUT, a, b, tol);
     let py: PipBox<S> = |a, b, tol| slab(a, IN, b, tol);
@@ -106,7 +111,7 @@ pub(crate) fn die<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String) 
         "21 sequential single-ring pip subtracts across ALL SIX faces (opposite \
          faces sum to 7), volume matches the dyadic oracle after every op \
          (observed bit-exact, gated 1e-9), final V = {}; tier 3' runs \
-         on the RESULT with its declared contacts (the #91 tier-3' modernization)",
+         on the RESULT with its contact records (the #91 tier-3' modernization)",
         8.0 - 21.0 * 0.25 * 0.25 * 0.125
     );
     (acc, note)
@@ -124,7 +129,7 @@ const TOP_Z: (f64, f64) = (1.4, 1.7);
 const LEG_HALF: f64 = 0.13;
 
 /// A leg centered at `(cx, cy)`, floor to `z_top`.
-fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64, tol: Tol) -> Body<S> {
+fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64, tol: Tol) -> AtRestBody<S> {
     slab(
         (cx - LEG_HALF, cx + LEG_HALF),
         (cy - LEG_HALF, cy + LEG_HALF),
@@ -145,13 +150,12 @@ fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64, tol: Tol) -> Body<S> {
 /// All three are narrated LIVE from their actual outcomes; since M4
 /// PR 5 the SHIPPED variant is the TRUE corner-ALIGNED table (Ev,
 /// PR #71 — the first `demo_tripwires.rs` wire FIRED): each leg's
-/// outer faces lie exactly in the top's side planes, DECLARED per
-/// union, and the declared rung glues them — every later union sees
-/// maximal operands. Attempt 1 (coplanar touch, undeclared) now
-/// refuses at the coincidence door — rung (b), value equality never
-/// classifies — and the narration says so.
+/// outer faces lie exactly in the top's side planes, and each union
+/// glues them on their decided zero (D10) — every later union sees
+/// maximal operands. Attempt 1 (coplanar touch) glues the touching
+/// planes the same way, and the narration says so.
 pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String) {
-    let top: Body<S> = slab(TOP_X, TOP_Y, TOP_Z, tol);
+    let top: AtRestBody<S> = slab(TOP_X, TOP_Y, TOP_Z, tol);
     let leg_vol = |z_top: f64| (2.0 * LEG_HALF) * (2.0 * LEG_HALF) * z_top;
 
     // Attempt 1: exact-coplanar touching, leg inset under the top.
@@ -168,8 +172,7 @@ pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String
         tol,
     );
     // Attempt 3 (the pre-PR 5 shipping variant, kept as narration):
-    // one corner-straddling leg — still works, no declarations needed
-    // (transversal seams only).
+    // one corner-straddling leg — transversal seams only.
     let z_top = TOP_Z.0 + 0.05;
     let per_straddle_gain = leg_vol(z_top) - LEG_HALF * LEG_HALF * 0.05;
     let straddle = check(
@@ -180,7 +183,7 @@ pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String
 
     // SHIPPED (M4 PR 5, the fired table wire): TRUE corner-aligned
     // legs — outer faces exactly IN the top's side planes, the flush
-    // contacts DECLARED per union, glued by the declared rung.
+    // contacts glued by each union on their decided zero.
     let aligned_leg = |cx: f64, cy: f64| {
         let (x0, x1) = if cx > 0.0 {
             (cx - 2.0 * LEG_HALF, cx)
@@ -209,9 +212,9 @@ pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String
         expected += per_leg_gain;
         let base = acc.as_ref().map_or(&top, |b| &b.body);
         acc = Some(expect_seamed(
-            "corner-ALIGNED leg union (declared)",
+            "corner-ALIGNED leg union",
             check(
-                crate::booleans::try_union_declared(base, &aligned_leg(cx, cy), tol),
+                crate::booleans::try_union(base, &aligned_leg(cx, cy), tol),
                 expected,
                 tol,
             ),
@@ -220,9 +223,9 @@ pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String
     }
     let note = format!(
         "variants narrated live — (1) leg EXACTLY coplanar-touching the underside, \
-         UNDECLARED (shared value {}): {}; (2) leg inset, overlapping 0.05 into the \
+         (shared value {}): {}; (2) leg inset, overlapping 0.05 into the \
          top: {}; (3) the pre-PR 5 straddle workaround: {}; (4) SHIPPED: TRUE \
-         corner-ALIGNED legs, flush side planes DECLARED per union (M4 PR 5) — the \
+         corner-ALIGNED legs, flush side planes glued per union — the \
          straddle narration is retired",
         TOP_Z.0,
         describe(&coplanar, top_vol() + leg_vol(TOP_Z.0)),
@@ -269,8 +272,8 @@ pub fn voidbox_narration(tol: Tol) {
 /// narration stays in the f64-only wrapper above — the STEP writer is
 /// f64 by design).
 pub(crate) fn voidbox<S: Scalar>(tol: Tol) -> pncad::topo::BooleanBody<S> {
-    let outer: Body<S> = slab((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), tol);
-    let inner: Body<S> = slab((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), tol);
+    let outer: AtRestBody<S> = slab((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), tol);
+    let inner: AtRestBody<S> = slab((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), tol);
     match check(crate::booleans::try_subtract(&outer, &inner, tol), 7.0, tol) {
         Verdict::Good(b, _) => {
             assert_eq!(b.kind, BooleanResultKind::Voided);
@@ -309,7 +312,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bodies: vec![SceneBody::seamed(
                 "die",
                 [0.88, 0.86, 0.80],
-                die_bb.body,
+                die_bb.body.into_body(),
                 die_bb.contacts,
             )],
         },
@@ -329,9 +332,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             // is simpler: what this cell shows is a table, and a table
             // is not a fact the sheet is short of. What is NOT
             // duplicated is this scene's four
-            // narrated union variants (coplanar-undeclared refusing at
-            // the coincidence door; inset overlap; the straddle
-            // workaround; the shipped declared-flush rung) — narration,
+            // narrated union variants (coplanar gluing on its decided
+            // zero; inset overlap; the straddle workaround; the shipped
+            // flush-aligned legs) — narration,
             // which the standalone render keeps.
             montage: false,
             story: "a table: tabletop unioned with four corner-straddling legs",
@@ -346,7 +349,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bodies: vec![SceneBody::seamed(
                 "table",
                 [0.62, 0.45, 0.28],
-                table_bb.body,
+                table_bb.body.into_body(),
                 table_bb.contacts,
             )],
         },

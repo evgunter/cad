@@ -27,7 +27,7 @@ import unittest
 import pncad
 from pncad import (
     Doc,
-    Expr,
+    Formula,
     Node,
     assemble,
     evaluate,
@@ -43,20 +43,20 @@ def slab(doc, x0, x1):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(x0, m), Expr.length_in(0.0, m)),
-                (Expr.length_in(x1, m), Expr.length_in(0.0, m)),
-                (Expr.length_in(x1, m), Expr.length_in(1.0, m)),
-                (Expr.length_in(x0, m), Expr.length_in(1.0, m)),
+                (Formula.length_in(x0, m), Formula.length_in(0.0, m)),
+                (Formula.length_in(x1, m), Formula.length_in(0.0, m)),
+                (Formula.length_in(x1, m), Formula.length_in(1.0, m)),
+                (Formula.length_in(x0, m), Formula.length_in(1.0, m)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.length_in(0.0, m)),
+            plane=doc.sketch_frame(elevation=Formula.length_in(0.0, m)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.length_in(1.0, m)))
+    return doc.insert(Node.extrude(profile, Formula.length_in(1.0, m)))
 
 
-def one_box(label="memo-one-box"):
-    doc = Doc(label)
-    slab(doc, 0.0, 1.0)
+def one_box(seed="memo-one-box"):
+    doc = Doc(seed)
+    doc.place(slab(doc, 0.0, 1.0))
     return doc
 
 
@@ -108,7 +108,7 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
         second = product(doc, evaluate(doc)).mass_properties().volume
         self.assertEqual(first, second)
 
-    def test_a_document_with_no_body_root_refuses_every_time(self):
+    def test_a_document_with_an_empty_world_refuses_every_time(self):
         """A gather that refuses carries no product to keep, so nothing
         is memoized and the second ask refuses exactly as the first
         did — never a cached refusal, never a silent pass."""
@@ -116,18 +116,18 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
         doc.insert(
             Node.polygon(
                 [
-                    (Expr.length_in(0.0, m), Expr.length_in(0.0, m)),
-                    (Expr.length_in(1.0, m), Expr.length_in(0.0, m)),
-                    (Expr.length_in(1.0, m), Expr.length_in(1.0, m)),
+                    (Formula.length_in(0.0, m), Formula.length_in(0.0, m)),
+                    (Formula.length_in(1.0, m), Formula.length_in(0.0, m)),
+                    (Formula.length_in(1.0, m), Formula.length_in(1.0, m)),
                 ],
-                plane=doc.sketch_frame(elevation=Expr.length_in(0.0, m)),
+                plane=doc.sketch_frame(elevation=Formula.length_in(0.0, m)),
             )
         )
         ev = evaluate(doc)
         for _ in range(2):
             with self.assertRaises(pncad.ProductError) as caught:
                 product(doc, ev)
-            self.assertEqual(caught.exception.variant, "no_body_roots")
+            self.assertEqual(caught.exception.variant, "empty_product")
 
 
 class TestTheMemoRefusesAMispairedDocument(unittest.TestCase):

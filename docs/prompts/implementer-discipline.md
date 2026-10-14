@@ -66,12 +66,11 @@ When you do run locally:
   inside one call) until it concludes, then report in the same turn.
 - When the build queue is busy, a blocking foreground wait is the correct state
   — re-issue a timed-out call rather than parking.
-- **Use your own `CARGO_TARGET_DIR`, never one shared with another lane.** A
-  shared target directory clobbers across git worktrees and will serve you
-  another lane's binary — observed twice in one wave, once reporting a test
-  count from sources that were not yours, once behind a green claim over ten
-  broken assertions. Confirm a `Compiling <crate>` line appears before trusting
-  any run.
+- **Use one `CARGO_TARGET_DIR` per worktree, never one shared with another
+  lane or with another of your own worktrees.** Cargo hashes a workspace
+  member the same in every checkout of this repo, so a shared target directory
+  will serve one worktree's build to another. Confirm a `Compiling <crate>`
+  line appears before trusting any run.
 - **Keep that target directory OUTSIDE the worktree** (`/home/user/<lane>-target`,
   not `.lane-target/` inside the checkout): the repo's `.gitignore` covers
   `/target` and a few named roots, not an arbitrary in-tree name, and a lane
@@ -135,9 +134,13 @@ that changed is telling you the kernel changed. Never adjust
 a scene, tolerance, or camera to restore a frame. Decide whether the new output
 is right: if it is wrong, fix the kernel; if it is right, re-baseline and say in
 the PR what moved and why. **PRs do not render**, so a change you expect to move
-frames renders itself: push, run `local-scripts/render-hosted.sh` (it dispatches
-`render.yml` on your branch, which commits the re-baselined cells there), pull,
-and look before you merge.
+frames renders itself: push a commit whose subject line contains `[render]`. CI
+dispatches `render.yml` on your branch alongside that commit's own CI, and the
+render commits the re-baselined cells there with `[skip ci]`. Pull, and look
+before you merge; the render commits merge on the tagged commit's green CI.
+Where `gh` can dispatch workflows, `local-scripts/render-hosted.sh` does the
+same from the command line; an agent's GitHub integration cannot (it gets a
+403).
 
 ## 4. Comment style
 

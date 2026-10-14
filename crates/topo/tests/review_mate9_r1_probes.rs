@@ -36,19 +36,15 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, CrossingSideVerdict, FaceKey, ValidationError};
 
-fn declared(pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
-    ContactRecords {
-        patches: pairs
+fn declared(body: &Body<f64>, pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
+    topo::test_support::records(
+        body,
+        pairs
             .iter()
-            .map(|&(a, b)| PatchContact {
-                face_a: a,
-                face_b: b,
-            })
-            .collect(),
-        ..ContactRecords::default()
-    }
+            .map(|&(a, b)| (topo::Cell::Face(a), topo::Cell::Face(b))),
+    )
 }
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -58,15 +54,17 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     }
 }
 
-/// The `EdgeEdgeCross` refusals of a list, as their witness strings.
-fn crossing_witnesses(errors: &[ValidationError]) -> Vec<String> {
+/// The `EdgeEdgeCross` refusals of a list, as their witness strings
+/// and side verdicts.
+fn crossing_witnesses(errors: &[ValidationError]) -> Vec<(String, Option<CrossingSideVerdict>)> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact {
-                contact: CensusContact::EdgeEdgeCross { .. },
+            ValidationError::UnrecordedContact {
+                contact: CensusContact::EdgeEdgeCross { side, .. },
                 witness,
-            } => Some(witness.clone()),
+                ..
+            } => Some((witness.clone(), *side)),
             _ => None,
         })
         .collect()
@@ -115,9 +113,9 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
     let spike = common::brick::<f64>((0.45, 0.55), (0.30, 0.38), (0.40, 0.60), Tol::witness());
     let post_top = post.top_face;
     let mut body = post.body;
-    let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
-    topo::graft_disjoint_all_keyed(&mut body, &spike, Tol::witness()).unwrap();
+    topo::graft_disjoint_all_keyed(&mut body, &spike).unwrap();
 
     // The witness is a coordinate triple, and a crossing witness may
     // carry a trailing side-verdict clause after it — so both probes
@@ -132,7 +130,7 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
     let bare = crossing_witnesses(&errors(&body, &ContactRecords::default()));
     let bare_dives: Vec<_> = bare
         .iter()
-        .filter(|w| dive_witness(w) && at_seat_level(w))
+        .filter(|(w, _)| dive_witness(w) && at_seat_level(w))
         .collect();
     assert_eq!(
         bare_dives.len(),
@@ -145,10 +143,13 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
     // edges' far endpoints are definitely off the seat carrier), so
     // no side question is posed and nothing is backed. Inverted from
     // the frozen-head measurement, where both vanished.
-    let found = crossing_witnesses(&errors(&body, &declared(&[(post_top, shelf_bottom)])));
+    let found = crossing_witnesses(&errors(
+        &body,
+        &declared(&body, &[(post_top, shelf_bottom)]),
+    ));
     let surviving_dives: Vec<_> = found
         .iter()
-        .filter(|w| dive_witness(w) && at_seat_level(w))
+        .filter(|(w, _)| dive_witness(w) && at_seat_level(w))
         .collect();
     assert_eq!(
         surviving_dives.len(),
@@ -157,7 +158,7 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
          transverse diving crossings: {found:?}"
     );
     assert!(
-        surviving_dives.iter().all(|w| !w.contains("side verdict")),
+        surviving_dives.iter().all(|(_, side)| side.is_none()),
         "and names no verdict for them — the pair never spoke: \
          {surviving_dives:?}"
     );
@@ -208,11 +209,11 @@ fn r1_a_skew_pair_names_no_side_verdict_without_a_shared_carrier() {
     let post_side_x030 = post.side_faces[3];
     let wedge_45 = wedge.side_faces[0];
     let mut body = post.body;
-    let _ = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
-    let wkeys = topo::graft_disjoint_all_keyed(&mut body, &wedge.body, Tol::witness()).unwrap();
+    let _ = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
+    let wkeys = topo::graft_disjoint_all_keyed(&mut body, &wedge.body).unwrap();
     let wedge_45 = wkeys.face(wedge_45).unwrap();
 
-    let found = errors(&body, &declared(&[(post_side_x030, wedge_45)]));
+    let found = errors(&body, &declared(&body, &[(post_side_x030, wedge_45)]));
     let witnesses = crossing_witnesses(&found);
     assert_eq!(
         witnesses.len(),
@@ -220,7 +221,7 @@ fn r1_a_skew_pair_names_no_side_verdict_without_a_shared_carrier() {
         "the straddle crossings stay hard findings: {found:?}"
     );
     assert!(
-        witnesses.iter().all(|w| !w.contains("side verdict")),
+        witnesses.iter().all(|(_, side)| side.is_none()),
         "and the skew (45-degree) declared pair names NOTHING for \
          them — the edge screen refuses a pair whose carrier does not \
          hold the crossing edges, so the side question is never posed \

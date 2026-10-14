@@ -12,6 +12,7 @@ use geom_core::Tol;
 use geom_core::{Bounds, Interval, Real};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{validate, validate_closed, validate_geometric};
 
@@ -30,7 +31,10 @@ fn interval_l_profile_extrudes_and_passes_all_tiers() {
         .unwrap();
     let t = extrude(
         &vp,
-        Extrusion::Distance(Interval::from_f64(1.5)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.5),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -41,7 +45,7 @@ fn interval_l_profile_extrudes_and_passes_all_tiers() {
     assert_eq!(t.body.edges().count(), 18);
     assert_eq!(t.body.faces().count(), 8);
     // Corner joins upgraded at the interval scalar too.
-    for &edge in &t.strut_edges[0] {
+    for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         let curve = t.body.get_edge(edge).unwrap().curve;
         assert!(matches!(
             t.body
@@ -55,7 +59,7 @@ fn interval_l_profile_extrudes_and_passes_all_tiers() {
     }
     // A raised corner's enclosure is the exact point it was built from
     // (dyadic data throughout).
-    let strut = t.strut_edges[0][0];
+    let strut = t.strut_edges()[0][0].unwrap();
     let he = t.body.get_edge(strut).unwrap().he_plus;
     let top_v = t.body.half_edge_end(he).unwrap();
     let p = t
@@ -83,7 +87,10 @@ fn interval_disc_extrudes_a_shared_cylinder() {
         .unwrap();
     let t = extrude(
         &vp,
-        Extrusion::Distance(Interval::from_f64(1.0)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -92,8 +99,8 @@ fn interval_disc_extrudes_a_shared_cylinder() {
     assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     // One shared cylinder + two cap planes.
     assert_eq!(t.body.surfaces().count(), 3);
-    let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
-    let k1 = t.body.get_face(t.side_faces[0][1]).unwrap().surface;
+    let k0 = t.body.get_face(t.side_faces()[0][0]).unwrap().surface;
+    let k1 = t.body.get_face(t.side_faces()[0][1]).unwrap().surface;
     assert_eq!(k0, k1);
     assert!(matches!(
         t.body.get_surface(k0).unwrap(),

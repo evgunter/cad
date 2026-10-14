@@ -2,10 +2,11 @@
 id: no-approx-faced-body-is-both-movable-and-valid
 kind: issue
 title: an Approx face has no cache route with straight carriers, and the body whose chart does have one cannot be moved - so nothing weighs, meshes or exports
-status: open
+status: closed
 opened: 2026-09-04
 priority: P0
 cost: H
+closed: 2026-10-06
 ---
 
 
@@ -161,3 +162,19 @@ found there: `replace_face.rs` asserts `EdgeDescriptionSpec::iso` is
 the only door minting a chart `IsoLine` description and that it fixes
 `u`; `EdgeDescriptionSpec::chart_image` is a second door and
 `box_with_approx_cap` uses it for two u-moving images.
+
+## The fixture mints, and the pin moved (PCERT, 2026-10-01)
+
+With pcurve rows mandatory at rest (C4), `box_with_approx_cap` ends
+with its closing mint, so legs 2–3 lifting is now what `sweep`'s
+`verbs_offc_consumer::the_walls_a_placed_approx_capped_part_still_meets`
+pins (the placed part weighs at the operand's volume and area, and
+meshes); leg 4's kind refusal is the one wall it still asserts.
+
+## Closed (SHELL orchestrator, 2026-10-06)
+
+Legs 1–3 are lifted and pinned (`verbs_offc_consumer::the_walls_a_placed_approx_capped_part_still_meets`).
+Leg 4 — no STEP printer for `Surface::Approx` — is EXPORT's
+`work/export/approx-face-has-no-step-printer`, which this row
+duplicated. The `replace_face.rs` iso-door claim recorded above has
+its own row: `work/shelf/replace-face-reads-an-approx-iso-as-u-fixed`.

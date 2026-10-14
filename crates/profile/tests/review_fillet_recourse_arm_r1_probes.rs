@@ -47,7 +47,7 @@ fn reads_its_own_sentence(err: &PathError<f64>, sentence: &str, what: &str) {
         "{what}: must carry the gate's sentence.\n  got: {shown}"
     );
     assert!(
-        !shown.contains(geom_core::COINCIDENCE_RECOURSE),
+        !shown.contains(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
         "{what}: must not carry the shared recourse.\n  got: {shown}"
     );
 }
@@ -76,7 +76,7 @@ fn line_arc_r3(radius: f64) -> Built {
             },
             tol(),
         )
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **Two unit lobes about (±0.6, 0)**: the external clearance is
@@ -98,7 +98,7 @@ fn lobes_06(radius: f64) -> Built {
         },
         tol(),
     )
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// **Mixed winding, radius-1.5 carriers about (±0.8, 0)**: offsets go
@@ -119,7 +119,7 @@ fn mixed_08(radius: f64) -> Built {
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// **A short straight leg meeting a radius-2 circle at a real angle.**
@@ -145,7 +145,7 @@ fn short_leg_at_angle(a: f64, delta: f64, radius: f64) -> Built {
         .line_to(Point2::new(-3.0, -3.0), tol())?
         .line_to(Point2::new(-3.0, 3.0), tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **The lever lens.** Two carriers of radius `big`, mixed winding, so
@@ -175,7 +175,7 @@ fn lever_lens(big: f64, rho2: f64) -> Built {
     .line_to(Point2::new(-1.5 * big, 2.0 * big), tol())?
     .line_to(Point2::new(-1.5 * big, -1.5 * big), tol())?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// The gate's own least lever for the lens (`sugar.rs`'s law with its
@@ -312,8 +312,8 @@ fn the_lever_gate_is_reachable_in_band_on_the_lens_and_renders_its_sentence() {
 /// an in-band fillet gate.** `StructureRefusal`'s indeterminate arm
 /// prints the `Indeterminate` whole, and that Display ends in
 /// `COINCIDENCE_RECOURSE` — so through `replay_guided` the caller
-/// reads "declare the coincidence" at a fillet they asked for, and the
-/// gate's own sentence is nowhere in the text. A characterization.
+/// reads the shared recourse at a fillet they asked for, and the gate's
+/// own sentence is nowhere in the text. A characterization.
 #[test]
 fn a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate() {
     let eps = tol().eps();
@@ -343,8 +343,8 @@ fn a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate() {
     let err = replay_guided(&steps, &structure, tol()).expect_err("in band under guidance");
     let shown = err.to_string();
     assert!(
-        shown.contains("'fillet_offset_line_circle'"),
-        "names the gate: {shown}"
+        format!("{err:?}").contains("\"fillet_offset_line_circle\""),
+        "names the gate: {err:?}"
     );
     assert!(
         shown.contains(geom_core::COINCIDENCE_RECOURSE),

@@ -92,8 +92,8 @@ fn pair(slab: &Body<f64>, plate: &Body<f64>) -> (FaceKey, FaceKey) {
 // ---------------------------------------------------------------------
 
 /// INVARIANT: two independently authored coincident planar faces share
-/// no `SurfaceKey` and no `GeomSource`, and the world-carrier arm
-/// answers them anyway — with definite area, not a guess. This is the
+/// no `SurfaceKey` and do not read bit-identical, and the world-carrier
+/// arm answers them anyway — with definite area, not a guess. This is the
 /// gap #1063 names, closed.
 #[test]
 fn a_declared_planar_pair_with_no_structural_chart_certifies_on_the_world_carrier() {
@@ -285,7 +285,7 @@ fn a_bridged_door_one_declines_the_interior_witness_rung() {
 ///   (`declared_pair_overlap`'s kind gate).
 #[test]
 fn a_declared_curved_cross_instance_pair_is_still_refused() {
-    let build = |surface: &Surface<f64>| {
+    let build = |surface: &Surface<f64>, b_surface: &Surface<f64>| {
         let a: common::Prism<f64> = common::prism_z(
             &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
             0.0,
@@ -298,15 +298,29 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
             2.0,
             Tol::witness(),
         );
-        // Re-describe both interface faces as the SAME curved surface:
-        // two independently authored curved descriptions, each in its
-        // own arena, with no shared key and no `GeomSource`.
+        // Re-describe both interface faces as one curved locus: two
+        // independently authored curved descriptions, each in its own
+        // arena, with no shared key.
         let (mut a_body, mut b_body) = (a.body, b.body);
+        // Lifts RechartStrandsDescriptions: two independently authored curved descriptions are the declared pair.
         a_body
-            .set_face_surface(a.top_face, FaceSurface::New(surface.clone()))
+            .set_face_surface_unvouched_for_tests(
+                a.top_face,
+                FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
             .unwrap();
+        // Lifts RechartStrandsDescriptions: two independently authored curved descriptions are the declared pair.
         b_body
-            .set_face_surface(b.bottom_face, FaceSurface::New(surface.clone()))
+            .set_face_surface_unvouched_for_tests(
+                b.bottom_face,
+                FaceSurface::New {
+                    surface: b_surface.clone(),
+                    sense: true,
+                },
+            )
             .unwrap();
         (a_body, a.top_face, b_body, b.bottom_face)
     };
@@ -316,7 +330,7 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         radius: 1.0,
         u_ref: geom_core::Vec3::unit_x(),
     };
-    let (a_body, fa, b_body, fb) = build(&cyl);
+    let (a_body, fa, b_body, fb) = build(&cyl, &cyl);
     match declared_pair_overlap(&a_body, fa, &b_body, fb, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::MissingCache { .. }) => {}
         other => panic!("the cylinder arm engages and refuses the uncached trims: {other:?}"),
@@ -327,7 +341,15 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         axis: geom_core::Vec3::unit_z(),
         u_ref: geom_core::Vec3::unit_x(),
     };
-    let (a_body, fa, b_body, fb) = build(&sphere);
+    // B charts the sphere from another reference direction: one
+    // description in both would be one chart by its bits.
+    let sphere_b = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 1.0),
+        radius: 1.0,
+        axis: geom_core::Vec3::unit_z(),
+        u_ref: geom_core::Vec3::unit_y(),
+    };
+    let (a_body, fa, b_body, fb) = build(&sphere, &sphere_b);
     match declared_pair_overlap(&a_body, fa, &b_body, fb, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
         other => panic!("a sphere cross-instance declared pair stays refused: {other:?}"),
@@ -410,7 +432,8 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
                 ChartRegionError::TouchingBoundary => "TouchingBoundary",
                 ChartRegionError::DegenerateLoop { .. } => "DegenerateLoop",
                 ChartRegionError::RayExhausted => "RayExhausted",
-                ChartRegionError::WitnessBudgetExhausted { .. } => "WitnessBudgetExhausted",
+                ChartRegionError::WitnessSegmentCapExceeded { .. } => "WitnessSegmentCapExceeded",
+                ChartRegionError::WitnessCellCapExceeded { .. } => "WitnessCellCapExceeded",
                 ChartRegionError::Corrupt => "Corrupt",
                 ChartRegionError::Escalated(_) => unreachable!("handled above"),
             }
@@ -508,8 +531,8 @@ fn near_parallel_pairs_never_contradict_and_agree_on_their_margins() {
     // function of sin θ and a bare angle would hide that.
     let ks = [2.0, 10.0, 30.0, 100.0, 300.0, 3000.0];
     let margin_of = |r: &Result<ChartOverlap, ChartRegionError>| match r {
-        Err(ChartRegionError::Escalated(d)) => match d.margin {
-            geom_core::MarginDiag::Value(v) => d.predicate.map(|p| (p, v)),
+        Err(ChartRegionError::Escalated(d)) => match d.margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(v) => d.predicate.map(|p| (p, v)),
             _ => None,
         },
         _ => None,
@@ -667,8 +690,8 @@ fn the_band_edge_is_where_the_lemma_stops_and_the_margins_still_agree() {
     let k_eps = Tol::witness().k() * eps;
     let base = slab(1.0);
     let margin_of = |r: &Result<ChartOverlap, ChartRegionError>| match r {
-        Err(ChartRegionError::Escalated(d)) => match d.margin {
-            geom_core::MarginDiag::Value(v) => d.predicate.map(|p| (p, v)),
+        Err(ChartRegionError::Escalated(d)) => match d.margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(v) => d.predicate.map(|p| (p, v)),
             _ => None,
         },
         _ => None,

@@ -72,3 +72,55 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Evidence (TOPO, PR 3598, 2026-10-01)
+
+`Body::set_face_surfaces_describing` (`crates/topo/src/attach.rs`)
+checks a moved face's boundary residuals on a plane only. On a curved
+chart it takes the swap unchecked, as tier 3 does at rest.
+
+The keys-only `set_face_surface` refuses such a swap
+(`RechartUnvouched`). Its text says the describing door does not check
+a curved chart, and cites this row.
+
+Seven of `boolean::boxes`' arc-sector relabels (sphere ×2, the bulged
+patch, the kinds list, torus ×2 and the two-lane row) go through the
+describing door only because of this gap. When curved containment is
+checked there, they move back to `set_face_surface_stranding_for_tests`,
+whose rule is a `// Lifts …` reason at each call site.
+
+`attach::tests::a_curved_swap_is_refused_keys_only_and_taken_unchecked_by_the_describing_door`
+pins today's `Ok` and names this row in its message.
+
+## Evidence (REACH, plane × cone split fix pass, 2026-10-01)
+
+A wrong body passed every tier. Before the fix to the split's arc-side
+window across a cone apex, the upright cone (`revolve` of the triangle
+`(0,0), (1,0), (0,1)` about `y`) cut through `(0, 0.4, 0)` with normal
+`(sin 0.5, cos 0.5, 0)` produced a lower half of volume 1.0815, more
+than the whole cone (`π/3`). It passed tiers 1, 2 and 3. One of its two
+cone faces took the section ellipse the long way round, through the
+part of the ellipse below the base plane `y = 0`; the arc is on the cone
+and on the cutting plane, so every residual is zero.
+
+What a check could have seen, from the edge dump:
+
+- **The planar section face's loop is not simple.** Its two ellipse
+  edges carry parameters `(π, 7.539)` and `(1.256, π)`: together the
+  whole ellipse, so the loop runs through its own vertex
+  `(0.732, 0, 0.681)` in the middle of an edge. Check 6 reads the
+  loop's winding sign and check 9 its rings, and neither asks whether
+  a loop's edges meet only at its vertices.
+- **The cone face crosses the base disc's plane away from any edge.**
+  The long arc dips to `y < 0`, so the cone face passes through the
+  plane of the base face inside that face. Global self-intersection is
+  the deferral the validate header names; check 5 tests an edge only
+  against its ADJACENT planar faces, and the base is not adjacent to
+  the arc.
+
+The first is the cheaper statement, and it has its own item:
+`tier3-never-checks-a-planar-loop-is-simple`. The split's arc-side rule now takes the window from the apex-
+closed lift (`chord_join::run_azimuth_window`), and the 144-pose sweep
+of that cone is a row
+(`sweep/tests/reach_cone_split.rs`
+`an_upright_cone_splits_at_every_pose_through_its_apex_faces`).
