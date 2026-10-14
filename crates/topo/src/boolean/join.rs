@@ -841,15 +841,16 @@ fn wrap_site_segments<T: Decide>(
         let Some((g0, frame)) = one_site(red, rec, band)? else {
             continue;
         };
-        let (super::Locus::InFace(fa), super::Locus::InFace(fb)) = (g0.a_locus, g0.b_locus) else {
-            continue;
-        };
         let crossed = match (
-            site_cell(&red.a, fa, g0.he)?,
-            site_cell(&red.b, fb, rec.b[0].0.he)?,
+            locus_cell(&red.a, g0.a_locus, g0.he)?,
+            locus_cell(&red.b, g0.b_locus, rec.b[0].0.he)?,
         ) {
-            (SiteCell::Wrap, SiteCell::Pierce) => planar(&red.b, fb),
-            (SiteCell::Pierce, SiteCell::Wrap) => planar(&red.a, fa),
+            ((SiteCell::Wrap | SiteCell::Closed, _), (SiteCell::Pierce, Some(fb))) => {
+                planar(&red.b, fb)
+            }
+            ((SiteCell::Pierce, Some(fa)), (SiteCell::Wrap | SiteCell::Closed, _)) => {
+                planar(&red.a, fa)
+            }
             _ => false,
         };
         if !crossed {
@@ -905,6 +906,37 @@ enum SiteCell {
     Pierce,
     /// A real edge there bounds another face.
     Other,
+    /// The germ runs along a closed edge whose ends are both the site.
+    Closed,
+}
+
+/// [`SiteCell`] of the site of null half `he` in its germ's `locus`,
+/// with the face a locus inside a face names.
+fn locus_cell<T: Decide>(
+    body: &Body<T>,
+    locus: super::Locus,
+    he: HalfEdgeKey,
+) -> Result<(SiteCell, Option<FaceKey>), BooleanError> {
+    match locus {
+        super::Locus::InFace(f) => Ok((site_cell(body, f, he)?, Some(f))),
+        super::Locus::OnEdge(e) => {
+            let desync = |what| BooleanError::JoinDesync { what };
+            let start = body
+                .get_half_edge(he)
+                .ok_or(desync("germ half no longer resolves"))?
+                .start;
+            let end = body
+                .half_edge_end(he)
+                .ok_or(desync("germ half no longer resolves"))?;
+            let site = crate::chord_join::null_site(body, &[start, end])
+                .map_err(super::sectors::stale_site)?;
+            let (u, v) = body
+                .edge_vertices(e)
+                .ok_or(desync("an OnEdge germ's edge no longer resolves"))?;
+            let closed = site.contains(&u) && site.contains(&v);
+            Ok((if closed { SiteCell::Closed } else { SiteCell::Other }, None))
+        }
+    }
 }
 
 /// [`SiteCell`] of the site of null half `he` in `face`.
@@ -1498,6 +1530,36 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     for r in &open {
         if one_site(red, r, band)?.is_some() {
             single_site += 1;
+        }
+    }
+    if single_site != 0 && std::env::var("SECT_DUMP").is_ok() {
+        let dump = |body: &Body<T>, he: HalfEdgeKey, tag: &str| {
+            let h = body.get_half_edge(he).unwrap();
+            let l = h.parent_loop;
+            let lp = body.get_loop(l).unwrap();
+            let face = lp.face;
+            let fd = body.get_face(face).unwrap();
+            let kind = body.get_surface(fd.surface).map(|s| s.kind());
+            eprintln!("  {tag} he {he:?} edge {:?} loop {l:?} face {face:?} {kind:?} outer? {}", h.edge, fd.outer == l);
+            let mut c = he;
+            for _ in 0..40 {
+                let d = body.get_half_edge(c).unwrap();
+                let e = body.get_edge(d.edge).unwrap();
+                let cg = body.edge_curve_linked(d.edge, e);
+                let nul = cg.null_scaffold().is_some();
+                eprintln!("     he {c:?} edge {:?} start {:?} null {nul}", d.edge, d.start);
+                c = d.next;
+                if c == he { break; }
+            }
+        };
+        for r in &open {
+            eprintln!("record a_edge {:?} b_edge {:?}", r.a_edge, r.b_edge);
+            for s in 0..2 {
+                let g = r.a[s].0;
+                eprintln!(" slot {s} used {} a_locus {:?} b_locus {:?} a_face {:?} b_face {:?} branch {:?} dir {:?}", r.a[s].1, g.a_locus, g.b_locus, g.a_face, g.b_face, g.branch, g.dir);
+                dump(&red.a, g.he, "A");
+                dump(&red.b, r.b[s].0.he, "B");
+            }
         }
     }
     if single_site != 0 {
