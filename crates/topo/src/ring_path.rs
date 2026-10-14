@@ -622,15 +622,15 @@ impl<T: Real> LoopArc<T> {
             geom::Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => Some(Self::Conic(Conic {
                 centre: center,
                 axis,
                 u_ref,
-                a: major,
-                b: minor,
+                a: semi_u,
+                b: semi_v,
                 span,
                 own: None,
             })),
@@ -664,7 +664,9 @@ impl<T: Decide> LoopArc<T> {
                 origin: c.centre,
                 normal: c.axis,
                 span: c.span,
-                speed: c.b,
+                // The conic's least speed, its smaller semi-axis: the
+                // seam may sit at either principal vertex.
+                speed: c.a.abs().min(c.b.abs()),
                 own: c.own,
             }),
             Self::Oval(o) => Some(SectionArc {
@@ -890,7 +892,11 @@ impl<T: Decide> Quadric<T> {
     /// of radius `R` in that band is the tube's top or bottom circle,
     /// whose plane touches the torus: its arc is a
     /// [`LoopArc::Crest`], told apart from the other by its centre's
-    /// height (**`split_ring_torus_crest`**).
+    /// height (**`split_ring_torus_crest`**). None is charged a
+    /// coordinate resolution: a section lane mints a circle's axis and
+    /// radius from the plane's and the torus's stored directions and
+    /// radii, never from a difference of far points
+    /// (`far_frame_rows::a_torus_circle_the_section_lane_mints_far_reads_its_kind_at_the_origin`).
     pub(crate) fn torus_circle_arc(
         &self,
         carrier: &geom::Curve3<T>,

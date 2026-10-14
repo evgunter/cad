@@ -708,18 +708,50 @@ before anything is built, which is what lets an interval replay certify
 validity over a parameter box. They run in that order, except face
 clearance's reach arm (every band against every face of the body it
 does not blend), which needs the plan's feet: it runs in the surgery
-after predicate 6 and before any mutation. Face clearance reads each face
-three ways, not two: clear of the band's material, wholly inside it (the
-face goes with that material, as a face wholly inside a Boolean's tool
-does), or crossing it (refused). At a convex straight band's cut-off
-(the ruled fillet's, the plane–plane fillet's and chamfer's) the carve
-takes a through-feature wholly inside the material, between the band's
-two caps; a feature read wholly inside anywhere else (a void or an
-island with no cap cycle) refuses `WhollyInside`, and a hole whose
-mouth a concave fill covers, which is not wholly inside, refuses as a
-bound where its wall meets the end face's plane. Every constant-radius arm
-mints a torus or a cylinder (the envelope of equal spheres over a circle
-or a line spine); a cone belongs to the variable-radius family.
+after predicate 6 and before any mutation.
+
+**What a blend does with the body's other features is Boolean
+semantics.** A convex band's result is `S − R` and a concave band's
+`S ∪ F`, where the region `R` (or `F`) is the material between the band
+surface and its supports' strips over the band's extent, closed by its
+end faces, read from the supports' carriers and the band's ends and
+never from the features near it. Every case follows by set algebra: a
+feature wholly inside `R` goes with it, as a feature wholly inside a
+Boolean's tool goes with the tool, a void and a free solid inside it
+included; a protrusion or an island wholly inside `F` is absorbed, the
+island's voids becoming the solid's; a hole whose mouth lies wholly on
+the face `F` covers is sealed, a through-hole turning blind and a blind
+hole a void; and a feature crossing the band surface has a result too.
+What is built of it: face clearance reads each face three ways (clear
+of the region, wholly inside it, or crossing it), and the carve takes a
+through-feature wholly inside the material a convex straight band's
+cut-off removes (the ruled fillet's, the plane–plane fillet's and
+chamfer's), between the band's two caps. Every other case refuses, a
+case the rule defines and the surgery does not build, and it refuses
+at the meter that reads it, not by which case it is. The clearance
+screen and the exact ring meters read the supports' own boundary
+features and the end faces' cycles (`FaceClearanceUncertified`,
+`RingClearance`); the reach reads every other face, a crossing as a
+measurement and a face it cannot certify either way as a bound
+(`FaceClearance`); and a request whose every reading is inside but
+that no carve takes refuses `WhollyInside` (a void or an island with no
+cap cycle). So a blind feature entering from an end face, or a hole
+whose mouth a concave fill covers, refuses as a bound where its wall
+meets the end face's plane, while a blind hole entering from a support
+face is read at the screen, its ring nearer the edge than the band
+sets back, and refuses there although it lies wholly inside. A
+crossing refuses as an unbuilt case too, not as an exception to the
+rule, as the Boolean refuses the surface pairs it does not serve; the
+clearance and ring recourses name the reorder, blending before a
+feature that came after the edge
+(`crates/sweep/README.md`, predicate 2). The band and its supports are
+in-place surgery, not a literal Boolean against a body for the region:
+that tool is cusp-edged along both trimlines, and most band × feature
+surface pairs are outside the intersection table (C5).
+
+Every constant-radius arm mints a torus or a cylinder (the envelope of
+equal spheres over a circle or a line spine); a cone belongs to the
+variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band
 (plane–plane, or the ruled band about a straight spine) ends at a
 trivalent vertex of one convexity between planes as the request decides

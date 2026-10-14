@@ -318,13 +318,38 @@ pub struct SplitNaming {
     /// row's `vertex` and `gone` edge are dead there, and `kept` holds
     /// them (`docs/DESIGN.md`, maximal edges).
     pub edge_joins: Vec<(PlaneSide, crate::boolean::EdgeJoin)>,
-    /// `(killed edge, the edge it was split from)` for each edge a
-    /// side's join killed that the cut had split off another
-    /// (`Provenance::SplitEdge`), recorded before the kill: a kill
-    /// takes its edge's birth record with it, and this is the lineage a
-    /// joined edge's cover is read through to the operand edges it lies
-    /// along.
-    pub joined_lineage: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
+    /// Killed edge → the edge it was split from, for each edge a side's
+    /// join killed that held a `SplitEdge` record: a kill takes its
+    /// edge's birth record with it, and this is the lineage a joined
+    /// edge's cover is read through to the operand edges it lies along.
+    /// A copy of the records as they stood before the kills, not a list
+    /// of mints: a join can kill a child before its parent
+    /// ([`crate::provenance::Provenance::SplitEdge`] says why a copy is
+    /// as acyclic as the records).
+    pub joined_lineage: std::collections::BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>,
+}
+
+impl SplitNaming {
+    /// Records one side's joins, with the side's `SplitEdge` records as
+    /// they stood before the kills (`split_from`).
+    pub(super) fn record_joins(
+        &mut self,
+        side: PlaneSide,
+        split_from: &std::collections::BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>,
+        joins: Vec<crate::boolean::EdgeJoin>,
+    ) {
+        for j in &joins {
+            if let Some(&from) = split_from.get(&j.gone) {
+                let earlier = self.joined_lineage.insert(j.gone, from);
+                debug_assert!(
+                    earlier.is_none_or(|e| e == from),
+                    "{:?} recorded with two parents ({earlier:?}, {from:?})",
+                    j.gone
+                );
+            }
+        }
+        self.edge_joins.extend(joins.into_iter().map(|j| (side, j)));
+    }
 }
 
 impl Default for SplitNaming {
@@ -697,7 +722,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             })
             .collect::<Result<_, _>>()?,
         edge_joins: Vec::new(),
-        joined_lineage: Vec::new(),
+        joined_lineage: Default::default(),
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
@@ -2060,5 +2085,53 @@ mod edge_on_faces_rows {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod joined_lineage_rows {
+    use std::collections::BTreeMap;
+
+    use slotmap::SlotMap;
+
+    use super::{PlaneSide, SplitNaming};
+    use crate::boolean::EdgeJoin;
+    use crate::entity::{EdgeKey, VertexKey};
+
+    /// **A side's joins may kill a split child before its parent.**
+    /// Edge `e1` split into `e13`, and `e13` split twice (`e14`, `e15`);
+    /// the join kills `e1`, then `e14`, then `e13`, so the row for `e13`
+    /// comes after a row that names it as a parent. Each killed edge
+    /// that held a record is recorded with its record's parent, and only
+    /// those: `e1` held none.
+    #[test]
+    fn a_child_killed_before_its_parent_is_recorded_with_it() {
+        let mut edges: SlotMap<EdgeKey, ()> = SlotMap::with_key();
+        let [e1, e13, e14, e15] = [(); 4].map(|()| edges.insert(()));
+        let mut vertices: SlotMap<VertexKey, ()> = SlotMap::with_key();
+        let mut join = |gone, kept| EdgeJoin {
+            vertex: vertices.insert(()),
+            gone,
+            kept,
+            conventional: None,
+        };
+        let joins = vec![join(e1, e13), join(e14, e15), join(e13, e15)];
+        let split_from = BTreeMap::from([(e13, e1), (e14, e13), (e15, e13)]);
+        let mut naming = SplitNaming::default();
+        naming.record_joins(PlaneSide::Above, &split_from, joins.clone());
+        assert_eq!(
+            naming.joined_lineage,
+            BTreeMap::from([(e14, e13), (e13, e1)]),
+            "each killed child, with the edge its record names"
+        );
+        assert_eq!(
+            naming.edge_joins,
+            joins
+                .into_iter()
+                .map(|j| (PlaneSide::Above, j))
+                .collect::<Vec<_>>(),
+            "every join, with its side"
+        );
     }
 }

@@ -52,9 +52,8 @@ use crate::net;
 /// The surface bounds' piece schedule per direction (D9: structure,
 /// never a decision): [`NurbsSurface::stretch_sup`],
 /// [`NurbsSurface::stretch_floor`] and [`NurbsSurface::area_floor`] read
-/// each nonempty cell as this many equal pieces along each axis, or
-/// fewer where the restriction weights would not be exact
-/// ([`geom_core::spline::pieces::piece_count`]).
+/// each nonempty cell as this many equal pieces along each axis, halved
+/// from the cell's quotients ([`geom_core::spline::cell_quotients`]).
 ///
 /// Measured on the written chart nets of `sweep/tests/r2_probe_cert8.rs`
 /// (the flat, bowed and sheared rational biquadratic cells, weights

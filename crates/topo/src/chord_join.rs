@@ -991,11 +991,12 @@ pub(crate) struct SectionConic<T: Real> {
     /// The section plane's normal — the conic's own axis, about which
     /// its parameter runs ccw.
     normal: Vec3<T>,
-    /// The major direction.
-    major: Vec3<T>,
-    /// The semi-axis along `major` (the radius, for a circle).
+    /// The seam direction, a principal direction: `θ = 0` is at
+    /// `center + seam·sa`.
+    seam: Vec3<T>,
+    /// The semi-axis along `seam` (the radius, for a circle).
     sa: T,
-    /// The semi-axis along `normal × major`.
+    /// The semi-axis along `normal × seam`.
     sb: T,
     /// The carrier itself.
     carrier: geom::Curve3<T>,
@@ -1003,16 +1004,26 @@ pub(crate) struct SectionConic<T: Real> {
 
 impl<T: Real> SectionConic<T> {
     /// The eccentric anomaly of a point on the conic: `θ` with
-    /// `p = center + sa·cos θ·major + sb·sin θ·(normal × major)`.
+    /// `p = center + sa·cos θ·seam + sb·sin θ·(normal × seam)`.
     pub(crate) fn param(&self, p: Point3<T>) -> T {
         let d = p - self.center;
-        (d.dot(self.normal.cross(self.major)) / self.sb).atan2(d.dot(self.major) / self.sa)
+        (d.dot(self.normal.cross(self.seam)) / self.sb).atan2(d.dot(self.seam) / self.sa)
     }
 
     /// The conic's derivative in `θ` (metres per radian).
     pub(crate) fn tangent(&self, theta: T) -> Vec3<T> {
-        self.normal.cross(self.major) * (self.sb * theta.cos())
-            - self.major * (self.sa * theta.sin())
+        self.normal.cross(self.seam) * (self.sb * theta.cos()) - self.seam * (self.sa * theta.sin())
+    }
+
+    /// **The same conic seamed at the principal vertex nearest `theta`**,
+    /// in this frame's eccentric anomaly ([`geom::Curve3::seamed_near`]).
+    /// A circle is returned as it is: its parameter resolves to its
+    /// radius everywhere.
+    fn seamed_near(self, theta: T) -> Self {
+        match self.carrier.seamed_near(theta).and_then(section_conic) {
+            Some(seamed) => seamed,
+            None => self,
+        }
     }
 }
 
@@ -1070,11 +1081,11 @@ impl<T: Decide> SectionCurve<T> {
 }
 
 impl<T: Real> SectionCurve<T> {
-    /// The length a departure's cosine is levered by: a conic's
-    /// semi-major axis, an oval's own extent.
+    /// The length a departure's cosine is levered by: a conic's larger
+    /// semi-axis, whichever its seam lies along, an oval's own extent.
     fn lever(&self) -> T {
         match self {
-            Self::Conic(c) => c.sa,
+            Self::Conic(c) => geom::Curve3::semi_axes_by_size(c.sa, c.sb).0,
             Self::Oval(o) => o.extent,
         }
     }
@@ -1088,10 +1099,10 @@ impl<T: Real> SectionCurve<T> {
     }
 
     /// A direction in the section plane, for a minted plane's `u_ref`: a
-    /// conic's major direction, an oval's torus axis.
+    /// conic's seam direction (a principal one), an oval's torus axis.
     fn in_plane(&self) -> Vec3<T> {
         match self {
-            Self::Conic(c) => c.major,
+            Self::Conic(c) => c.seam,
             Self::Oval(o) => match o.carrier {
                 geom::Curve3::Spiric { axis, .. } => axis,
                 _ => unreachable!(
@@ -1356,7 +1367,7 @@ fn section_case<T: Decide>(
         return Ok(SectionCase::Conic(SectionConic {
             center,
             normal: axis,
-            major: u_ref,
+            seam: u_ref,
             sa: radius,
             sb: radius,
             carrier: circle,
@@ -1500,14 +1511,14 @@ fn section_case<T: Decide>(
 /// The frame of a section carrier: an ellipse's own axes, a circle's
 /// radius twice. `None` for any other kind.
 fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
-    let (center, normal, major, sa, sb) = match carrier {
+    let (center, normal, seam, sa, sb) = match carrier {
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
-        } => (center, axis, u_ref, major, minor),
+        } => (center, axis, u_ref, semi_u, semi_v),
         geom::Curve3::Circle {
             center,
             axis,
@@ -1519,7 +1530,7 @@ fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
     Some(SectionConic {
         center,
         normal,
-        major,
+        seam,
         sa,
         sb,
         carrier,
@@ -1575,16 +1586,18 @@ fn oriented_arc<T: Real>(
     // that: both lanes pair distinct sites at distinct points
     // (`bool_join_chord` in the boolean), and a vertex with itself only
     // as a self-loop, which says so (`ArcEnd::WholeTurn`).
-    let ccw_span = match to {
-        ArcEnd::At(th2) => (th2 - th1).reduce_periodic(tau),
-        ArcEnd::WholeTurn => tau,
-    };
+    // Each span is read forward from its own start, never as a turn
+    // less the other's, which would carry `ulp(τ)` in a short arc.
     if ccw {
-        Ok((conic.carrier().clone(), th1, th1 + ccw_span))
+        let span = match to {
+            ArcEnd::At(th2) => (th2 - th1).reduce_periodic(tau),
+            ArcEnd::WholeTurn => tau,
+        };
+        Ok((conic.carrier().clone(), th1, th1 + span))
     } else {
         // The cw arc: the carrier run back runs forward from p1.
         let span = match to {
-            ArcEnd::At(_) => tau - ccw_span,
+            ArcEnd::At(th2) => (th1 - th2).reduce_periodic(tau),
             ArcEnd::WholeTurn => tau,
         };
         let flipped = conic
@@ -1598,6 +1611,37 @@ fn oriented_arc<T: Real>(
         let th1f = T::zero() - th1;
         Ok((flipped, th1f, th1f + span))
     }
+}
+
+/// **A chord's arc of `curve`**, from `p1` to `p2` (to `p1` again, a
+/// whole turn, where `p2` is `None`), leaving `p1` counterclockwise
+/// about the section's normal or against it: [`oriented_arc`] on a
+/// conic seamed at the principal vertex nearest the arc's middle
+/// ([`SectionConic::seamed_near`]), so its window is a short signed span
+/// about the seam; a whole turn is seamed nearest its site. An oval is
+/// taken as it stands, in the torus's minor angle.
+fn chord_arc<T: Decide>(
+    curve: SectionCurve<T>,
+    face: FaceKey,
+    p1: Point3<T>,
+    p2: Option<Point3<T>>,
+    ccw: bool,
+) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
+    let seamed = match curve {
+        SectionCurve::Conic(conic) => {
+            let (tau, half) = (T::tau(), T::from_f64(0.5));
+            let th1 = conic.param(p1);
+            let middle = match p2 {
+                None => th1,
+                Some(p2) if ccw => th1 + (conic.param(p2) - th1).reduce_periodic(tau) * half,
+                Some(p2) => th1 - (th1 - conic.param(p2)).reduce_periodic(tau) * half,
+            };
+            SectionCurve::Conic(conic.seamed_near(middle))
+        }
+        oval @ SectionCurve::Oval(_) => oval,
+    };
+    let to = p2.map_or(ArcEnd::WholeTurn, |p2| ArcEnd::At(seamed.param(p2)));
+    oriented_arc(&seamed, face, seamed.param(p1), to, ccw)
 }
 
 /// The direction the section leaves each of a join's two sites in,
@@ -1663,8 +1707,8 @@ impl<T: Real> Leave<T> {
 /// Whether the chord `p1 → p2` takes the conic's ccw candidate: the one
 /// whose tangent at `p1` agrees with `leave`, the section's direction of
 /// departure there ([`Leave`]). Decided as `leave · Ĉ′(θ₁)`, per datum:
-/// a germ's cosine levered by the curve's extent, a conic's semi-major
-/// axis or an oval's own (`chord_arc_leave_germ`); the split's sine on the wall's
+/// a germ's cosine levered by the curve's extent, a conic's larger
+/// semi-axis or an oval's own (`chord_arc_leave_germ`); the split's sine on the wall's
 /// [`geom_brep::curvature_lever_arm`] at `p1`
 /// (`chord_arc_leave_section`), the lever its conic walk decides the
 /// same sine on, so the two cannot disagree outside the band. A datum
@@ -1894,12 +1938,6 @@ fn chord_spec<T: Decide>(
     let p1 = vertex_point(body, u1);
     let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, &wall, p1, leave)?;
-    let to = if u1 == u2 {
-        ArcEnd::WholeTurn
-    } else {
-        ArcEnd::At(conic.param(p2))
-    };
-    let (carrier, t_start, t_end) = oriented_arc(&conic, face, conic.param(p1), to, ccw)?;
     // The aux plane surface (honest u_ref: a direction in the section
     // plane, ⊥ normal by construction), minted once per split.
     let plane_key = match ctx.plane_key {
@@ -1914,6 +1952,7 @@ fn chord_spec<T: Decide>(
             k
         }
     };
+    let (carrier, t_start, t_end) = chord_arc(conic, face, p1, (u1 != u2).then_some(p2), ccw)?;
     let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
@@ -2167,12 +2206,7 @@ fn bool_planar_chord_spec<T: Decide>(
     let p1 = vertex_point(body, u1);
     let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, wall, p1, leave)?;
-    let to = if u1 == u2 {
-        ArcEnd::WholeTurn
-    } else {
-        ArcEnd::At(conic.param(p2))
-    };
-    let (carrier, t_start, t_end) = oriented_arc(&conic, face, conic.param(p1), to, ccw)?;
+    let (carrier, t_start, t_end) = chord_arc(conic, face, p1, (u1 != u2).then_some(p2), ccw)?;
     // The aux WALL surface in this body (honest full copy of the
     // mate's wall; minted once per germ wall face, caller-cached).
     let wall_aux = match *partner_key {
@@ -4581,6 +4615,9 @@ mod chart_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod seam_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod sibling_escalation_rows;
