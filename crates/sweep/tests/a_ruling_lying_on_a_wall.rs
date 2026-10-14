@@ -475,7 +475,7 @@ fn a_continuation_on_a_wall_bounded_by_an_ellipse_builds_every_op() {
 /// `0.5π + 2/15`, and the union `2π + 2/15`. Whichever member's wall a
 /// union keeps, the piece of the other's rim lying across it (the
 /// ellipse's arc over `x > 0` in `t ∪ r`, the circle's over `x < 0` in
-/// `r ∪ t`) rests in one of its faces' charts, derived
+/// `r ∪ t`) rests as the pair of the two walls, derived
 /// ([`across_a_wall`]).
 #[test]
 fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
@@ -553,8 +553,11 @@ const TURNS: [f64; 9] = [0.0, 0.4, 1.3, 1.5, PI / 2.0, 2.0, 2.9, PI, 1.5 * PI];
 /// The carrier kind of each edge of `body` lying across a wall: both
 /// its faces on a cylinder, the two faces on different members' walls
 /// (a member's own seam ruling bounds two faces of one surface). Each
-/// edge of both kinds is first checked to rest in one of its two faces'
-/// charts, and each lying across a wall to be derived: nothing in these
+/// edge of both kinds is first checked to rest where it lies — a seam
+/// ruling in its one surface's chart, an edge across a wall as the pair
+/// of its two faces' surfaces (`OnPair`: the two walls' records are one
+/// carrier, which under-determines the locus) — and each lying across
+/// a wall to be derived: nothing in these
 /// scenes declared a rim or a ruling, so a describer that stamps a
 /// declaration on one, or leaves it citing a surface it no longer
 /// bounds, reds here.
@@ -574,16 +577,18 @@ fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<CurveKind> {
         if !(cylinder(sp) && cylinder(sm)) {
             continue;
         }
-        let EdgeDescription::Chart(ch) = c.description() else {
-            panic!(
-                "{label}: {key:?} across a wall rests in a chart: {:?}",
-                c.description()
-            );
-        };
-        assert!(
-            ch.surface == sp || ch.surface == sm,
-            "{label}: {key:?} rests in one of its faces' charts"
-        );
+        match c.description() {
+            EdgeDescription::Chart(ch) if sp == sm => assert_eq!(
+                ch.surface, sp,
+                "{label}: {key:?} rests in its one surface's chart"
+            ),
+            EdgeDescription::OnPair { pair } if sp != sm => assert_eq!(
+                *pair,
+                geom_brep::SurfacePair::new(sp, sm),
+                "{label}: {key:?} across a wall is the pair of its faces' surfaces"
+            ),
+            other => panic!("{label}: {key:?} rests where it lies, got {other:?}"),
+        }
         if sp != sm {
             assert!(
                 !c.authority().is_declared(),
@@ -602,7 +607,7 @@ fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<CurveKind> {
 /// of the same radius on `z ∈ [1, 3]`, turned `1.3` rad so its seam
 /// rulings miss the flat face's corners, their walls one carrier. Its
 /// volume is `2.5π` in both orders, and what lies across the kept wall
-/// rests in a wall's chart ([`across_a_wall`]):
+/// rests as the two walls' pair ([`across_a_wall`]):
 ///
 /// - **Rod first** keeps the rod's wall whole: the rod's lower rim lies
 ///   across it over `y > 0`. The flat face `y = 0` under the rod, moved
