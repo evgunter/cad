@@ -2,7 +2,9 @@
 id: rigid-map-chart-readings-fuzz-reds-past-its-rounding-bound
 kind: issue
 title: ssi/enclose: the rigid-map chart-readings fuzzer reds past its 256-ulp rounding bound at a recorded seed
-status: open
+status: closed
+branch: nurbs/rigid-map-chart-allowance
+closed: 2026-10-14
 priority: P2
 cost: E
 opened: 2026-10-14
@@ -34,3 +36,52 @@ Met at the default effort in a local 1e-12 run. It reproduces on main at `9f97c7
 - Case: "two-span patch" again, a rigid map about `(-0.1568, 0.9182, 0.3246)` through `(0.4462, 0.6121, -0.4581)` by 2.9171.
 - The same transverse margin moved, from 0.002672789803881874 to 0.0026727898038855606: about 3.7e-15 absolute.
 - So effort 1 meets it too, and the per-PR gate can turn red on it.
+
+## Resolution (NURBS build A, 2026-10-14)
+
+**The fuzzer's assertion was stricter than the statement; no bound is
+wrong.** Both items are one defect: every recorded seed fails on the
+same reading, the two-span patch's second-window transverse margin
+(0.0027 seated).
+
+That margin is `mig(n·d_k) / stretch`, where each `d_k` is no longer
+than the stretch. So the coefficients it reads, and their rounding,
+sit at the stretch's scale, and a small margin is a cancellation among
+them. Its rounding is relative to one (the most a margin can read),
+not to its own value. `within_rounding` read every reading relative to
+itself, which for a margin of 0.0027 asks for about 370 times less
+than its arithmetic carries.
+
+Measured over 4000 random maps on every wall of the row, in units of
+`ε·(1 + reach)·scale`:
+
+| reading | relative to | worst move |
+|---|---|---|
+| speeds and pads | own value | 78 |
+| margins | own value | 257, the two-span margin |
+| margins | one | 8.1 |
+
+The allowance is 256 throughout.
+
+**Fix** (`crates/geom-brep/src/ssi/enclose.rs`, test module only):
+`within_rounding` takes a `Magnitude`, `Own` for speeds and pads and
+`Unit` for margins. The test and helper docs say why.
+
+**Pinned:** `the_recorded_rigid_maps_move_a_small_margin_by_its_stretchs_rounding`
+holds all four recorded maps as fixed rows:
+
+- `0x8371abdecebb95f9` (effort 8);
+- `0x166d62361818555e`;
+- `0xdfa19917eaceb89e` (1e-6);
+- `0x1d0a3b646ab0444b` (1e-12).
+
+Each row checks that every reading stays within its rounding at its
+magnitude, and that the margin is past the own-value allowance, so the
+row still holds the case.
+
+**Checked:**
+
+- All four seeds pass the fuzzer.
+- 40 fresh seeds at effort 8 (about 10 000 maps × 7 walls) pass.
+- A production mutant making the margin frame-dependent by `1e-10`
+  relative still reds the fuzzer.
