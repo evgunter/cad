@@ -1031,3 +1031,4 @@ Signed (CLEAVE orchestrator).
   - correct the CARVE row's two false claims and add its measured extrude witness (R 200–400 m arc, 4/20 at 1e-12);
   - make sure the RESTFRONT row reaches main;
   - probe `transform_rigid`.
+- 2026-10-14 — PR 4861 (the re-pose) is merged (`1d6c939490`), green on `3d9c62584b` after a second merge of main. Its row is closed, and the anchored-conic unit (`the-section-table-admits-a-curve-on-its-resolution`, P2/H) is unparked to open. The part 3 rework of PR 4810 is dispatched: an escalated section-end pin is read against its carrier's per-kind resolution, so a miss the bound explains ends as a kernel limitation with no lever, a miss it can't explain stays the input's with its lever, and nothing new refuses. 5058 and 5100 are told that 4861 is in.
