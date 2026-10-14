@@ -602,11 +602,10 @@ impl core::fmt::Display for SplitJoinError {
             ),
             Self::PoleEdgesCoincide { .. } => write!(
                 f,
-                "two edges of a sphere face meet at its pole within the tolerance of one \
-                 direction over the shorter one's reach: they overlap there, meet in a cusp, or \
-                 the shorter is too short to tell apart, so the face's azimuth window has no \
-                 branch to read at the pole. Recourse: merge the overlapping edges, or move one \
-                 off the other at the pole"
+                "two edges of a sphere face meet at its pole within tolerance of one direction \
+                 over the shorter one's reach: they overlap, meet in a cusp, or the shorter is \
+                 too short to tell apart, so the face's azimuth window has no branch there. \
+                 Recourse: merge the overlapping edges, or move one off the other at the pole"
             ),
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
