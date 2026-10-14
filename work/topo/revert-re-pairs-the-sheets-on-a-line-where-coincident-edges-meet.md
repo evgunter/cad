@@ -82,3 +82,11 @@ for radial edges would change what the complement is.
   `subtracting-a-glued-tip-reverts-its-edge-on-face-line-into-the-rider-form`.
 
 The re-pairing retires the refusals and these with them.
+
+## Tests that return with the re-pairing
+
+- `crates/editor-core/tests/union_pinch_member_order.rs`
+  `a_slab_holding_the_contact_refuses_to_be_cut`: on main it built
+  `slab ∖ blocks` with the contact as two 270° edges (overlap 180°) and
+  ran six ops of that slab against the plate. It now pins the refusal;
+  the six ops come back once the slab builds right.
