@@ -158,7 +158,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, CutOutcome, Datum, JoinLane, JoinPlan, Leave, SegmentCurve, SegmentEdge,
+    ChordJoiner, CutOutcome, Datum, JoinLane, JoinPlan, Leave, RimSide, SegmentCurve, SegmentEdge,
     SplitJoinError,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -765,6 +765,17 @@ pub(super) enum SegmentLane {
     Section,
 }
 
+impl SegmentLane {
+    /// The lane of a segment whose germ runs along an edge of both
+    /// solids, or not.
+    fn of<T: geom_core::Real>(germ: &HalfGerm<T>) -> Self {
+        match (germ.a_locus, germ.b_locus) {
+            (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => Self::AlongEdge,
+            _ => Self::Section,
+        }
+    }
+}
+
 /// Every pair record with its germs, none consumed, in `red.null_pairs`
 /// order.
 fn open_records<T: Decide>(red: &BooleanReduction<T>) -> Result<Vec<OpenRecord<T>>, BooleanError> {
@@ -831,14 +842,10 @@ fn matched_records<T: Decide>(
             open[r].a[slot].1 = true;
             open[r].b[slot].1 = true;
         }
-        let lane = match (germ.a_locus, germ.b_locus) {
-            (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => SegmentLane::AlongEdge,
-            _ => SegmentLane::Section,
-        };
         segments.push(SectionSegment {
             ends: [entry, cand],
             germ,
-            lane,
+            lane: SegmentLane::of(&germ),
         });
     }
     Ok((segments, open))
@@ -954,14 +961,10 @@ fn one_site_segments<T: Decide>(
                 "a one-site record's two germs turn one way round its loop",
             ));
         }
-        let lane = match (g0.a_locus, g0.b_locus) {
-            (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => SegmentLane::AlongEdge,
-            _ => SegmentLane::Section,
-        };
         out.push(SectionSegment {
             ends: [(r, 0), (r, 1)],
             germ: g0,
-            lane,
+            lane: SegmentLane::of(&g0),
         });
     }
     Ok(out)
@@ -970,34 +973,28 @@ fn one_site_segments<T: Decide>(
 /// **Whether a one-site record's loop closes at its site**
 /// ([`one_site_segments`]), read from what the site is in the germ's cell
 /// on each operand ([`site_cell`]): a wrap edge against a pierce of a
-/// planar face, or a closed edge against a pierce of a planar or a
-/// spherical face or against another closed edge. A pierce is joined in
-/// its face as a ring of its own ([`crate::chord_join::ChordJoiner`]'s
-/// lone ring), which sides a whole conic on a plane and, where the conic
-/// is a plane section, on a sphere, the one surface a plane cuts in that
-/// conic alone; the transverse section's conic is the wall's, so only a
-/// planar face takes it.
+/// planar face, or a closed edge against a pierce of a face
+/// [`RimSide::of`] sides or against another closed edge. A pierce is
+/// joined in its face as a ring of its own
+/// ([`crate::chord_join::ChordJoiner`]'s lone ring), on the face's
+/// [`RimSide`]; the transverse section's conic is the wall's, not a
+/// plane section, so only a planar face takes it.
 fn closes_at_its_site<T: Decide>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
     b_he: HalfEdgeKey,
 ) -> Result<bool, BooleanError> {
-    let pierced = |body: &Body<T>, f: FaceKey, sphere: bool| {
-        Ok::<_, BooleanError>(match face_surface(body, f)?.1.kind() {
-            geom::SurfaceKind::Plane => true,
-            geom::SurfaceKind::Sphere => sphere,
-            _ => false,
-        })
-    };
+    let rim =
+        |body: &Body<T>, f: FaceKey| Ok::<_, BooleanError>(RimSide::of(face_surface(body, f)?.1));
     Ok(
         match (
             site_cell(&red.a, g0.a_locus, g0.he)?,
             site_cell(&red.b, g0.b_locus, b_he)?,
         ) {
-            (SiteCell::Wrap, SiteCell::Pierce(f)) => pierced(&red.b, f, false)?,
-            (SiteCell::Pierce(f), SiteCell::Wrap) => pierced(&red.a, f, false)?,
-            (SiteCell::Closed, SiteCell::Pierce(f)) => pierced(&red.b, f, true)?,
-            (SiteCell::Pierce(f), SiteCell::Closed) => pierced(&red.a, f, true)?,
+            (SiteCell::Wrap, SiteCell::Pierce(f)) => rim(&red.b, f)? == Some(RimSide::Plane),
+            (SiteCell::Pierce(f), SiteCell::Wrap) => rim(&red.a, f)? == Some(RimSide::Plane),
+            (SiteCell::Closed, SiteCell::Pierce(f)) => rim(&red.b, f)?.is_some(),
+            (SiteCell::Pierce(f), SiteCell::Closed) => rim(&red.a, f)?.is_some(),
             (SiteCell::Closed, SiteCell::Closed) => true,
             _ => false,
         },
@@ -1014,19 +1011,26 @@ enum SiteCell {
     /// Inside this face, no real edge reaching it: a pierce of the face's
     /// interior.
     Pierce(FaceKey),
-    /// Along a closed edge, both of whose ends are the site.
+    /// Along an edge: a closed one, both of whose ends are the site
+    /// ([`site_cell`]).
     Closed,
-    /// Inside a face, a real edge there bounding another face; or along
-    /// an edge that leaves the site.
+    /// Inside a face, a real edge there bounding another face.
     Other,
 }
 
 /// [`SiteCell`] of the site of null half `he`, its germ's cell `locus`.
+/// A one-site record's two germs both run along an `OnEdge` locus from
+/// the one site, one each way, and an edge leaves each of its ends one
+/// way only, so that edge's two ends are both the site: it is closed
+/// there.
 fn site_cell<T: Decide>(
     body: &Body<T>,
     locus: super::Locus,
     he: HalfEdgeKey,
 ) -> Result<SiteCell, BooleanError> {
+    let super::Locus::InFace(face) = locus else {
+        return Ok(SiteCell::Closed);
+    };
     let desync = |what| BooleanError::JoinDesync { what };
     let start = body
         .get_half_edge(he)
@@ -1037,19 +1041,6 @@ fn site_cell<T: Decide>(
         .ok_or(desync("germ half no longer resolves"))?;
     let site =
         crate::chord_join::null_site(body, &[start, end]).map_err(super::sectors::stale_site)?;
-    let face = match locus {
-        super::Locus::OnEdge(edge) => {
-            let (u, v) = body
-                .edge_vertices(edge)
-                .ok_or(desync("an OnEdge germ's edge no longer resolves"))?;
-            return Ok(if site.contains(&u) && site.contains(&v) {
-                SiteCell::Closed
-            } else {
-                SiteCell::Other
-            });
-        }
-        super::Locus::InFace(face) => face,
-    };
     let mut cell = SiteCell::Pierce(face);
     for v in site {
         for k in body.edges_of_vertex_linked(v) {
