@@ -136,7 +136,7 @@ use geom_core::predicate::Band;
 use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
-use crate::harmonic::harmonic_sup;
+use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::offset::Nappe;
 
 use super::{
@@ -1403,6 +1403,15 @@ fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
 }
 
 /// The distance of an angle from the nearest point of `shift + τℤ`.
+///
+/// Sound at every scalar on its own terms: a lattice distance is
+/// continuous in the angle and the same on either branch at a tie, so
+/// the floor's pick never shows in it, and an `Interval` straddle widens
+/// it but still encloses. Its readers (`projected_envelope`'s fidelity
+/// terms) pass a deck offset (a whole number of turns, or a reflection's
+/// zero) against a shift of 0 or π (the sphere's twin), all form-definite
+/// constants at `Sym`, and add the distance to an envelope bound: no
+/// identity reads it.
 fn off_period<T: Real>(angle: T, shift: T) -> T {
     (angle - shift).reduce_periodic_centred(T::tau()).abs()
 }
@@ -2032,7 +2041,10 @@ pub(super) fn projected_envelope<T: Decide>(
     match (image.chart, &twin) {
         (ProjectedChart::Cone { sin, cos, .. }, Surface::Cone { half_angle, .. }) => {
             let (s, c) = half_angle.sin_cos();
-            let drift = (sin - s).abs() + (cos - c).abs();
+            // The slant direction's radial and axial components moved.
+            let drift = harmonic_sup_scalar(sin - s, cos - c);
+            #[cfg(test)]
+            let drift = super::mutants::cone_drift(sin - s, cos - c).unwrap_or(drift);
             terms.add(EnvelopeTerm::FidelityV, drift * (v_reach + incidence + d));
         }
         (

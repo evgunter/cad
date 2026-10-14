@@ -581,26 +581,11 @@ pub struct Flag {
 pub struct Scan {
     /// Samples considered (every non-header, non-empty line).
     pub scanned: usize,
-    /// How many of [`Scan::scanned`] were `symbolic_zero` — decisions
-    /// the symbolic identity tier answered, which answer to no rule
-    /// here ([`lint_sample`]'s arm says why) and are reported as their
+    /// How many of [`Scan::scanned`] were `symbolic` — decisions
+    /// the symbolic identity tier answered, however it reached the
+    /// zero, which answer to no rule here ([`lint_sample`]'s arm says why) and are reported as their
     /// own number rather than folded into the clean count.
     pub symbolic: usize,
-    /// How many of [`Scan::scanned`] were `sign_gated` — decisions the
-    /// symbolic tier answered through its clause-3 fold (a theorem
-    /// conditional on a sign it certified over the box). Never a rule
-    /// sample, for the same reason as `symbolic_zero`, and reported as
-    /// its own number because the two claims differ in kind.
-    pub sign_gated: usize,
-    /// How many of [`Scan::scanned`] were `registered` — decisions the
-    /// symbolic tier answered through a REGISTERED IDENTITY (a
-    /// constructor's axiom about what it built, verified at the leaf's
-    /// witness; ERROR-DESIGN E12's provenance reserve). Never a rule
-    /// sample, for the same reason as the two columns above, and its
-    /// own number because the claim differs in kind from both: those
-    /// two are theorems of exact arithmetic, this one additionally
-    /// rests on the registrant's argument.
-    pub registered: usize,
     pub flags: Vec<Flag>,
     /// Rule (2)'s zero arm, per predicate, largest usage first. Never
     /// part of [`Scan::flags`]: see [`zero_arm_usage`].
@@ -646,20 +631,19 @@ const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,ou
 /// ZERO times while the CI row still reported success. The tool was
 /// right to refuse a token it did not know — that refusal is
 /// deliberate, review MIN-2 — and being right is not the same as being
-/// noticed.
+/// noticed. (DECIDE-10 later renamed that variant `Symbolic`, serialized
+/// as `symbolic`, and this list and its pin moved with it.)
 ///
 /// `tests::the_accepted_outcomes_are_exactly_the_recorders` pins this
 /// list against `SampleOutcome::ALL` variant by variant, so the next
 /// variant reds a test here instead of silently disarming a gate.
-pub const ACCEPTED_OUTCOMES: [&str; 8] = [
+pub const ACCEPTED_OUTCOMES: [&str; 6] = [
     "zero",
     "positive",
     "negative",
     "indeterminate",
     "invalid",
-    "symbolic_zero",
-    "sign_gated",
-    "registered",
+    "symbolic",
 ];
 
 /// What a numeric column of the sweep may say.
@@ -789,10 +773,11 @@ pub fn lint_sample(
         // family alike: `zero_arm_usage`.
         "zero" => {}
         // **Never a rule sample, and not because it is uninteresting.**
-        // A `symbolic_zero` row is a decision the symbolic identity tier
-        // answered (ERROR-DESIGN E12): the margin's expression is
-        // identically zero in the document's parameters, so `Zero` was a
-        // theorem and the margin was never CLASSIFIED against the band
+        // A `symbolic` row is a decision the symbolic identity tier
+        // answered (ERROR-DESIGN E12): the margin's expression is zero
+        // wherever the construction takes the decisions it took, so
+        // `Zero` was proven and the margin was never CLASSIFIED against
+        // the band
         // at all. Every rule here is a statement about where a decided
         // margin sits relative to a threshold; there is no such
         // position to report, so rule 1 cannot fire (nothing landed
@@ -800,22 +785,7 @@ pub fn lint_sample(
         // make. The row still counts — in its own column, `Scan::
         // symbolic` — because the ratio of symbolic to numeric
         // decisions is the evidence the tier exists to produce.
-        //
-        // A `sign_gated` row is the same tier's answer through its
-        // clause-3 fold: zero as a theorem CONDITIONAL on a sign the
-        // funnel certified over the leaf's box. The margin was still
-        // never classified against the band, so it is no rule's
-        // sample either; it counts in `Scan::sign_gated`, apart from
-        // the unconditional column, because the two claims differ.
-        // A `registered` row is the same tier's answer through the
-        // registered-identity door: zero because a CONSTRUCTOR stated
-        // that two of the expression's nodes are one real and the
-        // leaf's witness agreed. Still never classified against the
-        // band — no rule has a comparison to make — and still its own
-        // column (`Scan::registered`), because an axiom about a
-        // construction is not a theorem of the arithmetic and reading
-        // the three together as one number would hide exactly that.
-        "symbolic_zero" | "sign_gated" | "registered" => {}
+        "symbolic" => {}
         "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
             if is_eps_coupled(predicate) {
                 if m < EPS_COUPLED_FLOOR_RATIO * band_zero {
@@ -850,8 +820,6 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut zero_arm: Vec<ZeroArmTally> = Vec::new();
     let mut scanned = 0usize;
     let mut symbolic = 0usize;
-    let mut sign_gated = 0usize;
-    let mut registered = 0usize;
     let mut proximity_capped = None;
     let mut unruled = [0usize; EPS_COUPLED_UNRULED.len()];
     for (i, line) in text.lines().enumerate() {
@@ -947,14 +915,8 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             });
         }
         scanned += 1;
-        if out == "symbolic_zero" {
+        if out == "symbolic" {
             symbolic += 1;
-        }
-        if out == "sign_gated" {
-            sign_gated += 1;
-        }
-        if out == "registered" {
-            registered += 1;
         }
         // Counted for EVERY outcome, not just the definite arm: the
         // question this column answers is whether the family has a
@@ -1009,8 +971,6 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     Ok(Scan {
         scanned,
         symbolic,
-        sign_gated,
-        registered,
         flags,
         zero_arm,
         proximity_capped,

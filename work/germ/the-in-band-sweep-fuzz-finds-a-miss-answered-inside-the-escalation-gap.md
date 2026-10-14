@@ -2,7 +2,9 @@
 id: the-in-band-sweep-fuzz-finds-a-miss-answered-inside-the-escalation-gap
 kind: issue
 title: GERM's in-band sweep fuzz finds a circle clear of a wall by 9.991ε answered Miss inside the escalation gap at ε = 1e-6
-status: open
+status: review
+branch: germ/in-band-sweep-gap-miss
+pr: 4964
 opened: 2026-10-11
 priority: P1
 ---
@@ -114,6 +116,8 @@ escalation gap, the same shape as the first seed. Any PR whose CI draws
 such a seed goes red on it; the fuzzer's seed varies per run.
 
 - 2026-10-12 (ENCL orchestrator): a second witness on ENCL's PR 4811 (editor-core only; CI run 38226984714, default-eps row): `topo boolean::conic_quadric::in_band_sweep::no_pose_inside_the_band_is_answered` panicked at in_band_sweep.rs:160, '1 in-band poses answered'. Internal row ε 1e-6, true depth 9.894e-6 (inside the <10ε escalation gap, r≈37.55 region), answered Ok(Miss). Replay: `CAD_FUZZ_SEED=0x67e238e4dd9155cf CAD_FUZZ_EFFORT=1`. The fuzz draws a fresh seed per run, so it reddens random PRs.
+- 2026-10-12 (CLEAVE, PR 4858, CI run 38258750526, default-eps row): another witness. Internal row ε 1e-6, true depth 9.796e-6, circle radius 0.01418 against a wall of r ≈ 54.72, answered `Ok(Miss)` inside the escalation gap. Replay: `CAD_FUZZ_SEED=0xd94af3a7b70f78b6 CAD_FUZZ_EFFORT=1`. PR 4858 touches no code this row reads (`conic_quadric_roots` takes no body).
+- 2026-10-13 (TANG, PR 4413, local debug run at the default ε, head 6e7f07bcd, main merged at 95d344176): `CAD_FUZZ_SEED=0x100c76901b4364a8 CAD_FUZZ_EFFORT=1` replays it deterministically. Internal row ε 1e-6, drawn depth −9.507e-6 (true 9.507e-6, 0 true roots), answered `Ok(Miss)`, so a circle clear of the wall by about 9.5ε, the same shape again. Circle centre (58.7466, 0.011136, −0.0042817), axis (−0.84551, −0.49839, 0.19163), radius 0.014111.
 
 ## Three more seeds at effort 10 (GERM, PR 4886's review, 2026-10-12)
 
@@ -140,3 +144,50 @@ true roots:
 PR 4886 does not touch `conic_quadric`. Its changes to
 `certified_subdivision` act only on a bracketed root, and a `Miss` has
 none; the reviewers saw the same reds on main.
+
+## Root cause (GERM, 2026-10-13)
+
+Two causes, one on each side. All nine seeds above reproduce on main
+at `0ddfd40980`, and each is pinned as a row of `GAP_WITNESSES`
+(`crates/topo/src/boolean/conic_quadric/in_band_sweep.rs`,
+`the_sweeps_gap_witnesses_are_judged_in_the_residual`).
+
+**The door (six seeds: `0x71b4eb0ade4c1576`, `0x9433bbf2eb0a13c0`,
+`0xe8586f5f5e218549`, `0x50cc8da379c68fde`, `0x67e238e4dd9155cf`,
+`11`).** Each takes the first-harmonic arm. `first_harmonic_arm`
+(`crates/topo/src/boolean/conic_quadric/mod.rs`) drops the second
+harmonic `A₂` and charges it to the extremes' noise. But
+`first_harmonic_roots_in_band`
+(`crates/topo/src/boolean/circle_roots.rs`) decided the extremes on
+`Margin::of(lo)` / `Margin::of(hi)` bare. Its noise meter only checks
+that the error is within the zero band, and that is no bound on where
+the extreme sits relative to the gap's far edge `Kε`. On the first seed
+`hi = −1.0088e-5` and `A₂ = 0.099ε`, while the true extreme is
+`−9.991e-6`. On the second, `A₂ = 0.54ε` (hence its deeper 9.68ε).
+Fixed by `extreme_sign`, which decides each extreme as the interval
+its error bound spans: both ends decided, and an end in the gap
+escalates.
+
+**The judge (three seeds: `0xedc36ace8b877740`, `0x883d9762675a3ba8`,
+`18`, true distance 9.9995ε to 9.9998ε).** Each takes the ladder from
+OUTSIDE the wall. The door classifies the linearized residual
+`(ρ² − r²)/2r = d + d²/2r`, which `crates/geom-brep/src/implicit.rs`'s
+module docs state is what classifies against the linear ε, agreeing
+with the distance `d` only to first order. Outside the wall it
+overstates `d` by `d²/2r`: up to 0.0019ε at `r = 0.027`. So these poses
+truly lie past `Kε` in the band's own metric, and their `Miss` is right.
+The row's judge read the oracle's distance. The oracle now also returns
+`residual_depth` (`crates/topo/src/boolean/conic_oracle/exact.rs`,
+`Truth::residual_depth`), and the judges that gate on the band read it.
+It was not the far-frame rounding at `r ≈ 70.9`: the oracle is
+double-double on the stored carrier.
+
+
+**The seeds above no longer replay their poses.** The row draws every
+pose's values before its judge now, so a seed replays its poses
+whatever the judge or the door does; when these seeds were found it
+drew the arc after the judge's `continue`, so any change to the judge
+reshuffled the stream from there on (seed `11` at effort 10 went green
+under the pre-fix door with the judge alone changed). Moving the draw
+reshuffles it once more, so the seeds above are not replays of their
+poses on this branch. `GAP_WITNESSES` is what pins those poses.

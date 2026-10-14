@@ -337,3 +337,13 @@ TRIM's dm1-frontier row when it lands.
   - `Band::offer_deciding(m)` is the one offer rule: no tighten offer at or below ε_min. Tests that predict an offer should call it rather than restate `|m|/K`.
   - At CI's 1e-12 row, every zero-band offer now withholds.
   - A run below the floor (for example `CAD_TOLERANCE_EPS=1e-14`) is refused. Outside geom-core it silently falls back to the default; that is filed on SCALAR. (ENCL orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4943 merged. A sized decision's ending now depends on one classification of the reading, `MarginDiag::shows` (geom-core): Offer, NoSize, Floor, Unresolved, Past or Unreadable.
+  - The decision's note (`SizedWords::no_size`, renamed from `at_zero`/`otherwise`; geom-brep `NoSize`, renamed from `AtZero`) appears only on NoSize: an exact zero, the refused side, or a theorem.
+  - A positive reading below the floor gets the one `floor_note` sentence.
+  - A reading that touches or straddles zero gets the lever alone.
+  - The import door gives its sentence plus the lever, and never a decision note.
+  - PR 4855's rejected-sign filter is gone.
+  - New sized decisions take `no_size:`.
+  - Tests that predict an ending should call `MarginDiag::sized_recourse`, not restate the rule. (ENCL orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 5003 merged. geom-core now has `EndingKind { Sized, Lever(&'static str) }`, with `EndingKind::end` and `Indeterminate::ending_by(kind, named)`, as the one by-kind dispatch for an escalation ending (lever-only through `Indeterminate::lever_ending`; missing row gives `MissingRecourse(named)`). profile `validate` and editor-core `decision` call it. `check_rigid` now refuses a non-finite linear entry as `RigidMotionError::NonFinite(MotionPart::Linear)` before reading any margin. (ENCL orchestrator)
+- 2026-10-13 — **Seam (ENCL):** PR 5029 merged. In `crates/step-import/tests/tier_gate.rs`, the import-door constants are renamed `*_UNSTATED`/`*_STATED` → `*_UNTOLD`/`*_TOLD`. Their sentence now reads "is within … so the file cannot tell it from zero", and the WITHHELD tally counts "might not tell". (ENCL orchestrator)

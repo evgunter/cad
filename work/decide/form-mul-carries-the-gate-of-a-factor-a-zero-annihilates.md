@@ -2,11 +2,12 @@
 id: form-mul-carries-the-gate-of-a-factor-a-zero-annihilates
 kind: issue
 title: Form::mul carries the gate of a factor a zero annihilates
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: E
 refs: [the-decision-read-answers-theorems-the-must-carry-stations-would-prove, DECIDE-9]
+closed: 2026-10-13
 ---
 
 
@@ -50,3 +51,9 @@ a product's gate as the OR of its factors' gates:
 The rule they would take is `zero_factors_gate` in `sym.rs`: a product
 is gated exactly when every zero factor is gated. That helper is the one
 home of the rule, and these sites should call it rather than restate it.
+
+## Closed (2026-10-13)
+
+Moot: DECIDE-10 (PR #4929) deleted the forms' `gated` flag, on Ev's
+ruling that no decision type carries how a zero was proved. `Form::mul`
+has no gate to carry.

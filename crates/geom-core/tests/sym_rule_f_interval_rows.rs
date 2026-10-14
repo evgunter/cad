@@ -65,7 +65,7 @@ fn the_denominator_that_vanishes_is_refused_by_clause_1_not_folded() {
                 x.abs() - x
             })
         ),
-        "theorem"
+        "proven"
     );
     let over_box = |lo: f64, hi: f64| {
         how_i(SymRules::shipped(), move || {
@@ -76,12 +76,12 @@ fn the_denominator_that_vanishes_is_refused_by_clause_1_not_folded() {
     let (holds_zero, _) = over_box(-0.1, 0.4);
     println!("  … over t ∈ [−0.1, 0.4] (D = 0 inside): {holds_zero}");
     assert_ne!(
-        holds_zero, "theorem",
+        holds_zero, "proven",
         "a box the value channel divided by zero on is clause 1's, not the fold's"
     );
     let (clear, _) = over_box(0.2, 0.3);
     println!("  … over t ∈ [0.2, 0.3]: {clear}");
-    assert_eq!(clear, "theorem");
+    assert_eq!(clear, "proven");
 }
 /// **A MANIFESTLY POSITIVE FORM UNDEFINED INSIDE THE BOX (R1, item G).**
 /// `1/(t − 1)²` is a positive constant over a PERFECT SQUARE, which the
@@ -106,7 +106,7 @@ fn a_manifestly_positive_form_undefined_inside_the_box() {
             });
             println!("  [{name}] {what}: {l} enclosure {v:?}");
             assert_eq!(
-                l == "theorem",
+                l == "proven",
                 want_theorem,
                 "[{name}] {what}: a box holding the pole must be clause 1's"
             );
@@ -129,8 +129,8 @@ fn the_minted_magnitude_is_the_same_indeterminate_an_abs_node_mints() {
     let (on, _) = how_i(SymRules::shipped(), resid);
     let (off, _) = how_i(SymRules::without_rule_f(), resid);
     println!("  copysign(x − z, 1) − |x − z|: F-on {on} | F-off {off}");
-    assert_eq!(on, "theorem", "the minted atom must be the abs node's atom");
-    assert_ne!(off, "theorem", "rule F is what takes it");
+    assert_eq!(on, "proven", "the minted atom must be the abs node's atom");
+    assert_ne!(off, "proven", "rule F is what takes it");
 }
 /// The same adversary at the INTERVAL lift, which is the certified
 /// lane: `E`'s enclosure over a box around `x = 1e8` straddles zero,
@@ -150,7 +150,7 @@ fn the_adversary_at_the_interval_lift_is_a_plain_theorem() {
         one_i().copysign(e) - one_i()
     });
     println!("  interval lift over x ∈ [1e8 ∓ 1]: {l} enclosure {v:?}");
-    assert_eq!(l, "theorem");
+    assert_eq!(l, "proven");
 }
 
 /// **The adversary, REFLECTED for the negative arm.** `E′ = (x + 1)² −
@@ -174,5 +174,5 @@ fn the_reflected_adversary_at_the_interval_lift_is_a_plain_theorem() {
         one_i().copysign(e) + one_i()
     });
     println!("  reflected adversary over x ∈ [1e8 ∓ 1]: {l} enclosure {v:?}");
-    assert_eq!(l, "theorem");
+    assert_eq!(l, "proven");
 }

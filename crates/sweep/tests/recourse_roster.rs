@@ -8,7 +8,9 @@
 //! fall-through to reach. What stays name-shaped is the `k_stats` name
 //! each decision is metered under, and the rows here hold that the
 //! names the crate decides are exactly the blend's closed set plus the
-//! other doors' gates.
+//! other doors' gates. The revolve's axis clearance
+//! (`ClearanceDecision`) and the tube (`TubeDecision`) are closed the
+//! same way, so their names come from their types, not from a list.
 //!
 //! The crate decides for five doors, and only the blend's own gates
 //! escalate onto `BlendError`; the rest reach the caller through their
@@ -37,6 +39,7 @@
 use geom_core::{Band, Indeterminate, MarginDiag, MissingRecourse, Tol};
 use std::collections::BTreeSet;
 use sweep::blend::{BlendDecision, BlendError, BlendSite};
+use sweep::{ClearanceDecision, TubeDecision};
 use test_utils::source::{NameCarrier, PredicateCensus, predicate_census};
 
 /// The carriers that hand a name to the funnel from somewhere other
@@ -68,6 +71,16 @@ const INDIRECT: &[(&str, &str)] = &[
         "swept.rs: names.arcs",
         "a `CosurfaceNames` field — the arc half of the same table",
     ),
+    (
+        "revolve/axis.rs: name",
+        "the axis clearance's funnel, naming the closed `ClearanceDecision` it takes — its \
+         names are `ClearanceDecision::ALL`'s",
+    ),
+    (
+        "revolve/tube.rs: name",
+        "the tube's funnel, naming the closed `TubeDecision` it takes — its names are \
+         `TubeDecision::ALL`'s",
+    ),
 ];
 
 /// Every name decided outside the blend, and the door that reports it.
@@ -77,12 +90,6 @@ const INDIRECT: &[(&str, &str)] = &[
 /// door's own error and rendered there, so `BlendError` is not on the
 /// escalation's path.
 const OTHER_DOORS: &[(&str, &str)] = &[
-    ("axis_arc_apex", AXIS),
-    ("axis_arc_center", AXIS),
-    ("axis_arc_clearance", AXIS),
-    ("axis_arc_span", AXIS),
-    ("axis_line_axial", AXIS),
-    ("axis_line_radial", AXIS),
     ("axis_vertex_radius", AXIS),
     ("revolve_axis_direction", AXIS),
     ("revolve_angle", REVOLVE),
@@ -91,11 +98,6 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("extrusion_obliquity", EXTRUDE),
     ("loft_stacking", LOFT),
     ("cap_plane_orientation", CAP),
-    ("tube_wall", TUBE),
-    ("tube_wall_bore", TUBE),
-    ("tube_wall_gap", TUBE),
-    ("tube_window_headroom", TUBE),
-    ("tube_window_span", TUBE),
     ("side_cylinders_cosurface", COSURFACE),
     ("side_planes_cosurface", COSURFACE),
     ("wall_arcs_cosurface", COSURFACE),
@@ -109,9 +111,6 @@ const EXTRUDE: &str = "the extrusion direction's classifications, typed on `Extr
 const LOFT: &str = "the loft's section stacking, typed on `LoftError`";
 const CAP: &str = "the swept caps' orientation, decided once for every verb with planar caps; \
                    the escalation is typed as `CapPlaneError` inside that verb's `CapPlane`";
-const TUBE: &str = "the tube door's window and wall classifications, typed on `TubeError` — \
-                    whose Display names which of the two tube doors a wall escalation came \
-                    from";
 const COSURFACE: &str = "the swept traversal's cosurface decision, one row name per calling \
                          verb; the escalation is typed on that verb's error";
 
@@ -227,16 +226,16 @@ fn rendered(decision: BlendDecision, name: Option<&'static str>) -> String {
 /// listed doors' gates, and nothing else.**
 ///
 /// The blend's names reach the funnel only through
-/// `BlendDecision::predicate`, so none may appear at a decide site as a
-/// literal: one that did would be a blend gate metered outside the
-/// closed type. Every other name is listed with its door, and a listed
+/// `BlendDecision::predicate`, and the clearance's and the tube's
+/// through theirs, so none may appear at a decide site as a literal:
+/// one that did would be a gate metered outside its closed type. Every other name is listed with its door, and a listed
 /// name nothing decides is a stale entry. The blend's names are
 /// distinct, since two decisions under one name would fuse two K rows.
 #[test]
 fn the_decided_names_are_the_blend_decisions_and_the_listed_doors() {
     let census = census();
     assert!(
-        census.names.contains("tube_wall"),
+        census.names.contains("loft_stacking"),
         "the reader found no funnel calls it should have: {:?}",
         census.names
     );
@@ -263,11 +262,28 @@ fn the_decided_names_are_the_blend_decisions_and_the_listed_doors() {
             "`{name}` is listed as another door's and is a blend decision's name"
         );
     }
+    // The revolve clearance and the tube decide through closed types as
+    // the blend does, so their names are the types' and never a literal's.
+    let closed: BTreeSet<&str> = ClearanceDecision::ALL
+        .iter()
+        .map(|d| d.predicate())
+        .chain(TubeDecision::ALL.iter().map(|d| d.predicate()))
+        .collect();
+    assert_eq!(
+        closed.len(),
+        ClearanceDecision::ALL.len() + TubeDecision::ALL.len(),
+        "two closed decisions share a k_stats name"
+    );
     for name in &census.names {
         assert!(
             !blend.contains(name.as_str()),
             "`{name}` is a blend decision's name decided at a literal site, outside the \
              blend's funnel"
+        );
+        assert!(
+            !closed.contains(name.as_str()),
+            "`{name}` is a closed decision's name decided at a literal site, outside its \
+             door's funnel"
         );
         assert!(
             listed.contains(name.as_str()),
@@ -422,7 +438,8 @@ fn an_in_band_reading_is_offered_the_tolerance_exactly_where_its_sign_passes() {
 /// neither reads as an unreadable margin. The ending is pinned whole,
 /// and its offer followed: below the offered tolerance the same
 /// tangent junction passes. An offer at or below `EPS_MIN` is withheld
-/// (D4 ¶4), as the decided zero's is at CI's 1e-12 row.
+/// (D4 ¶4), as the decided zero's is at CI's 1e-12 row, and the floor's
+/// sentence ends the refusal there.
 #[test]
 fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
     use sweep::blend::battery::chain_g1;
@@ -449,24 +466,22 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
             !text.contains(geom_core::UNREADABLE_MARGIN_NOTE),
             "{what}: a short link is the caller's geometry: {text}"
         );
+        let ending = geom_core::MarginDiag::value(arm).sized_recourse(
+            b,
+            geom_core::SizedWords {
+                lever: sweep::blend::FILLET3_CHAIN_RECOURSE,
+                size: "link length",
+                passes: geom_core::SizedPass::Positive,
+                no_size: None,
+                unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+            },
+        );
+        assert!(text.ends_with(&ending), "{what}: {text}");
+        // Follow the offer, where there is one: below it the junction
+        // passes.
         let Some(offered) = b.offer_deciding(arm) else {
-            assert!(
-                text.ends_with(&format!(
-                    "Recourse: {}",
-                    sweep::blend::FILLET3_CHAIN_RECOURSE
-                )),
-                "{what}: no offer quotes a tolerance at or below EPS_MIN: {text}"
-            );
             continue;
         };
-        assert!(
-            text.ends_with(&format!(
-                "Recourse: {}, or, if this link length is intended, tighten the tolerance \
-                 below {offered:e} m",
-                sweep::blend::FILLET3_CHAIN_RECOURSE,
-            )),
-            "{what}: {text}"
-        );
         let tighter = Band::new(offered / 2.0, offered / 2.0 * k).expect("a tighter band");
         chain_g1(x, x, arm, v, tighter)
             .unwrap_or_else(|e| panic!("{what}: below the offer the junction passes: {e}"));

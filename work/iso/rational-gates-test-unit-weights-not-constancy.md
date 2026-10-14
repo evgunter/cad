@@ -65,6 +65,6 @@ Correct constancy tests to copy: `pcurve_cache.rs` `constant_weights`,
 
 `nurbs/one-rational-speed-bound` routes `offset_derive.rs`'s spline
 speed through `NurbsCurve3::speed_upper_bound`, which bounds any
-positive-weight net (the pair-term bound), so `plane_spline_root` and
+positive-weight net (now the quotient bound, PR 4954), so `plane_spline_root` and
 the level-row section no longer refuse a rational or constant-weight
 carrier. That bullet above is closed by it.

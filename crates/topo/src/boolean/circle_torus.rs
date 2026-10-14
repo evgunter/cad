@@ -135,7 +135,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{
     CircleRoots, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
-    TrigPoly, constant_residual_roots, half_angle_roots, rounding_charge,
+    TrigPoly, constant_residual_roots, half_angle_roots, rounding_charge, span_signs,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -526,25 +526,10 @@ fn parallel_axes_roots<T: Decide>(
     let two = T::from_f64(2.0);
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let depth = (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius);
-    match decide(
-        "bool_circle_torus_plane_height",
-        Margin::of(depth - charge_h),
-        band,
-    )? {
-        Sign::Positive => {}
+    match span_signs("bool_circle_torus_plane_height", depth, charge_h, band)? {
+        (Sign::Positive, _) => {}
         // Definitely past the top or bottom of the tube, even charged.
-        Sign::Negative
-            if matches!(
-                decide(
-                    "bool_circle_torus_plane_height",
-                    Margin::of(depth + charge_h),
-                    band
-                )?,
-                Sign::Negative
-            ) =>
-        {
-            return Ok(CircleRoots::Miss);
-        }
+        (_, Sign::Negative) => return Ok(CircleRoots::Miss),
         _ => return Ok(CircleRoots::Uncertain),
     }
     let rho_max = radius + offset;
@@ -564,21 +549,10 @@ fn parallel_axes_roots<T: Decide>(
             torus,
             center + u_ref * (radius * c) + v_ref * (radius * s),
         );
-        let inside = decide(
-            "bool_circle_torus_contour_residual",
-            Margin::of(res + charge),
-            band,
-        )?;
-        if inside == Sign::Negative {
-            return Ok(Some(Band3::Tube));
-        }
-        let outside = decide(
-            "bool_circle_torus_contour_residual",
-            Margin::of(res - charge),
-            band,
-        )?;
-        if outside != Sign::Positive {
-            return Ok(None);
+        match span_signs("bool_circle_torus_contour_residual", res, charge, band)? {
+            (_, Sign::Negative) => return Ok(Some(Band3::Tube)),
+            (Sign::Positive, _) => {}
+            _ => return Ok(None),
         }
         Ok(
             match decide(
@@ -644,6 +618,12 @@ fn parallel_axes_roots<T: Decide>(
             Ok(Sign::Zero | Sign::Negative) => {}
             Err(_) => return Ok(CircleRoots::Uncertain),
         }
+        // Each root on the branch of the span's middle: sound at every
+        // scalar by `ring_path::branch`'s window re-centring argument.
+        // The one reader, `boolean::reduce`'s wall crossing, decides a
+        // root at either end of a closed edge's whole-turn span alike
+        // (`at_end`), and reads it only against the span's ends, never as
+        // an identity.
         for theta in [theta0 + spread, theta0 - spread] {
             thetas[count] = mid + (theta - mid).reduce_periodic_centred(T::tau());
             count += 1;

@@ -18,20 +18,20 @@
 //! 1-Lipschitz; and, where the piece keeps clear of the carrier's medial
 //! axis, the second-order `|dist(m)| − ℓ·|g| − ℓ²·H/2`, `g` the
 //! distance's derivative along the curve at `m` and `H` a bound on its
-//! second: `1/(κ − |dist(m)| − ℓ)` for the carrier's level sets (κ
+//! second: `1/(ρ − |dist(m)| − ℓ)` for the carrier's level sets (ρ
 //! below), plus the curve's own curvature. Near a tangency the first
 //! clears nothing finer than the band, the second clears pieces in
 //! proportion to their distance from the touch. The pieces that do not
-//! clear, bisected down to a floor of `√(κ·escalate)/8`, run together
+//! clear, bisected down to [`crate::bisect::tangency_floor`] of ρ, run together
 //! into clusters. A cluster reaching `ℓ` about `m` meets the carrier, if
 //! at all, within `ℓ + |dist(m)|` of `m`'s foot on the carrier, and that
 //! radius, widened by `escalate`, is its ball's.
 //!
 //! # Reading a ball against the face
 //!
-//! κ is the carrier's reach — the distance from it to its medial axis:
+//! ρ is the carrier's reach — the distance from it to its medial axis:
 //! a sphere's or a cylinder's radius, a ring torus's `min(r, R − r)`. A
-//! ball about a point of the carrier with radius below κ meets the
+//! ball about a point of the carrier with radius below ρ meets the
 //! carrier in one disc. With no vertex or edge of the face inside the
 //! ball, the face holds all of that disc or none of it, and the foot,
 //! placed `Out` of the face by its door
@@ -42,29 +42,17 @@
 //! A carrier with no closed-form distance and foot (a cone, a spline)
 //! and a curve with no speed bound localize nothing, and the door stays.
 
-use geom_brep::implicit::Conic;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
 use super::BooleanError;
 use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment};
 use super::{BooleanDecision, reduce};
+use crate::bisect::Step;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::live::BoundaryMember;
 use crate::validate::decide;
-
-/// The most pieces a span is cut into before the localization gives up:
-/// a bound on the walk (D9), the same as the crossing layer's other
-/// bisections (`circle_roots::SUBDIVISION_BUDGET`,
-/// `splitting::spiric_arc::MAX_PIECES`). Away from a meeting the
-/// second-order bound clears a piece in proportion to its distance from
-/// it, so each level of the bisection keeps a few open pieces per
-/// meeting, down to the floor `log₂(span / floor)` levels below. The
-/// rows here (`pierce_tangent_off_face`) spend 70 to 150 pieces a
-/// meeting across ε 1e-6 to 1e-12, so [`CLUSTER_BUDGET`] meetings fit
-/// with room to spare.
-const PIECE_BUDGET: usize = 4096;
 
 /// The most clusters a span may localize into: the most meetings a span
 /// of these curves has with these carriers. A conic against a torus is
@@ -89,10 +77,10 @@ pub(super) fn off_face<T: Decide + Bounds>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let (Some(kappa), Some((speed, bend))) = (reach(surface), speed_bound(carrier)) else {
+    let (Some(rho), Some((speed, bend))) = (reach(surface), speed_bound(carrier)) else {
         return Ok(false);
     };
-    let Some(clusters) = clusters(surface, carrier, (speed, bend), kappa, (t0, t1), band) else {
+    let Some(clusters) = clusters(surface, carrier, (speed, bend), rho, (t0, t1), band) else {
         return Ok(false);
     };
     let half = T::from_f64(0.5);
@@ -101,15 +89,17 @@ pub(super) fn off_face<T: Decide + Bounds>(
         let Some((dist, foot, _)) = distance(surface, m) else {
             return Ok(false);
         };
-        let radius = speed * (b - a).abs() * half + dist.abs() + T::from_f64(band.escalate());
-        if !ball_off_face(y, face, foot, radius, kappa, band)? {
+        let radius = crate::bisect::reach(SupSpeed::new(speed), (a, b))
+            + dist.abs()
+            + T::from_f64(band.escalate());
+        if !ball_off_face(y, face, foot, radius, rho, band)? {
             return Ok(false);
         }
     }
     Ok(true)
 }
 
-/// The carrier's reach, κ in the module docs; `None` for a kind with no
+/// The carrier's reach, ρ in the module docs; `None` for a kind with no
 /// distance here.
 fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
     match *surface {
@@ -129,14 +119,14 @@ fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
 }
 
 /// Bounds on the curve's speed, metres per unit of its parameter
-/// ([`crate::carrier_speed::speed_hi`]), and on its curvature, a conic's
-/// from [`Conic`].
-fn speed_bound<T: Real>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
-    let speed = crate::carrier_speed::speed_hi(carrier)?;
-    match *carrier {
-        geom::Curve3::Line { .. } => Some((speed, T::zero())),
-        _ => Conic::of(carrier).map(|c| (speed, c.curvature_hi())),
-    }
+/// ([`crate::carrier_speed::speed_hi`]), and on its curvature
+/// ([`crate::carrier_speed::curvature_hi`]); `None` past the speed's
+/// kinds (a spiric, a spline).
+fn speed_bound<T: Decide>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
+    Some((
+        crate::carrier_speed::speed_hi(carrier)?,
+        crate::carrier_speed::curvature_hi(carrier)?,
+    ))
 }
 
 /// A point's signed distance from the carrier, its foot on it, and the
@@ -194,42 +184,38 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
     }
 }
 
+/// A localization that stopped with no clusters to answer: a piece
+/// with no distance, or more clusters than [`CLUSTER_BUDGET`].
+struct Unlocalized;
+
 /// The parameter runs of the span that may meet the carrier, in order
 /// (module docs); `None` past the budgets.
 fn clusters<T: Decide + Bounds>(
     surface: &geom::Surface<T>,
     carrier: &geom::Curve3<T>,
     (speed, bend): (T, T),
-    kappa: T,
+    rho: T,
     (t0, t1): (T, T),
     band: Band,
 ) -> Option<Vec<(T, T)>> {
-    // A curve tangent to the carrier stays within `escalate` of it over
-    // a half-length of about `√(2κ·escalate)`, and no bound clears a
-    // piece in there, so cutting finer only multiplies pieces. The floor
-    // keeps a cluster's pieces an eighth of that, so a cluster's
-    // half-length adds little to the ball it reads.
-    let floor = (kappa * T::from_f64(band.escalate())).sqrt().hi() / 8.0;
-    let half = T::from_f64(0.5);
+    // The carrier's reach is the radius its level sets part from a
+    // tangent curve over (module docs).
+    let floor = crate::bisect::tangency_floor(rho, band.escalate()).hi();
     let mut out: Vec<(T, T)> = Vec::new();
     // Whether a cleared piece came after the last open one: the next open
     // piece starts a cluster.
     let mut broken = true;
-    // Depth first, left before right, so the pieces leave in order.
-    let mut stack = vec![(t0, t1)];
-    let mut cut = 0;
-    while let Some((a, b)) = stack.pop() {
-        cut += 1;
-        if cut > PIECE_BUDGET {
-            return None;
-        }
+    let half = T::from_f64(0.5);
+    let walk = crate::bisect::bisect([(t0, t1)], |(a, b)| {
         let mid = (a + b) * half;
-        let ell = speed * (b - a).abs() * half;
-        let (dist, _, normal) = distance(surface, carrier.eval(mid))?;
+        let ell = crate::bisect::reach(SupSpeed::new(speed), (a, b));
+        let Some((dist, _, normal)) = distance(surface, carrier.eval(mid)) else {
+            return Step::Stop(Unlocalized);
+        };
         let tangent = carrier.deriv(mid);
         let slope = (normal.dot(tangent) / tangent.norm()).abs();
         let lipschitz = dist.abs() - ell;
-        let axis_gap = kappa - dist.abs() - ell;
+        let axis_gap = rho - dist.abs() - ell;
         let bound = if let Ok(Sign::Positive) =
             decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band)
         {
@@ -240,25 +226,27 @@ fn clusters<T: Decide + Bounds>(
         };
         if let Ok(Sign::Positive) = decide("bool_touch_piece_clear", Margin::of(bound), band) {
             broken = true;
-            continue;
+            return Step::Settled;
         }
         if ell.hi() > floor {
-            stack.push((mid, b));
-            stack.push((a, mid));
-            continue;
+            return Step::Halve([(a, mid), (mid, b)]);
         }
         match out.last_mut() {
             Some(last) if !broken => last.1 = b,
             _ => {
                 if out.len() == CLUSTER_BUDGET {
-                    return None;
+                    return Step::Stop(Unlocalized);
                 }
                 out.push((a, b));
             }
         }
         broken = false;
+        Step::Settled
+    });
+    match walk {
+        Ok(None) => Some(out),
+        Ok(Some(Unlocalized)) | Err(_) => None,
     }
-    Some(out)
 }
 
 /// Whether the ball of `radius` about `foot`, on the carrier, holds no
@@ -274,11 +262,11 @@ fn ball_off_face<T: Decide + Bounds>(
     face: FaceKey,
     foot: Point3<T>,
     radius: T,
-    kappa: T,
+    rho: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
     if !matches!(
-        decide("bool_touch_ball_in_reach", Margin::of(kappa - radius), band),
+        decide("bool_touch_ball_in_reach", Margin::of(rho - radius), band),
         Ok(Sign::Positive)
     ) {
         return Ok(false);

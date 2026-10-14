@@ -68,3 +68,24 @@ Waits on `intent-stage3-is-built`, not on the whole program: the fix site is box
 ## Re-homed at TOPO's cut (2026-10-11)
 
 Moved from TOPO to TOPOTAIL when TOPO dropped to P2 and split on its priority seam (`work/topotail/log.md`). TOPO kept the Euler surgery doors; this row is a torn-record, refusal-recourse or code-hygiene row, or a parked boolean or placement row.
+
+## The rotation half, answered by SYM-17 (2026-10-12)
+
+The question above, "should an enclosure of a family of rigid maps pass
+the rigidity door?", is Ev's ruling on SYM-17
+(`work/sym/a-widened-rotation-angle-refuses-on-the-plain-interval-lane.md`,
+"Question, and Ev's answer"), built by SYM-17's Phase 2 (PR #4197):
+`topo::transform_rigid` takes a `geom_core::RigidMotion` and decides
+nothing about rigidity. A `Transform` step and a stepped pattern mint
+their motion by construction, so a boxed angle there no longer refuses
+`NotRigid`. A raw map (a literal frame, a STEP placement, a pose the
+mate solve composed) goes through `RigidMotion::check_rigid`, which is
+today's predicate and now returns an in-band margin as `Undecided`.
+
+What is left here:
+- the tilted mate frame: the mate solve's poses are still `Affine3`
+  and are decided at the door where they move a body, until the mate
+  side is typed (INTENT's
+  `the-mate-solve-s-representatives-and-inverses-mint-the-rigid-motion`);
+- the boxed translation's endpoint refusal, which is SHELF's
+  `transform-rigid-recertifies-images-enclosed-apart`.

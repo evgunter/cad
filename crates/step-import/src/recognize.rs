@@ -28,7 +28,7 @@
 //!   between-samples envelope ([`enveloped_residual_sup`]): a
 //!   [`geom_brep::CERT_SAMPLES`]² grid per knot-span cell, and the
 //!   grid sup widened by `L·(Du·δu + Dv·δv)` from the whole-patch
-//!   pair-term stretch bounds ([`geom::NurbsSurface::stretch_sup`]) and the
+//!   quotient stretch bounds ([`geom::NurbsSurface::stretch_sup`]) and the
 //!   residual's own Lipschitz constant. Fixed, never data-dependent
 //!   (D9). The envelope's slack is patch-scale over the sample count,
 //!   so it honestly REFUSES curved-kind certification at fine ε even

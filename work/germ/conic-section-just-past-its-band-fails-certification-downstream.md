@@ -200,3 +200,59 @@ this row's "what closes it" in two:
   `the-section-table-admits-a-curve-on-its-resolution`: the far-centre
   term it would refuse is removed by deriving the centre. The
   chart-image half stays this row's (PCERT's fixes).
+
+## Note from PCERT (2026-10-13)
+
+`focal-section-vertex-azimuth-is-read-off-a-cancelling-sum` is fixed
+(`pcert/focal-section-vertex-azimuth`): `chart_pcurve` reads the cone
+image's vertex azimuth off the major axis, and the skew-pose whole-turn
+miss drops 10–1000× to `u·A/k`. That narrows the chart-image half and
+does not close it: at unit scale, ε = 1e-9, the skew-pose cone still
+refuses at the image from about `k < 5e-3` (`β`'s own conditioning,
+`u·A/k`), and `α = 1.55` still misses by 8.8e-7 at `f = 0.9999`
+(`focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor`).
+The span envelope (`focal-section-envelope-bounds-the-whole-ellipse-not-the-span`)
+is untouched.
+
+
+## Second note from PCERT (2026-10-13)
+
+`cone-section-interval-mint-escalates-on-a-beta-enclosure-of-u-over-k-levered-near-a-parabola`
+is fixed (`pcert/cone-section-interval-beta`): the cone arm reads
+`√(1 − ecc²)` as the projection's axis ratio `|rb|/|ra|`, which also
+removes `β`'s `u/k` at `f64`. So "`β`'s own conditioning" above no longer
+limits the image. `conic_past_band_probe` (`FAMILY=cone ROT=1
+NO_SPLIT=1 SCALES=1`, ε = 1e-9), whole-turn miss before → after:
+
+| α | f | k | before | after |
+|---|---|---|---|---|
+| 0.2 | 0.999999 | 3.8e-3 | 1.7e-9, escalates | 1.7e-10, certifies |
+| 0.2 | 0.9999999 | 1.2e-3 | 5.6e-8, refuses | 1.4e-9, certifies |
+| atan ½ | 0.999999 | 2.4e-3 | 1.4e-8, refuses | 3.3e-10, certifies |
+| atan ½ | 0.9999999 | 7.4e-4 | 9.9e-8, escalates | 2.4e-9, escalates |
+| 1.0 | 0.99999 | 5.0e-3 | 4.2e-9, escalates | 8.7e-11, certifies |
+| 1.0 | 0.999999 | 1.6e-3 | 4.3e-8, refuses | 7.6e-10, certifies |
+| 1.3 | 0.9999 | 1.5e-2 | 1.0e-9, escalates | 2.5e-11, certifies |
+| 1.3 | 0.99999 | 4.6e-3 | 8.2e-9, escalates | 1.7e-10, certifies |
+| 1.55 | 0.999 | 4.5e-2 | 3.6e-8, escalates | 2.4e-9, escalates |
+| 1.55 | 0.9999 | 1.4e-2 | 8.8e-7, refuses | 3.1e-8, refuses |
+
+What remains at unit scale is `k` below about 1e-3 (`u·A/k` with `β`
+now at rounding) and the flat cone
+(`focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor`).
+The carrier's own rounding, `u·A`, sits at the band there: the same
+`α`, `f` and scale in `pcurve_cone_section.rs`'s `skew_section` pose
+(another rotation) is refused before any image, at chart incidence
+(enclosure `[0, 1.9e-9]`). That is this row's carrier half.
+
+## Third note from PCERT (2026-10-14)
+
+The span envelope (`focal-section-envelope-bounds-the-whole-ellipse-not-the-span`)
+is closed as overtaken by PRs 4960 and 5004 (closed in PR 5050). No pose of
+this row's cone sweep refuses at the envelope now: at the item's
+`f = 0.999999` the consumed arcs miss by 1.0e-10 and certify (envelope
+1.2e-10), where the whole-turn miss was 1.1e-8. The refusals left are the
+Euler gate's `EndpointStart` on the carrier (this row's carrier half) and a
+`MapResidual` sample of the consumed arc itself, which no span bound
+reaches.
+

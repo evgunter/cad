@@ -1,7 +1,7 @@
 ---
 id: a-concave-fill-and-a-whole-shell-inside-a-bands-region
 kind: issue
-title: blend: what the bore ruling's concave half and a whole shell inside a band's region do — a hole whose mouth a fill seals, a protrusion standing in the fill, a void or island wholly inside
+title: blend: what a band does with the solid's other features in and around its region — the rule (Boolean semantics), what is built, what refuses and with what recourse
 status: open
 opened: 2026-10-13
 priority: P2
@@ -25,72 +25,78 @@ crossing it still refuses."
 On the concave side the band adds material in a region F that is air in
 the source. Three shapes meet F, and one shape meets both sides.
 
-## The questions
+## The question
 
-**S. A hole whose mouth the fill seals.** A cycle on the end face, wholly
-inside the concave sliver, is the mouth of a hole running into the
-material behind that face: blind, or through to a face the fill does not
-cover. None of the hole lies in F; it touches F only at its mouth.
-- **S1** refuse it.
-- **S2** seal it: the mouth becomes a plug face, a through-hole turns
-  blind, a blind hole becomes a closed void.
-
-**P. The blended solid's own protrusions standing in F.** A bar between
-the two end walls through the concave corner, a pin out of an end wall,
-a boss on the floor beside the wall. Each is wholly inside the material
-the fill adds. With its convex mirrors (the through-bore built in step 3,
-a blind bore, a dimple in a support's removed strip), these form one
-class: a feature of the blended solid lying wholly inside the band's
-region and attached only by cycles on the faces bounding that region.
-The class varies by side (convex hole, concave protrusion), host face
-(cap, support) and cycle count (two: through; one: blind).
-
-**I. A closed shell wholly inside the region.** A void of the blended
-solid inside the material a convex band removes, or an island (a second
-solid of the same body) inside the material a concave band fills.
-The void is the ruling's convex side ("goes with that material") and
-is owed, not open; it refuses `WhollyInside` today only because the
-shell-removal door is unbuilt. What is open is the island, whose
-absorption joins two solids, and the door's shape:
-- **I1** the island goes too, through one shell-removal door in `topo`
-  beside `insert_void` that serves both.
-- **I2** the void goes; an island refuses.
-
-A blend's operand is always one part: `body_operand`
-(`crates/editor-core/src/eval/wire.rs`) refuses a value of several parts
-as `ProductOperand` before the kernel runs, and every op but the placers
-and `Part` counts one part (`eval/mod.rs`, `NodeValue::parts`). So an
-island in a blend's operand was put there by that part's own recipe (a
-union the author wrote, or a lump a subtract left in a cavity), and
-absorbing it is the union the author already wrote.
+What does a fillet or chamfer do with the solid's other features in and
+around the material its band removes (convex, region `R`) or adds
+(concave, region `F`): features wholly inside the region, a hole whose
+mouth a fill covers, a closed void or island inside it, and a feature
+that crosses the band surface? Ev asked for one simple rule instead of
+case-by-case readings ("probably treating it exactly like a boolean,
+and maybe also having a lint"), and tied that choice to what happens
+to a crossing feature and to how convenient the refusal's recourse is.
 
 ## Recommended
 
-- **S1**, refused as a decided verdict at the mouth cycle, naming the
-  hole's mouth and the face the fill would seal, with the recourse
-  "blend before drilling it, or remove or move the hole". Today it
-  refuses as a bound at the hole's wall, which tells the user the kernel
-  could not measure when it did. S1 departs from the Boolean analogy
-  the ruling leans on (a union covering a hole's mouth seals it); it
-  rests on fail-loud, not on the ruling's letter. S2 would turn a through-hole blind or a
-  blind hole into a hidden void with no name vanishing (so neither N5 nor
-  the consumption lint sees it), would make the blend a fourth birthplace
-  of cavities against `docs/DESIGN.md`'s void-insertion convention, and
-  its convex mirror (a boss whose foot the cut-off removes, left
-  floating) shows that "close what it touched" is not "goes with the
-  material".
-- **P built** as the ruling applied, in this order: the concave bar
-  (step 3's carve with the material side flipped, every meter already
-  built); then the one-cycle members (a blind bore, a pin, a floor boss,
-  a dimple), which need a reading that a feature's floor lies inside and
-  a three-way reading of a cycle against a support's strip; then I.
-- **I1**, with a side rule: the removal takes a void shell under a
-  convex band and an outer shell under a concave fill, never the
-  reverse. A free solid's outer shell inside the region a convex band
-  removes is not the blended solid's material: it survives, floating in
-  the cavity the band opens. An absorbed island's own cavities become
-  the blended solid's voids; a removed void's islands become solids of
-  their own (the piece sort's rule).
+**The rule: Boolean semantics is the blend's definition.** A convex
+band's result is `S − R` and a concave band's `S ∪ F`, where the region
+is the material between the band surface and its supports' strips over
+the band's extent, cut off at its end faces (`blend/reach.rs`'s region),
+read from the supports' carriers and never from the features near it.
+Every case follows by set algebra:
 
-Two designers (fork-log row 130) agreed on S from their first reports
-and on P and I after two rounds; their first reports crossed on I.
+| Case | Convex band (`S − R`) | Concave band (`S ∪ F`) |
+|---|---|---|
+| A feature wholly inside, attached by cycles on the faces bounding the region | goes (the through-bore is built: steps 1–4) | a protrusion is absorbed |
+| A closed shell wholly inside | a void goes; a free solid inside `R` goes with it | an island is absorbed; its voids become the solid's |
+| A hole whose mouth lies wholly on the face the fill covers | — | sealed: a through-hole turns blind, a blind hole becomes a void |
+| A feature crossing the band surface | refuses as unbuilt | refuses as unbuilt |
+
+**A crossing refuses as an unbuilt case, not as an exception to the
+rule.** The result is defined; the kernel does not build it yet, as
+the Boolean itself refuses the surface pairs it does not serve. The
+refusal names the face and, where it exists, the reorder: in the API
+`fillet(subtract(body, hole))` becomes `subtract(fillet(body), hole)`.
+Two facts bound that recourse:
+- A selection written on the feature's output names the feature's node
+  (`From { read, of }`, N1 in `crates/editor-core/src/names/README.md`),
+  so after the reorder the fillet's edges are re-queried on `body`, or
+  unwrapped to their `of`. An edge the feature split has no one-to-one
+  counterpart upstream; re-querying picks the whole parent edge.
+- A reorder reaches the same body only for a feature of the band's own
+  sign (a hole under a convex band, a protrusion under a fill). For the
+  opposite sign (a boss under a convex band, a hole under a fill) it
+  gives the other body, which is how a user chooses it. Where the
+  obstacle and the filleted edge come from one node (a hole in an
+  extruded profile) there is no reorder; the profile is rewritten.
+
+**Built by surgery, as today.** The band and its supports stay in-place
+surgery. Every non-crossing case is built by the blend's own carve, the
+seal and the shell removal sharing `topo::insert_void`'s bookkeeping, so
+every cavity keeps one home (`docs/DESIGN.md`'s void-insertion
+convention gains the blend as a producer). The blend is not run as a
+literal Boolean against a body for its region: that tool is cusp-edged
+along both trimlines, whose Boolean arm is unbuilt, and most
+band × feature surface pairs are outside the intersection table (C5).
+When the crossing case is built, it is the hybrid: the surgery keeps
+the band and its tangency to the supports, and the Boolean's
+intersection machinery cuts only the band face against the faces that
+cross it, once those surface pairs are served.
+
+**A lint, for every operation.** An advisory check that never gates
+reports when any node makes a feature vanish or changes its type that
+the node was not asked to change: a hole sealed or made blind, a void
+removed, a solid absorbed or removed. It reads the naming record and
+the body's counts, so a union that seals a hole reports the same way
+as a fillet that does.
+
+**Order.** (1) Write the rule into C8 and `crates/sweep/README.md`, and
+re-word the crossing refusal's recourse to the reorder (and to what is
+true where none exists). (2) The concave bar. (3) The one-cycle members:
+blind bore, pin, boss, dimple. (4) Whole shells and the seal, sharing
+`insert_void`'s bookkeeping. The lint and an editor reorder action
+(re-point plus the selection unwrap, one action) run beside any step;
+the crossing arm waits on the intersection table.
+
+Two designers (fork-log row 138) recommended this from their first
+reports; it replaces row 137's case-by-case recommendation.

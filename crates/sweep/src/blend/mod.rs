@@ -113,7 +113,9 @@
 //! where the two bands' feet on the third edge are one point
 //! ([`CornerConfig::Turn`], [`RunOutPolicy::Mitre`]): the bands meet
 //! along their intersection, a line for a chamfer and a planar ellipse
-//! for a fillet, down to the third edge; one, the
+//! for a fillet, down to the third edge, and where the feet stand
+//! clearly apart the far band runs past the mitre, cut off by the near
+//! band's face of the third edge (the overrun); one, the
 //! CUT-OFF in the end face's plane section of the band
 //! ([`CornerConfig::EndFace`], [`RunOutPolicy::CutOffAtEndFace`]): a
 //! chord at any angle for a chamfer, and for a fillet a circle at a
@@ -132,9 +134,7 @@
 //! whose configuration is the supported one but whose shape the cut-off
 //! does not build — a curved end face, a foot off its rim's span
 //! (landing inside a support), two band ends' feet crossing on the one
-//! rim they share, a turn whose bands' feet on its third edge stand
-//! apart (the overrun) — is a
-//! **run-out**, and refuses as
+//! rim they share — is a **run-out**, and refuses as
 //! [`BlendError::UnsupportedRunOut`] before any mutation.
 
 mod admit;
@@ -525,7 +525,7 @@ impl BlendDecision {
                 size,
                 passes,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }
             .recourse(arm, Reading::Build),
             None => LeverOnly { lever }.recourse(arm, Reading::Build),
@@ -785,8 +785,9 @@ pub enum RunOutPolicy {
     /// [`CornerConfig::Turn`]: the end where two edges of the vertex
     /// are requested. Built where the two bands' feet on the third edge
     /// are one point, the mitre running down to it and the third edge
-    /// ending there; a turn whose feet stand apart overruns, and is not
-    /// built.
+    /// ending there; where the feet stand apart the far band runs past
+    /// the mitre, cut off by the near band's face of the third edge
+    /// down to its own foot (the overrun).
     Mitre,
 }
 
@@ -888,8 +889,8 @@ pub enum CornerConfig {
     /// ([`RunOutPolicy::Mitre`]). IN SCOPE for both verbs on either
     /// side where the two bands' feet on the third edge are decided one
     /// point (`fillet3_turn_feet_gap` and `fillet3_turn_overrun_chord`
-    /// both Zero); a turn whose feet stand clearly apart overruns, and
-    /// refuses as a run-out. A configuration tag, as [`Self::EndFace`] is: no
+    /// both Zero), and overruns past the mitre where they stand clearly
+    /// apart. A configuration tag, as [`Self::EndFace`] is: no
     /// refusal carries it, and C8 names it beside the policy it takes.
     Turn,
     /// A vertex reached with an in-band or poisoned configuration
@@ -1091,8 +1092,9 @@ pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected chain that is tange
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
 /// The recourse for an end no band builds — it names the ends that DO
-/// carve: all three edges, two meeting in the mitre where the vertex is
-/// symmetric about the third, and one alone. "Whatever is requested"
+/// carve: all three edges, two (meeting in the mitre where their feet
+/// on the third edge are one point, the far band overrunning it where
+/// they stand clearly apart), and one alone. "Whatever is requested"
 /// covers a vertex that mixes convexity: it ends no chain whether the
 /// request names one of its edges, two, or all three, because its
 /// configuration is read before the count. Its last clause, "in one
@@ -1111,8 +1113,8 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
 /// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of one convexity \
-     between planes, whatever is requested: all three edges, two symmetric about the third, or one \
-     cut off in a plane end face, in one call";
+     between planes, whatever is requested: all three edges, two whose feet on the third meet or \
+     stand clearly apart, or one cut off in a plane end face, in one call";
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third
@@ -1120,13 +1122,17 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of o
 /// point, clearly apart, or the corner patch, which the third edge
 /// requested alongside builds. A chamfer's foot stands `d / sin φ` down
 /// the third edge, so its feet also meet at supplementary face angles.
-/// Feet clearly apart are a way out for a chamfer alone, whose overrun
-/// builds; a fillet's refuses ([`battery::TURN_OVERRUN`]). Held to it by
+/// Feet clearly apart build the overrun, for either verb, except where a
+/// fillet's far band is cut off in an ellipse too near a circle: near a
+/// box corner, on the side whose far cut-off face is tilted off square,
+/// that ellipse stays in band out to a tilt of about `√(2e/r)`, which a
+/// larger setback barely moves, and its own recourse
+/// ([`FILLET3_CAP_ELLIPSE_RECOURSE`]) is the next step. Held to it by
 /// `blend_recourse_followability::the_turn_recourse_builds_at_each_end_it_names`.
 pub const FILLET3_TURN_RECOURSE: &str = "make the two bands' feet on the vertex's third edge meet \
-     (equal face angles beside that edge, or for a chamfer supplementary ones), for a chamfer move \
-     them clearly apart (a larger setback, or a more asymmetric corner), or request that edge too, \
-     which builds the corner patch";
+     (equal face angles beside that edge, or for a chamfer supplementary ones), move them clearly \
+     apart (a larger setback, or a more asymmetric corner, after which a round band's end ellipse \
+     may escalate with its own recourse), or request that edge too, which builds the corner patch";
 /// The lever of `fillet3_cap_transverse`: its in-band arm is the one
 /// refusal, between the two kinds it builds, so the way out is either
 /// kind, plainly.
@@ -1135,11 +1141,14 @@ pub const FILLET3_CAP_TILT_RECOURSE: &str = "square the end face to the edge, wh
 /// The lever of the cut-off's ellipse ([`BlendDecision::CapEllipse`]):
 /// the ellipse's semi-axes differ by `r·(sec θ − 1) ≈ r·θ²/2`, so the
 /// tilt that clears the band's upper edge `e` is about `√(2e/r)`
-/// radians, and a larger radius clears it at a smaller tilt.
+/// radians, and a larger radius clears it at a smaller tilt. At a
+/// turn's overrun the end face is the near band's face of the third
+/// edge, and squaring it may instead bring the two feet together, where
+/// the turn builds its mitre.
 pub const FILLET3_CAP_ELLIPSE_RECOURSE: &str = "tilt the end face further off square, until its \
      ellipse's semi-axes r and r·sec θ differ by more than the band's upper edge e (a tilt θ past \
      about √(2e/r) radians, which a larger radius lowers), or square it to the edge, where the \
-     band ends in a circle";
+     band ends in a circle (at a turn, where its feet may instead meet in the mitre)";
 /// The lever of `fillet3_corner_independence`, shared by its in-band
 /// arm and its decided-Zero one ([`CornerConfig::DependentNormals`]).
 ///
@@ -1277,7 +1286,7 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, f
      than before it";
 /// The recourse for a ring or edge in the part of a face the blend
 /// replaces — a support's strip between its edge and the trimline,
-/// or the corner a convex ruled cut-off removes from a cap (the
+/// or the corner a convex cut-off removes from a cap (the
 /// surgery's ring carry-through check). It names neither material
 /// side, because the check refuses on both
 /// ([`BlendError::RingClearance`]'s `chain` says which, and its
@@ -1345,6 +1354,23 @@ pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use plane, sphere, cylinder or co
 /// here.
 pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are both planes; the chamfer over a curved \
      support is not implemented";
+
+/// **How the body failed to hold together** where a
+/// [`BlendError::BodyNotIntact`] read it, rendered by kind so the
+/// refusal states only the cause its site met.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Breach {
+    /// The key does not resolve: the arena holds no live entity under it.
+    Unresolved,
+    /// A walk from the key — a loop's cycle, a vertex's orbit — did not
+    /// close over keys that resolve.
+    Unwalked,
+    /// The keys resolved and walk, but the structure they form disagrees
+    /// with the plan's or the verdict's reading of it: a cycle not flanked
+    /// by the feet the plan split, a link offered to a corner it does not
+    /// touch, a chain across two shells.
+    Disagrees,
+}
 
 /// The shared edge-blend refusal — both verbs' one error vocabulary,
 /// rendered verb-neutral (the door's [`BlendRefusal`] carries the
@@ -1653,8 +1679,7 @@ pub enum BlendError {
     /// configuration a band builds, but in a shape its end does not —
     /// a run-out: a curved end face, a foot off its rim's span (inside a
     /// face rather than on the end face's rim), two cut-offs' feet that
-    /// cross on one shared rim, a turn whose two bands' feet on its third
-    /// edge stand apart (the overrun past the mitre).
+    /// cross on one shared rim.
     ///
     /// This is deliberately *not* [`BlendError::UnsupportedCorner`],
     /// which is the OQ6 vocabulary for what a vertex's own
@@ -1680,9 +1705,10 @@ pub enum BlendError {
         detail: &'static str,
     },
     /// **The body handed to the surgery does not hold together where
-    /// the plan read it** (D2 addendum row 1): a stored reference that
-    /// did not resolve, a cycle that did not close, or a verdict whose
-    /// keys disagree with the body's own structure — among them a
+    /// the plan read it** (D2 addendum row 1), in one of the three ways
+    /// a [`Breach`] names: a stored reference that did not resolve, a
+    /// walk that did not close, or keys that disagree with the body's
+    /// own structure — among them a
     /// requested chain or corner bounded by faces of two shells, which
     /// tier 1 rules out (`EdgeAcrossShells`, one orbit per vertex).
     /// This is not a blend frontier and carries no recourse — the
@@ -1691,7 +1717,9 @@ pub enum BlendError {
     BodyNotIntact {
         /// The entity the plan was reading.
         at: EntityId,
-        /// What the plan was reading when the reference failed.
+        /// Which way the body failed to hold together at `at`.
+        breach: Breach,
+        /// What the plan was reading there.
         detail: &'static str,
     },
     /// **The operand is well-formed but not a closed solid at rest**:
@@ -1810,7 +1838,7 @@ pub enum BlendError {
     /// certified none of the three refuses as a bound. The feature goes
     /// with that material, as a feature wholly inside a Boolean's tool
     /// goes with the tool (C8). The carve takes a through-feature
-    /// between a convex ruled band's two caps (`blend::consume`); a
+    /// between a convex straight band's two caps (`blend::consume`); a
     /// request whose inside readings are anything else refuses.
     WhollyInside {
         /// The face wholly inside a band's reach, or the cycle of a
@@ -2037,11 +2065,21 @@ impl fmt::Display for BlendError {
             Self::UnsupportedGeometry { detail, .. } => {
                 write!(f, "{detail}. Recourse: {FILLET3_GEOMETRY_RECOURSE}")
             }
-            Self::BodyNotIntact { at, detail } => write!(
-                f,
-                "{detail} — {at} did not resolve, so the body is not intact there. There \
-                 is no way through"
-            ),
+            Self::BodyNotIntact { at, breach, detail } => {
+                let what = match breach {
+                    Breach::Unresolved => format!("{at} did not resolve"),
+                    Breach::Unwalked => format!("the walk from {at} did not close"),
+                    Breach::Disagrees => {
+                        format!(
+                            "{at} resolved, but its structure disagrees with the blend's reading"
+                        )
+                    }
+                };
+                write!(
+                    f,
+                    "{detail} — {what}, so the body is not intact there. There is no way through"
+                )
+            }
             Self::ScaffoldingOperand { .. } => {
                 write!(f, "the body {}", topo::Unfinished::SCAFFOLDING_REFUSAL)
             }
@@ -2148,11 +2186,11 @@ pub const ALL_RECOURSES: [(&str, &str); 22] = [
 #[allow(clippy::expect_used)]
 mod recourse_tests {
     use geom_core::{Band, BandError, Indeterminate, MarginDiag, Sign};
-    use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+    use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 
     use super::{
-        BlendDecision, BlendError, BlendSite, CHAMFER_ARM_RECOURSE, ClassifiedMargin, Convexity,
-        CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE,
+        BlendDecision, BlendError, BlendSite, Breach, CHAMFER_ARM_RECOURSE, ClassifiedMargin,
+        Convexity, CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_INSIDE_RECOURSE,
         FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE,
@@ -2309,8 +2347,8 @@ mod recourse_tests {
     /// A variant whose sentence is chosen by a payload field appears
     /// once per choice: `UnsupportedCorner` per recourse its TAG picks,
     /// `FaceClearanceUncertified` per `cross_chain`, `RingClearance` per
-    /// `chain`, and `Escalated` once per [`BlendDecision`], from the
-    /// closed set itself.
+    /// `chain`, `BodyNotIntact` per [`Breach`], and `Escalated` once per
+    /// [`BlendDecision`], from the closed set itself.
     fn seeds() -> Vec<BlendError> {
         let band = Band::new(1e-9, 1e-6).expect("a band");
         let decided = |predicate, m: f64, sign| ClassifiedMargin {
@@ -2415,7 +2453,18 @@ mod recourse_tests {
             },
             BlendError::BodyNotIntact {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),
+                breach: Breach::Unresolved,
                 detail: "a reference the plan followed",
+            },
+            BlendError::BodyNotIntact {
+                at: EntityId::Loop(LoopKey::default()),
+                breach: Breach::Unwalked,
+                detail: "a cycle the plan walked",
+            },
+            BlendError::BodyNotIntact {
+                at: EntityId::Vertex(VertexKey::default()),
+                breach: Breach::Disagrees,
+                detail: "a corner the verdict classified",
             },
             BlendError::ScaffoldingOperand { errors: Vec::new() },
             BlendError::InsideOutOperand { errors: Vec::new() },
@@ -2503,6 +2552,40 @@ mod recourse_tests {
                 "{corner} names policy {:?} but recourse {:?} — the two maps have drifted",
                 corner.policy(),
                 corner.recourse()
+            );
+        }
+    }
+
+    /// **`BodyNotIntact` states the cause its breach names, and no
+    /// other**: only an unresolved key is rendered as one that did not
+    /// resolve.
+    #[test]
+    fn body_not_intact_renders_each_breach_as_its_own_cause() {
+        let at = EntityId::Face(FaceKey::default());
+        let render = |breach| {
+            BlendError::BodyNotIntact {
+                at,
+                breach,
+                detail: "a support",
+            }
+            .to_string()
+        };
+        let tail = "so the body is not intact there. There is no way through";
+        for (breach, cause) in [
+            (Breach::Unresolved, format!("{at} did not resolve")),
+            (
+                Breach::Unwalked,
+                format!("the walk from {at} did not close"),
+            ),
+            (
+                Breach::Disagrees,
+                format!("{at} resolved, but its structure disagrees with the blend's reading"),
+            ),
+        ] {
+            assert_eq!(
+                render(breach),
+                format!("a support — {cause}, {tail}"),
+                "{breach:?}"
             );
         }
     }

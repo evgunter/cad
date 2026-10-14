@@ -5,7 +5,7 @@ title: transform_rigid maps a body's surfaces and its edge carriers separately, 
 status: open
 opened: 2026-10-02
 priority: P2
-refs: [SYM-15]
+refs: [SYM-15, SYM-17]
 cost: H
 design: true
 ---
@@ -58,6 +58,35 @@ chain item's "What Phase 1 found"):
   (`crates/geom-core/src/sym.rs:5295`) proves `‖w‖² − r² ≡ 0` (SYM-15's
   review, the same probe). A reading that asked the tier for `‖w‖`
   rather than its enclosure would have it.
+
+## The same loss one step earlier: the map's own rigidity (SYM-17)
+
+On `main` before SYM-17's Phase 2, the plain `Interval` lane never
+reached re-certification on the chain: `check_rigid` refused the map
+first, because it re-derived rigidity from the entries.
+- At σ = 0.01 rad, `c0·c1` encloses `±0.05999`, `±2·sin h` for the
+  angle box's half-width `h`. `c0·c0 − 1` encloses `[−1.8e-3, 9.0e-4]`.
+- The leaf certifies only below σ = 1.7e-10, at one link and at four
+  (`a-widened-rotation-angle-refuses-on-the-plain-interval-lane`, "What
+  Phase 1 found").
+
+**Transporting the certificate starts with the map**: over ℝ,
+`Mat3::rotation_about` is orthogonal with determinant +1 by
+construction.
+- Measured with the seven linear margins skipped (branch
+  `sym/17-probe`, `SYM17_SKIP_LINEAR`): the plain lane refuses at the
+  same first transform on this item's wall. `carrier_endpoint_start` on
+  `EdgeKey(1v1)` encloses `[0, 8.9988e-5]`, at one link and at four.
+- With the map's certificate alone, the one-link chain certifies at
+  σ = 5e-9 and the four-link chain at 5e-10.
+- So the map's certificate is this item's prerequisite, not a
+  co-lander: the map's rigidity has to be carried before an edge's
+  certificate can be transported across it. SYM-17's Phase 2 lands the
+  map's half on its own (Ev, 2026-10-12): `topo::transform_rigid` takes
+  a `RigidMotion` witness and decides nothing about rigidity, and a
+  placement's rotation is minted by construction. The plain lane then
+  meets this item's wall at the first transform (SYM-17's PR #4197
+  measures where); the transport is still this item's question.
 
 ## Home
 

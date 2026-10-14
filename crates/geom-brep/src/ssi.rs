@@ -132,6 +132,8 @@ mod refine;
 pub mod section;
 pub mod system;
 
+use std::rc::Rc;
+
 use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
@@ -210,7 +212,7 @@ pub const SSI_MAX_STEPS: usize = 20_000;
 /// (untrusted candidate generation — `jet`/`march`/`system` stay
 /// `f64`-only), but *certifying* one is the consumer's own scalar, and
 /// a body at rest holds `Surface<T>`.
-pub enum SsiOperand<'a, T: geom_core::Real> {
+pub enum SsiOperand<'a, T: geom_core::CertifiedBounds> {
     /// An analytic surface: implicit residuals and `compose` hulls.
     Analytic(&'a Surface<T>),
     /// A NURBS surface: certified foot points and chart hulls, carried
@@ -1625,11 +1627,15 @@ impl TubeDegeneracy {
 /// its whole domain ([`ChartedNurbs::mint`]). The fields are private:
 /// the only way to hold one is to have minted it from the surface it
 /// carries.
-#[derive(Clone, Copy, Debug)]
-pub struct ChartedNurbs<'a, T: geom_core::Real> {
+#[derive(Clone, Debug)]
+pub struct ChartedNurbs<'a, T: geom_core::CertifiedBounds> {
     surface: &'a NurbsSurface<T>,
-    grid: Option<&'a enclose::CellGrid>,
     speeds: enclose::ChartSpeeds,
+    /// The chart enclosures over the surface's own cells, and over the
+    /// grid's when it was minted on one: each one value shared by every
+    /// clone, so a cell is read once for the operand's life.
+    own: Rc<NurbsBoxes<'a, T>>,
+    on_grid: Option<Rc<NurbsBoxes<'a, T>>>,
 }
 
 impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
@@ -1640,11 +1646,13 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// [`SsiError::ChartSpeed`], naming the axis whose speed is zero or
     /// not finite.
     pub fn mint(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
-        let speeds = NurbsBoxes::new(surface).chart_speeds()?;
+        let boxes = NurbsBoxes::new(surface);
+        let speeds = boxes.chart_speeds()?;
         Ok(Self {
             surface,
-            grid: None,
             speeds,
+            own: Rc::new(boxes),
+            on_grid: None,
         })
     }
 
@@ -1665,25 +1673,31 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
         surface: &'a NurbsSurface<T>,
         grid: &'a enclose::CellGrid,
     ) -> Result<Self, SsiError> {
-        NurbsBoxes::new(surface).chart_speeds()?;
-        let speeds = NurbsBoxes::on_grid(surface, grid).chart_speeds()?;
+        let own = NurbsBoxes::new(surface);
+        own.chart_speeds()?;
+        let boxes = NurbsBoxes::on_grid(surface, grid);
+        let speeds = boxes.chart_speeds()?;
         Ok(Self {
             surface,
-            grid: Some(grid),
             speeds,
+            own: Rc::new(own),
+            on_grid: Some(Rc::new(boxes)),
         })
     }
 
     /// The chart enclosures, over the cells it was minted on.
-    pub(crate) fn boxes(&self) -> NurbsBoxes<'a, T> {
-        match self.grid {
-            Some(g) => NurbsBoxes::on_grid(self.surface, g),
-            None => NurbsBoxes::new(self.surface),
-        }
+    pub(crate) fn boxes(&self) -> &NurbsBoxes<'a, T> {
+        self.on_grid.as_deref().unwrap_or(&self.own)
+    }
+
+    /// The chart enclosures over the surface's own cells, whatever it
+    /// was minted on: the ℝ⁴ pair's ([`four::PairBoxes`]).
+    pub(crate) fn own_boxes(&self) -> &Rc<NurbsBoxes<'a, T>> {
+        &self.own
     }
 }
 
-impl<'a, T: geom_core::Real> ChartedNurbs<'a, T> {
+impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// The surface.
     #[must_use]
     pub fn surface(&self) -> &'a NurbsSurface<T> {
@@ -1882,7 +1896,7 @@ const GRAZE: SizedDecision = SizedDecision {
     size: "crossing angle",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// What [`graze_recourse`] replaces with the side's name.
@@ -1911,7 +1925,7 @@ const fn short_branch(lever: &'static str) -> SizedDecision {
         size: "branch length",
         passes: SizedPass::Positive,
         stored: StoredDefinite::Lever,
-        at_zero: None,
+        no_size: None,
     }
 }
 
@@ -1924,7 +1938,7 @@ const MARCH_STEP_BEND: SizedDecision = SizedDecision {
     size: "bend",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// A short branch the wall bounds.
@@ -2019,7 +2033,7 @@ const TUBE_EXTENT: SizedDecision = SizedDecision {
     size: "feature extent",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// [`SsiError::PairBoundaryUnresolved`]'s ending: the section touches
@@ -2282,7 +2296,7 @@ const DOMAIN_SCALE: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The ℝ³ open end (`ssi_branch_open_end`), refused only where a
@@ -2295,7 +2309,7 @@ const OPEN_END: SizedDecision = SizedDecision {
     size: "boundary distance",
     passes: SizedPass::AnySign,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Limb 3's one-arc decision at a search ([`SsiError::TubeNotOneArc`]):
@@ -2310,7 +2324,7 @@ const TUBE_ONE_ARC: SizedDecision = SizedDecision {
     size: "clearance",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Limb 3's one-arc decision at rest
@@ -2322,7 +2336,7 @@ const REST_ONE_ARC: SizedDecision = SizedDecision {
     size: "clearance",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Where limb 3's one-arc proof refused: the door decides the lever.
@@ -2370,7 +2384,7 @@ const SELF_CROSSING: SizedDecision = SizedDecision {
     size: "closure angle",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The stepper's step against the operands and the caller's domain
@@ -2386,7 +2400,7 @@ const STEP_SCALE: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The cylinder × sphere tangency decision (`ssi_cs_tangency`): the
@@ -2396,7 +2410,7 @@ const PAIR_TANGENCY: SizedDecision = SizedDecision {
     size: "near-tangency",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// `surface`, the door's `operand`, refused when one of its stored data
@@ -2781,6 +2795,7 @@ fn boundary_pass(
     };
     boundary::Pass {
         wall,
+        boxes: charted.own_boxes(),
         speeds: charted.speeds(),
         plane: boundary::PassPlane {
             origin,

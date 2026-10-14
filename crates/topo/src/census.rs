@@ -4021,6 +4021,7 @@ const TOUCH_SPAN: &str = "census_touch_span";
 /// normal scaled by a length would be a lever spelled as a plane; the
 /// source row states that blind spot.
 mod curved;
+mod point;
 
 mod metric {
     use super::{Band, Decide, Margin, Point3, Real, Sign, Vec3, decide};
@@ -6386,9 +6387,10 @@ fn conventional_vertices<T: Real>(geo: &Geo<T>, edge: EdgeKey) -> Vec<VertexKey>
 ///   Off the plane or outside the region, the record is stale.
 /// - **Otherwise** the touch is read where the record holds a point of
 ///   the edge's interior: a conventional vertex, inside the face
-///   ([`confirm_vertex_on_face`]'s two readings). A curve touch along
-///   the edge's carrier away from such a point is refused typed: the
-///   census builds no lane for it.
+///   ([`confirm_vertex_on_face`]'s two readings), or else the point
+///   touch of the two carriers ([`point::edge_face`]). A circle lying in
+///   a plane away from such a vertex is a curve touch, refused typed:
+///   the census builds no lane for it.
 fn confirm_edge_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -6447,22 +6449,17 @@ fn confirm_edge_face<T: Decide>(
             return;
         }
     }
-    errors.push(ValidationError::CensusUnsupported {
-        subject: CensusSubject::Entity(EntityId::Edge(edge)),
-        cause: CensusUnsupportedCause::ContactLane(
-            crate::contact::ContactRefusal::NotCertifiable {
-                what: "an edge resting on a face off a line and a plane, away from a \
-                       conventional vertex: the census builds no curve-touch lane along an \
-                       edge's carrier",
-            },
-        ),
-    });
+    if point::edge_face(body, edge, face, band, errors) == point::Read::Stale {
+        errors.push(stale);
+    }
 }
 
 /// One face–face record's witness, read from the two faces' carriers.
 ///
 /// - **One carrier, or two planes**: the patch doors ([`confirm_patch`]),
 ///   whose carrier door contradicts two distinct planes.
+/// - **A sphere and a plane, or two spheres**: their point touch
+///   ([`point::face_face`]).
 /// - **Two other carriers**: the closed-form tangent line they derive,
 ///   both faces' extents along it, and the `Tangent` table where those
 ///   meet, material sides included
@@ -6524,6 +6521,12 @@ fn confirm_face_pair<T: Decide>(
             });
             return;
         }
+    }
+    if let Some(read) = point::face_face(body, a, b, band, errors) {
+        if read == point::Read::Stale {
+            errors.push(stale);
+        }
+        return;
     }
     let (carrier, (t0, t1)) = match crate::boolean::tangent_pair_at_rest(body, a, b, band) {
         Ok(crate::boolean::RestTangent::Apart) => {
@@ -6667,10 +6670,10 @@ fn confirm_vertex_on_face<T: Decide>(
 }
 
 /// One `(vertex, edge)` record's witness: both cells live, the vertex
-/// not an end of the edge, on the edge's line and strictly inside its
-/// span (pass 2's two decisions, so the two directions agree). The
-/// lane is pass 2's: a record on a live edge whose carrier is not a
-/// line refuses typed.
+/// not an end of the edge, on the edge's carrier and strictly inside its
+/// span: pass 2's two decisions on a line, so the two directions agree,
+/// and the curved lane's ([`curved::on_curved_interior`]) on any other
+/// carrier.
 fn confirm_vertex_on_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -6711,9 +6714,9 @@ fn confirm_vertex_on_edge<T: Decide>(
 
 /// One edge-edge record's witness: both edges live, and
 /// their interiors meet — crossing inside both spans, or overlapping
-/// along a positive length — by the edge-edge lanes' own decisions. A
-/// record on a live non-line edge refuses typed, as a `(vertex, edge)`
-/// record's does.
+/// along a positive length — by the edge-edge lanes' own decisions on
+/// two lines, and the curved lane's
+/// ([`curved::curved_interiors_meet`]) where either is not one.
 fn confirm_edge_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -7849,7 +7852,7 @@ mod tests {
         // The part lifted off the floor: z ∈ [1.2, 1.8].
         let part = crate::transform_rigid(
             &quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol),
-            &geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.2)),
+            &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 1.2)).unwrap(),
             tol,
         )
         .unwrap();
@@ -9665,7 +9668,7 @@ mod tests {
         let (start, end) = (spiric.eval(v0), spiric.eval(v1));
         let tangent = (spiric.eval(v1 + 1e-6) - spiric.eval(v1 - 1e-6)).normalize();
         let mid = spiric.eval(0.5 * (v0 + v1));
-        let reach = geom::spiric_rate_bounds(1.0, 5.0, (9.0, 11.0), 1.0).0 * 0.1;
+        let reach = geom::spiric_period_rate_bounds(10.0, 1.0, 5.0).0 * 0.1;
         let q = end + tangent * 0.003;
         let chord = end - start;
         assert!(
@@ -12218,10 +12221,10 @@ mod records_by_carrier {
     /// A disc's circle, closed at one conventional vertex, under a
     /// brick standing over it: the record of the circle and the brick's
     /// bottom face is confirmed at that vertex, and backs the vertex's
-    /// own touch there; against the brick's top face it is refused
-    /// typed, since the census builds no curve-touch lane along the
-    /// circle. Red when the conventional vertex is not read as the
-    /// edge's, or the record backs nothing.
+    /// own touch there; against the brick's top face, a metre above the
+    /// circle's plane and parallel to it, it is stale. Red when the
+    /// conventional vertex is not read as the edge's, or the record
+    /// backs nothing.
     #[test]
     fn a_curved_edge_on_a_face_is_read_at_its_conventional_vertex() {
         let tol = Tol::witness();
@@ -12255,8 +12258,8 @@ mod records_by_carrier {
         let lid_top = face_at_z(&body, 2.0, true);
         let errors = census(&body, &one(&body, Cell::Edge(circle), Cell::Face(lid_top)));
         assert!(
-            unsupported_edge(&errors, circle),
-            "away from its conventional vertex the curve touch is refused typed: {errors:?}"
+            stale_edge_face(&errors, circle, lid_top) && !unsupported_edge(&errors, circle),
+            "a circle parallel to a face a metre off is stale: {errors:?}"
         );
     }
 
@@ -12860,5 +12863,164 @@ mod edge_face_residual {
             }),
             "an edge a metre above the face is stale: {errors:?}"
         );
+    }
+}
+
+/// **A point touch** (C3): a cylinder sheet's bottom rim, the arc of the
+/// unit circle about z at z = 0 over azimuths `u`, against a brick face
+/// x = `x` (y over `y`, z over −0.5..1.5), read by the record confirm.
+/// At x = 1 the circle touches the face's plane at (1, 0, 0).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod point_touch {
+    use super::*;
+    use crate::boolean::Cell;
+    use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
+    use geom_core::Tol;
+
+    fn rim_on_face(u: (f64, f64), x: f64, y: (f64, f64)) -> Result<bool, ValidationError> {
+        rim_on_brick(CylFrame::canonical(1.0), u, x, y, (-0.5, 1.5))
+    }
+
+    /// The rim at v = 0 of `frame` over `u` against the face x = `x` of
+    /// a brick on its +x side, the face's region y over `y`, z over `z`.
+    fn rim_on_brick(
+        frame: CylFrame,
+        u: (f64, f64),
+        x: f64,
+        y: (f64, f64),
+        z: (f64, f64),
+    ) -> Result<bool, ValidationError> {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        cyl_wall_sheet(&mut body, frame, u, (0.0, 1.0), tol);
+        let xyz = |p: Point3<f64>| [p.x, p.y, p.z];
+        let (p, q) = (xyz(frame.at(u.0, 0.0)), xyz(frame.at(u.1, 0.0)));
+        let at = |v: VertexKey| xyz(*body.get_point(body.get_vertex(v).unwrap().point).unwrap());
+        let rim = body
+            .edges()
+            .find(|(_, e)| {
+                let ends =
+                    [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+                ends == [p, q] || ends == [q, p]
+            })
+            .map(|(k, _)| k)
+            .expect("the bottom rim");
+        let block = brick::<f64>((x, x + 1.0), y, z, tol);
+        let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
+        let side = block
+            .faces()
+            .find(|(_, f)| match block.get_surface(f.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    normal.x.abs() > 0.5 && (origin.x - x).abs() <= 1e-15 * x.abs().max(1.0)
+                }
+                _ => false,
+            })
+            .and_then(|(k, _)| keys.face(k))
+            .expect("the brick's face x = x");
+        RecordConfirm::of(&body, Band::linear(tol).unwrap(), None)
+            .meets(crate::Contact::new(&body, Cell::Edge(rim), Cell::Face(side)).unwrap())
+    }
+
+    /// Touching at a point of the arc's interior, inside the face: the
+    /// record is confirmed. Red where the census has no point lane (the
+    /// record refused typed).
+    #[test]
+    fn a_circle_touching_a_plane_inside_both_cells_is_confirmed() {
+        assert_eq!(
+            rim_on_face((-0.5, 0.5), 1.0, (-0.5, 0.5)),
+            Ok(true),
+            "the rim touches the face at (1, 0, 0)"
+        );
+    }
+
+    /// Each reading the lane certifies, failed alone, reads stale: the
+    /// face half a metre off (the carriers apart), five centimetres in
+    /// (the circle crossing the plane), the face's region clear of the
+    /// touch point, and the arc clear of it.
+    #[test]
+    fn a_circle_off_crossing_or_beside_a_plane_face_is_stale() {
+        for (what, u, x, y) in [
+            ("apart", (-0.5, 0.5), 1.5, (-0.5, 0.5)),
+            ("crossing", (-0.5, 0.5), 0.95, (-0.5, 0.5)),
+            ("the point outside the face", (-0.5, 0.5), 1.0, (0.1, 0.6)),
+            ("the point outside the arc", (0.1, 0.6), 1.0, (-0.5, 0.5)),
+            ("the point at the arc's end", (0.0, 0.6), 1.0, (-0.5, 0.5)),
+        ] {
+            assert_eq!(rim_on_face(u, x, y), Ok(false), "{what}");
+        }
+    }
+
+    /// The face 3ε past the touch: whether the carriers coincide there
+    /// is undecided, and the confirm escalates.
+    #[test]
+    fn a_circle_touch_in_the_band_escalates() {
+        let x = 1.0 + 3.0 * Tol::witness().eps();
+        assert!(
+            matches!(
+                rim_on_face((-0.5, 0.5), x, (-0.5, 0.5)),
+                Err(ValidationError::CensusEscalated { .. })
+            ),
+            "{:?}",
+            rim_on_face((-0.5, 0.5), x, (-0.5, 0.5))
+        );
+    }
+
+    /// The touch point on the face's boundary is not inside it: on an
+    /// edge of the face, and at its corner, the record is stale.
+    #[test]
+    fn a_circle_touching_a_plane_face_on_its_boundary_is_stale() {
+        for (what, y, z) in [
+            ("on the face's edge y = 0", (0.0, 1.0), (-0.5, 0.5)),
+            ("at the face's corner", (0.0, 1.0), (0.0, 1.0)),
+        ] {
+            assert_eq!(
+                rim_on_brick(CylFrame::canonical(1.0), (-0.5, 0.5), 1.0, y, z),
+                Ok(false),
+                "{what}"
+            );
+        }
+    }
+
+    /// A unit circle nearly parallel to the plane it touches, its
+    /// sagitta over the radius `2k·ε` (`k` the band's escalate over
+    /// zero): `κ_rel` clears the band and the touch point sits off the
+    /// circle's centre plane by about `4kε`, which the reading keeps.
+    /// At `3ε` the separation is undecided; at `0.5ε` the circle lies in
+    /// the plane through its centre (a curve touch, refused typed), or
+    /// stands apart a metre off or `1.5kε` off.
+    #[test]
+    fn a_circle_nearly_parallel_to_a_plane_is_read_at_its_touch_point() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (eps, k) = (band.zero(), band.escalate() / band.zero());
+        for (what, sagitta, off, want) in [
+            ("sagitta 2kε, touching", 2.0 * k, None, "met"),
+            ("sagitta 3ε, touching", 3.0, None, "escalated"),
+            (
+                "sagitta 0.5ε, through the centre",
+                0.5,
+                Some(0.0),
+                "unsupported",
+            ),
+            ("sagitta 0.5ε, a metre off", 0.5, Some(1.0), "stale"),
+            ("sagitta 0.5ε, 1.5kε off", 0.5, Some(1.5 * k * eps), "stale"),
+        ] {
+            let frame = CylFrame::tilted(1.0, (2.0 * sagitta * eps).acos());
+            let tp = frame.at::<f64>(0.0, 0.0);
+            let got = match rim_on_brick(
+                frame,
+                (-0.5, 0.5),
+                off.unwrap_or(tp.x),
+                (tp.y - 0.5, tp.y + 0.5),
+                (tp.z - 0.5, tp.z + 0.5),
+            ) {
+                Ok(true) => "met",
+                Ok(false) => "stale",
+                Err(ValidationError::CensusEscalated { .. }) => "escalated",
+                Err(ValidationError::CensusUnsupported { .. }) => "unsupported",
+                Err(e) => panic!("{what}: {e:?}"),
+            };
+            assert_eq!(got, want, "{what}");
+        }
     }
 }

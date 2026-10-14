@@ -50,12 +50,12 @@ use geom_core::{SymRules, Tol};
 use crate::m10_8_harness::{dials, split_at_the_nominal, whole_box_leaf};
 
 /// One measured replay: a label, and the replay itself under a rule
-/// set, answering the receipt's four columns.
-type Replay<'a> = (&'static str, Box<dyn Fn(SymRules) -> [u64; 4] + 'a>);
+/// set, answering the receipt's two decision columns.
+type Replay<'a> = (&'static str, Box<dyn Fn(SymRules) -> [u64; 2] + 'a>);
 
-fn leaf(doc: &ProfileDoc, rules: SymRules, tol: Tol) -> [u64; 4] {
+fn leaf(doc: &ProfileDoc, rules: SymRules, tol: Tol) -> [u64; 2] {
     let (_, c) = whole_box_leaf(doc, dials(rules), tol);
-    [c.symbolic_zero, c.sign_gated, c.registered, c.numeric]
+    [c.symbolic, c.numeric]
 }
 
 /// The rule sets each replay is timed under, unprofiled: the shipped
@@ -101,9 +101,9 @@ fn decide_6_where_the_reads_cost_is() {
             Box::new(move |rules| {
                 let doc = crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0;
                 let split = split_at_the_nominal(&doc, rules, tol);
-                split.values().fold([0; 4], |a, s| {
-                    [a[0] + s[0], a[1] + s[1], a[2] + s[2], a[3] + s[3]]
-                })
+                split
+                    .values()
+                    .fold([0; 2], |a, s| [a[0] + s[0], a[1] + s[1]])
             }),
         ),
         (

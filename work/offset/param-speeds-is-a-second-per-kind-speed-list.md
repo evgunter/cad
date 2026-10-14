@@ -2,7 +2,10 @@
 id: param-speeds-is-a-second-per-kind-speed-list
 kind: issue
 title: offset_axial::param_speeds is a per-kind speed list beside crate::carrier_speed, and calls itself the one spelling
-status: open
+status: closed
+branch: fuse/the-localization-core-2
+pr: 5030
+closed: 2026-10-13
 opened: 2026-10-12
 priority: P3
 cost: E
@@ -32,3 +35,13 @@ Fold the two together in one home:
   the spiric's bounds;
 - have `param_speeds` read it, keeping its own `None` where its
   periodic arithmetic has no line or ellipse arm.
+
+## 2026-10-13, closed: PR 5030
+
+`param_speeds` now reads `crate::carrier_speed::speed_range`, which
+bounds every kind, the spiric included. Its doc no longer claims the
+spelling. It keeps its own `None` for a line, an ellipse and a spline.
+
+The ellipse half of that `None` is a dimension gap rather than a choice:
+an ellipse's window decides as metres. That is filed as
+`work/offset/an-ellipse-edges-offset-window-decides-radians-as-metres.md`.

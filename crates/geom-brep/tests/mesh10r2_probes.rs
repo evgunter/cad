@@ -100,12 +100,7 @@ fn m10r2_a_gap_between_same_id_pieces_refuses_at_the_contiguity_test() {
         what: "props_meridian_pieces_meet",
     };
     assert_eq!(door, Err(meet.clone()));
-    assert_eq!(
-        flux.map(|_| ()),
-        Err(PropsError::NotIsoRectangle {
-            what: "props_loop_closed"
-        })
-    );
+    assert_eq!(flux.map(|_| ()), Err(PropsError::ChartLoopOpen));
     // The same pieces OVERLAPPING (`[V0, 0.9]` then `[0.7, V1]`)
     // refuse the same way.
     let overlapped = vec![
@@ -124,8 +119,9 @@ fn m10r2_a_gap_between_same_id_pieces_refuses_at_the_contiguity_test() {
 /// mid-chain. This row was written to show the walk starting at index
 /// 0 (mid-chain), the flux lane refusing `DegenerateFace` on a zero
 /// span and the door admitting a loop with no rim. Inverted: a closed
-/// chain with no rim has no chain boundary and refuses by one name at
-/// both, whatever rotation it arrives in.
+/// chain with no rim has no chain boundary and refuses at both,
+/// whatever rotation it arrives in: at the flux lane as a loop winding
+/// the tube once, which bounds nothing.
 #[test]
 fn m10r2_a_rimless_loop_of_one_meridians_pieces() {
     let s = torus();
@@ -142,10 +138,5 @@ fn m10r2_a_rimless_loop_of_one_meridians_pieces() {
         what: "torus meridian pieces close a loop with no rim",
     };
     assert_eq!(door, Err(closed));
-    assert_eq!(
-        flux,
-        Err(PropsError::NotIsoRectangle {
-            what: "curved face without a rim (non-sphere)"
-        })
-    );
+    assert_eq!(flux, Err(PropsError::LoopsWindChart));
 }

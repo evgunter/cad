@@ -242,11 +242,11 @@ fn donut_two_arc_profile_shares_one_torus() {
 ///
 /// **The profile has to be PARAMETRIC for this to be readable.** On a
 /// wholly literal washer every value is a constant, the tier's constant
-/// fold reaches the rim residual on its own, and the decision lands in
-/// `symbolic_zero` — the door is asked nothing, because `registered` is
-/// attributed by NECESSITY. Here the inner radius is a parameter over a
-/// narrow box, so the residual is a genuine identity IN the parameters
-/// and only the registration answers it.
+/// fold reaches the rim residual on its own, and the door is asked
+/// nothing, because it is asked only where every other rung declined.
+/// Here the inner radius is a parameter over a narrow box, so the
+/// residual is a genuine identity IN the parameters and only the
+/// registration answers it.
 #[test]
 fn m10_9_the_revolve_carriers_state_their_rim_identity() {
     use geom_core::sym::with_session_rules;
@@ -289,14 +289,14 @@ fn m10_9_the_revolve_carriers_state_their_rim_identity() {
     let (built_open, open) = run(SymRules::shipped());
     println!("   revolve door shut {shut:?}\n   revolve door open {open:?}");
     assert!(built_shut && built_open, "the washer revolves both ways");
-    assert_eq!(shut.registered, 0, "M10-8's tier registers nothing");
     assert!(
-        open.registered > 0,
-        "the revolve's latitude carriers state their rim identity and it discharges: {open:?}"
+        open.symbolic > shut.symbolic,
+        "the revolve's latitude carriers state their rim identity and it discharges: \
+         {open:?} vs {shut:?}"
     );
     assert_eq!(
-        (open.symbolic_zero, open.sign_gated),
-        (shut.symbolic_zero, shut.sign_gated),
+        open.symbolic - shut.symbolic,
+        shut.numeric - open.numeric,
         "and out of `numeric` only: {open:?} vs {shut:?}"
     );
     assert_eq!(

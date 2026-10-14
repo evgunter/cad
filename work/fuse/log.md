@@ -824,3 +824,61 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Why this one:** an ellipse or spiric edge can hold a record through the public API (a tilted cylinder section).
   - **The two spline P1s** stay behind the operand gate.
   - **Brief:** reproduce first; one reading over `Curve3` rather than per-kind copies of the circle's; no candidate missed silently.
+- 2026-10-13 — PR 4946 (the census reads a record on a curved edge of every carrier kind) merges at 49ff025b, from head c292934a8.
+  - **CI:** green except FLUSH's tolerated 1e-12 ring row.
+  - **Closes:** `census-curved-record-lanes-read-circles-only` (P1).
+  - **Review:** three rounds, Opus + Fable.
+    - Round 0: `interior_at` decided "at the end" on the lo speed; an ellipse `param_near` is not a foot; line/circle tangency regressed onto the budget; an undisclosed copy of carrier_touch's bisection.
+    - Round 1: on one shared `topo::bisect` core, with a second-order clear and a tangency floor. Opus then found the end check ignored the side, so a point 15ε outside an arc's start read interior.
+    - Round 2: the side is decided first, and a poison floor or sup refuses typed. Opus probed both ends, both sides and five carriers (ellipse aspect 20/50, spirics, a loose rational spline): 0 wrong reads.
+  - **Rows filed by the lane:**
+    - restread: `the-census-edge-face-cut-crosses-chords-and-conics-only`
+    - cleave: `the-touch-and-cross-doors-read-no-speed-for-a-spiric-or-spline-carrier`
+    - fuse:
+      - `near-concentric-arcs-…-past-its-budget`
+      - `a-tangency-of-a-spline-edge-…`
+      - `two-curve-curve-meeting-finders`
+      - `the-census-spline-speed-floor-refuses-whole-arcs`
+      - `the-localization-core-is-half-unified`
+      - `a-tangency-at-an-edges-end-confirms-two-records` (design)
+  - **Filed by the orchestrator:** `the-census-curved-span-decision-escalates-near-a-fast-end` (P3).
+- 2026-10-13 — Two moves on the remaining P1s.
+  - **Parked:** `joining-a-spline-carrier-is-unbuilt` (P1 → P2), blocked on REACHHOLD's `nurbs-edge-crossing-rung-is-the-ring-composite`. The sweep refuses a spline edge typed before any join can see it, even with the operand gate gone, and the join's own refusal is typed too.
+  - **Dispatched:** `chart-arm-joins-no-spline-or-fitted-iso-image`, reproduce first. Its fitted-image and oblique-section arms are not gated on spline operands, so analytic operands may reach them. The spline-chart arm waits like the join if it cannot be reached.
+- 2026-10-13 — `chart-arm-joins-no-spline-or-fitted-iso-image` is probed and not reached, so it is parked (P1 → P2).
+  - **Blocked on:** cleave's germ roster (`a-tilted-plug-union-…`) and REACHHOLD's NURBS crossing rung.
+  - **Evidence:** 259k Chart readings across the ci suites and a widened tilted, curved∩curved and oblique-glue battery. Every reading was an analytic `Harmonic` image and every one was classified.
+  - **Design note for the un-park:** the oblique case needs carrier identity, not an iso family.
+  - **No FUSE P1 remains open.**
+- 2026-10-13 — Seam note from ENCL: PR 4766 has merged. It covers the sweep slice of the undecided-wording sweep (sweep crate endings by decision kind), and geom-core now has `Indeterminate::lever_ending` as the one lever-only-at-build ending. Lever-only decisions (angles, cos/sin, winding, form selection, gauges, walks) end through it. Do not compose `lever_recourse` + the unreadable note by hand. (ENCL orchestrator)
+- 2026-10-13 — Two P3 lanes were dispatched on clusters, now that no FUSE P1 remains open.
+  - **Sliver ruling for the near-concentric arcs (orchestrator, not a fork).** The circle×circle coaxial proxy is deferred to `two-curve-curve-meeting-finders`, where closed forms are decided once. The near-band window refuses loud, so nothing pushes for it sooner. The pin is band-relative.
+- 2026-10-13 — PR 4981 (join and merge refusal lifts held by their type; null-edge copies checked at append) merges at 37027528.
+  - **Rows closed:** `of-join-sites-are-held-by-grep-alone`, `null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader`.
+  - **Review:** Fable found it mergeable. Its notes were folded into the PR: the territory line, the emit row's stale `JoinDesync` text plus an evidence line, a vertex slot-reuse test, and the split-rows row note.
+  - **Filed:** `topo/euler-driver-lift-is-held-by-convention`, `fuse/split-rows-are-chased-with-no-cycle-check`.
+  - **Next unit, dispatched to the same lane:** `fuse/lineage-rows-refuse-at-append`, covering the split rows and the `JoinDesync` catch-all.
+- 2026-10-13 — PR 4980 (one localization core) merges at 9868838d.
+  - **What it does:**
+    - `circle_roots` and `spiric_arc` move onto `topo::bisect`.
+    - One `reach`, one `tangency_floor` and one `curvature_hi`.
+    - `Step::Stop` carries a typed reason.
+    - A grey census span falls through to the side and chord checks.
+    - The `is_poison` gates become decisions.
+    - A non-finite floor stops nothing.
+  - **Review:** Opus and Fable both found it mergeable. Opus probed about 11k reads near the ends of edges and found 0 wrong. One cleanup round followed, folded in without a re-review: the remaining spellings and typed stops only lengthen a search.
+  - **Closed:** `the-census-curved-span-decision-escalates-near-a-fast-end`.
+  - **Left open:**
+    - `the-localization-core-is-half-unified`, re-scoped to `containment::spiric_speed`, `offset_axial::param_speeds`, the test copies, the depth idioms, `feet`'s stop and the `16·slack` guard;
+    - `near-concentric-arcs-…`, pinned with its analysis.
+  - **Filed:** `issues/geom-brep-keeps-six-subdivision-walks-of-its-own`.
+- 2026-10-13 — The curve-meeting design fork (`two-curve-curve-meeting-finders`) is weighed by an Opus and a Fable designer and sent to Ev as `[ev]` PR 5027 (fork-log row 134).
+  - **Converged after three rounds:** one reader with one point-on-span reading; a total kind-pair table; closed forms in one conic's angle; the walk used as an oracle; no runtime fallback.
+  - **Ev's fork:** the home, `geom-brep` or `geom`.
+  - **Measured on the way:** two silent `carrier_cross` defects, filed on cleave as P1 (#5024, #5026).
+  - **Disclosed slip:** the blinding byte was drawn at PR time, not at dispatch (`analysis/design-fork/curve-meeting-reader`).
+- 2026-10-14 — PR 5022 merges at 24bcccde: split rows are refused at append, and `JoinDesync` sheds its lineage-cycle arms (new `SplitLineage`). Opus found it mergeable, and seven fixes were folded in. Filed `lineage-lists-are-five-newtypes-over-one-core`, now dispatched to the same lane.
+- 2026-10-14 — PR 5030 merges at 1d777ace: the localization core's residue reads its one spelling.
+  - **Closed:** `the-localization-core-is-half-unified` and offset's `param-speeds-is-a-second-per-kind-speed-list`.
+  - **Review:** Fable found it mergeable and confirmed it bit-identical analytically. A fix round followed.
+  - **Merged over three main reds** that reproduce on pure main and are not this PR's: they were hidden from main's per-PR CI by the change filter. Filed P0 on nurbs (lily tessellation and saddle-wall fit, suspect 4984) and on flux (mass-props thread golden, suspect 4938) (#5045).

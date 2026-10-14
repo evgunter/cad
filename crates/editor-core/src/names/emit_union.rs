@@ -768,9 +768,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     ///
     /// [`NamingError::Emission`] where a finished edge at `v` is neither a
     /// member edge's piece nor a seam, where one member edge and no seam
-    /// meet no face, or as [`Flush::sense_against`];
-    /// [`NamingError::SeamVertexParentage`] where one member edge and no
-    /// seam meet several faces (a missing rule, as at a pair boolean).
+    /// meet no face or several, or as [`Flush::sense_against`].
     fn meeting(
         &self,
         v: topo::VertexKey,
@@ -853,10 +851,18 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             let (face, others) = match (faces.next(), faces.next()) {
                 (Some(one), None) => one,
                 // One line meeting several faces of other members and no
-                // seam: N2 spells no one face for its `Crossing`, the
-                // pair boolean's missing rule too
-                // (`work/emit/a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces.md`).
-                (Some(_), Some(_)) => return Err(NamingError::SeamVertexParentage { vertex: v }),
+                // seam. Faces of other members meet at a point only along
+                // their edges through it, and with planar faces the region
+                // kept about the line either keeps a piece of such an edge
+                // at the point, holds one of the faces there, or pinches
+                // into two vertices, each one line meeting one face. No
+                // manifold union reaches this shape.
+                (Some(_), Some(_)) => {
+                    return Err(bug(
+                        "one member edge meets several faces of other members and no seam at a \
+                         union vertex",
+                    ));
+                }
                 (None, _) => {
                     return Err(bug(
                         "one member edge meets no face at a union vertex no seam reaches",
@@ -2338,13 +2344,44 @@ fn without_tail(name: &StableName, drop: impl Fn(&Qualifier) -> bool) -> StableN
 /// node's refusals name (`collapse_name`), so the fold reads the
 /// accumulation in that same space. The entities are untouched — same keys, same ties — so the
 /// keys a lookup returns are the accumulation's own.
+///
+/// Rows of one seam edge the fold met at several steps collapse to one
+/// spelling: two faces of one member set seam wherever a later member
+/// fills a gap between them, a step each. They are pieces of one seam,
+/// held as one tied row here until the end pass tells them apart by
+/// their ends ([`name_union`]); any other two rows that collapse alike
+/// refuse as a duplicate.
 pub(crate) fn collapse_table(
     node: RecipeNodeId,
     folded: &NameTable,
 ) -> Result<NameTable, NamingError> {
-    let mut t = NameTable::new();
+    let mut rows: BTreeMap<StableName, Vec<&Entry>> = BTreeMap::new();
     for (name, entry) in folded.iter() {
-        put_entry(&mut t, collapse(node, name)?, entry)?;
+        rows.entry(collapse(node, name)?).or_default().push(entry);
+    }
+    let mut t = NameTable::new();
+    for (name, entries) in rows {
+        let seam_edge =
+            name.kind == EntityKind::Edge && matches!(name.path.as_slice(), [RoleSeg::Seam { .. }]);
+        match entries.as_slice() {
+            [entry] => put_entry(&mut t, name, entry)?,
+            several if seam_edge => {
+                let mut ents: Vec<_> = several
+                    .iter()
+                    .flat_map(|e| match e {
+                        Entry::Unique(r) => vec![*r],
+                        Entry::Tied(rs) => rs.clone(),
+                    })
+                    .collect();
+                ents.sort_unstable();
+                t.insert_tied(name, ents)?;
+            }
+            _ => {
+                return Err(NamingError::Duplicate {
+                    name: Box::new(name),
+                });
+            }
+        }
     }
     Ok(t)
 }

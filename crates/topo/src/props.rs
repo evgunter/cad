@@ -2966,7 +2966,7 @@ pub const SHELL_ROLE: SizedDecision = SizedDecision {
     size: "thickness",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// What a [`ShellClassifyError`] found, without the shell's key or a
@@ -3513,6 +3513,13 @@ impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
             closed_form: quad_lane::closed_form::<T>,
             lift: Interval::from_certified::<T>,
         }
+    }
+}
+
+impl<T: Decide> QuadLane<T> {
+    /// A value of the walk's scalar as the interval holding it.
+    pub(crate) fn lift(self, x: T) -> Interval {
+        (self.lift)(x)
     }
 }
 

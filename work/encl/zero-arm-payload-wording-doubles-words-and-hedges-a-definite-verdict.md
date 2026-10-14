@@ -1,0 +1,23 @@
+---
+id: zero-arm-payload-wording-doubles-words-and-hedges-a-definite-verdict
+kind: issue
+title: geom-brep: the Zero-arm payload idiom repeats a word within a sentence, hedges a definite Negative verdict, and prints '0e0 m'
+status: open
+opened: 2026-10-13
+priority: P4
+cost: E
+---
+
+(Filed by the ENCL orchestrator from PR 4976's delta review, style findings S1–S5.)
+
+## What
+
+PR 4976 gave every ENCL Zero-arm payload one idiom: "is not shown … (margin {:e} m)". Read in place, it has these rough edges (`crates/geom-brep/src/certify.rs`, `CertifyError`'s Display; `offset_meters.rs`, `MeterError`'s Display):
+
+- **S1, "cross" twice:** NotTransverse reads "the faces are not shown to cross (…), where the edge's description says they cross".
+- **S2, "not shown" twice:** NotSecondOrderSeparated reads "not shown to curve apart … so they are not shown to fix where the edge runs".
+- **S3, hedging a definite verdict:** NotTransverse{Negative} at rest says "not shown to cross (margin -5e-9 m)", while its ending says "There is no way through: this is a kernel defect or a damaged file". The hedge is true, but weaker than the verdict it sits beside. D4 ¶1 (iv) asks a definite arm to tell its sibling's story, and an exact payload word may serve that better.
+- **S4, "margin" is kernel vocabulary:** on IntervalNotForward the number is the span, and the door's next sentence calls it "This length".
+- **S5, exponent form for round numbers:** "speed 2e0 m" and "(margin 0e0 m)" read poorly.
+
+Each is a reading of a rendered string. Settle them together, with whole-string pins, so the idiom stays one idiom.

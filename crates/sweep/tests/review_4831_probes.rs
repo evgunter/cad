@@ -293,11 +293,20 @@ fn off_tangent() -> f64 {
     1e4 * tol().get().eps
 }
 
+/// Whether [`p3_a_nested_touch_just_off_tangent`]'s outward crossing is
+/// within two orders of f64 headroom: the discs' walls cross at
+/// θ ≈ √d, so a pierce's placement carries the wall's rounding,
+/// `2·2⁻⁵²`, levered by 1/θ, and that is past ε/100.
+fn pierce_past_headroom(d: f64) -> bool {
+    100.0 * 2.0 * f64::EPSILON / d.sqrt() > tol().get().eps
+}
+
 /// Near-tangent just outside the band: the nested aligned touch with the
 /// thin disc moved `d` ([`off_tangent`]) inward (clear, every op at its closed form) and
 /// outward (crossing in a thin lens, every body tier-3 clean and the four
-/// volumes consistent with the operands'; at ε 1e-12 every outward op
-/// refuses `CurvedPierceUnsupported`).
+/// volumes consistent with the operands'; where the crossing is past f64
+/// headroom ([`pierce_past_headroom`]) an outward op may refuse
+/// `CurvedPierceUnsupported`).
 #[test]
 fn p3_a_nested_touch_just_off_tangent() {
     let pi = std::f64::consts::PI;
@@ -315,9 +324,7 @@ fn p3_a_nested_touch_just_off_tangent() {
     );
     all_answer("p3 inward", &got);
     let b = ext("thin", vec![circle(1.0 + d, 0.0, 1.0)], 0.0, 1.0);
-    // At ε 1e-12 every op refuses typed: the thin disc's edges cross
-    // the fat disc's wall where no closed form reads the pierce.
-    let fine = tol().get().eps == 1e-12;
+    let fine = pierce_past_headroom(d);
     let volume = |name: &str, got: Result<topo::BooleanResult<f64>, topo::BooleanError>| match got {
         Ok(topo::BooleanResult::Body(r)) => {
             assert_eq!(
@@ -337,15 +344,9 @@ fn p3_a_nested_touch_just_off_tangent() {
     let a_b = volume("A ∖ B", topo::subtract(&a, &b, tol()));
     let b_a = volume("B ∖ A", topo::subtract(&b, &a, tol()));
     let meet = volume("∩", topo::intersect(&a, &b, tol()));
-    if fine {
-        assert!(
-            [union, a_b, b_a, meet].iter().all(Option::is_none),
-            "p3 outward at ε 1e-12: every op refuses, {union:?} {a_b:?} {b_a:?} {meet:?}"
-        );
-        return;
-    }
     let (Some(union), Some(a_b), Some(b_a), Some(meet)) = (union, a_b, b_a, meet) else {
-        unreachable!("an op refused, and only at ε 1e-12 does one")
+        assert!(fine, "an op refused short of f64 headroom");
+        return;
     };
     for (what, got, want) in [
         ("∪ + ∩ = A + B", union + meet, 5.0 * pi),
@@ -514,14 +515,13 @@ fn p10_the_sliver_family() {
     let pi = std::f64::consts::PI;
     let eps = tol().get().eps;
     for h in [1e-2, 1e-3, 1e-4, 3e-5, 1e-5, 3e-6, 1e-6] {
-        let pinned = sliver_refusal(eps, h);
         let built = (
             try_ext(vec![circle(0.0, 0.0, 2.0)], 0.0, h),
             try_ext(vec![circle(1.0, 0.0, 1.0)], -1.0, 1.0 + 2.0 * h),
         );
         let (Ok(a), Ok(b)) = built else {
             assert_eq!(
-                pinned,
+                sliver_refusal(h, true),
                 Some(Sliver::Unbuilt),
                 "p10 h={h:e} eps {eps:e}: the extrusion refused {built:?}"
             );
@@ -537,6 +537,7 @@ fn p10_the_sliver_family() {
             ("B ∩ A", topo::intersect(&b, &a, tol()), meet),
         ] {
             let row = format!("p10 h={h:e} {name} eps {eps:e}");
+            let pinned = sliver_refusal(h, name.starts_with('A'));
             match got {
                 Ok(topo::BooleanResult::Body(r)) => {
                     let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
@@ -550,7 +551,7 @@ fn p10_the_sliver_family() {
                         "{row}: tier 3"
                     );
                     assert!(
-                        pinned.is_none() || pinned == Some(Sliver::Free),
+                        pinned.is_none(),
                         "{row}: answered where {pinned:?} is pinned"
                     );
                 }
@@ -564,8 +565,7 @@ fn p10_the_sliver_family() {
                         "{row}: {e}"
                     );
                     assert!(
-                        matches!(pinned, Some(Sliver::Refuses(k)) if k == kind)
-                            || pinned == Some(Sliver::Free),
+                        matches!(pinned, Some(Sliver::Refuses(k)) if k == kind),
                         "{row}: refused {kind:?} where {pinned:?} is pinned"
                     );
                 }
@@ -574,31 +574,41 @@ fn p10_the_sliver_family() {
     }
 }
 
-/// What a sliver-family row does at a sampled ε other than answering.
+/// What a sliver-family row does other than answering.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Sliver {
     /// The fat disc's extrusion refuses: `h` lies in the band.
     Unbuilt,
-    /// Every op refuses with this kind.
+    /// The op refuses with this kind.
     Refuses(topo::BooleanErrorKind),
-    /// An ε the table does not sample: an op answers or refuses typed.
-    Free,
 }
 
-/// The pinned non-answers of [`p10_the_sliver_family`]. At ε 1e-6 the
-/// escalation is a vertex `h` from a face read in band; at 1e-9 and
-/// 1e-12, a bisector bound levered at its sector's arm `h` reads its
-/// second-order departure in band:
-/// `work/contacthold/a-glued-tangencys-bisector-reads-its-curving-at-its-sectors-short-arm.md`.
-fn sliver_refusal(eps: f64, h: f64) -> Option<Sliver> {
-    use topo::BooleanErrorKind::Escalated;
-    if ![1e-6, 1e-9, 1e-12].contains(&eps) {
-        return Some(Sliver::Free);
-    }
-    match (eps, h) {
-        (1e-6, 1e-5) | (1e-9, 1e-4) | (1e-12, 3e-6) => Some(Sliver::Refuses(Escalated)),
-        (1e-6, _) if h < 1e-5 => Some(Sliver::Unbuilt),
-        _ => None,
+/// The pinned non-answers of [`p10_the_sliver_family`], each a window
+/// of `h` read against the running band:
+///
+/// - `h` short of the escalation width: the extrusion refuses; at it,
+///   to rounding, every op reads a vertex `h` from a face in band.
+/// - `h/8` in band, the fat disc the first operand: the glue door's
+///   interiors schedule samples the tangent line `h/8` from the fat
+///   disc's bottom corner and escalates on `bool_contact_vertex`:
+///   `work/contacthold/the-tangent-interiors-schedule-escalates-on-a-sample-it-places-in-band-of-a-corner.md`.
+/// - the bisector's sagitta `½·κ_rel·h²` (κ_rel = ½) in band, either
+///   order: a bisector
+///   bound levered at its sector's arm `h` reads its second-order
+///   departure in band:
+///   `work/contacthold/a-glued-tangencys-bisector-reads-its-curving-at-its-sectors-short-arm.md`.
+fn sliver_refusal(h: f64, fat_first: bool) -> Option<Sliver> {
+    let b = Band::linear(tol()).unwrap();
+    let in_band = |m: f64| (b.zero()..=b.escalate()).contains(&m);
+    if h < b.escalate() {
+        Some(Sliver::Unbuilt)
+    } else if h <= b.escalate() * (1.0 + 1e-9)
+        || (fat_first && in_band(h / 8.0))
+        || in_band(0.25 * h * h)
+    {
+        Some(Sliver::Refuses(topo::BooleanErrorKind::Escalated))
+    } else {
+        None
     }
 }
 

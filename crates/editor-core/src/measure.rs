@@ -801,7 +801,7 @@ pub const ASSERT_BOUND_DECISION: SizedDecision = SizedDecision {
     passes: SizedPass::AnySign,
     // The stored description the lever edits IS the asserted bound.
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 #[cfg(test)]

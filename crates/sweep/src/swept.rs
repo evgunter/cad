@@ -51,7 +51,8 @@ use geom_brep::{
     newell_plane,
 };
 use geom_core::{
-    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, RigidMotion,
+    RigidMotionError, Sign, Tol, UnitVec3, Vec3,
 };
 use profile::SegmentKind;
 use topo::{
@@ -63,14 +64,27 @@ use topo::{
 /// revolve's far copy the turn about the revolution axis.
 ///
 /// A point is placed and then turned on its offset from the axis
-/// ([`Affine3::rotate_point_about_axis`], W1 in
+/// ([`Affine3::rotate_point_about_unit_axis`]'s spelling, W1 in
 /// `crates/geom-core/README.md`). A description that carries a
 /// placement rather than a point carries [`Placing::map`], the turn
 /// composed into the placement once.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Placing<T: Real> {
     place: Affine3<T>,
-    turn: Option<(Point3<T>, Vec3<T>, T)>,
+    turn: Option<Turn<T>>,
+}
+
+/// A revolve's turn: the axis point, the axis witness and the angle a
+/// point and a direction are turned by
+/// ([`Affine3::rotate_point_about_unit_axis`], W1's spelling), and the
+/// same rotation minted anchored at the axis point, which turns a
+/// placement.
+#[derive(Clone, Copy, Debug)]
+struct Turn<T: Real> {
+    origin: Point3<T>,
+    axis: UnitVec3<T>,
+    angle: T,
+    anchored: RigidMotion<T>,
 }
 
 impl<T: Real> From<Affine3<T>> for Placing<T> {
@@ -81,12 +95,32 @@ impl<T: Real> From<Affine3<T>> for Placing<T> {
 
 impl<T: Real> Placing<T> {
     /// `place`, then the turn by `angle` about the axis through
-    /// `origin` along `dir`.
-    pub(crate) fn turned(place: Affine3<T>, origin: Point3<T>, dir: Vec3<T>, angle: T) -> Self {
-        Placing {
+    /// `origin` along `dir`, both rigid motions by construction.
+    ///
+    /// # Errors
+    ///
+    /// The mint's refusal of an angle or axis point that is not a
+    /// finite number.
+    pub(crate) fn turned(
+        place: Affine3<T>,
+        origin: Point3<T>,
+        dir: UnitVec3<T>,
+        angle: T,
+    ) -> Result<Self, RigidMotionError> {
+        Ok(Placing {
             place,
-            turn: Some((origin, dir, angle)),
-        }
+            turn: Some(Turn {
+                origin,
+                axis: dir,
+                angle,
+                anchored: RigidMotion::rotation_about_axis(origin, dir, angle)?,
+            }),
+        })
+    }
+
+    /// A direction turned by the turn, `None` when there is none.
+    pub(crate) fn turn_vec(self, v: Vec3<T>) -> Option<Vec3<T>> {
+        self.turn.map(|turn| turn.anchored.transform_vec(v))
     }
 
     /// Whether a turn follows the placement.
@@ -99,9 +133,7 @@ impl<T: Real> Placing<T> {
     pub(crate) fn map(self) -> Affine3<T> {
         match self.turn {
             None => self.place,
-            Some((origin, dir, angle)) => {
-                Affine3::rotation_about_axis(origin, dir, angle) * self.place
-            }
+            Some(turn) => turn.anchored.to_affine() * self.place,
         }
     }
 
@@ -110,8 +142,8 @@ impl<T: Real> Placing<T> {
         let placed = self.place.transform_point(Point3::new(p.x, p.y, T::zero()));
         match self.turn {
             None => placed,
-            Some((origin, dir, angle)) => {
-                Affine3::rotate_point_about_axis(origin, dir, angle, placed)
+            Some(turn) => {
+                Affine3::rotate_point_about_unit_axis(turn.origin, turn.axis, turn.angle, placed)
             }
         }
     }
@@ -508,12 +540,14 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
 /// **Why the tier cannot prove it for itself, measured.** The squared
 /// identity is a plain-form theorem wherever the coefficient ring can
 /// afford the expansion, and the unsquared one needs the outer `sqrt`
-/// discharged against an `abs` — rule C's shape, which folds on no
-/// document at the shipped 256-bit ring and needs ~640 bits and up at
-/// a leaf cost of minutes (`geom_core::sym`'s module docs,
-/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`).
-/// The ring width is a COST wall, and
-/// this door is the recourse E12 named for exactly that case.
+/// discharged against an `abs` — `sqrt(X) = R` where `X = R²`, which
+/// holds only under a sign of `R` over the box. That is not a decision
+/// the construction takes, so no shipped rule folds it (M10-8's rule C
+/// did, folded on no document at the shipped 256-bit ring, needed ~640
+/// bits and up at a leaf cost of minutes, and is retired:
+/// `geom_core::sym`'s module docs, M10's closed
+/// `plate-rim-residual-needs-the-wide-coefficient-ring`). This door is
+/// the recourse E12 named for exactly that case.
 ///
 /// **What it touches: nothing.** `rim.norm()` is the node
 /// `rim.normalize()` already divides by (`Vec3::normalize` is
@@ -755,10 +789,11 @@ impl core::fmt::Display for CapPlaneError {
             Self::Newell(e) => write!(f, "a cap is not planar: {e}"),
             Self::Orientation(cause) => write!(
                 f,
-                "whether a cap's plane faces along the profile's winding or against it could \
-                 not be decided: {}. {}",
-                cause.payload(),
-                geom_core::KERNEL_DEFECT_ENDING
+                "{}",
+                cause.undecided(
+                    "whether a cap's plane faces along the profile's winding or against it",
+                    geom_core::KERNEL_DEFECT_ENDING,
+                )
             ),
             Self::EdgeOn => write!(
                 f,
@@ -1423,8 +1458,25 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::sym::{session_counts, with_session};
+    use geom_core::sym::{session_counts, with_session_rules};
     use geom_core::{Bounds, Interval, ParamSymbol, Sym, SymBudget};
+
+    /// **A cap's undecided orientation ends in the defect ending on every
+    /// reading**: a validated profile never reaches it.
+    #[test]
+    fn a_caps_undecided_orientation_ends_as_a_defect() {
+        let defect = "There is no way through: this is a kernel defect; report it";
+        let texts = undecided_fixtures::expected(
+            "whether a cap's plane faces along the profile's winding or against it",
+            [defect; 3],
+        );
+        for (cause, text) in undecided_fixtures::readings("cap_plane_orientation")
+            .into_iter()
+            .zip(texts)
+        {
+            assert_eq!(CapPlaneError::Orientation(cause).to_string(), text);
+        }
+    }
 
     /// **A must-carry escalation keeps which question escalated**: the
     /// first-order arm and wedge by rung, the second-order sagitta as the
@@ -1530,9 +1582,10 @@ mod tests {
     fn placed_arc_readings(
         place: Affine3<geom_core::Sym<Interval>>,
         carrier: Carrier,
+        rules: geom_core::SymRules,
     ) -> ([Option<Sign>; 5], geom_core::SymCounts) {
         use geom_core::sym::with_session_rules;
-        use geom_core::{ParamSymbol, Sym, SymBudget, SymRules};
+        use geom_core::{ParamSymbol, Sym, SymBudget};
         use profile::{Bulge, Open, Start};
         type S = Sym<Interval>;
         let tol = Tol::witness();
@@ -1541,7 +1594,7 @@ mod tests {
             max_terms: 4096,
             max_degree: 128,
         };
-        with_session_rules(budget, SymRules::shipped(), || {
+        with_session_rules(budget, rules, || {
             let lit = |x: f64| <S as Real>::from_f64(x);
             let (a, e, b, turn) = match carrier {
                 Carrier::Constructed => {
@@ -1660,12 +1713,16 @@ mod tests {
     /// identity.
     #[test]
     fn a_copied_carrier_places_without_contradiction_and_claims_nothing() {
-        let ([rim, _, end @ ..], counts) =
-            placed_arc_readings(quarter_turn_placement([0.0; 3]), Carrier::Copied);
+        let readings =
+            |rules| placed_arc_readings(quarter_turn_placement([0.0; 3]), Carrier::Copied, rules);
+        let ([rim, _, end @ ..], counts) = readings(geom_core::SymRules::shipped());
         assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
+        let (_, shut) = readings(geom_core::SymRules::shipped_without_the_door());
         assert_eq!(
-            counts.registered, 0,
-            "no decision rests on a registered identity: {counts:?}"
+            (counts.symbolic, counts.numeric),
+            (shut.symbolic, shut.numeric),
+            "no decision rests on a registered identity: the door buys nothing: \
+             {counts:?} {shut:?}"
         );
         assert_eq!(rim, Some(Sign::Zero), "the rim, numerically: {counts:?}");
         assert_eq!(
@@ -1688,10 +1745,14 @@ mod tests {
     /// alone cannot decide it over that box.
     #[test]
     fn the_placed_rim_chains_through_the_sketch_rim_to_the_radius() {
-        let ([rim, inside, end @ ..], counts) = placed_arc_readings(
-            quarter_turn_placement([2.0, 3.0, 5.0]),
-            Carrier::Constructed,
-        );
+        let readings = |rules| {
+            placed_arc_readings(
+                quarter_turn_placement([2.0, 3.0, 5.0]),
+                Carrier::Constructed,
+                rules,
+            )
+        };
+        let ([rim, inside, end @ ..], counts) = readings(geom_core::SymRules::shipped());
         assert_eq!(rim, Some(Sign::Zero), "the placed rim: {counts:?}");
         assert_eq!(
             inside,
@@ -1704,7 +1765,11 @@ mod tests {
         // that vertex — one node, minted by the same op on the same
         // operand.
         assert_eq!(end, [Some(Sign::Zero); 3], "the far end: {counts:?}");
-        assert!(counts.registered > 0, "decided as registered: {counts:?}");
+        let (_, shut) = readings(geom_core::SymRules::shipped_without_the_door());
+        assert!(
+            counts.symbolic > shut.symbolic,
+            "the door is what decides them: {counts:?} {shut:?}"
+        );
         assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
     }
 
@@ -1724,12 +1789,8 @@ mod tests {
         let before = session_counts().expect("inside a session");
         let _ = m.sign_within(band);
         let after = session_counts().expect("inside a session");
-        if after.registered > before.registered {
-            "registered"
-        } else if after.sign_gated > before.sign_gated {
-            "sign_gated"
-        } else if after.symbolic_zero > before.symbolic_zero {
-            "theorem"
+        if after.symbolic > before.symbolic {
+            "proven"
         } else {
             "numeric"
         }
@@ -1821,17 +1882,20 @@ mod tests {
             ("b < 0", true, false, Sign::Negative),
             ("0 − b, b > 0 (reversed)", false, true, Sign::Negative),
         ];
+        // The registry shut, so a sample the door alone would answer
+        // reads `numeric`: these meet in the tier's own algebra.
+        let door_shut = geom_core::SymRules::shipped_without_the_door();
         for (name, negative, reversed, turn) in cases {
             let at = |b: f64| if negative { -b } else { b };
-            let (rows, counts) = with_session(budget(), || {
+            let (rows, counts) = with_session_rules(budget(), door_shut, || {
                 let b =
                     Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("bulge")), at(0.7));
                 let bulge = if reversed { Sym::zero() - b } else { b };
                 samples(&lowered(bulge, turn), turn)
             });
             assert!(
-                rows.iter().all(|r| *r == ("theorem", "theorem")),
-                "Sym<f64>, {name}: every sample's cosine and sine must be a theorem: \
+                rows.iter().all(|r| *r == ("proven", "proven")),
+                "Sym<f64>, {name}: every sample's cosine and sine must be proven: \
                  {rows:?} ({counts:?})"
             );
             let (lo, hi) = if negative {
@@ -1839,7 +1903,7 @@ mod tests {
             } else {
                 (0.63, 0.77)
             };
-            let (rows, counts) = with_session(budget(), || {
+            let (rows, counts) = with_session_rules(budget(), door_shut, || {
                 let b = Sym::<Interval>::param(
                     ParamSymbol::new(test_utils::symbol_id("bulge")),
                     Interval::from_bounds(lo, hi),
@@ -1848,9 +1912,9 @@ mod tests {
                 samples(&lowered(bulge, turn), turn)
             });
             assert!(
-                rows.iter().all(|r| *r == ("theorem", "theorem")),
+                rows.iter().all(|r| *r == ("proven", "proven")),
                 "Sym<Interval> over [{lo}, {hi}], {name}: every sample's cosine and sine \
-                 must be a theorem: {rows:?} ({counts:?})"
+                 must be proven: {rows:?} ({counts:?})"
             );
         }
     }
@@ -1938,5 +2002,75 @@ pub(crate) mod must_carry_fixtures {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: Vec3::new(0.0, 0.0, 1.0),
         }
+    }
+}
+
+/// The readings an undecided refusal's pins render, one escalation per
+/// kind of margin it can carry, and the literal text each ending class
+/// gives them.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+pub(crate) mod undecided_fixtures {
+    use geom_core::{Band, Decided, Indeterminate, MarginDiag, Sign};
+
+    /// The three readings an escalation of `name` can carry against
+    /// `(1e-9, 1e-8)`: a value in the band, a straddle of the band, and
+    /// a margin nobody could read.
+    pub(crate) fn readings(name: &'static str) -> [Indeterminate; 3] {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let value = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band,
+            predicate: Some(name),
+            terminal_sliver: false,
+        };
+        let straddle = geom_core::k_stats::straddle(
+            name,
+            Decided {
+                sign: Sign::Zero,
+                margin: MarginDiag::value(0.5e-9),
+            },
+            Decided {
+                sign: Sign::Positive,
+                margin: MarginDiag::value(3e-8),
+            },
+            band,
+        );
+        let poison = Indeterminate {
+            margin: MarginDiag::INVALID,
+            ..value
+        };
+        [value, straddle, poison]
+    }
+
+    /// The payload of each of [`readings`].
+    const PAYLOADS: [&str; 3] = [
+        "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). ",
+        "enclosure [5e-10, 3e-8] cannot be classified against the ambiguity band (1e-9, 1e-8). ",
+        "margin is invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). ",
+    ];
+
+    /// A size's ending on each of [`readings`]: the tolerance a value
+    /// gives, the subdividable enclosure, the inputs and the note.
+    pub(crate) const SIZED: [&str; 3] = [
+        "Recourse: move the geometry, or, if this size is intended, tighten the tolerance below \
+         5e-10 m",
+        "Recourse: subdivide the parameter box for a tighter enclosure, or move the geometry, or, \
+         if this size is intended, tighten the tolerance below 5e-11 m",
+        "Recourse: check the operation's inputs upstream, then move the geometry; an unreadable \
+         margin may indicate a kernel bug worth reporting",
+    ];
+
+    /// The lever-only ending on each of [`readings`].
+    pub(crate) const LEVER: [&str; 3] = [
+        "Recourse: move the geometry",
+        "Recourse: move the geometry",
+        "Recourse: move the geometry; an unreadable margin may indicate a kernel bug worth \
+         reporting",
+    ];
+
+    /// The sentence `subject` gives each of [`readings`] under `endings`.
+    pub(crate) fn expected(subject: &str, endings: [&str; 3]) -> [String; 3] {
+        [0, 1, 2].map(|k| format!("{subject} is undecided: {}{}", PAYLOADS[k], endings[k]))
     }
 }

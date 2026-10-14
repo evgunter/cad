@@ -55,14 +55,19 @@ section, one oval in the torus's own minor angle — minted by
 `plane_torus_section`'s axis-parallel arm, which the offset-axial
 door's rim mint calls; a plane through the axis cuts the more exact
 `Circle`, and `Curve3::spiric` refuses it), whose residuals are zero by
-construction; rung 3, a fitted cubic
-`Curve3::Nurbs` carrying the C2 certificate. Parabola and hyperbola are
+construction because the kernel derived them from their pair; rung 3,
+a pair with no closed form (a spline operand), whose carrier is
+evidence of any kind — a fitted cubic `Curve3::Nurbs` where the kernel
+marched it, a closed form where a file stated one or recognition
+promoted one — carrying the C2 certificate. A closed form is zero by
+construction only on rungs 1–2; declared on a rung-3 pair, it is
+checked like any other carrier. Parabola and hyperbola are
 outside the inventory by decision: a plane×cone section of either kind
 refuses typed, naming its conic. Conics round-trip to rational-quadratic NURBS only as
 an export/tessellation form, never as the kernel carrier (the axes and
 centre are what dispatch consumes). There is no polyline rung.
 
-**C2 — A fitted carrier's certificate has three limbs, all mandatory.**
+**C2 — The certificate of a carrier the kernel did not derive has three limbs, all mandatory.**
 (1) On-locus residual at the fixed `CERT_SAMPLES` schedule: `|f(C(t))|`
 in metres for an analytic operand (`implicit.rs`); for a NURBS operand
 `|C(t) − S(u*,v*)|` at the projected foot point; any point of the
@@ -593,6 +598,16 @@ an edge's carrier lies within `2ε / sin θ` of the described section
 along the wall, `θ` the angle between the plane and the wall, the same
 conditioning every certified `Intersection` edge already has; that is
 stated here and not enforced.
+The same rule governs curve pairs. Two carrier spans (a carrier and a
+parameter interval) meet through one exhaustive `(CurveKind, CurveKind)`
+table, and every candidate it proposes is settled by one point-on-span
+reading (`Off`, `Carrier`, `On`, `End`). Line, circle and ellipse pairs
+are closed forms that solve in one conic's angle and measure in metres; a
+pair with a spiric or spline side is the certified bisection walk, which
+is also the closed forms' differential test oracle. A candidate generator's
+in-band decision escalates and never prunes, and a candidate admitted under
+a `Zero` reading is placed by the exactly degenerate formula, never by the
+generic one.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (all but the parabola and hyperbola),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
@@ -678,9 +693,13 @@ does not blend), which needs the plan's feet: it runs in the surgery
 after predicate 6 and before any mutation. Face clearance reads each face
 three ways, not two: clear of the band's material, wholly inside it (the
 face goes with that material, as a face wholly inside a Boolean's tool
-does), or crossing it (refused). At a convex ruled band's cut-off the
-carve takes a through-feature wholly inside the material, between the
-band's two caps. Every constant-radius arm
+does), or crossing it (refused). At a convex straight band's cut-off
+(the ruled fillet's, the plane–plane fillet's and chamfer's) the carve
+takes a through-feature wholly inside the material, between the band's
+two caps; a feature read wholly inside anywhere else (a void or an
+island with no cap cycle) refuses `WhollyInside`, and a hole whose
+mouth a concave fill covers, which is not wholly inside, refuses as a
+bound where its wall meets the end face's plane. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band
@@ -881,9 +900,9 @@ on the kind).
 claim is `sup_(u,v) ‖S_fit − (S + d·n)‖ ≤ ε_precision`, pointwise in the
 base's own chart parameters. Meters (`offset_meters.rs`, read off
 `patch_bound.rs`'s per-cell control-hull enclosures): the *regularity
-floor*, a certified lower bound on `‖S_u × S_v‖` (three assemblies, the
-largest wins: componentwise mignitude, fixed-direction projection, and
-the Gram determinant `EG − F²`), classified by `offset_normal_floor` with
+floor*, a certified lower bound on `‖S_u × S_v‖` (the area quotient's
+least coefficient ratio along each piece's own direction, the
+`PatchCell::m_inf` its sup is the companion of), classified by `offset_normal_floor` with
 the patch's faster chart speed as lever (read from the norms of
 coefficient vectors, D4 ¶2, as the floor's companion `sup‖S_u × S_v‖`
 is), deliberately not `|d|`, since

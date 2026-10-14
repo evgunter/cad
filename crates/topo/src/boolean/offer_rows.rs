@@ -28,7 +28,8 @@
 //! The coincfr4 review's poses are adopted here (its wedges W1–W6, its
 //! turned corner cc2, its bent prism, its off-axis seam) and in `sweep`'s
 //! `offer_rows` (its dome on a tube, its off-axis spheres, its balls by a
-//! slab, its brick below a tube): a harness that passes only on its own
+//! slab; its brick below a tube refuses at the glue door, offering no
+//! value): a harness that passes only on its own
 //! poses was that review's finding. The census below is keyed per
 //! decision, and [`every_site_names_the_decision_it_raises`] keys the
 //! sites.
@@ -2343,12 +2344,15 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ContinuationContradicted
         | BooleanErrorKind::UnsupportedDeclarationClass
         | BooleanErrorKind::RimCuspArmUnbuilt
+        | BooleanErrorKind::HeldPierceUnbuilt
         | BooleanErrorKind::InvalidInput
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchConesOnSeparateKeys
         | BooleanErrorKind::PinchRaysInAFace
+        | BooleanErrorKind::CrossingsAlongAContactLine
         | BooleanErrorKind::VertexReadTwice
+        | BooleanErrorKind::PartnerAlongFace
         | BooleanErrorKind::NestingUnread
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
@@ -2360,6 +2364,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::LineageRow
+        | BooleanErrorKind::SplitLineage
         | BooleanErrorKind::EdgeUndescribed
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::TornComponent
@@ -2624,6 +2629,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcSphereRoots",
         1,
     ),
+    ("glue.rs", "tangency", "Coincide::Rim", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
@@ -2695,7 +2701,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
-    ("mod.rs", "route_rim", "Coincide::Rim", 2),
+    ("mod.rs", "route_rim", "Coincide::Rim", 1),
     (
         "mod.rs",
         "locus_through_both_faces",
@@ -2835,7 +2841,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 6),
+    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 3),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
@@ -2854,6 +2860,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
+    ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
+    ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
@@ -2919,6 +2927,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "vtxfac.rs",
         "classify_vertex_on_face",
         "Coincide::TangentSide",
+        1,
+    ),
+    ("vtxfac.rs", "faces_holding_pierce", "Coincide::Sectors", 1),
+    (
+        "vtxfac.rs",
+        "faces_holding_pierce",
+        "Coincide::VertexOnFace",
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),

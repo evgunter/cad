@@ -314,8 +314,7 @@ pub(super) fn recl_sectors<T: Decide>(
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     for i in 0..records.len() {
         let r = records[i];
-        let all_on = r.sa == (SideCode::On, SideCode::On) && r.sb == (SideCode::On, SideCode::On);
-        if !all_on {
+        if !r.coplanar() {
             continue;
         }
         let sa = &a_sectors[r.a];
@@ -619,9 +618,11 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   is genuinely crossed iff its two halves' outer keys transition.
 /// - several real edges of one solid ⇒ a **contact line** that solid
 ///   holds: each of its edges against each of the other solid's by the
-///   edge-edge rule. Two crossings on the ray, a contact line lying in a
-///   face of the other solid, and one whose ray holds a bisector, refuse
-///   typed (unbuilt).
+///   edge-edge rule. Two crossings on the ray refuse typed
+///   ([`BooleanError::CrossingsAlongAContactLine`]). A contact line lying
+///   in a face of the other solid, and one whose ray holds a bisector,
+///   are arms not yet built, which refuse `ClassificationInvariant`
+///   until they are.
 ///
 /// A group is every mention the first one reads on its ray; three or
 /// more must read so pairwise too, or the event refuses.
@@ -804,9 +805,12 @@ pub(super) fn recl_edges<T: Decide>(
                 [] => None,
                 [g] => Some(g),
                 _ => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "an edge crosses two wedges about a contact line on one ray \
-                               (unbuilt)",
+                    let vertex = |body: &Body<T>, secs: &[BoolSector<T>]| {
+                        proven(&body.half_edges, secs[0].he, EntityId::HalfEdge).start
+                    };
+                    return Err(BooleanError::CrossingsAlongAContactLine {
+                        a_vertex: vertex(a_body, a_sectors),
+                        b_vertex: vertex(b_body, b_sectors),
                     });
                 }
             }
@@ -2129,16 +2133,22 @@ mod tests {
                     "{label}: the refusal is on the frame's escalation log"
                 );
                 let text = err.to_string();
-                let lever = "Recourse: make the edges at the corner where the two faces meet \
-                             span clearly more than the tolerance";
-                let offer = band.offer_deciding(arm).filter(|_| class.is_some());
-                let ending = if let Some(offered) = offer {
-                    format!(
-                        "{lever}, or, if this length of the corner's shorter edge is intended, \
-                         tighten the tolerance below {offered:e} m"
-                    )
-                } else {
-                    lever.to_owned()
+                let lever = "make the edges at the corner where the two faces meet span clearly \
+                             more than the tolerance";
+                // The sized ending is the margin's own sentence for this
+                // decision's words; the moot declaration ends in the lever.
+                let ending = match class {
+                    None => format!("Recourse: {lever}"),
+                    Some(_) => geom_core::MarginDiag::value(arm).sized_recourse(
+                        band,
+                        geom_core::SizedWords {
+                            lever,
+                            size: "length of the corner's shorter edge",
+                            passes: geom_core::SizedPass::NonZero,
+                            no_size: None,
+                            unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+                        },
+                    ),
                 };
                 assert!(
                     !text.contains("declare") && text.ends_with(&ending),

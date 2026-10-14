@@ -238,6 +238,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         }
         // The coincidences these names decide.
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
+        crate::vertex_section::VERTEX_SECTION_SIDE => crate::vertex_section::VERTEX_SECTION_SUBJECT,
+        "bool_held_carrier_datum" => {
+            "whether a face lies on the carrier of a face its pierce point's vertex bounds"
+        }
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
         "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" | "bool_cone_arc"
@@ -580,6 +584,113 @@ pub(crate) struct EdgeSplit {
     pub(crate) child: crate::entity::EdgeKey,
 }
 
+/// A Boolean reduction's edge splits ([`EdgeSplit`]), each operand's
+/// in split order: its `(child, parent)` rows checked where each split
+/// is recorded ([`crate::lineage::EdgeDivisions`]), and beside each row
+/// the vertex the split minted between them. A split mints its child, so
+/// the rows cannot cycle, and the walk from a piece back to the operand
+/// edge it lies on ([`Self::root`]) ends.
+#[derive(Clone, Debug)]
+pub(crate) struct EdgeSplits {
+    divisions: [crate::lineage::EdgeDivisions; 2],
+    /// Each operand's minted vertices, one per row of its divisions and
+    /// in the same order: [`Self::push`] is the one writer of both, and
+    /// pushes the vertex only once the division's row is in, so the
+    /// `i`-th vertex is the one minted between the `i`-th row's two
+    /// edges (asserted where they are read together, [`Self::of`]).
+    vertices: [Vec<VertexKey>; 2],
+}
+
+impl Default for EdgeSplits {
+    fn default() -> Self {
+        let of = |operand| {
+            crate::lineage::EdgeDivisions::new(crate::lineage::LineageRows::EdgeDivisions(Some(
+                operand,
+            )))
+        };
+        Self {
+            divisions: [of(Operand::A), of(Operand::B)],
+            vertices: [Vec::new(), Vec::new()],
+        }
+    }
+}
+
+impl EdgeSplits {
+    /// Records `split`.
+    ///
+    /// # Errors
+    ///
+    /// The division list's refusal where `split`'s child is not one the
+    /// split minted: an earlier split names it.
+    pub(crate) fn push(&mut self, split: EdgeSplit) -> Result<(), crate::lineage::RowRefusal> {
+        let side = usize::from(split.operand == Operand::B);
+        self.divisions[side].push((split.child, split.parent))?;
+        self.vertices[side].push(split.vertex);
+        Ok(())
+    }
+
+    /// `operand`'s splits, in the order made: `(parent, vertex, child)`.
+    fn of(
+        &self,
+        operand: Operand,
+    ) -> impl Iterator<Item = (crate::entity::EdgeKey, VertexKey, crate::entity::EdgeKey)> + '_
+    {
+        let side = usize::from(operand == Operand::B);
+        debug_assert_eq!(
+            self.divisions[side].rows().len(),
+            self.vertices[side].len(),
+            "one minted vertex per edge division row"
+        );
+        self.divisions[side]
+            .rows()
+            .iter()
+            .zip(&self.vertices[side])
+            .map(|(&(child, parent), &vertex)| (parent, vertex, child))
+    }
+
+    /// The edge of `operand`'s input the piece `edge` of its clone lies
+    /// on: read back through every split, each child to the parent it was
+    /// split from. Total, since the rows cannot cycle.
+    pub(crate) fn root(
+        &self,
+        operand: Operand,
+        edge: crate::entity::EdgeKey,
+    ) -> crate::entity::EdgeKey {
+        self.divisions[usize::from(operand == Operand::B)].root(edge)
+    }
+
+    /// The edge of `operand`'s clone a split minted `v` on, where one did.
+    pub(crate) fn minted_on(
+        &self,
+        operand: Operand,
+        v: VertexKey,
+    ) -> Option<crate::entity::EdgeKey> {
+        self.of(operand)
+            .find(|&(_, vertex, _)| vertex == v)
+            .map(|(parent, _, _)| parent)
+    }
+
+    /// The keys of `edge`'s pieces after `operand`'s splits, in order
+    /// along it (a split keeps the parent's leading span, so its child is
+    /// the piece right after the parent), and every vertex a split minted
+    /// on it.
+    pub(crate) fn pieces(
+        &self,
+        operand: Operand,
+        edge: crate::entity::EdgeKey,
+    ) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
+        let mut keys = vec![edge];
+        let mut minted = Vec::new();
+        for (parent, vertex, child) in self.of(operand) {
+            if let Some(i) = keys.iter().position(|&k| k == parent) {
+                keys.insert(i + 1, child);
+                minted.push(vertex);
+            }
+        }
+        (keys, minted)
+    }
+}
+
 /// One cell of a body: what a contact record names, two at a time
 /// ([`Contact`]).
 ///
@@ -745,29 +856,70 @@ pub struct BooleanInputs {
     ///
     /// **Not carried by the façade.** It is the union fold's channel
     /// (`editor_core`'s n-ary union hands each step the pass's
-    /// verdicts, read through member lineage); a caller of a pair
-    /// boolean who set it would promise verdicts no pass decided.
-    /// Nothing enforces that yet: a Rust caller of
-    /// [`crate::boolean_op_with`] can set it, and its pairs glue
-    /// unmeasured (`work/intent/boolean-given-pairs-glue-unmeasured-for-any-rust-caller.md`).
-    pub given: Option<Vec<GivenPair>>,
+    /// verdicts, read through member lineage). Its pairs are made only
+    /// from a verdict some boolean decided ([`GlueVerdict::given_at`]),
+    /// but nothing ties that verdict to these operands: a caller who
+    /// re-keys or reuses one glues its pair here with nothing measured
+    /// and no row recorded
+    /// (`work/flush/a-glue-verdict-is-not-bound-to-the-bodies-it-judged.md`).
+    pub given: Option<Vec<GluedPair>>,
     /// Operand A's own contact records, carried into the result.
     pub records_a: OperandRecords,
     /// Operand B's own contact records, carried into the result.
     pub records_b: OperandRecords,
 }
 
-/// **One carrier pair decided before the operation**: a face of each
-/// operand and the relation its decision found, which must glue
-/// ([`crate::Relation::glued_class`]).
+/// **A face pair a boolean glued on its own decision**: a face of
+/// each operand, in that operation's operand keys, and the class its
+/// margin's relation glued them under. Only the kernel mints one
+/// ([`BooleanBody::verdicts`]), from the face-pair rows of the
+/// operation's own coincidences: it is what an n-ary union's pairwise
+/// judgement hands its fold steps (DM4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GivenPair {
+pub struct GlueVerdict {
+    a: FaceKey,
+    b: FaceKey,
+    class: GlueClass,
+}
+
+impl GlueVerdict {
     /// The A-operand face.
-    pub a: FaceKey,
+    pub fn a(self) -> FaceKey {
+        self.a
+    }
+
     /// The B-operand face.
-    pub b: FaceKey,
+    pub fn b(self) -> FaceKey {
+        self.b
+    }
+
     /// The decided relation.
-    pub relation: crate::Relation,
+    pub fn relation(self) -> crate::Relation {
+        self.class.relation()
+    }
+
+    /// **This verdict, given to a fold step**: the pair of `a` and the
+    /// judged B face, under the judged class. The fold passes each
+    /// accumulation face whose lineage holds the judged A face, over
+    /// the judged B operand; nothing here checks either.
+    pub fn given_at(self, a: FaceKey) -> GluedPair {
+        GluedPair::new(a, self.b, self.class)
+    }
+
+    /// The verdicts `rows` record: each row relating an A-operand face
+    /// and a B-operand face under a relation that glues, in row order.
+    pub(crate) fn of_rows(rows: &[crate::Coincidence]) -> Vec<Self> {
+        rows.iter()
+            .filter_map(|row| {
+                let (a, b) = row.face_pair()?;
+                Some(Self {
+                    a,
+                    b,
+                    class: row.relation.glued_class()?,
+                })
+            })
+            .collect()
+    }
 }
 
 /// **The pairs one boolean glues**, and the records it carries: the
@@ -815,12 +967,7 @@ impl Glue {
 
     /// The glue `inputs` states: its given pairs under their classes,
     /// or none, to be decided ([`glue::decided_declarations`]).
-    ///
-    /// # Errors
-    ///
-    /// [`BooleanError::InvalidInput`] where a given relation does not
-    /// glue.
-    pub(crate) fn of(inputs: &BooleanInputs) -> Result<Self, BooleanError> {
+    pub(crate) fn of(inputs: &BooleanInputs) -> Self {
         let BooleanInputs {
             given,
             records_a,
@@ -828,34 +975,22 @@ impl Glue {
         } = inputs;
         let (pairs, verdicts) = match given {
             None => (Vec::new(), Verdicts::Decided),
-            Some(given) => (
-                given
-                    .iter()
-                    .map(|g| {
-                        g.relation
-                            .glued_class()
-                            .map(|class| GluedPair::new(g.a, g.b, class))
-                            .ok_or(BooleanError::InvalidInput {
-                                operand: Operand::A,
-                                what: "a given pair's relation does not glue",
-                            })
-                    })
-                    .collect::<Result<_, _>>()?,
-                Verdicts::Given,
-            ),
+            Some(given) => (given.clone(), Verdicts::Given),
         };
-        Ok(Self {
+        Self {
             pairs,
             records_a: records_a.clone(),
             records_b: records_b.clone(),
             verdicts,
-        })
+        }
     }
 }
 
-/// One glued cross-operand face pair and its class.
+/// **One glued cross-operand face pair and its class**: a pair an
+/// operation decided, or one it was given ([`BooleanInputs::given`]),
+/// whose one public mint is [`GlueVerdict::given_at`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct GluedPair {
+pub struct GluedPair {
     /// The A-operand face.
     pub(crate) a: FaceKey,
     /// The B-operand face.
@@ -1755,6 +1890,9 @@ pub struct BooleanReduction<T: Real> {
     pub contacts: ReductionContacts,
     /// Every null edge minted, both operands, insertion order.
     pub null_edges: Vec<BoolNullEdgeRecord<T>>,
+    /// Each operand's null-edge copies, checked as each null edge was
+    /// recorded ([`NullEdges::extend`]).
+    pub(crate) copies: [crate::lineage::NullEdgeCopies; 2],
     /// The cross-body correspondence pairs.
     pub null_pairs: Vec<NullEdgePairRecord>,
     /// Pierced-face ring insertions.
@@ -1781,7 +1919,7 @@ pub struct BooleanReduction<T: Real> {
     /// (`shell_witness::on_verdict`).
     pub(crate) coincident: Vec<SettledPair>,
     /// Every edge split the reduction made, both clones, split order.
-    pub(crate) edge_splits: Vec<EdgeSplit>,
+    pub(crate) edge_splits: EdgeSplits,
     /// Every operand edge piece the sector passes classified beside a
     /// vertex ([`EdgePieceClass`]), sorted.
     pub edge_classes: Vec<EdgePieceClass>,
@@ -1890,6 +2028,23 @@ pub enum SectorRead {
     /// The vertex-vertex pass that pairs the vertex with this vertex of
     /// the other operand.
     Pair(VertexKey),
+}
+
+/// How a partner whose link runs along a touched face meets it where
+/// the side of the face its solid lies on is not read
+/// ([`BooleanError::PartnerAlongFace`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AlongFace {
+    /// The face is curved: an edge in its tangent plane leaves it only
+    /// at second order, by the two carriers' relative curvature.
+    Curved,
+    /// A face of the partner lies on the face.
+    FaceOnFace,
+    /// A face of the touching vertex lies on the face.
+    Flush,
+    /// A face of the touching vertex and one of the partner lie in one
+    /// plane.
+    FacesInOnePlane,
 }
 
 /// **The loops a plane cuts on a ring torus**, as the section
@@ -2351,9 +2506,10 @@ pub enum BooleanError {
     /// A glued pair names a coincidence in a configuration this op's
     /// classification cannot act on: a `Tangent` pair with no witness
     /// locus (neither the DEV-1 closed-form lane — plane×cylinder along a
-    /// ruling, parallel cylinders — nor a shared rim circle), or a rim
-    /// whose junction the routing cannot place, so no arm can consume
-    /// it. Refused at the door rather than carried into stages that would
+    /// ruling, parallel cylinders — nor a shared rim circle), a rim
+    /// whose junction the routing cannot place, or a locus whose span
+    /// bound the jet certificate's finest schedule leaves past the band,
+    /// so no arm can consume it. Refused at the door rather than carried into stages that would
     /// ignore it — the vocabulary is wider than this op's envelope, and
     /// the gap is typed, not silent.
     UnsupportedDeclarationClass {
@@ -2379,10 +2535,32 @@ pub enum BooleanError {
         /// geometry.
         wedge: geom_brep::MaterialWedge,
     },
+    /// **A pierce point inside a face of the piercing operand that the
+    /// Boolean cannot yet build a vertex in** (`vtxfac::faces_holding_pierce`).
+    /// An operand whose solids touch, one's edge lying in another's face,
+    /// pierces the other operand's face where that face crosses its own,
+    /// and the section of the two passes the point. The vertex that needs
+    /// is built where both faces are planes; here one is curved, or the
+    /// curved face's trim could not say whether it holds the point.
+    /// Refused before anything is built.
+    HeldPierceUnbuilt {
+        /// The piercing operand, whose face holds the point.
+        operand: Operand,
+        /// The face that holds the point.
+        face: FaceKey,
+        /// The other operand's face the point pierces.
+        pierced: FaceKey,
+        /// The holding face's surface kind.
+        kind: geom::SurfaceKind,
+        /// The pierced face's surface kind.
+        pierced_kind: geom::SurfaceKind,
+        /// Whether the holding face's trim placed the point inside it:
+        /// `false` where it could not read its trim there.
+        placed: bool,
+    },
     /// A boolean's input ([`BooleanInputs`]) references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
-    /// non-planar given face), or gives a pair a relation that does not
-    /// glue — a caller bug, refused before any
+    /// non-planar given face) — a caller bug, refused before any
     /// classification runs (M4 PR 5).
     InvalidInput {
         /// The operand whose key failed.
@@ -2429,6 +2607,19 @@ pub enum BooleanError {
         /// copy, as `vertex` is.
         partners: [VertexKey; 2],
     },
+    /// The operands meet along a ray where one or both hold coincident
+    /// edges, pieces of that operand touching along it (a contact line),
+    /// and more than one pair of the two operands' edges on the ray
+    /// crosses: two or more edge-edge germs along one ray of one vertex
+    /// pair (`recl::recl_edges`), whose sections along the line the
+    /// insertion does not yet place apart. The operation applied to the
+    /// pieces before they are joined meets no contact line there.
+    CrossingsAlongAContactLine {
+        /// A's vertex on the line: a key of A's working copy.
+        a_vertex: VertexKey,
+        /// B's vertex there: a key of B's working copy.
+        b_vertex: VertexKey,
+    },
     /// Cones of one operand that touch along a ray lying in the other's
     /// face: the pierces of that face at one point read germs along one
     /// direction in a way the ring cannot order (`vtxfac::germ_order`):
@@ -2457,14 +2648,15 @@ pub enum BooleanError {
     /// first read cannot be taken with the second: it pierces two faces
     /// of the other solid, or pierces one and coincides with a vertex of
     /// it while crossing the face, or while that vertex's link does not
-    /// lie strictly on one side of the face; or, in pairs alone, a
-    /// partner's cone reads nothing beside another partner's
-    /// (`vtxfac::pair_classes`). That other solid holds its
+    /// lie on one side of the face; or, in pairs alone, a partner's cone
+    /// reads nothing beside another partner's (`vtxfac::pair_classes`). That other solid holds its
     /// own contact at the vertex's point: two of its faces meet there in
     /// their interiors, or a vertex of it rests on one of its faces. A
     /// vertex-on-face pass hangs struts at a vertex that crosses the
     /// face, so a later pass would read an orbit an earlier one wrote
-    /// (`vtxfac::pierced_and_paired`, `vtxfac::partner_side`).
+    /// (`vtxfac::pierced_and_paired`, `vtxfac::partner_side`). A partner
+    /// along the face where its side is not read is
+    /// [`BooleanError::PartnerAlongFace`].
     VertexReadTwice {
         /// The operand whose vertex is read twice.
         operand: Operand,
@@ -2475,6 +2667,23 @@ pub enum BooleanError {
         /// pair; in pairs alone, the partner whose cone reads nothing,
         /// then one beside it.
         reads: [SectorRead; 2],
+    },
+    /// A vertex of `operand` touches `face` of the other solid and pairs
+    /// with `partner`, a vertex of it whose link runs along that face,
+    /// where the side of the face the partner's solid lies on is not
+    /// read (`vtxfac::partner_side`): `along` says how the two meet.
+    /// Lifted off the face, the partner reads strictly one side.
+    PartnerAlongFace {
+        /// The operand whose vertex touches the face.
+        operand: Operand,
+        /// That vertex: a key of the operand's working copy.
+        vertex: VertexKey,
+        /// The face it touches.
+        face: FaceKey,
+        /// The other solid's vertex it pairs with.
+        partner: VertexKey,
+        /// How the partner meets the face.
+        along: AlongFace,
     },
     /// A vertex of `operand` in pairs alone, where every edge of one
     /// partner's corner lies on another's faces, so which holds which
@@ -2834,9 +3043,10 @@ pub enum BooleanError {
         /// The typed pcurve-pass refusal, nested whole.
         source: crate::pcurves::PcurveMintError,
     },
-    /// The joining stage's chord machinery refused (PR 5; nested
-    /// whole — includes `UnpairedLooseEnds` and `SectionLoopMixed`).
-    Join(SplitJoinError),
+    /// The joining stage's chord machinery refused, nested whole
+    /// (`UnpairedLooseEnds`, `SectionLoopMixed`, …): never a lineage row,
+    /// which is [`Self::LineageRow`] ([`BooleanJoin`]).
+    Join(BooleanJoin),
     /// The output stage's join could not decide whether a valence-2
     /// vertex is a regular point of its edges' carrier: a reading in
     /// the margin band (D4 ¶3).
@@ -2887,6 +3097,14 @@ pub enum BooleanError {
         /// Which lockstep invariant broke.
         what: &'static str,
     },
+    /// An operand edge's `SplitEdge` provenance never reached a root:
+    /// the walk back from an edge a germ runs along (`Body::split_root`),
+    /// or the chain a discarded face's boundary edge records
+    /// (`discard::discard_row`), came back to an edge it had passed. A
+    /// kernel defect: `Body::split_edge` records each child's parent as
+    /// it mints the child, so each record names an older key, and a
+    /// graft forwards the records injectively onto keys it mints.
+    SplitLineage(crate::SplitLineageCycle),
     /// A lineage list refused a row where a stage added it: a vertex
     /// fusion, a substitution or a face division that maps a cell to
     /// itself, names a cell an earlier row retired, or mints a cell an
@@ -2983,8 +3201,10 @@ pub enum BooleanError {
         /// What failed to resolve.
         what: &'static str,
     },
-    /// The F7 output stage (`merge_coplanar_faces`) refused.
-    Merge(MergeCoplanarError),
+    /// The F7 output stage (`merge_coplanar_faces`) refused, nested
+    /// whole: never its re-description of a kept boundary, which refuses
+    /// as the Boolean's own description does ([`BooleanMerge`]).
+    Merge(BooleanMerge),
     /// The result did not pass the door's at-rest gate (tier 3,
     /// [`crate::AtRestPolicy::gate_at_rest_kept`]; tiers 1 and 2 and
     /// the scaffold fence where the scalar runs none), loudly — no body
@@ -3164,6 +3384,8 @@ pub enum BooleanErrorKind {
     UnsupportedDeclarationClass,
     /// [`BooleanError::RimCuspArmUnbuilt`].
     RimCuspArmUnbuilt,
+    /// [`BooleanError::HeldPierceUnbuilt`].
+    HeldPierceUnbuilt,
     /// [`BooleanError::InvalidInput`].
     InvalidInput,
     /// [`BooleanError::PairingMismatch`].
@@ -3174,8 +3396,12 @@ pub enum BooleanErrorKind {
     PinchConesOnSeparateKeys,
     /// [`BooleanError::PinchRaysInAFace`].
     PinchRaysInAFace,
+    /// [`BooleanError::CrossingsAlongAContactLine`].
+    CrossingsAlongAContactLine,
     /// [`BooleanError::VertexReadTwice`].
     VertexReadTwice,
+    /// [`BooleanError::PartnerAlongFace`].
+    PartnerAlongFace,
     /// [`BooleanError::NestingUnread`].
     NestingUnread,
     /// [`BooleanError::NonManifoldResult`].
@@ -3218,6 +3444,8 @@ pub enum BooleanErrorKind {
     JoinDesync,
     /// [`BooleanError::LineageRow`].
     LineageRow,
+    /// [`BooleanError::SplitLineage`].
+    SplitLineage,
     /// [`BooleanError::EdgeUndescribed`].
     EdgeUndescribed,
     /// [`BooleanError::TornComponent`].
@@ -3411,12 +3639,15 @@ impl BooleanError {
                 BooleanErrorKind::UnsupportedDeclarationClass
             }
             Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
+            Self::HeldPierceUnbuilt { .. } => BooleanErrorKind::HeldPierceUnbuilt,
             Self::InvalidInput { .. } => BooleanErrorKind::InvalidInput,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchConesOnSeparateKeys { .. } => BooleanErrorKind::PinchConesOnSeparateKeys,
             Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
+            Self::CrossingsAlongAContactLine { .. } => BooleanErrorKind::CrossingsAlongAContactLine,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
+            Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
             Self::NestingUnread { .. } => BooleanErrorKind::NestingUnread,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
@@ -3440,6 +3671,7 @@ impl BooleanError {
             Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
+            Self::SplitLineage(_) => BooleanErrorKind::SplitLineage,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
@@ -3903,6 +4135,28 @@ impl core::fmt::Display for BooleanError {
                  the kernel yet",
                 pair.class.name()
             ),
+            Self::HeldPierceUnbuilt {
+                operand,
+                kind,
+                pierced_kind,
+                placed,
+                ..
+            } => write!(
+                f,
+                "a solid of the {} operand has an edge lying in a {} face of another of its \
+                 solids, and a {} face of the other operand crosses both there{}; the Boolean \
+                 builds that only on two planes. Recourse: join the \
+                 solid holding that face to the other operand first, or move the edge off the \
+                 face",
+                operand_word(*operand),
+                kind_word(*kind),
+                kind_word(*pierced_kind),
+                if *placed {
+                    ""
+                } else {
+                    " (or may: its outline is unread there)"
+                },
+            ),
             Self::InvalidInput { operand, what } => write!(
                 f,
                 "an input on the {} operand is invalid: {what}",
@@ -3929,6 +4183,14 @@ impl core::fmt::Display for BooleanError {
                  the other solid, in a way the Boolean cannot yet join. There is no \
                  way through this in the kernel yet",
                 operand_word(*operand)
+            ),
+            Self::CrossingsAlongAContactLine { .. } => write!(
+                f,
+                "the solids meet along a line where pieces of one or both touch, and \
+                 they cut into each other there across more than one piece, which the \
+                 Boolean cannot yet join. Recourse: apply the operation to the pieces \
+                 before they are joined to each other, or move one solid so its edges \
+                 leave the line"
             ),
             Self::PinchConesOnSeparateKeys { operand, .. } => write!(
                 f,
@@ -3962,6 +4224,20 @@ impl core::fmt::Display for BooleanError {
                 match reads[1] {
                     SectorRead::Pierce(_) => "two of its faces meet there",
                     SectorRead::Pair(_) => "a corner of it rests on one of its faces",
+                }
+            ),
+            Self::PartnerAlongFace { operand, along, .. } => write!(
+                f,
+                "a corner of the {} solid touches a face of the other solid beside one of \
+                 its corners lying along that face ({}), on it or within ε_input (K·ε), so \
+                 which side of the face that solid lies on is unread. Recourse: lift that \
+                 corner's edges off the face by more than ε_input, or move the corners apart",
+                operand_word(*operand),
+                match along {
+                    AlongFace::Curved => "the face is curved",
+                    AlongFace::FaceOnFace => "a face of it on that face",
+                    AlongFace::Flush => "a face of the first corner on that face",
+                    AlongFace::FacesInOnePlane => "a face of each corner in one plane",
                 }
             ),
             Self::NestingUnread { operand, .. } => write!(
@@ -4043,15 +4319,15 @@ impl core::fmt::Display for BooleanError {
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
                  reduction)"
             ),
+            Self::SplitLineage(cycle) => write!(
+                f,
+                "the Boolean's split records of an operand edge are corrupt, so no body \
+                 is returned: {cycle}. {KERNEL_DEFECT_ENDING}"
+            ),
             Self::LineageRow { rows, defect, key } => write!(
                 f,
-                "the Boolean's lineage records refused {}, so no body is returned. \
-                 {KERNEL_DEFECT_ENDING}",
-                crate::lineage::RowRefusal {
-                    rows: *rows,
-                    defect: *defect,
-                    key: *key,
-                }
+                "{}, so no body is returned. {KERNEL_DEFECT_ENDING}",
+                crate::lineage::RowRefusal::of(*rows, *defect, *key).refused_by("Boolean")
             ),
             Self::EdgeUndescribed {
                 failure,
@@ -4668,7 +4944,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         ));
     }
 
-    let mut null_edges = Vec::new();
+    let mut null_edges = NullEdges::default();
     let mut null_pairs = Vec::new();
     let mut pierce_rings = Vec::new();
     let mut ring_ties = Vec::new();
@@ -4723,6 +4999,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     Touch {
                         classes: out.classes,
                         datum: out.datum,
+                        flush: out.flush,
                         face: c.face,
                         pairs: Vec::new(),
                     },
@@ -4737,6 +5014,46 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 )?);
             }
         }
+        // A pierce point inside a face of the piercing body's own adds a
+        // pierce there, which its ring serves (`vtxfac::faces_holding_pierce`).
+        let (piercing_body, pierced_body) = match operand {
+            Operand::A => (&mut a, &b),
+            Operand::B => (&mut b, &a),
+        };
+        let mut held = Vec::new();
+        // Each curved face's box, read once: a pierce point is placed in
+        // a curved face only where its box holds the point.
+        let mut curved_boxes = std::collections::BTreeMap::new();
+        if minted.iter().any(|(_, plan)| plan.is_some()) {
+            let pad = boxes::sweep_pad(band);
+            let curved: Vec<FaceKey> = piercing_body
+                .faces()
+                .map(|(k, _)| k)
+                .filter(|&k| reduce::face_plane(piercing_body, k).is_none())
+                .collect();
+            for face in curved {
+                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band)?);
+            }
+        }
+        let box_holds = |face: FaceKey, p: Point3<T>| {
+            let point = bvh::Aabb::from_points([p]).unwrap_or_else(bvh::Aabb::poison);
+            curved_boxes.get(&face).is_none_or(|b| b.overlaps(&point))
+        };
+        for (_, plan) in &minted {
+            if let Some(plan) = plan {
+                held.extend(vtxfac::faces_holding_pierce(
+                    piercing_body,
+                    pierced_body,
+                    &box_holds,
+                    plan,
+                    band,
+                    tol,
+                )?);
+            }
+        }
+        let held_on: std::collections::BTreeMap<_, _> =
+            held.iter().map(|h| (h.plan.contact.vertex, h.on)).collect();
+        minted.extend(held.into_iter().map(|h| (vec![h.strut], Some(h.plan))));
         // Each ring is minted, and its records read, where its first
         // pierce was: a face pierced at one point alone mints as it
         // would beside its piercing side.
@@ -4752,11 +5069,21 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         };
         let mut rings = std::collections::BTreeMap::new();
         let (groups, ties) = vtxfac::ring_groups(&only, band)?;
-        ring_ties.extend(ties.into_iter().map(|(i, j, margin)| RingTie {
-            operand,
-            a: only[i].contact.vertex,
-            b: only[j].contact.vertex,
-            margin,
+        // A held pierce stands at its pierce's point because the point
+        // lies on its face, so a tie to one cites that decision. Held
+        // pierces follow every pierce the sweep found, and a tie's `j`
+        // follows its `i`, so a tie holds one at `j` wherever it holds
+        // one, and two held pierces tie by the later's.
+        ring_ties.extend(ties.into_iter().map(|(i, j, margin)| {
+            RingTie {
+                operand,
+                a: only[i].contact.vertex,
+                b: only[j].contact.vertex,
+                margin: held_on
+                    .get(&only[j].contact.vertex)
+                    .copied()
+                    .unwrap_or(margin),
+            }
         }));
         for group in groups {
             let members: Vec<_> = group.iter().map(|&k| plans[k].1).collect();
@@ -4764,9 +5091,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             rings.insert(plans[group[0]].0, ring);
         }
         for (i, (edges, _)) in minted.into_iter().enumerate() {
-            null_edges.extend(edges);
+            null_edges.extend(edges)?;
             if let Some(ring) = rings.remove(&i) {
-                null_edges.extend(ring.edges);
+                null_edges.extend(ring.edges)?;
                 null_pairs.extend(ring.pairs);
                 pierce_rings.push(ring.ring);
             }
@@ -4786,6 +5113,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
+        // A touching vertex whose partner runs along the face, which
+        // refuses should the pair read a sector pair on one plane.
+        let mut along = None;
         for (operand, vertex, own, other, partner) in [
             (Operand::A, c.a, &a_sectors, &b_sectors, c.b),
             (Operand::B, c.b, &b_sectors, &a_sectors, c.a),
@@ -4799,15 +5129,31 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             };
             match touches.get_mut(&(operand, vertex)) {
                 Some(touch) => {
-                    let side = vtxfac::partner_side(other, touch.datum, band).ok_or(
-                        BooleanError::VertexReadTwice {
-                            operand,
-                            vertex,
-                            reads: [SectorRead::Pierce(touch.face), SectorRead::Pair(partner)],
-                        },
-                    )?;
-                    pair.side = Some(side);
-                    touch.pairs.push(pair);
+                    let face = touch.face;
+                    let along_face = |along| BooleanError::PartnerAlongFace {
+                        operand,
+                        vertex,
+                        face,
+                        partner,
+                        along,
+                    };
+                    match vtxfac::partner_side(other, touch.datum, touch.flush, band)? {
+                        vtxfac::PartnerRead::Side { side, along: on } => {
+                            if on {
+                                along.get_or_insert(along_face(AlongFace::FacesInOnePlane));
+                            }
+                            pair.side = Some(side);
+                            touch.pairs.push(pair);
+                        }
+                        vtxfac::PartnerRead::Across => {
+                            return Err(BooleanError::VertexReadTwice {
+                                operand,
+                                vertex,
+                                reads: [SectorRead::Pierce(face), SectorRead::Pair(partner)],
+                            });
+                        }
+                        vtxfac::PartnerRead::Along(how) => return Err(along_face(how)),
+                    }
                 }
                 None => paired
                     .entry((operand, vertex))
@@ -4817,6 +5163,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             }
         }
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        // The layering beside a partner along the face reads no sector
+        // pair on one plane: it refuses before `recl_sectors` reads one.
+        if let Some(refusal) = along
+            && records.iter().any(sectors::PairRecord::coplanar)
+        {
+            return Err(refusal);
+        }
         // The codes as first read, which the germ loci are derived from.
         let mut raw = records.clone();
         recl::recl_sectors(
@@ -4963,8 +5316,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let hangs = insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
     let hung = hung_points(&hangs, &contacts.vv, [&a, &b])?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
-    null_edges.extend(out.edges);
+    null_edges.extend(out.edges)?;
     null_pairs.extend(out.pairs);
+    let NullEdges {
+        records: null_edges,
+        copies,
+    } = null_edges;
     let held = border_held(held, &covered, &null_edges, &a, &b)?;
     let rest_contacts = decls
         .pairs
@@ -5005,6 +5362,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         b: carved_b,
         contacts: ReductionContacts { ee, ..contacts },
         null_edges,
+        copies,
         null_pairs,
         pierce_rings,
         ring_ties,
@@ -5142,29 +5500,64 @@ fn hung_points<T: Real>(
     Ok(out)
 }
 
-/// The operand edge `piece` of `operand`'s clone lies on: read back
-/// through `splits`, each child to the parent it was split from.
-fn split_root(splits: &[EdgeSplit], operand: Operand, piece: EdgeKey) -> EdgeKey {
-    let mut edge = piece;
-    while let Some(split) = splits
-        .iter()
-        .find(|s| s.operand == operand && s.child == edge)
-    {
-        edge = split.parent;
-    }
-    edge
-}
-
 /// A vertex that touches a face and pairs ([`vtxfac::touch_classes`]).
 struct Touch<T: Real> {
     /// Its pierce's classes, as first read.
     classes: Vec<(HalfEdgeKey, SideCode)>,
     /// The pierced face's datum they were read against.
     datum: vtxfac::PierceDatum<T>,
+    /// Whether a sector of its pierce lies in the face's plane.
+    flush: bool,
     /// The pierced face.
     face: FaceKey,
     /// Each pair's partner side and rows, in pair order.
     pairs: Vec<vtxfac::PairRead<T>>,
+}
+
+/// The reduction's null edges as it records them, both operands, in
+/// insertion order, with each operand's copies: every end of a null
+/// edge other than the vertex it was minted at, which the null edge
+/// minted ([`crate::null::mev_null_run`]).
+struct NullEdges<T: Real> {
+    records: Vec<BoolNullEdgeRecord<T>>,
+    copies: [crate::lineage::NullEdgeCopies; 2],
+}
+
+impl<T: Real> Default for NullEdges<T> {
+    fn default() -> Self {
+        Self {
+            records: Vec::new(),
+            copies: [Operand::A, Operand::B].map(|operand| {
+                crate::lineage::NullEdgeCopies::new(crate::lineage::LineageRows::NullEdgeCopies(
+                    operand,
+                ))
+            }),
+        }
+    }
+}
+
+impl<T: Real> NullEdges<T> {
+    /// Records `minted`, each copy checked as it is added.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::LineageRow`] where a copy is not one the null edge
+    /// minted: an earlier record names it.
+    fn extend(
+        &mut self,
+        minted: impl IntoIterator<Item = BoolNullEdgeRecord<T>>,
+    ) -> Result<(), BooleanError> {
+        for r in minted {
+            let copies = &mut self.copies[usize::from(r.operand == Operand::B)];
+            for end in [r.attr.below_end, r.attr.above_end] {
+                if end != r.at_vertex {
+                    copies.push((end, r.at_vertex))?;
+                }
+            }
+            self.records.push(r);
+        }
+        Ok(())
+    }
 }
 
 /// The two vertices each null edge joins, `(operand, below end, above
@@ -5216,7 +5609,7 @@ fn piece_classes<T: Real>(
     operand: Operand,
     vertex: VertexKey,
     classes: &[(HalfEdgeKey, SideCode)],
-    splits: &[EdgeSplit],
+    splits: &EdgeSplits,
 ) -> Result<Vec<EdgePieceClass>, BooleanError> {
     let desync = |what| BooleanError::ClassificationInvariant { what };
     let mut out = Vec::with_capacity(classes.len());
@@ -5233,7 +5626,7 @@ fn piece_classes<T: Real>(
         out.push(EdgePieceClass {
             operand,
             vertex,
-            edge: split_root(splits, operand, piece),
+            edge: splits.root(operand, piece),
             starts,
             class,
         });
@@ -5317,7 +5710,8 @@ fn verify_declared_contacts<T: Decide>(
                 // Every refusal is the op's: the door glued this pair on
                 // the same reading.
                 let spent = DeclarationRead::Spent(GlueClass::Tangent);
-                let tangency = glued_tangency(a, fa, b, fb, spent, band)?;
+                let tangency = glued_tangency(a, fa, b, fb, spent, band)
+                    .map_err(|f| f.refusal(fa, fb, spent))?;
                 if tangency.interiors? {
                     verified.touches.push(GluedTouch {
                         a: fa,
@@ -5617,6 +6011,9 @@ pub(crate) enum TangencyFailure {
     /// A refusal no reading of the pair settles: an in-band margin, an
     /// unreadable face.
     Refused(BooleanError),
+    /// Along a rim, a junction the routing places outside what the zip
+    /// builds (a cusp, or one it cannot place), refused as itself.
+    Unrouted(BooleanError),
 }
 
 impl TangencyFailure {
@@ -5629,7 +6026,7 @@ impl TangencyFailure {
         match self {
             Self::Contradicted { fact, margin } => glue_contradicted(fa, fb, class, fact, margin),
             Self::Unsupported => BooleanError::UnsupportedDeclarationClass { class },
-            Self::Refused(e) => e,
+            Self::Refused(e) | Self::Unrouted(e) => e,
         }
     }
 }
@@ -5695,7 +6092,18 @@ fn tangent_line<T: Decide>(
     let reach = carrier_pair::pair_extent(a, fa, b, fb, band)
         .map_err(unreadable_extent)?
         .reach;
-    match geom_brep::tangent_locus(sa, sb, reach, band) {
+    // Each face's padded reach along a direction, read in the frame it
+    // aims, so a face that does not reach the locus settles an in-band
+    // reading of the carriers.
+    let extents = |across| {
+        let frame = boxes::BoxFrame::aimed(across);
+        let pad = T::from_f64(boxes::sweep_pad(band));
+        [(a, fa), (b, fb)].map(|(body, face)| {
+            crate::census::face_reach_in(body, face, band, &frame)
+                .map(|(lo, hi)| (lo.x - pad, hi.x + pad))
+        })
+    };
+    match geom_brep::tangent_locus_of_faces(sa, sb, reach, band, extents) {
         Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
             let (span, overlap) = witness_span(a, fa, b, fb, origin, dir)?;
             Ok(Ok(TangentLine {
@@ -5816,11 +6224,12 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     })
 }
 
-/// **The glue door's tangency, as a glued pair's refusal**: the check
-/// ([`verify_tangency`]), and along a rim the routing ([`route_rim`]),
-/// each failure refused under `read`. The door
-/// ([`glue::decided_declarations`]) reads any refusal as no tangency; the
-/// op ([`verify_declared_contacts`]) propagates it.
+/// **The glue door's tangency**: the check ([`verify_tangency`]), and
+/// along a rim the routing ([`route_rim`]). The door
+/// ([`glue::decided_declarations`]) reads a refusal no reading settles
+/// as the operation's and every other failure as no tangency; the op
+/// ([`verify_declared_contacts`]) refuses each failure under its read
+/// ([`TangencyFailure::refusal`]).
 pub(crate) fn glued_tangency<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -5828,9 +6237,8 @@ pub(crate) fn glued_tangency<T: Decide>(
     fb: FaceKey,
     read: DeclarationRead,
     band: Band,
-) -> Result<Tangency<T>, BooleanError> {
-    let tangency =
-        verify_tangency(a, fa, b, fb, read, band).map_err(|f| f.refusal(fa, fb, read))?;
+) -> Result<Tangency<T>, TangencyFailure> {
+    let tangency = verify_tangency(a, fa, b, fb, read, band)?;
     if let rim_wedge::Locus::Rim(rim) = tangency.locus {
         route_rim(a, fa, b, fb, rim, read, band)?;
     }
@@ -5846,15 +6254,10 @@ pub(crate) fn verify_tangent_declaration<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<(), BooleanError> {
-    glued_tangency(
-        a,
-        fa,
-        b,
-        fb,
-        DeclarationRead::Spent(GlueClass::Tangent),
-        band,
-    )
-    .map(|_| ())
+    let spent = DeclarationRead::Spent(GlueClass::Tangent);
+    glued_tangency(a, fa, b, fb, spent, band)
+        .map(|_| ())
+        .map_err(|f| f.refusal(fa, fb, spent))
 }
 
 /// A glued face's carrier and orientation bit, read off one lookup: a
@@ -6012,29 +6415,38 @@ fn verify_tangency<T: Decide>(
             }
         };
     // 3. The tangency table along the witness.
+    use crate::contact::ContactRefusal;
+    use contact_verify::TableRefusal as Table;
     let margin = match contact_verify::tangency_reading(
         &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
     ) {
         // The reading is the touch's; it is a theorem only where the
         // locus it was read along is one too.
         Ok(touch) => touch.jointly(located),
-        Err(crate::contact::ContactRefusal::Contradicted { diag, .. }) => {
+        Err(Table::Refused(ContactRefusal::Contradicted { diag, .. })) => {
             return Err(Contradicted {
                 fact: None,
                 margin: diag,
             });
         }
-        Err(
-            crate::contact::ContactRefusal::Escalated { diag }
-            | crate::contact::ContactRefusal::Undeclared { diag },
-        ) => {
+        Err(Table::Refused(
+            ContactRefusal::Escalated { diag } | ContactRefusal::Undeclared { diag },
+        )) => {
             return Err(Refused(BooleanError::coincidence(
                 Coincide::Contact,
                 read,
                 diag,
             )));
         }
-        Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => return Err(Unsupported),
+        // A pair in the lane whose span bound alone the finest schedule
+        // leaves past the band is the lane's to refuse, typed, rather
+        // than no tangency: it never meets a later stage unglued (C8).
+        Err(Table::SagUnreached) => {
+            return Err(Refused(BooleanError::UnsupportedDeclarationClass {
+                class: GlueClass::Tangent,
+            }));
+        }
+        Err(Table::Refused(ContactRefusal::NotCertifiable { .. })) => return Err(Unsupported),
     };
     let interiors = match overlap {
         Some(both) => locus_through_both_faces(
@@ -6076,19 +6488,21 @@ fn route_rim<T: Decide>(
     rim: rim_wedge::Rim<T>,
     read: DeclarationRead,
     band: Band,
-) -> Result<(), BooleanError> {
-    let unplaced = BooleanError::UnsupportedDeclarationClass {
+) -> Result<(), TangencyFailure> {
+    use TangencyFailure::{Refused, Unrouted};
+    let unplaced = Unrouted(BooleanError::UnsupportedDeclarationClass {
         class: GlueClass::Tangent,
-    };
-    let (sa, sense_a) = glued_face(a, fa, Operand::A)?;
-    let (sb, sense_b) = glued_face(b, fb, Operand::B)?;
+    });
+    let in_band = |diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag));
+    let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
+    let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
     let extent = rim.radius + rim.radius;
     let routing = rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, extent, band)
-        .map_err(|diag| BooleanError::coincidence(Coincide::Rim, read, diag))?;
+        .map_err(in_band)?;
     match routing {
         rim_wedge::RimRouting::Seam => {
             match rim_wedge::departures(a, fa, b, fb, rim_wedge::Locus::Rim(rim), band)
-                .map_err(|diag| BooleanError::coincidence(Coincide::Rim, read, diag))?
+                .map_err(in_band)?
             {
                 rim_wedge::Departure::Opposite => Ok(()),
                 rim_wedge::Departure::Same
@@ -6098,21 +6512,21 @@ fn route_rim<T: Decide>(
                 | rim_wedge::Departure::EdgeKindUnread => Err(unplaced),
             }
         }
-        rim_wedge::RimRouting::Cusp(wedge) => Err(BooleanError::RimCuspArmUnbuilt {
+        rim_wedge::RimRouting::Cusp(wedge) => Err(Unrouted(BooleanError::RimCuspArmUnbuilt {
             pair: crate::contact::DeclaredContact {
                 a: fa,
                 b: fb,
                 class: ContactClass::Tangent,
             },
             wedge,
-        }),
+        })),
         // The table verified the pair tangent with a definite
         // second-order margin, so neither a crossing nor an osculating
         // lamina remains for the routing to find.
         rim_wedge::RimRouting::Transverse | rim_wedge::RimRouting::Lamina => {
-            Err(BooleanError::ClassificationInvariant {
+            Err(Refused(BooleanError::ClassificationInvariant {
                 what: "rim routing: a verified tangency read as a crossing or a lamina",
-            })
+            }))
         }
     }
 }
@@ -6379,16 +6793,86 @@ fn validate_declarations<T: Decide>(
     Ok(())
 }
 
-impl BooleanError {
-    /// The chord join's refusal as the Boolean's: nested whole
-    /// ([`Self::Join`]), except a lineage row the join's division list
-    /// refused, which is the Boolean's own [`Self::LineageRow`], so one
-    /// lineage refusal reaches a caller one way.
-    #[must_use]
-    pub fn of_join(error: SplitJoinError) -> Self {
-        match error {
-            SplitJoinError::LineageRow(refusal) => refusal.into(),
-            other => Self::Join(other),
+pub use join_lift::BooleanJoin;
+
+/// The one conversion of a chord-join refusal into the Boolean's, held
+/// by the type: [`BooleanJoin`]'s field is private to this module, so
+/// [`BooleanError::Join`] is built only here, and never around a
+/// lineage row.
+mod join_lift {
+    use super::{BooleanError, SplitJoinError};
+
+    /// A chord-join refusal the Boolean nests whole: any
+    /// [`SplitJoinError`] but a lineage row.
+    #[derive(Debug)]
+    pub struct BooleanJoin(SplitJoinError);
+
+    impl BooleanJoin {
+        /// The join's own refusal.
+        #[must_use]
+        pub fn error(&self) -> &SplitJoinError {
+            &self.0
+        }
+    }
+
+    impl core::fmt::Display for BooleanJoin {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            self.0.fmt(f)
+        }
+    }
+
+    /// Nested whole ([`BooleanError::Join`]), except a lineage row the
+    /// join's division list refused, which is the Boolean's own
+    /// [`BooleanError::LineageRow`], so one lineage refusal reaches a
+    /// caller one way.
+    impl From<SplitJoinError> for BooleanError {
+        fn from(error: SplitJoinError) -> Self {
+            match error {
+                SplitJoinError::LineageRow(refusal) => refusal.into(),
+                other => Self::Join(BooleanJoin(other)),
+            }
+        }
+    }
+}
+
+pub use merge_lift::BooleanMerge;
+
+/// The one conversion of a merge-door refusal into the Boolean's, held
+/// by the type: [`BooleanMerge`]'s field is private to this module, so
+/// [`BooleanError::Merge`] is built only here, and never around the
+/// door's re-description of a kept boundary.
+mod merge_lift {
+    use super::{BooleanError, MergeCoplanarError};
+
+    /// A merge-door refusal the Boolean nests whole: any
+    /// [`MergeCoplanarError`] but a kept boundary left undescribed.
+    #[derive(Debug)]
+    pub struct BooleanMerge(MergeCoplanarError);
+
+    impl BooleanMerge {
+        /// The merge door's own refusal.
+        #[must_use]
+        pub fn error(&self) -> &MergeCoplanarError {
+            &self.0
+        }
+    }
+
+    impl core::fmt::Display for BooleanMerge {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            self.0.fmt(f)
+        }
+    }
+
+    /// Nested whole ([`BooleanError::Merge`]), except the door's
+    /// re-description of its kept faces' boundaries, which refuses as the
+    /// Boolean's own description pass does (`ops::of_describe`), so one
+    /// undescribed edge reaches a caller one way.
+    impl From<MergeCoplanarError> for BooleanError {
+        fn from(error: MergeCoplanarError) -> Self {
+            match error.kept_boundary() {
+                Some(described) => super::ops::of_describe(described),
+                None => Self::Merge(BooleanMerge(error)),
+            }
         }
     }
 }
@@ -7199,6 +7683,10 @@ mod tests {
                 operand: Operand::A,
                 face,
             },
+            BooleanError::CrossingsAlongAContactLine {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+            },
             BooleanError::VertexReadTwice {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
@@ -7206,6 +7694,13 @@ mod tests {
                     SectorRead::Pierce(face),
                     SectorRead::Pair(VertexKey::default()),
                 ],
+            },
+            BooleanError::PartnerAlongFace {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                face,
+                partner: VertexKey::default(),
+                along: AlongFace::Curved,
             },
             BooleanError::NestingUnread {
                 operand: Operand::A,
@@ -7290,6 +7785,9 @@ mod tests {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
             },
             BooleanError::JoinDesync { what: "a lockstep" },
+            BooleanError::SplitLineage(crate::SplitLineageCycle {
+                edge: EdgeKey::default(),
+            }),
             BooleanError::LineageRow {
                 rows: crate::lineage::LineageRows::Substitutions,
                 defect: crate::lineage::RowDefect::NamesRetired,
@@ -7406,12 +7904,15 @@ mod tests {
                 BooleanErrorKind::ContinuationContradicted => "ContinuationContradicted",
                 BooleanErrorKind::UnsupportedDeclarationClass => "UnsupportedDeclarationClass",
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
+                BooleanErrorKind::HeldPierceUnbuilt => "HeldPierceUnbuilt",
                 BooleanErrorKind::InvalidInput => "InvalidInput",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchConesOnSeparateKeys => "PinchConesOnSeparateKeys",
                 BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
+                BooleanErrorKind::CrossingsAlongAContactLine => "CrossingsAlongAContactLine",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
+                BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",
                 BooleanErrorKind::NestingUnread => "NestingUnread",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
@@ -7433,6 +7934,7 @@ mod tests {
                 BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::LineageRow => "LineageRow",
+                BooleanErrorKind::SplitLineage => "SplitLineage",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
