@@ -247,3 +247,33 @@ reading its sections' planes at the lane scalar. Both are now the
 same verdict as `Vec3::try_map` and `Mat3::try_map`: no production
 consumer. Re-run the census before deciding on them.
 
+
+## `SketchPlane::map` and `try_map` retired (2026-10-14, PATHS' `the-sketch-plane-is-its-frame`)
+
+The sketch plane now holds a `RigidMotion` and crosses scalars only
+through closure-free doors, so both closure doors are gone:
+
+- `SketchPlane::map`'s consumers are re-homed onto
+  `SketchPlane::embed` (`RigidMotion::embed`, every component through
+  `Real::from_f64`): `editor-core`'s `Pinned` lift (`eval/wire.rs`),
+  `sweep`'s loft at an enclosure scalar (`loft.rs`, the channel planes,
+  which were lifted with `from_computed` and now enter as `from_f64`,
+  as the canonical forms beside them already did), the test fixtures,
+  and the demos. A frame the kernel COMPUTED (a path's start frame)
+  crosses through `embed_computed` (`Real::from_computed`), mirroring
+  `ConstructedLoop::lift_computed`.
+- The value-channel reads `p.map(T::value_channel)` (loft and sweep
+  placements at a lane scalar) are re-homed onto
+  `SketchPlane::point_value` (`RigidMotion::point_value`), which
+  refuses (`None`) where a component has no single finite `f64`
+  instead of carrying NaN.
+- `Profile::map_scalar` is now `Profile::embed` (`Profile<f64>` only,
+  through `SketchPlane::embed` and `ProfileLoop::map_scalar(U::from_f64)`);
+  its consumers are tests, as before.
+
+What this leaves for this row: `Affine3::try_map` lost the last caller
+it had (`SketchPlane::try_map`), so `Vec3::try_map`, `Mat3::try_map`
+and `Affine3::try_map` are now one ladder with no consumer outside its
+own tests. `Affine3::map` keeps `editor-core`'s `Frame::affine` (filed
+as `work/wire/a-literal-placement-frame-crosses-scalars-by-closure-and-is-decided-again-at-the-lane.md`)
+and its in-crate callers.

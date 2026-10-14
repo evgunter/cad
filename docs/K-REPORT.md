@@ -3100,3 +3100,34 @@ with `symbolic_zero` read as `symbolic` (37,420 of them; 19,620
 positive, 52 negative and 32 zero classified on both sides). The
 decision read, which now declines at a point scalar such as the
 replay's `Sym<Probe>`, answered none of them.
+
+## The sketch plane is its frame (PATHS, 2026-10-14)
+
+Three names move, all by construction; the driver dump was not re-taken
+for this addendum, so no population count is claimed.
+
+- **`revolve_placed_axis` retires.** The sketch plane holds a
+  `RigidMotion`, so the revolve's placed axis is the frame turning the
+  sketch axis's witness (`RigidMotion::turn`), unit by construction;
+  the decision above has nothing left to decide. `revolve_axis_direction`
+  now decides the sketch axis as `(x, y, 0)` through `UnitVec3::new`
+  (`Margin::norm3` of a vector whose third component is an exact zero,
+  so the margin is the old `norm2` length bit for bit).
+- **`sweep_path_tangent` is added** (`sweep`'s `skin.rs`,
+  `sweep_places`): each station's path derivative decided into a
+  direction witness through `UnitVec3::new`, a length against the
+  linear band. It replaces an exact `!(n > 0.0)` test that sampled
+  nothing.
+- **`sweep_path_turn` is added**, decided inside
+  `RigidMotion::turned_between` through `decide_flagged` under ledger
+  row F21 (`docs/predicate-dimension-audit.md`): the divisor
+  `1 + t₀·tᵢ` of the minimal rotation carrying the start tangent onto
+  station `i`'s, dimensionless against the linear band. It replaces an
+  exact `sin > 0.0` structure comparison. At station 0 and on a
+  straight path the margin is exactly 2; it approaches zero only where
+  the path doubles back, which is where it refuses.
+
+The evaluation layer's `datum_unit_norm` under `DATUM_AXIS_ROLE`
+(`editor-core`'s axis port, `eval/wire/pose.rs`) is asked once per
+axis read instead of twice: the sketch direction is decided, and the
+placed one is the frame's turn of it.
