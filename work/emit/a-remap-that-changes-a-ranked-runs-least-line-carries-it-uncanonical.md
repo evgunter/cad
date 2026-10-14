@@ -2,7 +2,8 @@
 id: a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical
 kind: issue
 title: A remap that makes another line of a ranked EdgeCrossing run least carries the name out of order, so it resolves to nothing
-status: open
+status: closed
+closed: 2026-10-14
 opened: 2026-10-12
 priority: P3
 cost: M
@@ -85,3 +86,38 @@ behaviour. `Remapping` answers the hook with an error beside
    `refactor::remap_a_ranked_run` as the refusal.
 3. If a reach to (1) turns up a reorder that does not come from step
    ids, the pair should refuse it loudly rather than carry it.
+
+## Closed
+
+- **Reproduced end to end, then fixed.** `asm4_split_inline::a_split_and_an_inline_keep_a_reordered_profiles_step_order`
+  splits the `SetProgram`-reshaped component (step 2 re-minted last,
+  so its program holds ordinals `52, 53, 63, 55, 56`). Before the fix
+  the split's step map was `55 → 24, 63 → 23`: a ranked run over the
+  extrude's lateral edges at steps 2 and 3 came out with its lines
+  `[24, 23]`, out of name order, a name no emitter mints. Now
+  `refactor::carry` deals the minted ids out in the source's id order
+  (`in_id_order`), with a recorded `SetProgram` that keeps every step
+  and mints nothing, so the step map keeps id order for a split and for
+  an inline. The test pins both maps monotone and the run crossing
+  with the image of its least line least and its rank kept.
+- **The reach of (1).** Node ids: the carry inserts in document order
+  (id order); `gauges_first` moves only gauges, which mint no name.
+  Reads: an output's id is minted only at its node's insert
+  (`Mint::outputs_of_insert`), so outputs follow node order. No other
+  reorder was found, so the pair's internal remaps go through
+  `refactor::remap_carried`, which treats a reordered ranked run as
+  the broken invariant it would be (`unreachable!`).
+- **The public door.** `SegRewrite::unrankable` is the typed channel;
+  its default carries the name, so `emit_union`'s rewriters are
+  unchanged. `canonical::rewritten` answers `Rewritten::Carried` with
+  the reason. `Remapping` refuses `RunLeastLineMoved` as
+  `RemapError::RankedRunReordered { vertex }` (the ranked name, which
+  may be an embedded one) and carries the two emission-time reasons,
+  which resolved to nothing before the remap too. `remap_name` now
+  returns `RemapError` (`Unmapped` is one arm). Its `Display` is 58
+  words with a recourse.
+  `refactor::remap_a_ranked_run` is re-pinned as the refusal, the
+  order-keeping map's carry, and an embedded run's refusal.
+- ASSEMBLY.md A4 needed no re-wording: it does not describe
+  `remap_name`, and the order-keeping maps are what its *Acceptance*
+  already requires.
