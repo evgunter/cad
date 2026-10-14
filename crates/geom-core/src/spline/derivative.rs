@@ -47,10 +47,15 @@
 //! combinations of the positive control weights. There is no weight
 //! range, no sign split and no control-point hull.
 //!
-//! **The pieces** are exact dyadic Bézier pieces of each nonempty span
-//! or cell ([`super::pieces`]), read off the span's blossom and one
-//! exact-weight combination, never off a refined knot vector: as they
-//! shrink, the coefficient ratios converge on the quantity's range.
+//! **The pieces.** A curve span's are exact dyadic Bézier pieces read
+//! off the span's blossom and one exact-weight combination
+//! ([`super::pieces`]). A cell's quotient is formed once over the cell
+//! and halved at ½ by de Casteljau, along each axis, as often as its
+//! schedule asks: each step a sum and an exact halving, outward at
+//! `Interval`, so the halves enclose the exact quotient's at any degree
+//! and the count has no exactness ceiling. Neither reads a refined
+//! knot vector: as the pieces shrink, the coefficient ratios converge
+//! on the quantity's range.
 //! Each derivative row is read off the B-spline derivative net (its
 //! knot differences span the whole support), not off a piece's own
 //! differences, whose `degree/width` scale would amplify their rounding.
@@ -364,6 +369,11 @@ impl<T: Real, const D: usize> Vector<T, D> {
         }
     }
 
+    /// Half the vector: an exact scaling by a power of two.
+    fn half(self) -> Self {
+        self * T::from_f64(0.5)
+    }
+
     /// The vector over the exact integer `k`, skipped at one.
     fn over(self, k: f64) -> Self {
         if k == 1.0 {
@@ -476,43 +486,17 @@ impl<T: Real, const D: usize> Grid<T, D> {
         )
     }
 
-    /// The grid restricted to one piece: `bu` and `bv` are the piece's
-    /// [`piece_weights`] blocks for this grid's degree along each axis.
-    fn restrict(&self, bu: &[f64], bv: &[f64]) -> Option<Self> {
-        self.map_u(|col| restrict(bu, col))?
-            .map_v(|row| restrict(bv, row))
-    }
-
-    /// The grid restricted to piece `(iu, iv)` of `counts` equal dyadic
-    /// pieces per axis, by the exact [`piece_weights`] of its own
-    /// degree on each axis.
-    fn on_piece(&self, (iu, iv): (usize, usize), counts: (usize, usize)) -> Option<Self> {
-        let block = |deg: usize, count: usize, i: usize| -> Option<Vec<f64>> {
-            let n = (deg + 1).pow(2);
-            piece_weights(deg, count)?
-                .get(i * n..(i + 1) * n)
-                .map(<[f64]>::to_vec)
-        };
-        let (du, dv) = self.degree();
-        self.restrict(&block(du, counts.0, iu)?, &block(dv, counts.1, iv)?)
-    }
-
-    /// The grid restricted to piece `at` of `cut`, by the table of its
-    /// own degree on each axis.
-    fn cut(&self, cut: &Cut, (iu, iv): (usize, usize)) -> Option<Self> {
-        self.cut_u(cut, iu)?.cut_v(cut, iv)
-    }
-
-    /// The grid restricted along `u` to the `iu`-th piece of `cut`.
-    fn cut_u(&self, cut: &Cut, iu: usize) -> Option<Self> {
-        let block = Cut::block(&cut.u, self.degree().0, iu)?;
-        self.map_u(|col| restrict(block, col))
-    }
-
-    /// The grid restricted along `v` to the `iv`-th piece of `cut`.
-    fn cut_v(&self, cut: &Cut, iv: usize) -> Option<Self> {
-        let block = Cut::block(&cut.v, self.degree().1, iv)?;
-        self.map_v(|row| restrict(block, row))
+    /// The grid halved along `u` (`along_u`) or `v` at the parameter's
+    /// midpoint, by de Casteljau: the two halves' Bernstein grids, lower
+    /// first.
+    fn halved(&self, along_u: bool) -> Option<(Self, Self)> {
+        if along_u {
+            let (lo, hi): (Vec<_>, Vec<_>) = self.columns()?.iter().map(|c| halved_row(c)).unzip();
+            Some((Self::from_columns(&lo)?, Self::from_columns(&hi)?))
+        } else {
+            let (lo, hi): (Vec<_>, Vec<_>) = self.c.chunks_exact(self.nv).map(halved_row).unzip();
+            Some((Self::from_rows(&lo)?, Self::from_rows(&hi)?))
+        }
     }
 
     /// The grid raised to the degrees `(du, dv)` by elevation: its
@@ -529,6 +513,50 @@ impl<T: Real, const D: usize> Grid<T, D> {
     fn arrays(&self) -> Vec<[T; D]> {
         self.c.iter().map(|v| v.0).collect()
     }
+}
+
+/// A Bernstein row halved at its parameter's midpoint by de Casteljau:
+/// `(lower, upper)`, each the half's own row at the same degree. Every
+/// step is a sum and an exact halving.
+fn halved_row<T: Real, const D: usize>(
+    row: &[Vector<T, D>],
+) -> (Vec<Vector<T, D>>, Vec<Vector<T, D>>) {
+    let n = row.len();
+    let mut tri = row.to_vec();
+    let (mut lo, mut hi) = (Vec::with_capacity(n), Vec::with_capacity(n));
+    for r in 0..n {
+        if r > 0 {
+            for i in 0..n - r {
+                tri[i] = (tri[i] + tri[i + 1]).half();
+            }
+        }
+        lo.push(tri[0]);
+        hi.push(tri[n - 1 - r]);
+    }
+    hi.reverse();
+    (lo, hi)
+}
+
+/// The largest power of two at most `splits`, never zero: how many
+/// pieces halving cuts an axis into.
+fn halving_count(splits: usize) -> usize {
+    if splits == 0 { 1 } else { 1 << splits.ilog2() }
+}
+
+/// `whole` cut into `count` equal pieces along one axis by repeated
+/// halving at ½ (`halve`), in ascending order. `count` is a power of two.
+fn halvings<X>(whole: X, count: usize, halve: impl Fn(&X) -> Option<(X, X)>) -> Option<Vec<X>> {
+    let mut out = vec![whole];
+    while out.len() < count {
+        out = out
+            .iter()
+            .map(&halve)
+            .collect::<Option<Vec<_>>>()?
+            .into_iter()
+            .flat_map(|(lo, hi)| [lo, hi])
+            .collect();
+    }
+    Some(out)
 }
 
 /// The Bernstein product of the grids `a` and `b` under the bilinear
@@ -792,23 +820,6 @@ pub struct CellSecondQuotients<T> {
 }
 
 impl<T: Real> Homogeneous<T> {
-    /// The first-order grids restricted to piece `(iu, iv)` of `counts`
-    /// per axis (the second order is cut after it is formed:
-    /// [`SecondRaised::cut`]).
-    fn restrict(&self, at: (usize, usize), counts: (usize, usize)) -> Option<Self> {
-        let r3 = |g: &Grid<T, 3>| g.on_piece(at, counts);
-        let r1 = |g: &Grid<T, 1>| g.on_piece(at, counts);
-        Some(Self {
-            a: r3(&self.a)?,
-            w: r1(&self.w)?,
-            au: r3(&self.au)?,
-            wu: r1(&self.wu)?,
-            av: r3(&self.av)?,
-            wv: r1(&self.wv)?,
-            second: None,
-        })
-    }
-
     /// The second-order quotients on this piece (module docs, "The
     /// second order"):
     /// `M_uu = A_uu·W² − A·W_uu·W − 2·A_u·W·W_u + 2·A·W_u²` and `M_vv`
@@ -834,13 +845,9 @@ impl<T: Real> Homogeneous<T> {
         Some(SecondRaised { uu, uv, vv })
     }
 
-    /// The quotients on this piece (module docs): `N_u = A_u·W − A·W_u`
-    /// and `N_v` over `W²`, and `M̃` over `W³`.
-    fn quotients(&self, area: bool) -> Option<CellQuotients<T>> {
-        self.first_raised(area)?.pieces()
-    }
-
-    /// [`Self::quotients`] before it is cut.
+    /// The first-order quotients over the block (module docs):
+    /// `N_u = A_u·W − A·W_u` and `N_v` over `W²`, and `M̃` over `W³` when
+    /// `area`, each raised to its weight power's degrees.
     fn first_raised(&self, area: bool) -> Option<FirstRaised<T>> {
         let first = |d: &Grid<T, 3>, dw: &Grid<T, 1>| -> Option<Grid<T, 3>> {
             product(d, &self.w, by_weight)?.minus(&product(&self.a, dw, by_weight)?)
@@ -872,11 +879,11 @@ impl<T: Real> Homogeneous<T> {
 }
 
 /// A quotient before it is cut into pieces: its numerator raised to its
-/// weight power's degrees, and the weight power. Restricting both to a
-/// piece by the same exact weights gives the piece's own coefficients
-/// at that degree (restriction is linear and preserves degree), so a
-/// quotient raised once over a cell and cut is the statement on each
-/// piece.
+/// weight power's degrees, and the weight power, formed once over the
+/// block. Restricting both to a piece gives the piece's own
+/// coefficients at that degree (restriction commutes with the ring
+/// operations and preserves degree), so a quotient raised once and cut
+/// is the statement on each piece.
 #[derive(Clone)]
 struct Raised<T, const D: usize> {
     numer: Grid<T, D>,
@@ -891,11 +898,36 @@ impl<T: Real, const D: usize> Raised<T, D> {
         })
     }
 
-    fn cut(&self, cut: &Cut, at: (usize, usize)) -> Option<Self> {
-        Some(Self {
-            numer: self.numer.cut(cut, at)?,
-            denom: self.denom.cut(cut, at)?,
-        })
+    /// The quotient halved along `u` (`along_u`) or `v`: numerator and
+    /// weight power halved alike, so each half is the statement on its
+    /// half of the block.
+    fn halved(&self, along_u: bool) -> Option<(Self, Self)> {
+        let (n0, n1) = self.numer.halved(along_u)?;
+        let (d0, d1) = self.denom.halved(along_u)?;
+        Some((
+            Self {
+                numer: n0,
+                denom: d0,
+            },
+            Self {
+                numer: n1,
+                denom: d1,
+            },
+        ))
+    }
+
+    /// The quotient on `counts` equal pieces per axis (powers of two),
+    /// by halving at ½ along `u` and then along `v`, row-major in `u`
+    /// then `v`.
+    fn pieces(&self, counts: (usize, usize)) -> Option<Vec<QuotientPiece<T, D>>> {
+        let along_u = halvings(self.clone(), counts.0, |r| r.halved(true))?;
+        let mut out = Vec::with_capacity(counts.0 * counts.1);
+        for r in along_u {
+            for piece in halvings(r, counts.1, |r| r.halved(false))? {
+                out.push(piece.piece()?);
+            }
+        }
+        Some(out)
     }
 
     fn piece(&self) -> Option<QuotientPiece<T, D>> {
@@ -906,103 +938,11 @@ impl<T: Real, const D: usize> Raised<T, D> {
     }
 }
 
-/// A cut into exact dyadic pieces, `counts` per axis, with the
-/// [`piece_weights`] table of each degree it reads formed once: a
-/// table is the cut's, not a grid's, so the grids of one cell share it.
-struct Cut {
-    u: Vec<(usize, Vec<f64>)>,
-    v: Vec<(usize, Vec<f64>)>,
-}
-
-impl Cut {
-    /// The tables of the degrees `du` along `u` and `dv` along `v`.
-    fn new(counts: (usize, usize), (du, dv): (&[usize], &[usize])) -> Option<Self> {
-        let tables = |count: usize, degrees: &[usize]| {
-            degrees
-                .iter()
-                .map(|&d| Some((d, piece_weights(d, count)?)))
-                .collect::<Option<Vec<_>>>()
-        };
-        Some(Self {
-            u: tables(counts.0, du)?,
-            v: tables(counts.1, dv)?,
-        })
-    }
-
-    /// Piece `i`'s block of the degree-`deg` table.
-    fn block(tables: &[(usize, Vec<f64>)], deg: usize, i: usize) -> Option<&[f64]> {
-        let (_, table) = tables.iter().find(|(d, _)| *d == deg)?;
-        let n = (deg + 1).pow(2);
-        table.get(i * n..(i + 1) * n)
-    }
-}
-
-/// Both orders' quotients on every piece of `cut`, row-major in `u`
-/// then `v`. Each grid is cut along `u` once per `u` piece and along
-/// `v` per piece, and the weight powers once per piece: the first
-/// order's two quotients share `W²`, and the area and the three second
-/// partials share `W³` (one product of the same factors, bit for bit).
-fn cut_both<T: Real>(
-    (first, area): (&FirstRaised<T>, &Raised<T, 3>),
-    second: &SecondRaised<T>,
-    cut: &Cut,
-    counts: (usize, usize),
-) -> Option<PiecePairs<T>> {
-    let mut out = Vec::with_capacity(counts.0 * counts.1);
-    for iu in 0..counts.0 {
-        let along = |g: &Grid<T, 3>| g.cut_u(cut, iu);
-        let numers = [
-            along(&first.u.numer)?,
-            along(&first.v.numer)?,
-            along(&area.numer)?,
-            along(&second.uu.numer)?,
-            along(&second.uv.numer)?,
-            along(&second.vv.numer)?,
-        ];
-        let (w2, w3) = (first.u.denom.cut_u(cut, iu)?, area.denom.cut_u(cut, iu)?);
-        for iv in 0..counts.1 {
-            let scalars = |g: &Grid<T, 1>| -> Option<Vec<T>> {
-                Some(g.cut_v(cut, iv)?.c.iter().map(|w| w.0[0]).collect())
-            };
-            let (b2, b3) = (scalars(&w2)?, scalars(&w3)?);
-            let piece = |k: usize, b: &[T]| {
-                QuotientPiece::new(numers.get(k)?.cut_v(cut, iv)?.arrays(), b.to_vec())
-            };
-            out.push((
-                CellQuotients {
-                    u: piece(0, &b2)?,
-                    v: piece(1, &b2)?,
-                    area: Some(piece(2, &b3)?),
-                },
-                Some(CellSecondQuotients {
-                    uu: piece(3, &b3)?,
-                    uv: piece(4, &b3)?,
-                    vv: piece(5, &b3)?,
-                }),
-            ));
-        }
-    }
-    Some(out)
-}
-
 /// [`CellQuotients`] before it is cut.
 struct FirstRaised<T> {
     u: Raised<T, 3>,
     v: Raised<T, 3>,
     area: Option<Raised<T, 3>>,
-}
-
-impl<T: Real> FirstRaised<T> {
-    fn pieces(&self) -> Option<CellQuotients<T>> {
-        Some(CellQuotients {
-            u: self.u.piece()?,
-            v: self.v.piece()?,
-            area: match &self.area {
-                Some(a) => Some(a.piece()?),
-                None => None,
-            },
-        })
-    }
 }
 
 /// [`CellSecondQuotients`] before it is cut.
@@ -1279,9 +1219,9 @@ pub enum CellBlock<'a, T> {
 }
 
 /// **The surface statement's pieces on one cell block** (module docs):
-/// the `block` along `axes`, cut into [`piece_count`]`(p, splits.0)` ×
-/// [`piece_count`]`(q, splits.1)` exact dyadic pieces, row-major in `u`
-/// then `v`. `area` asks for `S_u × S_v` as well. `None` on a degree
+/// the `block` along `axes`, its quotients formed once and halved into
+/// the largest power of two at most `splits.0` pieces along `u` and
+/// `splits.1` along `v`, row-major in `u` then `v`. `area` asks for `S_u × S_v` as well. `None` on a degree
 /// below one, a block of the wrong size, or a common degree above
 /// [`QUOTIENT_MAX_DEGREE`].
 pub fn cell_quotients<T: Real>(
@@ -1302,8 +1242,7 @@ pub fn cell_quotients<T: Real>(
 /// **The surface statement's pieces at both orders** on one cell block
 /// (module docs, "The second order"): [`cell_quotients`] with
 /// `S_u × S_v`, and beside each piece its [`CellSecondQuotients`], with
-/// the piece count per direction the cut used: [`piece_count`] at the
-/// second order's degrees `(3p, 3q)`. `None` as [`cell_quotients`], with
+/// the piece count per direction (as [`cell_quotients`]'). `None` as [`cell_quotients`], with
 /// the common degree `3·max(p, q)` against [`QUOTIENT_MAX_DEGREE`].
 #[allow(clippy::type_complexity)]
 pub fn cell_second_quotients<T: Real>(
@@ -1325,7 +1264,7 @@ pub fn cell_second_quotients<T: Real>(
 /// **The integral area's pieces** on one cell block: with unit
 /// weights `S_u × S_v = A_u × A_v`, a polynomial of degree
 /// `(2p − 1, 2q − 1)`, read as a quotient over one (every `b_k` exactly
-/// one) on [`piece_count`] exact dyadic pieces per direction, row-major
+/// one), halved into pieces as [`cell_quotients`]' are, row-major
 /// in `u` then `v`. The rational form's `M̃/W³` would carry degree `3p`
 /// for nothing, so an integral patch reaches `p = 28` here, where the
 /// rational area stops at `18`. `None` on a degree below one, a block
@@ -1347,13 +1286,7 @@ pub fn polynomial_area_pieces<T: Real>(
     let numer = product(&du, &dv, cross)?;
     let (mu, mv) = numer.degree();
     let denom = Grid::new(mv + 1, vec![Vector([T::one()]); (mu + 1) * (mv + 1)])?;
-    let whole = Raised { numer, denom };
-    let counts = (piece_count(mu, splits.0), piece_count(mv, splits.1));
-    let cut = Cut::new(counts, (&[mu], &[mv]))?;
-    (0..counts.0)
-        .flat_map(|iu| (0..counts.1).map(move |iv| (iu, iv)))
-        .map(|at| whole.cut(&cut, at)?.piece())
-        .collect()
+    Raised { numer, denom }.pieces((halving_count(splits.0), halving_count(splits.1)))
 }
 
 #[allow(clippy::type_complexity)]
@@ -1459,25 +1392,39 @@ fn cell_pieces<T: Real>(
         av: cell_grid(&av_w, (&au, 0), (&av, 1))?,
         wv: cell_grid(&wv_w, (&au, 0), (&av, 1))?,
     };
-    if whole.second.is_some() {
-        // Both orders formed once over the cell and cut: the pieces are
-        // counted for the second-order quotients' degree `3p`, so every
-        // row cut is cut exactly. The area is formed whatever `area`
-        // asks: it shares `W³` with the second partials, and
-        // `CellSecondQuotients` readers take it beside them.
-        let (first, area) = (whole.first_raised(false)?, whole.area_raised()?);
-        let second = whole.second_raised()?;
-        let counts = (piece_count(3 * p, splits.0), piece_count(3 * q, splits.1));
-        let cut = Cut::new(counts, (&[2 * p, 3 * p], &[2 * q, 3 * q]))?;
-        return Some((counts, cut_both((&first, &area), &second, &cut, counts)?));
-    }
-    let counts = (piece_count(p, splits.0), piece_count(q, splits.1));
-    let mut out = Vec::with_capacity(counts.0 * counts.1);
-    for iu in 0..counts.0 {
-        for iv in 0..counts.1 {
-            out.push((whole.restrict((iu, iv), counts)?.quotients(area)?, None));
+    // Every quotient is formed once over the cell and halved into its
+    // pieces. With the second order the area is formed whatever `area`
+    // asks: it shares `W³` with the second partials, and
+    // `CellSecondQuotients` readers take it beside them.
+    let counts = (halving_count(splits.0), halving_count(splits.1));
+    let first = whole.first_raised(area || whole.second.is_some())?;
+    let (u, v) = (first.u.pieces(counts)?, first.v.pieces(counts)?);
+    let area: Vec<_> = match &first.area {
+        Some(a) => a.pieces(counts)?.into_iter().map(Some).collect(),
+        None => vec![None; u.len()],
+    };
+    let second: Vec<_> = match whole.second_raised() {
+        Some(s) => {
+            let (uu, uv, vv) = (
+                s.uu.pieces(counts)?,
+                s.uv.pieces(counts)?,
+                s.vv.pieces(counts)?,
+            );
+            uu.into_iter()
+                .zip(uv)
+                .zip(vv)
+                .map(|((uu, uv), vv)| Some(CellSecondQuotients { uu, uv, vv }))
+                .collect()
         }
-    }
+        None => vec![None; u.len()],
+    };
+    let out = u
+        .into_iter()
+        .zip(v)
+        .zip(area)
+        .zip(second)
+        .map(|(((u, v), area), second)| (CellQuotients { u, v, area }, second))
+        .collect();
     Some((counts, out))
 }
 
@@ -1559,6 +1506,41 @@ mod tests {
         f64::MAX,
     ];
     const DEGREES: [usize; 5] = [1, 2, 3, 5, 7];
+
+    /// **A cell is halved into the pieces its schedule asks for at any
+    /// degree.** A degree-5 cell's second order sits at degree 15, past
+    /// the exact-weight tables' reach at 16 pieces (degree 12), where it
+    /// read 8 per axis; halving reads 16, and every piece's weight
+    /// power stays positive.
+    #[test]
+    fn a_cell_past_the_exact_tables_reads_every_piece_it_asks_for() {
+        let (p, q) = (5, 5);
+        let n = (p + 1) * (q + 1);
+        let a: Vec<[f64; 3]> = (0..n)
+            .map(|k| {
+                let (i, j) = ((k / (q + 1)) as f64, (k % (q + 1)) as f64);
+                [i, j, 0.1 * i * j - 0.05 * i * i]
+            })
+            .collect();
+        let w: Vec<f64> = (0..n).map(|k| 1.0 + 0.25 * ((k * 7) % 5) as f64).collect();
+        let a: Vec<[f64; 3]> = a.iter().zip(&w).map(|(x, w)| x.map(|c| c * w)).collect();
+        let axes = (
+            super::CellAxis::Bezier { degree: p, scale: p as f64 },
+            super::CellAxis::Bezier { degree: q, scale: q as f64 },
+        );
+        let (counts, pieces) = super::cell_second_quotients(
+            axes,
+            super::CellBlock::Homogeneous { a: &a, w: &w },
+            (16, 16),
+        )
+        .expect("a degree-15 second order is under the ceiling");
+        assert_eq!(counts, (16, 16), "the pieces per axis");
+        assert_eq!(pieces.len(), 256, "the pieces read");
+        assert!(
+            pieces.iter().all(|(_, s)| s.uu.denom().iter().all(|&b| b > 0.0)),
+            "a piece's W³ coefficient is not positive"
+        );
+    }
 
     /// The spelling every routed site wrote before it called the helper.
     fn literal<T: Real>(p: usize, lo: T, hi: T) -> T {
