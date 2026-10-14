@@ -861,7 +861,7 @@ impl CertCheck {
             // No kernel construction mints a span of no length or a
             // reversed one (`CertifyError::IntervalNotForward`).
             Self::ParamSpan => Ending::Sized(SizedDecision {
-                lever: "move the geometry so this edge is not vanishingly short",
+                lever: "move the geometry so this edge runs forward over a clear length",
                 size: "length",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
@@ -5201,7 +5201,7 @@ mod tests {
     fn each_split_verdict_ends_as_its_own_arm() {
         use crate::edge_nurbs::PlaneNurbsRefusal as P;
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let span = "Recourse: move the geometry so this edge is not vanishingly short";
+        let span = "Recourse: move the geometry so this edge runs forward over a clear length";
         let winding = "Recourse: move the geometry so this arc stays clearly short of a full turn";
         let cross = "Recourse: move the geometry so the surfaces cross at a clearer angle";
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
@@ -5286,6 +5286,63 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// A span of no length and a reversed one each render whole under
+    /// the one lever, which names the forward edge both lack, at a build
+    /// and in band at rest.
+    #[test]
+    fn a_zero_and_a_reversed_span_render_whole() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let in_band = |m| CertifyError::IntervalNotForward {
+            verdict: Refused::Zero(Classified {
+                margin: MarginDiag::value(m),
+                band,
+            }),
+        };
+        let reversed = CertifyError::IntervalNotForward {
+            verdict: Refused::Negative {
+                margin: MarginDiag::value(-1e-3),
+            },
+        };
+        let rows = [
+            (
+                in_band(0.0),
+                Reading::Build,
+                "the stored parameter interval is not shown to run forward (margin 0e0 m). \
+                 Recourse: move the geometry so this edge runs forward over a clear length; an \
+                 edge of no length, or a reversed one, is one no kernel construction mints, so \
+                 this is a kernel defect worth reporting",
+            ),
+            (
+                in_band(0.0),
+                Reading::AtRest,
+                "the stored parameter interval is not shown to run forward (margin 0e0 m). \
+                 Recourse: move the geometry so this edge runs forward over a clear length; an \
+                 edge of no length, or a reversed one, is one no kernel construction mints, so \
+                 this is a kernel defect or a damaged file, worth reporting",
+            ),
+            (
+                reversed,
+                Reading::Build,
+                "the stored parameter interval runs backwards — increasing parameter must run \
+                 from the edge's start vertex to its end vertex. Recourse: move the geometry so \
+                 this edge runs forward over a clear length; an edge of no length, or a reversed \
+                 one, is one no kernel construction mints, so this is a kernel defect worth \
+                 reporting",
+            ),
+            (
+                in_band(-5e-10),
+                Reading::AtRest,
+                "the stored parameter interval is not shown to run forward (margin -5e-10 m). \
+                 Recourse: move the geometry so this edge runs forward over a clear length; an \
+                 edge of no length, or a reversed one, is one no kernel construction mints, so \
+                 this is a kernel defect or a damaged file, worth reporting",
+            ),
+        ];
+        for (error, reading, want) in rows {
+            assert_eq!(error.render(reading), want, "{reading:?}: {error:?}");
         }
     }
 
@@ -5461,14 +5518,14 @@ mod tests {
         let straddle = MarginDiag::enclosure(-2.0e-9, 4.0e-9);
         let inside = MarginDiag::enclosure(2.0e-9, 4.0e-9);
         let below = MarginDiag::enclosure(-4.0e-9, -2.0e-9);
-        let no_span = "Recourse: move the geometry so this edge is not vanishingly short; an edge \
-                       of no length, or a reversed one, is one no kernel construction mints, so \
-                       this is a kernel defect worth reporting";
+        let no_span = "Recourse: move the geometry so this edge runs forward over a clear length; \
+                       an edge of no length, or a reversed one, is one no kernel construction \
+                       mints, so this is a kernel defect worth reporting";
         let rows = [
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(5e-9)),
-                "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
-                 length is intended, tighten the tolerance below 5e-10 m",
+                "Recourse: move the geometry so this edge runs forward over a clear length, or, if \
+                 this length is intended, tighten the tolerance below 5e-10 m",
             ),
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(-5e-9)),
@@ -5565,9 +5622,9 @@ mod tests {
                 }
                 .ending(Reading::AtRest)
                 .unwrap(),
-                "Recourse: move the geometry so this edge is not vanishingly short; an edge of \
-                 no length, or a reversed one, is one no kernel construction mints, so this is a \
-                 kernel defect or a damaged file, worth reporting",
+                "Recourse: move the geometry so this edge runs forward over a clear length; an \
+                 edge of no length, or a reversed one, is one no kernel construction mints, so \
+                 this is a kernel defect or a damaged file, worth reporting",
             ),
             (
                 CertifyError::ResidualExceeded {
@@ -5644,8 +5701,8 @@ mod tests {
             }
             .render(Reading::Build),
             "the stored interval's span at sample 0 escalated: margin 2e-12 lies within the zero \
-             band (±1e-9). Recourse: move the geometry so this edge is not vanishingly short; no \
-             tolerance a run admits decides this length",
+             band (±1e-9). Recourse: move the geometry so this edge runs forward over a clear \
+             length; no tolerance a run admits decides this length",
             "the whole sentence, so a second statement of the floor goes red"
         );
         for cause in [rejected, in_band] {
