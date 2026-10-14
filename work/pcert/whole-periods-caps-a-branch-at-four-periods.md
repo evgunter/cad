@@ -47,3 +47,13 @@ PR 5126 found the cap reached by valid input: a circle carrier may be stated any
 - the harmonic derivation places an image over the edge's span in the chart's principal window.
 
 That adds clauses to C4, so it waits for Ev on the `[ev]` PR that sets this flag. PR 5126 is held until it is answered.
+
+Ev then asked (on that PR) whether an angle type that compares modulo
+the period would fix this class. Two more designers converged in three
+rounds: two small types, a `Period` per periodic channel that the chart
+owns (nets included) and an `Azimuth` exit from `atan2` read through a
+stated reference, radians kept, stored coordinates never wrapped. They
+also settled the open sub-point (a lifted image is the row plus its deck
+element, never re-certified) and dropped the walk's estimate (every
+decision's gap is within about two periods once images are placed).
+

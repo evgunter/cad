@@ -44,3 +44,13 @@ own context (the neighbouring rows), not a fixed order.
 ## The question for Ev
 
 PR 5137 fixed the seam's pick by giving each half the row on its own side, which stores two images for one seam edge. Its review and both designers on the branch-offset fork judged this the wrong home for the branch. C4 says a row is a function of the edge and the chart alone, and that a seam has one image and two joint elements; the kill-sum argument rests on that. The converged answer gives every closed channel its own period, so a spline net decided closed in v gets a v deck (`chart_v_period`, `Deck.v` in knot lengths, `kv` decided at the joint). The seam then keeps one image, and the arc-rim and `iso_schedule` picks take the first row that holds. That extends C4, so it waits for Ev on the same `[ev]` PR. PR 5137 is held until it is answered.
+
+Ev then asked (on that PR) whether an angle type that compares modulo
+the period would fix this class. Two more designers converged in three
+rounds: two small types, a `Period` per periodic channel that the chart
+owns (nets included) and an `Azimuth` exit from `atan2` read through a
+stated reference, radians kept, stored coordinates never wrapped. They
+also settled the open sub-point (a lifted image is the row plus its deck
+element, never re-certified) and dropped the walk's estimate (every
+decision's gap is within about two periods once images are placed).
+
