@@ -368,7 +368,8 @@ fn split_joined_readings<T: Decide>(
     target_table: &NameTable,
 ) -> Result<BTreeMap<EdgeKey, Joined>, NamingError> {
     let bug = |what| NamingError::Emission { what };
-    let lineage: BTreeMap<EdgeKey, EdgeKey> = naming.joined_lineage.iter().copied().collect();
+    let lineage: BTreeMap<EdgeKey, EdgeKey> =
+        naming.joined_lineage.rows().iter().copied().collect();
     // Keys are unique across the two halves (restrictions of one
     // arena), and each side's joins keep their order, so one chase
     // over both sides' rows is each side's.

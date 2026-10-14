@@ -2,11 +2,12 @@
 id: join-desync-is-the-catch-all-for-cyclic-lineage-records
 kind: issue
 title: The split-hop naming tables (SplitNaming::joined_lineage, DiscardRow::boundary_chains) are chased by readers that bound or refuse a cycle, not checked where they are written; JoinDesync no longer carries any lineage cycle
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
 refs: [descendant-chase-spends-its-budget-into-a-dropped-contact-record, 3874]
+closed: 2026-10-14
 ---
 
 
@@ -124,3 +125,38 @@ refusing `SplitLineageCycle`) and inline by `names/borders.rs`'s
 cyclic")`. Each row maps a split's minted piece to the edge it was
 split from, so an `EdgeDivisions`-shaped list written where the rows
 are written would make the three walks total and their refusals go.
+
+## Closed by `fuse/split-hop-lineage-at-append` (2026-10-14)
+
+The two split-hop naming tables, measured first with an uncommitted probe
+over the topo, sweep and editor-core ci suites (8,557 tests, ε 1e-9):
+
+- **`SplitNaming::joined_lineage`**: 112 rows over 74 split runs, none a
+  self row, none killing an edge twice, none naming as killed an edge an
+  earlier row named as a parent. It is now a checked list of minted
+  cells (`SplitEdgeDivisions` made with the new
+  `LineageRows::JoinedEdgeDivisions`), pushed where `split_direct`
+  records each join, and a refused row ends the split as the new
+  `SplitFinishError::LineageRow`. No test read the table's content before
+  (dropping its rows left all 8,557 tests green); only four sweep split
+  tests reach the writer.
+  `split_tangent_edge_curved::a_cone_graze_records_each_rejoined_piece_with_the_edge_it_was_split_from`
+  now pins it. Not every row is a piece this cut minted: a killed edge
+  can carry an earlier split's record.
+- **`DiscardRow::boundary_chains`**: 90,322 hops over 10,626 Booleans,
+  repeated across rows in every Boolean that records chains (two
+  discards sharing an ancestor each carry its hop), none a self hop, none
+  giving an edge two parents. It is not a mint list: each chain is a copy
+  of the clone's `SplitEdge` provenance read to its root, and the field
+  says so. Its readers (`emit_topo::KilledSplits` /
+  `chase_edge_to_table`, `borders.rs`'s `Obstacles::split_from` /
+  `up_lineage`) walk that provenance alongside the copies, so their
+  bounds and cycle refusals are provenance's, which nothing checks where
+  `Body::split_edge` writes it: `origin/the-split-edge-lineage-walk-has-four-homes`.
+
+`BooleanError::JoinDesync` carries no lineage cycle since PR 5022, and
+this row's tables are now checked or owned by the provenance row. The
+`JoinDesync` arms left that are not A/B lockstep breaks are torn-body
+reads (`topotail/torn-body-refusal-families-beyond-the-six-doors`) and
+the graft doors' caller errors (`issues/graft-door-caller-errors-are-join-desync`),
+neither a lineage record.

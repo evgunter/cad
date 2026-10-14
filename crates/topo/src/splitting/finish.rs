@@ -323,8 +323,11 @@ pub struct SplitNaming {
     /// (`Provenance::SplitEdge`), recorded before the kill: a kill
     /// takes its edge's birth record with it, and this is the lineage a
     /// joined edge's cover is read through to the operand edges it lies
-    /// along.
-    pub joined_lineage: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
+    /// along. Each row was checked as it was added
+    /// ([`crate::lineage::LineageRows::JoinedEdgeDivisions`]): a split
+    /// mints the child its record names, and a join kills each edge
+    /// once.
+    pub joined_lineage: crate::lineage::SplitEdgeDivisions,
 }
 
 impl Default for SplitNaming {
@@ -340,7 +343,9 @@ impl Default for SplitNaming {
             ),
             vertex_pairs: Default::default(),
             edge_joins: Default::default(),
-            joined_lineage: Default::default(),
+            joined_lineage: crate::lineage::SplitEdgeDivisions::new(
+                crate::lineage::LineageRows::JoinedEdgeDivisions,
+            ),
         }
     }
 }
@@ -476,6 +481,9 @@ pub enum SplitFinishError {
         /// Why the join refused, typed and keyless.
         refusal: crate::boolean::JoinRefusal,
     },
+    /// The joined-away edges' lineage list refused a row where a side's
+    /// join added it ([`SplitNaming::joined_lineage`]): a kernel defect.
+    LineageRow(crate::lineage::RowRefusal),
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -601,6 +609,12 @@ impl core::fmt::Display for SplitFinishError {
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::KnifeEdge(k) => write!(f, "{k}"),
+            Self::LineageRow(refusal) => write!(
+                f,
+                "{}. {}",
+                refusal.refused_by("split"),
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
             Self::EdgeJoin { side, refusal } => {
                 write!(
                     f,
@@ -685,7 +699,9 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             })
             .collect::<Result<_, _>>()?,
         edge_joins: Vec::new(),
-        joined_lineage: Vec::new(),
+        joined_lineage: crate::lineage::SplitEdgeDivisions::new(
+            crate::lineage::LineageRows::JoinedEdgeDivisions,
+        ),
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;

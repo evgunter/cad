@@ -575,6 +575,60 @@ fn cone_tangent(r0: f64, slope: f64, u: (f64, f64), s: f64) -> SplitPlane<f64> {
     )
 }
 
+/// **A split records each edge its join killed with the edge the cut
+/// split it from** (`SplitNaming::joined_lineage`): the cone graze cuts
+/// the frustum's edges where the plane touches them, and the side the
+/// frustum lands on joins those pieces back. Each recorded row is an
+/// edge a join on that side killed (an `edge_joins` row's `gone`, no
+/// longer live), with the edge its `SplitEdge` record named before the
+/// kill. Red if the split stops recording the rows, or records an edge
+/// no join killed.
+#[test]
+fn a_cone_graze_records_each_rejoined_piece_with_the_edge_it_was_split_from() {
+    let mut rows = 0;
+    for (name, body, r0, slope) in [
+        (
+            "narrowing",
+            revolved(&[(0.0, 0.0), (1.0, 0.0), (0.5, 1.0), (0.0, 1.0)]),
+            1.0,
+            -0.5,
+        ),
+        (
+            "widening",
+            revolved(&[(0.0, 0.0), (0.5, 0.0), (1.0, 1.0), (0.0, 1.0)]),
+            0.5,
+            0.5,
+        ),
+    ] {
+        for t in THETAS {
+            for s in [1.0, -1.0] {
+                let label = format!("{name}, θ = {t}, s = {s}");
+                let r = split(
+                    &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+                    &cone_tangent(r0, slope, unit(t), s),
+                    Tol::witness(),
+                )
+                .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                let live = |e| {
+                    [&r.above, &r.below]
+                        .into_iter()
+                        .any(|p| matches!(p, SplitPart::Body(b) if b.get_edge(e).is_some()))
+                };
+                for &(gone, from) in r.naming.joined_lineage.rows() {
+                    assert!(
+                        r.naming.edge_joins.iter().any(|(_, j)| j.gone == gone),
+                        "{label}: no join killed {gone:?}"
+                    );
+                    assert!(!live(gone), "{label}: the killed {gone:?} is still live");
+                    assert_ne!(gone, from, "{label}: a row names one edge twice");
+                    rows += 1;
+                }
+            }
+        }
+    }
+    assert!(rows > 0, "some graze rejoins a piece the cut split");
+}
+
 /// A cone frustum grazed from outside along a ruling, narrowing and
 /// widening upward (the two nappes of the stored cone), at every
 /// azimuth of [`THETAS`] (the revolve's seam is at +x): the wall bends

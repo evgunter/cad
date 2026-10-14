@@ -1182,11 +1182,16 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                     side,
                     refusal: crate::boolean::JoinRefusal::of(&refusal),
                 })?;
-            result.naming.joined_lineage.extend(
-                joins
-                    .iter()
-                    .filter_map(|j| split_from.get(&j.gone).map(|&from| (j.gone, from))),
-            );
+            for row in joins
+                .iter()
+                .filter_map(|j| split_from.get(&j.gone).map(|&from| (j.gone, from)))
+            {
+                result
+                    .naming
+                    .joined_lineage
+                    .push(row)
+                    .map_err(SplitFinishError::LineageRow)?;
+            }
             result
                 .naming
                 .edge_joins

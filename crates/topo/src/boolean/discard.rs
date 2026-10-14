@@ -49,6 +49,16 @@ pub struct DiscardRow {
     /// `face`. The discard deletes these edges' lineage from the
     /// result, so a later reader that meets an ancestor here can still
     /// tell that the edge bounded this face.
+    ///
+    /// Not a checked list of mints ([`crate::lineage::Minted`]): each
+    /// chain is a copy of the clone's `SplitEdge` provenance, read up to
+    /// its root, and two discards that share an ancestor each carry its
+    /// hop, so a hop repeats across rows by design (every Boolean the
+    /// ci suites run that records chains repeats some, and none gives a
+    /// hop two parents). The chains are as acyclic as the provenance
+    /// they copy, which `Body::split_edge` writes and nothing checks where
+    /// it is written: their readers' bounds and cycle refusals belong to
+    /// that walk (`work/origin/the-split-edge-lineage-walk-has-four-homes.md`).
     pub boundary_chains: Vec<Vec<EdgeKey>>,
     /// Each stretch where a kept face holding part of this face's region
     /// through a coincident copy (`BooleanNaming::covered`) runs into
