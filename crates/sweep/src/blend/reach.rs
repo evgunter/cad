@@ -2731,6 +2731,10 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
 
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
+    mod review_5052 {
+        include!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/review_5052_probes.rs"));
+    }
     use geom_core::sym::revalue::revalue;
     use geom_core::sym::with_session;
     use geom_core::{ParamSymbol, Sym, SymBudget};
