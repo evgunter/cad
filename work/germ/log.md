@@ -1324,3 +1324,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **The 5066 pair is complete: no MAJOR either side** (tallied 0, major false). Coding byte 190, even → A = r5066a.
   - Bilateral: the `min` unguarded; the fuzz weak on hole cuts; the tightness scope.
   - Fix pass dispatched with the union (7 items): session_01NoyMieyyQZPrM4LRe5zzGx. Adjudication is in scratchpad/dr5066/adjudication.md.
+- 2026-10-14 09:20 — **pt-section-gaps fork: both designers in.**
+  - **Agree:** it is not a fork at the section, and the gaps should not be charged. A Zero there accepts a coincidence, so a charge would be a tolerance that grows with position, which D4 ¶1 forbids. The real enforcement is D4 ¶4's 1 km session box, which is ratified but unbuilt (`SESSION_BOX_EXTENT` is read only by ε_min).
+  - **Measured by both:** inside the box every class builds or refuses as at the origin. Outside it, bodies cannot be built: `transform_rigid` refuses from about 7e3–1e4.
+  - **Differ on one detail:** B wants `d = n·(q − c)`, per D10's frame rule, as the sphere arm reads it. A rejected that, citing `61e697d836`'s rigid-re-pose ulp reproducibility. A recommends no change at the section.
+  - Reconciliation round 1 under protocol rule 5: each designer is shown the other's report.
+  - **Both flag:** PR 5012's far-frame rows (~1e6) sit outside the box. Whether `resolution` still earns its place once the box gate exists is a question for the box item.
+  - **B's off-question finds:** a turned frame at |o| ≈ 990 (inside the box) refuses ∩/∖ `VolumeUnmeasured { QuadratureBudget }` while the origin builds, suggested for FLUX; D4 ¶4 "rejected at construction" is unbuilt.
+  - Both say no ratified text moves, so Ev's PR 4895 discretion should apply once they agree.
