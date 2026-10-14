@@ -4,6 +4,7 @@ kind: issue
 title: Two point-in-face routines place a point in a face: the lattice row's holds-point check reads the one the carry does not
 status: closed
 branch: fuse/census-tier3-corners
+pr: 5051
 closed: 2026-10-14
 opened: 2026-10-12
 priority: P3
@@ -46,7 +47,7 @@ Either one routine, or the row reads the census's door
 what the census confirms. Then state why the walk keeps its own test,
 if it does.
 
-## 2026-10-14, closed: branch `fuse/census-tier3-corners`
+## 2026-10-14, closed: PR 5051
 
 **Two readings, one core.** Both routines walk each loop on
 `splitting::containment::carrier_walk`. They differ around it:

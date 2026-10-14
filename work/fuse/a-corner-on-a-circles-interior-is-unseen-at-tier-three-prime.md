@@ -4,6 +4,7 @@ kind: issue
 title: Tier 3′ does not see a vertex resting on a curved edge's interior: unrecorded, a corner on a circle off its vertex reads clean
 status: closed
 branch: fuse/census-tier3-corners
+pr: 5051
 closed: 2026-10-14
 opened: 2026-10-07
 priority: P3
@@ -31,7 +32,7 @@ whose boxes it meets, read through `census::curved::on_curved_interior`
 touch as `UndeclaredContact`. The snowman row's 40° arm then flips to
 expect the finding.
 
-## 2026-10-14, closed: branch `fuse/census-tier3-corners`
+## 2026-10-14, closed: PR 5051
 
 Tier 3′ gains **pass 2′**, `census::sweep_vertex_curved_edge`. Each
 vertex is read against each curved edge, and an unrecorded vertex on the
