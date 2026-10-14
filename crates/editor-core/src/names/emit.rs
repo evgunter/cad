@@ -38,7 +38,8 @@ use crate::node::RecipeNodeId;
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
 ///    [`Self::MergedChordConstituents`], [`Self::MemberEdgeTied`],
-///    [`Self::ConventionalVertex`] and [`Self::ClosedCarrierUnread`],
+///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`] and
+///    [`Self::CarrierUnplaced`],
 ///    reached from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
@@ -290,16 +291,29 @@ pub enum NamingError {
         /// Its carrier's kind.
         carrier: geom::CurveKind,
     },
-    /// A union's member edge whose crossings cannot be ranked along it,
-    /// because a tie stands where one edge is needed: the member's own
-    /// table ties the edge's name to several edges, or the fold tied
-    /// two of the crossings under one name.
+    /// A **point the flush reading cannot place along a curved edge**:
+    /// whether edge `edge` holds a point is read at the point's
+    /// parameter on the edge's certified carrier (`names/README.md`,
+    /// "Flush edges"), and a carrier of this kind (a spline) gives no
+    /// parameter for a point. Answering "not on it" would drop the edge
+    /// from the reading, so it refuses.
+    CarrierUnplaced {
+        /// The edge, in the body the reading placed the point against.
+        edge: EdgeKey,
+        /// Its carrier's kind.
+        carrier: geom::CurveKind,
+    },
+    /// A union's member edge read where ONE edge is needed, where a tie
+    /// stands: the member's own table ties the edge's name (or the
+    /// least row on its line) to several edges, or the fold tied two of
+    /// its crossings under one name.
     ///
-    /// The union ranks the vertices where one face crosses a member
-    /// edge several times along that ONE edge's carrier (`emit_union`'s
-    /// `cite_member_edges`); a tie offers several edges or several
-    /// vertices and no rule picks one. Nothing about the result body is
-    /// wrong, so this is a missing rule and not an [`Self::Emission`].
+    /// The union needs one edge to rank the crossings of one face
+    /// along it (`emit_union`'s `cite_member_edges`), to place a
+    /// finished vertex or edge on it, and to read its two faces
+    /// (`Flush`); a tie offers several edges or several vertices and no
+    /// rule picks one. Nothing about the result body is wrong, so this
+    /// is a missing rule and not an [`Self::Emission`].
     MemberEdgeTied {
         /// The member whose edge it is.
         member: crate::VarId,
@@ -470,6 +484,13 @@ impl crate::spoken::Say for NamingError {
                  no period to read the operand edges it lies along over",
                 carrier.name()
             ),
+            Self::CarrierUnplaced { edge, carrier } => write!(
+                f,
+                "{UNRULED_FRAMING}: edge {edge:?} runs on a {} carrier, which gives no \
+                 parameter for a point, so whether the edge holds a point it is read against \
+                 cannot be said",
+                carrier.name()
+            ),
             Self::ConventionalVertex { vertex, body } => write!(
                 f,
                 "{UNRULED_FRAMING}: vertex {vertex:?} of output body {body} is a closed \
@@ -496,9 +517,10 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
-                "{UNRULED_FRAMING}: the crossings of member {}'s edge ({}) cannot \
-                 be ranked along it, because a tie stands where one edge is needed (the member \
-                 ties that name to several edges, or two of its crossings were tied)",
+                "{UNRULED_FRAMING}: member {}'s edge ({}) is read where one edge is needed, \
+                 to rank crossings along it, place a vertex on it or read its faces, and a tie \
+                 stands there (the member ties that name to several edges, or two of its \
+                 crossings were tied)",
                 by.read(*member),
                 by.name(edge)
             ),
@@ -1724,6 +1746,13 @@ mod display_tests {
                 vec!["closed on its", "no period"],
             ),
             (
+                NamingError::CarrierUnplaced {
+                    edge: EdgeKey::default(),
+                    carrier: geom::CurveKind::Nurbs,
+                },
+                vec!["gives no parameter for a point", "holds a point"],
+            ),
+            (
                 NamingError::Settle(topo::SettleError::Dead {
                     vertex: two_vertices().0,
                     reached: topo::Cell::Vertex(two_vertices().1),
@@ -1802,7 +1831,8 @@ mod display_tests {
                 | NamingError::MergedChordConstituents { .. }
                 | NamingError::MemberEdgeTied { .. }
                 | NamingError::ConventionalVertex { .. }
-                | NamingError::ClosedCarrierUnread { .. } => Some(UNRULED_FRAMING),
+                | NamingError::ClosedCarrierUnread { .. }
+                | NamingError::CarrierUnplaced { .. } => Some(UNRULED_FRAMING),
                 NamingError::Band(_) | NamingError::Escalated { .. } => None,
             }
         };
@@ -1825,6 +1855,7 @@ mod display_tests {
                 NamingError::ConventionalVertex { .. } => 14,
                 NamingError::ClosedCarrierUnread { .. } => 15,
                 NamingError::Settle(_) => 16,
+                NamingError::CarrierUnplaced { .. } => 17,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
