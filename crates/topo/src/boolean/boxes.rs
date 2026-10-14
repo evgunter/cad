@@ -1449,12 +1449,22 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
 /// certifies. Its length is a pure number, levered by the radius, the
 /// arm the slab swings the axis by.
 ///
+/// **Where that decision does not land, the face takes the boundary
+/// hull.** A cylinder is ruled along its axis, so every point of a
+/// cylinder face lies on a ruling segment whose two ends are on the
+/// face's boundary: the face lies in its boundary's convex hull, as a
+/// planar face does, and the slab is only ever a tighter box when the
+/// hull is poison. That needs the axis to be a direction and nothing
+/// more — no length, no lever — so a radius the band reads as zero or
+/// in band, which tier 3 admits (it asks `radius > 0` exactly), boxes
+/// rather than refuses.
+///
 /// # Errors
 ///
 /// The [`LeveredUnitError`](geom_core::LeveredUnitError) of a cylinder
-/// axis with no decided length, or of a radius that is no positive
-/// length — a broken cylinder carrier, which each lane answers in its
-/// own fail-loud direction.
+/// axis that is no direction at all (zero or non-finite) — a broken
+/// cylinder carrier tier 3 refuses at rest, which each lane answers in
+/// its own fail-loud direction.
 pub(crate) fn face_box_rule<T: Decide>(
     surface: &Surface<T>,
     band: Band,
@@ -1466,10 +1476,14 @@ pub(crate) fn face_box_rule<T: Decide>(
             axis,
             radius,
             ..
-        } => FaceBoxRule::CylinderSlab {
-            origin: *origin,
-            axis: UnitVec3::levered(*axis, BOX_CYLINDER_AXIS, band, *radius)?,
-            radius: *radius,
+        } => match UnitVec3::levered(*axis, BOX_CYLINDER_AXIS, band, *radius) {
+            Ok(unit) => FaceBoxRule::CylinderSlab {
+                origin: *origin,
+                axis: unit,
+                radius: *radius,
+            },
+            Err(_) if crate::validate::is_direction(axis) => FaceBoxRule::BoundaryHull,
+            Err(e) => return Err(e),
         },
         Surface::Sphere { .. } => FaceBoxRule::SphereWindow,
         Surface::Nurbs(patch) => FaceBoxRule::ControlNet(patch),
@@ -1834,8 +1848,7 @@ fn most_cos<T: Decide>(crest: T, w: Span<T>) -> T {
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] for a cylinder whose axis
-/// has no decided length under `band` ([`face_box_rule`]): a broken
-/// carrier.
+/// is no direction ([`face_box_rule`]): a broken carrier.
 ///
 /// # Panics
 ///
@@ -1939,7 +1952,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
         })
     };
     let rule = face_box_rule(surface, band).map_err(|_| BooleanError::ClassificationInvariant {
-        what: "face box: a cylinder's axis has no decided length (a broken cylinder carrier)",
+        what: "face box: a cylinder's axis is no direction (a broken cylinder carrier)",
     })?;
     let boxed = match rule {
         FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
@@ -3287,7 +3300,7 @@ pub(crate) mod tests {
     /// set as the unit one; read bare, the axial window would be twice
     /// the face's and the slab would place it twice again along the
     /// axis — a box four times the wall's height. Both lanes box it as
-    /// the unit-axis wall. An axis with no decided length is a broken
+    /// the unit-axis wall. An axis that is no direction is a broken
     /// carrier: the bracket lane refuses it, the census lane claims
     /// nothing.
     #[test]
@@ -3333,12 +3346,69 @@ pub(crate) mod tests {
                 face_box(&broken, face, pad(), witness_band()),
                 Err(BooleanError::ClassificationInvariant { .. })
             ),
-            "a cylinder axis with no decided length must refuse the bracket lane's box"
+            "a zero cylinder axis must refuse the bracket lane's box"
         );
         assert!(
             crate::census::face_reach(&broken, face, witness_band()).is_none(),
-            "a cylinder axis with no decided length must claim nothing in the census lane"
+            "a zero cylinder axis must claim nothing in the census lane"
         );
+    }
+
+    /// **A radius the band does not read as positive boxes by the
+    /// boundary hull, never refuses.** Tier 3 admits any cylinder whose
+    /// radius is exactly positive, and the slab's levered axis decision
+    /// refuses one the band reads as zero or in band. The quarter wall
+    /// of radius 1 is read under a band that puts 1 in band, then under
+    /// one that decides it zero: both lanes box it as its boundary's
+    /// hull, and that box holds the wall.
+    #[test]
+    fn a_cylinder_whose_radius_the_band_does_not_decide_boxes_by_its_boundary() {
+        let (z0, z1) = (-0.25, 0.75);
+        let quarter = core::f64::consts::FRAC_PI_2;
+        let (body, face) = cyl_wall(1.0, 0.0, quarter, z0, z1);
+        for (what, band) in [
+            ("in band", Band::new(0.5, 5.0).unwrap()),
+            ("decided zero", Band::new(2.0, 20.0).unwrap()),
+        ] {
+            assert!(
+                UnitVec3::levered(Vec3::unit_z(), BOX_CYLINDER_AXIS, band, 1.0).is_err(),
+                "{what}: the levered axis must not decide, or the row reads the slab"
+            );
+            let pad = sweep_pad(band);
+            let f = body.get_face(face).unwrap();
+            let hull = boundary_hull(&body, face, f).expect("the wall's boundary boxes");
+            let b = face_box(&body, face, pad, band)
+                .unwrap_or_else(|e| panic!("{what}: the wall must box, got {e:?}"));
+            assert_eq!(
+                [b.min_x, b.min_y, b.min_z, b.max_x, b.max_y, b.max_z],
+                {
+                    let h = hull.padded(pad);
+                    [h.min_x, h.min_y, h.min_z, h.max_x, h.max_y, h.max_z]
+                },
+                "{what}: the bracket lane boxes the wall as its padded boundary hull"
+            );
+            let (lo, hi) = crate::census::face_reach(&body, face, band)
+                .unwrap_or_else(|| panic!("{what}: the census lane must claim the wall"));
+            for i in 0..=8 {
+                for j in 0..=4 {
+                    let u = quarter * f64::from(i) / 8.0;
+                    let z = z0 + (z1 - z0) * f64::from(j) / 4.0;
+                    let p = [u.cos(), u.sin(), z];
+                    let (blo, bhi) = ([b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]);
+                    let (clo, chi) = ([lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]);
+                    for k in 0..3 {
+                        assert!(
+                            blo[k] <= p[k] && p[k] <= bhi[k],
+                            "{what}: the bracket box must hold the wall at u {u}, z {z}"
+                        );
+                        assert!(
+                            clo[k] <= p[k] && p[k] <= chi[k],
+                            "{what}: the census reach must hold the wall at u {u}, z {z}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /// The exact range of `f` over the arc `[0, span]`: the endpoints,

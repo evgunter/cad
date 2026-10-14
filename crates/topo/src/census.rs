@@ -3381,7 +3381,7 @@ pub(crate) fn face_reach_in<T: Decide>(
 ) -> Option<(Point3<T>, Point3<T>)> {
     let face = proven(&body.faces, f, EntityId::Face);
     let surface = body.face_surface_linked(f, face);
-    // A cylinder whose axis has no decided length is a broken carrier,
+    // A cylinder whose axis is no direction is a broken carrier,
     // and a description with no claim in it answers `None`.
     match crate::boolean::boxes::face_box_rule(surface, band).ok()? {
         crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f, face, frame),

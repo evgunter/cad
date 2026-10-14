@@ -1090,3 +1090,12 @@ through the public `run_battery_for` on a raw body (a row pins it);
 `Degenerate` only crate-internally. Cost M, full review
 APPROVE-WITH-FIXES. Filed `blend-two-geometry-refusals-meet-no-shape`
 and `blend-reach-may-refuse-a-valid-thin-cylinder-as-degenerate`.
+
+## 2026-10-14 — a thin cylinder boxes by its boundary (closes blend-reach-may-refuse-a-valid-thin-cylinder-as-degenerate)
+
+Tier 3 admits any exactly positive radius; the face box's levered axis
+refused one the band does not decide positive. No door was found to
+mint one (profile, STEP, fillet each refuse it at the band), but the
+margin chain does not exclude it, so `face_box_rule` now falls back to
+the boundary hull (sound for any ruled face) where the axis is a
+direction and the lever does not decide.
