@@ -1535,6 +1535,11 @@ pub fn split_op_error_tag(err: &SplitOpError) -> &'static str {
         SplitOpError::Finish(SplitFinishError::EdgeJoin { refusal, .. }) => {
             join_refusal_tag(refusal)
         }
+        // A side refused only on in-band shells is the Boolean's
+        // `Escalated` on the same decision, so it carries the Boolean's word.
+        SplitOpError::Finish(SplitFinishError::ResultEscalated { .. }) => {
+            boolean_error_tag(BooleanErrorKind::Escalated)
+        }
         SplitOpError::Finish(_) => "finish",
         SplitOpError::Pcurves(_) => "pcurves",
         SplitOpError::Pieces(_) => "pieces",
