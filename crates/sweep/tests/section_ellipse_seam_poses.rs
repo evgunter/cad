@@ -28,7 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use topo::splitting::{SplitError, split};
+use topo::splitting::{SplitError, SplitFinishError, split};
 use topo::{AtRestBody, Body, BooleanError, SplitJoinError, ValidationError};
 
 /// The row that owns the at-rest frame refusals these tables name.
@@ -64,28 +64,32 @@ fn cut(
 
 /// Why tier 3 refuses one side, or `None` where it is valid at rest.
 fn at_rest(body: &Body<f64>, tol: Tol) -> Option<String> {
-    let errors = AtRestBody::validate(body.clone(), tol).err()?;
-    Some(
-        errors
-            .iter()
-            .map(|e| match e {
-                ValidationError::UnrepresentableCurveDatum {
-                    kind: geom::CurveKind::Ellipse,
-                    datum,
-                    measure,
-                    end,
-                    ..
-                } => format!("{datum:?} {measure:?} {end:?}"),
-                other => variant(&format!("{other:?}"), 1),
-            })
-            .collect::<Vec<_>>()
-            .join(" & "),
-    )
+    Some(reasons(&AtRestBody::validate(body.clone(), tol).err()?))
+}
+
+/// Tier 3's findings on one side: a frame finding by its datum, measure
+/// and end, any other by its variant.
+fn reasons(errors: &[ValidationError]) -> String {
+    errors
+        .iter()
+        .map(|e| match e {
+            ValidationError::UnrepresentableCurveDatum {
+                kind: geom::CurveKind::Ellipse,
+                datum,
+                measure,
+                end,
+                ..
+            } => format!("{datum:?} {measure:?} {end:?}"),
+            other => variant(&format!("{other:?}"), 1),
+        })
+        .collect::<Vec<_>>()
+        .join(" & ")
 }
 
 /// A pose's outcome: `ok` where both sides are valid at rest, else each
 /// refused side and why, or the split's own refusal by its stage and
-/// variant.
+/// variant. The split's at-rest gate refuses on the first side tier 3
+/// refuses (above before below), named with that side's findings.
 fn outcome(r: Result<topo::SplitResult<f64>, SplitError>, tol: Tol) -> String {
     match r {
         Ok(res) => {
@@ -100,6 +104,9 @@ fn outcome(r: Result<topo::SplitResult<f64>, SplitError>, tol: Tol) -> String {
             }
         }
         Err(SplitError::Join(SplitJoinError::Euler(e))) => format!("chord {e:?}"),
+        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest { side, errors })) => {
+            format!("at-rest gate {} {}", side.word(), reasons(&errors))
+        }
         Err(e) => format!("refused {}", variant(&format!("{e:?}"), 2)),
     }
 }
