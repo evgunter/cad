@@ -117,13 +117,15 @@
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::circle_roots::{
-    CircleRoots, FirstHarmonic, FirstHarmonicRows, HalfAngleFrame, HalfAngleRows, RootSlack,
-    SubdivisionFrame, SubdivisionRows, TrigPoly, first_harmonic_roots, half_angle_roots,
+    CircleRoots, FirstHarmonic, FirstHarmonicRows, door_half_angle_roots, first_harmonic_roots,
     rounding_charge,
 };
-use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
+use geom_brep::half_angle::{
+    HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly,
+};
+use geom_brep::quartic::QuarticRows;
 
 #[cfg(test)]
 mod circle_sphere_rows;
@@ -157,29 +159,26 @@ const fn first_rows(decision: BooleanDecision) -> FirstHarmonicRows {
 /// The ladder's noise meter's row (module docs, "Two arms").
 const LADDER_NOISE: &str = "bool_conic_quadric_ladder_noise";
 
-/// The ladder's rows, per surface decision.
-const fn ladder_rows(decision: BooleanDecision) -> HalfAngleRows {
-    HalfAngleRows {
-        pole: "bool_conic_quadric_pole",
-        conditioning: "bool_conic_quadric_pole_conditioning",
-        noise: LADDER_NOISE,
-        quartic: QuarticRows {
-            disc: "bool_conic_quadric_disc",
-            shape: "bool_conic_quadric_shape",
-            depth: "bool_conic_quadric_depth",
-            odd: "bool_conic_quadric_odd",
-            split: "bool_conic_quadric_split",
-            split_lead: "bool_conic_quadric_split_lead",
-        },
-        verify: SubdivisionRows {
-            clear: "bool_conic_quadric_sub_clear",
-            monotone: "bool_conic_quadric_sub_monotone",
-            side: "bool_conic_quadric_sub_side",
-            width: "bool_conic_quadric_sub_width",
-        },
-        decision,
-    }
-}
+/// The ladder's rows.
+const LADDER_ROWS: HalfAngleRows = HalfAngleRows {
+    pole: "bool_conic_quadric_pole",
+    conditioning: "bool_conic_quadric_pole_conditioning",
+    noise: LADDER_NOISE,
+    quartic: QuarticRows {
+        disc: "bool_conic_quadric_disc",
+        shape: "bool_conic_quadric_shape",
+        depth: "bool_conic_quadric_depth",
+        odd: "bool_conic_quadric_odd",
+        split: "bool_conic_quadric_split",
+        split_lead: "bool_conic_quadric_split_lead",
+    },
+    verify: SubdivisionRows {
+        clear: "bool_conic_quadric_sub_clear",
+        monotone: "bool_conic_quadric_sub_monotone",
+        side: "bool_conic_quadric_sub_side",
+        width: "bool_conic_quadric_sub_width",
+    },
+};
 
 /// The certified crossings of the `carrier` circle or ellipse with
 /// `surface`, a sphere, a cylinder wall or a cone, reported within `π`
@@ -271,16 +270,17 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         )
         .map(CircleRoots::from);
     }
-    half_angle_roots(
+    door_half_angle_roots(
         &TrigPoly::second(h.c0, h.c1, h.s1, h.c2, h.s2),
         |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
         frame,
-        &ladder_rows(decision),
+        &LADDER_ROWS,
         &RootSlack {
             row: LADDER_ROOT_SLACK,
             residual: &|theta| geom_brep::conic_quadric_residual(&conic, quadric, theta),
             f_per_metre_hi: T::one(),
         },
+        decision,
         band,
     )
 }
@@ -434,12 +434,13 @@ fn cone_roots<T: Decide>(
             residual: &placed,
             f_per_metre_hi: T::one(),
         };
-        half_angle_roots(
+        door_half_angle_roots(
             &TrigPoly::second(h.c0, h.c1, h.s1, h.c2, h.s2),
             |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
             ladder_frame(conic, (t0, t1), noise, h.floor),
-            &ladder_rows(BooleanDecision::ArcConeRoots),
+            &LADDER_ROWS,
             &meter,
+            BooleanDecision::ArcConeRoots,
             band,
         )?
     };
@@ -504,8 +505,8 @@ mod tests {
         let ellipse = geom::Curve3::Ellipse {
             center: o,
             axis: z,
-            major: 1.0,
-            minor: 0.5,
+            semi_u: 1.0,
+            semi_v: 0.5,
             u_ref: x,
         };
         let sphere = geom::Surface::Sphere {

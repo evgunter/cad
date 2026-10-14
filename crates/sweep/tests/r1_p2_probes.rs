@@ -24,10 +24,10 @@
 //!   measuring half — a `Chart`-described wall-wall seam on the widened
 //!   chart derives the EXACT class on its measured interior column, and
 //!   the certifier's de Boor collapse certifies it.
-//! - `r1_dual_scalar_wall_seam_arm_answers_no_boundary`: at a scalar
-//!   with no certified foot (`Dual64`) the same arm answers what it
-//!   answered before the measurement existed — no lane fabricates a
-//!   foot.
+//! - `r1_dual_scalar_wall_seam_arm_names_the_missing_lane`: at a
+//!   scalar with no certified foot (`Dual64`) the same arm has no foot
+//!   to offer, and the refusal names the missing lane — no lane
+//!   fabricates a foot.
 //! - `r1_general_image_is_operand_order_blind`: the deriver must not
 //!   see the description's operand order.
 //! - `r1_dual_scalar_still_reaches_the_mint`: the fitted door's
@@ -524,12 +524,13 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
 /// **No lane fabricates a foot.** At `Dual64` — a scalar with no
 /// certified projection (its policy holds no fitted door,
 /// `topo::AtRestPolicy::fitted_lane`) — the wall–seam arm on the same
-/// widened chart refuses typed, naming the missing lane rather than a
-/// boundary it never measured. The dual body is the same loft at the
+/// widened chart has no foot to offer, so the carrier falls to its
+/// `General` image, which refuses typed, naming the missing lane rather
+/// than a column it never measured. The dual body is the same loft at the
 /// same scale, its bowed wall re-charted with the same widened net
 /// lifted constant.
 #[test]
-fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
+fn r1_dual_scalar_wall_seam_arm_names_the_missing_lane() {
     use geom_core::{Bounds, Dual, Dual64};
     let widened = {
         let body = prism(SCALE);
@@ -612,16 +613,15 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         }
         seams += 1;
         let out = topo::pcurve_of(&body, he, band());
-        let Err(PcurveMintError::Certify {
-            error: geom_brep::PcurveCertifyError::IsoUnsupported { what },
-            ..
-        }) = out
-        else {
-            panic!("a dual body has no foot to measure, so the arm refuses typed: {out:?}")
-        };
         assert!(
-            what.contains("no lane measures a chart foot at this scalar"),
-            "naming the missing lane, not a fabricated column: {what}"
+            matches!(
+                out,
+                Err(PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
+                    ..
+                })
+            ),
+            "naming the missing lane, not a fabricated column: {out:?}"
         );
     }
     assert!(seams >= 1, "the wall face has its seams: found {seams}");

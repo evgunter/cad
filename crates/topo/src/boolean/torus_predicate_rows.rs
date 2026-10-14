@@ -30,7 +30,7 @@ fn axis() -> Vec3<f64> {
     Vec3::new(0.0, 1.0, 0.0)
 }
 
-fn roots(q: Point3<f64>, d: Vec3<f64>) -> Result<TorusRoots<f64>, geom_core::Indeterminate> {
+fn roots(q: Point3<f64>, d: Vec3<f64>) -> Result<QuarticRoots<f64>, geom_core::Indeterminate> {
     line_torus_roots(q, d.normalize(), centre(), axis(), R_MAJOR, R_MINOR, band())
 }
 
@@ -74,14 +74,14 @@ fn every_quartic_outcome_is_reached_by_a_real_pose() {
     }
     for (q, d) in poses {
         match roots(q, d) {
-            Ok(TorusRoots::Miss) => miss += 1,
-            Ok(TorusRoots::Uncertain) => uncertain += 1,
-            Ok(TorusRoots::Certified { count: 2, .. }) => two += 1,
-            Ok(TorusRoots::Certified { count: 4, .. }) => four += 1,
-            Ok(TorusRoots::Certified { count, .. }) => {
+            Ok(QuarticRoots::Miss) => miss += 1,
+            Ok(QuarticRoots::Uncertain) => uncertain += 1,
+            Ok(QuarticRoots::Certified { count: 2, .. }) => two += 1,
+            Ok(QuarticRoots::Certified { count: 4, .. }) => four += 1,
+            Ok(QuarticRoots::Certified { count, .. }) => {
                 panic!("a certified count is 2 or 4, never {count}")
             }
-            Ok(TorusRoots::CountDisagrees { .. }) => panic!("the constructed roots disagree"),
+            Ok(QuarticRoots::CountDisagrees { .. }) => panic!("the constructed roots disagree"),
             Err(_) => uncertain += 1,
         }
     }
@@ -109,7 +109,7 @@ fn both_closed_forms_are_selected_and_both_answer() {
     // `±(R ± r)`, and `q̂` is exactly zero because `e = 0`.
     let (q, d) = (centre(), Vec3::new(1.0, 0.0, 0.0));
     assert_eq!(q_hat(q, d), 0.0, "a midplane ray has q̂ = 0 exactly");
-    let Ok(TorusRoots::Certified { count, ts }) = roots(q, d) else {
+    let Ok(QuarticRoots::Certified { count, ts }) = roots(q, d) else {
         panic!("the four-root midplane ray must certify")
     };
     assert_eq!(count, 4);
@@ -131,7 +131,7 @@ fn both_closed_forms_are_selected_and_both_answer() {
         q_hat(q, d).abs() > 1e-3,
         "this pose must select the resolvent, not the biquadratic form"
     );
-    let Ok(TorusRoots::Certified { count, ts }) = roots(q, d) else {
+    let Ok(QuarticRoots::Certified { count, ts }) = roots(q, d) else {
         panic!("a definite pierce must certify")
     };
     assert_eq!(count, 2, "a tilted pierce crosses the tube twice");
@@ -174,7 +174,7 @@ fn the_period_guards_zero_arm_is_what_serves_a_wrapping_face() {
     // module records the split rather than duplicating a fixture it
     // cannot build.
     let (q, d) = (Point3::new(0.0, 0.0, 2.0), Vec3::new(0.0, 0.0, -1.0));
-    let Ok(TorusRoots::Certified { count, .. }) = roots(q, d) else {
+    let Ok(QuarticRoots::Certified { count, .. }) = roots(q, d) else {
         panic!("a radial midplane ray must certify")
     };
     assert_eq!(count, 4, "a diameter of the ring crosses four walls");
@@ -197,7 +197,7 @@ fn the_certified_count_and_the_constructed_roots_agree_on_a_lattice() {
         for j in 0..7 {
             let q = Point3::new(-2.2 + 0.4 * f64::from(i), -0.45 + 0.15 * f64::from(j), 0.13);
             let d = Vec3::new(0.87, 0.21, 0.44);
-            if let Ok(TorusRoots::Certified { count, ts }) = roots(q, d) {
+            if let Ok(QuarticRoots::Certified { count, ts }) = roots(q, d) {
                 certified += 1;
                 for &t in &ts[..count] {
                     let p = q + d.normalize() * t;
@@ -222,7 +222,7 @@ fn the_four_versus_none_split_is_exercised_both_ways() {
     // Positive discriminant, four real roots: the hole.
     assert!(matches!(
         roots(centre(), Vec3::new(1.0, 0.0, 0.0)),
-        Ok(TorusRoots::Certified { count: 4, .. })
+        Ok(QuarticRoots::Certified { count: 4, .. })
     ));
     // Positive discriminant, NO real roots: a ray through the hole but
     // tilted steeply enough to leave through the middle without meeting
@@ -230,17 +230,17 @@ fn the_four_versus_none_split_is_exercised_both_ways() {
     assert!(
         matches!(
             roots(centre(), Vec3::new(0.02, 1.0, 0.0)),
-            Ok(TorusRoots::Miss)
+            Ok(QuarticRoots::Miss)
         ),
         "a steep ray up the hole meets nothing"
     );
     // And the ladder never answers on a Zero: an exactly axial ray.
     let axial = roots(centre(), Vec3::new(0.0, 1.0, 0.0));
     assert!(
-        matches!(axial, Ok(TorusRoots::Miss) | Ok(TorusRoots::Uncertain)),
+        matches!(axial, Ok(QuarticRoots::Miss) | Ok(QuarticRoots::Uncertain)),
         "the axis meets no tube, and must never be answered as a crossing: {:?}",
         axial.map(|r| match r {
-            TorusRoots::Certified { count, .. } => count,
+            QuarticRoots::Certified { count, .. } => count,
             _ => 0,
         })
     );
@@ -379,7 +379,7 @@ fn the_ladder_disagrees_with_itself_on_a_lanes_coefficients() {
         ),
     ] {
         match depressed_quartic_roots(p, q, s, lever, &RAY_TORUS_ROWS, band) {
-            Ok(TorusRoots::CountDisagrees {
+            Ok(QuarticRoots::CountDisagrees {
                 certified: c,
                 constructed: b,
             }) => assert_eq!((c, b), (certified, constructed), "({p}, {q}, {s}, {lever})"),
@@ -410,7 +410,7 @@ fn a_far_ray_reaches_the_count_disagreement() {
     assert!(
         matches!(
             roots,
-            TorusRoots::CountDisagrees {
+            QuarticRoots::CountDisagrees {
                 certified: 2,
                 constructed: 4
             }
@@ -429,7 +429,7 @@ fn a_far_ray_reaches_the_count_disagreement() {
 fn a_count_disagreement_blocks_the_ray_and_says_so() {
     let face = FaceKey::default();
     for (certified, constructed) in [(2, 4), (4, 2), (2, 0)] {
-        let roots: TorusRoots<f64> = TorusRoots::CountDisagrees {
+        let roots: QuarticRoots<f64> = QuarticRoots::CountDisagrees {
             certified,
             constructed,
         };

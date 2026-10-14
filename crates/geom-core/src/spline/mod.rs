@@ -14,8 +14,8 @@
 //! sealed, with each instantiation's semantics documented there. The
 //! derivative's coefficient factor and net, at a generic scalar, have
 //! their one home in [`derivative`], with the quotient bound every
-//! first-order rational derivative bound reads, on the exact dyadic
-//! pieces of [`pieces`]. No
+//! first-order rational derivative bound reads, on pieces halved from
+//! the quotient formed once over each span or cell. No
 //! topology decision exists anywhere in this module (nothing routes
 //! through `k_stats`).
 //!

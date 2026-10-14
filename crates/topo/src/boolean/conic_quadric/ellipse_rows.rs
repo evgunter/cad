@@ -298,8 +298,8 @@ fn the_subdivision_reads_its_pieces_at_the_top_speed() {
             -0.6904757134714763,
             0.7228549842399846,
         ),
-        major: 0.0011565902894188694,
-        minor: 0.00017995811133866398,
+        semi_u: 0.0011565902894188694,
+        semi_v: 0.00017995811133866398,
         u_ref: Vec3::new(-0.8791819779574158, 0.360475481131658, 0.3116030762649587),
     };
     let center = Point3::new(
@@ -462,8 +462,8 @@ mod fuzz_rows {
                 let e = geom::Curve3::Ellipse {
                     center: Point3::new(0.0, 0.0, 0.0),
                     axis: n,
-                    major,
-                    minor,
+                    semi_u: major,
+                    semi_v: minor,
                     u_ref: (u - n * u.dot(n)).normalize(),
                 };
                 // A surface through a random point of the carrier, so the
@@ -583,8 +583,8 @@ mod graze_rows {
             let e = geom::Curve3::Ellipse {
                 center: center + out,
                 axis,
-                major: -3.413_716_003_510_488,
-                minor: -0.175_755_441_781_259_68,
+                semi_u: -3.413_716_003_510_488,
+                semi_v: -0.175_755_441_781_259_68,
                 u_ref,
             };
             let s = geom::Surface::Sphere {
@@ -676,8 +676,8 @@ mod graze_rows {
                     geom::Curve3::Ellipse {
                         center,
                         axis: n,
-                        major,
-                        minor,
+                        semi_u: major,
+                        semi_v: minor,
                         u_ref,
                     }
                 };

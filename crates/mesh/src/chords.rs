@@ -124,8 +124,8 @@ pub(crate) fn compute_chords(
             // certified-conservative curvature-bound step; no torus
             // tightening applies (an ellipse never lies on a torus
             // chart of this kernel's constructions).
-            Curve3::Ellipse { major, minor, .. } => {
-                ceil_count(span, ellipse_step(delta_s, major, minor))?
+            Curve3::Ellipse { semi_u, semi_v, .. } => {
+                ceil_count(span, ellipse_step(delta_s, semi_u, semi_v))?
             }
             // Spiric arcs (the hollowed partial revolve's torus rim):
             // the curvature-bound step from the closed-form `sup|C″|`
@@ -291,7 +291,8 @@ fn nurbs_chord_count(
 /// `geom_core::spline::derivative`'s "The second order"), read in
 /// certification arithmetic off the described carrier, every value a
 /// point, so the bound's upper end is certified. `C″ = M/W³` on each
-/// exact dyadic piece of each span, and the bound is the largest
+/// dyadic piece of each span (halved from `M` and `W³` formed once over
+/// the span), and the bound is the largest
 /// `‖m_k‖/b_k` over them. A refusal (a degree above the statement's
 /// ceiling, a poisoned piece) refuses typed.
 ///
