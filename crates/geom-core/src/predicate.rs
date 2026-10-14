@@ -1940,6 +1940,14 @@ impl MarginDiag {
         }
     }
 
+    /// The reading as a sentence carries it: each number as
+    /// [`crate::Readable`] renders it, so a round `2` reads `2` and
+    /// `5e-10` reads `5e-10`.
+    #[must_use]
+    pub fn readable(self) -> impl fmt::Display {
+        fmt::from_fn(move |f| self.render(f, |x, f| fmt::Display::fmt(&crate::Readable(*x), f)))
+    }
+
     /// Writes the reading with `f`'s own number format applied to each
     /// number: `m`, `[lo, hi]`, or words for poison.
     fn render(
@@ -3598,6 +3606,11 @@ mod tests {
         let e = MarginDiag::enclosure(-2e-9, 3e-9);
         assert_eq!(format!("{e:e}"), "[-2e-9, 3e-9]");
         assert_eq!(format!("{}", MarginDiag::value(0.5)), "0.5");
+        assert_eq!(
+            MarginDiag::enclosure(0.0, 2e-9).readable().to_string(),
+            "[0, 2e-9]"
+        );
+        assert_eq!(MarginDiag::value(2.0).readable().to_string(), "2");
         assert_eq!(
             MarginDiag::INVALID.to_string(),
             "invalid (NaN or a refused enclosure)"

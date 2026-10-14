@@ -18,8 +18,8 @@
 //! (`inf`, `-inf`, `NaN`). The whole is `{:?}` with a trailing `.0`
 //! dropped.
 //!
-//! The viewer's field text (`viewer::props::render_number`) is this
-//! rendering. `quantity::fmt`'s `render_shortest` is the same rendering,
+//! The viewer's field text (`viewer::props::render_number`) and a
+//! reporting margin's `MarginDiag::readable` are this rendering. `quantity::fmt`'s `render_shortest` is the same rendering,
 //! kept as a copy because neither crate depends on the other.
 
 use core::fmt;
