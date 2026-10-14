@@ -253,6 +253,17 @@ impl Refused {
         }
     }
 
+    /// `zero` on the zero arm, whose reading did not show the quantity
+    /// positive, and `negative` on the definite arm, which decided it
+    /// below zero: a payload hedges only what its verdict left open.
+    #[must_use]
+    pub(crate) fn worded(self, zero: &'static str, negative: &'static str) -> &'static str {
+        match self {
+            Self::Zero(_) => zero,
+            Self::Negative { .. } => negative,
+        }
+    }
+
     /// The refused arm this verdict is.
     #[must_use]
     pub fn arm(self) -> RefusedArm<'static> {
@@ -473,6 +484,29 @@ impl SizedDecision {
     }
 }
 
+/// The content words `text` says more than once, for the payload pins:
+/// a payload says each thing once. Possessives fold into their noun
+/// (`edge's` is `edge`), and function words and pronouns are not
+/// counted.
+#[cfg(test)]
+pub(crate) fn repeated_words(text: &str) -> Vec<String> {
+    const FUNCTION: &[&str] = &[
+        "than", "that", "their", "they", "which", "where", "with", "from",
+    ];
+    let mut seen = std::collections::BTreeSet::new();
+    let mut repeated = Vec::new();
+    for word in text.split(|c: char| !(c.is_alphabetic() || c == '\'')) {
+        let word = word.trim_end_matches("'s").to_lowercase();
+        if word.chars().count() < 4 || FUNCTION.contains(&word.as_str()) {
+            continue;
+        }
+        if !seen.insert(word.clone()) && !repeated.contains(&word) {
+            repeated.push(word);
+        }
+    }
+    repeated
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -481,6 +515,17 @@ mod tests {
     /// `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// The payload pins' repeat check sees a doubled content word
+    /// through a possessive, and passes a pronoun said twice.
+    #[test]
+    fn a_doubled_word_is_found() {
+        assert_eq!(
+            repeated_words("the edge's faces cross where they say the edge does not cross"),
+            ["edge", "cross"]
+        );
+        assert!(repeated_words("they curve apart, though they do").is_empty());
     }
 
     /// Every reporting margin a refused arm can carry, both lanes.

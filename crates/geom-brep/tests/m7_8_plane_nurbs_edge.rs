@@ -399,13 +399,14 @@ fn the_door_refuses_a_displaced_carrier_with_limb_1s_measured_miss() {
             // past it holds the miss, so the sentence says it lies
             // within, not that it may.
             let eps_in = 2.0 * value;
+            let shown = geom_core::Readable(eps_in);
             assert_eq!(
                 e.ending(FileCoincidence::new(eps_in)),
                 Some(format!(
                     "This miss lies beyond the tolerance and within the file's declared \
-                     coincidence distance ε_in = {eps_in:e} m, and may be the kernel's own \
+                     coincidence distance ε_in = {shown} m, and may be the kernel's own \
                      approximation. Recourse: re-export the file more precisely, or, as a \
-                     stopgap, set the tolerance to ε_in = {eps_in:e} m; this refusal may \
+                     stopgap, set the tolerance to ε_in = {shown} m; this refusal may \
                      indicate a kernel bug worth reporting"
                 )),
                 "{e:?}"
