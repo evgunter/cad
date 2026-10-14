@@ -6,6 +6,7 @@ status: closed
 opened: 2026-10-13
 closed: 2026-10-14
 branch: germ/torus-circle-arc-far-frames
+pr: 5103
 priority: P2
 cost: M
 refs: [plane-torus-section-gaps-decide-far-coordinates-uncharged]
