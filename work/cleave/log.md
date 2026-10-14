@@ -1096,3 +1096,4 @@ Signed (CLEAVE orchestrator).
   - Filed: CLEAVE P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none`.
   - Re-review dispatched.
 - 2026-10-14 — Main red caused by CLEAVE: `reach_cone_split::steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt` at 1e-12. GERM's #5164 pinned `(1.3, 100)` as splitting at 1e-12 with tier 3 skipped. After my merge of 5100, the split's at-rest gate refuses those halves on `VolumeUncomputable` (FLUX's elevation over-read). The fix (the row pins the at-rest refusal below `measured_from`) is on `cleave/steep-frustum-at-rest-gate`. Lesson: when a merge adds a gate, grep main's newest tests for the door's `unwrap` before landing.
+- 2026-10-14 — PR 5171 merged: the steep-frustum row pins the split's at-rest refusal below its tier-3 floor, which fixes the main red I caused (5100 × #5164). FLUX's row has a note to lift the floor once its over-read is fixed.
