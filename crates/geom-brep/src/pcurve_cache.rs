@@ -10726,6 +10726,25 @@ mod review_5126_r2_probes {
     use core::f64::consts::{PI, TAU};
     use geom_core::{Point3, Tol, Vec3};
 
+    /// Claim 6: a unit row that tells `per = 2` from `per = 1` by its
+    /// refusal type: an Interval gap 3.25 periods out, its bracket
+    /// straddling a half-step mark asymmetrically, so the estimate is
+    /// `None`.
+    #[test]
+    fn p5_per_period_is_told_apart_at_interval() {
+        use geom_core::Interval;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let pi = Interval::pi();
+        let gap = (pi * Interval::from_f64(6.45)).enclosure_hull(pi * Interval::from_f64(6.8));
+        let est = branch_estimate(gap, pi);
+        let two = whole_step_count_any("t", gap, (pi, 2), Margin::of, band);
+        let one = whole_step_count_any("t", gap, (pi, 1), Margin::of, band);
+        eprintln!("P5 est {est:?} per2 {two:?} per1 {one:?}");
+        assert!(est.is_none());
+        assert!(matches!(one, Err(BranchMiss::OutOfReach)));
+        assert!(matches!(two, Err(BranchMiss::Undecided(_) | BranchMiss::OnMark)));
+    }
+
     /// Claim 4: an attach-path image whole periods off its carrier's
     /// re-derivation — the same point set — read by check 4.
     #[test]
