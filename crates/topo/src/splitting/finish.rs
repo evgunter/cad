@@ -330,6 +330,28 @@ pub struct SplitNaming {
     pub joined_lineage: crate::lineage::SplitEdgeDivisions,
 }
 
+impl SplitNaming {
+    /// Records one side's joins, with the side's `SplitEdge` records as
+    /// they stood before the kills (`split_from`).
+    pub(super) fn record_joins(
+        &mut self,
+        side: PlaneSide,
+        split_from: &std::collections::BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>,
+        joins: Vec<crate::boolean::EdgeJoin>,
+    ) -> Result<(), SplitFinishError> {
+        for row in joins
+            .iter()
+            .filter_map(|j| split_from.get(&j.gone).map(|&from| (j.gone, from)))
+        {
+            self.joined_lineage
+                .push(row)
+                .map_err(SplitFinishError::LineageRow)?;
+        }
+        self.edge_joins.extend(joins.into_iter().map(|j| (side, j)));
+        Ok(())
+    }
+}
+
 impl Default for SplitNaming {
     // Each lineage list names itself where it is made (`LineageRows`).
     fn default() -> Self {
@@ -2047,5 +2069,57 @@ mod edge_on_faces_rows {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod joined_lineage_rows {
+    use std::collections::BTreeMap;
+
+    use slotmap::SlotMap;
+
+    use super::{PlaneSide, SplitNaming};
+    use crate::boolean::EdgeJoin;
+    use crate::entity::{EdgeKey, VertexKey};
+
+    /// **A side's joins may kill a split child before its parent.**
+    /// Edge `e1` split into `e13`, and `e13` split twice (`e14`, `e15`);
+    /// the join kills `e1`, then `e14`, then `e13`, so the row for `e13`
+    /// comes after a row that names it as a parent. Each killed edge
+    /// that held a record is recorded with its record's parent, and only
+    /// those: `e1` held none.
+    #[test]
+    fn a_child_killed_before_its_parent_is_recorded_with_it() {
+        let mut edges: SlotMap<EdgeKey, ()> = SlotMap::with_key();
+        let [e1, e13, e14, e15] = [(); 4].map(|()| edges.insert(()));
+        let mut vertices: SlotMap<VertexKey, ()> = SlotMap::with_key();
+        let mut join = |gone, kept| EdgeJoin {
+            vertex: vertices.insert(()),
+            gone,
+            kept,
+            conventional: None,
+        };
+        let joins = vec![join(e1, e13), join(e14, e15), join(e13, e15)];
+        let split_from = BTreeMap::from([(e13, e1), (e14, e13), (e15, e13)]);
+        let mut naming = SplitNaming::default();
+        naming
+            .record_joins(PlaneSide::Above, &split_from, joins.clone())
+            .unwrap();
+        let rows: BTreeMap<EdgeKey, EdgeKey> =
+            naming.joined_lineage.rows().iter().copied().collect();
+        assert_eq!(
+            rows,
+            BTreeMap::from([(e14, e13), (e13, e1)]),
+            "each killed child, with the edge its record names"
+        );
+        assert_eq!(
+            naming.edge_joins,
+            joins
+                .into_iter()
+                .map(|j| (PlaneSide::Above, j))
+                .collect::<Vec<_>>(),
+            "every join, with its side"
+        );
     }
 }
