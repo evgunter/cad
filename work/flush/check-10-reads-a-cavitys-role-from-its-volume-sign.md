@@ -138,3 +138,17 @@ Filed: `a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-th
 `the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`
 (the curved step's residue; cylinders, cones, tori and closed spheres
 are aimed at in this PR).
+
+## Fix pass (PR 5119's reviews, 2026-10-14)
+
+- The reader moved to `crates/topo/src/side_reader.rs`; every ray it sets
+  aside is recorded (`SetAside`), a sharp corner is never a pair, and a
+  face no ray can cross (a spline) casts no ray (`ray_crosses`, the one
+  list `face_geo` also refuses through).
+- One home for the certified volume sign (`props::role_walk`), check 7's
+  included.
+- The door escalates every reading in band: an aimed pair
+  (`ShellRole { near, far, others }`, one lever `AIMED_PAIR`) and a solid
+  no ray read whose volume is in band (`SolidSide`).
+- Filed the needle class (P1, needs Ev) and the volume backstop's `+V`
+  posture (P3); re-aimed the fin row at the at-rest crown.
