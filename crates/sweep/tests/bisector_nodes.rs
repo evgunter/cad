@@ -18,6 +18,7 @@
 use core::f64::consts::PI;
 
 use crate::common::germ_pair::{cyl, repose, spin};
+use crate::common::touch_union::only_curved_within_reach;
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::finished;
 use topo::{Body, BooleanResult};
@@ -47,6 +48,9 @@ struct Built {
     volume: (f64, f64),
     solids: usize,
     at_nodes: [Vec<usize>; 2],
+    /// Tier 3′ on the result's own contact records.
+    three_prime: Result<(), Vec<topo::ValidationError>>,
+    body: topo::AtRestBody<f64>,
 }
 
 fn built(
@@ -71,6 +75,8 @@ fn built(
         volume: (m.volume, m.volume_pad),
         solids: body.solids().count(),
         at_nodes: [at(nodes[0]), at(nodes[1])],
+        three_prime: topo::validate_pseudomanifold(body, &out.contacts, tol).map(|_| ()),
+        body: body.clone(),
     }
 }
 
@@ -96,6 +102,12 @@ fn assert_family(a: &Body<f64>, b: &Body<f64>, theta: f64, nodes: [Point3<f64>; 
         let u = built(topo::union(first, second, tol), nodes, &cut("∪"));
         close(&u, 2.0 * v_wall - cap, &cut("∪"));
         for (got, op) in [(&i, "∩"), (&u, "∪")] {
+            assert!(
+                got.three_prime.is_ok(),
+                "{}: tier 3′ on its own records: {:?}",
+                cut(op),
+                got.three_prime
+            );
             assert_eq!(got.solids, 1, "{}: one solid", cut(op));
             assert_eq!(
                 got.at_nodes,
@@ -112,6 +124,19 @@ fn assert_family(a: &Body<f64>, b: &Body<f64>, theta: f64, nodes: [Point3<f64>; 
             [vec![2, 2], vec![2, 2]],
             "{}: each node is a valence-2 vertex of each solid",
             cut("∖")
+        );
+        // The two solids touch at the nodes along curved faces, which
+        // the census's cross-solid backstop cannot read yet
+        // (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`):
+        // that refusal is admitted, and nothing else.
+        assert!(
+            d.three_prime
+                .as_ref()
+                .err()
+                .is_some_and(|errs| only_curved_within_reach(&d.body, errs)),
+            "{}: tier 3′ answers the census lane's frontier alone: {:?}",
+            cut("∖"),
+            d.three_prime
         );
     }
 }

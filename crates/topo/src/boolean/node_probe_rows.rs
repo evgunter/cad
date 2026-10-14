@@ -11,9 +11,10 @@
 //! - The bicylinder `A ∩ B` is V2 E4 F4: four lunes, each bounded by one
 //!   arc of each ellipse, alternating `A` and `B` round each node, which
 //!   has valence 4.
-//! - `A ∖ B` is two solids, the `y > 0` and `y < 0` halves of `A`'s
+//! - `A ∖ B` is two solids, the `z > 0` and `z < 0` pieces of `A`'s
 //!   rod less the bicylinder, touching at both nodes, each with its own
-//!   valence-2 vertex there; one piece is built here.
+//!   valence-2 vertex there. The top piece is built here, and both
+//!   pieces as one body for the census lane's measurement.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

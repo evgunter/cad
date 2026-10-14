@@ -3830,7 +3830,7 @@ fn cs_transverse_frame<T: Decide>(
 /// triple product annihilates. So the sense a germ gets is identical
 /// whichever of the two stations (or the sphere centre between them)
 /// is handed over, and the pair needs neither a second frame nor a
-/// pinch door. This is exactly where the cylinder PAIR differs: its
+/// node arm. This is exactly where the cylinder PAIR differs: its
 /// crossing ellipses lie in two DIFFERENT bisector planes with two
 /// different axes, and no single frame is right for both — hence
 /// [`FrameError::CylinderNodes`] there and nothing like it
@@ -5871,7 +5871,7 @@ mod frame_dispatch_tests {
     /// rows admit either refusal here and the row below pins which one
     /// each gets. Every other kind pair falls through to the
     /// dispatch's final arm, where `NoArm` is the only reachable
-    /// answer, and a row that accepted the pinch variant there would
+    /// answer, and a row that accepted the nodes variant there would
     /// green through a mis-routed dispatch.
     #[test]
     fn a_pair_without_an_arm_refuses_and_never_answers_straight() {
@@ -5907,7 +5907,7 @@ mod frame_dispatch_tests {
             // node: the walls touch at one azimuth, so neither the
             // coaxial frame nor the transverse one exists. `NoArm` is
             // the routing, not a frontier: the general rung marches
-            // this pair. The pinch
+            // this pair. The nodes
             // variant stays unreachable — pinned exactly.
             (cylinder(Vec3::new(0.0, 0.0, 1.0)), node_sphere(), false),
             (node_sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
@@ -5928,7 +5928,7 @@ mod frame_dispatch_tests {
                 assert!(
                     matches!(got, Err(FrameError::NoArm)),
                     "a non-cylinder pair with no arm must refuse with NoArm exactly — \
-                     the pinch variant is not reachable for these kinds"
+                     the nodes variant is not reachable for these kinds"
                 );
             }
         }
@@ -6050,7 +6050,7 @@ mod frame_dispatch_tests {
         );
     }
 
-    /// **The pinch is a property of the whole intersecting
+    /// **The nodes are a property of the whole intersecting
     /// equal-radius family, not of the perpendicular pose.** The two
     /// bisector planes' common line runs through the axes' meeting
     /// point along `â₁ × â₂` and is perpendicular to both axes, so it
@@ -6063,7 +6063,7 @@ mod frame_dispatch_tests {
     /// table, which is where the claim in
     /// the section table's `nodes` doc is checkable.
     #[test]
-    fn the_equal_radius_section_always_crosses_at_two_pinch_points() {
+    fn the_equal_radius_section_always_crosses_at_two_nodes() {
         use geom_brep::{EqualCylinderSection, cylinder_cylinder_section};
         let p = Point3::new(0.3, -0.2, 0.7);
         let a1 = Vec3::new(0.0, 0.0, 1.0);
@@ -6120,7 +6120,7 @@ mod frame_dispatch_tests {
                     let d = (e.eval(t) - pinch).norm();
                     assert!(
                         d < 1e-12,
-                        "{deg}°, {name}, sign {sign}: the pinch point is {d} off the ellipse"
+                        "{deg}°, {name}, sign {sign}: the node is {d} off the ellipse"
                     );
                 }
             }
@@ -6322,7 +6322,7 @@ mod frame_dispatch_tests {
     /// frame this dispatch returns or about either circle's OWN centre.
     /// That invariance is what makes a single frame correct here and is
     /// exactly what a crossing cylinder pair lacks — its two ellipses
-    /// have two different axes, which is why the pinch door exists
+    /// have two different axes, which is why the nodes variant exists
     /// there and nothing like it is needed here.
     #[test]
     fn one_frame_serves_both_coaxial_cylinder_sphere_circles() {
