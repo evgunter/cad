@@ -10,9 +10,9 @@ cost: M
 
 
 Found by PR 5100's review (`cleave/seam-split-invalid-ok`). That PR lifted
-the Boolean's finished-body typing into `topo::validate::at_rest_refusal`
-(in-band shells → `BooleanDecision::ShellRole` escalation, the kernel's
-findings → every finding carried) and `write_result_not_at_rest` (one
+the Boolean's finished-body typing out as `topo::boolean::at_rest_refusal`
+(`boolean/ops.rs`; in-band shells → `BooleanDecision::ShellRole` escalation, the kernel's
+findings → every finding carried) and `topo::validate::write_result_not_at_rest` (one
 spelling). Since then the Boolean's `gate` (`boolean/ops.rs`) and the split
 (`splitting::split`, `SplitFinishError::ResultNotAtRest` /
 `ResultEscalated`) share the typing.

@@ -142,8 +142,7 @@ use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{
-    AtRestBody, AtRestRefusal, ValidationError, decide, scaffolds_at_rest, validate,
-    validate_closed,
+    AtRestBody, InBandShell, ValidationError, decide, scaffolds_at_rest, validate, validate_closed,
 };
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
@@ -5091,14 +5090,196 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     Ok(kept)
 }
 
+/// **How the at-rest gate's refusal of a door's result is typed** (D10,
+/// Booleans; one home for every door that gates its result at rest: the
+/// Boolean's [`gate`] and [`crate::splitting::split`]): a result holds no in-band pair or shell, and one that does is the
+/// operands' ill-conditioning, which definite cuts can compose.
+#[derive(Debug)]
+pub(crate) enum AtRestRefusal {
+    /// Every finding is born of a margin certified in band: the shell
+    /// whose certified enclosure binds the offer (nearest zero, so a
+    /// tolerance deciding it decides every other), as
+    /// [`BooleanDecision::ShellRole`] naming how many more lie in
+    /// band, with its reading. Its recourse is a smaller tolerance or
+    /// moved geometry.
+    InBand {
+        /// [`BooleanDecision::ShellRole`] on the binding shell.
+        decision: BooleanDecision,
+        /// The binding shell's certified reading.
+        diag: geom_core::Indeterminate,
+    },
+    /// Any other finding: the kernel's own defect or limit, every
+    /// finding carried, each with its own ending.
+    Kernel(Vec<ValidationError>),
+}
+
+/// The at-rest gate's findings typed ([`AtRestRefusal`]); each finding's
+/// arm is [`finding_arm`]'s.
+pub(crate) fn at_rest_refusal(errors: Vec<ValidationError>) -> AtRestRefusal {
+    let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
+    let binding = in_band.as_deref().and_then(|shells| {
+        let b = shells.iter().copied().reduce(|a, b| {
+            if a.sliver
+                .reading()
+                .margin
+                .binds_before(b.sliver.reading().margin)
+            {
+                a
+            } else {
+                b
+            }
+        })?;
+        Some((b, shells.len() - 1))
+    });
+    match binding {
+        Some((b, others)) => AtRestRefusal::InBand {
+            decision: BooleanDecision::ShellRole {
+                solid: b.solid,
+                shell: b.shell,
+                others,
+            },
+            diag: *b.sliver.reading(),
+        },
+        None => AtRestRefusal::Kernel(errors),
+    }
+}
+
 /// **How the finished-body gate's refusal reads at the Boolean**: the
-/// shared typing ([`crate::validate::at_rest_refusal`]), an in-band shell
+/// shared typing ([`at_rest_refusal`]), an in-band shell
 /// as [`BooleanError::Escalated`] on [`BooleanDecision::ShellRole`] and
 /// the kernel's findings as [`BooleanError::ResultInvalid`].
 fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
-    match crate::validate::at_rest_refusal(errors) {
+    match at_rest_refusal(errors) {
         AtRestRefusal::InBand { decision, diag } => BooleanError::Escalated { decision, diag },
         AtRestRefusal::Kernel(errors) => BooleanError::ResultInvalid { errors },
+    }
+}
+
+/// **Which of Q1's arms one finding of the finished-body gate is**: the
+/// shell and certified margin of a finding certified in band, or `None`
+/// for the kernel's. Every finding states its arm here.
+fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
+    use crate::props::ShellClassifyError;
+    use ValidationError as V;
+    match finding {
+        // In band: a shell whose volume over its area, re-derived in
+        // interval arithmetic, lies wholly inside one sliver band.
+        // The certificate decides, whatever words the walk's ends gave the
+        // refusal: a walk that read zero is refuted by it.
+        V::ShellRoleUndecided {
+            solid,
+            error:
+                ShellClassifyError::Escalated { shell, .. }
+                | ShellClassifyError::ZeroVolume { shell, .. }
+                | ShellClassifyError::Straddles { shell }
+                | ShellClassifyError::Props { shell, .. },
+            sliver: Some(certified),
+        } => Some(InBandShell {
+            solid: *solid,
+            shell: *shell,
+            sliver: **certified,
+        }),
+        // Undecided, and not certified in band: a role read whose
+        // enclosure the arithmetic left wider than the band or straddling
+        // its edge (`work/tally/a-threshold-straddling-in-band-shell-is-typed-the-kernels.md`),
+        // or poisoned; or a band that does not form.
+        V::ShellRoleUndecided { .. } => None,
+        // Undecided at a point margin the gate has not shown conditioned
+        // (`work/tally/the-door-gates-other-in-band-findings-are-typed-the-kernels.md`).
+        V::DegenerateTorusEscalated { .. }
+        | V::PlanarFaceEscalated { .. }
+        | V::PlanarBoundaryEscalated { .. }
+        | V::SliverDihedral { .. }
+        | V::JoinUndecidedAtRest { .. }
+        | V::VolumeSignUnresolved { .. }
+        | V::RingContactEscalated { .. }
+        | V::RingNestingUndecided { .. }
+        | V::RingPairContactEscalated { .. }
+        | V::PinchCornerEscalated { .. } => None,
+        // The census's findings: the door runs no census
+        // (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+        V::UnrecordedContact { .. }
+        | V::StaleContactDeclaration { .. }
+        | V::ContactContradicted { .. }
+        | V::CensusEscalated { .. }
+        | V::CensusUnsupported { .. }
+        | V::CensusLaneUnsupported { .. }
+        | V::CensusUndecidable { .. }
+        | V::ArcEndOffCorner { .. }
+        | V::InstanceInterference { .. } => None,
+        // A certificate that failed or a lane that cannot run: the
+        // kernel's.
+        V::Band { .. }
+        | V::UncertifiableSurface { .. }
+        | V::PoisonedSurfaceDescription { .. }
+        | V::ApproxCertification { .. }
+        | V::ApproxLaneUnsupported { .. }
+        | V::PoisonedSurfaceDatum { .. }
+        | V::UnrepresentableSurfaceDatum { .. }
+        | V::PoisonedCurveDatum { .. }
+        | V::UnrepresentableCurveDatum { .. }
+        | V::EdgeCertification { .. }
+        | V::VolumeUncomputable { .. }
+        | V::Pcurve { .. } => None,
+        // Definite findings: a kernel defect.
+        V::DanglingDescription { .. }
+        | V::DegenerateTorus { .. }
+        | V::DescriptionNotAdjacent { .. }
+        | V::PlanarFaceResidual { .. }
+        | V::PlanarBoundaryResidual { .. }
+        | V::TransverseNotIntrinsic { .. }
+        | V::ScaffoldAtRest { .. }
+        | V::JoinableVertexAtRest { .. }
+        | V::TangentNotIntrinsic { .. }
+        | V::LaminaWedge { .. }
+        | V::NoDihedralArm { .. }
+        | V::LoopRoleInverted { .. }
+        | V::CurvedSenseInverted { .. }
+        | V::NegativeVolume { .. }
+        | V::SliverInsideOut { .. }
+        | V::RingMeetsOuter { .. }
+        | V::RingOutsideOuter { .. }
+        | V::RingMeetsRing { .. }
+        | V::PinchCornerCrossed { .. }
+        | V::ShellWinding { .. }
+        | V::SolidOuterShells { .. }
+        | V::DanglingTopology { .. }
+        | V::DanglingGeometry { .. }
+        | V::NextPrevMismatch { .. }
+        | V::LoopCycleOverrun { .. }
+        | V::ParentLoopMismatch { .. }
+        | V::UnreachableHalfEdge { .. }
+        | V::EdgeHalvesIdentical { .. }
+        | V::EdgeSlotBackpointerMismatch { .. }
+        | V::HalfEdgeUnclaimed { .. }
+        | V::HalfEdgeMultiplyClaimed { .. }
+        | V::EdgeNotAntiparallel { .. }
+        | V::EmanatingStartMismatch { .. }
+        | V::EmptyLoopVertexWithEmanating { .. }
+        | V::LoneVertexWithIncidence { .. }
+        | V::VertexOrbitOverrun { .. }
+        | V::OrbitForeignMember { .. }
+        | V::SplitVertexOrbit { .. }
+        | V::OuterListedAsRing { .. }
+        | V::BackPointerMismatch { .. }
+        | V::OrphanEntity { .. }
+        | V::MultiplyOwned { .. }
+        | V::OrphanGeometry { .. }
+        | V::SolidWithoutShells { .. }
+        | V::ShellWithoutFaces { .. }
+        | V::EdgeAcrossShells { .. }
+        | V::ComponentEulerViolation { .. }
+        | V::MissingProvenance { .. }
+        | V::LeakedProvenance { .. }
+        | V::ScaffoldingEmptyLoop { .. }
+        | V::ScaffoldingStrutVertex { .. }
+        | V::ShellDisconnected { .. }
+        | V::NullScaffoldShared { .. }
+        | V::LeakedNullFaceRecord { .. }
+        | V::StaleNullFaceLoop { .. }
+        | V::StaleNullFaceOwnership { .. }
+        | V::NullEdgeAtRest { .. }
+        | V::NullFaceAtRest { .. } => None,
     }
 }
 

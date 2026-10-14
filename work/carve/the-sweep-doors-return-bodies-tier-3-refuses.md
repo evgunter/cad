@@ -57,7 +57,7 @@ without a refusal.
 
 **What closes it:** gate each door's result at the scalar's at-rest
 gate, typed as the Boolean and the split type it
-(`topo::validate::at_rest_refusal`, crate-private today, so this wants a
+(`topo::boolean::at_rest_refusal`, crate-private today, so this wants a
 public door), and correct extrude's stated bar.
 Alternatively, write the "workspace convention" down: these doors return
 construction state, and the editor gates a leaf node's body.

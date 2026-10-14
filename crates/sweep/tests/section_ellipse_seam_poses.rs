@@ -14,8 +14,10 @@
 //!
 //! **Every split side is validated at rest**, and each row states every
 //! pose's outcome exactly: both sides valid, or the refusal named in
-//! its table, so a pose that flips either way reds the row. The
-//! at-rest refusals are tier 3's frame check on a section ellipse
+//! its table, so a pose that flips either way reds the row. The split
+//! gates its own sides at rest and refuses on the first side tier 3
+//! refuses (`at-rest gate <side> <findings>`). Those refusals are tier
+//! 3's frame check on a section ellipse
 //! (`UnrepresentableCurveDatum { Ellipse, URef, Length | Tilt }`): its
 //! margin is `ε − δ·A`, the frame's own rounding `δ` amplified by the
 //! semi-axis `A ≈ r/θ`, up to 1e6 here ([`FRAME_RESIDUE`]). At
@@ -311,24 +313,24 @@ fn a_slab_face_nearly_along_a_ruling_builds() {
 }
 
 const COIN_FLIP_1E6: &[(&str, &str)] = &[
-    ("θ 3e-5 (1, 0) c 0", "above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c 0.5", "above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c -0.5", "above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c 0.8", "above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c -0.8", "above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c 0.9", "above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c -0.9", "above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c 0.99", "above VolumeUncomputable"),
-    ("θ 3e-5 (1, 0) c -0.99", "above VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c 0", "below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c 0.5", "below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c -0.5", "below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c 0.8", "below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c -0.8", "below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c 0.9", "below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c -0.9", "below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c 0.99", "below VolumeUncomputable"),
-    ("θ 3e-5 (-1, 1) c -0.99", "below VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c 0", "at-rest gate above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c 0.5", "at-rest gate above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c -0.5", "at-rest gate above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c 0.8", "at-rest gate above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c -0.8", "at-rest gate above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c 0.9", "at-rest gate above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c -0.9", "at-rest gate above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c 0.99", "at-rest gate above VolumeUncomputable"),
+    ("θ 3e-5 (1, 0) c -0.99", "at-rest gate above VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c 0", "at-rest gate below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c 0.5", "at-rest gate below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c -0.5", "at-rest gate below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c 0.8", "at-rest gate below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c -0.8", "at-rest gate below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c 0.9", "at-rest gate below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c -0.9", "at-rest gate below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c 0.99", "at-rest gate below VolumeUncomputable"),
+    ("θ 3e-5 (-1, 1) c -0.99", "at-rest gate below VolumeUncomputable"),
 ];
 const COIN_FLIP_1E9: &[(&str, &str)] = &[
     ("θ 1e-4 (1, 0) c 0", "refused Reduce SliverSector"),
@@ -413,130 +415,130 @@ const THROUGH_1E9: &[(&str, &str)] = &[];
 const THROUGH_1E12: &[(&str, &str)] = &[
     (
         "θ 1e-6 φ 3.9 z 0.5",
-        "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper",
+        "at-rest gate above URef Length Upper & URef Length Upper",
     ),
     (
         "θ 1e-6 φ 3.9 z 0.3",
-        "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper",
+        "at-rest gate above URef Length Upper & URef Length Upper",
     ),
     (
         "θ 1e-6 φ 5.3 z 0.5",
-        "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper",
+        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
     ),
     (
         "θ 1e-6 φ 5.3 z 0.3",
-        "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper",
+        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
     ),
     (
         "θ 3e-6 φ 1.1 z 0.5",
-        "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper",
+        "at-rest gate above URef Length Upper & URef Length Upper",
     ),
     (
         "θ 3e-6 φ 1.1 z 0.3",
-        "above URef Length Upper & URef Length Upper, below URef Length Upper & URef Length Upper",
+        "at-rest gate above URef Length Upper & URef Length Upper",
     ),
     (
         "θ 3e-6 φ 1.8 z 0.5",
-        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 3e-6 φ 1.8 z 0.3",
-        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 3e-6 φ 2.5 z 0.5",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 3e-6 φ 2.5 z 0.3",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 3e-6 φ 3.9 z 0.5",
-        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 3e-6 φ 3.9 z 0.3",
-        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 3e-6 φ 5.3 z 0.5",
-        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 3e-6 φ 5.3 z 0.3",
-        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 1e-5 φ 0.4 z 0.5",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 1e-5 φ 0.4 z 0.3",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 1e-5 φ 2.5 z 0.5",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 1e-5 φ 2.5 z 0.3",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 3e-5 φ 0.4 z 0.5",
-        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 3e-5 φ 0.4 z 0.3",
-        "above URef Tilt Upper & URef Tilt Lower, below URef Tilt Upper & URef Tilt Lower",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 3e-5 φ 1.1 z 0.5",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 3e-5 φ 1.1 z 0.3",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 3e-5 φ 2.5 z 0.5",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 3e-5 φ 2.5 z 0.3",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 3e-5 φ 3.9 z 0.5",
-        "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper",
+        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
     ),
     (
         "θ 3e-5 φ 3.9 z 0.3",
-        "above URef Tilt Lower & URef Tilt Upper, below URef Tilt Lower & URef Tilt Upper",
+        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
     ),
     (
         "θ 3e-5 φ 5.3 z 0.5",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 3e-5 φ 5.3 z 0.3",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 1e-4 φ 1.1 z 0.5",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 1e-4 φ 1.1 z 0.3",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 1e-4 φ 2.5 z 0.5",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
         "θ 1e-4 φ 2.5 z 0.3",
-        "above URef Length Lower & URef Length Lower, below URef Length Lower & URef Length Lower",
+        "at-rest gate above URef Length Lower & URef Length Lower",
     ),
 ];
