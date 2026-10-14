@@ -334,9 +334,8 @@ impl core::fmt::Display for PieceRole {
 }
 
 /// How many pieces a `circle` draws: it is drawn as the `circle_split`
-/// with `n = 2`, two semicircles split at the circle's `±x` points. The
-/// circle's lowering builds its vertex table at this length.
-pub const CIRCLE_PIECES: u32 = 2;
+/// with `n = 1` at phase 0, one full turn from the circle's `+x` point.
+pub const CIRCLE_PIECES: u32 = 1;
 
 /// **How many indexed pieces a step of `verb` draws**, `n` being a
 /// `circle_split`'s count (read for that verb alone): [`CIRCLE_PIECES`]

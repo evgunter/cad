@@ -1828,13 +1828,11 @@ transition_table! {
             /// **It authors no seam.** That is the whole point, and it is what
             /// keeps PQ4 (PATHS-DESIGN §6: a chain's seam sits at a junction or
             /// fillet, never mid-carrier) untouched: a chain still cannot close
-            /// mid-carrier, because the split this primitive uses is not authored
-            /// at all. The conventional split — two semicircles at the ±x poles,
-            /// counterclockwise — is the primitive's PRIVATE lowering, exactly the
-            /// M2 closed-carrier precedent: a detail of how a closed carrier
-            /// reaches a vertex-and-segment document, not a junction anyone said. The two
-            /// joints are same-carrier identities the form constructs, so
-            /// validation verifies them and records neither (it is one circle).
+            /// mid-carrier, because the one vertex this primitive lowers to is
+            /// not authored at all. It lowers as [`circle_split`] with `n = 1`
+            /// at phase 0: one counterclockwise full turn from the `+x` point
+            /// `(centre.x + r, centre.y)`, the loop's one segment at its one
+            /// vertex.
             ///
             /// `radius` must classify definitely positive
             /// ([`PathError::NonpositiveCircleRadius`]), through the same funnel as
@@ -1869,7 +1867,7 @@ transition_table! {
         centre: Point2<T>,
         #[doc = " The carrier's radius (definitely positive)."]
         radius: T,
-        #[doc = " The subdivision count (STRUCTURAL, ≥ 2)."]
+        #[doc = " The subdivision count (STRUCTURAL, ≥ 1)."]
         n: usize,
         #[doc = " The first vertex's angle from +x (continuous)."]
         phase: T,
@@ -1883,22 +1881,23 @@ transition_table! {
             /// STRUCTURAL subdivisions of one carrier (same-carrier identities
             /// the form constructs, none recorded), not junctions anyone claimed — the
             /// difference from [`circle`] is only that here the subdivision COUNT
-            /// and PHASE are authored data rather than a private lowering detail,
-            /// for the loops whose downstream naming depends on the seam count
-            /// (the boss corpus document is the recorded use case).
+            /// and PHASE are authored data, for the loops whose downstream naming
+            /// depends on the seam count (the boss corpus document is the
+            /// recorded use case). [`circle`] is this form at `n = 1`, phase 0.
             ///
             /// Numerics, stated plainly: vertex `k` sits at
             /// `centre + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
             /// every arc sweeps `4·atan(tan(π/(2n)))` about the authored centre at
             /// the authored radius — all through the scalar's libm-pure
             /// trig (D9-deterministic; no exactness promise at axis crossings, the
-            /// same posture as `.angle(θ)` directors).
+            /// same posture as `.angle(θ)` directors). At `n = 1`, where that
+            /// quarter-tangent is the pole, the one arc sweeps the scalar's own
+            /// `τ`: a full turn from the one vertex back to it.
             ///
             /// `radius` must classify definitely positive (the [`circle`] gate,
-            /// same funnel row); `n` must lie in `2..=u32::MAX` ([`PathError::CircleSplitCount`]
-            /// — a one-vertex full turn's quarter-tangent, `tan(π/2)`, is the
-            /// pole). `n` is
-            /// structural (a count, never a value); `phase` is continuous.
+            /// same funnel row); `n` must lie in `1..=u32::MAX`
+            /// ([`PathError::CircleSplitCount`]). `n` is structural (a count,
+            /// never a value); `phase` is continuous.
             fn circle_split [<T: Decide>(
                 centre: Point2<T>,
                 radius: T,

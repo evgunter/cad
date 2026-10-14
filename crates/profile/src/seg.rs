@@ -329,12 +329,12 @@ pub(crate) fn build_loop_seg<T: Decide>(
                 check_carrier(arc, a, a, band)?;
                 sweep_range(arc, span, Range::FullTurn, band)
             }),
-            // No door constructs a full turn yet, so nothing has yet
-            // shown a construction that writes one exactly (its start
-            // on its carrier, |Δθ| = 2π): this arm decides the turn's
-            // reach and sense and trusts the rest, like every
-            // constructed arc. `circle-lowers-to-one-segment` owns that
-            // construction and its proof.
+            // The one door that constructs a full turn is the circle
+            // kernel (`path::circle_split_kernel` at n = 1), which
+            // writes its vertex on its carrier and its sweep as τ
+            // (`the_circle_kernel_writes_its_full_turn_on_its_carrier_and_exactly_a_turn`):
+            // this arm decides the turn's reach and sense and trusts
+            // the rest, like every constructed arc.
             Consistency::ByConstruction => {
                 full_turn(a, arc, band, |_, _| Ok(())).map_err(SegIssue::Shape)
             }
