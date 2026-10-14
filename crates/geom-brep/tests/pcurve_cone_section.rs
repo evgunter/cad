@@ -759,3 +759,70 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
          past {bound:e}"
     );
 }
+
+/// How many `u` of a flat cone's section `size` its image's envelope may
+/// read: three times the 16 `u` (`RESOLUTION_ULPS`) that
+/// `flat_cone_tilted_ellipse.rs` allows the carrier itself off the cut,
+/// on the same `size`, `max(larger semi-axis, |centre|, |apex|)`.
+const FLAT_IMAGE_ULPS: f64 = 48.0;
+
+/// **A flat cone's section images and certifies at its own resolution**
+/// (`work/pcert/focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor`,
+/// fixed by #5043's `K = −D·M` and its apex-foot centre; this row guards
+/// both halves). The item's own frustum pose, [`skew_section`], at
+/// half-angle 1.55 (`1/cos²α ≈ 2300`), height 0.1, the plane leaning
+/// `f·(π/2 − α)` off square to the axis for `f` of 0.5, 0.8 and 0.9.
+/// Each section's `FocalSection` image certifies over a whole turn on a
+/// band of its own, `(1e-12, 1e-11)`, so the row reads the same at every
+/// ε row, with an envelope within [`FLAT_IMAGE_ULPS`] `u` of its `size`.
+///
+/// The ceiling binds at every pose: the band's zero is 700 `u` of the
+/// largest `size` here and more of the others, so the ceiling, not the
+/// band, decides. Today's envelopes read 27, 8 and 31 `u`. What reds the
+/// row:
+/// - the arm's old `K = c² − sin²α`, at every pose;
+/// - the arm's old centre `apex − (c·a − sin²α·n)·δ/K`, at every pose
+///   (465 `u` at `f = 0.8`, a refusal at the others);
+/// - the centre moved 30 `u` of the semi-axis back along the major axis,
+///   which reads 64, 86 and 70 `u`.
+#[test]
+fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
+    let band = geom_core::Band::new(1e-12, 1e-11).unwrap();
+    let mut wrong = Vec::new();
+    for f in [0.5, 0.8, 0.9] {
+        let (carrier, surface, _) = skew_section(1.55, 0.1, f).unwrap();
+        let Curve3::Ellipse {
+            center,
+            semi_u,
+            semi_v,
+            ..
+        } = carrier
+        else {
+            unreachable!("skew_section answers an ellipse")
+        };
+        let Surface::Cone { apex, .. } = surface else {
+            unreachable!("skew_section answers a cone")
+        };
+        let size = Curve3::semi_axes_by_size(semi_u, semi_v)
+            .0
+            .max(center.distance(Point3::origin()))
+            .max(apex.distance(Point3::origin()));
+        let ceiling = FLAT_IMAGE_ULPS * 0.5 * f64::EPSILON * size;
+        assert!(
+            ceiling < band.zero(),
+            "f {f}: the ceiling {ceiling:e} must bind below the band's zero"
+        );
+        let got = chart_pcurve(&carrier, &surface, band).and_then(|image| {
+            PcurveCache::certify(image, 0.0, core::f64::consts::TAU, &carrier, &surface, band)
+        });
+        match got {
+            Ok(cache) if cache.certificate().envelope <= ceiling => {}
+            Ok(cache) => wrong.push(format!(
+                "f {f}: envelope {:e} past {FLAT_IMAGE_ULPS} u of size {size:e}",
+                cache.certificate().envelope
+            )),
+            Err(e) => wrong.push(format!("f {f}, size {size:e}: {e:?}")),
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}

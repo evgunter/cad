@@ -76,8 +76,8 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
-    CellAxis, CellBlock, CellQuotients, KnotVector, ParamRange, RingRefinement, Span, TensorNet,
-    cell_quotients, span_derivative_scale,
+    CellAxis, CellBlock, CellQuotients, KnotVector, Knots, ParamRange, RingRefinement, Span,
+    TensorNet, basis::basis_funs_in, cell_quotients, span_derivative_scale,
 };
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
@@ -600,6 +600,12 @@ pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
     /// knots' span indices, built on its first read: a function of the
     /// cell alone, which every rectangle touching the cell reads whole.
     nets: CellNets,
+    /// The surface's knot values lifted to certification arithmetic,
+    /// for [`Self::rect_box`]'s midpoint, on the first read.
+    knots: OnceCell<(Knots<Interval>, Knots<Interval>)>,
+    /// The same knot values as `f64`s where every one is a point, for
+    /// the midpoint's double-word reading ([`super::compensated`]).
+    point_knots: OnceCell<Option<(Vec<f64>, Vec<f64>)>>,
 }
 
 /// [`NurbsBoxes`]'s whole-cell nets, `v`-span count wide.
@@ -651,6 +657,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             surface,
             grid: None,
             nets: CellNets::over((surface.knots_u(), surface.knots_v())),
+            knots: OnceCell::new(),
+            point_knots: OnceCell::new(),
         }
     }
 
@@ -661,6 +669,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             surface,
             grid: Some(grid),
             nets: CellNets::over((&grid.ku, &grid.kv)),
+            knots: OnceCell::new(),
+            point_knots: OnceCell::new(),
         }
     }
 
@@ -896,29 +906,141 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         let (u0, u1, v0, v1) = (w.u.start(), w.u.end(), w.v.start(), w.v.end());
         let um = 0.5 * (u0 + u1);
         let vm = 0.5 * (v0 + v1);
-        let hu = 0.5 * (u1 - u0);
-        let hv = 0.5 * (v1 - v0);
         // The midpoint evaluation is the only EVALUATION in this
-        // module, and it happens at the caller's scalar and then
-        // crosses the seam — so a widened control net widens the box
-        // rather than being silently collapsed.
-        // `eval_in_span` at the midpoint's own span rather than `eval`:
-        // the parameter is a thin `f64` structure value, so its span is
-        // unique and no `SpanLocate` hull is needed.
+        // module, and it is an ENCLOSURE on every lane: the window's
+        // net and knots crossed at the seam ([`Interval::from_certified`])
+        // and evaluated in certification arithmetic, so a widened
+        // control net widens the box rather than being silently
+        // collapsed, and an `f64` net's point is not read as a rounded
+        // `f64` evaluation that may sit off the surface.
         // Clamped into a finite domain, so the midpoint is a number.
         let Some(win) = self.surface.window_at(um, vm) else {
             unreachable!("a clamped window's midpoint is a number")
         };
-        let c = win.eval_in_span(T::from_f64(um), T::from_f64(vm));
+        let c = self.enclosed_point(win, um, vm);
         let du = self.cell_deriv_box(w, true);
         let dv = self.cell_deriv_box(w, false);
-        let ru = Interval::from_bounds(-hu, hu);
-        let rv = Interval::from_bounds(-hv, hv);
+        // The window's offsets from its midpoint, each end's difference
+        // rounded outward: `um` is itself rounded, and `±(u1 − u0)/2`
+        // formed in `f64` can fall short of an end by an ulp, which
+        // leaves `S` at the window's own corner outside its box.
+        let offsets = |lo: f64, mid: f64, hi: f64| {
+            let mid = Interval::point(mid);
+            Interval::hull(Interval::point(lo) - mid, Interval::point(hi) - mid)
+        };
+        let ru = offsets(u0, um, u1);
+        let rv = offsets(v0, vm, v1);
         Box3 {
-            x: Interval::from_certified(c.x) + du.x * ru + dv.x * rv,
-            y: Interval::from_certified(c.y) + du.y * ru + dv.y * rv,
-            z: Interval::from_certified(c.z) + du.z * ru + dv.z * rv,
+            x: c.x + du.x * ru + dv.x * rv,
+            y: c.y + du.y * ru + dv.y * rv,
+            z: c.z + du.z * ru + dv.z * rv,
         }
+    }
+
+    /// An enclosure of `S(u, v)` in `win`: [`SurfaceWindow::eval_in_span`]'s
+    /// sum, term for term in its order, over the window's net and knot
+    /// values crossed into certification arithmetic. At `Interval` it
+    /// is that evaluation's own bounds; at `f64` it encloses the stored
+    /// net's exact point, which the lane's own evaluation only rounds
+    /// to.
+    fn enclosed_point(&self, win: SurfaceWindow<'_, T>, u: f64, v: f64) -> Point3<Interval> {
+        let (ku, kv) = self.knots.get_or_init(|| {
+            let lift = |x: T| Interval::from_certified(x);
+            (
+                self.surface.knot_values_u().lift(lift),
+                self.surface.knot_values_v().lift(lift),
+            )
+        });
+        let (Some(su), Some(sv)) = (ku.span(win.span_u().index()), kv.span(win.span_v().index()))
+        else {
+            unreachable!("the window's spans are spans of the surface's own knots")
+        };
+        let bu = basis_funs_in(su, Interval::point(u));
+        let bv = basis_funs_in(sv, Interval::point(v));
+        let (control, weights) = (self.surface.control(), self.surface.weights());
+        // Read twice, about the origin and about the window's corner
+        // control point `o` (a point), and met: both enclose the one
+        // exact point. `S − o = Σ bw·(P − o) / Σ bw` in ℝ, and each
+        // `P − o` is a difference of nearby numbers, so that sum's
+        // rounding scales with the window's extent rather than with its
+        // distance from the origin, at the cost of one rounding at `o`'s
+        // scale when it is added back; about the origin there is no
+        // such rounding, which is the tighter where `|S|` is small next
+        // to `|o|`.
+        let corner = control[win.row(0)];
+        let o = [corner.x, corner.y, corner.z].map(|c| Interval::point(Bounds::lo(c)));
+        let zero = Interval::point(0.0);
+        let (mut at, mut about, mut w) = ([zero; 3], [zero; 3], zero);
+        for (i, bui) in bu.iter().enumerate() {
+            let row = win.row(i);
+            for (j, bvj) in bv.iter().enumerate() {
+                let idx = row + j;
+                let cw = (*bui * *bvj) * Interval::from_certified(weights[idx]);
+                let pt = control[idx];
+                let p = [pt.x, pt.y, pt.z].map(Interval::from_certified);
+                for c in 0..3 {
+                    at[c] = at[c] + cw * p[c];
+                    about[c] = about[c] + cw * (p[c] - o[c]);
+                }
+                w = w + cw;
+            }
+        }
+        let [x, y, z] = core::array::from_fn(|c| (at[c] / w).meet(o[c] + about[c] / w));
+        // Where every input is a point, the double-word reading too: a
+        // few ulps of the point (or `u²` of its terms where they
+        // cancel), where the interval sums are as wide as their terms'
+        // rounding.
+        match self.point_reading(win, (u, v)) {
+            Some([dx, dy, dz]) => Point3::new(x.meet(dx), y.meet(dy), z.meet(dz)),
+            None => Point3::new(x, y, z),
+        }
+    }
+
+    /// [`super::compensated::nurbs_point`] on `win` at `(u, v)`, where
+    /// the window's net and weights and the surface's knots are all
+    /// points; `None` elsewhere, or where its bound is not trusted.
+    fn point_reading(
+        &self,
+        win: SurfaceWindow<'_, T>,
+        (u, v): (f64, f64),
+    ) -> Option<[Interval; 3]> {
+        let point = |x: T| (Bounds::lo(x) == Bounds::hi(x)).then(|| Bounds::lo(x));
+        let (ku, kv) = self
+            .point_knots
+            .get_or_init(|| {
+                let all = |k: &Knots<T>| {
+                    k.values()
+                        .iter()
+                        .map(|&x| point(x))
+                        .collect::<Option<Vec<f64>>>()
+                };
+                Some((
+                    all(self.surface.knot_values_u())?,
+                    all(self.surface.knot_values_v())?,
+                ))
+            })
+            .as_ref()?;
+        let (su, sv) = (win.span_u(), win.span_v());
+        let (control, weights) = (self.surface.control(), self.surface.weights());
+        let window = (0..=su.degree())
+            .flat_map(|i| (0..=sv.degree()).map(move |j| win.row(i) + j))
+            .map(|idx| {
+                let p = control[idx];
+                Some((
+                    [point(p.x)?, point(p.y)?, point(p.z)?],
+                    point(weights[idx])?,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        super::compensated::nurbs_point(
+            &super::compensated::PointCell {
+                knots: (ku, kv),
+                spans: (su.index(), sv.index()),
+                degrees: (su.degree(), sv.degree()),
+                window: &window,
+            },
+            (u, v),
+        )
     }
 }
 
