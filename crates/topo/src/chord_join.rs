@@ -4108,23 +4108,50 @@ impl JoinPlan {
     }
 }
 
-/// The ring `halves` make up alone, where they are the two halves of one
-/// null edge and their loop is a ring of its face holding nothing else
-/// (a pierce of the face's interior a one-site section loop joins to
-/// itself, [`ChordJoiner::join_lone_ring`]).
+/// What a ring a one-site section loop's null edge lies in holds
+/// besides that edge ([`lone_ring`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LoneRing {
+    /// Nothing: a pierce of the face's interior, joined to itself.
+    Pierce,
+    /// The segment's own closed edge: the loop runs along an edge of the
+    /// face's ring, whose ends are both the site.
+    Closed,
+}
+
+/// The ring `halves` make up, where they are the two halves of one null
+/// edge and their loop is a ring of its face holding nothing else, or
+/// nothing else but a half of the segment's closed edge `locus`
+/// ([`ChordJoiner::join_lone_ring`]).
 fn lone_ring<T: Real>(
     body: &Body<T>,
     (h1, h2): (HalfEdgeKey, HalfEdgeKey),
-) -> Result<Option<LoopKey>, SplitJoinError> {
+    locus: Option<EdgeKey>,
+) -> Result<Option<(LoopKey, LoneRing)>, SplitJoinError> {
     let half = |he: HalfEdgeKey| body.get_half_edge(he).ok_or_else(|| corrupt_he(he));
     let (d1, d2) = (half(h1)?, half(h2)?);
-    if d1.edge != d2.edge || d1.parent_loop != d2.parent_loop || d1.next != h2 || d2.next != h1 {
+    if d1.edge != d2.edge || d1.parent_loop != d2.parent_loop {
         return Ok(None);
     }
+    let kind = if d1.next == h2 && d2.next == h1 {
+        LoneRing::Pierce
+    } else {
+        // One of the two runs between the halves is empty and the other
+        // is the closed edge alone.
+        let between = |from: &crate::entity::HalfEdge, to: HalfEdgeKey| -> Result<bool, SplitJoinError> {
+            let mid = half(from.next)?;
+            Ok(Some(mid.edge) == locus && mid.next == to)
+        };
+        let closed = (d1.next == h2 && between(d2, h1)?) || (d2.next == h1 && between(d1, h2)?);
+        if !closed {
+            return Ok(None);
+        }
+        LoneRing::Closed
+    };
     let l = d1.parent_loop;
     let face = body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face;
     let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
-    Ok((l != outer).then_some(l))
+    Ok((l != outer).then_some((l, kind)))
 }
 
 /// How [`ChordJoiner::join_lone_ring`] reads which side of a walled-off
@@ -4312,7 +4339,7 @@ impl ChordJoiner {
         curve: &SegmentCurve<T>,
         tol: Tol,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
-        if let Some(ring) = lone_ring(body, plan.halves)? {
+        if let Some(ring) = lone_ring(body, plan.halves, plan.locus)? {
             return self.join_lone_ring(body, plan, ring, curve, tol);
         }
         let (h2, oldf) = (plan.halves.1, plan.face);
@@ -4419,20 +4446,24 @@ impl ChordJoiner {
         &mut self,
         body: &mut Body<T>,
         plan: &JoinPlan,
-        ring: LoopKey,
+        (ring, kind): (LoopKey, LoneRing),
         curve: &SegmentCurve<T>,
         tol: Tol,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
         let oldf = plan.face;
         let invariant = |what| SplitJoinError::SectionInvariant { face: oldf, what };
-        let side = match body
-            .get_face(oldf)
-            .and_then(|f| body.get_surface(f.surface))
-            .ok_or_else(|| corrupt_face(oldf))?
-        {
-            geom::Surface::Plane { .. } => RimSide::Plane(face_plane_normal(body, oldf)?),
-            geom::Surface::Sphere { .. } => RimSide::Sphere,
-            _ => {
+        let side = match (
+            kind,
+            body.get_face(oldf)
+                .and_then(|f| body.get_surface(f.surface))
+                .ok_or_else(|| corrupt_face(oldf))?,
+        ) {
+            (LoneRing::Closed, _) => None,
+            (LoneRing::Pierce, geom::Surface::Plane { .. }) => {
+                Some(RimSide::Plane(face_plane_normal(body, oldf)?))
+            }
+            (LoneRing::Pierce, geom::Surface::Sphere { .. }) => Some(RimSide::Sphere),
+            (LoneRing::Pierce, _) => {
                 return Err(invariant(
                     "a one-site loop's pierce ring on a face that is neither a plane nor a sphere",
                 ));
@@ -4458,26 +4489,33 @@ impl ChordJoiner {
         let replan = JoinPlan::of(body, plan.halves, SegmentEdge::Locus(plan.locus), self.band)?;
         let walled_from = self.fragments.rows().len();
         // The halves' loop is now the promoted face's outer, which
-        // `lone_ring` never takes, so this `join` mints its two chords.
+        // `lone_ring` never takes, so this `join` mints its chords: two
+        // in a pierce, and in a closed edge's ring the one the edge does
+        // not stand in for.
         let minted = self.join(body, &replan, curve, tol)?;
         let walled: Vec<FaceKey> = self.fragments.rows()[walled_from..]
             .iter()
             .map(|&(f, _)| f)
             .collect();
-        let [a, b] = walled[..] else {
-            return Err(invariant(
-                "a one-site loop's join in a pierce ring walled off other than two faces",
-            ));
-        };
-        let (disc, hole) = match (
-            side.holds_outer(body, oldf, outer, a, self.band)?,
-            side.holds_outer(body, oldf, outer, b, self.band)?,
-        ) {
-            (false, true) => (a, b),
-            (true, false) => (b, a),
+        let (disc, hole) = match (side, &walled[..]) {
+            (Some(side), &[a, b]) => match (
+                side.holds_outer(body, oldf, outer, a, self.band)?,
+                side.holds_outer(body, oldf, outer, b, self.band)?,
+            ) {
+                (false, true) => (Some(a), b),
+                (true, false) => (Some(b), a),
+                _ => {
+                    return Err(invariant(
+                        "a one-site loop's two conics in a pierce ring bound one side alike",
+                    ));
+                }
+            },
+            // The chord copies the ring's own edge, and the face it walls
+            // off holds it alone: the hole the edge bounded.
+            (None, &[hole]) => (None, hole),
             _ => {
                 return Err(invariant(
-                    "a one-site loop's two conics in a pierce ring bound one side alike",
+                    "a one-site loop's join in a ring walled off other than its conics",
                 ));
             }
         };
@@ -4486,7 +4524,9 @@ impl ChordJoiner {
         self.absorbed
             .push((hole, oldf))
             .map_err(SplitJoinError::LineageRow)?;
-        self.rehome_rings(body, oldf, disc, cut)?;
+        if let Some(disc) = disc {
+            self.rehome_rings(body, oldf, disc, cut)?;
+        }
         Ok(minted)
     }
 
