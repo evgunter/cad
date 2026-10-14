@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-30
 closed: 2026-10-14
 branch: germ/pt-degenerate-torus-ending
+pr: 5173
 priority: P3
 cost: E
 ---
