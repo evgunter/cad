@@ -2392,3 +2392,16 @@ pub fn continuous_vars(doc: &ProfileDoc) -> usize {
         .filter(|(_, free)| matches!(free, editor_core::FreeVar::Continuous { .. }))
         .count()
 }
+
+/// `a`, `b` standing on `a`'s top raised by `lift` (0 glues `b`'s bottom
+/// to `a`'s top, −0.1 sinks it, 0.1 lifts it clear), and `c` rising
+/// through `a`'s top across `b`'s far end, its x = 1.2 wall cutting
+/// `b`'s y = 0.25 bottom rim.
+pub fn glued_rim(lift: f64) -> impl Fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    move |doc| {
+        let (doc, a) = crate::blocks::block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, b) = crate::blocks::block(doc, (0.5, 1.5), (0.25, 0.75), 1.0 + lift, 0.5);
+        let (doc, c) = crate::blocks::block(doc, (1.2, 2.5), (-0.2, 1.2), 0.5, 1.3);
+        (doc, vec![a, b, c])
+    }
+}

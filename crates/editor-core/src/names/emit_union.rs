@@ -440,10 +440,11 @@ fn put_entry(t: &mut NameTable, name: StableName, entry: &Entry) -> Result<(), N
 }
 
 /// Member `member`'s edge `edge` in its own body, as its own table
-/// names it, a cited line read as the least row on it (N5), the least
-/// untied one where there is one: a tie there is
-/// [`NamingError::MemberEdgeTied`], and a member or name the union does
-/// not have is an emission bug (every member-keyed row came from that
+/// names it, a cited line read as the least row on it (N5, "A cited
+/// line"). Where that row is tied, its candidates are several edges and
+/// the reader needs one, which no rule picks:
+/// [`NamingError::MemberEdgeTied`]. A member or name the union does not
+/// have is an emission bug (every member-keyed row came from that
 /// member's table).
 ///
 /// A constituent of an edge set the member publishes (a nested union's
@@ -471,13 +472,9 @@ fn member_edge_at<T: geom_core::Decide>(
     let bug = |what| NamingError::Emission { what };
     let (i, m) = member_at(members, member, edge)?;
     let by_line = |edge: &StableName| {
-        m.table.lookup(edge).or_else(|| {
-            let rows = m.table.on_line(edge);
-            rows.iter()
-                .filter_map(|row| m.table.lookup(row))
-                .find(|e| matches!(e, Entry::Unique(_)))
-                .or_else(|| rows.first().and_then(|row| m.table.lookup(row)))
-        })
+        m.table
+            .lookup(edge)
+            .or_else(|| m.table.lookup(m.table.on_line(edge).first()?))
     };
     let entry = by_line(edge).or_else(|| by_line(m.table.sets_listing(edge).first()?.name()));
     match entry {
@@ -582,11 +579,10 @@ struct Flush<'a, T: geom_core::Decide> {
     body: &'a topo::Body<T>,
     members: &'a [Member<'a, T>],
     inc: Incidence,
-    /// Finished face → the member faces its name descends from.
-    faces: BTreeMap<topo::FaceKey, BTreeSet<MemberEntity>>,
-    /// The same member faces as entities, each by its member's index:
-    /// a tied name's candidates are separate parents spelled alike, so
-    /// a member face is read by its key and never looked up by name.
+    /// Finished face → the member faces it descends from, each by its
+    /// member's index: a tied name's candidates are separate parents
+    /// spelled alike, so a member face is read by its key and never
+    /// looked up by name.
     face_ents: BTreeMap<topo::FaceKey, BTreeSet<MemberFace>>,
     /// Finished edge → the member edges it lies within.
     edges: BTreeMap<topo::EdgeKey, BTreeSet<MemberEntity>>,
@@ -608,12 +604,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         parents: &Parents,
         bnd: geom_core::Band,
     ) -> Result<Self, NamingError> {
-        let mut faces = BTreeMap::new();
         let mut face_ents = BTreeMap::new();
         let mut face_names = BTreeMap::new();
         for &f in parents.of_face.keys() {
             let parent = parents.face(f)?;
-            faces.insert(f, parent.from.clone());
             face_ents.insert(f, parent.entities.clone());
             face_names.insert(f, parent.name.clone());
         }
@@ -622,7 +616,6 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             body,
             members,
             inc: Incidence::of(body)?,
-            faces,
             face_ents,
             edges: BTreeMap::new(),
             spans: BTreeMap::new(),
@@ -671,6 +664,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let (Some(from0), Some(from1)) = (self.face_ents.get(f0), self.face_ents.get(f1)) else {
             return Ok(none);
         };
+        // A union reads a curved joined edge from its two faces
+        // (`work/emit/a-unions-flush-reading-is-straight-only.md`).
         if !is_straight(self.body, k) {
             return Ok(none);
         }
@@ -693,16 +688,24 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         joined_along(self.body, k, named, self.bnd)
     }
 
-    /// Member `i` of `members`, as a member face's index cites it.
+    /// Member `i` of `members`, by the index a member entity's key is
+    /// read under.
     fn member_by_index(&self, i: usize) -> Result<&'a Member<'a, T>, NamingError> {
         self.members.get(i).ok_or(NamingError::Emission {
-            what: "a union's member face names no member",
+            what: "a union reads a member entity under an index that is none of its members",
         })
     }
 
     /// The member edges finished edge `k` lies on at its vertex `v`:
-    /// those it lies within, or those of the set it is named for whose
-    /// closed segment holds `v`, in name order.
+    /// those it lies within, or those of the set it is named for that
+    /// hold `v` ([`edges_holding`]), in name order.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::MemberEdgeTied`] where a tied member edge of the
+    /// set has a candidate holding `v`: the vertex lies on it, and its
+    /// name stands for several edges. A tied edge none of whose
+    /// candidates holds `v` does not bear on the vertex.
     fn lines_at(
         &self,
         v: topo::VertexKey,
@@ -714,12 +717,37 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let Some(set) = self.spans.get(&k) else {
             return Ok(Vec::new());
         };
+        let p = vertex_point(self.body, v)?;
         let mut on = Vec::with_capacity(set.len());
         for line in set {
-            let (body, r) = member_edge(self.members, line.0, line.1.name())?;
-            on.push((line.clone(), body, r));
+            let m = self.member(line.0, line.1.name())?;
+            let entry = m.table.lookup(line.1.name()).ok_or(NamingError::Emission {
+                what: "a member edge a union's joined edge lies along is not in its member's table",
+            })?;
+            let mut candidates = Vec::with_capacity(entry.entities().len());
+            for e in entry.entities() {
+                let EntityKey::Edge(r) = e.key else {
+                    return Err(NamingError::Emission {
+                        what: "a member edge a union's joined edge lies along names no edge",
+                    });
+                };
+                candidates.push((r, m.body, r));
+            }
+            match entry {
+                Entry::Unique(_) => {
+                    on.extend(candidates.into_iter().map(|(_, b, r)| (line.clone(), b, r)))
+                }
+                Entry::Tied(_) => {
+                    if !edges_holding(p, candidates, self.bnd)?.is_empty() {
+                        return Err(NamingError::MemberEdgeTied {
+                            member: line.0,
+                            edge: Box::new(line.1.name().clone()),
+                        });
+                    }
+                }
+            }
         }
-        edges_holding(vertex_point(self.body, v)?, on, self.bnd)
+        edges_holding(p, on, self.bnd)
     }
 
     /// The member edge a piece of `own` that is finished edge `k` is
@@ -975,13 +1003,13 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         Ok(sides)
     }
 
-    /// The members finished face `f` descends from a face of.
+    /// The members finished face `f` descends from a face of, by read.
     fn members_of(&self, f: &topo::FaceKey) -> BTreeSet<VarId> {
-        self.faces
+        self.face_ents
             .get(f)
             .into_iter()
             .flatten()
-            .map(|(n, _)| *n)
+            .map(|&(i, _)| self.members[i].read)
             .collect()
     }
 
@@ -1012,15 +1040,17 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         // row with each candidate's: the classified piece is the one at
         // `v`. The line itself need not be a row.
         let mut rows: BTreeMap<topo::EdgeKey, &StableName> = BTreeMap::new();
-        for row in core::iter::once(name.name())
-            .chain(m.table.on_line(name.name()).iter().map(|r| r.name()))
-        {
-            let candidates = match m.table.lookup(row) {
-                Some(Entry::Unique(e)) => core::slice::from_ref(e),
-                Some(Entry::Tied(es)) => es.as_slice(),
-                None => continue,
-            };
-            for e in candidates {
+        let head = m.table.lookup(name.name()).map(|e| (name.name(), e));
+        let mut on_line = Vec::new();
+        for row in m.table.on_line(name.name()) {
+            let entry = m
+                .table
+                .lookup(row)
+                .ok_or(bug("a member's row on a line is not in its table"))?;
+            on_line.push((row.name(), entry));
+        }
+        for (row, entry) in head.into_iter().chain(on_line) {
+            for e in entry.entities() {
                 let EntityKey::Edge(k) = e.key else {
                     return Err(bug("a member's row on an edge's line names no edge"));
                 };
@@ -1509,12 +1539,10 @@ fn cite_member_edges<T: geom_core::Decide>(
         let member_table = member_of(members, member, edge.name())?.table;
         let mut on_line = Vec::new();
         for row in member_table.on_line(edge.name()) {
-            let candidates = match member_table.lookup(row) {
-                Some(Entry::Unique(e)) => core::slice::from_ref(e),
-                Some(Entry::Tied(es)) => es.as_slice(),
-                None => return Err(bug("a member's row on a line is not in its table")),
-            };
-            for e in candidates {
+            let entry = member_table
+                .lookup(row)
+                .ok_or(bug("a member's row on a line is not in its table"))?;
+            for e in entry.entities() {
                 let EntityKey::Edge(k) = e.key else {
                     return Err(bug("a member's row on an edge's line names no edge"));
                 };
@@ -1916,8 +1944,6 @@ struct Parent {
     name: StableName,
     /// The member faces linked into it.
     entities: BTreeSet<MemberFace>,
-    /// Their names in their members' tables.
-    from: BTreeSet<MemberEntity>,
     /// The finished faces that are it or pieces of it.
     faces: Vec<topo::FaceKey>,
     /// Whether a member face in it is tied in its member's table (N2's
@@ -2016,7 +2042,6 @@ impl Parents {
             parents.all.push(Parent {
                 name,
                 entities,
-                from,
                 faces: Vec::new(),
                 tied,
             });
@@ -3734,7 +3759,8 @@ mod tests {
 
     /// A unit cube, its extrude's own table, and the cube read as both
     /// a union's one member (read `(1, 7)`) and its finished body, each
-    /// finished face descending from the member face it is.
+    /// finished face descending from the member face it is: the fold
+    /// before any step.
     struct SelfMember {
         union: RecipeNodeId,
         read: VarId,
@@ -3808,33 +3834,20 @@ mod tests {
             }]
         }
 
+        /// The member's flush reading, through [`Parents::of`] and
+        /// [`Flush::of`] over a fold that is the member alone.
         fn flush<'a>(&'a self, members: &'a [Member<'a, f64>]) -> Flush<'a, f64> {
-            let mut faces = BTreeMap::new();
-            let mut face_ents = BTreeMap::new();
-            let mut face_names = BTreeMap::new();
-            for (f, _) in self.body.faces() {
-                let name = self
-                    .table
-                    .name_ref_of(&ent(0, EntityKey::Face(f)))
-                    .unwrap()
-                    .clone();
-                let from = (self.read, name);
-                face_names.insert(f, entity_name(self.union, &from));
-                faces.insert(f, BTreeSet::from([from]));
-                face_ents.insert(f, BTreeSet::from([(0, f)]));
-            }
-            Flush {
-                union: self.union,
-                body: &self.body,
+            let fold = Fold::new(0, &self.body);
+            let parents =
+                Parents::of(self.union, &self.body, members, &fold, &Links::default()).unwrap();
+            Flush::of(
+                self.union,
+                &self.body,
                 members,
-                inc: Incidence::of(&self.body).unwrap(),
-                faces,
-                face_ents,
-                edges: BTreeMap::new(),
-                spans: BTreeMap::new(),
-                face_names,
-                bnd: geom_core::Band::new(1e-9, 1e-6).unwrap(),
-            }
+                &parents,
+                geom_core::Band::new(1e-9, 1e-6).unwrap(),
+            )
+            .unwrap()
         }
 
         /// A face of the cube, and an edge it bounds with its faces.
@@ -3875,6 +3888,11 @@ mod tests {
             cover.within,
             vec![(m.read, edge)],
             "the edge between a tied member face and its neighbour lies within the member edge"
+        );
+        assert_eq!(
+            flush.least_within(k),
+            Some((m.read, cover.within[0].1.clone())),
+            "Flush::of records it from the parents' member faces"
         );
     }
 

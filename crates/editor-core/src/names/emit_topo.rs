@@ -3127,6 +3127,7 @@ pub(super) struct CarrierArc<T: Decide> {
 /// vertex sits, which has no identity of its own (`docs/DESIGN.md`,
 /// maximal edges).
 pub(super) struct Track<T: Decide> {
+    edge: EdgeKey,
     carrier: geom::Curve3<T>,
     t0: T,
     mid: T,
@@ -3169,6 +3170,7 @@ impl<T: Decide> Track<T> {
         let mid = geom::mid_param(t0, t1);
         let speed = carrier.deriv(mid).norm();
         Ok(Track {
+            edge: e,
             carrier,
             t0,
             mid,
@@ -3193,6 +3195,12 @@ impl<T: Decide> Track<T> {
     /// on a periodic one, where `p` lies on the carrier (its distance
     /// from the carrier's point at its recovered parameter decided
     /// zero through `predicate`); `None` off it.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::CarrierUnplaced`] on a carrier that recovers no
+    /// parameter for a point (a spline), where "off it" would be a
+    /// guess.
     fn offset(
         &self,
         p: Point3<T>,
@@ -3200,7 +3208,10 @@ impl<T: Decide> Track<T> {
         bnd: geom_core::Band,
     ) -> Result<Option<T>, NamingError> {
         let Some(u) = self.carrier.param_near(p, self.mid) else {
-            return Ok(None);
+            return Err(NamingError::CarrierUnplaced {
+                edge: self.edge,
+                carrier: self.carrier.kind(),
+            });
         };
         let gap = decide(
             predicate,
@@ -3427,11 +3438,13 @@ pub(super) fn joined_candidates<'b, T: Decide + 'b, S: Copy + Ord>(
 ) -> Result<BTreeMap<(S, EdgeKey), CarrierArc<T>>, NamingError> {
     let mut out = BTreeMap::new();
     for &(s, g0) in d0 {
+        let body = body_of(s)?;
         for &(_, g1) in d1.iter().filter(|(s1, g1)| *s1 == s && *g1 != g0) {
-            let body = body_of(s)?;
             for r in rims_between(body, g0, g1)? {
-                if is_straight(body, r) == line && !out.contains_key(&(s, r)) {
-                    out.insert((s, r), carrier_arc(body, r)?);
+                if is_straight(body, r) == line
+                    && let std::collections::btree_map::Entry::Vacant(slot) = out.entry((s, r))
+                {
+                    slot.insert(carrier_arc(body, r)?);
                 }
             }
         }

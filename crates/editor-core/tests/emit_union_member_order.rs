@@ -494,19 +494,6 @@ fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
     );
 }
 
-/// `a`, `b` standing on `a`'s top raised by `lift` (0 glues `b`'s bottom
-/// to `a`'s top, −0.1 sinks it, 0.1 lifts it clear), and `c` rising
-/// through `a`'s top across `b`'s far end, its x = 1.2 wall cutting
-/// `b`'s y = 0.25 bottom rim.
-pub(crate) fn glued_rim(lift: f64) -> impl Fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    move |doc| {
-        let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 1.0 + lift, 0.5);
-        let (doc, c) = block(doc, (1.2, 2.5), (-0.2, 1.2), 0.5, 1.3);
-        (doc, vec![a, b, c])
-    }
-}
-
 /// What `glued_rim(lift)` names, in member order `[a, b, c]`: the edge
 /// along `b`'s y = 0.25 bottom rim from x = 0.5 to the x = 1.2 wall of
 /// `c`, and the vertex where that wall cuts it, each with its name's
@@ -522,7 +509,7 @@ struct GluedRim {
 
 fn glued_rim_names(lift: f64) -> GluedRim {
     let doc = ProfileDoc::empty_derived("emit_union_member_order_glued", Tol::witness());
-    let (doc, m) = glued_rim(lift)(doc);
+    let (doc, m) = crate::fixture::glued_rim(lift)(doc);
     let [a, b, c] = [m[0], m[1], m[2]];
     let faces = [
         member_face_of(&doc, a, RoleSeg::Cap(CapEnd::End)),
@@ -644,7 +631,7 @@ fn seam_of(x: &StableName, y: &StableName) -> RoleSeg {
 fn an_edge_whose_member_face_was_glued_away_is_a_seam_in_every_member_order() {
     let mut spelled = Vec::new();
     for (what, lift) in [("glued", 0.0), ("sunk", -0.1), ("lifted", 0.1)] {
-        let all = one_table(what, &glued_rim(lift));
+        let all = one_table(what, &crate::fixture::glued_rim(lift));
         let r = glued_rim_names(lift);
         for (n, s) in [&r.edge, &r.vertex] {
             assert!(

@@ -779,12 +779,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         docs.push((format!("round pins, {op:?}"), doc));
     }
 
-    let (doc, members) = crate::emit_union_member_order::glued_rim(0.0)(ProfileDoc::empty_derived(
-        "name_words_glued_rim",
-        geom_core::Tol::witness(),
-    ));
-    let (doc, _) = fixture::union_over(doc, &members);
-    docs.push(("glued rim cut by a third block".to_owned(), doc));
+    docs.push(("glued rim cut by a third block".to_owned(), glued_rim().0));
 
     let mut alike = Vec::new();
     for (label, doc) in &docs {
@@ -800,6 +795,14 @@ fn documents_outside_the_corpus_read_apart_too() {
     );
 }
 
+/// The three-block glued rim (`fixture::glued_rim`, glued flush) as
+/// one document, and its union.
+fn glued_rim() -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("name_words_glued_rim", geom_core::Tol::witness());
+    let (doc, members) = fixture::glued_rim(0.0)(doc);
+    fixture::union_over(doc, &members)
+}
+
 /// **Each seam in a run of seams is said by its two faces**, in full
 /// and within the evaluation alike: the three-block glued rim, where
 /// `c`'s wall cuts the rim of `b` glued on `a`, holds two vertices that
@@ -809,11 +812,7 @@ fn documents_outside_the_corpus_read_apart_too() {
 /// in the seams the detail opened.
 #[test]
 fn a_run_of_seams_says_each_seam_by_its_faces() {
-    let (doc, members) = crate::emit_union_member_order::glued_rim(0.0)(ProfileDoc::empty_derived(
-        "name_words_glued_rim",
-        geom_core::Tol::witness(),
-    ));
-    let (doc, u) = fixture::union_over(doc, &members);
+    let (doc, u) = glued_rim();
     let ev = fixture::run(&doc, &EvalOptions::default());
     let full = Speaker::of(&doc);
     let within = full.within(&ev);

@@ -891,8 +891,8 @@ fn role<'n, 's>(
             cites.one(face),
         ],
         // A seam of this node in the run is said by its two faces, each
-        // a citation of the run's own, so no seam is said as an edge
-        // while another's faces are said.
+        // a citation of the run's own; a seam another node minted is
+        // cited whole, as any other line is.
         RoleSeg::EdgeCrossing(run) => {
             let senses: Vec<_> = run.iter().filter_map(|l| l.sense).collect();
             let mut out = vec![text(meeting(&senses))];
