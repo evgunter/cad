@@ -1021,3 +1021,13 @@ Signed (CLEAVE orchestrator).
   - Merging main (236 behind) into the PR; a workspace clippy is running on the merged tree because of the field rename.
 - 2026-10-14 — PR 5058 fix pass is green (`e86336714b`). `parallel_circles` now decides one circle with the shared `one_curve_gap`, and the witness is pinned at unit level only, since no door reaches it. Pins assert exact endings and bitwise symmetry. `Kind::of` matches once, and `meetings` reads every conic arm from `Conic`. Filed: flux `frame-read-off-ellipse-fields-in-curved-props`, and cleave `a-ball-cut-by-a-plane-turned-epsilon-escalates-arc-ahead`. Narrow re-review resumed. PR 4861: I merged main (236 behind). Main's new `flat_cone_tilted_ellipse.rs` still used the old fields, so I adapted it to `semi_u`/`semi_v`. Workspace and demos clippy are clean, the pins pass, and it is pushed (`acd896a622`), waiting on CI. 4861 and 5058 overlap on `Conic`, and the second to land reconciles.
 - 2026-10-14 — PR 5061 fix pass is green (`3fb534e707`). The lever names only the passing side; the frontier is pinned exactly at 0.2 rad across three ε; frames are read before surgery; `FrameError` has one `Escalated`; and join.rs has one face-to-surface walk, enforced by a census test. Filed (P3): `boolean-walks-face-to-surface-inline-at-two-dozen-sites` and `tipped-seams-pose-reads-eps-scaled-margins-at-visible-tilts`. Narrow re-review resumed. Main's lily red is fixed by #5102. PR 4861: main moved in 19 of its files after CI went green, so I merged main again; clippy is clean, and it is pushed (`3d9c62584b`).
+- 2026-10-14 — PR 5100 full review: APPROVE-WITH-FIXES. Nothing valid changes outcome (8940 tests per ε; the only hits are the pin and one lever-only grazing test), and the witness family reproduces exactly. Cost: median 0.35 ms per side, but up to 5 s on the pin's quadrature poses; editor `finished_operand` re-gates every split side. Fixes sent to the implementer lane:
+  - pin the exact variant;
+  - one Display and one python tag shared with the Boolean;
+  - route through the Boolean's in-band typing (D4), or stop and report;
+  - a `ResultNotAtRest` arm in 4861's seam table if 4861 lands first;
+  - stale docs;
+  - raise `split-sides-are-not-finished-bodies` to P2 for the double pay;
+  - correct the CARVE row's two false claims and add its measured extrude witness (R 200–400 m arc, 4/20 at 1e-12);
+  - make sure the RESTFRONT row reaches main;
+  - probe `transform_rigid`.
