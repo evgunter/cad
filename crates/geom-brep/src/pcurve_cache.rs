@@ -9217,7 +9217,10 @@ mod tests {
         else {
             panic!("the closed-form lane stores harmonic images")
         };
-        let (l, t0, w) = (1e-8, 100.0, 0.1);
+        // The drift's true miss is half the zero band; the term levers
+        // it by about `2·t0/w` past that.
+        let (t0, w) = (100.0, 0.1);
+        let l = band().zero() / w;
         let mid = t0 + w / 2.0;
         let drifting = Pcurve::Harmonic {
             p0: Point2::new(p0.x, p0.y - l * mid),
@@ -10368,7 +10371,7 @@ mod fitted_lane_tests {
         assert!(
             matches!(
                 fitted_lane(&line(1e-3), &image, &wall, (0.0, 1.0), band),
-                Err(PcurveCertifyError::FittedCertificate { .. })
+                Err(PcurveCertifyError::FittedLimb { .. })
             ),
             "a millimetre off the chart refuses at the hull"
         );
