@@ -1027,7 +1027,7 @@ impl<T: Decide> RigidMotion<T> {
             Err(source) => return Err(TurnError::Undecided(source)),
         }
         let (x, y, z) = (k.x, k.y, k.z);
-        let (dd, xx, yy, zz) = (d * d, x * x, y * y, z * z);
+        let (dd, xx, yy, zz) = (d.powi(2), x.powi(2), y.powi(2), z.powi(2));
         let n2 = dd + xx + yy + zz;
         let r = Mat3::from_cols(
             Vec3::new(
