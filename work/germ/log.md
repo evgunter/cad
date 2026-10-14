@@ -1420,3 +1420,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Filed: `a-flat-frustums-revolve-refuses-its-rim-image-at-1e-12` (GERM) and FLUX's `props-cone-ellipse-elevation-over-reads-a-section-ellipse-by-twenty-fold`.
   - Locally on head + main: `reach_cone_split` 7/7 at 3 ε (two expected skips at 1e-12). Hosted CI green.
   - NIT, left: the skips won't go red when their items are fixed.
+- 2026-10-14 20:08 — **Dispatched** `a-flat-frustums-revolve-refuses-its-rim-image-at-1e-12` (P3, M): session_01LdXE6a73LGvw8RaiJktDrF, branch `germ/flat-frustum-revolve`. It also un-skips 5164's (1.55, 100) pose if the fix allows.
