@@ -164,3 +164,25 @@ The units therefore become:
    PR 4858. The section reading offers a lever only where its own
    rounding bound admits it. An unresolved reading keeps the offset's
    verdict, as main does, and refuses nothing new.
+
+## Built: PR 4810 reworked on Ev's PR 4812 decision (2026-10-14)
+
+- **The bound.** `geom::Curve3::resolution(t0, t1)` charges a carrier
+  32 roundings of what its points are summed from (centre or origin,
+  radius or semi-axes) plus the parameter's. Lines, circles and ellipses
+  have one; spirics and splines have none and keep the gate's refusal.
+  The anchored conic tightens it in that one place.
+- **The rule.** `chord_join::SectionEnds::refusal`: an escalated end pin,
+  or a stood-in circle's surface residual, on a carrier whose resolution
+  `K` times over reads Zero (`vertex_section::resolved`, the same rule
+  PR 4858's reading admits by) is the input's, typed `OnPlane` /
+  `SquareToAxis` with its lever. Past it, the pin is
+  `SplitJoinError::SectionUnresolved`: D4 ¶1 (i)'s last resort, with no
+  lever. A definite miss stays the gate's. The plane re-read and
+  `edge_on_faces_reading`'s endpoint arm are gone.
+- **Measured** (census probe, merged main): the 83 near-axial poses at
+  1e-12 that ended "kernel defect" now end `SectionUnresolved`; every
+  typed pose stays typed; nothing that built refuses. Admitted carriers
+  read ρ ≤ 7.8e-15 and unresolved ones ρ ≥ 2.0e-11, against a line at
+  `ε/K` = 1e-13.
+- Filed: `a-definite-section-end-miss-within-its-carriers-resolution-ends-as-a-kernel-defect`.

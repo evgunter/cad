@@ -49,3 +49,20 @@ sample read the tilt, and tell the join's story there (the plane read
 square, its lever), or show that a definite miss at the pcurve mint is
 the kernel's. The props landing is flux's ground; the root reading and
 the pcurve mint are this slate's.
+
+## Re-measured on main `eb6f9c0f80` (PR 4810's rework, 2026-10-14)
+
+The census probe's `bool` family at ε = 1e-12, after main's merge:
+
+- **The square box now builds** in all six runs at every tilt the
+  probe tries (`0`, `ε`, `±1e-2`), so the props landing above no
+  longer reproduces and flux owes nothing here.
+- **The slab still refuses** at `t = 1e-12`, `dd ∈ {−5e-11, −1e-9}`:
+  all twelve runs are `Pcurves { Certify { ResidualExceeded {
+  MapResidual, sample: 0 } } }`, a definite miss whose sentence names
+  no recourse. The slab's levers (`t = 0`, `±1e-2`) build.
+
+What is owed narrows to the pcurve mint: say whether the stood-in
+circle's first map sample reads the tilt, and tell the join's story
+there, or show the miss is the kernel's.
+
