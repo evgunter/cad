@@ -2531,7 +2531,7 @@ impl Fused {
         Self {
             partners: fused_partners(merges),
             one_point,
-            cones: topo::ConeCopies::default(),
+            cones: topo::ConeCopies::new(topo::LineageRows::ConeCopies),
         }
     }
 }
