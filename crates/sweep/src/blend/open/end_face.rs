@@ -221,7 +221,7 @@ impl<T: Decide + Bounds> EndCut<T> {
     }
 
     /// The end curve's carrier, as the description pass reads it.
-    fn carrier(&self) -> ContactCarrier<T> {
+    pub(in crate::blend) fn carrier(&self) -> ContactCarrier<T> {
         match &self.curve {
             EndCurve::Chord => ContactCarrier::Chord,
             EndCurve::Round(curve) => ContactCarrier::Transverse(curve.clone()),
@@ -268,7 +268,11 @@ impl<T: Decide + Bounds> EndCut<T> {
 /// An edge that misses `Ω` misses `S`; the converse does not hold, and
 /// that is the meter's conservative direction. So `Ω` answers only
 /// "clear": a cycle wholly inside `S`, or crossing its boundary, is read
-/// against that boundary itself ([`SliverBoundary`]).
+/// against that boundary itself ([`Exact`]). That reading certifies
+/// inside or crossing, never outside, so a cycle not clear of `Ω` that
+/// it certifies neither way is a bound — on a chord end too, where the
+/// exact triangle could certify it outside (work item
+/// `a-chord-ends-triangle-could-read-a-cycle-outside`).
 ///
 /// Two of its terms are pinned by no assembly row, only by the piece
 /// meters' unit row: the arc's term of a floor, which binds only when a
@@ -291,10 +295,35 @@ pub(in crate::blend) struct CapSliver<T: Real> {
     /// Each direction `dₖ`, with the least `(p − center)·dₖ` over the
     /// sliver.
     floors: Vec<(Vec3<T>, T)>,
-    /// `S`'s own boundary, on a round end: what the reading against `S`
-    /// itself takes ([`Self::ring_inside`], [`Self::reaches_in`]), since
-    /// `Ω` contains `S` and so can answer only "clear".
-    boundary: Option<SliverBoundary<T>>,
+    /// What the reading against `S` itself takes
+    /// ([`Self::ring_inside`], [`Self::reaches_in`]).
+    exact: Exact<T>,
+}
+
+/// **`S` itself, as the reading against it takes it**: one per end's
+/// shape.
+enum Exact<T: Real> {
+    /// A round end: the sliver's own boundary, read with `E`.
+    Round(SliverBoundary<T>),
+    /// A chord end whose rims are lines: the triangle of the old vertex
+    /// and the two feet, as its three sides, each a point on it and the
+    /// unit normal into `S` in the end plane ([`Exact::triangle`]).
+    Triangle([(Point3<T>, Vec3<T>); 3]),
+    /// Neither: `Ω` alone, which reads nothing inside `S`.
+    Unread,
+}
+
+impl<T: Real> Exact<T> {
+    /// The triangle `v, foot_a, foot_b`, which runs counter-clockwise
+    /// about `n = (foot_a − v) × (foot_b − v)`: each side's inward
+    /// normal is `n × (its run)`.
+    fn triangle(v: Point3<T>, foot_a: Point3<T>, foot_b: Point3<T>) -> Self {
+        let n = (foot_a - v).cross(foot_b - v);
+        Self::Triangle(
+            [(v, foot_a), (foot_a, foot_b), (foot_b, v)]
+                .map(|(from, to)| (from, n.cross(to - from).normalize())),
+        )
+    }
 }
 
 /// **How a cycle of an end face not clear of `Ω` reads against `S`**
@@ -487,7 +516,16 @@ impl<T: Bounds> CapSliver<T> {
                 .iter()
                 .map(move |&(d, floor)| (floor - q0.dot(d), zero - e.dot(d)))
         };
-        let g = |s: T| self.beyond(q0 + e * s.max(zero).min(len));
+        // `G` along the segment, each term reading `s` once. Read at the
+        // point `q0 + e·s`, every coordinate carries `s`, and at
+        // `Interval` a candidate's spread then lowers even a term flat
+        // along the segment by about the spread itself.
+        let g = |s: T| {
+            let s = s.max(zero).min(len);
+            let rho = ((s + b).powi(2) + d2).sqrt();
+            let v = minor.map_or(rho - self.reach, |m| (rho - self.reach).max(m - rho));
+            affine().fold(v, |v, (a, k)| v.max(a + k * s))
+        };
         // A quotient whose divisor's bracket meets zero is skipped: at
         // `f64` that is a divisor that vanishes (below), and at `Interval`
         // the candidate would spread over the segment and read `G` over
@@ -589,8 +627,8 @@ fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
 
 impl<T: Decide + Bounds> CapSliver<T> {
     /// **How surely the point `p` of the end plane lies inside `S`**:
-    /// positive when it certainly does; `None` on a chord end, or where a
-    /// rim has no closed form.
+    /// positive when it certainly does; `None` on a chord end whose rims
+    /// are not lines, or where a rim has no closed form.
     ///
     /// `S` is the region the Jordan curve `A ∪ Pa ∪ Pb` bounds (the arc
     /// and the two rim pieces), and the section's centre `c` is not in
@@ -603,8 +641,21 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// outside the section (`minor·(ρ − 1)`, `ρ` its scaled radius), its
     /// distance inside each of the wedge's two lines, and the segment's
     /// clearance from each rim piece ([`apart`]).
+    ///
+    /// On a chord end `S` is the triangle ([`Exact::Triangle`]), and the
+    /// reading is `p`'s least distance inside its three sides.
     fn inside_point(&self, p: Point3<T>) -> Option<T> {
-        let (b, section) = (self.boundary.as_ref()?, self.inside?);
+        let b = match &self.exact {
+            Exact::Round(b) => b,
+            Exact::Triangle(sides) => {
+                return sides
+                    .iter()
+                    .map(|(o, m)| (p - *o).dot(*m))
+                    .reduce(|a, b| a.min(b));
+            }
+            Exact::Unread => return None,
+        };
+        let section = self.inside?;
         let q = p - self.center;
         let [ua, ub] = b.feet.map(|f| f - self.center);
         let mut least = (section.minor * (section.scaled(q) - T::one()))
@@ -621,13 +672,25 @@ impl<T: Decide + Bounds> CapSliver<T> {
         Some(least)
     }
 
+    /// **Whether `S` is read as its exact triangle**, which is convex.
+    pub(in crate::blend) fn convex(&self) -> bool {
+        matches!(self.exact, Exact::Triangle(_))
+    }
+
     /// **How surely the point `p` of the end plane lies outside `S`**:
     /// positive when it certainly does — outside `Ω` ([`Self::beyond`]),
     /// or inside the section, which `S` lies outside of
-    /// (`minor·(1 − ρ)`, as [`SectionFrame::depth`] reads it).
+    /// (`minor·(1 − ρ)`, as [`SectionFrame::depth`] reads it), or on a
+    /// chord end past a side of the triangle.
     fn outside_point(&self, p: Point3<T>) -> T {
         let q = p - self.center;
         let beyond = self.beyond(q);
+        if let Exact::Triangle(sides) = &self.exact {
+            return sides
+                .iter()
+                .map(|(o, m)| T::zero() - (p - *o).dot(*m))
+                .fold(beyond, |a, b| a.max(b));
+        }
         self.inside.map_or(beyond, |section| {
             beyond.max(section.minor * (T::one() - section.scaled(q)))
         })
@@ -693,8 +756,9 @@ impl<T: Decide + Bounds> CapSliver<T> {
 
     /// **How surely a whole cycle of the end face lies inside `S`**:
     /// positive when it certainly does, and then a lower bound on its
-    /// distance from `∂S`; `None` on a chord end, or for a piece with no
-    /// closed form. `pieces` is every edge of the cycle.
+    /// distance from `∂S`; `None` on a chord end whose rims are not
+    /// lines, or for a piece with no closed form. `pieces` is every edge
+    /// of the cycle.
     ///
     /// A connected curve that misses `∂S` lies wholly inside `S` or
     /// wholly outside it, so it is inside when it misses the arc, misses
@@ -704,8 +768,27 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// that carries no rim misses the rim pieces already, a face's cycles
     /// being disjoint; their clearance ([`apart`]) is read for the depth,
     /// which it bounds where the cycle is nearest a rim.
+    ///
+    /// On a chord end `S` is the triangle, the intersection of three
+    /// half-planes, so a cycle lies inside it when every piece stays
+    /// inside each side, its least reach along the side's inward normal
+    /// ([`piece_along`]) positive; the least of those is its depth.
     fn ring_inside(&self, pieces: &[Piece<'_, T>]) -> Option<T> {
-        let (b, section) = (self.boundary.as_ref()?, self.inside?);
+        let b = match &self.exact {
+            Exact::Round(b) => b,
+            Exact::Triangle(sides) => {
+                let mut least: Option<T> = None;
+                for &(carrier, window) in pieces {
+                    for (o, m) in sides {
+                        let (low, _) = piece_along(carrier, window, *o, *m)?;
+                        least = Some(least.map_or(low, |l| l.min(low)));
+                    }
+                }
+                return least;
+            }
+            Exact::Unread => return None,
+        };
+        let section = self.inside?;
         let (first, (t0, _)) = *pieces.first()?;
         let mut least = self.inside_point(first.eval(t0))?;
         for &(carrier, window) in pieces {
@@ -846,11 +929,18 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 *floor = floor.min(low);
             }
         }
-        let boundary = round.map(|(_, _, _, _, axis)| SliverBoundary {
-            feet: [foot_a, foot_b],
-            axis,
-            rims: pieces.map(|(carrier, window)| (carrier.clone(), window)),
-        });
+        // A chord end whose rims are lines cuts off the triangle
+        // `V, foot_a, foot_b`.
+        let lines = pieces.iter().all(|(c, _)| matches!(c, Curve3::Line { .. }));
+        let exact = match round {
+            Some((_, _, _, _, axis)) => Exact::Round(SliverBoundary {
+                feet: [foot_a, foot_b],
+                axis,
+                rims: pieces.map(|(carrier, window)| (carrier.clone(), window)),
+            }),
+            None if lines => Exact::triangle(pv, foot_a, foot_b),
+            None => Exact::Unread,
+        };
         Ok(Self {
             cap,
             rims: [rim_a, rim_b],
@@ -858,7 +948,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
             inside: round.map(|(_, _, frame, _, _)| frame),
             reach,
             floors,
-            boundary,
+            exact,
         })
     }
 }
@@ -1192,7 +1282,7 @@ mod line_meter_fuzz;
 
 #[cfg(test)]
 mod tests {
-    use super::{CapSliver, CycleReading, SectionFrame, SliverBoundary};
+    use super::{CapSliver, CycleReading, Exact, SectionFrame, SliverBoundary};
     use geom::Curve3;
     use geom_core::{Band, Bounds, Interval, Point3, Real, Tol, Vec3};
     use topo::{EdgeKey, FaceKey};
@@ -1228,7 +1318,7 @@ mod tests {
                     .iter()
                     .map(|&((x, y), floor)| (v(x, y), f(floor)))
                     .collect(),
-                boundary: None,
+                exact: Exact::Unread,
             }
         }
 
@@ -1431,6 +1521,130 @@ mod tests {
         );
     }
 
+    /// The least of `G` over `a → b`: the least of a dense run of samples,
+    /// refined by ternary search about it. Never below the true least.
+    fn sampled_least(region: &Region, a: (f64, f64), b: (f64, f64)) -> f64 {
+        let at = |t: f64| region.g((a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t));
+        const N: u32 = 2000;
+        let (best, n) = (0..=N)
+            .map(|n| (at(f64::from(n) / f64::from(N)), n))
+            .fold((f64::INFINITY, 0), |l, r| if r.0 < l.0 { r } else { l });
+        let (mut lo, mut hi) = (
+            f64::from(n.saturating_sub(1)) / f64::from(N),
+            f64::from((n + 1).min(N)) / f64::from(N),
+        );
+        for _ in 0..100 {
+            let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+            if at(m1) < at(m2) {
+                hi = m2;
+            } else {
+                lo = m1;
+            }
+        }
+        best.min(at(0.5 * (lo + hi)))
+    }
+
+    /// **The meter's two claims on `a → b`**: at `f64` it reads the least
+    /// `G` to the samples' slack; at `Interval` its enclosure's low end lies
+    /// at or below that least and within rounding of the `f64` reading, the
+    /// enclosure carrying the gain rather than the whole segment's spread.
+    pub(super) fn check(region: &Region, a: (f64, f64), b: (f64, f64), case: impl Fn() -> String) {
+        let least = sampled_least(region, a, b);
+        // `G` is 1-Lipschitz, so the samples' least is within half a
+        // spacing of the true one; rounding grows with the distance from
+        // the centre.
+        let scale = (b.0 - a.0).hypot(b.1 - a.1);
+        let slack = scale / 4000.0 + 1e-14 * (1.0 + a.0.hypot(a.1) + scale);
+        let (m, iv) = region.meter(a, b);
+        let what = || {
+            format!(
+                "{}: {a:?} → {b:?}, reach {}, section {:?}, floors {:?}",
+                case(),
+                region.reach,
+                region.section,
+                region.floors,
+            )
+        };
+        assert!(
+            m <= least + slack && m >= least - slack,
+            "f64 reads {m}, the least G is {least}: {}",
+            what()
+        );
+        assert!(
+            iv.lo() <= least + slack && iv.lo() >= m - 1e-12 * (1.0 + a.0.hypot(a.1) + scale),
+            "Interval reads {iv:?}, f64 {m}, the least G is {least}: {}",
+            what()
+        );
+    }
+
+    /// **A segment `~5·10³` from the centre at its ends, run along one
+    /// floor's line, whose least is that floor's flat term**, met near the
+    /// foot by a second floor crossing the minor disc's term where the two
+    /// differ by little (`a′² ≈ d2`): that crossing's quotient of two
+    /// differences reads at `Interval` as a run `10⁻⁷` long. Found by the
+    /// line-meter fuzzer at `CAD_FUZZ_SEED=0xa9b25b00fc22acb2`, case 80.
+    #[test]
+    fn a_far_segment_reads_a_floor_crossing_the_minor_disc_to_rounding() {
+        let (a, b) = (
+            (2778.682165969168, -3803.6929153369833),
+            (-3120.380308781379, 4271.024536003959),
+        );
+        let region = Region {
+            section: Some((0.0, 0.3739873428335117, 0.3739873428335117)),
+            reach: 1.168384052714115,
+            floors: vec![
+                (
+                    (0.8074717451340941, 0.5899062474750547),
+                    -0.11487650578226152,
+                ),
+                (
+                    (-0.9665909248993477, 0.256323982300181),
+                    0.33182995179051883,
+                ),
+            ],
+        };
+        check(&region, a, b, || "the far crossing".into());
+    }
+
+    /// **Two opposite floors whose terms run all but parallel along the
+    /// segment**: their crossing is ill-conditioned (`~10⁻¹¹` here) where
+    /// `G` is flat, so only a reading that spreads a term over the
+    /// candidate's whole box, rather than along the segment, loses it.
+    /// Found by the line-meter fuzzer at `CAD_FUZZ_SEED=0x1281277f8dfa215d`,
+    /// case 30.
+    #[test]
+    fn two_floors_parallel_along_a_segment_read_their_crossing_to_rounding() {
+        let region = Region {
+            section: Some((0.0, 0.25299113746373153, 0.25299113746373153)),
+            reach: 0.7804898663095933,
+            floors: vec![
+                (
+                    (0.7972795443729409, -0.6036102452116562),
+                    -0.3595462882329724,
+                ),
+                (
+                    (-0.7972795443729409, 0.6036102452116562),
+                    0.3588416431553506,
+                ),
+                (
+                    (0.9816386005106127, 0.19075025029489656),
+                    0.11024723871746345,
+                ),
+                (
+                    (-0.9005322168633404, 0.434789289646373),
+                    0.021858290386058923,
+                ),
+                ((0.818640532000699, 0.5743062592081098), -0.0035775011289499),
+            ],
+        };
+        check(
+            &region,
+            (-0.8131924792185901, -0.4784468841887551),
+            (0.9976382564163786, 1.9133917489300676),
+            || "the parallel floors".into(),
+        );
+    }
+
     /// **The quarter sliver**: a right dihedral's supports `y = −1` and
     /// `x = −1` in the end plane `z = 0`, the unit section about the
     /// origin, so `S` is the square `[−1, 0]²` less the unit disc. The
@@ -1453,7 +1667,7 @@ mod tests {
             }),
             reach: 2f64.sqrt(),
             floors: Vec::new(),
-            boundary: Some(SliverBoundary {
+            exact: Exact::Round(SliverBoundary {
                 feet: [p(0.0, -1.0), p(-1.0, 0.0)],
                 axis: Vec3::new(0.0, 0.0, -1.0),
                 rims: [
@@ -1539,6 +1753,59 @@ mod tests {
         assert!(
             matches!(got, CycleReading::Crossing(d) if d < -0.1),
             "the cut cycle crosses on one inside witness: {got:?}"
+        );
+    }
+
+    /// **The chord end's triangle**: the same dihedral cut off by the
+    /// chord between the feet `(0, −1)` and `(−1, 0)`, so `S` is the
+    /// triangle with the old vertex `V = (−1, −1)`, read through its
+    /// three sides. `Ω` is the disc about the chord's midpoint out to
+    /// `V`, on `V`'s side of the chord.
+    fn chord_triangle() -> CapSliver<f64> {
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let toward = Vec3::new(-1.0, -1.0, 0.0) / 2f64.sqrt();
+        CapSliver {
+            cap: FaceKey::default(),
+            rims: [EdgeKey::default(); 2],
+            center: p(-0.5, -0.5),
+            inside: None,
+            reach: 0.5 * 2f64.sqrt(),
+            floors: vec![(toward, 0.0)],
+            exact: Exact::triangle(p(-1.0, -1.0), p(0.0, -1.0), p(-1.0, 0.0)),
+        }
+    }
+
+    /// **A chord end reads a cycle three ways through its triangle**: a
+    /// ring of radius `0.05` about `(−0.85, −0.85)` is inside at exactly
+    /// its distance from the two rims, `0.1`; one of radius `0.2` about
+    /// the chord's midpoint crosses it, witnesses on both sides; and a
+    /// point's reading is its least distance inside the three sides,
+    /// negative past one.
+    #[test]
+    fn a_chord_end_reads_a_cycle_through_its_triangle() {
+        let s = chord_triangle();
+        let whole = (0.0, std::f64::consts::TAU);
+        let inside = ring(-0.85, -0.85, 0.05);
+        let got = s.read_cycle(&[(&inside, whole)], false, band());
+        assert!(
+            matches!(got, CycleReading::Inside(d) if (d + 0.1).abs() < 1e-12),
+            "a ring 0.1 from the rims is inside at −0.1: {got:?}"
+        );
+        let across = ring(-0.5, -0.5, 0.2);
+        let got = s.read_cycle(&[(&across, whole)], false, band());
+        assert!(
+            matches!(got, CycleReading::Crossing(d) if d < 0.0),
+            "a ring across the chord crosses: {got:?}"
+        );
+        let deep = s.inside_point(Point3::new(-0.9, -0.8, 0.0));
+        assert!(
+            deep.is_some_and(|x| (x - 0.1).abs() < 1e-12),
+            "(−0.9, −0.8) reads 0.1 inside, its distance from x = −1: {deep:?}"
+        );
+        let past = s.inside_point(Point3::new(-0.3, -0.3, 0.0));
+        assert!(
+            past.is_some_and(|x| (x + 0.4 / 2f64.sqrt()).abs() < 1e-12),
+            "(−0.3, −0.3) reads out by its distance past the chord: {past:?}"
         );
     }
 }

@@ -325,12 +325,13 @@ pub struct BooleanNaming {
     /// one ends at all of them. A path that never classifies has none.
     pub null_copies: Vec<(super::Operand, VertexKey, VertexKey)>,
     /// The zip's splits of a pinch per cone (`zip::split_cones`),
-    /// `(split, new)` in the order made, in result keys before the zip's
+    /// `(new, split)` in the order made, in result keys before the zip's
     /// fusions: `new` is a copy of `split` on its point, holding one cone
     /// of the result's boundary there, so it is the operand vertex
-    /// `split` is ([`Settler::settle_cones`]). A path that never zips has
-    /// none.
-    pub cone_splits: Vec<(VertexKey, VertexKey)>,
+    /// `split` is ([`Settler::settle_cones`]). Each copy was checked new
+    /// to the list as the split was made, so the copies of a vertex form
+    /// a tree. A path that never zips has none.
+    pub cone_splits: crate::lineage::ConeCopies,
     /// The output stage's joins in the order made, result keys: each
     /// row's vertex and `gone` edge are dead, and its `kept` edge holds
     /// their interiors (maximal edges, `docs/DESIGN.md`'s merge stage).
@@ -412,9 +413,8 @@ impl BooleanNaming {
 pub struct Settler<'a, T: Real> {
     body: &'a Body<T>,
     fusions: &'a Fusions,
-    /// The zip's splits per cone, `(split, new)`
-    /// ([`BooleanNaming::cone_splits`]).
-    splits: &'a [(VertexKey, VertexKey)],
+    /// The zip's splits per cone ([`BooleanNaming::cone_splits`]).
+    splits: &'a crate::lineage::ConeCopies,
     /// The output stage's substitutions: the merge's, then the join's.
     rows: &'a crate::lineage::Substitutions,
 }
@@ -442,8 +442,10 @@ impl<T: Real> Settler<'_, T> {
 
     /// The live cells `vertex`'s point lies in, one per cone of the
     /// result's boundary there: `vertex` and each copy the zip's splits
-    /// per cone made of it, through splits of those copies, each
-    /// settled ([`Self::settle`]), `vertex`'s first. A vertex no split
+    /// per cone made of it, through splits of those copies (its
+    /// [`crate::lineage::Descent`] over the splits, finite since the
+    /// copies form a tree), each settled ([`Self::settle`]), in key
+    /// order. A vertex no split
     /// touched settles on one cell. An edge that ended at `vertex`
     /// before the split ends at one of these after it.
     ///
@@ -451,18 +453,10 @@ impl<T: Real> Settler<'_, T> {
     ///
     /// [`SettleError`], as [`Self::settle`].
     pub fn settle_cones(&self, vertex: VertexKey) -> Result<Vec<Cell>, SettleError> {
-        let mut copies = vec![vertex];
-        let mut i = 0;
-        while let Some(&at) = copies.get(i) {
-            copies.extend(
-                self.splits
-                    .iter()
-                    .filter(|&&(split, _)| split == at)
-                    .map(|&(_, new)| new),
-            );
-            i += 1;
-        }
-        copies.into_iter().map(|v| self.settle(v)).collect()
+        crate::lineage::Descent::of(vertex, self.splits.rows())
+            .cells()
+            .map(|v| self.settle(v))
+            .collect()
     }
 }
 
@@ -783,7 +777,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         body.movefac(shell)?;
     }
     let vertex_merges = desc.vertex_merges();
-    let cone_splits = cones.splits().to_vec();
+    let cone_splits = cones.splits().clone();
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let (merged, edge_joins) = finish_output(
         &mut body,
@@ -2343,9 +2337,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
             );
         }
     });
-    let merged = body
-        .merge_coplanar_faces_unjoined(declared, tol)
-        .map_err(of_merge)?;
+    let merged = body.merge_coplanar_faces_unjoined(declared, tol)?;
     desc.absorb_merge(&merged)?;
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
     let edge_joins = join_stage(body, desc, band, tol)?;
@@ -2508,17 +2500,6 @@ fn of_attachment(
     match crate::merge_faces::edge_on_faces_reading(carrier, &cause) {
         Some(diag) => DescribeRefusal::off_face(edge, diag),
         None => DescribeRefusal::refused(edge, failure, cause, carrier == geom::CurveKind::Nurbs),
-    }
-}
-
-/// The boolean's refusal for a merge-door refusal: the door's
-/// re-description of its kept faces' boundaries refuses as the
-/// boolean's own description pass does ([`of_describe`]), and every
-/// other refusal is the output stage's.
-pub(super) fn of_merge(refusal: crate::merge_faces::MergeCoplanarError) -> BooleanError {
-    match refusal.kept_boundary() {
-        Some(described) => of_describe(described),
-        None => BooleanError::Merge(refusal),
     }
 }
 
@@ -2925,7 +2906,11 @@ impl Descendants {
     }
 
     /// `v` and every vertex null edges join it to, transitively, in
-    /// `side`'s clone keys.
+    /// `side`'s clone keys. Not a [`crate::lineage::Descent`]: a null
+    /// edge's two ends are a pair, not a row from one to the other, so
+    /// the walk follows each row both ways and stops at a vertex it has
+    /// met (the null-copy closure's other spellings are
+    /// `emit/crossing-sense-carries-five-copies-of-the-null-copy-closure`).
     fn copies_of(&self, side: Operand, v: VertexKey) -> Vec<VertexKey> {
         let rows = &self.copies[usize::from(side == Operand::B)];
         let mut out = vec![v];
@@ -3194,11 +3179,7 @@ pub(super) fn ledger<T: Decide>(
             Incidence::of(&red.a, scaffold[0]),
             Incidence::of(&red.b, scaffold[1]),
         ],
-        null_copies: red
-            .null_edges
-            .iter()
-            .map(|r| (r.operand, r.at_vertex, [r.attr.below_end, r.attr.above_end]))
-            .collect(),
+        copies: red.copies.clone(),
     })
 }
 
@@ -3267,10 +3248,6 @@ fn decide_one(
     Cites::decided(super::reduce::index(k))
 }
 
-/// One null edge's copies: its operand, the vertex it was minted at,
-/// and its two ends.
-type NullCopy = (Operand, VertexKey, [VertexKey; 2]);
-
 /// **Everything a result's records are carried from**: the reduction's
 /// own records, each operand's carried records and ring ties
 /// ([`ledger`]), every decision a record may cite, in decision order,
@@ -3284,7 +3261,7 @@ pub(super) struct Ledger {
     pending: Vec<PendingRow>,
     /// The reduction's edge splits, which read a vertex it minted back
     /// to the input edge it was minted on.
-    splits: Vec<super::EdgeSplit>,
+    splits: super::EdgeSplits,
     /// The coincidences the op recorded before its records were carried.
     recorded: Vec<crate::Coincidence>,
     /// Each pending row the op recorded already, with its index in
@@ -3293,8 +3270,8 @@ pub(super) struct Ledger {
     /// Each operand clone's faces around each vertex and edge, before
     /// the finish discards any.
     incidence: [Incidence; 2],
-    /// The reduction's null edges' copies.
-    null_copies: Vec<NullCopy>,
+    /// Each operand's null-edge copies.
+    copies: [crate::lineage::VertexCopies; 2],
 }
 
 /// **The faces around each cell of an operand's clone**, read before
@@ -3360,12 +3337,12 @@ impl Incidence {
 /// parent), and every vertex a split minted on it.
 fn split_pieces(
     side: Operand,
-    splits: &[super::EdgeSplit],
+    splits: &super::EdgeSplits,
     edge: EdgeKey,
 ) -> (Vec<EdgeKey>, Vec<VertexKey>) {
     let mut keys = vec![edge];
     let mut minted = Vec::new();
-    for split in splits.iter().filter(|s| s.operand == side) {
+    for split in splits.rows().iter().filter(|s| s.operand == side) {
         if let Some(i) = keys.iter().position(|&k| k == split.parent) {
             keys.insert(i + 1, split.child);
             minted.push(split.vertex);
@@ -3377,29 +3354,11 @@ fn split_pieces(
 /// The vertex `v` of operand `side`'s clone is a copy of: where a null
 /// edge minted `v` at another vertex, that vertex, read back through
 /// every null edge that hangs at a copy; `v` itself where none did. A
-/// decision's cells name the op's input, which holds no copy.
-///
-/// # Errors
-///
-/// [`BooleanError::JoinDesync`] where the copies' null edges close a
-/// cycle, so no vertex is the original.
-fn uncopied(
-    null_copies: &[NullCopy],
-    side: Operand,
-    mut v: VertexKey,
-) -> Result<VertexKey, BooleanError> {
-    for _ in 0..=null_copies.len() {
-        let minted = null_copies
-            .iter()
-            .find(|&&(operand, at, ends)| operand == side && at != v && ends.contains(&v));
-        match minted {
-            Some(&(_, at, _)) => v = at,
-            None => return Ok(v),
-        }
-    }
-    Err(BooleanError::JoinDesync {
-        what: "a vertex's null-edge copies close a cycle with no original",
-    })
+/// decision's cells name the op's input, which holds no copy. Total:
+/// the copies were checked as each was recorded, so they cannot cycle
+/// ([`crate::lineage::VertexCopies`]).
+fn uncopied(copies: &[crate::lineage::VertexCopies; 2], side: Operand, v: VertexKey) -> VertexKey {
+    copies[usize::from(side == Operand::B)].root(v)
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell
@@ -3716,8 +3675,8 @@ fn carried<T: Decide + AtRestPolicy>(
                 }
                 let fresh = decide_one(
                     pending,
-                    (side, Cell::Vertex(uncopied(&ledger.null_copies, side, u)?)),
-                    (side, Cell::Vertex(uncopied(&ledger.null_copies, side, w)?)),
+                    (side, Cell::Vertex(uncopied(&ledger.copies, side, u))),
+                    (side, Cell::Vertex(uncopied(&ledger.copies, side, w))),
                     margin,
                 );
                 cites = cites.union(&fresh);
@@ -4060,19 +4019,13 @@ fn cite_rows(
 
 /// A pending row's cell as the deciding op's input holds it: a vertex
 /// the reduction minted by splitting an edge is read as the input edge
-/// it was minted on, through every split of that edge's pieces.
-pub(super) fn input_cell((input, cell): End, splits: &[super::EdgeSplit]) -> crate::RowCell {
-    let root = |mut edge: EdgeKey| {
-        while let Some(s) = splits
-            .iter()
-            .find(|s| s.operand == input && s.child == edge)
-        {
-            edge = s.parent;
-        }
-        edge
-    };
+/// it was minted on, through every split of that edge's pieces
+/// ([`super::EdgeSplits::root`], total).
+pub(super) fn input_cell((input, cell): End, splits: &super::EdgeSplits) -> crate::RowCell {
+    let root = |edge: EdgeKey| splits.root(input, edge);
     let cell = match cell {
         Cell::Vertex(v) => splits
+            .rows()
             .iter()
             .find(|s| s.operand == input && s.vertex == v)
             .map_or(cell, |s| Cell::Edge(root(s.parent))),
@@ -8765,8 +8718,9 @@ mod tests {
 
     /// **The door's refusal comes back to the boolean as the boolean's
     /// own**: every refusal the describer can raise, worded by the merge
-    /// door and handed through `of_merge`, is the very `BooleanError`
-    /// the boolean's own description pass raises for it.
+    /// door and handed through `BooleanError`'s
+    /// `From<MergeCoplanarError>`, is the very `BooleanError` the
+    /// boolean's own description pass raises for it.
     #[test]
     fn a_kept_boundary_refusal_comes_back_as_the_booleans_own() {
         use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
@@ -8781,7 +8735,7 @@ mod tests {
             predicate: Some("dihedral_arm"),
             terminal_sliver: false,
         };
-        let text = super::of_merge(crate::merge_faces::MergeCoplanarError::of_kept_boundary(
+        let text = BooleanError::from(crate::merge_faces::MergeCoplanarError::of_kept_boundary(
             &[(kept, strut)],
             DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
         ))
@@ -8837,7 +8791,7 @@ mod tests {
                 described.clone(),
             );
             assert_eq!(
-                format!("{:?}", super::of_merge(worded)),
+                format!("{:?}", BooleanError::from(worded)),
                 format!("{:?}", super::of_describe(described.clone())),
                 "{described:?} passes through as the boolean's own"
             );
@@ -8913,7 +8867,7 @@ mod tests {
             let merged = MergeCoplanarError::of_kept_boundary(&[(face, edge)], refusal.clone());
             let own = super::of_describe(refusal);
             assert_eq!(
-                format!("{:?}", super::of_merge(merged.clone())),
+                format!("{:?}", BooleanError::from(merged.clone())),
                 format!("{own:?}"),
                 "the merge door's refusal comes back as the boolean's own"
             );
