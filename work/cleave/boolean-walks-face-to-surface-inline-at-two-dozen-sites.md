@@ -40,6 +40,16 @@ modules):
 - `solid_contain.rs:2283`
 - `vtxfac.rs:876`, `vtxfac.rs:919`, `vtxfac.rs:939`
 
+Two more private walks outside `boolean/` (PR 5061's re-review), each a
+twin of `readback::carrier_surface` with its own refusal type:
+
+- `chart_region.rs`'s `face_surface` (refuses `ChartRegionError`);
+- `splitting/rules.rs`'s `face_surface` (panics on a face that does not
+  resolve).
+
+`join::face_surface` now delegates to `readback::carrier_surface`, which
+returns the surface key beside the surface and sense for it.
+
 Blind spot: a walk split across more than one line between the two
 calls, or through a local (`let fd = get_face(..)?; … fd.surface`), is
 not matched; `grep -n "\.surface)" crates/topo/src/boolean/*.rs` is the

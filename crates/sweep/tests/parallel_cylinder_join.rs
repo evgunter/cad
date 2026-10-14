@@ -502,7 +502,9 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
 /// rulings arm with the axes apart. The lever names the parallel side
 /// alone, the one that passes: turned back to `0.5·zero / 3.2` every op
 /// builds SOUND. Turned clearly apart, a fifth of a radian, every op
-/// ends at a frontier, the same at every tolerance: about `x` the germ
+/// ends at a frontier, the same at the three gated tolerances (1e-9,
+/// 1e-6, 1e-12; at 1e-5, 3e-5 and 1e-4 the tilt about `x` escalates
+/// first, on `PierceCurvature` or `ArcCylinderRoots`): about `x` the germ
 /// frame has no arm for the skew walls (`GermFrameUnsupported`), about
 /// `y` an edge pierces a curved face the Boolean cannot yet read
 /// (`CurvedPierceUnsupported`).

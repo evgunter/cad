@@ -105,7 +105,7 @@ fn shape(frame: &Frame) -> String {
             format!("outside {conic:?} {section}")
         }
         Err(FrameError::NoArm) => "no arm".into(),
-        Err(FrameError::IntersectingCylinderAxes { .. }) => "pinch".into(),
+        Err(FrameError::CylinderNodes) => "cylinder nodes".into(),
         Err(FrameError::Spiric { loops, .. }) => format!("spiric {loops:?}"),
     }
 }

@@ -149,9 +149,10 @@ macro_rules! proximity_lever {
     };
 }
 
-/// [`BooleanDecision::CylinderAxes`]'s subject, which the carrier
-/// ladder's own axis rung (`carrier_cyl_axis_parallel`) names too.
-const CYLINDER_AXES_PARALLEL: &str = "whether two cylinders' axes are parallel";
+/// [`BooleanDecision::CylinderAxes`]'s subject, the sentence the carrier
+/// ladder's own axis rung (`carrier_cyl_axis_parallel`, a
+/// `Coincide::Carriers` rung) reads in too.
+pub(crate) const CYLINDER_AXES_PARALLEL: &str = "whether two cylinders' axes are parallel";
 
 /// The corner edge-length lever as a literal, for `concat!`
 /// ([`CORNER_EDGES`]).

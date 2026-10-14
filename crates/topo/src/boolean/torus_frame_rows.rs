@@ -84,7 +84,7 @@ fn shape(got: &Loops) -> String {
         Err(FrameError::Spiric { loops, section }) => format!("spiric {loops:?} {section}"),
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::OutsideInventory { .. }) => "outside the inventory".into(),
-        Err(FrameError::IntersectingCylinderAxes { .. }) => "pinch".into(),
+        Err(FrameError::CylinderNodes) => "cylinder nodes".into(),
     }
 }
 

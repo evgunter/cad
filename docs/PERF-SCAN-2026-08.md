@@ -1264,8 +1264,10 @@ are not re-reported as findings.
 - **Non-levers, checked:** `codegen-units` is unset and inherits cargo's
   default 256, already the fastest-compile setting; `CARGO_INCREMENTAL=0`
   is correct for a cold CI target dir; `split-debuginfo` has almost
-  nothing left to move given the existing `line-tables-only` + strip;
-  `lto` is pure compile-time cost at these leg lengths.
+  nothing left to move given the existing `line-tables-only` + strip.
+  `lto` is NOT a non-lever: cargo's default `lto = false` runs
+  crate-local ThinLTO at opt-level 1, and `"off"` cut the test job's
+  build by about 5 min locally (#5104).
 - **The render montage lanes cost zero wall-clock** — 470 s billed,
   ending at e+286 against a 587 s critical path. They gate on the whole
   kernel by design and are not soundly path-filterable. Running the two
