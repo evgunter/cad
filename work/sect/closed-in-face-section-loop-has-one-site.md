@@ -8,6 +8,7 @@ closed: 2026-10-14
 priority: P1
 cost: H
 branch: paths/in-face-section-self-loop
+pr: 5159
 refs: [3790]
 ---
 
