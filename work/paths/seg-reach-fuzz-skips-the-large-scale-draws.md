@@ -19,10 +19,12 @@ in `f64`, so past that it cannot tell a pair within ε from one past it.
 At ε = 1e-12 that is every draw with a scale past about 280. The
 `rivals` family draws radii up to 10⁴ and centres up to 300, so it
 skips the large-scale draws, which are where the circle-pair
-cancellation of #5032 lived: the review counted 91,419 of the 400,000
-`f64` draws per seed skipped at effort 10 and 1e-12 (about 23%). The
-run prints the count (`past the oracle's resolution: …`) and asserts
-nothing on those draws.
+cancellation of #5032 lived. A review counted 91,419 of the 400,000
+`f64` draws per seed skipped at effort 10 and 1e-12; #5032's fix pass
+re-measured 91,835 of 400,000 at `f64` and 22,979 of 100,000 at
+`Interval` (seed `0x0e2443c99b7f6cce`), about 23% each, and none at
+1e-9. The run prints the count (`past the oracle's resolution: …`) and
+asserts nothing on those draws.
 
 #5032 added a deterministic accuracy row for the placement itself
 (`seg::circles_accuracy_tests::circle_pair_points_sit_within_a_few_ulps_of_scale`,
