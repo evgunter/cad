@@ -96,6 +96,13 @@ fn zero_verdict(margin: f64) -> Refused {
     })
 }
 
+/// A positive-passing gate's rejection of a reading past the band on
+/// the refused side.
+fn rejected_negative(predicate: &'static str) -> Indeterminate {
+    geom_core::k_stats::decide_positive(predicate, geom_core::Margin::of(-1e-3), band())
+        .expect_err("a definitely negative reading is the gate's rejection")
+}
+
 /// A sign-certain negative verdict on `margin`.
 fn negative_verdict(margin: f64) -> Refused {
     Refused::Negative {
@@ -514,6 +521,18 @@ fn certify_errors() -> Vec<CertifyError> {
             check: CertCheck::ParamSpanMeter,
             sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
+        },
+        // A gate's rejected negative, routed as undecided: a stored
+        // contradiction's definite reading, and one the lever reaches.
+        CertifyError::Escalated {
+            check: CertCheck::TransversalityArm,
+            sample: 4,
+            cause: rejected_negative("dihedral_arm"),
+        },
+        CertifyError::Escalated {
+            check: CertCheck::ParamSpanMeter,
+            sample: geom_brep::certify::NOT_A_SAMPLE,
+            cause: rejected_negative("param_span_meter"),
         },
     ];
     v.extend(band_errors().into_iter().map(CertifyError::Band));
