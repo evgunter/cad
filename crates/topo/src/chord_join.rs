@@ -2996,7 +2996,7 @@ fn pole_lever<T: Decide>(
     let height = w.dot(axis);
     let far = (w - axis * height).norm();
     let reach = (height * pole_height).select_le_zero(radius, far);
-    let bend = (radius * radius - r * r).max(T::zero()).sqrt();
+    let bend = (radius.powi(2) - r.powi(2)).max(T::zero()).sqrt();
     Some((reach * bend - r * radius).select_le_zero(reach, r * radius / bend))
 }
 
