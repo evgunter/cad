@@ -2902,6 +2902,22 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
                 section,
             }
         }
+        FrameError::DegenerateTorus {
+            convention,
+            verdict,
+        } => {
+            let (operand, face) = if matches!(a.1, geom::Surface::Torus { .. }) {
+                (Operand::A, a.0)
+            } else {
+                (Operand::B, b.0)
+            };
+            BooleanError::DegenerateTorus {
+                operand,
+                face,
+                convention,
+                verdict,
+            }
+        }
         FrameError::Spiric { loops, section } => BooleanError::GermSectionSpiric {
             a_face: a.0,
             a_kind: a.1.kind(),
@@ -2944,6 +2960,16 @@ pub(super) enum FrameError {
         conic: geom_brep::OutsideConic,
         /// The table's refusal, which names it.
         section: geom_brep::SectionError,
+    },
+    /// The pair's torus is decided outside its ring convention
+    /// (`R > r > 0`): the Boolean's [`BooleanError::DegenerateTorus`],
+    /// on the torus face. Its in-band sibling is
+    /// [`FrameError::Escalated`] as [`BooleanDecision::Torus`].
+    DegenerateTorus {
+        /// The half of the convention that refused.
+        convention: geom_brep::TorusConvention,
+        /// Its decided verdict.
+        verdict: geom_brep::recourse::Refused,
     },
     /// A plane cuts a torus in a general spiric quartic, which the
     /// table routes to its unbuilt general rung.
@@ -3477,6 +3503,19 @@ fn section_refusal(e: geom_brep::SectionError) -> FrameError {
         | geom_brep::SectionError::Carrier(Ei::Escalated(diag) | Ei::CircularAxes(diag)) => {
             FrameError::section(diag)
         }
+        geom_brep::SectionError::DegenerateTorus(geom_brep::TorusRefusal {
+            convention,
+            verdict,
+        }) => match verdict {
+            geom_brep::TorusVerdict::Undecided(diag) => FrameError::Escalated {
+                decision: BooleanDecision::Torus(convention),
+                diag,
+            },
+            geom_brep::TorusVerdict::Refused(verdict) => FrameError::DegenerateTorus {
+                convention,
+                verdict,
+            },
+        },
         _ => FrameError::Desync("germ pair's section refused at match time"),
     }
 }
@@ -6497,6 +6536,7 @@ mod frame_dispatch_tests {
             Err(FrameError::Escalated { .. }) => "an escalation",
             Err(FrameError::OutsideInventory { .. }) => "a conic outside the inventory",
             Err(FrameError::Spiric { .. }) => "a general spiric",
+            Err(FrameError::DegenerateTorus { .. }) => "a torus off its ring convention",
         }
     }
 

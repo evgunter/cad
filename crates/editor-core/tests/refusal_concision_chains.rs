@@ -4594,6 +4594,31 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                            nothing, not two ovals",
                 },
             ),
+            (
+                "DegenerateTorus/Undecided",
+                R::DegenerateTorus {
+                    edge,
+                    refusal: geom_brep::TorusRefusal {
+                        convention: geom_brep::TorusConvention::Ring,
+                        verdict: geom_brep::TorusVerdict::Undecided(named("ring_torus_convention")),
+                    },
+                },
+            ),
+            (
+                "DegenerateTorus/Refused",
+                R::DegenerateTorus {
+                    edge,
+                    refusal: geom_brep::TorusRefusal {
+                        convention: geom_brep::TorusConvention::Tube,
+                        verdict: geom_brep::TorusVerdict::Refused(
+                            geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                                margin: geom_core::MarginDiag::value(5.0e-10),
+                                band: band(),
+                            }),
+                        ),
+                    },
+                },
+            ),
             ("Escalated", R::Escalated { source: diag() }),
             (
                 "Op",
@@ -4678,6 +4703,7 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
         R::TogetherNotAxial { .. } => "TogetherNotAxial",
         R::TogetherAxialCorner { .. } => "TogetherAxialCorner",
         R::TogetherAxialEdge { .. } => "TogetherAxialEdge",
+        R::DegenerateTorus { .. } => "DegenerateTorus",
         R::Escalated { .. } => "Escalated",
         R::Op { .. } => "Op",
         R::Pcurve { .. } => "Pcurve",
@@ -4688,7 +4714,7 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
 
 /// Every `ReplaceFaceError` variant, in declaration order: the names
 /// [`replace_face_arm`] answers.
-const REPLACE_FACE_ARMS: [&str; 42] = [
+const REPLACE_FACE_ARMS: [&str; 43] = [
     "Band",
     "StaleFace",
     "Offset",
@@ -4726,6 +4752,7 @@ const REPLACE_FACE_ARMS: [&str; 42] = [
     "TogetherNotAxial",
     "TogetherAxialCorner",
     "TogetherAxialEdge",
+    "DegenerateTorus",
     "Escalated",
     "Op",
     "Pcurve",
