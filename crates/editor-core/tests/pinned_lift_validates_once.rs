@@ -38,7 +38,7 @@ fn embed<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
 /// `test-utils` is a dependency-free leaf and cannot host a walk over
 /// `profile`'s types without a cycle.)
 fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
-    let m = &vp.plane().placement;
+    let m = &vp.plane().placement();
     let mut out = m.components().to_vec();
     for lp in vp.loops() {
         for v in lp.vertices() {

@@ -299,7 +299,7 @@ pub fn boss_union() -> Body<f64> {
         Point2::new(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let boss_loop = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
-    let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
+    let sketch = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.4));
     let boss_profile = Profile::new(sketch, vec![boss_loop])
         .validate(Tol::witness())
         .unwrap();
@@ -385,7 +385,7 @@ pub fn two_stub_complement() -> Body<f64> {
         Point2::new(1.2 + r * th.cos(), 1.7 + r * th.sin())
     };
     let boss_loop = bulge_loop((0..3).map(|i| (at(i), bulge)).collect());
-    let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
+    let sketch = SketchPlane::xy_at(Point3::new(0.0, 0.0, -0.2));
     let boss = extrude(
         &Profile::new(sketch, vec![boss_loop])
             .validate(Tol::witness())

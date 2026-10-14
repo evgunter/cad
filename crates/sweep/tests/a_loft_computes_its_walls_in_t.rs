@@ -8,10 +8,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_core::Point3;
 use geom_core::sym::revalue::{record, revalue};
 use geom_core::sym::with_session;
-use geom_core::{Affine3, ParamSymbol, Point2, Real, Sym, SymBudget, Tol, Vec3};
+use geom_core::{ParamSymbol, Point2, Real, Sym, SymBudget, Tol};
 use profile::ProfileLoop;
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use sweep::{Lofted, loft_body};
 
@@ -32,8 +34,8 @@ fn section<T: Real>(b: T) -> Vec<ProfileLoop<T>> {
 /// Two sections at `z = 0` and `z = 1`.
 fn loft<T: geom_core::Decide + topo::AtRestPolicy>(b: T) -> Lofted<T> {
     let places = [
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(T::zero(), T::zero(), T::one())),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(T::zero(), T::zero(), T::one())),
     ];
     loft_body::<T>(&[section(b), section(b)], &places, 1, Tol::witness())
         .expect("the arc-sided prism lofts")
@@ -141,8 +143,8 @@ fn a_loft_over_a_section_wider_than_a_point_refuses_at_interval() {
     use geom_core::Interval;
     let b = Interval::from_bounds(0.19, 0.21);
     let places = [
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(
             Interval::zero(),
             Interval::zero(),
             Interval::one(),
@@ -199,7 +201,7 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
     let profile = elbow_section();
     let nominal = sweep_body::<f64>(
         &profile,
-        Affine3::identity(),
+        SketchPlane::xy(),
         &elbow_path(),
         ELBOW_STATIONS,
         ELBOW_V_DEGREE,
@@ -209,7 +211,7 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
     let lane = lift_sections::<Interval>(core::slice::from_ref(&profile)).remove(0);
     let enclosed = sweep_body::<Interval>(
         &lane,
-        Affine3::identity(),
+        SketchPlane::xy(),
         &elbow_path(),
         ELBOW_STATIONS,
         ELBOW_V_DEGREE,
@@ -225,8 +227,8 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
 fn a_placement_wider_than_a_point_refuses_by_name() {
     use geom_core::Interval;
     let places = [
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(
             Interval::zero(),
             Interval::zero(),
             Interval::from_bounds(0.99, 1.01),
@@ -271,8 +273,8 @@ fn wall_values<T: geom_core::spline::SpanLocate, R>(
 
 /// A section placed at height `z` (its other entries built from `b`, so
 /// they are `T`'s constants).
-fn at_height<T: Real>(z: T) -> Affine3<T> {
-    Affine3::translation(Vec3::new(T::zero(), T::zero(), z))
+fn at_height<T: Real>(z: T) -> SketchPlane<T> {
+    SketchPlane::xy_at(Point3::new(T::zero(), T::zero(), z))
 }
 
 /// The skin of four section curves at `z = 0, 1, 2, 4`: the arc of
@@ -299,7 +301,7 @@ fn strip_skin<T: geom_core::spline::ProjectiveScalar>(b: T) -> geom::NurbsSurfac
         .zip([0.0, 1.0, 2.0, 4.0])
         .enumerate()
         .map(|(i, (seg, z))| {
-            segment_curve(i, seg, at_height(T::from_f64(z))).expect("a section curve")
+            segment_curve(i, seg, at_height(T::from_f64(z)).placement()).expect("a section curve")
         })
         .collect();
     let compatible = make_compatible(&curves).expect("the strip is made compatible");
@@ -361,7 +363,7 @@ fn lofted_at<T: geom_core::Decide + topo::AtRestPolicy>(h: T) -> Lofted<T> {
     let b = T::from_f64(0.2);
     loft_body::<T>(
         &[section(b), section(b)],
-        &[Affine3::identity(), at_height(h)],
+        &[SketchPlane::xy(), at_height(h)],
         1,
         Tol::witness(),
     )

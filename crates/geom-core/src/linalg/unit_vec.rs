@@ -17,7 +17,8 @@
 //! - at `f64`, the normalized value;
 //! - at `Interval`, an enclosure of a unit vector — the widths interval
 //!   arithmetic carries are the enclosure's, and the normalization ran
-//!   on an enclosure whose length decided positive;
+//!   on an enclosure whose length decided positive — or, for a witness
+//!   embedded from `f64`, the point interval of that `f64` decision;
 //! - at `Dual`, a unit value channel with the quotient rule's tangent
 //!   carried alongside.
 //!
@@ -41,10 +42,12 @@
 //!   [`RigidMotion`](super::RigidMotion) can build its axes and act on
 //!   a direction, and they are documented on their own doors.
 //!
-//! The exact crossings `UnitVec3::embed` and `UnitVec3::pin` are not
-//! built; they are scheduled with the frame's own on PATHS'
-//! `work/paths/the-sketch-plane-is-its-frame.md`
-//! ([`RigidMotion`](super::RigidMotion)'s "Not built yet").
+//! A witness crosses scalars as an axis of its frame, through
+//! [`RigidMotion::embed`](super::RigidMotion::embed) and
+//! [`RigidMotion::point_value`](super::RigidMotion::point_value)
+//! (their module's "Crossing scalars"): exact and closure-free, and
+//! an embedded witness is the `f64` decision carried, not one made at
+//! the target scalar.
 //!
 //! The deciding ladders in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto
@@ -73,6 +76,7 @@ use crate::k_stats::decide;
 use crate::linalg::Vec3;
 use crate::predicate::{Band, Decide, Indeterminate, Margin, Sign};
 use crate::real::{Real, is_finite_length, is_underflowed_length};
+use crate::spline::SpanLocate;
 
 /// **A direction that cannot be unnormalized.** The only spellings are
 /// the mints the [module docs](self) list; the field is private, so a
@@ -381,6 +385,20 @@ impl<T: Real> UnitVec3<T> {
         Self(v)
     }
 
+    /// The `f64` this witness's value channel holds, or `None` when a
+    /// component has no single finite one ([`SpanLocate::point_value`]:
+    /// poison, or an enclosure wider than a point). The frame's
+    /// [`point_value`](super::RigidMotion::point_value) crossing reads
+    /// each axis here.
+    pub(in crate::linalg) fn point_value(self) -> Option<UnitVec3<f64>>
+    where
+        T: SpanLocate,
+    {
+        let read = |x: T| x.point_value().filter(|x| x.is_finite());
+        let v = self.0;
+        Some(UnitVec3(Vec3::new(read(v.x)?, read(v.y)?, read(v.z)?)))
+    }
+
     /// The exact `x̂`, unit as its literal bits at every scalar that
     /// represents 0 and 1 — no decision, nothing to decide: the world
     /// frames' axes, and the axis a caller turns about when it names a
@@ -402,6 +420,21 @@ impl<T: Real> UnitVec3<T> {
     #[must_use]
     pub fn exact_z() -> Self {
         Self(Vec3::unit_z())
+    }
+}
+
+impl UnitVec3<f64> {
+    /// The same witness at `U`, each component through
+    /// [`Real::from_f64`], whose contract is exactness: the `f64`
+    /// decision carried, not one made at `U`. The frame's
+    /// [`embed`](super::RigidMotion::embed) crossing carries each axis
+    /// here.
+    pub(in crate::linalg) fn embed<U: Real>(self) -> UnitVec3<U> {
+        UnitVec3(Vec3::new(
+            U::from_f64(self.0.x),
+            U::from_f64(self.0.y),
+            U::from_f64(self.0.z),
+        ))
     }
 }
 

@@ -41,7 +41,8 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Affine3, Band, Point2, Point3, Vec3};
+use geom_core::{Band, Point2, Point3, Vec3};
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
@@ -62,9 +63,9 @@ fn prism(scale: f64) -> Body<f64> {
     };
     let sections = vec![square(), square(), square()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5 * scale, 0.0, 1.0 * scale)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0 * scale)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5 * scale, 0.0, 1.0 * scale)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0 * scale)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
@@ -550,9 +551,9 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
     };
     let sections = vec![square(), square(), square()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5 * SCALE, 0.0, 1.0 * SCALE)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0 * SCALE)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5 * SCALE, 0.0, 1.0 * SCALE)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0 * SCALE)),
     ];
     let mut body = sweep::loft_body::<Dual64>(
         &sweep::test_support::lift_sections::<Dual64>(&sections),

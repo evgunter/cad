@@ -19,7 +19,8 @@
 //!   on a witness — never by a caller asserting that three vectors it
 //!   held happened to be orthonormal. For a motion MINTED by
 //!   construction, and products and inverses of minted motions, read
-//!   per scalar:
+//!   per scalar (a motion carried across scalars means what its
+//!   crossing says, "Crossing scalars" below):
 //!   - at `f64`, rigid up to rounding;
 //!   - at `Interval`, an enclosure of ONE rigid motion per point of
 //!     the box its inputs enclose: the entries are wide, and what is
@@ -67,6 +68,8 @@
 //!   the exact world frames [`RigidMotion::axes_xy`],
 //!   [`RigidMotion::axes_yz`], [`RigidMotion::axes_zx`] (whose
 //!   `origin` is the caller's, so they decide nothing at all);
+//! - [`RigidMotion::translated`] — a motion followed by a translation,
+//!   its axes kept;
 //! - [`RigidMotion::compose`] — products of witnesses are not decided
 //!   again;
 //! - [`RigidMotion::inverse`] — the transpose.
@@ -89,6 +92,11 @@
 //! - [`RigidMotion::from_axis_and_reference`] — the same roles when
 //!   the axis is RAW: the axis is decided first and kept as `w`, the
 //!   reference yields to it.
+//! - [`RigidMotion::turned_between`] — the minimal rotation carrying
+//!   one direction witness onto another, in the Rodrigues-between form
+//!   with no normalized axis and no angle. One decision, its divisor
+//!   `1 + a·b > 0`: the opposed pair, where no rotation is THE minimal
+//!   one.
 //!
 //! Which product `w` is depends on the mint: the Gram–Schmidt mint and
 //! the exact world frames build `w = u × v` (at `f64` the rounded
@@ -97,16 +105,22 @@
 //! so there `u × v` equals `w` only up to the last bit.
 //! [`RigidMotion::to_affine`] uses the stored `w`, whichever it is.
 //!
-//! # Not built yet
+//! # Crossing scalars
 //!
-//! Four doors were decided with the sketch plane's frame (the `[ev]`
-//! commit `e7ad119a8e`) and are scheduled on PATHS'
-//! `work/paths/the-sketch-plane-is-its-frame.md`; none exists:
-//! `turned_between` (the minimal rotation carrying one unit tangent
-//! onto another, deciding only `1 + a·b > 0`), `translated`, and the
-//! exact scalar crossings `embed` (`f64` to any scalar through
-//! `Real::from_f64`) and `pin` (back to `f64`, refusing on the
-//! analysis scalars).
+//! A motion crosses between scalars through two exact doors and no
+//! closure: an arbitrary map of its twelve numbers could unmake the
+//! witness (negating every component leaves `w` opposed to `u × v`).
+//!
+//! - [`RigidMotion::embed`] — `f64` to any scalar, every component
+//!   through [`Real::from_f64`], whose contract is exactness. What it
+//!   hands out means at `U` the `f64` decision carried, not one made at
+//!   `U`: at `Interval` the axes are point intervals of the `f64` axes,
+//!   not an enclosure of the unit vectors the inputs determine. A frame
+//!   whose inputs are held at `U` is minted at `U` instead.
+//! - [`RigidMotion::point_value`] — any scalar to `f64`, every
+//!   component through [`SpanLocate::point_value`], `None` where one
+//!   has no single finite `f64`: the read a structure selected at
+//!   `f64` makes of a motion held at a lane scalar.
 //!
 //! # The decided door
 //!
@@ -146,6 +160,7 @@
 use crate::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use crate::predicate::{Band, Decide, Indeterminate, Sign};
 use crate::real::Real;
+use crate::spline::SpanLocate;
 
 /// **A motion that cannot be non-rigid.** An origin and a right-handed
 /// orthonormal triple; the only spellings are the mints the
@@ -646,6 +661,61 @@ impl<T: Real> RigidMotion<T> {
         let origin = finite(at(-(rt * self.offset())), MotionPart::Inverse)?;
         Ok(Self::from_linear(rt, origin))
     }
+
+    /// **This motion, then the translation by `t`**: the axes kept,
+    /// the origin moved to `origin + t` — the bits
+    /// [`Self::compose`] of a translation onto this motion would round
+    /// through an identity product.
+    ///
+    /// # Errors
+    ///
+    /// [`RigidMotionError::NonFinite`] naming [`MotionPart::Translation`]
+    /// when the moved origin is not finite.
+    pub fn translated(self, t: Vec3<T>) -> Result<Self, RigidMotionError> {
+        Ok(Self {
+            origin: finite(self.origin + t, MotionPart::Translation)?,
+            ..self
+        })
+    }
+}
+
+impl RigidMotion<f64> {
+    /// **The same motion at `U`, exactly**: every component through
+    /// [`Real::from_f64`], whose contract is exactness, so nothing is
+    /// decided or rounded and [`Self::to_affine`] at `U` holds the
+    /// `f64` map's bits. One of the two crossings between scalars
+    /// ([module docs](self)); the witness it hands out is the `f64`
+    /// decision carried, not one made at `U`.
+    #[must_use]
+    pub fn embed<U: Real>(self) -> RigidMotion<U> {
+        let o = self.origin;
+        RigidMotion {
+            origin: Point3::new(U::from_f64(o.x), U::from_f64(o.y), U::from_f64(o.z)),
+            u: self.u.embed(),
+            v: self.v.embed(),
+            w: self.w.embed(),
+        }
+    }
+}
+
+impl<T: SpanLocate> RigidMotion<T> {
+    /// **The `f64` motion this one's value channel holds**: every
+    /// component through [`SpanLocate::point_value`], or `None` when a
+    /// component has no single finite `f64` — poison, or an enclosure
+    /// wider than a point. The other crossing between scalars
+    /// ([module docs](self)), and the read a structure selected at
+    /// `f64` makes of a placement held at a lane scalar.
+    #[must_use]
+    pub fn point_value(self) -> Option<RigidMotion<f64>> {
+        let read = |x: T| x.point_value().filter(|x| x.is_finite());
+        let o = self.origin;
+        Some(RigidMotion {
+            origin: Point3::new(read(o.x)?, read(o.y)?, read(o.z)?),
+            u: self.u.point_value()?,
+            v: self.v.point_value()?,
+            w: self.w.point_value()?,
+        })
+    }
 }
 
 impl<T: Decide> RigidMotion<T> {
@@ -879,7 +949,107 @@ impl<T: Decide> RigidMotion<T> {
         })?;
         Self::from_aim_and_reference(origin, aim, reference, site, band)
     }
+
+    /// **The minimal rotation carrying `a` onto `b`, about the axis
+    /// through `about`** — the Rodrigues-between form
+    /// `R = I + [k]× + [k]×²/(1 + a·b)`, `k = a × b`: no normalized
+    /// axis and no angle. Over the reals it is a rotation for every
+    /// pair of unit vectors that are not opposed, and it is the
+    /// identity, with no rounding, where `k` is exactly zero (a pair
+    /// that is bitwise one direction).
+    ///
+    /// Its one decision is its divisor, `1 + a·b > 0`, under `site`:
+    /// the margin that degrades as the pair turns toward opposed,
+    /// where every axis perpendicular to them is a minimal rotation
+    /// and none is THE one. A dimensionless margin against the linear
+    /// band (ledger row F21).
+    ///
+    /// Evaluation order (fixed, D9): `k = a × b`, `d = 1 + a·b`, each
+    /// column `e + k × e + k × (k × e) / d` for `e` the basis vector,
+    /// then the translation `q − R·q` for `q = about − Point3::origin()`.
+    ///
+    /// # Errors
+    ///
+    /// [`TurnError::Opposed`] when `1 + a·b` decides zero or negative,
+    /// [`TurnError::Undecided`] when it cannot be decided, and
+    /// [`TurnError::NonFinite`] naming [`MotionPart::Anchor`] for an
+    /// `about` or a translation that is not finite.
+    pub fn turned_between(
+        a: UnitVec3<T>,
+        b: UnitVec3<T>,
+        about: Point3<T>,
+        site: &'static str,
+        band: Band,
+    ) -> Result<Self, TurnError> {
+        let (a, b) = (a.get(), b.get());
+        let k = a.cross(b);
+        let d = T::one() + a.dot(b);
+        // Ledger row F21: `1 + a·b` is a dimensionless defect of the
+        // pair against the metre band; the turn has no arm of its own.
+        match crate::k_stats::decide_flagged(site, d, band, "F21") {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => return Err(TurnError::Opposed),
+            Err(source) => return Err(TurnError::Undecided(source)),
+        }
+        let column = |e: Vec3<T>| {
+            let ke = k.cross(e);
+            e + ke + k.cross(ke) / d
+        };
+        let r = Mat3::from_cols(
+            column(Vec3::unit_x()),
+            column(Vec3::unit_y()),
+            column(Vec3::unit_z()),
+        );
+        let anchor = |_| TurnError::NonFinite(MotionPart::Anchor);
+        let q = finite(about, MotionPart::Anchor).map_err(anchor)? - Point3::origin();
+        let origin = finite(at(q - r * q), MotionPart::Anchor).map_err(anchor)?;
+        Ok(Self::from_linear(r, origin))
+    }
 }
+
+/// **Why no minimal rotation carries one direction onto another**
+/// ([`RigidMotion::turned_between`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TurnError {
+    /// `1 + a·b` decided zero or below: the two directions are
+    /// opposed, so every axis perpendicular to them turns one onto the
+    /// other and no rotation is THE minimal one.
+    Opposed,
+    /// `1 + a·b` could not be decided; the decision's own diagnostic.
+    Undecided(Indeterminate),
+    /// The axis's anchor point, or the translation it makes, is not a
+    /// finite number.
+    NonFinite(MotionPart),
+}
+
+impl core::fmt::Display for TurnError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Opposed => write!(
+                f,
+                "the two directions are opposed, so no one minimal rotation turns one onto the \
+                 other. Recourse: {TURN_RECOURSE}"
+            ),
+            Self::Undecided(source) => source
+                .undecided(
+                    "whether the two directions are opposed",
+                    source.lever_ending(TURN_RECOURSE),
+                )
+                .fmt(f),
+            Self::NonFinite(part) => write!(
+                f,
+                "a rigid motion's {} is not a finite number. Recourse: {}",
+                part.noun(),
+                crate::predicate::RANGE_RECOURSE
+            ),
+        }
+    }
+}
+
+impl std::error::Error for TurnError {}
+
+/// The recourse every opposed-turn refusal ends with.
+const TURN_RECOURSE: &str = "turn through an intermediate direction, or state the axis";
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

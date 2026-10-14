@@ -1529,7 +1529,7 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         // precompute's.
         super::ProfileLift::Pinned => {
             let plane = match &pre.placement_f64 {
-                Some(placement) => placement.map(T::from_f64),
+                Some(placement) => placement.embed(),
                 None => frame_plane_lane(doc, results, frame, lane.params, tol)?,
             };
             pre.validated_f64.clone().lift_onto(plane)

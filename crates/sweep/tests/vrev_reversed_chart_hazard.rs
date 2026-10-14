@@ -24,7 +24,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Tol, Vec3};
+use geom_core::Point3;
+use geom_core::Tol;
+use profile::SketchPlane;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, ValidationError};
 
@@ -32,9 +34,9 @@ fn prism() -> Body<f64> {
     let square = || crate::common::quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
     let sections = vec![square(), square(), square()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")

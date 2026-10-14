@@ -61,9 +61,7 @@ fn slab(d: f64, l: f64) -> Result<topo::Body<f64>, sweep::ExtrudeError> {
         (geom_core::Point2::new(l, d), 0.0),
         (geom_core::Point2::new(-l, d), 0.0),
     ]);
-    let plane = SketchPlane::new(geom_core::Affine3::translation(geom_core::Vec3::new(
-        0.0, 0.0, -l,
-    )));
+    let plane = SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, -l));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();

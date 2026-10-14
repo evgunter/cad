@@ -31,7 +31,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, fillet_edges};
@@ -104,7 +104,7 @@ fn block() -> AtRestBody<f64> {
 /// `z ∈ [z0, z0 + len]`.
 fn cylinder(z0: f64, len: f64) -> AtRestBody<f64> {
     let disc = profile::circle(Point2::new(0.0, -ROD_FLAT), ROD_R, tol()).expect("a disc");
-    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     finished(
         "the cylinder",
         extruded(plane, vec![disc.into()], len),
@@ -370,7 +370,7 @@ fn a_sunk_rod_has_concave_ruled_creases_that_add_material() {
 #[test]
 fn a_ringed_support_refuses_at_the_ruled_plan_when_curved_and_carves_past_it_when_plane() {
     let rod = finished("the rod", rod_with_flat(tol()), tol());
-    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.4));
     for (what, x0, x1, curved) in [
         ("the flat", ROD_FLAT - 0.05, ROD_FLAT + 0.1, false),
         ("the cylinder", -ROD_R - 0.1, -ROD_R + 0.05, true),

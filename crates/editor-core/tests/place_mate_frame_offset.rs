@@ -297,7 +297,7 @@ fn an_authored_side_is_the_part_base_with_one_literal_step_bit_for_bit() {
     let tol = Tol::witness();
     let point_at = |o: [f64; 3], a: [f64; 3], r: [f64; 3]| {
         let eye = geom_core::Point3::from_array(o);
-        geom_core::linalg::frame::point_at_frame(
+        geom_core::linalg::frame::point_at(
             eye,
             eye + geom_core::Vec3::from_array(a),
             geom_core::Vec3::from_array(r),

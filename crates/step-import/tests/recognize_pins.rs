@@ -23,6 +23,8 @@
 //!   the native `KERNEL_*` sidecars).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point3;
+use profile::SketchPlane;
 use crate::common;
 
 use common::{SOLID_FIXTURES, fixture};
@@ -150,9 +152,9 @@ fn straight_arc_prism() -> topo::Body<f64> {
     };
     let sections = vec![arc_section(), arc_section(), arc_section()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the straight arc prism builds")
@@ -183,9 +185,9 @@ fn offset_square_prism() -> topo::Body<f64> {
     };
     let sections = vec![square(), square(), square()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")

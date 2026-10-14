@@ -237,7 +237,7 @@ fn widening_the_frames_body_parameter_recomputes_the_profile() {
     let ValuePayload::Profile(p) = &widened.value(boss_p).expect("the boss profile").payload else {
         panic!("a profile");
     };
-    let z = p.validated.plane().placement.translation.z;
+    let z = p.validated.plane().placement().translation.z;
     assert!(
         z.hi() - z.lo() >= 1.9 * width,
         "the placement carries the widened height: {z:?}"
@@ -377,7 +377,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     let ValuePayload::Profile(p) = &widened.value(boss_p).expect("the boss profile").payload else {
         panic!("a profile");
     };
-    let z = p.validated.plane().placement.translation.z;
+    let z = p.validated.plane().placement().translation.z;
     assert!(
         z.hi() - z.lo() >= 1.9 * width,
         "the placement carries the widened height: {z:?}"

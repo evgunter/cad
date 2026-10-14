@@ -52,7 +52,7 @@ use topo::{Body, BooleanError};
 fn cyl(r: f64, h: f64) -> Body<Interval> {
     let tol = Tol::witness();
     let lp = profile::circle(p2(0.0, 0.0), iv(r), tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, -h)));
+    let plane = SketchPlane::xy_at(p3(0.0, 0.0, -h));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(
         &vp,

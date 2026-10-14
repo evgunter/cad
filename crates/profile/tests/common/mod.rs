@@ -210,7 +210,7 @@ pub fn replayed<T: profile::ArcCarrierScalar>(
     }
     (
         profile::ConstructedProfile::new(p.plane, recorded),
-        profile::ConstructedProfile::new(p.plane.map(T::from_f64), guided),
+        profile::ConstructedProfile::new(p.plane.embed(), guided),
     )
 }
 

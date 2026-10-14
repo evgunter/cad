@@ -228,7 +228,7 @@ fn cap_pose(post: &ProfileDoc, body: RecipeNodeId, end: CapEnd) -> topo::readbac
 /// bit.
 fn resolved(pose: &topo::readback::Pose<f64>) -> Frame {
     let u_ref = pose.u_ref.expect("the carrier fixes a reference");
-    let fa = geom_core::linalg::frame::point_at_frame(
+    let fa = geom_core::linalg::frame::point_at(
         pose.origin,
         pose.origin + pose.axis,
         u_ref,

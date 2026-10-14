@@ -500,7 +500,7 @@ fn corm<S: Scalar>(
 fn foot<S: Scalar>(z0: f64, z1: f64, r: f64, tol: Tol) -> Body<S> {
     let rim = pncad::profile::circle_split(p2(0.0, 0.0), S::from_f64(r), 3, S::from_f64(0.0), tol)
         .expect("the foot's three-arc rim authors");
-    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(p3(0.0, 0.0, z0));
     let profile = validated(plane, vec![rim.into()], tol).expect("foot profile validates");
     extrude(
         &profile,

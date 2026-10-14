@@ -12,9 +12,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point3;
 use geom_core::predicate::{Band, Margin, Sign};
-use geom_core::{Affine3, Interval, Point2, Tol, Vec3};
+use geom_core::{Interval, Point2, Tol};
 use profile::RawLoop;
+use profile::SketchPlane;
 use sweep::{LoftError, ProfileLoop, loft_body};
 
 fn sq() -> sweep::Section {
@@ -29,9 +31,9 @@ fn sq() -> sweep::Section {
     )]
 }
 
-fn stacked(zs: &[f64]) -> Vec<Affine3<f64>> {
+fn stacked(zs: &[f64]) -> Vec<SketchPlane<f64>> {
     zs.iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
         .collect()
 }
 

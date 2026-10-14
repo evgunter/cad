@@ -15,6 +15,7 @@ use geom::NurbsCurve3;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3};
+use profile::SketchPlane;
 use profile::{RawLoop, test_support::bulge_loop};
 use sweep::skin::{SkinError, make_compatible, segment_curve, skin_on, skin_parameters};
 use sweep::test_support::bulge_arc;
@@ -280,30 +281,17 @@ fn review_skin_on_refuses_unclamped_params() {
     ));
 }
 
-/// **F3 evidence, pinned as executed.** At an EXACTLY half-turn path
-/// the tangents are anti-parallel in ℝ — but not in `f64`:
-/// `|t₀ × t₁|` evaluates to ≈ `1.2e-16`, not `0`, so
-/// `PathTangentReversal`'s anti-parallel arm does NOT fire and the
-/// frame is built from an ill-conditioned axis.
-///
-/// **This is the one home for that magnitude.** `skin.rs`'s C6 note
-/// and the `PathTangentReversal` docs point here rather than restating
-/// it, because what this row asserts is the BUILD — the number is the
-/// observed value of the case it runs, not an assertion.
-///
-/// This row asserts that truth rather than the tidier claim, so the
-/// docs and the code cannot drift apart. If a future PR gives the
-/// frame choice a named angular predicate with a real margin (see
-/// `sweep_geometry`'s C6 note for why this fix pass declined to
-/// invent one), this row flips to the refusal and says so loudly.
-///
-/// A consumer stands on this executed behaviour: the `demos/tour`
-/// klein bottle's top loop is a half-turn sweep that builds only off
-/// it, and its exact spine refuses (klein's wall 9,
-/// `work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`).
-/// Flip this row and that scene refuses with it.
+/// **F3: a half-turn path refuses at the turn's decision.** At an
+/// EXACTLY half-turn path the tangents are anti-parallel in ℝ — and
+/// in `f64` `t₀ × t₂` evaluates to a few ulps rather than zero, so no
+/// exact test separates the case. The station turn decides
+/// `1 + t₀·tᵢ` under the band (`sweep_path_turn`), which is
+/// rounding-sized here and decides zero: no minimal rotation is THE
+/// one, and the sweep refuses at the station where the path doubles
+/// back on its start tangent instead of building from an
+/// ill-conditioned axis.
 #[test]
-fn review_half_turn_path_builds_on_the_float_knife_edge() {
+fn review_half_turn_path_refuses_at_the_turns_decision() {
     use sweep::skin::sweep_geometry;
     // Half-turn arc: bulge = tan(pi/4) = 1.
     let path = segment_curve(
@@ -318,13 +306,9 @@ fn review_half_turn_path_builds_on_the_float_knife_edge() {
         Point2::new(0.3, 0.2),
         Point2::new(0.0, 0.2),
     ])];
-    match sweep_geometry(&profile, Affine3::identity(), &path, 3, 2, Tol::witness()) {
-        Ok(_) => { /* the executed truth: sin(pi) != 0 in f64 */ }
-        Err(SkinError::PathTangentReversal { station }) => panic!(
-            "the anti-parallel arm now fires at station {station} — the frame gained a \
-             real margin: update `sweep_geometry`'s C6 note and this row together"
-        ),
-        Err(e) => panic!("half-turn: unexpected refusal {e:?}"),
+    match sweep_geometry(&profile, SketchPlane::xy(), &path, 3, 2, Tol::witness()) {
+        Err(SkinError::PathTangentReversal { station: 2 }) => {}
+        other => panic!("the half turn must refuse at its last station, got {other:?}"),
     }
 }
 
@@ -353,7 +337,7 @@ fn review_vanishing_tangent_refuses_typed() {
         Point2::new(0.3, 0.2),
         Point2::new(0.0, 0.2),
     ])];
-    match sweep_geometry(&profile, Affine3::identity(), &path, 3, 2, Tol::witness()) {
+    match sweep_geometry(&profile, SketchPlane::xy(), &path, 3, 2, Tol::witness()) {
         Err(SkinError::PathTangentReversal { station: 0 }) => {}
         other => panic!("a vanishing tangent must refuse at station 0, got {other:?}"),
     }
@@ -384,8 +368,8 @@ fn review_open_chains_are_unrepresentable_and_close_by_construction() {
         Point2::new(0.5, 2.0),
     ])];
     let places = [
-        Affine3::identity(),
-        Affine3::translation(geom_core::Vec3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
     ];
     let sections = [was_open.clone(), was_open];
     let params = sweep::loft_parameters(&sections, &places, 1, Tol::witness())
@@ -439,8 +423,8 @@ fn a_sub_tolerance_arc_lofts_as_a_line() {
         ])]
     };
     let places = [
-        Affine3::identity(),
-        Affine3::translation(geom_core::Vec3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
     ];
     let sections = [section(), section()];
     let params = sweep::loft_parameters(&sections, &places, 1, Tol::witness())
@@ -452,8 +436,8 @@ fn a_sub_tolerance_arc_lofts_as_a_line() {
         assert_eq!(curve.degree(), 1, "section {i}: {curve:?}");
         let control = curve.control();
         let want = [
-            place.transform_point(Point3::new(0.0, 0.0, 0.0)),
-            place.transform_point(Point3::new(1.0, 0.0, 0.0)),
+            place.to_world(Point2::new(0.0, 0.0)),
+            place.to_world(Point2::new(1.0, 0.0)),
         ];
         for (got, want) in [(control[0], want[0]), (control[control.len() - 1], want[1])] {
             assert_eq!(

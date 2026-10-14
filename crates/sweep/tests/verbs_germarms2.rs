@@ -48,7 +48,7 @@ use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
 use crate::common::germ_pair::{cyl, repose, same_door, seams_off_the_pinch, spin, steinmetz};
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
@@ -305,7 +305,7 @@ fn the_fenced_poses_keep_their_own_outcomes() {
     // whose cap discs are coplanar and glue.
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(1.2, 0.0), 1.0, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -2.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, -2.0));
     let parallel = extrude(
         &Profile::new(plane, vec![lp.into()]).validate(tol).unwrap(),
         Extrusion::Distance {

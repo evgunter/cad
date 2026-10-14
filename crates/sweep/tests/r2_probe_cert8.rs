@@ -20,8 +20,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_core::Point2;
+use geom_core::Point3;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use topo::{Body, FaceKey};
 
@@ -125,8 +127,8 @@ fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
     let body = sweep::loft_body::<f64>(
         &[bulged(), bulged()],
         &[
-            Affine3::identity(),
-            Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+            SketchPlane::xy(),
+            SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
         ],
         1,
         Tol::witness(),
@@ -156,9 +158,9 @@ fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
     let body2 = sweep::loft_body::<f64>(
         &[square(), square(), square()],
         &[
-            Affine3::identity(),
-            Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
-            Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+            SketchPlane::xy(),
+            SketchPlane::xy_at(Point3::new(0.5, 0.0, 1.0)),
+            SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
         ],
         2,
         Tol::witness(),

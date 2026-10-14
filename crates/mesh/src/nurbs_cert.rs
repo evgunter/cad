@@ -2490,13 +2490,13 @@ pub(crate) mod tests {
     /// M8-2's rational span meter made buildable), extracted from the
     /// assembled body.
     fn pie_wall() -> NurbsSurface<f64> {
-        use geom_core::{Affine3, Point2, Vec3};
+        use geom_core::{Point2, Point3};
         let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
         let lp = bulge_loop(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
         let sections = vec![vec![lp.clone()], vec![lp]];
-        let places: Vec<Affine3<f64>> = [0.0, 1.0]
+        let places: Vec<profile::SketchPlane<f64>> = [0.0, 1.0]
             .iter()
-            .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+            .map(|z| profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
             .collect();
         let body = sweep::loft_body::<f64>(&sections, &places, 1, Tol::witness())
             .expect("the rational pie lofts")

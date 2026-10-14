@@ -42,7 +42,7 @@ use topo::{Body, BooleanError};
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(
         &profile,
@@ -397,7 +397,7 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
         .unwrap()
         .to(profile::Start, tol)
         .unwrap();
-    let plane = SketchPlane::new(Affine3::identity());
+    let plane = SketchPlane::xy();
     let prof = Profile::new(plane, vec![outline.into()])
         .validate(tol)
         .unwrap();
@@ -637,7 +637,7 @@ fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
         Point2::new(2.5, 3.0),
         Point2::new(0.5, 3.0),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.9)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.9));
     let brick = extrude(
         &Profile::new(plane, vec![lp]).validate(tol).unwrap(),
         Extrusion::Distance {

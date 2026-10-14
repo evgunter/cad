@@ -47,7 +47,7 @@ fn rod_z(z0: f64, len: f64) -> AtRestBody<f64> {
 fn rod_of(r: f64, z0: f64, len: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
-    let plane = profile::SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol)
         .unwrap();

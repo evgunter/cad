@@ -138,7 +138,7 @@ pub fn boss_plate() -> Body<f64> {
         Point2::new(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let boss_loop = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
-    let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
+    let sketch = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.4));
     let boss_profile = Profile::new(sketch, vec![boss_loop])
         .validate(Tol::witness())
         .unwrap();

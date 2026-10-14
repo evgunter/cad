@@ -23,7 +23,8 @@ use crate::common::approx::band;
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache, SurfacePair};
 use geom_core::spline::KnotVector;
-use geom_core::{Affine3, Point2, Point3, Real, Tol, Vec3};
+use geom_core::{Point2, Point3, Real, Tol, Vec3};
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
 use topo::{AtRestPolicy, Body, EdgeKey, FaceKey, FaceSurface, HalfEdgeKey, Pcurve, SurfaceKey};
@@ -45,9 +46,9 @@ fn prism<T: AtRestPolicy>() -> Body<T> {
         ])]
     };
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5 * SCALE, 0.0, SCALE)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0 * SCALE)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5 * SCALE, 0.0, SCALE)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0 * SCALE)),
     ];
     sweep::loft_body::<T>(
         &sweep::test_support::lift_sections::<T>(&[square(), square(), square()]),

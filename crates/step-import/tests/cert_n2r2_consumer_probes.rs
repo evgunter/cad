@@ -3,6 +3,7 @@
 //! file — not for merge. Every row prints what LEAVES the door.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use profile::SketchPlane;
 use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
@@ -25,9 +26,9 @@ fn square() -> Vec<ProfileLoop<f64>> {
 fn loft() -> Body<f64> {
     let sections = vec![square(), square(), square()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")

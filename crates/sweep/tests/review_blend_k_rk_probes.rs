@@ -77,7 +77,7 @@ fn print_rk_probe() {
         .parse()
         .expect("a float");
     let plane = plane_under_env();
-    let place = plane.placement;
+    let place = plane.placement();
     let [u, v, n] = place.linear.cols();
     let tilt = std::env::var("RK_TILT").unwrap_or_else(|_| "x".to_string());
     let in_plane = match tilt.as_str() {

@@ -17,7 +17,7 @@
 use crate::common;
 
 use common::{annulus, bracket, chain, l_profile, lens, lift, profile, rounded_rect, tol};
-use geom_core::{Affine3, Arc2, Decide, Dual64, Point2, Real, Sign, Vec3};
+use geom_core::{Arc2, Decide, Dual64, Point2, Point3, Real, Sign};
 use profile::{LoopRole, Profile, SegmentKind, SketchPlane, ValidatedProfile};
 
 /// The fixtures, named: every canonical-form fact the door carries has
@@ -109,7 +109,7 @@ fn rounded_hole(x0: f64, y0: f64, w: f64, h: f64, r: f64) -> profile::ProfileLoo
 /// the same walk: `test-utils` is a dependency-free leaf and cannot
 /// host a walk over this crate's types without a cycle.)
 fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
-    let m = &vp.plane().placement;
+    let m = vp.plane().placement();
     let mut out = m.components().to_vec();
     for lp in vp.loops() {
         for v in lp.vertices() {
@@ -352,14 +352,8 @@ fn the_plane_is_the_callers_and_nothing_else_moves_with_it() {
         .validate(tol())
         .unwrap();
     let before = format!("{:?}", vp.loops());
-    let plane = SketchPlane::new(Affine3::from_parts(
-        geom_core::Mat3::from_cols(
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(1.0, 0.0, 0.0),
-        ),
-        Vec3::new(1.0, 2.0, 3.0),
-    ));
+    let plane =
+        SketchPlane::from_frame(geom_core::RigidMotion::axes_yz(Point3::new(1.0, 2.0, 3.0)));
     let moved = vp.lift_onto::<f64>(plane);
     assert_eq!(format!("{:?}", moved.plane()), format!("{plane:?}"));
     assert_eq!(format!("{:?}", moved.loops()), before);

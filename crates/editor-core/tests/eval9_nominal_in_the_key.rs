@@ -179,7 +179,7 @@ mod over_a_param_box {
         else {
             panic!("a profile value");
         };
-        let a = pv.validated.plane().placement;
+        let a = pv.validated.plane().placement();
         a.components()
             .into_iter()
             .map(|v: Interval| (v.lo().to_bits(), v.hi().to_bits()))

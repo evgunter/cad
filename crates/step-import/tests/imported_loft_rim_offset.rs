@@ -14,6 +14,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point3;
+use profile::SketchPlane;
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use step_import::{ImportOptions, StepImport, import_step};
@@ -34,7 +36,7 @@ fn twisted_loft() -> topo::Body<f64> {
             square.iter().map(|&(x, y)| turned(x, y)).collect(),
         )],
     ];
-    let places = [0.0, 1.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
+    let places = [0.0, 1.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
     sweep::loft_body::<f64>(&sections, &places, 1, Tol::witness())
         .expect("the twisted loft builds")
         .body

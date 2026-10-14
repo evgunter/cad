@@ -8,6 +8,8 @@
 //! a certified import is an honest rigid frame.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point3;
+use profile::SketchPlane;
 use crate::common;
 
 use common::{arena_census, fixture};
@@ -39,9 +41,9 @@ fn native_loft_prism() -> topo::Body<f64> {
     let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let sections = vec![quad(square), quad(trapezoid), quad(square)];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("native loft_prism builds")
@@ -186,9 +188,9 @@ fn native_arc_loft_for_probe() -> topo::Body<f64> {
     };
     let sections = vec![arc_section(1.0), arc_section(1.25), arc_section(1.0)];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("arc loft builds")

@@ -2108,9 +2108,9 @@ impl SketchPlane {
 
     /// The plane's origin — sketch (0, 0) in world space.
     ///
-    /// The four accessors READ the placement back, they never
-    /// recompute it, and `normal` is the third placement column the
-    /// mint filled with u × v. They do NOT round-trip
+    /// The four accessors READ the plane's frame back, they never
+    /// recompute it, and `normal` is the frame's third axis, the mint's
+    /// u × v. They do NOT round-trip
     /// `from_frame(o, u, v)`'s arguments: that door orthonormalizes,
     /// so what comes back is the frame it minted — `origin` verbatim,
     /// `u` normalized, `v` the perpendicular residual. An exactly
@@ -2132,21 +2132,21 @@ impl SketchPlane {
     /// The world direction sketch +x runs — a dimensionless triple.
     #[getter]
     fn u(&self) -> (f64, f64, f64) {
-        let u = self.0.u();
+        let u = self.0.u().get();
         (u.x, u.y, u.z)
     }
 
     /// The world direction sketch +y runs — a dimensionless triple.
     #[getter]
     fn v(&self) -> (f64, f64, f64) {
-        let v = self.0.v();
+        let v = self.0.v().get();
         (v.x, v.y, v.z)
     }
 
     /// The plane's normal, u × v — the direction `Node.extrude` runs.
     #[getter]
     fn normal(&self) -> (f64, f64, f64) {
-        let n = self.0.normal();
+        let n = self.0.normal().get();
         (n.x, n.y, n.z)
     }
 
@@ -2164,8 +2164,8 @@ impl SketchPlane {
     }
 
     fn __repr__(&self) -> String {
-        let o = self.0.placement.translation;
-        let (u, v) = (self.0.placement.linear.c0, self.0.placement.linear.c1);
+        let o = self.0.origin();
+        let (u, v) = (self.0.u().get(), self.0.v().get());
         format!(
             "SketchPlane(origin=({}, {}, {}), u=({}, {}, {}), v=({}, {}, {}))",
             o.x, o.y, o.z, u.x, u.y, u.z, v.x, v.y, v.z
@@ -2573,8 +2573,8 @@ impl Node {
         let elevation = elevation
             .map(|e| slot_expr(py, d::SlotId::Origin(d::Axis3::Z), &e))
             .transpose()?;
-        let place = sketch_plane(plane, elevation.is_some())?.placement;
-        let (u, v) = (place.linear.c0, place.linear.c1);
+        let plane = sketch_plane(plane, elevation.is_some())?;
+        let (o, u, v) = (plane.origin(), plane.u().get(), plane.v().get());
         let len = |x: f64| literal(py, x, d::Dimension::Length);
         let scl3 = |v: pncad::prelude::Vec3<f64>| -> PyResult<[d::Formula; 3]> {
             Ok([
@@ -2585,11 +2585,11 @@ impl Node {
         };
         let z = match elevation {
             Some(e) => e,
-            None => len(place.translation.z)?,
+            None => len(o.z)?,
         };
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Frame {
-                origin: [len(place.translation.x)?, len(place.translation.y)?, z],
+                origin: [len(o.x)?, len(o.y)?, z],
                 u: scl3(u)?,
                 v: scl3(v)?,
             }),

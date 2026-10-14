@@ -10,17 +10,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use geom_core::Point3;
+use profile::SketchPlane;
 
 use common::quad;
 use geom_core::Tol;
-use geom_core::{Affine3, Vec3};
 use sweep::{Section, loft_body};
 
 /// A body of my own — NOT the spec's shape (iii): five sections, two
 /// non-affine pairs, a deliberate 8x scale ramp so the walls' cells
 /// are strongly non-uniform, and an off-axis translation so no wall
 /// is an iso-plane of the global frame.
-fn r1_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
+fn r1_sections() -> (Vec<Section>, Vec<SketchPlane<f64>>) {
     let s = |k: f64| {
         quad([
             (-k, -k),
@@ -31,11 +32,11 @@ fn r1_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
     };
     let sections = vec![s(1.0), s(2.0), s(0.5), s(4.0), s(1.0)];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.3, -0.2, 1.0)),
-        Affine3::translation(Vec3::new(-0.4, 0.5, 2.0)),
-        Affine3::translation(Vec3::new(0.1, 0.1, 3.0)),
-        Affine3::translation(Vec3::new(0.0, -0.3, 4.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.3, -0.2, 1.0)),
+        SketchPlane::xy_at(Point3::new(-0.4, 0.5, 2.0)),
+        SketchPlane::xy_at(Point3::new(0.1, 0.1, 3.0)),
+        SketchPlane::xy_at(Point3::new(0.0, -0.3, 4.0)),
     ];
     (sections, places)
 }

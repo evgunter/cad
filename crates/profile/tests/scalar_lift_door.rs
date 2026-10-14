@@ -13,7 +13,7 @@
 //! the door does.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Arc2, Dual64, Point2, Real, Vec3};
+use geom_core::{Arc2, Dual64, Point2, Point3, Real};
 use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
 
 /// The fixture's vertices as `(x, y, arc)`, authored here and read by
@@ -59,9 +59,7 @@ fn source_loop() -> ProfileLoop<f64> {
 
 fn source_profile() -> Profile<f64> {
     Profile::new(
-        SketchPlane::new(Affine3::translation(Vec3::new(
-            ORIGIN.0, ORIGIN.1, ORIGIN.2,
-        ))),
+        SketchPlane::xy_at(Point3::new(ORIGIN.0, ORIGIN.1, ORIGIN.2)),
         vec![source_loop(), source_loop()],
     )
 }
@@ -99,9 +97,9 @@ fn the_loop_rung_carries_the_vertex_order() {
 
 #[test]
 fn the_profile_rung_carries_the_plane_and_the_loop_order() {
-    let lifted: Profile<Dual64> = source_profile().map_scalar(Dual64::from_f64);
+    let lifted: Profile<Dual64> = source_profile().embed::<Dual64>();
     assert_eq!(lifted.loops.len(), 2, "the loop list is carried in order");
-    let m = &lifted.plane.placement;
+    let m = lifted.plane.placement();
     is_lift_of(m.translation.x, ORIGIN.0, "origin x");
     is_lift_of(m.translation.y, ORIGIN.1, "origin y");
     is_lift_of(m.translation.z, ORIGIN.2, "origin z");
@@ -124,7 +122,7 @@ fn the_profile_rung_carries_the_plane_and_the_loop_order() {
 
 #[test]
 fn the_lift_to_f64_is_the_identity_down_to_the_sign_of_a_zero() {
-    let lifted: Profile<f64> = source_profile().map_scalar(f64::from_f64);
+    let lifted: Profile<f64> = source_profile().embed::<f64>();
     for lp in &lifted.loops {
         for (k, (v, &(x, y, _))) in lp.vertices().iter().zip(VERTS.iter()).enumerate() {
             assert!(v.x.to_bits() == x.to_bits(), "x");
@@ -148,7 +146,7 @@ fn the_lift_to_f64_is_the_identity_down_to_the_sign_of_a_zero() {
 #[test]
 fn the_lift_to_interval_is_point_wide() {
     use geom_core::{Bounds, Interval};
-    let lifted: Profile<Interval> = source_profile().map_scalar(Interval::from_f64);
+    let lifted: Profile<Interval> = source_profile().embed::<Interval>();
     for lp in &lifted.loops {
         for (k, (v, &(x, y, _))) in lp.vertices().iter().zip(VERTS.iter()).enumerate() {
             let mut pairs = vec![(v.x, x), (v.y, y)];

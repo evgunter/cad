@@ -374,7 +374,7 @@ fn a_dual_scalar_refuses_the_spline_seam_re_anchor_by_name() {
     };
     let places = [0.0, 1.0]
         .iter()
-        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     let body = sweep::loft_body::<Dual64>(
         &sweep::test_support::lift_sections::<Dual64>(&[square(), square()]),
@@ -409,7 +409,7 @@ fn vase() -> Body<f64> {
     };
     let places = [0.0, 1.0, 2.0]
         .iter()
-        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     sweep::loft_body::<f64>(
         &[circle(1.0), circle(1.3), circle(1.0)],
@@ -522,7 +522,7 @@ fn tilted_top_prism() -> Body<f64> {
         Vec3::unit_x(),
         0.2,
     ) * geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.0));
-    let places = [geom_core::Affine3::identity(), tilt];
+    let places = [profile::SketchPlane::xy(), crate::common::plane_of(&tilt)];
     sweep::loft_body::<f64>(&[square(), square()], &places, 1, Tol::witness())
         .expect("the tilted-top prism lofts")
         .body
@@ -614,7 +614,7 @@ fn at_interval_the_prism_moves_by_the_shortcut_and_a_slanted_rim_refuses_by_name
     };
     let places = [0.0, 1.0]
         .iter()
-        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     let loft = |turn: f64| {
         sweep::loft_body::<Interval>(

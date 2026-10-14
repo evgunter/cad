@@ -1820,13 +1820,17 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
     /// (its one `f64`, NaN where it has none), and everything else —
     /// roles, the segment classifications and turns, the joint sets —
     /// carried. The decisions were made along this channel (C6), so
-    /// they hold of it as they hold of the form; a value with no point
-    /// comes back NaN, for the reader to refuse.
+    /// they hold of it as they hold of the form; a loop value with no
+    /// point comes back NaN, for the reader to refuse.
+    ///
+    /// The plane is a frame, which holds no NaN: it is read through
+    /// [`SketchPlane::point_value`], and a plane with no single `f64`
+    /// point makes the whole read `None`.
     #[must_use]
-    pub fn value_channel(&self) -> ValidatedProfile<f64> {
+    pub fn value_channel(&self) -> Option<ValidatedProfile<f64>> {
         let v = geom_core::spline::SpanLocate::value_channel;
-        ValidatedProfile {
-            plane: self.plane.map(v),
+        Some(ValidatedProfile {
+            plane: self.plane.point_value()?,
             loops: self
                 .loops
                 .iter()
@@ -1853,7 +1857,7 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                     role: lp.role,
                 })
                 .collect(),
-        }
+        })
     }
 }
 

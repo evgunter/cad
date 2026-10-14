@@ -66,7 +66,7 @@ fn boss<S: Scalar>(tol: Tol) -> AtRestBody<S> {
     // count has to be said out loud; `circle_split` is the door that
     let rim = circle_split(p2(2.0, 2.0), S::from_f64(0.5), 3, S::from_f64(0.0), tol)
         .expect("the three-arc rim authors");
-    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, 0.4)));
+    let plane = SketchPlane::xy_at(p3(0.0, 0.0, 0.4));
     let profile = validated(plane, vec![rim.into()], tol).unwrap();
     let body = extrude(
         &profile,

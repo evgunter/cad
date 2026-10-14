@@ -35,6 +35,8 @@
 //! anything left to say about the rational one.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point3;
+use profile::SketchPlane;
 use crate::common;
 
 use common::import_body;
@@ -63,9 +65,9 @@ fn native_arc_loft() -> topo::Body<f64> {
     };
     let sections = vec![arc_section(1.0), arc_section(1.25), arc_section(1.0)];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the uniformly-spaced arc loft builds natively")

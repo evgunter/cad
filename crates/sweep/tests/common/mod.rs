@@ -308,10 +308,21 @@ use topo::Body;
 /// The door returns a typed refusal for a path whose start tangent
 /// fixes no frame; a fixture whose path is that degenerate is a fixture
 /// bug, so this unwraps with the refusal in the message.
-pub fn normal_start_place(path: &NurbsCurve3<f64>) -> Affine3<f64> {
+/// **A sketch plane from a placement a suite holds as twelve numbers**,
+/// admitted at the decided door (`geom_core::test_support::rigid`) at
+/// the witness tolerance: a suite that writes its plane as a matrix
+/// asks this before the plane exists. Panics, naming the refusal, when
+/// the map is not rigid.
+pub fn plane_of(map: &Affine3<f64>) -> SketchPlane<f64> {
+    SketchPlane::from_frame(geom_core::test_support::rigid(map, Tol::witness()))
+}
+
+pub fn normal_start_place(path: &NurbsCurve3<f64>) -> SketchPlane<f64> {
     let (lo, _) = path.domain();
-    path_start_frame(path.eval(lo), path.deriv(lo), Tol::witness())
-        .unwrap_or_else(|e| panic!("the path's start tangent must fix a frame: {e:?}"))
+    SketchPlane::from_frame(
+        path_start_frame(path.eval(lo), path.deriv(lo), Tol::witness())
+            .unwrap_or_else(|e| panic!("the path's start tangent must fix a frame: {e:?}")),
+    )
 }
 
 /// A closed four-line quad section (one loop, four vertices) — the
@@ -799,7 +810,7 @@ pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
 /// Loft placements: the given heights, each scaled by `s`, as pure
 /// `+z` translations — the stacking that makes a loft of identical
 /// sections reproduce the EXTRUSION of that section exactly.
-pub fn stacked(z: &[f64], s: f64) -> Vec<Affine3<f64>> {
+pub fn stacked(z: &[f64], s: f64) -> Vec<SketchPlane<f64>> {
     sweep::test_support::stacked_at(&z.iter().map(|h| h * s).collect::<Vec<_>>())
 }
 

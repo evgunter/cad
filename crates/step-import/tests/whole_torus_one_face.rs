@@ -56,10 +56,7 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
         Point2::new(x.1, y.1),
         Point2::new(x.0, y.1),
     ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::identity(),
-        Vec3::new(0.0, 0.0, z.0),
-    ));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z.0));
     let vp = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
     sweep::extrude(
         &vp,
