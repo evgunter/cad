@@ -15,8 +15,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Point3;
+use geom_core::{Point2, Tol};
 use profile::SketchPlane;
-use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use step_import::{ImportOptions, StepImport, import_step};
 

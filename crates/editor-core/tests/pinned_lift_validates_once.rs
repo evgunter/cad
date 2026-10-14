@@ -133,7 +133,7 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
                     else {
                         panic!("{}: {id:?} carries a profile at f64", d.name);
                     };
-                    p.validated.plane().map(T::from_f64)
+                    p.validated.plane().embed::<T>()
                 }
                 _ => {
                     let ValuePayload::Datum(PoseValue::Frame(f)) =

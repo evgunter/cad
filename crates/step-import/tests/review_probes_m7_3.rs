@@ -8,14 +8,14 @@
 //! a certified import is an honest rigid frame.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common;
 use geom_core::Point3;
 use profile::SketchPlane;
-use crate::common;
 
 use common::{arena_census, fixture};
+use geom_core::Point2;
 use geom_core::Tol;
 use geom_core::test_support::upper;
-use geom_core::{Affine3, Point2, Vec3};
 use profile::{RawLoop, test_support::bulge_loop};
 use step_import::{ImportOptions, StepImport, import_step};
 

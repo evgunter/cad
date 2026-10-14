@@ -14,7 +14,8 @@
 
 use pncad::authoring::polygon;
 use pncad::geom_core::linalg::frame::path_start_frame;
-use pncad::geom_core::{Affine3, Mat3, Point3, Tol, Vec3};
+use pncad::geom_core::{Point3, RigidMotion, Tol, UnitVec3, Vec3};
+use pncad::profile::SketchPlane;
 
 const TURNS: f64 = 0.4;
 fn main() {
@@ -32,7 +33,7 @@ fn main() {
 
     // 1. The door, as a user reaches it.
     let (p, tau) = path.ders1(t0);
-    let place = path_start_frame(p, tau, tol).expect("start frame");
+    let place = SketchPlane::from_frame(path_start_frame(p, tau, tol).expect("start frame"));
     println!("start frame: {place:?}");
     let section =
         vec![polygon(&[(-0.1, -0.1), (0.1, -0.1), (0.1, 0.1), (-0.1, 0.1)], tol).expect("square")];
@@ -58,7 +59,7 @@ fn main() {
     );
     println!(
         "pole tangent: {:?}",
-        path_start_frame(Point3::<f64>::origin(), Vec3::unit_z(), tol).map(|f| f.linear)
+        path_start_frame(Point3::<f64>::origin(), Vec3::unit_z(), tol).map(RigidMotion::linear)
     );
     // A tangent a few band-widths off the pole: decided or refused?
     let eps = tol.eps();
@@ -68,7 +69,7 @@ fn main() {
         println!(
             "tangent ({k}·eps, 0, 1): {}",
             match &r {
-                Ok(f) => format!("x̂ = {:?}", f.linear.c0),
+                Ok(f) => format!("x̂ = {:?}", f.u()),
                 Err(e) => format!("refused {e:?}"),
             }
         );
@@ -76,19 +77,18 @@ fn main() {
 
     // 3. Composed roll, the way the narration says: rotation about the tangent * the frame.
     let stations: u32 = 6;
-    let places: Vec<Affine3<f64>> = (0..stations)
+    let places: Vec<SketchPlane<f64>> = (0..stations)
         .map(|i| {
             let u = f64::from(i) / f64::from(stations - 1);
             let t = (t1 - t0).mul_add(u, t0);
             let (p, d) = path.ders1(t);
-            let plane = path_start_frame(p, d, tol).expect("station frame");
-            // The roll turns the AXES and leaves the origin the
-            // station point: composing the affine rotation instead
-            // rebuilds the translation and drifts off the spine.
-            Affine3::from_parts(
-                Mat3::rotation_about(d, 0.8 * u) * plane.linear,
-                plane.translation,
-            )
+            let frame = path_start_frame(p, d, tol).expect("station frame");
+            // The roll turns the AXES about the frame's own tangent
+            // axis and leaves the origin the station point: a world
+            // rotation about the tangent line would rebuild the
+            // translation and drift off the spine.
+            let roll = RigidMotion::rotation(UnitVec3::exact_z(), 0.8 * u).expect("roll");
+            SketchPlane::from_frame(frame.compose(roll).expect("rolled frame"))
         })
         .collect();
     let sections: Vec<_> = (0..stations).map(|_| section.clone()).collect();
@@ -105,7 +105,7 @@ fn main() {
         let u = f64::from(i) / f64::from(stations - 1);
         let t = (t1 - t0).mul_add(u, t0);
         let p = path.eval(t);
-        drift = drift.max((pl.translation - (p - Point3::origin())).norm());
+        drift = drift.max((pl.origin() - p).norm());
     }
     println!("composed-roll origin drift off the spine: {drift:.2e}");
 }

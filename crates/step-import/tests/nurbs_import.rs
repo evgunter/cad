@@ -35,13 +35,13 @@
 //! anything left to say about the rational one.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common;
 use geom_core::Point3;
 use profile::SketchPlane;
-use crate::common;
 
 use common::import_body;
+use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
 use profile::test_support::bulge_loop;
 use step_import::{ImportOptions, import_step};
 use sweep::{Section, loft_body};

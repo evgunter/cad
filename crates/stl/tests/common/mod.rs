@@ -115,7 +115,6 @@ pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
 /// arcs pierce the plate's top face; the seam is three exact circle
 /// arcs shared between the protruding walls and the ringed top face.
 pub fn boss_plate() -> Body<f64> {
-    use geom_core::Affine3;
     let plate_loop = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(4.0, 0.0),

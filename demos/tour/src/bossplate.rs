@@ -23,8 +23,7 @@
 use pncad::document::ExtrudeSide;
 use std::collections::HashMap;
 
-use pncad::authoring::{p2, polygon, v3, validated};
-use pncad::geom_core::Affine3;
+use pncad::authoring::{p2, p3, polygon, validated};
 use pncad::profile::{SketchPlane, circle_split};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanResult, Curve3};

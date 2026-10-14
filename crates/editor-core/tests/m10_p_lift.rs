@@ -191,7 +191,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // All three of these are used ONLY by this row, so they are
     // imported here rather than at module scope.
     use crate::fixture;
-    use geom_core::{Interval, Real};
+    use geom_core::Interval;
     /// The nominal f64 loops, replayed for the record's sake.
     fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ConstructedLoop<f64>> {
         resolved
@@ -259,7 +259,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
         .expect("the nominal validates and records");
     // The sketch plane at the lane scalar lifts as constants: VQ8 keeps
     // the plane out of the parameter layer.
-    let err = profile::ConstructedProfile::new(plane.map(Interval::from_f64), loops)
+    let err = profile::ConstructedProfile::new(plane.embed::<Interval>(), loops)
         .validate_guided(Tol::witness(), &canonical)
         .expect_err("a hole radius spanning four orders of magnitude cannot certify");
     // The FAMILY, not the fact that some string came back. This wall is

@@ -43,7 +43,8 @@
 //!   a direction, and they are documented on their own doors.
 //!
 //! A witness crosses scalars as an axis of its frame, through
-//! [`RigidMotion::embed`](super::RigidMotion::embed) and
+//! [`RigidMotion::embed`](super::RigidMotion::embed) (or its
+//! `embed_computed`) and
 //! [`RigidMotion::point_value`](super::RigidMotion::point_value)
 //! (their module's "Crossing scalars"): exact and closure-free, and
 //! an embedded witness is the `f64` decision carried, not one made at
@@ -424,17 +425,14 @@ impl<T: Real> UnitVec3<T> {
 }
 
 impl UnitVec3<f64> {
-    /// The same witness at `U`, each component through
-    /// [`Real::from_f64`], whose contract is exactness: the `f64`
-    /// decision carried, not one made at `U`. The frame's
-    /// [`embed`](super::RigidMotion::embed) crossing carries each axis
-    /// here.
-    pub(in crate::linalg) fn embed<U: Real>(self) -> UnitVec3<U> {
-        UnitVec3(Vec3::new(
-            U::from_f64(self.0.x),
-            U::from_f64(self.0.y),
-            U::from_f64(self.0.z),
-        ))
+    /// The same witness at `U`, each component through `enter` — one
+    /// of [`Real::from_f64`] and [`Real::from_computed`], both exact in
+    /// value: the `f64` decision carried, not one made at `U`. The
+    /// frame's [`embed`](super::RigidMotion::embed) and
+    /// [`embed_computed`](super::RigidMotion::embed_computed)
+    /// crossings carry each axis here.
+    pub(in crate::linalg) fn embed_by<U: Real>(self, enter: fn(f64) -> U) -> UnitVec3<U> {
+        UnitVec3(self.0.map(enter))
     }
 }
 

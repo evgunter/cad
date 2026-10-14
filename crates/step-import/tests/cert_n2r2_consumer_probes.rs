@@ -7,7 +7,7 @@ use profile::SketchPlane;
 use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol};
 use profile::{ProfileLoop, test_support::bulge_loop};
 use topo::{Body, FaceKey, FaceSurface};
 

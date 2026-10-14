@@ -7,7 +7,7 @@ use geom_core::Point3;
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 
-use geom_core::{Affine3, Point2, Vec3};
+use geom_core::Point2;
 use sweep::loft_body;
 // The corpus swept elbow is the kernel crate's fixture, not this
 // suite's: the falsification rows below need the SAME solid the

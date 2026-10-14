@@ -275,7 +275,6 @@ pub fn cut_cylinder() -> Body<f64> {
 /// shared between the protruding walls and the plate's ringed top
 /// face. Exact volume 16 + π·0.25·0.6.
 pub fn boss_union() -> Body<f64> {
-    use geom_core::Affine3;
     use profile::test_support::bulge_loop;
     let plate_loop = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
@@ -358,7 +357,6 @@ pub fn notched() -> Body<f64> {
 pub fn two_stub_complement() -> Body<f64> {
     use core::f64::consts::PI;
 
-    use geom_core::Affine3;
     use profile::test_support::bulge_loop;
     let plate = extrude(
         &validated(

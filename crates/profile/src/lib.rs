@@ -793,6 +793,13 @@ impl SketchPlane<f64> {
         SketchPlane::from_frame(self.frame.embed())
     }
 
+    /// [`Self::embed`] for a plane the kernel computed (a path's start
+    /// frame): the frame's [`RigidMotion::embed_computed`].
+    #[must_use]
+    pub fn embed_computed<U: Real>(self) -> SketchPlane<U> {
+        SketchPlane::from_frame(self.frame.embed_computed())
+    }
+
     /// Bit-exact frame equality (the `Doc::bit_eq` precedent, spec
     /// D7): every one of the placement's twelve components compared
     /// by BITS, so `0.0` and `-0.0` are different planes here.

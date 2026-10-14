@@ -12,7 +12,7 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use step_import::{ImportOptions, StepImport, import_step};
 use topo::{Body, SolidContainment};

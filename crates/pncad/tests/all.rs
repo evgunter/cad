@@ -6524,9 +6524,9 @@ mod unit_vector_witness_through_the_facade {
             Tol::witness(),
         )
         .unwrap();
-        assert_eq!(bits(frame.linear * Vec3::unit_z()), bits(normal.get()));
+        assert_eq!(bits(frame.linear() * Vec3::unit_z()), bits(normal.get()));
         let start = path_start_frame(ao, dir.get(), Tol::witness()).unwrap();
-        assert_eq!(bits(start.linear * Vec3::unit_z()), bits(dir.get()));
+        assert_eq!(bits(start.linear() * Vec3::unit_z()), bits(dir.get()));
         let mirror = mirror_across_plane(origin, normal.get(), Tol::witness()).unwrap();
         let p = mirror.transform_point(Point3::new(1.0, 2.0, 4.0));
         assert!((p.z - 2.0).abs() < 1e-12, "{p:?}");
@@ -7178,8 +7178,8 @@ fn a_lattice_built_loft_section_decides_no_consistency_check() {
             .expect("the section authors")
     };
     let places = [
-        pncad::geom_core::Affine3::identity(),
-        pncad::geom_core::Affine3::translation(pncad::geom_core::Vec3::new(0.0, 0.0, 1.0)),
+        pncad::profile::SketchPlane::xy(),
+        pncad::profile::SketchPlane::xy_at(pncad::geom_core::Point3::new(0.0, 0.0, 1.0)),
     ];
     let constructed: Vec<Vec<ConstructedLoop<f64>>> = vec![vec![d_shape().into()]; 2];
     let asked = consistency_asked(|| {

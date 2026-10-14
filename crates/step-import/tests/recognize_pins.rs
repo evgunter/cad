@@ -23,14 +23,14 @@
 //!   the native `KERNEL_*` sidecars).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common;
 use geom_core::Point3;
 use profile::SketchPlane;
-use crate::common;
 
 use common::{SOLID_FIXTURES, fixture};
+use geom_core::Point2;
 use geom_core::Tol;
 use geom_core::test_support::upper;
-use geom_core::{Affine3, Point2, Vec3};
 use profile::test_support::bulge_loop;
 use step_import::{
     ImportOptions, NormalizationKind, PromotedKind, StepImport, StepImportError, import_step,

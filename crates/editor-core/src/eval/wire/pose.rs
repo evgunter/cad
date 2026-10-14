@@ -119,8 +119,12 @@ fn output<T: Decide>(
             // sketch and turned by the plane's frame, so the line this
             // port answers is the one the body turns about.
             let plane = drawn.validated.plane();
-            let sketch = datum_unit(Vec3::new(dir.x, dir.y, T::zero()), DATUM_AXIS_ROLE, band(tol)?)
-                .map_err(DirectionRefusal::node_error)?;
+            let sketch = datum_unit(
+                Vec3::new(dir.x, dir.y, T::zero()),
+                DATUM_AXIS_ROLE,
+                band(tol)?,
+            )
+            .map_err(DirectionRefusal::node_error)?;
             Ok(PoseValue::Axis {
                 origin: plane.to_world(origin),
                 dir: plane.frame().turn(sketch),

@@ -117,6 +117,9 @@
 //!   `U`: at `Interval` the axes are point intervals of the `f64` axes,
 //!   not an enclosure of the unit vectors the inputs determine. A frame
 //!   whose inputs are held at `U` is minted at `U` instead.
+//!   [`RigidMotion::embed_computed`] is the same crossing for a frame
+//!   the kernel computed, through [`Real::from_computed`]: the same
+//!   values, an unknown per component at `Sym`.
 //! - [`RigidMotion::point_value`] — any scalar to `f64`, every
 //!   component through [`SpanLocate::point_value`], `None` where one
 //!   has no single finite `f64`: the read a structure selected at
@@ -686,14 +689,32 @@ impl RigidMotion<f64> {
     /// `f64` map's bits. One of the two crossings between scalars
     /// ([module docs](self)); the witness it hands out is the `f64`
     /// decision carried, not one made at `U`.
+    ///
+    /// For a frame that is a constant of the model (an authored
+    /// placement); a frame the kernel COMPUTED crosses through
+    /// [`Self::embed_computed`].
     #[must_use]
     pub fn embed<U: Real>(self) -> RigidMotion<U> {
-        let o = self.origin;
+        self.embed_by(U::from_f64)
+    }
+
+    /// **[`Self::embed`] for a frame the kernel computed** (a path's
+    /// start frame, a station frame): every component through
+    /// [`Real::from_computed`] — the same values, so the same bits
+    /// wherever `from_f64` and `from_computed` agree, and an unknown
+    /// per component at `Sym`, so no identity is proved over the
+    /// rounding the `f64` frame carries.
+    #[must_use]
+    pub fn embed_computed<U: Real>(self) -> RigidMotion<U> {
+        self.embed_by(U::from_computed)
+    }
+
+    fn embed_by<U: Real>(self, enter: fn(f64) -> U) -> RigidMotion<U> {
         RigidMotion {
-            origin: Point3::new(U::from_f64(o.x), U::from_f64(o.y), U::from_f64(o.z)),
-            u: self.u.embed(),
-            v: self.v.embed(),
-            w: self.w.embed(),
+            origin: self.origin.map(enter),
+            u: self.u.embed_by(enter),
+            v: self.v.embed_by(enter),
+            w: self.w.embed_by(enter),
         }
     }
 }

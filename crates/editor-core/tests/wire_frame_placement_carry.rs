@@ -75,7 +75,7 @@ fn authored(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> profile::S
 /// Every component of a placement, as raw bits — the comparison an
 /// approximate one would let through.
 fn bits(p: &profile::SketchPlane<f64>) -> [u64; 12] {
-    p.placement.components().map(f64::to_bits)
+    p.placement().components().map(f64::to_bits)
 }
 
 fn assert_same_plane(

@@ -250,6 +250,7 @@ use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::geom_core::{KnotVector, Point3, Tol};
 use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, circle_split, query};
 use pncad::prelude::{Convexity, SurfaceKind};
+use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, CornerConfig, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, SkinError, revolve, sweep_body};
 use pncad::topo::readback::euler_counts;
@@ -626,7 +627,7 @@ fn sweep_loop<S: Scalar>(
     let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
     sweep_body::<S>(
         &section,
-        place.map(S::from_computed),
+        SketchPlane::from_frame(place).embed_computed(),
         spine,
         STATIONS,
         V_DEGREE,

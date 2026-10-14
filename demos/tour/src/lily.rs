@@ -136,14 +136,15 @@
 //! constructor — [`p2`]/`v2`/`p3`/`v3` from `pncad::authoring`. Where
 //! an already-composed `f64` value crosses — a frame this file built,
 //! a turtle's point, a stored carrier — it is `map(S::from_f64)`,
-//! once, on the value. Readback runs the other way by the same rule:
-//! a stored `Point3<S>` becomes `f64` through `map(S::f)`, once,
+//! once, on the value; a sketch plane is a frame, and crosses whole
+//! through its own `embed`. Readback runs the other way by the same
+//! rule: a stored `Point3<S>` becomes `f64` through `map(S::f)`, once,
 //! where narration begins.
 //!
-//! **Two doors are `f64` themselves and take no lift at all**:
-//! `sweep_body` and `loft_body` place their sections with an
-//! `Affine3<f64>`, so the blade frames cross as authored. That is the
-//! skinning lane's signature, not an exception this file makes.
+//! **The swept and lofted blades are the exception**: their frames
+//! and outlines are built from computed geometry (a spine, a curl), so
+//! they enter `S` as the computed values they are —
+//! `embed_computed` on the plane, `lift_computed` on each loop.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -404,7 +405,7 @@ fn lantern<S: Scalar>(
     // flower axis (into the flower), u the in-plane radial — the
     // flower axis turned a quarter turn in the plant's own plane,
     // i.e. crossed with ŷ.
-    let plane = sketch_frame(attach, dir.cross(Vec3::unit_y()), dir, tol).map(S::from_f64);
+    let plane = sketch_frame(attach, dir.cross(Vec3::unit_y()), dir, tol).embed();
     revolve(
         &validated(
             plane,
@@ -673,7 +674,7 @@ fn bud<S: Scalar>(
         // their tips, not their bellies.
         let spine = axis_frame::<f64>(attach, dir * ct + l * st, rad(phi - 0.5 * span), tol);
         let a = spine.w().get();
-        let plane = sketch_frame(attach, spine.u().get(), a, tol).map(S::from_f64);
+        let plane = sketch_frame(attach, spine.u().get(), a, tol).embed();
         revolve(
             &validated(
                 plane,
@@ -961,9 +962,7 @@ fn leaf<S: Scalar>(
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
     // The outline and the frame are built in `f64`, so they enter `S`
     // as the computed values they are.
-    let place = authored_frame(base, u, v, tol)
-        .to_affine()
-        .map(S::from_computed);
+    let place = SketchPlane::from_frame(authored_frame(base, u, v, tol)).embed_computed();
     let outline: Vec<_> = section
         .outline(tol)
         .iter()
@@ -1334,7 +1333,7 @@ fn loft_plan<S: Scalar>(
     let (d, v, u) = blade_frame(dir, up, tol);
     let r = len / curl;
     let mut sections: Vec<Vec<ConstructedLoop<f64>>> = Vec::with_capacity(stations);
-    let mut places: Vec<Affine3<f64>> = Vec::with_capacity(stations);
+    let mut places: Vec<SketchPlane<f64>> = Vec::with_capacity(stations);
     for k in 0..stations {
         #[allow(clippy::cast_precision_loss)]
         let s = (k as f64) / ((stations - 1) as f64);
@@ -1351,14 +1350,14 @@ fn loft_plan<S: Scalar>(
         let uu = u * ct + vk * st;
         let vv = vk * ct - u * st;
         sections.push(said(plan.at(s)));
-        places.push(authored_frame(p, uu, vv, tol).to_affine());
+        places.push(SketchPlane::from_frame(authored_frame(p, uu, vv, tol)));
     }
     // Built in `f64`, so they enter `S` as the computed values they are.
     let sections: Vec<Vec<_>> = sections
         .iter()
         .map(|s| s.iter().map(|lp| lp.lift_computed()).collect())
         .collect();
-    let places: Vec<Affine3<S>> = places.iter().map(|p| p.map(S::from_computed)).collect();
+    let places: Vec<SketchPlane<S>> = places.iter().map(|p| p.embed_computed()).collect();
     loft_body::<S>(&sections, &places, BLADE_V_DEGREE, tol)
 }
 
