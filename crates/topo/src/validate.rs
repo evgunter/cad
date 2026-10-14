@@ -12019,8 +12019,8 @@ mod tests {
                     sample: 0,
                     cause: in_band,
                 }),
-                "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
-                 length is intended, tighten the tolerance below 5e-10 m"
+                "Recourse: move the geometry so this edge runs forward over a clear length, or, if \
+                 this length is intended, tighten the tolerance below 5e-10 m"
                     .to_owned(),
             ),
             (
@@ -16720,7 +16720,7 @@ mod certify_escalation_rows {
             (
                 escalated(CertCheck::ParamSpan, in_band),
                 "its length is too close to zero to decide at this tolerance. Recourse: move \
-                 the geometry so this edge is not vanishingly short, or, if this length is \
+                 the geometry so this edge runs forward over a clear length, or, if this length is \
                  intended, tighten the tolerance below 5e-10 m",
             ),
             (
@@ -16863,14 +16863,14 @@ mod certify_escalation_rows {
                     verdict: zero(5.0e-10),
                 }),
                 "its length is within the tolerance of zero. Recourse: move the geometry so \
-                 this edge is not vanishingly short, or, if this length is intended, tighten \
-                 the tolerance below 5e-11 m",
+                 this edge runs forward over a clear length, or, if this length is intended, \
+                 tighten the tolerance below 5e-11 m",
             ),
             (
                 says(CertifyError::IntervalNotForward { verdict: zero(0.0) }),
                 "its length is within the tolerance of zero. Recourse: move the geometry so \
-                 this edge is not vanishingly short; an edge of no length, or a reversed one, is \
-                 one no kernel construction mints, so this is a kernel defect or a damaged \
+                 this edge runs forward over a clear length; an edge of no length, or a reversed \
+                 one, is one no kernel construction mints, so this is a kernel defect or a damaged \
                  file, worth reporting",
             ),
             (
