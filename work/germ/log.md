@@ -1399,3 +1399,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **MINOR, adjudicated as a note:** `copysign` picks the side on the raw sign of `c`, where the sibling `classify.rs:640` decides it with `decide_nonzero`. It thins only at EPS_MIN with K ≈ 1 and a 1 km lever, and the miss is bounded by ~2Kε. Recorded on HONE's three-homes item (the one home takes the decided form).
   - The NITs stay. The partial-revolve start/end asymmetry is noted on CLEAVE's item.
   - Merge flow started: /home/user/m5152 = head + main (`1992956011`) + notes (`baf129db08`); full geom-brep/topo/sweep at 3 ε.
+- 2026-10-14 18:55 — **PR 5152 merged** (`2186089902`) on local green: full geom-brep 1368, topo 3028, sweep 2711 at 3 ε on head + main; main merged again at merge time (tracker-only change). Row PR-5152: sequential, M, tallied 0. The notes on HONE's and CLEAVE's items rode the PR. The apex-tangent implementer lane is free.
