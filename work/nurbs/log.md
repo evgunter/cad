@@ -1408,3 +1408,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - cut becomes restriction (FULL).
     - It measures after each step, and the L1+L2 PR is closed as superseded.
   - **Process note:** the 22:40Z brief's "bit-identical levers are exhausted" was one level off. Both designers found the cause in ownership and order of operations, not in arithmetic.
+- 2026-10-14 00:08Z — **A second red on main from 4984:** the sweep thread-count digest's `tilted_cut_upper` pads read slightly tighter than the table, at all three ε. It is the same class as the saddle-wall pin (sweep not seeded) and is routed to build A's fix PR; the table is re-cut with its cause.
+- 2026-10-14 00:08Z — **Quotient-cost step 1 is PR 5047** (`NurbsBoxes` lifetime, head b23d0f02).
+  - `ChartedNurbs` holds `Rc<NurbsBoxes>`; `PairBoxes` and boundary share it.
+  - Its guard is one build per cell per operand across 20 rungs.
+  - **Times, against main:** shell 286 → 234 s, r1 183 → 164 s. The remainder is the per-window cut, which step 3 handles. Step 2 has started.
+  - Tier: my read, after CI.
