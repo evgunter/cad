@@ -145,7 +145,7 @@ pub(super) struct SweepKnobs {
 pub(super) struct ContactAcc {
     records: ReductionContacts,
     /// Every edge split the sweep made, in split order.
-    pub(super) splits: Vec<super::EdgeSplit>,
+    pub(super) splits: super::EdgeSplits,
     /// Every decision a push made, in decision order: the rows the
     /// records cite ([`Backing::Decided`] names an index here until
     /// the result's carry renumbers it).
@@ -4067,7 +4067,7 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
         parent: edge,
         vertex: created.vertex,
         child: created.new_edge,
-    });
+    })?;
     Ok(created.vertex)
 }
 

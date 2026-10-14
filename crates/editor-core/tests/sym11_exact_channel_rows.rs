@@ -80,12 +80,15 @@ use crate::m10_9_pins_interval::measured_studies;
 /// `symbolic` reads 1319 → 1317.
 /// The fidelity channels' norm and the retired `Tilt` and
 /// `Orientation` slots move no column here.
+/// The pcurve envelope's orthonormal chart squaring its frame by cross
+/// products (`geom::square_frame`) moves only the frozen counts: bracket
+/// 1975 → 1969, pad 2985 → 2976.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1048, 654, 729]),
     ("r1_annulus", [566, 399, 904]),
     ("r2_link", [356, 259, 542]),
-    ("r2_filleted_bracket", [1453, 1008, 1975]),
-    ("r2_rounded_pad", [1317, 1159, 2985]),
+    ("r2_filleted_bracket", [1453, 1008, 1969]),
+    ("r2_rounded_pad", [1317, 1159, 2976]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

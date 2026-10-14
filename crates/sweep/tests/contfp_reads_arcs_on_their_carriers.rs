@@ -737,8 +737,7 @@ fn an_in_band_ball_clearance_skips_the_ray() {
                 continue;
             };
             let (t0, t1) = c.params();
-            let inner = rr - r;
-            let (speed, _) = geom::spiric_rate_bounds(r, offset, (inner, rr + r), 1.0);
+            let (speed, _) = geom::spiric_period_rate_bounds(rr, r, offset);
             let center = c.carrier().eval(0.5 * (t0 + t1));
             let reach = speed * (t1 - t0).abs() * 0.5;
             let rv = Vec3::new(1.0, 0.0, 0.0);

@@ -570,7 +570,7 @@ fn a_crossing_near_its_rival_reads_no_contact_only_past_eps() {
 /// A circle, and a line or a second circle, through two crossings `X`
 /// and `Y`, from 0.5ε to 10³ε apart or anywhere along the circle, at
 /// up to 300 from the origin, radii from 0.5Kε to 10⁴ (two circles'
-/// within 10² of each other), and crossing angles up to a quarter
+/// within 10¹² of each other), and crossing angles up to a quarter
 /// turn. Each segment's ends are drawn beside
 /// `X`, beside `Y` (at an edge of the band, between the two, or up to
 /// a tenth of the radius off), or anywhere, and an arc runs either way
@@ -633,9 +633,7 @@ fn rivals(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
     let carrier2 = circle(rng, r2);
     let s2 = on_circle(rng, carrier2);
     let s1 = if rng.unit() < 0.5 {
-        // Radii within 10² of each other: past that, `f64`'s secant
-        // arm misreads crossings (`arc-arc-secant-arm-misses-crossings-at-unequal-radii`).
-        let r1 = radius(rng, (0.5 * apart * 1.0001).max(r2 * 1e-2), r2 * 1e2);
+        let r1 = radius(rng, (0.5 * apart * 1.0001).max(r2 * 1e-12), r2 * 1e12);
         let carrier1 = circle(rng, r1);
         on_circle(rng, carrier1)
     } else {

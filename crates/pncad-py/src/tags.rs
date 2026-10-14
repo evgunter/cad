@@ -1655,6 +1655,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CarryRefused => "carry_refused",
         BooleanErrorKind::JoinDesync => "join_desync",
         BooleanErrorKind::LineageRow => "lineage_row",
+        BooleanErrorKind::SplitLineage => "split_lineage",
         BooleanErrorKind::EdgeUndescribed => "edge_undescribed",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
