@@ -1452,3 +1452,22 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - We take it ourselves: a new lane (session_013c7iZGZUnzBka2LTcMSVBi, `nurbs/pair-walk-domain-side-end`) reads such an end on the side's own face, the ℝ⁴ analogue of one_arc's `Piece::Side`.
   - #5059 also takes a corner-origin midpoint for far-from-origin operands, and closes `work/ssiarith/chart-point-signs-are-f64-evaluations.md`.
   - Order: the pair-walk fix → #5059 → step 3.
+- 2026-10-14 06:05Z — **All of #4984's reds are fixed:** #5088 (shelling pin and rigid-map margin ladder) merged at 9f9662d8 and closes ENCL's `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main`. The fresh re-check confirms the digest's cause is #4952.
+  - **#5094 (the pair walk reads a domain-side end by its certified face roots, narrowed by Krawczyk) is up.** #5059 turns more SSI rows red than CI showed: a domain corner (`two_bilinear_patches`, 1e-12), two more pair-walk rows, and an interior-box face walk out of depth (`a_branch_beside_a_close_crossing`, 1e-12).
+  - **Ruling:** domain-side and corner ends go to #5094. The interior class goes to #5059, as a compensated (error-free) midpoint with an a-priori bound. (ii) was ruled out only for the boundary root.
+  - **#5034** (ENCL handover, STYLE) has a STYLE reviewer dispatched. **#5081** (step 2) is in FULL review.
+- 2026-10-14 06:20Z — **#5034 merged** (67a9bb4e). It closes ENCL's handover, after a STYLE review plus a comments-only follow-up. Build A posted its ENCL and QUAD seam notes via #5096.
+  - **Two lily-table items** on this slate (`main-reds-the-lily-tessellation-table-...-since-4984` P0, and its duplicate `the-lily-leaf-tessellation-table-moved-on-main` P1) had been filed by FUSE and EMIT and not picked up here. That is a friction finding: `work.py incoming` lists commits that touch `work/nurbs/`, and I read past them.
+  - Build A now has them: a fresh-target bisect, proof that the new counts still meet the certified chord tolerance, re-baseline or fix, and a sweep of every demo and slow set on main for unseen reds.
+- 2026-10-14 06:20Z — **#5081 (step 2) APPROVED at FULL** (session_012Zp7HG7ttcpSHq5uZReKzS).
+  - Soundness confirmed on both lanes: the mispaired-halves and piece-order mutants are red, and the sweep and topo slow sets are 271/271 green.
+  - Interval bounds match up to degree 9 and are tighter from degree 12.
+  - Minors (stale "exact dyadic piece" prose, the restrict callers in the body) go into the push that merges main. The lost W²/W³ halving-sharing (~8% of the face bound) gets filed.
+- 2026-10-14 06:32Z — **Mechanism of the missed lily items:** `work.py incoming` lists main's commits touching `work/nurbs/` *that this branch lacks*. I merge main into the tracker branch at most check-ins, before running it, so items other lanes file are absorbed silently and it reports 0. Fix in practice: run `git log origin/main --since=<last check-in> -- work/nurbs/` and skip commits authored by this program.
+- 2026-10-14 08:20Z — **Step 2 merged: #5081 at 8096a51b** (FULL approve, after a main merge plus prose fixes).
+  - Against main: shelling 237 → 120 s, r1 167 → 71 s, face bound 0.87 → 0.47 s, curve meters 8.1 → 4.3 s.
+  - Also merged: #5102 (lily table re-baselined to #4984's tighter chord bounds; certified deviation ≤ 2.35e-4 against 1e-3; closes the lily P0/P1), #5105 (CIW build-time findings; the SSIARITH fuzz issue), #5108 (base reds triaged onto their owners' slates, no duplicates). Build A's sweep (demos tour/wild and the workspace slow set at default ε, fresh targets) shows no other reds.
+  - **Step 3 measured slower than step 2** with the converged cut: shelling 208 s, r1 133–150 s. Restricting the raised grids costs an O(n³) blossom pyramid at n = 7.
+    - Two bit-identical savings (hoisting the ratio, restricting W² once) bring it to 173/96 s.
+    - Ruling: (A), the textbook O(n²) two-split restriction. It stays within the converged design. Land it only if it matches step 2 on time and margins. Otherwise (B), step 2's cut, goes back to the two designers as a postscript round. No cache; no landing a regression.
+  - **Build A** is on `interval-scale-exact` (`Real::scale_pow2`, the face-bound remainder). **The build-time lane's #5104** (lto off, −3.75 min, every row green at TIER=all) needs a main merge, then STYLE review.

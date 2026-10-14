@@ -71,6 +71,7 @@ pub(crate) mod harmonic;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
+pub mod ladder;
 pub mod locus;
 pub mod mapped;
 pub mod newell;
