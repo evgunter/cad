@@ -99,13 +99,12 @@ fn shape(frame: &Frame) -> String {
     match frame {
         Ok(Some((c, a))) => format!("frame {c:?} {a:?}"),
         Ok(None) => "straight".into(),
-        Err(FrameError::Escalated(d)) => format!("escalated {:?}", d.predicate),
+        Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
         Err(FrameError::OutsideInventory { conic, section }) => {
             format!("outside {conic:?} {section}")
         }
         Err(FrameError::NoArm) => "no arm".into(),
-        Err(FrameError::RadiusEscalated { .. }) => "radius escalated".into(),
         Err(FrameError::Spiric { loops, .. }) => format!("spiric {loops:?}"),
     }
 }
@@ -330,7 +329,7 @@ fn a_near_parabola_escalates_and_is_never_snapped_to_an_ellipse() {
     let sliver = (b.zero() * b.escalate()).sqrt();
     let got = read(&turned(sliver));
     assert!(
-        matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some("pn_conic_type")),
+        matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("pn_conic_type")),
         "in band, the conic type escalates, got {}",
         shape(&got)
     );
@@ -430,7 +429,7 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
             let got = one_loop(pair_section_frame_at(a, c, at, extent, b));
             let verdict = match &got {
                 Ok(Some(_)) => "served",
-                Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("unnamed"),
+                Err(FrameError::Escalated { diag: d, .. }) => d.predicate.unwrap_or("unnamed"),
                 _ => "another outcome",
             };
             assert_eq!(
@@ -460,7 +459,7 @@ fn a_near_circular_tilt_escalates_the_circle_question_not_a_desync() {
         Vec3::new(theta.sin(), theta.cos(), 0.0)
     };
     let verdict = |got: &Frame| match got {
-        Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("unnamed"),
+        Err(FrameError::Escalated { diag: d, .. }) => d.predicate.unwrap_or("unnamed"),
         _ => "another outcome",
     };
     let cone = widening();
@@ -575,7 +574,7 @@ fn declared_equal_walls_meeting_at_a_sliver_escalate_the_circle_question() {
     for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
         let got = pair_section_frame(x, y, Point3::new(0.0, 0.0, 0.0), None, b);
         assert!(
-            matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some("ellipse_axes_distinct")),
+            matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("ellipse_axes_distinct")),
             "{label}: got {}",
             shape(&got)
         );
