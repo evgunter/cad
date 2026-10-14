@@ -170,6 +170,9 @@ pub(crate) struct LaneEnv<'a, T> {
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::VarEnv<f64>,
+    /// Whether an `f64` lane runs the second pass anyway, so its log
+    /// compares with a lane scalar's ([`super::PassTwo`]).
+    pub pass_two: super::PassTwo,
 }
 
 impl<T: super::ProfileLane> LaneEnv<'_, T> {
@@ -181,7 +184,12 @@ impl<T: super::ProfileLane> LaneEnv<'_, T> {
         &self,
         pre: &'p ProfilePre,
     ) -> Option<&'p profile::ValidatedProfile<T>> {
-        T::pass_one(&pre.validated_f64, self.params, self.nominal)
+        match self.pass_two {
+            super::PassTwo::SkippedAtF64 => {
+                T::pass_one(&pre.validated_f64, self.params, self.nominal)
+            }
+            super::PassTwo::Always => None,
+        }
     }
 }
 

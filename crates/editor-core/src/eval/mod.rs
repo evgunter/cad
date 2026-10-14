@@ -3310,6 +3310,7 @@ pub fn second_pass_at_f64(
     let lane = wire::LaneEnv {
         params: &nominal,
         nominal: &nominal,
+        pass_two: PassTwo::Always,
     };
     wire::lane_profile::<f64>(program, plane, lane, &pre, tol)
 }
@@ -3554,6 +3555,7 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
                 &[],
                 parts::Reached::none(),
                 boolean_sweep,
+                PassTwo::SkippedAtF64,
                 tol,
             ),
             tol,
@@ -3634,7 +3636,58 @@ pub fn evaluate<T>(
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, prior, cancel, opts, &[], parts::Reached::none(), tol)
+    evaluate_at_descent(
+        doc,
+        prior,
+        cancel,
+        opts,
+        &[],
+        parts::Reached::none(),
+        PassTwo::SkippedAtF64,
+        tol,
+    )
+}
+
+/// **Whether the `f64` lane runs the profile's second pass.** The
+/// lane's VALUE is the first pass's either way ([`ProfileLane`]); what
+/// differs is the node's verdict LOG, which the skip leaves as the first
+/// pass's alone. An evaluation whose log is compared against a lane
+/// scalar's — the E6 drive's `f64` witness, against each leaf, whose log
+/// holds both passes — runs it ([`evaluate_witness`]); every other
+/// evaluation skips it. Crate-private: no caller of [`evaluate`]
+/// chooses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PassTwo {
+    /// The `f64` lane over the nominal takes the first pass's form.
+    SkippedAtF64,
+    /// Every lane runs the second pass, so its log holds both.
+    Always,
+}
+
+/// **An evaluation whose verdict log compares with a lane scalar's**:
+/// [`evaluate`] with the profile's second pass run at `f64` too
+/// ([`PassTwo::Always`]), so each profile node's log holds both passes,
+/// as a leaf's at `Interval` or `Sym` does. The value is the same bits
+/// either way (the PP6 fence).
+pub(crate) fn evaluate_witness<T>(
+    doc: &Doc<ProfileProgram>,
+    cancel: &CancelToken,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Evaluation<T>
+where
+    T: EvalScalar,
+{
+    evaluate_at_descent(
+        doc,
+        None,
+        cancel,
+        opts,
+        &[],
+        parts::Reached::none(),
+        PassTwo::Always,
+        tol,
+    )
 }
 
 /// An instantiated document's own evaluation (ASM-2A D-3), one level
@@ -3651,12 +3704,13 @@ pub(crate) fn evaluate_nested<T>(
     opts: &EvalOptions,
     chain: &[crate::ident::DocRef],
     reached: parts::Reached<T>,
+    pass_two: PassTwo,
     tol: Tol,
 ) -> Evaluation<T>
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, None, cancel, opts, chain, reached, tol)
+    evaluate_at_descent(doc, None, cancel, opts, chain, reached, pass_two, tol)
 }
 
 /// Whether `doc` was recorded at the process's ε — the D4 door below.
@@ -3666,6 +3720,7 @@ pub(crate) fn recorded_at_process_eps<P>(doc: &Doc<P>, tol: Tol) -> bool {
     doc.epsilon().to_bits() == tol.eps().to_bits()
 }
 
+#[allow(clippy::too_many_arguments)] // the run-tolerance witness and the descent's two seams
 fn evaluate_at_descent<T>(
     doc: &Doc<ProfileProgram>,
     prior: Option<&Evaluation<T>>,
@@ -3673,6 +3728,7 @@ fn evaluate_at_descent<T>(
     opts: &EvalOptions,
     chain: &[crate::ident::DocRef],
     reached: parts::Reached<T>,
+    pass_two: PassTwo,
     tol: Tol,
 ) -> Evaluation<T>
 where
@@ -3735,6 +3791,7 @@ where
         chain,
         reached,
         opts.boolean_sweep,
+        pass_two,
         tol,
     )
     .with_symbols(opts.symbols);
@@ -3764,6 +3821,7 @@ where
         lane: wire::LaneEnv {
             params: &env,
             nominal: &nominal_env,
+            pass_two,
         },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();

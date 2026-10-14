@@ -1313,12 +1313,13 @@ pub fn drive(
     }
 
     // The WITNESS build: the document at its nominals, at f64, with the
-    // profile lift on. The lift is on rather than off because the leaf
-    // replay runs guided and the two vectors must be comparable —
-    // guided elaboration at f64 IS plain elaboration at f64, bit for
-    // bit (the lift's own differential pin), so this changes the build
-    // it produces in no way and makes the two passes the same code.
-    let witness: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
+    // profile's second pass run (`evaluate_witness`) rather than
+    // skipped. A leaf's log holds both passes and the two vectors must
+    // be comparable; the second pass at f64 IS the first, bit for bit
+    // (the lift's own differential pin), so this changes the build it
+    // produces in no way and makes the two passes the same code.
+    let witness: Evaluation<f64> =
+        crate::eval::evaluate_witness(doc, &CancelToken::new(), &lane_opts(), tol);
     if let Some(standing) = witness
         .order
         .iter()
