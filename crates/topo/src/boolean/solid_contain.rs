@@ -1109,12 +1109,51 @@ fn face_geo<T: Decide>(
                     .sense,
             })
         }
-        Some(s) => Err(PointInSolidError::KindUnsupported {
-            face,
-            kind: s.kind(),
-        }),
+        Some(s) => {
+            debug_assert!(!ray_crosses(s.kind()), "face_geo and ray_crosses disagree");
+            Err(PointInSolidError::KindUnsupported {
+                face,
+                kind: s.kind(),
+            })
+        }
         None => Err(PointInSolidError::CorruptFace { face }),
     }
+}
+
+/// **Whether the ray test has an arm for a surface kind** — the kinds
+/// [`face_geo`] reads, and no other. Wildcard-free, so a new kind is
+/// decided here; `face_geo`'s refusal arm asserts the two agree.
+const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
+    use geom::SurfaceKind;
+    match kind {
+        SurfaceKind::Plane
+        | SurfaceKind::Cylinder
+        | SurfaceKind::Cone
+        | SurfaceKind::Sphere
+        | SurfaceKind::Torus => true,
+        SurfaceKind::Nurbs | SurfaceKind::Approx => false,
+    }
+}
+
+/// `face`'s refusal where the ray test has no arm for its surface
+/// ([`ray_crosses`]): [`face_geo`] raises it on every ray, before any
+/// geometry, so it is a property of the selection and not of a ray.
+///
+/// # Errors
+///
+/// A face or surface that does not resolve.
+fn uncrossable<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<Option<PointInSolidError>, PointInSolidError> {
+    let f = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let kind = body
+        .get_surface(f.surface)
+        .ok_or(PointInSolidError::CorruptFace { face })?
+        .kind();
+    Ok((!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind }))
 }
 
 /// **A cylinder wall face's exact chart trim**: the azimuth window
@@ -6038,7 +6077,10 @@ const AIM_TURN: (f64, f64) = (0.675_490_294_261_523_8, -0.737_368_878_078_319_7)
 /// Where no aimed ray decided and none read in band, `volume` reads
 /// the side: a selection all of whose faces are trimmed spheres, untrimmable
 /// cones or splines, or whose rays all grazed, met a limit or crossed a
-/// sharp corner in band.
+/// sharp corner in band. A selection holding a face the ray test has no
+/// arm for ([`ray_crosses`]: a spline) casts no ray at all: every ray
+/// would fault on that face, whatever it aimed at, so the volume reads
+/// with it as the limit.
 /// An aimed ray read in band on two faces that do not meet refuses on
 /// its pair ([`SideUnread::InBand`]) without the volume: a pair in band
 /// is the answer, and the volume's margin, a mean half-thickness, would
@@ -6057,6 +6099,19 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     volume: impl FnOnce() -> Result<SolidContainment, V>,
 ) -> Result<Result<SolidContainment, SideUnread<V>>, PointInSolidError> {
     let faces = sel.faces();
+    // A face the ray test has no arm for faults EVERY ray at
+    // `face_geo`, whatever it aims at: no aim can read, so none is cast,
+    // and the volume reads with that face as the limit.
+    if let Some(e) = faces
+        .iter()
+        .find_map(|&face| uncrossable(body, face).transpose())
+    {
+        let e = e?;
+        return Ok(volume().map_err(|volume| SideUnread::Fallback {
+            volume,
+            limit: Some(e),
+        }));
+    }
     let (mut in_band, mut at_a_corner, mut limit) = (None, None, None);
     let (along, across) = AIM_INCIDENCE;
     for &face in faces {
