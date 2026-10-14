@@ -703,4 +703,75 @@ mod tests {
         assert_eq!(net.operand().0.degree(), super::ORDER, "a circle at ORDER");
         assert_eq!(net.operand().0.control_count(), 2 * super::ORDER + 1);
     }
+
+    /// Review 5097 probe: randomized frames, scales, far parameters and
+    /// uneven spans; every closed form's net must enclose `C(t)` (f64
+    /// within 1e-12 relative slack, and meeting the interval eval).
+    #[test]
+    fn review_5097_random_nets_enclose() {
+        let mut seed: u64 = 0x5097_5097;
+        let mut rnd = move || {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((seed >> 11) as f64) / ((1u64 << 53) as f64)
+        };
+        let mut checked = 0;
+        for case in 0..400 {
+            let a = Vec3::new(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5);
+            let axis = a / a.norm();
+            let b = Vec3::new(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5);
+            let u0 = b - axis * b.dot(axis);
+            let u_ref = u0 / u0.norm();
+            let center = Point3::new(10.0 * rnd() - 5.0, 10.0 * rnd() - 5.0, 10.0 * rnd() - 5.0);
+            let scale = 10f64.powf(4.0 * rnd() - 2.0);
+            let carrier = match case % 4 {
+                0 => Curve3::Line { origin: center, dir: axis * scale },
+                1 => Curve3::Circle { center, axis, radius: scale, u_ref },
+                2 => Curve3::Ellipse { center, axis, major: scale, minor: scale * (0.05 + 0.95 * rnd()), u_ref },
+                _ => {
+                    let big = 1.0 + 2.0 * rnd();
+                    let small = big * (0.1 + 0.8 * rnd());
+                    let off = (big - small) * (0.98 * rnd() - 0.49) * 2.0;
+                    Curve3::Spiric { center, axis, u_ref, major_radius: big * scale, minor_radius: small * scale, offset: off * scale }
+                }
+            };
+            let mut t = 100.0 * rnd() - 50.0;
+            let mut breaks = vec![t];
+            let n = 1 + (rnd() * 5.0) as usize;
+            for _ in 0..n {
+                t += 10f64.powf(-6.0 * rnd()) * 3.0;
+                breaks.push(t);
+            }
+            match enclosing_net(&carrier, &breaks) {
+                Err(e) => println!("case {case}: refused {e}"),
+                Ok(net) => {
+                    let p = net.knots.degree();
+                    let ci = carrier.map_scalar(Interval::from_f64);
+                    for (k, pair) in breaks.windows(2).enumerate() {
+                        for j in 0..=64 {
+                            let s = f64::from(j) / 64.0;
+                            let tt = pair[0] + (pair[1] - pair[0]) * s;
+                            let si = (Interval::from_f64(tt) - Interval::from_f64(pair[0])) / (Interval::from_f64(pair[1]) - Interval::from_f64(pair[0]));
+                            let c = carrier.eval(tt);
+                            let ce = ci.eval(Interval::from_f64(tt));
+                            for (d, (want, exact)) in [(c.x, ce.x), (c.y, ce.y), (c.z, ce.z)].into_iter().enumerate() {
+                                let ctl = &net.coords[d][k * p..=k * p + p];
+                                let one = Interval::one();
+                                let binom = |i: usize| (0..i).fold(1.0, |acc, q| acc * (p - q) as f64 / (q + 1) as f64);
+                                let val = ctl.iter().enumerate().fold(Interval::zero(), |acc, (i, b)| {
+                                    acc + *b * Interval::from_f64(binom(i)) * si.powi(i as i32) * (one - si).powi((p - i) as i32)
+                                });
+                                let slack = 1e-12 * (1.0 + want.abs());
+                                assert!(val.lo() - slack <= want && want <= val.hi() + slack,
+                                    "case {case} {carrier:?} span {k} [{}, {}] s={s}: {want} outside [{}, {}]", pair[0], pair[1], val.lo(), val.hi());
+                                assert!(val.lo() <= exact.hi() && exact.lo() <= val.hi(),
+                                    "case {case}: net [{}, {}] misses the interval eval [{}, {}]", val.lo(), val.hi(), exact.lo(), exact.hi());
+                                checked += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        println!("checked {checked}");
+    }
 }

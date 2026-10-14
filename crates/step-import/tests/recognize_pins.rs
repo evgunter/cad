@@ -267,6 +267,10 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 
     // With OUR bytes the bitwise rung answers, so declare-and-check is
     // never reached — the measurement behind the finding above.
+    for (k, pl, _) in plane_nurbs_seams(own_body) {
+        let c = own_body.get_curve_geom(k).and_then(topo::CurveGeom::certified).unwrap();
+        println!("PROBE seam {:?} carrier {:?} params {:?} plane {:?} desc {:?}", k, c.carrier(), c.params(), pl, c.description());
+    }
     assert!(
         plane_nurbs_seams(own_body).is_empty(),
         "our own writer's carriers are bit-identical to the walls' columns, \

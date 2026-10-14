@@ -1,0 +1,25 @@
+import sys, re
+root = "/tmp/claude-0/-home-user-cad/e902674b-3a17-5e98-8b8a-d605111125e8/scratchpad/wt/crates/geom-brep/src/"
+m = sys.argv[1]
+def sub(path, old, new, count=1):
+    p = root + path
+    s = open(p).read()
+    assert s.count(old) >= 1, (m, old)
+    s = s.replace(old, new, count)
+    open(p, "w").write(s)
+if m == "M1":
+    p = "certify.rs"
+    sub(p, "        // `plane_nurbs_pair` admits only a wall with a chart.\n",
+        "        if !matches!(spec.carrier, Curve3::Nurbs(_)) { return Err(CertifyError::PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal::Unsupported { what: \"MUTANT must be a spline\" })); }\n        // `plane_nurbs_pair` admits only a wall with a chart.\n")
+    sub(p, "    if let Resolved::PairNurbs { a, b, lane, .. } = &resolved {\n",
+        "    if let Resolved::PairNurbs { a, b, lane, .. } = &resolved {\n        if !matches!(spec.carrier, Curve3::Nurbs(_)) { return Err(CertifyError::PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal::Unsupported { what: \"MUTANT must be a spline\" })); }\n")
+elif m == "M2":
+    sub("carrier_net.rs", "    let mut all: Vec<f64> = breaks\n", "    if true { return Err(CarrierEnclosureRefusal { kind: carrier.kind(), span: (lo, hi) }); }\n    let mut all: Vec<f64> = breaks\n")
+elif m == "M3":
+    sub("carrier_net.rs", "let rest = span[n + 1] * reach;", "let rest = { let _ = span[n + 1] * reach; Interval::zero() };")
+elif m == "M4":
+    sub("carrier_net.rs", ".filter(|&t| lo < t && t < hi)", ".filter(|&t| false && lo < t && t < hi)")
+elif m == "M5a":
+    sub("carrier_net.rs", "    ((lo, hi), (T::from_computed(lo), T::from_computed(hi)))", "    let _ = (lo, hi); let (lo, hi) = (0.0_f64, 1.0_f64);\n    ((lo, hi), (T::from_computed(lo), T::from_computed(hi)))")
+elif m == "M5b":
+    sub("carrier_net.rs", "    ((lo, hi), (T::from_computed(lo), T::from_computed(hi)))", "    let hi = lo + 0.5 * (hi - lo);\n    ((lo, hi), (T::from_computed(lo), T::from_computed(hi)))")
