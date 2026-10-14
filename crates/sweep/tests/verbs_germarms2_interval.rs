@@ -4,13 +4,14 @@
 //! **What this file pins, and what it does NOT.** Every row here drives
 //! whole BODIES through the public union door, so a row reaches a
 //! predicate only if the layers ahead of it admit the pose. The
-//! meeting-axes pose does reach the join and stops at the pinch door,
-//! and the skew pose reaches the frame dispatch's no-arm door.
+//! meeting-axes pose does reach the join and builds there, its nodes
+//! minted as rings, and the skew pose reaches the frame dispatch's
+//! no-arm door.
 //!
 //! The new predicate's two-arm pin is still not here. It is
 //! `topo::boolean::join`'s `frame_dispatch_interval_tests`, which calls
 //! `pair_section_frame` at `Interval` directly and reaches both arms —
-//! meeting axes to `Zero`/pinch, skew axes to a definite sign/`NoArm`.
+//! meeting axes to `Zero`/the nodes, skew axes to a definite sign/`NoArm`.
 //! That is the certified-scalar statement about the frame's coplanarity
 //! row (`cc_axes_coplanar`, the section table's, which the frame asks);
 //! what this file adds is that the
@@ -109,7 +110,7 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
         finished("operand A", a.clone(), tol),
         finished("operand B", b.clone(), tol),
     );
-    topo::union(&a, &b, tol).expect_err("this family has no join arm")
+    topo::union(&a, &b, tol).expect_err("this pose refuses")
 }
 
 /// **The re-posed twin's obligation at the CERTIFIED scalar**, which is
@@ -124,7 +125,7 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
 /// an equality rather than assumed away. At `eps = 1e-12` the
 /// enclosures are wider than the band itself, and the certified lane
 /// refuses the FIXTURE before the geometry is ever in question —
-/// measured, on the pinch-door pose:
+/// measured, on the meeting-axes pose:
 ///
 /// ```text
 /// CrossingInsertion { operand: A, edge: EdgeKey(7v1), source: Certification {
@@ -152,7 +153,14 @@ fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &
     if crate::common::germ_pair::same_door(direct, reposed) {
         return;
     }
-    let (d, r) = (format!("{direct:?}"), format!("{reposed:?}"));
+    assert_the_fixture_escape(&format!("{direct:?}"), reposed, what);
+}
+
+/// The one escape [`same_door_or_escalated`] admits, against the direct
+/// pose's answer `d`: a crossing-insertion certification escalation at
+/// the narrowest band, of no germ-frame predicate.
+fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
+    let r = format!("{reposed:?}");
     let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
     assert!(
         band.zero() <= 1e-12,
@@ -182,39 +190,50 @@ fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &
     );
 }
 
-/// **The meeting-axes arm.** The pose whose seams sit off the pinch
-/// reaches the join at the certified scalar too, and stops at the door
-/// that names the pinch — the same door the `f64` lane reaches. An
-/// escalation on the DIRECT pose would say the enclosures decided the
-/// lane rather than the geometry, so that half is an equality; the
-/// re-posed twin's obligation is [`same_door_or_escalated`]'s, and the
-/// reason is written there.
+/// **The meeting-axes arm.** The pose whose seams sit off the nodes
+/// reaches the join at the certified scalar too, and builds there as
+/// the `f64` lane does: both nodes are minted as rings and the union
+/// comes out. A refusal on the DIRECT pose would say the enclosures
+/// decided the lane rather than the geometry, so that half is an
+/// equality; the re-posed twin builds too, or takes the fixture escape
+/// [`same_door_or_escalated`] writes the reason for.
 #[test]
-fn the_pinch_door_is_reached_at_the_certified_scalar() {
+fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
     let a = spin(&cyl(1.0, 1.2), z_axis(), PI / 4.0);
     let b = spin(
         &spin(&cyl(1.0, 1.2), x_axis(), PI / 2.0),
         y_axis(),
         PI / 4.0,
     );
-    let err = union_err(&a, &b);
-    assert!(matches!(err, BooleanError::NodeUnbuilt { .. }), "{err:?}");
-    same_door_or_escalated(
-        &err,
-        &union_err(&repose(&a), &repose(&b)),
-        "the pinch-door pose",
+    let tol = Tol::witness();
+    let union = |a: &Body<Interval>, b: &Body<Interval>| {
+        topo::union(
+            &finished("operand A", a.clone(), tol),
+            &finished("operand B", b.clone(), tol),
+            tol,
+        )
+    };
+    let direct = union(&a, &b);
+    assert!(
+        matches!(direct, Ok(topo::BooleanResult::Body(_))),
+        "the meeting-axes pose builds: {direct:?}"
     );
+    match union(&repose(&a), &repose(&b)) {
+        Ok(topo::BooleanResult::Body(_)) => {}
+        Err(e) => assert_the_fixture_escape("a built body", &e, "the meeting-axes pose"),
+        Ok(other) => panic!("the re-posed meeting-axes pose: {other:?}"),
+    }
 }
 
 /// **The skew pose at the BODY level, at the certified scalar.** Slide
 /// the pair along the common perpendicular `â₁ × â₂` by the dyadic
 /// `0.375`: the crossings are found, the germ pair is minted, and the
-/// frame dispatch's skew arm answers it — no arm, not the pinch door.
+/// frame dispatch's skew arm answers it — no arm, not the nodes.
 /// The dispatch's verdict itself is pinned at the certified scalar in
 /// `topo::boolean::join`'s `frame_dispatch_interval_tests`; this row
 /// says a body reaches it there.
 #[test]
-fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
+fn a_skew_pair_stays_off_the_nodes_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), x_axis(), PI / 2.0),
@@ -232,7 +251,7 @@ fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
                 ..
             }
         ),
-        "a skew pair must reach the frame dispatch's no-arm door, never the pinch: {err:?}"
+        "a skew pair must reach the frame dispatch's no-arm door, never the nodes: {err:?}"
     );
     // The re-posed twin, on the same obligation as every other row
     // here: a rigid motion moves no contact, so a pose whose direct and
