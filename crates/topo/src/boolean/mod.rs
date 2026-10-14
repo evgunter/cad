@@ -100,6 +100,7 @@ mod fragments;
 mod glue;
 pub(crate) mod insert;
 mod join;
+mod node;
 mod ops;
 pub(crate) mod section_cert;
 pub(crate) use ops::volume_backstop;
@@ -3017,35 +3018,24 @@ pub enum BooleanError {
         /// The section table's refusal.
         section: geom_brep::SectionError,
     },
-    /// **A germ pair of two equal cylinder walls whose axes definitely
-    /// INTERSECT**: the door the intersecting equal-radius family
-    /// (Steinmetz and every re-posed copy of it) stops at.
-    ///
-    /// The section is the two bisector-plane ellipses, and they are not
-    /// two disjoint loci: the bisector planes' common line runs through
-    /// the axes' meeting point `p` along `â₁ × â₂`, is perpendicular to
-    /// both axes, and therefore meets BOTH walls at `p ± r·n̂`, where
-    /// `n̂ = unit(â₁ × â₂)`. The UNIT is load-bearing off 90°:
-    /// `‖â₁ × â₂‖ = sin θ`, so the raw cross product understates the
-    /// offset by that factor and only coincides with the nodes on the
-    /// perpendicular pose. So the two ellipses CROSS at those two
-    /// points (the nodes), for every member of the family and at every
-    /// pose — four arcs meeting at two valence-4 vertices — and the
-    /// Boolean does not yet build a node. Where neither node lies in both
-    /// faces of a germ's face pair, the pair's section is disjoint arcs
-    /// of the two ellipses, and the join's bisector lane builds it; this
-    /// refusal is raised where a node is not definitely outside one of
-    /// the faces (`join::place_nodes`), or a germ lies on a node.
-    ///
-    /// Radius equality and coplanar axes are decided by their margins
-    /// (`geom_brep::cylinder_cylinder_section`); at definitely unequal
-    /// radii the locus is a space quartic, the skew pair's unbuilt
-    /// class ([`Self::GermFrameUnsupported`]).
-    GermFrameCylinderPinch {
-        /// The A-side germ face.
-        a_face: FaceKey,
-        /// The B-side germ face.
-        b_face: FaceKey,
+    /// **A node of an equal cylinder pair's section that the Boolean
+    /// does not build.** Two equal cylinder walls whose axes meet cut
+    /// each other in two ellipses that cross at two NODES, `p ± r·n̂`
+    /// (`n̂ = unit(â₁ × â₂)`), where the walls are tangent. A node inside
+    /// a face of each wall is built (`vtxfac::mint_node`); one on an
+    /// edge or a vertex of a face (`on_boundary`: an operand's seam or
+    /// rim through it), or one the face's chart trim cannot place, is
+    /// not, and refuses here, naming the operand and face it was read
+    /// against. A crossing germ minted at a node is one on an edge, and
+    /// refuses the same.
+    NodeUnbuilt {
+        /// The operand whose face the node was read against.
+        operand: Operand,
+        /// The face.
+        face: FaceKey,
+        /// Whether the node lies on the face's boundary; `false` where
+        /// the trim gave no verdict.
+        on_boundary: bool,
     },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
@@ -3438,8 +3428,8 @@ pub enum BooleanErrorKind {
     GermSectionOutsideInventory,
     /// [`BooleanError::GermSectionSpiric`].
     GermSectionSpiric,
-    /// [`BooleanError::GermFrameCylinderPinch`].
-    GermFrameCylinderPinch,
+    /// [`BooleanError::NodeUnbuilt`].
+    NodeUnbuilt,
     /// [`BooleanError::Euler`].
     Euler,
     /// [`BooleanError::Pcurves`].
@@ -3675,7 +3665,7 @@ impl BooleanError {
                 BooleanErrorKind::GermSectionOutsideInventory
             }
             Self::GermSectionSpiric { .. } => BooleanErrorKind::GermSectionSpiric,
-            Self::GermFrameCylinderPinch { .. } => BooleanErrorKind::GermFrameCylinderPinch,
+            Self::NodeUnbuilt { .. } => BooleanErrorKind::NodeUnbuilt,
             Self::Euler(_) => BooleanErrorKind::Euler,
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
             Self::Join(_) => BooleanErrorKind::Join,
@@ -4038,12 +4028,13 @@ impl core::fmt::Display for BooleanError {
                 },
                 meeting_recourse(kind_word(geom::SurfaceKind::Torus)),
             ),
-            Self::GermFrameCylinderPinch { .. } => write!(
+            Self::NodeUnbuilt { .. } => write!(
                 f,
-                "two cylinder walls of equal radius whose axes cross meet here, along \
-                 two ellipses that cross each other, and the Boolean cannot yet build \
-                 the points where they cross. Recourse: reshape the parts so these two \
-                 walls do not meet each other",
+                "two cylinder walls of equal radius whose axes cross meet along two \
+                 ellipses that cross each other, and the Boolean cannot yet build a point \
+                 where they cross on an edge of either part. Recourse: move or turn the \
+                 parts so that each crossing point lies inside a face of both walls or \
+                 outside one of them",
             ),
             Self::Pcurves { source } => write!(
                 f,
@@ -5109,6 +5100,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 pierce_rings.push(ring.ring);
             }
         }
+    }
+
+    // The nodes of the equal cylinder pairs' sections, each a ring in
+    // both walls (`node::mint_nodes`).
+    for ring in node::mint_nodes((&mut a, &mut b), (a_operand, b_operand), band, tol)? {
+        null_edges.extend(ring.edges)?;
+        null_pairs.extend(ring.pairs);
+        pierce_rings.push(ring.ring);
     }
 
     // Vertex-vertex classification, every pair read before the first
@@ -7787,9 +7786,10 @@ mod tests {
                     why: "a folded loop",
                 },
             },
-            BooleanError::GermFrameCylinderPinch {
-                a_face: face,
-                b_face: face,
+            BooleanError::NodeUnbuilt {
+                operand: Operand::A,
+                face,
+                on_boundary: true,
             },
             BooleanError::Pcurves {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
@@ -7934,7 +7934,7 @@ mod tests {
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
                 BooleanErrorKind::GermSectionOutsideInventory => "GermSectionOutsideInventory",
                 BooleanErrorKind::GermSectionSpiric => "GermSectionSpiric",
-                BooleanErrorKind::GermFrameCylinderPinch => "GermFrameCylinderPinch",
+                BooleanErrorKind::NodeUnbuilt => "NodeUnbuilt",
                 BooleanErrorKind::Euler => "Euler",
                 BooleanErrorKind::Pcurves => "Pcurves",
                 BooleanErrorKind::Join => "Join",

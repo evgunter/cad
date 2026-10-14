@@ -2362,7 +2362,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermSectionOutsideInventory
         | BooleanErrorKind::GermSectionSpiric
-        | BooleanErrorKind::GermFrameCylinderPinch
+        | BooleanErrorKind::NodeUnbuilt
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::LineageRow
         | BooleanErrorKind::SplitLineage

@@ -413,10 +413,11 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "GermFrameCylinderPinch",
-            BooleanError::GermFrameCylinderPinch {
-                a_face: face,
-                b_face: face,
+            "NodeUnbuilt",
+            BooleanError::NodeUnbuilt {
+                operand: topo::Operand::A,
+                face,
+                on_boundary: true,
             },
         ),
         (

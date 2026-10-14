@@ -144,7 +144,7 @@ pub(crate) fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
 ///
 /// A face box's own refusal; [`BooleanError::ClassificationInvariant`]
 /// where the face tree returns an index past its input.
-fn overlapping_pairs<T: Decide + Bounds>(
+pub(super) fn overlapping_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     keep: impl Fn(&geom::Surface<T>) -> bool,

@@ -1477,6 +1477,18 @@ pub enum EqualCylinderSection<T: Real> {
         /// their decisions: the radii equal (`cc_radius_equality`), then
         /// the axes meeting (`cc_axes_coplanar`).
         margins: [MarginDiag; 2],
+        /// The two NODES, where the ellipses cross: `p ∓ r·û`, `p` the
+        /// axes' meeting point and `û = unit(a1 × a2)`. The first is
+        /// `e1` at parameter `π/2` and `e2` at `−π/2`, the second `e1`
+        /// at `−π/2` and `e2` at `π/2` (the minor vertices of both).
+        /// The walls are tangent there, their common tangent plane
+        /// spanned by the axes, and the ellipses cross square, along
+        /// `a1 + a2` (`e1`) and `a1 − a2` (`e2`). Round a node each
+        /// wall's four sectors between the four arcs alternate sides of
+        /// the other solid: on wall 1 the sectors about `±a1` lie outside
+        /// wall 2 and those about `±a2` inside it; on wall 2 the same
+        /// sectors, the other way round.
+        nodes: [Point3<T>; 2],
     },
     /// Parallel axes, gap definitely < r₁ + r₂: two parallel rulings.
     ParallelLines {
@@ -1639,10 +1651,12 @@ pub fn cylinder_cylinder_section<T: Decide>(
                 let u_major = v_minor.cross(n);
                 Ok(Curve3::ellipse(p, n, r1 / c.abs(), r1, u_major, band)?)
             };
+            let off = cross * (r1.abs() / cross.norm());
             Ok(EqualCylinderSection::TwoEllipses {
                 e1: mk(n1)?,
                 e2: mk(n2)?,
                 margins: [radii.margin, meet.margin],
+                nodes: [p - off, p + off],
             })
         }
     }

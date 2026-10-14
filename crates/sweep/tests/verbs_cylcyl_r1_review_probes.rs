@@ -157,7 +157,7 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                 Err(e) => assert!(
                     matches!(
                         e.kind(),
-                        BooleanErrorKind::GermFrameCylinderPinch
+                        BooleanErrorKind::NodeUnbuilt
                             | BooleanErrorKind::GermFrameUnsupported
                             | BooleanErrorKind::FallbackExtentUnsupported
                     ),
@@ -396,7 +396,7 @@ fn revolve_minted_walls_meet_the_same_gate() {
     match topo::union(&a, &b, tol) {
         Err(e) => assert_eq!(
             e.kind(),
-            BooleanErrorKind::GermFrameCylinderPinch,
+            BooleanErrorKind::NodeUnbuilt,
             "the node refusal: {e}"
         ),
         Ok(topo::BooleanResult::Body(body)) => {

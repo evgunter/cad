@@ -198,10 +198,7 @@ fn the_pinch_door_is_reached_at_the_certified_scalar() {
         PI / 4.0,
     );
     let err = union_err(&a, &b);
-    assert!(
-        matches!(err, BooleanError::GermFrameCylinderPinch { .. }),
-        "{err:?}"
-    );
+    assert!(matches!(err, BooleanError::NodeUnbuilt { .. }), "{err:?}");
     same_door_or_escalated(
         &err,
         &union_err(&repose(&a), &repose(&b)),

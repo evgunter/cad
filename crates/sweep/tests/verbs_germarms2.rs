@@ -177,7 +177,7 @@ fn seams_off_the_pinch_reach_the_join_and_name_it() {
     let (a, b) = seams_off_the_pinch(1.2, PI / 4.0);
     let err = union_err(&a, &b);
     assert!(
-        matches!(err, BooleanError::GermFrameCylinderPinch { .. }),
+        matches!(err, BooleanError::NodeUnbuilt { .. }),
         "expected the node door, got {err:?}"
     );
     // The message must name the crossing axes and the equal radii, and
@@ -216,7 +216,7 @@ fn every_pose_of_the_family_answers_typed_and_pose_independently() {
             let (a, b) = seams_off_the_pinch(h, deg.to_radians());
             let err = union_err(&a, &b);
             assert!(
-                matches!(err, BooleanError::GermFrameCylinderPinch { .. }),
+                matches!(err, BooleanError::NodeUnbuilt { .. }),
                 "h = {h}, {deg}°: the family must refuse at the pinch door, got {err:?}"
             );
             assert_same_door(
