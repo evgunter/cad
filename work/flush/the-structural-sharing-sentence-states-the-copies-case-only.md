@@ -2,12 +2,13 @@
 id: the-structural-sharing-sentence-states-the-copies-case-only
 kind: issue
 title: Tier 3′'s structural-sharing sentence states the copies case only; value-decided Zero pairs share the kept key too (ruling B, ruling A)
-status: open
+status: closed
 opened: 2026-10-12
-needs_ev: true
 design: true
 priority: P3
 cost: E
+closed: 2026-10-14
+pr: 4793
 ---
 
 
@@ -18,3 +19,7 @@ Since then, two rulings by the FLUSH orchestrator have put vertices on one point
 - **Ruling A** (fork-log row 133; `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys`): the same across an assembly's solids.
 
 Neither changes a decision. The sentence now describes one source of a shared key out of two. The census already reads both alike. The `[ev]` PR that carries this row restates the sentence.
+
+## Ruling
+
+Ev approved the restated sentence on PR 4793 (2026-10-14: "this looks good!"). It lands in `docs/DESIGN.md` with that PR, and fork-log row 133 records the answer.
