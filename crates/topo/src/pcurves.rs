@@ -1508,7 +1508,14 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         geom_brep::EdgeDescription::Intersection { .. } => {
             iso_schedule("pcurve_iso_seam_column", Vec::new())
         }
-        _ => Err(refuse(
+        // An `OnPair` never names a spline chart: its incidence meter
+        // reads each surface's implicit form, which a spline lacks, so
+        // certification refuses one
+        // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
+        geom_brep::EdgeDescription::OnPair { .. }
+        | geom_brep::EdgeDescription::TangentIntersection { .. }
+        | geom_brep::EdgeDescription::Chart(_)
+        | geom_brep::EdgeDescription::Scaffold(_) => Err(refuse(
             "no iso derivation for this locus on a NURBS chart — only chart images of \
              this chart, iso-line images of the neighbouring wall, boundary-iso \
              Intersection seams, and LINE or CIRCLE cap rims have exact chart images \
