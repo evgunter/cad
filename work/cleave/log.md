@@ -981,3 +981,10 @@ Signed (CLEAVE orchestrator).
   - correct the PR body;
   - close restfront's minor-over-major row;
   - file the tier-3 frame-margin residue on its owner (Ev's 4812 interim).
+- 2026-10-14 — The container restarted.
+  - Resumed: the two P3 lanes (join.rs, and carrier_cross).
+  - Lost: the 4858 short re-review and the 4861 fix-pass lane.
+    - The 4858 re-review was re-created.
+    - The 4861 lane was re-created from the recovered fix-pass brief. The old lane's clone was mid-merge of main, with no fix-pass code yet; the new lane chooses whether to finish or abort that merge.
+  - No new Ev comment on 4795.
+  - Noted the new CLAUDE.md rule: a blocking question about an open PR goes on that PR, with `[ev]` added to its title and the question at the top of its body.
