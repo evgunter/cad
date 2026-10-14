@@ -4627,6 +4627,24 @@ fn chart_edge<T: Decide>(
         // denominator encloses zero and the image is poison, and between
         // the ends it is several times too wide
         // (`trim_3_chart_bound::t9b_…`).
+        Pcurve::Projected(_) if std::env::var("R5070").is_ok() => {
+            let e = walked.pcurve.eval(walked.t0.enclosure_hull(walked.t1));
+            let mode = std::env::var("R5070").unwrap();
+            if mode == "A" || (e.x.is_bounded() && e.y.is_bounded()) {
+                eprintln!("R5070 mutant eval used: {e:?}");
+                return Ok(ChartEdge::Envelope { a, b, image: e, slack: T::zero() });
+            }
+            let hull = walked.pcurve.chart_box(walked.t0, walked.t1);
+            Ok(ChartEdge::Envelope {
+                a,
+                b,
+                image: Point2::new(
+                    hull.u_min.enclosure_hull(hull.u_max),
+                    hull.v_min.enclosure_hull(hull.v_max),
+                ),
+                slack: T::zero(),
+            })
+        }
         Pcurve::Projected(_) => {
             let hull = walked.pcurve.chart_box(walked.t0, walked.t1);
             Ok(ChartEdge::Envelope {
