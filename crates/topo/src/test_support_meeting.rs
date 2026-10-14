@@ -745,7 +745,7 @@ pub fn posed_prism(h: &Hole, pose: &Pose, tol: Tol) -> AtRestBody<f64> {
 ///
 /// Where an Euler operator refuses, or the pyramid is not a finished
 /// body (a base wound clockwise from the apex is inside out).
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::panic)]
 pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
     posed_pyramid_kept(base, apex, pose, tol)
         .unwrap_or_else(|e| panic!("a pyramid is not a finished body: {e:?}"))
@@ -757,6 +757,11 @@ pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -
 /// # Errors
 ///
 /// The at-rest gate's findings.
+///
+/// # Panics
+///
+/// Where an Euler operator refuses.
+#[allow(clippy::unwrap_used)]
 pub(crate) fn posed_pyramid_kept(
     base: &[[f64; 3]],
     apex: [f64; 3],
@@ -1000,7 +1005,12 @@ pub fn nest_polygon(base: &[[f64; 3]], s: f64) -> Vec<[f64; 3]> {
 /// The pyramid with its apex at [`MEET`] over the planar polygon `base`
 /// (relative to it, convex or not), wound outward whichever way `base`
 /// runs, placed by `pose` ([`posed_pyramid`]).
+///
+/// # Panics
+///
+/// Where the pyramid is not a finished body.
 #[must_use]
+#[allow(clippy::panic)]
 pub fn apex_pyramid(base: &[[f64; 3]], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
     apex_pyramid_kept(base, pose, tol)
         .unwrap_or_else(|e| panic!("a pyramid is not a finished body: {e:?}"))

@@ -5276,6 +5276,10 @@ const fn side_before(outward: Sign) -> SolidContainment {
     }
 }
 
+/// A ray's crossings, each with its face's outward sign, the face and
+/// its advance.
+type RayCrossings<T> = Crossings<T, (Sign, FaceKey, T)>;
+
 /// Every crossing of the ray `q + s·d` ahead of `q` with the selection's
 /// faces, each offered with the outward sign of the face it crosses and
 /// its advance, and as on an edge where it lands on that face's trim
@@ -5288,7 +5292,7 @@ fn ray_crossings<T: Decide>(
     reach: T,
     band: Band,
     rows: RayRows,
-) -> Result<Crossings<T, (Sign, FaceKey, T)>, RayFault<PointInSolidError>> {
+) -> Result<RayCrossings<T>, RayFault<PointInSolidError>> {
     let faces = sel.faces();
     let mut crossings = Crossings::new();
     // A crossing at advance `t` on `face`; behind `q` it is none.
@@ -5896,6 +5900,9 @@ pub(crate) enum SideUnread<V> {
     },
 }
 
+/// An aim: a point on a face and the face's outward normal there.
+type Aim<T> = (Point3<T>, Vec3<T>);
+
 /// **Where a ray aimed at `face` aims**, and the face's outward normal
 /// there. A planar face aims at a point certified strictly inside it
 /// ([`crate::stands::planar_interior_point`]), and offers none where no
@@ -5917,7 +5924,7 @@ fn aim_at<T: Decide>(
     sel: &SolidFaces,
     face: FaceKey,
     band: Band,
-) -> Result<Option<(Point3<T>, Vec3<T>)>, PointInSolidError> {
+) -> Result<Option<Aim<T>>, PointInSolidError> {
     match face_plane(body, face) {
         Ok((_, normal)) => {
             return Ok(

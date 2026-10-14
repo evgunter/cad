@@ -5866,11 +5866,13 @@ fn plus_v_errors<T: Decide>(
         Some(PlusVVerdict::Pass) => Ok(SolidContainment::Out),
         Some(PlusVVerdict::Refuse) => Ok(SolidContainment::In),
         Some(PlusVVerdict::Unresolved) => {
-            Err(Some(ValidationError::VolumeSignUnresolved { solid }))
+            Err(Some(Box::new(ValidationError::VolumeSignUnresolved {
+                solid,
+            })))
         }
-        Some(PlusVVerdict::Undecided(reading)) => {
-            Err(Some(undecided(OrientationUnread::Volume(*reading))))
-        }
+        Some(PlusVVerdict::Undecided(reading)) => Err(Some(Box::new(undecided(
+            OrientationUnread::Volume(*reading),
+        )))),
         Some(PlusVVerdict::Uncomputable(_)) | None => Err(None),
     };
     let read =
@@ -5882,7 +5884,7 @@ fn plus_v_errors<T: Decide>(
         Ok(Err(SideUnread::Fallback {
             volume: Some(error),
             ..
-        })) => errors.push(error),
+        })) => errors.push(*error),
         Err(source) => errors.push(undecided(OrientationUnread::Ray(source))),
     }
     errors
