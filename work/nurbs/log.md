@@ -1471,3 +1471,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - Two bit-identical savings (hoisting the ratio, restricting W² once) bring it to 173/96 s.
     - Ruling: (A), the textbook O(n²) two-split restriction. It stays within the converged design. Land it only if it matches step 2 on time and margins. Otherwise (B), step 2's cut, goes back to the two designers as a postscript round. No cache; no landing a regression.
   - **Build A** is on `interval-scale-exact` (`Real::scale_pow2`, the face-bound remainder). **The build-time lane's #5104** (lto off, −3.75 min, every row green at TIER=all) needs a main merge, then STYLE review.
+- 2026-10-14 09:15Z — **#5094 merged** (c54ec254, FULL). The ℝ⁴ pair walk reads an end lying on a domain side through r's certified face roots, narrowed by their own Krawczyk image.
+  - Its Interval-lane witness is red on main under the root-reading mutant.
+  - On main + #5059 + #5094: two_fits (all ε), far_seed, two_bilinear, branch_at and all_finds all pass.
+  - Filed: `a-pair-walk-end-at-a-domain-corner-refuses-undecided` (nurbs; conservative, not unsound) and `the-endpoint-census-cannot-see-reads-held-in-tuple-fields` (tint).
+  - **Step 3 with the two-split restriction (A) beats step 2:** shelling 126 vs 139 s, r1 64 vs 76 s. Rung counts and margins are identical; 0–0.37% of meets fall outside, against 69–88% for step 2's cut.
+  - **#5059** carries a compensated (double-word) midpoint, width ~16u² of the terms at a cancellation.
+  - Order: #5059 (main merge, then FULL) → step 3 (FULL).
