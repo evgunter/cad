@@ -120,11 +120,15 @@ fn unit_perp(a: Vec3<f64>) -> Vec3<f64> {
     a.cross(k).normalize()
 }
 
-fn door(circle: Circle, torus: Torus, band: Band) -> Result<CircleRoots<f64>, BooleanError> {
+fn door(
+    circle: Circle,
+    torus: Torus,
+    band: Band,
+) -> Result<Result<CircleRoots<f64>, Unsettled>, BooleanError> {
     circle_torus_roots(&circle.carrier(), 0.3, 2.1, &torus.surface(), band)
 }
 
-fn meridian_escalation(got: &Result<CircleRoots<f64>, BooleanError>) -> bool {
+fn meridian_escalation(got: &Result<Result<CircleRoots<f64>, Unsettled>, BooleanError>) -> bool {
     matches!(
         got,
         Err(BooleanError::Escalated { diag, .. })
@@ -215,10 +219,10 @@ fn posed(
 /// or 1e3, centred at the origin or 1e3 from it, tube ratio 0.05 to
 /// 0.99, under bands of 1e-9, 1e-6 and 1e-12:
 ///
-/// - an exact meridian at a random azimuth and phase reads `OnSurface`;
+/// - an exact meridian at a random azimuth and phase reads `On`;
 /// - a carrier faulted from it, one fault or all five at once, sized by
 ///   bisection to lie 1.02 to 1.5 bands off the torus by the oracle,
-///   never reads `OnSurface`.
+///   never reads `On`.
 ///
 /// The second half is what goes red on an unsound rung: a term short of
 /// a fault's point deviation serves such a carrier. Each carrier is
@@ -306,7 +310,7 @@ fn the_meridian_rung_at_any_pose_scale_and_band() {
                             let (torus, circle) = posed(local, exact, turn, at);
                             let got = door(circle, torus, band);
                             assert!(
-                                matches!(got, Ok(CircleRoots::OnSurface)),
+                                matches!(got, Ok(Ok(CircleRoots::On(_)))),
                                 "{label}: a meridian lies on the torus, read {got:?} — {}",
                                 fuzz::replay()
                             );
@@ -334,7 +338,7 @@ fn the_meridian_rung_at_any_pose_scale_and_band() {
                             let (torus, circle) = posed(local, carrier, turn, at);
                             let got = door(circle, torus, band);
                             assert!(
-                                !matches!(got, Ok(CircleRoots::OnSurface)),
+                                !matches!(got, Ok(Ok(CircleRoots::On(_)))),
                                 "{label}: {:.3} bands off the torus by the oracle, read on it — {}",
                                 dev / eps,
                                 fuzz::replay()
@@ -352,7 +356,7 @@ fn the_meridian_rung_at_any_pose_scale_and_band() {
 /// **A torus off D3's ring convention takes the ladder**: on a spindle
 /// torus (`r = 1.2R`, `1.5R`) the meridian bound does not hold
 /// (`R − r` is negative, and so is its `η`), so neither the meridian nor
-/// a tilted one reads `OnSurface` from the rung, and neither reaches the
+/// a tilted one reads `On` from the rung, and neither reaches the
 /// invariant a negative deviation raises. The tilted one is off the
 /// spindle torus by the oracle.
 #[test]
@@ -379,7 +383,7 @@ fn a_spindle_torus_takes_no_meridian_rung() {
             assert!(
                 !matches!(
                     got,
-                    Ok(CircleRoots::OnSurface) | Err(BooleanError::ClassificationInvariant { .. })
+                    Ok(Ok(CircleRoots::On(_))) | Err(BooleanError::ClassificationInvariant { .. })
                 ),
                 "r/R {ratio}, {label}: read {got:?}"
             );
@@ -435,7 +439,7 @@ fn near_meridian(torus: Torus, fault: Fault, deviation: f64) -> Circle {
 /// band it lies on the torus, at the band's edge it lies on it or
 /// escalates, in the band it escalates as the meridian rung, and past
 /// the band the rung passes it to the ladder. Whatever it reads, an
-/// `OnSurface` is never more than the band off by the oracle.
+/// `On` is never more than the band off by the oracle.
 #[test]
 fn a_near_meridian_reads_at_its_deviation() {
     let (torus, band) = (unit_torus(), fixed_band());
@@ -450,20 +454,20 @@ fn a_near_meridian_reads_at_its_deviation() {
                 "{label}: the fixture's deviation"
             );
             let got = door(circle, torus, band);
-            if matches!(got, Ok(CircleRoots::OnSurface)) {
+            if matches!(got, Ok(Ok(CircleRoots::On(_)))) {
                 assert!(
                     hi <= eps * (1.0 + 1e-6),
                     "{label}: on the torus, by the oracle"
                 );
             }
             let fine = if k < 1.0 {
-                matches!(got, Ok(CircleRoots::OnSurface))
+                matches!(got, Ok(Ok(CircleRoots::On(_))))
             } else if k == 1.0 {
-                matches!(got, Ok(CircleRoots::OnSurface)) || meridian_escalation(&got)
+                matches!(got, Ok(Ok(CircleRoots::On(_)))) || meridian_escalation(&got)
             } else if k < 10.0 {
                 meridian_escalation(&got)
             } else {
-                !matches!(got, Ok(CircleRoots::OnSurface)) && !meridian_escalation(&got)
+                !matches!(got, Ok(Ok(CircleRoots::On(_)))) && !meridian_escalation(&got)
             };
             assert!(fine, "{label}: read {got:?}");
         }
@@ -498,7 +502,7 @@ fn a_circle_clear_of_the_torus_stays_off() {
         );
         let got = door(circle, torus, band);
         assert!(
-            matches!(got, Ok(CircleRoots::Miss)),
+            matches!(got, Ok(Ok(CircleRoots::Miss))),
             "{label}: read {got:?}"
         );
     }

@@ -2066,8 +2066,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "span",
             escalated(CertCheck::ParamSpan, in_band),
-            "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
-             length is intended, tighten the tolerance below 5e-10 m",
+            "Recourse: move the geometry so this edge runs forward over a clear length, or, if \
+             this length is intended, tighten the tolerance below 5e-10 m",
         ),
         (
             "invalid",
