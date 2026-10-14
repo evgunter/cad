@@ -1467,10 +1467,10 @@ fn the_fallback_assembly_carries_the_kept_operands_certificates() {
 /// conventional vertex, and turned 40° along the circle from it, in
 /// both member orders: every union records the touch as the corner on
 /// the circle's interior, `(u, E)`, never `(u, v)`, and tier 3′ answers
-/// alike, its curved cross-solid reach the only finding. The census
-/// still sweeps the vertex's point: stripped of its record, the corner
-/// at the vertex is an unrecorded contact, so the record is what backs
-/// it.
+/// alike, its curved cross-solid reach the only finding. Stripped of
+/// its record, the corner is an unrecorded contact either way: at the
+/// vertex, against the vertex the sweeps still read; off it, on the
+/// circle's interior (census pass 2′). The record is what backs it.
 #[test]
 fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
     use geom_core::{Affine3, Point3, Vec3};
@@ -1598,11 +1598,12 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
                      {stripped:?}"
                 );
             } else {
-                // The gap, pinned: `work/fuse/a-corner-on-a-circles-interior-is-unseen-at-tier-three-prime`.
                 assert!(
-                    stripped.is_empty(),
-                    "{label}: off the vertex the touch is on a curved edge's interior, \
-                     outside the vertex sweeps: {stripped:?}"
+                    matches!(stripped.as_slice(), [e] if e.starts_with(
+                        "UnrecordedContact { contact: VertexOnEdge"
+                    )),
+                    "{label}: without its record the corner on the circle's interior is \
+                     undeclared: {stripped:?}"
                 );
             }
             seen.push((label, records, verdict.len()));

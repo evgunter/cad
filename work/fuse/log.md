@@ -872,7 +872,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - `the-localization-core-is-half-unified`, re-scoped to `containment::spiric_speed`, `offset_axial::param_speeds`, the test copies, the depth idioms, `feet`'s stop and the `16·slack` guard;
     - `near-concentric-arcs-…`, pinned with its analysis.
   - **Filed:** `issues/geom-brep-keeps-six-subdivision-walks-of-its-own`.
-- 2026-10-13 — The curve-meeting design fork (`two-curve-curve-meeting-finders`) is weighed by an Opus and a Fable designer and sent to Ev as `[ev]` PR 5027 (fork-log row 133).
+- 2026-10-13 — The curve-meeting design fork (`two-curve-curve-meeting-finders`) is weighed by an Opus and a Fable designer and sent to Ev as `[ev]` PR 5027 (fork-log row 134).
   - **Converged after three rounds:** one reader with one point-on-span reading; a total kind-pair table; closed forms in one conic's angle; the walk used as an oracle; no runtime fallback.
   - **Ev's fork:** the home, `geom-brep` or `geom`.
   - **Measured on the way:** two silent `carrier_cross` defects, filed on cleave as P1 (#5024, #5026).
@@ -882,3 +882,27 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Closed:** `the-localization-core-is-half-unified` and offset's `param-speeds-is-a-second-per-kind-speed-list`.
   - **Review:** Fable found it mergeable and confirmed it bit-identical analytically. A fix round followed.
   - **Merged over three main reds** that reproduce on pure main and are not this PR's: they were hidden from main's per-PR CI by the change filter. Filed P0 on nurbs (lily tessellation and saddle-wall fit, suspect 4984) and on flux (mass-props thread golden, suspect 4938) (#5045).
+- 2026-10-14: PR 5049 (one lineage list) merges at 0105b45a.
+  - **What it does:**
+    - `Minted<K>` over a `LineageRows` tag, so the tag lives on the list;
+    - the split's edge rows are checked at append;
+    - the pncad-py tag for `SplitLineage` changes to `split_lineage_cycle`.
+  - **Review:** Fable found a parallel `tag::*` vocabulary, which was folded into `LineageRows`.
+  - **Broke main:** a hand-written `Default` was missing PR 5039's `chart_cuts`. The text merged cleanly but did not build. The lane caught it within minutes and fixed it in PR 5060 (7a35f3b6). I checked the fix with `cargo check -p topo` against current main, then merged it ahead of its CI.
+  - **Rule from now on:** before merging, the PR's last green CI must be on a head that already includes current main. Otherwise, compile the PR merged with main first.
+- 2026-10-14: Ev ruled on PR 5027, which merges at 48a78aeb.
+  - **Ruling:** the curve-pair reader lives in `geom-brep`, and C5 governs curve pairs.
+  - **Follow-up:** Ev asked whether the principle generalizes. Filed `the-curve-pair-reader` (P1, dispatched to a new lane) and `every-pair-question-has-one-total-table` (P2) in #5063.
+  - **Fork-log:** the row became 134, because 133 had been taken.
+- 2026-10-14: PR 5051 (census pass 2′: a vertex on a curved edge's interior, unrecorded) merges at 98fe5e2e.
+  - **Review:** Opus and Fable both found it mergeable.
+  - **Fixes in the round:**
+    - one walk, `near_pieces`, shared with `feet`;
+    - a row for the skip;
+    - spline control-hull boxes;
+    - `ve_face_backed` shared;
+    - `at_end` now decides explicitly;
+    - pass 2′ traced.
+  - **CI:** red only on #5045's remaining lily row. Main fixed the other two.
+  - **Before merge:** compiled merged with main.
+  - **Filed:** `an-unrecorded-curved-edge-meeting-is-unseen-at-tier-three-prime` (waits on the reader).
