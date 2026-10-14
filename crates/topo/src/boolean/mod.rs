@@ -108,6 +108,8 @@ pub(crate) use ops::{ChartCache, section_report};
 pub(crate) use ops::{boundary_edges, describe_edges};
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{no_crossings_certificates, no_crossings_section_report};
+#[cfg(test)]
+mod node_probe_rows;
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
