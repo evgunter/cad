@@ -263,8 +263,8 @@ pub struct SplitReduction<T: Real> {
     /// the operand ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
     /// Each piece a crossing split minted, `(new edge, divided-from
-    /// edge)` in mint order.
-    pub edge_pieces: Vec<(EdgeKey, EdgeKey)>,
+    /// edge)` in mint order, checked as each was minted.
+    pub edge_pieces: crate::lineage::SplitEdgeDivisions,
 }
 
 /// **A knife edge the split would mint and cannot declare.** The plane
@@ -522,6 +522,11 @@ pub enum SplitReduceError {
     /// An underlying Euler operation refused (`split_edge` includes the
     /// certified-interiority refusals and escalations).
     Euler(EulerOpError),
+    /// The crossing insertion's edge division list refused a row where
+    /// a split added it ([`crate::lineage::SplitEdgeDivisions`]): a
+    /// kernel defect, since each split records the piece it just
+    /// minted.
+    LineageRow(crate::lineage::RowRefusal),
 }
 
 /// **How the reading a [`SplitReduceError::SliverSector`] refuses
@@ -778,6 +783,12 @@ impl core::fmt::Display for SplitReduceError {
                  refused: {source}"
             ),
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::LineageRow(refusal) => write!(
+                f,
+                "{}. {}",
+                refusal.refused_by("split"),
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
         }
     }
 }
