@@ -1438,7 +1438,11 @@ pub(super) fn wall_outline<T: Decide>(
         for _ in 0..body.half_edges.len() {
             let half = body.get_half_edge(next).ok_or_else(corrupt)?;
             let edge = body.get_edge(half.edge).ok_or_else(corrupt)?;
-            if body.edge_curve_linked(half.edge, edge).certified().is_some() {
+            if body
+                .edge_curve_linked(half.edge, edge)
+                .certified()
+                .is_some()
+            {
                 break;
             }
             next = half.next;

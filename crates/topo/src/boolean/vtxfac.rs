@@ -1707,10 +1707,8 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 // Off the carrier, the face holds nothing: decided first,
                 // as the plane arm decides its plane first. A spline face
                 // has no residual, and its trim is asked.
-                let surface = piercing_body.face_surface_linked(
-                    face,
-                    proven(&piercing_body.faces, face, EntityId::Face),
-                );
+                let surface = piercing_body
+                    .face_surface_linked(face, proven(&piercing_body.faces, face, EntityId::Face));
                 let side = (!matches!(
                     surface.kind(),
                     geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
@@ -1756,14 +1754,18 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 let Some(side) = side else {
                     return Err(unbuilt(face, kind, true));
                 };
-                let normal =
-                    match crate::face_normal::face_outward_normal_at(piercing_body, face, p, band) {
-                        Ok(Some(n)) => n.vec(),
-                        Ok(None) => return Err(unbuilt(face, kind, true)),
-                        Err(refusal) => {
-                            return Err(BooleanError::of_pierced_normal(refusal, piercing, face));
-                        }
-                    };
+                let normal = match crate::face_normal::face_outward_normal_at(
+                    piercing_body,
+                    face,
+                    p,
+                    band,
+                ) {
+                    Ok(Some(n)) => n.vec(),
+                    Ok(None) => return Err(unbuilt(face, kind, true)),
+                    Err(refusal) => {
+                        return Err(BooleanError::of_pierced_normal(refusal, piercing, face));
+                    }
+                };
                 (normal, Some(held_lever), side)
             }
             Some(plane) => {
