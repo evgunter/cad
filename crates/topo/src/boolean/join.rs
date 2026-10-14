@@ -1073,7 +1073,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    place_nodes_of_germs(red, (a_pristine, b_pristine), band)?;
+    crossing_germs_have_their_reading(red, (a_pristine, b_pristine), band)?;
     let segments = join_segments(red, band)?;
     let pairs = segments
         .iter()
@@ -1676,27 +1676,27 @@ fn bisector_planes<T: Decide>(
     Ok(planes)
 }
 
-/// **Where the nodes of every germ's cylinder pair lie**, read before
-/// any matching: each germ inside a face of each operand on a cylinder
-/// pair whose section is the two bisector-plane ellipses (its branch is
-/// one of them) has its face pair's nodes placed ([`place_nodes`]),
-/// once per face pair. A node outside either face leaves the pair's
-/// section two disjoint arcs there, which the bisector lane joins. A
-/// node in both faces is a crossing of the section inside the pair:
-/// along an arc through it each wall's sector changes side of the other
-/// solid, so no two germs bound it, and the node itself is not built.
-fn place_nodes_of_germs<T: Decide>(
+/// **Every germ that rides an ellipse of an equal cylinder pair finds
+/// the pair read so on the operands**: the reading its coincidence rows
+/// are recorded from (`glue::frame_rows`) and its nodes are minted from
+/// (`node::mint_nodes`), [`crossing_cylinder_reading`] on the unmutated
+/// operands' faces. The germ's branch was decided where the germ was
+/// minted, on the working bodies; a pair that reading finds crossing
+/// and this one does not would build without its rows or its nodes.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] for such a pair; the reading's own
+/// refusals.
+fn crossing_germs_have_their_reading<T: Decide>(
     red: &BooleanReduction<T>,
     pristine: (&Body<T>, &Body<T>),
     band: Band,
 ) -> Result<(), BooleanError> {
     let wall = |body: &Body<T>, f: FaceKey| {
-        matches!(
-            face_surface(body, f).map(|(_, s)| s),
-            Ok(geom::Surface::Cylinder { .. })
-        )
+        face_surface(body, f).is_ok_and(|(_, s)| super::node::is_wall(s))
     };
-    let mut placed = std::collections::BTreeSet::new();
+    let mut read = std::collections::BTreeSet::new();
     for germ in red.null_edges_of(Operand::A).flat_map(|r| r.germs) {
         let (super::Locus::InFace(fa), super::Locus::InFace(fb)) = (germ.a_locus, germ.b_locus)
         else {
@@ -1705,65 +1705,14 @@ fn place_nodes_of_germs<T: Decide>(
         if germ.branch == super::Branch::Only
             || !wall(&red.a, fa)
             || !wall(&red.b, fb)
-            || !placed.insert((fa, fb))
+            || !read.insert((fa, fb))
         {
             continue;
         }
-        place_nodes(pristine, (fa, fb), band)?;
-    }
-    Ok(())
-}
-
-/// **Where an equal cylinder pair's nodes lie in its two faces**: the
-/// section table's nodes `p ± r·n̂`, `p` the axes' meeting point read
-/// between the axes' feet across the pair's reach and `n̂ = unit(â₁ ×
-/// â₂)`, where the two bisector-plane ellipses cross
-/// ([`crossing_cylinder_section`]), placed in A's face `fa` and B's face
-/// `fb` of the unmutated operands by the containment door
-/// ([`super::contain::curved_face_placement`]), margined there. A node
-/// definitely outside either face is no point of the pair's section.
-///
-/// # Errors
-///
-/// [`BooleanError::GermFrameCylinderPinch`] where a node is not
-/// definitely outside one of the faces: inside both, on an edge of
-/// either, or where the door has no verdict. The door's own refusals
-/// as [`BooleanError::Containment`]; a node read off a carrier it lies
-/// on by construction, or a pair whose own reading (the one its
-/// coincidence rows are recorded from) is no crossing pair, as a
-/// desync.
-fn place_nodes<T: Decide>(
-    (a, b): (&Body<T>, &Body<T>),
-    (fa, fb): (FaceKey, FaceKey),
-    band: Band,
-) -> Result<(), BooleanError> {
-    use super::contain::{CurvedPlacement, curved_face_placement};
-    let desync = |what| BooleanError::JoinDesync { what };
-    // The same reading the pair's coincidence rows are recorded from
-    // (`glue::frame_rows`): a germ that decided the pair crossing where
-    // that reading does not would leave the build without its rows.
-    let section = crossing_cylinder_section((a, fa), (b, fb), band).ok_or(desync(
-        "a germ rides an equal cylinder pair's ellipse where the pair's own reading finds none",
-    ))?;
-    for node in section.nodes {
-        let mut outside = false;
-        for (operand, body, face) in [(Operand::A, a, fa), (Operand::B, b, fb)] {
-            match curved_face_placement(body, face, node, band)
-                .map_err(|e| super::reduce::esc(e, operand, face))?
-            {
-                CurvedPlacement::Trim(Some(super::FaceContainment::Out)) => outside = true,
-                CurvedPlacement::Trim(_) => {}
-                CurvedPlacement::OffCarrier => {
-                    return Err(desync(
-                        "a node of an equal cylinder pair reads off a wall it lies on",
-                    ));
-                }
-            }
-        }
-        if !outside {
-            return Err(BooleanError::GermFrameCylinderPinch {
-                a_face: fa,
-                b_face: fb,
+        if crossing_cylinder_reading((pristine.0, fa), (pristine.1, fb), band)?.is_none() {
+            return Err(BooleanError::JoinDesync {
+                what: "a germ rides an equal cylinder pair's ellipse where the pair's own \
+                       reading finds none",
             });
         }
     }
@@ -3156,9 +3105,9 @@ impl<T: Decide> SectionLoops<T> {
 /// # Errors
 ///
 /// The section's own refusals ([`frame_refusal`]), the split's
-/// escalation and desync, and [`BooleanError::GermFrameCylinderPinch`]
-/// for a germ on a node of the cylinder pair's section, where the two
-/// ellipses cross.
+/// escalation and desync, and [`BooleanError::NodeUnbuilt`] for a germ
+/// on a node of the cylinder pair's section, where the two ellipses
+/// cross: an operand's edge through the node.
 pub(super) fn germ_branch<T: Decide>(
     (body_a, face_a): (&Body<T>, FaceKey),
     (body_b, face_b): (&Body<T>, FaceKey),
@@ -3184,9 +3133,10 @@ pub(super) fn germ_branch<T: Decide>(
     };
     loops
         .branch_at(site, band)?
-        .ok_or(BooleanError::GermFrameCylinderPinch {
+        .ok_or(BooleanError::NodeUnbuilt {
             a_face: face_a,
             b_face: face_b,
+            why: super::NodeWhy::GermOnNode,
         })
 }
 
@@ -3728,28 +3678,35 @@ fn pt_germ_frame<T: Decide>(
 const PT_TOUCHING_UNDER_A_GERM: &str = "bool_join_torus_section_touching_under_a_germ";
 
 /// **An equal cylinder pair with meeting axes, as its section table
-/// classifies it**: the two Zero margins it is decided from and the
-/// nodes where its two ellipses cross
-/// ([`geom_brep::EqualCylinderSection::TwoEllipses`]).
+/// classifies it**: the two Zero margins its two bisector-plane
+/// ellipses are decided from and the nodes where they cross
+/// ([`geom_brep::EqualCylinderSection::TwoEllipses`]), with the two
+/// walls' axes, A's first.
 pub(super) struct CrossingSection<T: geom_core::Real> {
     pub(super) margins: [geom_core::MarginDiag; 2],
     pub(super) nodes: [Point3<T>; 2],
+    pub(super) axes: [Vec3<T>; 2],
 }
 
 /// **The face pair `(face_a, face_b)` as an equal cylinder pair with
 /// meeting axes** ([`CrossingSection`]), read as the join reads it
-/// ([`frame_lever`], [`cylinder_pair_axes`]). `None` for any other pair
-/// or pose, and where a reading refuses: the join raises those refusals
-/// itself, at the germ that reads the pair.
-pub(super) fn crossing_cylinder_section<T: Decide>(
+/// ([`frame_lever`], [`cylinder_pair_axes`]). `Ok(None)` for any other
+/// pair or pose: other kinds, parallel axes, unequal radii or skew axes,
+/// each decided.
+///
+/// # Errors
+///
+/// A reading the pair cannot decide: the parallelism, coplanarity or
+/// radius margin in band ([`frame_refusal`]), or the reading's desync.
+pub(super) fn crossing_cylinder_reading<T: Decide>(
     (body_a, face_a): (&Body<T>, FaceKey),
     (body_b, face_b): (&Body<T>, FaceKey),
     band: Band,
-) -> Option<CrossingSection<T>> {
-    fn surf<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Option<&geom::Surface<T>> {
-        face_surface(body, f).ok().map(|(_, s)| s)
-    }
-    let (sa, sb) = (surf(body_a, face_a)?, surf(body_b, face_b)?);
+) -> Result<Option<CrossingSection<T>>, BooleanError> {
+    let (Ok((_, sa)), Ok((_, sb))) = (face_surface(body_a, face_a), face_surface(body_b, face_b))
+    else {
+        return Ok(None);
+    };
     let (
         &geom::Surface::Cylinder {
             origin: o1,
@@ -3765,20 +3722,75 @@ pub(super) fn crossing_cylinder_section<T: Decide>(
         },
     ) = (sa, sb)
     else {
-        return None;
+        return Ok(None);
     };
-    let (at, extent) = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band).ok()?;
-    let CylinderAxes::Apart(reach) =
-        cylinder_pair_axes((o1, a1), (o2, a2), (r1, r2), at, extent, band).ok()?
-    else {
-        return None;
+    let refused = |e| frame_refusal(e, (face_a, sa), (face_b, sb));
+    let (at, extent) = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
+    let reach = match cylinder_pair_axes((o1, a1), (o2, a2), (r1, r2), at, extent, band) {
+        Ok(CylinderAxes::Apart(reach)) => reach,
+        Ok(CylinderAxes::Parallel) => return Ok(None),
+        Err(e) => return Err(refused(e)),
     };
     match geom_brep::cylinder_cylinder_section(sa, sb, &reach, band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { margins, nodes, .. }) => {
-            Some(CrossingSection { margins, nodes })
+            Ok(Some(CrossingSection {
+                margins,
+                nodes,
+                axes: [a1, a2],
+            }))
         }
-        _ => None,
+        Err(
+            e @ (geom_brep::SectionError::Escalated(_)
+            | geom_brep::SectionError::Carrier(
+                geom::EllipseInvalid::Escalated(_) | geom::EllipseInvalid::CircularAxes(_),
+            )),
+        ) => Err(refused(section_refusal(e))),
+        Err(geom_brep::SectionError::RadiusEscalated { radius, diag }) => {
+            Err(refused(FrameError::Escalated {
+                decision: BooleanDecision::Radius(radius),
+                diag,
+            }))
+        }
+        // Decided: not the crossing family. The parallel-axes loci (the
+        // table's own parallelism reading the other way on this margin),
+        // unequal radii, skew axes, and a radius or minor semi-axis
+        // decided not positive.
+        Ok(
+            geom_brep::EqualCylinderSection::ParallelLines { .. }
+            | geom_brep::EqualCylinderSection::TangentLine(_)
+            | geom_brep::EqualCylinderSection::Empty,
+        )
+        | Err(
+            geom_brep::SectionError::UnequalRadii
+            | geom_brep::SectionError::RoutesToGeneralRung { .. }
+            | geom_brep::SectionError::DegenerateOperand { .. }
+            | geom_brep::SectionError::Carrier(geom::EllipseInvalid::MinorNotPositive),
+        ) => Ok(None),
+        // Refusals two cylinders read apart cannot raise: the kinds
+        // were matched above, the coaxial pose answered parallel, no
+        // torus question is asked, and no extent is handed to this pair.
+        Err(
+            geom_brep::SectionError::WrongLane { .. }
+            | geom_brep::SectionError::BeyondOperandExtent { .. }
+            | geom_brep::SectionError::CoincidentSurfaces
+            | geom_brep::SectionError::DegenerateTorus
+            | geom_brep::SectionError::Spiric(_),
+        ) => Err(BooleanError::JoinDesync {
+            what: "two cylinder walls read apart refused as no cylinder pair can",
+        }),
     }
+}
+
+/// [`crossing_cylinder_reading`], a refused reading taken as no crossing
+/// pair: for the coincidence rows (`glue::frame_rows`), which record no
+/// row where a reading refuses, a later decision refusing where the
+/// faces meet (the node's mint, [`crossing_germs_have_their_reading`]).
+pub(super) fn crossing_cylinder_section<T: Decide>(
+    a: (&Body<T>, FaceKey),
+    b: (&Body<T>, FaceKey),
+    band: Band,
+) -> Option<CrossingSection<T>> {
+    crossing_cylinder_reading(a, b, band).ok().flatten()
 }
 
 /// **The two coincidences an equal cylinder pair with meeting axes is
@@ -6094,7 +6106,7 @@ mod frame_dispatch_tests {
             // node: the walls touch at one azimuth, so neither the
             // coaxial frame nor the transverse one exists. `NoArm` is
             // the routing, not a frontier: the general rung marches
-            // this pair. The pinch
+            // this pair. The nodes
             // variant stays unreachable — pinned exactly.
             (cylinder(Vec3::new(0.0, 0.0, 1.0)), node_sphere(), false),
             (node_sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
@@ -6115,7 +6127,7 @@ mod frame_dispatch_tests {
                 assert!(
                     matches!(got, Err(FrameError::NoArm)),
                     "a non-cylinder pair with no arm must refuse with NoArm exactly — \
-                     the pinch variant is not reachable for these kinds"
+                     the nodes variant is not reachable for these kinds"
                 );
             }
         }
@@ -6274,7 +6286,7 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// **The pinch is a property of the whole intersecting
+    /// **The nodes are a property of the whole intersecting
     /// equal-radius family, not of the perpendicular pose.** The two
     /// bisector planes' common line runs through the axes' meeting
     /// point along `â₁ × â₂` and is perpendicular to both axes, so it
@@ -6285,9 +6297,9 @@ mod frame_dispatch_tests {
     /// therefore lie on BOTH section ellipses, at every angle between
     /// the axes. This row reads them straight out of the section
     /// table, which is where the claim in
-    /// [`BooleanError::GermFrameCylinderPinch`]'s doc is checkable.
+    /// the section table's `nodes` doc is checkable.
     #[test]
-    fn the_equal_radius_section_always_crosses_at_two_pinch_points() {
+    fn the_equal_radius_section_always_crosses_at_two_nodes() {
         use geom_brep::{EqualCylinderSection, cylinder_cylinder_section};
         let p = Point3::new(0.3, -0.2, 0.7);
         let a1 = Vec3::new(0.0, 0.0, 1.0);
@@ -6344,7 +6356,7 @@ mod frame_dispatch_tests {
                     let d = (e.eval(t) - pinch).norm();
                     assert!(
                         d < 1e-12,
-                        "{deg}°, {name}, sign {sign}: the pinch point is {d} off the ellipse"
+                        "{deg}°, {name}, sign {sign}: the node is {d} off the ellipse"
                     );
                 }
             }
@@ -6546,7 +6558,7 @@ mod frame_dispatch_tests {
     /// frame this dispatch returns or about either circle's OWN centre.
     /// That invariance is what makes a single frame correct here and is
     /// exactly what a crossing cylinder pair lacks — its two ellipses
-    /// have two different axes, which is why the pinch door exists
+    /// have two different axes, which is why the nodes variant exists
     /// there and nothing like it is needed here.
     #[test]
     fn one_frame_serves_both_coaxial_cylinder_sphere_circles() {
