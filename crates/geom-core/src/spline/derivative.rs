@@ -1534,6 +1534,34 @@ mod tests {
         }
     }
 
+    /// **The halving's scale is the exact power-of-two door.** A line
+    /// whose outputs land between the smallest normal and the interval
+    /// backend's 2Prod floor (`2^-960`) halves EXACTLY through
+    /// [`Real::scale_pow2`] — each output the sum times `2⁻ʳ`, unpadded
+    /// — where a general product against the point `2⁻ʳ` would pad every
+    /// one a step outward. So a scale that went back to the general
+    /// product reds here; nothing else does, since above the floor the
+    /// two agree to the bit.
+    #[test]
+    fn the_halving_scales_through_the_exact_door() {
+        let tiny = f64::MIN_POSITIVE * 1024.0;
+        let row: Vec<super::Vector<Interval, 1>> = [3.0, 5.0, 7.0]
+            .iter()
+            .map(|&c| super::Vector([Interval::from_f64(c * tiny)]))
+            .collect();
+        let g = super::Grid::new(1, row).expect("a curve row");
+        let (lo, hi) = g.halved(true).expect("halves");
+        // The lower half's Bernstein row of [3, 5, 7]·tiny is
+        // [3, 4, 5]·tiny, the upper's [5, 6, 7]·tiny: sums scaled by
+        // 1, 1/2 and 1/4, every one exact.
+        for (half, want) in [(&lo, [3.0, 4.0, 5.0]), (&hi, [5.0, 6.0, 7.0])] {
+            for (got, w) in half.c.iter().zip(want) {
+                let x = got.0[0];
+                assert_eq!((x.lo(), x.hi()), (w * tiny, w * tiny), "{w}·tiny");
+            }
+        }
+    }
+
     /// **A cell is halved into the pieces its schedule asks for at any
     /// degree.** A degree-5 cell's second order sits at degree 15, past
     /// the exact-weight tables' reach at 16 pieces (degree 12), where it
