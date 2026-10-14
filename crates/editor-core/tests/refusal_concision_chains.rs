@@ -1759,6 +1759,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             ("ApexUnlifted", J::ApexUnlifted { face }),
+            ("PoleEdgesCoincide", J::PoleEdgesCoincide { face }),
             (
                 "SectionInvariant",
                 J::SectionInvariant {
@@ -5217,8 +5218,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             finding(
                 CheckId::Separation,
                 E::SeparationUnavailable {
-                    kind: source.kind(),
-                    reason: source.to_string(),
+                    refusal: source.into(),
                 },
             ),
         ));

@@ -108,8 +108,8 @@ fn n3r2_dispatcher_is_its_two_arms() {
     let e: Curve3<f64> = Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
-        major: 2.0,
-        minor: 0.5,
+        semi_u: 2.0,
+        semi_v: 0.5,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     assert_eq!(

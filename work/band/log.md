@@ -1032,6 +1032,22 @@ fillet corners still do not tessellate (`NotIsoRectangle`, the P0 tess
 item, which now carries them as a witness); box corners move only by
 signed zeros at axis poses and by ulps elsewhere.
 
+## 2026-10-14 — the cap sliver reads reach and floors over its rim pieces alone (PR 5110)
+
+`CapSliver::of` no longer takes the end curve's own terms into `reach`
+or the floors: over the compact sliver the distance and each floor's
+linear function reach their extremes on its boundary, and inside an arc
+of the strictly convex end curve an extreme would need the outward
+normal to point the way the function grows, where the sliver runs on
+past it; so the rim pieces hold every extreme (proof at the site). The
+review re-derived it and ran the whole sweep suite instrumented (10,383
+sliver constructions; the dropped terms never beat the rims by more
+than 6.5e-14, foot-tie rounding). One row pins the arc extremes the cap
+meter reads (the far and along-high arms). Cost M, full review
+APPROVE-WITH-FIXES (a stale doc). Filed
+`a-cap-slivers-rim-arcs-whole-circle-arms-have-no-cap-row`: the rim
+arcs' whole-circle arms, now the only source of those extremes, have no
+cap row.
 ## 2026-10-14 — sheet_clip clips a cylinder or plane at any pose (PR 5052)
 
 `sheet_clip` admitted a cylinder by its stored origin's offset and an

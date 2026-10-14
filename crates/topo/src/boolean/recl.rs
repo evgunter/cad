@@ -12,8 +12,13 @@
 //!   keyed by their noncoplanar bound vs the reference sector, Table II
 //!   plus Table III) and **edge-edge coincidence** (the derived
 //!   membership rule subsuming the angular sort and the Table I tie
-//!   rules — see `resolve_edge_edge`), applied pair by pair where one
-//!   solid holds several coincident edges on the ray (a contact line).
+//!   rules — see [`resolve_edge_edge`]). Where one solid holds several
+//!   mentions on the ray (a contact line), each solid's material about
+//!   the line is wedges ([`Wedge`]): a real edge's between its flanking
+//!   faces, and a face's that holds the line, a half-turn, where a
+//!   subdivision bisector parts it on the ray or where the solid holds
+//!   nothing else there. Each wedge of one solid meets each of the
+//!   other's by the edge-edge rule.
 //!
 //! Germ attribution: a crossing along an on-edge is recorded on the
 //! flanking sector the one fold rule
@@ -625,13 +630,15 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   Table III.
 /// - bisector-only ⇒ a **subdivision artifact graze**: the wide sector
 ///   is genuinely crossed iff its two halves' outer keys transition.
-/// - several real edges of one solid ⇒ a **contact line** that solid
-///   holds: each of its edges against each of the other solid's by the
-///   edge-edge rule. Two crossings on the ray refuse typed
-///   ([`BooleanError::CrossingsAlongAContactLine`]). A contact line lying
-///   in a face of the other solid, and one whose ray holds a bisector,
-///   are arms not yet built, which refuse `ClassificationInvariant`
-///   until they are.
+/// - several mentions of one solid ⇒ a **contact line** that solid
+///   holds: each solid's material about the line is wedges, each of one
+///   solid's against each of the other's by the edge-edge rule
+///   ([`resolve_edge_edge`]). A real edge bounds a wedge between its
+///   flanking faces; a face that holds the line bounds a half-turn,
+///   where a bisector parts it on the ray, or, for a solid with no
+///   mention on the ray, where the other's mentions were read On
+///   against it. Two crossings on the ray refuse typed
+///   ([`BooleanError::CrossingsAlongAContactLine`]).
 ///
 /// A group is every mention the first one reads on its ray; three or
 /// more must read so pairwise too, or the event refuses.
@@ -748,71 +755,89 @@ pub(super) fn recl_edges<T: Decide>(
         }
         let a_ms: Vec<Mention<T>> = group.iter().filter(|m| m.a_side).copied().collect();
         let b_ms: Vec<Mention<T>> = group.iter().filter(|m| !m.a_side).copied().collect();
-        // One real edge of each solid on the ray: the edge-edge rule.
         // The common edge's half-edge at this vertex: the start bound
         // of the start holder is the next sector's own chord.
         let bound = |secs: &[BoolSector<T>], f_s: usize| secs[(f_s + 1) % secs.len()].he;
-        let mut edge_edge = |am: Mention<T>, bm: Mention<T>| {
-            let germ = match resolve_edge_edge(
-                a_sectors,
-                b_sectors,
-                a_body,
-                b_body,
-                op,
-                declared,
-                band,
-                am.start_holder,
-                bm.start_holder,
-            )? {
-                EdgeEdge::Germ(germ) => Some(germ),
+        // One wedge of each solid by the edge-edge rule: its germ, an
+        // edge in `reversed` folded to its other flanker; or, between two
+        // edges whose flanking faces the op keeps, a touch.
+        //
+        // A touch is read pair by pair, blind to the solid's other wedges
+        // round the line, because the touch's other end may be a lone
+        // pair that holds no more (`touch_rows` takes it only where both
+        // ends read it). Where another wedge swallows an edge, the op
+        // drops that edge and mints no chord along it, so the result's
+        // carry drops the touch with it (`ops::Descendants`).
+        let mut meet = |aw: Wedge, bw: Wedge, fallback| {
+            let read = resolve_edge_edge(
+                a_sectors, b_sectors, a_body, b_body, op, declared, band, aw, bw, fallback,
+            )?;
+            let edge =
+                |secs: &[BoolSector<T>], w: Wedge| w.edge.then(|| bound(secs, w.flankers[0]));
+            let (ha, hb) = (edge(a_sectors, aw), edge(b_sectors, bw));
+            Ok::<_, BooleanError>(match read {
+                EdgeEdge::Germ(mut germ) => {
+                    if ha.is_some_and(|h| reversed.a.contains(&h)) {
+                        (germ.a, germ.sa) = reflank(germ.a, germ.sa, n_a);
+                    }
+                    if hb.is_some_and(|h| reversed.b.contains(&h)) {
+                        (germ.b, germ.sb) = reflank(germ.b, germ.sb, n_b);
+                    }
+                    Some(germ)
+                }
                 EdgeEdge::Touch => {
-                    touches.push([
-                        bound(a_sectors, am.start_holder),
-                        bound(b_sectors, bm.start_holder),
-                    ]);
+                    if let (Some(ha), Some(hb)) = (ha, hb) {
+                        touches.push([ha, hb]);
+                    }
                     None
                 }
                 EdgeEdge::Dropped => None,
-            };
-            germ.map(|mut germ| {
-                if reversed.a.contains(&bound(a_sectors, am.start_holder)) {
-                    (germ.a, germ.sa) = reflank(germ.a, germ.sa, n_a);
-                }
-                if reversed.b.contains(&bound(b_sectors, bm.start_holder)) {
-                    (germ.b, germ.sb) = reflank(germ.b, germ.sb, n_b);
-                }
-                EdgeGerm::Folded(germ).place(records, first_read, &marked)
             })
-            .transpose()
         };
 
         let germ: Option<usize> = if a_ms.len() > 1 || b_ms.len() > 1 {
-            // A solid's coincident edges on the ray each bound a wedge
-            // of its material, the wedges apart, so a wedge the other
-            // solid's crosses is crossed whatever else lies round the
-            // line.
-            // Unreached by any row: a contact line lying in a face of the
-            // other solid meets its bisector, the arm below.
-            if a_ms.is_empty() || b_ms.is_empty() {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "a solid's coincident edges on one ray lie in a face of the other \
-                           (unbuilt)",
-                });
-            }
-            if group.iter().any(|m| !m.real) {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "a contact line's ray holds a subdivision bisector (unbuilt)",
-                });
-            }
+            // Each solid's material about the line is wedges lying apart,
+            // so a wedge the other solid's crosses is crossed whatever
+            // else lies round the line. A solid with no mention on the ray
+            // holds it inside a face: the sector each of the other's
+            // mentions was read On against.
+            let wedges = |ms: &[Mention<T>], other: &[Mention<T>], a_side: bool| {
+                let secs = if a_side { a_sectors } else { b_sectors };
+                if !ms.is_empty() {
+                    return Ok(ms
+                        .iter()
+                        .map(|m| Wedge::at_bound(secs, m.start_holder))
+                        .collect());
+                }
+                let mut faces: Vec<Wedge> = Vec::new();
+                for m in other {
+                    let n = if m.a_side { n_a } else { n_b };
+                    let idx = find_ref_sector(first_read, m.a_side, m.start_holder, n).ok_or(
+                        BooleanError::ClassificationInvariant {
+                            what: "a contact line in a face without a reference sector",
+                        },
+                    )?;
+                    let w = Wedge::in_sector(idx);
+                    if !faces.iter().any(|f| f.flankers == w.flankers) {
+                        faces.push(w);
+                    }
+                }
+                Ok::<_, BooleanError>(faces)
+            };
+            let a_ws = wedges(&a_ms, &b_ms, true)?;
+            let b_ws = wedges(&b_ms, &a_ms, false)?;
+            // Two wedges neither of which is an edge's meet along the
+            // ray's edge, or the ray itself where it holds none.
+            let line = group.iter().find(|m| m.real).unwrap_or(&group[0]).dir;
             let mut germs = Vec::new();
-            for &am in &a_ms {
-                for &bm in &b_ms {
-                    germs.extend(edge_edge(am, bm)?);
+            for &aw in &a_ws {
+                for &bw in &b_ws {
+                    germs.extend(meet(aw, bw, Some(line))?);
                 }
             }
             match germs[..] {
                 [] => None,
-                [g] => Some(g),
+                [g] => Some(EdgeGerm::Folded(g).place(records, first_read, &marked)?),
                 _ => {
                     let vertex = |body: &Body<T>, secs: &[BoolSector<T>]| {
                         proven(&body.half_edges, secs[0].he, EntityId::HalfEdge).start
@@ -825,7 +850,13 @@ pub(super) fn recl_edges<T: Decide>(
             }
         } else {
             match (a_ms.first().copied(), b_ms.first().copied()) {
-                (Some(am), Some(bm)) if am.real && bm.real => edge_edge(am, bm)?,
+                (Some(am), Some(bm)) if am.real && bm.real => meet(
+                    Wedge::at_bound(a_sectors, am.start_holder),
+                    Wedge::at_bound(b_sectors, bm.start_holder),
+                    None,
+                )?
+                .map(|germ| EdgeGerm::Folded(germ).place(records, first_read, &marked))
+                .transpose()?,
                 (Some(am), bm) if am.real => resolve_edge_sector(
                     records,
                     first_read,
@@ -1133,6 +1164,64 @@ impl Half {
     }
 }
 
+/// **A wedge of one solid's material about a common line**
+/// ([`resolve_edge_edge`]): its two flankers `[before, after]`, the first's
+/// end bound and the second's start bound its flanks.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Wedge {
+    /// The flankers.
+    flankers: [usize; 2],
+    /// Whether `before`'s start bound, on the line, is a real edge.
+    edge: bool,
+}
+
+impl Wedge {
+    /// The wedge a bound on the line bounds, `start_holder` the sector
+    /// it starts: a real edge's, between the sectors either side of it;
+    /// a subdivision bisector's, the half-turn of the face it parts (a
+    /// bisector bounds no face, so its two sectors are one of the face's).
+    pub(super) fn at_bound<T: geom_core::Real>(
+        secs: &[BoolSector<T>],
+        start_holder: usize,
+    ) -> Self {
+        Self {
+            flankers: [start_holder, (start_holder + 1) % secs.len()],
+            edge: secs[start_holder].start_edge(),
+        }
+    }
+
+    /// The half-turn of the face whose sector `idx` the line runs
+    /// inside, flanked by that sector's own two bounds.
+    const fn in_sector(idx: usize) -> Self {
+        Self {
+            flankers: [idx, idx],
+            edge: false,
+        }
+    }
+}
+
+/// **The common line two wedges meet along**: an edge's start bound, A's
+/// where both are edges — `sector_shape`'s unit direction of a chord its
+/// arm rung decided long, so the axis as it stands — else `fallback`.
+/// Two wedges neither of which is an edge's, with no fallback, have no
+/// line to meet along: no caller passes them.
+fn common_line<T: geom_core::Real>(
+    a_sectors: &[BoolSector<T>],
+    b_sectors: &[BoolSector<T>],
+    aw: Wedge,
+    bw: Wedge,
+    fallback: Option<Vec3<T>>,
+) -> Result<Vec3<T>, BooleanError> {
+    match (aw.edge, bw.edge, fallback) {
+        (true, _, _) => Ok(a_sectors[aw.flankers[0]].start),
+        (false, true, _) => Ok(b_sectors[bw.flankers[0]].start),
+        (false, false, Some(line)) => Ok(line),
+        (false, false, None) => Err(BooleanError::ClassificationInvariant {
+            what: "an edge-edge site's common line is an edge of neither solid",
+        }),
+    }
+}
+
 /// Edge-edge coincidence — the DERIVED membership rule (subsumes TOG's
 /// angular sort and its Table I ties): around the common line, each
 /// solid's material occupies the dihedral wedge between its two
@@ -1159,6 +1248,11 @@ impl Half {
 /// the other: the wedge is a half-turn, and the flank it lies along
 /// decides.
 ///
+/// Each solid's wedge is a [`Wedge`]. One that is a face holding the
+/// line, a half-turn, has both flanks on that face's plane with one
+/// normal: a representative's two half-space readings agree, and one
+/// lying on the plane reads `[Along, Away]`.
+///
 /// With no germ, the event is a touch where the op keeps every
 /// flanking face, which leaves both edges on the result's boundary
 /// ([`EdgeEdge`]).
@@ -1171,25 +1265,12 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     op: BooleanOp,
     declared: &super::GluedPairs<T>,
     band: Band,
-    fa_s: usize,
-    fb_s: usize,
+    aw: Wedge,
+    bw: Wedge,
+    fallback: Option<Vec3<T>>,
 ) -> Result<EdgeEdge, BooleanError> {
-    let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
-    let fa_e = (fa_s + 1) % n_a;
-    let fb_e = (fb_s + 1) % n_b;
-    // The common line is A's `fa_s` start bound, a real edge (the
-    // caller passes only a `real` mention): `sector_shape`'s unit
-    // direction of a chord its arm rung decided long, so it is the
-    // axis as it stands.
-    let common = &a_sectors[fa_s];
-    if !common.start_edge() {
-        unreachable!(
-            "an edge-edge site's common line is a subdivision bisector, not an edge: A's \
-             sector {fa_s} starts at {:?} ({:?})",
-            common.start, common.start_reach
-        );
-    }
-    let axis = common.start;
+    let axis = common_line(a_sectors, b_sectors, aw, bw, fallback)?;
+    let ([fa_s, fa_e], [fb_s, fb_e]) = (aw.flankers, bw.flankers);
     let arm = a_sectors[fa_s].arm.min(b_sectors[fb_s].arm);
     // A line bound's side of the other solid's flanking plane is its
     // far vertex's, in metres (`side_code`); that plane holds the
@@ -1905,14 +1986,16 @@ mod tests {
         }
     }
 
-    /// **The common line is an edge.** Two convex wedges apart but for a
-    /// common edge resolve with no germ; the same site whose common
-    /// bound is a subdivision bisector — which no caller passes — panics
-    /// naming it rather than projecting the flankers onto a direction
-    /// with no edge behind it.
+    /// **A bisector on the common line reads its face as a half-turn
+    /// wedge.** A's face is the plane y = 0, its material y < 0, parted
+    /// along +z by a subdivision bisector; B is a convex wedge about +z
+    /// with a real edge there. B inside A's half-turn is dropped by a
+    /// union, B outside it touches the face and is kept, and B across
+    /// the face's plane crosses it, the germ on the flankers keyed Out
+    /// by the one fold rule: A's 0° half and B's 150° face. Two
+    /// half-turns with no line given refuse loudly.
     #[test]
-    #[should_panic(expected = "an edge-edge site's common line is a subdivision bisector")]
-    fn a_common_line_that_is_no_edge_panics() {
+    fn a_bisector_on_the_common_line_reads_its_face_as_a_half_turn() {
         use crate::boolean::{Glue, GluedPairs};
         use crate::test_support_fixtures::prism_z;
         use geom_brep::OutwardNormal;
@@ -1938,11 +2021,10 @@ mod tests {
             normal: OutwardNormal::from_chart(normal, true),
             arm: 1.0,
         };
-        // Two convex wedges about the common line, apart but for it: A
-        // between 0° and 90°, B between 200° and 250°, each face's
-        // outward normal turned away from its wedge.
-        let (a1, a2, b1, b2) = (ray(0.0), ray(90.0), ray(200.0), ray(250.0));
-        let b_corner = [sector(z, b1, b1.cross(z)), sector(b2, z, z.cross(b2))];
+        let up = Vec3::new(0.0, 1.0, 0.0);
+        let mut half_turn = [sector(z, ray(0.0), up), sector(ray(180.0), z, up)];
+        half_turn[0].start_reach = Reach::Bisector(1.0);
+        half_turn[1].end_reach = Reach::Bisector(1.0);
         let p = prism_z::<f64>(
             &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
             0.0,
@@ -1950,31 +2032,61 @@ mod tests {
             tol,
         );
         let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
-        let resolve = |common_reach: Reach<f64>| {
-            let mut first = sector(z, a1, a1.cross(z));
-            first.start_reach = common_reach;
+        // B's convex wedge from `b1` to `b2` (degrees), each face's
+        // outward normal turned away from it.
+        let resolve = |b1: f64, b2: f64| {
+            let (b1, b2) = (ray(b1), ray(b2));
+            let b = [sector(z, b1, b1.cross(z)), sector(b2, z, z.cross(b2))];
             resolve_edge_edge(
-                &[first, sector(a2, z, z.cross(a2))],
-                &b_corner,
+                &half_turn,
+                &b,
                 &p.body,
                 &p.body,
                 BooleanOp::Union,
                 &declared,
                 band,
-                0,
-                0,
+                Wedge::at_bound(&half_turn, 0),
+                Wedge::at_bound(&b, 0),
+                None,
             )
         };
-        let edge = Reach::Chord {
-            base: o,
-            far: o + z,
-        };
+        let inside = resolve(200.0, 250.0);
         assert!(
-            matches!(resolve(edge), Ok(EdgeEdge::Touch)),
-            "along a common edge, neither wedge holds a flanker of the other: {:?}",
-            resolve(edge)
+            matches!(inside, Ok(EdgeEdge::Dropped)),
+            "B within A's half-turn is dropped: {inside:?}"
         );
-        let _ = resolve(Reach::Bisector(1.0));
+        let outside = resolve(30.0, 80.0);
+        assert!(
+            matches!(outside, Ok(EdgeEdge::Touch)),
+            "B outside A's half-turn touches its face: {outside:?}"
+        );
+        let across = resolve(150.0, 250.0);
+        assert!(
+            matches!(across, Ok(EdgeEdge::Germ(PairRecord { a: 0, b: 0, .. }))),
+            "B across A's face crosses it, on A's 0° half and B's 150° face: {across:?}"
+        );
+        // Two half-turns, given no line to meet along, have none.
+        let neither = resolve_edge_edge(
+            &half_turn,
+            &half_turn,
+            &p.body,
+            &p.body,
+            BooleanOp::Union,
+            &declared,
+            band,
+            Wedge::at_bound(&half_turn, 0),
+            Wedge::at_bound(&half_turn, 0),
+            None,
+        );
+        assert!(
+            matches!(
+                neither,
+                Err(BooleanError::ClassificationInvariant {
+                    what: "an edge-edge site's common line is an edge of neither solid"
+                })
+            ),
+            "two bisectors and no line: {neither:?}"
+        );
     }
 
     fn rec(a: usize, b: usize, sa: (SideCode, SideCode), sb: (SideCode, SideCode)) -> PairRecord {
@@ -2060,16 +2172,18 @@ mod tests {
                 .expect("the door verifies the declaration");
             let declared = GluedPairs::build(&decls, one, a.0, b.0, band)
                 .expect("the declared faces' extents read");
+            let (sa, sb) = (corner(a.1), corner(b.1));
             resolve_edge_edge(
-                &corner(a.1),
-                &corner(b.1),
+                &sa,
+                &sb,
                 a.0,
                 b.0,
                 BooleanOp::Union,
                 &declared,
                 band,
-                0,
-                0,
+                Wedge::at_bound(&sa, 0),
+                Wedge::at_bound(&sb, 0),
+                None,
             )
         };
         let mid = (band.zero() + band.escalate()) / 2.0;
@@ -2156,6 +2270,7 @@ mod tests {
                             passes: geom_core::SizedPass::NonZero,
                             no_size: None,
                             unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+                            refused: geom_core::RefusedReading::AsShown,
                         },
                     ),
                 };

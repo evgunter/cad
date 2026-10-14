@@ -35,7 +35,7 @@ use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::splitting::{SplitPart, split};
-use pncad::topo::{AtRestBody, Body, BooleanResult, Curve3, EdgeDescription};
+use pncad::topo::{AtRestBody, Body, BooleanResult, EdgeDescription};
 
 use crate::booleans::{finished, try_subtract};
 use crate::scalar::{Scalar, sketch_frame, split_plane};
@@ -264,9 +264,12 @@ fn section_narration(label: &str, body: &Body<f64>, exact: f64, tol: Tol) -> Str
         let Some(curve) = body.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let Curve3::Ellipse { major, minor, .. } = *curve.carrier() else {
+        // The section's semi-axes in either stored order: its seam sits
+        // at whichever principal vertex is nearest the arc.
+        let Some(frame) = curve.carrier().major_frame() else {
             continue;
         };
+        let (major, minor) = (frame.major, frame.minor);
         assert!(
             (major - R / PHI.cos()).abs() < 1e-12 && (minor - R).abs() < 1e-12,
             "{label}: section semi-axes must be the closed form \

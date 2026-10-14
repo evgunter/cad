@@ -2466,8 +2466,16 @@ pub(super) fn piece_distance<T: Bounds>(
                 (pa - c).norm().max((pb - c).norm()),
             ))
         }
-        Curve3::Ellipse { center, major, .. } => {
-            let d = (center - c).norm();
+        Curve3::Ellipse {
+            center,
+            semi_u,
+            semi_v,
+            ..
+        } => {
+            let (d, major) = (
+                (center - c).norm(),
+                Curve3::semi_axes_by_size(semi_u, semi_v).0,
+            );
             Some(((d - major).max(T::zero()), d + major))
         }
         _ => CircleFrame::of(carrier).map(|k| k.distance((ta, tb), c)),
@@ -2500,8 +2508,8 @@ pub(super) fn piece_along<T: Bounds>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let v = axis.cross(u_ref);
@@ -2511,7 +2519,7 @@ pub(super) fn piece_along<T: Bounds>(
                 radius: T::one(),
                 u_ref,
             };
-            let lifted = u_ref * (major * u_ref.dot(u)) + v * (minor * v.dot(u));
+            let lifted = u_ref * (semi_u * u_ref.dot(u)) + v * (semi_v * v.dot(u));
             let (low, high) = unit.along((ta, tb), center, lifted);
             let mid = (center - c).dot(u);
             Some((mid + low, mid + high))
@@ -3367,13 +3375,13 @@ fn boxed_reach<T: Bounds>(
                 Curve3::Ellipse {
                     center,
                     axis,
-                    major,
-                    minor,
+                    semi_u,
+                    semi_v,
                     u_ref,
                 } => {
                     let mid = (*center - c).dot(u);
-                    let amp = ((*major * u_ref.dot(u)).powi(2)
-                        + (*minor * axis.cross(*u_ref).dot(u)).powi(2))
+                    let amp = ((*semi_u * u_ref.dot(u)).powi(2)
+                        + (*semi_v * axis.cross(*u_ref).dot(u)).powi(2))
                     .sqrt();
                     Some((low.max(mid - amp), high.min(mid + amp)))
                 }
@@ -5870,8 +5878,8 @@ mod tests {
         let ellipse = |major: f64, minor: f64| Curve3::Ellipse {
             center: Point3::new(1.0, 0.5, -0.2),
             axis: Vec3::new(0.0, 0.6, 0.8),
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let nurbs = Curve3::Nurbs(Arc::new(
@@ -6002,8 +6010,8 @@ mod tests {
         let ellipse = Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major: 0.5,
-            minor: 2.0,
+            semi_u: 0.5,
+            semi_v: 2.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let c = Point3::new(0.0, 0.0, 0.0);
