@@ -271,7 +271,8 @@ fn corner_faces_hold(tag: &str, out: &Filleted<f64>) -> usize {
 
 #[test]
 fn p2_oblique_clips_pole_on_a_vertex_and_hold_tiers_mesh_and_volume() {
-    let bases: Vec<(&str, Box<dyn Fn() -> Body<f64>>)> = vec![
+    type Base = Box<dyn Fn() -> Body<f64>>;
+    let bases: Vec<(&str, Base)> = vec![
         ("cube", Box::new(|| cube::<f64>(1.0, Tol::witness()))),
         (
             "acute prism",
