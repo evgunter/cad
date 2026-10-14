@@ -9,7 +9,7 @@
 //! matches any germ. The four arcs leaving it then join like any
 //! others, each on its own ellipse's bisector plane.
 
-use geom_core::{Band, Bounds, Decide, Tol};
+use geom_core::{Band, Decide, Tol};
 
 use super::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
 use super::{BooleanError, Operand};
@@ -48,9 +48,15 @@ fn placed<T: Decide>(
     }
 }
 
+/// Whether a face's surface is a cylinder wall: the faces whose
+/// overlapping pairs [`mint_nodes`] reads.
+pub(super) fn is_wall<T: Decide>(s: &geom::Surface<T>) -> bool {
+    matches!(s, geom::Surface::Cylinder { .. })
+}
+
 /// **Every node of every equal cylinder pair of the two operands,
-/// built**: each face pair of A's and B's cylinder walls whose boxes
-/// overlap and whose section is the two bisector-plane ellipses
+/// built**: each of `walls`, the face pairs of A's and B's cylinder
+/// walls whose boxes overlap ([`is_wall`]), whose section is the two bisector-plane ellipses
 /// ([`super::join::crossing_cylinder_section`]) has its two nodes placed
 /// in its two faces of the unmutated operands. A node definitely outside
 /// either face is no point of the pair's section there. A node inside
@@ -65,15 +71,15 @@ fn placed<T: Decide>(
 /// that holds it, or that a face's trim cannot place, unless the other
 /// face holds it definitely outside; the containment door's refusals;
 /// [`super::vtxfac::mint_node`]'s.
-pub(super) fn mint_nodes<T: Decide + Bounds + crate::props::AtRestPolicy>(
+pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
     (a, b): (&mut Body<T>, &mut Body<T>),
     (a_operand, b_operand): (&Body<T>, &Body<T>),
+    walls: &[(crate::entity::FaceKey, crate::entity::FaceKey)],
     band: Band,
     tol: Tol,
 ) -> Result<Vec<super::vtxfac::RingOut<T>>, BooleanError> {
-    let wall = |s: &geom::Surface<T>| matches!(s, geom::Surface::Cylinder { .. });
     let mut out = Vec::new();
-    for (fa, fb) in super::glue::overlapping_pairs(a_operand, b_operand, wall, band)? {
+    for &(fa, fb) in walls {
         let Some(section) =
             super::join::crossing_cylinder_section((a_operand, fa), (b_operand, fb), band)
         else {

@@ -172,3 +172,59 @@ fn the_family_re_posed_builds_the_same() {
     ];
     assert_family(&a, &b, theta, nodes, "60°, re-posed");
 }
+
+/// A rod about `z` over `z ∈ [z0, z1]`, its seam turned [`PHI`].
+fn rod(z0: f64, z1: f64) -> Body<f64> {
+    use sweep::{ExtrudeSide, Extrusion, extrude};
+    let tol = Tol::witness();
+    let lp = profile::circle(geom_core::Point2::new(0.0, 0.0), 1.0, tol).unwrap();
+    let plane = profile::SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let p = profile::Profile::new(plane, vec![lp.into()])
+        .validate(tol)
+        .unwrap();
+    let b = extrude(
+        &p,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
+    spin(&b, Vec3::new(0.0, 0.0, 1.0), PHI)
+}
+
+/// **A node on an operand's edge is not this lane's** (U2): where a cap
+/// stands at the axes' meeting point, its rim circle passes through
+/// both nodes, tangent there to the partner wall. The crossing layer
+/// reads that tangency before any node is placed, and refuses it at its
+/// own door, in every operation, both poses.
+#[test]
+fn a_rim_through_the_nodes_refuses_at_the_crossing_layer() {
+    let tol = Tol::witness();
+    let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
+    for (what, a, b) in [
+        ("B's cap", rod(-2.0, 2.0), across(&rod(0.0, 2.0))),
+        ("A's cap", rod(0.0, 2.0), across(&rod(-2.0, 2.0))),
+        ("both caps", rod(0.0, 2.0), across(&rod(0.0, 2.0))),
+    ] {
+        for (pose, a, b) in [
+            ("direct", a.clone(), b.clone()),
+            ("re-posed", repose(&a), repose(&b)),
+        ] {
+            let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+            for (op, r) in [
+                ("∪", topo::union(&a, &b, tol)),
+                ("∩", topo::intersect(&a, &b, tol)),
+                ("A∖B", topo::subtract(&a, &b, tol)),
+                ("B∖A", topo::subtract(&b, &a, tol)),
+            ] {
+                assert!(
+                    matches!(r, Err(topo::BooleanError::CurvedPierceUnsupported { .. })),
+                    "{what}, {pose}, {op}: the crossing layer's tangency door, got {r:?}"
+                );
+            }
+        }
+    }
+}
