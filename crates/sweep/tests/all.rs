@@ -124,6 +124,8 @@ mod band_apart_partners_on_a_steep_ellipse;
 mod band_subdivided_side_walls;
 #[path = "bisector_lane_stubs.rs"]
 mod bisector_lane_stubs;
+#[path = "bisector_nodes.rs"]
+mod bisector_nodes;
 #[path = "bool1_fix_pass.rs"]
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
