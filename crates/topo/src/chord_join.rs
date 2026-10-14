@@ -3732,13 +3732,15 @@ fn path_ring_side<T: Decide>(
 /// segment's curve and halves are links, mid-operation
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]): a miss panics, and a torn
 /// curve is not an uncertified one.
+#[allow(clippy::too_many_arguments)] // one internal lane, each argument a named duty
 fn along_edge_spec<T: Decide>(
     body: &Body<T>,
+    band: Band,
     lane: &JoinLane<'_, T>,
     segment: Option<EdgeKey>,
     face: FaceKey,
-    u1: VertexKey,
-    u2: VertexKey,
+    (u1, u2): (VertexKey, VertexKey),
+    leave: Departure<T>,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
     let (JoinLane::AlongEdge, Some(edge)) = (lane, segment) else {
         return Ok(None);
@@ -3785,18 +3787,22 @@ fn along_edge_spec<T: Decide>(
                     face,
                     what: StaleSite::WHAT,
                 })?;
+            let carrier = curve.carrier().clone();
             let forward = match (tied.contains(&e_start), tied.contains(&e_end)) {
                 (true, false) => true,
                 (false, true) => false,
-                _ => {
+                // A closed edge, both of whose ends are the chord's one
+                // site: the chord is its whole circle, run the way the
+                // section leaves that site.
+                (true, true) => closed_edge_runs_forward(&carrier, t0, leave, face, band)?,
+                (false, false) => {
                     return Err(SplitJoinError::SectionInvariant {
                         face,
-                        what: "a chord end along the segment's edge is tied to neither or both \
-                               of the edge's ends",
+                        what: "a chord end along the segment's edge is tied to neither of the \
+                               edge's ends",
                     });
                 }
             };
-            let carrier = curve.carrier().clone();
             let spec = if forward {
                 EdgeCurveSpec::arc_of_circle(carrier, t0, t1)
             } else {
@@ -3810,6 +3816,46 @@ fn along_edge_spec<T: Decide>(
             face,
             what: "a section segment along an edge whose carrier has no chord lane (only lines \
                    and circles are copied)",
+        }),
+    }
+}
+
+/// Whether a closed circle edge's chord runs along the carrier from
+/// `t0`, its start: its unit tangent there agrees with `leave`, decided
+/// as [`arc_leaving`] decides a germ's cosine, levered by the radius.
+fn closed_edge_runs_forward<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    leave: Departure<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<bool, SplitJoinError> {
+    let geom::Curve3::Circle { radius, .. } = *carrier else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a closed edge's chord on a carrier that is not a circle",
+        });
+    };
+    if leave.datum != Datum::Germ {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a closed edge's chord handed a departure that is no germ's direction",
+        });
+    }
+    let along = leave.dir.dot(carrier.deriv(t0)) / radius;
+    match decide(
+        "chord_arc_leave_germ",
+        Margin::levered(along, radius),
+        band,
+    )
+    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+    {
+        Sign::Positive => Ok(true),
+        Sign::Negative => Ok(false),
+        Sign::Zero => Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "the section's direction of departure handed to a chord end has no \
+                   component along the section there",
         }),
     }
 }
@@ -4058,6 +4104,108 @@ fn lone_ring<T: Real>(
     Ok((l != outer).then_some(l))
 }
 
+/// How [`ChordJoiner::join_lone_ring`] reads which side of a walled-off
+/// face's conic its region lies on, by the pierced face's surface.
+enum RimSide<T: Real> {
+    /// A plane, with its chart normal: a conic loop winding with the old
+    /// face's outer loop bounds the disc inside it, and one winding
+    /// against it the old face's region outside it.
+    Plane(Vec3<T>),
+    /// A sphere, cut by the conic's plane in the conic alone, so every
+    /// point of the old face off the conic lies definitely on one side of
+    /// that plane: a loop's region lies on the side its left hand points
+    /// to (`n × t` at its start, `n` the face's outward normal and `t`
+    /// the loop's direction), and holds the outer loop where a point of
+    /// it lies on that side.
+    Sphere,
+}
+
+impl<T: Decide + crate::props::AtRestPolicy> RimSide<T> {
+    /// Whether the region of `face`, walled off by one conic, holds the
+    /// outer loop `outer` of `oldf`, the face the conic pierced.
+    fn holds_outer(
+        &self,
+        body: &Body<T>,
+        oldf: FaceKey,
+        outer: LoopKey,
+        face: FaceKey,
+        band: Band,
+    ) -> Result<bool, SplitJoinError> {
+        let invariant = |what| SplitJoinError::SectionInvariant { face: oldf, what };
+        let escalated = |diag| SplitJoinError::Escalated { face: oldf, diag };
+        let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+        let winding = |l: LoopKey, normal: Vec3<T>| match body.planar_loop_winding(l, normal, band)
+        {
+            Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => Ok(sign),
+            Some(Err(diag)) => Err(escalated(diag)),
+            _ => Err(invariant(
+                "a one-site loop's conic in a pierce ring does not wind definitely on its plane",
+            )),
+        };
+        match *self {
+            Self::Plane(normal) => Ok(winding(face_data.outer, normal)? != winding(outer, normal)?),
+            Self::Sphere => {
+                let Some(&[he]) = outer_cycle(body, face)?.as_deref() else {
+                    return Err(invariant(
+                        "a one-site loop's walled-off face is bounded by other than one conic",
+                    ));
+                };
+                let h = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
+                let edge = body.get_edge(h.edge).ok_or_else(|| corrupt_edge(h.edge))?;
+                let curve = body.edge_curve_linked(h.edge, edge).certified().ok_or(invariant(
+                    "a one-site loop's conic carries no certified curve",
+                ))?;
+                let geom::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    ..
+                } = *curve.carrier()
+                else {
+                    return Err(invariant(
+                        "a one-site loop's conic on a sphere is not a circle",
+                    ));
+                };
+                let (t0, _) = curve.params();
+                let forward = if he == edge.he_plus { T::one() } else { -T::one() };
+                let tangent = curve.carrier().deriv(t0) * (forward / radius);
+                let p = vertex_point(body, h.start);
+                let normal = crate::face_normal::face_outward_normal_at(body, face, p, band)
+                    .map_err(|_| invariant("a one-site loop's site reads no normal on its sphere"))?
+                    .ok_or_else(|| corrupt_face(face))?;
+                let left = normal.vec().cross(tangent).dot(axis);
+                let region = decide(
+                    "bool_lone_ring_region_side",
+                    Margin::levered(left, radius),
+                    band,
+                )
+                .map_err(escalated)?;
+                let mut reads = loop_points(body, outer)?.into_iter().map(|w| {
+                    decide("bool_lone_ring_outer_side", Margin::of((w - center).dot(axis)), band)
+                });
+                let outer_side = loop {
+                    match reads.next() {
+                        Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => break sign,
+                        Some(Ok(Sign::Zero)) => {}
+                        Some(Err(diag)) => return Err(escalated(diag)),
+                        None => {
+                            return Err(invariant(
+                                "the old face's outer loop lies on its pierce ring's plane",
+                            ));
+                        }
+                    }
+                };
+                match region {
+                    Sign::Zero => Err(invariant(
+                        "a one-site loop's conic on a sphere leaves its plane's sides undecided",
+                    )),
+                    sign => Ok(sign == outer_side),
+                }
+            }
+        }
+    }
+}
+
 /// A boolean match's adjacency skip: the between edge is the edge the
 /// segment's locus names.
 fn between_is_segment<T: Real>(
@@ -4111,17 +4259,10 @@ impl ChordJoiner {
             halves.0
         };
         let (u1, u2) = chord.ends;
-        let spec = match along_edge_spec(body, &lane, plan.locus, face, u1, u2)? {
+        let leave = leave.from(chord.from, face)?;
+        let spec = match along_edge_spec(body, self.band, &lane, plan.locus, face, (u1, u2), leave)? {
             Some(spec) => Some(spec),
-            None => chord_spec(
-                body,
-                self.band,
-                lane,
-                face,
-                u1,
-                u2,
-                leave.from(chord.from, face)?,
-            )?,
+            None => chord_spec(body, self.band, lane, face, u1, u2, leave)?,
         };
         Ok(Some(SegmentCurve {
             halves: (chord.from, to),
@@ -4232,17 +4373,18 @@ impl ChordJoiner {
     }
 
     /// [`Self::join`] of a one-site section loop whose site is a pierce
-    /// of a planar face's interior: the two halves are one null edge,
-    /// and `ring`, a ring of the face, holds nothing else. Each chord is
-    /// the whole conic at one copy of the site, and the face they wall
-    /// off is the null face, which holds both halves. `mef` walls off an
-    /// empty run when its two halves are one, so the ring is first
-    /// promoted to a face of its own (`mfkrh`) and joined there: the
-    /// promoted face keeps both halves and each chord walls off a face
-    /// bounded by one conic. The one of those two that winds against the
-    /// old face's outer loop bounds the hole the conic cuts in the old
-    /// face, and becomes its ring (`kfmrh`); the other is the disc
-    /// inside the conic, which takes the old face's rings it encloses.
+    /// of a planar or spherical face's interior: the two halves are one
+    /// null edge, and `ring`, a ring of the face, holds nothing else.
+    /// Each chord is the whole conic at one copy of the site, and the
+    /// face they wall off is the null face, which holds both halves.
+    /// `mef` walls off an empty run when its two halves are one, so the
+    /// ring is first promoted to a face of its own (`mfkrh`) and joined
+    /// there: the promoted face keeps both halves and each chord walls
+    /// off a face bounded by one conic. The one of those two whose
+    /// region holds the old face's outer loop ([`RimSide`]) bounds the
+    /// hole the conic cuts in the old face, and becomes its ring
+    /// (`kfmrh`); the other is the disc inside the conic, which takes the
+    /// old face's rings it encloses.
     fn join_lone_ring<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
@@ -4253,7 +4395,19 @@ impl ChordJoiner {
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
         let oldf = plan.face;
         let invariant = |what| SplitJoinError::SectionInvariant { face: oldf, what };
-        let normal = face_plane_normal(body, oldf)?;
+        let side = match body
+            .get_face(oldf)
+            .and_then(|f| body.get_surface(f.surface))
+            .ok_or_else(|| corrupt_face(oldf))?
+        {
+            geom::Surface::Plane { .. } => RimSide::Plane(face_plane_normal(body, oldf)?),
+            geom::Surface::Sphere { .. } => RimSide::Sphere,
+            _ => {
+                return Err(invariant(
+                    "a one-site loop's pierce ring on a face that is neither a plane nor a sphere",
+                ));
+            }
+        };
         let old = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
         let (outer, sense) = (old.outer, old.sense);
         // The promoted face lies in the old face's region, its material
@@ -4285,30 +4439,15 @@ impl ChordJoiner {
                 "a one-site loop's join in a pierce ring walled off other than two faces",
             ));
         };
-        let winding = |body: &Body<T>, l: LoopKey| match body
-            .planar_loop_winding(l, normal, self.band)
-        {
-            Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => Ok(sign),
-            Some(Err(diag)) => Err(SplitJoinError::Escalated { face: oldf, diag }),
-            _ => Err(invariant(
-                "a one-site loop's conic in a pierce ring does not wind definitely on its plane",
-            )),
-        };
-        let face_outer = |body: &Body<T>, f: FaceKey| {
-            body.get_face(f)
-                .map(|d| d.outer)
-                .ok_or_else(|| corrupt_face(f))
-        };
-        let along = winding(body, outer)?;
         let (disc, hole) = match (
-            winding(body, face_outer(body, a)?)? == along,
-            winding(body, face_outer(body, b)?)? == along,
+            side.holds_outer(body, oldf, outer, a, self.band)?,
+            side.holds_outer(body, oldf, outer, b, self.band)?,
         ) {
-            (true, false) => (a, b),
-            (false, true) => (b, a),
+            (false, true) => (a, b),
+            (true, false) => (b, a),
             _ => {
                 return Err(invariant(
-                    "a one-site loop's two conics in a pierce ring wind one way",
+                    "a one-site loop's two conics in a pierce ring bound one side alike",
                 ));
             }
         };
@@ -6342,6 +6481,14 @@ mod torn_hop_rows {
         Band::linear(Tol::witness()).unwrap()
     }
 
+    /// A germ departure for the rows that read no closed edge.
+    fn leave() -> Departure<f64> {
+        Departure {
+            dir: Vec3::new(1.0, 0.0, 0.0),
+            datum: Datum::Germ,
+        }
+    }
+
     fn cyl_sheet() -> (Body<f64>, FaceKey) {
         let mut body = Body::<f64>::new();
         let face = crate::test_support_fixtures::cyl_wall_sheet(
@@ -6564,7 +6711,7 @@ mod torn_hop_rows {
         let u1 = body.get_half_edge(he).unwrap().start;
         let u2 = body.half_edge_end(he).unwrap();
         let spec = |b: &Body<f64>, segment| {
-            super::along_edge_spec(b, &JoinLane::AlongEdge, Some(segment), face, u1, u2)
+            super::along_edge_spec(b, band(), &JoinLane::AlongEdge, Some(segment), face, (u1, u2), leave())
                 .map(|s| s.is_some())
         };
         assert!(
@@ -6639,7 +6786,7 @@ mod torn_hop_rows {
         let u1 = body.get_half_edge(he).unwrap().start;
         let u2 = body.half_edge_end(he).unwrap();
         let spec = |b: &Body<f64>| {
-            super::along_edge_spec(b, &JoinLane::AlongEdge, Some(edge), face, u1, u2)
+            super::along_edge_spec(b, band(), &JoinLane::AlongEdge, Some(edge), face, (u1, u2), leave())
                 .map(|s| s.is_some())
         };
         assert!(spec(&body).unwrap(), "a rim segment's chord is its own arc");

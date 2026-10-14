@@ -836,6 +836,12 @@ fn wrap_site_segments<T: Decide>(
             Some(geom::Surface::Plane { .. })
         )
     };
+    let rim_face = |body: &Body<T>, f: FaceKey| {
+        matches!(
+            body.get_face(f).and_then(|d| body.get_surface(d.surface)),
+            Some(geom::Surface::Plane { .. } | geom::Surface::Sphere { .. })
+        )
+    };
     let mut out = Vec::new();
     for (r, rec) in open.iter().enumerate() {
         let Some((g0, frame)) = one_site(red, rec, band)? else {
@@ -845,12 +851,11 @@ fn wrap_site_segments<T: Decide>(
             locus_cell(&red.a, g0.a_locus, g0.he)?,
             locus_cell(&red.b, g0.b_locus, rec.b[0].0.he)?,
         ) {
-            ((SiteCell::Wrap | SiteCell::Closed, _), (SiteCell::Pierce, Some(fb))) => {
-                planar(&red.b, fb)
-            }
-            ((SiteCell::Pierce, Some(fa)), (SiteCell::Wrap | SiteCell::Closed, _)) => {
-                planar(&red.a, fa)
-            }
+            ((SiteCell::Wrap, _), (SiteCell::Pierce, Some(fb))) => planar(&red.b, fb),
+            ((SiteCell::Pierce, Some(fa)), (SiteCell::Wrap, _)) => planar(&red.a, fa),
+            ((SiteCell::Closed, _), (SiteCell::Pierce, Some(fb))) => rim_face(&red.b, fb),
+            ((SiteCell::Pierce, Some(fa)), (SiteCell::Closed, _)) => rim_face(&red.a, fa),
+            ((SiteCell::Closed, _), (SiteCell::Closed, _)) => true,
             _ => false,
         };
         if !crossed {
@@ -888,10 +893,14 @@ fn wrap_site_segments<T: Decide>(
                 "a one-site record's two germs turn one way round its loop",
             ));
         }
+        let lane = match (g0.a_locus, g0.b_locus) {
+            (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => SegmentLane::AlongEdge,
+            _ => SegmentLane::Section,
+        };
         out.push(SectionSegment {
             ends: [(r, 0), (r, 1)],
             germ: g0,
-            lane: SegmentLane::Section,
+            lane,
         });
     }
     Ok(out)
