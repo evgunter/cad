@@ -242,13 +242,10 @@ fn is_conic(chord: &Chord, (centre, normal, a, b): (Point3<f64>, Vec3<f64>, f64,
             radius,
             ..
         } => (center, axis, radius, radius),
-        Curve3::Ellipse {
-            center,
-            axis,
-            major,
-            minor,
-            ..
-        } => (center, axis, major, minor),
+        ref e @ Curve3::Ellipse { center, axis, .. } => {
+            let frame = e.major_frame().unwrap();
+            (center, axis, frame.major, frame.minor)
+        }
         _ => return false,
     };
     (c - centre).norm() < 1e-12
@@ -382,29 +379,29 @@ fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
     let Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = e
     else {
         panic!("an ellipse")
     };
-    *center + *u_ref * (major * t.cos()) + axis.cross(*u_ref) * (minor * t.sin())
+    *center + *u_ref * (semi_u * t.cos()) + axis.cross(*u_ref) * (semi_v * t.sin())
 }
 
 fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
     let Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = e
     else {
         panic!("an ellipse")
     };
     let w = p - *center;
-    (w.dot(axis.cross(*u_ref)) / minor).atan2(w.dot(*u_ref) / major)
+    (w.dot(axis.cross(*u_ref)) / semi_v).atan2(w.dot(*u_ref) / semi_u)
 }
 
 /// `cone`'s outward normal at (the foot on it of) `p`, for a solid on
