@@ -947,21 +947,35 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         let bu = basis_funs_in(su, Interval::point(u));
         let bv = basis_funs_in(sv, Interval::point(v));
         let (control, weights) = (self.surface.control(), self.surface.weights());
+        // Read twice, about the origin and about the window's corner
+        // control point `o` (a point), and met: both enclose the one
+        // exact point. `S − o = Σ bw·(P − o) / Σ bw` in ℝ, and each
+        // `P − o` is a difference of nearby numbers, so that sum's
+        // rounding scales with the window's extent rather than with its
+        // distance from the origin, at the cost of one rounding at `o`'s
+        // scale when it is added back; about the origin there is no
+        // such rounding, which is the tighter where `|S|` is small next
+        // to `|o|`.
+        let corner = control[win.row(0)];
+        let o = [corner.x, corner.y, corner.z].map(|c| Interval::point(Bounds::lo(c)));
         let zero = Interval::point(0.0);
-        let (mut x, mut y, mut z, mut w) = (zero, zero, zero, zero);
+        let (mut at, mut about, mut w) = ([zero; 3], [zero; 3], zero);
         for (i, bui) in bu.iter().enumerate() {
             let row = win.row(i);
             for (j, bvj) in bv.iter().enumerate() {
                 let idx = row + j;
                 let cw = (*bui * *bvj) * Interval::from_certified(weights[idx]);
                 let pt = control[idx];
-                x = x + cw * Interval::from_certified(pt.x);
-                y = y + cw * Interval::from_certified(pt.y);
-                z = z + cw * Interval::from_certified(pt.z);
+                let p = [pt.x, pt.y, pt.z].map(Interval::from_certified);
+                for c in 0..3 {
+                    at[c] = at[c] + cw * p[c];
+                    about[c] = about[c] + cw * (p[c] - o[c]);
+                }
                 w = w + cw;
             }
         }
-        Point3::new(x / w, y / w, z / w)
+        let [x, y, z] = core::array::from_fn(|c| (at[c] / w).meet(o[c] + about[c] / w));
+        Point3::new(x, y, z)
     }
 }
 

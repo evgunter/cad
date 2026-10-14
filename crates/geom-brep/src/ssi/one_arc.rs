@@ -1175,7 +1175,6 @@ mod tests {
         pt,
     };
     use geom_core::Bounds as _;
-    use geom_core::interval::certification::Certification as _;
 
     /// A biquadratic graph `z = g(x) + h(y)` over `[0, 1]²` from the
     /// Bernstein coefficients of `g` and `h`, with `(u, v) = (x, y)`.
@@ -1429,45 +1428,46 @@ mod tests {
         }
     }
 
-    /// **At `Interval` the midpoint is the lane's own evaluation, to the
-    /// bit.** The certified midpoint runs `eval_in_span`'s sum term for
-    /// term over the crossed net, so on a net that is already intervals
-    /// (here with a width on every coordinate, and drawn weights) its bounds are
-    /// the evaluation's own. Red under any reordering of the sum.
+    /// **A point's box is as narrow far from the origin as near it.**
+    /// The certified midpoint is read about the window's corner control
+    /// point, so its width scales with the window's extent: the same
+    /// dyadic wall moved by `2⁹` m in each axis (exactly) reads each
+    /// coordinate within four ulps of `2⁹` (3 measured). Red where the
+    /// sum is taken about the origin, whose every term rounds at `2⁹`'s
+    /// ulp (33 measured).
     #[test]
-    fn an_interval_nets_point_box_is_its_own_evaluation() {
-        let mut rng = test_utils::fuzz::start("rect-box-interval-midpoint");
+    fn a_far_walls_point_box_is_as_narrow_as_a_near_ones() {
+        let mut rng = test_utils::fuzz::start("rect-box-far-midpoint");
+        let far = 512.0;
+        let ulp = far * f64::EPSILON;
+        let mut worst = 0.0_f64;
         for _ in 0..test_utils::fuzz::scaled(40) {
-            let g = [0.0; 3].map(|_| rng.range(-1.0, 1.0));
-            let h = [0.0; 3].map(|_| rng.range(-1.0, 1.0));
-            let pad = rng.range(0.0, 1e-9);
-            let widen = |x: f64| Interval::from_bounds(x - pad, x + pad);
-            let wall = biq(g, h).map_scalar(widen);
-            let weights: Vec<Interval> = (0..9)
-                .map(|_| Interval::point(rng.range(0.5, 2.0)))
-                .collect();
-            let wall = NurbsSurface::new(
-                wall.knot_values_u().clone(),
-                wall.knot_values_v().clone(),
-                wall.control().to_vec(),
-                weights,
+            let dyadic = |rng: &mut test_utils::fuzz::Rng| (rng.range(-64.0, 64.0)).round() / 64.0;
+            let g = [0.0; 3].map(|_| dyadic(&mut rng));
+            let h = [0.0; 3].map(|_| dyadic(&mut rng));
+            let near = biq(g, h);
+            let moved = NurbsSurface::new(
+                near.knots_u().clone(),
+                near.knots_v().clone(),
+                near.control()
+                    .iter()
+                    .map(|p| Point3::new(p.x + far, p.y + far, p.z + far))
+                    .collect(),
+                near.weights().to_vec(),
             )
-            .expect("positive point weights");
-            let boxes = NurbsBoxes::new(&wall);
+            .expect("the moved wall");
+            let boxes = NurbsBoxes::new(&moved);
             let (u, v) = (rng.range(0.0, 1.0), rng.range(0.0, 1.0));
-            let got = boxes.rect_box(UvWindow::new(u, u, v, v).expect("a point window"));
-            let want = wall
-                .window_at(u, v)
-                .expect("a number")
-                .eval_in_span(Interval::point(u), Interval::point(v));
-            for (g, w) in [(got.x, want.x), (got.y, want.y), (got.z, want.z)] {
-                assert!(
-                    g.lo().to_bits() == w.lo().to_bits() && g.hi().to_bits() == w.hi().to_bits(),
-                    "({u}, {v}): {g:?} is not the evaluation's {w:?}; {}",
-                    test_utils::fuzz::replay()
-                );
+            let b = boxes.rect_box(UvWindow::new(u, u, v, v).expect("a point window"));
+            for c in [b.x, b.y, b.z] {
+                worst = worst.max((c.hi() - c.lo()) / ulp);
             }
         }
+        assert!(
+            worst <= 4.0,
+            "a point box {worst} ulps of 2⁹ wide; {}",
+            test_utils::fuzz::replay()
+        );
     }
 
     fn bx(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Box3 {
