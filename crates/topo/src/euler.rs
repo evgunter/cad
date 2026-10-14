@@ -1314,10 +1314,11 @@ pub enum EulerOpError {
     /// killed half whole by is not decided at the door's band, so the
     /// joint the kill bridges across it has no element to write. Either
     /// whether the half's ends meet escalated, or they meet and the
-    /// joint decision there missed: a mark at the vertex escalated, or
-    /// the gap reads on a mark and meets no orbit point the near-pole
-    /// read tries at the vertex's lever, or the periods lie past the
-    /// branch reach. Raised in the plan phase, so the body is untouched.
+    /// joint decision there missed: a mark or a near-pole offset at the
+    /// vertex escalated, or the gap reads on a mark and is decided off
+    /// every orbit point the near-pole read tries at the vertex's lever,
+    /// or the periods lie past the branch reach. Raised in the plan
+    /// phase, so the body is untouched.
     KillTurnUndecided {
         /// The killed half-edge whose turn was not decided.
         half_edge: HalfEdgeKey,

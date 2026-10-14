@@ -2,8 +2,10 @@
 id: an-in-band-near-pole-read-is-dropped-so-a-half-turn-joint-misses-as-decided
 kind: issue
 title: An in-band near-pole read is dropped, so a continuous half-turn joint at a band-sized lever misses as decided
-status: open
+status: closed
+branch: pcert/near-pole-read-tri-state
 opened: 2026-10-14
+closed: 2026-10-14
 priority: P2
 cost: M
 refs: [near-pole-read-tries-only-the-images-own-orbit-point]
@@ -67,3 +69,24 @@ Ok(Sign::Zero))` over `crates/*/src`.
 (`rows.coaxial`). None is a near read of a chart orbit. **What neither
 pass matches:** a fold through a helper that returns `bool` from a
 `decide` under an unrelated name.
+
+## Closed
+
+`near_pole_gap_closes` answers a `NearRead`: `Closes(m)` at the first
+offset decided within ε, else `InBand(cause)` if any offset was in
+band, else `Off`. `lever_periods` answers an in-band read over the
+marks' decided `OnMark` with `BranchMiss::Undecided(cause)`; an
+undecided mark keeps its own cause, and `Off` keeps the marks' miss, so
+a decided miss stands only where the read decides every offset off.
+Both reaches follow: `decide_joint` escalates (`PinMiss::Escalated`,
+`turn_element`'s `Err(Some)`), and `chord_join::nearest_branch` answers
+`SplitJoinError::Escalated` in place of `SectionInvariant`.
+
+Rows (both pin all three regimes of a gap of `π`: within ε the image,
+in band an escalation, past the band the decided miss):
+- `pcurves::stretch_meter::a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point`;
+- `chord_join::nearest_branch_rows::a_narrow_cone_joint_clear_of_the_apex_takes_a_lift_of_its_point`.
+
+A mutant answering the marks' `OnMark` for an in-band read turns both
+red. The kill turn on a band-sized cylinder is not a reach: a turn's
+stored gap is a whole period (its carrier closes), never half of one.
