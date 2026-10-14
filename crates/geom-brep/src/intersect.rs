@@ -2462,6 +2462,7 @@ pub fn plane_cone_section<T: Decide>(
                     // reads a vector that cancels to K along the normal
                     // and then divides it by K.
                     let center = apex - n * apex_gap + u_major * (c * apex_gap * s / k);
+                    let center = center + u_major * (T::from_f64(std::env::var("R2_SHIFT").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0) * 0.5 * f64::EPSILON) * major);
                     let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
                     Ok(PlaneConeSection::TiltedEllipse(e))
                 }

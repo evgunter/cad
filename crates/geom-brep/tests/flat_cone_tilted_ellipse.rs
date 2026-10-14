@@ -273,6 +273,7 @@ fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
             Ok(cache) => {
                 let envelope = cache.certificate().envelope;
                 let ulps = envelope / (0.5 * f64::EPSILON * size);
+                eprintln!("R2 f {f} env {envelope:e} size {size:e} ulps {ulps:.2}");
                 if ulps > 64.0 {
                     wrong.push(format!(
                         "f {f}: envelope {envelope:e} is {ulps:.1} u of size {size:e}"
