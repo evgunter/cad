@@ -131,10 +131,8 @@
 //! ```
 
 pub mod attach;
-pub(crate) mod bisect;
 pub mod body;
 pub mod boolean;
-pub(crate) mod carrier_speed;
 pub(crate) mod census;
 pub mod chart;
 pub mod chart_bound;
@@ -816,6 +814,28 @@ pub mod test_support {
         )
     }
 
+    /// **Where `face` holds `p`, as the census confirms it**: the read
+    /// that places a `(vertex, face)` record at rest, and that the
+    /// boolean's carry asks of a divided face's pieces
+    /// ([`crate::boolean::face_placement`]). `Ok(Some(_))` placed (a
+    /// point decided off a planar face's plane is `Out`), `Ok(None)` a
+    /// curved trim's unread remainder, `Err` the escalations or refusal
+    /// the census would push.
+    ///
+    /// # Errors
+    ///
+    /// The census's own findings for the read, as above.
+    pub fn face_holds<T: geom_core::Decide>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        p: geom_core::Point3<T>,
+        band: geom_core::Band,
+    ) -> Result<Option<crate::FaceContainment>, Vec<crate::ValidationError>> {
+        let mut errors = Vec::new();
+        crate::census::face_holds(body, face, p, band, "pm_census_confirm_vf", &mut errors)
+            .ok_or(errors)
+    }
+
     /// Is `p`, on `face`'s plane, inside the face? `point_in_solid`'s
     /// planar in-face test, which the ray sweep reaches only through a
     /// hit it decides to take — named here so a row can ask it about a
@@ -842,6 +862,7 @@ mod r2_probes;
 mod tier3_tests;
 pub mod transform;
 pub mod validate;
+pub(crate) mod vertex_section;
 
 pub use body::Body;
 pub use boolean::{
@@ -851,13 +872,13 @@ pub use boolean::{
     CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair,
     ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords, ContainDecision,
     ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact,
-    EfContact, FaceContainment, FfContact, Fusions, GivenPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT,
-    JoinReading, JoinRefusal, JoinUndecided, LeverArm, NullEdgePairRecord, Operand, OperandKeys,
-    OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc,
-    PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
-    RefusedRow, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
-    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops,
-    SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment,
+    EfContact, FaceContainment, FfContact, Fusions, GlueVerdict, GluedPair, HeldEdge, JOIN_LEVER,
+    JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm, NullEdgePairRecord, Operand,
+    OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord,
+    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError,
+    ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck, SettleError, Settler,
+    Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion,
+    SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment,
     VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
     boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
     flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
@@ -866,16 +887,17 @@ pub use boolean::{
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
-    ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageRows, Remainder,
-    RowDefect, RowRefusal, Substitutions,
+    ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,
+    Minted, Remainder, RowDefect, RowRefusal, SplitEdgeDivisions, Substitutions,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{
-    PlantedDegradation, StagePoints, arm_output_stage_points, swap_split_roles, sweep_records,
-    sweep_split, sweep_traces, sweep_traces_with_pad, take_output_stage_points, take_shared_points,
+    PlantedDegradation, SharedClass, StagePoints, arm_output_stage_points, swap_split_roles,
+    sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad, take_output_stage_points,
+    take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;

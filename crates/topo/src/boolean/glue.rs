@@ -19,22 +19,27 @@
 //!
 //! A pair whose one-carrier coincidence does not decide (in band, or
 //! poisoned) is left to the stage that meets it, which refuses it there:
-//! two faces whose carriers do not decide one may never touch.
+//! two faces whose carriers do not decide one may never touch. The door
+//! keeps what it read of each such pair ([`Glue::in_band`]), for a
+//! corner that meets the pair to quote where that reading binds.
 
 use std::borrow::Cow;
 
 use geom_core::{Band, Bounds, Decide};
 
 use super::{
-    BooleanError, CarrierRelation, DeclarationRead, Glue, GluedPair, Operand, PairUnread,
-    TangencyFailure, boxes, carrier_pair_relation, glued_tangency,
+    BooleanError, CarrierRelation, DeclarationRead, DoorReading, Glue, GluedPair, InBandPair,
+    Operand, PairUnread, TangencyFailure, boxes, carrier_pair_relation, glued_tangency,
 };
 use crate::body::Body;
 use crate::contact::GlueClass;
 use crate::entity::FaceKey;
 
 /// `decls` with every undeclared pair the operation decides one carrier
-/// added under its class, in A's face order and B's within each.
+/// added under its class, and every pair it reads in band added to
+/// [`Glue::in_band`] with that reading, each in A's face order and B's
+/// within each. `decls` itself comes back where neither adds anything,
+/// and an owned copy where either does, an in-band pair alone included.
 ///
 /// # Errors
 ///
@@ -50,7 +55,7 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
         return Ok(Cow::Borrowed(decls));
     }
     let declared = |fa, fb| decls.pairs.iter().any(|d| d.a == fa && d.b == fb);
-    let mut found = Vec::new();
+    let (mut found, mut in_band) = (Vec::new(), Vec::new());
     for (fa, fb) in overlapping_pairs(a, b, |_| true, band)? {
         if declared(fa, fb) {
             continue;
@@ -61,17 +66,27 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
             Ok(Ok(CarrierRelation::Distinct)) | Err(PairUnread::OutsideInventory) => {
                 tangency(a, fa, b, fb, band)?.then_some(GlueClass::Tangent)
             }
-            Ok(Err(_)) | Err(PairUnread::Extent(_)) => None,
+            Ok(Err(refusal)) => {
+                in_band.extend(DoorReading::of(refusal).map(|reading| InBandPair {
+                    a: fa,
+                    b: fb,
+                    reading,
+                }));
+                None
+            }
+            // Unread, like in band: left to the stage that meets the pair (module doc).
+            Err(PairUnread::Extent(_)) => None,
         };
         if let Some(class) = class {
             found.push(GluedPair::new(fa, fb, class));
         }
     }
-    if found.is_empty() {
+    if found.is_empty() && in_band.is_empty() {
         return Ok(Cow::Borrowed(decls));
     }
     let mut out = decls.clone();
     out.pairs.extend(found);
+    out.in_band.extend(in_band);
     Ok(Cow::Owned(out))
 }
 
@@ -222,6 +237,8 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
             }
             _ => continue,
         };
+        // A refusal adds no row: where the faces meet, a later decision
+        // refuses (`hone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         if let Ok((_, margin)) = section {
             rows.push(crate::Coincidence {
                 cells: [
@@ -282,17 +299,7 @@ pub(crate) fn touched<T: geom_core::Real>(
     rows.iter()
         .enumerate()
         .filter(|(_, row)| {
-            let [
-                RowCell::Input {
-                    input: Operand::A,
-                    cell: Cell::Face(fa),
-                },
-                RowCell::Input {
-                    input: Operand::B,
-                    cell: Cell::Face(fb),
-                },
-            ] = row.cells
-            else {
+            let Some((fa, fb)) = row.face_pair() else {
                 return true;
             };
             let (on_a, on_b) = (closure(Operand::A, fa), closure(Operand::B, fb));
