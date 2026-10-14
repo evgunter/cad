@@ -18,7 +18,6 @@ lanes in flight are expected to close more, so the track is not split.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys (PR 4823, fix pass under a delta check; Ev ratified its sentence on PR 4793) |
 | P2 | `check-10-reads-a-cavitys-role-from-its-volume-sign` | M | check 10 reads a cavity's role from its V/A (Ev ruled on PR 4990; dispatched 2026-10-14, `flush/shell-role-reader`) |
 
 Parked, and not counted:
@@ -56,7 +55,7 @@ Parked, and not counted:
    `the-pre-zip-pinch-weld-retires-…` and `a-hole-weld-cannot-tell-…` (done,
    PR 4728); `a-pinch-the-seams-do-not-link-…` (vertex-vertex pinches with
    no pierce; ruling A, fork-log row 133: two parts' value-decided
-   coincident vertices share one point key, building on `flush/touch-key`),
+   coincident vertices share one point key; done, PR 4823),
    `a-cube-less-a-pinched-operand-…` and `a-curved-notch-at-a-corner-pinch-refuses-join-desync-…`
    (done, PR 4777).
 5. **The E tail** (done, PR 4714: five rows closed; `two-pinch-poses-…`
