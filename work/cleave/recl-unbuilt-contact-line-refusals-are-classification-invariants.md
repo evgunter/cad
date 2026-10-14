@@ -20,11 +20,9 @@ variant, `BooleanError::HeldPierceUnbuilt`.
 inputs as `BooleanError::ClassificationInvariant`:
 
 - "a solid's coincident edges on one ray lie in a face of the other
-  (unbuilt)";
-- "a contact line's ray holds a subdivision bisector (unbuilt)",
-  reached by `crates/topo/tests/three_solids_on_one_line.rs`,
-  `a_prism_whose_face_holds_the_line_builds_or_refuses_typed`, in six
-  orders (`ON_A_BISECTOR`);
+  (unbuilt)" and "a contact line's ray holds a subdivision bisector
+  (unbuilt)": both are now built, not refused
+  (`a-contact-line-whose-ray-holds-a-subdivision-bisector-refuses-unbuilt`);
 - "an edge crosses two wedges about a contact line on one ray
   (unbuilt)", reached by
   `a_third_prism_crossing_the_wedges_about_the_line_builds_or_refuses_typed`

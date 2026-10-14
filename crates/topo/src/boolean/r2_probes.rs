@@ -16,6 +16,7 @@ use geom_core::{Band, Point3, Tol, Vec3};
 
 use super::solid_contain::line_torus_roots;
 use geom_brep::quartic::QuarticRoots;
+use geom_brep::roots::{RootRefusal, Unsettled};
 
 const R_MAJ: f64 = 1.0;
 const R_MIN: f64 = 0.3;
@@ -85,16 +86,17 @@ fn probe(q: Point3<f64>, d_raw: Vec3<f64>, band: Band) -> (Option<(usize, Vec<f6
         band,
     ) {
         Ok(QuarticRoots::Miss) => (Some((0, Vec::new())), false),
-        Ok(QuarticRoots::Uncertain) => (None, false),
-        Ok(QuarticRoots::Certified { count, ts }) => {
+        Err(RootRefusal::Unsettled(Unsettled::CountDisagrees { .. })) => (None, true),
+        Err(RootRefusal::Unsettled(_)) => (None, false),
+        Ok(QuarticRoots::Certified(found)) => {
+            let (count, ts) = (found.count(), found.roots());
             let mut v: Vec<f64> = ts[..count].to_vec();
             v.sort_by(f64::total_cmp);
             (Some((count, v)), false)
         }
-        // Rung 5 (constructed ≠ certified) is a broken premise; an
-        // in-band escalation is the honest decline.
-        Ok(QuarticRoots::CountDisagrees { .. }) => (None, true),
-        Err(e) => (None, e.margin.is_invalid()),
+        // Rung 5 (constructed ≠ certified), above, is a broken premise;
+        // an in-band escalation is the honest decline.
+        Err(RootRefusal::Escalated(e)) => (None, e.margin.is_invalid()),
     }
 }
 
@@ -276,7 +278,8 @@ fn r2_extreme_radii_ratios_keep_the_certified_roots_honest() {
             pf = v;
         }
         match got {
-            Ok(QuarticRoots::Certified { count, ts }) => {
+            Ok(QuarticRoots::Certified(found)) => {
+                let (count, ts) = (found.count(), found.roots());
                 assert_eq!(count, roots.len(), "count at ratio {rr}/{rm}");
                 let mut v: Vec<f64> = ts[..count].to_vec();
                 v.sort_by(f64::total_cmp);
@@ -300,7 +303,7 @@ fn r2_extreme_radii_ratios_keep_the_certified_roots_honest() {
             // The original assertion demanded `Certified` unconditionally
             // and went red at the 1e-6 leg; it is corrected rather than
             // deleted, and the correction is disclosed in the PR.
-            Err(ref diag) => {
+            Err(RootRefusal::Escalated(ref diag)) => {
                 // Any of the predicates that CERTIFY the count may be
                 // the one that cannot, and which it is depends on the
                 // pose: the discriminant for a merged pair, the
