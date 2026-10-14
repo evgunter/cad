@@ -2,7 +2,7 @@
 id: an-in-band-axis-parallelism-offers-a-proximity-lever
 kind: issue
 title: An in-band reading of a cylinder pair's axis parallelism offers the user a proximity lever
-status: dispatched
+status: review
 opened: 2026-10-13
 priority: P3
 cost: E

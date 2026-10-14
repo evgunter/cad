@@ -49,10 +49,11 @@
 //!
 //! **The pieces.** A curve span's or a cell's quotient is formed once
 //! over the span or cell, from its Bernstein rows read off the blossom
-//! ([`super::pieces::span_row`]), and halved at ½ by de Casteljau, along each axis, as often as its
-//! schedule asks: each step a sum and an exact halving, outward at
-//! `Interval`, so the halves enclose the exact quotient's at any degree
-//! and the count has no exactness ceiling. No piece reads a refined
+//! ([`super::pieces::span_row`]), and halved at ½ by de Casteljau,
+//! along each axis, as often as its schedule asks: each step a sum and
+//! an exact halving, outward at `Interval`, so the halves enclose the
+//! exact quotient's at any degree and the count has no exactness
+//! ceiling. No piece reads a refined
 //! knot vector: as the pieces shrink, the coefficient ratios converge
 //! on the quantity's range.
 //! Each derivative row is read off the B-spline derivative net (its
@@ -237,8 +238,10 @@ fn cross<T: Real>(a: [T; 3], b: [T; 3]) -> [T; 3] {
 /// **The quotient bound on one piece** (module docs): a quantity
 /// `Σ B_k a_k / Σ B_k b_k`, its numerator's coefficients `a_k` and its
 /// weight power's `b_k > 0` at one degree and one layout. Minted only
-/// by this module's builders ([`speed_pieces`], [`cell_quotients`],
-/// [`stretch_pieces`]), which hold both preconditions.
+/// by this module's builders ([`speed_pieces`], [`accel_pieces`],
+/// [`cell_quotients`], [`cell_second_quotients`],
+/// [`polynomial_area_pieces`], [`stretch_pieces`]), which hold both
+/// preconditions.
 #[derive(Clone, Debug)]
 pub struct QuotientPiece<T, const D: usize> {
     numer: Vec<[T; D]>,
@@ -1164,9 +1167,9 @@ pub enum CellBlock<'a, T> {
 /// **The surface statement's pieces on one cell block** (module docs):
 /// the `block` along `axes`, its quotients formed once and halved into
 /// the largest power of two at most `splits.0` pieces along `u` and
-/// `splits.1` along `v`, row-major in `u` then `v`. `area` asks for `S_u × S_v` as well. `None` on a degree
-/// below one, a block of the wrong size, or a common degree above
-/// [`QUOTIENT_MAX_DEGREE`].
+/// `splits.1` along `v`, row-major in `u` then `v`. `area` asks for
+/// `S_u × S_v` as well. `None` on a degree below one, a block of the
+/// wrong size, or a common degree above [`QUOTIENT_MAX_DEGREE`].
 pub fn cell_quotients<T: Real>(
     axes: (CellAxis<'_, T>, CellAxis<'_, T>),
     block: CellBlock<'_, T>,
@@ -1185,8 +1188,9 @@ pub fn cell_quotients<T: Real>(
 /// **The surface statement's pieces at both orders** on one cell block
 /// (module docs, "The second order"): [`cell_quotients`] with
 /// `S_u × S_v`, and beside each piece its [`CellSecondQuotients`], with
-/// the piece count per direction (as [`cell_quotients`]'). `None` as [`cell_quotients`], with
-/// the common degree `3·max(p, q)` against [`QUOTIENT_MAX_DEGREE`].
+/// the piece count per direction (as [`cell_quotients`]'). `None` as
+/// [`cell_quotients`], with the common degree `3·max(p, q)` against
+/// [`QUOTIENT_MAX_DEGREE`].
 #[allow(clippy::type_complexity)]
 pub fn cell_second_quotients<T: Real>(
     axes: (CellAxis<'_, T>, CellAxis<'_, T>),

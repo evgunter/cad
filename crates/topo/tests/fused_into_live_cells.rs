@@ -49,7 +49,11 @@ fn same(p: Point3<f64>, q: Point3<f64>) -> bool {
 /// Whether `cell` of `body` holds `p`: a vertex at it, bit for bit; an
 /// edge (every brick edge is a line) with `p` on its carrier strictly
 /// between its ends; a face (every brick face is a plane) with `p` on
-/// its plane and inside it.
+/// its plane and inside it. "On" is this row's own claim, `ON`, far
+/// tighter than the band: a fused point sits on its cell to rounding.
+/// A face's region is then read by the census's door
+/// ([`topo::test_support::face_holds`]), whose own on-plane decision on
+/// the band the `ON` check already passes.
 fn holds(body: &Body<f64>, cell: Cell, p: Point3<f64>, band: Band) -> bool {
     match cell {
         Cell::Vertex(v) => same(topo::readback::vertex_point(body, v).unwrap(), p),
@@ -73,7 +77,8 @@ fn holds(body: &Body<f64>, cell: Cell, p: Point3<f64>, band: Band) -> bool {
                 panic!("a brick face is a plane");
             };
             (p - *origin).dot(*normal).abs() <= ON
-                && topo::test_support::point_in_face(body, f, p, band) == Ok(Some(true))
+                && topo::test_support::face_holds(body, f, p, band)
+                    == Ok(Some(topo::FaceContainment::In))
         }
     }
 }
