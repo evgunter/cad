@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-14
 ---
 
-Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), which tests every geometric pair question against C5's rule: one total kind-pair table, one method per pair, no runtime fallback (`crates/geom-brep/README.md`, C5).
+Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
 
 ## What
 
@@ -37,6 +37,10 @@ Parallel cylinders of unequal radius show the cost. `route_pose` refuses them, w
 
 ## Owed
 
-One table in the C5 sense. Each of these consumers either reads `route`'s arm, or states
-why its lane is a declared narrowing of it (as `chord_join` already does). A pair one
-consumer can section and `route` cannot is an arm owed to `route`. Line numbers are as of main, 2026-10-14.
+Re-aimed to D3 "One reading per question". The section is a pair *outcome*. One outcome reading owns it: it takes the pair's pose reading (`route_pose`'s classification, decided once) as input and decides no pose of its own. `route` is that reading's kind-level dispatch (kinds to arm, then the arm's method), not a table beside it, so which pairs the reading serves is derived from what it does.
+
+- Each of the five consumers reads the outcome reading. One that serves fewer pairs (`chord_join::section_case`'s declared narrowing, `section_closed`, the `offset_axial` profile solve) matches on the reading's answer and refuses the rest typed. It never matches on kinds to choose its own method; a consumer that asks at kind level before it holds the operands asks `route`.
+- `join`'s `KindArm::None` read as "try the face-pair arm, else the edge-plane lane", and the skew-cylinder drop-through, are fallbacks D3 forbids.
+- A pair a consumer can section and the reading cannot (cone×cone, cone×sphere, cone×torus, sphere×torus, torus×torus, cylinder×torus; parallel cylinders of unequal radius) is an arm owed to the reading, with its pose owed to the pose reading, rather than a lane kept beside it.
+
+Line numbers are as of main, 2026-10-14.
