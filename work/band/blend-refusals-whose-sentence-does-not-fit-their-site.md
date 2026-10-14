@@ -6,6 +6,7 @@ status: closed
 opened: 2026-10-13
 priority: P3
 cost: E
+pr: 5116
 branch: band/refusal-sentences-fit-their-site
 closed: 2026-10-14
 ---
