@@ -1354,3 +1354,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - NITs and shared window rates.
   - **My call (as for 4886 and 4927):** the finer-counts change moves loops toward decided answers, so I dispatched a focused **delta review d5066** of `d794645563` + `b5919546d4` (local Opus, not tallied).
   - Local verify (vpr.sh) is running. The pt-section-gaps lane is working (no PR yet). Re-armed for 12:38.
+- 2026-10-14 12:40 — Check-in. 5066's local verify on head + main is green (geom-brep 1332, topo 3006, sweep 2687 at three ε); waiting only on d5066. The pt-section-gaps lane is working. Re-armed for 13:39.
