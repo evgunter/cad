@@ -3899,12 +3899,29 @@ fn closed_chord_runs_forward<T: Decide>(
             .ok_or_else(|| corrupt_he(he))
     };
     let split = loop_of(he1)?;
-    let own = match (loop_of(e.he_plus)? == split, loop_of(e.he_minus)? == split) {
+    // The edge's half in the split loop between the null edge's two
+    // halves: a wrap edge has both of its halves in that loop.
+    let between_nulls = |h: HalfEdgeKey| -> Result<bool, SplitJoinError> {
+        let d = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?;
+        let (prev, next) = (d.prev, d.next);
+        let edge_of = |x: HalfEdgeKey| {
+            body.get_half_edge(x)
+                .map(|x| x.edge)
+                .ok_or_else(|| corrupt_he(x))
+        };
+        let null = edge_of(next)?;
+        let is_null = body
+            .get_edge(null)
+            .is_some_and(|n| body.edge_curve_linked(null, n).null_scaffold().is_some());
+        Ok(d.parent_loop == split && is_null && edge_of(prev)? == null)
+    };
+    let own = match (between_nulls(e.he_plus)?, between_nulls(e.he_minus)?) {
         (true, false) => e.he_plus,
         (false, true) => e.he_minus,
         _ => {
             return Err(invariant(
-                "a closed edge's chord splits a loop holding other than one of its halves",
+                "a closed edge's chord splits a loop holding other than one of its halves \
+                 between the null edge's",
             ));
         }
     };
