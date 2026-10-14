@@ -24,8 +24,8 @@ that op's admission, read two ways:
 - `ViewerBehavior::feature_row` (`crates/viewer/src/pane/features.rs`)
   reads `DocSession::instance_hidden_refusal`
   (`crates/viewer/src/session.rs`), the same call wrapped as the op's
-  `Refusal::Display`, and puts its sentence on the checkbox's disabled
-  hover.
+  `Refusal::Display`, and hands it to `feature_row_ui`, which puts its
+  sentence on the checkbox's disabled hover.
 
 Today they agree by construction: one function, one document, and
 `Refusal::Display` renders the fault verbatim. The second spelling is

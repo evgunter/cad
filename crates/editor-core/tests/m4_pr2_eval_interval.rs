@@ -6,9 +6,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
+    BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -30,8 +31,9 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile: cube_p,
+            profile: cube_p.into(),
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, pip_p) = on_frame(
@@ -44,42 +46,28 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     let (doc, pip) = insert(
         doc,
         Node::Extrude {
-            profile: pip_p,
-            distance: len(-0.125),
+            profile: pip_p.into(),
+            distance: len(0.125),
+            side: ExtrudeSide::Against,
         },
     );
     let (doc, placed) = insert(
         doc,
-        Node::Transform {
-            input: pip,
-            translation: [len(1.0), len(1.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            pip,
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(1.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
-    // The pip's outer cap lies ON the cube's top — declared (M4 PR 5).
-    // The B side is read at the TRANSFORM, the subtract's operand,
-    // which carries the pip's names verbatim (N1).
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            editor_core::SitedRef::new(
-                cube,
-                fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)),
-            ),
-            editor_core::SitedRef::new(
-                placed,
-                fixture::fname(pip, editor_core::RoleSeg::Cap(editor_core::CapEnd::Start)),
-            ),
-        )]),
-    );
+    // The pip's outer cap lies ON the cube's top; the subtract glues it.
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: cube,
-            b: placed,
-            declare: Some(decl),
+        Node::Subtract {
+            from: cube.into(),
+            tool: placed.into(),
         },
     );
 

@@ -10,26 +10,22 @@
 //! incremental probe now run over a measured document.
 //!
 //! **The shape**: a plate with two cylindrical hole tools beside it —
-//! the worked example's geometry — plus a `Measure` of the web between
-//! the two hole walls (`distance(wall, wall) − 2·hole_r`) and an
-//! `Assertion` that the web clears a minimum. The tools are separate
-//! extrudes on purpose: it makes the measure CROSS-NODE, so the
-//! digest sees a measure whose two references are two different DAG
-//! edges rather than a degenerate one.
+//! the worked example's geometry — plus a `Measure` of the distance
+//! between the two hole walls, and an `Assertion` that the web
+//! (`distance − 2·hole_r`, its anonymous definition) clears a minimum.
+//! The tools are separate extrudes on purpose: it makes the measure
+//! CROSS-NODE, so the digest sees a measure whose two references are
+//! read at two different nodes rather than a degenerate one.
 //!
-//! No mass pin: the head is a measurement sink, not a body, so
-//! `result` is `None` for the reason `cut_cylinder`'s is — the
-//! document's point is not a single solid.
-//!
-//! The bump edits `hole_r`, which moves the measured value through a
-//! parameter rather than through geometry: the measure's own key must
-//! move with it (the payload-expression channel), which is exactly the
-//! property the incremental probe is there to exercise.
+//! No mass pin: the head is an assertion, not a body, so `result` is
+//! `None` for the reason `cut_cylinder`'s is — the document's point is
+//! not a single solid.
 
+use editor_core::ExtrudeSide;
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, Dimension, DocEdit, DocParam, Expr, LoopProgram, MeasureExpr, MeasurePrimitive,
-    Node, ParamName, ProfileProgram, SitedRef,
+    AssertionRelation, Dimension, DocEdit, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node,
+    ProfileProgram, SitedRef, VarName,
 };
 use geom_core::Tol;
 
@@ -49,21 +45,21 @@ pub const MIN_WEB: f64 = 0.0005;
 /// The measured-web corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new(HOLE_R),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static(HOLE_R),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: R0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: None,
-        },
+        }),
     });
 
     // Plate and holes are sketched on the SAME plane, so they name
     // one frame node between them.
     let plane = r.insert(xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
@@ -71,29 +67,32 @@ pub fn document() -> CorpusDoc {
         ids: Vec::new(),
     }));
     let plate = r.insert(Node::Extrude {
-        profile: plate_profile,
+        profile: plate_profile.into(),
         distance: len(0.1),
+        side: ExtrudeSide::Along,
     });
 
     let hole = |cx: f64| {
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
-                radius: Expr::param(ParamName::new(HOLE_R), Dimension::Length),
+                radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
             }],
             ids: Vec::new(),
         })
     };
     let pa = r.insert(hole(-HOLE_X));
     let hole_a = r.insert(Node::Extrude {
-        profile: pa,
+        profile: pa.into(),
         distance: len(0.1),
+        side: ExtrudeSide::Along,
     });
     let pb = r.insert(hole(HOLE_X));
     let hole_b = r.insert(Node::Extrude {
-        profile: pb,
+        profile: pb.into(),
         distance: len(0.1),
+        side: ExtrudeSide::Along,
     });
 
     // The wall names come from the SELECTION door, the way a user gets
@@ -120,9 +119,9 @@ pub fn document() -> CorpusDoc {
                 editor_core::EntityKind::Face,
             )),
             &[editor_core::GeomPred::SurfaceKind(
-                editor_core::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
+                editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
             )],
-            &r.doc.param_env::<f64>(),
+            &r.doc.var_env::<f64>(),
             Tol::witness(),
         )
         .expect("the surface-kind atom is exact");
@@ -130,27 +129,29 @@ pub fn document() -> CorpusDoc {
         assert!(!faces.is_empty(), "a hole extrude has a cylindrical wall");
         SitedRef::new(node, faces.remove(0))
     };
-    let radius = || MeasureExpr::value(Expr::param(ParamName::new(HOLE_R), Dimension::Length));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(radius(), radius()).expect("Length + Length"),
+    let measured = r.measure(
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &[wall(hole_a), wall(hole_b)],
+    );
+    let radius = || Formula::named(VarName::from_static(HOLE_R), Dimension::Length);
+    let web = Formula::sub(
+        r.len_of(measured.outputs[0]),
+        Formula::add(radius(), radius()).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let measure = r.insert(
-        Node::measure(web, vec![wall(hole_a), wall(hole_b)]).expect("both indices in range"),
-    );
     let _assertion = r.insert(Node::Assertion {
-        measure,
+        value: web,
         bound: len(MIN_WEB),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
+    r.place(plate);
 
     CorpusDoc {
         name: "measured_web",
         about: "M10-2: a measured web with an assertion over it (E3/E10)",
         edits: r.edits,
         doc: r.doc,
-        // The head is a measurement sink, not a body.
+        // The head is an assertion, not a body.
         result: None,
         pin: None,
         // The plate's own thickness: a cone of exactly one node, so
@@ -167,7 +168,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: plate,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.125),
+            value: len(0.125).into(),
+            fresh: Vec::new(),
         },
         bump_root: plate,
     }

@@ -39,6 +39,7 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -50,7 +51,7 @@ use crate::tags::{check_evidence_tag, checks_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
-use super::doc::{Doc, NodeId};
+use super::doc::{Doc, NodeId, Var};
 use super::value::{Body, Evaluation};
 
 /// Which check a finding came from — the registry's closed set.
@@ -73,6 +74,7 @@ pub(crate) enum CheckId {
     Connectedness,
     Separation,
     ChartCoherence,
+    UnprovenCoincidence,
 }
 
 /// The certified/heuristic label (DS6): honesty of language and a
@@ -122,6 +124,7 @@ fn check_id(check: d::CheckId) -> CheckId {
         d::CheckId::Connectedness => CheckId::Connectedness,
         d::CheckId::Separation => CheckId::Separation,
         d::CheckId::ChartCoherence => CheckId::ChartCoherence,
+        d::CheckId::UnprovenCoincidence => CheckId::UnprovenCoincidence,
     }
 }
 
@@ -160,6 +163,7 @@ impl CheckId {
             Self::Connectedness => d::CheckId::Connectedness,
             Self::Separation => d::CheckId::Separation,
             Self::ChartCoherence => d::CheckId::ChartCoherence,
+            Self::UnprovenCoincidence => d::CheckId::UnprovenCoincidence,
         }
     }
 }
@@ -210,7 +214,7 @@ pub(crate) struct ChecksConfig(pub(crate) d::ChecksConfig);
 
 #[pymethods]
 impl ChecksConfig {
-    /// The DS6 defaults are the no-argument form: the two residents
+    /// The DS6 defaults are the no-argument form: the three residents
     /// of the default pass at `Warn`, the chart-coherence examination
     /// `Off`, nothing expected, nothing refused.
     ///
@@ -226,19 +230,19 @@ impl ChecksConfig {
     /// would report "checked and fine" about a number the caller did
     /// not state.
     #[new]
-    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, separation = Advisory::Warn, chart_coherence = Advisory::Off))]
+    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, separation = Advisory::Warn, chart_coherence = Advisory::Off, unproven_coincidence = Advisory::Warn))]
     fn new(
         connectedness: Severity,
         expected_components: Option<Vec<(NodeId, u32, u32)>>,
         separation: Advisory,
         chart_coherence: Advisory,
+        unproven_coincidence: Advisory,
     ) -> PyResult<Self> {
         let mut expected: BTreeMap<(d::RecipeNodeId, u32), u32> = BTreeMap::new();
-        for (root, output_ix, count) in expected_components.unwrap_or_default() {
-            if expected.insert((root.0, output_ix), count).is_some() {
+        for (NodeId(root), output_ix, count) in expected_components.unwrap_or_default() {
+            if expected.insert((root, output_ix), count).is_some() {
                 return Err(PyValueError::new_err(format!(
-                    "expected_components states subject (node {}, output {output_ix}) twice",
-                    root.0.0
+                    "expected_components states subject (node {root}, output {output_ix}) twice"
                 )));
             }
         }
@@ -247,6 +251,7 @@ impl ChecksConfig {
             expected_components: expected,
             separation: separation.to_kernel(),
             chart_coherence: chart_coherence.to_kernel(),
+            unproven_coincidence: unproven_coincidence.to_kernel(),
         }))
     }
 
@@ -273,6 +278,14 @@ impl ChecksConfig {
         Advisory::from_kernel(self.0.chart_coherence)
     }
 
+    /// The `unproven-coincidence` lint's knob — an `Advisory`: an
+    /// unproven coincidence is quieted by an assertion at its site,
+    /// not by this report, so `Error` is not spellable here.
+    #[getter]
+    fn unproven_coincidence(&self) -> Advisory {
+        Advisory::from_kernel(self.0.unproven_coincidence)
+    }
+
     /// The stated expectations, ascending by subject.
     #[getter]
     fn expected_components(&self) -> Vec<(NodeId, u32, u32)> {
@@ -296,11 +309,12 @@ impl ChecksConfig {
     fn __repr__(&self) -> String {
         format!(
             "ChecksConfig(connectedness={:?}, expected_components={}, separation={:?}, \
-             chart_coherence={:?})",
+             chart_coherence={:?}, unproven_coincidence={:?})",
             self.0.connectedness,
             self.0.expected_components.len(),
             self.0.separation,
-            self.0.chart_coherence
+            self.0.chart_coherence,
+            self.0.unproven_coincidence
         )
     }
 }
@@ -319,7 +333,12 @@ impl ChecksConfig {
 /// every accessor here silently answers `None` about.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct CheckEvidence(pub(crate) d::CheckEvidence);
+pub(crate) struct CheckEvidence(
+    pub(crate) d::CheckEvidence,
+    /// The document the checks ran over, which names a coincidence's
+    /// cells.
+    Arc<d::ProfileDoc>,
+);
 
 #[pymethods]
 impl CheckEvidence {
@@ -444,6 +463,52 @@ impl CheckEvidence {
         self.payload().eps
     }
 
+    /// What an unproven coincidence decided between its two cells, on
+    /// `unproven_coincidence` alone: `same_oriented`, `same_opposite`,
+    /// `on_carrier`, `common_foot`, `tangent`, `cusp`,
+    /// `surface_tangent`, `coaxial` or `co_ruled`. A
+    /// `profile_junction` row is `tangent` or `cusp` between two carriers
+    /// and `same_oriented` where its pieces continue one; a
+    /// `tangent_witness` row is `surface_tangent`, claiming nothing of
+    /// the materials.
+    #[getter]
+    fn relation(&self) -> Option<&'static str> {
+        self.payload().relation
+    }
+
+    /// Where that coincidence was decided, on `unproven_coincidence`
+    /// alone: `plane_ladder`, `carrier_ladder`, `tangent_witness`,
+    /// `coaxial_sphere`, `split_on`, `battery_turn`, `battery_joint`,
+    /// `battery_support_axis`, `profile_junction`, `vertex_fusion` or
+    /// `census_at_rest`.
+    #[getter]
+    fn site(&self) -> Option<&'static str> {
+        self.payload().site
+    }
+
+    /// The row itself, its two cells named, on `unproven_coincidence`
+    /// alone.
+    #[getter]
+    fn coincidence(&self, py: Python<'_>) -> PyResult<Option<super::value::Coincidence>> {
+        match &self.0 {
+            d::CheckEvidence::UnprovenCoincidence {
+                row,
+                residual,
+                recourse,
+            } => super::value::Coincidence::new(
+                py,
+                row,
+                &d::Proof::Unproven {
+                    residual: (**residual).clone(),
+                    recourse: *recourse,
+                },
+                &self.1,
+            )
+            .map(Some),
+            _ => Ok(None),
+        }
+    }
+
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
     }
@@ -466,60 +531,119 @@ impl CheckEvidence {
     }
 }
 
-/// One finding of one check on one subject — a body-denoting root
-/// output, attributed as `(root, output_ix)`.
+/// One finding of one check on one subject: a copy a placement defines,
+/// attributed as `(root, output_ix)` with `root` the placement, or a
+/// node of the document (`node`) — the node that decided an unproven
+/// coincidence. Whichever it is not answers `None`.
 ///
 /// A finding is a REPORT about geometry, not a verdict on the program:
 /// reaching one changes nothing, and whether it stops anything is the
 /// caller's `Severity` and the caller's `enforce_checks` call.
+///
+/// `str()` renders it the way the library renders a finding, recourse
+/// included, each root spoken (kind, label and tag) from the document
+/// the checks ran over, the one the evaluation is of; `repr()` keeps
+/// the full id. Two findings are equal when they are the same finding
+/// over the same document; labels are not compared.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct CheckFinding(pub(crate) d::CheckFinding);
+pub(crate) struct CheckFinding {
+    finding: d::CheckFinding,
+    /// The document the checks ran over, the one its placements are
+    /// spoken from.
+    doc: Arc<d::ProfileDoc>,
+}
 
 #[pymethods]
 impl CheckFinding {
     /// The check that fired.
     #[getter]
     fn check(&self) -> CheckId {
-        check_id(self.0.check)
+        check_id(self.finding.check)
     }
 
-    /// The root whose value carries the subject body.
+    /// The root whose value carries the subject body; `None` for a
+    /// finding about a node or two copies.
     #[getter]
-    fn root(&self) -> NodeId {
-        NodeId(self.0.root)
+    fn root(&self) -> Option<NodeId> {
+        match self.finding.subject {
+            d::FindingSubject::Output { root, .. } => Some(NodeId(root)),
+            d::FindingSubject::Node(_) | d::FindingSubject::Copies { .. } => None,
+        }
     }
 
-    /// Which output body of that root — 0 for a single-body root.
+    /// Which output body of that root — 0 for a single-body root;
+    /// `None` for a finding about a node or two copies.
     #[getter]
-    fn output_ix(&self) -> u32 {
-        self.0.output_ix
+    fn output_ix(&self) -> Option<u32> {
+        match self.finding.subject {
+            d::FindingSubject::Output { output_ix, .. } => Some(output_ix),
+            d::FindingSubject::Node(_) | d::FindingSubject::Copies { .. } => None,
+        }
+    }
+
+    /// The node the finding is about, root or not; `None` for a finding
+    /// about a root output or two copies.
+    #[getter]
+    fn node(&self) -> Option<NodeId> {
+        match self.finding.subject {
+            d::FindingSubject::Node(node) => Some(NodeId(node)),
+            d::FindingSubject::Output { .. } | d::FindingSubject::Copies { .. } => None,
+        }
+    }
+
+    /// The two copies the finding is about, earlier in gather order
+    /// first, each as its placement's output and its member there, as
+    /// `InterferenceFinding.a` spells one; `None` for any other subject.
+    #[getter]
+    fn copies(&self) -> Option<((Var, u32), (Var, u32))> {
+        match self.finding.subject {
+            d::FindingSubject::Copies { a, b } => {
+                let copy = |c: d::CopyRef| (Var::of(&self.doc, c.var), c.member);
+                Some((copy(a), copy(b)))
+            }
+            d::FindingSubject::Output { .. } | d::FindingSubject::Node(_) => None,
+        }
     }
 
     /// What was found.
     #[getter]
     fn evidence(&self) -> CheckEvidence {
-        CheckEvidence(self.0.evidence.clone())
+        CheckEvidence(self.finding.evidence.clone(), Arc::clone(&self.doc))
     }
 
     /// The finding as the library renders one: its subject, then the
-    /// kernel's own story. The recourse is in that story; nothing is
+    /// kernel's own story, each root spoken from the document the
+    /// checks ran over. The recourse is in that story; nothing is
     /// appended here.
     fn __str__(&self) -> String {
-        self.0.to_string()
+        d::Said(&self.finding, d::Speaker::of(&*self.doc)).to_string()
     }
 
+    /// The same finding over the same document; labels are not
+    /// compared.
     fn __eq__(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.finding == other.finding && self.doc.id() == other.doc.id()
     }
 
     fn __repr__(&self) -> String {
+        let subject = match self.finding.subject {
+            d::FindingSubject::Output { root, output_ix } => {
+                format!("root {}, output {output_ix}", root.full())
+            }
+            d::FindingSubject::Node(node) => format!("node {}", node.full()),
+            d::FindingSubject::Copies { a, b } => {
+                let copy = |c: d::CopyRef| match c.member {
+                    0 => format!("{}", c.var),
+                    member => format!("{} member {member}", c.var),
+                };
+                format!("copies {} and {}", copy(a), copy(b))
+            }
+        };
         format!(
-            "CheckFinding({}, node {}, output {}, {:?})",
-            self.0.check,
-            self.0.root.0,
-            self.0.output_ix,
-            check_evidence_tag(&self.0.evidence)
+            "CheckFinding({}, {subject}, {:?})",
+            self.finding.check,
+            check_evidence_tag(&self.finding.evidence)
         )
     }
 }
@@ -529,44 +653,73 @@ impl CheckFinding {
 /// `skipped` is why this is a report and not a list: "checked and
 /// fine" and "not checked" are different answers, and a caller reading
 /// an empty `findings` without reading `skipped` has confused them.
+///
+/// `str()` speaks each root from the document the checks ran over, the
+/// one the evaluation is of, so a label set after `evaluate` shows on
+/// the next evaluation's report. Two reports are equal when they hold
+/// the same findings and skips over the same document; labels are not
+/// compared.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct ChecksReport(pub(crate) d::ChecksReport);
+pub(crate) struct ChecksReport {
+    report: d::ChecksReport,
+    /// The document the checks ran over, the evaluation's own: the
+    /// report's root ids are spelled in it, so its human form speaks
+    /// from it and from no other.
+    doc: Arc<d::ProfileDoc>,
+}
+
+impl ChecksReport {
+    /// `findings`, each carrying the document they are spoken from.
+    fn wrap(&self, findings: &[d::CheckFinding]) -> Vec<CheckFinding> {
+        findings
+            .iter()
+            .map(|finding| CheckFinding {
+                finding: finding.clone(),
+                doc: Arc::clone(&self.doc),
+            })
+            .collect()
+    }
+}
 
 #[pymethods]
 impl ChecksReport {
     /// The findings, in the registry's deterministic order: each
-    /// resident's own pass by root-list position then output index,
+    /// resident's own pass by placement order then output index,
     /// residents in registry order. NOT one global sort.
     #[getter]
     fn findings(&self) -> Vec<CheckFinding> {
-        self.0.findings.iter().cloned().map(CheckFinding).collect()
+        self.wrap(&self.report.findings)
     }
 
     /// The checks that did not run because the caller set them `Off`.
     #[getter]
     fn skipped(&self) -> Vec<CheckId> {
-        self.0.skipped.iter().copied().map(check_id).collect()
+        self.report.skipped.iter().copied().map(check_id).collect()
     }
 
     /// How many findings — `len(report)`.
     fn __len__(&self) -> usize {
-        self.0.findings.len()
+        self.report.findings.len()
     }
 
+    /// The report, each root spoken from the document the checks ran
+    /// over.
     fn __str__(&self) -> String {
-        self.0.to_string()
+        self.report.spoken(&*self.doc)
     }
 
+    /// The same findings and skips over the same document (the
+    /// report's own `document`); labels are not compared.
     fn __eq__(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.report == other.report
     }
 
     fn __repr__(&self) -> String {
         format!(
             "ChecksReport({} finding(s), {} skipped)",
-            self.0.findings.len(),
-            self.0.skipped.len()
+            self.report.findings.len(),
+            self.report.skipped.len()
         )
     }
 }
@@ -578,12 +731,18 @@ impl ChecksReport {
 /// carry it — the `WorkspaceError` posture: handling reads `err.node`
 /// without first branching on `err.variant`.
 pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
+    checks_err_saying(py, err, err.to_string())
+}
+
+/// [`checks_err`] under `message`: the refusal as a frame holding the
+/// checked document speaks it.
+fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> PyErr {
     let none = || py.None();
     // Exhaustive on purpose, no wildcard: an arm added kernel-side
     // arrives here as a compile error rather than as a silently
     // unprojected payload.
     let node = match err {
-        d::ChecksError::Root { node } => Py::new(py, NodeId(*node))
+        d::ChecksError::Root(standing) => Py::new(py, NodeId(standing.node()))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None()),
         // A tolerance that forms no band, a gather that yields no
@@ -596,7 +755,7 @@ pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Checks,
-        err.to_string(),
+        message,
         &[
             (
                 "variant",
@@ -617,10 +776,10 @@ pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
 /// action on it is the caller's move (`enforce_checks`).
 ///
 /// `evaluation` must be an evaluation OF `doc`, and one that ran to
-/// completion: subjects are the body-denoting outputs of the
-/// document's roots, so a root that failed, was poisoned, or was cut
-/// short refuses `root_without_value` rather than reporting over a
-/// partial evaluation.
+/// completion: subjects are the copies the document's placements
+/// define, so a placement that failed, was poisoned, or was cut short
+/// refuses `root_without_value` rather than reporting over a partial
+/// evaluation.
 ///
 /// The residents:
 ///
@@ -631,12 +790,12 @@ pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
 ///   orientation read cannot decide surfaces as its own `escalated` /
 ///   `unsupported` finding, never as a silent skip.
 /// * `Separation` — every pair of gathered solids the product took
-///   from DIFFERENT roots, held to the kernel's box-level disjointness
+///   from DIFFERENT placements, held to the kernel's box-level disjointness
 ///   certificate. What a finding denies is the CERTIFICATE, never
 ///   "these two overlap": a pair that merely touches lands here too.
 ///
 /// Expectations are TWO-DIRECTIONAL: an `expected_components` entry no
-/// subject consumed — a vanished body, a dead root, a mistyped key —
+/// subject consumed — a vanished body, a dead placement, a mistyped key —
 /// comes back as its own `stale_expectation` finding. A stale
 /// acknowledgment must not read as "checked and fine".
 ///
@@ -669,8 +828,11 @@ pub(crate) fn run_checks(
         .map_err(|m| mispaired_checks(py, m))?;
     evaluation
         .gathered(|memo, doc, ev| crate::product_memo::checks_report(memo, doc, ev, cfg, tol))
-        .map(ChecksReport)
-        .map_err(|err| checks_err(py, &err))
+        .map(|report| ChecksReport {
+            report,
+            doc: evaluation.doc_shared(),
+        })
+        .map_err(|err| checks_err_saying(py, &err, err.spoken(evaluation.doc())))
 }
 
 /// A mispaired `(doc, evaluation)` as this door's own refusal.
@@ -702,20 +864,16 @@ pub(crate) fn enforce_checks(
 ) -> PyResult<()> {
     let default = d::ChecksConfig::default();
     let cfg = config.map_or(&default, |c| &c.0);
-    d::enforce_checks(&report.0, cfg).map_err(|refusal| {
-        let findings = refusal
-            .findings
-            .iter()
-            .cloned()
-            .map(CheckFinding)
-            .collect::<Vec<_>>()
+    d::enforce_checks(&report.report, cfg).map_err(|refusal| {
+        let findings = report
+            .wrap(&refusal.findings)
             .into_pyobject(py)
             .map(|v| v.unbind().into_any())
             .unwrap_or_else(|_| py.None());
         typed_err(
             py,
             ErrorClass::Enforce,
-            refusal.to_string(),
+            refusal.spoken(&*report.doc),
             &[("findings", findings)],
         )
     })
@@ -749,7 +907,7 @@ pub(crate) fn enforce_checks(
 #[pyfunction]
 pub(crate) fn subject_body(evaluation: &Evaluation, root: &NodeId, output_ix: u32) -> Option<Body> {
     d::subject_body(&evaluation.inner, root.0, output_ix)
-        .map(|(body, contacts)| Body::declared(body, contacts))
+        .map(|(body, contacts)| Body::recorded(body, contacts))
 }
 
 /// Register the advisory-check registry on the module.

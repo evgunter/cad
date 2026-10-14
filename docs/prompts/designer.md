@@ -9,12 +9,31 @@ or about a defect (what the fix should be, and at which layer). The
 orchestrator states the problem, not the solutions: **the options are yours to
 find**, and your deliverable is a recommendation with its argument.
 
+**The goal is not to resolve the issue raised to you; it is to improve the
+code.** The issue is data: evidence pointing at a part of the code that is
+absent or flawed. It marks where to look, not the edge of what may change, and
+an answer that settles the question as asked while leaving that part as it
+was is a patch.
+
 ---
 
 ## 1. Question the framing
 
 The orchestrator's statement of the problem is **a hypothesis, not a
 finding**. Check it against the tree before you build on it.
+
+- **What is the issue evidence of?** Name the part of the code it points
+  at — a concept nothing represents, a type that means two things, a
+  semantics that is fragile, a value stored that should be derived — and
+  design for that part. Questions of the form "where should this field,
+  check or record live" or "which rule should pick this" are the usual
+  symptom: the forks Ev answered differently from both designers were
+  mostly ones where the asked-for home or rule was the wrong thing to want
+  (a declared property that should have been derived; a discriminator whose
+  semantics was the problem, not its rule; a recorded value where nothing
+  should be recorded; a representation that should read what the user
+  wrote). Improving the code can also mean less: a mechanism nothing needs
+  is a flaw too, and the answer may be not to build it.
 
 - **Is the problem one level up, one level down, or somewhere else?** A
   problem often exists only because the layer above asks the wrong question,
@@ -33,6 +52,21 @@ it. Check its provenance first: `git log --all -S'<short phrase>' -- <file>`
 finds the commit that wrote it, and its PR shows whether Ev asked for it in
 Ev's own words or approved agent-written text in passing. Say which, and weigh
 it accordingly.
+
+**When two instructions conflict in spirit** (Ev, PRs 4220 and 4265). If
+two ratified instructions appear to contradict each other in spirit,
+especially when the later one is explicitly a redesign, do not
+look for something that technically satisfies both. Your options should be
+coherent final states, each of which changes one instruction or both, and
+should say which. A redesign is the more important of the two: lean towards
+changing what it replaced (a ratified clause, a guide, a spec goal or the
+code's behaviour).
+
+**Not understanding a rule is a reason to change it.** If you cannot see why
+a ratified instruction is the way it is, propose changing it, in substance or
+at least in its text, so that the principle underneath is stated. Propose
+that clarification explicitly, as you would a design fork. Do not write your
+own guess at the principle into ratified text.
 
 ## 3. Understand the semantics
 

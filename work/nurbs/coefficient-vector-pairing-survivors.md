@@ -2,10 +2,13 @@
 id: coefficient-vector-pairing-survivors
 kind: issue
 title: The loose (knot vector, coefficient array) shape survives outside hull: evaluators, tensor grids, composition, a public green-integral door
-status: open
+status: closed
 opened: 2026-09-05
 priority: P1
-cost: D
+cost: H
+branch: nurbs/coefficient-pairing-survivors
+closed: 2026-10-10
+pr: 4485
 ---
 
 
@@ -32,7 +35,7 @@ first three groups for placement; the dual review added the rest.
 
 - `crates/geom-brep/src/props/quad.rs:691` `DerivLadder::build(kv,
   coeffs)` with `levels: [Option<(Option<KnotVector>,
-  Vec<RingInterval>)>; 3]`, and `:1264` `collapse_1d(dir, coeffs, op)`
+  Vec<Interval>)>; 3]`, and `:1264` `collapse_1d(dir, coeffs, op)`
   with `Dir::Kv(kv)` beside a channel — each mints at the door it
   reaches (`range_hull`, `KnotVector::difference_coeffs`), so every
   refusal arm is dead by construction. Disposition: a level type that
@@ -70,7 +73,7 @@ first three groups for placement; the dual review added the rest.
 - `crates/geom-core/src/spline/compose.rs:1033` `linear_composite(data,
   coeffs, offset)` — matched by the reviewers' grep; **not the shape**:
   `coeffs` here are the linear form's per-channel weights, related to
-  `CurveRingData::dims()` and to no knot vector. Disposition: none;
+  `CurveCertData::dims()` and to no knot vector. Disposition: none;
   recorded so the next sweep does not re-derive it.
 - `crates/geom/src/surfaces/nurbs.rs:797` `map_u_columns(build: impl
   Fn(&KnotVector, &[f64]) -> …)` — the higher-order form of the
@@ -90,3 +93,21 @@ a higher-order parameter (`impl Fn(&KnotVector, &[f64])`). The sites
 above under those heads were found by reading `quad.rs`, `net.rs`,
 `compose/` and `surfaces/nurbs.rs`, not by the grep; a re-sweep owes a
 pattern over `&\[.*\]` parameters within a signature's brace span.
+
+## Closed
+
+Every listed site is either paired by construction or dispositioned
+in PR 4485's per-site table. Evaluators take `SplineCoeffs` /
+`CoeffWindow`; derivative levels are `SplineCoeffsBuf`, minted only by
+`SplineCoeffs::derivative`, or a `Loose` raw knot structure; tensor
+nets travel as `TensorCoeffs` beside both vectors, and refinement
+builds its chains from the pair's own vectors
+(`TensorChannels::refine_equal_split`). `bspline_green_integral` takes
+two pairs and lost its weights parameter. Count-mismatch refusals the
+pairing makes unreachable are deleted; the one still reachable,
+`DerivedKnots` on colliding equal-split points, stays typed
+(`Second::of` in `patch_bound.rs`). The review also found the ladder
+zeroing orders below a discontinuous derivative on main; that is fixed
+here, with rows at multiplicities p and p − 1. Sites outside this
+row's scope that the sweep found are filed on QUAD, FLUX, CHORD,
+SSIARITH and NURBS (`nurbs-iso-netview-carries-a-surface-unpaired`).

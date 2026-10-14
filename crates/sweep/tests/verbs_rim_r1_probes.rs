@@ -53,7 +53,7 @@ test_utils::gated_to![
 ];
 
 use crate::common::approx::band;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point2, Tol};
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -285,7 +285,13 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
                 "a cone×cylinder corner exists at a = {a}; {}",
                 fuzz::replay()
             );
-            let v = fillet_edges(&body, &rims[..1], 0.05 * a, tol()).map_err(|r| r.error);
+            let v = fillet_edges(
+                &sweep::test_support::at_rest(&body, tol()),
+                &rims[..1],
+                0.05 * a,
+                tol(),
+            )
+            .map_err(|r| r.error);
             assert!(
                 !matches!(v, Err(BlendError::TangentialEdge { .. })),
                 "neck {a}, closed = {closed}: a transverse corner is not a tangency, \
@@ -327,11 +333,18 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
             just(SurfaceKind::Sphere),
         );
         assert!(!seams.is_empty(), "a full ball carries a seam meridian");
-        match fillet_edges(&ball, &seams[..1], 0.05 * r, tol()).map_err(|r| r.error) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&ball, tol()),
+            &seams[..1],
+            0.05 * r,
+            tol(),
+        )
+        .map_err(|r| r.error)
+        {
             Err(BlendError::TangentialEdge { margin, .. }) => {
                 assert_eq!(margin.predicate, "fillet3_convexity_sign");
                 assert_eq!(
-                    margin.value(),
+                    margin.reading.diagnostic_f64_for_error_text().value(),
                     Some(0.0),
                     "a co-surface seam's sine is structurally zero; {}",
                     fuzz::replay()
@@ -346,9 +359,10 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
 }
 
 /// **A closed one-edge chain mints no junctions** — the structural
-/// fact the wrap-around G1 check rests on: `walk_chains` registers a
-/// self-closed link's one vertex once, so the junction loop has
-/// nothing to walk and predicate 4 reaches that chain only through the
+/// fact the wrap-around G1 check rests on: a self-closed link's one
+/// vertex holds only its own two ends, so the walk finds no unused
+/// link there, the junction loop has nothing to walk, and predicate 4
+/// reaches that chain only through the
 /// explicit wrap-around site on the link's own carrier endpoints. Red
 /// if the walk starts recording a wrap-around junction for a
 /// self-closed single link, which would meter it twice.
@@ -387,8 +401,13 @@ fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
 fn a_passing_closed_rim_reaches_the_surgery_and_builds_its_annulus_band() {
     let body = dome(1.0);
     let rims = [sweep::test_support::one_edge_rim_at(&body, 1.0, 0.0)];
-    let out = fillet_edges(&body, &rims[..1], 0.05, tol())
-        .unwrap_or_else(|e| panic!("the dome's one-edge rim fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &rims[..1],
+        0.05,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the dome's one-edge rim fillets, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one closed rim mints one band");
     assert!(
         out.blend_faces.is_empty() && out.corner_faces.is_empty(),
@@ -437,7 +456,13 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
         chord < 0.01 * a,
         "the fixture must be in the collapsing regime (endpoint chord {chord})"
     );
-    let v = fillet_edges(&body, &corner[..1], 0.05, tol()).map_err(|r| r.error);
+    let v = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &corner[..1],
+        0.05,
+        tol(),
+    )
+    .map_err(|r| r.error);
     assert!(
         !matches!(v, Err(BlendError::TangentialEdge { .. })),
         "the dihedral must decide at the honest lever, not starve: {v:?}"

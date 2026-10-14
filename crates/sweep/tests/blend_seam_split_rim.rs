@@ -1,8 +1,8 @@
 //! **The seam-split closed rim's band: ONE annulus over several arcs.**
 //!
-//! A full revolve of a POLE-TOUCHING profile splits every wall into two
-//! half-bands, so every latitude rim arrives as two arcs meeting at two
-//! chart-seam vertices. A chain that STOPS at such a vertex is refused
+//! A full revolve of a POLE-TOUCHING profile splits every curved wall
+//! into two half-bands, so every latitude rim beside one arrives as two
+//! arcs meeting at two chart-seam vertices. A chain that STOPS at such a vertex is refused
 //! `SeamVertex`, whose recourse names the request that describes what
 //! the caller wants: ask for the rim WHOLE. These rows are what makes
 //! that recourse true.
@@ -24,9 +24,9 @@
 //! - **The band is ONE annulus wall** over both arcs: one boundary
 //!   cycle, no ring, two trim arcs per side and one doubly-traversed
 //!   slit — red if the carve ever leaves a sector wall behind.
-//! - **The supports are several FACES of one SURFACE** per side, which
-//!   is the resolution this door rests on and the half-face shape #319
-//!   met.
+//! - **A curved support is several FACES of one SURFACE**, which is
+//!   the resolution this door rests on; a plane support is one face
+//!   carrying both arcs.
 //! - **The seam-split carve removes exactly what a ONE-EDGE carve of
 //!   the same rim removes**: the same profile bored on-axis has the
 //!   same three rims as single closed edges, and both doors take the
@@ -55,6 +55,7 @@ use core::f64::consts::SQRT_2;
 use crate::common::oracles::sigma;
 
 use geom::Surface;
+use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
@@ -181,10 +182,10 @@ fn rims() -> [Rim; 3] {
 
 /// One support pair, as the sense-bit row reads it: its name, the rim
 /// point its sheet is taken at, the two traces as functions of their
-/// ball-side bit, the two signed distances in the supports' own
+/// ball side, the two signed distances in the supports' own
 /// closed forms, and whether a ball rests there at all (as a function
 /// of the two sides' `σ`).
-type TraceOf<'a> = Box<dyn Fn(bool) -> SupportTrace<f64> + 'a>;
+type TraceOf<'a> = Box<dyn Fn(SurfaceSide) -> SupportTrace<f64> + 'a>;
 type DistOf<'a> = Box<dyn Fn(Point3<f64>) -> f64 + 'a>;
 type ArmRow<'a> = (
     &'static str,
@@ -253,7 +254,7 @@ fn volume(body: &Body<f64>) -> f64 {
 #[test]
 fn every_lantern_rim_carves_whole_to_its_closed_form() {
     let r = 0.05;
-    let source = lantern();
+    let source = sweep::test_support::finished("source", lantern(), tol());
     for (name, rim_r, rim_y, center) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
         assert_full_revolve_rim(&arcs, name);
@@ -295,8 +296,13 @@ fn every_lantern_rim_carves_whole_to_its_closed_form() {
 fn the_band_over_two_arcs_is_one_annulus_wall() {
     let source = lantern();
     let arcs = rim_arcs_at(&source, SHOULDER.0, SHOULDER.1);
-    let out = fillet_edges(&source, &arcs, 0.05, tol())
-        .unwrap_or_else(|e| panic!("the shoulder fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        0.05,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the shoulder fillets, got {e:?}"));
     let face = out.band_faces[0];
     let fd = out.body.get_face(face).unwrap();
     assert!(fd.rings.is_empty(), "a curved face carries no ring");
@@ -325,13 +331,14 @@ fn the_band_over_two_arcs_is_one_annulus_wall() {
     assert_eq!(slits.len(), 1, "exactly one slit");
 }
 
-/// **Both supports are several FACES of one SURFACE.** That is the
-/// resolution the door rests on, and #319's own finding: a pole-touching
-/// revolve splits the base DISK into two half-faces, so the planar
-/// support of the neck rim's two arcs is two different faces of one
-/// plane.
+/// **A curved support is several FACES of one SURFACE.** That is the
+/// resolution the door rests on: a pole-touching revolve splits every
+/// CURVED wall into two half-bands, so a curved support of a rim's two
+/// arcs is two different faces of one surface. A PLANE support is one
+/// face carrying both arcs: the revolve builds a plane wall whole
+/// (`crates/sweep/README.md`, "Walls: one per run").
 #[test]
-fn each_side_of_a_seam_split_rim_is_two_faces_of_one_surface() {
+fn each_curved_side_of_a_seam_split_rim_is_two_faces_of_one_surface() {
     let source = lantern();
     for (name, rim_r, rim_y, _) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
@@ -343,10 +350,19 @@ fn each_side_of_a_seam_split_rim_is_two_faces_of_one_surface() {
             [surface_of(&source, a1), surface_of(&source, b1)],
             "{name}: the rim arrives and leaves on ONE support pair"
         );
-        assert!(
-            a0 != a1 && b0 != b1,
-            "{name}: each side of the rim is TWO faces"
-        );
+        let is_plane = |f| {
+            matches!(
+                source.get_surface(surface_of(&source, f)),
+                Some(geom::Surface::Plane { .. })
+            )
+        };
+        for (x, y) in [(a0, a1), (b0, b1)] {
+            assert_eq!(
+                x == y,
+                is_plane(x),
+                "{name}: a plane side is ONE face, a curved side TWO"
+            );
+        }
     }
 }
 
@@ -369,15 +385,25 @@ fn a_seam_split_rim_removes_what_its_one_edge_twin_removes() {
 
         let cut_split = v_lantern
             - volume(
-                &fillet_edges(&lantern, &split, r, tol())
-                    .unwrap_or_else(|e| panic!("{name} fillets on the lantern, got {e:?}"))
-                    .body,
+                &fillet_edges(
+                    &sweep::test_support::at_rest(&lantern, tol()),
+                    &split,
+                    r,
+                    tol(),
+                )
+                .unwrap_or_else(|e| panic!("{name} fillets on the lantern, got {e:?}"))
+                .body,
             );
         let cut_whole = v_bored
             - volume(
-                &fillet_edges(&bored, &whole, r, tol())
-                    .unwrap_or_else(|e| panic!("{name} fillets on the twin, got {e:?}"))
-                    .body,
+                &fillet_edges(
+                    &sweep::test_support::at_rest(&bored, tol()),
+                    &whole,
+                    r,
+                    tol(),
+                )
+                .unwrap_or_else(|e| panic!("{name} fillets on the twin, got {e:?}"))
+                .body,
             );
         assert!(
             cut_split > 0.0,
@@ -407,7 +433,7 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
             2,
             "{name} is still its seam's two arcs before its carve"
         );
-        let out = fillet_edges(&body, &arcs, r, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets on the running result, got {e:?}"));
         bands += out.band_faces.len();
         body = out.body;
@@ -450,12 +476,12 @@ fn the_lanterns_arms_fold_both_sense_bits() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: p,
     };
-    let sphere = |side: bool| SupportTrace::Round {
+    let sphere = |side: SurfaceSide| SupportTrace::Round {
         center: origin,
         radius: SPHERE_R,
         side,
     };
-    let flat = |normal: Vec3<f64>| move |side: bool| SupportTrace::Straight { normal, side };
+    let flat = |normal: Vec3<f64>| move |side: SurfaceSide| SupportTrace::Straight { normal, side };
     // Each support's own signed distance, positive on its chart
     // normal's side — written here, not read from the kernel.
     let plane_dist = move |p: Point3<f64>, n: Vec3<f64>, o: Point3<f64>| (p - o).dot(n);
@@ -501,7 +527,12 @@ fn the_lanterns_arms_fold_both_sense_bits() {
     for (name, rim, ta, tb, da, db, feasible) in rows {
         let sheet = sheet_at(rim);
         let mut folded = 0;
-        for (side_a, side_b) in [(true, true), (false, false), (true, false), (false, true)] {
+        for (side_a, side_b) in [
+            (Inner, Inner),
+            (Outer, Outer),
+            (Inner, Outer),
+            (Outer, Inner),
+        ] {
             let (sa, sb) = (sigma(side_a), sigma(side_b));
             let c = sheet_center(sheet.rim, sheet.sheet_normal(), ta(side_a), tb(side_b), r);
             if !feasible(sa, sb) {
@@ -541,8 +572,13 @@ fn the_lanterns_arms_fold_both_sense_bits() {
 fn a_seam_split_band_records_every_birth_and_every_death() {
     let source = lantern();
     let arcs = rim_arcs_at(&source, SHOULDER.0, SHOULDER.1);
-    let out = fillet_edges(&source, &arcs, 0.05, tol())
-        .unwrap_or_else(|e| panic!("the shoulder fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        0.05,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the shoulder fillets, got {e:?}"));
     assert_naming_totality(&source, &out, &arcs, "the shoulder");
     let rec = out.naming.as_ref().expect("recorded");
     assert_eq!(

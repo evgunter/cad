@@ -20,7 +20,7 @@ Found by the census in `the-mirror-class-is-unswept-outside-the-properties-pane`
 editor's commit buttons are gated on that answer:
 
 - **Apply** in the edit door (`apply_and_revert`, profile.rs ~:409),
-  gated on `moved && !refused`, pushing `SessionOp::EditProfile`;
+  gated on `differs && !refused`, pushing `SessionOp::EditProfile`;
 - **Add profile** (`add_profile_ui`, `pane/create.rs` ~:1122), gated on
   `blocked.is_none() && !refused`, pushing `SessionOp::AddProfile`.
 

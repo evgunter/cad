@@ -28,8 +28,9 @@
 use crate::common;
 use common::witness_bodies::one_circle_cut;
 use core::f64::consts::FRAC_PI_2;
+use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, SurfaceKind};
+use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
 use topo::{Body, MevSite};
 
@@ -86,7 +87,7 @@ fn disposition(body: &Body<f64>, kind: SurfaceKind, delta: f64) -> String {
                 .iter()
                 .find(|p| {
                     let face = body.get_face(p.face).unwrap();
-                    SurfaceKind::of(body.get_surface(face.surface).unwrap()) == kind
+                    body.get_surface(face.surface).unwrap().kind() == kind
                 })
                 .is_some_and(|p| !p.triangles.is_empty());
             let verdict = match mesh::validate::check_mesh(&mesh) {

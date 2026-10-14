@@ -29,7 +29,7 @@ use geom_core::interval::Interval;
 use geom_core::predicate::{Band, Sign};
 use geom_core::real::Real;
 use geom_core::sym::{SymRegistration, with_session, with_session_rules};
-use geom_core::{Decide, ParamSymbol, Sym, SymBudget, SymCounts, SymRules, Tol};
+use geom_core::{Arc2, Decide, ParamSymbol, Point2, Sym, SymBudget, SymCounts, SymRules, Tol};
 
 fn budget() -> SymBudget {
     SymBudget {
@@ -44,7 +44,10 @@ fn band() -> Band {
 
 /// A parameter over `[lo, hi]`.
 fn p(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param(ParamSymbol::of(name), Interval::from_bounds(lo, hi))
+    Sym::param(
+        ParamSymbol::new(test_utils::symbol_id(name)),
+        Interval::from_bounds(lo, hi),
+    )
 }
 
 fn lit(x: f64) -> Sym<Interval> {
@@ -52,7 +55,9 @@ fn lit(x: f64) -> Sym<Interval> {
 }
 
 fn sign_of(m: Sym<Interval>) -> Result<Sign, String> {
-    m.sign_within(band()).map_err(|e| format!("{e:?}"))
+    m.sign_within(band())
+        .map(|d| d.sign)
+        .map_err(|e| format!("{e:?}"))
 }
 
 fn shipped<R>(f: impl FnOnce() -> R) -> (R, SymCounts) {
@@ -97,7 +102,7 @@ fn r2_a_coincidence_at_the_nominal_is_registered_and_discharged_over_the_box() {
         Ok(Sign::Zero),
         "and `x² − x` decides Zero over a box where it ranges over [-0.09, 0.11]"
     );
-    assert_eq!(counts.registered, 1, "{counts:?}");
+    assert_eq!(counts.symbolic, 1, "{counts:?}");
 }
 
 /// **The `Interval` witness weakens as the box widens.** A registration
@@ -160,7 +165,7 @@ fn r2_the_numeric_shield_does_not_reach_a_dependency_widened_lie() {
         Ok(Sign::Zero),
         "a residual equal to −½ everywhere decides Zero: {counts:?}"
     );
-    assert_eq!(counts.registered, 1, "{counts:?}");
+    assert_eq!(counts.symbolic, 1, "{counts:?}");
 }
 
 // ------------------------------------------- claim 9: the theorems
@@ -173,8 +178,8 @@ type Sagitta = (
     [Sym<Interval>; 2],
 );
 
-/// The sagitta construction as `profile::seg` spells it, at the lane
-/// scalar over a box: chord `a → b`, bulge `bulge`.
+/// The chord lowering ([`Arc2::from_chord`]) at the lane scalar over a
+/// box: chord `a → b`, bulge `bulge`.
 fn sagitta(
     ax: Sym<Interval>,
     ay: Sym<Interval>,
@@ -182,21 +187,11 @@ fn sagitta(
     by: Sym<Interval>,
     bulge: Sym<Interval>,
 ) -> Sagitta {
-    let half = lit(0.5);
-    let (dx, dy) = (bx - ax, by - ay);
-    let len = (dx * dx + dy * dy).sqrt();
-    let (ux, uy) = (dx / len, dy / len);
-    let (nx, ny) = (lit(0.0) - uy, ux);
-    let (mx, my) = (ax + dx * half, ay + dy * half);
-    let b2 = bulge.powi(2);
-    let four_b = lit(4.0) * bulge;
-    let apothem = len * (lit(1.0) - b2) / four_b;
-    let signed_radius = len * (lit(1.0) + b2) / four_b;
-    let (cx, cy) = (mx + nx * apothem, my + ny * apothem);
-    let radius = signed_radius.abs();
+    let arc = Arc2::from_chord(Point2::new(ax, ay), Point2::new(bx, by), bulge);
+    let (cx, cy) = (arc.centre.x, arc.centre.y);
     let (vx, vy) = (ax - cx, ay - cy);
     let norm = (vx * vx + vy * vy).sqrt();
-    (norm, radius, [vx, vy], [cx, cy])
+    (norm, arc.radius, [vx, vy], [cx, cy])
 }
 
 /// **The rim identity holds at |b| = 1 and |b| > 1 and b < 0**, over a
@@ -234,7 +229,7 @@ fn r2_the_rim_identity_holds_at_the_semicircle_the_major_arc_and_a_clockwise_tur
             [Ok(Sign::Zero), Ok(Sign::Zero)],
             "{label}: {counts:?}"
         );
-        assert_eq!(counts.registered, 2, "{label}: {counts:?}");
+        assert_eq!(counts.symbolic, 2, "{label}: {counts:?}");
     }
 }
 

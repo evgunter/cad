@@ -10,40 +10,50 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
-use topo::Body;
+use topo::AtRestBody;
 
 fn pv(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
     (Point2::new(x, y), bulge)
 }
 
-fn body_of(loops: Vec<ProfileLoop<f64>>, z0: f64, z1: f64) -> Body<f64> {
+fn body_of(loops: Vec<ProfileLoop<f64>>, z0: f64, z1: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, loops).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
+    finished("the extrusion", body, tol)
 }
 
-fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
+fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     body_of(vec![lp.into()], z0, z1)
 }
 
 /// An annular cap: outer circle `ro`, coaxial bore `ri`.
-fn tube(ro: f64, ri: f64, z0: f64, z1: f64) -> Body<f64> {
+fn tube(ro: f64, ri: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let outer = profile::circle(Point2::new(0.0, 0.0), ro, tol).unwrap();
     let bore = profile::circle(Point2::new(0.0, 0.0), ri, tol).unwrap();
     body_of(vec![outer.into(), bore.into()], z0, z1)
 }
 
-fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
+fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
     body_of(
         vec![RawLoop::polygon([
             Point2::new(x0, y0),
@@ -56,7 +66,7 @@ fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
     )
 }
 
-fn report(name: &str, a: &Body<f64>, b: &Body<f64>) -> Option<f64> {
+fn report(name: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Option<f64> {
     let tol = Tol::witness();
     match topo::union(a, b, tol) {
         Err(e) => {
@@ -241,8 +251,7 @@ fn r1_a_box_through_a_slot_cap() {
         pv(1.0, -0.5, 1.0),
         pv(1.0, 0.5, 0.0),
         pv(-1.0, 0.5, 1.0),
-    ])
-    .with_tangent_joints(vec![0, 1, 2, 3]);
+    ]);
     let a = body_of(vec![slot], 0.0, 2.0);
     let b = boxx(-0.15, 0.15, -0.15, 0.15, 1.0, 3.0);
     let v = report("slot-cap", &a, &b);
@@ -276,8 +285,7 @@ fn r1_a_box_through_a_rounded_rectangle_cap() {
         pv(-w + r, h, q),
         pv(-w, h - r, 0.0),
         pv(-w, -h + r, q),
-    ])
-    .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    ]);
     let a = body_of(vec![rr], 0.0, 2.0);
     let b = boxx(-0.15, 0.15, -0.15, 0.15, 1.0, 3.0);
     let v = report("rounded-rect-cap", &a, &b);

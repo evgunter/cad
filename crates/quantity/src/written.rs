@@ -37,7 +37,7 @@
 //! written in degrees" is not a value this type can hold and no door
 //! has to refuse it — the #650 ruling ("make the illegal state
 //! unrepresentable") applied one layer out from the table. What that
-//! buys concretely: `Expr::literal_with_unit`'s `DisplayUnitMismatch`
+//! buys concretely: `Formula::literal_with_unit`'s `DisplayUnitMismatch`
 //! is unreachable through these types, because the only way to build
 //! one is to name a unit whose quantity already agrees.
 //!

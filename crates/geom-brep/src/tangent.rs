@@ -63,6 +63,12 @@ pub struct TangentJet<T: Real> {
     pub kappa_rel: T,
 }
 
+/// `sin θ` between two implicit gradients, `|g₁ × g₂| / (|g₁||g₂|)`:
+/// the jet's first-order defect, spelled once for every reader of it.
+pub(crate) fn normal_sine<T: Real>(g1: Vec3<T>, g2: Vec3<T>) -> T {
+    g1.cross(g2).norm() / (g1.norm() * g2.norm())
+}
+
 /// The jet of (`s1`, `s2`) at `p` along `tangent` (raw; docs above).
 /// Fixed evaluation order (D9). Poison propagates from singular
 /// gradients (cone apex/axis, torus axis) and `Nurbs` kinds.
@@ -76,7 +82,7 @@ pub fn tangent_jet<T: Real>(
     let g2 = implicit_gradient(s2, p);
     let n1 = g1.norm();
     let n2 = g2.norm();
-    let sin_theta = g1.cross(g2).norm() / (n1 * n2);
+    let sin_theta = normal_sine(g1, g2);
     // The shared normal (s1's side) and the transverse in-tangent-plane
     // direction d̂ = n̂ × τ̂.
     let n_hat = g1 / n1;
@@ -110,6 +116,12 @@ pub struct TangentSpanBounds<T: Real> {
     /// each span is bounded by its endpoints plus exactly this sag
     /// (the standard quadratic interpolation bound, exact in family).
     pub residual_sag: T,
+    /// Certified bound on the sag of the pair's separation
+    /// `s = r₁ − σ·r₂` between adjacent samples: `(Δt²/8)·sup|s″|`
+    /// with `sup|s″| ≤ sup|f₁″| + sup|f₂″|` (σ = ±1 is constant over a
+    /// span), so the two surfaces' terms add where the residual sag
+    /// takes the larger.
+    pub gap_sag: T,
     /// Certified bound on how far `|κ_rel|` can drift between
     /// adjacent samples: `Δstep · sup|dκ/dt|`, from the Gauss map's
     /// `1/arm` Lipschitz bound folded with the constant Hessians.
@@ -118,17 +130,24 @@ pub struct TangentSpanBounds<T: Real> {
 
 /// **THE certified-lane predicate** (C12.1, one place): is this
 /// (carrier kind, surface-kind pair) triple inside the jet
-/// certificate's span-bound lane? It has THREE consumers, and naming
-/// all three is what makes the together-by-construction claim checkable:
-/// [`tangent_span_bounds`] (which refuses outside it), the tier-3
-/// must-carry enforcement in `topo::validate`, and the declared-contact
-/// verifier in `topo::boolean::contact_verify` (which gates on it before
-/// taking any per-sample verdict). The demanded set, the certifiable set
-/// and the verifiable set are therefore ONE set BY CONSTRUCTION — a
-/// tangency the certificate cannot store is never demanded and never
-/// accepted as a declared contact. Widening this predicate widens all
-/// three at once, which is the property that makes a new surface row
-/// (the cone row below) cost nothing downstream.
+/// certificate's span-bound lane? It has FOUR consumers, and naming
+/// all four is what makes the together-by-construction claim checkable:
+/// [`tangent_span_bounds`] (which refuses outside it),
+/// [`crate::must_carry_over_edge`] (the constructors' gate on what a
+/// smooth join stores: outside the lane an all-`Positive` edge answers
+/// `UnderDetermined`), the tier-3 must-carry enforcement in
+/// `topo::validate` (`TangentNotIntrinsic` is demanded only inside it),
+/// and the declared-contact verifier in
+/// `topo::boolean::contact_verify` (which gates on it before taking any
+/// per-sample verdict). The stored set, the demanded set, the
+/// certifiable set and the verifiable set are therefore ONE set BY
+/// CONSTRUCTION — a tangency the certificate cannot store is never
+/// stored intrinsic, never demanded and never accepted as a declared
+/// contact. The lane gates only that intrinsic answer: the rule and
+/// tier 3 both read the second order on every definitely-smooth pair,
+/// lane or not, and refuse an in-band reading either way. Widening this
+/// predicate widens all four at once, which is the property that makes
+/// a new surface row (the cone row below) cost nothing downstream.
 ///
 /// Two arms, both closed-form:
 /// - **`Line` carriers on `Plane`/`Cylinder`/`Sphere` pairs** — the
@@ -266,6 +285,7 @@ pub fn tangent_span_bounds<T: Real>(
     let (f2b, db) = bounds_of(s2)?;
     Some(TangentSpanBounds {
         residual_sag: crate::implicit::chord_dip_charge(f2a.max(f2b), step),
+        gap_sag: crate::implicit::chord_dip_charge(f2a + f2b, step),
         kappa_drift: step * (da + db),
     })
 }
@@ -507,6 +527,7 @@ fn circle_span_bounds<T: Real>(
     let (f2b, db) = bounds_of(s2)?;
     Some(TangentSpanBounds {
         residual_sag: crate::implicit::chord_dip_charge(f2a.max(f2b), step),
+        gap_sag: crate::implicit::chord_dip_charge(f2a + f2b, step),
         kappa_drift: step * (da + db),
     })
 }

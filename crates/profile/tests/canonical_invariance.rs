@@ -30,40 +30,35 @@ test_utils::gated_to![
 use crate::common;
 
 use common::{annulus, bracket, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
-use profile::{Profile, ProfileLoop, RawLoop, test_support::bulge_loop};
+use profile::{Profile, ProfileLoop, RawLoop, Segment};
 use proptest::prelude::*;
 
 /// Rotates a loop's starting vertex by `r` (a pure reindexing — the
 /// same closed chain).
 fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
     let n = lp.vertices().len();
-    bulge_loop(
-        (0..n)
-            .map(|k| {
-                let j = (r + k) % n;
-                (lp.vertices()[j], lp.bulges()[j])
-            })
-            .collect(),
-    )
-    // Declared joints follow their vertex through the reindexing.
-    .with_tangent_joints(
-        lp.tangent_joints()
-            .iter()
-            .map(|&j| (j + n - r) % n)
-            .collect(),
-    )
+    <ProfileLoop<f64> as RawLoop<f64>>::new((0..n).map(|k| {
+        let j = (r + k) % n;
+        (lp.vertices()[j], lp.segments()[j])
+    }))
 }
 
-/// Translates a loop rigidly (fixture plumbing).
+/// Translates a loop rigidly (fixture plumbing): every vertex and every
+/// arc's centre moved by `(dx, dy)`, radii and sweeps kept.
 fn translated(lp: &ProfileLoop<f64>, dx: f64, dy: f64) -> ProfileLoop<f64> {
-    bulge_loop(
-        lp.vertices()
-            .iter()
-            .zip(lp.bulges())
-            .map(|(v, &b)| (geom_core::Point2::new(v.x + dx, v.y + dy), b))
-            .collect(),
-    )
-    .with_tangent_joints(lp.tangent_joints().to_vec())
+    let shift = |v: geom_core::Point2<f64>| geom_core::Point2::new(v.x + dx, v.y + dy);
+    <ProfileLoop<f64> as RawLoop<f64>>::new(lp.vertices().iter().zip(lp.segments()).map(
+        |(&v, &segment)| {
+            let segment = match segment {
+                Segment::Line => Segment::Line,
+                Segment::Arc(arc) => Segment::Arc(geom_core::Arc2 {
+                    centre: shift(arc.centre),
+                    ..arc
+                }),
+            };
+            (shift(v), segment)
+        },
+    ))
 }
 
 /// The named fixture set (every accepting fixture with ≥ 1 loop).
@@ -73,9 +68,9 @@ fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
         ("l_profile", profile(vec![l_profile()])),
         ("rounded_rect", profile(vec![rounded_rect(4.0, 3.0, 0.5)])),
         ("circle", profile(vec![circle_h(0.0, 0.0, 2.0)])),
-        // Mixed declared/undeclared joints (2 tangent of 7): the
-        // partial declaration set discriminates rotation/reversal
-        // remapping bugs the fully-declared fixtures cannot.
+        // Mixed tangent and corner joints (2 tangent of 7): the
+        // partial tangent set discriminates rotation/reversal
+        // remapping bugs the all-tangent fixtures cannot.
         ("bracket", profile(vec![bracket()])),
         ("annulus", annulus()),
         ("lens", profile(vec![lens()])),
@@ -157,9 +152,6 @@ proptest! {
         for (a, b) in lp.vertices().iter().zip(back.vertices().iter()) {
             prop_assert_eq!(a.x.to_bits(), b.x.to_bits());
             prop_assert_eq!(a.y.to_bits(), b.y.to_bits());
-        }
-        for (a, b) in lp.bulges().iter().zip(back.bulges().iter()) {
-            prop_assert_eq!(a.to_bits(), b.to_bits());
         }
         // The segments too: kind, centre, radius and sweep, to the bit
         // (`Debug` prints every f64 bit pattern apart, signed zeros

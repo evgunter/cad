@@ -108,6 +108,6 @@ unblocked: the far-placement rows are exactly that, and they run.
 No decision at `Sym<Interval>` moved and every pin is bit-identical.
 
 The one narrowing SYM-11 left is filed as
-`work/sym/a-dispute-names-no-predicate-on-the-receipt.md`: a dispute is
+`work/rules/a-dispute-names-no-predicate-on-the-receipt.md`: a dispute is
 counted on the receipt and names no predicate (a new `ShapeOutcome`
 row would carry it); cited from `SymCounts::theorems_disputed`'s doc.

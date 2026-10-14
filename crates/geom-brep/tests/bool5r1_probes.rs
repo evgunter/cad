@@ -1,10 +1,8 @@
-//! Review probes for the rim-free spherical wedge arm (issue 542):
-//! the structural arc rule under re-statements of the same loop, a
-//! tilted off-origin wedge, the coplanar arm's coincident-plane ladder
-//! at the band, a split meridian on a wedge, and a full-circle pair.
-//! Adopted by the unit with the blind-spot rows re-aimed at the typed
-//! refusals the fix pass added (`props_band_opposite` for a coincident
-//! pair, the pole-to-pole premise for a full-circle pair).
+//! Review probes for the rim-free spherical wedge (issue 542), now
+//! measured by the sphere's Gauss–Bonnet arm: the lune under
+//! re-statements of the same loop, a tilted off-origin wedge, the
+//! coincident-plane ladder at the band, a split meridian on a wedge,
+//! and a full-circle pair.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU};
@@ -190,63 +188,59 @@ fn probe_tilted_off_origin_wedge_measures_by_the_closed_form() {
 }
 
 /// A wedge whose `u = 0` meridian is a genuinely SPLIT edge (two pieces
-/// carrying one `CarrierId`, abutting at the equator): geometrically the
-/// quarter wedge, refused as unfolded. The torus arm folds such pieces
-/// by lineage; the sphere wedge arm reads a two-edge boundary and says
-/// so.
+/// carrying one `CarrierId`, abutting at the equator): the quarter
+/// wedge, measured with no fold — a great circle turns by zero at the
+/// joint.
 #[test]
-fn probe_a_split_meridian_wedge_refuses_as_unfolded() {
+fn probe_a_split_meridian_wedge_measures_the_quarter_lune() {
     let band = band();
     let mut a1: LoopEdge<f64> = great(0.0, H, 0.0, 0, 1);
     let mut a2: LoopEdge<f64> = great(0.0, 0.0, -H, 1, 2);
     a1.carrier_id = Some(CarrierId::minted(7));
     a2.carrier_id = Some(CarrierId::minted(7));
     let b = great(FRAC_PI_2, -H, H, 2, 0);
-    let got = curved_face(&sphere::<f64>(), &[a1, a2, b], true, band).map(|fc| fc.area);
-    println!("[bool5r1] split-meridian wedge: {got:?}");
-    assert!(
-        matches!(got, Err(PropsError::NotIsoRectangle { what }) if what.starts_with("the wedge arm reads a two-edge boundary")),
-        "{got:?}"
-    );
+    let area = curved_face(&sphere::<f64>(), &[a1, a2, b], true, band)
+        .map(|fc| fc.area)
+        .expect("the quarter lune");
+    let exact = 2.0 * RS * RS * FRAC_PI_2;
+    assert!((area - exact).abs() / exact < 1e-12, "{area} vs {exact}");
 }
 
 /// Two FULL great circles (span exactly 2π, pole back to the same pole)
-/// on two planes, stated as a two-edge loop: the wedge arm's premise
-/// that each arc runs pole to pole is decided, not inherited — a full
-/// circle has the far pole INSIDE its span (`props_meridian_pole`
-/// Positive) and refuses under the premise's name. The same pair on
-/// ONE plane is coplanar and runs its circle there and back, which
-/// `props_band_opposite` refuses as the slit it is.
+/// stated as a two-edge loop. On ONE plane the loop runs its circle
+/// there and back and turns back on itself at the pole, a cusp
+/// (`props_sphere_loop_cusp`). On two planes it visits the pole twice
+/// and is no simple loop; the arm does not decide simplicity
+/// (`curved::sphere_loop`'s docs) and answers the formula's value, the
+/// hemisphere's `2πR²` — the residual this row pins, red the day
+/// simplicity is decided.
 #[test]
-fn probe_two_full_circle_meridians_refuse_the_pole_to_pole_premise() {
+fn probe_two_full_circle_meridians_are_the_non_simple_residual() {
     let band = band();
     let edges: Vec<LoopEdge<f64>> = vec![
         great(0.0, -H, 3.0 * H, 0, 1),
         great(FRAC_PI_2, 3.0 * H, -H, 1, 0),
     ];
-    assert_eq!(
-        curved_face(&sphere::<f64>(), &edges, true, band).map(|_| ()),
-        Err(PropsError::NotIsoRectangle {
-            what: "a rimless wedge's meridians run pole to pole"
-        })
-    );
+    let area = curved_face(&sphere::<f64>(), &edges, true, band)
+        .map(|fc| fc.area)
+        .expect("the non-simple loop is answered");
+    let hemisphere = 2.0 * core::f64::consts::PI * RS * RS;
+    assert!((area - hemisphere).abs() / hemisphere < 1e-12, "{area}");
     let coplanar: Vec<LoopEdge<f64>> =
         vec![great(0.0, -H, 3.0 * H, 0, 1), great(0.0, 3.0 * H, -H, 1, 0)];
     assert_eq!(
         curved_face(&sphere::<f64>(), &coplanar, true, band).map(|_| ()),
-        Err(PropsError::NotIsoRectangle {
-            what: "a rimless sphere face whose coplanar meridians share one half-plane — a \
-                   slit the flux lane does not measure"
+        Err(PropsError::SphereLoop {
+            what: "props_sphere_loop_cusp"
         })
     );
 }
 
 /// The coincident-plane ladder: the second meridian at azimuth
-/// `k·zero/R` for k across the band. The coplanar decide runs first,
-/// so a slit narrower than `zero/R` reaches the coplanar branch — where
-/// `props_band_opposite` refuses it typed, the loop reversing at the
-/// poles — the ambiguity band escalates, and past `escalate` the wedge
-/// arm reads the slit's own width.
+/// `k·zero/R` for k across the band. A slit narrower than `zero/R`
+/// turns back on itself at the poles, a cusp refused typed
+/// (`props_sphere_loop_cusp`); the ambiguity band escalates there, and
+/// past `escalate` the arm reads the slit's own width.
 fn ladder<T: Real + geom_core::Decide>(label: &str) -> Vec<(f64, Result<T, PropsError>)> {
     let band = band();
     let zero_over_r = eps() / RS;
@@ -272,8 +266,9 @@ fn probe_the_coincident_plane_ladder_at_f64() {
             k if k <= 0.5 => assert!(
                 matches!(
                     got,
-                    Err(PropsError::NotIsoRectangle { what })
-                        if what.starts_with("a rimless sphere face whose coplanar meridians share one half-plane")
+                    Err(PropsError::SphereLoop {
+                        what: "props_sphere_loop_cusp"
+                    })
                 ),
                 "k = {k}: a slit narrower than zero/R refuses typed, got {got:?}"
             ),
@@ -282,10 +277,13 @@ fn probe_the_coincident_plane_ladder_at_f64() {
                 "k = {k}: {got:?}"
             ),
             20.0 => {
-                let area = got.expect("past escalate the wedge arm measures the slit");
+                let area = got.expect("past escalate the arm measures the slit");
                 let exact = 2.0 * RS * RS * (k * eps() / RS);
+                // The lune's width comes from its own local terms (the
+                // sphere arm's fan form for a small region), so it keeps
+                // its own digits: measured near 1e-16 at every ε row.
                 assert!(
-                    (area - exact).abs() / exact < 1e-9,
+                    (area - exact).abs() / exact < 1e-14,
                     "k = {k}: {area} vs {exact}"
                 );
             }
@@ -303,8 +301,9 @@ fn probe_the_coincident_plane_ladder_at_interval() {
             k if k <= 0.5 => assert!(
                 matches!(
                     got,
-                    Err(PropsError::NotIsoRectangle { what })
-                        if what.starts_with("a rimless sphere face whose coplanar meridians share one half-plane")
+                    Err(PropsError::SphereLoop {
+                        what: "props_sphere_loop_cusp"
+                    })
                 ),
                 "k = {k}: a slit narrower than zero/R refuses typed, got {got:?}"
             ),
@@ -313,12 +312,19 @@ fn probe_the_coincident_plane_ladder_at_interval() {
                 "k = {k}: {got:?}"
             ),
             20.0 => {
-                let area = got.expect("past escalate the wedge arm measures the slit");
+                let area = got.expect("past escalate the arm measures the slit");
                 let exact = 2.0 * RS * RS * (k * eps() / RS);
                 assert!(
                     area.lo() <= exact && exact <= area.hi(),
                     "k = {k}: {area:?} vs {exact}"
                 );
+                // The enclosure's WIDTH, not only its containment: the
+                // fan form carries the lune's own digits on this lane
+                // too (measured 4.2e-14 relative, full width, at every
+                // ε row; main's iso-rectangle closed form measured a
+                // half-width of 6e-15 relative, so this is 3.5× main's).
+                let width = (area.hi() - area.lo()) / exact;
+                assert!(width < 1e-13, "k = {k}: relative width {width:e}");
             }
             _ => {}
         }

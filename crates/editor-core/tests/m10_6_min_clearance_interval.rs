@@ -37,6 +37,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -45,10 +46,10 @@ use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separatio
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
-    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
-    NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
-    UnevaluatedReason, UnitSym, ValuePayload, evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, MeasureUnavailableAt, Node,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnevaluatedReason, UnitSym,
+    ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -75,8 +76,8 @@ const NECK_GAP: f64 = 0.4;
 /// answer a correct engine gives.
 const BOUND: f64 = 0.3;
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// The analysis half-width, in metres — M10-5's, for M10-5's reason.
@@ -92,9 +93,9 @@ fn half() -> f64 {
 /// as a node over it.
 fn dumbbell() -> Dumbbell {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("place"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -102,11 +103,11 @@ fn dumbbell() -> Dumbbell {
                 lo: -half(),
                 hi: half(),
             }),
-        },
+        }),
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon(
                 [
@@ -130,43 +131,44 @@ fn dumbbell() -> Dumbbell {
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(2.0),
+        side: ExtrudeSide::Along,
     });
     // A rigid translation by the document parameter: identity rotation,
     // so every stored direction passes through the interval lane
     // exactly (M10-5's finding, and the reason its fixtures are placed
     // rather than sized).
-    let placed = r.insert(Node::Transform {
-        input: solid,
-        translation: [
-            Expr::param(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
-        ],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
-                ),
+    let placed = r.insert(Node::transform(
+        solid,
+        editor_core::Step::Rigid {
+            translation: [
+                Formula::named(name("place"), Dimension::Length),
+                len(0.0),
+                len(0.0),
             ],
-        )
-        .expect("both indices in range"),
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
+    let measured = r.measure(
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+            ),
+        ],
     );
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(BOUND),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     Dumbbell {
         doc: r.doc,
@@ -237,10 +239,10 @@ impl<'v> Neck<'v> {
 }
 
 /// The leaf box: the one parameter at ±[`half`].
-fn leaf() -> ParamBox {
+fn leaf(doc: &ProfileDoc) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
-        name("place"),
+        doc.var_named("place").expect("the fixture declares it"),
         BoxAxis::Varying {
             lo: -half(),
             hi: half(),
@@ -322,7 +324,7 @@ fn a_point_scalar_has_no_min_clearance_value_and_the_assertion_says_why() {
 #[test]
 fn the_interval_value_is_the_engine_bracket_re_derived() {
     let f = dumbbell();
-    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf()));
+    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf(&f.doc)));
     let Some(NodeResult::Ok(v)) = ev.result(f.measure) else {
         panic!("the measure node evaluated at the interval scalar");
     };
@@ -357,7 +359,7 @@ fn the_interval_value_is_the_engine_bracket_re_derived() {
 #[test]
 fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
     let f = dumbbell();
-    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf()));
+    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf(&f.doc)));
     let neck = Neck::of(&ev, &f);
     let mut widths = Vec::new();
     for pairs in [2usize, 32, 512] {
@@ -449,6 +451,35 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
     }
 }
 
+/// With the symbolic tier on, the driver refuses the dumbbell up front
+/// and speaks the clearance measure from the driven document.
+#[test]
+fn the_symbolic_tier_refuses_a_clearance_measure_by_its_spoken_node() {
+    let f = dumbbell();
+    let (doc, _) = fixture::step(
+        f.doc,
+        DocEdit::SetLabel {
+            node: f.measure,
+            label: Some(editor_core::Label::new("neck gap").expect("a valid label")),
+        },
+    );
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let refusal = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
+        .expect_err("the symbolic tier has no clearance lane");
+    let editor_core::DriveRefusal::SymbolicClearanceUnsupported { node } = &refusal else {
+        panic!("expected SymbolicClearanceUnsupported, got {refusal:?}");
+    };
+    assert_eq!(*node, doc.spoken(f.measure));
+    assert!(
+        refusal.to_string().starts_with(&format!(
+            "Measure \"neck gap\" ({}) is a `min_clearance`, whose engine has no lane at \
+             the symbolic identity tier",
+            test_utils::refusal::tag(f.measure.0.digest())
+        )),
+        "{refusal}"
+    );
+}
+
 /// **Row 4b**: a pairing the wedge rule empties refuses typed.
 ///
 /// One face against ITSELF: a face is never at a distance from itself,
@@ -458,7 +489,7 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
 #[test]
 fn a_pairing_the_wedge_rule_empties_refuses_typed() {
     let f = dumbbell();
-    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf()));
+    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf(&f.doc)));
     let neck = Neck::of(&ev, &f);
     match min_separation(&neck.side(0), &neck.side(0), MinSeparationConfig::default()) {
         Err(r) => assert_eq!(r.name(), "no_admitted_pair", "{r:?}"),
@@ -467,13 +498,16 @@ fn a_pairing_the_wedge_rule_empties_refuses_typed() {
 }
 
 /// **Row 5**: a reference that names neither a body nor a face refuses
-/// typed, naming what it found.
+/// at the door, as the seat's kind (FORK-VTX): a `min_clearance`
+/// reference reads a `Body` or a `Face`, and a selection's kind is fixed
+/// when it is minted, so the edge's selection is refused before any
+/// evaluation sees it.
 #[test]
-fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
+fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
     let mut r = Recorder::new();
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -481,35 +515,38 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
-                // A real EDGE name — the extrude's own lateral edge at
-                // profile vertex 0 — so the reference resolves and the
-                // refusal is about its KIND rather than about a name
-                // that names nothing.
-                SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2)),
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
-            ],
-        )
-        .expect("both indices in range"),
+    // A real EDGE name — the extrude's own lateral edge at profile
+    // vertex 0 — so the refusal is about its KIND rather than about a
+    // name that names nothing.
+    let edge = SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2));
+    let face = SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2)));
+    let refused = editor_core::measure(
+        &r.doc,
+        &[MeasurePrimitive::MinClearance { a: edge, b: face }],
+        Tol::witness(),
+        &editor_core::RefusingReach,
     );
-    let ev = eval_over::<geom_core::Interval>(&r.doc, None);
-    let Some(NodeResult::Failed(err)) = ev.result(measure) else {
-        panic!("an edge is not a selection, so the measure refuses");
+    let Err(err) = refused else {
+        panic!("an edge is no min_clearance reference, so the insert refuses");
     };
     assert!(
         matches!(
-            err.kind,
-            NodeErrorKind::MeasureSelectionKind { verb: "min_clearance", found }
-                if found.kind() == editor_core::EntityKind::Edge
+            &err,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Edge,
+                expected: editor_core::SlotKind::Measured(editor_core::MeasureVerb::MinClearance),
+                ..
+            }
         ),
-        "typed, naming what it found: {}",
-        err.kind
+        "typed, naming what it found: {err:?}"
+    );
+    assert!(
+        err.to_string().contains("a body or a face"),
+        "the refusal says what the reference admits: {err}"
     );
 }
 
@@ -533,11 +570,12 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
     assert!(!verdict.certified().is_empty(), "the box certifies");
     let report = stackup(
         &f.doc,
-        f.measure,
+        crate::fixture::output(&f.doc, f.measure),
         &analyzed,
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("the report builds even though the nominal cannot");
@@ -574,7 +612,7 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
         "the goldening form records the forfeit: {}",
         report.serialize()
     );
-    let human = report.render(&analyzed);
+    let human = report.render(&f.doc, &analyzed);
     assert!(
         human.contains("UNAVAILABLE") && human.contains("still gates"),
         "the human form says the column forfeited AND that the gate stands: {human}"

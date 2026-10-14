@@ -234,6 +234,21 @@ door with G shut and ten with it on. The ladder takes the shipped side to
 `[108, 0, 62, 10]`. `decide_3_no_predicate_loses_a_decision` pins both
 sides of both predicates.
 
+## The slot is the pair's key order (CARVE, 2026-10-06)
+
+`carrier_on_surface_1` and `_2` no longer name the surface a builder
+named first. Since PR 4189 (`geom_brep::SurfacePair`) the certificate
+checks an intrinsic edge's two surfaces in key order, so `_2` is the
+higher key. The trade this row measures now lands half on each slot.
+With the ladder, the link's `_2` went `[76, 0, 16, 16]` →
+`[92, 0, 8, 8]` (`sym_9_retry_interval`). One attempt per rung, both
+slots read `[96, 0, 0, 12]` → `[92, 0, 8, 8]` (`decide_3`), which sums
+to the old `_1` (`[108, 0, 0, 0]` on both sides) plus the old `_2`. The
+document totals did not move. The `_2` figures above are therefore a
+slot of a pair, not one surface's. CARVE's
+`certify-residual-predicates-still-name-a-slot` asks whether the two
+names should merge.
+
 ## Home
 
 `crates/geom-core/src/sym/algebra.rs` (`find_square`'s `Abs` arm),

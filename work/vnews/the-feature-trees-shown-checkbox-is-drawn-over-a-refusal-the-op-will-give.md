@@ -53,7 +53,8 @@ refuse an instance with: `display_check` against the committed
 document, as the op's `Refusal::Display`. That is the op's whole
 admission, since `SetInstanceHidden` is permitted in both drag tables
 `perform` applies first. `ViewerBehavior::feature_row`
-(`pane/features.rs`) still draws the checkbox on `InstantiatePart`
+(`pane/features.rs`) reads that answer and hands it to
+`feature_row_ui`, which still draws the checkbox on `InstantiatePart`
 rows only, and now draws it with `add_enabled` on that answer, with
 the refusal's sentence on its disabled hover. The fused case and the
 deleted-since-landing case are both covered.

@@ -2,10 +2,12 @@
 id: drafts-moved-true-arm-covers-a-held-state-that-refuses
 kind: issue
 title: drafts' ProfileEdit::moved answers true for a held state that does not lower, under a name that says only moved
-status: open
+status: closed
 opened: 2026-09-28
 priority: P4
 cost: E
+branch: vnews/three-small-words
+closed: 2026-09-28
 ---
 
 
@@ -46,3 +48,19 @@ parameter and the `moved` locals in `pane/profile.rs` with it.
 and the only production caller is `pane/profile.rs`, which is this
 program's; filed here because the words are what the row is about.
 Announce on `author`'s log when it is taken.
+
+## Closed, 2026-09-28 (`vnews/three-small-words`)
+
+`ProfileEdit::moved` is `ProfileEdit::differs_from_base`. Its doc's
+first line now asks whether the held state differs from the committed
+program at all (it edits it, or it cannot be read as it), and says that
+applying the second kind writes nothing and is how the refusal is said.
+`pane/profile.rs` follows it: the `moved` local is `differs`, and so is
+`apply_and_revert`'s parameter, whose doc says the buttons are live
+while the held state differs rather than once the numbers have moved.
+Every call site was renamed (seven in `drafts.rs`'s tests, one
+production and two test sites in `pane/profile.rs`). Behaviour is unchanged.
+`git grep 'ProfileEdit::moved\|edit\.moved\|fn moved'` finds no hit in
+`crates/viewer`. The test local `moved` in
+`revert_says_there_is_nothing_to_revert_until_a_number_moves` names a
+painted hover string, not this value, and stays.

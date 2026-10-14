@@ -8,6 +8,7 @@
 use crate::shared::tol::band;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
+use geom_brep::Reach;
 use geom_brep::intersect::{PlaneCylinderSection, plane_cylinder_section};
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane, implicit_residual};
 use geom_core::spline::KnotVector;
@@ -35,7 +36,17 @@ fn plane(phi: f64) -> Surface<f64> {
 }
 
 fn section_ellipse(phi: f64) -> Curve3<f64> {
-    match plane_cylinder_section(&plane(phi), &cyl(), 1.0, band()).unwrap() {
+    match plane_cylinder_section(
+        &plane(phi),
+        &cyl(),
+        &Reach::Measured {
+            at: Point3::new(1.0, 2.0, 3.0),
+            lever: 1.0,
+        },
+        band(),
+    )
+    .unwrap()
+    {
         PlaneCylinderSection::TiltedEllipse(e) => e,
         other => panic!("expected the tilted ellipse, got {other:?}"),
     }
@@ -360,10 +371,7 @@ fn ellipse_differential_interval_lane() {
     .unwrap();
     let oracle = rational_quadratic_arc(&e, 0.3, 2.9);
     // Lift the oracle to Interval (same structure, bracketed data).
-    let ctrl: Vec<Point3<Interval>> = oracle.control().iter().map(|p| p.map(iv)).collect();
-    let oracle_iv =
-        geom::NurbsCurve3::<Interval>::new(oracle.knots().clone(), ctrl, oracle.weights().to_vec())
-            .unwrap();
+    let oracle_iv: geom::NurbsCurve3<Interval> = oracle.map_scalar(iv);
     let center = Point3::new(iv(-0.5), iv(4.0), iv(1.25));
     let axis = Vec3::new(iv(2.0 / 3.0), iv(2.0 / 3.0), iv(1.0 / 3.0));
     let u_ref = Vec3::new(iv(1.0 / 3.0), iv(-2.0 / 3.0), iv(2.0 / 3.0));

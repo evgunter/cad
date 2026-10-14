@@ -429,7 +429,7 @@ fn level_ring(
 /// but takes `(&Body, LoopKey)` and walks the B-rep, so it cannot
 /// consume a sampled polyline; `chart_region::point_in_polygon`,
 /// `profile::validate::point_in_loop` and the shared walk the first
-/// two now share (`topo::ray_parity::ray_verdict`, `pub(crate)`) are
+/// two now share (`topo::ray_walk::ray_verdict`, `pub(crate)`) are
 /// private to their crates; and any `Decide`-certified door — which
 /// the shared walk is — would tie this oracle's validity to the
 /// running ε, which is the fragility #619 was faulted for.

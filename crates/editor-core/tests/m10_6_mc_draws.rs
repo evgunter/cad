@@ -17,7 +17,7 @@
 //!   `monte_carlo` reports, bit for bit;
 //! * **`nominal + offset` is where the lane put the sample** — which
 //!   is the claim a consumer needs in order to place a draw through an
-//!   ordinary `SetDocParamValue` edit rather than through a
+//!   ordinary `SetVarValue` edit rather than through a
 //!   `ParamBox`, since that box is the interval driver's type and the
 //!   advisory lane is meant to be reachable without it.
 //!
@@ -33,8 +33,7 @@ use geom_core::Tol;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::mc::{McConfig, McRefusal, monte_carlo, sample_offsets};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, Expr, MeasureExpr, Node, ParamName, ProfileDoc,
-    RecipeNodeId, UnitSym, apply,
+    Dimension, Distribution, DocEdit, FreeVar, ProfileDoc, RecipeNodeId, UnitSym, VarName,
 };
 
 /// The nominal, and a number with no dyadic shortcuts in it: a mean
@@ -47,46 +46,24 @@ const SAMPLES: usize = 96;
 
 /// The document: one varying parameter, and a measure that reads it.
 ///
-/// Deliberately the SIMPLEST document that has both — the measured
-/// value is the parameter's own value, so a disagreement between the
-/// two paths cannot be blamed on geometry standing between the draw
-/// and the reading.
+/// Deliberately the SIMPLEST measured document: a unit cube and its copy
+/// translated by `x` along x, measured from the cube's vertex at the
+/// origin to the copy's — whose value is `|x − 0|`, the parameter's own
+/// value, so a disagreement between the two paths cannot be blamed on
+/// geometry standing between the draw and the reading.
 fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
-    let tol = Tol::witness();
-    let mut doc = ProfileDoc::empty_derived("m10-mc-draws", tol);
-    let applied = apply(
-        &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::new("x"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: NOMINAL,
-                display_unit: UnitSym::canonical_for(Dimension::Length),
-                distribution: Some(law),
-            },
-        },
-        tol,
-        &editor_core::RefusingReach,
-    )
-    .expect("the parameter declares");
-    doc = applied.doc;
-
-    let applied = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Node::measure(
-                MeasureExpr::value(Expr::param(ParamName::new("x"), Dimension::Length)),
-                Vec::new(),
-            )
-            .expect("a measure over a value leaf takes no references"),
-        },
-        tol,
-        &editor_core::RefusingReach,
-    )
-    .expect("the measure inserts");
-    doc = applied.doc;
-    let measure = applied.record.minted.expect("an insert mints an id");
-    (doc, measure)
+    let mut r = crate::fixture::Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("x"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
+            dim: Dimension::Length,
+            value: NOMINAL,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(law),
+        }),
+    });
+    let measure = r.measure_of_translation("x");
+    (r.doc, measure)
 }
 
 /// `summarize`'s arithmetic, in the order the lane runs it. Re-stated
@@ -132,9 +109,9 @@ fn sample_offsets_enumerates_the_population_monte_carlo_summarizes() {
     let values: Vec<f64> = (0..SAMPLES)
         .map(|i| {
             let offsets =
-                sample_offsets(&analyzed, &config, i).expect("a normal law is sampleable");
+                sample_offsets(&doc, &analyzed, &config, i).expect("a normal law is sampleable");
             assert_eq!(offsets.len(), 1, "one varying parameter, one offset");
-            NOMINAL + offsets[&ParamName::new("x")]
+            NOMINAL + offsets[&doc.var_named("x").expect("declared")]
         })
         .collect();
     let (mean, sigma, min, max) = summarize(&values);
@@ -154,14 +131,14 @@ fn a_samples_draw_depends_on_its_index_alone() {
     let (doc, _) = doc_with_one_law(Distribution::Uniform { lo: -0.5, hi: 0.5 });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let config = McConfig::default();
-    let x = ParamName::new("x");
+    let x = doc.var_named("x").expect("declared");
 
     let ascending: Vec<f64> = (0..8)
-        .map(|i| sample_offsets(&analyzed, &config, i).expect("sampleable")[&x])
+        .map(|i| sample_offsets(&doc, &analyzed, &config, i).expect("sampleable")[&x])
         .collect();
     let descending: Vec<f64> = (0..8)
         .rev()
-        .map(|i| sample_offsets(&analyzed, &config, i).expect("sampleable")[&x])
+        .map(|i| sample_offsets(&doc, &analyzed, &config, i).expect("sampleable")[&x])
         .collect();
     let mut descending = descending;
     descending.reverse();
@@ -189,7 +166,7 @@ fn a_band_refuses_at_the_draw_door_as_it_does_at_the_run() {
     let config = McConfig::default();
     assert!(
         matches!(
-            sample_offsets(&analyzed, &config, 0),
+            sample_offsets(&doc, &analyzed, &config, 0),
             Err(McRefusal::BandHasNoMeasure(_))
         ),
         "a band has no shape to draw from, at either door"

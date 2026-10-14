@@ -68,7 +68,7 @@
 //!
 //! Finiteness: the newtypes are plain value wrappers and do not refuse
 //! non-finite floats themselves; the fail-loud doors are where values
-//! enter recipe data or the kernel (`Expr::literal`'s ruled door 1),
+//! enter recipe data or the kernel (`Formula::literal`'s ruled door 1),
 //! exactly as for raw `f64` authoring today.
 
 mod fmt;

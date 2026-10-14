@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{Node, PersistError, ProfileDoc, REGENERATE_RECOURSE, load, save};
 use fixture::{insert, len, on_frame};
@@ -38,8 +39,9 @@ fn small() -> String {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     save(&doc, &[], Tol::witness()).expect("saves")
@@ -184,13 +186,13 @@ fn a_field_this_build_does_not_know_refuses_rather_than_being_ignored() {
 #[test]
 fn a_document_predating_a_non_optional_field_refuses_naming_it() {
     let (header, mut v) = split(&small());
-    let removed = v["snapshot"].as_object_mut().unwrap().remove("roots");
-    assert!(removed.is_some(), "the fixture carries `roots`");
+    let removed = v["snapshot"].as_object_mut().unwrap().remove("epsilon");
+    assert!(removed.is_some(), "the fixture carries `epsilon`");
     let text = join(&header, &v);
     match load(&text, Tol::witness()) {
         Err(err @ PersistError::Unreadable { .. }) => {
             let msg = err.to_string();
-            assert!(msg.contains("missing field `roots`"), "{msg}");
+            assert!(msg.contains("missing field `epsilon`"), "{msg}");
             assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
         }
         other => panic!("a missing non-optional field must refuse unreadable, got {other:?}"),
@@ -230,7 +232,7 @@ fn serdes_missing_field_semantics_are_what_the_module_docs_assume() {
 
 /// The classification seam's edges, each pinned to the arm it lands
 /// on. A duplicate key is `Data` (valid JSON, refused by the types);
-/// nesting past serde_json's recursion limit and a bare `NaN` token
+/// nesting past the load door's nesting limit and a bare `NaN` token
 /// are not JSON at all.
 #[test]
 fn the_classification_seam_holds_at_its_edges() {
@@ -257,11 +259,11 @@ fn the_classification_seam_holds_at_its_edges() {
         other => panic!("a duplicate key must refuse unreadable, got {other:?}"),
     }
 
-    // Deep nesting: serde_json's recursion limit is a SYNTAX class.
+    // Deep nesting past the door's limit is the reader's class.
     let deep = format!("{}{}{}\n", header, "[".repeat(600), "]".repeat(600));
     match load(&deep, Tol::witness()) {
-        Err(PersistError::Parse { .. } | PersistError::Unreadable { .. }) => {}
-        other => panic!("deep nesting must refuse typed, got {other:?}"),
+        Err(PersistError::Parse { .. }) => {}
+        other => panic!("deep nesting must refuse as the reader's class, got {other:?}"),
     }
 
     // Non-finite tokens are not JSON: they refuse before the types.

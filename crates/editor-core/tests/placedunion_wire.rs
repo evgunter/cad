@@ -13,8 +13,9 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
-use editor_core::{Expr, Frame, Node, PatternKind, load, save};
+use editor_core::{Formula, Frame, Node, PatternKind, load, save};
 use fixture::{len, scl};
 use geom_core::Tol;
 
@@ -30,13 +31,14 @@ fn both_rules_round_trip() {
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let solid = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let stepped = r.insert(
         Node::placed_union(
             solid,
-            Expr::count(3),
+            Formula::count(3),
             PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(4.0),

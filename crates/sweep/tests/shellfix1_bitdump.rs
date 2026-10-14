@@ -13,6 +13,7 @@ use topo::{Body, FaceKey};
 
 use crate::common::bitdump::{dump, dump_dir, save};
 use crate::common::shell_operands::{tube, vessel};
+use sweep::test_support::finished;
 
 fn plane_face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
     body.faces()
@@ -38,32 +39,56 @@ fn shellfix1_bitdump_corpus() {
     let body = block(w, d, h, Tol::witness());
     write_dump(
         "sealed_box",
-        &topo::shell(&body, t, Tol::witness()).unwrap().body,
+        &topo::shell(
+            &finished("the operand", body.clone(), Tol::witness()),
+            t,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body,
     );
     let top = plane_face_at_z(&body, h);
     let bottom = plane_face_at_z(&body, 0.0);
     write_dump(
         "box_cup",
-        &topo::shell_open(&body, t, &[top], Tol::witness())
-            .unwrap()
-            .body,
+        &topo::shell_open(
+            &finished("the operand", body.clone(), Tol::witness()),
+            t,
+            &[top],
+            Tol::witness(),
+        )
+        .unwrap()
+        .body,
     );
     write_dump(
         "box_tube",
-        &topo::shell_open(&body, t, &[top, bottom], Tol::witness())
-            .unwrap()
-            .body,
+        &topo::shell_open(
+            &finished("the operand", body.clone(), Tol::witness()),
+            t,
+            &[top, bottom],
+            Tol::witness(),
+        )
+        .unwrap()
+        .body,
     );
     write_dump(
         "sealed_vessel",
-        &topo::shell(&vessel(1.0, 2.0), 0.2, Tol::witness())
-            .unwrap()
-            .body,
+        &topo::shell(
+            &finished("the operand", vessel(1.0, 2.0), Tol::witness()),
+            0.2,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body,
     );
     write_dump(
         "sealed_tube",
-        &topo::shell(&tube(0.6, 1.0, 2.0), 0.1, Tol::witness())
-            .unwrap()
-            .body,
+        &topo::shell(
+            &finished("the operand", tube(0.6, 1.0, 2.0), Tol::witness()),
+            0.1,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body,
     );
 }

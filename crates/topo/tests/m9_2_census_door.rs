@@ -4,7 +4,7 @@
 //! arms: the exact planar sweeps (unchanged), the conformal face-pair
 //! arm (shared-carrier opposed-sense curved pairs through the
 //! chart-region predicate), face-granularity backing from
-//! curve/patch records, the patch-record certifier, and the
+//! face–face records, the patch-record certifier, and the
 //! closed-form tangent-locus helper (the M9-1 PR-2 DEV-1 ruling).
 //! Three-outcome ε honesty on every new row; nothing blesses from
 //! discovery (F1).
@@ -24,12 +24,10 @@
 use crate::common;
 
 use geom::Surface;
+use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::{
-    Body, CensusContact, ContactRecords, TangentLocus, TangentLocusError, ValidationError,
-    VvContact, tangent_locus, validate_pseudomanifold,
-};
+use topo::{Body, CensusContact, ContactRecords, ValidationError, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
@@ -46,17 +44,17 @@ fn cube_at(dx: f64, dy: f64, dz: f64) -> Body<f64> {
 /// Grafts `b`'s solid into `a` (two instances in one arena).
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 
 // ---------------------------------------------------------------------
-// #382 half-2: inter-instance overlap surfaces as undeclared contact
+// #382 half-2: inter-instance overlap surfaces as unrecorded contact
 // through the SAME census arms — never an ad-hoc graft check.
 // ---------------------------------------------------------------------
 
 #[test]
-fn overlapping_instances_refuse_as_undeclared_contact_naming_the_pair() {
+fn overlapping_instances_refuse_as_unrecorded_contact_naming_the_pair() {
     // Two tier-3-valid unit cubes overlapping by a half-cube: each
     // passes its own gate, the graft passes tier 3 (the #382 finding
     // — no local check compares the solids), and the 3′ census now
@@ -76,7 +74,7 @@ fn overlapping_instances_refuse_as_undeclared_contact_naming_the_pair() {
     assert!(
         errors.iter().any(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::EdgeFacePierce { .. },
                 ..
             }
@@ -109,14 +107,12 @@ fn stacked() -> (Body<f64>, ContactRecords) {
     let a = cube_at(0.0, 0.0, 0.0);
     let b = cube_at(0.0, 0.0, 1.0);
     let body = assembly(&a, &b);
-    // Declare the interface at its census granularity: the four
-    // coincident corner pairs (the planar C2 tables' currency —
-    // exactly what an ASM mate's declaration resolves to).
+    // The interface's records: the four coincident corner pairs and
+    // the four rim-edge pairs between them.
     let mut records = ContactRecords::default();
     let mut at = |x: f64, y: f64| {
         let mut hits = Vec::new();
-        for (vk, v) in body.vertices() {
-            let p = body.get_point(v.point).unwrap();
+        for (vk, p) in body.vertex_points() {
             if (p.x - x).abs() < 1e-9 && (p.y - y).abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9 {
                 hits.push(vk);
             }
@@ -124,13 +120,53 @@ fn stacked() -> (Body<f64>, ContactRecords) {
         let [va, vb] = hits[..] else {
             panic!("exactly two corners at ({x}, {y}, 1)");
         };
-        records.vv.push(VvContact { a: va, b: vb });
+        records.extend([topo::Cited::new(
+            topo::Contact::new(&body, topo::Cell::Vertex(va), topo::Cell::Vertex(vb)).unwrap(),
+            topo::Cites::decided(0),
+        )]);
     };
     at(0.0, 0.0);
     at(1.0, 0.0);
     at(1.0, 1.0);
     at(0.0, 1.0);
+    records.extend(rim_records(&body));
     (body, records)
+}
+
+/// The edge-edge records of two unit cubes stacked at z = 1, each in
+/// `body`'s arena: along each side of the interface the two cubes' rim
+/// edges lie on one another, a pair whose interiors meet (D1), which
+/// the corner records at its two ends confirm.
+pub(crate) fn rim_records(body: &Body<f64>) -> Vec<topo::Cited<topo::Contact>> {
+    let at = |v: topo::VertexKey| {
+        let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        (p.x, p.y, p.z)
+    };
+    let on = |c: (f64, f64), (x, y, z): (f64, f64, f64)| {
+        (x - c.0).abs() < 1e-12 && (y - c.1).abs() < 1e-12 && (z - 1.0).abs() < 1e-12
+    };
+    let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    (0..4)
+        .map(|i| {
+            let (p, q) = (corners[i], corners[(i + 1) % 4]);
+            let rims: Vec<topo::EdgeKey> = body
+                .edges()
+                .filter(|(_, e)| {
+                    let [s, t] =
+                        [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+                    (on(p, s) && on(q, t)) || (on(q, s) && on(p, t))
+                })
+                .map(|(k, _)| k)
+                .collect();
+            let [a, b] = rims[..] else {
+                panic!("exactly two rim edges from {p:?} to {q:?}: {rims:?}");
+            };
+            topo::Cited::new(
+                topo::Contact::new(body, topo::Cell::Edge(a), topo::Cell::Edge(b)).unwrap(),
+                topo::Cites::decided(0),
+            )
+        })
+        .collect()
 }
 
 #[test]
@@ -151,7 +187,7 @@ fn the_same_touching_pair_undeclared_is_the_f1_hard_error() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "the undeclared touch is the hard error: {errors:?}"
     );
 }
@@ -159,6 +195,12 @@ fn the_same_touching_pair_undeclared_is_the_f1_hard_error() {
 // ---------------------------------------------------------------------
 // The tangent-locus helper (DEV-1): closed forms, three-outcome rows.
 // ---------------------------------------------------------------------
+
+/// A 1 m patch about the origin: the extent these exact-axis fixtures'
+/// locus verdicts are consumed over (no row here turns on the lever).
+fn metre_patch() -> geom_brep::ExtentBall<f64> {
+    geom_brep::ExtentBall::new(Point3::origin(), 1.0)
+}
 
 fn plane_at(z: f64) -> Surface<f64> {
     Surface::Plane {
@@ -187,7 +229,8 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
         radius: 1.0,
         u_ref: Vec3::unit_z(),
     };
-    let TangentLocus::Line { origin, dir } = tangent_locus(&plane_at(0.0), &cyl, band()).unwrap();
+    let TangentLocus::Line { origin, dir, .. } =
+        tangent_locus(&plane_at(0.0), &cyl, metre_patch(), band()).unwrap();
     assert!(
         origin.z.abs() < 1e-12 && origin.y.abs() < 1e-12,
         "{origin:?}"
@@ -197,12 +240,18 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
         "the ruling is axial: {dir:?}"
     );
     // Apart and crossing refuse with the honest side named.
-    match tangent_locus(&plane_at(-0.5), &cyl, band()) {
-        Err(TangentLocusError::NotTangent { apart: true }) => {}
+    match tangent_locus(&plane_at(-0.5), &cyl, metre_patch(), band()) {
+        Err(TangentLocusError::NotTangent {
+            apart: true,
+            predicate: "pc_parallel_gap",
+        }) => {}
         other => panic!("clearance must refuse apart: {other:?}"),
     }
-    match tangent_locus(&plane_at(0.5), &cyl, band()) {
-        Err(TangentLocusError::NotTangent { apart: false }) => {}
+    match tangent_locus(&plane_at(0.5), &cyl, metre_patch(), band()) {
+        Err(TangentLocusError::NotTangent {
+            apart: false,
+            predicate: "pc_parallel_gap",
+        }) => {}
         other => panic!("a crossing must refuse crossing: {other:?}"),
     }
     // An oblique axis is outside the closed-form lane, typed.
@@ -212,12 +261,12 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
         radius: 1.0,
         u_ref: Vec3::unit_y(),
     };
-    match tangent_locus(&plane_at(0.0), &oblique, band()) {
+    match tangent_locus(&plane_at(0.0), &oblique, metre_patch(), band()) {
         Err(TangentLocusError::Unsupported { .. }) => {}
         other => panic!("oblique tangency has no closed form: {other:?}"),
     }
     // An in-band gap ESCALATES (three-outcome honesty on the row).
-    match tangent_locus(&plane_at(3e-9), &cyl, band()) {
+    match tangent_locus(&plane_at(3e-9), &cyl, metre_patch(), band()) {
         Err(TangentLocusError::Escalated(_)) => {}
         other => panic!("an in-band gap must escalate: {other:?}"),
     }
@@ -226,22 +275,28 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
 #[test]
 fn parallel_cylinders_mint_the_external_and_internal_generators() {
     // External: radii 1 + 1, axes 2 apart in y — generator at y = 1.
-    let TangentLocus::Line { origin, dir } =
-        tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 1.0), band()).unwrap();
+    let TangentLocus::Line { origin, dir, .. } =
+        tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 1.0), metre_patch(), band()).unwrap();
     assert!((origin.y - 1.0).abs() < 1e-12, "{origin:?}");
     assert!(dir.y.abs() < 1e-12 && dir.z.abs() < 1e-12, "{dir:?}");
     // Internal: r 1 inside r 3, axes 2 apart — generator at y = -1
     // (the small cylinder touches the big one on its far side).
-    let TangentLocus::Line { origin, dir: _ } =
-        tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 3.0), band()).unwrap();
+    let TangentLocus::Line { origin, .. } =
+        tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 3.0), metre_patch(), band()).unwrap();
     assert!((origin.y - (-1.0)).abs() < 1e-12, "{origin:?}");
     // Definitely apart / definitely overlapping refuse.
-    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(5.0, 1.0), band()) {
-        Err(TangentLocusError::NotTangent { apart: true }) => {}
+    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(5.0, 1.0), metre_patch(), band()) {
+        Err(TangentLocusError::NotTangent {
+            apart: true,
+            predicate: "cc_parallel_gap",
+        }) => {}
         other => panic!("{other:?}"),
     }
-    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(1.0, 1.0), band()) {
-        Err(TangentLocusError::NotTangent { apart: false }) => {}
+    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(1.0, 1.0), metre_patch(), band()) {
+        Err(TangentLocusError::NotTangent {
+            apart: false,
+            predicate: "tangent_locus_internal_gap",
+        }) => {}
         other => panic!("{other:?}"),
     }
     // Skew/crossing axes and unsupported kinds are typed.
@@ -251,11 +306,11 @@ fn parallel_cylinders_mint_the_external_and_internal_generators() {
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
-    match tangent_locus(&cyl_r(0.0, 1.0), &crossed, band()) {
+    match tangent_locus(&cyl_r(0.0, 1.0), &crossed, metre_patch(), band()) {
         Err(TangentLocusError::Unsupported { .. }) => {}
         other => panic!("{other:?}"),
     }
-    match tangent_locus(&plane_at(0.0), &plane_at(1.0), band()) {
+    match tangent_locus(&plane_at(0.0), &plane_at(1.0), metre_patch(), band()) {
         Err(TangentLocusError::Unsupported { .. }) => {}
         other => panic!("plane×plane has no tangent line: {other:?}"),
     }
@@ -303,12 +358,11 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     let [fa, fb] = ifaces[..] else {
         panic!("exactly two z=1 faces, got {ifaces:?}");
     };
-    let patch = |a, b| ContactRecords {
-        patches: vec![topo::PatchContact {
-            face_a: a,
-            face_b: b,
-        }],
-        ..ContactRecords::default()
+    let patch = |a, b| {
+        topo::ContactRecords::from_iter(vec![topo::Cited::new(
+            topo::Contact::new(&body, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
+            topo::Cites::decided(0),
+        )])
     };
     // The TRUE record on this fixture: the interface pair, certified
     // through the declared pair's shared world carrier (#1063).
@@ -354,19 +408,23 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
 #[test]
 fn r1_probe_nested_clear_cylinders_are_definitely_apart() {
     // r 1 strictly inside r 3, axes 0.5 apart: clearance 1.5 m.
-    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(0.5, 3.0), band()) {
-        Err(TangentLocusError::NotTangent { apart }) => {
+    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(0.5, 3.0), metre_patch(), band()) {
+        Err(TangentLocusError::NotTangent { apart, predicate }) => {
             assert!(apart, "nested surfaces are definitely APART");
+            assert_eq!(
+                predicate, "tangent_locus_internal_gap",
+                "the internal row refuses"
+            );
         }
         other => panic!("nested clear cylinders are not tangent: {other:?}"),
     }
 }
 
-/// R1 probe (claim 4): the tangent-locus gap row is METRE data — the
-/// mm twin of an in-band metre gap decides definitely, the metre
-/// fixture escalates (scale-covariant, never scale-invariant).
+/// R1 probe (claim 4): the plane×cylinder gap row the witness reads is
+/// METRE data — the mm twin of an in-band metre gap decides definitely,
+/// the metre fixture escalates (scale-covariant, never scale-invariant).
 #[test]
-fn r1_probe_tangent_locus_gap_row_is_scale_covariant() {
+fn r1_probe_plane_cylinder_gap_row_is_scale_covariant() {
     // Metre twin: cylinder r 1 at height 1 + 3e-9 above the plane —
     // gap 3e-9, in Band{1e-9, 1e-8} ⇒ escalate.
     let cyl_m = Surface::Cylinder {
@@ -375,8 +433,14 @@ fn r1_probe_tangent_locus_gap_row_is_scale_covariant() {
         radius: 1.0,
         u_ref: Vec3::unit_z(),
     };
-    match tangent_locus(&plane_at(0.0), &cyl_m, band()) {
-        Err(TangentLocusError::Escalated(_)) => {}
+    match tangent_locus(&plane_at(0.0), &cyl_m, metre_patch(), band()) {
+        Err(TangentLocusError::Escalated(d)) => {
+            assert_eq!(
+                d.predicate,
+                Some("pc_parallel_gap"),
+                "the gap row escalates"
+            );
+        }
         other => panic!("metre twin gap 3e-9 must escalate: {other:?}"),
     }
     // mm twin (everything x 1e-3): gap 3e-12, decisively below the
@@ -388,7 +452,7 @@ fn r1_probe_tangent_locus_gap_row_is_scale_covariant() {
         radius: 1e-3,
         u_ref: Vec3::unit_z(),
     };
-    match tangent_locus(&plane_at(0.0), &cyl_mm, band()) {
+    match tangent_locus(&plane_at(0.0), &cyl_mm, metre_patch(), band()) {
         Ok(TangentLocus::Line { .. }) => {}
         other => panic!("mm twin gap 3e-12 is decisively tangent: {other:?}"),
     }
@@ -412,7 +476,10 @@ fn r1_delta_probe_bridged_nested_pair_stays_loud() {
     let va = body.vertices().next().unwrap().0;
     let vb = body.vertices().last().unwrap().0;
     let mut records = ContactRecords::default();
-    records.vv.push(VvContact { a: va, b: vb });
+    records.extend([topo::Cited::new(
+        topo::Contact::new(&body, topo::Cell::Vertex(va), topo::Cell::Vertex(vb)).unwrap(),
+        topo::Cites::decided(0),
+    )]);
     let errs = validate_pseudomanifold(&body, &records, Tol::witness())
         .expect_err("the bridge must not silence the nested pair");
     assert!(

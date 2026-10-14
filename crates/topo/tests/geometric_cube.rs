@@ -9,7 +9,9 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CertCheck, CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
+use geom_brep::{
+    CertCheck, CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfacePair,
+};
 use geom_core::{Point3, Vec3};
 use topo::{
     Body, ContactRecords, EulerOpError, FaceSurface, MefSite, MevSite, validate, validate_closed,
@@ -76,10 +78,9 @@ fn geometric_cube_passes_all_three_tiers() {
 /// sense flip does not touch, so both bodies meter the identical
 /// volume. Nothing else in the at-rest battery can see the defect.
 ///
-/// Bit-identity: the unflipped cube still validates clean — planar
-/// sweeps mint `sense: true` throughout (M5 S11 reverses only walls
-/// whose material lies against the chart normal, all curved here), so
-/// the threading multiplies by exactly `+1`.
+/// Bit-identity: the unflipped cube still validates clean — each face
+/// states `sense: true` on its outward Newell plane, so the threading
+/// multiplies by exactly `+1`.
 #[test]
 fn tier_three_refuses_a_hand_flipped_face_sense() {
     let t = geometric_cube::<f64>(Tol::witness());
@@ -123,8 +124,14 @@ fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     let t = geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
     let seed_face = t.seed.face;
-    body.set_face_surface(seed_face, FaceSurface::New(Surface::nurbs_placeholder()))
-        .unwrap();
+    body.set_face_surface(
+        seed_face,
+        FaceSurface::New {
+            surface: Surface::nurbs_placeholder(),
+            sense: true,
+        },
+    )
+    .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
@@ -143,7 +150,7 @@ fn wrong_cache_is_rejected_at_attachment() {
     // untouched.
     let eps = Tol::witness().get().eps;
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let edges_before = body.edges().count();
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
@@ -208,8 +215,7 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
         .unwrap(); // the top face's key — not this bottom edge's face
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
     spec.description = EdgeDescriptionSpec::Intersection {
-        s1: foreign1,
-        s2: foreign1,
+        pair: SurfacePair::new(foreign1, foreign1),
         witness: p0.lerp(p1, 0.5),
     };
     let err = body
@@ -250,7 +256,7 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // upgraded Intersection re-certifications.
     //
     // The dual goes through the `_structural` door, which is where every
-    // certificate compared below is produced — all ten checks run, checks
+    // certificate compared below is produced — all eleven checks run, checks
     // 7 and 10 through the closed form (the cube is planar, so it computes
     // at a dual with a zero pad; the cube's one shell skips check 10), and
     // none of them reads a certified lane. The
@@ -293,7 +299,7 @@ fn near_tangent_intersection_attachment_escalates() {
     let eps = Tol::witness().get().eps;
     let theta = 3.0 * eps;
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -310,11 +316,14 @@ fn near_tangent_intersection_attachment_escalates() {
                 he2: seg.he_minus,
             },
             EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)),
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    normal: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
             Tol::witness(),
         )
         .unwrap();
@@ -322,19 +331,21 @@ fn near_tangent_intersection_attachment_escalates() {
     let tilted = body
         .set_face_surface(
             seed.face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, theta.sin(), theta.cos()),
-                u_ref: Vec3::unit_x(),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    normal: Vec3::new(0.0, theta.sin(), theta.cos()),
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let flat = body.get_face(split.face).unwrap().surface;
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = EdgeDescriptionSpec::Intersection {
-        s1: flat,
-        s2: tilted,
+        pair: SurfacePair::new(flat, tilted),
         witness: Point3::new(0.5, 0.0, 0.0),
     };
     let err = body
@@ -359,7 +370,7 @@ fn totality_no_panics_on_poison_inputs() {
     // NaN coordinates, poison specs, Nurbs carriers: every failure is a
     // typed error — never a panic (D9).
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let nan = f64::NAN;
     assert!(matches!(
         body.mev_line(
@@ -408,7 +419,7 @@ fn every_structural_door_judges_orientation_at_any_scalar() {
     // f64: the composed door and its `_structural` twin, one verdict.
     let mut f = geometric_cube::<f64>(Tol::witness());
     describe_as_intersections(&mut f.body, Tol::witness());
-    let f_inverted = f.body.revert().expect("the cube reverts");
+    let f_inverted = f.body.revert();
     let f_negative = Err(vec![topo::ValidationError::NegativeVolume {
         solid: f_inverted.solids().next().expect("one solid").0,
     }]);
@@ -429,7 +440,7 @@ fn every_structural_door_judges_orientation_at_any_scalar() {
     // sign and nothing arriving from somewhere else.
     let mut d = geometric_cube::<Dual64>(Tol::witness());
     describe_as_intersections(&mut d.body, Tol::witness());
-    let d_inverted = d.body.revert().expect("the cube reverts at a dual");
+    let d_inverted = d.body.revert();
     let d_negative = Err(vec![topo::ValidationError::NegativeVolume {
         solid: d_inverted.solids().next().expect("one solid").0,
     }]);

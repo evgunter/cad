@@ -30,7 +30,7 @@
 //! base.
 //!
 //! Vocabulary: Profile, Extrude, PlacedUnion (Linear), `InsertNode`,
-//! `SetDocParam`, `SetStructuralParam`, `SetParam`.
+//! `DeclareVar`, `DefineVar`, `SetStructuralParam`, `SetParam`.
 //!
 //! Geometry is `heat_sink`'s fin, constant for constant: footprint
 //! `0.1875 × 0.75` at `z = 0.1875`, extruded `0.8125`, five of them at
@@ -47,7 +47,8 @@
 //! extrude and the group, which is the memoized-recompute claim
 //! `lib_placedunion.rs` pins.
 
-use editor_core::{Dimension, DocEdit, DocParam, Expr, Node, ParamName, PatternKind, SlotId};
+use editor_core::ExtrudeSide;
+use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName};
 
 use crate::fixture::{len, scl};
 
@@ -61,9 +62,9 @@ const PITCH: f64 = 0.3125;
 /// The grouped fin corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new("fins"),
-        value: DocParam::Count { value: FINS },
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("fins"),
+        def: editor_core::VarDecl::Free(FreeVar::Count { value: FINS }),
     });
     let fin_p = r.profile(
         [0.0, 0.0, 0.1875],
@@ -77,14 +78,15 @@ pub fn document() -> CorpusDoc {
         ]],
     );
     let fin = r.insert(Node::Extrude {
-        profile: fin_p,
+        profile: fin_p.into(),
         distance: len(0.8125),
+        side: ExtrudeSide::Along,
     });
     // The whole fin group, in ONE node.
     let fins = r.insert(
         Node::placed_union(
             fin,
-            Expr::count(FINS),
+            Formula::count(FINS),
             PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(PITCH),
@@ -97,8 +99,11 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: fins,
         slot: SlotId::Count,
-        expr: Expr::param(ParamName::new("fins"), Dimension::Count),
+        expr: Formula::named(VarName::from_static("fins"), Dimension::Count),
+        fresh: Vec::new(),
     });
+    r.place(fins);
+
     CorpusDoc {
         name: "heat_sink_fins",
         about: "the parametric fin group as ONE node: PlacedUnion(fin, Linear) driven by the fins param",
@@ -112,7 +117,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: fin,
             slot: SlotId::Distance,
-            expr: len(0.6875),
+            value: len(0.6875).into(),
+            fresh: Vec::new(),
         },
         bump_root: fin,
     }

@@ -20,9 +20,9 @@ use core::f64::consts::PI;
 
 use geom_core::Tol;
 use geom_core::{Affine3, Mat3, Point3, Vec3};
-use sweep::test_support::{ball_poled_y, brick};
+use sweep::test_support::{ball_poled_y, brick, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, BooleanError};
+use topo::{Body, BooleanError};
 
 fn slack() -> f64 {
     (1e3 * Tol::witness().get().eps).max(1e-9)
@@ -41,7 +41,12 @@ fn rot_x_about(body: &Body<f64>, pivot: Vec3<f64>, theta: f64) -> Body<f64> {
         Vec3::new(0.0, -s, c),
     );
     let map = Affine3::from_parts(linear, pivot - linear * pivot);
-    topo::transform_rigid(body, &map, Tol::witness()).unwrap()
+    topo::transform_rigid(
+        body,
+        &geom_core::test_support::rigid(&map, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// Rotate `body` about `pivot` by `theta` around the world y-axis.
@@ -53,7 +58,12 @@ fn rot_y_about(body: &Body<f64>, pivot: Vec3<f64>, theta: f64) -> Body<f64> {
         Vec3::new(s, 0.0, c),
     );
     let map = Affine3::from_parts(linear, pivot - linear * pivot);
-    topo::transform_rigid(body, &map, Tol::witness()).unwrap()
+    topo::transform_rigid(
+        body,
+        &geom_core::test_support::rigid(&map, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 fn cap(r: f64, h: f64) -> f64 {
@@ -68,13 +78,14 @@ fn cap(r: f64, h: f64) -> f64 {
 #[test]
 fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
     let fin = brick((0.0, 4.0), (1.9, 2.1), (0.0, 0.8), Tol::witness());
+    let fin = finished("the fin", fin, Tol::witness());
     let ball = ball_poled_y(0.6, Vec3::new(2.0, 2.0, 1.2), Tol::witness());
-    let decls = BooleanDeclarations::none();
+    let ball = finished("the ball", ball, Tol::witness());
     let r = boolean_op_with(
         BooleanOp::Union,
         &fin,
         &ball,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     );
@@ -82,7 +93,7 @@ fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
         BooleanOp::Union,
         &fin,
         &ball,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Idealized,
         Tol::witness(),
     );
@@ -105,48 +116,74 @@ fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
 
 /// PROBE 2: ball exactly tangent to BOTH slab faces from inside
 /// (r = 0.5 buried at mid-height): the extent gap is exactly zero —
-/// the scan's tangency arm refuses typed, never answers.
+/// the scan's tangency arm refuses typed, never answers, as the sphere's
+/// question against the plane with the margin it decided.
 #[test]
 fn probe_exact_tangency_from_inside_refuses_typed() {
     let b = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
-    let err = topo::union(&slab(), &b, Tol::witness()).expect_err("tangency must not answer");
-    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
+    let (slab, b) = (
+        finished("the slab", slab(), Tol::witness()),
+        finished("the ball", b, Tol::witness()),
+    );
+    let err = topo::union(&slab, &b, Tol::witness()).expect_err("tangency must not answer");
+    let BooleanError::Escalated {
+        decision: topo::BooleanDecision::Sphere(topo::SphereQuestion::AgainstPlane),
+        diag,
+    } = err
+    else {
         panic!("expected the scan's tangency arm, got {err:?}");
     };
-    assert!(what.contains("tangent"), "{what}");
+    assert_eq!(diag.predicate, Some("bool_sphere_extent_gap"));
+    assert!(
+        !diag.margin.is_invalid(),
+        "the decided zero carries the margin the funnel decided: {diag:?}"
+    );
 }
 
 /// PROBE 3 (door corrected in adoption): the section circle crosses the
 /// top face's boundary — but the configuration NEVER reaches the scan's
 /// near-boundary arm, because a circle crossing a boundary edge means
 /// that edge passes within `r` of the sphere center (the two conditions
-/// are the same inequality, `cx² + s² < r²`), so the REDUCE-stage
-/// pierce frontier fires first: `CurvedPierceUnsupported`, typed. The
-/// scan's near-boundary arm remains as certified-enclosure
-/// defense-in-depth behind that door (its residual live width is the
-/// box pad; the shadowing is structural — the pierce door runs before
-/// any fallback — so this pin is stable).
+/// are the same inequality, `cx² + s² < r²`), so the REDUCE stage meets
+/// the edge first: the line × sphere roots pierce it, the pierce
+/// point's sector side certifies, and the section passes through the
+/// ball's face as a ring, whose island the join winds without a chart
+/// (`chord_join::path_island_winding`). The union keeps that ring as a
+/// hole of the ball's face, which the sphere arm measures over both its
+/// loops, so the union builds and passes tier 3; its volume and the
+/// pose's other ops are `a_ring_on_a_sphere_face`'s. The scan's near-boundary
+/// arm remains as certified-enclosure defense-in-depth behind that door
+/// (its residual live width is the box pad; the shadowing is structural
+/// — the reduction runs before any fallback — so this pin is stable).
 #[test]
-fn probe_edge_escape_refuses_typed_at_the_pierce_frontier() {
+fn probe_edge_escape_lands_a_ring_before_the_scan() {
     let b = ball_poled_y(0.5, Vec3::new(0.3, 2.0, 1.2), Tol::witness());
-    let err = topo::union(&slab(), &b, Tol::witness()).expect_err("edge escape must not certify");
-    let BooleanError::CurvedPierceUnsupported { .. } = err else {
-        panic!("expected the pierce frontier, got {err:?}");
-    };
+    let (slab, b) = (
+        finished("the slab", slab(), Tol::witness()),
+        finished("the ball", b, Tol::witness()),
+    );
+    let out = topo::union(&slab, &b, Tol::witness())
+        .unwrap_or_else(|e| panic!("the pierce lands as a ring and the union builds: {e:?}"));
+    let body = &out.body().expect("a body").body;
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "the ringed ball face passes tier 3"
+    );
 }
 
 /// PROBE 4: bit-replay — the flipped finding row twice in-process,
 /// debug-identical (within-run D9; cross-version bits are NOT pinned).
 #[test]
 fn probe_flipped_row_replays_bit_identical() {
-    let a = slab();
+    let a = finished("the slab", slab(), Tol::witness());
     let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
-    let decls = BooleanDeclarations::none();
+    let b = finished("the ball", b, Tol::witness());
     let one = boolean_op_with(
         BooleanOp::Union,
         &a,
         &b,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -159,7 +196,7 @@ fn probe_flipped_row_replays_bit_identical() {
         BooleanOp::Union,
         &a,
         &b,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -179,11 +216,15 @@ fn probe_flipped_row_replays_bit_identical() {
 fn probe_tilted_chart_recut_still_cuts_exact() {
     let b0 = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 1.2), Tol::witness());
     let b = rot_x_about(&b0, Vec3::new(2.0, 2.0, 1.2), 0.3);
+    let (slab, b) = (
+        finished("the slab", slab(), Tol::witness()),
+        finished("the tilted ball", b, Tol::witness()),
+    );
     let cut = boolean_op_with(
         BooleanOp::Subtract,
-        &slab(),
+        &slab,
         &b,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -211,11 +252,15 @@ fn probe_near_parallel_axis_never_answers_wrong() {
         Vec3::new(2.0, 2.0, 1.2),
         core::f64::consts::FRAC_PI_2 - 0.05,
     );
+    let (slab, b) = (
+        finished("the slab", slab(), Tol::witness()),
+        finished("the tilted ball", b, Tol::witness()),
+    );
     match boolean_op_with(
         BooleanOp::Subtract,
-        &slab(),
+        &slab,
         &b,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     ) {
@@ -229,8 +274,7 @@ fn probe_near_parallel_axis_never_answers_wrong() {
         Err(
             BooleanError::Escalated { .. }
             | BooleanError::FallbackExtentUnsupported { .. }
-            | BooleanError::Join(_)
-            | BooleanError::JoinDesync { .. },
+            | BooleanError::Join(_),
         ) => {}
         Err(other) => panic!("unexpected refusal shape: {other:?}"),
     }
@@ -242,7 +286,7 @@ fn probe_near_parallel_axis_never_answers_wrong() {
 /// At M5 the inner ball's circle edges hit the UNCONDITIONAL
 /// conic-carrier pierce arm, so this pinned a typed refusal and the
 /// scan's nested arm sat shadowed behind it as defense-in-depth. The
-/// M6 rider (`bool_circle_curved_clearance`) proves the inner ball's
+/// M6 rider (`bool_conic_curved_clearance`) proves the inner ball's
 /// circles DEFINITELY inside the outer sphere and the outer ball's
 /// circles definitely outside the inner one — no examined pair
 /// survives — so the pair reaches the containment walk, whose
@@ -254,7 +298,9 @@ fn probe_near_parallel_axis_never_answers_wrong() {
 fn probe_nested_spheres_union_to_the_outer_ball() {
     use core::f64::consts::PI;
     let big = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.0), Tol::witness());
+    let big = finished("the big ball", big, Tol::witness());
     let small = ball_poled_y(0.3, Vec3::new(2.0, 2.0, 0.2), Tol::witness());
+    let small = finished("the small ball", small, Tol::witness());
     let out = topo::union(&big, &small, Tol::witness())
         .expect("the whole-sphere containment arm answers");
     let body = &out.body().expect("a body").body;
@@ -335,10 +381,20 @@ fn probe_two_nonparallel_escapes_refuse_typed() {
     let b0 = ball_poled_y(r, pivot, Tol::witness());
     let b1 = rot_x_about(&b0, pivot, -0.2137);
     let b = rot_y_about(&b1, pivot, 0.312);
-    let decls = BooleanDeclarations::none();
+    let (slab, b) = (
+        finished("the slab", slab(), Tol::witness()),
+        finished("the turned ball", b, Tol::witness()),
+    );
     for strat in [SweepStrategy::Realized, SweepStrategy::Idealized] {
-        let err = boolean_op_with(BooleanOp::Union, &slab(), &b, &decls, strat, Tol::witness())
-            .expect_err("two non-parallel escapes must refuse");
+        let err = boolean_op_with(
+            BooleanOp::Union,
+            &slab,
+            &b,
+            &topo::BooleanInputs::default(),
+            strat,
+            Tol::witness(),
+        )
+        .expect_err("two non-parallel escapes must refuse");
         let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
             panic!("{strat:?}: expected the multi-escape refusal, got {err:?}");
         };

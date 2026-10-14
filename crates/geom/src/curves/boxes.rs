@@ -108,33 +108,14 @@ fn pfold(a: f64, b: f64, f: fn(f64, f64) -> f64) -> f64 {
     }
 }
 
-/// Angular slack (radians) added on BOTH sides of every span-membership
-/// test below: it absorbs `libm::atan2`'s deviation from the exact
+/// Angular slack (radians) added on BOTH sides of the window every
+/// span-membership test below hands [`crate::periodic_window_may_hold`],
+/// which takes a window's ends as given: it absorbs `libm::atan2`'s deviation from the exact
 /// value (observed ≤ 4 ulps in the geom-core census — this is 6+ orders
 /// more) plus the membership arithmetic's own rounding. Slack only ever
 /// *includes* more extrema, so it errs outward — the sound direction,
 /// and not a free one (module docs).
 const ANGLE_SLOP: f64 = 1e-6;
-
-/// Whether some 2πk-translate of the angle INTERVAL `[phi_lo, phi_hi]`
-/// possibly intersects `[lo, hi]` (already slop-widened).
-/// Conservative-inclusive: any NaN answers `true` (poison never
-/// excludes), and an interval spanning a full period is always in.
-fn angle_interval_in_span(phi_lo: f64, phi_hi: f64, lo: f64, hi: f64) -> bool {
-    if phi_lo.is_nan() || phi_hi.is_nan() || lo.is_nan() || hi.is_nan() {
-        return true;
-    }
-    let tau = core::f64::consts::TAU;
-    if hi - lo >= tau || phi_hi - phi_lo >= tau {
-        return true;
-    }
-    // Smallest k with phi_hi + τ·k ≥ lo; intersects iff the same
-    // translate's lower end clears hi from below.
-    let k = ((lo - phi_hi) / tau).ceil();
-    let rep_lo = phi_lo + tau * k;
-    // NaN-inclusive: a poisoned representative cannot prove exclusion.
-    rep_lo.is_nan() || rep_lo <= hi
-}
 
 /// The extremal-angle INTERVAL of `atan2(v, u)` over the bracket
 /// rectangle `u × v`: evaluated on the four corners, which carry the
@@ -293,12 +274,11 @@ fn axis_extremum(min: &mut f64, max: &mut f64, c: Brk, u: Brk, v: Brk, r: Brk, l
     let (include_max, include_min) = match extremal_angle_interval(u, v) {
         None => (true, true),
         Some((p_lo, p_hi)) => (
-            angle_interval_in_span(p_lo, p_hi, lo, hi),
-            angle_interval_in_span(
-                p_lo + core::f64::consts::PI,
-                p_hi + core::f64::consts::PI,
-                lo,
-                hi,
+            crate::periodic_window_may_hold((p_lo, p_hi), (lo, hi), core::f64::consts::TAU),
+            crate::periodic_window_may_hold(
+                (p_lo + core::f64::consts::PI, p_hi + core::f64::consts::PI),
+                (lo, hi),
+                core::f64::consts::TAU,
             ),
         ),
     };

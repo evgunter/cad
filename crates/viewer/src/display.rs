@@ -11,7 +11,10 @@
 //! the mate — and it involves no solver, enters no history, and is
 //! never persisted: `save` writes the document, and a reopened session
 //! starts with this state empty. That is not an accident of the code
-//! path; it is G3's ratified boundary, and the round-trip row pins it.
+//! path; it is G3's boundary, and the round-trip row pins it. DI5
+//! (`crates/editor-core/IDENTITY.md`) reverses it: a free-moved
+//! placement may be recorded persistently, and until that is built
+//! the tree keeps G3's.
 //!
 //! # Eligibility is derived from the document
 //!
@@ -23,16 +26,17 @@
 //! pose is mate-derived and a display value contradicting it would
 //! draw a relation the document does not have.
 //!
-//! # Display state names instances; the picture is drawn under roots
+//! # Display state names instances; the picture is drawn per copy
 //!
-//! The scene and the pick index emit geometry per PRODUCT ROOT, and an
-//! instance a `Pattern` or `Transform` consumes is not a root — the
-//! node above it is. Display state therefore PROPAGATES: an operation
-//! names the instance, and [`drawn_targets`] resolves it to every root
-//! whose geometry derives from that instance alone (hiding a patterned
-//! instance hides all its placed copies; probing it displaces them
-//! under one frame — the pattern replicates the instance, and the
-//! display fact is the instance's). A root that fuses SEVERAL
+//! The scene and the pick index emit geometry per WORLD PLACEMENT's
+//! copy (A10), and a placement reads whatever body it places — an
+//! instance, or a `Pattern`, `Transform` or `Part` over one. Display
+//! state therefore PROPAGATES: an operation names the instance, and
+//! [`drawn_targets`] resolves it to every placement whose geometry
+//! derives from that instance alone (hiding a patterned instance hides
+//! all its placed copies; probing it displaces them under one frame —
+//! the pattern replicates the instance, and the display fact is the
+//! instance's). A placement whose body fuses SEVERAL
 //! instances' geometry (a cross-instance boolean) can be addressed by
 //! none of them separately, and the op refuses typed
 //! ([`AdmissionFault::FusedGeometry`]) — the alternative, accepting the
@@ -78,7 +82,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use pncad::document::{Doc, Frame, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Frame, Node, ProfileProgram, RecipeNodeId, SpokenNode};
+use pncad::geom_core::Vec3;
 
 use crate::g1;
 
@@ -164,29 +169,33 @@ pub enum AdmissionFault {
     /// the sentence is already on screen directly above it:
     /// `standing_ui` renders [`crate::session::Standing`]'s `Node`
     /// vanished arm from the SAME lookup on the SAME document in the
-    /// same frame, and that type's ratified rule is that a vanished
-    /// reference is rendered there *while the affordances that need a
-    /// live entity switch off*. The section switching off IS the second
+    /// same frame, and that type's rule is that a vanished reference
+    /// is rendered there (its survival is ratified,
+    /// `docs/SELECT-DESIGN.md` §4) *while the affordances that need a
+    /// live entity switch off* (`Standing`'s own clause, in no design
+    /// doc). The section switching off IS the second
     /// clause; a sentence at the affordance would be one fact spelled
     /// twice in one pane.
     NoSuchNode {
-        /// The id named.
-        node: RecipeNodeId,
+        /// The id named, said by its tag (`node <tag>`) and kept so
+        /// when spoken again ([`AdmissionFault::respoken`]).
+        node: SpokenNode,
     },
     /// The node is not an `InstantiatePart`, so it has no per-instance
     /// display state to set.
     NotAnInstance {
-        /// The node named.
-        node: RecipeNodeId,
+        /// The node named, as the document held it.
+        node: SpokenNode,
     },
     /// The instance participates in a mate, so its pose is
     /// mate-derived and the free-move probe refuses (G3: the probe is
     /// for completely-unconstrained instances only).
     MateConstrained {
-        /// The instance.
-        instance: RecipeNodeId,
-        /// Every mate node naming it, document order.
-        mates: Vec<RecipeNodeId>,
+        /// The instance, as the document held it.
+        instance: SpokenNode,
+        /// Every mate node naming it, document order, as the document
+        /// held them.
+        mates: Vec<SpokenNode>,
     },
     /// The instance's geometry is FUSED into a drawn product together
     /// with other instances' (a boolean or placed union consumes
@@ -196,12 +205,14 @@ pub enum AdmissionFault {
     /// accepted-and-inert: an op that cannot take effect must say so
     /// (G3's honesty rule).
     FusedGeometry {
-        /// The instance named.
-        instance: RecipeNodeId,
-        /// The drawn root its geometry is fused into.
-        root: RecipeNodeId,
-        /// The other instances fused into the same root.
-        others: Vec<RecipeNodeId>,
+        /// The instance named, as the document held it.
+        instance: SpokenNode,
+        /// The placed body its geometry is fused into, as the document
+        /// held it.
+        body: SpokenNode,
+        /// The other instances fused into the same body, as the
+        /// document held them, in its order.
+        others: Vec<SpokenNode>,
     },
 }
 
@@ -209,34 +220,31 @@ impl core::fmt::Display for AdmissionFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NoSuchNode { node } => {
-                write!(f, "node {} is not in the document", node.0)
+                write!(f, "{node} is not in the document")
             }
             Self::NotAnInstance { node } => {
-                write!(f, "node {} is not a part instance", node.0)
+                write!(f, "{node} is not a part instance")
             }
             Self::MateConstrained { instance, mates } => {
-                let list: Vec<String> = mates.iter().map(|m| m.0.to_string()).collect();
+                let list: Vec<String> = mates.iter().map(ToString::to_string).collect();
                 write!(
                     f,
-                    "instance {} is mate-constrained (mate node(s) {}): its pose is \
-                     mate-derived, so the free-move probe refuses — delete the mate(s) if \
-                     free relative motion is intended",
-                    instance.0,
+                    "{instance} is mate-constrained ({}): its pose is mate-derived, so the \
+                     free-move probe refuses — delete the mate(s) if free relative motion is \
+                     intended",
                     list.join(", ")
                 )
             }
             Self::FusedGeometry {
                 instance,
-                root,
+                body,
                 others,
             } => {
-                let list: Vec<String> = others.iter().map(|o| o.0.to_string()).collect();
+                let list: Vec<String> = others.iter().map(ToString::to_string).collect();
                 write!(
                     f,
-                    "instance {}'s geometry is fused into node {} together with instance(s) {} — \
-                     a display operation cannot address it separately",
-                    instance.0,
-                    root.0,
+                    "{instance}'s geometry is fused into {body} together with {} — a display \
+                     operation cannot address it separately",
                     list.join(", ")
                 )
             }
@@ -245,6 +253,50 @@ impl core::fmt::Display for AdmissionFault {
 }
 
 impl core::error::Error for AdmissionFault {}
+
+impl AdmissionFault {
+    /// This fault with its nodes spoken from `doc`, a later version of
+    /// the document it was raised in
+    /// ([`crate::session::Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        let again = |node: SpokenNode| node.respoken(doc);
+        match self {
+            // Its sentence is that the node is not there: said from a
+            // version that holds it again, it would contradict itself.
+            unspoken @ Self::NoSuchNode { .. } => unspoken,
+            Self::NotAnInstance { node } => Self::NotAnInstance { node: again(node) },
+            Self::MateConstrained { instance, mates } => Self::MateConstrained {
+                instance: again(instance),
+                mates: mates.into_iter().map(again).collect(),
+            },
+            Self::FusedGeometry {
+                instance,
+                body,
+                others,
+            } => Self::FusedGeometry {
+                instance: again(instance),
+                body: again(body),
+                others: others.into_iter().map(again).collect(),
+            },
+        }
+    }
+}
+
+impl DisplayFault {
+    /// This fault with its nodes spoken from `doc`
+    /// ([`AdmissionFault::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        match self {
+            Self::Admission(fault) => Self::Admission(fault.respoken(doc)),
+            unspoken @ (Self::NonRigidFrame { .. }
+            | Self::NoFreeMove
+            | Self::FreeMoveInFlight
+            | Self::WrongFreeMove) => unspoken,
+        }
+    }
+}
 
 impl From<AdmissionFault> for DisplayFault {
     fn from(fault: AdmissionFault) -> Self {
@@ -332,11 +384,14 @@ impl core::error::Error for DisplayFault {}
 /// names its head node; participation is about what the document
 /// says, not about what currently resolves).
 pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<RecipeNodeId> {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .filter(|&id| match doc.node(id) {
-            Some(Node::Mate { a, b, .. }) => a.name.node == instance || b.name.node == instance,
+            Some(Node::Mate { a, b, .. }) => [*a, *b].into_iter().any(|side| {
+                doc.selection(side)
+                    .is_some_and(|select| select.names.iter().any(|name| name.node == instance))
+            }),
             _ => false,
         })
         .collect()
@@ -374,52 +429,58 @@ pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<Re
 /// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotAnInstance`].
 pub fn instance_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(), AdmissionFault> {
     match doc.node(node) {
+        // Identity, not `session`'s "puts a part in" policy: the state
+        // is keyed on this variant, and a new kind has none until G3
+        // gives it some.
         Some(Node::InstantiatePart { .. }) => Ok(()),
-        Some(_) => Err(AdmissionFault::NotAnInstance { node }),
-        None => Err(AdmissionFault::NoSuchNode { node }),
+        Some(_) => Err(AdmissionFault::NotAnInstance {
+            node: doc.spoken(node),
+        }),
+        None => Err(AdmissionFault::NoSuchNode {
+            node: doc.spoken(node),
+        }),
     }
 }
 
-/// For each product root, the instances whose geometry it draws: the
-/// `InstantiatePart` nodes in its consuming-edge ancestry (the root
-/// itself included).
+/// For each world placement, the instances whose geometry its copy
+/// draws: the `InstantiatePart` nodes in its consuming-edge ancestry.
 ///
 /// This is the map display state PROPAGATES through: the drawn scene
-/// is keyed by product roots, and an instance a `Pattern` (or a
-/// `Transform` chain) consumes is not a root — the node above it is.
+/// is keyed by placements, and a placement reads whatever body it
+/// places — an instance, or a `Pattern` or `Transform` chain over one.
 /// Display state names the INSTANCE (the thing with an identity a user
-/// hides or probes); this map says which drawn roots that names.
-fn instances_by_root(doc: &Doc<ProfileProgram>) -> Vec<(RecipeNodeId, BTreeSet<RecipeNodeId>)> {
-    doc.roots()
-        .iter()
-        .map(|&root| {
-            let instances = ancestry(doc, root)
+/// hides or probes); this map says which drawn copies that names.
+fn instances_by_placement(
+    doc: &Doc<ProfileProgram>,
+) -> Vec<(RecipeNodeId, BTreeSet<RecipeNodeId>)> {
+    doc.placements()
+        .into_iter()
+        .map(|placement| {
+            let instances = ancestry(doc, placement)
                 .into_iter()
-                .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+                .filter(|&id| instance_check(doc, id).is_ok())
                 .collect();
-            (root, instances)
+            (placement, instances)
         })
         .collect()
 }
 
-/// Every node in `root`'s consuming-edge ancestry, `root` itself
+/// Every node in `node`'s consuming-edge ancestry, `node` itself
 /// included — "which nodes' work went into this drawn thing".
 ///
 /// The one walk both consumers of that question run:
-/// [`instances_by_root`] filters it to instances (whose display state
-/// propagates to the roots drawing them), and [`roots_deriving_from`]
-/// inverts it. Two hand-written traversals of the same edges is how
+/// [`instances_by_placement`] filters it to instances (whose display
+/// state propagates to the copies drawing them), and
+/// [`placements_deriving_from`] inverts it. Two hand-written traversals of the same edges is how
 /// they come to disagree about what an input is.
-fn ancestry(doc: &Doc<ProfileProgram>, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
+fn ancestry(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let mut seen = BTreeSet::new();
-    let mut stack = vec![root];
+    let mut stack = vec![node];
     while let Some(id) = stack.pop() {
         if !seen.insert(id) {
             continue;
         }
-        if let Some(node) = doc.node(id) {
-            stack.extend(node.inputs());
-        }
+        stack.extend(doc.upstream(id));
     }
     seen
 }
@@ -427,7 +488,7 @@ fn ancestry(doc: &Doc<ProfileProgram>, root: RecipeNodeId) -> BTreeSet<RecipeNod
 /// **Whether `node`'s geometry derives from `source`** — `source` in
 /// `node`'s consuming-edge ancestry, `node` itself included.
 ///
-/// [`roots_deriving_from`]'s question asked of ONE pair, over the same
+/// [`placements_deriving_from`]'s question asked of ONE pair, over the same
 /// walk. What it is for: an entity minted at `source` and carried
 /// upward reaches `node`'s output, so a node whose op leaves no trace
 /// in a name — a `Transform`, which contributes no role segment by
@@ -437,9 +498,9 @@ pub fn derives_from(doc: &Doc<ProfileProgram>, node: RecipeNodeId, source: Recip
     ancestry(doc, node).contains(&source)
 }
 
-/// **Every product root whose geometry derives from `node`** — the
-/// root itself when `node` is one, and every root that reaches it
-/// through consuming edges otherwise.
+/// **Every world placement whose copy derives from `node`** — the
+/// placement itself when `node` is one, and every placement that
+/// reaches it through consuming edges otherwise.
 ///
 /// The inverse of [`ancestry`], and the answer to "if I am looking at
 /// this recipe node, what in the picture is it responsible for". A
@@ -449,26 +510,26 @@ pub fn derives_from(doc: &Doc<ProfileProgram>, node: RecipeNodeId, source: Recip
 /// walls the extrude above it drew.
 ///
 /// Unlike [`drawn_targets`] this refuses nothing and excludes nothing:
-/// a root fusing several nodes' geometry is listed for each of them.
+/// a placement fusing several nodes' geometry is listed for each of
+/// them.
 /// The two differ because they are asked for different reasons —
 /// `drawn_targets` backs an OPERATION that must address one node's
 /// material alone, and this backs a HIGHLIGHT, where "several features
 /// contributed to this body" is a true and useful thing to show.
-pub fn roots_deriving_from(
+pub fn placements_deriving_from(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
 ) -> BTreeSet<RecipeNodeId> {
-    doc.roots()
-        .iter()
-        .copied()
-        .filter(|&root| ancestry(doc, root).contains(&node))
+    doc.placements()
+        .into_iter()
+        .filter(|&placement| ancestry(doc, placement).contains(&node))
         .collect()
 }
 
-/// **The drawn roots a display operation on `instance` governs**, or
-/// the typed refusal that says why none can be: every product root
-/// whose geometry derives from the instance alone. A root whose
-/// geometry fuses this instance with others (a cross-instance boolean)
+/// **The drawn copies a display operation on `instance` governs**, or
+/// the typed refusal that says why none can be: every world placement
+/// whose copy derives from the instance alone. A placement whose body
+/// fuses this instance with others (a cross-instance boolean)
 /// refuses [`AdmissionFault::FusedGeometry`] — the op could not take
 /// effect without moving material that is not the instance's, and an
 /// accepted-but-inert op is the dishonesty G3 forbids.
@@ -485,18 +546,23 @@ pub fn drawn_targets(
     // that reports rather than refuses needs them apart.
     instance_check(doc, instance)?;
     let mut targets = BTreeSet::new();
-    for (root, instances) in instances_by_root(doc) {
+    for (placement, instances) in instances_by_placement(doc) {
         if !instances.contains(&instance) {
             continue;
         }
         if instances.len() > 1 {
             return Err(AdmissionFault::FusedGeometry {
-                instance,
-                root,
-                others: instances.into_iter().filter(|&i| i != instance).collect(),
+                instance: doc.spoken(instance),
+                body: doc.spoken(crate::world::seat_of(doc, placement)),
+                others: doc
+                    .ids()
+                    .iter()
+                    .filter(|&&i| i != instance && instances.contains(&i))
+                    .map(|&i| doc.spoken(i))
+                    .collect(),
             });
         }
-        targets.insert(root);
+        targets.insert(placement);
     }
     Ok(targets)
 }
@@ -530,7 +596,10 @@ pub fn free_move_check(
     if mates.is_empty() {
         Ok(())
     } else {
-        Err(AdmissionFault::MateConstrained { instance, mates })
+        Err(AdmissionFault::MateConstrained {
+            instance: doc.spoken(instance),
+            mates: mates.into_iter().map(|mate| doc.spoken(mate)).collect(),
+        })
     }
 }
 
@@ -540,10 +609,9 @@ fn is_rigid(frame: &Frame) -> bool {
     if !frame.is_finite() {
         return false;
     }
-    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    let [c0, c1, c2] = frame.columns;
-    let unit = |c: [f64; 3]| (dot(c, c) - 1.0).abs() <= RIGID_SLACK;
-    let perp = |a: [f64; 3], b: [f64; 3]| dot(a, b).abs() <= RIGID_SLACK;
+    let [c0, c1, c2] = frame.columns.map(Vec3::from_array);
+    let unit = |c: Vec3<f64>| (c.dot(c) - 1.0).abs() <= RIGID_SLACK;
+    let perp = |a: Vec3<f64>, b: Vec3<f64>| a.dot(b).abs() <= RIGID_SLACK;
     unit(c0)
         && unit(c1)
         && unit(c2)
@@ -571,10 +639,10 @@ fn free_move_words() -> g1::Refusals<DisplayFault> {
 /// What the scene and pick paths read: the display state snapshotted
 /// as a value, in BOTH keyings — the raw instance-keyed facts (what
 /// the chrome's checkboxes and panels show) and their resolution onto
-/// the PRODUCT ROOTS the scene is actually drawn under
+/// the WORLD PLACEMENTS the scene is actually drawn under
 /// ([`drawn_targets`] — a patterned instance's geometry is emitted
-/// under the `Pattern` root, and this resolution is what makes hide
-/// and free-move reach it there).
+/// under the placements of the pattern's copies, and this resolution
+/// is what makes hide and free-move reach it there).
 ///
 /// Owned rather than borrowed so a caller can hold one across the
 /// mutation that would invalidate a borrow, and because the maps are
@@ -587,12 +655,12 @@ pub struct DisplayView {
     /// Instance → the display frame composed over its drawn placement.
     /// An in-flight preview overrides that instance's committed value.
     pub moved: BTreeMap<RecipeNodeId, Frame>,
-    /// The drawn roots the hidden instances govern — what the scene
-    /// and the pick index drop.
-    pub hidden_roots: BTreeSet<RecipeNodeId>,
-    /// Drawn root → the probe frame governing it — what the scene
+    /// The placements whose copies the hidden instances govern — what
+    /// the scene and the pick index drop.
+    pub hidden_placements: BTreeSet<RecipeNodeId>,
+    /// Placement → the probe frame governing its copy — what the scene
     /// displaces and marks, and the pick carries rays into.
-    pub moved_roots: BTreeMap<RecipeNodeId, Frame>,
+    pub moved_placements: BTreeMap<RecipeNodeId, Frame>,
 }
 
 impl DisplayView {
@@ -775,7 +843,7 @@ impl DisplayState {
     }
 
     /// The snapshot the scene and pick paths consume, resolved onto
-    /// `doc`'s product roots ([`drawn_targets`]).
+    /// `doc`'s world placements ([`drawn_targets`]).
     ///
     /// Resolution failures are skipped rather than surfaced here: the
     /// operations that write this state run the same check and refuse
@@ -787,25 +855,25 @@ impl DisplayState {
         if let Some((&instance, &frame)) = self.free_move.previewing() {
             moved.insert(instance, frame);
         }
-        let mut hidden_roots = BTreeSet::new();
+        let mut hidden_placements = BTreeSet::new();
         for &instance in &self.hidden {
             if let Ok(targets) = drawn_targets(doc, instance) {
-                hidden_roots.extend(targets);
+                hidden_placements.extend(targets);
             }
         }
-        let mut moved_roots = BTreeMap::new();
+        let mut moved_placements = BTreeMap::new();
         for (&instance, &frame) in &moved {
             if let Ok(targets) = drawn_targets(doc, instance) {
-                for root in targets {
-                    moved_roots.insert(root, frame);
+                for placement in targets {
+                    moved_placements.insert(placement, frame);
                 }
             }
         }
         DisplayView {
             hidden: self.hidden.clone(),
             moved,
-            hidden_roots,
-            moved_roots,
+            hidden_placements,
+            moved_placements,
         }
     }
 
@@ -816,7 +884,7 @@ impl DisplayState {
     /// [`AdmissionFault::NoSuchNode`] for an id the document does not
     /// hold, [`AdmissionFault::NotAnInstance`] — hiding is a
     /// per-instance operation; other node kinds draw through their own
-    /// roots and have no instance identity to hide by — and
+    /// placements and have no instance identity to hide by — and
     /// [`AdmissionFault::FusedGeometry`] for an instance the drawn
     /// picture cannot address separately.
     pub fn set_hidden(

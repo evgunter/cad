@@ -37,6 +37,7 @@ pub mod asm;
 pub mod corpus_pick;
 
 use bvh::Aabb;
+use editor_core::ExtrudeSide;
 use pncad::document::{SolvedPoses, mate_reach, solve_document};
 use pncad::geom_core::Point3;
 use viewer::camera::Camera;
@@ -98,17 +99,18 @@ pub fn corners(b: &Aabb) -> Vec<Point3<f64>> {
 // --- document fixtures for the panel suites ------------------------
 //
 // Authored through the ordinary document doors, in the order a user
-// would: parameters before the expressions that read them, nodes
+// would: variables before the expressions that read them, nodes
 // before the nodes that consume them. A fixture that reached past
 // `apply` would be testing a document the edit vocabulary cannot
 // produce.
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileProgram,
-    RecipeNodeId,
+    Dimension, Doc, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram, RecipeNodeId,
+    VarName,
 };
 use pncad::geom_core::Tol;
-use viewer::sketch::{Notation, ProfileShape};
+use viewer::props::Notation;
+use viewer::sketch::ProfileShape;
 
 // The literal, edit, frame, rectangle and δ doors are `viewer`'s own
 // `test_support` (its `test-support` feature, on for these suites through
@@ -131,26 +133,39 @@ pub fn band() -> pncad::geom_core::Band {
 /// naming the notation (`sketch::loop_program` with one of its own),
 /// which is the point of the units riding the lowering rather than
 /// the op.
-pub fn shape(template: &ProfileShape) -> LoopProgram {
+pub fn shape(template: &ProfileShape) -> LoopProgram<Formula> {
     viewer::sketch::loop_program(template, Notation::CANONICAL).expect("a finite template")
 }
 
-/// The name of the parametric fixture's driving parameter.
-pub fn thickness_param() -> ParamName {
-    ParamName::new("thickness")
+/// The name of the parametric fixture's driving variable.
+pub fn thickness_param() -> VarName {
+    VarName::from_static("thickness")
+}
+
+/// The variable `doc` names `name` — the id every variable-keyed op
+/// and row addresses it by.
+pub fn var_of(doc: &Doc<ProfileProgram>, name: &str) -> pncad::document::VarId {
+    doc.var_named(name)
+        .unwrap_or_else(|| panic!("the document names a variable {name}"))
+}
+
+/// The parametric fixture's driving variable, by its id in `doc`.
+pub fn thickness_var(doc: &Doc<ProfileProgram>) -> pncad::document::VarId {
+    var_of(doc, thickness_param().as_str())
 }
 
 /// A document whose extrude distance is DRIVEN by a document
-/// parameter — the expression-driven-dimension fixture.
+/// variable — the expression-driven-dimension fixture.
 ///
-/// Answers the document, the profile node and the extrude node.
+/// The extrude is placed. Answers the document, the profile node and
+/// the extrude node.
 pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui3-parametric", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: thickness_param(),
-            value: DocParam::continuous(Dimension::Length, 0.008),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.008)),
         },
         tol,
     );
@@ -158,15 +173,20 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             // `thickness / 2` — a composed expression over a
-            // parameter, which is the shape the refusal affordance
+            // variable, which is the shape the refusal affordance
             // exists for.
-            distance: Expr::div(Expr::param(thickness_param(), Dimension::Length), scl(2.0))
-                .expect("length / scalar is a length"),
+            distance: Formula::div(
+                Formula::named(thickness_param(), Dimension::Length),
+                scl(2.0),
+            )
+            .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
+    let (doc, _) = placed(&doc, extrude, tol);
     (doc, profile, extrude)
 }
 
@@ -175,29 +195,33 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
 /// The failure is a division by a zero literal in the extrude's
 /// distance — an expression that is well-dimensioned at the edit door
 /// and non-finite at evaluation, which is exactly the shape GQ2's
-/// per-node result exists to report. Answers the document, the failing
-/// extrude and the poisoned transform.
+/// per-node result exists to report. The transform is placed. Answers
+/// the document, the failing extrude and the poisoned transform.
 pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui3-broken", tol);
     let (doc, profile) = framed_square(&doc, 0.04, tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
-            profile,
-            distance: Expr::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
+            profile: profile.into(),
+            distance: Formula::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
     let (doc, moved) = inserted(
         &doc,
-        Node::Transform {
-            input: extrude,
-            translation: [len(0.01), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            extrude,
+            pncad::document::Step::Rigid {
+                translation: [len(0.01), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
+    let (doc, _) = placed(&doc, moved, tol);
     (doc, extrude, moved)
 }
 
@@ -257,8 +281,6 @@ pub fn gallery_ring_at(tol: Tol) -> String {
 // committed insert; a node's value is one body), not about any one
 // suite's geometry, so a per-suite copy could only drift.
 
-use pncad::document::{BooleanValue, NodeResult};
-use pncad::prelude::ValuePayload;
 use viewer::session::{DocSession, FaceSelection, SessionOp};
 
 /// Add the world xy frame through the session, answering its id — the
@@ -278,29 +300,44 @@ pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
     )
 }
 
-/// **Insert through the session**: perform one op that must commit
-/// exactly one insert, answering the id of the node it minted.
+/// **Perform one authoring op and answer the node it made**: its first
+/// committed edit inserts that node, and every later edit is the world's
+/// (A10) — the new body's placement, or the target's placements
+/// re-pointed or withdrawn.
 ///
 /// This is the op vocabulary's door, and it holds the session's
-/// contract — no refusal, one committed edit, and that edit an
-/// `InsertNode`. [`inserted`] and [`insert_into`] are the document's
-/// door instead: they call `apply` with no session, and check only
-/// that the edit applies and mints an id — there is no op, so no
-/// outcome to hold to that contract. A fixture that means to exercise
-/// the chrome's ops reaches for this one.
+/// contract. [`inserted`] and [`insert_into`] are the document's door
+/// instead: they call `apply` with no session, and check only that the
+/// edit applies and mints an id — there is no op, so no outcome to hold
+/// to that contract. A fixture that means to exercise the chrome's ops
+/// reaches for this one.
 pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    assert!(matches!(
-        outcome.committed.first(),
-        Some(DocEdit::InsertNode { .. })
-    ));
-    *session
-        .committed_doc()
-        .order()
-        .last()
-        .expect("the insert landed")
+    let (first, world) = outcome
+        .committed
+        .split_first()
+        .expect("the op committed an edit");
+    assert!(
+        matches!(first, DocEdit::InsertNode { .. }),
+        "the op's first edit inserts its node: {first:?}"
+    );
+    for edit in world {
+        assert!(
+            matches!(
+                edit,
+                DocEdit::InsertNode { node, .. } if matches!(**node, Node::PlaceInWorld { .. })
+            ) || matches!(
+                edit,
+                DocEdit::SetParam {
+                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Body),
+                    ..
+                } | DocEdit::DeleteNode { .. }
+            ),
+            "every later edit is the world's: {edit:?}"
+        );
+    }
+    *outcome.minted.first().expect("the insert minted its node")
 }
 
 /// **Add an instance of the part `id` through the session**, pump the
@@ -319,7 +356,7 @@ pub fn instance_in(session: &mut DocSession, id: pncad::document::DocumentId) ->
 ///
 /// A pattern node, a `Part` node or an instance is NOT such a key:
 /// `SolvedPoses::fault` maps refusing MATES and the instances of a
-/// cluster that consequently has no pose, so `fault(pattern)` answers
+/// group that consequently has no pose, so `fault(pattern)` answers
 /// `None` for every document ever written and asserts nothing. The
 /// kind check is what keeps a row's `fault(mate).is_none()` from
 /// passing on an id it could never fail on.
@@ -386,31 +423,20 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
     box_in(session, plane, size).1
 }
 
-/// A closed polygon through `points`, in order, as the step chain a
-/// `ProfileShape::Path` carries: an `At` on the first point, a line to
-/// each of the rest, and a line back to the start.
-pub fn polygon_steps(points: &[(f64, f64)]) -> Vec<pncad::profile::Step<f64>> {
-    use pncad::geom_core::Point2;
-    use pncad::profile::{Step, Target};
-    let mut steps = vec![Step::At(Point2::new(points[0].0, points[0].1))];
-    for &(x, y) in &points[1..] {
-        steps.push(Step::LineTo(Target::Point(Point2::new(x, y))));
-    }
-    steps.push(Step::LineTo(Target::Start));
-    steps
-}
-
-/// One node's row status out of a tree render — the lookup five
-/// suites had written out by hand.
+/// **One node's row out of a tree render.**
 ///
 /// Panics rather than answering `None`: every id these rows pass is
 /// one the document holds, so a missing row is the failure, not a
 /// case to handle.
-pub fn status_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> viewer::tree::RowStatus {
+pub fn row_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> &viewer::tree::TreeRow {
     rows.iter()
         .find(|row| row.id == id)
-        .map(|row| row.status.clone())
         .unwrap_or_else(|| panic!("node {id:?} has a row"))
+}
+
+/// One node's row status out of a tree render ([`row_of`]).
+pub fn status_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> viewer::tree::RowStatus {
+    row_of(rows, id).status.clone()
 }
 
 /// `got` and `want` agree to one part in 10⁹, relatively.
@@ -422,30 +448,17 @@ pub fn near(got: f64, want: f64) -> bool {
     ((got - want) / want).abs() < 1e-9
 }
 
-/// The evaluated volume of `node`'s single body — an extrude's, a
-/// blend's, or a boolean's — with the seam pumped.
+/// [`evaluated_volume`] of `node` with the seam pumped.
 ///
 /// The evaluation read is the SHOWN document's, so mid-gesture this
-/// measures the scratch preview exactly as the viewport does. A node
-/// that failed to evaluate panics with the node's own recorded error,
-/// not just the absence of a value.
+/// measures the scratch preview exactly as the viewport does.
 pub fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
     session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    let value = eval.value(node).unwrap_or_else(|| {
-        panic!(
-            "the node evaluated: {:?}",
-            eval.result(node).and_then(NodeResult::error)
-        )
-    });
-    let body = match &value.payload {
-        ValuePayload::Body(body) => body.clone(),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.clone(),
-        other => panic!("expected a body, got {other:?}"),
-    };
-    pncad::topo::mass_properties(&body, tol)
-        .expect("mass properties")
-        .volume
+    evaluated_volume(
+        session.evaluation().expect("the inline seam landed"),
+        node,
+        tol,
+    )
 }
 
 /// The story-gallery door: the directory named by
@@ -502,7 +515,7 @@ use viewer::pickindex::{PickIndex, PickIndexError, PictureKey};
 use viewer::scene::DisplayTolerance;
 
 /// The pick index for `session`'s landed evaluation at `delta`, or the
-/// refusal — a failed or poisoned root is an ordinary editing state,
+/// refusal — a failed or poisoned placement is an ordinary editing state,
 /// and a suite whose subject is that refusal reads it here.
 pub fn index_at(
     session: &DocSession,
@@ -610,3 +623,65 @@ fn level(axis: [f64; 2], sense: f64, origin: [f64; 3]) -> Ray {
 // re-exporting the kernel's type rather than wrapping it. A suite says
 // `common::head` as before.
 pub use crate::fixture::{head, head_at};
+
+/// **What the world places** (A10): for each world placement, in
+/// document order, the node defining the body it places.
+pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
+    doc.placements()
+        .into_iter()
+        .map(|placement| viewer::world::seat_of(doc, placement))
+        .collect()
+}
+
+/// **The one world placement of `body`**: the node its drawn copy is
+/// picked on (A10).
+///
+/// # Panics
+///
+/// Unless exactly one placement places `body`.
+pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
+    let [copy] = viewer::world::placements_of(doc, body)[..] else {
+        panic!("{body:?} is placed once")
+    };
+    copy
+}
+
+/// **The node `node`'s body is drawn under**: its one world placement
+/// when the world places it once ([`copy_of`]), `node` itself
+/// otherwise — so a row can aim at a datum or an unplaced node the way
+/// it aims at a placed body.
+pub fn drawn_node(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
+    match viewer::world::placements_of(doc, node)[..] {
+        [copy] => copy,
+        _ => node,
+    }
+}
+
+/// **A door seam that answers nothing**: it drops every job, so a
+/// landing's checks report reads the coincidence door pending for
+/// good. For the rows that never read the coincidence door's findings
+/// (some read the other residents', which do not pend), which would
+/// otherwise pay the door's replay at every landing.
+pub struct NoDoor;
+
+impl viewer::evalseam::DoorService for NoDoor {
+    fn submit(&mut self, _request: viewer::evalseam::DoorRequest) {}
+
+    fn cancel(&mut self) {}
+
+    fn poll(&mut self) -> Option<viewer::evalseam::DoorDone> {
+        None
+    }
+
+    fn busy(&self) -> bool {
+        false
+    }
+}
+
+/// [`DocSession::inline`] with [`NoDoor`].
+pub fn inline_without_door(
+    doc: pncad::document::Doc<pncad::document::ProfileProgram>,
+    tol: pncad::geom_core::Tol,
+) -> viewer::session::DocSession {
+    viewer::session::DocSession::inline(doc, tol).with_door(Box::new(NoDoor))
+}

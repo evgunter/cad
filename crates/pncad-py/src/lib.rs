@@ -43,6 +43,9 @@ pub mod identity;
 // build compiles the drift alarm and tests the projection.
 pub mod mate_payload;
 pub mod node_kind;
+// A refactoring's node map as the list Python reads, in document order.
+// Python-independent, so the default build tests it.
+pub mod node_map;
 // The pick index's three numbers as Python reads them off a pick
 // refusal: exhaustive over both kernel enums, Python-independent so
 // the default build compiles the drift alarm and can construct the

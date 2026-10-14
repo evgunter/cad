@@ -97,8 +97,10 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
                                 request narrows it, and ci.yml fans `all` out
                                 as five matrix legs the way it fans `EPS=all`
                                 out as three
-  SEEDS=<comma-separated members whose OWN files changed, empty for
-                                docs and for `all`>
+  SEEDS=<comma-separated members whose OWN non-docs files changed, on
+                                every code tier; empty when none did (docs,
+                                aux, a workspace-level file alone) and when
+                                no diff was read (--force-all)>
   CONFIG_SOURCE=eps:<src> klint:<src>
                                 where each of the two values above came
                                 from: `unsampled` (the whole dimension runs,
@@ -1185,6 +1187,35 @@ def _closure(seeds: set[str], deps: dict[str, set[str]]) -> list[str]:
     return sorted(out)
 
 
+def _own_member(f: str, dir_of: dict[str, str]) -> str | None:
+    """The member whose own directory holds `f`, or None."""
+    parts = f.split("/")
+    if len(parts) >= 3 and parts[0] == "crates" and parts[1] in dir_of:
+        return dir_of[parts[1]]
+    return None
+
+
+def _seeds(files: list[str], root: str) -> str:
+    """SEEDS on the `all` tier: the members whose own non-docs files changed,
+    the same set `classify` reports on `closure`, read off the same file list
+    the tier was decided on. A member's `Cargo.toml` is its own file here even
+    though it forces the tier."""
+    dir_of, _ = _members(root)
+    try:
+        consumed = _consumed_markdown(root)
+    except Bail as exc:
+        # Every markdown file under a member then counts as its own: wider,
+        # never narrower.
+        print(f"ci-filter: seeds: no consumed-markdown set ({exc})", file=sys.stderr)
+        consumed = None
+    out = {
+        m for f in files
+        if (consumed is None or not _is_docs(f, consumed))
+        and (m := _own_member(f, dir_of)) is not None
+    }
+    return ",".join(sorted(out))
+
+
 def classify(files: list[str], root: str) -> dict[str, str]:
     if not files:
         # No diff at all is not "nothing changed" as far as we can prove —
@@ -1209,7 +1240,7 @@ def classify(files: list[str], root: str) -> dict[str, str]:
         if f.startswith(AUX_PREFIXES):
             aux.append(f)
             continue
-        parts = f.split("/")
+        member = _own_member(f, dir_of)
         # ALLOWLIST: only a file inside a member's directory is scopable.
         # Everything else is workspace-level and forces TIER=all:
         #   root Cargo.toml / Cargo.lock / rust-toolchain.toml — resolution
@@ -1220,16 +1251,16 @@ def classify(files: list[str], root: str) -> dict[str, str]:
         #     geom-core, and demos/tour path-depends on nine members;
         #   docs/k-report-data/** — the k-lint job's committed input;
         #   anything new and unrecognised — by construction.
-        if len(parts) < 3 or parts[0] != "crates" or parts[1] not in dir_of:
+        if member is None:
             raise Bail(f"workspace-level or unrecognised path: {f}")
         # A MEMBER's Cargo.toml is workspace-level too, even though it lives
         # under crates/: cargo unifies features across the whole workspace
         # build, so adding a feature or a dependency to one member can change
         # which features a SHARED dependency is compiled with for every other
         # member. There is no sound per-crate scoping of a manifest edit.
-        if len(parts) == 3 and parts[2] == "Cargo.toml":
+        if f.count("/") == 2 and f.endswith("/Cargo.toml"):
             raise Bail(f"member manifest changed (feature unification): {f}")
-        seeds.add(dir_of[parts[1]])
+        seeds.add(member)
 
     if not seeds:
         if aux:
@@ -1268,7 +1299,7 @@ def classify(files: list[str], root: str) -> dict[str, str]:
     }
 
 
-def _all_tier(root: str) -> dict[str, str]:
+def _all_tier(root: str, files: list[str] | None = None) -> dict[str, str]:
     try:
         dir_of, _ = _members(root)
         pkgs = ",".join(sorted(dir_of.values()))
@@ -1280,12 +1311,21 @@ def _all_tier(root: str) -> dict[str, str]:
     # by taking this branch.
     except Exception:  # noqa: BLE001 — fail CLOSED, like the caller below
         pkgs = ""
-    # SEEDS is empty at tier `all` and that is not "nothing was
-    # touched": the tier means the change is unscopable, so every
-    # seed-keyed axis must read it as "all seeds", not as none. Each
-    # such axis in `decorate` branches on the tier FIRST, before it
-    # looks at this field.
-    return {"TIER": "all", "PKGS": pkgs, "SEEDS": "", "REACHED": "",
+    # SEEDS MEANS THE SAME ON EVERY TIER: the members whose own files
+    # changed. The tier widens what is BUILT, not what was TOUCHED, so a crate
+    # diff that also edits a workspace-level file still names its crates here
+    # and still runs their slow set. Empty when no member's own files moved
+    # (`Cargo.toml` alone) and when no diff was read (`--force-all`, an
+    # unresolvable base). The seed-keyed axes in `decorate` branch on the
+    # tier first and run whole on `all`, so this reaches only the rows that
+    # key on SEEDS itself.
+    seeds = ""
+    if files is not None:
+        try:
+            seeds = _seeds(files, root)
+        except Exception as exc:  # noqa: BLE001 — reported; the tier still runs whole
+            print(f"ci-filter: seeds underivable on the all tier: {exc}", file=sys.stderr)
+    return {"TIER": "all", "PKGS": pkgs, "SEEDS": seeds, "REACHED": "",
             "CARGO_SCOPE": "--workspace"}
 
 
@@ -2031,9 +2071,10 @@ def gated_filter(
     FAILS OPEN, ALWAYS TOWARD RUNNING, and the empty string is what that looks
     like: it is the ordinary whole-suite run, byte for byte what ran before
     this key existed. Every arm below returns it —
-    tier `docs` (nothing runs at all), tier `all` (no diff to read, so nothing
-    can be proven still), a diff with no file list, a diff touching the
-    derivation's own inputs, and any exception anywhere in the scan.
+    tier `docs` (nothing runs at all), tier `all` (a workspace-level change
+    can move any suite, so nothing can be proven still), a diff with no file
+    list, a diff touching the derivation's own inputs, and any exception
+    anywhere in the scan.
     A suite whose own marker cannot be resolved fails open ALONE, so one
     broken marker cannot un-gate the rest.
     """
@@ -2401,8 +2442,8 @@ def decorate(
     if tier == "docs":
         res["RUN_VIEWER_TOOLKIT"] = "false"
     elif tier == "all":
-        # Unscopable: no seed information, so the axis fails OPEN like every
-        # other signal here.
+        # Unscopable: the workspace-level half of the change can move the
+        # toolkit build whatever the seeds say, so the axis fails OPEN.
         res["RUN_VIEWER_TOOLKIT"] = "true"
     else:
         seeds = set(s for s in res.get("SEEDS", "").split(",") if s)
@@ -2432,7 +2473,8 @@ def decorate(
     if tier == "docs":
         res["RUN_PNCAD_PY"] = "false"
     elif tier == "all":
-        # Unscopable: no seed information, so the axis fails CLOSED —
+        # Unscopable: the workspace-level half of the change can move the
+        # wheel build whatever the seeds say, so the axis fails CLOSED —
         # uncertain means the row RUNS — as every signal here does.
         res["RUN_PNCAD_PY"] = "true"
     elif wheel_members is None:
@@ -2946,6 +2988,25 @@ def selftest() -> None:
                     ["demos/tour/src/main.rs", "crates/stl/src/lib.rs"],
                     TIER="closure", PKGS="stl")
 
+        # --- SEEDS ON THE `all` TIER name the members whose own files moved,
+        # as they do on `closure`. ci.yml runs the slow set of exactly these,
+        # so an empty SEEDS here switches that row off for a crate diff that
+        # also edits `.config/nextest.toml` — the file the slow set lives in.
+        # The workspace-level path comes FIRST in two rows below: `classify`
+        # bails at it, so seeds collected by that loop would stop there.
+        for what, files, seeds in (
+            ("a crate beside the slow-set list", [".config/nextest.toml", "crates/topo/src/lib.rs"],
+             "topo"),
+            ("two crates beside the lockfile",
+             ["Cargo.lock", "crates/topo/src/lib.rs", "crates/stl/src/lib.rs"], "stl,topo"),
+            ("a member manifest, its member's own file", ["crates/topo/Cargo.toml"], "topo"),
+            ("a workspace-level file alone", ["Cargo.toml"], ""),
+            ("member prose beside a workspace-level file",
+             ["crates/topo/src/NOTES.md", "Cargo.toml"], ""),
+        ):
+            _files_case(t, f"{what}: SEEDS={seeds or '(empty)'} on the all tier", files,
+                        TIER="all", SEEDS=seeds)
+
         # --- an empty change set is UNRESOLVED, never "nothing changed".
         _expect("an empty change set must run everything",
                 _selftest_invoke(t, ["--files", "-"], ""),
@@ -3039,8 +3100,9 @@ def selftest() -> None:
                     ["crates/topo/src/lib.rs"],
                     TIER="closure", PKGS="pncad,topo,viewer", SEEDS="topo",
                     RUN_VIEWER_TOOLKIT="false")
-        # Fails OPEN with the rest of the filter: an unscopable change has no
-        # seeds to read, and "no seeds" must not read as "no toolkit".
+        # Fails OPEN with the rest of the filter: an unscopable change that
+        # touches no member has no seeds, and "no seeds" must not read as
+        # "no toolkit".
         _files_case(t, "an unscopable change runs the toolkit rows",
                     ["Cargo.toml"], TIER="all", SEEDS="", RUN_VIEWER_TOOLKIT="true")
         _files_case(t, "a docs-only change runs nothing, toolkit included",
@@ -3193,7 +3255,7 @@ def selftest() -> None:
         _expect("--force-all must return the all tier with no diff taken",
                 _selftest_invoke(t, ["--force-all"]),
                 {"TIER": "all", "RUN_BUILD": "true", "RUN_INTERVAL_ORACLE": "true",
-                 "EPS": "all", "KLINT_ROW": "all"})
+                 "EPS": "all", "KLINT_ROW": "all", "SEEDS": ""})
 
     _selftest_docs_premise()
     _selftest_wheel_members_premise()
@@ -3800,7 +3862,7 @@ def main() -> int:
             res = classify(files, root)
     except Exception as exc:  # noqa: BLE001 — fail CLOSED on anything at all
         print(f"ci-filter: falling back to TIER=all: {exc}", file=sys.stderr)
-        res = _all_tier(root)
+        res = _all_tier(root, files)
 
     # `files` deliberately survives the `except` above. A Bail out of
     # `classify` is the NORMAL route for this signal, not a breakdown:

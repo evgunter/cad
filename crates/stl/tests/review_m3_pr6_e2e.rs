@@ -13,9 +13,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::finished;
 use mesh::validate::{check_mesh, signed_volume};
 use topo::{
-    Body, BooleanResult, ContactRecords, ValidationError, mass_properties, subtract, union,
+    AtRestBody, BooleanResult, ContactRecords, ValidationError, mass_properties, subtract, union,
     validate_pseudomanifold,
 };
 
@@ -29,12 +30,16 @@ use geom_core::Tol;
 /// same die from the same door — and the boolean is done here because
 /// what this row measures is the RESULT's contact lists, which a
 /// body-returning fixture cannot hand back.
-fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
+fn die(x0: f64, y0: f64, z0: f64) -> AtRestBody<f64> {
     let (cube, cutter) = sweep::test_support::pocket_die_parts(x0, y0, z0, Tol::witness());
+    let (cube, cutter) = (
+        finished("the cube", cube, Tol::witness()),
+        finished("the cutter", cutter, Tol::witness()),
+    );
     let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
         panic!("die subtract is a body");
     };
-    assert!(b.contacts.vv.is_empty() && b.contacts.a_on_b.is_empty());
+    assert!(b.contacts.is_empty());
     assert_eq!(
         mass_properties(&b.body, Tol::witness()).unwrap().volume,
         0.875
@@ -50,7 +55,11 @@ fn r6_pocketed_dice_kiss_e2e() {
         panic!("kiss union is a body");
     };
     // 3′ gate: green with carried contacts, red without.
-    assert_eq!(assembly.contacts.vv.len(), 1, "one corner kiss");
+    assert_eq!(
+        assembly.contacts.vertex_vertex().count(),
+        1,
+        "one corner kiss"
+    );
     assert_eq!(
         validate_pseudomanifold(&assembly.body, &assembly.contacts, Tol::witness()),
         Ok(())
@@ -61,7 +70,7 @@ fn r6_pocketed_dice_kiss_e2e() {
     assert!(
         withheld
             .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "{withheld:?}"
     );
     // Structure + exact oracles (the parts=2 discipline: shell count

@@ -11,14 +11,15 @@
 
 use crate::common::approx::band;
 use crate::common::operands;
-use geom_brep::SurfaceKind;
-use geom_core::{MarginDiag, Tol};
+use geom::SurfaceKind;
+use geom_core::Tol;
 use geom_core::{Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
-use sweep::test_support::{ball_poled_y, block, realized};
+use sweep::test_support::{ball_poled_y, block, dome, one_edge_rim_at, realized};
 use sweep::{Extrusion, extrude};
 use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
@@ -44,9 +45,16 @@ fn notched() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// A 4 × 4 × 1 slab with ONE spherical pip bitten out of its top face
@@ -154,12 +162,52 @@ fn the_battery_passes_on_a_pip_rim_as_a_closed_chain() {
 // Predicate 1 — fillet3_radius_headroom.
 // ---------------------------------------------------------------------
 
-/// A pip ball of radius 0.5 cannot host a rolling ball of radius 0.9:
-/// `κ_max = 1/0.5` leaves `(1 − 0.9/0.5)·0.9 < 0` of headroom. The
-/// refusal names the SPHERE support face and arrives with no surface
-/// minted.
+/// A dome of radius 0.5 cannot host a rolling ball of radius 0.9 on
+/// its equator: the ball rolls INSIDE the sphere there (a convex rim on
+/// a convex sphere), so `κ = 1/0.5` leaves `(1 − 0.9/0.5)·0.9 < 0` of
+/// headroom. The refusal names the SPHERE support face and arrives with
+/// no surface minted.
 #[test]
 fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
+    let body = dome(0.5, Tol::witness());
+    let req = BlendRequest {
+        body: &body,
+        edges: vec![one_edge_rim_at(&body, 0.5, 0.0)],
+        size: 0.9,
+    };
+    match run_battery(&req, band()) {
+        Err(BlendError::RadiusHeadroom {
+            face,
+            margin,
+            radius,
+        }) => {
+            assert_eq!(margin.predicate, "fillet3_radius_headroom");
+            assert_eq!(
+                query::face_surface_kind(&body, face),
+                Some(SurfaceKind::Sphere),
+                "the sphere's curvature ran out"
+            );
+            let m = margin
+                .reading
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("an f64 margin");
+            assert!(
+                (m - (0.9 - 0.81 / 0.5)).abs() < 1e-12,
+                "the headroom margin is (1 − r/R)·r, got {m}"
+            );
+            assert!((radius - 0.9).abs() < 1e-12);
+        }
+        other => panic!("expected a radius-headroom refusal, got {other:?}"),
+    }
+}
+
+/// The same radius against the same sphere radius on a PIP's rim does
+/// not meet predicate 1: the pip is bitten out, so the ball rolls
+/// OUTSIDE its sphere, whose curvature turns away from it at every
+/// radius. What stops it is the next ball fact, the spine.
+#[test]
+fn p1_a_ball_outside_a_pips_sphere_has_no_headroom_limit() {
     let body = pipped(0.5, 0.3);
     let req = BlendRequest {
         body: &body,
@@ -167,15 +215,8 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
         size: 0.9,
     };
     match run_battery(&req, band()) {
-        Err(BlendError::RadiusHeadroom { margin, radius, .. }) => {
-            assert_eq!(margin.predicate, "fillet3_radius_headroom");
-            assert!(
-                margin.value().is_some_and(|m| m < 0.0),
-                "the headroom margin is definitely negative"
-            );
-            assert!((radius - 0.9).abs() < 1e-12);
-        }
-        other => panic!("expected a radius-headroom refusal, got {other:?}"),
+        Err(BlendError::SpineIrregular { radius, .. }) => assert!((radius - 0.9).abs() < 1e-12),
+        other => panic!("expected the spine, not the headroom, to refuse, got {other:?}"),
     }
 }
 
@@ -198,8 +239,15 @@ fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
     match run_battery(&req, band()) {
         Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
             assert_eq!(margin.predicate, "fillet3_face_clearance");
-            assert!(margin.value().is_some_and(|m| m < 0.0));
-            let MarginDiag::Value(gap) = gap else {
+            assert!(
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| m < 0.0)
+            );
+            let geom_core::ErrorTextReading::Value(gap) = gap.diagnostic_f64_for_error_text()
+            else {
                 panic!("this lane classifies at f64, so the gap is one number: {gap:?}")
             };
             assert!((gap - 1.0).abs() < 1e-9, "the gap is the box side");
@@ -248,7 +296,11 @@ fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
         Err(BlendError::SpineIrregular { margin, radius }) => {
             assert_eq!(margin.predicate, "fillet3_spine_regularity");
             assert!(
-                margin.value().is_some_and(|m| m <= 0.0),
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| m <= 0.0),
                 "the spine margin is definitely non-positive"
             );
             assert!((radius - 0.2).abs() < 1e-12);
@@ -266,10 +318,13 @@ fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
 
 /// Two ADJACENT box edges, requested alone: exactly two links meet at
 /// their shared vertex, so the walk makes it a JUNCTION — and a box
-/// corner is not G1, so predicate 4 refuses. (Request all twelve and
-/// the same vertex has three links and becomes a corner instead: the
-/// junction/termination rule is structural and the two predicates
-/// never overlap.)
+/// corner is not G1, so predicate 4 reads a definite turn. Between two
+/// plane–plane links that breaks the chain into two, and predicate 6
+/// reads the vertex as the turn, isosceles on a box. Where a CURVED link meets another at a kink —
+/// a prism's top edge and the half-round arc it runs into — predicate 4
+/// itself refuses, with its definite margin. (Request all twelve and
+/// the shared vertex has three links and becomes a corner instead: the
+/// junction/termination rule is structural.)
 #[test]
 fn p4_chain_g1_refuses_at_a_cornered_junction() {
     let body = block::<f64>(1.0, 1.0, 1.0, Tol::witness());
@@ -297,13 +352,54 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
         size: 0.1,
     };
     match run_battery(&req, band()) {
+        Ok(verdict) => {
+            assert_eq!(verdict.chains.len(), 2, "the turn breaks the chain");
+            assert_eq!(verdict.turns.len(), 1, "one turn, at the shared vertex");
+        }
+        other => panic!("expected the turn, got {other:?}"),
+    }
+    let (round, front) = crate::common::operands::half_round_end();
+    let arc = topo::query::all_edges(&round)
+        .into_iter()
+        .find(|&e| {
+            let ed = round.get_edge(e).unwrap();
+            let he = ed.he_plus;
+            let s = round.get_half_edge(he).unwrap().start;
+            let t = round.half_edge_end(he).unwrap();
+            let z = |v| {
+                round
+                    .get_point(round.get_vertex(v).unwrap().point)
+                    .unwrap()
+                    .z
+            };
+            matches!(
+                round
+                    .get_curve_geom(ed.curve)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.carrier()),
+                Some(geom::Curve3::Circle { .. })
+            ) && z(s) > 0.5
+                && z(t) > 0.5
+        })
+        .expect("the half-round's top arc");
+    let req = BlendRequest {
+        body: &round,
+        edges: vec![front, arc],
+        size: 0.1,
+    };
+    match run_battery(&req, band()) {
         Err(BlendError::ChainNotG1 { margin, arm, .. }) => {
             assert_eq!(margin.predicate, "fillet3_chain_g1");
             assert!(
-                margin.value().is_some_and(|m| m > 0.0),
-                "a 90° kink has a definitely positive margin"
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| m > 0.0),
+                "a kink has a definitely positive margin"
             );
-            let MarginDiag::Value(arm) = arm else {
+            let geom_core::ErrorTextReading::Value(arm) = arm.diagnostic_f64_for_error_text()
+            else {
                 panic!("this lane classifies at f64, so the arm is one number: {arm:?}")
             };
             assert!(arm > 0.0);

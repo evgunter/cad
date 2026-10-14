@@ -56,3 +56,15 @@ through.
 `Save` / `Open` / `Undo` doors): box, duplicate → roots `[4, 5]`; save
 and reopen → roots `[4, 5]`; ONE undo → roots `[4]`, one body drawn.
 In session, the same undo returns to the box alone.
+
+## 2026-09-29 — one instance fewer (AUTH-6)
+
+The profile editor's edit door was a third instance that this row did
+not list. It committed a moved program as one `SetParam` per moved
+argument, in the order `accepted_order` found, so after a reopen a
+several-argument edit was several undos. Since AUTH-6
+(`author/profile-reshape`) it commits one `DocEdit::SetProgram`. That is
+one logged edit and one state after replay, whatever the edit changed.
+`record_action`, cited above, is now folded into
+`DocSession::commit_run`, which calls `History::commit_group` directly.
+The two instances listed above stand.

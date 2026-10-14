@@ -83,19 +83,11 @@ fn cubic_chart(net: Net, scale: f64) -> NurbsSurface<f64> {
 }
 
 fn lift_surface<T: Real>(s: &NurbsSurface<f64>) -> NurbsSurface<T> {
-    let control = s.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        control,
-        s.weights().to_vec(),
-    )
-    .unwrap()
+    s.map_scalar(T::from_f64)
 }
 
 fn lift_curve<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsCurve3::new(c.knots().clone(), control, c.weights().to_vec()).unwrap()
+    c.map_scalar(T::from_f64)
 }
 
 /// The row `u = u*` exposed by knot insertion to multiplicity `p` —
@@ -128,8 +120,6 @@ fn certify_line<T: Decide>(
     p0: (f64, f64),
     pl: (f64, f64),
 ) -> Result<PcurveCache<T>, PcurveCertifyError> {
-    let (u0, u1) = chart.knots_u().domain();
-    let (v0, v1) = chart.knots_v().domain();
     let f = T::from_f64;
     PcurveCache::certify(
         Pcurve::IsoLine {
@@ -140,12 +130,6 @@ fn certify_line<T: Decide>(
         T::one(),
         &Curve3::Nurbs(Arc::new(lift_curve::<T>(carrier))),
         &Surface::Nurbs(Arc::new(lift_surface::<T>(chart))),
-        geom_brep::ChartWindow {
-            u_min: f(u0),
-            u_max: f(u1),
-            v_min: f(v0),
-            v_max: f(v1),
-        },
         band(),
     )
 }
@@ -450,11 +434,22 @@ fn r1_c2_shared_space_interval() {
 /// a `u_start` inside the boundary band with the boundary row as
 /// carrier, and a DRIFTING seam (`pl.x ≠ 0`) with the inserted row as
 /// carrier — the interior route's drift-only slack is what keeps the
-/// second sound. Wherever the door certifies, `envelope ≥ residual`;
-/// the smallest drift certifies at every ε, so the term is exercised.
+/// second sound. Wherever the door certifies, `envelope ≥ residual`
+/// up to the residual's own rounding: it is the distance of two `f64`
+/// evaluations, each rounded at the coordinates' magnitude, and the
+/// boundary route's slack `δ·sup ‖S_u‖` meets it with nothing to spare,
+/// because the stretch bound reads the chart's derivative at its
+/// boundary exactly. The smallest drift certifies at every ε, so the
+/// term is exercised.
 fn c3_body<T: Decide + Bounds>(lane: &str) {
     let s = cubic_chart(Net::CaseA, 1.0);
     let (v0, v1) = s.knots_v().domain();
+    let reach = s
+        .control()
+        .iter()
+        .map(|p| p.x.abs().max(p.y.abs()).max(p.z.abs()))
+        .fold(0.0, f64::max);
+    let rounding = 16.0 * f64::EPSILON * reach;
     let boundary = boundary_iso_u(&s, false).unwrap();
     for delta in [1e-9, 1e-7, 3e-6, 1e-4] {
         let (p0, pl) = ((delta, v0), (0.0, v1 - v0));
@@ -462,7 +457,7 @@ fn c3_body<T: Decide + Bounds>(lane: &str) {
         if let Ok(c) = certify_line::<T>(&s, &boundary, p0, pl) {
             let env = c.certificate().envelope.hi();
             assert!(
-                env >= res,
+                env >= res - rounding,
                 "{lane}: UNSOUND envelope {env:e} < residual {res:e} at u_start = {delta:e}"
             );
         }
@@ -540,14 +535,12 @@ fn out_of_domain_body<T: Decide + Bounds>(lane: &str) {
                 p0: Point2::new(f(u), f(v0)),
                 pl: Vec2::new(T::zero(), f(v1 - v0)),
             };
-            let window = pc.chart_box(T::zero(), T::one());
             let r = PcurveCache::certify(
                 pc,
                 T::zero(),
                 T::one(),
                 &Curve3::Nurbs(Arc::new(lift_curve::<T>(&row))),
                 &Surface::Nurbs(Arc::new(lift_surface::<T>(&s))),
-                window,
                 band(),
             );
             let Err(PcurveCertifyError::IsoUnsupported { what }) = r else {

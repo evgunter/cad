@@ -1,24 +1,28 @@
 ---
 id: scalar
 kind: program
-title: SCALAR — the scalar lane: lifts, newtypes and the generic-scalar questions
-status: active
-opened: 2026-09-11
+title: SCALAR — the scalar doors and the readers over them: the certified-door family, margins and their recourse, unit directions, and the box driver's readings
+status: ready
+opened: 2026-10-10
 area: kernel
 prefix: scalar/
 tag: (SCALAR orchestrator)
-ab_band: 4100-4199
-paths: []
-keep_out: [this program claims NO paths - crates/geom-core/src/* and crates/geom/src/* are PROPS' territory and H5's ring and interval files sit inside it, so every unit here is announced to PROPS and the two rulings are Ev's before they are anyone's, interval-transcendentals/ is in no program's paths and H5 draws that fence in the PR that reaches it, crates/geom-brep/src/edge_nurbs.rs is TRIM's - D290's carrier-domain half is announced there, crates/sweep/src/skin.rs is BLEND's and crates/sweep/tests/* is S-TINT's - S393's door home is decided before its fence is drawn, crates/topo/src/props.rs and chart_region.rs are code-quality Track M's ground and S-CERT has left the tracker - H5's reach into them is a fence drawn in the PR, docs/DESIGN.md Q1 is Ev's - H5 proposes a revision and never edits a ratified decision from a unit]
+ab_band: 12400-12499
+paths: [crates/geom-core/src/predicate.rs, crates/geom-core/src/real.rs, crates/geom-core/src/k_stats.rs, crates/geom-core/src/tolerance.rs, crates/geom-core/src/linalg/unit_vec.rs, crates/geom/src/curves/boxes.rs, crates/editor-core/src/drive.rs, crates/editor-core/src/analysis.rs, crates/editor-core/tests/m10*, crates/editor-core/tests/e4_dual*, docs/ERROR-DESIGN.md, docs/DUAL-DESIGN.md]
+keep_out: [opened 2026-10-10 by FLUX's priority-seam cut (FLUX measured 125.5 budget points against 30 - work/README.md Track size) - the rows moved by git mv with ids and bodies unchanged and FLUX kept the curved closed-form arms. Shared ground is expected (Ev in chat 2026-09-20) - crates/geom-brep/src/props/* is shared with FLUX FLUXTAIL and QUAD, crates/geom-core/src/* with FLUX's siblings KNOT SCALAR and with FRAME NURBS SYM ENCL - run scripts/work.py territory on your branch and announce the seam in the PR]
 priority: P1
 ---
 
-The scalar lane, which the kernel has been answering by hand: `H5`'s
-535 references and fifteen files of lane traits, the knot-rescale door
-`D290` needed, the two newtype questions (`D6`'s sense sign, the unit
-vector's invariant carried as prose), `D283`'s epsilon typing, and the
-NURBS doors a caller has to reach around. The first `[ev]` sitting
-(PR 2457) answered the three rulings and their six units are on main
-(blocks SCALAR-B1–B3, 2026-09-15) with the three door rows; what
-remains is the Curve3 jet door and `H5`, which waits for the second
-sitting. Charter, the landed units and the order: `work/scalar/plan.md`.
+**The scalar doors, and every reader that spells their contract by
+hand.** `CertifiedEnclosure`'s unswept fourth implementor and a bracket
+that holds its postcondition by hand; `sqrt_up` re-spelled; the
+mignitude and refuse-then-read readers written twelve times; the
+sampler's error with three spellings; unit-direction doors that drop a
+decided margin; an interval `sin θ` that loses the shared magnitude;
+the K floor a band-decided ordering needs; an invalid margin that
+cannot say "not implemented"; float noise in `PathError`'s text; and
+the box driver's readings of a decided gate rejection, its stored axis
+order and its race row's witness.
+
+Slate, order and posture: `work/scalar/plan.md`; narrative in
+`work/scalar/log.md`.

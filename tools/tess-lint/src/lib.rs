@@ -838,7 +838,7 @@ pub const EXPECTED_HEADER: &str = "scene,face,name,chart,delta,triangles,u0,u1,v
                                    opt_cells,span_opt_cells,worst_cert,worst_dev,\
                                    dev_samples,bands,cap_bands,snap_bands,realized_aspect";
 
-/// Every tag `tess_meter::Chart::tag` emits, restated HERE because
+/// Every tag `geom::SurfaceKind::name` emits, restated HERE because
 /// `chart` is a column the gate JOINS on: a renamed tag must fail as
 /// harness breakage rather than re-key every scene that carries it.
 ///
@@ -849,19 +849,19 @@ pub const EXPECTED_HEADER: &str = "scene,face,name,chart,delta,triangles,u0,u1,v
 /// stay in this roster for as long as a baseline row carries it. The
 /// direction that is owed therefore runs the other way — a tag the
 /// meter ADDS would arrive here as harness breakage on every row
-/// carrying it — and it is closed from the meter's side, where the
-/// enum lives: `tess-meter`'s
+/// carrying it — and it is closed from the meter's side, which reads the
+/// enum: `tess-meter`'s
 /// `the_lints_roster_admits_every_tag_this_crate_emits` reads this
 /// declaration out of this file and asserts it admits every tag
-/// `Chart::tag` emits, with its own falsification guard.
+/// `SurfaceKind::name` emits, with its own falsification guard.
 pub const CHART_TAGS: [&str; 7] = [
     "plane", "cylinder", "cone", "sphere", "torus", "nurbs", "approx",
 ];
 
 /// The [`CHART_TAGS`] whose faces the Hessian-sized lane sizes, so
-/// whose rows OWE the sizing block — `tess_meter::Chart::sized_lane`
+/// whose rows OWE the sizing block — `tess_meter::sized_lane`
 /// restated, for the same reason [`CHART_TAGS`] restates
-/// `Chart::tag`: [`parse`] reads the pairing, so a lane split that
+/// `SurfaceKind::name`: [`parse`] reads the pairing, so a lane split that
 /// moves must fail as harness breakage rather than arrive as a
 /// reading.
 ///
@@ -885,7 +885,7 @@ pub const CHART_TAGS: [&str; 7] = [
 /// `tess-meter`'s
 /// `the_lints_sized_roster_answers_sized_lane_for_every_tag_this_crate_emits`
 /// reads this declaration out of this file and asserts membership here
-/// equals `Chart::sized_lane` on every tag that crate emits. That is
+/// equals `tess_meter::sized_lane` on every tag that crate emits. That is
 /// the only guard on the split that reads the enum; this crate's own
 /// tests can only check that the literal is what its rows expect.
 ///
@@ -1283,7 +1283,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
             // unknown tag is sweep-format drift and leaves in the
             // harness voice — the same treatment, and the same reason,
             // as a renamed column in `EXPECTED_HEADER`. A tag renamed
-            // in `tess_meter::Chart::tag` must never arrive here as a
+            // in `geom::SurfaceKind::name` must never arrive here as a
             // re-key on every scene that carries it.
             return Err(ParseError {
                 line: n,
@@ -3085,7 +3085,7 @@ mod tests {
         assert_eq!(
             SIZED_CHART_TAGS,
             ["nurbs", "approx"],
-            "the tags `tess_meter::Chart::sized_lane` answers true for"
+            "the tags `tess_meter::sized_lane` answers true for"
         );
         assert!(
             SIZED_CHART_TAGS.iter().all(|t| CHART_TAGS.contains(t))
@@ -3319,7 +3319,7 @@ mod tests {
     /// `chart` is a column the gate JOINS on, so a tag this crate does
     /// not know is sweep-format drift and leaves in the harness voice
     /// — the same treatment `EXPECTED_HEADER` gets, and for the same
-    /// reason. Renaming a tag in `tess_meter::Chart::tag` must never
+    /// reason. Renaming a tag in `geom::SurfaceKind::name` must never
     /// arrive here as a re-key on every scene that carries it.
     #[test]
     fn an_unknown_chart_tag_is_harness_breakage_not_a_re_key() {
@@ -3358,7 +3358,7 @@ mod tests {
             [
                 "plane", "cylinder", "cone", "sphere", "torus", "nurbs", "approx"
             ],
-            "the tags `tess_meter::Chart::tag` emits"
+            "the tags `geom::SurfaceKind::name` emits"
         );
     }
 

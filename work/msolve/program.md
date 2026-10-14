@@ -2,7 +2,7 @@
 id: msolve
 kind: program
 title: MSOLVE — the mate solve's correctness residue
-status: active
+status: ready
 opened: 2026-09-04
 area: kernel
 prefix: msolve/

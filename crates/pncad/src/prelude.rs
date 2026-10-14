@@ -27,11 +27,6 @@
 //! 6. **Measure** — mass properties.
 //! 7. **Tessellate and export** — mesh, STL, STEP.
 //! 8. **Or drive the document layer** — `Doc`, `DocEdit`, `evaluate`.
-//!
-//! `BooleanOp` is ONE type: the kernel operation, which the recipe
-//! node carries directly. The prelude and `pncad::document` name the
-//! same enum, so which one a caller imports it through cannot change
-//! what it means.
 
 // --- 1. Numbers and frames ------------------------------------
 pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
@@ -59,7 +54,7 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 //
 // Every kernel verb derives its band from `Band::linear(tol)` at its
 // own entry (the paragraph above), which is `Band::new(ε, K·ε)`.
-// `Tol`'s invariant is ε finite and strictly positive and K finite
+// `Tol`'s invariant is ε finite and at least `EPS_MIN` and K finite
 // and greater than one, so `Band::new`'s `zero` check cannot fire —
 // the only `InvalidValue` reachable from a prelude door is
 // `field: Escalate`, the K·ε overflow residue that `Band::linear`'s
@@ -73,9 +68,9 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // lands on `field: Escalate` too.
 //
 // So a curated `BandField` would publish a two-arm type whose only
-// use here is comparison against a value it always has. CUR3 carried
-// `DanglingRef` because its two arms are two different facts about
-// the model and a caller branches on which; `BandField`'s two arms
+// use here is comparison against a value it always has. A curated
+// payload earns its place when its arms are different facts about the
+// model and a caller branches on which; `BandField`'s two arms
 // collapse to one reachable fact, and the field's name is already in
 // the refusal's own `Display` prose. A caller who really does
 // construct a band directly has left the prelude for the geometry
@@ -108,7 +103,7 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // `RevolveError`, `SelectRefusal`, `TubeError`, `ValidationError` —
 // against one carrier for the payload CUR3 carried and one apiece
 // for CUR4's four. (`geom_core::UnitVec3Error`, the unit-vector
-// witness's refusal, and `geom_core::OrthoFrameError`, the frame
+// witness's refusal, and `geom_core::OrthonormalizeError`, the frame
 // witness's, carry it too and are reached at `pncad::geom_core`
 // beside the types they refuse for, not through this prelude —
 // kernel types' refusals, not curated façade names.) A caller holding an
@@ -132,17 +127,21 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // distinction is the type's own. What the escalation contract forbids
 // is recovering the margin to make the sign decision the classifier
 // refused; what the three arms separate is whether there was a number
-// at all. A value says the margin landed in the band and tightening ε
-// may help; an enclosure says a certified bracket straddles, which is
-// the subdivision driver's lever; a poisoned margin says the question
-// was never validly posed, and it is the one arm none of
-// `COINCIDENCE_RECOURSE`'s three levers answers. Three different next
-// moves, off a struct this list already carries.
+// at all, and `MarginDiag::kind` reads them as a `MarginKind`, which
+// carries none (the numbers leave only through the type's one named
+// error-text door). A value says the margin landed in the band, or was
+// decided on a side the decision does not pass; an enclosure says a
+// certified bracket straddles, which is the subdivision driver's lever,
+// or was decided likewise; a poisoned margin says nothing was measured,
+// and it is the one arm none of `COINCIDENCE_RECOURSE`'s three levers
+// answers. Different next moves, off a struct this list already
+// carries.
 //
 // So the rung under a carried struct is carried too: a caller holding
 // an `Escalated` arm out of any of the twelve reads `band`,
-// `predicate` and `margin` by bare name in one import. `Indeterminate`,
-// `MarginDiag` and `Band` sit at ONE root together
+// `predicate` and `margin` — and the margin's kind — by bare name in
+// one import. `Indeterminate`, `MarginDiag`, `MarginKind` and `Band`
+// sit at ONE root together
 // (`pncad::geom_core`) for anyone who prefers the module path — a
 // longer path, never a second crate.
 //
@@ -151,8 +150,8 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // margin out of the kernel's prose again: then the type is telemetry
 // with no consumer, which is what a curated list does not publish.
 pub use geom_core::{
-    Affine3, Band, BandError, Indeterminate, MarginDiag, Mat3, OrthoFrame, Point2, Point3, Real,
-    Tol, Tolerance, Vec2, Vec3,
+    Affine3, Band, BandError, Indeterminate, MarginDiag, MarginKind, Mat3, Point2, Point3, Real,
+    RigidMotion, Tol, Tolerance, Vec2, Vec3,
 };
 // The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
@@ -168,7 +167,7 @@ pub use geom_core::{
 // `WrittenLength`/`WrittenAngle` are value types by the same rule and
 // ride here for the same reason `Length` does: they are what an
 // authored quantity IS at this boundary — a magnitude plus the
-// notation it was written in — and `Expr::written_length` is the door
+// notation it was written in — and `Formula::written_length` is the door
 // they open, which is how a library recipe records `300 mm` rather
 // than `0.3` for a reader to interpret.
 pub use quantity::{
@@ -178,18 +177,19 @@ pub use quantity::{
 
 // --- 2. Profile authoring -------------------------------------
 // NAMEABLE, NOT MINTABLE:
-// `ProfileLoop` stays here because read-back hands it back,
-// `ProfileError` payloads point into it, and `validated`
-// takes a `Vec<ProfileLoop>` — a prelude user must be able to name what
-// the ladder passes around. What left is the raw MINTING tier:
+// `ProfileLoop` stays here because read-back hands it back and
+// `ProfileError` payloads point into it, and `ConstructedLoop` because
+// `validated` and `polygon` take and return one — a prelude user must be
+// able to name what the ladder passes around. What left is the raw
+// MINTING tier:
 // `ProfileLoop::new`/`polygon` live on `profile::RawLoop`, which is a
 // FIXTURE door behind that crate's `test-support` feature — absent from
 // every shipped build, so there is nothing here to decline. Loops are
 // authored through the lattice below, and a table that already exists
 // crosses scalars through `ProfileLoop::map_scalar`.
 pub use ::profile::{
-    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, SegmentKind, SketchPlane,
-    ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
+    ArcSweep, ConstructedLoop, FilletLegShape, Profile, ProfileError, ProfileLoop, SegmentKind,
+    SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
 // The PATHS authoring algebra: `circle` (the one-step closed-carrier
 // program form) and the
@@ -236,12 +236,19 @@ pub use ::profile::{
 //   `PathError::Escalated`, whose Display selects the gate's own
 //   recourse from the predicate name rather than from a site
 //   discriminant.
-// - `SegmentRef` is the rung under that one, and under four arms
-//   besides: `DegenerateSegment` and `NearFullArc` carry one,
-//   `NonSimple` and `TangentialContact` two apiece. It is where in
+// - `SegmentRef` is the rung under that one, and under six arms
+//   besides: `DegenerateSegment`, `NearFullArc`, `InconsistentArc` and
+//   `ArcBelowSceneResolution` carry one, `NonSimple` and
+//   `TangentialContact` two apiece. It is where in
 //   the INPUT profile a refusal points — a loop index and a segment
 //   index, in the input's own ordering — so a caller that cannot name
 //   it cannot hold the site it was handed.
+// - `ArcCheck` is `InconsistentArc`'s and `ArcBelowSceneResolution`'s:
+//   which of the three consistency conditions a stored arc failed
+//   against its vertices — its start off the carrier, its sweep landing
+//   off its end, or its sweep out of range — or which one read a
+//   difference the scene could not resolve. Three conditions, and those
+//   arms are the only place the profile says which.
 // - `FilletLeg` is which side of a corner a fillet did not fit,
 //   incoming or outgoing: `CornerReason` names it in two arms and
 //   `PathError` in a third, and it is the one thing a caller
@@ -283,7 +290,7 @@ pub use ::profile::{
 // first. Stated so the next curation pass re-measures rather than
 // re-derives.
 pub use ::profile::{
-    ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
+    ArcCheck, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
 };
 
 // --- 3. The four body operations ------------------------------
@@ -300,22 +307,21 @@ pub use sweep::chamfer::{Chamfered, chamfer_edges};
 // once around the shared verb-neutral error.
 pub use sweep::blend::{BlendKind, BlendRefusal};
 // **The blend refusal's own payload vocabulary**, carried beside the
-// refusal for the reason `DanglingRef` rides beside `ReadbackError`
-// in group 9: a curated list owes MATCHABILITY, not just
+// refusal for the reason every carried refusal's payload rides
+// beside it: a curated list owes MATCHABILITY, not just
 // nameability, and `BlendError` is on this list while the types its
 // arms carry were not.
 //
-// The reach is worse here than it was there. `DanglingRef` at least
-// sat at `topo`'s root, so `pncad::topo::DanglingRef` named it;
-// `sweep` re-exports NOTHING from `blend`, so before this line the
+// The reach is worse here than for a payload at `topo`'s root, which
+// `pncad::topo::` names; `sweep` re-exports NOTHING from `blend`, so before this line the
 // only spelling was `pncad::sweep::blend::CornerConfig` — and
 // `pncad::sweep::blend::battery::Convexity`, three submodules deep.
 // Contract clause 1 was met (one crate, a longer path); what was not
 // met is that a caller holding a prelude-curated `BlendError` could
 // not branch on what its arms say.
 //
-// What each one decides, which is why matchability is worth the four
-// names:
+// What each one decides, which is why matchability is worth carrying
+// each:
 //
 // - `CornerConfig` is `UnsupportedCorner`'s whole content (the OQ6
 //   vocabulary, decided at #85). A valence-4 vertex says "request the
@@ -327,6 +333,11 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //   of its own: a seam vertex is not a corner, so no run-out helps.
 // - `BlendSite` is `Escalated`'s: link, joint, or the chain whole —
 //   the payload half of the two-tolerance shape (D4 ¶1 addendum).
+// - `BlendDecision` is `Escalated`'s too: the question that could not
+//   be taken, which alone decides the refusal's recourse.
+// - `Breach` is `BodyNotIntact`'s: a key that did not resolve, a walk
+//   that did not close, or keys that disagree with the blend's reading
+//   — the cause the refusal states, and the one a bug report needs.
 // - `Convexity` is `ConvexitySignFlip`'s: which way the chain's
 //   material wedge turns. It is NOT one of the three the CUR3 bank
 //   named — the struct-payload sweep found it — and leaving it out
@@ -340,7 +351,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // here to split and none to pin. That the blend door is unprojected
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
-pub use sweep::blend::{BlendSite, CornerConfig, RunOutPolicy};
+pub use sweep::blend::{BlendDecision, BlendSite, Breach, CornerConfig, RunOutPolicy};
 // **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
 // value over: the payloads above are what a carried REFUSAL says, this
 // is what a carried RESULT says, and a curated list owes matchability
@@ -366,19 +377,22 @@ pub use sweep::blend::{BlendSite, CornerConfig, RunOutPolicy};
 // `Node.revolve` whose answer is a body — so there is nothing here to
 // split or pin, the `BlendError` reading on a value rather than a
 // refusal.
+// `SideWall` and `BandWall` are `Extruded::walls` and `Revolved::bands`
+// — the one wall per run of pieces each verb builds — so a caller
+// reading those handles can name their element type.
 pub use sweep::{
-    ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
-    Revolved, RevolvedKind, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body,
-    tube_along_arc, tube_along_arc_hollow,
+    BandWall, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError, Lofted, Revolution,
+    RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude,
+    loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------
-// `geom_brep::SurfaceKind` rides here on purpose: it is the payload
+// `geom::SurfaceKind` rides here on purpose: it is the payload
 // of `BooleanError::CurvedBooleanUnsupported`, so any code that
 // matches on a curved-Boolean refusal needs it in the same breath as
 // the error itself — the one-dependency contract's closure over
 // error payloads (crate docs, contract clause 1).
-pub use geom_brep::SurfaceKind;
+pub use geom::SurfaceKind;
 // `PlaneRelation` rides here because it is the verdict a
 // `FlushFinding`'s evidence carries (SameOpposite = resting contact,
 // SameOriented = flush walls), so code inspecting findings names it.
@@ -400,8 +414,8 @@ pub use geom_brep::SurfaceKind;
 // **`EntityId` and `GeomRef` ride with the keys**, because they are
 // what the same module means by "any entity" and "any geometry": the
 // type-erased sums over those keys, which is the form a refusal
-// reports a site in. `ReadbackError::Dangling`'s payload is one or
-// the other, and `BlendError` names an `EntityId` DIRECTLY in three
+// reports a site in. `ReadbackError::Dangling`'s payload is an
+// `EntityId`, and `BlendError` names an `EntityId` DIRECTLY in three
 // arms — so a caller matching a prelude-carried refusal was binding
 // a value whose type sits in this very group and could not spell it.
 // The four key kinds neither sum reaches by a curated name
@@ -421,12 +435,16 @@ pub use geom_brep::SurfaceKind;
 // body-lineage-scoped against the evaluation that minted them and
 // which `pncad`'s own guard forbids naming.
 //
-// **`MappedCurve` is NOT here, and that is measured — a further
-// entry of the `BandField` family of payloads argued OUT of this
-// list, and the first whose reason is the ARM rather than the
-// payload.** It is
+// **`MappedCurve` and its discriminant `MappedSource` are NOT here,
+// and that is measured — a further entry of the `BandField` family of
+// payloads argued OUT of this list, and the first whose reason is the
+// ARM rather than the payload.** `MappedCurve` is
 // `EdgeDescription::Scaffold`'s payload: the sketch pushforward a D3
-// scaffolding description carries. Three measurements settle it.
+// scaffolding description carries, a struct of the `MappedSource` a
+// reader would branch on and the sub-range the edge covers. The
+// payload-rung sweep reaches `MappedSource` through that struct (its
+// blind spot (k)) and pins it to this argument. Three measurements
+// settle it.
 //
 // The arm is fenced to CONSTRUCTION and refused at rest. `Scaffold`
 // is the transient door — a pushforward standing in for an edge whose
@@ -441,15 +459,15 @@ pub use geom_brep::SurfaceKind;
 // caller can neither be handed a scaffold at rest nor write one. In
 // the kernel the discriminant has consumers and every one of them is
 // a re-MINT rather than a read — `transform`, the axial offset and
-// `replace_face` each match the three arms to rebuild the same arm
-// under a map — which is the construction half of the CUR3 rule, on
+// `replace_face` each match `MappedSource`'s three arms to rebuild the
+// same arm under a map — which is the construction half of the CUR3 rule, on
 // the side of the boundary that owns the scaffolding.
 //
 // And the rung is uncarried WHOLE, not at one arm.
 // `EdgeDescription::Chart` carries a `ChartCurve`, whose `pcurve`
 // field is a four-arm `Pcurve` — a real discriminant a reader of an
 // at-rest conventional edge would branch on — and neither is curated.
-// Carrying `MappedCurve` alone would make this refusal's read-back
+// Carrying `MappedSource` alone would make this refusal's read-back
 // matchable at the fenced arm and not at the one every at-rest
 // conventional edge actually has, which is the inconsistency the
 // `Convexity` carriage in group 3 closed, in reverse.
@@ -457,15 +475,15 @@ pub use geom_brep::SurfaceKind;
 // This flips if a door ever hands a caller the description of a
 // TRANSIENT edge — the Euler scaffolding surface, which this façade
 // does not expose. When it does, the rung is carried WHOLE
-// (`ChartCurve`, `Pcurve` and `MappedCurve` together), because the
+// (`ChartCurve`, `Pcurve`, `MappedCurve` and `MappedSource` together), because the
 // fenced arm is the last one a reader needs and not the first.
 // Stated so the next curation pass re-measures rather than
 // re-deriving.
 pub use topo::{
-    Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId, FaceKey,
-    GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, Surface, TransformError, VertexKey,
-    intersect, intersect_with, subtract, subtract_with, transform_rigid, union, union_with,
+    AtRestBody, Backing, Body, BooleanBody, BooleanError, BooleanOp, BooleanResult,
+    BooleanResultKind, Cited, Cites, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId,
+    FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, ShellOrientation, Surface,
+    TransformError, VertexKey, intersect, subtract, transform_rigid, union,
 };
 
 // --- 5. The validation ladder ---------------------------------
@@ -474,23 +492,27 @@ pub use topo::{
 // `DeclaredContact` — the payload of `ValidationError::
 // ContactContradicted` — has been curated (through `crate::select`)
 // all along, so the surface already carried ONE payload of this
-// refusal and left its siblings a module hop away. These four are
+// refusal and left its siblings a module hop away. These are
 // that inconsistency closed, not a new policy:
 //
-// - `CensusContact` is `UndeclaredContact`'s: which coincidence the
+// - `CensusContact` is `UnrecordedContact`'s: which coincidence the
 //   census found. The arms are not one fact — `EdgeFacePierce` is
-//   interpenetration and categorically undeclarable until the C6 era,
-//   while `EdgeEdgeOverlap` is certifiable through the D3
-//   reconstruction TODAY. A caller that cannot tell them apart cannot
-//   tell "declare this" from "you cannot declare this".
+//   interpenetration and undeclarable, while `EdgeEdgeOverlap` is
+//   certifiable through the D3 reconstruction. A caller that cannot
+//   tell them apart cannot tell "declare this" from "you cannot
+//   declare this". `CrossingSideVerdict` is `EdgeEdgeCross`'s `side`,
+//   carried with it: a same-side crossing is interpenetration, an
+//   opposite-side one a contact, so it is that arm's discriminant.
 // - `StaleDeclaration` is `StaleContactDeclaration`'s: which record
 //   lost its witness, so which record to withdraw.
 // - `RingContact` is `RingMeetsOuter`'s: vertex-on-vertex,
 //   vertex-on-edge (either loop's vertex), edge-along-edge, two edges
 //   meeting at a point, or two whole circles crossing or touching.
+//   `RingPairContact` is `RingMeetsRing`'s: the same shapes between
+//   two rings of one face.
 // - `CensusSubject` is what `CensusUnsupported` and
 //   `CensusLaneUnsupported` are ABOUT, and it is the sharpest of the
-//   four because both of its payload types are already on this list.
+//   list because both of its payload types are already on it.
 //   `Entity(EntityId)` and `FacePair(FaceKey, FaceKey)` are not two
 //   spellings of one site: an entity subject is one carrier outside
 //   the certifiable inventory, and the recourse is that carrier's —
@@ -507,8 +529,8 @@ pub use topo::{
 // THE RUNG BELOW IS CARRIED TOO, and where it stops is one further
 // down. `CensusContact::ConformalPatch` carries a
 // `topo::ContactFinding`, which rides in group 9 with the rest of the
-// contact vocabulary; `DanglingRef`'s arms carry `EntityId` and
-// `GeomRef`, which ride in group 4 with the keys they sum over. What
+// contact vocabulary; `ReadbackError::Dangling` carries an
+// `EntityId`, which rides in group 4 with the keys it sums over. What
 // this list still stops at is the rung under THOSE — a
 // `ContactFinding` is a `DeclaredContact` plus a `ContactVerdict`,
 // both already here, a `CensusSubject` is an `EntityId` or two
@@ -531,8 +553,9 @@ pub use topo::{
 // one on this surface: `validate*` is the one door that reports many
 // refusals at once, and `failure_count` says so.
 pub use topo::{
-    CensusContact, CensusSubject, RingContact, StaleDeclaration, ValidationError, validate,
-    validate_closed, validate_geometric, validate_pseudomanifold,
+    CensusContact, CensusSubject, CrossingSideVerdict, RingContact, RingPairContact,
+    StaleDeclaration, ValidationError, validate, validate_closed, validate_geometric,
+    validate_pseudomanifold,
 };
 
 // --- 6. Mass properties ---------------------------------------
@@ -540,8 +563,12 @@ pub use topo::{
 // `StepImport::Solid::enclosure`'s other arm: an admitted body whose
 // volume is not measurable at this ε imports with that refusal, and
 // the curated-type rule (the `coherence` note below) says a caller
-// able to hold the answer must be able to spell its vocabulary.
-pub use topo::{MassProperties, MassPropsError, TargetUnreached, VolumeEnclosure, mass_properties};
+// able to hold the answer must be able to spell its vocabulary;
+// `VolumeReading` is that answer read as a number or a bracket.
+pub use topo::{
+    MassProperties, MassPropsError, TargetUnreached, VolumeEnclosure, VolumeReading,
+    mass_properties,
+};
 
 // --- 7. Tessellation and export -------------------------------
 pub use mesh::{Mesh, TessellateError, tessellate};
@@ -559,36 +586,14 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // ill-conditioned — collinear azimuth samples — and the recourse is a
 // re-export with more of the patch, or the face left as NURBS. The
 // refusal's own prose names the kind, which is exactly the
-// `DanglingRef` situation this curation rung exists to close: a fact
+// situation this curation rung exists to close: a fact
 // readable only out of a message is not matchable.
-//
-// **`ImportContact` is a different defect and is carried for a
-// different reason: it is an INPUT, not a payload.**
-// `ImportOptions::declared_contacts` is a `pub Vec<ImportContact>` —
-// the import-side declaration channel (M9-2, D7 step 4), the position
-// anchored declarations a caller attaches to an import so they are
-// certified by the SAME tier-3′ gate a native declared-contact body
-// runs. `ImportOptions` was on this list and `ImportContact` was not,
-// which is not a matchability gap but a REACH one: a prelude caller
-// could name the options struct, could set `eps_in`, and could not
-// put a declaration in it, because filling a public field means
-// spelling its element type. Every other door on this list is
-// callable from it; this one was callable and not fillable, so the
-// declaration channel had no prelude caller at all.
-//
-// The rung under both closes here rather than stopping.
-// `PromotedKind`'s arms carry nothing, and an `ImportContact` is one
-// arm carrying three `f64` — the anchor position — so a caller states
-// a declaration in numbers it already holds.
 //
 // The Python halves differ, and the difference follows the carrier
 // each time. `StepImportError` projects a tag, so `PromotedKind`
 // projects its own beside it (`StepImportError.promoted_kind`);
 // `ImportOptions` crosses FIELD BY FIELD rather than as a type —
-// Python's `import_step` takes `eps_in=`, and the declaration channel
-// is the field it withholds, because a list keyword whose elements a
-// caller cannot build is a door onto nothing — so `ImportContact`
-// has nothing to project until it gains a value class of its own.
+// Python's `import_step` takes `eps_in=`.
 // **The SUCCESS half crosses under the same clause, and it is the
 // reach one.** `import_step` answers
 // `Result<StepImport, StepImportError>`. The refusal above is
@@ -601,8 +606,8 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 //
 // So `StepImport` joins the list with the record vocabulary its
 // `Solid` arm names, because the arm's fields are the answer and each
-// is a `pub` field of a curated type — the `ImportContact` reasoning
-// one paragraph up, applied to the other side of the call. The
+// is a `pub` field of a curated type: a door's answer is spellable
+// from the list that carries the door. The
 // records are what the adoption CHANGED about the file, and the
 // types' own documentation says twice that a caller reads them:
 // `SurfacePromotion` is "reported, never silent", and the assembly
@@ -670,7 +675,7 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // no examination, and `pncad-py`'s surface census carries that as a
 // `NotBound` row with its reason.
 pub use step_import::{
-    CurvePromotion, FaceCensus, ImportContact, ImportOptions, NormalizationKind, PlacedInstance,
+    CurvePromotion, FaceCensus, ImportOptions, NormalizationKind, PlacedInstance,
     PromotedCurveKind, PromotedKind, StepImport, StepImportError, StructureNormalization,
     import_step,
 };
@@ -687,21 +692,23 @@ pub use stl::{
 };
 
 // --- 8. The document layer ------------------------------------
-// `parse_expr` is the expression TEXT door: the checking
-// parser whose every reduction runs the Expr smart constructors;
+// `parse_formula` is the expression TEXT door: the checking
+// parser whose every reduction runs the Formula smart constructors;
 // `unparse` is the same door outward, source text the parser reads
-// back as the same tree.
+// back as the same tree. `Formula` is what a caller writes and `Expr`
+// what a document stores; a node an edit carries is an `AuthoredNode`.
 // The v4 program vocabulary: the profile payload is the
 // Expr-bearing `ProfileProgram`, curated through the ONE document
-// surface (`crate::document`). `Datum` and `ParamEnv` ride here
+// surface (`crate::document`). `Datum` and `VarEnv` ride here
 // because a datum node is the frame a
 // `GeomPred::DatumDistance` selection is written against, and
-// `select_where` takes a `ParamEnv`, so both are needed to write a
+// `select_where` takes a `VarEnv`, so both are needed to write a
 // position filter at all.
-// `ParamName` and `DocParam` ride here because they are what
-// `DocEdit::SetDocParam` and `Expr::param` take, so a prelude user
-// could previously hold the param-editing doors and not open them —
-// the parametric flagship (`plate_param`, guide §3.2) imports both.
+// `VarName`, `FreeVar` and `VarDecl` ride here because they are what
+// `DocEdit::DeclareVar` and `Formula::named` take, and `VarDef` because it
+// is what a document's variable reads back as, so a prelude user
+// could otherwise hold the variable doors and not open them — the
+// parametric flagship (`plate_param`, guide §3.2) imports them.
 // `RecordedNotation` rides beside `LoopProgram` because it is the other
 // argument of `LoopProgram::from_recorded_with_notation`: a prelude user
 // holding the lift door but not the notation can only lift a recording
@@ -709,15 +716,16 @@ pub use stl::{
 // `SitedFace` is a mate's head and `FaceName` is the name in it, whose
 // one constructor answers `NotAFaceName`: a prelude user who can spell
 // `Node::Mate` can spell its two heads, and handle the refusal a name
-// read out of a file gets.
+// read out of a file gets. `VarNameFault` is the same thing for
+// `VarName::new`, the door a name that arrives as text goes through.
 pub use crate::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
-    Expr, FaceName, LoopProgram, Node, NodeError, NotAFaceName, ParamEnv, ParamName, ParseError,
+    AuthoredNode, CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation,
+    Expr, FaceName, Formula, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError,
     PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload,
-    apply, evaluate, parse_expr, unparse,
+    VarDecl, VarDef, VarEnv, VarName, VarNameFault, apply, evaluate, parse_formula, unparse,
 };
-pub use editor_core::StableName;
+pub use editor_core::{NameTextError, StableName};
 
 // --- 9. Names: obtain them, inspect them, select them ---------
 // `StableName` sits in group 8 with no door there to obtain or read a
@@ -726,24 +734,15 @@ pub use editor_core::StableName;
 // away, so a prelude user could hold the type and do nothing with it.
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
-// The detect/declare protocol rides in this group too: the
-// findings vocabulary, the detector, and the declare sugar (the
-// worked example is in `crate::select`'s module docs).
-// `DanglingRef` rides beside `ReadbackError` for the same reason
-// every carried refusal's payload does: it is what `Dangling`'s
-// field IS, so without it the arm is matchable and its two lanes
-// are not.
 pub use crate::select::{
-    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal,
-    ContactVerdict, CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact,
-    Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
+    CurveKind, CurveKindSet, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, GeomPred,
     InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
-    Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
-    SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf,
-    StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
-    declare, declare_all, declare_node, denotation, edge_carrier_kind, edge_frame, edge_name,
-    face_carrier_kind, face_frame, face_name, find_flush_candidates, select, select_where,
-    vertex_position,
+    PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
+    RunLine, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense,
+    Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
+    all_vertices, attribute, denotation, edge_carrier_kind, edge_frame, edge_name,
+    face_carrier_kind, face_frame, face_name, select, select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds
@@ -752,17 +751,8 @@ pub use crate::select::{
 // names — `all_edges` above answers names from an evaluation,
 // `query::all_edges` answers keys from a body — and a prelude must
 // not make one shadow the other. The vocabulary types the doors speak
-// (`CurveKind`, `CurveKindSet`, `SurfaceKindSet`, `SurfaceKind`) are
-// already above, one definition re-exported upward.
+// are already above, each one definition re-exported upward: the kinds
+// `CurveKind` and `SurfaceKind` from `geom`, beside the enums they
+// mirror, and the sets `CurveKindSet` and `SurfaceKindSet` from
+// `topo::query`.
 pub use topo::query;
-// The KERNEL flush seat (`topo::flush`): the same detect/declare
-// protocol as a pure function of two `Body`s, for the caller who holds
-// arena keys and no document. A MODULE for the reason `query` is one,
-// and more sharply — all three door names collide with the document
-// seat's above (`find_flush_candidates`, `declare`, `declare_all`),
-// which answer names from an evaluation where `flush::` answers keys
-// from a body. The finding vocabulary the doors speak
-// (`ContactClass`, `FlushEvidence`, `FlushRung`, `PlaneRelation`) is
-// already above, one definition re-exported upward: `FlushFinding` is
-// literally the same type at both seats, over each seat's pair.
-pub use topo::flush;

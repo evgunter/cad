@@ -11,11 +11,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
+use editor_core::NodeStanding;
 use editor_core::{
-    AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Diagnosis, DocEdit,
-    EditError, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Resolution,
-    ResolveError, ResolveIndeterminate, Rgba8, RoleSeg, RunCtx, SlotId, StableName,
+    AppearanceLossCause, Attr, AttrKind, CancelToken, CapEnd, Diagnosis, DocEdit, EditError,
+    EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError,
+    ResolveIndeterminate, Rgba8, RoleSeg, RunCtx, SlotId, StableName,
     appearance_rebind_suggestions, enrich_appearance_loss, enrich_appearance_loss_with_prior,
     evaluate,
 };
@@ -68,8 +70,9 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -98,17 +101,16 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b,
-            declare: None,
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
         },
     );
     (doc, sub)
@@ -125,11 +127,8 @@ fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 1.25);
     let (doc, uni) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: None,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
@@ -190,6 +189,44 @@ fn ambiguous_loss_enriches_by_table_lookup_at_the_recorded_site() {
     assert!(f.offers.is_empty());
 }
 
+/// **A tie a pass-through table carries is reported at the table that
+/// defined it**: `at` is the first carrying table in evaluation order.
+/// The fixture moves the defining node's copy of the name downstream
+/// through a transform, which carries the tie too, so a walk that took
+/// the last carrying table would report the transform.
+#[test]
+fn a_carried_tie_is_reported_at_its_defining_table() {
+    let (doc, sub) = tie_fixture();
+    let ev = run(&doc);
+    let tied = ev
+        .value(sub)
+        .unwrap()
+        .name_table
+        .iter()
+        .find_map(|(n, e)| {
+            matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())
+        })
+        .expect("the U-cutter fixture ties");
+    let lift = editor_core::Step::Literal(editor_core::Frame::translation([4.0, 0.0, 0.0]));
+    let (doc, moved) = insert(doc, Node::transform(sub, lift));
+    let doc = set(doc, tied.clone(), red());
+    let ev = run(&doc);
+    assert!(
+        ev.value(moved)
+            .unwrap()
+            .name_table
+            .iter()
+            .any(|(n, e)| *n == tied && matches!(e, editor_core::Entry::Tied(_))),
+        "the transform carries the tie"
+    );
+    let causes: Vec<_> = ev.appearance.losses.iter().map(|l| &l.cause).collect();
+    assert_eq!(
+        causes,
+        [&AppearanceLossCause::Ambiguous { at: sub, width: 2 }],
+        "one loss, at the defining table"
+    );
+}
+
 #[test]
 fn node_gone_loss_enriches_with_the_derived_deletion_edit() {
     let (doc, ext) = block(
@@ -241,8 +278,8 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: ext,
-            count: editor_core::Expr::count(3),
+            input: ext.into(),
+            count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -271,7 +308,8 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: editor_core::Expr::count(2),
+            expr: editor_core::Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev = rerun(&doc, &prior_ev);
@@ -294,7 +332,6 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
             eval: &prior_ev,
         },
         loss,
-        Tol::witness(),
     );
     let Resolution::Failed(f) = r else {
         panic!("expected Failed, got {r:?}");
@@ -336,11 +373,8 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     let (doc, b) = block(doc, (1.0, 3.0), (0.25, 1.75), 0.125, 0.75);
     let (doc, uni) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: None,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc);
@@ -362,16 +396,18 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
         DocEdit::SetParam {
             node: a,
             slot: SlotId::Distance,
-            expr: len(0.0),
+            value: len(0.0).into(),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
     assert_eq!(ev.appearance.losses.len(), 1);
     let loss = &ev.appearance.losses[0];
-    assert_eq!(
-        loss.cause,
-        AppearanceLossCause::TargetPoisoned { through: a }
-    );
+    let poisoned = NodeStanding::Poisoned {
+        node: uni,
+        through: a,
+    };
+    assert_eq!(loss.cause, AppearanceLossCause::Indeterminate(poisoned));
     assert_eq!(
         enrich_appearance_loss(
             RunCtx {
@@ -380,7 +416,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
             },
             loss
         ),
-        Resolution::Indeterminate(ResolveIndeterminate::TargetPoisoned { through: a })
+        Resolution::Indeterminate(ResolveIndeterminate { standing: poisoned })
     );
 
     // Canceled: the not-evaluated arm, with the node made explicit.
@@ -404,7 +440,8 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     );
     assert_eq!(ev2.appearance.losses.len(), 1);
     let loss2 = &ev2.appearance.losses[0];
-    assert_eq!(loss2.cause, AppearanceLossCause::TargetNotEvaluated);
+    let unevaluated = NodeStanding::NotEvaluated { node: ext };
+    assert_eq!(loss2.cause, AppearanceLossCause::Indeterminate(unevaluated));
     assert_eq!(
         enrich_appearance_loss(
             RunCtx {
@@ -413,7 +450,9 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
             },
             loss2
         ),
-        Resolution::Indeterminate(ResolveIndeterminate::TargetNotEvaluated { node: ext })
+        Resolution::Indeterminate(ResolveIndeterminate {
+            standing: unevaluated
+        })
     );
 }
 
@@ -450,7 +489,7 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
     let suggestions = appearance_rebind_suggestions(doc.appearance(), &ev);
     let target = union_suggestion(&suggestions, &cap, uni);
     assert!(
-        matches!(target.path.first(), Some(RoleSeg::FromA(inner)) if **inner == cap),
+        matches!(target.path.first(), Some(RoleSeg::From { read, of: inner }) if *read == fixture::out(&doc, a) && **inner == cap),
         "the offered name wraps the painted one: {target:?}"
     );
 
@@ -460,6 +499,7 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap.clone(),
                 to: target.clone(),
             },
@@ -495,6 +535,7 @@ fn appearance_only_rebind_counts_as_a_site_not_no_references() {
     assert!(
         doc.apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap,
                 to: target
             },
@@ -517,6 +558,7 @@ fn rebind_appearance_collision_is_refused_typed() {
     assert_eq!(
         doc.apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap.clone(),
                 to: target.clone(),
             },
@@ -525,7 +567,7 @@ fn rebind_appearance_collision_is_refused_typed() {
         )
         .unwrap_err(),
         EditError::RebindAppearanceCollision {
-            name: target.clone(),
+            name: doc.spoken_name(&target),
             kind: AttrKind::Color,
         }
     );
@@ -538,10 +580,15 @@ fn rebind_appearance_collision_is_refused_typed() {
             kind: AttrKind::Color,
         },
     );
-    let doc = set(doc, cap.clone(), Attr::Label("lid".into()));
+    let doc = set(
+        doc,
+        cap.clone(),
+        Attr::Label(editor_core::Label::new("lid").unwrap()),
+    );
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap,
                 to: target.clone(),
             },
@@ -551,7 +598,10 @@ fn rebind_appearance_collision_is_refused_typed() {
         .expect("disjoint attribute kinds merge");
     let merged = applied.doc.appearance_of(&target).unwrap();
     assert_eq!(merged.attrs.len(), 2);
-    assert_eq!(merged.attrs[&AttrKind::Label], Attr::Label("lid".into()));
+    assert_eq!(
+        merged.attrs[&AttrKind::Label],
+        Attr::Label(editor_core::Label::new("lid").unwrap())
+    );
 }
 
 #[test]

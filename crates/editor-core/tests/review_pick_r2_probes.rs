@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use bvh::Ray;
+use editor_core::ExtrudeSide;
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::test_support::{AXES, aimed, det_and_conditioning};
 use geom_core::{Point2, Point3, Tol};
@@ -30,9 +31,16 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tol::witness())
         .expect("a disc validates");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a disc extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a disc extrudes")
+    .body
 }
 
 fn triangles(mesh: &mesh::Mesh) -> Vec<[Point3<f64>; 3]> {

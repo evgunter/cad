@@ -30,15 +30,15 @@
 //!   foot.
 //! - `r1_general_image_is_operand_order_blind`: the deriver must not
 //!   see the description's operand order.
-//! - `r1_dual_scalar_still_reaches_the_mint`: the lane bound is
-//!   signature churn, not capability loss — `Dual64` still names the
-//!   mint entry points.
+//! - `r1_dual_scalar_still_reaches_the_mint`: the fitted door's
+//!   absence at `Dual64` is its policy's answer, not a missing bound —
+//!   `Dual64` still names the mint entry points.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3, Vec3};
@@ -143,23 +143,26 @@ fn intrinsic_seam_at(
         let (a, b) = c.params();
         (c.carrier().clone(), a, b)
     };
+    // Lifts RechartStrandsDescriptions: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
     let plane = body
-        .set_face_surface(
+        .set_face_surface_unvouched_for_tests(
             flat_face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -scale, 0.0),
-                normal: Vec3::new(0.0, -1.0, 0.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, -scale, 0.0),
+                    normal: Vec3::new(0.0, -1.0, 0.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("the exactly-planar wall restates as a plane");
     let (s1, s2) = if swap { (bowed, plane) } else { (plane, bowed) };
-    body.set_edge_curve_nurbs_lane(
+    body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
+                pair: SurfacePair::new(s1, s2),
                 witness: carrier.eval((t0 + t1) * 0.5),
             },
             carrier,
@@ -184,8 +187,15 @@ fn rechart(body: &mut Body<f64>, old: topo::SurfaceKey, new: Surface<f64>) -> to
         .faces()
         .find(|(_, f)| f.surface == old)
         .expect("the bowed wall has a face");
-    body.set_face_surface(fk, FaceSurface::New(new))
-        .expect("the wall takes its restated chart")
+    // Lifts RechartStrandsDescriptions: the bowed wall's replaced chart is the row's subject.
+    body.set_face_surface_unvouched_for_tests(
+        fk,
+        FaceSurface::New {
+            surface: new,
+            sense: true,
+        },
+    )
+    .expect("the wall takes its restated chart")
 }
 
 /// The unit's scale lever, reused at its own value.
@@ -244,26 +254,6 @@ fn carrier_of(body: &Body<f64>, he: topo::HalfEdgeKey) -> (Curve3<f64>, f64, f64
     };
     let (t0, t1) = c.params();
     (c.carrier().clone(), t0, t1)
-}
-
-/// The plane operand of the seam's intersection description (the mate
-/// the fitted-grade certificate needs) — same read as the unit's
-/// `seam_operands`, restated here independently.
-fn seam_plane(body: &Body<f64>, he: topo::HalfEdgeKey) -> Surface<f64> {
-    let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
-    let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
-        panic!("the seam's carrier is certified")
-    };
-    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
-        panic!("the seam is described as an intersection")
-    };
-    [s1, s2]
-        .into_iter()
-        .find_map(|k| match body.get_surface(k) {
-            Some(p @ Surface::Plane { .. }) => Some(p.clone()),
-            _ => None,
-        })
-        .expect("one operand is the restated plane")
 }
 
 // ---------------------------------------------------------------- //
@@ -345,18 +335,15 @@ fn r1_certify_general_refuses_a_plausible_wrong_column() {
     )
     .expect("the shifted image is a well-formed curve");
     let (carrier, t0, t1) = carrier_of(&body, he);
-    let mate = seam_plane(&body, he);
     let shifted = Arc::new(shifted);
-    let window = Pcurve::General(Arc::clone(&shifted)).chart_box(t0, t1);
     let verdict = geom_brep::PcurveCache::certify_general(
         shifted,
         t0,
         t1,
         &carrier,
         &Surface::Nurbs(Arc::new(chart)),
-        Some(&mate),
-        window,
         band(),
+        <f64 as topo::AtRestPolicy>::fitted_lane(),
     );
     assert!(
         verdict.is_err(),
@@ -507,14 +494,12 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
                 "on a column strictly INSIDE the chart's u domain [{du0}, {du1}]: {}",
                 p0.x
             );
-            let window = pcurve.chart_box(t0, t1);
             let cache = geom_brep::PcurveCache::certify(
                 pcurve,
                 t0,
                 t1,
                 &carrier,
                 &Surface::Nurbs(Arc::new(chart.clone())),
-                window,
                 band(),
             )
             .unwrap_or_else(|e| panic!("the interior column certifies exactly: {e}"));
@@ -537,11 +522,12 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
 }
 
 /// **No lane fabricates a foot.** At `Dual64` — a scalar with no
-/// certified projection (`PcurveFittedLane`'s statically-refusing
-/// impl) — the wall–seam arm on the same widened chart refuses typed,
-/// naming the missing lane rather than a boundary it never measured. The dual body is the same loft at the same
-/// scale, its bowed wall re-charted with the same widened net lifted
-/// constant.
+/// certified projection (its policy holds no fitted door,
+/// `topo::AtRestPolicy::fitted_lane`) — the wall–seam arm on the same
+/// widened chart refuses typed, naming the missing lane rather than a
+/// boundary it never measured. The dual body is the same loft at the
+/// same scale, its bowed wall re-charted with the same widened net
+/// lifted constant.
 #[test]
 fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
     use geom_core::{Bounds, Dual, Dual64};
@@ -551,16 +537,7 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         let Surface::Nurbs(n) = widened_u_chart_by(&chart_of(&body, bowed), 1) else {
             panic!("the widened chart is a NURBS chart")
         };
-        let control = n.control().iter().map(|p| p.map(Dual::constant)).collect();
-        Surface::Nurbs(Arc::new(
-            NurbsSurface::<Dual64>::new(
-                n.knots_u().clone(),
-                n.knots_v().clone(),
-                control,
-                n.weights().to_vec(),
-            )
-            .unwrap(),
-        ))
+        Surface::Nurbs(Arc::new(n.map_scalar(Dual::constant)))
     };
     let square = || -> sweep::Section {
         let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
@@ -577,9 +554,14 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         Affine3::translation(Vec3::new(0.5 * SCALE, 0.0, 1.0 * SCALE)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0 * SCALE)),
     ];
-    let mut body = sweep::loft_body::<Dual64>(&sections, &places, 2, Tol::witness())
-        .expect("the offset square prism builds at Dual64")
-        .body;
+    let mut body = sweep::loft_body::<Dual64>(
+        &sweep::test_support::lift_sections::<Dual64>(&sections),
+        &sweep::test_support::lift_places::<Dual64>(&places),
+        2,
+        Tol::witness(),
+    )
+    .expect("the offset square prism builds at Dual64")
+    .body;
     let bowed = body
         .faces()
         .find_map(|(_, f)| match body.get_surface(f.surface) {
@@ -597,8 +579,15 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         .faces()
         .find(|(_, f)| f.surface == bowed)
         .expect("the bowed wall has a face");
+    // Lifts RechartStrandsDescriptions: the widened chart at Dual64 is the row's subject.
     let key = body
-        .set_face_surface(fk, FaceSurface::New(widened))
+        .set_face_surface_unvouched_for_tests(
+            fk,
+            FaceSurface::New {
+                surface: widened,
+                sense: true,
+            },
+        )
         .expect("the wall takes its widened chart");
     let hes: Vec<_> = body
         .edges()
@@ -638,10 +627,11 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
     assert!(seams >= 1, "the wall face has its seams: found {seams}");
 }
 
-/// **The lane bound is signature churn, not capability loss.** The
-/// statically-refusing `Dual` impl must leave every mint entry point
-/// nameable at `Dual64` — this row is a COMPILE fact, pinned as code
-/// so a future where-clause change reds it.
+/// **A scalar without the fitted door still reaches the mint.** Every
+/// mint entry point is bounded on `topo::AtRestPolicy`, whose `Dual`
+/// arm answers `None` for the fitted door, so each stays nameable at
+/// `Dual64` — this row is a COMPILE fact, pinned as code so a future
+/// where-clause change reds it.
 #[test]
 fn r1_dual_scalar_still_reaches_the_mint() {
     let _mint: fn(&mut Body<geom_core::Dual64>, Tol) -> Result<(), PcurveMintError> =
@@ -704,20 +694,6 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
     let extended = Surface::Nurbs(Arc::new(
         NurbsSurface::new(n.knots_u().clone(), kv, control, vec![1.0; 6]).unwrap(),
     ));
-    // The plane operand, read before the rechart mints a new key.
-    let plane_key = {
-        let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
-        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
-            panic!("certified")
-        };
-        let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
-            panic!("intersection")
-        };
-        [s1, s2]
-            .into_iter()
-            .find(|k| matches!(body.get_surface(*k), Some(Surface::Plane { .. })))
-            .expect("one operand is the plane")
-    };
     let key = rechart(&mut body, bowed, extended);
     let chart = chart_of(&body, key);
     assert_eq!(chart.knots_v().domain(), (0.0, 2.0));
@@ -767,61 +743,28 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         );
     }
     // ---- And General CERTIFIES it, which is the corrected claim. ----
-    // The description is re-stated against the chart the face now
-    // carries, so the mate is the one `mate_surface` would find rather
-    // than a hand-picked one (`rechart` mints a new surface key).
-    body.set_edge_curve_nurbs_lane(
-        body.get_half_edge(he).unwrap().edge,
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                s1: plane_key,
-                s2: key,
-                witness: carrier.eval((t0 + t1) * 0.5),
-            },
-            carrier: carrier.clone(),
-            param_start: t0,
-            param_end: t1,
-        },
-        Tol::witness(),
-    )
-    .expect("the seam re-attaches against the extended chart");
-    let mate = {
-        let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
-        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
-            panic!("certified")
-        };
-        let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
-            panic!("intersection")
-        };
-        let other = if key == s1 {
-            s2
-        } else if key == s2 {
-            s1
-        } else {
-            panic!("mate_surface's precondition: the face's own surface is in the pair")
-        };
-        body.get_surface(other).cloned().expect("the mate resolves")
-    };
     let eps = Tol::witness().get().eps;
-    let window = out.as_ref().unwrap().chart_box(t0, t1);
     let cache = geom_brep::PcurveCache::certify_general(
         std::sync::Arc::clone(image),
         t0,
         t1,
         &carrier,
         &Surface::Nurbs(Arc::new(chart.clone())),
-        Some(&mate),
-        window,
         band(),
+        <f64 as topo::AtRestPolicy>::fitted_lane(),
     )
-    .expect("General certifies a partial column against its operand pair");
+    .expect("General certifies a partial column against its chart");
     let cert = cache.certificate();
     assert!(
         cert.envelope <= eps,
         "its between-samples bound is inside eps: {:e} vs {eps:e}",
         cert.envelope
     );
-    assert!(cert.ssi.is_some(), "the FULL C2 certificate: {cert:?}");
+    assert_eq!(
+        cert.statement,
+        geom_brep::EnvelopeStatement::MapResidualComposite,
+        "the fitted grade's hull bound: {cert:?}"
+    );
     println!(
         "R1: a partial column takes General and certifies, envelope {:e} m",
         cert.envelope
@@ -868,19 +811,11 @@ fn r1_cap_rim_measured_map_certifies() {
         let Ok(pcurve) = topo::pcurve_of(&body, he, band()) else {
             panic!("the rim derives")
         };
-        let window = pcurve.chart_box(t0, t1);
-        let cache = geom_brep::PcurveCache::certify(
-            pcurve.clone(),
-            t0,
-            t1,
-            &carrier,
-            &surface,
-            window,
-            band(),
-        )
-        .unwrap_or_else(|e| {
-            panic!("the measured rim map certifies at the closed-form door: {e:?}")
-        });
+        let cache =
+            geom_brep::PcurveCache::certify(pcurve.clone(), t0, t1, &carrier, &surface, band())
+                .unwrap_or_else(|e| {
+                    panic!("the measured rim map certifies at the closed-form door: {e:?}")
+                });
         let cert = cache.certificate();
         assert_eq!(
             cert.envelope, 0.0,

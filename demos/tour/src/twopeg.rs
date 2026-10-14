@@ -5,11 +5,13 @@
 //!
 //! Plate P is a 6×4×1 plate with two radius-0.5 pegs standing proud of
 //! it; plate Q is the same plate with two through-bores on the same
-//! centres. Both outlines are SHARP: the montage-v3 pass attempted the
-//! profile fillets Ev asked for and met a wall — see [`outline`],
-//! which states it and the controlled pair that isolates it. Set Q down on P and the two parts touch on THREE declared
+//! centres. Both share one outline, its four corners filleted (the
+//! montage-v3 ask). Set Q down on P and the two parts touch on THREE
 //! contacts: the mating plane, and each peg's wall against its own
-//! bore's wall. One is planar; two are CYLINDRICAL.
+//! bore's wall. One is planar; two are CYLINDRICAL. Where the two
+//! parts' surfaces carry on across the seam instead — the outer walls
+//! and their corner fillets, each peg's end flush with Q's top — the
+//! pair is a CONTINUATION, and the union merges it.
 //!
 //! What the cell shows, at demo altitude:
 //!
@@ -31,31 +33,25 @@
 //! - **One rim helper, both sides of the fit.** The peg extrudes the
 //!   three-arc `circle_split` loop and Q takes the SAME loop as an
 //!   inner ring, so peg wall and bore wall are three faces each and
-//!   [`declarations`]'s 3×3 pairing is a fact about the loop rather
-//!   than a coincidence between two spellings.
-//! - **The mate is DECLARED, never inferred.** The author knows Q is
-//!   located on P — the kernel is told, in the author's own words,
-//!   which face pairs are in contact and that each contact is a
-//!   `Rest`. Value equality never glues; a declaration is what
-//!   unlocks the arm, and verification still happens inside the op.
-//!   Undeclared, this mate does not even reach the coincidence ladder
-//!   the cross-lap's is turned away at — it is refused one stage
-//!   earlier, in the reduction's curved-face arm, and the live
-//!   narration prints which refusal it actually got.
-//! - **The union is exactly additive.** vol(P) + vol(Q) = vol(mated):
+//!   their 3×3 pairing is a fact about the loop rather than a
+//!   coincidence between two spellings.
+//! - **The union decides the mate.** Each face pair in contact (a
+//!   `Rest`) and each that carries on across the seam (a
+//!   continuation) sits on one carrier by margin (D10), and the union
+//!   glues it, recording each as a coincidence row.
+//! - **The union is additive, to 4 ULP.** vol(P) + vol(Q) = vol(mated):
 //!   the interiors are disjoint, so the glue discards nothing, and the
-//!   pegs' π-terms cancel the bores' exactly. The claim is asked of
+//!   pegs' π-terms cancel the bores'. The claim is asked of
 //!   THREE kernel answers rather than of one answer against a
 //!   hand-written constant — which is both its actual content and the
-//!   form that would survive corner fillets, since with them a plate
-//!   would be `24 − (4 − π)r²` and the mated total would stop being a
-//!   dyadic 48.
+//!   form that survives the corner fillets: a plate is `24 − (4 − π)r²`,
+//!   so the mated total is not a dyadic 48.
 //!   Each narrated constant is separately pinned to the body it
 //!   describes.
 //! - **Full engagement deletes the walls.** Each peg fills its bore
 //!   completely, so all four cylindrical contact patches are interior
 //!   in the result and the bore walls are removed rather than merged:
-//!   the finished body carries NO cylindrical face at all. What
+//!   the finished body carries no peg or bore wall at all. What
 //!   survives of each peg is its rim circle, as an inner ring on the
 //!   plate's top face.
 //!
@@ -65,15 +61,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::authoring::{p2, polygon, v3};
-use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Tol, Vec3};
+use pncad::authoring::{p2, v3, validated};
+use pncad::document::ExtrudeSide;
+use pncad::geom_core::{Affine3, RigidMotion, Tol, Vec3};
+use pncad::prelude::SurfaceKind;
 use pncad::prelude::{SurfaceKindSet, query};
-use pncad::profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, circle_split};
+use pncad::profile::{ConstructedLoop, Open, SketchPlane, Start, ValidatedProfile, circle_split};
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{Body, BooleanBody, BooleanDeclarations};
+use pncad::topo::{AtRestBody, Body, BooleanBody};
 
-use crate::booleans::{check, expect_seamed, try_union};
+use crate::booleans::{check, expect_seamed, finished, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 
@@ -94,10 +91,12 @@ const PEG_Y: f64 = 2.0;
 /// is what makes every cylindrical contact patch interior.
 const ENGAGE: f64 = 1.0;
 
-/// The footprint's area. Sharp corners — see [`outline`] for the
-/// profile fillets this scene attempted and the wall they met; with a
-/// corner radius r it would carry a `− (4 − π)r²` term.
-const PLATE_AREA: f64 = PLATE.0 * PLATE.1;
+/// The footprint's corner-fillet radius — the montage-v3 ask, the same
+/// on both plates so their outer walls carry on across the seam.
+const CORNER_R: f64 = 0.5;
+/// The footprint's area: the 6×4 rectangle less what the four corner
+/// fillets round off, `(4 − π)r²`.
+const PLATE_AREA: f64 = PLATE.0 * PLATE.1 - (4.0 - core::f64::consts::PI) * CORNER_R * CORNER_R;
 /// One bare plate.
 const PLATE_VOL: f64 = PLATE_AREA * PLATE.2;
 /// What two pegs add to P — and, since [`ENGAGE`] equals the plate's
@@ -116,52 +115,46 @@ const V_P: f64 = PLATE_VOL + PEG_VOL;
 const V_Q: f64 = PLATE_VOL - PEG_VOL;
 const V_MATED: f64 = 2.0 * PLATE_VOL;
 
-/// The plate outline.
+/// The plate outline: the 6×4 footprint, its four corners filleted at
+/// [`CORNER_R`] through the PATHS lattice's line×line fillet door —
+/// each side an on-path anchor and the direction it runs, each corner
+/// a radius, so no tangent point is written down.
 ///
-/// # The corner fillets, attempted and REFUSED (#1352)
-///
-/// Ev's montage-v3 note asked for the extruded PROFILE to be
-/// filleted — `bracket`/`rocker`'s PATHS line×line door, four rounded
-/// corners, top and bottom edges left sharp so both mating faces stay
-/// the SAME rounded rectangle. It authors cleanly and both plates
-/// build. **The MATE then refuses, declared or not**, and the reason is
-/// a fact about this kernel worth stating rather than a fact about this
-/// scene:
-///
-/// P spans `z ∈ [0, 1]` and Q spans `[1, 2]` on the same footprint, so
-/// the two parts' outer walls are COSURFACE with DISJOINT extents —
-/// same carrier, same outward sense, meeting only along the mating
-/// plane. While those walls are PLANES that passes the reduction with
-/// no declaration at all, which is why three declared contacts used to
-/// be enough. Round the corners and four of them become CYLINDERS, and
-/// the curved arm refuses the same configuration:
-/// `CurvedPierceUnsupported`, with the identical payload the UNDECLARED
-/// mate gets — and declaring them does not help, because
-/// `ContactClass::Rest` means *opposed* senses and these two walls
-/// face the same way. There is no class in the vocabulary for a
-/// cosurface CONTINUATION, and the curved arm has no arm for one.
-///
-/// Measured as a controlled pair, both halves run in this scene's own
-/// history: sharp outline + the same everything else GLUES; filleted
-/// outline + 22 declared cylindrical `Rest`s (the four corner pairs
-/// included, matched by carrier) REFUSES. The only difference is the
-/// four corner cylinders.
-///
-/// Recorded, not worked around (`memories/demo-purpose.md`): the plate
-/// ships SHARP, the fillets wait on the wall, and the scene does not
-/// contort itself — no mismatched radii between the two plates, no
-/// one-plate-only rounding — to manufacture a shape that dodges it.
-fn outline<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
-    polygon(
-        &[
-            (0.0, 0.0),
-            (PLATE.0, 0.0),
-            (PLATE.0, PLATE.1),
-            (0.0, PLATE.1),
-        ],
-        tol,
-    )
-    .expect("the plate outline")
+/// Both plates extrude this one outline, top and bottom edges left
+/// sharp, so the mating faces are the SAME rounded rectangle and every
+/// outer wall of P — the four flat sides and the four fillets — carries
+/// on into Q's above it: one carrier, the same outward sense, meeting
+/// only along the mating plane. That is a continuation, and the union
+/// merges it.
+fn outline<S: Scalar>(tol: Tol) -> ConstructedLoop<S> {
+    let r = S::from_f64(CORNER_R);
+    let (w, h) = (PLATE.0, PLATE.1);
+    Open.at(p2::<S>(w / 2.0, 0.0))
+        .toward(S::from_f64(1.0), S::from_f64(0.0), tol)
+        .expect("the south side runs east")
+        .fillet(r, tol)
+        .expect("a definitely positive corner radius")
+        .at(p2(w, h / 2.0), tol)
+        .expect("the south-east fillet fits")
+        .toward(S::from_f64(0.0), S::from_f64(1.0), tol)
+        .expect("the east side runs north")
+        .fillet(r, tol)
+        .expect("a definitely positive corner radius")
+        .at(p2(w / 2.0, h), tol)
+        .expect("the north-east fillet fits")
+        .toward(S::from_f64(-1.0), S::from_f64(0.0), tol)
+        .expect("the north side runs west")
+        .fillet(r, tol)
+        .expect("a definitely positive corner radius")
+        .at(p2(0.0, h / 2.0), tol)
+        .expect("the north-west fillet fits")
+        .toward(S::from_f64(0.0), S::from_f64(-1.0), tol)
+        .expect("the west side runs south")
+        .fillet(r, tol)
+        .expect("a definitely positive corner radius")
+        .to(Start, tol)
+        .expect("the south-west fillet closes onto the south side")
+        .into()
 }
 
 /// The radius-0.5 circle about `(cx, PEG_Y)`, authored as THREE 120°
@@ -171,10 +164,9 @@ fn outline<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
 ///
 /// ONE helper for BOTH sides of the fit, deliberately: the peg extrudes
 /// this loop, and plate Q takes the same loop as an inner ring, so peg
-/// wall and bore wall are three faces each and [`declarations`]'s 3×3
-/// pairing is a fact about the loop rather than a coincidence between
-/// two spellings.
-fn rim<S: Scalar>(cx: f64, tol: Tol) -> ProfileLoop<S> {
+/// wall and bore wall are three faces each and their 3×3 pairing is a
+/// fact about the loop rather than a coincidence between two spellings.
+fn rim<S: Scalar>(cx: f64, tol: Tol) -> ConstructedLoop<S> {
     circle_split(p2(cx, PEG_Y), S::from_f64(PEG_R), 3, S::from_f64(0.0), tol)
         .expect("the three-arc peg rim authors")
         .into()
@@ -188,38 +180,47 @@ fn plate_profile<S: Scalar>(z0: f64, bores: bool, tol: Tol) -> ValidatedProfile<
     if bores {
         loops.extend(PEG_X.into_iter().map(|cx| rim::<S>(cx, tol)));
     }
-    Profile::new(plane, loops)
-        .validate(tol)
-        .expect("the plate profile validates")
+    validated(plane, loops, tol).expect("the plate profile validates")
 }
 
 /// A plate: the 6×4 footprint, thickness 1, sketched at `z0`.
-fn plate<S: Scalar>(z0: f64, tol: Tol) -> Body<S> {
-    extrude(
+fn plate<S: Scalar>(z0: f64, tol: Tol) -> AtRestBody<S> {
+    let body = extrude(
         &plate_profile::<S>(z0, false, tol),
-        Extrusion::Distance(S::from_f64(PLATE.2)),
+        Extrusion::Distance {
+            depth: S::from_f64(PLATE.2),
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("the plate extrudes")
-    .body
+    .body;
+    finished("a plate", body, tol)
 }
 
 /// A peg: [`rim`] extruded `h` from `z0`.
-fn peg<S: Scalar>(cx: f64, z0: f64, h: f64, tol: Tol) -> Body<S> {
+fn peg<S: Scalar>(cx: f64, z0: f64, h: f64, tol: Tol) -> AtRestBody<S> {
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![rim::<S>(cx, tol)])
-        .validate(tol)
-        .expect("the peg profile validates");
-    extrude(&profile, Extrusion::Distance(S::from_f64(h)), tol)
-        .expect("the peg extrudes")
-        .body
+    let profile =
+        validated(plane, vec![rim::<S>(cx, tol)], tol).expect("the peg profile validates");
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(h),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("the peg extrudes")
+    .body;
+    finished("a peg", body, tol)
 }
 
 /// Plate P: the plate, with a peg unioned on at each centre. Each peg
 /// is sketched INSIDE the plate and extruded through its top, so both
 /// unions are TRANSVERSE curved booleans — the same op `bossplate`
 /// shows on its own.
-fn plate_with_pegs<S: Scalar>(tol: Tol) -> Body<S> {
+fn plate_with_pegs<S: Scalar>(tol: Tol) -> AtRestBody<S> {
     let plain = PLATE_VOL;
     let stub = core::f64::consts::PI * PEG_R * PEG_R * ENGAGE;
     let mut body = plate::<S>(0.0, tol);
@@ -256,31 +257,29 @@ fn plate_with_pegs<S: Scalar>(tol: Tol) -> Body<S> {
 /// boolean of ONE boolean rather than of two. The `subtract` op it gave
 /// up is on the sheet several times over — `projectbox` alone runs
 /// fourteen.
-fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
-    extrude(
+fn plate_with_holes<S: Scalar>(tol: Tol) -> AtRestBody<S> {
+    let body = extrude(
         &plate_profile::<S>(PLATE.2, true, tol),
-        Extrusion::Distance(S::from_f64(PLATE.2)),
+        Extrusion::Distance {
+            depth: S::from_f64(PLATE.2),
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("the holed plate extrudes")
-    .body
+    .body;
+    finished("plate Q", body, tol)
 }
 
 /// Every cylindrical face of `body` — the kernel's own kind read
-/// (`query::face_surface_matches`), for the narration's face counts
-/// and for saying WHICH of the detector's findings the author means.
+/// (`query::face_surface_matches`), for the scene's face counts.
 ///
 /// **A library finding, recorded at the site it was met** (the demos'
-/// purpose rule), and it is now the SELECTION half alone: there is no
-/// selector on the plain body API for "each peg against its own
-/// bore", so the intent is re-derived by walking the arena and
-/// filtering, and one contact is still spelled as NINE
-/// `FacePairDeclaration`s because no door groups faces by contact.
-/// The MATCHING half retired with the detector's curved rungs — this
-/// scene used to pair peg walls to bore walls itself against a
-/// hand-picked `1e-12`, and the kernel's carrier ladder decides that
-/// now. The document layer has selection (`GeoSelect`); the
-/// kernel-level `Body` does not — the two-doors gap, #1345.
+/// purpose rule): there is no selector on the plain body API for "each
+/// peg against its own bore", so the faces are found by walking the
+/// arena and filtering. The document layer has selection
+/// (`GeoSelect`); the kernel-level `Body` does not — the two-doors
+/// gap, #1345.
 fn cylinders<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
     query::all_faces(body)
         .into_iter()
@@ -290,16 +289,31 @@ fn cylinders<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
         .collect()
 }
 
+/// Every cylindrical face of `body` whose axis stands on a peg centre:
+/// the pegs' walls and the bores', as opposed to the corner fillets.
+fn peg_walls<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
+    cylinders(body)
+        .into_iter()
+        .filter(|&k| {
+            let surface = body.get_face(k).and_then(|f| body.get_surface(f.surface));
+            matches!(
+                surface,
+                Some(pncad::geom::Surface::Cylinder { origin, .. })
+                    if PEG_X.iter().any(|&x| (origin.x.f() - x).abs() < 1e-9)
+                        && (origin.y.f() - PEG_Y).abs() < 1e-9
+            )
+        })
+        .collect()
+}
+
 /// The one planar face of `body` at height `z` whose outward normal
 /// points up (`up`) or down — a POSITIONAL pick, by stored plane
 /// parameters, and it stays one.
 ///
-/// Same finding as [`cylinders`], at the half of it the flush detector
-/// does not close: the detector says which face pairs WOULD verify,
-/// and this says which of them the author meant. Nothing on the plain
-/// body API says "the mating face" — a document would say it with a
-/// `GeoSelect` — so the scene says it in coordinates and the kernel
-/// verifies the declaration that results.
+/// Same finding as [`cylinders`]: nothing on the plain body API says
+/// "the mating face" — a document would say it with a `GeoSelect` — so
+/// the scene says it in coordinates.
+#[cfg(test)]
 fn plane_face<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceKey {
     let hits: Vec<_> = body
         .faces()
@@ -317,98 +331,20 @@ fn plane_face<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceK
     f
 }
 
-/// The mate, in the author's own words: the mating plane, plus every
-/// place the two parts' walls lie on a COMMON cylinder — each a `Rest`.
-///
-/// **Every declaration here is a finding the kernel vouched for**, and
-/// the scene's whole remaining job is choosing WHICH findings it
-/// means: the mating plane, picked positionally because nothing on the
-/// plain-body API says "the mating face", plus every CYLINDRICAL
-/// finding.
-///
-/// **What that second filter says, exactly, and why it is a kind
-/// filter rather than a per-peg one.** It declares every cylindrical
-/// cosurface pair the detector reports — which is the same set the
-/// hand matcher this replaced declared, and the same set the scene
-/// means in BOTH of its configurations. Sharp (shipped): the two peg
-/// fits, three faces a side, eighteen findings, and no cross-peg pair,
-/// because peg 1 and bore 2 are `Distinct` at the door that verifies
-/// the declaration rather than at a tolerance this file picks.
-/// Filleted (measured once, [`outline`]): the four corner-wall pairs
-/// as well — 22 rather than 18 — which is the set that made the
-/// corner-fillet wall a kernel fact instead of a missing declaration.
-/// Narrowing to "each peg's own carrier" would declare the right 18
-/// today and silently stop measuring that.
-///
-/// The filter is therefore deliberately wider than the sentence "each
-/// peg against its own bore", and what keeps it honest is a pin rather
-/// than a comment: `flush_detector_measurements` asserts the split
-/// (6 and 6 cylinder faces, 18 findings, every one of them a peg
-/// against ITS bore), so a third cylindrical contact appearing on this
-/// part reds the suite instead of being declared unnoticed.
-fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>, tol: Tol) -> BooleanDeclarations {
-    let found = pncad::topo::flush::find_flush_candidates(p, q, tol)
-        .expect("the plates' pairs are authored exactly, so they decide definitely");
-    // The mating plane: P's top face against Q's bottom face. The
-    // report holds the plates' other real contacts too — the flush
-    // side walls, the peg tops flush with Q's top face — which this
-    // part does not mate on, and nothing but the author knows that.
-    // Detection and selection are two different missing doors and only
-    // the first one shipped.
-    let mating = (plane_face(p, PLATE.2, true), plane_face(q, PLATE.2, false));
-    let cyl = cylinders(p);
-    let picked: Vec<_> = found
-        .into_iter()
-        .filter(|f| f.pair == mating || cyl.contains(&f.pair.0))
-        .collect();
-    assert!(
-        picked.iter().any(|f| f.pair == mating),
-        "the mating plane must be a finding: P's top face rests on Q's bottom face"
-    );
-    pncad::topo::flush::declare_all(&picked)
-}
-
 /// The cell's boolean work, generic (the K-probe sweep runs the same
-/// ops): both parts, the UNDECLARED refusal, the DECLARED mate, and
-/// the lifted copy for the apart framing. Returns the undeclared
-/// refusal's narration for the f64 captions.
-pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, Body<S>, String) {
+/// ops): both parts, the mate, and the lifted copy for the apart
+/// framing.
+pub(crate) fn build<S: Scalar>(
+    tol: Tol,
+) -> (AtRestBody<S>, AtRestBody<S>, BooleanBody<S>, Body<S>) {
     let p = plate_with_pegs::<S>(tol);
     let q = plate_with_holes::<S>(tol);
 
-    // UNDECLARED, the mate refuses — and it refuses EARLIER than the
-    // cross-lap's does, which is worth saying because the two look
-    // alike. The cross-lap's planar mate reaches the coincidence
-    // ladder and is turned away there (value equality never
-    // classifies); this one never gets that far. The reduction's
-    // curved-face arm meets a bore rim circle sitting ON the peg's
-    // carrier, decides zero clearance, and takes
-    // `CurvedPierceUnsupported` before a single patch is discovered.
-    // What the declaration unlocks is therefore that ARM, not just
-    // the front door — M9-3 PR-A's rung, seen from the outside.
-    let naive = check(try_union(&p, &q, tol), V_MATED, tol);
-    let refusal = crate::booleans::describe(&naive, V_MATED);
-    if !matches!(naive, crate::booleans::Verdict::Refused(_)) {
-        panic!(
-            "the UNDECLARED two-peg mate no longer refuses ({refusal}) — \
-             a declaration must be what unlocks the arm, never a measurement); regression"
-        );
-    }
-    println!("   two-peg mate WITHOUT declarations: {refusal}");
-
-    let decls = declarations(&p, &q, tol);
-    println!(
-        "   declared: {} face pairs — the mating plane, and every shared-carrier \
-         cylinder pair (P has {} cylinder faces, Q has {}); cross-peg pairs never \
-         arise, since peg 1 and bore 2 sit on distinct carriers",
-        decls.coincident_faces.len(),
-        cylinders(&p).len(),
-        cylinders(&q).len()
-    );
+    // The contacts and the walls that carry on across the mating plane
+    // each sit on one carrier by margin, so the union glues them.
     let mated = expect_seamed(
-        "declared two-peg mate (M9-3: the mating plane, and every shared-carrier \
-         cylinder pair)",
-        check(pncad::topo::union_with(&p, &q, &decls, tol), V_MATED, tol),
+        "two-peg mate (M9-3: the mating plane, each peg fit, and the continuations)",
+        check(try_union(&p, &q, tol), V_MATED, tol),
         V_MATED,
     );
     // THE ADDITIVITY CLAIM, ASKED OF THREE KERNEL ANSWERS rather than of
@@ -416,8 +352,9 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, B
     // actual content — the interiors are disjoint, so the glue discards
     // nothing — and asking it of the bodies rather than of 48 is what
     // makes it a statement about the OP instead of about this
-    // footprint's arithmetic. It is asserted BITWISE, which is what the
-    // kernel delivers here.
+    // footprint's arithmetic. It is asserted to 4 ULP of the sum: the
+    // fillets' π-terms make no part's volume dyadic, so the sum and the
+    // union's own flux total associate the same terms differently.
     let vol = |b: &Body<S>| {
         pncad::topo::mass_properties(b, tol)
             .expect("mass properties")
@@ -426,11 +363,12 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, B
     };
     let (vp, vq, v) = (vol(&p), vol(&q), vol(&mated.body));
     let additive = vp + vq;
-    assert_eq!(
-        v, additive,
-        "the two-peg mate is EXACTLY additive: vol(mated) must equal \
-         vol(P) + vol(Q) = {vp} + {vq} BITWISE — the interiors are disjoint, so the \
-         glue discards nothing and the pegs' pi-terms cancel the bores'"
+    let ulps = (v - additive).abs() / (f64::EPSILON * additive.abs());
+    assert!(
+        ulps <= 4.0,
+        "the two-peg mate is additive: vol(mated) must equal vol(P) + vol(Q) = \
+         {vp} + {vq} to 4 ULP, and is {v} ({ulps:.2} ULP) — the interiors are \
+         disjoint, so the glue discards nothing and the pegs' pi-terms cancel the bores'"
     );
     // AND every constant this scene NARRATES, each pinned against the
     // body it describes rather than against the total — because an
@@ -444,48 +382,54 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, B
     }
     println!(
         "   volumes: P = {vp}, Q = {vq}, mated = {v}; additive to {:.2e} \
-         (exactly {}), and each against its own closed form",
+         ({}), and each against its own closed form",
         (v - additive).abs(),
         if v == additive {
             "bitwise"
         } else {
-            "within the gate"
+            "within 4 ULP"
         }
     );
-    // Full engagement: every cylindrical patch is interior, so the
-    // walls are REMOVED rather than merged and no cylinder survives.
+    // Full engagement: every peg/bore patch is interior, so those walls
+    // are REMOVED rather than merged. The cylinders that survive are the
+    // corner fillets, P's and Q's merged into one face at each corner
+    // like the flat walls between them.
     assert!(
-        mated.body.faces().all(|(_, f)| !matches!(
-            mated.body.get_surface(f.surface),
-            Some(pncad::geom::Surface::Cylinder { .. })
-        )),
-        "full-engagement patch removal deletes every bore wall"
+        peg_walls(&mated.body).is_empty(),
+        "full-engagement patch removal deletes every peg and bore wall"
+    );
+    assert_eq!(
+        cylinders(&mated.body).len(),
+        4,
+        "each corner fillet continuation merges P's face and Q's into one"
     );
     println!(
-        "   two-peg mate WITH the three contacts declared: GLUED — volume {V_MATED} \
-         exactly (vol P + vol Q = {V_P} + {V_Q}), every bore wall interior"
+        "   two-peg mate, the three contacts and the continuations glued: GLUED \
+         — measured volume {v} (vol P + vol Q = {vp} + {vq}), every bore wall interior, \
+         the walls and the four corner fillets each merged across the seam"
     );
 
     // The apart framing: Q lifted by a rigid transform (#84 — every
     // moved edge witness is re-minted, and the moved body revalidates).
-    let lift = Affine3::translation(v3(0.0, 0.0, 1.6));
+    let lift = RigidMotion::translation(v3(0.0, 0.0, 1.6)).expect("a finite lift");
     let q_lifted = pncad::topo::transform_rigid(&q, &lift, tol).expect("lift plate Q");
-    (p, q, mated, q_lifted, refusal)
+    (p, q, mated, q_lifted)
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let (p, _q, mated, q_lifted, refusal) = build::<f64>(tol);
+    let (p, _q, mated, q_lifted) = build::<f64>(tol);
     let note = format!(
-        "the mate declared in the author's terms — the mating plane, and each peg \
-         against its own bore — which the plain-body door can only spell as ONE planar \
-         Rest and EIGHTEEN cylindrical ones, three faces a side per fit (#1345); \
-         undeclared the mate \
-         refuses ({refusal}); declared, the M9-3 zip GLUES it: volume {V_MATED} \
-         exactly, and exactly additive — vol(P) + vol(Q) = ({V_P}) + ({V_Q}) = \
-         {V_MATED}, the pegs' pi-terms cancelling the bores' bitwise. Full \
-         engagement removes all four cylindrical patches, so the finished body \
-         carries NO cylinder face; each peg survives as a rim circle, an inner \
-         ring on the plate's top"
+        "the mate's contacts — the mating plane, and each peg against its own bore, \
+         three faces a side per fit — and where the two parts carry on across the \
+         seam — the rounded outline's walls and fillets, the peg ends flush with Q's \
+         top — a continuation each, all decided on their zero (D10): the M9-3 zip \
+         GLUES the contacts and the union merges the continuations. The closed-form \
+         volume {V_MATED} \
+         (which the body measures to 1e-9), additive to 4 ULP — in closed form \
+         vol(P) + vol(Q) = ({V_P}) + ({V_Q}), the pegs' pi-terms \
+         cancelling the bores'. Full engagement removes all four peg and bore \
+         patches; the walls and the four corner fillets each merge across the seam \
+         into one face"
     );
     // The apart framing is placed BESIDE the mated one, not in a cell
     // of its own: the two are one statement — these parts, and what
@@ -502,23 +446,24 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // (`transform_rigid` would carry either: it leaves the topology
     // "and every arena key untouched", so a contact-carrying body
     // survives it. What it re-mints is each moved edge's WITNESS, #84.)
-    let aside = Affine3::translation(Vec3::new(APART_GAP, 0.0, 0.0));
+    let aside = RigidMotion::translation(Vec3::new(APART_GAP, 0.0, 0.0)).expect("a finite offset");
     let p_aside = pncad::topo::transform_rigid(&p, &aside, tol).expect("place P aside");
     let q_aside = pncad::topo::transform_rigid(&q_lifted, &aside, tol).expect("place Q aside");
     vec![Stop {
         name: "twopeg",
         caption: "two-peg plate — mated, and apart".to_string(),
         montage: true,
-        story: "two plates located on each other three ways — one planar and two \
-                CYLINDRICAL declared Rest contacts — and UNIONED into one body through \
-                the M9-3 zip; the peg-in-hole join this tour used to say it could not \
-                build. Beside it the same two parts apart, Q lifted clear, so the three \
-                contacts are visible before the union makes them interior",
-        ops: "extrude plate + 2 x extrude three-arc peg -> 2 transverse unions (P); \
-              extrude one profile whose two inner loops are the bores (Q); \
-              find_flush_candidates -> pick the mating plane and the two peg fits \
-              out of the report -> declare_all -> union_with; transform_rigid for \
-              the apart framing",
+        story: "two rounded plates located on each other three ways — one planar and \
+                two CYLINDRICAL Rest contacts — their outer walls continuations, and \
+                UNIONED into one body through the M9-3 zip; the \
+                peg-in-hole join this tour used to say it could not build, now with the \
+                fillets that used to stop it. Beside it the same two parts apart, Q \
+                lifted clear, so the three contacts are visible before the union makes \
+                them interior",
+        ops: "PATHS fillet outline; extrude plate + 2 x extrude three-arc peg -> 2 \
+              transverse unions (P); extrude one profile whose two inner loops are the \
+              bores (Q); union (Rest contacts and continuations glued); transform_rigid \
+              for the apart framing",
         delta: 1e-2,
         note: Some(note),
         view: View {
@@ -530,7 +475,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             SceneBody::seamed(
                 "twopeg_mated",
                 [0.62, 0.66, 0.72],
-                mated.body,
+                mated.body.into_body(),
                 mated.contacts,
             ),
             SceneBody::plain("twopeg_apart_p", [0.62, 0.66, 0.72], p_aside),
@@ -539,107 +484,56 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     }]
 }
 
-/// **What the flush detector reaches on this mate, measured** — the
-/// evidence behind [`declarations`]' note, kept as a test so the
-/// sentence is re-derived rather than believed.
-///
-/// Two claims, and the second is the one the scene's declaration
-/// assembly rests on:
-///
-/// 1. The detector produces the mating plane, and it also produces
-///    contacts this part does not mate on — so the scene picks its
-///    findings out of the report rather than declaring the report.
-/// 2. The cylindrical peg/bore pairs are IN the report: three faces a
-///    side per fit, eighteen findings, and not one cross-peg pair —
-///    the carrier ladder decides sameness, so the scene's old
-///    hand-match on stored axis origins is not doing that work any
-///    more. This is the measurement that replaced the one recorded
-///    here while the detector was planar (then: the pairs verify
-///    under a declaration and report as would-verify-if-declared,
-///    but the detector's own door did not carry them).
+/// **The rounded mate builds, and it decides a wall pair and the mating
+/// plane.** [`build`] asserts the volumes and the full-engagement
+/// removal; this row runs it outside the render, so the mate is pinned
+/// by the suite, and checks the union records an outer-wall
+/// continuation and the mating plane's contact among the coincidences
+/// it decided.
 #[cfg(test)]
-mod flush_detector_measurements {
+mod rounded_mate {
     use super::*;
     use pncad::geom_core::Tol;
+    use pncad::topo::{Cell, Operand, Relation, RowCell};
 
     #[test]
-    fn the_detector_finds_the_mating_plane_among_other_real_contacts() {
+    fn the_rounded_mate_builds_and_decides_a_wall_continuation_and_the_mating_plane() {
         let tol = Tol::witness();
-        let p = plate_with_pegs::<f64>(tol);
-        let q = plate_with_holes::<f64>(tol);
-        let found = pncad::topo::flush::find_flush_candidates(&p, &q, tol)
-            .expect("the plates' pairs decide definitely");
-        let mating = (
+        let (p, q, mated, _) = build::<f64>(tol);
+        let (pegs_p, pegs_q) = (peg_walls(&p), peg_walls(&q));
+        let wall_continuation = mated.coincidences.iter().any(|row| {
+            row.relation == Relation::SameOriented
+                && matches!(
+                    row.cells,
+                    [
+                        RowCell::Input { input: Operand::A, cell: Cell::Face(fa) },
+                        RowCell::Input { input: Operand::B, cell: Cell::Face(fb) },
+                    ] if !pegs_p.contains(&fa) && !pegs_q.contains(&fb)
+                )
+        });
+        assert!(
+            wall_continuation,
+            "the mate decides an outer-wall continuation, not a peg fit: {:?}",
+            mated.coincidences
+        );
+        let (top_p, bottom_q) = (
             plane_face(&p, PLATE.2, true),
             plane_face(&q, PLATE.2, false),
         );
+        let mating = mated.coincidences.iter().any(|row| {
+            row.relation == Relation::SameOpposite
+                && matches!(
+                    row.cells,
+                    [
+                        RowCell::Input { input: Operand::A, cell: Cell::Face(fa) },
+                        RowCell::Input { input: Operand::B, cell: Cell::Face(fb) },
+                    ] if fa == top_p && fb == bottom_q
+                )
+        });
         assert!(
-            found.iter().any(|f| f.pair == mating),
-            "the mate's own plane must be a finding: {found:?}"
-        );
-        let planar: Vec<_> = found
-            .iter()
-            .filter(|f| !cylinders(&p).contains(&f.pair.0))
-            .collect();
-        assert!(
-            planar.len() > 1,
-            "the parts share more planar contacts than they mate on (flush side walls, \
-             peg tops flush with Q's top face), which is why the scene picks: {planar:?}"
-        );
-        assert_eq!(
-            declarations(&p, &q, tol)
-                .coincident_faces
-                .iter()
-                .filter(|d| d.a == mating.0 && d.b == mating.1)
-                .count(),
-            1,
-            "and picks exactly the one it means"
-        );
-    }
-
-    #[test]
-    fn the_cylindrical_fits_are_findings_and_no_cross_peg_pair_is() {
-        let tol = Tol::witness();
-        let p = plate_with_pegs::<f64>(tol);
-        let q = plate_with_holes::<f64>(tol);
-        let (cp, cq) = (cylinders(&p), cylinders(&q));
-        assert_eq!((cp.len(), cq.len()), (6, 6), "three faces a side, two fits");
-        let found = pncad::topo::flush::find_flush_candidates(&p, &q, tol)
-            .expect("the plates' pairs decide definitely");
-        let curved: Vec<_> = found
-            .iter()
-            .filter(|f| cp.contains(&f.pair.0))
-            .cloned()
-            .collect();
-        assert_eq!(
-            curved.len(),
-            18,
-            "each peg against its own bore is 3 x 3, and the two fits are all of it — \
-             the cross-peg pairs sit on DISTINCT carriers and the ladder says so, \
-             which is why nothing here matches carriers by hand: {curved:?}"
-        );
-        for &fa in &cp {
-            assert_eq!(
-                curved.iter().filter(|f| f.pair.0 == fa).count(),
-                3,
-                "each peg-wall face meets THREE bore faces — its own bore's three arcs \
-                 and no others; a cross-peg pair would put a fourth here"
-            );
-        }
-        for f in &curved {
-            assert!(cq.contains(&f.pair.1));
-            assert_eq!(f.class, pncad::topo::ContactClass::Rest);
-            assert_eq!(
-                f.evidence.relation,
-                pncad::topo::CarrierRelation::SameOpposite,
-                "a peg's convex wall against its bore's concave wall is Rest: {f:?}"
-            );
-        }
-        // And the scene declares exactly these, plus the mating plane.
-        assert_eq!(
-            declarations(&p, &q, tol).coincident_faces.len(),
-            19,
-            "one planar Rest and eighteen cylindrical ones"
+            mating,
+            "the mate decides P's top resting on Q's bottom: {:?}",
+            mated.coincidences
         );
     }
 }

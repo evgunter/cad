@@ -18,7 +18,7 @@
 //!
 //! The fixture is chosen for the places a window breaks: a first part,
 //! a last part, one node with THREE bodies, and one name drawn TWICE
-//! (two `Transform` roots over one extrude carry the same names), plus
+//! (two placed `Transform`s over one extrude carry one body's names), plus
 //! addresses one past the end of a body that IS drawn — the refusal
 //! that must not read the next body.
 
@@ -26,14 +26,15 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use crate::common;
 
-use pncad::document::{Doc, Evaluation, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Formula, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{HitTestError, NodePick};
+use pncad::select::{NodePick, UnnamedEntity};
 use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex};
 use viewer::scene;
 use viewer::session::{DocSession, EdgeSelection, FaceSelection};
@@ -44,29 +45,30 @@ fn delta() -> scene::DisplayTolerance {
     scene::DisplayTolerance::new(1.0e-3).expect("a positive delta")
 }
 
-/// The document every row here indexes: three roots, six drawn bodies.
+/// The document every row here indexes: six placements, six drawn
+/// copies (A10).
 ///
-/// - a linear pattern of three blocks — ONE node, THREE bodies;
-/// - two `Transform`s over one extrude — one set of names, drawn
-///   TWICE, which is the case `ids_of` answers two ids for and the
-///   (node, body) narrowing exists to separate;
-/// - a bare extrude — the last part.
+/// - a linear pattern of three blocks, each copy projected and placed;
+/// - two `Transform`s over one extrude, each placed — one body's names
+///   under two copies' wraps;
+/// - a bare extrude, placed — the last part.
 fn fixture(tol: Tol) -> Doc<ProfileProgram> {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("chrome-pick-windows", tol);
     let (doc, profile) = common::framed_square(&doc, 0.02, tol);
     let (doc, block) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
-    let (doc, _pattern) = common::inserted(
+    let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: block,
-            count: Expr::count(3),
+            input: block.into(),
+            count: Formula::count(3),
             kind: pncad::document::PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -74,33 +76,52 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         },
         tol,
     );
+    let doc = (0..3).fold(doc, |doc, index| {
+        let (doc, copy) = common::inserted(
+            &doc,
+            Node::Part {
+                of: pattern.into(),
+                select: pncad::document::PartSelect::Instance(Formula::count(index)),
+            },
+            tol,
+        );
+        common::placed(&doc, copy, tol).0
+    });
     let (doc, twinned) = common::framed_square(&doc, 0.015, tol);
     let (doc, twinned) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: twinned,
+            profile: twinned.into(),
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
-    let placed = |at: f64| Node::Transform {
-        input: twinned,
-        translation: [common::len(at), common::len(0.2), common::len(0.0)],
-        rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-        rotation_angle: common::ang(0.0),
+    let placed = |at: f64| {
+        Node::transform(
+            twinned,
+            pncad::document::Step::Rigid {
+                translation: [common::len(at), common::len(0.2), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        )
     };
-    let (doc, _first) = common::inserted(&doc, placed(0.0), tol);
-    let (doc, _second) = common::inserted(&doc, placed(0.1), tol);
+    let (doc, first) = common::inserted(&doc, placed(0.0), tol);
+    let (doc, second) = common::inserted(&doc, placed(0.1), tol);
+    let (doc, _) = common::placed(&doc, first, tol);
+    let (doc, _) = common::placed(&doc, second, tol);
     let (doc, last) = common::framed_square(&doc, 0.01, tol);
-    let (doc, _last) = common::inserted(
+    let (doc, last) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: last,
+            profile: last.into(),
             distance: common::len(0.004),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
-    doc
+    common::placed(&doc, last, tol).0
 }
 
 /// The index and the evaluation it was built from.
@@ -122,18 +143,18 @@ fn indexed(tol: Tol) -> (DocSession, PickIndex) {
 /// so it stays an INDEPENDENT statement of what the layout means no
 /// matter how the index comes to hold it.
 struct HandWalked {
-    names: Vec<Result<StableName, HitTestError>>,
+    names: Vec<Result<StableName, UnnamedEntity>>,
     by_name: BTreeMap<StableName, Vec<u32>>,
     by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)>,
     id_slice: Vec<u32>,
     edges: Vec<EdgeId>,
-    edge_names: Vec<Result<StableName, HitTestError>>,
+    edge_names: Vec<Result<StableName, UnnamedEntity>>,
     edges_by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)>,
 }
 
 impl HandWalked {
     fn of(parts: &[NodePick], eval: &Evaluation<f64>) -> Self {
-        let mut names: Vec<Result<StableName, HitTestError>> = Vec::new();
+        let mut names: Vec<Result<StableName, UnnamedEntity>> = Vec::new();
         for part in parts {
             names.extend(
                 part.patch_names(eval)
@@ -158,7 +179,7 @@ impl HandWalked {
             next += patches;
         }
         let mut edges: Vec<EdgeId> = Vec::new();
-        let mut edge_names: Vec<Result<StableName, HitTestError>> = Vec::new();
+        let mut edge_names: Vec<Result<StableName, UnnamedEntity>> = Vec::new();
         let mut edges_by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)> = BTreeMap::new();
         for part in parts {
             let start = edges.len();
@@ -188,7 +209,7 @@ impl HandWalked {
         }
     }
 
-    fn name_of(&self, id: u32) -> Option<&Result<StableName, HitTestError>> {
+    fn name_of(&self, id: u32) -> Option<&Result<StableName, UnnamedEntity>> {
         self.names.get(usize::try_from(id.checked_sub(1)?).ok()?)
     }
 
@@ -248,7 +269,7 @@ impl HandWalked {
         }
         match self.edge_names.get(start + id.boundary) {
             Some(Ok(name)) => Ok(name),
-            Some(Err(error)) => Err(EdgeNameFault::Unnamed(error.clone())),
+            Some(Err(error)) => Err(EdgeNameFault::Unnamed(*error)),
             None => Err(EdgeNameFault::OutOfRange {
                 node: id.node,
                 body: id.body,
@@ -281,19 +302,16 @@ fn the_fixture_has_the_shape_the_differential_needs() {
     for part in index.parts() {
         *bodies_per_node.entry(part.node()).or_default() += 1;
     }
-    assert!(
-        bodies_per_node.len() >= 3,
-        "three drawn roots: {bodies_per_node:?}"
+    assert_eq!(
+        bodies_per_node.len(),
+        6,
+        "six drawn copies: {bodies_per_node:?}"
     );
     assert!(
-        bodies_per_node.values().any(|&n| n >= 3),
-        "one node with several bodies: {bodies_per_node:?}"
+        bodies_per_node.values().all(|&n| n == 1),
+        "a copy is one body: {bodies_per_node:?}"
     );
-    assert!(index.parts().len() >= 6, "six drawn parts");
-    assert!(
-        hand.by_name.values().any(|ids| ids.len() > 1),
-        "one name drawn twice — the narrowing has something to narrow"
-    );
+    assert_eq!(index.parts().len(), 6, "six drawn parts");
     assert!(
         hand.by_target.values().all(|&(_, len)| len > 0),
         "every window is non-empty; a ZERO-length window is not \
@@ -322,7 +340,7 @@ fn every_window_door_answers_what_the_hand_walk_does() {
 
     // Every drawn (node, body), and one that is not drawn.
     let mut targets: Vec<(RecipeNodeId, u32)> = hand.by_target.keys().copied().collect();
-    let absent = RecipeNodeId(u64::MAX);
+    let absent = RecipeNodeId::new(0, u64::MAX);
     targets.push((absent, 0));
     targets.push((index.parts()[0].node(), 99));
     for (node, body) in targets {

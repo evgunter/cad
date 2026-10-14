@@ -22,14 +22,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{OrthoFrame, Point2, Point3, Tol};
+use geom_core::{Point2, Point3, RigidMotion, Tol};
 use mesh::validate::{check_mesh, signed_volume};
 use mesh::{Mesh, tessellate};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 
 fn plane_at(offset: f64) -> SketchPlane<f64> {
-    SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(offset, offset, offset)))
+    SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(offset, offset, offset)))
 }
 
 /// Build the prism's mesh at chord tolerance `delta`, or report the
@@ -51,7 +52,14 @@ fn mesh_or_typed(
             return None;
         }
     };
-    let body = match extrude(&vp, Extrusion::Distance(h), Tol::witness()) {
+    let body = match extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    ) {
         Ok(x) => x.body,
         Err(e) => {
             println!("{label}: typed refusal at extrude: {e:?}");

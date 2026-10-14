@@ -2,11 +2,14 @@
 id: a-frame-pickers-closed-combo-draws-a-frames-pose-in-an-extend-row
 kind: issue
 title: viewer: frame_picker's closed combo names the picked frame with its pose, laid out at infinite width beside the label
-status: open
+status: closed
 opened: 2026-09-24
 priority: P3
 cost: E
 refs: [feature-tree-row-labels-draw-an-unbounded-pose-in-an-extend-row]
+closed: 2026-09-29
+branch: chrome/create-residue
+pr: 3450
 ---
 
 
@@ -35,3 +38,16 @@ Whatever the tree's answer is, applied here too: a character bound on
 the closed text with the whole label on hover, or
 `ComboBox::truncate` / `wrap` with a width. `profile_plane_row` is a
 free function that `create::tests` already drives headlessly.
+
+## Closed 2026-09-29 (`chrome/create-residue`, PR 3450)
+
+Closed on Ev's ruling of 2026-09-23 on
+`feature-tree-row-labels-draw-an-unbounded-pose-in-an-extend-row`
+(*"keeping them scrolling is good!"*). This row's own "what a fix owes"
+is "whatever the tree's answer is, applied here too", and the tree's
+answer is no change. The premise that makes the ruling apply holds
+here too: the combo is drawn by `create_ui`, which
+`pane::properties` calls in the Properties pane, and that pane sits in
+the same `egui::ScrollArea::both()` (`app`'s `ViewerBehavior::pane_ui`)
+as the tree. So a long pose in the closed combo is reached by
+scrolling right. No change.

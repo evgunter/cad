@@ -42,8 +42,11 @@ docs/DESIGN-FORK-PROTOCOL.md`, after a fetch).
 5. **Reconciliation.** When the two disagree, the orchestrator may
    hand each the other's report, and/or dispatch further designers to
    weigh both, until there is a clear recommendation or a clearly
-   stated split. The row records each round: who was dispatched, what
-   they were shown, and what moved; a further designer's model goes
+   stated split. A round in which the two cross (each moves to the
+   other's previous position) does not end reconciliation: another
+   round follows, each shown the other's revised report. The row
+   records each round: who was dispatched, what they were shown, and
+   what moved; a further designer's model goes
    in the analysis-branch record, not the row, until Ev has decided.
 6. **Record in two commits on the `[ev]` PR.** The recommendation
    half of the row (A/B only) is committed when the PR opens, before

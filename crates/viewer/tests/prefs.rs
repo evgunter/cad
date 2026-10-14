@@ -11,8 +11,10 @@
 
 use std::path::PathBuf;
 
+use pncad::quantity::{CM, DEG, IN, M, MM, PI, RAD};
 use viewer::input::InputMap;
 use viewer::prefs::{Absent, Notice, Prefs, PrefsError, PrefsStore, file::FileStore};
+use viewer::props::Notation;
 use viewer::theme::Theme;
 
 /// A scratch path unique to one test, under the OS temp directory.
@@ -31,6 +33,84 @@ fn an_empty_document_is_the_default() {
     assert!(notices.is_empty(), "{notices:?}");
     assert_eq!(prefs.resolve_theme().0, Theme::DEFAULT);
     assert_eq!(prefs.resolve_keys().0, InputMap::DEFAULT);
+    assert_eq!(prefs.resolve_notation(), (Notation::DEFAULT, Vec::new()));
+}
+
+/// **The working notation round-trips through the preferences, by
+/// unit symbol**: every length and angle row of the unit table is
+/// written as its symbol and resolves back to the same unit, and the
+/// default is metres and half turns.
+#[test]
+fn the_working_notation_round_trips_by_symbol() {
+    assert_eq!(
+        Notation::DEFAULT,
+        Notation {
+            length: M,
+            angle: PI
+        }
+    );
+    for length in [MM, CM, M, IN] {
+        for angle in [DEG, RAD, PI] {
+            let notation = Notation { length, angle };
+            let written = Prefs {
+                length_unit: Some(length.symbol().to_owned()),
+                angle_unit: Some(angle.symbol().to_owned()),
+                ..Prefs::default()
+            };
+            let text = written.to_toml();
+            let (read, notices) = Prefs::from_toml(&text).expect("its own output parses");
+            assert!(notices.is_empty(), "{notices:?}");
+            assert_eq!(read, written, "{text}");
+            assert_eq!(
+                read.resolve_notation(),
+                (notation, Vec::new()),
+                "{} and {} read back as themselves",
+                length.symbol(),
+                angle.symbol()
+            );
+        }
+    }
+}
+
+/// **An unknown unit symbol reports and falls back, unit by unit**,
+/// as an unknown theme does: a length key naming an angle unit, or a
+/// symbol no row has, leaves the default standing for that quantity
+/// alone and says so; a known symbol beside it still applies.
+#[test]
+fn an_unknown_unit_symbol_is_reported_and_the_default_stands() {
+    let (prefs, notices) =
+        Prefs::from_toml("[notation]\nlength = \"furlong\"\nangle = \"deg\"\n").expect("parses");
+    assert!(notices.is_empty(), "the file itself is fine: {notices:?}");
+    let (notation, notices) = prefs.resolve_notation();
+    assert_eq!(
+        notation,
+        Notation {
+            length: Notation::DEFAULT.length,
+            angle: DEG
+        }
+    );
+    assert_eq!(
+        notices,
+        vec![Notice::UnknownUnit {
+            quantity: "length",
+            symbol: "furlong".to_owned(),
+            default: "m",
+        }]
+    );
+    assert_eq!(
+        notices[0].to_string(),
+        "preferences: no length unit called `furlong`; using `m`"
+    );
+
+    let (prefs, _) =
+        Prefs::from_toml("[notation]\nlength = \"deg\"\nangle = \"mm\"\n").expect("parses");
+    let (notation, notices) = prefs.resolve_notation();
+    assert_eq!(
+        notation,
+        Notation::DEFAULT,
+        "a unit of the wrong quantity is unknown"
+    );
+    assert_eq!(notices.len(), 2, "{notices:?}");
 }
 
 /// Both settings round-trip through the rendered document.
@@ -44,6 +124,8 @@ fn what_is_written_is_what_is_read() {
         theme: Some("colorblind-safe".to_owned()),
         keys: Some("default".to_owned()),
         last_dir: Some(PathBuf::from("/home/someone/models")),
+        length_unit: Some("mm".to_owned()),
+        angle_unit: Some("deg".to_owned()),
     };
     let (read, notices) = Prefs::from_toml(&written.to_toml()).expect("its own output parses");
     assert_eq!(read, written);
@@ -60,6 +142,8 @@ fn a_name_with_a_quote_and_a_backslash_round_trips() {
         theme: Some(r#"dark "neutral"\x"#.to_owned()),
         keys: Some(r#"say "hi"\now"#.to_owned()),
         last_dir: None,
+        length_unit: Some(r#"fur"long\"#.to_owned()),
+        angle_unit: None,
     };
     let (read, _unknown_names) =
         Prefs::from_toml(&written.to_toml()).expect("its own output parses");
@@ -77,6 +161,7 @@ fn a_directory_with_a_quote_and_a_backslash_round_trips() {
         theme: None,
         keys: None,
         last_dir: Some(PathBuf::from(r#"/models/say "hi"\now"#)),
+        ..Prefs::default()
     };
     let (read, notices) = Prefs::from_toml(&written.to_toml()).expect("its own output parses");
     assert_eq!(read, written, "the directory read back is the one written");
@@ -95,6 +180,7 @@ fn a_directory_the_file_cannot_spell_is_left_out_and_says_so() {
         theme: None,
         keys: None,
         last_dir: Some(PathBuf::from(std::ffi::OsStr::from_bytes(b"/models/\xff"))),
+        ..Prefs::default()
     };
     let text = written.to_toml();
     assert!(
@@ -326,6 +412,7 @@ fn the_file_store_round_trips_through_a_real_path() {
         theme: Some("colorblind-safe".to_owned()),
         keys: None,
         last_dir: Some(PathBuf::from("/models")),
+        ..Prefs::default()
     };
     store.save(&prefs.to_toml()).expect("saves");
     let text = store.load().expect("loads").expect("something is there");

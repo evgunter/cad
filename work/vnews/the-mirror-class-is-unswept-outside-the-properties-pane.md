@@ -75,6 +75,13 @@ door by coincidence rather than by reading the same value** — turned
 out to have a member inside that lane's own diff and is filed with it:
 `work/vseam/a-panels-gate-reads-the-previewed-document-while-its-door-reads-the-committed-one`.
 
+**2026-09-29, AUTH-6.** `pane/profile.rs`'s and `widgets.rs`'s
+`ShapeEdits::free()` gates are gone with the lock
+(`author/profile-reshape`): a committed profile's shape controls are
+live, and the door behind them takes every program they author as one
+`SetProgram`. What is left in `pane/profile.rs` to sweep is the step
+controls' end-of-list gates and the edit door's Apply and Revert.
+
 ## Closed
 
 The census is taken at merge base `f4e9aa68b`, by reading only; no code
@@ -209,7 +216,8 @@ chooser is the third shape with a scan in place of a landing.
 - "The four in `widgets.rs`" missed `value_field_ops`, which already
   existed. Two more op-pushing helpers live in `pane/create.rs`.
 - `pane/profile.rs` has five `add_enabled` sites, not eight.
-  `ShapeEdits::free()` is read at two of them. The rest of the `free()`
+  `ShapeEdits::free()` was read at two of them at the census's merge
+  base; AUTH-6's note above records those gates gone. The rest of the `free()`
   gates are in `widgets.rs`, and they edit drafts only.
 - `tree.rs` holds no row controls, and the feature tree has no delete.
   `DeleteNode` is pushed only from `pane/properties.rs`.

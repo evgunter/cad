@@ -47,6 +47,7 @@ test_utils::gated_to![
 use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::exact::two_sum;
+use geom_core::interval::certification::Certification;
 use std::cmp::Ordering;
 use test_utils::fuzz;
 
@@ -236,7 +237,7 @@ fn assert_sum_bracket(r: Interval, a: f64, b: f64, sub: bool, what: &str) {
     let b = if sub { -b } else { b };
     assert!(
         r.is_certified(),
-        "{what}: unexpected poison ({a:e}, {b:e}) — {}",
+        "{what}: unexpected refusal ({a:e}, {b:e}) — {}",
         fuzz::replay()
     );
     assert!(
@@ -257,7 +258,7 @@ fn assert_sum_bracket(r: Interval, a: f64, b: f64, sub: bool, what: &str) {
 fn assert_prod_bracket(r: Interval, a: f64, b: f64, what: &str) {
     assert!(
         r.is_certified(),
-        "{what}: unexpected poison ({a:e}, {b:e}) — {}",
+        "{what}: unexpected refusal ({a:e}, {b:e}) — {}",
         fuzz::replay()
     );
     assert!(
@@ -329,13 +330,13 @@ fn lane_boundary_pool(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         if b == 0.0 {
             assert!(
                 !quo.is_certified(),
-                "divisor {b:e} (signed zero) must poison — {}",
+                "divisor {b:e} (signed zero) must refuse — {}",
                 fuzz::replay()
             );
         } else {
             assert!(
                 quo.is_certified(),
-                "pool div: unexpected poison — {}",
+                "pool div: unexpected refusal — {}",
                 fuzz::replay()
             );
             assert!(
@@ -395,7 +396,7 @@ fn lane_tiny_div(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         let q = Interval::point(num) / Interval::point(den);
         assert!(
             q.is_certified(),
-            "tiny divisor {den:e} must not poison — {}",
+            "tiny divisor {den:e} must not refuse — {}",
             fuzz::replay()
         );
         assert!(
@@ -458,7 +459,7 @@ fn lane_chains(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         let chain1 = (ri + si) * ti;
         assert!(
             chain1.is_certified(),
-            "(a+b)*c poisoned — {}",
+            "(a+b)*c refused — {}",
             fuzz::replay()
         );
         // exact (a+b): align the two dyadics to the common exponent.
@@ -483,7 +484,7 @@ fn lane_chains(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         }
         // a·b + c
         let chain2 = ri * si + ti;
-        assert!(chain2.is_certified(), "a*b+c poisoned — {}", fuzz::replay());
+        assert!(chain2.is_certified(), "a*b+c refused — {}", fuzz::replay());
         if let Some(abm) = am.checked_mul(bm)
             && let Some((tneg, tm, te)) = add_dyadic(an != bn, abm, ae + be, cn, cm, ce)
         {
@@ -567,7 +568,7 @@ fn lane_powi(rng: &mut fuzz::Rng, cases: usize) -> u64 {
             let r = x.powi(n_i);
             assert!(
                 r.is_certified(),
-                "{base:e}^{n_i}: unexpected poison — {}",
+                "{base:e}^{n_i}: unexpected refusal — {}",
                 fuzz::replay()
             );
             assert!(
@@ -586,7 +587,7 @@ fn lane_powi(rng: &mut fuzz::Rng, cases: usize) -> u64 {
                 let rn = x.powi(-n_i);
                 assert!(
                     rn.is_certified(),
-                    "{base:e}^-{k} poisoned — {}",
+                    "{base:e}^-{k} refused — {}",
                     fuzz::replay()
                 );
                 let cmp = |b: f64| -> Ordering {
@@ -737,7 +738,7 @@ fn lane_edges(rng: &mut fuzz::Rng, cases: usize) -> u64 {
     ] {
         assert!(
             !Interval::from_bounds(lo, hi).is_certified(),
-            "[{lo:e}, {hi:e}] contains no real number and must poison"
+            "[{lo:e}, {hi:e}] contains no real number and must refuse"
         );
         n += 1;
     }

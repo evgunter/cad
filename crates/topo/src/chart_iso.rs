@@ -25,7 +25,6 @@
 //! float-path facts about `f64` coordinates.
 
 use geom::Curve3;
-use geom_brep::EdgeDescription;
 
 use crate::chart::Chart;
 
@@ -42,7 +41,8 @@ pub enum TravKind {
     },
     /// A u = const boundary; carries the raw column azimuth.
     Meridian {
-        /// Raw u ∈ (−π, π] (exactly 0.0 for `Seam` edges).
+        /// Raw u ∈ (−π, π], from the chart inversion at the edge's
+        /// mid-point.
         u_raw: f64,
     },
 }
@@ -62,8 +62,7 @@ impl TravKind {
 /// The azimuth of the edge's mid-parameter carrier point — a
 /// representative interior point, never an apex/pole endpoint.
 pub fn mid_azimuth(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> f64 {
-    let (t0, t1) = curve.params();
-    chart.u_of(curve.carrier().eval(t0 + (t1 - t0) * 0.5))
+    chart.u_of(curve.mid_point())
 }
 
 /// `raw + 2πk` nearest `prev`.
@@ -71,17 +70,17 @@ pub fn unwrap_near(raw: f64, prev: f64) -> f64 {
     raw + TAU * ((prev - raw) / TAU).round()
 }
 
-/// Rim-vs-meridian classification: `Seam` descriptions and line
+/// Rim-vs-meridian classification, on the carrier alone: line
 /// carriers are meridians; circle carriers split on axis alignment
 /// (structurally either parallel — a rim — or perpendicular — a
-/// meridian; 0.5 splits the two classes with maximal margin).
+/// meridian; 0.5 splits the two classes with maximal margin). A wrap
+/// edge is classified like any other edge on its carrier: a meridian
+/// wraps `u` and a torus parallel wraps `v` (D1).
 ///
 /// A meridian's column u always comes from the mid-point chart
-/// inversion — **never** from the edge kind: a `Seam` edge is the
-/// surface's `u_ref`-half-plane meridian, whose chart u is 0 on
-/// ordinary kinds but π on a cone's mirror nappe (the kernel defines
-/// the seam spatially via `u_ref`; [`Chart::u_of`] carries the nappe
-/// correction).
+/// inversion — **never** from the edge kind: chart u is read through
+/// the chart, whose [`Chart::u_of`] carries the cone's mirror-nappe
+/// correction.
 ///
 /// **`None` is not a refusal, it is the absence of a classification**:
 /// a conic or spline carrier is no chart iso curve, so this function
@@ -91,11 +90,6 @@ pub fn unwrap_near(raw: f64, prev: f64) -> f64 {
 /// [`crate::coherence`] records the loop as unexamined and carries on.
 /// Neither disposition belongs here.
 pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option<TravKind> {
-    if matches!(curve.description(), EdgeDescription::Chart(c) if c.seam) {
-        return Some(TravKind::Meridian {
-            u_raw: mid_azimuth(chart, curve),
-        });
-    }
     match *curve.carrier() {
         Curve3::Line { .. } => Some(TravKind::Meridian {
             u_raw: mid_azimuth(chart, curve),

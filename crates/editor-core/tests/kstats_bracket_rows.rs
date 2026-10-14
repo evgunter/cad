@@ -20,14 +20,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions,
-    EvalScalar, Evaluation, Expr, Frame, LoopProgram, Node, NodeResult, ParamName, ProfileDoc,
-    ProfileLift, ProfileProgram, RecipeNodeId, evaluate,
+    CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, EvalScalar, Evaluation,
+    Formula, Frame, FreeValue, FreeVar, LoopProgram, Node, NodeResult, ProfileDoc, ProfileLift,
+    ProfileProgram, RecipeNodeId, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step, xy_frame};
@@ -35,7 +36,8 @@ use geom_core::Band;
 use geom_core::Tol;
 use geom_core::k_stats::{Bracket, Verdict};
 
-/// A one-solid part: a `side`-wide square extruded 1 tall.
+/// A one-solid part: a `side`-wide square extruded 1 tall, placed in
+/// its world.
 fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
@@ -45,16 +47,18 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, side / 2.0)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
-    doc
+    fixture::place(doc, body).0
 }
 
+/// An assembly instantiating `refs` in order, each placed in the world.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -63,12 +67,12 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc = next;
         ids.push(id);
     }
-    (doc, ids)
+    (fixture::place_all(doc, &ids), ids)
 }
 
 /// The part's one Profile node.
 fn profile_node(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Profile(_))))
@@ -106,22 +110,28 @@ const PRE_PASS: usize = 69;
 /// a mint that looked ahead for one.
 const FRAME_LOG: usize = 4;
 const PROFILE_LOG: usize = PRE_PASS;
-const EXTRUDE_LOG: usize = 653;
+const EXTRUDE_LOG: usize = 655;
 
 /// Two instances, both placed, so both ops do the same work.
 fn placed(doc: ProfileDoc, ids: &[RecipeNodeId]) -> ProfileDoc {
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([0.0, 9.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                0.0, 9.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([9.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                9.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     doc
@@ -157,7 +167,7 @@ fn two_instances(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
 fn the_instantiate_log_is_schedule_independent() {
     let (doc, ids, seq_opts) = two_instances("kstats-sched");
     let seq = logs(&run(&doc, &seq_opts), &ids);
-    assert_eq!(seq, [466, 466]);
+    assert_eq!(seq, [463, 463]);
     let par_opts = EvalOptions {
         parallel: true,
         ..seq_opts.clone()
@@ -185,7 +195,7 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let opts = with_resolver(store);
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
-    assert_eq!(seq[0], 922, "the outer op's own log over a two-solid part");
+    assert_eq!(seq[0], 919, "the outer op's own log over a two-solid part");
     let par = logs(
         &run(
             &top,
@@ -215,7 +225,7 @@ fn a_node_memo_hit_carries_the_priors_log() {
     );
     assert_eq!(again.recomputed, 0, "every node was a memo hit");
     assert_eq!(logs(&again, &ids), logs(&first, &ids));
-    assert_eq!(logs(&again, &ids), [466, 466]);
+    assert_eq!(logs(&again, &ids), [463, 463]);
 }
 
 /// **A cancelled prefix leaves no frame behind**: the run after a
@@ -272,13 +282,16 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
         "the part decides nothing outside its nodes' brackets: {outside:?}"
     );
     let counts = per_node(&ev);
-    let order = part_doc.order();
+    let order = part_doc.ids();
     assert_eq!(
         counts,
         BTreeMap::from([
             (order[0], FRAME_LOG),
             (order[1], PROFILE_LOG),
             (order[2], EXTRUDE_LOG),
+            // The world placement at the identity places by doing
+            // nothing, so it decides nothing.
+            (order[3], 0),
         ]),
         "one log per node, the Profile node's carrying its precompute: {counts:?}"
     );
@@ -314,7 +327,7 @@ fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     let outer = Bracket::open();
     let ev = run(&doc, &opts);
     let outside = outer.finish();
-    assert_eq!(logs(&ev, &ids), [466, 466]);
+    assert_eq!(logs(&ev, &ids), [463, 463]);
     assert!(
         outside.verdicts.is_empty() && outside.escalations.is_empty(),
         "{outside:?}"
@@ -569,17 +582,17 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the witness tolerance bands");
     let in_band = (band.zero() * band.escalate()).sqrt();
-    let edge = ParamName::new("island_edge");
+    let edge = VarName::from_static("island_edge");
     let doc = ProfileDoc::empty(DocumentId::derive("kstats-pre-pass-fails"), tol);
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: edge.clone(),
-            value: DocParam::continuous(Dimension::Length, 0.25),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
     );
     let (doc, plane) = insert(doc, xy_frame());
-    let at_edge = || Expr::param(edge.clone(), Dimension::Length);
+    let at_edge = || Formula::named(edge.clone(), Dimension::Length);
     let island = LoopProgram::polygon_expr([
         [len(0.0), len(-0.25)],
         [at_edge(), len(-0.25)],
@@ -587,7 +600,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
         [len(0.0), len(0.25)],
     ]);
     let program = ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon(square(0.0, 0.0, 0.5)).expect("finite corners"),
             island,
@@ -598,15 +611,16 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParamValue {
-            name: edge,
-            value: DocParamValue::Continuous(0.5 - in_band),
+        DocEdit::SetVarValue {
+            var: edge.into(),
+            value: FreeValue::Continuous(0.5 - in_band),
         },
     );
     let outer = Bracket::open();
@@ -645,22 +659,22 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
 /// because the frame was the node's.
 #[test]
 fn a_pre_key_expr_refusal_carries_no_escalations() {
-    let divisor = ParamName::new("divisor");
+    let divisor = VarName::from_static("divisor");
     let doc = ProfileDoc::empty(DocumentId::derive("kstats-expr-refusal"), Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: divisor.clone(),
-            value: DocParam::continuous(Dimension::Scalar, 1.0),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 1.0)),
         },
     );
     let (doc, plane) = insert(doc, xy_frame());
     let over = || {
-        Expr::div(len(1.0), Expr::param(divisor.clone(), Dimension::Scalar))
+        Formula::div(len(1.0), Formula::named(divisor.clone(), Dimension::Scalar))
             .expect("a length over a scalar")
     };
     let program = ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
             [over(), len(0.0)],
@@ -672,9 +686,9 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParamValue {
-            name: divisor,
-            value: DocParamValue::Continuous(0.0),
+        DocEdit::SetVarValue {
+            var: divisor.into(),
+            value: FreeValue::Continuous(0.0),
         },
     );
     let outer = Bracket::open();

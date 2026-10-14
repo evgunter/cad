@@ -13,12 +13,12 @@
 
 use editor_core::UnitSym;
 use editor_core::{
-    Dimension, Distribution, DistributionFault, DistributionField, DocEdit, DocParam, DocumentId,
-    EditError, ParamName, PersistError, ProfileDoc, apply, load, save,
+    Dimension, Distribution, DistributionFault, DistributionField, DocEdit, DocumentId, EditError,
+    FreeVar, PersistError, ProfileDoc, VarName, apply, load, save,
 };
 use geom_core::Tol;
 
-fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
+fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(
         DocumentId::derive("m10-1-distribution-wire"),
         Tol::witness(),
@@ -26,9 +26,9 @@ fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
     for (name, value) in params {
         doc = apply(
             &doc,
-            &DocEdit::SetDocParam {
-                name: ParamName::new(*name),
-                value: value.clone(),
+            &DocEdit::DeclareVar {
+                name: VarName::from_static(name),
+                def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -39,8 +39,8 @@ fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
     doc
 }
 
-fn annotated(value: f64, distribution: Distribution) -> DocParam {
-    DocParam::Continuous {
+fn annotated(value: f64, distribution: Distribution) -> FreeVar {
+    FreeVar::Continuous {
         dim: Dimension::Length,
         value,
         display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -90,7 +90,7 @@ fn every_distribution_form_round_trips() {
 /// to the v14 one.
 #[test]
 fn an_unannotated_param_stays_absent_from_the_wire() {
-    let doc = doc_with(&[("plain", DocParam::continuous(Dimension::Length, 1.0))]);
+    let doc = doc_with(&[("plain", FreeVar::continuous(Dimension::Length, 1.0))]);
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert!(
         !text.contains("distribution"),
@@ -129,8 +129,8 @@ fn a_hand_written_negative_sigma_refuses_at_load() {
     let corrupt = text.replace("\"sigma\": 0.01", "\"sigma\": -1.0");
     assert_ne!(corrupt, text, "the corruption must actually land");
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Distribution { name, fault }) => {
-            assert_eq!(name.0, "s");
+        Err(PersistError::Distribution { var, fault }) => {
+            assert_eq!(var.name().map(VarName::as_str), Some("s"));
             assert_eq!(fault, DistributionFault::SigmaNotPositive { sigma: -1.0 });
         }
         other => panic!("a negative sigma must refuse at LOAD, got {other:?}"),
@@ -158,8 +158,8 @@ fn the_same_document_refuses_at_save() {
     let broken: ProfileDoc =
         serde_json::from_value(body["snapshot"].clone()).expect("and still a document");
     match save(&broken, &[], Tol::witness()) {
-        Err(PersistError::Distribution { name, fault }) => {
-            assert_eq!(name.0, "s");
+        Err(PersistError::Distribution { var, fault }) => {
+            assert_eq!(var.name().map(VarName::as_str), Some("s"));
             assert_eq!(fault, DistributionFault::SigmaNotPositive { sigma: -1.0 });
         }
         other => panic!("save must refuse the same fault, got {other:?}"),
@@ -172,17 +172,19 @@ fn the_same_document_refuses_at_save() {
 #[test]
 fn a_broken_distribution_in_the_edit_log_refuses_at_save() {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-1-log"), Tol::witness());
-    let bad = DocEdit::SetDocParam {
-        name: ParamName::new("s"),
-        value: annotated(1.0, Distribution::Normal { sigma: -1.0 }),
+    let def = editor_core::VarDecl::Free(annotated(1.0, Distribution::Normal { sigma: -1.0 }));
+    let spoken = doc.spoken_declare(&VarName::from_static("s"), &def);
+    let bad = DocEdit::DeclareVar {
+        name: VarName::from_static("s"),
+        def,
     };
-    match save(&doc, &[editor_core::LoggedEdit::bare(bad)], Tol::witness()) {
+    match save(&doc, &[bad], Tol::witness()) {
         Err(PersistError::EditReplay { index, error }) => {
             assert_eq!(index, 0);
             assert_eq!(
-                error,
+                *error,
                 EditError::InvalidDistribution {
-                    name: ParamName::new("s"),
+                    var: spoken,
                     fault: DistributionFault::SigmaNotPositive { sigma: -1.0 },
                 }
             );
@@ -195,12 +197,18 @@ fn a_broken_distribution_in_the_edit_log_refuses_at_save() {
 #[test]
 fn the_edit_door_refuses_each_broken_invariant() {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-1-edit"), Tol::witness());
+    let sv = |d: Distribution| {
+        doc.spoken_declare(
+            &VarName::from_static("p"),
+            &editor_core::VarDecl::Free(annotated(1.0, d)),
+        )
+    };
     let set = |d: Distribution| {
         apply(
             &doc,
-            &DocEdit::SetDocParam {
-                name: ParamName::new("p"),
-                value: annotated(1.0, d),
+            &DocEdit::DeclareVar {
+                name: VarName::from_static("p"),
+                def: editor_core::VarDecl::Free(annotated(1.0, d)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -210,21 +218,21 @@ fn the_edit_door_refuses_each_broken_invariant() {
     assert_eq!(
         set(Distribution::Normal { sigma: 0.0 }),
         Err(EditError::InvalidDistribution {
-            name: ParamName::new("p"),
+            var: sv(Distribution::Normal { sigma: 0.0 }),
             fault: DistributionFault::SigmaNotPositive { sigma: 0.0 },
         })
     );
     assert_eq!(
         set(Distribution::Band { lo: 0.1, hi: 0.2 }),
         Err(EditError::InvalidDistribution {
-            name: ParamName::new("p"),
+            var: sv(Distribution::Band { lo: 0.1, hi: 0.2 }),
             fault: DistributionFault::NominalOutsideSupport { lo: 0.1, hi: 0.2 },
         })
     );
     assert_eq!(
         set(Distribution::Uniform { lo: -0.2, hi: -0.1 }),
         Err(EditError::InvalidDistribution {
-            name: ParamName::new("p"),
+            var: sv(Distribution::Uniform { lo: -0.2, hi: -0.1 }),
             fault: DistributionFault::NominalOutsideSupport { lo: -0.2, hi: -0.1 },
         })
     );
@@ -234,8 +242,12 @@ fn the_edit_door_refuses_each_broken_invariant() {
             lo: -0.1,
             hi: 0.1
         }),
-        Err(EditError::NonFiniteDocParam {
-            name: ParamName::new("p"),
+        Err(EditError::NonFiniteVar {
+            var: sv(Distribution::TruncatedNormal {
+                sigma: f64::NAN,
+                lo: -0.1,
+                hi: 0.1
+            }),
             field: editor_core::DocParamField::Offset(DistributionField::Sigma),
         }),
         "a non-finite offset joins the non-finite class, not the shape class, and names itself"
@@ -245,8 +257,11 @@ fn the_edit_door_refuses_each_broken_invariant() {
             lo: f64::NEG_INFINITY,
             hi: 0.1
         }),
-        Err(EditError::NonFiniteDocParam {
-            name: ParamName::new("p"),
+        Err(EditError::NonFiniteVar {
+            var: sv(Distribution::Band {
+                lo: f64::NEG_INFINITY,
+                hi: 0.1
+            }),
             field: editor_core::DocParamField::Offset(DistributionField::Lo),
         })
     );
@@ -278,8 +293,8 @@ fn the_edit_door_refuses_each_broken_invariant() {
 #[test]
 fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-1-precedence"), Tol::witness());
-    let name = ParamName::new("s");
-    let broken = DocParam::Continuous {
+    let name = VarName::from_static("s");
+    let broken = FreeVar::Continuous {
         dim: Dimension::Count,
         value: 1.0,
         display_unit: UnitSym::canonical_for(Dimension::Count),
@@ -288,16 +303,16 @@ fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
     assert_eq!(
         apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: name.clone(),
-                value: broken.clone(),
+                def: editor_core::VarDecl::Free(broken.clone())
             },
             Tol::witness(),
             &editor_core::RefusingReach
         )
         .map(|_| ()),
         Err(EditError::InvalidDistribution {
-            name: name.clone(),
+            var: doc.spoken_declare(&name, &editor_core::VarDecl::Free(broken.clone())),
             fault: DistributionFault::SigmaNotPositive { sigma: -1.0 },
         }),
         "the distribution walk runs before the structural check, as it does at load"
@@ -321,8 +336,8 @@ fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
     let doubly: ProfileDoc =
         serde_json::from_value(body["snapshot"].clone()).expect("and still a document");
     match save(&doubly, &[], Tol::witness()) {
-        Err(PersistError::Distribution { name: n, fault }) => {
-            assert_eq!(n, name, "the same parameter");
+        Err(PersistError::Distribution { var: n, fault }) => {
+            assert_eq!(n.name(), Some(&name), "the same parameter");
             assert_eq!(fault, DistributionFault::SigmaNotPositive { sigma: -1.0 });
         }
         other => panic!("expected the distribution fault, got {other:?}"),
@@ -365,16 +380,16 @@ fn a_non_finite_offset_names_which_offset_it_was() {
         ),
     ];
     for (dist, expected) in cases {
-        let edit = DocEdit::SetDocParam {
-            name: ParamName::new("p"),
-            value: annotated(1.0, dist),
+        let edit = DocEdit::DeclareVar {
+            name: VarName::from_static("p"),
+            def: editor_core::VarDecl::Free(annotated(1.0, dist)),
         };
-        match save(&doc, &[editor_core::LoggedEdit::bare(edit)], Tol::witness()) {
+        match save(&doc, &[edit], Tol::witness()) {
             Err(PersistError::NonFinite {
                 site: NonFiniteSite::Edit { index: 0, inner },
             }) => match *inner {
-                NonFiniteSite::DocParam { ref name, field } => {
-                    assert_eq!(name.0, "p");
+                NonFiniteSite::DocParam { ref var, field } => {
+                    assert_eq!(*var, editor_core::VarRef::Name(VarName::from_static("p")));
                     assert_eq!(
                         field,
                         editor_core::DocParamField::Offset(expected),
@@ -388,11 +403,11 @@ fn a_non_finite_offset_names_which_offset_it_was() {
     }
     // The NOMINAL's own non-finiteness is the same class, and the
     // field names it rather than standing for it by absence.
-    let edit = DocEdit::SetDocParam {
-        name: ParamName::new("p"),
-        value: DocParam::continuous(Dimension::Length, f64::NAN),
+    let edit = DocEdit::DeclareVar {
+        name: VarName::from_static("p"),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, f64::NAN)),
     };
-    match save(&doc, &[editor_core::LoggedEdit::bare(edit)], Tol::witness()) {
+    match save(&doc, &[edit], Tol::witness()) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Edit { inner, .. },
         }) => assert!(
@@ -414,19 +429,29 @@ fn a_non_finite_offset_names_which_offset_it_was() {
 /// replay identity uses.
 #[test]
 fn diff_reports_a_distribution_only_change() {
-    let plain = doc_with(&[("p", DocParam::continuous(Dimension::Length, 1.0))]);
-    let annotated_doc = doc_with(&[("p", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
+    let plain = doc_with(&[("p", FreeVar::continuous(Dimension::Length, 1.0))]);
+    let p = plain.var_named("p").expect("declared");
+    let annotate = |doc: &ProfileDoc, sigma: f64| {
+        apply(
+            doc,
+            &DocEdit::SetVarDistribution {
+                var: p.into(),
+                distribution: Some(Distribution::Normal { sigma }),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("an annotation applies")
+        .doc
+    };
+    let annotated_doc = annotate(&plain, 0.01);
     let d = plain.diff(&annotated_doc);
-    assert_eq!(
-        d.params,
-        vec![ParamName::new("p")],
-        "adding a distribution is a param diff"
-    );
+    assert_eq!(d.vars, vec![p], "adding a distribution is a variable diff");
     assert!(!plain.bit_eq(&annotated_doc));
-    let widened = doc_with(&[("p", annotated(1.0, Distribution::Normal { sigma: 0.02 }))]);
+    let widened = annotate(&annotated_doc, 0.02);
     assert_eq!(
-        annotated_doc.diff(&widened).params,
-        vec![ParamName::new("p")],
-        "changing a distribution is a param diff"
+        annotated_doc.diff(&widened).vars,
+        vec![p],
+        "changing a distribution is a variable diff"
     );
 }

@@ -60,4 +60,4 @@ the surface — and neither needs a hand-attached row.
 The tessellation-side sibling, a rowless face the trimmed lane cannot
 run on at all, is `tessellate-refuses-approx-face-without-caches`. The
 kernel-side silence that lets such a face pass tier 3 is
-`work/trim/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.

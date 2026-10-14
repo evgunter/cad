@@ -129,7 +129,7 @@ hold) rather than from the freezes its walk happened to make, which a
 memo hit can take away.
 
 What remains after that is one reading, filed as
-`work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`
+`work/rules/a-taint-induced-freeze-under-a-hit-still-reads-by-order`
 (P2): a freeze the TAINT caused — over the budget only because an
 unrecorded node stood in for a real form — is in no drive's set and
 not in the leaf's table either, so it is counted where the walk made
