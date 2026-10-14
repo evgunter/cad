@@ -4,6 +4,8 @@ kind: issue
 title: geom-core/geom-brep: a symbolic-tier proven zero classes NoSize, so at rest it never takes RefusedReading::ContradictsStoredData; a proved-zero ParamSpan ends in lever plus note while a reversed span ends in the defect ending
 status: open
 opened: 2026-10-14
+needs_ev: true
+branch: encl/proven-zero-ev
 ---
 
 
@@ -27,3 +29,25 @@ Both readings say the stored span contradicts the stored edge, yet they end in t
 ## Question (design)
 
 Should a decision state its stored-contradiction set per sign (for example `StoredDefinite` keyed by `Sign`, or a pass set of "signs that contradict stored data"), so a proven zero and a negative can each end as what they mean? Or does D4 ¶1 (iv) intend that only a refused *sign* is a stored contradiction, so a proven zero always keeps the lever and the note? Cite D4 ¶1 (iv) and `DIHEDRAL_ARM`'s doc (`crates/geom-brep/src/dihedral.rs`).
+
+## Design pair (2026-10-14; three rounds, converged)
+
+The two designers converged on one recommendation. It is put to Ev because it reads D4 ¶1 (iv) more precisely and extends it to the build door.
+
+- **One kind per sized decision** replaces `StoredDefinite { Contradiction, Lever }`. It says what the decision's refused side is: a lever, a stored contradiction, or unminted. The no-size class and the past-band refused class both read it.
+  - `Lever`: the lever plus the note at every door.
+  - Stored contradiction: the lever plus the note at a build, and `KERNEL_OR_FILE_DEFECT_ENDING` at rest.
+  - Unminted: `KERNEL_DEFECT_ENDING` at a build, and `KERNEL_OR_FILE_DEFECT_ENDING` at rest.
+- **Readings that may show a size keep the lever.** That covers the offer, the floor, an unresolved reading and a straddle. The import door within ε_in is unchanged.
+- **A proved zero ends as its exact and in-band siblings do** (D4 ¶1 (i)). Proof never changes a message.
+- **Rows:**
+  - `ParamSpan`: unminted.
+  - `Transversality` and `TangentSecondOrder`: stored contradiction.
+  - `DIHEDRAL_ARM`: `Lever`. Its note drops "a radius below zero is a defect", because a negative arm needs a datum that a profile refuses and that at-rest representability reports first.
+  - `ParamWinding`: stored contradiction, unless the implementer shows nothing mints a winding past a full turn. In that case it is unminted.
+- **Rejected:**
+  - Classing a proved zero apart from a numeric one, because it forks exactly-on by tier against (i).
+  - A per-sign `StoredDefinite`. No decision needs one once `DIHEDRAL_ARM` is `Lever`.
+  - `Unminted` for `ParamSpan` alone, because it leaves a stored tangency at rest ending in a lever.
+  - The two-valued form, because it leaves `ParamSpan`'s build ending with a lever its note denies.
+- **Found on the way:** PR 5101 said `NotTransverse` at rest "was already the defect ending". In fact a Transversality or TangentSecondOrder zero verdict at rest ends in the lever alone, while `validate::classify_certify`'s reason says the faces are "tangent where its description says they cross".
