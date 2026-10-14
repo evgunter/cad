@@ -49,7 +49,7 @@ const UNEXAMINED: &str = "another finding left their boundaries unchecked";
 /// holds open, and nothing else: the backstop's `CurvedWithinReach` on
 /// two faces of `body`'s two different solids, and the instance arm's
 /// `Unexamined` on those two solids, which only follows the first.
-fn only_curved_within_reach(body: &AtRestBody<f64>, errs: &[ValidationError]) -> bool {
+pub fn only_curved_within_reach(body: &AtRestBody<f64>, errs: &[ValidationError]) -> bool {
     let solid = |f| body.solid_of_face(f);
     let reach = |e: &ValidationError| {
         matches!(
