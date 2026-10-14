@@ -4925,6 +4925,8 @@ mod properties_pane_tests {
         assert_eq!(
             pane.app.session.display().hidden(),
             &std::collections::BTreeSet::from([a])
+        );
+    }
 
     /// **The startup document on an inline session, landed, with a
     /// cap of its extrude selected** — and, where `stale`, the feature
