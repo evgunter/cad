@@ -263,8 +263,8 @@ pub struct SplitReduction<T: Real> {
     /// the operand ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
     /// Each piece a crossing split minted, `(new edge, divided-from
-    /// edge)` in mint order.
-    pub edge_pieces: Vec<(EdgeKey, EdgeKey)>,
+    /// edge)` in mint order, checked as each was minted.
+    pub edge_pieces: crate::lineage::SplitEdgeDivisions,
 }
 
 /// **A knife edge the split would mint and cannot declare.** The plane
@@ -522,6 +522,11 @@ pub enum SplitReduceError {
     /// An underlying Euler operation refused (`split_edge` includes the
     /// certified-interiority refusals and escalations).
     Euler(EulerOpError),
+    /// The crossing insertion's edge division list refused a row where
+    /// a split added it ([`crate::lineage::SplitEdgeDivisions`]): a
+    /// kernel defect, since each split records the piece it just
+    /// minted.
+    LineageRow(crate::lineage::RowRefusal),
 }
 
 /// **How the reading a [`SplitReduceError::SliverSector`] refuses
@@ -630,17 +635,6 @@ impl From<EulerOpError> for SplitReduceError {
 /// declarations, so its plane is the first lever.
 pub(crate) use geom_core::SPLIT_PLANE_RECOURSE as SPLIT_COINCIDENCE_RECOURSE;
 
-/// The ending of a split escalation whose margin is no size the user
-/// chose (an angle, a winding, an order, a vertex's offset from the
-/// plane): the split's lever alone, with the unreadable-margin note on
-/// poison (D4 ¶1 (i)).
-pub(crate) fn split_lever_ending(diag: &geom_core::Indeterminate) -> String {
-    LeverOnly {
-        lever: SPLIT_COINCIDENCE_RECOURSE,
-    }
-    .recourse(RefusedArm::Undecided(diag), Reading::Build)
-}
-
 impl core::fmt::Display for SplitReduceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use geom_core::RANGE_RECOURSE;
@@ -696,7 +690,7 @@ impl core::fmt::Display for SplitReduceError {
             Self::SliverVertex { diag, .. } => diag
                 .undecided(
                     "whether a vertex lies on the split plane",
-                    split_lever_ending(diag),
+                    diag.lever_ending(SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::SliverSector { reading, .. } => write!(
@@ -789,6 +783,12 @@ impl core::fmt::Display for SplitReduceError {
                  refused: {source}"
             ),
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::LineageRow(refusal) => write!(
+                f,
+                "{}. {}",
+                refusal.refused_by("split"),
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
         }
     }
 }

@@ -9,8 +9,8 @@
 //! another outside ([`BlendError::FaceClearance`], `bounded: false`),
 //! which would need the band trimmed by the face; or wholly inside such
 //! a region, every cell of the face's box that may hold a point of its
-//! surface inside it, or inside the prism a convex ruled band removes
-//! over the cycles its caps read inside ([`prism_inside`]), where the
+//! surface inside it, or inside the prism a convex straight band
+//! removes over the cycles its caps read inside ([`prism_inside`]), where the
 //! face goes with the material ([`Consumed`]; elsewhere that carve is
 //! not built, and the request refuses [`BlendError::WhollyInside`]). A
 //! face certified none of the three refuses [`BlendError::FaceClearance`]
@@ -60,8 +60,8 @@
 //! meters too (arm (c)); a feature standing in it is refused here
 //! first-hand, since its own faces lie in the band's material. At an
 //! overrun arm (c) reads the far band's whole sliver on the near band's
-//! support, a bound larger than the overrun, so it also refuses some
-//! features the overrun clears
+//! support, a bound larger than the overrun, so a chamfer's also
+//! refuses some features the overrun clears
 //! (`work/band/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
 //! A face at another link's end bounds nothing here and is metered like
 //! any other; a circular link's window has no ends. A support of
@@ -94,7 +94,7 @@ use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
     Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
 };
-use super::surgery::{loop_walk, not_intact};
+use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
 /// How many cells one face may be cut into against one reach before it
@@ -770,30 +770,30 @@ fn normal_at<T: Decide>(
     p: Point3<T>,
 ) -> Result<Vec3<T>, BlendError> {
     outward(body, face, p)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))
 }
 
 fn surface_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Surface<T>, BlendError> {
     body.get_face(face)
         .and_then(|f| body.get_surface(f.surface))
         .cloned()
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face's stored surface"))
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face's stored surface"))
 }
 
 fn surface_key<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<SurfaceKey, BlendError> {
     body.get_face(face)
         .map(|f| f.surface)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face's stored surface"))
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face's stored surface"))
 }
 
 fn point_of<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, BlendError> {
     super::surgery::point_of(body, v)
-        .ok_or_else(|| not_intact(EntityId::Vertex(v), "a chain vertex's point"))
+        .ok_or_else(|| unresolved(EntityId::Vertex(v), "a chain vertex's point"))
 }
 
 fn faces_at<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Vec<FaceKey>, BlendError> {
     body.faces_of_vertex(v)
-        .ok_or_else(|| not_intact(EntityId::Vertex(v), "a chain vertex's face fan"))
+        .ok_or_else(|| unwalked(EntityId::Vertex(v), "a chain vertex's face fan"))
 }
 
 /// The point of `curve` nearest `p`, for a line or a circle (a band's
@@ -888,18 +888,18 @@ fn screened<T: Decide + Bounds>(
 ) -> Result<bool, BlendError> {
     let f = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a support the band replaces"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a support the band replaces"))?;
     let mut vacant = true;
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let vertices: Vec<VertexKey> = match body.get_loop(lp).map(|l| l.boundary) {
             Some(topo::LoopBoundary::Cycle { first }) => body
                 .loop_cycle(first)
-                .ok_or_else(|| not_intact(EntityId::Loop(lp), "a support's cycle"))?
+                .ok_or_else(|| unwalked(EntityId::Loop(lp), "a support's cycle"))?
                 .into_iter()
                 .filter_map(|he| body.get_half_edge(he).map(|h| h.start))
                 .collect(),
             Some(topo::LoopBoundary::Empty { vertex }) => vec![vertex],
-            None => return Err(not_intact(EntityId::Loop(lp), "a support's loop")),
+            None => return Err(unresolved(EntityId::Loop(lp), "a support's loop")),
         };
         for v in vertices {
             if ends.binary_search(&v).is_ok() {
@@ -938,11 +938,13 @@ impl<T: Real> Station<T> {
 }
 
 fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, BlendError> {
-    let unread = || not_intact(EntityId::Edge(link.edge), "a link's carrier or trimlines");
-    let (carrier, t0, t1) = carrier_of(body, link.edge).ok_or_else(unread)?;
+    let at = EntityId::Edge(link.edge);
+    let (carrier, t0, t1) =
+        carrier_of(body, link.edge).ok_or_else(|| unresolved(at, "a link's certified carrier"))?;
     let p = carrier.eval(geom::mid_param(t0, t1));
-    let fa = foot_on(&link.blend.trim_a.0, p).ok_or_else(unread)?;
-    let fb = foot_on(&link.blend.trim_b.0, p).ok_or_else(unread)?;
+    let off_trim = || disagrees(at, "a link's trimline is neither a line nor a circle");
+    let fa = foot_on(&link.blend.trim_a.0, p).ok_or_else(off_trim)?;
+    let fb = foot_on(&link.blend.trim_b.0, p).ok_or_else(off_trim)?;
     let c = match link.blend.surface {
         Surface::Cylinder {
             origin,
@@ -1205,14 +1207,14 @@ fn circular_reach<T: Decide + Bounds>(
         ..
     } = link.blend.surface
     else {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Edge(link.edge),
             "a circular spine's band is not a torus",
         ));
     };
     let (o, a) = canonical_axis(center, axis);
     let (c, _) =
-        st.c.ok_or_else(|| not_intact(EntityId::Edge(link.edge), "a torus band's spine point"))?;
+        st.c.ok_or_else(|| disagrees(EntityId::Edge(link.edge), "a torus band's spine point"))?;
     let reach = (st.p - c).norm();
     // A torus about its own axis: `big + reach` across, `reach` along.
     let ext = |k: T| major_radius * (T::one() - k.powi(2)).max(T::zero()).sqrt() + reach;
@@ -1964,7 +1966,7 @@ fn boundary_reading<T: Decide>(
 ) -> Result<Option<(T, T)>, BlendError> {
     let f = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))?;
     let most = |x: Point3<T>, g: fn(&Bound<T>, Point3<T>) -> T| {
         core.iter()
             .map(|b| g(b, x))
@@ -1979,7 +1981,7 @@ fn boundary_reading<T: Decide>(
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let l = body
             .get_loop(lp)
-            .ok_or_else(|| not_intact(EntityId::Loop(lp), "a face's loop"))?;
+            .ok_or_else(|| unresolved(EntityId::Loop(lp), "a face's loop"))?;
         let first = match l.boundary {
             topo::LoopBoundary::Cycle { first } => first,
             topo::LoopBoundary::Empty { vertex } => {
@@ -1989,11 +1991,11 @@ fn boundary_reading<T: Decide>(
         };
         for he in body
             .loop_cycle(first)
-            .ok_or_else(|| not_intact(EntityId::Loop(lp), "a face's cycle"))?
+            .ok_or_else(|| unwalked(EntityId::Loop(lp), "a face's cycle"))?
         {
             let edge = body
                 .get_half_edge(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a face's boundary"))?
+                .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face's boundary"))?
                 .edge;
             let Some((c, t0, t1)) = carrier_of(body, edge) else {
                 continue;
@@ -2006,8 +2008,8 @@ fn boundary_reading<T: Decide>(
     Ok(reading)
 }
 
-/// **How surely a face lies wholly inside the prism a convex ruled band
-/// removes**, read through the cycles its caps' meter read inside the
+/// **How surely a face lies wholly inside the prism a convex straight
+/// band removes**, read through the cycles its caps' meter read inside the
 /// sliver (`rings`, this link's): positive when it certainly does, and
 /// then a lower bound on how far inside; `None` when the face is not of
 /// the shape the reading takes.
@@ -2032,6 +2034,20 @@ fn boundary_reading<T: Decide>(
 /// (its box's diagonal) times `|a × τ|`; and it lies between the cap
 /// planes, being a convex combination of boundary points that do. The
 /// reading is that excess.
+///
+/// No row pins the factor `|n·τ|`, because no crossing can need it at
+/// a cap leaned less than about 88°: a fillet's wall that dips `δ⊥`
+/// into the kept ball over a lateral run `c` between two rings needs
+/// `c²/8r > δ⊥`, while reading it inside with the factor dropped needs
+/// `δ⊥/|n·τ| > ~2c`, so both hold only for `|n·τ| < c/16r`, which the
+/// sliver bounds below about `0.025`. On a convex `S⊥` it scales only
+/// the margin.
+///
+/// Where `S⊥` is `convex` (a chord end's triangle) neither term is owed:
+/// a line's points and a face's are convex combinations of boundary
+/// points whose projections lie at least the least depth inside `S⊥`,
+/// and the distance from a convex set's boundary is concave inside it,
+/// so the reading is that least depth.
 fn prism_inside<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2039,6 +2055,7 @@ fn prism_inside<T: Decide>(
     (flo, fhi): ([f64; 3], [f64; 3]),
     tau: Vec3<T>,
     rings: &[CapRing<T>],
+    convex: bool,
 ) -> Result<Option<T>, BlendError> {
     if rings.is_empty() || flo.iter().chain(&fhi).any(|x| !x.is_finite()) {
         return Ok(None);
@@ -2070,7 +2087,7 @@ fn prism_inside<T: Decide>(
     };
     let f = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))?;
     let mut slack = T::zero();
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let Some(walk) = loop_walk(body, lp) else {
@@ -2082,7 +2099,7 @@ fn prism_inside<T: Decide>(
             }
             let w = body
                 .half_edge_end(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a face edge's end"))?;
+                .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face edge's end"))?;
             let Some((Curve3::Line { dir, .. }, _, _)) = carrier_of(body, edge) else {
                 return Ok(None);
             };
@@ -2097,6 +2114,9 @@ fn prism_inside<T: Decide>(
         let [x, y, z] = v.map(T::from_computed);
         Point3::new(x, y, z)
     };
+    if convex {
+        return Ok(Some(least));
+    }
     let diagonal = (corner(fhi) - corner(flo)).norm();
     Ok(Some(least - slack - diagonal * tilt))
 }
@@ -2111,8 +2131,8 @@ fn prism_inside<T: Decide>(
 /// of every one; a tie on the margin's upper end names the least entity
 /// ([`entity_order`]), so the refusal is the same in every read order.
 ///
-/// An inside reading the carve consumes is one on a convex ruled band's
-/// cap ([`CapRing`]) or a face of the prism over such rings
+/// An inside reading the carve consumes is one on a convex straight
+/// band's cap ([`CapRing`]) or a face of the prism over such rings
 /// ([`prism_inside`]): only when every inside reading is one does the
 /// request build ([`Consumed`]); otherwise it refuses `WhollyInside`.
 pub(crate) struct Unclear<T> {
@@ -2123,21 +2143,23 @@ pub(crate) struct Unclear<T> {
     unconsumed: bool,
 }
 
-/// **A cycle of a convex ruled band's cap read wholly inside its
+/// **A cycle of a convex straight band's cap read wholly inside its
 /// sliver**: the crease whose band removes it, the cap, the cycle, and
 /// its depth (negative; its size a lower bound on the cycle's distance
-/// from the sliver's boundary in the cap's plane).
+/// from the sliver's boundary in the cap's plane), and whether the
+/// sliver was read as its exact triangle, so convex.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CapRing<T> {
     pub(crate) crease: EdgeKey,
     pub(crate) cap: FaceKey,
     pub(crate) ring: LoopKey,
     pub(crate) depth: T,
+    pub(crate) convex: bool,
 }
 
 /// **What a request whose verdict is inside consumes**: the cap cycles
-/// and the faces read wholly inside the material a convex ruled band
-/// removes, and the refusal they would owe were the carve not to take
+/// and the faces read wholly inside the material a convex straight
+/// band removes, and the refusal they would owe were the carve not to take
 /// them ([`BlendError::WhollyInside`], the shallowest).
 pub(crate) struct Consumed<T> {
     pub(crate) rings: Vec<CapRing<T>>,
@@ -2230,14 +2252,14 @@ impl<T: Bounds> Unclear<T> {
         self.deepen(margin, refusal);
     }
 
-    /// A cap cycle certified wholly inside a convex ruled band's sliver,
+    /// A cap cycle certified wholly inside a convex straight band's sliver,
     /// which the carve consumes with the feature it bounds.
     pub(crate) fn cap_ring(&mut self, ring: CapRing<T>, refusal: BlendError) {
         self.rings.push(ring);
         self.deepen(ring.depth, refusal);
     }
 
-    /// A face certified wholly inside the prism a convex ruled band
+    /// A face certified wholly inside the prism a convex straight band
     /// removes ([`prism_inside`]), which the carve consumes.
     fn prism_face(&mut self, face: FaceKey, depth: T, refusal: BlendError) {
         if !self.faces.contains(&face) {
@@ -2246,7 +2268,7 @@ impl<T: Bounds> Unclear<T> {
         self.deepen(depth, refusal);
     }
 
-    /// The cycles read inside a convex ruled band's caps so far.
+    /// The cycles read inside a convex straight band's caps so far.
     fn cap_rings(&self) -> &[CapRing<T>] {
         &self.rings
     }
@@ -2333,7 +2355,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     for v in verts {
         let fan = body
             .edges_of_vertex(v)
-            .ok_or_else(|| not_intact(EntityId::Vertex(v), "a chain vertex's edge fan"))?;
+            .ok_or_else(|| unwalked(EntityId::Vertex(v), "a chain vertex's edge fan"))?;
         if !fan.iter().all(|e| requested.binary_search(e).is_ok()) {
             continue;
         }
@@ -2364,7 +2386,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         reaches.push(r);
     }
     let boxes = FaceBoxes::of(body, band)
-        .map_err(|e| not_intact(EntityId::Face(e.0), "a face's certified box"))?;
+        .map_err(|e| disagrees(EntityId::Face(e.0), "a face's certified box"))?;
     // Two chains that share a vertex meet there in a corner or a turn,
     // which the corner predicate and the surgery judge: their bands
     // touch by construction.
@@ -2492,7 +2514,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 );
                 continue;
             }
-            // Inside the prism a convex ruled band removes, read through
+            // Inside the prism a convex straight band removes, read through
             // the cycles its caps' meter read inside the sliver.
             if let Some((edge, tau)) = reach.spine.filter(|_| !supports_a_band) {
                 let mine: Vec<CapRing<T>> = unclear
@@ -2501,7 +2523,12 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                     .filter(|r| r.crease == edge)
                     .copied()
                     .collect();
-                let reading = prism_inside(body, face, &surface, fbox, tau, &mine)?;
+                // The prism's slice in a cap's plane is an affine image
+                // of `S⊥` (projection along `τ`), so `S⊥` is convex
+                // exactly when that slice is; a ring read through the
+                // exact triangle certifies it for its cap.
+                let convex = mine.iter().all(|r| r.convex);
+                let reading = prism_inside(body, face, &surface, fbox, tau, &mine, convex)?;
                 if let Some(excess) = reading.filter(|x| sure(*x, band)) {
                     let deep = T::zero() - excess;
                     let sign = classify_bound(deep)?;

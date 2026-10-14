@@ -2776,8 +2776,9 @@ pub enum EditError {
     },
     /// A proper placement frame that is not definitely a rigid motion
     /// at tolerance — it may scale or shear an axis. The evaluation
-    /// refuses to move a body by one ([`topo::TransformError::NotRigid`],
-    /// the same predicate), so the document never admits one.
+    /// admits a literal frame through the same door
+    /// ([`geom_core::RigidMotion::check_rigid`]), so the document never
+    /// admits one it would refuse.
     NonRigidPlacement {
         /// The node holding the frame.
         node: SpokenNode,

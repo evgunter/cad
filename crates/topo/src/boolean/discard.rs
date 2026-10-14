@@ -192,7 +192,9 @@ pub(super) fn discard_row<T: geom_core::Real>(
                 let mut at = h.edge;
                 while let Some(Provenance::SplitEdge { edge: up }) = body.edge_provenance_of(at) {
                     if chain.contains(up) {
-                        return Err(desync("a discarded edge's split lineage is cyclic"));
+                        return Err(BooleanError::SplitLineage(crate::SplitLineageCycle {
+                            edge: h.edge,
+                        }));
                     }
                     at = *up;
                     chain.push(at);

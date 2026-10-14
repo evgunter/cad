@@ -214,7 +214,7 @@ impl<'a> PlaneSection<'a> {
             lane: Lane {
                 plane,
                 frame: (p0, normal, u_ref, normal.cross(u_ref)),
-                wall: charted,
+                wall: charted.clone(),
                 wall_op: SsiOperand::Nurbs(charted),
                 sys,
                 ctx,

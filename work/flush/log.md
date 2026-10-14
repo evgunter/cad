@@ -352,7 +352,7 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - FLUSH `a-split-seams-kfmrh-onto-a-curved-host-is-unexercised` (P3).
 - **The third row** (two parts' touching vertices on two keys) stopped at a design question.
   - The designer pair agreed on their first reports: one point key wherever an op decided one point, across an assembly's solids too.
-  - **Ruled A** (fork-log row 121). It extends ruling B and changes no ratified decision. It is building on `flush/touch-key`.
+  - **Ruled A** (fork-log row 133, renumbered from 121 at merge). It extends ruling B and changes no ratified decision. It is building on `flush/touch-key`.
   - The tier-3′ structural-sharing sentence it would restate is ratified (fork row 45), so the restatement is with Ev on `[ev]` PR 4793.
 - **Merged over** main's `mass_props_are_thread_count_invariant` red (PR 4814 open).
 — (FLUSH orchestrator)
@@ -395,3 +395,33 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - **Follows:** `check-10-reads-a-cavitys-role-from-its-volume-sign` (design), the other in-band-shell reader.
 — (FLUSH orchestrator)
 - 2026-10-12 — Note from ENCL: `a-ring-serving-two-pierces-fails-to-evaluate-at-1e-12-on-main` (P1, open since about 04:40) reds every PR whose diff seeds the eps rows. It now holds two reviewed, otherwise-green ENCL PRs (4766 sweep slice, 4872 subnormal weights), and other programs' PRs hit it too. ENCL did not take it, because it sits on coincidence-record/fusion ground under the D10 hold. Could it be prioritised, or rescaled to the run's ε per its own 'Owed' line if the fixture is the defect? (ENCL orchestrator)
+- 2026-10-13 — Usage returned after an overnight stall; every lane had been idle.
+  - **Ev on `[ev]` PR 4793** asked whether splitting, moving the pieces and gluing them back a different way is safe under ruling A. It is:
+    - a split gives two bodies, and each moves whole;
+    - a re-glue decides afresh, because the boolean grafts its second operand under fresh keys;
+    - a stale record refuses (`CarryRefusal::Stale`) rather than ship.
+    - Two limits were named on the PR: one side's pieces move together, and `BooleanInputs.given` is unenforced.
+    - Main was merged in. Main had taken row 121, so the touch-key fork row became 133.
+  - **Shell-role fork:** `[ev]` PR 4990 (entry above).
+  - **Dispatched two rows** onto the slate:
+    - `boolean-given-pairs-glue-unmeasured-for-any-rust-caller` (E, `flush/given-gate`);
+    - `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence` (M, `flush/corner-names-glue`). Its brief carries FLUSH's evidence that the row's own remedy would quote a false offer.
+— (FLUSH orchestrator)
+- 2026-10-14 — Merges and reviews since the 2026-10-13 entry:
+  - **PR 4793 [ev] merged** (`c436fb30`). Ev: "this looks good!" (2026-10-14 01:08). The restated tier-3′ structural-sharing sentence is in DESIGN; fork-log row 133 is filled; its needs-Ev row is closed.
+  - **PR 5002 merged** (`d4c5b7a4`; `boolean-given-pairs-glue-unmeasured-for-any-rust-caller` closed).
+    - **What changed:** a given pair is minted only through `GlueVerdict::given_at`, from a verdict a boolean decided. The pair type is `GluedPair` with crate-private fields, and a source-census pin guards it.
+    - **What was narrowed:** Owed narrowed to "only a boolean mints". Reusing or re-keying a verdict is the residue row `a-glue-verdict-is-not-bound-to-the-bodies-it-judged` (P2): 648 forged runs gave no wrong body, but the record was lost.
+    - **Review:** sequential arm, byte 113, single review, no MAJOR.
+    - **Filed:** CLEAVE P0 `a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop`.
+  - **PR 5008** (`an-in-band-glue-verdict-…`).
+    - **Review:** sequential arm, byte 179. The single review came back APPROVE: every quoted offer executed true. The small fix pass is in CI.
+    - **Evidence:** a glued pose's `ResultVolumeImplausible` (1.5e-15 relative) is evidence on the CLEAVE P0.
+  - **PR 4823** (touch-key, ruling A).
+    - **Review:** sequential arm, byte 245. R1 MAJOR: the offset doors grouped corners by point key, so a corner-kiss union refused every offset. R2 found the same and graded it MINOR. Adjudicated MAJOR in substance (blinding byte 38).
+    - **Fix pass:** splits a group per solid when a joint solve refuses definitely. A forged carried record refuses `Stale`. RESTREAD's MixedTouch row is raised to P1 (214 poses).
+    - **Delta check (R2):** CONFIRMED. One more push makes escalations propagate instead of splitting, and restates the withheld-record pins as ratified on 4793.
+  - **Main reds met by the lanes, filed by their owners' slates:**
+    - `saddle_wall_offset_fit` → `nurbs/main-reds-…-since-4984`;
+    - `mass_props_are_thread_count_invariant` at four threads → `flux/main-red-…-since-4938`.
+— (FLUSH orchestrator)

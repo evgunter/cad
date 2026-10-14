@@ -43,19 +43,19 @@ use crate::common::operands::{
 use crate::common::poses::poses;
 
 /// A closed half-space `{x : n·x ≤ c}`, `n` a unit.
-type Half = (V, f64);
+pub(crate) type Half = (V, f64);
 
 fn arr(p: Point3<f64>) -> V {
     [p.x, p.y, p.z]
 }
 
-fn point_at(body: &Body<f64>, v: VertexKey) -> V {
+pub(crate) fn point_at(body: &Body<f64>, v: VertexKey) -> V {
     arr(*body
         .get_point(body.get_vertex(v).expect("a vertex").point)
         .expect("a point"))
 }
 
-fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
+pub(crate) fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
     let he = body.get_edge(e).expect("an edge").he_plus;
     [
         body.get_half_edge(he).expect("a half-edge").start,
@@ -65,7 +65,7 @@ fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
 
 /// **A convex body's half-spaces**, read off its stored planes, each
 /// faced away from the mean of its vertices (inside a convex body).
-fn halves_of(body: &Body<f64>) -> Vec<Half> {
+pub(crate) fn halves_of(body: &Body<f64>) -> Vec<Half> {
     let points: Vec<V> = body
         .vertices()
         .map(|(v, _)| v)
@@ -133,7 +133,7 @@ fn chamfer_half(halves: &[Half], a: V, b: V, d: f64) -> Half {
 /// every triple of planes met, the points inside all kept, and each
 /// face's polygon, ordered about its centroid, summed as
 /// `⅓ · c · area`.
-fn polytope_volume(halves: &[Half]) -> f64 {
+pub(crate) fn polytope_volume(halves: &[Half]) -> f64 {
     let n = halves.len();
     let mut points: Vec<V> = Vec::new();
     for i in 0..n {
@@ -210,7 +210,7 @@ fn closed_form(halves: &[Half], body: &Body<f64>, edges: &[EdgeKey], d: f64) -> 
 /// trivalent vertex at `p_k`, the mitre's end a trivalent vertex at
 /// `q`, and one edge joins them — the far band's cut-off chord, named
 /// as its `EndArc`, its end a `FootVertex` on the near face.
-fn overrun_cells(out: &Blended<f64>, p_k: V, q: V, what: &str) {
+pub(crate) fn overrun_cells(out: &Blended<f64>, p_k: V, q: V, what: &str) {
     let body = &out.body;
     let at = |x: V| {
         body.vertices()
@@ -262,11 +262,11 @@ fn chamfer(body: &Body<f64>, edges: &[EdgeKey], what: &str) -> Blended<f64> {
     out
 }
 
-/// The probe's turn on `body`'s corner, placed: the far band, its foot
-/// `p_k` and the mitre's end `q`, in the body's frame.
-fn placed(body: &Body<f64>, edges: [EdgeKey; 2]) -> (usize, V, V) {
+/// The probe's turn of `verb` on `body`'s corner, placed: the far band,
+/// its foot `p_k` and the mitre's end `q`, in the body's frame.
+pub(crate) fn placed(body: &Body<f64>, edges: [EdgeKey; 2], verb: Verb) -> (usize, V, V) {
     let c = cone_of(body, edges);
-    let t = measure(&c, Verb::Chamfer, D, 2);
+    let t = measure(&c, verb, D, 2);
     let k = t.far.expect("an overrun");
     let [a, b] = [ends(body, edges[0]), ends(body, edges[1])];
     let vertex = a
@@ -278,12 +278,12 @@ fn placed(body: &Body<f64>, edges: [EdgeKey; 2]) -> (usize, V, V) {
 }
 
 /// A witness: its name, its body, and its two requested edges.
-type Witness = (&'static str, Body<f64>, [EdgeKey; 2]);
+pub(crate) type Witness = (&'static str, Body<f64>, [EdgeKey; 2]);
 
 /// The skewed box's overrun corner: on `parallelepiped(0.3)`, the top
 /// edge and the lateral edge out of `(s, s, 1)`, the other top edge
 /// unrequested — face angles `90°` and `≈106.7°` at it.
-fn skewed_box() -> Witness {
+pub(crate) fn skewed_box() -> Witness {
     let s = 0.3;
     let body = parallelepiped(s);
     let v = [s, s, 1.0];
@@ -297,7 +297,7 @@ fn skewed_box() -> Witness {
 /// The witnesses: the bracket's two section-face corners — `(45°, 90°)`
 /// and `(135°, 90°)` at `γ = 90°`, a leaning prism's corner at a lean
 /// of `∓1` — the leaning prism at `±0.5`, and the skewed box.
-fn witnesses() -> Vec<Witness> {
+pub(crate) fn witnesses() -> Vec<Witness> {
     let lean = |what, s| {
         let (body, edges) = leaning_turn(s);
         (what, body, edges)
@@ -325,7 +325,7 @@ fn the_three_witnesses_build_at_their_closed_form_volumes() {
             (removed - want).abs() < 1e-10,
             "{what}: ΔV {removed} against the half-spaces' {want}"
         );
-        let (k, p_k, q) = placed(&body, edges);
+        let (k, p_k, q) = placed(&body, edges, Verb::Chamfer);
         assert_eq!(
             k,
             far_band(&body, edges, Verb::Chamfer),
@@ -355,7 +355,9 @@ fn the_witnesses_build_at_every_pose() {
     for (what, body, edges) in witnesses() {
         let want = closed_form(&halves_of(&body), &body, &edges, D);
         for (pose, map) in poses() {
-            let moved = topo::transform_rigid(&body, &map, tol()).expect("a rigid pose");
+            let moved =
+                topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
+                    .expect("a rigid pose");
             let what = format!("{what} at {pose}");
             let out = chamfer(&moved, &edges, &what);
             let removed = volume(&moved) - volume(&out.body);
@@ -423,7 +425,7 @@ fn the_overrun_carves_at_the_certified_scalar() {
 }
 
 /// An `Interval` edge's two ends, at their midpoints.
-fn ends_iv(body: &Body<Interval>, e: EdgeKey) -> [[f64; 3]; 2] {
+pub(crate) fn ends_iv(body: &Body<Interval>, e: EdgeKey) -> [[f64; 3]; 2] {
     let he = body.get_edge(e).expect("an edge").he_plus;
     [
         body.get_half_edge(he).expect("a half-edge").start,
@@ -492,7 +494,7 @@ fn a_concave_overrun_fills_at_its_closed_form() {
             (added - want).abs() < 1e-10,
             "{what}, concave: ΔV {added} against the air's {want}"
         );
-        let (_, p_k, q) = placed(&pocket, edges);
+        let (_, p_k, q) = placed(&pocket, edges, Verb::Chamfer);
         overrun_cells(&out, p_k, q, what);
     }
 }
@@ -528,7 +530,7 @@ fn the_sweep_builds_every_convex_overrun_at_the_probes_closed_forms() {
                     (removed - want).abs() < 1e-10,
                     "{what}: ΔV {removed} against the half-spaces' {want}"
                 );
-                let (_, p_k, q) = placed(&body, edges);
+                let (_, p_k, q) = placed(&body, edges, Verb::Chamfer);
                 overrun_cells(&out, p_k, q, &what);
                 built += 1;
             }
@@ -574,7 +576,7 @@ fn the_sweep_fills_concave_overruns() {
                     (added - want).abs() < 1e-9,
                     "{what}: ΔV {added} against the air's {want}"
                 );
-                let (_, p_k, q) = placed(&void, edges);
+                let (_, p_k, q) = placed(&void, edges, Verb::Chamfer);
                 overrun_cells(&out, p_k, q, &what);
                 built += 1;
             }
@@ -627,31 +629,24 @@ fn bossed(a: f64, b: f64) -> (Body<f64>, [EdgeKey; 2]) {
 /// along the near band's trimline, its incircle of radius `≈ 0.1·d`
 /// about `(1.1·d, 0.1·d)` in the wall's `(along L, across)` frame. A
 /// boss standing on the wall there has its ring past the near band's
-/// trimline, so that band's own meters pass it. Two meters refuse it:
-/// the far band's cut-off sliver (arm (c), `RingClearance` at the
-/// leaning wall, a bound reading) answers first, and the reach
-/// (`FaceClearance`) refuses it without arm (c). Either is a refusal of
-/// the right feature; the row holds that one of them answers. The same
+/// trimline, so that band's own meters pass it. The far band's overrun
+/// sliver reads the ring inside its triangle, an inside reading no carve
+/// takes (the sliver carries no crease), and the reach refuses the
+/// boss's side as a bound (`FaceClearance`), which outranks it. The same
 /// boss moved clear of the sliver, to `(2·d, 0.1·d)`, builds at the
 /// half-spaces' volume.
 #[test]
 fn a_boss_in_the_overrun_refuses_and_one_clear_of_the_sliver_builds() {
     let (inside, edges) = bossed(1.1 * D, 0.1 * D);
     match chamfer_edges(&at_rest(&inside, tol()), &edges, D, tol()) {
-        Err(e) => match e.error {
-            sweep::blend::BlendError::RingClearance { face, .. } => {
-                let surface = inside
-                    .get_face(face)
-                    .and_then(|x| inside.get_surface(x.surface));
-                assert!(
-                    matches!(surface, Some(Surface::Plane { normal, .. })
-                        if (normal.x - normal.z).abs() < 1e-12 && normal.y.abs() < 1e-12),
-                    "the sliver's refusal names the leaning wall, got {surface:?}"
-                );
-            }
-            sweep::blend::BlendError::FaceClearance { .. } => {}
-            other => panic!("a boss in the overrun refuses at a clearance meter, got {other}"),
-        },
+        Err(e) => assert!(
+            matches!(
+                e.error,
+                sweep::blend::BlendError::FaceClearance { bounded: true, .. }
+            ),
+            "a boss in the overrun refuses as a bound at its side, got {:?}",
+            e.error
+        ),
         Ok(out) => panic!(
             "a boss in the overrun must refuse, built one whose tier 3 reads {:?}",
             validate_geometric(&out.body, tol())
@@ -666,6 +661,59 @@ fn a_boss_in_the_overrun_refuses_and_one_clear_of_the_sliver_builds() {
         (removed - want).abs() < 1e-10,
         "a boss clear of the overrun: ΔV {removed} against {want}"
     );
+}
+
+/// **A slot through the overrun is never consumed.** At the bracket's
+/// `y = 0` corner a square slot of half-side `0.003` runs along the top
+/// edge's band, at the overrun's incentre `(1.1·d, 0.1·d)` in the
+/// leaning wall's `(along L, across)` frame, out through the square
+/// end `x = 2`. Its ring there lies inside that cut-off's triangle, and
+/// its ring on the leaning wall (lines, as a support's rings must be)
+/// inside the triangle the far band's
+/// overrun sliver is read through. That triangle is a bound larger than
+/// the overrun, not the far band's removed slice, so its crease is none
+/// and a cycle inside it is never a ring the carve takes: the slot's
+/// walls, read through the one ring at `x = 2`, refuse as a bound.
+/// Given the far band's crease there, the carve takes the slot.
+#[test]
+fn a_slot_through_the_overrun_is_never_consumed() {
+    let (body, edges) = leaning_turn(-1.0);
+    let r2 = core::f64::consts::FRAC_1_SQRT_2;
+    let (y, z, h) = (-0.1 * D, 1.0 - 1.1 * D * r2, 0.003);
+    let pin = sweep::test_support::prism_on(
+        sweep::test_support::sketch_from_axes(
+            Point3::new(-1.5, y, z),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            tol(),
+        ),
+        sweep::test_support::corners(&[(-h, -h), (h, -h), (h, h), (-h, h)]),
+        4.0,
+        tol(),
+    );
+    let bored = realized(BooleanOp::Subtract, &body, &pin, tol());
+    validate_geometric(&bored, tol()).expect("the slotted corner is tier-3 valid");
+    let corner = [-1.0, 0.0, 1.0];
+    let edges = edges.map(|e| {
+        let [a, b] = ends(&body, e).map(|v| point_at(&body, v));
+        let far = if norm(sub(a, corner)) < 1e-12 { b } else { a };
+        edge(&bored, corner, far)
+    });
+    match chamfer_edges(&at_rest(&bored, tol()), &edges, D, tol()) {
+        Err(e) => assert!(
+            matches!(
+                e.error,
+                sweep::blend::BlendError::FaceClearance { bounded: true, .. }
+            ),
+            "the slot refuses as a bound at its wall, which the prism reading cannot take \
+             through a ring on the overrun's sliver, got {:?}",
+            e.error
+        ),
+        Ok(out) => panic!(
+            "a slot through the overrun must refuse, built one whose tier 3 reads {:?}",
+            validate_geometric(&out.body, tol())
+        ),
+    }
 }
 
 /// **L blended in a later call** ends at the overrun's turn foot, a

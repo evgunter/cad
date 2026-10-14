@@ -45,7 +45,9 @@ use super::arms::{
     plane_sphere_blend,
 };
 use super::build::fan_at;
-use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
+use super::surgery::{
+    CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_geometry, unresolved, unwalked,
+};
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
     classify_positive, classify_reported,
@@ -603,16 +605,16 @@ pub fn radius_headroom<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let Some(f) = body.get_face(face) else {
-        return Err(BlendError::BodyNotIntact {
-            at: EntityId::Face(face),
-            detail: "a link's support face, for the curvature headroom predicate",
-        });
+        return Err(unresolved(
+            EntityId::Face(face),
+            "a link's support face, for the curvature headroom predicate",
+        ));
     };
     let Some(s) = body.get_surface(f.surface) else {
-        return Err(BlendError::BodyNotIntact {
-            at: EntityId::Face(face),
-            detail: "a support face's stored surface, for the curvature headroom predicate",
-        });
+        return Err(unresolved(
+            EntityId::Face(face),
+            "a support face's stored surface, for the curvature headroom predicate",
+        ));
     };
     let arm = geom_brep::min_radius_of_curvature_toward(s, p, convexity.ball_side(f.sense));
     // An unbounded arm saturates at `r` rather than dividing by an
@@ -1909,7 +1911,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
                         if !turns.iter().any(|t| t.vertex == v) =>
                     {
                         let [l1, l2] = &*links;
-                        turns.push(turn_at(body, v, [l1, l2], third, band, kind)?);
+                        turns.push(turn_at(body, v, [l1, l2], third, r, band, kind)?);
                     }
                     Some(EndVerdict::Turn(..)) | None => {}
                 }
@@ -2066,14 +2068,6 @@ pub enum EndSection<T: Real> {
     Ellipse(Curve3<T>),
 }
 
-/// The refusal for a fillet turn whose two bands' feet on its third edge
-/// stand definitely apart: the band reaching further, whose requested
-/// edge the refusal's `at` names, runs on past the mitre onto the other
-/// band's face of that edge, and a fillet's overrun is not built.
-pub const TURN_OVERRUN: &str = "at a turn, one fillet band's foot lies further down the third \
-     edge, so that band would run past the mitre onto the other band's face of it, an overrun not \
-     built";
-
 /// **A turn predicate 6 admitted**: two of a trivalent vertex's three
 /// edges requested, the third, `edge`, not, and the two bands' feet on
 /// it decided one point or definitely apart ([`turn_at`]). The two
@@ -2116,25 +2110,30 @@ pub enum TurnRunOut<T: Real> {
     /// verdict decided ([`topo::Relation::CommonFoot`], the gap and the
     /// chord both decided Zero).
     Mitre(topo::Coincidence),
-    /// The feet stand definitely apart, both readings on one side: a
-    /// chamfer's OVERRUN.
+    /// The feet stand definitely apart, both readings on one side: the
+    /// OVERRUN.
     Overrun(Overrun<T>),
 }
 
-/// **A chamfer turn's overrun**: the mitre lands first on the near
-/// band's face of the third edge, at `end` on that band's trimline, and
-/// the far band `far` is cut off past it by that face, from `end` down
-/// to its own foot ([`Turn::foot`]) — band `far`'s cut-off at that face,
-/// clipped at `end`. The verdict builds every chord it decides
-/// definite, so a just-definite overrun leaves an edge from `end` to the
-/// far foot barely longer than the band's `escalate` width.
+/// **A turn's overrun**: the mitre lands first on the near band's face
+/// of the third edge, at `end` on that band's trimline, and the far band
+/// `far` is cut off past it by that face, from `end` down to its own
+/// foot ([`Turn::foot`]) — band `far`'s cut-off at that face, clipped at
+/// `end`. A fillet's cut-off arc is tangent to the mitre at `end` and to
+/// the third edge at the far foot (the crate README's turn clause). A
+/// just-definite overrun leaves an edge from `end` to the far foot, a
+/// chord or an arc, barely longer than the band's `escalate` width.
 #[derive(Clone, Debug)]
 pub struct Overrun<T: Real> {
     /// The far band, as an index into [`Turn::requested`].
     pub far: usize,
     /// The mitre's end `q`, on the near band's trimline on its face of
-    /// the third edge: the far band's plane met with that trimline.
+    /// the third edge: the mitre's plane met with that trimline.
     pub end: Point3<T>,
+    /// The far band's section by the near band's face of the third
+    /// edge: a chamfer's chord, a fillet's circle or ellipse as
+    /// `fillet3_cap_transverse` picks it for any cut-off.
+    pub section: EndSection<T>,
 }
 
 impl<T: Real> Overrun<T> {
@@ -2197,21 +2196,22 @@ impl<T: Real> Turn<T> {
 /// a T, so neither reading alone decides (the turn clause in
 /// `crates/sweep/README.md`). Both Zero builds the mitre and records
 /// the coincidence; both definite is the overrun on the side the sign
-/// picks, which a chamfer builds and a fillet refuses
-/// ([`TURN_OVERRUN`]); anything else escalates.
+/// picks, the far band's section by the near face picked as any
+/// cut-off's ([`cap_transverse`]); anything else escalates.
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] at the far band's requested edge
-/// for a fillet's overrun; [`BlendError::Escalated`] in band;
-/// [`BlendError::BodyNotIntact`] when the two links share no support or
-/// a vertex does not read; [`BlendError::UnsupportedGeometry`] when a
-/// trimline is not a line or a band is neither a plane nor a cylinder.
-fn turn_at<T: Decide>(
+/// [`BlendError::Escalated`] in band, or from [`cap_transverse`] at a
+/// fillet's overrun; [`BlendError::BodyNotIntact`] when the two links
+/// share no support or a vertex or a face does not read;
+/// [`BlendError::UnsupportedGeometry`] when a trimline is not a line or
+/// a band is neither a plane nor a cylinder.
+fn turn_at<T: Decide + Bounds>(
     body: &Body<T>,
     vertex: VertexKey,
     links: [&Link<T>; 2],
     third: EdgeKey,
+    radius: T,
     band: Band,
     kind: BlendKind,
 ) -> Result<Turn<T>, BlendError> {
@@ -2238,17 +2238,18 @@ fn turn_at<T: Decide>(
             )),
         ),
         TurnVerdict::Overrun { far } => {
-            if matches!(kind, BlendKind::Fillet) {
-                return Err(super::surgery::unbuilt_run_out(
-                    EntityId::Edge(links[far].edge),
-                    TURN_OVERRUN,
-                ));
-            }
+            // The far band's cut-off at the near band's face of `third`.
+            let near = others[1 - far];
+            let normal = outward(body, near, point_at(body, vertex)?).ok_or_else(|| {
+                unresolved(EntityId::Face(near), "an overrun's end face's stored plane")
+            })?;
+            let section = cut_off_section(vertex, links[far], normal, radius, kind, band)?;
             (
                 feet[far],
                 TurnRunOut::Overrun(Overrun {
                     far,
                     end: ends[far],
+                    section,
                 }),
             )
         }
@@ -2362,7 +2363,7 @@ pub(crate) fn turn_reading<T: Decide>(
         .into_iter()
         .find(|f| *f == l2.face_a || *f == l2.face_b)
         .ok_or_else(|| {
-            not_intact(
+            disagrees(
                 EntityId::Vertex(vertex),
                 "a turn's two requested edges share no face",
             )
@@ -2381,7 +2382,7 @@ pub(crate) fn turn_reading<T: Decide>(
         far.and_then(|v| body.get_vertex(v))
             .and_then(|v| body.get_point(v.point))
             .map(|q| (*q - p).normalize())
-            .ok_or_else(|| not_intact(EntityId::Edge(e), "a turning edge's far end"))
+            .ok_or_else(|| unresolved(EntityId::Edge(e), "a turning edge's far end"))
     };
     let along = out(third)?;
     let dirs = [out(l1.edge)?, out(l2.edge)?];
@@ -2604,7 +2605,7 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
         .and_then(|v| body.get_point(v.point))
         .copied()
         .ok_or_else(|| {
-            not_intact(
+            unresolved(
                 EntityId::Vertex(vertex),
                 "a chain end's vertex point, for its face normals",
             )
@@ -2646,12 +2647,8 @@ fn corner_at<T: Decide + Bounds>(
     // In key order, so the supports below are gathered — and their
     // normals reach the independence determinant — in an order that
     // does not depend on where the vertex's orbit starts.
-    // An unresolved key at the corner is a body that does not hold
-    // together there, not a configuration: every such arm below
-    // refuses as `BodyNotIntact`.
-    let not_intact = |at: EntityId, detail: &'static str| BlendError::BodyNotIntact { at, detail };
     let mut edges = fan_at(body.edges_of_vertex(vertex)).ok_or_else(|| {
-        not_intact(
+        unwalked(
             EntityId::Vertex(vertex),
             "a chain end's edge fan, for its corner configuration",
         )
@@ -2680,7 +2677,7 @@ fn corner_at<T: Decide + Bounds>(
         // (`cap_incidence`).
         let Some((_, _, cap)) = cap_incidence(body, vertex, link.edge, link.face_a, link.face_b)
         else {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Vertex(vertex),
                 "a ruled link's end, whose three faces do not meet as a cap",
             ));
@@ -2706,7 +2703,7 @@ fn corner_at<T: Decide + Bounds>(
             let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
             for (slot, f) in normals.iter_mut().zip([link.face_a, link.face_b, cap]) {
                 *slot = outward(body, f, p).ok_or_else(|| {
-                    not_intact(
+                    unresolved(
                         EntityId::Face(f),
                         "a ruled cap's face or its stored surface, for its outward normal",
                     )
@@ -2742,7 +2739,7 @@ fn corner_at<T: Decide + Bounds>(
         // (`cap_incidence`).
         let Some((_, _, end)) = cap_incidence(body, vertex, link.edge, link.face_a, link.face_b)
         else {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Vertex(vertex),
                 "a chain end's three faces do not meet as two supports and an end face",
             ));
@@ -2805,7 +2802,7 @@ fn corner_at<T: Decide + Bounds>(
     }
     for (i, f) in faces.iter().enumerate() {
         normals[i] = outward(body, *f, p).ok_or_else(|| {
-            not_intact(
+            unresolved(
                 EntityId::Face(*f),
                 "a corner's support face or its stored surface, for its outward normal",
             )
@@ -2833,20 +2830,45 @@ fn corner_at<T: Decide + Bounds>(
         }
         // A plane band's section by the end face is a chord at any
         // angle; a cylinder band's is the kind the picker decides.
-        (1, Some(normal)) => match kind {
-            BlendKind::Chamfer => Ok(Some(EndVerdict::Section(EndSection::Chord))),
-            BlendKind::Fillet => {
-                let Surface::Cylinder { axis, .. } = link.blend.surface else {
-                    return Err(indeterminate());
-                };
-                cap_transverse(vertex, normal, axis, radius, link.arm_len, band)
-                    .map(|s| Some(EndVerdict::Section(s)))
-            }
-        },
-        _ => Err(not_intact(
+        (1, Some(normal)) => cut_off_section(vertex, link, normal, radius, kind, band)
+            .map(|s| Some(EndVerdict::Section(s))),
+        _ => Err(disagrees(
             EntityId::Vertex(vertex),
             "a chain end's edge fan does not carry the requested link that reaches it",
         )),
+    }
+}
+
+/// **A plane–plane band's section by a plane end face** of normal
+/// `normal`, at a chain's cut-off and at a turn's overrun alike: a
+/// chamfer's chord at any angle, a fillet's circle or ellipse as
+/// [`cap_transverse`] picks it about the band's axis, levered at the
+/// link's arm.
+///
+/// # Errors
+///
+/// [`cap_transverse`]'s; [`BlendError::UnsupportedCorner`]
+/// (`Indeterminate`) where a fillet's band is not a cylinder, the
+/// verdict disagreeing with itself.
+fn cut_off_section<T: Decide + Bounds>(
+    vertex: VertexKey,
+    link: &Link<T>,
+    normal: Vec3<T>,
+    radius: T,
+    kind: BlendKind,
+    band: Band,
+) -> Result<EndSection<T>, BlendError> {
+    match kind {
+        BlendKind::Chamfer => Ok(EndSection::Chord),
+        BlendKind::Fillet => {
+            let Surface::Cylinder { axis, .. } = link.blend.surface else {
+                return Err(super::surgery::unbuilt_corner_config(
+                    vertex,
+                    CornerConfig::Indeterminate,
+                ));
+            };
+            cap_transverse(vertex, normal, axis, radius, link.arm_len, band)
+        }
     }
 }
 
@@ -2988,7 +3010,7 @@ fn consumption_sweep<T: Decide + Bounds>(
     };
     for face in faces {
         let fa = body.get_face(face).ok_or_else(|| {
-            not_intact(
+            unresolved(
                 EntityId::Face(face),
                 "a support face, for its boundary pairs",
             )
@@ -3053,7 +3075,7 @@ fn consumption_sweep<T: Decide + Bounds>(
             let p = body
                 .get_vertex(*v)
                 .and_then(|x| body.get_point(x.point))
-                .ok_or_else(|| not_intact(EntityId::Vertex(*v), "a joint's stored point"))?;
+                .ok_or_else(|| unresolved(EntityId::Vertex(*v), "a joint's stored point"))?;
             let foot = *origin + *dir * ((*p - *origin).dot(*dir) / dir.dot(*dir));
             let run_edges = members(link.edge);
             for (e, carrier, _) in &boundary {
@@ -3102,7 +3124,7 @@ fn screened_loop<T: Decide>(
 ) -> Result<Vec<ScreenedEdge<T>>, BlendError> {
     let l = body
         .get_loop(lp)
-        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a support face's loop"))?;
+        .ok_or_else(|| unresolved(EntityId::Loop(lp), "a support face's loop"))?;
     let topo::LoopBoundary::Cycle { first } = l.boundary else {
         return Err(unbuilt_geometry(
             EntityId::Loop(lp),
@@ -3112,21 +3134,21 @@ fn screened_loop<T: Decide>(
     };
     let cycle = body
         .loop_cycle(first)
-        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a support face's cycle"))?;
+        .ok_or_else(|| unwalked(EntityId::Loop(lp), "a support face's cycle"))?;
     cycle
         .into_iter()
         .map(|he| {
             let edge = body
                 .get_half_edge(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a support face's boundary"))?
+                .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a support face's boundary"))?
                 .edge;
             let e = body.get_edge(edge).ok_or_else(|| {
-                not_intact(EntityId::Edge(edge), "a support face's boundary edge")
+                unresolved(EntityId::Edge(edge), "a support face's boundary edge")
             })?;
             let c = body
                 .get_curve_geom(e.curve)
                 .ok_or_else(|| {
-                    not_intact(EntityId::Edge(edge), "a support boundary edge's curve row")
+                    unresolved(EntityId::Edge(edge), "a support boundary edge's curve row")
                 })?
                 .certified()
                 .ok_or_else(|| {
@@ -3154,13 +3176,13 @@ fn touches_any<T: Decide>(
     let ends = |e: EdgeKey| -> Result<[VertexKey; 2], BlendError> {
         let he = body
             .get_edge(e)
-            .ok_or_else(|| not_intact(EntityId::Edge(e), "a boundary edge, for its ends"))?
+            .ok_or_else(|| unresolved(EntityId::Edge(e), "a boundary edge, for its ends"))?
             .he_plus;
         body.get_half_edge(he)
             .map(|h| h.start)
             .zip(body.half_edge_end(he))
             .map(|(s, t)| [s, t])
-            .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a boundary edge's ends"))
+            .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a boundary edge's ends"))
     };
     for x in xs {
         let ex = ends(*x)?;

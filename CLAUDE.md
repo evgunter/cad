@@ -64,6 +64,11 @@ sets `needs_ev: true` ("Ev's channel" in `work/README.md`).
 - Ev answers in the PR's comments, so arrange to be woken by them (a PR
   subscription on a remote box, the away-channel monitor locally).
   Never ask on a merged PR: Ev does not scan them.
+- **A blocking question about an open PR goes on that PR** (Ev,
+  2026-10-13): add `[ev]` to its title and put the one question at
+  the top of its body, then take the `[ev]` off again once Ev has
+  answered. A question asked only in a session's chat is not seen
+  promptly.
 - **No status scaffolding in the diff** (Ev, 2026-09-21): "proposed",
   "pending sign-off" or "awaits ratification" only has to come out
   again before merging. The title, the PR body and `needs_ev:` carry
