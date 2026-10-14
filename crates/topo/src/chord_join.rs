@@ -412,6 +412,10 @@ pub enum SplitJoinError {
     TangentChordRefuted {
         /// The curved face the ruling divides.
         face: FaceKey,
+        /// The two neighbouring stations that disagree, where the ruling
+        /// reads smooth at one ([`geom_brep::MustCarryRefusal::Mixed`]);
+        /// `None` where every station reads a corner.
+        mixed: Option<geom_brep::MixedStations>,
     },
     /// A curved face crossed more than twice could not have its
     /// crossings paired along its section conic, or along each ruling
@@ -643,10 +647,18 @@ impl core::fmt::Display for SplitJoinError {
                     diag.ending(JOIN_RECOURSE)
                 )
             ),
-            Self::TangentChordRefuted { .. } => write!(
+            Self::TangentChordRefuted {
+                mixed: Some(stations),
+                ..
+            } => write!(
                 f,
-                "a cut reads tangent to a curved face along a ruling but at a corner \
-                 elsewhere along it, so what that ruling is cannot be said. Recourse: \
+                "along a cut's tangent ruling of a curved face, {stations}. Recourse: \
+                 {JOIN_RECOURSE}"
+            ),
+            Self::TangentChordRefuted { mixed: None, .. } => write!(
+                f,
+                "a cut reads tangent to a curved face along a ruling but a corner at every \
+                 station along it, so what that ruling is cannot be said. Recourse: \
                  {JOIN_RECOURSE}"
             ),
             Self::SectionCrossings { case, band, .. } => write!(
@@ -1919,15 +1931,24 @@ fn chord_spec<T: Decide>(
             let witness = carrier.mid_point(s1, s2);
             // Jet-determinate ⇒ the intrinsic tangency; under-determined
             // (a sagitta decided Zero over a short ruling, or a carrier
-            // outside the tangent certificate's lane) ⇒ an image in the
-            // section chart, the one `describe_section_boundary` restates
-            // a smooth section-boundary edge into.
+            // outside the tangent certificate's lane) ⇒ the conventional
+            // pair, as `describe_section_boundary` restates a smooth
+            // section-boundary edge.
             let plane = body.get_surface(plane_key).unwrap_or_else(|| {
                 unreachable!(
                     "{plane_key:?} is the section plane this split minted into the body it is \
                      dividing, and no operator removes a surface a later chord still names"
                 )
             });
+            // The section face is not minted yet: only the face the
+            // ruling divides names its region.
+            let rest = crate::rest_locus(
+                body,
+                [(wall_key, Some(face)), (plane_key, None)],
+                &carrier,
+                (s1, s2),
+                band,
+            );
             let description = geom_brep::must_carry_description(
                 geom_brep::SmoothJoin {
                     surfaces: [(wall_key, &wall), (plane_key, plane)],
@@ -1937,18 +1958,11 @@ fn chord_spec<T: Decide>(
                     witness,
                 },
                 band,
-                || plane_key,
                 |_, diag| SplitJoinError::TangentChordEscalated { face, diag },
                 |_, diag| SplitJoinError::TangentChordBendEscalated { face, diag },
-                || SplitJoinError::TangentChordRefuted { face },
-                |chart| {
-                    unreachable!(
-                        "{chart:?} is the section plane this chord's pair was built with, so it \
-                         is one of the pair's surfaces"
-                    )
-                },
+                |mixed| SplitJoinError::TangentChordRefuted { face, mixed },
             )?
-            .spec();
+            .spec(rest);
             return Ok(Some(EdgeCurveSpec {
                 description,
                 carrier,
@@ -2348,6 +2362,7 @@ impl<T: Decide> SegmentCurve<T> {
         match &spec.description {
             geom_brep::EdgeDescriptionSpec::Intersection { .. }
             | geom_brep::EdgeDescriptionSpec::TangentIntersection { .. }
+            | geom_brep::EdgeDescriptionSpec::OnPair { declared: None, .. }
             | geom_brep::EdgeDescriptionSpec::Chart {
                 image: None,
                 wrap: false,
@@ -2367,6 +2382,9 @@ impl<T: Decide> SegmentCurve<T> {
                         "a scaffold segment curve that is neither a line nor a circle",
                     )),
             },
+            geom_brep::EdgeDescriptionSpec::OnPair { .. } => Err(invariant(
+                "a segment curve stating a declaration on a pair (no chord lane states one)",
+            )),
             // A chord bounds two faces, so it is never a wrap edge (D1).
             geom_brep::EdgeDescriptionSpec::Chart { .. } => Err(invariant(
                 "a segment curve stating a chart image, a declaration or a wrap (no chord lane \
@@ -2904,9 +2922,11 @@ fn run_azimuth_images<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::Escalated`] where a mark is in band;
-/// [`SplitJoinError::SectionInvariant`] where the gap sits on a mark or
-/// past the branch reach, or the chart is the placeholder.
+/// [`SplitJoinError::Escalated`] where a mark is in band, or the gap
+/// sits on a mark with a branch the near-pole read tries in band;
+/// [`SplitJoinError::SectionInvariant`] where the gap sits on a mark off
+/// every branch that read tries, or past the branch reach, or the chart
+/// is the placeholder.
 fn nearest_branch<T: Decide>(
     surface: &geom::Surface<T>,
     face: FaceKey,
@@ -6870,6 +6890,54 @@ mod nearest_branch_rows {
         }
     }
 
+    /// **A gap on a mark answers by the band at the lever, however many
+    /// turns out**, as the loop walk's joint does: the branches astride
+    /// the walk's mark sit `π·lever` off, so in band the split escalates
+    /// and past it the gap names no common branch.
+    #[test]
+    fn a_half_turn_gap_answers_by_the_band_at_every_turn_count() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let alpha = 0.01f64;
+        let cone = geom::Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (pi, tau) = (core::f64::consts::PI, core::f64::consts::TAU);
+        let esc = band.escalate();
+        let at = |lever: f64, gap: f64| {
+            let d = lever / alpha.sin();
+            let vertex = Point3::new(lever, 0.0, d * alpha.cos());
+            nearest_branch(&cone, FaceKey::default(), vertex, gap, band)
+        };
+        for f in [0.55, 0.7, 0.75, 0.85, 0.95, 0.99] {
+            let lever = f * esc / pi;
+            for turns in [0.5, -0.5, 1.5, -1.5, 2.5, -2.5, 3.5, -3.5] {
+                let got = at(lever, turns * tau);
+                assert!(
+                    matches!(got, Err(SplitJoinError::Escalated { .. })),
+                    "π·lever {f}·escalate, gap {turns}τ: in band: {got:?}"
+                );
+            }
+        }
+        let past = 1.01 * esc / pi;
+        for turns in [0.5, -2.5, 3.5] {
+            let got = at(past, turns * tau);
+            assert!(
+                matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
+                "π·lever 1.01·escalate, gap {turns}τ: decided off: {got:?}"
+            );
+        }
+        for (turns, k) in [(2.0, 2), (-2.0, -2)] {
+            let got = at(0.75 * esc / pi, turns * tau);
+            assert!(
+                matches!(got, Ok(b) if b == k),
+                "gap {turns}τ: the branch is {k}: {got:?}"
+            );
+        }
+    }
+
     #[test]
     fn a_narrow_cone_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -6912,6 +6980,19 @@ mod nearest_branch_rows {
                     "d = {d:e} (lever {lever:e}), gap {turns}·τ: the branch is {want}: {got:?}"
                 );
             }
+            // Half a turn round: within ε at the lever the image is taken;
+            // in band the two ends may be one point, an escalation; past
+            // the band the gap names no common branch.
+            let pi_lever = core::f64::consts::PI * lever;
+            let got = nearest_branch(&cone, FaceKey::default(), vertex, 0.5 * tau, band);
+            let read = if pi_lever < band.zero() {
+                matches!(got, Ok(0))
+            } else if pi_lever < band.escalate() {
+                matches!(got, Err(SplitJoinError::Escalated { .. }))
+            } else {
+                matches!(got, Err(SplitJoinError::SectionInvariant { .. }))
+            };
+            assert!(read, "d = {d:e} (lever {lever:e}), gap π: {got:?}");
         }
     }
 }
