@@ -29,11 +29,13 @@ to 0.002672789803885438
 
 A second seed, `0xdfa19917eaceb89e` (at `CAD_TOLERANCE_EPS=1e-6`), fails
 on the same two-span patch and the same reading: 0.002672789803881874
-moves to 0.0026727898038849634. The test went red on 2 of the 6 runs the
-build-time lane made on this tree, so in practice it is a frequent flake
-in the per-PR gate.
+moves to 0.0026727898038849634. Both seeds are deterministic reproducers. The test drew a
+failing seed on 2 of the 6 runs the build-time lane made on this tree, so
+the per-PR gate goes red on it often.
 
-The moved reading is `margins[1]`. It moves by 3.6e-15 absolute, or 1.3e-12
+The failing assertion is the `within_rounding(a, b, reach, scale)` check
+in the same test (`enclose.rs`, near line 1813), on the speeds/pads/margins
+chain. The moved reading is `margins[1]`. It moves by 3.6e-15 absolute, or 1.3e-12
 relative. Every speed and pad on the same wall agrees to about 1e-15
 relative.
 
@@ -49,7 +51,7 @@ margin rows need an absolute term at the wall's scale, or the margin
 computation needs to be shown frame-invariant to the stated bound, in
 which case this seed is a real defect.
 
-Pin the seed as a deterministic test beside whichever fix lands
+Pin both seeds as deterministic tests beside whichever fix lands
 (`docs/prompts/implementer-discipline.md` §8).
 
 — found by the build-time lane (NURBS), 2026-10-14
