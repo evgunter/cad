@@ -5,22 +5,22 @@
 //! A file of its own because a marker gates a whole file's MODULE
 //! (`test_utils::gated_to!`'s docs are where that granularity is
 //! stated), and `r1_probes.rs` next door holds deterministic pins — the
-//! regime enumeration and the two `cbrt` rows — that must keep running
-//! on every leg.
+//! regime enumeration — that must keep running on every leg.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
 // Gated to the code it tests (TCOST-1), as implementer-discipline §8
 // requires of every fuzzer. The sweep draws ray poses at random and holds
 // the CERTIFIED root count and the roots themselves against a geometric
-// oracle, so its claim is `line_torus_roots` and the `cbrt` chain it calls
-// — both in `solid_contain.rs` — plus the oracle and tally it borrows from
-// `r1_probes.rs`. Named wider than that: the band a certification is
+// oracle, so its claim is `line_torus_roots` in `solid_contain.rs`, the
+// quartic ladder and `cbrt` chain it calls in `geom-brep`'s `quartic.rs`,
+// and the oracle and tally it borrows from `r1_probes.rs`. Named wider than that: the band a certification is
 // decided against and the tolerance it is written in units of live in
 // `geom-core`, and `linalg` carries the `Point3`/`Vec3` a pose is, so a
 // change to any of them moves what this row asserts with `topo/` untouched.
 test_utils::gated_to![
     "crates/topo/src/boolean/solid_contain.rs",
+    "crates/geom-brep/src/quartic.rs",
     "crates/topo/src/boolean/r1_probes.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/tolerance.rs",

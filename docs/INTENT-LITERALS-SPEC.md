@@ -253,7 +253,7 @@ Blind spots:
 
 The second pass greps `-> Expr\b` and `serde_json::from_str::<.*Expr` and takes each site. After D, `Expr` has no literal constructor, so the compiler closes both gaps.
 
-**Equal literals that must coincide.** C will turn some passing builds into refusals. `topo::boolean::join`'s cylinder pair reads `field_source_evidence` and refuses `IntersectingCylinderAxes { evidence: None }` where two equal-radius cylinders were typed separately. These are found at runtime (CI), not by grep. The candidates are the `hollow_tube_*` corpus, `crosslap`, `tube` and `twopeg` in the tour. The fix is the D10 one: author one variable read by both slots. It is never a kernel change.
+**Equal literals that must coincide.** The kernel decides a coincidence of two values by their margin and reads no declaration (D10): `topo::boolean::join`'s cylinder pair decides two radii equal by `cc_radius_equality` whether they were typed separately or read from one variable. So C turns no passing build into a refusal by splitting one literal into two. A refusal C does cause is found at runtime (CI), not by grep, and its fix is the D10 one: author one variable read by both slots. It is never a kernel change.
 
 ## 7. What moves
 
