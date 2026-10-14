@@ -9,8 +9,8 @@
 //! another outside ([`BlendError::FaceClearance`], `bounded: false`),
 //! which would need the band trimmed by the face; or wholly inside such
 //! a region, every cell of the face's box that may hold a point of its
-//! surface inside it, or inside the prism a convex straight band
-//! removes over the cycles its caps read inside ([`prism_inside`]), where the
+//! surface inside it, or inside the prism a straight band removes or
+//! fills over the cycles its caps read inside ([`prism_inside`]), where the
 //! face goes with the material ([`Consumed`]; elsewhere that carve is
 //! not built, and the request refuses [`BlendError::WhollyInside`]). A
 //! face certified none of the three refuses [`BlendError::FaceClearance`]
@@ -94,7 +94,7 @@ use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
     Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
 };
-use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
+use super::surgery::{degenerate, disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
 /// How many cells one face may be cut into against one reach before it
@@ -938,8 +938,7 @@ impl<T: Real> Station<T> {
 
 fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, BlendError> {
     let at = EntityId::Edge(link.edge);
-    let (carrier, t0, t1) =
-        carrier_of(body, link.edge).ok_or_else(|| unresolved(at, "a link's certified carrier"))?;
+    let (carrier, t0, t1) = carrier_of(body, link.edge)?;
     let p = carrier.eval(geom::mid_param(t0, t1));
     let off_trim = || disagrees(at, "a link's trimline is neither a line nor a circle");
     let fa = foot_on(&link.blend.trim_a.0, p).ok_or_else(off_trim)?;
@@ -2004,9 +2003,7 @@ fn boundary_reading<T: Decide>(
                 .get_half_edge(he)
                 .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face's boundary"))?
                 .edge;
-            let Some((c, t0, t1)) = carrier_of(body, edge) else {
-                continue;
-            };
+            let (c, t0, t1) = carrier_of(body, edge)?;
             for i in 0..EDGE_SAMPLES {
                 fold(c.eval(geom_brep::schedule_param(t0, t1, i, EDGE_SAMPLES)));
             }
@@ -2015,8 +2012,8 @@ fn boundary_reading<T: Decide>(
     Ok(reading)
 }
 
-/// **How surely a face lies wholly inside the prism a convex straight
-/// band removes**, read through the cycles its caps' meter read inside the
+/// **How surely a face lies wholly inside the prism a straight band
+/// removes or fills**, read through the cycles its caps' meter read inside the
 /// sliver (`rings`, this link's): positive when it certainly does, and
 /// then a lower bound on how far inside; `None` when the face is not of
 /// the shape the reading takes.
@@ -2107,7 +2104,7 @@ fn prism_inside<T: Decide>(
             let w = body
                 .half_edge_end(he)
                 .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face edge's end"))?;
-            let Some((Curve3::Line { dir, .. }, _, _)) = carrier_of(body, edge) else {
+            let (Curve3::Line { dir, .. }, _, _) = carrier_of(body, edge)? else {
                 return Ok(None);
             };
             if !ring_vertices.contains(&u) || !ring_vertices.contains(&w) {
@@ -2138,8 +2135,8 @@ fn prism_inside<T: Decide>(
 /// of every one; a tie on the margin's upper end names the least entity
 /// ([`entity_order`]), so the refusal is the same in every read order.
 ///
-/// An inside reading the carve consumes is one on a convex straight
-/// band's cap ([`CapRing`]) or a face of the prism over such rings
+/// An inside reading the carve consumes is one on a straight band's
+/// cap ([`CapRing`]) or a face of the prism over such rings
 /// ([`prism_inside`]): only when every inside reading is one does the
 /// request build ([`Consumed`]); otherwise it refuses `WhollyInside`.
 pub(crate) struct Unclear<T> {
@@ -2150,8 +2147,8 @@ pub(crate) struct Unclear<T> {
     unconsumed: bool,
 }
 
-/// **A cycle of a convex straight band's cap read wholly inside its
-/// sliver**: the crease whose band removes it, the cap, the cycle, and
+/// **A cycle of a straight band's cap read wholly inside its sliver**:
+/// the crease whose band removes or buries it, the cap, the cycle, and
 /// its depth (negative; its size a lower bound on the cycle's distance
 /// from the sliver's boundary in the cap's plane), and whether the
 /// sliver was read as its exact triangle, so convex.
@@ -2165,8 +2162,8 @@ pub(crate) struct CapRing<T> {
 }
 
 /// **What a request whose verdict is inside consumes**: the cap cycles
-/// and the faces read wholly inside the material a convex straight
-/// band removes, and the refusal they would owe were the carve not to take
+/// and the faces read wholly inside the material a straight band
+/// removes or fills, and the refusal they would owe were the carve not to take
 /// them ([`BlendError::WhollyInside`], the shallowest).
 pub(crate) struct Consumed<T> {
     pub(crate) rings: Vec<CapRing<T>>,
@@ -2259,15 +2256,15 @@ impl<T: Bounds> Unclear<T> {
         self.deepen(margin, refusal);
     }
 
-    /// A cap cycle certified wholly inside a convex straight band's sliver,
+    /// A cap cycle certified wholly inside a straight band's sliver,
     /// which the carve consumes with the feature it bounds.
     pub(crate) fn cap_ring(&mut self, ring: CapRing<T>, refusal: BlendError) {
         self.rings.push(ring);
         self.deepen(ring.depth, refusal);
     }
 
-    /// A face certified wholly inside the prism a convex straight band
-    /// removes ([`prism_inside`]), which the carve consumes.
+    /// A face certified wholly inside the prism a straight band removes
+    /// or fills ([`prism_inside`]), which the carve consumes.
     fn prism_face(&mut self, face: FaceKey, depth: T, refusal: BlendError) {
         if !self.faces.contains(&face) {
             self.faces.push(face);
@@ -2275,7 +2272,7 @@ impl<T: Bounds> Unclear<T> {
         self.deepen(depth, refusal);
     }
 
-    /// The cycles read inside a convex straight band's caps so far.
+    /// The cycles read inside a straight band's caps so far.
     fn cap_rings(&self) -> &[CapRing<T>] {
         &self.rings
     }
@@ -2392,8 +2389,12 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         r.skip.dedup();
         reaches.push(r);
     }
-    let boxes = FaceBoxes::of(body, band)
-        .map_err(|e| disagrees(EntityId::Face(e.0), "a face's certified box"))?;
+    let boxes = FaceBoxes::of(body, band).map_err(|e| {
+        degenerate(
+            EntityId::Face(e.0),
+            "a face's stored surface, which its box reads",
+        )
+    })?;
     // Two chains that share a vertex meet there in a corner or a turn,
     // which the corner predicate and the surgery judge: their bands
     // touch by construction.
@@ -2521,7 +2522,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 );
                 continue;
             }
-            // Inside the prism a convex straight band removes, read through
+            // Inside the prism a straight band removes or fills, read through
             // the cycles its caps' meter read inside the sliver.
             if let Some((edge, tau)) = reach.spine.filter(|_| !supports_a_band) {
                 let mine: Vec<CapRing<T>> = unclear

@@ -1,16 +1,16 @@
-//! **An imported loft's cap rims are the one declared conventional
-//! edge between distinct surfaces an import produces**, and the offset
-//! door derives them when a cap move tilts them.
+//! **An imported loft's cap rims adopt as `Intersection`s, and the
+//! offset door re-derives them when a cap move tilts them.**
 //!
 //! The adoption ladder offers `Intersection` before the conventional
-//! rung, but a plane × spline-wall `Intersection` certifies a SPLINE
-//! carrier only, and a loft's rim arrives as the line it was swept
-//! from. So the rung that adopts it is `MappedCurve`: an image in the
-//! cap's chart, declared by the placed segment (`adopt.rs`'s
-//! conventional rung, the NURBS-rim exemption). A cap offset of a loft
-//! whose walls the move does not carry onto themselves — a twisted one
-//! — re-derives that rim as the moved cap's section of its wall and
-//! drops the record.
+//! rung, and a loft's rim arrives as the line it was swept from: the
+//! plane × spline-wall certificate takes that line as its carrier, and
+//! a straight rim on a bilinear saddle wall has a straight chart image,
+//! so the rung certifies it. A cap offset of a loft whose walls the
+//! move does not carry onto themselves — a twisted one — re-derives
+//! each rim as the moved cap's section of its wall. (A rim the
+//! `Intersection` rung refuses, a curved one whose degree-1 image the
+//! hull refuses, still adopts as a declared image in the cap's chart;
+//! `sweep`'s `offset_restates_a_neighbour_chart_rim` moves those.)
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -69,7 +69,7 @@ fn rims(body: &topo::Body<f64>, face: topo::FaceKey) -> Vec<geom_brep::EdgeCurve
 }
 
 #[test]
-fn an_imported_lofts_declared_cap_rims_are_derived_when_the_cap_moves() {
+fn an_imported_lofts_cap_rims_are_derived_when_the_cap_moves() {
     let text = step_export::step_string(
         &twisted_loft(),
         &step_export::StepOptions::default(),
@@ -86,22 +86,45 @@ fn an_imported_lofts_declared_cap_rims_are_derived_when_the_cap_moves() {
     assert_eq!(before.len(), 4, "the cap has four rims");
     for rim in &before {
         assert!(
-            matches!(rim.description(), geom_brep::EdgeDescription::Chart(c) if c.surface == cap_surface)
-                && rim.authority().is_declared(),
-            "an imported rim adopts as a declared image in the cap's chart: {:?}",
+            matches!(
+                rim.description(),
+                geom_brep::EdgeDescription::Intersection { pair, .. } if pair.keys().contains(&cap_surface)
+            ) && !rim.authority().is_declared(),
+            "an imported rim adopts as the cap's Intersection with its wall: {:?}",
             rim.description()
         );
     }
+    // Each rim's height at its parameter midpoint: the cap's `z = 1`
+    // before the move, the moved cap's `z = 0.95` after it.
+    let mid_z = |rim: &geom_brep::EdgeCurve<f64>| {
+        let (t0, t1) = rim.params();
+        rim.carrier().eval(0.5 * (t0 + t1)).z
+    };
+    let on = |z: f64, want: f64| (z - want).abs() <= Tol::witness().get().eps;
+    assert!(
+        before.iter().all(|r| on(mid_z(r), 1.0)),
+        "the imported rims lie on the z = 1 cap: {:?}",
+        before.iter().map(mid_z).collect::<Vec<_>>()
+    );
     topo::replace_face_offset(&mut body, cap, -0.05, Tol::witness())
         .expect("the imported loft's cap moves inward");
-    for rim in rims(&body, cap) {
+    let moved = body.get_face(cap).unwrap().surface;
+    assert_ne!(
+        moved, cap_surface,
+        "the moved cap is a new surface, not the imported one"
+    );
+    let after = rims(&body, cap);
+    assert_eq!(after.len(), 4, "the moved cap keeps its four rims");
+    for rim in &after {
         assert!(
             matches!(
                 rim.description(),
-                geom_brep::EdgeDescription::Intersection { .. }
-            ) && !rim.authority().is_declared(),
-            "the moved rim is the cap's section of its wall, its record dropped: {:?}",
-            rim.description()
+                geom_brep::EdgeDescription::Intersection { pair, .. } if pair.keys().contains(&moved)
+            ) && !rim.authority().is_declared()
+                && on(mid_z(rim), 0.95),
+            "the moved rim is the moved cap's section of its wall, at z = 0.95: {:?} at z = {}",
+            rim.description(),
+            mid_z(rim)
         );
     }
 }

@@ -198,7 +198,7 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use carrier_pair::{
     PairFace, PairUnread, carrier_pair_decided, carrier_pair_relation, carrier_pair_verdict,
-    face_carrier, flush_pair_relation,
+    face_carrier, flush_pair_relation, rest_locus,
 };
 pub(crate) use contact_verify::rest_pair_reading;
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
@@ -253,7 +253,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
-        "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
+        "carrier_cyl_axis_parallel" => refusal_routes::CYLINDER_AXES_PARALLEL,
         crate::query::DATUM_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
         | boxes::BOX_CYLINDER_AXIS
@@ -291,7 +291,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_carrier_cross_plane_offset"
         | "bool_carrier_cross_concentric"
         | "bool_carrier_cross_line_meets_ellipse"
-        | "bool_carrier_cross_ellipses_one_curve" => CrossingDecision::OnEdge.subject(),
+        | "bool_carrier_cross_one_curve" => CrossingDecision::OnEdge.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"
@@ -1854,6 +1854,29 @@ pub struct HalfGerm<T: Real> {
     /// from the site toward the polygon edge's other end) — the datum
     /// the joining's mutual-facing test decides on (`bool_join_facing`).
     pub dir: geom_core::Vec3<T>,
+    /// The loop of its face pair's section the germ rides, decided once
+    /// where the germ is minted ([`Branch`]).
+    pub branch: Branch,
+}
+
+/// **Which loop of its face pair's section a germ rides.** A section of
+/// two loops — a plane cutting a torus in two circles or two ovals, two
+/// equal cylinders with intersecting axes in two bisector-plane
+/// ellipses — tells its loops apart by a margin at a point of the
+/// section (`ring_path::LoopSplit`). The margin is decided once, at the
+/// germ's site where the germ is minted, and every reader of the germ
+/// takes its loop from here: the join's matching and frames, and each
+/// side's chord. Both operands' germs of one slot carry the same
+/// branch, read at the A site.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Branch {
+    /// The section is one loop, loops sharing one frame, or straight;
+    /// or the germ runs along an edge, whose own curve it rides.
+    Only,
+    /// The loop on the split's positive side.
+    Positive,
+    /// The loop on its negative side.
+    Negative,
 }
 
 /// One minted boolean null edge with its F9 side attribute (below ≙ IN
@@ -3115,46 +3138,36 @@ pub enum BooleanError {
         /// The section table's refusal.
         section: geom_brep::SectionError,
     },
-    /// **A germ pair of two cylinder walls whose axes definitely
-    /// INTERSECT** — the frame dispatch's named sub-case of "no
-    /// frame", and the door the intersecting equal-radius family
+    /// **A germ pair of two equal cylinder walls whose axes definitely
+    /// INTERSECT**: the door the intersecting equal-radius family
     /// (Steinmetz and every re-posed copy of it) stops at.
     ///
-    /// Two shapes live behind these axes, and the dispatch is allowed
-    /// to name neither:
+    /// The section is the two bisector-plane ellipses, and they are not
+    /// two disjoint loci: the bisector planes' common line runs through
+    /// the axes' meeting point `p` along `â₁ × â₂`, is perpendicular to
+    /// both axes, and therefore meets BOTH walls at `p ± r·n̂`, where
+    /// `n̂ = unit(â₁ × â₂)`. The UNIT is load-bearing off 90°:
+    /// `‖â₁ × â₂‖ = sin θ`, so the raw cross product understates the
+    /// offset by that factor and only coincides with the nodes on the
+    /// perpendicular pose. So the two ellipses CROSS at those two
+    /// points (the nodes), for every member of the family and at every
+    /// pose — four arcs meeting at two valence-4 vertices — and the
+    /// Boolean does not yet build a node. Where neither node lies in both
+    /// faces of a germ's face pair, the pair's section is disjoint arcs
+    /// of the two ellipses, and the join's bisector lane builds it; this
+    /// refusal is raised where a node is not definitely outside one of
+    /// the faces (`join::place_nodes`), or a germ lies on a node.
     ///
-    /// - **Equal radii.** The section is the two bisector-plane
-    ///   ellipses. They are not two disjoint loci: the bisector
-    ///   planes' common line runs through the axes' meeting point `p`
-    ///   along `â₁ × â₂`, is perpendicular to both axes, and therefore
-    ///   meets BOTH walls at `p ± r·n̂`, where `n̂ = unit(â₁ × â₂)`.
-    ///   The UNIT is load-bearing off 90°: `‖â₁ × â₂‖ = sin θ`, so the
-    ///   raw cross product understates the offset by that factor and
-    ///   only coincides with the pinch points on the perpendicular
-    ///   pose. So the two ellipses
-    ///   CROSS at those two points, for every member of the family and
-    ///   at every pose — four arcs meeting at two valence-4 PINCH
-    ///   vertices. A pinch is not a conic frame, and a frame dispatch
-    ///   keyed on surface kinds alone has no point with which to
-    ///   select which branch a germ rides.
-    /// - **Unequal radii.** The locus is a space quartic — canal
-    ///   territory, the general rung — and has no conic frame at all.
-    ///
-    /// Which of the two holds is a RADIUS-equality question, decided by
-    /// its margin (`geom_brep::cylinder_cylinder_section`), and this
-    /// refusal carries the answer as `equal_radii`: equal names the
-    /// equal-radius pinch as a PROVEN configuration — the closed form
-    /// was constructed on the way — while unequal names the quartic.
-    /// Recourse: a chord lane that can walk a self-intersecting section,
-    /// or geometry whose germ pairs are wired.
+    /// Radius equality and coplanar axes are decided by their margins
+    /// (`geom_brep::cylinder_cylinder_section`); at definitely unequal
+    /// radii the locus is a space quartic, the skew pair's unbuilt
+    /// class ([`Self::GermFrameUnsupported`]); a margin in band
+    /// escalates rather than claim either class.
     GermFrameCylinderPinch {
         /// The A-side germ face.
         a_face: FaceKey,
         /// The B-side germ face.
         b_face: FaceKey,
-        /// Whether the two radii decided equal — which of the two shapes
-        /// named in the message the locus actually has.
-        equal_radii: bool,
     },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
@@ -3262,6 +3275,20 @@ pub enum BooleanError {
         /// Whether that description was offered on a fitted (spline)
         /// carrier.
         fitted: bool,
+    },
+    /// A seam of the result read smooth at its witness reads its two
+    /// faces meeting at a corner at one station and smoothly at its
+    /// neighbour: the dihedral passes through the ambiguous band between
+    /// them, at a point no station read, so the seam is certifiable as
+    /// neither a corner nor a smooth join (D2's mixed edge). Or it reads
+    /// a corner at every station, refuting the smooth reading at its
+    /// witness.
+    MixedSeam {
+        /// The seam, diagnostic only: the result is never returned.
+        edge: EdgeKey,
+        /// The two stations that disagree; `None` where every station
+        /// reads a corner.
+        stations: Option<geom_brep::MixedStations>,
     },
     /// One distributed component carries section faces of both sides
     /// (kernel bug, loudly).
@@ -3436,17 +3463,18 @@ pub enum BooleanError {
 ///
 /// One variant per [`BooleanError`] arm, and [`BooleanError::kind`]
 /// matches exhaustively — an arm added to the error reds `kind` itself,
-/// here in this crate. It reds nothing downstream, because no consumer
-/// maps this enum yet: today it appears only as a field type on
-/// `editor_core::CheckEvidence` and in this module's tests.
+/// here in this crate. Its consumer is pncad-py's `boolean_error_tag`,
+/// which maps every variant to an FFI word and reads the class through
+/// [`BooleanError::kind`], off the evaluation ladder's error and off the
+/// `Refusal` an advisory check's separation finding shares whole.
 ///
 /// A variant HERE with no arm behind it is a phantom: nothing
-/// constructs it, so no test can reach it. Since there is no
-/// downstream map to red, this module's tests carry the visit that
-/// does — an exhaustive match over this enum, which names the phantom
-/// at compile time. The fix at that red is to delete the phantom,
-/// never to give it a tag: a tag minted for a phantom publishes a name
-/// no refusal can ever carry.
+/// constructs it, so no test can reach it, and a downstream map gives
+/// it a word as readily as any other, so the red is this module's
+/// tests': an exhaustive match over this enum names the phantom at
+/// compile time. The fix at that red is to delete the phantom, never
+/// to give it a tag: a tag minted for a phantom publishes a name no
+/// refusal can ever carry.
 ///
 /// Deliberately NOT `Ord`. The declaration order mirrors
 /// [`BooleanError`]'s for reading, and nothing depends on it.
@@ -3569,6 +3597,8 @@ pub enum BooleanErrorKind {
     SplitLineage,
     /// [`BooleanError::EdgeUndescribed`].
     EdgeUndescribed,
+    /// [`BooleanError::MixedSeam`].
+    MixedSeam,
     /// [`BooleanError::TornComponent`].
     TornComponent,
     /// [`BooleanError::ShellWitnessExhausted`].
@@ -3793,6 +3823,7 @@ impl BooleanError {
             Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
             Self::SplitLineage(_) => BooleanErrorKind::SplitLineage,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
+            Self::MixedSeam { .. } => BooleanErrorKind::MixedSeam,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
             Self::CoincidentShell { .. } => BooleanErrorKind::CoincidentShell,
@@ -4144,15 +4175,12 @@ impl core::fmt::Display for BooleanError {
                 },
                 meeting_recourse(kind_word(geom::SurfaceKind::Torus)),
             ),
-            // One sentence for BOTH radius cases: the walls may have
-            // equal radii (the section crosses itself) or not (a space
-            // quartic), and `equal_radii` carries which.
             Self::GermFrameCylinderPinch { .. } => write!(
                 f,
-                "two cylinder walls whose axes cross meet here, and the Boolean cannot \
-                 yet trace where they meet, whether their radii are equal (the curve \
-                 crosses itself) or not (a curve it has no form for). Recourse: \
-                 reshape the parts so these two walls do not meet each other",
+                "two cylinder walls of equal radius whose axes cross meet here, along \
+                 two ellipses that cross each other, and the Boolean cannot yet build \
+                 the points where they cross. Recourse: reshape the parts so these two \
+                 walls do not meet each other",
             ),
             Self::Pcurves { source } => write!(
                 f,
@@ -4462,6 +4490,22 @@ impl core::fmt::Display for BooleanError {
                     crate::merge_faces::undescribed_ending(cause.as_deref(), *fitted)
                 )
             }
+            Self::MixedSeam {
+                stations: Some(stations),
+                ..
+            } => {
+                write!(
+                    f,
+                    "along a seam of the result, {stations}. Recourse: {}",
+                    refusal_routes::SEAM_WEDGE.lever
+                )
+            }
+            Self::MixedSeam { stations: None, .. } => write!(
+                f,
+                "a seam of the result reads smooth at its witness but a corner at every \
+                 station along it. Recourse: {}",
+                refusal_routes::SEAM_WEDGE.lever
+            ),
             Self::TornComponent { operand, shell } => write!(
                 f,
                 "component {shell:?} of the {} operand carries section faces \
@@ -4990,7 +5034,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     };
     verified
         .coincidences
-        .extend(glue::coaxial_rows(a_operand, b_operand, decls, band)?);
+        .extend(glue::frame_rows(a_operand, b_operand, decls, band)?);
     let declared = GluedPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(
         a_operand,
@@ -5071,13 +5115,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         (Operand::B, &contacts.b_on_a),
     ] {
         let mut minted = Vec::with_capacity(pierced.len());
-        for c in pierced.iter().map(|c| c.record) {
+        for (k, c) in pierced.iter().map(|c| c.record).enumerate() {
             let reread = rereads.get(&(operand, c.vertex)).copied();
             let (piercing_body, pierced_body) = match operand {
                 Operand::A => (&mut a, &mut b),
                 Operand::B => (&mut b, &mut a),
             };
-            let out = vtxfac::classify_vertex_on_face(
+            let out = match vtxfac::classify_vertex_on_face(
                 piercing_body,
                 pierced_body,
                 operand,
@@ -5087,7 +5131,50 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &contacts,
                 reread,
                 band,
-            )?;
+            ) {
+                Ok(out) => out,
+                // **A definite refusal outranks an escalation in this
+                // pass**: a pierce read in band refuses only once every
+                // later pierce of both operands is read, and one of them
+                // refusing definitely is the pass's answer. So which
+                // operand's vertices are read first does not choose
+                // between the two.
+                Err(escalated @ BooleanError::Escalated { .. }) => {
+                    let later = pierced[k + 1..]
+                        .iter()
+                        .map(|c| (operand, c.record))
+                        .chain(
+                            (operand == Operand::A)
+                                .then_some(&contacts.b_on_a)
+                                .into_iter()
+                                .flatten()
+                                .map(|c| (Operand::B, c.record)),
+                        )
+                        .collect::<Vec<_>>();
+                    for (operand, c) in later {
+                        let (piercing_body, pierced_body) = match operand {
+                            Operand::A => (&mut a, &mut b),
+                            Operand::B => (&mut b, &mut a),
+                        };
+                        match vtxfac::classify_vertex_on_face(
+                            piercing_body,
+                            pierced_body,
+                            operand,
+                            c,
+                            op,
+                            &declared,
+                            &contacts,
+                            rereads.get(&(operand, c.vertex)).copied(),
+                            band,
+                        ) {
+                            Ok(_) | Err(BooleanError::Escalated { .. }) => {}
+                            Err(definite) => return Err(definite),
+                        }
+                    }
+                    return Err(escalated);
+                }
+                Err(e) => return Err(e),
+            };
             // `classify_vertex_on_face` refuses a re-read vertex that
             // would write, so a re-read one touched: its orbit, and the
             // pierced face, are as the operands gave them.
@@ -7824,7 +7911,6 @@ mod tests {
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
-                equal_radii: false,
             },
             BooleanError::Pcurves {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
@@ -7843,6 +7929,17 @@ mod tests {
                 failure: crate::merge_faces::EdgeDescribeFailure::NotWalkable,
                 cause: None,
                 fitted: false,
+            },
+            BooleanError::MixedSeam {
+                edge: EdgeKey::default(),
+                stations: Some(geom_brep::MixedStations {
+                    transverse: 3,
+                    smooth: 4,
+                }),
+            },
+            BooleanError::MixedSeam {
+                edge: EdgeKey::default(),
+                stations: None,
             },
             BooleanError::TornComponent {
                 operand: Operand::A,
@@ -7980,6 +8077,7 @@ mod tests {
                 BooleanErrorKind::LineageRow => "LineageRow",
                 BooleanErrorKind::SplitLineage => "SplitLineage",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",
+                BooleanErrorKind::MixedSeam => "MixedSeam",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
                 BooleanErrorKind::CoincidentShell => "CoincidentShell",

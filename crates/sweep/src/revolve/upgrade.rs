@@ -158,11 +158,9 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     witness: data.witness,
                 },
                 band,
-                || s1,
                 &sliver,
                 &sliver,
-                || RevolveError::SmoothJoinRefuted { edge },
-                |chart| unreachable!("{chart:?} is `s1`, one of the join's pair"),
+                |mixed| RevolveError::SmoothJoinRefuted { edge, mixed },
             )? {
                 MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {
@@ -173,18 +171,16 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     };
                     body.set_edge_curve(edge, spec, tol)?;
                 }
-                MustCarryDescription::Conventional(chart) => {
+                MustCarryDescription::Conventional => {
                     // No intrinsic tangency is demanded (a zero-side
                     // station, or an all-positive pair outside the
                     // certificate's lane), so the description stays
-                    // CONVENTIONAL — but the edge is
-                    // at rest between two faces now, so it says where
-                    // it rests: an image in `s1`'s chart (D3's
-                    // transience fence). The pushforward it was
-                    // scaffolded from stays beside it as the authority
-                    // record, which is what keeps tier 3's
-                    // prefer-intrinsic reading unchanged.
-                    body.describe_at_rest(edge, chart, tol)?;
+                    // CONVENTIONAL — but the edge is at rest between
+                    // two faces now, so it says where it rests: the
+                    // pair it lies on (D3's transience fence). The
+                    // pushforward it was scaffolded from stays beside
+                    // it as the authority record.
+                    body.describe_at_rest(edge, tol)?;
                 }
             }
             Ok(())
@@ -198,12 +194,13 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
 
 /// Re-describes a full-revolve meridian as its wall's wrap edge (D1)
 /// when both its halves bound one face on a periodic wall surface — a
-/// lamina wall, closed on itself across it. Otherwise it is an image at
-/// rest in that wall's chart: a plane wall's meridian (module docs — a
-/// plane's chart closes in no direction, and one surface on both sides
-/// determines no locus, so D2's conventional split applies), and a wire
-/// wall's angle-0 meridian, which parts its two π-bands rather than
-/// closing either. Carrier and interval kept verbatim either way.
+/// lamina wall, closed on itself across it. Otherwise it rests where
+/// [`topo::Body::describe_at_rest`] reads it resting (`topo::rest_locus`):
+/// a plane wall's meridian (module docs — a plane's chart closes in no
+/// direction, and one surface on both sides determines no locus, so D2's
+/// conventional split applies), and a wire wall's angle-0 meridian,
+/// which parts its two π-bands rather than closing either. Carrier and
+/// interval kept verbatim either way.
 pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -222,12 +219,11 @@ pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
         })
         .faces();
     if is_plane || f_plus != f_minus {
-        // The meridian is at rest in that wall's chart, and the
-        // scaffolding door it was minted through is for edges whose
-        // surfaces do not exist yet (D3's transience fence). So it is
-        // described where it rests, as an ordinary chart image owing
-        // the one meter.
-        body.describe_at_rest(edge, wall, tol)?;
+        // The meridian is at rest, and the scaffolding door it was
+        // minted through is for edges whose surfaces do not exist yet
+        // (D3's transience fence). So it is described where it rests
+        // (`Body::describe_at_rest`, which asks the rule over a pair).
+        body.describe_at_rest(edge, tol)?;
         return Ok(());
     }
     crate::swept::describe_wrap_edge(body, edge, wall, tol)?;

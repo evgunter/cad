@@ -2,12 +2,12 @@
 id: the-period-jump-has-no-ruling
 kind: issue
 title: what a periodic reduction or a strict branch owes at its jump has no ruling
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: M
-design: true
 refs: [periodic-branch-floor-remains-at-the-raw-picks, periodic-branch-floor-remains-at-three-sites]
+closed: 2026-10-14
 ---
 
 
@@ -153,3 +153,31 @@ jump 0 times in 52k calls.
    fits exactly.
 
 No ratified text changes; the pole meter follows D4 ¶1 as written.
+
+## Closed
+
+Groups 1 and 2 by `pcert/period-jump-pole-branch`. Group 3 is PATHS'
+row, `an-arc-side-sweeping-half-a-turn-or-more-to-its-corner-is-refused-as-behind`.
+
+- **Group 1.** `topo::chord_join::pole_branch`: the same edge in and
+  out is the previous branch `± 1`; distinct edges take
+  `whole_period_count` of `gap ± τ/2`, metered at `pole_lever` (the
+  shorter reach of the two edges from the axis, capped at each curved
+  edge's `1/κ_g`). A Zero mark refuses `SplitJoinError::PoleEdgesCoincide`,
+  and a mark in band escalates (`split_sphere_pole_branch`).
+  `pole_slit_window`'s interval walk now answers on every slit, each
+  window end a point-width enclosure of the `f64` one.
+- **Group 2.** Doc sentences on `Real::reduce_periodic`,
+  `rim_wedge::locus_param` and `emit_topo`'s `Track::offset`.
+- **Census before the change** (ci profile, default ε, topo, sweep,
+  step-import, mesh, editor-core and geom-brep, about 39.6k pole calls).
+  Every distinct-edge call kept its k: no mark, nothing in band. The
+  four same-edge calls were all in `pole_slit_window`. At `f64` their k
+  was unchanged, and at `Interval` the `[−1, 0]` and `[0, 1]` straddles
+  became the `f64` literals.
+
+Filed from the review of PR 5080:
+- `the-pole-lever-overstates-a-lens-about-four-times` (PCERT, design);
+- `inline-tau-reductions-do-not-enclose-tau-at-interval` (PCERT, with the
+  territory noted);
+- `mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers` (TESS).

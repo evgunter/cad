@@ -153,9 +153,10 @@ is `Line | Circle | Ellipse | Nurbs`.
 
 **Held, sharper: the pinch family needs no carrier.** Its section is
 two exact `Ellipse`s (`intersect.rs:EqualCylinderSection::TwoEllipses`);
-the refusal is a frame/topology statement,
+the refusal is a topology statement,
 `BooleanError::GermFrameCylinderPinch` (`topo/src/boolean/mod.rs`,
-raised in `boolean/join.rs` from `FrameError::IntersectingCylinderAxes`).
+raised in `boolean/join.rs` where a node lies in both faces,
+`place_nodes`).
 
 **Refuted: RIMCAP's "same family as #1377".** §6, by §3.4's algebra.
 
@@ -407,17 +408,16 @@ factory, chord pairing at a branch point, loop walking through it,
 tier-3 valence, the second-order sector verdict at the tangency.
 Interim state: `GermFrameCylinderPinch`.
 
-**What SEAT's channel gives it**: recognition only.
-`cylinder_cylinder_section` takes `RadiusEvidence::{Declared, None}`
-and never reads radii; SEAT-6 (`work/seat/SEAT-6.md`, PR #1593)
-mints the per-field `ParamSource` so a production caller can say
-`Declared`. Named, the family still refuses at the pinch.
+**What SEAT's channel gives it**: nothing.
+`cylinder_cylinder_section` decides the radii equal by their margin
+(`cc_radius_equality`, D10) and reads no declaration, so the family
+is recognised whether or not its radius was declared once.
 
 **Why the spiric carrier neither resolves nor shares it**:
 
 1. The pinch curves are exact conics the kernel already carries; no
-   carrier is missing. The gap is the vertex/loop vocabulary, which
-   a `Curve3` variant cannot touch.
+   carrier is missing. The gap is the Boolean minting the node, a
+   topology step a `Curve3` variant cannot touch.
 2. The rim spiric never has a node: §3.4, `t < R − (r − t)` for every
    legal `t`. Two smooth disjoint ovals, one of them the rim, both
    `Intersection`-transverse everywhere. No valence-4 vertex is

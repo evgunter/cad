@@ -330,7 +330,8 @@ fn the_fixture_is_pcurve_complete_and_the_pcurve_pass_accepts_it() {
 /// whose normal is set by hand without regard to its loop's traversal,
 /// so the structural battery refuses the body — every finding is about
 /// that planar face's geometry, and none of them is about a pcurve
-/// row. `LoopRoleInverted` is the hand-set normal: the rim arcs' axis
+/// row. `MixedDihedral` is a rim arc the off-plane back meets at a
+/// corner along part of it and smoothly along the rest. `LoopRoleInverted` is the hand-set normal: the rim arcs' axis
 /// lies IN the plane, so the loop's winding about the normal is its
 /// chord hexagon's, and that winds clockwise. The pcurve pass and the structural battery ask different
 /// questions of the same body and this suite asks only the first.
@@ -355,6 +356,7 @@ fn the_fixture_is_not_a_structurally_valid_body() {
         kinds,
         vec![
             "LoopRoleInverted".to_string(),
+            "MixedDihedral".to_string(),
             "PlanarBoundaryResidual".to_string(),
             "ScaffoldAtRest".to_string(),
             "TransverseNotIntrinsic".to_string(),

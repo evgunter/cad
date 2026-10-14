@@ -752,12 +752,18 @@ fn raw_spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
     .unwrap()
 }
 
-/// Whether a cyl×cyl pinch refusal decided its radii equal, or a loud
-/// failure.
-fn pinch_equal_radii(err: &BooleanError) -> bool {
+/// Whether an intersecting-axes cyl×cyl refusal decided its radii
+/// equal (the node door) or unequal (the general rung's
+/// `GermFrameUnsupported` on two cylinder faces), or a loud failure.
+fn decided_equal_radii(err: &BooleanError) -> bool {
     match err {
-        BooleanError::GermFrameCylinderPinch { equal_radii, .. } => *equal_radii,
-        other => panic!("the equal-radius pair refused with {other:?}, not the pinch"),
+        BooleanError::GermFrameCylinderPinch { .. } => true,
+        BooleanError::GermFrameUnsupported {
+            a_kind: geom::SurfaceKind::Cylinder,
+            b_kind: geom::SurfaceKind::Cylinder,
+            ..
+        } => false,
+        other => panic!("the cylinder pair refused with {other:?}, not by its radii"),
     }
 }
 
@@ -773,9 +779,9 @@ fn pinch_equal_radii(err: &BooleanError) -> bool {
 /// the charts and not the surfaces.
 ///
 /// What the union RETURNS is a refusal: the equal-radius
-/// intersecting-axes locus is two ellipses crossing at two valence-4
-/// pinch vertices, which is not one conic and therefore has no frame
-/// to hand over. The refusal names which locus it is.
+/// intersecting-axes locus is two ellipses crossing at two nodes, each
+/// in a face of both walls here, and the Boolean does not yet build a
+/// node. The refusal names which locus it is.
 #[test]
 fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
     let doc = doc_with_r("seat7-germ");
@@ -795,7 +801,7 @@ fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
     let ev = eval::<f64>(&doc);
     let from_document = match ev.nodes.get(&union) {
         Some(editor_core::NodeResult::Failed(e)) => match &e.kind {
-            editor_core::NodeErrorKind::Boolean(err) => pinch_equal_radii(err),
+            editor_core::NodeErrorKind::Boolean(err) => decided_equal_radii(err),
             other => panic!("the union refused with {other:?}, not a boolean refusal"),
         },
         other => panic!("the union did not refuse: {other:?}"),
@@ -815,7 +821,7 @@ fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
     let raw_b = topo::test_support::finished("the raw spun cylinder B", raw_b, tol());
     let raw = topo::union(&raw_a, &raw_b, tol()).expect_err("this family has no join arm");
     assert!(
-        pinch_equal_radii(&raw),
+        decided_equal_radii(&raw),
         "the kernel-built twin at bit-identical radii pinches as equal radii too"
     );
 }

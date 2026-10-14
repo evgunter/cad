@@ -494,6 +494,25 @@ pub trait Real:
     /// is a design conversation, not a bugfix.
     fn powi(self, n: i32) -> Self;
 
+    /// **`self · k` for `k` an exact power of two** — the scale a
+    /// subdivision's `2⁻ʳ` applies to a sum it formed unscaled. The
+    /// value is the product's, `self * Self::from_f64(k)`, and that is
+    /// the default: exact at `f64` wherever the result is normal, and
+    /// the same expression at the symbolic and dual scalars.
+    ///
+    /// What the method is FOR is the interval scalar, where a general
+    /// product against a point folds corners and certifies each one
+    /// through a 2Prod witness. A power of two only moves an exponent,
+    /// so [`crate::Interval`] overrides it with `[lo·k, hi·k]`, unpadded
+    /// wherever both results are strictly above the smallest normal
+    /// (a product just under it rounds up onto it), and the general product
+    /// everywhere else — a result in the subnormal range, an overflow,
+    /// a poisoned operand, or a `k` that is not a positive normal power
+    /// of two. A `k` that is not one is never wrong, only not faster.
+    fn scale_pow2(self, k: f64) -> Self {
+        self * Self::from_f64(k)
+    }
+
     /// The sine and cosine together (argument in radians) — **the
     /// primitive**.
     ///
@@ -718,6 +737,14 @@ pub trait Real:
     /// clamping is applied (that would be a comparison). Consumers that
     /// need a topology-grade statement about the seam go through the
     /// predicate layer, like every other decision.
+    ///
+    /// **What a reader owes at the jump: nothing.** An exact multiple of
+    /// `period` reduces to `0`, and an input a hair below one to a hair
+    /// under `period` (above), so which end of the jump a coincidence
+    /// lands on is rounding, not information. A caller reads the result
+    /// only where its answer is invariant under that branch, and a whole
+    /// turn comes from structure it holds (a closed carrier, a self-loop,
+    /// a decided full span), never from this value.
     ///
     /// **What is promised across periods**: nothing bitwise. `2π` is not
     /// representable, so `θ + k·fl(τ)` is a *different real parameter*
