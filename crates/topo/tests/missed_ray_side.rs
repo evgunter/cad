@@ -102,11 +102,12 @@ fn a_thin_slab_reads_out_far_away_and_its_complement_in() {
 /// containment fallback sides each shell by a witness of it read
 /// against the other operand, and every witness of the brick lies far
 /// from the slab. `slab ∩ brick` is empty in both orders, and
-/// `brick ∖ slab` is the brick. `slab ∪ brick` passes containment and
-/// is refused by the finished-body gate, which reads a solid's only
-/// shell certified in band as the in-band shell it is (D10).
+/// `brick ∖ slab` is the brick. `slab ∪ brick` passes containment, but
+/// the pieces sort reads no role off the slab's in-band `V/A`, so the
+/// slab stays in the brick's solid, where check 10 refuses it
+/// (`work/flush/check-10-reads-a-cavitys-role-from-its-volume-sign.md`).
 #[test]
-fn a_thin_slab_is_a_legal_operand_against_a_brick_far_away() {
+fn a_thin_slab_is_a_legal_operand_against_a_brick_far_away_and_its_union_with_it_refuses() {
     let tol = Tol::witness();
     let far = far_brick(tol);
     for m in WINDOW {

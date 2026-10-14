@@ -167,7 +167,7 @@ fn two_instances(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
 fn the_instantiate_log_is_schedule_independent() {
     let (doc, ids, seq_opts) = two_instances("kstats-sched");
     let seq = logs(&run(&doc, &seq_opts), &ids);
-    assert_eq!(seq, [466, 466]);
+    assert_eq!(seq, [463, 463]);
     let par_opts = EvalOptions {
         parallel: true,
         ..seq_opts.clone()
@@ -195,7 +195,7 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let opts = with_resolver(store);
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
-    assert_eq!(seq[0], 922, "the outer op's own log over a two-solid part");
+    assert_eq!(seq[0], 919, "the outer op's own log over a two-solid part");
     let par = logs(
         &run(
             &top,
@@ -225,7 +225,7 @@ fn a_node_memo_hit_carries_the_priors_log() {
     );
     assert_eq!(again.recomputed, 0, "every node was a memo hit");
     assert_eq!(logs(&again, &ids), logs(&first, &ids));
-    assert_eq!(logs(&again, &ids), [466, 466]);
+    assert_eq!(logs(&again, &ids), [463, 463]);
 }
 
 /// **A cancelled prefix leaves no frame behind**: the run after a
@@ -327,7 +327,7 @@ fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     let outer = Bracket::open();
     let ev = run(&doc, &opts);
     let outside = outer.finish();
-    assert_eq!(logs(&ev, &ids), [466, 466]);
+    assert_eq!(logs(&ev, &ids), [463, 463]);
     assert!(
         outside.verdicts.is_empty() && outside.escalations.is_empty(),
         "{outside:?}"

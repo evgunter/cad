@@ -42,7 +42,8 @@ fn cube_on_corner(cx: f64, cy: f64, top: f64) -> AtRestBody<f64> {
         Vec3::new(1.0, -1.0, 0.0),
         (1.0_f64 / 3.0_f64.sqrt()).acos(),
     );
-    let turned = topo::transform_rigid(&cube, &turn, tol()).expect("a rigid turn");
+    let turned = topo::transform_rigid(&cube, &geom_core::test_support::rigid(&turn, tol()), tol())
+        .expect("a rigid turn");
     let low = turned
         .vertex_points()
         .map(|(_, p)| p)
@@ -51,7 +52,12 @@ fn cube_on_corner(cx: f64, cy: f64, top: f64) -> AtRestBody<f64> {
     let lift = Affine3::translation(Vec3::new(cx - low.x, cy - low.y, top - low.z));
     finished(
         "the cube on its corner",
-        topo::transform_rigid(&turned, &lift, tol()).expect("a rigid lift"),
+        topo::transform_rigid(
+            &turned,
+            &geom_core::test_support::rigid(&lift, tol()),
+            tol(),
+        )
+        .expect("a rigid lift"),
         tol(),
     )
 }

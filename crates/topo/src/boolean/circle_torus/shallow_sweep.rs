@@ -13,6 +13,9 @@
 test_utils::gated_to![
     "crates/topo/src/boolean/circle_torus.rs",
     "crates/topo/src/boolean/circle_roots.rs",
+    "crates/geom-brep/src/half_angle.rs",
+    "crates/geom-brep/src/quartic.rs",
+    "crates/geom-core/src/bisect.rs",
     "crates/topo/src/boolean/conic_oracle.rs",
     "crates/topo/src/boolean/conic_oracle/",
     "crates/topo/src/boolean/solid_contain.rs",
@@ -266,7 +269,7 @@ fn no_certified_root_of_a_shallow_crossing_is_placed_past_the_band() {
         let truth = exact::truth(&pose.carrier(), &pose.torus());
         for eps in [1e-6, 1e-9, 1e-12] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
-            if truth.depth < 10.0 * eps {
+            if truth.residual_depth < 10.0 * eps {
                 continue;
             }
             for (lane, got) in [

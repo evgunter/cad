@@ -89,3 +89,16 @@ between them is not a partner choice. This is the same class as the
 scale-dependent door above, reached at a fixed scale: any two parallel
 features a few bands apart carry sections whose chords differ by a
 small fraction of their separation.
+
+## 2026-10-12: an order among mutual straight pairs no longer refuses (FLUSH, PR 4769)
+
+`join::find_match`'s second stage is now `first_pair`. Where every
+germ's nearest partner is mutual, every germ is straight and the band
+has `K > 2`, the order between pairs cannot change the matching (the
+argument is `first_pair`'s doc comment). There an in-band
+`bool_join_nearest` reading keeps scan order instead of escalating.
+This row's own poses are curved. The steep-ellipse `k = 10` pose (the
+2026-10-09 note above) has conic germs and still escalates; FLUSH
+carries it as `work/flush/conic-germs-pair-order-is-unargued.md`.
+Everywhere else the order is still read in absolute metres, so this
+row's scale question stands.

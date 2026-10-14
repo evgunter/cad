@@ -14,7 +14,7 @@
 //! ([`geom_brep::ConicTorusHarmonics`]). No half-angle ladder runs: its
 //! octic has no certified solver, and the quartic ladder's only part in
 //! the degree-2 doors is its escalations. The shared certified
-//! subdivision answers alone ([`super::circle_roots::certified_subdivision`],
+//! subdivision answers alone ([`geom_brep::half_angle::certified_subdivision`],
 //! at degree four), under the `bool_ellipse_torus_sub_*` rows, with the
 //! circle × torus door's metering: `F`'s rounding charged against its
 //! term bound, read in residual metres through the floor
@@ -28,7 +28,7 @@
 //! the residual's least slope near the root — `F`'s least slope over the
 //! smaller of the carrier's and the surface's ceilings on `|F|` per
 //! metre of residual — at the carrier's top speed, must be definitely
-//! inside the band ([`super::circle_roots::RootSlack`]). A shallow
+//! inside the band ([`geom_brep::half_angle::RootSlack`]). A shallow
 //! crossing whose root the representation cannot place refuses as
 //! `Uncertain` there.
 //!
@@ -40,9 +40,9 @@
 use geom_core::{Band, Decide};
 
 use super::BooleanError;
-use super::circle_roots::{
-    CircleRoots, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
-    rounding_charge,
+use super::circle_roots::{CircleRoots, rounding_charge};
+use geom_brep::half_angle::{
+    RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
 };
 /// The torus arm's subdivision rows (module docs).
 const TORUS_ROWS: SubdivisionRows = SubdivisionRows {
@@ -122,7 +122,7 @@ fn torus_walk<T: Decide>(
         residual: &placed,
         f_per_metre_hi: h.f_per_metre_hi.min(h.f_per_metre_surface),
     });
-    certified_subdivision(
+    Ok(certified_subdivision(
         &TrigPoly {
             cos: h.cos,
             sin: h.sin,
@@ -142,6 +142,7 @@ fn torus_walk<T: Decide>(
         meter.as_ref(),
         band,
     )
+    .into())
 }
 
 #[cfg(test)]
@@ -400,8 +401,8 @@ mod torus_rows {
         let e = geom::Curve3::Ellipse {
             center,
             axis: n,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref: (u - n * u.dot(n)).normalize(),
         };
         let theta = rng.range(0.0, TAU);
@@ -457,7 +458,8 @@ mod torus_rows {
     /// - every certified root lies on the torus (its true distance inside
     ///   the zero band) and, as arc length, within the zero band of a true
     ///   crossing;
-    /// - a `Miss` has no true crossing and comes no nearer than the band.
+    /// - a `Miss` has no true crossing and comes no nearer than `Kε` in
+    ///   the residual the band classifies.
     ///
     /// The counts per answer are printed. The 40-digit check of the same
     /// families is [`dump_for_the_mpmath_oracle`]; the slack meter's
@@ -503,9 +505,9 @@ mod torus_rows {
                         CircleRoots::Miss => {
                             misses += 1;
                             assert!(
-                                truth.roots.is_empty() && truth.depth > eps,
+                                truth.roots.is_empty() && truth.residual_depth >= 10.0 * eps,
                                 "{label}: a Miss {} from the torus, crossings {:?}",
-                                truth.depth,
+                                truth.residual_depth,
                                 truth.roots
                             );
                         }
@@ -538,8 +540,8 @@ mod torus_rows {
             let e = geom::Curve3::Ellipse {
                 center: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::from_array(self.n),
-                major: self.semi[0],
-                minor: self.semi[1],
+                semi_u: self.semi[0],
+                semi_v: self.semi[1],
                 u_ref: Vec3::from_array(self.u),
             };
             let s = crate::boolean::conic_oracle::torus(
@@ -1007,8 +1009,8 @@ mod torus_rows {
                         geom::Curve3::Ellipse {
                             center,
                             axis,
-                            major,
-                            minor,
+                            semi_u,
+                            semi_v,
                             u_ref,
                         },
                         geom::Surface::Torus {
@@ -1050,7 +1052,7 @@ mod torus_rows {
                     writeln!(
                         out,
                         "ETDUMP {{\"family\": \"{name}\", \"eps\": {eps:?}, \"center\": {}, \"axis\": {}, \
-                         \"u_ref\": {}, \"major\": {major:?}, \"minor\": {minor:?}, \"hub\": {}, \
+                         \"u_ref\": {}, \"major\": {semi_u:?}, \"minor\": {semi_v:?}, \"hub\": {}, \
                          \"t_axis\": {}, \"R\": {major_radius:?}, \"r\": {minor_radius:?}, \
                          \"t0\": {t0:?}, \"t1\": {t1:?}, \"answer\": \"{answer}\", \"roots\": {roots:?}, \
                          \"residuals\": {bounds:?}}}",

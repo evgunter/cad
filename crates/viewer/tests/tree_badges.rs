@@ -928,7 +928,7 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
 const BAND_PROBE: &str = "TREE_BADGES_BAND_PROBE";
 
 /// An ε large enough that K·ε overflows at the default K, and still
-/// finite and strictly positive — so `Tolerance::validate` admits it
+/// finite and above `EPS_MIN` — so `Tolerance::validate` admits it
 /// and `Band::linear` refuses it.
 ///
 /// The same value as `wire_band_cause.rs`'s `OVERFLOW_EPS`, which it

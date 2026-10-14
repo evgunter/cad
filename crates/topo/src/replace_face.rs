@@ -1206,14 +1206,14 @@ pub(crate) fn translate_curve<T: Real>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => Curve3::Ellipse {
             center: *center + delta,
             axis: *axis,
-            major: *major,
-            minor: *minor,
+            semi_u: *semi_u,
+            semi_v: *semi_v,
             u_ref: *u_ref,
         },
         Curve3::Spiric {
@@ -1622,21 +1622,28 @@ pub struct OffsetOutcome {
 
 impl OffsetOutcome {
     /// `records`, the moved body's before the door, carried onto
-    /// `result`, the body after it: the door keeps every key and kills
-    /// only what its joins name, so each cell is itself or the edge a
-    /// join made of it ([`crate::ContactRecords::carried_through`]).
+    /// `result`, the body after it, through [`Self::lineage`]
+    /// ([`crate::ContactRecords::carried_through`], at `band` through `region`).
     ///
     /// # Errors
     ///
     /// As [`crate::ContactRecords::carried_through`].
-    pub fn carry_contacts<T: Real>(
+    pub fn carry_contacts<T: Decide>(
         &self,
         records: &crate::boolean::ContactRecords,
         result: &Body<T>,
+        band: Band,
+        region: Option<crate::RegionLane<T>>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
-        records.carried_through(0, result, |c| {
-            Some(crate::boolean::joined_cell(&self.joins, c))
-        })
+        records.carried_through(0, &self.lineage(), result, band, region)
+    }
+
+    /// **What the door made of each cell** (D1): it keeps every key and
+    /// kills only what its joins name, so each cell is itself or the
+    /// edge a join made of it.
+    #[must_use]
+    pub fn lineage(&self) -> crate::Lineage {
+        crate::Lineage::new().through_joins(&self.joins)
     }
 }
 
@@ -2207,12 +2214,12 @@ fn cone_v_range<T: Decide>(
         Curve3::Ellipse {
             center,
             axis: ca,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let v_ref = ca.cross(*u_ref);
-            let amp = ((u_ref.dot(axis) * *major).powi(2) + (v_ref.dot(axis) * *minor).powi(2))
+            let amp = ((u_ref.dot(axis) * *semi_u).powi(2) + (v_ref.dot(axis) * *semi_v).powi(2))
                 .sqrt()
                 / cos_a;
             let c = v_of(*center);
@@ -3099,10 +3106,16 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
                     pm,
                     pa,
                 },
-                geom_brep::SpiricImage::Wall { u0, v0, sense } => geom_brep::SpiricImage::Wall {
+                geom_brep::SpiricImage::Wall {
+                    u0,
+                    v0,
+                    sense,
+                    torus,
+                } => geom_brep::SpiricImage::Wall {
                     u0,
                     v0: v0 + shift,
                     sense,
+                    torus,
                 },
             },
         },
@@ -3205,8 +3218,13 @@ pub(crate) fn move_points_then_rechart<T: Decide + crate::props::AtRestPolicy>(
 
 /// `vertices` grouped by the point each sits on, groups in order of
 /// first appearance and each group in `vertices`' order (D9): the
-/// copies of one vertex that an op moves together. Each vertex is one
-/// this call resolved or read out of a record.
+/// copies of one vertex that an op moves together. A group may span
+/// several solids: a split's halves keep one point at a tip, and a
+/// boolean puts two solids' corners it decided one point on one key
+/// (`boolean::ops::record_classes`). Each caller solves such a group as
+/// one corner where it can, and parts it per solid where it cannot
+/// ([`split_by_solid`]). Each vertex is one this call resolved or read
+/// out of a record.
 #[track_caller]
 pub(crate) fn group_by_point<T: Real>(
     body: &Body<T>,
@@ -3221,6 +3239,28 @@ pub(crate) fn group_by_point<T: Real>(
         }
     }
     groups.into_iter().map(|(_, group)| group).collect()
+}
+
+/// `group`, parted by the solid each vertex lies in, in `group`'s order:
+/// one part where the group is one solid's. A corner is one solid's
+/// problem (`offset_together`'s scope), so a group on a key two solids
+/// share whose joint solve refuses (two cubes kissing at a corner,
+/// whose six planes do not concur after the offset) is solved per
+/// solid, and its corners part.
+pub(crate) fn split_by_solid<T: Real>(body: &Body<T>, group: &[VertexKey]) -> Vec<Vec<VertexKey>> {
+    let solid = |vertex: VertexKey| {
+        let he = proven(&body.vertices, vertex, EntityId::Vertex).emanating?;
+        body.solid_of_face(body.face_of_half_edge(he)?)
+    };
+    let mut parts: Vec<(Option<crate::SolidKey>, Vec<VertexKey>)> = Vec::new();
+    for &vertex in group {
+        let s = solid(vertex);
+        match parts.iter_mut().find(|(k, _)| *k == s) {
+            Some((_, part)) => part.push(vertex),
+            None => parts.push((s, vec![vertex])),
+        }
+    }
+    parts.into_iter().map(|(_, part)| part).collect()
 }
 
 /// `description` with every occurrence of `old` re-pointed at `new` —
@@ -3777,7 +3817,11 @@ fn solve_corners<T: Decide>(
             }
         }
     }
-    for group in group_by_point(body, keys) {
+    // One corner's solve, its rows pushed to `corners` only once it holds.
+    let solve = |group: Vec<VertexKey>,
+                 corners: &mut Corners<T>,
+                 holds: &mut Vec<(SurfaceKey, SurfaceKey, bool)>|
+     -> Result<(), ReplaceFaceError<T>> {
         let vertex = group[0];
         let old_point = *body
             .get_point(proven(&body.vertices, vertex, EntityId::Vertex).point)
@@ -4009,6 +4053,29 @@ fn solve_corners<T: Decide>(
         }
         corners.groups.push((group, points[0]));
         corners.offsets.push(d);
+        Ok(())
+    };
+    // A key two solids share is one point now; it stays one where its
+    // corners solve as one, and parts per solid where they do not
+    // (`split_by_solid`).
+    let mut work = group_by_point(body, keys);
+    work.reverse();
+    while let Some(group) = work.pop() {
+        let mark = (corners.rooted.len(), corners.solved.len());
+        // Only copies that definitely land apart part; an escalated
+        // joint solve is undecided, not refused, and propagates.
+        if let Err(refused) = solve(group.clone(), &mut corners, &mut holds) {
+            if !matches!(refused, ReplaceFaceError::VertexDisagreement { .. }) {
+                return Err(refused);
+            }
+            let parts = split_by_solid(body, &group);
+            if parts.len() < 2 {
+                return Err(refused);
+            }
+            corners.rooted.truncate(mark.0);
+            corners.solved.truncate(mark.1);
+            work.extend(parts.into_iter().rev());
+        }
     }
     Ok(corners)
 }
@@ -4408,8 +4475,8 @@ mod pose_reach_rows {
             let e = Curve3::Ellipse {
                 center: Point3::new(0.1, 0.2, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref: Vec3::new(u, 0.0, 0.0),
             };
             let reach = Reach::Span {

@@ -209,8 +209,18 @@ fn judge(
                 bad.push(format!("tier3 {e:?}"));
             }
             let mut miss = 0;
+            let mut unread = 0;
             for &(p, a, b) in pts {
                 let got = topo::point_in_solid(&bb.body, p, band(), tol());
+                if matches!(
+                    got,
+                    Err(topo::PointInSolidError::Escalated { .. }
+                        | topo::PointInSolidError::RayExhausted
+                        | topo::PointInSolidError::Loop(topo::PointInLoopError::Escalated { .. }))
+                ) {
+                    unread += 1;
+                    continue;
+                }
                 let ok = matches!(
                     (&got, want_in(a, b)),
                     (Ok(SolidContainment::In), true) | (Ok(SolidContainment::Out), false)
@@ -226,7 +236,14 @@ fn judge(
                 bad.push(format!("{miss} of {} samples disagree", pts.len()));
             }
             let ee = bb.contacts.edge_edge().count();
-            if bad.is_empty() {
+            if bad.is_empty() && unread > 0 {
+                format!(
+                    "UNPROBED body solids={solids} kind={:?} ee={ee}: the membership \
+                     oracle escalates on {unread} of {} samples",
+                    bb.kind,
+                    pts.len()
+                )
+            } else if bad.is_empty() {
                 format!("OK body solids={solids} kind={:?} ee={ee}", bb.kind)
             } else {
                 format!(
@@ -247,7 +264,9 @@ fn pose(a: Shape, b: Shape, meet: f64, union_solids: Option<usize>) -> Vec<Strin
     let (va, vb) = (vol(&ba), vol(&bb));
     let scale = va.max(vb);
     let (lo, hi) = a.bbox();
-    let h = 1e-4 * (hi[0] - lo[0]);
+    // Steady past the band's escalation width: a sample nearer a face
+    // than that honestly reads on the boundary.
+    let h = (1e-4 * (hi[0] - lo[0])).max(band().escalate());
     let pts = samples(a, b, h);
     let solo = if union_solids == Some(2) {
         Some(1)
@@ -354,38 +373,71 @@ fn touch_pairs() -> Vec<(&'static str, Shape, Shape)> {
 }
 
 /// **Every touch-only pair answers every op right, both orders, three
-/// scales.** Prints each line. Red on any non-OK where the two edges on
-/// the line coincide end to end; where they are staggered, red on
-/// anything but `CurvedBooleanUnsupported`.
+/// scales**, edges of unequal extent along the line included, read
+/// against the running ε through [`coarse_at`] and
+/// [`past_f64_headroom`]. Prints each line; red on any other outcome.
 #[test]
 fn review_4781_touch_pairs_every_op() {
+    let eps = tol().get().eps;
     let mut bad = Vec::new();
     for (name, a, b) in touch_pairs() {
         for s in [1e-3, 1.0, 1e3] {
             for (order, x, y) in [("ab", a, b), ("ba", b, a)] {
                 let (x, y) = (x.scaled(s), y.scaled(s));
+                let (coarse, past_headroom) = (coarse_at(x, y, eps), past_f64_headroom(x, y, eps));
                 for line in pose(x, y, 0.0, Some(2)) {
                     println!("{name} s={s:e} {order} | {line}");
-                    // Edges of unequal extent along the line (a vertex of
-                    // one in the other's edge interior) refuse at every
-                    // op: the frontier of
-                    // `work/contacthold/a-same-side-slab-past-the-round-stops-at-curved-boolean-unsupported.md`.
-                    let staggered = name.contains("short")
-                        || name.contains("tall")
-                        || name.contains("staggered");
-                    let ok = if staggered {
-                        line.contains(": REFUSED CurvedBooleanUnsupported ")
-                    } else {
-                        line.contains(": OK ")
-                    };
+                    let op = line.split(':').next().unwrap_or_default();
+                    let ok = line.contains(": OK ")
+                        || (coarse && line.contains(": UNPROBED "))
+                        || (past_headroom
+                            && name.starts_with("cyl ")
+                            && ["Escalated", "CurvedPierceUnsupported"]
+                                .iter()
+                                .any(|k| line.starts_with(&format!("{op}: REFUSED {k} "))));
                     if !ok {
-                        bad.push(format!("{name} s={s:e} {order} | {line}"));
+                        bad.push(format!(
+                            "eps {eps:e} {name} s={s:e} {order} coarse={coarse} \
+                             past_headroom={past_headroom} | {line}"
+                        ));
                     }
                 }
             }
         }
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// Whether the pose's smallest feature (a radius, a box half-extent)
+/// spans under 1e4 ε. Rays of the membership oracle then graze a face
+/// inside the band often enough that some samples escalate; the body
+/// is still judged whole, and every sample that reads must agree.
+fn coarse_at(a: Shape, b: Shape, eps: f64) -> bool {
+    let feature = [a, b]
+        .iter()
+        .map(|&sh| {
+            let (lo, hi) = sh.bbox();
+            (0..3)
+                .map(|i| 0.5 * (hi[i] - lo[i]))
+                .fold(f64::MAX, f64::min)
+        })
+        .fold(f64::MAX, f64::min);
+    feature < 1e4 * eps
+}
+
+/// Whether ε sits within two orders of the pose's own resolution floor,
+/// its reach times 2⁻⁵² (`geom_core::EPS_MIN` is the same product at
+/// the session box's edge). A cylinder kiss's clearance there reads
+/// tens of ulps of rounding, which spans the band, so the kiss may
+/// refuse with either half of its two-tolerance pair — `Escalated` in
+/// band, `CurvedPierceUnsupported` past it, which half depending on
+/// where ε falls against the rounding — and never answers wrong.
+fn past_f64_headroom(a: Shape, b: Shape, eps: f64) -> bool {
+    let reach = [a.bbox(), b.bbox()]
+        .iter()
+        .flat_map(|(lo, hi)| lo.iter().chain(hi))
+        .fold(0.0_f64, |m, c| m.max(c.abs()));
+    100.0 * reach * f64::EPSILON > eps
 }
 
 /// Area of the half circular segment of depth `h` of a radius-`r`
@@ -396,11 +448,44 @@ fn half_segment(r: f64, h: f64) -> f64 {
     0.5 * (r * r * (d / r).acos() - d * (2.0 * r * h - h * h).sqrt())
 }
 
+/// The slides a near-tangent row runs, as multiples of the band's
+/// zero: inside it, between it and the escalation width, and past both.
+fn near_slides() -> Vec<f64> {
+    let zero = band().zero();
+    [1e-2, 3.0, 1e2, 1e4]
+        .iter()
+        .flat_map(|k| [k * zero, -k * zero])
+        .collect()
+}
+
+/// One near-tangent pose slid by `d`, both orders, against the true
+/// shared volume `meet`. Short of the escalation width the touch
+/// reading (no shared volume) is right too; past it only the truth is.
+/// Red lines go to `bad`: `WRONG` or `ClassificationInvariant`.
+fn near_pose(a: Shape, b: Shape, d: f64, meet: f64, bad: &mut Vec<String>) {
+    let in_band = d.abs() < band().escalate();
+    let red = |l: &str| l.contains("WRONG") || l.contains("ClassificationInvariant");
+    for (order, x, y) in [("ab", a, b), ("ba", b, a)] {
+        let touch = if in_band && meet > 0.0 {
+            pose(x, y, 0.0, None)
+        } else {
+            Vec::new()
+        };
+        for (i, line) in pose(x, y, meet, None).into_iter().enumerate() {
+            println!("d={d:e} {order} | {line}");
+            if red(&line) && touch.get(i).is_none_or(|t| red(t)) {
+                bad.push(format!("d={d:e} in_band={in_band} {order} | {line}"));
+            }
+        }
+    }
+}
+
 /// **Near-tangent poses**: the box slid by `d` along x (positive apart,
-/// negative into the wall). Inside the band it must read as the touch;
-/// outside, as disjoint or a typed refusal or a correct crossing
-/// answer — never an untyped invariant or a wrong body. Prints each
-/// outcome; red on `WRONG` or `ClassificationInvariant`.
+/// negative into the wall), `d` read against the running band. Short of
+/// the escalation width it may read as the touch; past it, as disjoint
+/// or a typed refusal or a correct crossing answer — never an untyped
+/// invariant or a wrong body. Prints each outcome; red on `WRONG` or
+/// `ClassificationInvariant`.
 #[test]
 fn review_4781_near_tangent_box_on_seam() {
     let unit = Shape::Cyl {
@@ -414,28 +499,19 @@ fn review_4781_near_tangent_box_on_seam() {
         z: (0.0, 2.0),
     };
     let mut bad = Vec::new();
-    for d in [
-        1e-14, -1e-14, 1e-11, -1e-11, 1e-8, -1e-8, 1e-5, -1e-5, 1e-3, -1e-3,
-    ] {
-        let b = bx.shifted_x(d);
+    for d in near_slides().into_iter().chain([1e-3, -1e-3]) {
         let meet = if d < 0.0 {
             2.0 * half_segment(1.0, -d)
         } else {
             0.0
         };
-        for (order, x, y) in [("ab", unit, b), ("ba", b, unit)] {
-            for line in pose(x, y, meet, None) {
-                println!("d={d:e} {order} | {line}");
-                if line.contains("WRONG") || line.contains("ClassificationInvariant") {
-                    bad.push(format!("d={d:e} {order} | {line}"));
-                }
-            }
-        }
+        near_pose(unit, bx.shifted_x(d), d, meet, &mut bad);
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
-/// **Near-tangent cylinders**: r 1 at the origin and r 0.5 slid by `d`.
+/// **Near-tangent cylinders**: r 1 at the origin and r 0.5 slid by `d`,
+/// read as [`review_4781_near_tangent_box_on_seam`] reads the box.
 #[test]
 fn review_4781_near_tangent_cylinders() {
     let unit = Shape::Cyl {
@@ -449,8 +525,7 @@ fn review_4781_near_tangent_cylinders() {
         z: (0.5, 3.0),
     };
     let mut bad = Vec::new();
-    for d in [1e-14, -1e-14, 1e-11, -1e-11, 1e-8, -1e-8, 1e-5, -1e-5] {
-        let b = small.shifted_x(d);
+    for d in near_slides() {
         // The lens of two circles at centre distance 1.5 + d, over the
         // shared height 1.5.
         let meet = if d < 0.0 {
@@ -462,14 +537,7 @@ fn review_4781_near_tangent_cylinders() {
         } else {
             0.0
         };
-        for (order, x, y) in [("ab", unit, b), ("ba", b, unit)] {
-            for line in pose(x, y, meet, None) {
-                println!("d={d:e} {order} | {line}");
-                if line.contains("WRONG") || line.contains("ClassificationInvariant") {
-                    bad.push(format!("d={d:e} {order} | {line}"));
-                }
-            }
-        }
+        near_pose(unit, small.shifted_x(d), d, meet, &mut bad);
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
@@ -478,7 +546,7 @@ fn review_4781_near_tangent_cylinders() {
 /// materials on ONE side): box `x ∈ [-3, 1], y ∈ [0, 3]` whose face
 /// `x = 1` is tangent to the unit cylinder at the seam `(1, 0)`, box
 /// edge on the seam ruling, and the cylinder's `y ≥ 0` half inside the
-/// box. ∩ is the half cylinder.
+/// box. ∩ is the half cylinder. Every op answers, both orders.
 #[test]
 fn review_4781_kiss_with_overlap() {
     let unit = Shape::Cyl {
@@ -496,7 +564,7 @@ fn review_4781_kiss_with_overlap() {
     for (order, x, y) in [("ab", unit, bx), ("ba", bx, unit)] {
         for line in pose(x, y, meet, None) {
             println!("{order} | {line}");
-            if line.contains("WRONG") || line.contains("ClassificationInvariant") {
+            if !line.contains(": OK ") {
                 bad.push(format!("{order} | {line}"));
             }
         }

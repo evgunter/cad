@@ -249,11 +249,21 @@ fn diagonal_cube(s: f64, c: [f64; 3]) -> AtRestBody<f64> {
         Vec3::new(-1.0, 0.0, 1.0) / 2f64.sqrt(),
         d.y.acos(),
     );
-    let b = topo::transform_rigid(&b, &turn, Tol::witness()).unwrap();
+    let b = topo::transform_rigid(
+        &b,
+        &geom_core::test_support::rigid(&turn, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     let to = Affine3::translation(Vec3::new(c[0], c[1], c[2]));
     finished(
         "the cube",
-        topo::transform_rigid(&b, &to, Tol::witness()).unwrap(),
+        topo::transform_rigid(
+            &b,
+            &geom_core::test_support::rigid(&to, Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap(),
         Tol::witness(),
     )
 }
@@ -273,13 +283,28 @@ fn rod(r: f64, h: f64, tilt: f64, c: [f64; 3]) -> AtRestBody<f64> {
         Vec3::new(1.0, 0.0, 0.0),
         -core::f64::consts::FRAC_PI_2,
     );
-    let b = topo::transform_rigid(&b, &onto_y, Tol::witness()).unwrap();
+    let b = topo::transform_rigid(
+        &b,
+        &geom_core::test_support::rigid(&onto_y, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     let t = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), tilt);
-    let b = topo::transform_rigid(&b, &t, Tol::witness()).unwrap();
+    let b = topo::transform_rigid(
+        &b,
+        &geom_core::test_support::rigid(&t, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     let to = Affine3::translation(Vec3::new(c[0], c[1], c[2]));
     finished(
         "the rod",
-        topo::transform_rigid(&b, &to, Tol::witness()).unwrap(),
+        topo::transform_rigid(
+            &b,
+            &geom_core::test_support::rigid(&to, Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap(),
         Tol::witness(),
     )
 }
@@ -591,7 +616,12 @@ fn a_ring_on_a_cone_wall_whose_winding_sums_to_rounding_answers() {
     let to = Affine3::translation(c - Point3::origin());
     let cube = finished(
         "the cube",
-        topo::transform_rigid(&raw, &(to * turn), tol).unwrap(),
+        topo::transform_rigid(
+            &raw,
+            &geom_core::test_support::rigid(&(to * turn), tol),
+            tol,
+        )
+        .unwrap(),
         tol,
     );
     let f = SEED_15;

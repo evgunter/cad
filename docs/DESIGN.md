@@ -265,19 +265,24 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
    A doubled cusp (two material wedges on one tangent line) is the
-   coincident-distinct-edges class, each edge classifying separately.
-   Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
-   sector classification) refuse typed at the consumer.
+   coincident-distinct-edges class, each edge classifying separately;
+   where no edge lies on the line, the two wedges are a touch between
+   faces, recorded like any touch, and no op cuts edges to make a
+   junction of it. Consumers with no wedge-0/2π answer (fillet, offset,
+   mesh sizing, sector classification), and none for a body's
+   curve-touch records, refuse typed at the consumer.
    Also at tier 3: **maximal edges** (a joinable vertex at rest is a
    construction that stopped half-way, `JoinableVertexAtRest`; a
    vertex whose regularity reading lands in the sliver band, so that
    whether it is joinable is undecided, refuses too, with the
    tighten-the-tolerance recourse: a size the run's ε cannot tell from
    a pole or apex), **prefer-intrinsic enforcement** (D2) and the
-   **positive-volume orientation invariant** (exact-B-rep signed volume
-   definitely-negative ⇒ invalid; margin V/A_total, a length; zero and
-   escalated exempt — an orientation probe, not a thinness gate, at
-   every door, so ε-tightening never flips valid→invalid). Laminae live here, not at
+   **orientation invariant** (a solid's faces leave infinity outside
+   it, read by the reader of a shell's role, D10's "Booleans": a ray
+   aimed at one of its faces, the certified signed volume only where no
+   face offers an aim; definitely inside-out ⇒ invalid, and a solid
+   whose side no reading decides refuses — an orientation probe, not a
+   thinness gate, at every door). Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
    two-hemisphere ball's incidence structure, so a zero-volume lamina
    is a geometric defect, not a topological one. Global
@@ -342,11 +347,18 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      either**: a census finding with no backing record is never
      silently blessed ((iii) below); a record with no geometric witness
      is stale and refuses typed. Structural sharing (same surface or
-     point key) needs no record: an op that cuts one vertex into copies hands each copy the
-     original's point, as it hands a cut face's fragments one surface.
+     point key) needs no record. Vertices an op knows or decides to be
+     one point share one point key, whether they stay in one solid or
+     lie in two: an op that cuts one vertex into copies hands each copy
+     the original's point, as it hands a cut face's fragments one
+     surface; vertices whose gap an op decided Zero share the key it
+     keeps, and the op records that decision (a `VertexFusion` row,
+     cited by the pair's vertex-vertex record) for the lint, not for
+     the census. A Zero-gap vertex pair on two point keys in a finished
+     body is its producer's defect.
    - A contact record is a pair of cells, one from each touching
      shell (or each side of a shell's pinch, whose two sides touch
-     within one shell), whose interiors meet, plus its backing: a
+     within one shell, recorded as between shells), whose interiors meet, plus its backing: a
      coincidence an op decided Zero, recorded (D10). The record is
      that pair and nothing else: an unordered pair of the body's own
      cells, in canonical order, in one list a citation addresses by
@@ -371,9 +383,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      face, a join's edge, a seam); divided, into its pieces and the
      cells the op minted between them, the division exhaustive or with
      its remainder removed; or removed. One carry, for the boolean and
-     every surgery verb alike, puts each pair drawn from a record's two
-     cells' images to the census's record confirm, and the record lands
-     on every pair whose interiors meet, each landing citing it. Two
+     every surgery verb alike, lands a record whose two cells the op kept
+     or substituted on their images by lineage, unread, their geometry
+     unchanged and the record read where it was minted; it puts each
+     pair drawn from a divided cell's images to the census's record
+     confirm, and the record lands on every such pair whose interiors
+     meet, each landing citing it. Two
      cells an op minted on a record's two cells and that meet at a point
      meet where the record puts them when one cut made both, as the
      split's one plane does, and the landing cites the record alone; an
@@ -431,11 +446,14 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   census participation, containment evidence — has exactly one home:
   `topo::insert_void`, the door the boolean owns, callable without the
   SSI pipeline for provably-no-crossing cases with caller-certified
-  containment. Three producers: boolean subtraction (its probe
+  containment. Four producers: boolean subtraction (its probe
   verdicts); `shell`'s sealed hollow (its offset margin, OFFSET-DESIGN
-  O4); and the full revolve of a holed profile, DEFINED as
+  O4); the full revolve of a holed profile, DEFINED as
   `revolve(outer) − revolve(hole-as-outer)` and executed through the
-  degenerate no-crossing arm (the profile's validated 2-D margins).
+  degenerate no-crossing arm (the profile's validated 2-D margins); and
+  a concave blend's fill sealing a blind hole's mouth, DEFINED by the
+  blend's Boolean semantics (`S ∪ F`) and executed by its surgery (the
+  mouth's cycle on the face the fill covers).
   Recipe-layer sugar may wrap any of these; the door stays the one
   birthplace. `UnsupportedToroid` is permanent: a D3 ring-torus
   boundary — spindle tori have no representation.
@@ -636,9 +654,11 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   Villarceau circle and a cone's tilted section mint their exact image
   (`Pcurve::FocalSection`), and a circle within the band of a cone or
   torus that is none of its circles refuses as a defect
-  (`CarrierGrazesChart`). C4's exemption, a face left uncached until
-  its class's route lands, covers the mirror-torus spiric and
-  no-fitted classes, on their PCERT row.
+  (`CarrierGrazesChart`); a spiric on its torus's mirror through the
+  cutting plane mints the wall image with its azimuth sign opposed
+  (`SpiricImage::Wall`, tagged `WallTorus::Mirror`). Every class an
+  analytic chart can hold has a route, so C4's exemption excuses no
+  class; a face is left uncached only at a scalar with no fitted door.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Projected` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
@@ -689,25 +709,40 @@ residual bound against the described locus (D4). The type is
 ```text
 EdgeDescription =
   | Intersection        { pair, witness }    -- transverse surface–surface
-                                             -- intersection: the connected
-                                             -- component of S₁∩S₂ selected by
-                                             -- the witness (also the marching seed);
+                                             -- intersection: the branch of
+                                             -- S₁∩S₂ through the witness, between
+                                             -- the edge's vertices (the witness is
+                                             -- also the marching seed);
                                              -- `pair` is the set {S₁, S₂}, unordered
   | TangentIntersection { pair, witness }    -- tangential contact locus; same
                                              -- shape, margin one order up
-  | Chart(ChartCurve)                        -- a curve the surface UNDER-determines:
+  | OnPair              { pair }             -- a curve two distinct surfaces
+                                             -- UNDER-determine: the carrier is the
+                                             -- defining data, lying on both
+                                             -- (smooth joins the must-carry rule
+                                             -- reads under-determined)
+  | Chart(ChartCurve)                        -- a curve ONE surface's chart defines:
                                              -- (surface, Pcurve) with a `wrap` flag
-                                             -- (iso-lines, seams, user splits)
+                                             -- (iso-lines, seams, same-surface splits)
   | Scaffold(MappedCurve)                    -- construction-time pushforward of a
                                              -- lower-dim entity; never at rest
 ```
 
 The intrinsic variants describe loci determined by their surfaces; the
-conventional form carries the defining data for loci the surfaces
-*under*-determine (parameterization seams — infinite-order contact, the
-seam's position pure convention; face splits at smooth profile joins,
-where at a G2 join even `TangentIntersection` fails its margin, and
-rightly; user splits). One (surface, `Pcurve`) form covers all of them
+conventional forms carry the defining data for loci the surfaces
+*under*-determine. A locus on two distinct surfaces that they do not
+select — a face split at a smooth profile join, where at a G2 join even
+`TangentIntersection` fails its margin, and rightly, or a tangent piece
+shorter than the second order resolves — is `OnPair { pair }`: the
+carrier is the defining data, its certificate is incidence on both
+surfaces, and no door chooses a chart, since a chart key there records
+nothing about the locus and each face's pcurve is its own derived
+cache. Whether the pair is smooth along it is not the certificate's
+claim; tier 3's must-carry predicate admits the arm exactly where it
+reads the join under-determined. A locus one chart defines
+(parameterization seams — infinite-order contact, the seam's position
+pure convention; iso-lines; splits whose two faces share one surface)
+is `Chart`: one (surface, `Pcurve`) form covers all of them
 (PCURVE-UNIFY-DESIGN); the exact classes stay as certification lanes,
 not variants. A `MappedCurve` survives as the `Scaffold` payload and as
 the `EdgeAuthority` record — one authoritative source, never two peer
@@ -728,7 +763,12 @@ for a fallback.
 *transversality*: normals of S₁, S₂ linearly independent along the
 locus, so the implicit function theorem makes S₁∩S₂ locally a
 1-manifold; the margin (angle between normals) governs the conditioning
-of every derived cache. `TangentIntersection`'s validity sits one
+of every derived cache. A branch may end at a *node*, a point where
+it crosses another branch of the same pair and the two surfaces are
+tangent (two equal cylinders with intersecting axes: their section is
+two ellipses crossing at p ± r·unit(â₁×â₂)); there the section is one
+connected set, so the witness selects the branch, and transversality
+holds on the open edge, which is where certification samples it. `TangentIntersection`'s validity sits one
 differential order up: surfaces coincident within ε and normal-parallel
 within the derived angular threshold ε·κ_rel (D4 ¶1: lever arm
 r = 1/κ_rel) *along* the locus, separating quadratically *transverse*
@@ -746,7 +786,11 @@ generalize the same way (three surfaces / endpoint of a locus, with a
 witness). A locus in the ambiguous band — a dihedral within a few
 derived angular thresholds of tangent, certifiable as neither — fails
 loudly at construction exactly as at import; a conventional description
-is not an escape hatch from ill-conditioned geometry.
+is not an escape hatch from ill-conditioned geometry. An edge whose
+stations read definitely transverse at some and definitely smooth at
+others is such a locus: the dihedral is continuous along it, so the two
+readings bracket an in-band point the schedule did not sample, and it
+refuses typed, naming the two stations.
 
 **Prefer-intrinsic rule, tier-3-enforced.** Wherever an intrinsic
 description is certifiable, it *is* the stored description — including
@@ -759,13 +803,12 @@ edge must carry `Intersection` (`TransverseNotIntrinsic` otherwise); a
 jet-determinate tangency must carry `TangentIntersection`
 (`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
 admits the class); a second-order-underdetermined join keeps its
-conventional form by the predicate itself. The check reads the edge's
-authority record, so a declared conventional description is exempt by
-its own declaration; escalated dihedrals, seam edges and
-NURBS/`Approx`-adjacent edges are exempt too, so ε-tightening can
-escalate but never flip a valid body to invalid. An unenforced
-preference drifts silently — exactly the failure shape this document
-exists to kill.
+conventional form by the predicate itself. The check refuses a declared
+conventional description on a definitely-transverse edge. Escalated
+dihedrals, seam edges and NURBS/`Approx`-adjacent edges are exempt, so
+ε-tightening can escalate but never flip a valid body to invalid. An
+unenforced preference drifts silently — exactly the failure shape this
+document exists to kill.
 
 **Witness contract.** "Selected by the witness point" is verifiable only
 if the witness is *pinned*: the stored witness IS the carrier's
@@ -799,6 +842,46 @@ site. The `Nurbs` variant is the universal fallback: any exotic surface
 is at minimum representable. Same design for curves (line / circle /
 ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
+
+**One reading per question.** Every decision the kernel takes about
+geometric carriers is a *reading*: of one carrier and a point (its
+residual, distance, foot and chart coordinates); of a carrier pair's
+*pose*, one classification per pair (apart, coincident ±, coaxial,
+parallel axes, point touch, line tangent, generic, in band), whose
+trileans are its parts and are decided once; or of a pair *outcome*
+(the section's carrier, C5; the section's components and their
+witnesses; two spans' meetings; a curve's crossings of a surface).
+**Total**: a reading is one exhaustive match over its kind or kind
+pair. An unlisted arm refuses typed, naming what it lacks; no arm
+answers a default value; one method is fixed per arm at write time, and
+a second method for the same question exists only as a test oracle. A
+stage may precede the method only if it is total in kind, decides the
+same question soundly at the same band, and cannot change the verdict
+by which stage decided (a box cull before exact roots); a method
+reached because another declined is a fallback, and is forbidden.
+**One**: each question has one reading, which every consumer reads,
+because two readings of one fact are two predicates that can decide it
+differently inside the band (D4). An outcome takes the pose reading's
+answer and decides no pose of its own. A consumer serving fewer pairs
+matches on the reading's answer and refuses the rest typed; it never
+matches on kinds to choose a method. Which pairs a reading serves is
+derived from the reading, never kept beside it: where a consumer asks
+at kind level before it holds the operands, the reading dispatches
+through its own kind-level description (kinds to arm, then the arm's
+method), so the description cannot disagree with what the reading
+does. A total evaluator's poison for a
+kind with no closed form is not a decision, and no reading reads it
+without first refusing on kind. Readings over bare carriers live in the
+lowest crate that can state them, `geom` for one carrier and a point
+and `geom-brep` for carrier pairs; readings over trimmed faces and
+solids live in `topo` and reach carrier facts only through those.
+Exempt: kind-agnostic methods (boxes, BVH, subdivision, clearance),
+identity of stored bits on which no topology decision depends, test
+oracles, and reading a record (a declaration, or an edge that already
+is the section). Import is not exempt: it reads the same readings with
+the file's own coincidence distance as the band. C5
+(`crates/geom-brep/README.md`) is this rule's instance for surface and
+curve pairs.
 
 ### D4 (agreed): Single strict global tolerance; operations fail loudly
 
@@ -948,10 +1031,16 @@ Five commitments:
    is for reporting only, never a value a decision reads.
    Geometry that can't meet ε almost always indicates a modeling
    mistake; surfacing it beats absorbing it.
+   A typed refusal is never read as a verdict: a consumer may only
+   take it down a path that decides the question itself.
 4. **Fixed internal units — meters and radians — with a documented
-   model size range**; geometry outside the range is rejected at
-   construction. User-facing units are typed newtypes at the API
-   boundary only (D6).
+   model size range**: the session box is 1 km, no coordinate larger
+   in magnitude; geometry outside the range is rejected at
+   construction. The box fixes the smallest admissible ε, ε_min =
+   1 km · 2⁻⁵² ≈ 2.2e-13 m, the length f64 resolves at the box's
+   edge: a run's ε below ε_min is refused, and no refusal offers to
+   tighten the tolerance below it. User-facing units are typed
+   newtypes at the API boundary only (D6).
 5. **Strictness is enforced at the boundary, not relaxed inside**: STEP
    import is an adoption stage (D7) that brings external geometry up to
    kernel invariants *before* it becomes a kernel body; entities that
@@ -1510,10 +1599,12 @@ otherwise it refuses. It glues what its verdicts decide Zero where an
 arm exists for the carrier pair (D1's frontier), keeping one fixed
 operand's description for a merged face, and refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
-whose one census number lies in band, and no in-band shell, a shell of
-a solid of several shells whose role is certified in band; a solid's
-only shell is its outer shell and poses no role question, and how thin
-a result is gets judged by its pairs alone. The door's
+whose one census number lies in band. A solid's only shell is its outer
+shell and poses no role question; a shell's role among several is read
+off a ray aimed from outside the shell at one of its faces, and off the
+certified sign of its volume only where none of its faces offers an
+aim. A ray's reading lies in band only where a pair does, so how thin a
+result is gets judged by its pairs alone. The door's
 finished-body gate decides this on the result alone and refuses it as
 the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
 the geometry), never silently; a definite finding there is a kernel
@@ -1569,11 +1660,11 @@ Each layer depends only on the layers below it.
 | Crate | Contents |
 |---|---|
 | `test-utils` | The shared test scaffolding several suites would otherwise each hand-roll: the fuzz/property harness (seed + effort dial), the `Display`-contract predicate, the anti-vacuity floor and its tightness companion, the shared Rust lexer, and the header-roster weld. A dev-dependency with ZERO dependencies — a leaf below every crate, which is what lets the excluded `interval-transcendentals` workspace depend on it too |
-| `geom-core` | The `Real` scalar trait (`f64`, `Interval`, `Dual<T>`, `Sym`), points/vectors/transforms (hand-rolled, fixed-dim), the predicate vocabulary (`Decide`, `Margin<T>`, `MarginDiag`), `Tolerance`, root finding, spline hulls |
+| `geom-core` | The `Real` scalar trait (`f64`, `Interval`, `Dual<T>`, `Sym`), points/vectors/transforms (hand-rolled, fixed-dim), the predicate vocabulary (`Decide`, `Margin<T>`, `MarginDiag`), `Tolerance`, root finding, the bisection walk the kernel's localizations share (`bisect`), spline hulls |
 | `interval-transcendentals` | The interval scalar's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
-| `geom` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection. Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
-| `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, certified mass properties, offset surfaces |
+| `geom` | Analytic + NURBS types, evaluators, closest-point and the other one-carrier readings (D3). Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
+| `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, the curve-pair meeting reader (one point-on-span reading, one total curve-kind-pair table) and the machinery under it (a carrier's rate bounds, `carrier_speed`; the half-angle ladder and its subdivision, `half_angle`; the depressed quartic's sign ladder, `quartic`), the carrier-pair pose and the curve×surface crossing (D3), certified mass properties, offset surfaces |
 | `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
 | `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/contact-record machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |

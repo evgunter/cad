@@ -482,8 +482,8 @@ fn the_ellipse_arm_recovers_the_eccentric_anomaly() {
     let ellipse = Curve3::Ellipse {
         center: Point3::new(0.5, -1.0, 2.0),
         axis: Vec3::unit_z(),
-        major: 2.0,
-        minor: 1.0,
+        semi_u: 2.0,
+        semi_v: 1.0,
         u_ref: Vec3::unit_x(),
     };
     for t in [0.7, -2.9, 3.1, 0.7 + TAU] {

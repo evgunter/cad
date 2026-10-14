@@ -107,7 +107,12 @@ fn turned(mut pose: Pose, axis: Vec3<f64>, angle: f64) -> Pose {
     let turn = |b: &AtRestBody<f64>| {
         finished(
             "the turned operand",
-            topo::transform_rigid(b, &m, Tol::witness()).unwrap(),
+            topo::transform_rigid(
+                b,
+                &geom_core::test_support::rigid(&m, Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap(),
             Tol::witness(),
         )
     };
@@ -335,7 +340,7 @@ fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
         a: rod(0.5, (0.0, 0.0), (-half - 1.0, half + 1.0)),
         b: finished(
             "the tipped rod",
-            topo::transform_rigid(&rod_b, &m, tol).unwrap(),
+            topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
             tol,
         ),
         va: PI * 0.25 * (2.0 * half + 2.0),
@@ -402,7 +407,7 @@ fn cut_and_tipped(
     );
     finished(
         "the tipped rod",
-        topo::transform_rigid(&cut.body, &m, tol).unwrap(),
+        topo::transform_rigid(&cut.body, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
         tol,
     )
 }
@@ -411,6 +416,14 @@ fn cut_and_tipped(
 /// stored.** Pose 0's rod cut from a long one, so its wall's origin is
 /// stored up to 1e5 m off its faces, and tipped a fifth of the zero band:
 /// every op builds SOUND at the closed-form volume, in both orders.
+///
+/// A pose runs only inside D4 ¶4's size range at the run's ε: the long
+/// rod reaches `|z| = far`, where f64 spaces coordinates
+/// `ulp(far) ≈ far·2⁻⁵²`, so a residual between two points evaluated
+/// there can read a whole ulp of rounding. Past `far ≈ 2⁵²·ε` no stored
+/// datum certifies within ε. At `far = 1e5` and ε = 1e-12,
+/// `carrier_matches_mapped_source` reads one ulp at `|z| ≈ 6.2e4` on the
+/// long rod's strut and escalates.
 #[test]
 fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     const R: f64 = 0.5;
@@ -419,6 +432,20 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     let (area, _) = lens((0.0, 0.0), R, c, r);
     let poses: Vec<Pose> = [2.0, 1000.0, 1.0e5]
         .into_iter()
+        .filter(|&far| {
+            let in_range = far * f64::EPSILON <= zero;
+            if !in_range {
+                test_utils::vacuity::stood_down(
+                    &format!("rod cut from ±{far} m"),
+                    &format!(
+                        "f64 spaces coordinates {:e} m apart at |z| = {far}, past the zero band \
+                         {zero:e}: no pose this far certifies at this ε",
+                        far * f64::EPSILON
+                    ),
+                );
+            }
+            in_range
+        })
         .map(|far| Pose {
             label: format!("rod cut from ±{far} m, tipped 0.2·zero"),
             a: rod(R, (0.0, 0.0), (-1.0, 1.0)),
@@ -428,6 +455,69 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
             shared: area * (span.1 - span.0),
         })
         .collect();
+    assert!(
+        !poses.is_empty(),
+        "every pose stood down at zero band {zero:e}"
+    );
     let bad = unsound(&poses);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// The unit rod about `(1, 1)` over `z ∈ [−0.5, 0.5]` tipped `theta`
+/// about `x` through its centre, against the unit rod about the origin
+/// over `z ∈ [−1, 1]`. Their walls cross along the rulings at `(1, 0)`
+/// and `(0, 1)`, which are a seam ruling of each rod
+/// ([`rod`]'s seams stand at `x ± r`): each germ runs along one
+/// solid's edge inside the other's wall face, so no germ's frame reads
+/// the axes, and the join reads them first.
+fn seams_on_the_walls(theta: f64) -> Pose {
+    let tol = Tol::witness();
+    let m =
+        Affine3::rotation_about_axis(Point3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), theta);
+    let b = rod(1.0, (1.0, 1.0), (-0.5, 0.5));
+    Pose {
+        label: format!("seams on the walls, tipped {theta:e}"),
+        a: rod(1.0, (0.0, 0.0), (-1.0, 1.0)),
+        b: finished(
+            "the tipped rod",
+            topo::transform_rigid(&b, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
+            tol,
+        ),
+        va: 2.0 * PI,
+        vb: PI,
+        shared: lens((0.0, 0.0), 1.0, (1.0, 1.0), 1.0).0,
+    }
+}
+
+/// **The join reads the axes of a pair no frame read, at the frame's
+/// lever.** [`seams_on_the_walls`] upright builds SOUND in every op and
+/// order. Tipped `1.5·zero / 3.2`, the tip reads about `1.7·zero` over
+/// the walls' span (about 3.7, the diameter of their faces' vertices),
+/// in the band, and every op escalates the walls' coincidence on
+/// `cc_axes_parallel`; at the radius it would read `0.47·zero`,
+/// parallel, and take the rulings arm with the axes apart.
+#[test]
+fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
+    let tol = Tol::witness();
+    let zero = geom_core::Band::linear(tol).unwrap().zero();
+    let bad = unsound(&[seams_on_the_walls(0.0)]);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    let tipped = seams_on_the_walls(1.5 * zero / 3.2);
+    for (op, r, _) in tipped.runs() {
+        assert!(
+            matches!(
+                &r,
+                Err(BooleanError::Escalated {
+                    decision: topo::BooleanDecision::Coincidence(
+                        topo::Coincide::Section,
+                        topo::DeclarationRead::Moot
+                    ),
+                    diag,
+                }) if diag.predicate == Some("cc_axes_parallel")
+            ),
+            "{} | {op}: {:?}",
+            tipped.label,
+            r.map(|_| "a body")
+        );
+    }
 }

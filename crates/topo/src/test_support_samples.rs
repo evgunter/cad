@@ -557,6 +557,9 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             operand: geom::SurfaceKind::Cone,
             why: geom_brep::SectorChannel::Lever.describe(),
         },
+        A::NoTubeEnclosure {
+            operand: geom::SurfaceKind::Torus,
+        },
         A::TubeStraddles {
             verdict: Refused::Zero(Classified {
                 margin: MarginDiag::value(0.0),
@@ -579,11 +582,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Torus,
         },
-        PcurveCertifyError::UnsupportedCarrier {
-            chart: geom::SurfaceKind::Torus,
-            carrier: geom::CurveKind::Nurbs,
-            class: geom_brep::UncoveredClass::NoFittedClass,
-        },
         PcurveCertifyError::CarrierGrazesChart {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
@@ -599,7 +597,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             why: "a fitted-grade image at the closed-form door",
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
-        PcurveCertifyError::FittedMateMissing,
         PcurveCertifyError::SectorRefused {
             piece: 0,
             channel: geom_brep::SectorChannel::Azimuth,
@@ -611,15 +608,22 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             source: geom_core::spline::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
         },
         PcurveCertifyError::FittedCertificate {
-            limb: Some(geom_brep::SsiLimb::Tube),
-            what: "the uniqueness tube straddles a second branch",
-            magnitude: Some(FittedMagnitude::CertifiedClearance {
-                certified_clearance: MarginDiag::value(1e-7),
-                boxes: 12,
+            limb: Some(geom_brep::SsiLimb::OnLocus),
+            what: "a foot point of the chart-image schedule would not converge",
+            magnitude: Some(FittedMagnitude::LastFootDistance {
+                t: 0.5,
+                last_distance: 1e-7,
             }),
         },
+        PcurveCertifyError::FittedLimb {
+            limb: geom_brep::SsiLimb::HullSup,
+            margin: MarginDiag::value(1e-7),
+        },
         PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
-        PcurveCertifyError::FittedEscalated { cause: diag() },
+        PcurveCertifyError::FittedEscalated {
+            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
+            cause: diag(),
+        },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
         PcurveCertifyError::PlaceholderChart,
@@ -701,7 +705,8 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::SenseContradicted,
         PropsError::SenseInverted,
         PropsError::RingWoundWithFace,
-        PropsError::ChartPeriodJump,
+        PropsError::ChartLoopOpen,
+        PropsError::LoopsWindChart,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",

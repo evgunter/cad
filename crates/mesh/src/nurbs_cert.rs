@@ -19,9 +19,9 @@
 //! for edge carriers, lifted to the surface. Componentwise hulls give
 //! `sup‖S_uu‖ ≤ √(Σ_c sup²)` = [`NurbsFaceBound::muu`], and likewise
 //! `muv`, `mvv`. Rounding: interval (ring) arithmetic end to end —
-//! including the rational arm's knot refinement, which is performed on
-//! certification enclosures of the described net rather than in `f64` — with a
-//! final `next_up` on the square root.
+//! including the rational arm's pieces, which are cut from
+//! certification enclosures of the described net rather than in `f64` —
+//! with a final `next_up` on the square root.
 //!
 //! # The per-triangle certificate
 //!
@@ -54,56 +54,20 @@
 //!
 //! # The rational arm (M8-5)
 //!
-//! A RATIONAL face is `S = A/w` with `A = ΣΣ Nᵢ Nⱼ wᵢⱼ Pᵢⱼ` and
-//! `w = ΣΣ Nᵢ Nⱼ wᵢⱼ` — both POLYNOMIAL tensor-product B-splines, so
-//! every ingredient below is the same control-hull convexity fact as
-//! the integral arm, taken on the homogeneous nets. The quotient rule
-//! (exactly `NurbsSurface::ders_in_span`'s corrections) gives, for any
-//! constant `c` (write `Ã = A − c·w`, so `S − c = Ã/w` and the
-//! derivatives of `S` are unchanged):
-//!
-//! ```text
-//! S_u  = (Ã_u  − (S − c)·w_u) / w                        (v symmetric)
-//! S_uu = (Ã_uu − 2·S_u·w_u − (S − c)·w_uu) / w           (v symmetric)
-//! S_uv = (Ã_uv − S_u·w_v − S_v·w_u − (S − c)·w_uv) / w
-//! ```
-//!
-//! Taking sups componentwise over one knot-span cell:
-//!
-//! - `sup|Ã_kl|` — hull of the recentred homogeneous derivative
-//!   coefficients active on the cell
-//!   ([`geom_core::spline::SplineCoeffs::derivative_coeffs`]
-//!   iterated, exactly as the integral arm; recentring commutes with
-//!   knot differencing, `d(A − c·w) = dA − c·dw`);
-//! - `sup|S^c − c^c| ≤ max_active |P^c − c^c|` — the rational value
-//!   hull: strictly positive weights make the rational basis a
-//!   nonnegative partition of unity over the active net (the licence,
-//!   checked; refused typed otherwise);
-//! - `sup|S_u|` — the same recurrence one order down;
-//! - `sup|w_kl|` — the weight spline's own derivative hulls.
-//!
-//! **The divisor is the cell's weight hull, argued not assumed.** On
-//! the cell, `w ∈ [w_min, w_max]` of the active weights (convex
-//! combination), and the recurrence is evaluated SIGNED in certification arithmetic —
-//! the true minus signs, divided by the whole hull, which is where the
-//! quotient rule's cancellations survive. The interval division
-//! refuses if positivity was never proven.
-//!
-//! **Recentring keeps the cross terms cell-sized**: with the cell's
-//! control centroid as `c`, `sup|S − c|` is a cell-of-control-net
-//! fact, not a whole-patch one, so `(S − c)·w_dd` and `S_d·w_d` do not
-//! inflate with the patch's distance from the origin (the M8-2
-//! template's trick, lifted to two parameters). The whole-domain bound
-//! is the max over cells of the per-cell sups, after the FIXED
-//! [`patch_bound::RATIONAL_CERT_SPLITS`] refinement (schedule docs
-//! there) — which is taken in certification arithmetic, so the sups bound the
-//! DESCRIBED face and not the refined-`f64` one.
-//!
-//! A degree-1 direction's `Ã_dd`, `w_dd` are exactly zero, but its
-//! CROSS terms survive — a rational degree-1 direction genuinely
-//! curves in parameter (a Möbius-reparameterized ruling), so its
-//! second partials are NOT the integral arm's exact zero. The
-//! recurrences above carry that automatically.
+//! A RATIONAL face's second partials are quotients `M/W³` with
+//! polynomial numerators, and the sups are read from
+//! [`patch_bound`]'s rational arm (its module docs, "The rational
+//! arm"): on each dyadic piece of a span cell (halved from the cell's
+//! quotient, formed once over it), numerator and
+//! denominator raised to one degree, the partial is a convex
+//! combination of the coefficient ratios `m_k/b_k`, so its signed
+//! enclosure is their coordinate range. The pieces are cut from the
+//! DESCRIBED face in certification arithmetic, so the sups bound it
+//! and not a rounded neighbour. A degree-1 direction's second partial
+//! is not the integral arm's exact zero — a rational degree-1
+//! direction genuinely curves in parameter (a Möbius-reparameterized
+//! ruling) — and the quotient's numerator carries that: its doubled
+//! cross term alone survives.
 //!
 //! The certificate consumer is unchanged: the Q/4 Taylor bound only
 //! needs C¹ with an a.e. second-derivative bound, and the C¹ gate
@@ -111,13 +75,11 @@
 //! `w > 0` gives exactly that for `S = A/w`.
 //!
 //! **Conservatism** (the speed meter's posture): the answer is a
-//! bound, not an estimate. Ordinary rational walls measure within a
-//! small factor of the true sup (the falsifier rows print the
-//! ratios), but extreme weight ratios (1e-2..1e2 and beyond) can
-//! leave the bound orders above the truth — the product terms lose
-//! the sign correlation a steep ramp lives in. The cost is only grid
-//! density, and a δ fine enough to overflow the 2²⁴ cap refuses
-//! typed ([`crate::sizing::ceil_count`]) — never a wrong mesh.
+//! bound, not an estimate. Its slack is the spread of the coefficient
+//! ratios over a piece, which extreme weight ratios widen (the
+//! falsifier rows print the ratios). The cost is only grid density,
+//! and a δ fine enough to overflow the 2²⁴ cap refuses typed
+//! ([`crate::sizing::ceil_count`]) — never a wrong mesh.
 //!
 //! # Grid sizing (heuristic; the certificate is the guarantee)
 //!
@@ -164,7 +126,7 @@
 //! Covered: described, per direction either degree ≥ 2 with interior
 //! multiplicities ≤ p − 1 (C¹) or degree 1 single-span — integral
 //! faces through the direct hull arm, rational faces (any weight not
-//! bitwise 1, all strictly positive) through the quotient-rule arm
+//! bitwise 1, all strictly positive) through the quotient arm
 //! above (M8-5; the loft/sweep wall class plus the arc-walled bodies
 //! M8-2 made buildable). Refused typed
 //! ([`TessellateError::UnsupportedNurbsFace`]): illegal rational
@@ -227,21 +189,18 @@ pub(crate) struct NurbsFaceBound {
     /// selection's degenerate-direction predicates are decided on the
     /// value rather than on a threshold ([`cell_component`]).
     ///
-    /// **On the rational arm the exact zero needs a constant weight
-    /// NET.** A degree-1 direction's `Ã_uu` and `w_uu` are exact zeros
-    /// but the cross term `S_u·w_u` is not (module docs). Where every
-    /// weight is the same, the refinement holds each one exactly (each
-    /// insertion step is met with the hull of its two sources), `w_u`
-    /// and `w_v` are exact zeros, and so are `muu` and `mvv` — the
-    /// assembly proved it, and the degenerate arms are taken as for the
-    /// integral face it equals. A weight column constant only ALONG the
-    /// direction is not enough: refinement across it leaves its weights
-    /// as intervals, and the difference of two equal intervals is an
-    /// interval about zero, not zero. The quarter cylinder, whose
-    /// weights are constant along `v`, certifies `mvv` at about 2e-13
+    /// **On the rational arm the exact zero is the quotient's.** A
+    /// degree-1 direction's numerator `M = A″W² − AW″W − 2A′WW′ + 2AW′²`
+    /// keeps its doubled cross term (module docs), which vanishes where
+    /// the weights are constant along the direction and the points
+    /// affine in it: the direction is then affine in ℝ, every
+    /// coefficient of `M` comes out an exact zero, and `muu` (or `mvv`)
+    /// is the proved `0.0`, so the degenerate arms are taken on a
+    /// direction the bound proved. The quarter cylinder, whose weights
+    /// are constant along `v`, certifies `mvv = 0.0`; a degree-1
+    /// direction whose weights vary along it (a Möbius ruling) reports
+    /// its genuine curvature in parameter
     /// (`rational_degree_one_direction_is_not_taken_as_degenerate`).
-    /// Every rational degree-1 direction short of a constant net
-    /// reports positive dust.
     pub muu: f64,
     /// `sup ‖S_uv‖`.
     pub muv: f64,
@@ -543,13 +502,13 @@ fn cell_component(sq: Interval) -> f64 {
 /// Since TESS-SPAN this is the SHIPPED lane's sizing input (through
 /// [`nurbs_cell_grid`]); `crate::budget`'s meter reads it too, for the
 /// span-sizing prediction it checks the lane against. Nothing here can
-/// loosen a certificate: every cell's bound is the same hull assembly
-/// over a SUBSET of the whole-patch coefficient window.
+/// loosen a certificate: every cell's bound is the same statement
+/// [`face_bound`] folds, read over a subset of the patch.
 ///
 /// Granularity differs by arm, because each arm reports at the
 /// granularity its own certified assembly already works in: the
 /// integral arm's cells are the raw knot spans, the rational arm's are
-/// the cells of the fixed [`patch_bound::RATIONAL_CERT_SPLITS`] refinement. The
+/// the [`patch_bound::RATIONAL_CERT_SPLITS`] pieces of each span cell. The
 /// budget row carries the cell count, so a reader is never guessing
 /// which.
 ///
@@ -1839,31 +1798,45 @@ pub(crate) mod tests {
         }
     }
 
-    /// **A RATIONAL degree-1 direction is NOT degenerate**, so the
-    /// degenerate arms must not be taken for it. The quarter cylinder
-    /// is degree 1 in `v`; its `Ã_vv` and `w_vv` are exact zeros, but
-    /// the quotient rule's cross terms are not (module docs), and the
-    /// ring chain reports their width. The arm predicate IS the
-    /// observable: `split_steps`' v-degenerate arms are guarded by
-    /// `mvv == 0.0`, so a strictly positive `mvv` is exactly the claim
-    /// that neither is entered.
+    /// **A RATIONAL degree-1 direction is degenerate only where it is
+    /// proved so.** The arm predicate IS the observable: `split_steps`'
+    /// v-degenerate arms are guarded by `mvv == 0.0`.
     ///
-    /// This row reds from either side. A `mvv` that collapsed to `0.0`
-    /// would be the integral arm's promise made on an arm that never
-    /// proved it — the split selection would then treat a rational
-    /// ruling as unconstrained in `v`. A `mvv` above the ceiling would
-    /// mean the enclosure of a direction that is zero in ℝ (this
-    /// cylinder's weight column is constant along `v`) had stopped
-    /// being dust.
+    /// - A degree-1 `v` whose weights VARY along `v` is a
+    ///   Möbius-reparameterized ruling and genuinely curves in
+    ///   parameter: its `mvv` must be real (> 0), and its `v` steps
+    ///   real, or the split selection would treat it as unconstrained.
+    /// - The quarter cylinder's weights are constant along `v`, so it
+    ///   is affine in `v` in ℝ, and the quotient statement proves it:
+    ///   every coefficient of the `S_vv` numerator is an exact zero, so
+    ///   `mvv` is the certified `0.0` and the degenerate arm is entered
+    ///   on a direction it proved, not one it assumed.
     #[test]
     fn rational_degree_one_direction_is_not_taken_as_degenerate() {
-        let s = quarter_cylinder();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+        let arc = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let mut control = Vec::new();
+        for (x, y) in arc {
+            for z in [0.0, 1.0] {
+                control.push(Point3::new(x, y, z));
+            }
+        }
+        // `w_ij = a_i·b_j` with `b = (1, 2.5)`: `z` is the Möbius map
+        // `2.5v / (1 + 1.5v)` of `v`, so `S_vv ≠ 0` while the image stays
+        // the cylinder.
+        let weights = vec![1.0, 2.5, w, 2.5 * w, 1.0, 2.5];
+        let s = NurbsSurface::new(kv_u, kv_v, control, weights).unwrap();
+        let (_, _, wvv) = sample_worst(&s, 64);
+        assert!(
+            wvv > 1.0,
+            "the ruling must genuinely curve in v (fixture check)"
+        );
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
         assert!(
-            b.mvv > 1e-14 && b.mvv < 1e-11,
-            "the rational degree-1 v direction's certified sup {:.17e} is not interval arithmetic \
-             chain's dust in [1e-14, 1e-11]: at exactly 0.0 the split selection would \
-             read it as a degenerate direction it never proved",
+            b.mvv >= wvv,
+            "the Möbius ruling's v sup {:.17e} is under its sampled {wvv:.17e}",
             b.mvv
         );
         let st = b.split_steps(1e-3);
@@ -1873,6 +1846,14 @@ pub(crate) mod tests {
              {:.17e}",
             st.hv,
             b.step_v_at(st.hu, 1e-3)
+        );
+
+        let cylinder = nurbs_face_bound(&quarter_cylinder(), FaceKey::default()).unwrap();
+        assert!(
+            cylinder.mvv == 0.0,
+            "the quarter cylinder is affine in v and the quotient's S_vv coefficients are \
+             exact zeros, so mvv is the proved 0.0, not {:.17e}",
+            cylinder.mvv
         );
     }
 
@@ -1935,7 +1916,7 @@ pub(crate) mod tests {
     /// CONSCIOUS FLIP (M8-5): `rational_face_refuses_typed` re-derived
     /// as the positive row. The refusal's premise — "a rational second
     /// derivative is not a control-hull convexity fact" — was answered
-    /// by the quotient-rule assembly over the HOMOGENEOUS nets (module
+    /// by the quotient statement over the HOMOGENEOUS nets (module
     /// docs), so the pin is now the bound's honesty: on adversarial
     /// rational patches, dense-sampled true second partials are
     /// DOMINATED by the certified sups, and the sups are real (> 0),
@@ -2673,30 +2654,21 @@ pub(crate) mod tests {
 
     /// The rational dust re-derivation (the
     /// `planar_bilinear_bounds_collapse` class, rational arm): a flat
-    /// bilinear patch with UNIFORM weight `1/2` is bitwise rational but
-    /// geometrically the same flat quad (constant weights cancel in
-    /// ℝ), so every true second partial is zero.
+    /// bilinear patch with UNIFORM weight `1/2` and zero twist is
+    /// bitwise rational but geometrically the same flat quad (constant
+    /// weights cancel in ℝ), so every true second partial is zero.
     ///
-    /// - `muu`/`mvv` are the EXACT zero. The degree-1 `Ã_dd`/`w_dd`
-    ///   terms are exact zeros, and what is left is the `S_d · w_d`
-    ///   cross term. The refinement meets each insertion step with the
-    ///   hull of its two sources, so a constant weight net stays its
-    ///   point and `w_d` is the exact zero too. In ℝ it is zero, so this
-    ///   is an enclosure of the described patch that happens to be
-    ///   exact, not a cancellation that dropped a rounding.
-    /// - `muv` is DUST: the mixed differencing of the homogeneous
-    ///   coordinate net, which is not constant, so its insertion width
-    ///   survives, scaled by the differencing's `p/Δd` twice.
-    ///
-    /// **`muv` is BRACKETED, not capped, and the floor is the half that
-    /// makes this row a test.** A ceiling alone admits both worlds: the
-    /// `f64` refinement's answer was the deep-subnormal ~5e-166, which
-    /// passes any ceiling written for 1e-11, so a re-pinned ceiling
-    /// would have gone green on that code. The floor says what the
-    /// interval chain's width on the coordinate net actually is, so the
-    /// row reds on an arithmetic that cancels it away. The band is a
-    /// decade-scale bracket around the measurement; see the assertion's
-    /// comment for the figure.
+    /// All three sups are the EXACT zero, and that is a proof rather
+    /// than a cancellation: the rational arm cuts its pieces from the
+    /// described net and forms each second-order numerator
+    /// (`geom_core::spline::derivative`, "The second order") in
+    /// interval arithmetic, and on this description — dyadic points,
+    /// weight `1/2`, dyadic piece ends — every operation is exact, so
+    /// each coefficient is the exact zero it is in ℝ. The row used to
+    /// bracket `muv` above a floor, because the rational arm refined
+    /// the net first and the refinement's width was the honest answer;
+    /// there is no refinement on this arm now, so there is no width for
+    /// a floor to guard.
     #[test]
     fn rational_uniform_weight_bilinear_dust() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
@@ -2709,22 +2681,13 @@ pub(crate) mod tests {
         let s = NurbsSurface::new(kv.clone(), kv, control, vec![0.5; 4]).unwrap();
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
         assert!(
-            b.muu == 0.0 && b.mvv == 0.0,
-            "a constant weight net must stay exact through the refinement, so `w_d` and \
-             the pure second partials are the exact zero: muu {:.17e}, mvv {:.17e}",
+            b.muu == 0.0 && b.muv == 0.0 && b.mvv == 0.0,
+            "every coefficient of every second-order numerator is exact on this \
+             description, so each sup is the exact zero: muu {:.17e}, muv {:.17e}, \
+             mvv {:.17e}",
             b.muu,
+            b.muv,
             b.mvv
-        );
-        // MEASURED on this tree: `muv` at 9.1e-12, bracketed 11x below
-        // the ceiling and 91x above the floor. The FLOOR is what reds on
-        // an arithmetic that cancels the insertion's width away, which
-        // is what the `f64` refinement did (~5e-166).
-        assert!(
-            b.muv > 1e-13 && b.muv < 1e-10,
-            "the mixed dust {:.17e} is outside [1e-13, 1e-10]. A figure BELOW the band is the \
-             alarming one — it means the refinement cancelled the coordinate net's width \
-             exactly, so the enclosure is of some patch other than the described one",
-            b.muv
         );
         let (hu, hv) = b.grid_steps(1e-3);
         assert!(hu > 1e3 && hv > 1e3, "flat stays effectively unconstrained");
@@ -3986,10 +3949,11 @@ pub(crate) mod tests {
     /// **CERT-10 red row: the rational per-cell reading is the SIGNED
     /// one.** The magnitude reading applied the triangle inequality to
     /// the quotient rule (all `+`, divide by the smallest weight); the
-    /// signed one evaluates the quotient rule itself in certification arithmetic, with
-    /// the true minus signs and the whole weight hull as the divisor.
-    /// The signed reading is strictly tighter and both are sound, so
-    /// the shipped grid sizing reads the signed one.
+    /// signed one is each partial's own quotient, `M/W³`, whose
+    /// coordinates lie between their coefficient ratios on a piece
+    /// (`patch_bound`, "The rational arm"). The signed reading is
+    /// strictly tighter and both are sound, so the shipped grid sizing
+    /// reads the signed one.
     #[test]
     fn cert10_rational_cell_reading_is_the_signed_hull() {
         for (name, s) in [
@@ -4024,10 +3988,10 @@ pub(crate) mod tests {
     /// rational face.** The magnitude figures below were MEASURED on
     /// this tree before the retirement and are pinned as the record of
     /// what the retired reading answered. `muv` is where the triangle
-    /// inequality costs most: on the quarter cylinder the quotient
-    /// rule's minus signs cancel almost entirely, and the magnitude
-    /// spelling — which cannot see a sign — reports eleven times the
-    /// signed one.
+    /// inequality costs most: on the quarter cylinder `S_uv` is zero in
+    /// ℝ, and the quotient's coefficients read it as rounding dust, while the
+    /// magnitude spelling — which cannot see a sign — reports a figure
+    /// of order one.
     #[test]
     fn cert10_signed_reading_is_strictly_tighter_on_a_rational_face() {
         let s = quarter_cylinder();
@@ -4057,14 +4021,14 @@ pub(crate) mod tests {
     /// `#[ignore]`d: a measurement, not an assertion.
     ///
     /// **The `mvv` entries are NOT pinned digits.** On these ruled
-    /// (degree-1 in `v`) faces the true `S_vv` is identically zero,
-    /// and what the assembly reports is the rational arm's
-    /// knot-insertion rounding — see `PatchCell`'s field docs, "the
-    /// refined net is what is enclosed". Pinning that to sixteen
-    /// digits would pin a rounding artifact, so the entries below
-    /// carry the retired reading's ORDER of magnitude and their
-    /// provenance instead; nothing in this harness is sensitive to
-    /// them (a `mvv` of 1e-15 and one of 5e-15 size the same grid).
+    /// (degree-1 in `v`) faces the true `S_vv` is identically zero.
+    /// The entries below carry the retired reading's ORDER of magnitude
+    /// and their provenance: that reading enclosed a refined net and
+    /// reported its insertion rounding, where the quotient reading now
+    /// proves the zero on a face whose weights are constant along `v`
+    /// (`NurbsFaceBound::muu`'s docs). Nothing in this harness is
+    /// sensitive to them (a `mvv` of 0, 1e-15 or 5e-15 sizes the same
+    /// grid).
     #[test]
     #[ignore = "measurement harness: prints the rational-face grid re-sizing"]
     fn cert10_rational_grid_resizing() {

@@ -472,8 +472,21 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     let err = classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
-        (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge"))
+        (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes()))
     );
+}
+
+/// The reading a sub-ε arm's escalation quotes: the wedge it meters,
+/// where the arm offers a tolerance to decide both; its own name where
+/// that tolerance, half ε over K, lies at or below `EPS_MIN` and is
+/// withheld (D4 ¶4), as at CI's 1e-12 row.
+fn sub_eps_arm_quotes() -> &'static str {
+    let b = band();
+    if b.offer_deciding(0.5 * eps()).is_some() {
+        "dihedral_arm_wedge"
+    } else {
+        "dihedral_arm"
+    }
 }
 
 /// (c) FIXED (was `finding_sub_epsilon_chord_true_corner_reads_smooth`):
@@ -497,11 +510,12 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
         u_ref: Vec3::unit_y(),
     };
     // The arm gate escalates, quoting the wedge it meters where that is
-    // nonzero, and its own decided zero where the arm is exactly zero.
+    // nonzero and the arm offers a tolerance, and its own decided zero
+    // where the arm is exactly zero.
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.5 * eps(), band()).unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
-        (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge")),
+        (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes())),
         "sub-eps extent"
     );
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.0, band()).unwrap_err();
@@ -518,8 +532,9 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
 /// its last two control points coincide — has a speed floor of exactly
 /// zero, and one that turns back on itself a floor below zero: neither
 /// has a metre scale for its stored interval. Each carries the meter's
-/// own verdict and ends in its lever, the stall with what a vanishing
-/// floor means, and never in the poisoned-margin note; a poisoned net
+/// own verdict and ends alike, in its lever and that a floor reached
+/// otherwise is the meter's limit, and never in the poisoned-margin
+/// note; a poisoned net
 /// keeps the note, under the meter's own check.
 #[test]
 fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
@@ -594,14 +609,10 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
         );
         let text = err.render(Reading::Build);
         assert!(!text.contains("unreadable"), "{name}: {text}");
-        let want = if zero {
-            format!(
-                "{LEVER}; a vanishing speed floor means the spline stalls or turns back, or that \
-                 the floor has reached its limit, which is worth reporting"
-            )
-        } else {
-            LEVER.to_owned()
-        };
+        let want = format!(
+            "{LEVER}; if it does neither, the speed floor has reached its limit, which is worth \
+             reporting"
+        );
         assert!(text.ends_with(&want), "{name}: {text}");
     }
     // A net whose control points all coincide has no chord to project

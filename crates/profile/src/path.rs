@@ -373,8 +373,8 @@ use crate::seg;
 use crate::sugar::{ArcSweep, LineFilletTrims, TrimRefusal, line_line_fillet_trims};
 use crate::validate::{
     FILLET_FLATTENED_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
-    FILLET_STORED_FORM_INBAND_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason,
-    fillet_recourse_for,
+    FILLET_STORED_FORM_INBAND_RECOURSE, FilletLeg, FilletLegCarrier, JUNCTION_TANGENT_LEVER,
+    NoCornerReason, fillet_recourse_for,
 };
 use crate::{BuiltArc, ProfileLoop, Segment};
 
@@ -1621,10 +1621,8 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::JunctionTangent { margin, arm } => write!(
                 f,
                 "this junction is tangent at any precision you could care about \
-                 (turn margin {margin} m on a {arm} m arm). Recourse: for tangency onto a \
-                 new carrier use .tangent() (or the tangent-arc or seam-fillet close at the \
-                 seam); for a straight continuation spell it line(len) off the directed \
-                 point; otherwise move the geometry (or lower the tolerance)",
+                 (turn margin {margin} m on a {arm} m arm). Recourse: \
+                 {JUNCTION_TANGENT_LEVER} (or lower the tolerance)",
                 margin = num(margin),
                 arm = num(arm)
             ),
@@ -1919,11 +1917,9 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             // `recourse_roster::the_dispatch_order_owns_each_name_in_exactly_one_layer`
             // is what measures that rather than assuming it.
             //
-            // A name no layer claims is not silently labelled: one the
-            // crate has DECIDED needs nothing beyond the shared clause is
-            // in `validate::SHARED_CLAUSE_ONLY` and renders with that
-            // clause alone; anything else renders
-            // `geom_core::MissingRecourse`, which names the hole.
+            // A name no layer claims ends by its row in
+            // `validate::DECISION_ENDINGS`; a name with no row names the
+            // hole (`geom_core::MissingRecourse`).
             Self::Escalated { source } => {
                 if let Some(predicate) = source.predicate
                     && let Some(recourse) = fillet_recourse_for(predicate)
@@ -2007,49 +2003,19 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                             geom_core::lever_recourse(FILLET_STORED_FORM_INBAND_RECOURSE, None),
                         )
                         .fmt(f),
-                    // The junction keys keep the full `Indeterminate`
-                    // Display, shared recourse and all: at a junction
-                    // "declare the coincidence" is exactly the right advice,
-                    // and `.tangent()` is what declaring it means. They are
-                    // NAMED here, because the label is a claim about the
-                    // two of them and about nothing else the funnel
-                    // decides.
-                    Some("path_junction_turn" | "path_junction_side") => write!(
-                        f,
-                        "{} is too close to call: {source}",
-                        source
-                            .predicate
-                            .and_then(crate::validate::decision_subject)
-                            .unwrap_or(crate::validate::UNNAMED_DECISION)
-                    ),
-                    // A name no arm above claims. If the crate has
-                    // decided it needs nothing beyond the shared clause
-                    // `{source}` already ends in, it is in
-                    // `validate::SHARED_CLAUSE_ONLY` and the refusal
-                    // stops there; otherwise the refusal names the hole,
-                    // through the one home every recourse table's
-                    // fall-through composes. Either way the sentence
-                    // opens with what the decision was deciding, in the
-                    // words `validate::decision_subject` holds.
-                    _ => {
-                        let what = source
-                            .predicate
-                            .and_then(crate::validate::decision_subject)
-                            .unwrap_or(crate::validate::UNNAMED_DECISION);
-                        let listed = source
-                            .predicate
-                            .and_then(crate::validate::shared_clause_only)
-                            .is_some();
-                        if listed {
-                            write!(f, "{what} is too close to call: {source}")
-                        } else {
-                            write!(
-                                f,
-                                "{what} is too close to call: {source} — {}",
-                                geom_core::MissingRecourse(source.predicate)
-                            )
-                        }
-                    }
+                    // A name no arm above claims ends as validation ends
+                    // it (`validate::EscalationEnding`), by its row in
+                    // `validate::DECISION_ENDINGS`, opening with what the
+                    // decision was deciding.
+                    _ => source
+                        .undecided(
+                            source
+                                .predicate
+                                .and_then(crate::validate::decision_subject)
+                                .unwrap_or(crate::validate::UNNAMED_DECISION),
+                            crate::validate::EscalationEnding(source),
+                        )
+                        .fmt(f),
                 }
             }
             Self::Band(e) => write!(f, "the path's tolerance could not form a band: {e}"),

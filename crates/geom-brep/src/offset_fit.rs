@@ -154,8 +154,8 @@
 //! the cell and the componentwise assembly collapses, while the
 //! projection reads `‖E‖ ≈ |d|`. On the quarter cylinder at
 //! `d = 1e-6` the sup cell's two readings are `1.58e-8` and
-//! `5.64e-7`, and the cell's bound is `1.70e-5` rather than
-//! `3.22e-4`.
+//! `5.64e-7`, and the cell's bound is `1.51e-5` rather than
+//! `2.63e-4`.
 //!
 //! The `τ²/‖E‖` term takes the same floor, or `|d| − dist` when that
 //! is larger — three lower bounds on one norm, whose max is one too.
@@ -169,7 +169,7 @@
 //! does. What that bought is translation invariance, which the
 //! residual always had and the bound did not: a micron offset on a
 //! metre patch a kilometre from the origin certified as `inf` and now
-//! certifies at the same `1.7e-5` the patch gives at the origin.
+//! certifies at the same `1.5e-5` the patch gives at the origin.
 //!
 //! What it does not reach is the floor on `‖E‖`: that one is not a
 //! rounding problem at any origin, and it is answered above by the
@@ -238,7 +238,7 @@ use geom_core::{
 
 use crate::descent::{self, Descent, Work};
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
-use crate::patch_bound::{PatchBoundError, check_direction, is_rational};
+use crate::patch_bound::{PatchBoundError, check_direction, is_rational, unit_scaled_weights};
 use crate::recourse::Reading;
 use geom_core::spline::{Derived, TensorCoeffs};
 
@@ -2149,8 +2149,13 @@ impl Composite {
         fit: &NurbsSurface<f64>,
         d: f64,
     ) -> Result<Self, OffsetFitError> {
+        // The arms are the DESCRIBED nets' ([`is_rational`]); the
+        // arithmetic reads them at unit weight scale.
+        let (base_form, fit_form) = (NetForm::of(base), NetForm::of(fit));
+        let rational = base_form == NetForm::Homogeneous;
+        let (base, fit) = (unit_scaled_weights(base), unit_scaled_weights(fit));
+        let (base, fit) = (&*base, &*fit);
         let (ku, kv) = (base.knots_u(), base.knots_v());
-        let rational = is_rational(base);
         // One break list per direction, carrying every operand's
         // interior knots — the alignment substrate (patch docs).
         let mut extra_u: Vec<f64> = ku.interior_knots().map(|(t, _)| t).collect();
@@ -2164,13 +2169,12 @@ impl Composite {
         // product would widen the enclosure for nothing.
         // The one recentring origin every net below is built against.
         let ctr = recentre_origin(base);
-        let fit_form = NetForm::of(fit);
         let fc = |c: usize| channel(fit, c, fit_form, &ctr);
         let f: [PatchSpans; 3] = [dec(&fc(0)), dec(&fc(1)), dec(&fc(2))];
         let wf = (fit_form == NetForm::Homogeneous).then(|| dec(&weight_net(fit)));
         // The base's homogeneous nets and their first derivatives.
         let a_grid: [TensorCoeffs<'_>; 3] =
-            core::array::from_fn(|c| channel(base, c, NetForm::of(base), &ctr));
+            core::array::from_fn(|c| channel(base, c, base_form, &ctr));
         // `check_direction` admits a degree-1 direction only as one
         // span, so its partial is one constant: span 0's difference,
         // decomposed on the direction's own vector as its degree-1 form.
@@ -2596,7 +2600,7 @@ mod tests {
     /// where `‖E‖ ≈ 1e-6`. The projection through the sign witness,
     /// `|D|/(w̃·‖M̃‖)`, reads the same cell at `5.64e-7` — within a
     /// factor of two of `|d|` — and the `τ²/‖E‖` term that carried
-    /// 96% of the cell's bound falls with it.
+    /// 95% of the cell's bound falls with it.
     ///
     /// The row measures the two readings on ONE composite, so the
     /// only thing that differs between them is the expression under
@@ -2640,7 +2644,7 @@ mod tests {
             "the sup cell {:?} is one of a tie: {tie:?}",
             (su, sv)
         );
-        assert!(near(sup, 1.7006e-5), "sup cell bound is {sup:e}");
+        assert!(near(sup, 1.5141e-5), "sup cell bound is {sup:e}");
         assert!(
             near(cert.hull_sup, sup),
             "the certificate carries another cell's bound"
@@ -2651,7 +2655,7 @@ mod tests {
             "the floor on ‖E‖ reads {e_lo:e} where ‖E‖ ≈ {d:e}"
         );
         assert!(near(e_lo, 5.6395e-7), "floor is {e_lo:e}");
-        assert!(near(dist, 6.0900e-6) && near(tau, 2.2152e-6) && near(t3, 8.7009e-6));
+        assert!(near(dist, 6.0900e-6) && near(tau, 1.9948e-6) && near(t3, 7.0563e-6));
 
         // The same cell read componentwise: the collapsed floor, and
         // the `τ²/‖E‖` term it inflates. `τ` is untouched — it divides
@@ -2659,14 +2663,14 @@ mod tests {
         let (dist_c, tau_c, t3_c, e_mig, sup_c) =
             decompose(&comp, su, sv, reg.floor, d, ELow::Componentwise);
         assert!(near(e_mig, 1.5814e-8), "componentwise floor is {e_mig:e}");
-        assert!(near(sup_c, 3.2189e-4) && near(dist_c, 9.3762e-6) && near(t3_c, 3.1030e-4));
+        assert!(near(sup_c, 2.6302e-4) && near(dist_c, 9.3762e-6) && near(t3_c, 2.5165e-4));
         assert!(near(tau_c, tau), "τ moved: {tau_c:e} against {tau:e}");
         assert!(
-            t3_c > 0.96 * sup_c,
+            t3_c > 0.95 * sup_c,
             "the componentwise reading's sup is not its τ²/‖E‖ term"
         );
         assert!(
-            near(sup_c / sup, 18.928),
+            near(sup_c / sup, 17.371),
             "the bound moved by {}",
             sup_c / sup
         );
@@ -2675,7 +2679,7 @@ mod tests {
         // over the one it replaces, and the row measures that rather
         // than resting on the argument.
         let worst = no_cell_loosens(&comp, reg.floor, d);
-        assert!(near(worst, 18.928), "the widest cell gain is {worst}");
+        assert!(near(worst, 17.371), "the widest cell gain is {worst}");
 
         // One round finer — the grid the `1e-9` request stops on at
         // the sample cap. The cells are small enough that the
@@ -2691,10 +2695,12 @@ mod tests {
         // `a_micron_scale_offset_certifies_and_names_its_limit` pins as
         // the cap stop's `achieved`, and it is pinned there to 5e-11
         // absolute. Re-measured here rather than left to ride `near`'s
-        // 5e-4: one number must not have two precisions, and under the
-        // convex insertion form it moved (3.7544e-7 before).
-        assert!(near(sup5, 3.74718e-7), "cap-grid sup is {sup5:e}");
-        assert!(near(e_lo5, 8.39898e-7) && near(dist5, 1.21528e-7) && near(t35, 4.79507e-8));
+        // 5e-4: one number must not have two precisions. It moved
+        // under the convex insertion form (3.7544e-7 before) and again
+        // when the regularity floor became the area quotient's inf
+        // (3.74718e-7 before): `τ` divides by that floor.
+        assert!(near(sup5, 3.45243e-7), "cap-grid sup is {sup5:e}");
+        assert!(near(e_lo5, 8.39898e-7) && near(dist5, 1.21528e-7) && near(t35, 3.88872e-8));
         assert!(
             tau5 > dist5 && tau5 > t35,
             "τ = {tau5:e} no longer carries the cap grid's sup"
@@ -2704,7 +2710,7 @@ mod tests {
             near(e_mig5, 7.79946e-7),
             "componentwise floor is {e_mig5:e}"
         );
-        assert!(near(sup5_c, 3.79036e-7) && near(sup5_c / sup5, 1.01152));
+        assert!(near(sup5_c, 3.49518e-7) && near(sup5_c / sup5, 1.01238));
         let worst5 = no_cell_loosens(&comp5, reg.floor, d);
         assert!(worst5 >= 1.0, "the cap grid's widest cell gain is {worst5}");
     }
@@ -3221,6 +3227,105 @@ mod tests {
                 "w coefficient {k} reads {h:?}, which misses (1 + 0.6)/2"
             );
         }
+    }
+
+    /// The bits of every cell bound of the `(base, fit)` composite at
+    /// `d`, on the meters' floor for `base`.
+    fn cell_bound_bits(
+        base: &geom::NurbsSurface<f64>,
+        fit: &geom::NurbsSurface<f64>,
+        d: f64,
+    ) -> Vec<u64> {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (reg, _) = crate::offset_meters::meter_patch(base, d, band).unwrap();
+        let comp = Composite::build(base, fit, d).unwrap();
+        let (nu, nv) = comp.x.cell_counts();
+        (0..nu)
+            .flat_map(|su| (0..nv).map(move |sv| (su, sv)))
+            .map(|(su, sv)| comp.cell_bound(su, sv, reg.floor, d).to_bits())
+            .collect()
+    }
+
+    /// `n` with its control net scaled by `k` about the `z` axis.
+    fn radially_scaled(n: &geom::NurbsSurface<f64>, k: f64) -> geom::NurbsSurface<f64> {
+        n.map_points(|p| Point3::new(k * p.x, k * p.y, p.z))
+    }
+
+    /// **One power of two on every weight moves no cell bound.** The
+    /// quarter cylinder against its exact offset (the cylinder of
+    /// radius `1 + d`, same weights): at `2⁻³⁰⁰` the base's `w³` and
+    /// `w⁴` underflow to zero, so `cell_terms`' weight and sign-witness
+    /// guards would refuse every cell; at `2³⁰⁰` they overflow;
+    /// `2⁻¹⁰⁰⁰` sits at the bottom of the normal range. Each scale, on
+    /// the base or on the fit, describes the same surface, so each cell
+    /// bound is the unit pair's to the bit.
+    ///
+    /// **The arm is the described net's.** The same control net with
+    /// every weight `2` is a polynomial surface described rationally,
+    /// and it is read by the rational arm at every scale — `2⁻¹`,
+    /// `2⁻³⁰⁰` and `2³⁰⁰` as at `2¹` — with the sup bound pinned at the
+    /// value that arm gives.
+    #[test]
+    fn a_uniform_weight_scale_moves_no_cell_bound() {
+        use crate::patch_bound::tests::weights_times_pow2;
+        let d = 0.3;
+        let cylinder = quarter_cylinder();
+        let offset = radially_scaled(&cylinder, 1.0 + d);
+        let want = cell_bound_bits(&cylinder, &offset, d);
+        assert!(
+            want.iter().all(|b| f64::from_bits(*b).is_finite()),
+            "the unit pair left a cell unbounded"
+        );
+        for (kb, kf) in [(-300, 0), (300, 0), (-1000, 0), (0, -300), (-300, 600)] {
+            let got = cell_bound_bits(
+                &weights_times_pow2(&cylinder, kb),
+                &weights_times_pow2(&offset, kf),
+                d,
+            );
+            assert_eq!(got, want, "base 2^{kb}, fit 2^{kf}: a cell bound moved");
+        }
+
+        let twos = geom::NurbsSurface::new(
+            cylinder.knots_u().clone(),
+            cylinder.knots_v().clone(),
+            cylinder.control().to_vec(),
+            vec![2.0; 6],
+        )
+        .unwrap();
+        let fit = radially_scaled(&twos, 1.0 + d);
+        let want = cell_bound_bits(&twos, &fit, d);
+        let sup = want.iter().map(|b| f64::from_bits(*b)).fold(0.0, f64::max);
+        assert_eq!(
+            sup.to_bits(),
+            1.018_060_029_513_912e-1_f64.to_bits(),
+            "the weights-2 net's sup bound is {sup:e}, not the rational arm's"
+        );
+        for k in [-2, -301, 299] {
+            let got = cell_bound_bits(&weights_times_pow2(&twos, k), &fit, d);
+            assert_eq!(got, want, "weights 2^{}: a cell bound moved", k + 1);
+        }
+    }
+
+    /// **The fit certifies a uniformly scaled face as it does the unit
+    /// face.** At `2⁻³⁰⁰` the loop's every round would otherwise end
+    /// unbounded, and the fit `BoundNotFinite` with no bound behind it.
+    #[test]
+    fn a_uniformly_scaled_face_certifies_as_the_unit_face() {
+        use crate::patch_bound::tests::weights_times_pow2;
+        let (d, tol) = (0.3, 1e-3);
+        let band = Band::linear(Tol::witness()).unwrap();
+        let unit = quarter_cylinder();
+        let (_, cert) = super::fit_offset_at(&unit, d, tol, band).unwrap();
+        let (_, scaled) = super::fit_offset_at(&weights_times_pow2(&unit, -300), d, tol, band)
+            .unwrap_or_else(|e| panic!("the 2^-300 face refused: {e}"));
+        assert_eq!(scaled.rounds, 3, "the 2^-300 face's rounds");
+        assert_eq!(
+            scaled.hull_sup.to_bits(),
+            cert.hull_sup.to_bits(),
+            "the 2^-300 face certified {:e}, the unit face {:e}",
+            scaled.hull_sup,
+            cert.hull_sup
+        );
     }
 
     /// A degree-1 direction with an interior knot has a partial that

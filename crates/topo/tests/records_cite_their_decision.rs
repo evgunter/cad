@@ -345,22 +345,27 @@ fn a_cell_reached_from_both_sides_cites_its_shortest_chain() {
 /// carried vertex-on-face row loses its citation or is re-decided.
 #[test]
 fn a_carried_vertex_on_face_record_cites_its_operands_record() {
-    use geom_core::{Affine3, Point3, Vec3};
+    use geom_core::{Band, Point3, RigidMotion, UnitVec3, Vec3};
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let cube = brick((-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5), tol());
     // The corner (−½, −½, −½) turned to point straight down.
-    let turn = Affine3::rotation_about_axis(
+    let band = Band::linear(tol()).expect("the run's band");
+    let axis =
+        UnitVec3::new(Vec3::new(1.0, -1.0, 0.0), "test_turn_axis", band).expect("a definite axis");
+    let turn = RigidMotion::rotation_about_axis(
         Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, -1.0, 0.0),
+        axis,
         (1.0_f64 / 3.0_f64.sqrt()).acos(),
-    );
+    )
+    .expect("a finite turn");
     let turned = topo::transform_rigid(&cube, &turn, tol()).expect("a rigid turn");
     let low = turned
         .vertex_points()
         .map(|(_, p)| p)
         .min_by(|p, q| p.z.total_cmp(&q.z))
         .expect("a vertex");
-    let lift = Affine3::translation(Vec3::new(0.5 - low.x, 0.5 - low.y, 1.0 - low.z));
+    let lift = RigidMotion::translation(Vec3::new(0.5 - low.x, 0.5 - low.y, 1.0 - low.z))
+        .expect("a finite lift");
     let on_corner = finished(
         "the cube on its corner",
         topo::transform_rigid(&turned, &lift, tol()).expect("a rigid lift"),
@@ -758,4 +763,49 @@ fn every_pinch_over_the_poses_records_a_row() {
         }
     }
     assert!(pinches > 0, "the poses pinch somewhere");
+}
+
+/// **An operand's copies on one key stay on one key** (`zip::point_classes`,
+/// `zip::share_points`): the two lobes, the halfspace first, at forty
+/// normals by every op. Wherever the result keeps both copies at the
+/// corner, they share one point key. They carry no vertex-vertex record
+/// (the copies were the operand's structure), so the output stage's
+/// record rule does not reach them: the seam correspondence ties them,
+/// the zips having fused one onto the halfspace's key. Red at 43 of the
+/// 120 runs without the seam tie (the copies on two keys).
+#[test]
+fn an_operands_copies_on_one_key_stay_on_one_key_at_every_normal() {
+    let lobes = built(
+        "the two lobes",
+        topo::intersect(&ell(), &cube_beyond([1.0, 1.3, 0.7], 4.0), tol()),
+    )
+    .body;
+    let n = 40;
+    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let mut held = 0;
+    for i in 0..n {
+        let z = 1.0 - 2.0 * (f64::from(i) + 0.5) / f64::from(n);
+        let r = (1.0 - z * z).sqrt();
+        let m = [
+            r * (ga * f64::from(i)).cos(),
+            r * (ga * f64::from(i)).sin(),
+            z,
+        ];
+        let half = cube_beyond(m, 8.0);
+        for (op, got) in [
+            ("intersect", topo::intersect(&half, &lobes, tol())),
+            ("union", topo::union(&half, &lobes, tol())),
+            ("subtract", topo::subtract(&half, &lobes, tol())),
+        ] {
+            let Ok(BooleanResult::Body(r)) = got else {
+                continue;
+            };
+            let (keys, _) = at_pinch(&r);
+            if keys.len() == 2 {
+                held += 1;
+                assert_eq!(keys[0], keys[1], "normal {i} half-lobes {op}: {keys:?}");
+            }
+        }
+    }
+    assert!(held >= 43, "{held} runs keep both copies");
 }

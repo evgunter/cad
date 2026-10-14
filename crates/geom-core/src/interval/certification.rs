@@ -355,7 +355,14 @@ impl Certification for Interval {
         if !x.is_certified() || !y.is_certified() {
             return Self::refused();
         }
-        let lambda = lambda.clamped_to(0.0, 1.0);
+        // The clamp hands back any finite certified ratio within `[0, 1]`
+        // unchanged; this skips it for the ones strictly inside.
+        let inside = lambda.is_certified() && lambda.0.lo() > 0.0 && lambda.0.hi() < 1.0;
+        let lambda = if inside {
+            lambda
+        } else {
+            lambda.clamped_to(0.0, 1.0)
+        };
         if !lambda.is_certified() {
             return Self::refused();
         }

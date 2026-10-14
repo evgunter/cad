@@ -305,6 +305,62 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/sweep/src/blend/open/end_face.rs",
+        subject: "apart",
+        why: Selection(
+            "a lower bound on two end-plane pieces' distance, for the sliver's inside \
+             reading. It reads no bracket itself (its reads are `piece_distance`'s and \
+             `piece_along`'s in `surgery.rs`), and its result is one term of \
+             `CapSliver::inside_point` or `ring_inside`, which only `sure` decides, so it \
+             inherits that door's disposition and no other",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "sure",
+        why: Selection(
+            "whether a three-way witness is certain, by `escalate`. It selects only \
+             between a reading that counts as inside, crossing or a refusal of the \
+             request and one that falls back to a bound. A point it does not certify \
+             leaves the request refused as a bound, never built and never read inside, \
+             and the margins it does report are classified at the funnel",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "inside_bound",
+        why: Selection(
+            "the reach's inside reading of a face, a cell walk through `sure`. Each read \
+             selects whether a cell is off the surface, inside the core or halved, and \
+             any cell not certified ends the walk uncertified, so the face reads as a \
+             bound. Only a walk whose every cell is certain reads inside, and its depth \
+             is classified at the funnel",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "impl<T: Bounds> Unclear<T>",
+        why: Selection(
+            "the request's three-way verdict. Its reads only choose which of several \
+             readings of one rank is named (the least bound, the shallowest inside). \
+             The rank, crossing over bound over inside, is fixed by which method \
+             recorded each reading, and every margin it names was classified at the \
+             funnel",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "displaces",
+        why: Selection(
+            "whether a reading takes the place of the one `Unclear` holds for its rank: \
+             the upper end of its margin on the better side, or equal and naming a \
+             lesser entity. It only chooses which already-classified refusal of one \
+             rank the request reports; whether the request refuses, and as what, is \
+             fixed before it runs, so it inherits `impl<T: Bounds> Unclear<T>`'s \
+             disposition and no other",
+        ),
+    },
+    Site {
         path: "crates/sweep/src/blend/reach.rs",
         subject: "canonical_axis",
         why: Selection(

@@ -45,7 +45,7 @@ under one at `0.5`; the empty chain composes under both.
 
 The composed frame is rigid by construction, so its axis needs no
 length decision. The fix is a witness that survives composition: an
-`OrthoFrame` transported by a rigid motion, or a `UnitVec3` mint that
+`RigidMotion` transported by a rigid motion, or a `UnitVec3` mint that
 carries a rotation's column. That is geom-core's ground (`linalg`), so
 it is a design question. Alternatively the decision could be levered by
 the mate's own scale, at the cost of needing the reach at replay.

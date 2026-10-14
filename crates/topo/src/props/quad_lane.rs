@@ -3,7 +3,7 @@ use geom_brep::props::quad::{
 };
 use geom_brep::props::spiric;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
-use geom_brep::{Pcurve, SpiricImage};
+use geom_brep::{Pcurve, SpiricImage, WallTorus};
 use geom_core::Tol;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
@@ -79,16 +79,16 @@ fn trig_at_start<T: Decide + Bounds + CertifiedEnclosure>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let v_ref = axis.cross(*u_ref);
             let w = p - *center;
-            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*major);
-            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*minor);
-            let pad_c = (Interval::point(eps) / Interval::from_certified(*major)).mag();
-            let pad_s = (Interval::point(eps) / Interval::from_certified(*minor)).mag();
+            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*semi_u);
+            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*semi_v);
+            let pad_c = (Interval::point(eps) / Interval::from_certified(*semi_u)).mag();
+            let pad_s = (Interval::point(eps) / Interval::from_certified(*semi_v)).mag();
             Ok((clamp(c, pad_c), clamp(s, pad_s)))
         }
         // The spiric's chart images are not harmonic (its `m`
@@ -327,14 +327,14 @@ fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Cu
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => Curve3::Ellipse {
             center: shift(center),
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         },
         Curve3::Spiric {
@@ -463,7 +463,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         return nurbs_face(body, payload, outer, hes, band, tol, window, centre);
     }
     // A spiric bounds a plane cap or a torus wall and nothing else
-    // (`Pcurve::Spiric` certifies on those two charts only); the face
+    // (`Pcurve::Spiric` certifies on those two chart kinds only); the face
     // walk routes a plane here only when a spiric is on its boundary.
     let (outer, hes) = &loops[0];
     if matches!(surface, Surface::Plane { .. })
@@ -542,6 +542,8 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             // traversal end when reversed (`he_plus` start either way).
             let p_start = start_point(body, *he, le.forward)?;
             let trig0 = trig_at_start(&le.carrier, p_start, eps)?;
+            let p_end = start_point(body, *he, !le.forward)?;
+            let trig1 = Some(trig_at_start(&le.carrier, p_end, eps)?);
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
@@ -549,6 +551,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
                 t1: Interval::from_certified(t1),
                 forward: le.forward,
                 trig0,
+                trig1,
                 env: Interval::from_certified(cache.certificate().envelope),
             });
         }
@@ -566,14 +569,16 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
 }
 
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
-/// ellipse's major) times its span, a spiric's speed bound
+/// ellipse's larger semi-axis) times its span, a spiric's speed bound
 /// `r(R − r)/f_min` times its span.
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
         Curve3::Line { dir, .. } => (dir.norm() * Interval::point(span)).mag(),
         Curve3::Circle { radius, .. } => (radius * Interval::point(span)).mag(),
-        Curve3::Ellipse { major, .. } => (major * Interval::point(span)).mag(),
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            (geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * Interval::point(span)).mag()
+        }
         Curve3::Spiric { .. } => spiric_edge_q(e, Point3::origin(), None)
             .and_then(|q| spiric::spiric_length_bound(&q))
             .ok_or(PropsError::QuadratureUnsupported {
@@ -631,6 +636,7 @@ enum WallImage {
     Spiric {
         v0: Interval,
         sense: Interval,
+        torus: WallTorus,
         major: Interval,
         minor: Interval,
     },
@@ -641,10 +647,12 @@ enum WallImage {
 }
 
 /// A wall half-edge as [`spiric_wall`] reads it: its carrier, its
-/// lifted image, its certificate envelope and its carrier span.
+/// lifted image, where its traversal starts and ends on that image
+/// `(u, v)`, its certificate envelope and its carrier span.
 struct WallHalf {
     edge: LoopEdge<Interval>,
     image: WallImage,
+    ends: [(Interval, Interval); 2],
     env: Interval,
     span: Interval,
 }
@@ -710,17 +718,24 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                 let (t0, t1) = cache.params();
                 let pair = |p: geom_core::Point2<T>| (iv(p.x), iv(p.y));
                 let vec = |v: geom_core::Vec2<T>| (iv(v.x), iv(v.y));
+                // The traversal's ends through the image's own evaluator,
+                // on the lane, crossed into certification arithmetic.
+                let (a, b) = (pair(image.eval(t0)), pair(image.eval(t1)));
                 halves.push(WallHalf {
                     edge: lift(le),
                     image: match image {
                         Pcurve::Spiric {
                             major,
                             minor,
-                            image: SpiricImage::Wall { v0, sense, .. },
+                            image:
+                                SpiricImage::Wall {
+                                    v0, sense, torus, ..
+                                },
                             ..
                         } => WallImage::Spiric {
                             v0: iv(*v0),
                             sense: iv(*sense),
+                            torus: *torus,
                             major: iv(*major),
                             minor: iv(*minor),
                         },
@@ -729,6 +744,7 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                         }
                         _ => WallImage::Other,
                     },
+                    ends: if le.forward { [a, b] } else { [b, a] },
                     env: iv(cache.certificate().envelope),
                     span: iv(t1) - iv(t0),
                 });
@@ -813,6 +829,7 @@ fn spiric_wall(
         minor,
         rims: Vec::new(),
         meridians: Vec::new(),
+        ends: Vec::with_capacity(halves.len()),
     };
     let mut closed_va = [Interval::zero(); 3];
     let mut spirics = Vec::new();
@@ -826,6 +843,7 @@ fn spiric_wall(
                 WallImage::Spiric {
                     v0,
                     sense,
+                    torus,
                     major: image_major,
                     minor: image_minor,
                 },
@@ -849,6 +867,17 @@ fn spiric_wall(
                          its torus's",
                     ));
                 }
+                // The wall terms (`spiric::WallImageQ`) read the
+                // carrier's OWN torus; a wall on its mirror through the
+                // cutting plane refuses typed until they read both
+                // (FLUX's `the-spiric-wall-quadrature-lane-reads-only-
+                // the-own-torus`).
+                if *torus == WallTorus::Mirror {
+                    return Err(unsupported(
+                        "a spiric wall image on the carrier's mirror torus — the wall \
+                         terms read the carrier's own torus",
+                    ));
+                }
                 let sense = match exact(*sense) {
                     Some(s) if s == 1.0 || s == -1.0 => s,
                     _ => {
@@ -862,7 +891,15 @@ fn spiric_wall(
                     v0: *v0,
                     env: h.env,
                 };
-                spirics.extend(spiric_edge_q(e, c, Some(wall)));
+                let q = spiric_edge_q(e, c, Some(wall)).ok_or_else(|| {
+                    unsupported("a spiric wall image on an edge whose carrier is no spiric")
+                })?;
+                chart.ends.push(spiric::ChartEndsQ {
+                    start: h.ends[0],
+                    end: h.ends[1],
+                    env: h.env,
+                });
+                spirics.push(q);
                 continue;
             }
             (WallImage::Harmonic([p0, pa, pb, pl]), _) => {
@@ -873,6 +910,11 @@ fn spiric_wall(
                          line of its chart — the spiric lane reads rims and meridians",
                     ));
                 }
+                chart.ends.push(spiric::ChartEndsQ {
+                    start: h.ends[0],
+                    end: h.ends[1],
+                    env: h.env,
+                });
                 if zero(pl.1) {
                     chart.rims.push(spiric::RimQ {
                         v: p0.1,
@@ -1189,13 +1231,17 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                 // structure, like every other read on this path.
                 let (d0, d1) = image.domain();
                 let (r0, r1) = (ring(t0), ring(t1));
-                // A producer at rest: an offset fitted face cut by
-                // planes (`replace_face`'s derived plane × fit
-                // sections, each spanning the fit's window while its
-                // edge spans part of it) stores a sub-range, pinned by
-                // `encl_curved_loft_shell::a_moved_fitted_cap_stands_its_corners_on_the_held_sides`
-                // and filed as
-                // `work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`.
+                // Two producers at rest store a sub-range, both filed
+                // as
+                // `work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`:
+                // an offset fitted face cut by planes (`replace_face`'s
+                // derived plane × fit sections, each spanning the fit's
+                // window while its edge spans part of it), pinned by
+                // `encl_curved_loft_shell::a_moved_fitted_cap_stands_its_corners_on_the_held_sides`;
+                // and `split_edge` on a seam holding a `General` row,
+                // which carries the parent's image to each child over
+                // the child's part of it, pinned by `sweep`'s
+                // `split_edge_fitted_rows::the_mint_rederives_the_carried_rows_and_the_trimmed_lane_refuses_their_sub_range`.
                 // The trimmed lane subdivides the STORED image whole,
                 // so a sub-range would get a certified number for
                 // chart the face does not bound; it refuses instead.
@@ -1239,15 +1285,15 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
             }
             // Same ground as the harmonic arm, one kind over: a
             // spiric image certifies on its own cutting plane and
-            // its own torus and on no spline chart at all, so a
+            // the two tori that hold it and on no spline chart at all, so a
             // cache that reached this lane is a corrupt one. Named
             // rather than folded in, because the two refusals name
             // two different classes.
             Pcurve::Spiric { .. } => {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
-                           chart images live on its own cutting plane and its own \
-                           torus, and this chart is a spline patch",
+                           chart images live on its own cutting plane and the two tori \
+                           that hold it, and this chart is a spline patch",
                 });
             }
             Pcurve::FocalSection(_) => {

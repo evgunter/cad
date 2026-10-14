@@ -1384,9 +1384,9 @@ pub enum SampleOutcome {
     /// The margin was poisoned (NaN).
     Invalid,
     /// **The symbolic tier answered** (`crate::sym`, ERROR-DESIGN E12):
-    /// the margin's expression is identically zero in the document's
-    /// parameters, so `Zero` was a theorem and no enclosure was
-    /// consulted.
+    /// the margin's expression is zero wherever the construction takes
+    /// the decisions it took, so `Zero` was proven and no enclosure was
+    /// consulted. One outcome for every way the tier reaches a zero.
     ///
     /// A separate outcome rather than a `Definite(Sign::Zero)` row, and
     /// the distinction is the whole E12 evidence: this sample's margin
@@ -1394,35 +1394,7 @@ pub enum SampleOutcome {
     /// in-band landing and never evidence about K. What it is evidence
     /// about is the ratio of symbolic to numeric decisions, which is
     /// what the tier exists to move.
-    SymbolicZero,
-    /// **The symbolic tier answered through a clause-3 fold**
-    /// (`crate::sym::SymRules::signed_root`): the margin's expression
-    /// is identically zero in the parameters GIVEN a sign the funnel
-    /// certified over the leaf's box — `sqrt(r²) = r` for a radius
-    /// whose enclosure is definitely positive. A theorem conditional on
-    /// a read value, so it is its own outcome beside
-    /// [`Self::SymbolicZero`] rather than folded into it: the ratio
-    /// between the two is the receipt for how much of a document's
-    /// discharge rests on that one value read. Like `SymbolicZero`,
-    /// never a rule sample — the margin was never classified against
-    /// the band.
-    SignGated,
-    /// **The symbolic tier answered through a REGISTERED IDENTITY**
-    /// (`crate::sym::Sym::register_equal`, ERROR-DESIGN E12's
-    /// provenance reserve): the margin's expression is zero once two of
-    /// its nodes are taken to be one real, because the constructor that
-    /// built them guarantees it — a swept arc's rim distance and its
-    /// radius. An AXIOM about the construction, verified at the leaf's
-    /// witness, and therefore its own outcome beside
-    /// [`Self::SymbolicZero`] and [`Self::SignGated`] rather than
-    /// folded into either: the tier's theorems rest on exact rational
-    /// arithmetic alone, and this one rests additionally on the
-    /// registrant's argument. Reading the three columns apart is how a
-    /// document's discharge is read honestly.
-    ///
-    /// Like both of them, never a rule sample — the margin was never
-    /// classified against the band.
-    Registered,
+    Symbolic,
 }
 
 #[cfg(feature = "probe")]
@@ -1434,15 +1406,13 @@ impl SampleOutcome {
     /// prove the list is complete, so adding one without listing it
     /// here reds a test rather than leaving a silent hole in whatever
     /// derives from it.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 6] = [
         Self::Definite(Sign::Negative),
         Self::Definite(Sign::Zero),
         Self::Definite(Sign::Positive),
         Self::Indeterminate,
         Self::Invalid,
-        Self::SymbolicZero,
-        Self::SignGated,
-        Self::Registered,
+        Self::Symbolic,
     ];
 
     /// **The one spelling of this outcome**, and the K sweep's CSV
@@ -1450,7 +1420,7 @@ impl SampleOutcome {
     ///
     /// It exists because there were five hand-kept copies of this
     /// `match` — four in Rust test harnesses that write the CSV, one in
-    /// `tools/k-lint` that reads it — and when `SymbolicZero` arrived
+    /// `tools/k-lint` that reads it — and when the symbolic outcome arrived
     /// the writers learned it and the reader did not. The reader was
     /// right to refuse a token it did not know; nobody noticed, because
     /// the CI row that would have said so could not fail. A vocabulary
@@ -1465,9 +1435,7 @@ impl SampleOutcome {
             Self::Definite(Sign::Positive) => "positive",
             Self::Indeterminate => "indeterminate",
             Self::Invalid => "invalid",
-            Self::SymbolicZero => "symbolic_zero",
-            Self::SignGated => "sign_gated",
-            Self::Registered => "registered",
+            Self::Symbolic => "symbolic",
         }
     }
 }
@@ -1524,9 +1492,9 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
 }
 
 /// **Re-tags the sample just recorded as `outcome`** —
-/// [`SampleOutcome::SymbolicZero`] or [`SampleOutcome::SignGated`], the
-/// symbolic tier's door into the SAME funnel population (`crate::sym`'s
-/// `Decide` impl calls it where the tier overrides the numeric answer).
+/// [`SampleOutcome::Symbolic`], the symbolic tier's door into the SAME
+/// funnel population (`crate::sym`'s `Decide` impl calls it where the
+/// tier overrides the numeric answer).
 ///
 /// A re-tag rather than a second `record`, and that is the whole design:
 /// `Sym<T>` asks its base scalar first (its domain refusal is clause 1
@@ -1694,6 +1662,10 @@ impl Real for Probe {
         Real::is_poison(self.0)
     }
 
+    fn is_bounded(self) -> bool {
+        Real::is_bounded(self.0)
+    }
+
     fn powi(self, n: i32) -> Self {
         Self(Real::powi(self.0, n))
     }
@@ -1799,6 +1771,10 @@ impl crate::spline::SpanLocate for Probe {
         crate::spline::SpanLocate::point_value(self.0)
     }
 
+    fn plain_constant(self) -> Option<f64> {
+        crate::spline::SpanLocate::plain_constant(self.0)
+    }
+
     fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
         arm.projective()
     }
@@ -1837,7 +1813,7 @@ mod tests {
     /// each one: a variant added without a roster entry stops compiling
     /// here rather than leaving whatever derives from `ALL` silently
     /// short — which is exactly how `tools/k-lint`'s accepted-token list
-    /// came to be missing `symbolic_zero`.
+    /// came to be missing the symbolic tier's token.
     #[cfg(feature = "probe")]
     #[test]
     fn all_lists_every_variant_and_every_token_is_distinct() {
@@ -1849,9 +1825,7 @@ mod tests {
                 | SampleOutcome::Definite(Sign::Positive)
                 | SampleOutcome::Indeterminate
                 | SampleOutcome::Invalid
-                | SampleOutcome::SymbolicZero
-                | SampleOutcome::SignGated
-                | SampleOutcome::Registered => true,
+                | SampleOutcome::Symbolic => true,
             };
             assert!(seen, "{o:?} is listed in ALL");
         }

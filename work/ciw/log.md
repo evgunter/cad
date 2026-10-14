@@ -2965,3 +2965,13 @@ drops `[skip ci]` from the bot commit and refuses (failing
 branch during the render, except on the default branch. Note for CIW:
 `.github/actions/*` is not among `work/ciw/program.md`'s `paths`, though
 these composite actions are part of the hosted CI this program owns.
+- 2026-10-13 — Seam note from ENCL: PR 4925 merged. ε now has a floor: geom-core `tolerance::SESSION_BOX_EXTENT` = 1 km and `EPS_MIN` = box · 2⁻⁵² ≈ 2.2e-13 m, per D4 ¶4 (Ev, PR 4836).
+  - Every door that sets a run's ε refuses below it. `tolerance::EpsFloor` is the one wording of the refusal.
+  - `Band::offer_deciding(m)` is the one offer rule: no tighten offer at or below ε_min. Tests that predict an offer should call it rather than restate `|m|/K`.
+  - At CI's 1e-12 row, every zero-band offer now withholds.
+  - A run below the floor (for example `CAD_TOLERANCE_EPS=1e-14`) is refused. Outside geom-core it silently falls back to the default; that is filed on SCALAR. (ENCL orchestrator)
+- 2026-10-14 — Seam note from NURBS (build-time lane, #5011's ask): where the test job's cold build goes, measured on 4 cores. The table is in `work/ciw/the-test-jobs-build-time-candidates-measured.md`.
+  - The frontend and the linker are negligible. Half of editor-core lib's backend is crate-local ThinLTO, which cargo's default `lto = false` runs at opt-level 1.
+  - #5104 sets `CARGO_PROFILE_{DEV,TEST}_LTO=off` in `test` and `cache-prime`. Build −291/−302 s, tests +9–18%, whole geom-brep-seeded job −225 s. No gate row changes.
+  - **The two env blocks must stay equal**: rust-cache keys on `CARGO_*` variables.
+  - Every other candidate came in under 2 min, worse, already decided, or not cheap.

@@ -184,20 +184,16 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     );
 }
 
-/// The member orders, spelled by member, in which the four-member
-/// document reaches the seam-vertex residue `Emission`: the eight that
-/// fold `a` and `h` before `b`, measured, and pinned exactly.
-const SEAM_VERTEX_RESIDUE: [&str; 8] = [
-    "aghb", "ahbg", "ahgb", "gahb", "ghab", "habg", "hagb", "hgab",
-];
-
-/// **Every order of every such document names the crossing the same.**
+/// **Every order of every such document names the crossing the same,
+/// and publishes one table.**
 ///
 /// Three documents reach it: the row's four members, the same without
 /// `h`, and `g` lowered through the bottom cap (the crossing then on
 /// `a`'s bottom / `y = 1` rim). Orders that refuse for reasons of their
 /// own are other rows' subjects; what is asserted of them is only that
-/// none of them is an `Emission`.
+/// none of them is an `Emission`. The orders that fold `a` and `h`
+/// before `b` meet `a`'s corner resting on `h`'s wall, which is that
+/// corner (N2).
 ///
 /// Whether `a` and `b` fold before `g` decides what the fold meets: a
 /// piece of `a`'s rim, or three seam lines. The published name is the
@@ -219,18 +215,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
         let Fixture { doc, a, b, g, h } = f;
         let members: Vec<_> = [a, b, g].into_iter().chain(h).collect();
         let (mut ab_first, mut g_between) = (0, 0);
-        let mut residue = BTreeSet::new();
-        let spell = |order: &[RecipeNodeId]| -> String {
-            order
-                .iter()
-                .map(|m| match *m {
-                    m if m == a => 'a',
-                    m if m == b => 'b',
-                    m if m == g => 'g',
-                    _ => 'h',
-                })
-                .collect()
-        };
+        let mut tables = Vec::new();
         for order in permutations(&members) {
             let (docx, union) = crate::fixture::union_over(doc.clone(), &order);
             let ev = run(&docx);
@@ -253,14 +238,10 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                     } else {
                         g_between += 1;
                     }
-                }
-                // The seam-vertex residue, in exactly the measured
-                // orders
-                // (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`).
-                Some(NodeErrorKind::Naming(NamingError::Emission {
-                    what: "seam vertex parentage underdetermined from incident edges",
-                })) => {
-                    residue.insert(spell(&order));
+                    tables.push((
+                        order.clone(),
+                        crate::emit_union_rim_piece_ranks::signature(&ev, union),
+                    ));
                 }
                 Some(e @ NodeErrorKind::Naming(NamingError::Emission { .. })) => {
                     panic!("{label} {order:?}: {e}")
@@ -268,15 +249,11 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                 Some(_) => {}
             }
         }
-        let measured: BTreeSet<String> = if with_h {
-            SEAM_VERTEX_RESIDUE.iter().map(|o| o.to_string()).collect()
-        } else {
-            BTreeSet::new()
-        };
-        assert_eq!(
-            residue, measured,
-            "{label}: the seam-vertex residue's orders"
-        );
+        if let [(first_at, first), rest @ ..] = tables.as_slice() {
+            for (at, table) in rest {
+                assert_eq!(table, first, "{label}: {at:?} against {first_at:?}");
+            }
+        }
         assert!(
             ab_first >= 1 && g_between >= 2,
             "{label}: {ab_first} orders fold a and b first, {g_between} do not"

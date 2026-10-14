@@ -68,11 +68,12 @@ const KERNEL_KEYED: &[&str] = &[
     "UnfinishedOperand/ScaffoldingEmptyLoop",
     "UnfinishedOperand/ScaffoldingStrutVertex",
     "Loft/Pcurve",
-    "Blend/BodyNotIntact",
+    "Blend/BodyNotIntact/Unresolved",
+    "Blend/BodyNotIntact/Unwalked",
+    "Blend/BodyNotIntact/Disagrees",
     "Blend/SurgeryInvariant",
     "Blend/Certify",
     "Naming/SplitLineage",
-    "Naming/FragmentLineage",
     "Naming/SeamVertexParentage",
     "Naming/SharedRim",
     "FaceFrameReadback/Dangling",
@@ -151,10 +152,6 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     (
         "Naming/SplitLineage",
         "split lineage of edge EdgeKey  cycles",
-    ),
-    (
-        "Naming/FragmentLineage",
-        "fragment lineage of face FaceKey  cycles",
     ),
 ];
 
@@ -242,7 +239,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MissingSlot",
     "Naming/Duplicate",
     "Naming/Emission",
-    "Naming/FragmentLineage",
     "Naming/MissingUpstream",
     "Naming/SeamVertexParentage",
     "Naming/SharedRim",
@@ -943,6 +939,7 @@ fn node_refusals() -> Vec<(String, NodeErrorKind)> {
     rows.extend(tube());
     rows.extend(split());
     rows.extend(transform());
+    rows.extend(motion());
     rows.extend(skin());
     rows.extend(loft());
     rows.extend(blend());
@@ -1389,6 +1386,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverAxisClearance {
                 loop_index: 0,
                 segment_index: 3,
+                decision: sweep::ClearanceDecision::ArcApex,
                 source: diag(),
             },
         ),
@@ -1508,12 +1506,14 @@ fn tube() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             E::Escalated {
+                decision: sweep::TubeDecision::WindowSpan,
                 source: named("tube_window_span"),
             },
         ),
         (
             "Escalated(hollow)",
             E::Escalated {
+                decision: sweep::TubeDecision::WallGap,
                 source: hollow("tube_wall_gap"),
             },
         ),
@@ -1785,7 +1785,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::SectionUnarmed {
                     face,
                     divided: geom::SurfaceKind::Plane,
-                    wall: geom::SurfaceKind::Torus,
+                    wall: geom::SurfaceKind::Nurbs,
                 },
             ),
             (
@@ -1818,7 +1818,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
     let boolean_join = join_arms().map(|(n, e)| {
         row(
             &format!("Boolean/Join/{n}"),
-            NodeErrorKind::Boolean(topo::BooleanError::Join(e)),
+            NodeErrorKind::Boolean(topo::BooleanError::from(e)),
         )
     });
     let shell = ShellKey::default();
@@ -1925,18 +1925,6 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "NotRigid",
-            E::NotRigid {
-                check: "transform_rigid_col0_unit",
-            },
-        ),
-        (
-            "NonFiniteMap",
-            E::NonFiniteMap {
-                check: "transform_rigid_col0_unit",
-            },
-        ),
-        (
             "NullScaffold",
             E::NullScaffold {
                 edge: topo::EdgeKey::default(),
@@ -1956,6 +1944,56 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     .collect()
 }
 
+/// A placement's motion: each mint's non-finite part, and the decided
+/// door's four refusals.
+fn motion() -> Vec<(String, NodeErrorKind)> {
+    use geom_core::{Band, Indeterminate, MarginDiag, MotionPart, RigidMotionError as E};
+    let band = Band::new(1.0e-9, 1.0e-8).expect("a fixed, ordered band");
+    [
+        ("NonFinite/Angle", E::NonFinite(MotionPart::Angle)),
+        (
+            "NonFinite/Translation",
+            E::NonFinite(MotionPart::Translation),
+        ),
+        ("NonFinite/Anchor", E::NonFinite(MotionPart::Anchor)),
+        ("NonFinite/Product", E::NonFinite(MotionPart::Product)),
+        ("NonFinite/Inverse", E::NonFinite(MotionPart::Inverse)),
+        (
+            "NotRigid/scale",
+            E::NotRigid {
+                check: "transform_rigid_col0_unit",
+            },
+        ),
+        (
+            "NotRigid/shear",
+            E::NotRigid {
+                check: "transform_rigid_col01_orth",
+            },
+        ),
+        (
+            "NotRigid/mirror",
+            E::NotRigid {
+                check: "transform_rigid_det_plus_one",
+            },
+        ),
+        (
+            "Undecided",
+            E::Undecided {
+                check: "transform_rigid_col01_orth",
+                source: Indeterminate {
+                    margin: MarginDiag::value(5.0e-9),
+                    band,
+                    predicate: Some("transform_rigid_col01_orth"),
+                    terminal_sliver: false,
+                },
+            },
+        ),
+    ]
+    .into_iter()
+    .map(|(n, e)| row(&format!("Motion/{n}"), NodeErrorKind::Motion(e)))
+    .collect()
+}
+
 /// One certification refusal per ending the certifier's typed routing
 /// gives (D4 ¶1), with that whole ending:
 /// - a sized decision's lever and the tolerance below `m/K`, on its
@@ -1963,9 +2001,9 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
 ///   zero arm, which has no margin to quote;
 /// - the span's own lever;
 /// - a collapse gate's own decision (a lever arm, a spline's metered
-///   length), undecided and decided: its lever, with what a vanishing
-///   floor means on a spline meter of no length, and on a poisoned
-///   margin what that may mean;
+///   length), undecided and decided: its lever, with what a floor at or
+///   below zero means on a spline meter, and on a poisoned margin what
+///   that may mean;
 /// - a poisoned margin on a sized decision: the lever, and what it may
 ///   mean;
 /// - an exact residual's kernel-defect ending;
@@ -2058,8 +2096,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 }),
             },
             "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
-             there; an edge of no length, or a face curving to a point as a cone does, leaves no \
-             angle to measure",
+             there; an edge of no length or a cone's point leaves no angle to measure; a radius \
+             below zero is a defect",
         ),
         (
             "spline meter turns back",
@@ -2069,7 +2107,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 },
             },
             "Recourse: move the geometry so this spline edge runs steadily forward, never stalling \
-             or turning back",
+             or turning back; if it does neither, the speed floor has reached its limit, which is \
+             worth reporting",
         ),
         (
             "spline meter, invalid",
@@ -2503,9 +2542,10 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
     use geom_core::{Indeterminate, MarginDiag, Sign};
     use payloads::*;
     use sweep::blend::{
-        BlendDecision, BlendError as E, BlendKind, BlendSite, ClassifiedMargin, CornerConfig,
+        BlendDecision, BlendError as E, BlendKind, BlendSite, Breach, ClassifiedMargin,
+        CornerConfig,
     };
-    use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+    use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
     let (face, edge, vertex) = (FaceKey::default(), EdgeKey::default(), VertexKey::default());
     let decided = |predicate, m: f64, sign| ClassifiedMargin {
         predicate,
@@ -2725,10 +2765,28 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "BodyNotIntact",
+            "BodyNotIntact/Unresolved",
             E::BodyNotIntact {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),
+                breach: Breach::Unresolved,
                 detail: "a twin half-edge the plan followed",
+            },
+        ),
+        (
+            "BodyNotIntact/Unwalked",
+            E::BodyNotIntact {
+                at: EntityId::Loop(LoopKey::default()),
+                breach: Breach::Unwalked,
+                detail: "a cycle of a face a chord spans does not walk",
+            },
+        ),
+        (
+            "BodyNotIntact/Disagrees",
+            E::BodyNotIntact {
+                at: EntityId::Vertex(vertex),
+                breach: Breach::Disagrees,
+                detail: "an end face's cycle around the old vertex is not flanked by the two feet \
+                         just split",
             },
         ),
         (
@@ -2745,6 +2803,14 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 chain: sweep::blend::Convexity::Convex,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
                 bounded: false,
+            },
+        ),
+        (
+            "WhollyInside",
+            E::WhollyInside {
+                at: topo::EntityId::Face(face),
+                chain: sweep::blend::Convexity::Convex,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
             },
         ),
         (
@@ -3420,12 +3486,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             NamingError::SplitLineage(topo::SplitLineageCycle {
                 edge: topo::EdgeKey::default(),
             }),
-        ),
-        (
-            "FragmentLineage",
-            NamingError::FragmentLineage {
-                face: topo::FaceKey::default(),
-            },
         ),
         (
             "SeamVertexParentage",
@@ -5170,14 +5230,15 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
 /// their recourse, and the rows above render one representative detail
 /// apiece. So this reads every detail the blend module raises those arms
 /// with — the second argument of each `unbuilt_chain`,
-/// `unbuilt_run_out`, `unbuilt_geometry` and `not_intact` call in
+/// `unbuilt_run_out`, `unbuilt_geometry`, `unresolved`, `unwalked` and
+/// `disagrees` call in
 /// `sweep/src/blend`, and the `detail:` of each of those arms built
 /// directly, a literal or a `const` resolved in the same tree — and
 /// renders each through the feature tree's chain, under both verbs.
 /// A raise site added later is read the day it is written.
 #[test]
 fn every_blend_detail_renders_within_the_budget() {
-    use sweep::blend::{BlendError as E, BlendKind};
+    use sweep::blend::{BlendError as E, BlendKind, Breach};
     use topo::{EdgeKey, EntityId, FaceKey};
     let details = blend_details();
     let mut rows = Vec::new();
@@ -5191,7 +5252,21 @@ fn every_blend_detail_renders_within_the_budget() {
             },
             "unbuilt_run_out" => E::UnsupportedRunOut { at, detail },
             "unbuilt_geometry" => E::UnsupportedGeometry { at, detail },
-            "not_intact" => E::BodyNotIntact { at, detail },
+            "unresolved" => E::BodyNotIntact {
+                at,
+                breach: Breach::Unresolved,
+                detail,
+            },
+            "unwalked" => E::BodyNotIntact {
+                at,
+                breach: Breach::Unwalked,
+                detail,
+            },
+            "disagrees" => E::BodyNotIntact {
+                at,
+                breach: Breach::Disagrees,
+                detail,
+            },
             other => panic!("no arm for {other}"),
         };
         for verb in [BlendKind::Fillet, BlendKind::Chamfer] {
@@ -5212,7 +5287,9 @@ fn every_blend_detail_renders_within_the_budget() {
         "unbuilt_chain",
         "unbuilt_run_out",
         "unbuilt_geometry",
-        "not_intact",
+        "unresolved",
+        "unwalked",
+        "disagrees",
     ] {
         assert!(
             details.iter().any(|(h, _, _)| *h == helper),
@@ -5224,15 +5301,16 @@ fn every_blend_detail_renders_within_the_budget() {
         "{} blend details read, below the floor of {BLEND_DETAIL_FLOOR}",
         details.len()
     );
-    // `BodyNotIntact` names the entity that did not resolve: a corrupt
-    // body, whose report needs the key. Keyed by the arm the detail is
-    // raised with, not by the row's name.
+    // `BodyNotIntact` names the entity where the body did not hold
+    // together: a corrupt body, whose report needs the key. Keyed by the
+    // arm the detail is raised with, not by the row's name.
     let problems: Vec<String> = rows
         .iter()
         .zip(details.iter().flat_map(|d| [d, d]))
         .flat_map(|((name, text), (helper, _, _))| {
             eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-            test_utils::refusal::problems(name, text, &[], *helper == "not_intact")
+            let keyed = matches!(*helper, "unresolved" | "unwalked" | "disagrees");
+            test_utils::refusal::problems(name, text, &[], keyed)
         })
         .collect();
     assert!(problems.is_empty(), "{}", problems.join("\n"));
@@ -5286,7 +5364,9 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
             "unbuilt_chain",
             "unbuilt_run_out",
             "unbuilt_geometry",
-            "not_intact",
+            "unresolved",
+            "unwalked",
+            "disagrees",
         ] {
             let call = format!("{helper}(");
             for (at, _) in code.match_indices(&call) {
@@ -5316,12 +5396,13 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
         // detail as a field: `BlendError::BodyNotIntact { at, detail: … }`.
         // A pattern (`{ .. }`, `{ detail, .. }`) or the helper's own
         // shorthand (`{ at, detail }`) states no `detail:` field and is
-        // not a raise site.
+        // not a raise site. A direct `BodyNotIntact` is rendered as its
+        // longest breach, so its detail is measured at the worst case.
         for (arm, helper) in [
             ("UnsupportedChain", "unbuilt_chain"),
             ("UnsupportedRunOut", "unbuilt_run_out"),
             ("UnsupportedGeometry", "unbuilt_geometry"),
-            ("BodyNotIntact", "not_intact"),
+            ("BodyNotIntact", "disagrees"),
         ] {
             let needle = format!("{arm} {{");
             for (at, _) in code.match_indices(&needle) {

@@ -94,3 +94,18 @@ rim lies on a ball, tilted so the rim is no latitude of the ball's
 chart, builds every op sound and refuses the mesh with
 `props_rim_axis_parallel` (`crates/sweep/tests/a_tube_ending_on_a_ball.rs`,
 `a_tilted_tube_builds_at_its_closed_form`, reads it without a mesh).
+
+## Evidence (2026-10-14, BAND `band/corner-patch-chart-pole`, PR 5048)
+
+An oblique fillet corner patch. Its chart poles on one foot, so two of
+its sides are meridians and the third, opposite the pole, is a great
+circle tilted against the chart. The fillet builds tier 3 clean, and
+`mesh::tessellate` refuses the corner face with `NotIsoRectangle {
+what: "props_rim_axis_parallel" }`. It refuses the same way on main
+with the corner's old chart. Witnesses: `m5_pr12_fix_pass`'s `f4`
+clip (`crates/sweep/tests/common/oblique.rs`, `f4`, filleted at
+r = 0.03 and 0.08), and the unit cube clipped by the cube turned
+0.15 rad about (1, 2, 3) (`oblique::clip`). Every oblique clip the
+PR 5048 review built (15 bodies) refused at a corner face and nowhere
+else. `corner_patch_chart_poles` and the `f4` row read these bodies
+without a mesh for that reason.

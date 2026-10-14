@@ -263,8 +263,11 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_l
         };
         let upright = sweep::test_support::prism_at(rect(-3.0, -3.0, 3.0, 3.0), z0, h, tol);
         let turned = topo::transform_rigid(
-            &finished(upright, tol),
-            &Affine3::rotation_about_axis(about, Vec3::new(0.0, 1.0, 0.0), t),
+            &upright,
+            &geom_core::test_support::rigid(
+                &Affine3::rotation_about_axis(about, Vec3::new(0.0, 1.0, 0.0), t),
+                tol,
+            ),
             tol,
         )
         .unwrap();
@@ -294,15 +297,16 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_l
                             wrong.push(format!("{tag}: reads otherwise: {text}"));
                         }
                     }
-                    (
-                        Against::SquareBox,
-                        Err(
-                            e @ BooleanError::Join(SplitJoinError::SectionEndEscalated {
+                    (Against::SquareBox, Err(e @ BooleanError::Join(_)))
+                        if matches!(
+                            &e,
+                            BooleanError::Join(j) if matches!(j.error(),
+                            SplitJoinError::SectionEndEscalated {
                                 reading: SectionEndReading::SquareToAxis,
                                 ..
-                            }),
-                        ),
-                    ) => {
+                            })
+                        ) =>
+                    {
                         let text = e.to_string();
                         if !text.contains(SQUARE) || !text.ends_with(SQUARE_LEVER) {
                             wrong.push(format!("{tag}: reads otherwise: {text}"));

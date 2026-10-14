@@ -116,9 +116,17 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// on, not as a junction of seam lines. The longer sentences are the
 /// right names, not a regression. The percentiles, the maxima and the
 /// scoped row held.
+///
+/// The full total fell by 102 and its p99 by one with the vertex run
+/// (N2: an `EdgeCrossing` is a run of lines): each edge of a run is said
+/// against "the rest", where a pair was said "the other body" and "the
+/// first", in `corner_table`'s and `crossing_slots`' edge × edge vertices
+/// and the pieces whose ends cite them. No name moved: read as a set of
+/// (line, sense), every run is the pair it replaced. The maxima and the
+/// scoped row held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 43, 57, 55_705]),
-    ("full", [19, 123, 196, 411_440]),
+    ("full", [19, 122, 196, 411_498]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -181,7 +189,13 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `crossing_slots`, a rim piece named as a seam, two floor corners and
 /// the pieces ending at them say other words. No other document's words
 /// moved (`lib_g16_corpus_name_digests` moved that row alone).
-const SAID_DIGEST: u64 = 0x28f3_7433_19f2_d3a2;
+///
+/// Re-pinned for the vertex run: the words that moved are an
+/// `EdgeCrossing`'s, each line now "… the rest" where the pair said "…
+/// the other body and … the first", in `corner_table` and
+/// `crossing_slots`, the two documents whose pair booleans meet edge to
+/// edge (`lib_g16_corpus_name_digests` moved those two rows alone).
+const SAID_DIGEST: u64 = 0x825d_ab47_ca34_6a4c;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -765,6 +779,8 @@ fn documents_outside_the_corpus_read_apart_too() {
         docs.push((format!("round pins, {op:?}"), doc));
     }
 
+    docs.push(("glued rim cut by a third block".to_owned(), glued_rim().0));
+
     let mut alike = Vec::new();
     for (label, doc) in &docs {
         let ev = fixture::run(doc, &EvalOptions::default());
@@ -777,6 +793,61 @@ fn documents_outside_the_corpus_read_apart_too() {
         "distinct names of one table are said alike:\n{}",
         alike.join("\n")
     );
+}
+
+/// The three-block glued rim (`fixture::glued_rim`, glued flush) as
+/// one document, and its union.
+fn glued_rim() -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("name_words_glued_rim", geom_core::Tol::witness());
+    let (doc, members) = fixture::glued_rim(0.0)(doc);
+    fixture::union_over(doc, &members)
+}
+
+/// **Each seam in a run of seams is said by its two faces**, in full
+/// and within the evaluation alike: the three-block glued rim, where
+/// `c`'s wall cuts the rim of `b` glued on `a`, holds two vertices that
+/// are each the run of three seams and share the seam of `a`'s top and
+/// `c`'s wall. Said within the evaluation, a seam said as "an edge"
+/// says nothing of where the vertex is, and two such runs differ only
+/// in the seams the detail opened.
+#[test]
+fn a_run_of_seams_says_each_seam_by_its_faces() {
+    let (doc, u) = glued_rim();
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    let full = Speaker::of(&doc);
+    let within = full.within(&ev);
+    let runs: Vec<StableName> = ev
+        .value(u)
+        .expect("the glued rim evaluates")
+        .name_table
+        .iter()
+        .map(|(name, _)| name)
+        .filter(|name| {
+            matches!(name.path.as_slice(), [RoleSeg::EdgeCrossing(run)]
+                if run.len() == 3 && run.iter().all(|l| l.sense.is_none()))
+        })
+        .cloned()
+        .collect();
+    assert_eq!(
+        runs.len(),
+        2,
+        "two vertices are runs of three seams: {runs:?}"
+    );
+    for (form, by) in [("in full", full), ("within the evaluation", within)] {
+        let said: Vec<String> = runs.iter().map(|n| by.name(n).to_string()).collect();
+        for s in &said {
+            assert_eq!(
+                s.matches("the seam of ").count(),
+                3,
+                "{form}: each seam is said by its faces: {s}"
+            );
+            assert!(
+                !s.contains("an edge"),
+                "{form}: no seam is said as an edge: {s}"
+            );
+        }
+        assert_ne!(said[0], said[1], "{form}: the two runs read apart");
+    }
 }
 
 /// **A kept name spoken again after its step was dropped says the step

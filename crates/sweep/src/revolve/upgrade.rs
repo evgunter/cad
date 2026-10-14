@@ -9,8 +9,8 @@
 
 use geom::Curve3;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal,
-    SurfacePair, classify_dihedral, edge_extent, must_carry_over_edge,
+    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, SmoothJoin,
+    SurfacePair, classify_dihedral, edge_extent, must_carry_description,
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
@@ -20,7 +20,7 @@ use super::RevolveError;
 use geom_core::Tol;
 
 /// An edge's stored certified carrier: `(carrier, t0, t1, witness,
-/// extent, chord endpoints)` — the mid-parameter witness computed with
+/// extent, chord)` — the mid-parameter witness computed with
 /// the certification schedule's own association `t0 + (t1 − t0)·½`
 /// (chord midpoints fail on arcs), the extent through
 /// [`geom_brep::edge_extent`] (carrier diameter for closed rims).
@@ -30,6 +30,7 @@ struct EdgeData<T: Real> {
     t1: T,
     witness: Point3<T>,
     extent: T,
+    chord: T,
 }
 
 /// The point of `vertex`, read off a live half-edge.
@@ -71,13 +72,15 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
     });
     let p_start = vertex_point(body, start);
     let p_end = vertex_point(body, end);
-    let extent = edge_extent(&carrier, t0, t1, p_start.distance(p_end));
+    let chord = p_start.distance(p_end);
+    let extent = edge_extent(&carrier, t0, t1, chord);
     Ok(EdgeData {
         carrier,
         t0,
         t1,
         witness,
         extent,
+        chord,
     })
 }
 
@@ -98,7 +101,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     s1: SurfaceKey,
     s2: SurfaceKey,
     band: Band,
-    sliver: impl FnOnce(DihedralReading, geom_core::Indeterminate) -> RevolveError,
+    sliver: impl Fn(DihedralReading, geom_core::Indeterminate) -> RevolveError,
     tol: Tol,
 ) -> Result<(), RevolveError> {
     let data = edge_data(body, edge)?;
@@ -146,18 +149,21 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
             // corner where the witness read it smooth refutes this
             // arm's premise, and the edge refuses rather than store a
             // description neither reading chose.
-            let refused = |refusal| match refusal {
-                MustCarryRefusal::InBand(escalation) => {
-                    let (reading, source) = DihedralReading::of_must_carry(escalation);
-                    sliver(reading, source)
-                }
-                MustCarryRefusal::Refuted => RevolveError::SmoothJoinRefuted { edge },
-            };
-            let (pair, [sa, sb]) = SurfacePair::sorted(s1, &surf1, s2, &surf2);
-            match must_carry_over_edge(sa, sb, &data.carrier, data.t0, data.t1, data.extent, band)
-                .description(pair, data.witness)
-                .map_err(refused)?
-            {
+            match must_carry_description(
+                SmoothJoin {
+                    surfaces: [(s1, &surf1), (s2, &surf2)],
+                    carrier: &data.carrier,
+                    interval: (data.t0, data.t1),
+                    chord: data.chord,
+                    witness: data.witness,
+                },
+                band,
+                || s1,
+                &sliver,
+                &sliver,
+                || RevolveError::SmoothJoinRefuted { edge },
+                |chart| unreachable!("{chart:?} is `s1`, one of the join's pair"),
+            )? {
                 MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {
                         description,
@@ -167,7 +173,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     };
                     body.set_edge_curve(edge, spec, tol)?;
                 }
-                MustCarryDescription::Conventional => {
+                MustCarryDescription::Conventional(chart) => {
                     // No intrinsic tangency is demanded (a zero-side
                     // station, or an all-positive pair outside the
                     // certificate's lane), so the description stays
@@ -178,7 +184,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     // scaffolded from stays beside it as the authority
                     // record, which is what keeps tier 3's
                     // prefer-intrinsic reading unchanged.
-                    body.describe_at_rest(edge, s1, tol)?;
+                    body.describe_at_rest(edge, chart, tol)?;
                 }
             }
             Ok(())

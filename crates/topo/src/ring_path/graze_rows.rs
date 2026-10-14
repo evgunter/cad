@@ -51,7 +51,7 @@ fn case(
     let u2 = w(Vec3::new(0.0, beta.cos(), beta.sin()));
     let pi = core::f64::consts::PI;
     let arcs = vec![
-        LoopArc::Conic {
+        LoopArc::Conic(Conic {
             centre,
             axis: x,
             u_ref: u1,
@@ -59,8 +59,8 @@ fn case(
             b: a,
             span: (sv - pi, sv),
             own: None,
-        },
-        LoopArc::Conic {
+        }),
+        LoopArc::Conic(Conic {
             centre: centre + jitter.0 * jitter.1,
             axis: (x + jitter.0.cross(x) * (jitter.1 / r)).normalize(),
             u_ref: u2,
@@ -68,7 +68,7 @@ fn case(
             b: a,
             span: (sv - beta, sv - beta + pi),
             own: None,
-        },
+        }),
     ];
     (path, arcs)
 }
@@ -384,8 +384,8 @@ fn split_ellipse(
     let geom::Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = *c
     else {
@@ -393,24 +393,24 @@ fn split_ellipse(
     };
     let pi = core::f64::consts::PI;
     [
-        LoopArc::Conic {
+        LoopArc::Conic(Conic {
             centre: center,
             axis,
             u_ref,
-            a: major,
-            b: minor,
+            a: semi_u,
+            b: semi_v,
             span: (v - pi, v),
             own: None,
-        },
-        LoopArc::Conic {
+        }),
+        LoopArc::Conic(Conic {
             centre: center + dir * jitter,
             axis: (axis + dir.cross(axis) * (jitter / size)).normalize(),
             u_ref,
-            a: major,
-            b: minor,
+            a: semi_u,
+            b: semi_v,
             span: (v, v + pi),
             own: None,
-        },
+        }),
     ]
 }
 
@@ -431,10 +431,13 @@ fn segment_section(
         cell.unresolvable += 1;
         return;
     };
-    let geom::Curve3::Ellipse { major, .. } = c else {
+    let geom::Curve3::Ellipse { semi_u, .. } = c else {
         unreachable!()
     };
-    if !resolvable(band.zero(), off + (c.eval(0.0) - apex).norm() + 2.0 * major) {
+    if !resolvable(
+        band.zero(),
+        off + (c.eval(0.0) - apex).norm() + 2.0 * semi_u,
+    ) {
         cell.unresolvable += 1;
         return;
     }
@@ -448,7 +451,7 @@ fn segment_section(
         .unwrap();
     for tv in [far, far + 0.3, far + 2.0] {
         for dir in [direction(rng), q[2]] {
-            let arcs = split_ellipse(&c, tv, (dir, jitter), major);
+            let arcs = split_ellipse(&c, tv, (dir, jitter), semi_u);
             for nudge in nudges() {
                 let x = c.eval(tv + nudge);
                 let e = (x - apex).normalize();

@@ -251,7 +251,7 @@ pub(crate) const fn placement_sized(
         size,
         passes,
         stored: StoredDefinite::Lever,
-        at_zero: None,
+        no_size: None,
     }
 }
 
@@ -866,10 +866,10 @@ impl<T: Decide> ConicArc<T> {
             geom::Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
-            } => (ConicKind::Ellipse, center, axis, u_ref, major, minor),
+            } => (ConicKind::Ellipse, center, axis, u_ref, semi_u, semi_v),
             _ => return Ok(None),
         };
         let lever = a.min(b);
@@ -1663,21 +1663,16 @@ pub(crate) fn carrier_ball<T: Decide>(
         geom::Curve3::Circle { center, radius, .. } => Some((center, radius)),
         geom::Curve3::Ellipse {
             center,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             ..
-        } => Some((center, major.max(minor))),
+        } => Some((center, geom::Curve3::semi_axes_by_size(semi_u, semi_v).0)),
         // The arc from its midpoint: no point of it lies further from
         // `P(mid)` than the oval's speed bound times half the parameter
         // width.
-        geom::Curve3::Spiric {
-            major_radius,
-            minor_radius,
-            offset,
-            ..
-        } => Some((
+        geom::Curve3::Spiric { .. } => Some((
             carrier.mid_point(t0, t1),
-            spiric_speed(major_radius, minor_radius, offset) * (t1 - t0).abs() * T::from_f64(0.5),
+            geom_core::bisect::reach(geom_brep::carrier_speed::speed_range(carrier).1, (t0, t1)),
         )),
         // Positive weights put a NURBS curve inside its control
         // hull, so inside any ball holding every control point: the
@@ -1699,13 +1694,6 @@ pub(crate) fn carrier_ball<T: Decide>(
             Some((center, reach))
         }
     }
-}
-
-/// **A spiric's speed bound**, metres per radian of its parameter:
-/// [`geom::spiric_rate_bounds`] over the whole oval of the torus
-/// `(major, minor)` cut at `offset`.
-pub(crate) fn spiric_speed<T: geom_core::Real>(major: T, minor: T, offset: T) -> T {
-    geom::spiric_rate_bounds(minor, offset, (major - minor, major + minor), T::one()).0
 }
 
 /// **How far from `q` the loop reaches**: the radius of a ball about
@@ -1974,10 +1962,13 @@ fn certify_plane<T: Decide>(
             Some(&geom::Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 ..
-            }) => margins.extend([off(center), tilt(axis, major.max(minor))]),
+            }) => margins.extend([
+                off(center),
+                tilt(axis, geom::Curve3::semi_axes_by_size(semi_u, semi_v).0),
+            ]),
             Some(&geom::Curve3::Spiric {
                 center,
                 u_ref,
@@ -2321,8 +2312,8 @@ mod tests {
         let carrier = geom::Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major: a,
-            minor: b,
+            semi_u: a,
+            semi_v: b,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         // The arc from the minor vertex (π/2) round through the major
@@ -2358,8 +2349,8 @@ mod tests {
         let carrier = geom::Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major: 20.0,
-            minor: 1.0,
+            semi_u: 20.0,
+            semi_v: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         ConicArc::of(&carrier, (t0, t1), WALK_ROWS.conic, band)
@@ -2434,8 +2425,8 @@ mod tests {
         let ellipse = |a: f64| geom::Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major: a,
-            minor: 1.0,
+            semi_u: a,
+            semi_v: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         // The repro, as the review spelled it at ε = 1e-9.
@@ -2526,8 +2517,8 @@ mod tests {
         let ellipse = geom::Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major: 100.0,
-            minor: 1.0,
+            semi_u: 100.0,
+            semi_v: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         // Centred at the minor vertex, where the edge's speed is `a`.
@@ -2559,8 +2550,8 @@ mod tests {
             let ellipse = geom::Curve3::Ellipse {
                 center: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
-                major: a,
-                minor: 1.0,
+                semi_u: a,
+                semi_v: 1.0,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
             let bracket = geom_core::k_stats::Bracket::open();
@@ -2675,8 +2666,8 @@ mod tests {
         let carrier = geom::Curve3::Ellipse {
             center: Point3::new(p(0.0), p(0.0), p(0.0)),
             axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
-            major: p(20.0),
-            minor: p(1.0),
+            semi_u: p(20.0),
+            semi_v: p(1.0),
             u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
         };
         let Ok(Some(k)) = ConicArc::of(
@@ -2712,8 +2703,8 @@ mod tests {
             let carrier = geom::Curve3::Ellipse {
                 center: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
-                major: a,
-                minor: b,
+                semi_u: a,
+                semi_v: b,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
             let Ok(Some(k)) = ConicArc::of(
@@ -2751,8 +2742,8 @@ mod tests {
         geom::Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major: b,
-            minor: a,
+            semi_u: b,
+            semi_v: a,
             u_ref: Vec3::new(0.0, 1.0, 0.0),
         }
     }

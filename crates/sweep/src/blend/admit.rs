@@ -43,7 +43,8 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use super::battery::{Chain, Convexity, JointVerdict, Link, Turn, joint_verdict};
 use super::build::{fan_at, outward_of};
 use super::surgery::{
-    CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
+    CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
+    unresolved, unwalked,
 };
 use super::{BlendError, CornerConfig};
 
@@ -167,7 +168,7 @@ impl Joint {
                 ));
             }
             JointVerdict::OrbitBroken => {
-                return Err(not_intact(
+                return Err(unwalked(
                     EntityId::Vertex(vertex),
                     "a joint's vertex orbit does not walk",
                 ));
@@ -247,7 +248,7 @@ impl<'a, T: Decide> OpenBand<'a, T> {
         let mut joints = Vec::with_capacity(chain.junctions.len());
         for j in &chain.junctions {
             let (Some(a), Some(b)) = (links.get(j.arriving()), links.get(j.leaving())) else {
-                return Err(not_intact(
+                return Err(disagrees(
                     EntityId::Vertex(j.vertex),
                     "a chain junction names a link position the chain does not carry",
                 ));
@@ -320,7 +321,7 @@ impl<'a, T: Real> CornerLinks<'a, T> {
         if l.start == vertex || l.end == vertex {
             return Ok(());
         }
-        Err(not_intact(
+        Err(disagrees(
             EntityId::Vertex(vertex),
             "a corner's incidence list was offered a link that does not terminate there",
         ))
@@ -449,7 +450,7 @@ impl CornerFaces {
     /// trivalent.
     pub(super) fn admit<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Self, BlendError> {
         let faces = fan_at(body.faces_of_vertex(vertex)).ok_or_else(|| {
-            not_intact(
+            unwalked(
                 EntityId::Vertex(vertex),
                 "a corner's face orbit does not walk",
             )
@@ -469,7 +470,7 @@ impl CornerFaces {
         // is the predicate, in `distinct_faces_is_pairwise`, and what
         // is unguarded is this one call to it.
         if !distinct(f0, f1, f2) {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Vertex(vertex),
                 "a corner's face orbit returned one face twice",
             ));
@@ -559,7 +560,9 @@ pub(super) enum StationKind {
     /// their trimlines cross.
     Mitre,
     /// A turn, on one of the third edge's two faces: the foot is on
-    /// that edge, which the carve splits there.
+    /// that edge, which the carve splits there — or, on the near band's
+    /// face at an overrun, the mitre's end, at the far band's cut-off
+    /// from that split.
     TurnFoot,
 }
 
@@ -567,7 +570,8 @@ impl StationKind {
     /// Whether the carve spins a STRUT out to the foot — at a corner, a
     /// joint or a turn's shared face, whose foot lies inside the face —
     /// rather than finding it already on a split edge, at a cut-off or
-    /// a turn's foot.
+    /// a turn's foot (or at the end of an overrun's cut-off, which the
+    /// turn's own carve spins from that foot).
     pub(super) fn spins_a_strut(self) -> bool {
         match self {
             Self::Corner | Self::Joint | Self::Mitre => true,
@@ -612,6 +616,7 @@ pub(super) struct RequestedBoundary<T: Real> {
     face: FaceKey,
     stations: Vec<BoundaryStation<T>>,
     chords: Vec<BoundaryChord<T>>,
+    rings: Vec<topo::LoopKey>,
 }
 
 // `Decide` alone: admission walks a cycle and folds a stored plane
@@ -656,7 +661,7 @@ impl<T: Decide> RequestedBoundary<T> {
             .ok_or_else(|| unbuilt_geometry(EntityId::Face(face), CORNER_SUPPORT_NOT_PLANAR))?;
         let fd = body
             .get_face(face)
-            .ok_or_else(|| not_intact(EntityId::Face(face), "a support face"))?;
+            .ok_or_else(|| unresolved(EntityId::Face(face), "a support face"))?;
         let station = |he: HalfEdgeKey, v: VertexKey| -> Result<BoundaryStation<T>, BlendError> {
             let corner = corners
                 .iter()
@@ -680,9 +685,7 @@ impl<T: Decide> RequestedBoundary<T> {
                 if t.shared == face {
                     Some((t.crossing, StationKind::Mitre))
                 } else {
-                    t.others
-                        .contains(&face)
-                        .then_some((t.foot, StationKind::TurnFoot))
+                    t.foot_on(face).map(|p| (p, StationKind::TurnFoot))
                 }
             });
             // A corner and a joint END a band and run through it, and a
@@ -695,7 +698,7 @@ impl<T: Decide> RequestedBoundary<T> {
                 (None, None, Some(foot), None) => (foot, StationKind::CutOff),
                 (None, None, None, Some(station)) => station,
                 _ => {
-                    return Err(not_intact(
+                    return Err(disagrees(
                         EntityId::Vertex(v),
                         "a requested edge of a support ends at a vertex that is not exactly one \
                          planned corner, joint, cut-off or turn of that support",
@@ -725,9 +728,10 @@ impl<T: Decide> RequestedBoundary<T> {
         };
         let mut stations: Vec<BoundaryStation<T>> = Vec::new();
         let mut chords = Vec::new();
+        let mut rings = Vec::new();
         for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
             let walk = loop_cycle_of(body, lp).ok_or_else(|| {
-                not_intact(
+                unwalked(
                     EntityId::Loop(lp),
                     "a cycle of a support face does not walk",
                 )
@@ -759,12 +763,16 @@ impl<T: Decide> RequestedBoundary<T> {
                     to: next.start,
                     feet,
                 });
+                if lp != fd.outer && rings.last() != Some(&lp) {
+                    rings.push(lp);
+                }
             }
         }
         Ok(Self {
             face,
             stations,
             chords,
+            rings,
         })
     }
 
@@ -781,6 +789,12 @@ impl<T: Decide> RequestedBoundary<T> {
     /// Its requested edges, in cycle order.
     pub(super) fn chords(&self) -> &[BoundaryChord<T>] {
         &self.chords
+    }
+
+    /// The face's rings that carry one of its requested edges, each
+    /// once.
+    pub(super) fn rings(&self) -> &[topo::LoopKey] {
+        &self.rings
     }
 }
 

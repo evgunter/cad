@@ -1128,18 +1128,20 @@ pub enum ValidationError {
         /// sample).
         cause: Indeterminate,
     },
-    /// Tier 3: a **definitely-transverse** edge carries a conventional
-    /// (`MappedCurve`) description at rest — the prefer-intrinsic rule
-    /// with teeth (D2; ratified with Ev 2026-07-19, M2 PR 4 fix
-    /// pass). Enforced only when the dihedral pass classified **every**
-    /// interior sample definitely Transverse: definitely-smooth edges
-    /// keep their conventional descriptions (the D2 conventional
-    /// split), `Seam` edges are exempt by kind, and escalated dihedrals
-    /// already report [`ValidationError::SliverDihedral`] — so
-    /// ε-tightening can escalate an edge but never flips a valid body
-    /// to invalid through this check. (A mixed transverse/smooth sample
-    /// set — a tangency-crossing edge — is neither definitely
-    /// transverse nor definitely smooth as a whole, so it takes
+    /// Tier 3: a **definitely-transverse** edge carries a chart image
+    /// whose authority record is a declaration
+    /// ([`geom_brep::EdgeAuthority::Declared`]) at rest — the
+    /// prefer-intrinsic rule with teeth (D2). Enforced only when the
+    /// dihedral pass classified **every** interior sample definitely
+    /// Transverse: definitely-smooth edges, a seam between two faces of
+    /// one surface among them, keep their conventional descriptions
+    /// (the D2 conventional split); NURBS- and `Approx`-adjacent edges
+    /// are exempt by kind; and escalated dihedrals already report
+    /// [`ValidationError::SliverDihedral`] — so ε-tightening can
+    /// escalate an edge but never flips a valid body to invalid through
+    /// this check. (A mixed transverse/smooth sample set — a
+    /// tangency-crossing edge — is neither definitely transverse nor
+    /// definitely smooth as a whole, so it takes
     /// `ContactMark::Unmarked` and NEITHER must-carry attaches: an
     /// exemption by the predicate, like every other one here.)
     TransverseNotIntrinsic {
@@ -1352,10 +1354,10 @@ pub enum ValidationError {
     ///   its faces overlap and passes
     ///   (`work/flux/a-seam-region-whose-boundary-carries-both-poles-is-unread.md`);
     /// * a one-loop sphere face with a chart pole off its loop on EACH
-    ///   side — a rim-only cap, a tilted cap or a blend corner patch
-    ///   holding a pole. Under either sense it holds a pole, which
-    ///   breaks the rule that a chart singularity inside a face is a
-    ///   vertex of it, so its loop says nothing about the bit; refusing
+    ///   side — a rim-only cap or a tilted cap holding a pole. Under
+    ///   either sense it holds a pole, which breaks the rule that a
+    ///   chart singularity inside a face is a vertex of it, so its loop
+    ///   says nothing about the bit; refusing
     ///   such a face is this validity's rule to state, not check 6's;
     /// * conic-trimmed faces the quadrature lane owns, and NURBS.
     ///
@@ -2525,7 +2527,7 @@ const WEDGE: SizedDecision = SizedDecision {
     size: "angle",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// On a smooth edge, the faces' second-order separation: passes when
@@ -2537,7 +2539,7 @@ const SEPARATION: SizedDecision = SizedDecision {
     size: "curvature difference",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The ending a kernel defect gets: nothing the user can change in
@@ -2546,8 +2548,11 @@ const SEPARATION: SizedDecision = SizedDecision {
 /// is the shared ending that names the file too.
 const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 
-/// The recourse for a tolerance that forms no usable band.
-const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
+/// The recourse for a tolerance that forms no usable band. A run's ε
+/// is finite and at least `EPS_MIN` (D4 ¶4), so the one way it fails to
+/// form a band is K·ε overflowing: the repair is a smaller ε.
+const TOLERANCE: &str = "Recourse: set a smaller tolerance, so that K times it stays finite; a \
+                         run admits none below the floor its session box sets";
 
 /// The recourse for a curve whose parameter range its image on a
 /// spline face cannot be expressed on — the lane's own.
@@ -2627,8 +2632,8 @@ fn datum_words(field: &'static str) -> Cow<'static, str> {
         "dir" => "direction".into(),
         "major_radius" => "ring radius".into(),
         "minor_radius" => "tube radius".into(),
-        "major" => "major semi-axis".into(),
-        "minor" => "minor semi-axis".into(),
+        "semi_u" => "semi-axis along the seam".into(),
+        "semi_v" => "semi-axis across the seam".into(),
         "half_angle" => "half-angle".into(),
         "control" => "control net".into(),
         _ => field.replace('_', " ").into(),
@@ -2705,6 +2710,19 @@ fn poison_words(is_direction: bool) -> &'static str {
 // lane, the sample and the lever — rides whole in the payload and in
 // its own `Display`.
 
+/// The reason a refusal on a certified upper bound on a miss carries:
+/// the certificate's bound on how far `$subject` exceeds the tolerance,
+/// which says only that the certificate cannot show the description.
+macro_rules! bound_reason {
+    ($subject:literal) => {
+        concat!(
+            "the check's certified bound on how far ",
+            $subject,
+            " exceeds the tolerance"
+        )
+    };
+}
+
 fn classify_band(e: &BandError) -> &'static str {
     match e {
         BandError::InvalidValue { .. } => "a tolerance threshold is not finite and positive",
@@ -2717,8 +2735,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     use geom_brep::AnalyticRung3Refusal as A;
     use geom_brep::PlaneNurbsRefusal as P;
     const MISMATCH: &str = "its stored description does not match its geometry";
-    const BOUND: &str = "the check's certified bound on how far it strays from its faces \
-                         exceeds the tolerance";
+    const BOUND: &str = bound_reason!("it strays from its faces");
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
     // The lead is this window's own.
     let why = match e {
@@ -2755,6 +2772,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::AnalyticRung3(A::NoOffsetBound { .. }) => {
             "its curve's distance from a face has no certified bound (it reaches a cone's \
              apex height or the other nappe)"
+        }
+        CertifyError::AnalyticRung3(A::NoTubeEnclosure { .. }) => {
+            "its curve lies within the tolerance of both faces, but the check cannot yet \
+             enclose one face's gradient, so it cannot prove the curve is their one crossing"
         }
         CertifyError::IntervalNotForward {
             verdict: Refused::Zero(_),
@@ -2825,9 +2846,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. })
-            | CertifyError::AnalyticRung3(A::NoOffsetBound { .. } | A::Unsupported { .. }) => {
-                NOT_YET_ENDING
-            }
+            | CertifyError::AnalyticRung3(
+                A::NoOffsetBound { .. } | A::NoTubeEnclosure { .. } | A::Unsupported { .. },
+            ) => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::NurbsLaneNotSupplied => {
                 "Recourse: check the body through a door that holds the NURBS lane, \
@@ -3128,8 +3149,13 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 DEFECT.into(),
                 true,
             ),
-            P::ChartPeriodJump => reading(
-                "a face's stored boundary images do not meet on its chart",
+            P::ChartLoopOpen => reading(
+                "a face's stored boundary does not close on its surface",
+                DEFECT.into(),
+                true,
+            ),
+            P::LoopsWindChart => reading(
+                "a face's stored boundary loops wind around its surface as no boundary does",
                 DEFECT.into(),
                 true,
             ),
@@ -3159,6 +3185,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;
     const WRONG: &str = "the stored boundary does not match the face";
+    const BOUND: &str = bound_reason!("the stored boundary strays from the face");
     const KIND: &str = "the kernel cannot yet map a boundary of this kind";
     const CLOSE: &str = geom_core::undecided!("the boundary");
     let (why, recourse) = match e {
@@ -3209,52 +3236,59 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             crate::pcurves::EMPTY_OUTER_RECOURSE,
         ),
         M::Certify { error, .. } => {
+            // A decision's refused arm ends as its check's routing gives
+            // it at rest (`PcurveCertifyError::ending`); a refusal no
+            // decision owns ends in its own.
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
-                | C::UnsupportedCarrier { .. }
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
-                | C::BranchOutOfReach
-                | C::FittedMateMissing => (KIND, NOT_YET_ENDING),
+                | C::BranchOutOfReach => (KIND, Some(NOT_YET_ENDING)),
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
-                    crate::pcurves::PLACEHOLDER_RECOURSE,
+                    Some(crate::pcurves::PLACEHOLDER_RECOURSE),
                 ),
                 C::SectorRefused { .. } => (
                     "a boundary curve runs into its chart's singular set (a pole, the apex or \
                      the tube's core), where its image has no one branch",
-                    "Recourse: re-aim the chart's axis away from the curve, or split the edge \
-                     there",
+                    Some(
+                        "Recourse: re-aim the chart's axis away from the curve, or split the \
+                         edge there",
+                    ),
                 ),
                 C::FittedLaneUnsupported { .. } => (
                     "this scalar cannot certify a fitted boundary",
-                    "Recourse: check the body at a certifying scalar",
+                    Some("Recourse: check the body at a certifying scalar"),
                 ),
                 C::CarrierDomain(_) => (
                     "a boundary curve's parameter range cannot carry its image on the face",
-                    REPARAMETERIZE,
+                    Some(REPARAMETERIZE),
                 ),
-                C::CarrierGrazesChart { grazer, .. } => (WRONG, grazer.recourse()),
+                C::CarrierGrazesChart { grazer, .. } => (WRONG, Some(grazer.recourse())),
                 C::ChartRow { .. }
                 | C::CarrierOffChart { .. }
                 | C::ImageMismatch { .. }
-                | C::IntervalNotForward
-                | C::AzimuthPeriodExceeded
-                | C::TubePeriodExceeded
-                | C::ResidualExceeded { .. }
-                | C::FittedCertificate { .. } => (WRONG, DEFECT),
-                C::FittedEscalated { .. } | C::Escalated { .. } => (CLOSE, DEFECT),
-                C::Band(b) => (classify_band(b), TOLERANCE),
+                | C::FittedCertificate { .. } => (WRONG, Some(DEFECT)),
+                C::ResidualExceeded { .. } | C::FittedLimb { .. } => {
+                    let why = if error.refuses_on_a_bound() {
+                        BOUND
+                    } else {
+                        WRONG
+                    };
+                    (why, None)
+                }
+                C::IntervalNotForward | C::AzimuthPeriodExceeded | C::TubePeriodExceeded => {
+                    (WRONG, None)
+                }
+                C::FittedEscalated { .. } | C::Escalated { .. } => (CLOSE, None),
+                C::Band(b) => (classify_band(b), Some(TOLERANCE)),
             };
-            // A decision's refused arm ends as its check's routing gives
-            // it at rest (`PcurveCertifyError::ending`); a refusal no
-            // decision owns ends in its own.
-            return (
-                why,
-                error
-                    .ending(Reading::AtRest)
-                    .map_or(Cow::Borrowed(own), Cow::Owned),
-            );
+            let recourse = match (error.ending(Reading::AtRest), own) {
+                (Some(ending), _) => Cow::Owned(ending),
+                (None, Some(own)) => Cow::Borrowed(own),
+                (None, None) => unreachable!("a decision's refused arm always has its ending"),
+            };
+            return (why, recourse);
         }
     };
     (why, recourse.into())
@@ -4872,8 +4906,8 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   ([`geom::Surface::representability_margins`],
 ///   [`geom::Curve3::representability_margins`]); these are not
 ///   certified: `work/restfront/unlevered-frame-conventions-are-uncertified-at-rest.md`.
-///   Nor is an ellipse's `major > minor` ordering:
-///   `work/restfront/an-ellipse-stored-minor-over-major-passes-tier-3.md`.
+///   An ellipse's semi-axes carry no order to certify: its `u_ref` is
+///   either principal direction.
 ///
 /// # Errors
 ///
@@ -5018,14 +5052,13 @@ pub fn validate_geometric_certificate<
 }
 
 /// [`validate_geometric_certificate`], with the one-shell solids its
-/// check 7 passed as slivers, each its solid's only shell
-/// ([`InBandShell`]).
+/// check 7 passed as slivers ([`AtRestBody::slivers`]).
 fn validate_geometric_kept<
     T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
     tol: Tol,
-) -> Result<(crate::props::SignCertificate<'_, T>, Vec<InBandShell>), Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'_, T>, Vec<SolidKey>), Vec<ValidationError>> {
     // The structural phase runs WITH check 2's NURBS lane injected,
     // which is what keeps this composed door re-deriving the lane's
     // certificate classes at rest; the public structural door,
@@ -5085,7 +5118,10 @@ fn validate_geometric_kept<
 /// unbounded. **Check 2 makes no claim about an edge whose
 /// certificate needs the NURBS lane** ([`geom_brep::CertifyError::NurbsLaneNotSupplied`] lists the classes): such an
 /// edge re-derives only through that lane, which this door does not
-/// hold.
+/// hold. Nor does check 8 make it: a fitted row's check 4 bounds its
+/// image against its own chart alone, so neither a spline carrier's
+/// incidence with its mate (limbs 1 and 2) nor the uniqueness tube is
+/// re-derived here.
 /// Check 10 (shell winding) reads each shell's role off the same sums,
 /// and refuses a several-shell solid one of whose shells needed the
 /// quadrature or reads no role ([`ValidationError::ShellRoleUndecided`]).
@@ -5200,7 +5236,7 @@ fn validate_geometric_certified<
 >(
     body: &Body<T>,
     tol: Tol,
-) -> Result<(crate::props::SignCertificate<'_, T>, Vec<InBandShell>), Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'_, T>, Vec<SolidKey>), Vec<ValidationError>> {
     let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
@@ -5258,19 +5294,18 @@ fn validate_geometric_certified<
 /// asserts — and `Err` is check 7's verdicts, never empty (it is built
 /// only when one was pushed). There is no state where the check came
 /// back clean without a certificate to hand on. Beside it, `Ok` lists
-/// the shells it passed as slivers, each its solid's only one
-/// ([`InBandShell`]).
+/// the one-shell solids it passed as slivers.
 fn plus_v_by_sign<'b, T: geom_core::Decide>(
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
-) -> Result<(crate::props::SignCertificate<'b, T>, Vec<InBandShell>), Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'b, T>, Vec<SolidKey>), Vec<ValidationError>> {
     let mut errors = Vec::new();
     let mut parts = Vec::new();
     let mut slivers = Vec::new();
     for (solid, faces) in check7_subjects(body) {
-        let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
+        let last = core::cell::Cell::new(OpenRound::AboutTheBody { sliver: false });
         match crate::props::sign_walk(
             body,
             &faces,
@@ -5282,17 +5317,13 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             |refusal| plus_v_at_target(refusal, last.get()),
         ) {
             Ok((verdict, certificate)) => {
-                if let (PlusVVerdict::Sliver(sliver), Some([shell])) = (
+                if let (PlusVVerdict::Sliver, Some([_])) = (
                     &verdict,
                     body.solids
                         .get(solid)
                         .map(|record| record.shells.as_slice()),
                 ) {
-                    slivers.push(InBandShell {
-                        solid,
-                        shell: *shell,
-                        sliver: *sliver,
-                    });
+                    slivers.push(solid);
                 }
                 errors.extend(plus_v_errors(solid, &verdict));
                 parts.push(certificate);
@@ -5736,8 +5767,9 @@ pub(crate) enum PlusVVerdict {
     Unresolved,
     /// The certified reading lies wholly inside one sliver band: the
     /// invariant exempts it and the solid passes, a sliver at this
-    /// tolerance. A boolean may not return it ([`InBandShell`]).
-    Sliver(crate::props::CertifiedSliver),
+    /// tolerance whose orientation the sign did not read
+    /// ([`AtRestBody::slivers`]).
+    Sliver,
 }
 
 /// **How check 7's last open round left the sign**, for
@@ -5745,21 +5777,16 @@ pub(crate) enum PlusVVerdict {
 #[derive(Clone, Copy, Debug)]
 enum OpenRound {
     /// Taken about the body ([`Certified::Open`]): in band, or straddling
-    /// zero by the body's own rounding; with the certified sliver where
-    /// the reading lies wholly in band.
-    AboutTheBody(Option<crate::props::CertifiedSliver>),
+    /// zero by the body's own rounding; `sliver` where the certified
+    /// reading lies wholly in band.
+    AboutTheBody { sliver: bool },
     /// Straddling zero at a face's world-origin width.
     Unresolved,
 }
 
-/// **A shell certified wholly in band**, which a boolean's result may
-/// not hold (D10, Booleans): check 10's role read of a shell of a
-/// solid of several ([`ValidationError::ShellRoleUndecided`]), or check
-/// 7's of a solid's only shell ([`AtRestBody::slivers`]), which the
-/// at-rest invariant passes. A solid of several shells whose total is
-/// in band while each shell's role decides is neither, and nothing
-/// refuses it
-/// (`work/flush/a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses.md`).
+/// **An in-band shell**, which a boolean's result may not hold (D10,
+/// Booleans): a shell of a solid of several whose role check 10
+/// certified wholly in band ([`ValidationError::ShellRoleUndecided`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct InBandShell {
     /// Its solid.
@@ -5809,8 +5836,8 @@ fn plus_v_at_target(
     match (refusal, last) {
         (Some(source), _) => PlusVVerdict::Uncomputable(source),
         (None, OpenRound::Unresolved) => PlusVVerdict::Unresolved,
-        (None, OpenRound::AboutTheBody(Some(sliver))) => PlusVVerdict::Sliver(sliver),
-        (None, OpenRound::AboutTheBody(None)) => PlusVVerdict::Pass,
+        (None, OpenRound::AboutTheBody { sliver: true }) => PlusVVerdict::Sliver,
+        (None, OpenRound::AboutTheBody { sliver: false }) => PlusVVerdict::Pass,
     }
 }
 
@@ -5823,7 +5850,9 @@ fn plus_v_round(certified: Certified, last: &core::cell::Cell<OpenRound>) -> Opt
         Certified::Role(crate::props::ShellRole::Outer) => Some(PlusVVerdict::Pass),
         Certified::Role(crate::props::ShellRole::Void) => Some(PlusVVerdict::Refuse),
         Certified::Open(unread) => {
-            last.set(OpenRound::AboutTheBody(unread.sliver()));
+            last.set(OpenRound::AboutTheBody {
+                sliver: unread.sliver().is_some(),
+            });
             None
         }
         Certified::Unresolved(_) => {
@@ -5837,7 +5866,7 @@ fn plus_v_round(certified: Certified, last: &core::cell::Cell<OpenRound>) -> Opt
 /// Check 7's verdict as the tier's error vector.
 fn plus_v_errors(solid: SolidKey, verdict: &PlusVVerdict) -> Vec<ValidationError> {
     match verdict {
-        PlusVVerdict::Pass | PlusVVerdict::Sliver(_) => Vec::new(),
+        PlusVVerdict::Pass | PlusVVerdict::Sliver => Vec::new(),
         PlusVVerdict::Refuse => vec![ValidationError::NegativeVolume { solid }],
         PlusVVerdict::Uncomputable(source) => vec![ValidationError::VolumeUncomputable {
             solid,
@@ -6899,12 +6928,14 @@ pub(crate) fn tier3_local_checks_marked<
         // and check 4's second-order walk.
         let samples: Vec<_> = geom_brep::interior_stations(curve.carrier(), t0, t1).collect();
         // Check 4: dihedral — plus the prefer-intrinsic enforcement
-        // (D2; ratified 2026-07-19): reusing the SAME per-sample
-        // classifications (never classifying twice), an edge whose
-        // every interior sample is definitely Transverse must carry an
-        // `Intersection` description at rest. `Seam` is exempt by
-        // kind, definitely-smooth keeps `MappedCurve` (the D2
-        // conventional split), an escalation reports `SliverDihedral`
+        // (D2; ratified 2026-07-19): an edge whose every interior
+        // sample is definitely Transverse carries `Intersection` at
+        // rest. Reusing the SAME per-sample classifications (never
+        // classifying twice), this check refuses a declared
+        // conventional description there. A definitely-smooth edge,
+        // a seam between two faces of one surface among them, keeps
+        // its conventional image (the D2 conventional split), an
+        // escalation reports `SliverDihedral`
         // and exempts the edge (ε-tightening escalates, it never flips
         // valid → invalid), and a mixed sample set is enforced as
         // neither.
@@ -7220,8 +7251,9 @@ pub(crate) fn tier3_local_checks_marked<
             } else {
                 Sign::Positive
             };
-            // Line, Circle and Ellipse carriers (banner); an empty
-            // ring and a loop riding a spiric or NURBS edge are not
+            // Line, Circle, Ellipse and Spiric carriers (banner); an
+            // empty ring and a loop the sum does not wind (a NURBS edge,
+            // or a spiric at a scalar that does not certify) are not
             // asked. Tier 3 runs on a body tier 1 cleared.
             let Some(winding) = body.planar_loop_winding(l, outward, band) else {
                 continue;
@@ -9243,7 +9275,7 @@ pub struct AtRestBody<T: Real> {
     body: Body<T>,
     outcome: AtRestOutcome,
     /// The one-shell solids check 7 passed as slivers.
-    slivers: Vec<InBandShell>,
+    slivers: Vec<SolidKey>,
 }
 
 impl<T: Real> AtRestBody<T> {
@@ -9277,11 +9309,11 @@ impl<T: Real> AtRestBody<T> {
         }
     }
 
-    /// The shells the gate passed as slivers, each its solid's only
-    /// shell: check 7 certified each one's volume sign wholly in band,
-    /// which the invariant exempts at rest. Empty where the gate did
-    /// not run.
-    pub(crate) fn slivers(&self) -> &[InBandShell] {
+    /// The one-shell solids the gate passed as slivers: check 7
+    /// certified each one's volume sign wholly in band, which the
+    /// invariant exempts at rest, so it did not read the solid's
+    /// orientation. Empty where the gate did not run.
+    pub(crate) fn slivers(&self) -> &[SolidKey] {
         &self.slivers
     }
 
@@ -10439,7 +10471,7 @@ mod tests {
         };
         let solid = SolidKey::default();
         let at_target = |certified| {
-            let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
+            let last = core::cell::Cell::new(OpenRound::AboutTheBody { sliver: false });
             assert!(
                 plus_v_round(certified, &last).is_none(),
                 "an open round decides nothing"
@@ -11661,8 +11693,8 @@ mod tests {
                     }),
                 },
                 "Recourse: move the geometry so that edge is clearly longer and no face curves \
-                 tightly there; an edge of no length, or a face curving to a point as a cone \
-                 does, leaves no angle to measure"
+                 tightly there; an edge of no length or a cone's point leaves no angle to \
+                 measure; a radius below zero is a defect"
                     .to_owned(),
             ),
             (
@@ -11763,8 +11795,9 @@ mod tests {
                         band,
                     }),
                 },
-                "a torus face's tube radius equals its ring radius at this tolerance (a horn \
-                 torus). Recourse: make the tube radius clearly smaller than the ring radius"
+                "a torus face's tube radius is not shown smaller than its ring radius \
+                 (margin 0e0 m). Recourse: make the tube radius clearly smaller than \
+                 the ring radius"
                     .to_owned(),
             ),
             (
@@ -11809,6 +11842,55 @@ mod tests {
                 KERNEL_LIMIT_RECOURSE.to_owned(),
             ),
             (
+                "pcurve map residual, definite",
+                pcurve(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::MapResidual,
+                    sample: 3,
+                }),
+                format!("the stored boundary does not match the face. {DEFECT}"),
+            ),
+            (
+                "pcurve envelope, definite",
+                pcurve(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::Envelope,
+                    sample: 0,
+                }),
+                format!(
+                    "the check's certified bound on how far the stored boundary strays from the \
+                     face exceeds the tolerance. {KERNEL_LIMIT_RECOURSE}"
+                ),
+            ),
+            (
+                "pcurve envelope term, definite",
+                pcurve(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::EnvelopeTerm(geom_brep::EnvelopeTerm::Radius),
+                    sample: 0,
+                }),
+                format!(
+                    "the check's certified bound on how far the stored boundary strays from the \
+                     face exceeds the tolerance. {KERNEL_LIMIT_RECOURSE}"
+                ),
+            ),
+            (
+                "pcurve fitted hull sup, definite",
+                pcurve(PcurveCertifyError::FittedLimb {
+                    limb: geom_brep::SsiLimb::HullSup,
+                    margin: MarginDiag::value(5e-8),
+                }),
+                format!(
+                    "the check's certified bound on how far the stored boundary strays from the \
+                     face exceeds the tolerance. {KERNEL_LIMIT_RECOURSE}"
+                ),
+            ),
+            (
+                "pcurve fitted hull value at a break, definite",
+                pcurve(PcurveCertifyError::FittedLimb {
+                    limb: geom_brep::SsiLimb::HullValueChart,
+                    margin: MarginDiag::value(1.4e-3),
+                }),
+                format!("the stored boundary does not match the face. {DEFECT}"),
+            ),
+            (
                 "pcurve azimuth past a period",
                 pcurve(PcurveCertifyError::AzimuthPeriodExceeded),
                 format!("the stored boundary does not match the face. {DEFECT}"),
@@ -11848,9 +11930,14 @@ mod tests {
                 ),
             ),
             (
-                "pcurve fitted certificate, in band",
-                pcurve(PcurveCertifyError::FittedEscalated { cause: in_band }),
-                KERNEL_LIMIT_RECOURSE.to_owned(),
+                "pcurve fitted certificate's hull, in band",
+                pcurve(PcurveCertifyError::FittedEscalated {
+                    decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
+                    cause: in_band,
+                }),
+                "Recourse: loosen the tolerance, as a last resort; this refusal may indicate a \
+                 kernel bug worth reporting"
+                    .to_owned(),
             ),
         ];
         for (row, error, ending) in rows {
@@ -11936,7 +12023,7 @@ mod tests {
                 assert!(
                     text.starts_with("an edge is not long enough")
                         && !text.contains("too close")
-                        && text.ends_with("as a cone does, leaves no angle to measure"),
+                        && text.ends_with("no angle to measure; a radius below zero is a defect"),
                     "{row}: {text}"
                 );
             }
@@ -13985,8 +14072,8 @@ mod tests {
         let carrier = geom::Curve3::Ellipse {
             center: Point3::origin(),
             axis,
-            major: m,
-            minor: 1.0,
+            semi_u: m,
+            semi_v: 1.0,
             u_ref,
         };
         let spec = geom_brep::EdgeCurveSpec {

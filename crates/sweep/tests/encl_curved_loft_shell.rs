@@ -222,11 +222,13 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         panic!("expected a per-face offset refusal, got {e}");
     };
     // Which door answers first depends on ε: a wall's fit reaches
-    // 1.3958e-10 m on a 62 x 35 grid, the last within the sample cap,
+    // 1.39486e-10 m on a 62 x 35 grid, the last within the sample cap,
     // so below that the fit refuses at the cap, and above it the fit
-    // certifies and the seams derive.
+    // certifies and the seams derive. (1.3958e-10 before the offset
+    // regularity floor became the area quotient's inf, PR 4984: the
+    // tangential term divides by that floor, and it rose.)
     let eps = Tol::witness().eps();
-    if eps < 1.3958e-10 {
+    if eps < 1.39486e-10 {
         assert!(
             is_spline_wall(&nurbs_walls(&body), *face),
             "the refusing face is not a wall: {e}"
@@ -245,7 +247,7 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             panic!("eps {eps:e}: expected the wall's fit to reach the sample cap, got {e}");
         };
         assert!(
-            *grid == (62, 35) && (achieved - 1.3958e-10).abs() < 1e-14,
+            *grid == (62, 35) && (achieved - 1.39486e-10).abs() < 1e-14,
             "eps {eps:e}: the fit stopped at {achieved:e} on {grid:?}"
         );
     } else {
@@ -1068,8 +1070,12 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
             Vec3::new(0.0, 0.0, 1.0),
             0.7,
         );
-        topo::transform_rigid(&body, &rigid, Tol::witness())
-            .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
+        topo::transform_rigid(
+            &body,
+            &geom_core::test_support::rigid(&rigid, Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
     }
 }
 

@@ -2,8 +2,9 @@
 id: an-edge-crossing-two-wedges-about-a-contact-line-refuses
 kind: issue
 title: An edge crossing two wedges about a contact line refuses: two edge-edge germs on one ray at one vertex
-status: open
+status: closed
 opened: 2026-10-08
+closed: 2026-10-13
 priority: P2
 cost: M
 ---
@@ -43,3 +44,15 @@ As the parent row: the bridging edge lying on the contact line's ray is
 `bool_ee_collinear`'s margined verdict, read from values; no
 declaration is consulted.
 
+
+## Closed
+
+The two germs cannot each go on their own flanking record and fold
+Out with nothing else changed: measured in every refusing order, the
+fold `Reversed` uses panics in the zip, and every other fold refuses
+`NotSameFace` in the join. The refusal is now typed,
+`BooleanError::CrossingsAlongAContactLine`, with the recourse of
+applying the op to the pieces before they are joined (measured to
+build sound for union, intersection and subtraction) or moving the
+edge off the line. Building the shape is
+`an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt`.

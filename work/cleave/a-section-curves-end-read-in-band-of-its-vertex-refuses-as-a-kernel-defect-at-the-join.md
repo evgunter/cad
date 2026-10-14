@@ -84,34 +84,83 @@ becomes an arm-side refusal on the carrier's conditioning, as GERM's row
 asks. Then give each input reading its lever, at both doors, and check
 that moving the parts as told builds.
 
-## Built (branch cleave/section-end-inband-join)
+## Designed (2026-10-12; designer pair converged after one reconciliation round, no ratified text changes)
 
-Measured first on main `c00d333a21`: every pose above reproduces at its
-ε (the split's rim and square families at 1e-9, 1e-6 and 1e-12, the
-Boolean's tilted slab at 1e-6), all ending in the kernel-defect ending.
+PR 4810's first build re-read the escalated pin with the vertex moved
+onto the plane. Its review measured that the re-read reads a sum, so
+at ε = 1e-12 a near-axial ellipse's own rounding was typed `OnPlane`
+or left as the defect depending on the vertex offset. No reading at
+the join separates the two populations. The join's miss has three
+terms with three owners:
+- the vertex's offset δ from the plane, grown by 1/sin ψ (ψ the
+  dihedral between plane and wall at the vertex): the input's;
+- a stood-in circle's Zero'd margin: the input's;
+- the curve's own resolution: the kernel's.
 
-- **The decision reads the input, not the residual.** Where the gate
-  escalates a section conic chord's endpoint pin, the join re-reads the
-  pin with the vertex moved onto the plane the conic lies in, by its own
-  offset off it (`chord_join.rs`'s `SectionEnds::reading`). That plane
-  is the section plane, or, where the table stood the axis-normal circle
-  in for the section (`pc_rim_alignment`, `pn_axis_normal` Zero), that
-  circle's plane. Zero says the miss was the input's offset; in band or
-  past it, it is the carrier's own and stays the gate's refusal (Q1).
-  The rule lives in `merge_faces::edge_on_faces_reading`, generalised
-  with the endpoint arm; the describers answer no.
-- **Two stories, by structure:** `SplitJoinError::SectionEndEscalated`
-  with `SectionEndReading::OnPlane` (the split's edge-on-faces words; the
-  Boolean re-types it as `BooleanDecision::EdgeOnFaces`) or
-  `SquareToAxis` (a section read square to the wall's axis: the tilt and
-  the vertex's offset add, so the lever names both moves).
-- **Separation measured** (`examples/section_end_census_probe.rs`): at
-  1e-12, 173 runs of planes nearly along the axis (θ = 3e-4 … 1e-5,
-  margins 1.14e-12 to 7.3e-12) stay `Euler(Escalated{Endpoint*})`; none
-  is typed. Every rim, frustum, seam-vertex and square-box pose is typed.
-- **Levers build** at both doors: the vertex onto the plane or 50ε off
-  it; the plane square or 1e-2 off square.
-- Pins: `sweep` `section_end_poses` (three tests), `topo`
-  `chord_join::section_end_rows`.
-- Filed: `work/cleave/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md`,
-  `work/flux/a-slab-face-nearly-along-a-cylinder-ruling-exhausts-the-volume-quadrature.md`.
+The kernel's term is two limits of storing an ellipse as a centre plus
+axes with θ = 0 at a major vertex. Both were measured, and matched to
+the digit in two independent replications:
+- **(a)** The parameter near ±π/2 resolves only to ulp(π/2)·A, with
+  A ≈ r/θ. A clockwise span taken as 2π minus a small span adds
+  ulp(2π)·speed.
+- **(b)** A far centre (≈ w/θ off-axis) holds only about
+  5·u·|centre − face|.
+
+Q1's "re-posed or certified, never covered by K", in four units:
+
+1. `a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex`
+   re-poses the curve and removes (a). Prototype on 4810's head at
+   1e-12: the coin-flip family builds 66/66 and through-axis planes
+   96/96.
+2. `the-section-table-admits-a-curve-on-its-resolution` admits on
+   ρ ≤ ε/K, refuses the rest (b) as a kernel limit with no lever, and
+   makes `Curve3::resolution` the one rule.
+3. This row (PR 4810, reworked on top of 1 and 2): every escalated
+   attachment pin on an admitted section curve is the input's. That
+   covers the endpoint pins and a stood-in circle's surface residual
+   (review m3). Each is typed by provenance (`OnPlane` /
+   `SquareToAxis`), with no re-read. `SectionEnds::reading` goes; the
+   types, the stories, their levers and `edge_on_plane_refusal` stay.
+   A definite miss stays the gate's.
+4. `the-split-reads-a-vertex-against-the-section-it-ends-not-the-plane`
+   is separable. Once it lands, a definite join miss really is a defect
+   (review m2).
+
+Why ε/K and not ε: with ρ ≤ ε, an in-band pin typed as the input's
+could be up to 90% the kernel's. That would offer the kernel's error
+as the user's lever, which PR 4335 forbids. Why a kernel limit and not
+a tilt lever: the same rule; D4 ¶1(i)'s last-resort ending applies.
+Labels and reports are on `analysis/design-fork/cleave-section-end-carrier-bound`
+and in the orchestrator's log.
+
+## Re-scoped by Ev's decision on PR 4812 (2026-10-12)
+
+Ev decided GERM's `conic-section-just-past-its-band-fails-certification-downstream`
+on PR 4812, in parallel with this design (`DESIGN-FORK-LOG` row 126).
+That decision supersedes part of the design above:
+- **End state.** A minted section conic is stored anchored on the arc
+  its edge uses. Its centre is derived and never stored, so the
+  far-centre term (b) is removed, not refused.
+- **No refusal at the arm.**
+- **Interim.** A miss within a carrier's own resolution ends as a
+  kernel limitation (D4 ¶1(i)'s last resort), and nothing that
+  certifies today starts refusing.
+- **Deferred.** A refusing resolution check waits for D4 ¶4.
+
+The units therefore become:
+1. The re-pose. Unchanged: a first step consistent with the end state
+   (PR 4861).
+2. `the-section-table-admits-a-curve-on-its-resolution` is re-scoped to
+   the end state: the anchored section conic, with no admission and no
+   arm refusal.
+3. This row, PR 4810. An escalated attachment pin on a section chord
+   is read against a per-kind resolution bound of its carrier over the
+   edge's span. Where that bound can explain the miss, the pin ends as
+   a kernel limitation with no lever. Where it cannot, the miss is the
+   input's, typed by provenance (`OnPlane` / `SquareToAxis`) with its
+   lever. A definite miss stays the gate's. Nothing that builds today
+   refuses.
+4. `the-split-reads-a-vertex-against-the-section-it-ends-not-the-plane`,
+   PR 4858. The section reading offers a lever only where its own
+   rounding bound admits it. An unresolved reading keeps the offset's
+   verdict, as main does, and refuses nothing new.

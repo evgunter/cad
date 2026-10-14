@@ -50,8 +50,6 @@
 //! same style rule as [`crate::Bounds`] — it is a `Real` subtrait, so
 //! the ring operations come with it).
 
-use super::algebra::RingRefinement;
-use super::knot_values::Knots;
 use super::knots::{KnotVector, Span};
 use crate::real::Real;
 
@@ -195,67 +193,6 @@ pub trait SpanLocate: sealed::Sealed + Real {
             .collect()
     }
 
-    /// One homogeneous channel (`w`, or one coordinate of `w·P`) of a
-    /// curve whose knots are `knots` through `refinement` at this
-    /// scalar, per scalar as the locator is. At `Interval` it is the
-    /// certification ring's refinement ([`RingRefinement::refine`]),
-    /// so the result encloses the described curve's refined channel
-    /// through the ring's one step; the ring reads the knots off the
-    /// value channel, which at `Interval` is every held knot exactly (a
-    /// held knot is a point). At every other scalar it is
-    /// [`CurvePlan::apply_homogeneous_in`](super::CurvePlan::apply_homogeneous_in)
-    /// per plan, both Boehm ratios formed in the scalar from the held
-    /// knots, carried plan to plan by [`Knots::restructure`] (a point
-    /// the schedule inserts is its constant). Either way a channel that
-    /// is not one entry per source control point refuses: every entry
-    /// of the refined length is poison.
-    fn refine_homogeneous(
-        refinement: &RingRefinement,
-        knots: &Knots<Self>,
-        channel: &[Self],
-    ) -> Vec<Self> {
-        if channel.len() != refinement.source_count()
-            || knots.structure().control_count() != refinement.source_count()
-        {
-            return vec![Self::from_f64(f64::NAN); refinement.knots().control_count()];
-        }
-        let mut held = knots.clone();
-        let mut c = channel.to_vec();
-        for plan in refinement.plans() {
-            c = plan.apply_homogeneous_in(held.values(), &c);
-            held = held.restructure(plan.knots().clone(), Self::from_f64);
-        }
-        c
-    }
-
-    /// A rational curve's `weights`, over its `knots`, through
-    /// `refinement` at this scalar, or `None` unless every refined
-    /// weight is certainly positive: the weights a de-homogenization
-    /// divides by, and the licence of a rational hull. One refinement at
-    /// `f64` (the check reads the weights it returns) and at `Interval`
-    /// (the ring's, checked by
-    /// [`certainly_positive`](super::algebra::certainly_positive)). At
-    /// every other scalar the check reads the `f64` refinement of the
-    /// weights' value channel ([`SpanLocate::point_value`]; a weight
-    /// that is no point refuses), and the weights are
-    /// [`SpanLocate::refine_homogeneous`]'s.
-    fn refine_weights(
-        refinement: &RingRefinement,
-        knots: &Knots<Self>,
-        weights: &[Self],
-    ) -> Option<Vec<Self>> {
-        let channel: Vec<f64> = weights
-            .iter()
-            .map(|w| w.point_value())
-            .collect::<Option<_>>()?;
-        f64::refine_weights(
-            refinement,
-            &Knots::from(knots.structure().clone()),
-            &channel,
-        )?;
-        Some(Self::refine_homogeneous(refinement, knots, weights))
-    }
-
     /// The one `f64` this value locates by, or `None` when it is no
     /// single point: poison, or an enclosure wider than a point.
     ///
@@ -265,6 +202,21 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// bracket, because a wide one names no knot structure, and a
     /// midpoint would invent one.
     fn point_value(self) -> Option<f64>;
+
+    /// The `f64` this value IS, with nothing else carried, or `None`.
+    /// Stricter than [`SpanLocate::point_value`], which reads only the
+    /// value channel: a `Dual` answers only with a derivative of exactly
+    /// zero, and a `Sym` only when its node is the literal of its value,
+    /// so a value that carries a parameter or a symbol in this scalar is
+    /// never read as a constant. (A value read out to `f64` and entered
+    /// again through `from_f64` IS a literal, at `Sym` as everywhere:
+    /// what it carried was dropped at that read, not here.) A structure
+    /// decision that holds only for genuinely equal values (equal plain
+    /// constant NURBS weights cancel out of the curve) reads this, not
+    /// the value channel. `None` is always the conservative answer.
+    /// Declared, never defaulted: a wrapper has to say what it carries
+    /// beyond its value.
+    fn plain_constant(self) -> Option<f64>;
 
     /// [`SpanLocate::point_value`], or NaN where there is none: the
     /// `f64` a structure decision reads, so that a value with no point
@@ -301,20 +253,12 @@ impl SpanLocate for f64 {
         f64::NAN
     }
 
-    fn refine_weights(
-        refinement: &RingRefinement,
-        knots: &Knots<Self>,
-        weights: &[f64],
-    ) -> Option<Vec<Self>> {
-        let w = Self::refine_homogeneous(refinement, knots, weights);
-        // `!(w > 0.0)` catches NaN too.
-        #[allow(clippy::neg_cmp_op_on_partial_ord)]
-        let refused = w.iter().any(|w| !(*w > 0.0) || !w.is_finite());
-        (!refused).then_some(w)
-    }
-
     fn point_value(self) -> Option<f64> {
         (!self.is_nan()).then_some(self)
+    }
+
+    fn plain_constant(self) -> Option<f64> {
+        self.point_value()
     }
 
     fn split_projective<A: super::ProjectiveSplit<Self>>(arm: A) -> A::Out {
@@ -374,5 +318,30 @@ mod tests {
         // Dual hulls channel-wise: over f64 channels that is poison.
         let h = Dual::new(0.25, 1.0).enclosure_hull(Dual::new(0.75, -1.0));
         assert!(h.value.is_nan() && h.deriv.is_nan());
+    }
+
+    /// `plain_constant` at each scalar: a constant answers its value;
+    /// poison, a wide enclosure, a derivative and a non-literal symbol
+    /// each answer `None`, whatever the value channel says.
+    #[test]
+    fn plain_constant_reads_only_what_is_carried_as_a_constant() {
+        use crate::interval::Interval;
+        use crate::sym::Sym;
+        assert_eq!(2.5f64.plain_constant(), Some(2.5));
+        assert_eq!(f64::NAN.plain_constant(), None);
+        assert_eq!(
+            <Interval as Real>::from_f64(2.5).plain_constant(),
+            Some(2.5)
+        );
+        assert_eq!(Interval::from_bounds(1.0, 2.0).plain_constant(), None);
+        assert_eq!(Dual64::constant(2.5).plain_constant(), Some(2.5));
+        assert_eq!(Dual::new(2.5, 1.0).point_value(), Some(2.5));
+        assert_eq!(Dual::new(2.5, 1.0).plain_constant(), None);
+        let lit = <Sym<f64> as Real>::from_f64;
+        assert_eq!(lit(2.5).plain_constant(), Some(2.5));
+        assert_eq!(<Sym<f64> as Real>::one().plain_constant(), Some(1.0));
+        let computed = lit(1.25) + lit(1.25);
+        assert_eq!(computed.point_value(), Some(2.5));
+        assert_eq!(computed.plain_constant(), None);
     }
 }

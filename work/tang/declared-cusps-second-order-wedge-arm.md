@@ -2,12 +2,13 @@
 id: declared-cusps-second-order-wedge-arm
 kind: issue
 title: Implementation - declared cusps, the second-order wedge arm (#131 ruling)
-status: open
+status: parked
 opened: 2026-08-23
 github: 941
 refs: [131, 1423, 1439]
 priority: P1
 cost: H
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## From GitHub issue 941
@@ -106,3 +107,7 @@ tangency), which waits on stage 4 E (`booleans-glue-on-zero`).
 ## Released by stage 4 F (2026-10-11)
 
 Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.
+
+## Parked on INTENT stage 4 (2026-10-12)
+
+This row acts on declared contacts: a declared `Seam` / `Rest` pair, or a declared tangency. D10's stage 4 retires the declared pairs, the undeclared refusals and the stored tangent-joint flags, so widening it now would widen a path D10 is removing. It is parked on `intent-stage4-is-built` and is re-read against the built code when that row closes (TANG orchestrator).

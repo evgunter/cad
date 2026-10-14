@@ -308,6 +308,15 @@ fn fixed_partners<T: Decide>(
                         ..
                     }) => ruling_pairs(face, &rulings, &crossings, band)?,
                     Some(WallSection {
+                        case: SectionCase::Loops { .. },
+                        ..
+                    }) => {
+                        return Err(SplitJoinError::SectionInvariant {
+                            face,
+                            what: "a split reached a torus face, which its reduce refuses",
+                        });
+                    }
+                    Some(WallSection {
                         case: SectionCase::Tangent(_),
                         ..
                     })
@@ -1336,7 +1345,9 @@ mod torn_hop_rows {
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
                     coincidences: Vec::new(),
-                    edge_pieces: Vec::new(),
+                    edge_pieces: crate::lineage::SplitEdgeDivisions::new(
+                        crate::lineage::LineageRows::EdgeDivisions(None),
+                    ),
                 };
                 fixed_partners(&red, &above, band()).map(|p| p.len())
             },

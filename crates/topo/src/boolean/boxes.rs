@@ -30,9 +30,9 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **four** of the eleven doors that read a box from
-//! here; at four of the other seven, box NON-overlap is the answer being
-//! sought, so a bigger box is a REFUSAL, and at the other three it is
+//! PRUNES. That is **four** of the twelve doors that read a box from
+//! here; at four of the other eight, box NON-overlap is the answer being
+//! sought, so a bigger box is a REFUSAL, and at the other four it is
 //! more exact work AND can be a refusal:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
@@ -45,7 +45,14 @@
 //!   `face_reach` and its instance extents — read the same direction
 //!   through the same door (`census::Candidates::class`); they are
 //!   built from `face_reach`, not from these constructors, so the
-//!   inventory below does not count them.
+//!   inventory below does not count them. Pass 2′'s curved-edge class
+//!   (`census::Trees::curved`: [`edge_box`] of each curved edge, a
+//!   spline's control hull) reads the same direction: a loose box
+//!   admits a vertex to `census::curved::may_rest_on`, whose walk passes
+//!   a vertex every piece clears with no decision pushed. It costs that
+//!   walk, and a refusal only where the walk runs past its budget, which
+//!   reads the vertex as one that may rest on the span and hands it to
+//!   the reading.
 //! - `validate`'s check 9 (`ring_pairs`) PRUNES the same way: two
 //!   rings of one face whose hulled edge boxes clear are never handed
 //!   to the contact arms, and whether two rings meet is decided by those
@@ -109,9 +116,17 @@
 //!   for an edge with no bound (a spline or a spiric), which is not
 //!   clear, so there a bigger box REFUSES a touch the edge stays clear
 //!   of: the crossing layer keeps its typed door.
+//! - the held-pierce read (`vtxfac::faces_holding_pierce`, its curved
+//!   faces' boxes built in `boolean/mod.rs`) PRUNES: a curved face whose
+//!   box clears a pierce point is not asked whether it holds it, and any
+//!   other is decided on its carrier's residual and its trim through
+//!   `Decide`. A bigger box costs that read, never an answer — except
+//!   for a face on the point's carrier whose trim the chart door cannot
+//!   read, which is not cleared, so there a bigger box REFUSES
+//!   (`HeldPierceUnbuilt`) a point the face stays clear of.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The eleven are not
+//! about a door, and the door has to be named. The twelve are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
 //! a new door cannot land unargued. **It pins WHERE the doors are
@@ -2314,15 +2329,15 @@ pub(crate) fn edge_box_rule<T: Real>(
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => EdgeBoxRule::ConicAmplitude {
             carrier,
             center: *center,
             axis: *axis,
-            semi_u: *major,
-            semi_v: *minor,
+            semi_u: *semi_u,
+            semi_v: *semi_v,
             u_ref: *u_ref,
             params,
         },
@@ -2670,8 +2685,8 @@ pub(crate) mod tests {
         let carrier = Curve3::Ellipse {
             center: Point3::origin(),
             axis: normal,
-            major: r / alpha.cos(),
-            minor: r,
+            semi_u: r / alpha.cos(),
+            semi_v: r,
             u_ref,
         };
         let plane_surface = Surface::Plane {
@@ -3558,8 +3573,9 @@ pub(crate) mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts SEVEN: the pre-filter's `face_box` and
-        // `edge_box` reads (`census::Trees::build`, the pruning door),
+        // `census.rs` counts EIGHT: the pre-filter's `face_box` and
+        // `edge_box` reads and pass 2′'s curved-edge `edge_box` read
+        // (`census::Candidates::build`, the pruning door),
         // three rule reads of its own, and two that are not doors —
         // two rows in its test module call `face_box` to pin what a
         // described net carrying poison answers there. The number is stated with that content rather
@@ -3578,13 +3594,14 @@ pub(crate) mod tests {
         // hands it. `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
         // `edge_box` to show a torn link panics.
-        const PINNED: [(&str, usize); 10] = [
+        const PINNED: [(&str, usize); 11] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/glue.rs", 2),
+            ("boolean/mod.rs", 1),
             ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
-            ("census.rs", 7),
+            ("census.rs", 8),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),
@@ -5272,10 +5289,10 @@ pub(crate) mod tests {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
-            } => (*center, *u_ref * *major, axis.cross(*u_ref) * *minor),
+            } => (*center, *u_ref * *semi_u, axis.cross(*u_ref) * *semi_v),
             other => panic!("a conic sector's rim is a conic, got {other:?}"),
         }
     }

@@ -143,9 +143,10 @@
 //!   component counts of the torus arms need genus 1.
 //! - **Event vertices lie on `Σ` within the band**, the posture every
 //!   contact record takes.
-//! - **Witness points are within rounding of `Σ`** on `f64`, and
-//!   enclosures of it on the interval lane; containment is decided on the
-//!   band, and a point it cannot decide is not a witness.
+//! - **Witness points are within rounding of `Σ`** on `f64` — of their
+//!   own distance from each carrier's anchor, not of a form that squares
+//!   it — and enclosures of it on the interval lane; containment is
+//!   decided on the band, and a point it cannot decide is not a witness.
 //! - **Lone-vertex loops.** The sweep is edge-driven, so a vertex of a
 //!   `LoopBoundary::Empty` loop is never examined. That does not break
 //!   L1 on its own: `F` surrounds its lone vertex on every side, so the
@@ -1868,14 +1869,13 @@ struct Cone<T: Real> {
 
 impl<T: Real> Cone<T> {
     fn new(apex: Point3<T>, axis: Vec3<T>, alpha: T, u_ref: Vec3<T>) -> Self {
-        let a = unit(axis);
-        let (across, width) = perp_to(u_ref, a);
+        let frame = geom::square_frame(axis, u_ref);
         Self {
             apex,
-            a,
+            a: frame.axis,
             alpha,
             sc: alpha.sin_cos(),
-            u_ref: across / width,
+            u_ref: frame.u_ref,
         }
     }
 
@@ -2105,8 +2105,8 @@ fn cone_plane_pair<T: Decide>(
 }
 
 /// The subdivision rows every ruling chart walks under.
-const RULING_WALK: crate::boolean::circle_roots::SubdivisionRows =
-    crate::boolean::circle_roots::SubdivisionRows {
+const RULING_WALK: geom_brep::half_angle::SubdivisionRows =
+    geom_brep::half_angle::SubdivisionRows {
         clear: "section_ruling_clear",
         monotone: "section_ruling_monotone",
         side: "section_ruling_side",

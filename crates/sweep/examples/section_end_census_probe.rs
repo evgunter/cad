@@ -100,7 +100,7 @@ fn boolean(tag: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) {
                         diag.predicate, diag.margin
                     )
                 }
-                Err(BooleanError::Join(e)) => match e {
+                Err(BooleanError::Join(e)) => match e.error() {
                     SplitJoinError::SectionEndEscalated { reading, diag, .. } => {
                         format!("END {reading:?} {:?}", diag.margin)
                     }
@@ -120,10 +120,13 @@ fn rotated(body: &AtRestBody<f64>, about: [f64; 3], angle: f64) -> AtRestBody<f6
     finished(
         topo::transform_rigid(
             body,
-            &Affine3::rotation_about_axis(
-                Point3::new(about[0], about[1], about[2]),
-                Vec3::new(0.0, 1.0, 0.0),
-                angle,
+            &geom_core::test_support::rigid(
+                &Affine3::rotation_about_axis(
+                    Point3::new(about[0], about[1], about[2]),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    angle,
+                ),
+                tol(),
             ),
             tol(),
         )

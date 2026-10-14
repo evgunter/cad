@@ -554,6 +554,11 @@ impl<T: KinkJacobian> Real for Dual<T> {
         self.value.is_poison()
     }
 
+    /// The value channel, as for [`Real::is_poison`].
+    fn is_bounded(self) -> bool {
+        self.value.is_bounded()
+    }
+
     /// `(⌊a⌋, floor′(a)·a′)` with the factor from
     /// [`KinkJacobian::floor_jacobian_factor`] (the module-doc step
     /// convention: 0 on plateaus at `f64`, the jump enclosure `[0, +∞]`
@@ -793,6 +798,15 @@ where
 
     fn point_value(self) -> Option<f64> {
         self.value.point_value()
+    }
+
+    /// A constant only with a derivative of exactly zero: a value that
+    /// moves with the parameter is no constant, whatever its value.
+    fn plain_constant(self) -> Option<f64> {
+        if self.deriv.plain_constant()? != 0.0 {
+            return None;
+        }
+        self.value.plain_constant()
     }
 
     fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {

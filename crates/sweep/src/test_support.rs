@@ -124,7 +124,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
-use geom_core::{Affine3, Band, Bounds, Decide, OrthoFrame, Point2, Point3, Real, Vec2, Vec3};
+use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Real, RigidMotion, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LoopBoundary};
@@ -136,7 +136,7 @@ pub use crate::blend::reach::band_reach_for_tests as band_reach;
 pub use crate::blend::surgery::ring_clearance_for_tests as ring_clearance;
 use crate::skin::{Section, segment_curve};
 use crate::{Extrusion, Lofted, SketchSegment, extrude, sweep_body};
-use geom_core::Tol;
+use geom_core::{Interval, Tol};
 
 /// The cube side the in-crate pins build on, meters.
 pub const L: f64 = 1.0;
@@ -521,7 +521,12 @@ pub fn domed_cavity(tol: Tol) -> Body<f64> {
 /// translated to `c`. [`ball_poled_z`] is the same ball turned onto
 /// `+z` before it is placed.
 pub fn ball_poled_y<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
-    topo::transform_rigid(&ball_about_origin(r, tol), &Affine3::translation(c), tol).unwrap()
+    topo::transform_rigid(
+        &ball_about_origin(r, tol),
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        tol,
+    )
+    .unwrap()
 }
 
 /// The two ball doors' common first step: the lamina revolved about
@@ -553,15 +558,23 @@ pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
 pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
     let poled = topo::transform_rigid(
         &ball_about_origin(r, tol),
-        &Affine3::rotation_about_axis(
-            Point3::new(T::zero(), T::zero(), T::zero()),
-            Vec3::new(T::one(), T::zero(), T::zero()),
-            T::from_f64(core::f64::consts::FRAC_PI_2),
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(
+                Point3::new(T::zero(), T::zero(), T::zero()),
+                Vec3::new(T::one(), T::zero(), T::zero()),
+                T::from_f64(core::f64::consts::FRAC_PI_2),
+            ),
+            tol,
         ),
         tol,
     )
     .unwrap();
-    topo::transform_rigid(&poled, &Affine3::translation(c), tol).unwrap()
+    topo::transform_rigid(
+        &poled,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        tol,
+    )
+    .unwrap()
 }
 
 /// A radius-`r` ball centred at `c` with its POLAR AXIS along `pole`.
@@ -584,10 +597,13 @@ pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> 
         } else {
             topo::transform_rigid(
                 &ball,
-                &Affine3::rotation_about_axis(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                    core::f64::consts::PI,
+                &geom_core::test_support::rigid(
+                    &Affine3::rotation_about_axis(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                        core::f64::consts::PI,
+                    ),
+                    tol,
                 ),
                 tol,
             )
@@ -596,16 +612,24 @@ pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> 
     } else {
         topo::transform_rigid(
             &ball,
-            &Affine3::rotation_about_axis(
-                Point3::new(0.0, 0.0, 0.0),
-                axis.normalize(),
-                y.dot(pole).clamp(-1.0, 1.0).acos(),
+            &geom_core::test_support::rigid(
+                &Affine3::rotation_about_axis(
+                    Point3::new(0.0, 0.0, 0.0),
+                    axis.normalize(),
+                    y.dot(pole).clamp(-1.0, 1.0).acos(),
+                ),
+                tol,
             ),
             tol,
         )
         .unwrap()
     };
-    topo::transform_rigid(&placed, &Affine3::translation(c), tol).unwrap()
+    topo::transform_rigid(
+        &placed,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        tol,
+    )
+    .unwrap()
 }
 
 /// **The toroidal spool**: an annular meridian whose outer wall is an
@@ -686,7 +710,7 @@ const FIXTURE_FRAME_AXIS: &str = "fixture_frame_axis";
 /// plane that is tilted, rotated or deliberately noisy.
 ///
 /// An axis-aligned fixture does not come here: the exact world frames
-/// (`OrthoFrame::axes_xy` and its two siblings) need no decision, and
+/// (`RigidMotion::axes_xy` and its two siblings) need no decision, and
 /// [`sketch_at`] is the xy one at a station.
 ///
 /// # Panics
@@ -701,7 +725,7 @@ pub fn sketch_from_axes<T: Decide>(
     tol: Tol,
 ) -> SketchPlane<T> {
     SketchPlane::from_frame(
-        OrthoFrame::gram_schmidt(
+        RigidMotion::gram_schmidt(
             o,
             u,
             v,
@@ -729,8 +753,8 @@ pub fn tube_frame<T: Decide>(
     axis: Vec3<T>,
     u_ref: Vec3<T>,
     tol: Tol,
-) -> geom_core::OrthoFrame<T> {
-    OrthoFrame::from_axis_and_reference(
+) -> geom_core::RigidMotion<T> {
+    RigidMotion::from_axis_and_reference(
         center,
         axis,
         u_ref,
@@ -743,7 +767,7 @@ pub fn tube_frame<T: Decide>(
 /// The world xy sketch plane lifted to station `z0`, the placement
 /// every axis-aligned fixture here extrudes from.
 pub fn sketch_at<T: Decide>(z0: T) -> SketchPlane<T> {
-    SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(T::zero(), T::zero(), z0)))
+    SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(T::zero(), T::zero(), z0)))
 }
 
 /// **A prism on an arbitrary sketch plane**: one closed loop of
@@ -1288,10 +1312,21 @@ pub fn assert_naming_totality<T: Real>(
             );
         }
     }
+    for f in &rec.dead.faces {
+        assert!(
+            source.get_face(*f).is_some(),
+            "{what}: a retirement names a source face, got {f:?}"
+        );
+        assert!(
+            out.body.get_face(*f).is_none(),
+            "{what}: a retired face does not survive: {f:?}"
+        );
+    }
     for (k, _) in source.faces() {
         assert!(
-            out.body.get_face(k).is_some(),
-            "{what}: source face {k:?} vanished — a support shrinks, it does not die"
+            out.body.get_face(k).is_some() || rec.dead.faces.contains(&k),
+            "{what}: source face {k:?} vanished with no retirement recorded — a support \
+             shrinks, it does not die"
         );
     }
     banded.sort_unstable();
@@ -2200,4 +2235,85 @@ pub fn resolved_links(
 #[must_use]
 pub fn walked_links(links: Vec<Link<f64>>) -> Vec<Chain<f64>> {
     walk_chains(links)
+}
+
+/// **The two readings a turn's verdict decides** — the gap between the
+/// two bands' feet on the third edge, signed positive where `edges[0]`'s
+/// is further from their shared vertex, and each band's overrun chord
+/// were it the further — from the links `kind` resolves at `size`. The
+/// turn is the trivalent vertex the two edges share; its third edge is
+/// the vertex's other one.
+///
+/// # Panics
+///
+/// If the two edges share no vertex, the vertex is not trivalent, an
+/// edge does not resolve, or the readings do not.
+#[must_use]
+pub fn turn_readings(
+    body: &Body<f64>,
+    edges: [EdgeKey; 2],
+    size: f64,
+    kind: BlendKind,
+    tol: Tol,
+) -> (f64, [f64; 2]) {
+    let band = Band::linear(tol).expect("the run's band");
+    turn_readings_of(
+        body,
+        edges,
+        edges.map(|e| resolve_link(body, e, size, band, kind)),
+    )
+}
+
+/// [`turn_readings`] at the certified scalar.
+///
+/// # Panics
+///
+/// As [`turn_readings`].
+#[must_use]
+pub fn turn_readings_interval(
+    body: &Body<Interval>,
+    edges: [EdgeKey; 2],
+    size: Interval,
+    kind: BlendKind,
+    tol: Tol,
+) -> (Interval, [Interval; 2]) {
+    let band = Band::linear(tol).expect("the run's band");
+    turn_readings_of(
+        body,
+        edges,
+        edges.map(|e| resolve_link(body, e, size, band, kind)),
+    )
+}
+
+/// [`turn_readings`] on links already resolved, at a trivalent vertex.
+fn turn_readings_of<T: Decide>(
+    body: &Body<T>,
+    edges: [EdgeKey; 2],
+    links: [Result<Link<T>, crate::blend::BlendError>; 2],
+) -> (T, [T; 2]) {
+    let ends = |e: EdgeKey| {
+        let he = body.get_edge(e).expect("an edge").he_plus;
+        [
+            body.get_half_edge(he).expect("a half-edge").start,
+            body.half_edge_end(he).expect("an end"),
+        ]
+    };
+    let vertex = ends(edges[0])
+        .into_iter()
+        .find(|v| ends(edges[1]).contains(v))
+        .expect("the two edges share a vertex");
+    let thirds: Vec<EdgeKey> = topo::query::all_edges(body)
+        .into_iter()
+        .filter(|e| !edges.contains(e) && ends(*e).contains(&vertex))
+        .collect();
+    let [third] = thirds[..] else {
+        panic!(
+            "a turn is a trivalent vertex: {} edges besides the two requested",
+            thirds.len()
+        )
+    };
+    let links = links.map(|l| l.unwrap_or_else(|err| panic!("a turning edge resolves, got {err}")));
+    let reading = crate::blend::battery::turn_reading(body, vertex, [&links[0], &links[1]], third)
+        .unwrap_or_else(|err| panic!("the turn reads, got {err}"));
+    (reading.gap, reading.chords)
 }
