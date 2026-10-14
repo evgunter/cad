@@ -468,3 +468,88 @@ fn a_stated_column_is_offered_before_the_closed_form_it_crosses() {
             .unwrap_or_else(|e| panic!("{h:?}: the stated column certifies: {e:?}"));
     }
 }
+
+/// The prism's flat wall on `y = 0`, re-charted onto the same plane
+/// with its `v` knots moved `in_band()`: the chart now answers at
+/// `v + δ` what it answered at `v`, so every seam's stated `v` map (the
+/// old chart's) misses its carrier by `δ` metres, inside the band,
+/// while the chart's own whole-domain columns are exact.
+fn flat_wall_shifted_in_v(body: &Body<f64>) -> (Body<f64>, FaceKey) {
+    let arc = arc_wall(body);
+    let flat = body
+        .faces()
+        .filter(|(f, _)| *f != arc)
+        .find_map(|(f, face)| match body.get_surface(face.surface) {
+            Some(Surface::Nurbs(n)) if n.control().iter().all(|p| p.y == 0.0) => Some(f),
+            _ => None,
+        })
+        .expect("the prism has a flat wall on y = 0");
+    let shifted = recharted(
+        body,
+        flat,
+        |n| {
+            let kv = n.knots_v();
+            let moved: Vec<f64> = kv.knots().iter().map(|k| k + in_band()).collect();
+            NurbsSurface::new(
+                n.knots_u().clone(),
+                geom_core::spline::KnotVector::clamped(moved, kv.degree()).unwrap(),
+                n.control().to_vec(),
+                n.weights().to_vec(),
+            )
+            .unwrap()
+        },
+        false,
+    );
+    (shifted, flat)
+}
+
+/// **An escalated stated column does not outrank a closed form that
+/// holds.** On the shifted flat wall each seam's stated columns (at the
+/// boundary and at the foot) sit inside the band at the probe, and the
+/// chart's own boundary column holds exactly. Each seam takes that
+/// column, `v` running over the shifted domain.
+#[test]
+fn an_escalated_stated_column_gives_way_to_a_closed_form_that_holds() {
+    let body = semicircle_prism();
+    let (shifted, flat) = flat_wall_shifted_in_v(&body);
+    for h in seams(&body, flat) {
+        let got = derived(&shifted, h);
+        let Ok(Pcurve::IsoLine { p0, pl }) = got else {
+            panic!("{h:?}: the closed-form column holds: {got:?}")
+        };
+        assert!(
+            pl.x == 0.0 && (pl.y - 1.0).abs() < 1e-12 && p0.y == in_band(),
+            "{h:?}: the chart's own column, v from δ: {p0:?} {pl:?}"
+        );
+    }
+}
+
+/// **An escalated stated column is answered when nothing holds.** Split
+/// a seam of the shifted flat wall at its midpoint: each child's stated
+/// columns still sit inside the band, and the whole-domain closed forms
+/// are now definitely off (they would map half the seam onto all of
+/// `v`). A spline seam is offered no measured column, so nothing holds:
+/// the derivation answers the escalation, not the child's `General`
+/// image.
+#[test]
+fn an_escalated_stated_column_is_answered_when_nothing_holds() {
+    let body = semicircle_prism();
+    let (mut shifted, flat) = flat_wall_shifted_in_v(&body);
+    let seam = seams(&body, flat)[0];
+    let edge = shifted.get_half_edge(seam).unwrap().edge;
+    let made = shifted
+        .split_edge(edge, 0.5, tol())
+        .expect("the seam splits");
+    for e in [edge, made.new_edge] {
+        let child = shifted.get_edge(e).unwrap();
+        let on_flat = [child.he_plus, child.he_minus]
+            .into_iter()
+            .find(|&h| shifted.face_of_half_edge(h) == Some(flat))
+            .expect("each child has a half on the flat wall");
+        let got = derived(&shifted, on_flat);
+        assert!(
+            matches!(got, Err(topo::PcurveMintError::Escalated { .. })),
+            "{on_flat:?}: the in-band stated column is answered: {got:?}"
+        );
+    }
+}
