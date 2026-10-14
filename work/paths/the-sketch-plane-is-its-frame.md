@@ -2,10 +2,11 @@
 id: the-sketch-plane-is-its-frame
 kind: unit
 title: The sketch plane is its frame: SketchPlane holds one RigidMotion; embed/pin crossings; turned_between for path sweeps; loft takes planes
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P0
 cost: M
+branch: paths/sketch-plane-is-its-frame
 ---
 
 
