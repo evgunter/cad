@@ -2,7 +2,8 @@
 id: carrier-cross-one-curve-reads-tilt-apart-and-conic-helper-copies-conic-of
 kind: issue
 title: carrier_cross's one-curve margin leans on the tilt row's separate Zero, and its conic helper re-spells Conic::of
-status: review
+status: closed
+closed: 2026-10-14
 opened: 2026-10-12
 priority: P3
 cost: E
@@ -82,3 +83,7 @@ ball) or the shared-rim rows (`rim_circle_axis_parallel`, a spun ball)
 fire first. The gap is pinned bitwise symmetric, the k < 1 body rows
 pin `FallbackExtentUnsupported`, and the frame is
 `Conic::semi_axis_vectors`.
+
+## Closed — PR 5058 merged; its margin moved into geom-brep (fuse/curve-pair-reader-c)
+
+PR 5058 merged on 2026-10-14. Its one-curve margin, `one_curve_gap` with the Procrustes `frame_gap`, is now `geom_brep::curve_pair::pose`'s one-curve reading (`one_curve`, row `curve_pair_pose_one_curve`) for every conic pair in one plane. `carrier_cross::meetings` and its `one_curve` are deleted (stage (c) of `work/fuse/the-curve-pair-reader.md`). The unit pin `two_ellipses_are_one_curve_only_within_the_band_of_each_other` moved to `geom_brep::curve_pair::one_curve_rows` unchanged, bitwise symmetry included. The body pin `two_rims_the_band_reads_coplanar_are_one_curve_only_within_it` is re-baselined on that PR.

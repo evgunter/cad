@@ -755,15 +755,20 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                     "{label}: on the span row"
                 );
             } else {
-                let sector = matches!(
-                    &res,
-                    Err(BooleanError::Escalated { diag, .. }) if diag.predicate == Some("conic_bend")
-                );
-                assert!(
-                    matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. }))
-                        || (k > 50.0 && op.starts_with('t') && sector),
-                    "{label}: two curves unplaced: {res:?}"
-                );
+                // Exactly the ops with the first rod first, at 80, reach the
+                // sector reading first.
+                let sector = k > 50.0 && op.starts_with('t');
+                if sector {
+                    let Err(BooleanError::Escalated { diag, .. }) = &res else {
+                        panic!("{label}: escalates on the sector reading: {res:?}");
+                    };
+                    assert_eq!(diag.predicate, Some("conic_bend"), "{label}");
+                } else {
+                    assert!(
+                        matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                        "{label}: two curves unplaced: {res:?}"
+                    );
+                }
             }
         }
     }

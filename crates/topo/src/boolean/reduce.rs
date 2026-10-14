@@ -2819,8 +2819,8 @@ impl<T: geom_core::Real> Interior<T> {
 /// The interior question, asked only of an edge the carrier-identity
 /// rung puts ON `face`'s carrier (`on_carrier`): where it crosses
 /// `face`'s boundary strictly inside its span
-/// ([`super::carrier_cross`]); a carrier pair that module has no closed
-/// form for keeps the frontier door.
+/// ([`super::carrier_cross`]); a pair whose meetings that module cannot
+/// read keeps the frontier door.
 fn interior<T: Decide>(
     on_carrier: bool,
     y: &Body<T>,
@@ -2895,13 +2895,13 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 /// through its plane crossings and the interior question leaves unread.
 ///
 /// The interior question's candidates overlap. On a surface of
-/// revolution a boundary ruling's end vertex projects onto the arc at
-/// the ruling's crossing, so the line closed form finds nothing the
-/// vertices do not. And where both of the arc's ends lie in this face, a
-/// circle boundary's crossing missed here is split by the other sweep
+/// revolution a boundary ruling's end vertex lies on the arc at the
+/// ruling's crossing, so the ruling's meeting finds nothing the vertices
+/// do not. And where both of the arc's ends lie in this face, a circle
+/// boundary's crossing missed here is split by the other sweep
 /// direction, when that boundary edge pierces the arc's parent face at
-/// it. Only the circle closed form for an arc that runs from this face
-/// into another is pinned alone
+/// it. Only a circle boundary's meeting with an arc that runs from this
+/// face into another is pinned alone
 /// (`sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`,
 /// `a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared`).
 ///

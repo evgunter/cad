@@ -44,9 +44,9 @@
 //!   - **two circles**: their centres' distance `d`
 //!     (`curve_pair_pose_centres`). Zero is one centre, and the radii's gap
 //!     with `d` and the slant as its spread (`curve_pair_pose_radii`)
-//!     decides [`Pose::Concentric`]; read zero all round, their distance
-//!     has no extreme to place a touch at, and refuses
-//!     [`Unsettled::Tangency`]. Definite, the first circle's distance from
+//!     decides [`Pose::Concentric`]; read zero all round, it contradicts
+//!     the one-curve reading, which is at most `d + |Δr|` plus the slant
+//!     ([`MeetFault::Contradiction`]). Definite, the first circle's distance from
 //!     the second's centre runs between `|r₁ − d|` and `r₁ + d`, so its
 //!     distance from the second circle has those extremes less `r₂`,
 //!     exactly; and its square is a first harmonic in the first circle's
@@ -858,12 +858,15 @@ fn coplanar_circles<T: Decide>(
     let w = w - ka.axis * w.dot(ka.axis);
     let d = w.norm();
     if !definite(row::CENTRES, Margin::norm3(w), band)? {
-        // Not one curve, yet their distance, between `|r₁ − r₂| ∓ d` and
-        // the slant, reads zero all round: no extreme to place a touch at.
+        // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
+        // radii whose gap reads zero all round with the centres' are one
+        // curve, which the one-curve reading has just denied.
         return if constant(row::RADII, ra - rb, d + noise + slant, band)? {
             Ok(Pose::Concentric)
         } else {
-            Err(MeetFault::Unsettled(Unsettled::Tangency))
+            Err(MeetFault::Contradiction {
+                readings: "two circles read not one curve, on one centre, with radii one",
+            })
         };
     }
     // `|C₁(θ) − c₂|` runs between `|r₁ − d|` and `r₁ + d`; its square
