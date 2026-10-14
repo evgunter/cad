@@ -1799,11 +1799,9 @@ enum JoinedCover {
 
 /// **The operand edges joined edge `e` lies along** (`names/README.md`,
 /// "Flush edges"): the edges of either operand between two faces that
-/// `e`'s two faces descend from (a merged face from each of its
-/// constituents), straight where `e` is and curved where `e` is, that
-/// lie on `e`'s carrier and overlap it over a length, read through
-/// [`ON_MEMBER_EDGE`] along `e`'s line ([`Segment::cover`]) or its
-/// curved carrier ([`Track::cover`]). One that holds `e` whole makes
+/// `e`'s two faces descend from ([`joined_candidates`]) that lie on
+/// `e`'s carrier and overlap it over a length ([`joined_along`]). One
+/// that holds `e` whole makes
 /// `e` a piece of it, the least such in key order with A's before B's;
 /// otherwise several that overlap it and together cover it name it as a
 /// set, since a set name says the edge lies on its constituents.
@@ -1833,37 +1831,24 @@ fn joined_cover<T: Decide>(
             None => vec![descend_face(f)?],
         })
     };
-    let (d0, d1) = (descents(*f0)?, descents(*f1)?);
-    let line = is_straight(body, e);
-    let mut candidates: BTreeSet<OpSide<EdgeKey>> = BTreeSet::new();
-    for &g0 in &d0 {
-        for &g1 in d1
-            .iter()
-            .filter(|g1| g1.operand() == g0.operand() && **g1 != g0)
-        {
-            let (op, k0) = g0.of(a, b);
-            let (_, k1) = g1.of(a, b);
-            for r in rims_between(op.body, k0, k1)? {
-                if is_straight(op.body, r) == line {
-                    candidates.insert(g0.with(r));
-                }
-            }
-        }
-    }
-    let mut arcs = Vec::with_capacity(candidates.len());
-    for r in candidates {
-        let (op, k) = r.of(a, b);
-        arcs.push((r, carrier_arc(op.body, k)?));
-    }
-    let cover = if line {
-        Segment::of_edge(body, e)?.cover(
-            arcs.into_iter().map(|(r, arc)| (r, arc.p0, arc.p1)),
-            ON_MEMBER_EDGE,
-            bnd,
-        )?
-    } else {
-        Track::of_edge(body, e)?.cover(arcs, ON_MEMBER_EDGE, bnd)?
+    let operand = |ds: Vec<OpSide<FaceKey>>| -> Vec<(topo::Operand, FaceKey)> {
+        ds.into_iter().map(OpSide::of_operand).collect()
     };
+    let (d0, d1) = (operand(descents(*f0)?), operand(descents(*f1)?));
+    let candidates = joined_candidates(
+        &d0,
+        &d1,
+        |side| Ok(OpSide::on(side, ()).of(a, b).0.body),
+        is_straight(body, e),
+    )?;
+    let cover = joined_along(
+        body,
+        e,
+        candidates
+            .into_iter()
+            .map(|((side, r), arc)| (OpSide::on(side, r), arc)),
+        bnd,
+    )?;
     if let Some(&r) = cover.within.first() {
         return Ok(JoinedCover::One(r));
     }
@@ -1965,19 +1950,25 @@ fn name_boolean_vertices<T: Decide>(
     // never the whole set (N2).
     let set_holding =
         |v: VertexKey, set: &[OpSide<EdgeKey>]| -> Result<Vec<OpSide<NameRef>>, NamingError> {
-            let p = vertex_point(body, v)?;
-            let mut held = Vec::new();
-            for &r in set {
-                let (op, k) = r.of(a, b);
-                if Segment::of_edge(op.body, k)?.place(p, ON_MEMBER_EDGE, bnd)? != OnSegment::Off {
-                    let up = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(k)))?;
-                    held.push(r.with(up.name));
+            let held = edges_holding(
+                vertex_point(body, v)?,
+                set.iter().map(|&r| {
+                    let (op, k) = r.of(a, b);
+                    (r, op.body, k)
+                }),
+                bnd,
+            )?;
+            let a_holds = held.iter().any(|r| matches!(r, OpSide::A(_)));
+            let mut out = Vec::with_capacity(held.len());
+            for r in held {
+                if a_holds && matches!(r, OpSide::B(_)) {
+                    continue;
                 }
+                let (op, k) = r.of(a, b);
+                let up = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(k)))?;
+                out.push(r.with(up.name));
             }
-            if held.iter().any(|r| matches!(r, OpSide::A(_))) {
-                held.retain(|r| matches!(r, OpSide::A(_)));
-            }
-            Ok(held)
+            Ok(out)
         };
     // The zips' fusions (`vertex_merges`): kept key → dead partners
     // (a fused vertex may owe
@@ -3265,6 +3256,31 @@ impl<T: Decide> Track<T> {
         Ok(Some(vec![(lo, lo + n), (lo - per, lo + n - per)]))
     }
 
+    /// Whether `p` lies on this edge: on its carrier at an offset within
+    /// its span, the ends included. A closed edge holds every point of
+    /// its carrier, and a point just short of a periodic edge's start
+    /// reads a period on, at the start.
+    fn holds(
+        &self,
+        p: Point3<T>,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<bool, NamingError> {
+        let Some(u) = self.offset(p, predicate, bnd)? else {
+            return Ok(false);
+        };
+        if self.closed {
+            return Ok(true);
+        }
+        if let Some(per) = self.period
+            && self.sign(per - u, predicate, bnd)? == Sign::Zero
+        {
+            return Ok(true);
+        }
+        Ok(self.sign(u, predicate, bnd)? != Sign::Negative
+            && self.sign(self.len - u, predicate, bnd)? != Sign::Negative)
+    }
+
     /// **How this edge lies along `candidates`** — [`Segment::cover`]
     /// over the carrier's parameter ([`walk_cover`]): the candidates on
     /// the carrier that overlap the edge over a length, those it lies
@@ -3376,6 +3392,90 @@ fn rim_holding<T: Decide>(
 /// ends and both faces).
 pub(super) fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
     topo::query::edge_carrier_kind(body, e) == Some(topo::query::CurveKind::Line)
+}
+
+/// Whether edge `e` of `body` holds point `p`, its ends included,
+/// through `predicate`: on its closed [`Segment`] where it is straight,
+/// and within its span along its certified carrier where it is curved
+/// ([`Track`]), never by a curved edge's chord.
+pub(super) fn edge_holds<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    p: Point3<T>,
+    predicate: &'static str,
+    bnd: geom_core::Band,
+) -> Result<bool, NamingError> {
+    if is_straight(body, e) {
+        Ok(Segment::of_edge(body, e)?.place(p, predicate, bnd)? != OnSegment::Off)
+    } else {
+        Track::of_edge(body, e)?.holds(p, predicate, bnd)
+    }
+}
+
+/// **The edges a joined edge may lie along** (`names/README.md`,
+/// "Flush edges"), for a pair boolean's operands and a union's members
+/// alike, each a source `S` with its own body (`body_of`): the edges
+/// between two faces of one source that the joined edge's two faces
+/// descend from (`d0` and `d1`, a merged face listing each of its
+/// constituents), straight where `line` is and curved where it is not,
+/// each with its [`CarrierArc`].
+pub(super) fn joined_candidates<'b, T: Decide + 'b, S: Copy + Ord>(
+    d0: &[(S, FaceKey)],
+    d1: &[(S, FaceKey)],
+    body_of: impl Fn(S) -> Result<&'b Body<T>, NamingError>,
+    line: bool,
+) -> Result<BTreeMap<(S, EdgeKey), CarrierArc<T>>, NamingError> {
+    let mut out = BTreeMap::new();
+    for &(s, g0) in d0 {
+        for &(_, g1) in d1.iter().filter(|(s1, g1)| *s1 == s && *g1 != g0) {
+            let body = body_of(s)?;
+            for r in rims_between(body, g0, g1)? {
+                if is_straight(body, r) == line && !out.contains_key(&(s, r)) {
+                    out.insert((s, r), carrier_arc(body, r)?);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// **How joined edge `e` lies along `candidates`**: along its line
+/// ([`Segment::cover`]) where it is straight, along its certified
+/// carrier ([`Track::cover`]) where it is curved, through
+/// [`ON_MEMBER_EDGE`].
+pub(super) fn joined_along<T: Decide, K>(
+    body: &Body<T>,
+    e: EdgeKey,
+    candidates: impl IntoIterator<Item = (K, CarrierArc<T>)>,
+    bnd: geom_core::Band,
+) -> Result<Cover<K>, NamingError> {
+    if is_straight(body, e) {
+        Segment::of_edge(body, e)?.cover(
+            candidates.into_iter().map(|(k, arc)| (k, arc.p0, arc.p1)),
+            ON_MEMBER_EDGE,
+            bnd,
+        )
+    } else {
+        Track::of_edge(body, e)?.cover(candidates, ON_MEMBER_EDGE, bnd)
+    }
+}
+
+/// The edges of `set`, each with its source's body, that hold point
+/// `p` ([`edge_holds`] through [`ON_MEMBER_EDGE`]), in `set`'s order: a
+/// vertex of a joined edge cites the edges of its set it lies on, never
+/// the whole set (N2).
+pub(super) fn edges_holding<'b, T: Decide + 'b, K>(
+    p: Point3<T>,
+    set: impl IntoIterator<Item = (K, &'b Body<T>, EdgeKey)>,
+    bnd: geom_core::Band,
+) -> Result<Vec<K>, NamingError> {
+    let mut held = Vec::new();
+    for (k, body, e) in set {
+        if edge_holds(body, e, p, ON_MEMBER_EDGE, bnd)? {
+            held.push(k);
+        }
+    }
+    Ok(held)
 }
 
 /// Edge `e` of `body` as a cover candidate: its ends and, on a curved
