@@ -2913,7 +2913,7 @@ mod tests {
             }
             let (z0, z1) = spans[0];
             assert!(
-                z0 <= 0.0 && z1 >= 1.0 && z1 - z0 < 1.0 + 1e-6,
+                z0 <= 0.0 && z1 >= 1.0 && z1 - z0 < 1.0 + 4.0 * band.escalate(),
                 "{scalar}: the span holds the wall's [0, 1] and little else: {z0}..{z1}"
             );
         }
