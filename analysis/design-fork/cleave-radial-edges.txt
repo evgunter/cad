@@ -1,0 +1,5 @@
+fork: radial (non-manifold) edges vs the coincident-distinct-edges pairing at lines where four face sheets meet ([ev] PR 4795, Ev 2026-10-14 "for completeness")
+dispatched: 2026-10-14
+urandom byte: 191
+mapping: Fable=A Opus=B
+protocol: 4fbf874b32
