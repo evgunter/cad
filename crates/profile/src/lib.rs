@@ -141,6 +141,9 @@
 //! overflows its radius, which is a sub-tolerance arc that validation
 //! classifies a line before any carrier is checked.
 
+// Double-double residuals for the test oracles.
+#[cfg(test)]
+mod dd;
 mod fillet_select;
 pub mod lift;
 pub mod path;
@@ -194,11 +197,11 @@ pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 /// decides, both ways, and a restated copy would hold against itself.
 #[cfg(any(test, feature = "test-support"))]
 pub use validate::{
-    ARC_SCENE_RESOLUTION_RECOURSE, DECISION_ENDINGS, DecisionEnding, EndingKind,
-    FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_FLATTENED_RECOURSE,
-    FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
-    FILLET_SCENE_RESOLUTION_RECOURSE, FILLET_STORED_FORM_INBAND_RECOURSE,
-    FILLET_TURN_INBAND_RECOURSE, UNNAMED_DECISION, decision_ending, fillet_recourse_for,
+    ARC_SCENE_RESOLUTION_RECOURSE, DECISION_ENDINGS, DecisionEnding, FILLET_ENCLOSING_RECOURSE,
+    FILLET_FIT_RECOURSE, FILLET_FLATTENED_RECOURSE, FILLET_LEG_EXTENT_RECOURSE,
+    FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
+    FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE, UNNAMED_DECISION,
+    decision_ending, fillet_recourse_for,
 };
 pub use validate::{
     ArcCheck, BlendArc, ConstructedProfile, ContactKind, DecidedJoint, EscalationSite, FilletLeg,

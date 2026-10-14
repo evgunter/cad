@@ -76,7 +76,6 @@ use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use geom::Surface;
-use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
 use geom_core::Tol;
 
 /// One side of a split result: a real body, or the typed empty side
@@ -409,8 +408,8 @@ pub enum SplitFinishError {
     },
     /// A section loop's winding about its chart normal has no sign, so
     /// the section face's material side cannot be read: in the band
-    /// (`diag`), or (`None`) zero, or unread because the loop carries a
-    /// spiric or NURBS edge. The split's carrier gate admits only line,
+    /// (`diag`), or (`None`) zero, or unread because the loop carries an
+    /// edge the winding does not read. The split's carrier gate admits only line,
     /// circle and ellipse edges, so every section edge is one the
     /// winding reads.
     SectionWindingUndecided {
@@ -529,7 +528,7 @@ impl core::fmt::Display for SplitFinishError {
             Self::DescribeEscalated { diag, .. } => diag
                 .undecided(
                     "the angle between two faces along the cut",
-                    super::split_lever_ending(diag),
+                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::DescribeSideEscalated { diag, .. } => diag
@@ -545,16 +544,13 @@ impl core::fmt::Display for SplitFinishError {
                 .undecided(
                     "whether two faces touching along the cut curve apart there or share their \
                      curvature",
-                    super::split_lever_ending(diag),
+                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::EdgeOnFacesEscalated { diag, .. } => diag
                 .undecided(
                     crate::merge_faces::edge_on_faces_subject!("an edge along the cut"),
-                    LeverOnly {
-                        lever: crate::merge_faces::EDGE_ON_PLANE_LEVER,
-                    }
-                    .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                    diag.lever_ending(crate::merge_faces::EDGE_ON_PLANE_LEVER),
                 )
                 .fmt(f),
             Self::SmoothJoinRefuted { .. } => write!(
@@ -569,14 +565,15 @@ impl core::fmt::Display for SplitFinishError {
             } => diag
                 .undecided(
                     "which side of a cut face is material",
-                    super::split_lever_ending(diag),
+                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::SectionWindingUndecided { diag: None, .. } => write!(
                 f,
                 "which side of a cut face is material cannot be read: its outline \
-                 encloses no area, or has a spiric or NURBS edge, whose winding the \
-                 kernel does not read. Recourse: {}",
+                 encloses no area, or has an edge whose winding the kernel does not \
+                 read (a NURBS edge, or spiric edges pinched near a torus's inner \
+                 equator). Recourse: {}",
                 super::SPLIT_COINCIDENCE_RECOURSE
             ),
             Self::NestingContradiction { hole } => write!(
@@ -940,13 +937,7 @@ fn section_plane_restatements<T: Decide>(
             if !Named::of(geom).keys().any(|k| k == chart) {
                 continue;
             }
-            let image = geom_brep::EdgeDescriptionSpec::chart(chart);
-            let mut spec = curve.restated_spec();
-            spec.description = match curve.authority() {
-                geom_brep::EdgeAuthority::Declared(mc) => image.declared_by(mc),
-                geom_brep::EdgeAuthority::Derived => image,
-            };
-            out.push((edge, spec));
+            out.push((edge, curve.restated_in_chart(chart)));
         }
     }
     Ok(out)
@@ -1074,16 +1065,14 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     // Carrier and interval travel verbatim (restated,
                     // never rebuilt), as does a conventional image's
                     // declared authority (an intrinsic locus is derived).
-                    let mut spec = existing.as_ref().map_or_else(
-                        || {
-                            unreachable!(
-                                "{edge:?} read smooth at its witness has a certified carrier: \
-                                 null scaffolding has coincident ends, so its zero extent \
-                                 fails the dihedral's arm gate before this arm"
-                            )
-                        },
-                        geom_brep::EdgeCurve::restated_spec,
-                    );
+                    let curve = existing.as_ref().unwrap_or_else(|| {
+                        unreachable!(
+                            "{edge:?} read smooth at its witness has a certified carrier: \
+                             null scaffolding has coincident ends, so its zero extent \
+                             fails the dihedral's arm gate before this arm"
+                        )
+                    });
+                    let spec = curve.restated_spec();
                     // What the join stores is the must-carry rule's
                     // over the edge, and each refusal is this op's own.
                     let demanded = geom_brep::must_carry_description(
@@ -1137,12 +1126,17 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         // in to within the BAND: on a near-flush
                         // operand it is metered like any description
                         // (D4 ¶3).
-                        spec.description = demanded.spec();
-                        if let Some(geom_brep::EdgeAuthority::Declared(mc)) =
-                            existing.as_ref().map(|c| c.authority())
-                        {
-                            spec.description = spec.description.declared_by(mc);
-                        }
+                        let spec = match demanded {
+                            geom_brep::MustCarryDescription::Intrinsic(description) => {
+                                geom_brep::EdgeCurveSpec {
+                                    description,
+                                    ..spec
+                                }
+                            }
+                            geom_brep::MustCarryDescription::Conventional(chart) => {
+                                curve.restated_in_chart(chart)
+                            }
+                        };
                         let carrier = spec.carrier.kind();
                         body.set_edge_curve(edge, spec, tol)
                             .map_err(|e| of_attachment(edge, carrier, e))?;
@@ -1269,7 +1263,7 @@ fn below_chord_u_ref<T: Decide>(
 ///
 /// [`SplitFinishError::SectionWindingUndecided`];
 /// [`SplitFinishError::Corrupt`] on a torn loop.
-fn section_sense<T: Decide>(
+fn section_sense<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
     l: crate::entity::LoopKey,
