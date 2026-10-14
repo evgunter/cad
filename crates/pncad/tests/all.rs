@@ -367,6 +367,16 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
     }
 }
 
+/// `BlendError::BodyNotIntact`'s breach: which way the body failed to
+/// hold together where the blend read it.
+fn breach_is_matchable(breach: Breach) -> &'static str {
+    match breach {
+        Breach::Unresolved => "unresolved",
+        Breach::Unwalked => "unwalked",
+        Breach::Disagrees => "disagrees",
+    }
+}
+
 /// `ValidationError::UnrecordedContact`'s payload. The branch that
 /// matters is not "a census contact happened" but WHICH: an
 /// `EdgeFacePierce` is interpenetration and undeclarable, while an
@@ -607,6 +617,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         blend_decision_is_matchable(BlendDecision::CornerIndependence),
         "corner_independence"
     );
+    assert_eq!(breach_is_matchable(Breach::Unwalked), "unwalked");
 
     // Declarable vs categorically undeclarable, off the same refusal.
     assert!(census_contact_is_matchable(

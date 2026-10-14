@@ -79,7 +79,7 @@ all-or-nothing door does not give:
 
 - `blend/open/ruled.rs` `band_face` and `surgery.rs`'s sphere-trim
   `band_face`: both sides required, but over `halves_of`, whose own
-  refusal (`not_intact` on the trimline; an `unreachable!` invariant)
+  refusal (`unresolved` on the trimline; an `unreachable!` invariant)
   would merge with the face refusal — the blend program's call;
 - `face_of_half` / `loop_of_half` themselves, and `build.rs`
   `vertex_faces` (one side, not an edge's two).
