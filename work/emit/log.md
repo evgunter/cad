@@ -2370,3 +2370,20 @@ The PR merged with `demos` red on that drift alone.
 **Filed:** `a-booleans-merge-stage-kills-split-records-no-row-copies`.
 
 **Process.** The lane's 11G target, together with two designer builds, brought `/` down to 7G free. The fold round skipped its workspace build, and the target was deleted once the fold was pushed.
+
+## 2026-10-14 — PR 5169: the merge stage keeps split records; the remap row re-scoped
+
+**Closed: `a-booleans-merge-stage-kills-split-records-no-row-copies`.**
+- Measured first. The merge dropped a record 1134 times, and `chase_edge_to_table` stopped short 342 times, each time naming a piece of an operand edge as a seam.
+- `finish_output` now records the merge's own `killed_edges` and the join's kills into `BooleanNaming::killed_lineage` (renamed from `joined_lineage`). It does so from one snapshot, through the one-parent writer. Records only.
+- `KilledSplits::of` reads the map.
+- What moved: only `crossing_slots`. A cavity-rim stretch is now a piece of the rim, not a seam, and the four floor corners now read alike. Four goldens were re-baselined.
+
+**Re-scoped: `a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical`.** No design question remains. ASSEMBLY.md A4 Acceptance requires split and inline maps to keep name order. The public `remap_name` gives a typed refusal (fail-loud). The row is open for a build lane.
+
+**Filed:**
+- `a-booleans-carve-kills-a-split-record-its-discard-rows-do-not-copy`;
+- `a-grafted-b-piece-whose-parent-the-merge-killed-chases-short`;
+- `work/origin/body-split-root-stops-at-a-parent-an-output-stage-killed` (with a sibling sweep).
+
+**Review.** The falsifier's A4 reading turned the remap design stop into a build. Without it, the stop would have become a third `[ev]` question.
