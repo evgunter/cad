@@ -82,15 +82,15 @@ impl Pose {
     }
 
     /// The served ellipse's miss off the cut in units of its resolution,
-    /// `u·max(major, |centre|, |apex|)`; `None` where the arm serves no
+    /// `u·max(larger semi-axis, |centre|, |apex|)`; `None` where the arm serves no
     /// tilted ellipse.
     fn miss_in_ulps(&self) -> Option<f64> {
         let (cone, plane) = self.surfaces();
         let Ok(PlaneConeSection::TiltedEllipse(Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         })) = plane_cone_section(&plane, &cone, &at_apex(&cone, self.lever), band())
         else {
@@ -107,8 +107,9 @@ impl Pose {
             self.alpha,
             (p(origin), w(normal)),
         );
-        let miss = cut.ellipse_miss(p(center), w(axis), major, minor, w(u_ref));
-        let size = major
+        let miss = cut.ellipse_miss(p(center), w(axis), semi_u, semi_v, w(u_ref));
+        let size = Curve3::semi_axes_by_size(semi_u, semi_v)
+            .0
             .max(center.distance(Point3::origin()))
             .max(self.apex.distance(Point3::origin()));
         Some(miss / (0.5 * f64::EPSILON * size))

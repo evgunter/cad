@@ -326,8 +326,8 @@ fn probe_analytic_arms_at_extreme_parameters() {
             Curve3::Ellipse {
                 center,
                 axis,
-                major: 4.5,
-                minor: 0.125,
+                semi_u: 4.5,
+                semi_v: 0.125,
                 u_ref,
             },
         ),
@@ -336,8 +336,8 @@ fn probe_analytic_arms_at_extreme_parameters() {
             Curve3::Ellipse {
                 center,
                 axis,
-                major: 1e12,
-                minor: 1e-12,
+                semi_u: 1e12,
+                semi_v: 1e-12,
                 u_ref,
             },
         ),

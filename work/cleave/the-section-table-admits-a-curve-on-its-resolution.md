@@ -81,3 +81,12 @@ section:
 
 This follows the re-pose (PR 4861), which removes the parameter term.
 The interim relabel belongs to the parent row's part 3 (PR 4810).
+
+## The at-rest frame check (2026-10-14)
+
+An anchored conic still stores a frame. Tier 3's frame margin is
+`ε − δ·A`, the frame's own rounding `δ` amplified by the larger
+semi-axis `A`, so a near-axial section still refuses at rest at
+ε = 1e-12 on rounding alone. That residue is RESTFRONT's
+`tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis`,
+measured on PR 4861. This unit's end state has to meet it there.

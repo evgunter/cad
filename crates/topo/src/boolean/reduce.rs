@@ -3368,9 +3368,11 @@ fn wall_crossing<T: Decide + Bounds>(
     // a kernel bug, refused — never a zero speed that would read every
     // root as at the span's end.
     let speed_at = |t: T| {
-        crate::carrier_speed::speed_at(carrier, t).ok_or(BooleanError::ClassificationInvariant {
-            what: "a wall root's carrier is neither a line nor a conic",
-        })
+        geom_brep::carrier_speed::speed_at(carrier, t).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "a wall root's carrier is neither a line nor a conic",
+            },
+        )
     };
     let (count, roots) = match found {
         CircleRoots::Certified { count, thetas } => (count, thetas),
@@ -3562,10 +3564,11 @@ fn line_wall_roots_of<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, SpanVerdict<T>>, BooleanError> {
-    use super::solid_contain::{TorusRoots, WallRoots};
+    use super::solid_contain::WallRoots;
+    use geom_brep::quartic::QuarticRoots;
     let span = (t1 - t0).abs();
     let two = |ts: [T; 2]| {
-        let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
+        let mut thetas = [T::zero(); 2 * geom_brep::half_angle::MAX_DEGREE];
         thetas[..2].copy_from_slice(&ts);
         CircleRoots::Certified { count: 2, thetas }
     };
@@ -3619,14 +3622,14 @@ fn line_wall_roots_of<T: Decide>(
             decision: BooleanDecision::TorusRoots,
             diag,
         })? {
-            TorusRoots::Miss => CircleRoots::Miss,
-            TorusRoots::Uncertain => CircleRoots::Uncertain,
-            TorusRoots::Certified { count, ts } => {
-                let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
+            QuarticRoots::Miss => CircleRoots::Miss,
+            QuarticRoots::Uncertain => CircleRoots::Uncertain,
+            QuarticRoots::Certified { count, ts } => {
+                let mut thetas = [T::zero(); 2 * geom_brep::half_angle::MAX_DEGREE];
                 thetas[..ts.len()].copy_from_slice(&ts);
                 CircleRoots::Certified { count, thetas }
             }
-            TorusRoots::CountDisagrees { .. } => {
+            QuarticRoots::CountDisagrees { .. } => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "the constructed roots of a quartic disagree in number with its \
                            certified count",
@@ -3731,7 +3734,7 @@ fn line_cone_roots<T: Decide>(
         Sign::Zero => return Ok(CircleRoots::Uncertain),
         Sign::Negative => return Ok(CircleRoots::Miss),
     }
-    let roots = super::solid_contain::quadratic_roots(a2, b2, c2, disc);
+    let roots = geom_brep::quartic::quadratic_roots(a2, b2, c2, disc);
     let two = T::from_f64(2.0);
     let speed = dir.norm();
     let (lo, hi) = (t0.min(t1), t0.max(t1));
@@ -3748,7 +3751,7 @@ fn line_cone_roots<T: Decide>(
             Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
         }
     }
-    let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
+    let mut thetas = [T::zero(); 2 * geom_brep::half_angle::MAX_DEGREE];
     thetas[..2].copy_from_slice(&roots);
     Ok(CircleRoots::Certified { count: 2, thetas })
 }
@@ -5140,8 +5143,8 @@ mod edge_span_tests {
         let ellipse = geom::Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major: 1.0,
-            minor: 0.05,
+            semi_u: 1.0,
+            semi_v: 0.05,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let root = core::f64::consts::FRAC_PI_2 - 2e-8;
@@ -5520,8 +5523,8 @@ mod clearance_rows {
                 -0.888_958_285_986_655_8,
             ),
             axis,
-            major: 4.846_323_757_498_574,
-            minor: 0.207_528_397_062_063_02,
+            semi_u: 4.846_323_757_498_574,
+            semi_v: 0.207_528_397_062_063_02,
             u_ref: Vec3::new(
                 0.087_713_558_478_483_3,
                 0.789_303_434_737_465_2,
@@ -5584,8 +5587,8 @@ mod clearance_rows {
         let e = geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         };
         let x = Vec3::new(1.0, 0.0, 0.0);
@@ -5682,8 +5685,8 @@ mod clearance_rows {
                     geom::Curve3::Ellipse {
                         center,
                         axis: n,
-                        major,
-                        minor,
+                        semi_u: major,
+                        semi_v: minor,
                         u_ref,
                     }
                 };
