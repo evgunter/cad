@@ -2,10 +2,11 @@
 id: an-internal-tangency-reads-its-spans-at-the-radical-foot-off-both-arcs
 kind: issue
 title: arc_arc's internal-tangent arm reads both spans at the radical-line foot, which near-concentric carriers put far off both arcs, so arcs 1-3 cm apart refuse as a TangentialContact
-status: open
+status: dispatched
 opened: 2026-10-07
 priority: P2
 cost: E
+branch: paths/internal-tangency-foot
 refs: [decided-tangent-point-is-the-radical-foot, validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps]
 ---
 
