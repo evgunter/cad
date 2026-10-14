@@ -2780,6 +2780,11 @@ fn classify_band(e: &BandError) -> &'static str {
     }
 }
 
+/// Why limb 2 refused a carrier it has no certified net of, at rest:
+/// the edge certificate's reason and a fitted row's alike.
+const CARRIER_ENCLOSURE: &str = "the check cannot enclose a curve over part of its range, so it \
+     cannot bound how far the curve strays from its faces between samples";
+
 fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     use geom_brep::AnalyticRung3Refusal as A;
     use geom_brep::PlaneNurbsRefusal as P;
@@ -2854,6 +2859,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve's parameter range cannot carry the curve's image on its spline face"
         }
         CertifyError::PlaneNurbs(P::ChartSpeed(r)) => chart_speed_reason(*r),
+        CertifyError::PlaneNurbs(P::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
@@ -2894,7 +2900,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
-            | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. })
+            | CertifyError::PlaneNurbs(
+                P::FootPointInconclusive { .. } | P::Unsupported { .. } | P::CarrierEnclosure(_),
+            )
             | CertifyError::AnalyticRung3(
                 A::NoOffsetBound { .. } | A::NoTubeEnclosure { .. } | A::Unsupported { .. },
             ) => NOT_YET_ENDING,
@@ -3313,6 +3321,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     "a boundary curve's parameter range cannot carry its image on the face",
                     Some(REPARAMETERIZE),
                 ),
+                C::CarrierEnclosure(_) => (CARRIER_ENCLOSURE, Some(NOT_YET_ENDING)),
                 C::CarrierGrazesChart { grazer, .. } => (WRONG, Some(grazer.recourse())),
                 C::ChartRow { .. }
                 | C::CarrierOffChart { .. }

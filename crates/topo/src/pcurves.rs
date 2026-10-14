@@ -1143,7 +1143,8 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 ///   row, and for a line the column, whose moving map the carrier's
 ///   end feet measure (a sub-edge, a cap rim an offset moved, and for
 ///   a line an interior column). An Intersection circle is offered to
-///   the arc rim. Any other locus or carrier — a SPLINE on an interior
+///   the arc rim, and kept where the rim certifies. Any other locus or
+///   carrier — a SPLINE on an interior
 ///   column is the executed case (#498), an off-iso straight edge
 ///   another — takes U2's `General`
 ///   curve-in-UV arm at the honest Fitted grade, derived from the
@@ -1364,19 +1365,39 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 Err(cause) => deferred = Some(cause),
             }
         }
-        // A circle on a boundary row is the arc rim's; any other
-        // circle, an IsoUnsupported answer, is not. A pick the arc-rim
-        // certification would then refuse does not fall through to
-        // `General`, and need not: no door certifies an `Intersection`
-        // circle on a spline chart (the plane × NURBS certificate takes a
-        // spline carrier, the spline-pair ones no closed form).
+        // A circle on a boundary row is the arc rim's, where the arc-rim
+        // certification holds; any other circle, an IsoUnsupported
+        // answer, is not, and neither is a pick that certification
+        // definitely refuses: the spline-pair edge certificates take a
+        // circle carrier, so an `Intersection` circle on a spline chart
+        // that is no arc rim falls through to `General` like any other
+        // locus.
         if deferred.is_none() && matches!(carrier, geom::Curve3::Circle { .. }) {
             match arc_rim() {
                 Err(PcurveMintError::Certify {
                     error: PcurveCertifyError::IsoUnsupported { .. },
                     ..
                 }) => {}
-                found => return found,
+                // An undecided certification is the rim's to report:
+                // the mint certifies the pick again and escalates it.
+                // A definite refusal of the rim's locus says the circle
+                // is not this row, and falls through; any other refusal
+                // is about the chart or the run, not the candidate, and
+                // leaves with its own words.
+                Ok(rim) => match PcurveCache::certify(rim.clone(), t0, t1, &carrier, surface, band)
+                {
+                    Ok(_)
+                    | Err(
+                        PcurveCertifyError::Escalated { .. }
+                        | PcurveCertifyError::FittedEscalated { .. },
+                    ) => return Ok(rim),
+                    Err(
+                        PcurveCertifyError::ResidualExceeded { .. }
+                        | PcurveCertifyError::IsoUnsupported { .. },
+                    ) => {}
+                    Err(error) => return Err(PcurveMintError::Certify { half_edge, error }),
+                },
+                refused => return refused,
             }
         }
         // ---- Nothing exact holds. Store the image as it is. ----
@@ -1386,12 +1407,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // off-iso straight edge among them — has none either. Its image is the chart image the edge
         // certificate itself derives (`edge_nurbs::chart_image`, at
         // `PXN_IMAGE_DEGREE`), so it certifies wherever the foot path
-        // is straight to ε. A closed-form carrier reaches here only
-        // through the doors today (the spline-pair edge certificates
-        // refuse it first:
-        // `work/pcert/the-spline-pair-edge-certificates-refuse-a-closed-form-carrier.md`);
-        // its degree-1 image refuses at the hull where a circle or
-        // ellipse bends the foot path.
+        // is straight to ε. A closed-form carrier's degree-1 image
+        // refuses at the hull where a circle or ellipse bends the foot
+        // path, as the edge certificate's own does.
         //
         // An escalated candidate outranks the image and its refusal
         // alike: a candidate that escalates keeps escalating, and the

@@ -1688,6 +1688,12 @@ pub enum PcurveCertifyError {
     /// carried whole, as the plane × NURBS lane carries it from the same
     /// producer ([`crate::PlaneNurbsRefusal::CarrierDomain`]).
     CarrierDomain(crate::edge_nurbs::CarrierDomainRefusal),
+    /// The fitted lane's limb 2 has no certified net of the carrier
+    /// over a span of the image's domain: the carrier-enclosure door's
+    /// refusal, naming the carrier's kind and the span, carried whole as
+    /// the edge certificate carries it
+    /// ([`crate::PlaneNurbsRefusal::CarrierEnclosure`]).
+    CarrierEnclosure(crate::CarrierEnclosureRefusal),
     /// A fitted-lane classification ESCALATED — D4 ¶3's
     /// escalate-never-guess, at the SSI door rather than at one of this
     /// module's own schedule checks. It ends by the SSI decision it
@@ -1843,6 +1849,11 @@ impl core::fmt::Display for PcurveCertifyError {
                 limb.name()
             ),
             Self::CarrierDomain(refusal) => write!(f, "pcurve certification: {refusal}"),
+            Self::CarrierEnclosure(refusal) => write!(
+                f,
+                "pcurve certification: the fitted lane's certificate refused at limb 2 — \
+                 {refusal}"
+            ),
             // Each escalation ends in its decision's own labelled
             // ending, read at a build: the door that reads it at rest
             // asks `ending` instead of rendering this.
@@ -1957,6 +1968,7 @@ impl PcurveCertifyError {
             | Self::ChartRow { .. }
             | Self::FittedCertificate { .. }
             | Self::CarrierDomain(_)
+            | Self::CarrierEnclosure(_)
             | Self::ChartWindingUnsupported
             | Self::BranchOutOfReach
             | Self::PlaceholderChart
@@ -2401,27 +2413,11 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
     wall: &NurbsSurface<T>,
 ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
     use crate::edge_nurbs::PlaneNurbsRefusal as P;
-    // A spline's image spans its own knot domain, which the composite
-    // pairs it on; any other carrier's spans `params`' outer ends (its
-    // bracket's, so the image covers the interval at every scalar),
-    // held there.
+    // The image spans the carrier's certificate span, the edge
+    // certificate's rule (`carrier_span`).
     let eval = |t| carrier.eval(t);
-    let schedule = match carrier {
-        Curve3::Nurbs(net) => {
-            crate::edge_nurbs::Schedule::new(&eval, net.domain(), net.knot_values().domain())
-        }
-        _ => {
-            let (lo, hi) = (
-                params.0.lo().min(params.1.lo()),
-                params.0.hi().max(params.1.hi()),
-            );
-            crate::edge_nurbs::Schedule::new(
-                &eval,
-                (lo, hi),
-                (T::from_computed(lo), T::from_computed(hi)),
-            )
-        }
-    };
+    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+    let schedule = crate::edge_nurbs::Schedule::new(&eval, domain, ends);
     let (t0, t1) = schedule.domain();
     let certificate = |what| PcurveCertifyError::FittedCertificate {
         limb: None,
@@ -2458,7 +2454,8 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::TubeNotOneArc { .. }
         | P::Escalated { .. }
         | P::ReportedTransversalityPoisoned(_)
-        | P::ChartSpeed(_)) => unreachable!(
+        | P::ChartSpeed(_)
+        | P::CarrierEnclosure(_)) => unreachable!(
             "chart_image returns these only from its per-sample hook or the certificate, and \
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
@@ -2750,8 +2747,9 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
 /// # Errors
 ///
 /// [`PcurveCertifyError::FittedCertificate`] when the bound refuses or
-/// the carrier cannot be enclosed, or the image stops short of the
-/// edge.
+/// the image stops short of the edge;
+/// [`PcurveCertifyError::CarrierEnclosure`] when the carrier has no
+/// certified net over a span of the image's domain.
 pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     image: &NurbsCurve2<T>,
@@ -2782,7 +2780,8 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // `run_fitted_checks`, this gate's only caller, has already decided
     // `t1 − t0` through `decide`, which refuses an uncertified value.
     let (d0, d1) = image.knots().domain();
-    if !(d0 <= t0.lo().min(t1.lo()) && t0.hi().max(t1.hi()) <= d1) {
+    let (lo, hi) = crate::carrier_net::outer_ends((t0, t1));
+    if !(d0 <= lo && hi <= d1) {
         return Err(PcurveCertifyError::FittedCertificate {
             limb: Some(SsiLimb::HullSup),
             what: "the image's domain stops short of the edge's interval, so its hull \
@@ -2790,15 +2789,11 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
             magnitude: None,
         });
     }
-    use crate::ssi::certify::{
-        CHART_HULL, Hull, Refused, chart_breaks, chart_round, hull_limb, subdivide,
-    };
-    use geom_core::spline::algebra::range_grid_points;
-    // Each round's composite against this chart alone, cut at `cuts`
-    // besides the image's knots and the domain's uniform grid. A spline
-    // carrier enters as its own net; a closed-form one as its enclosing
-    // net over the round's breaks, so a halving shrinks its remainder
-    // too.
+    use crate::ssi::certify::{CHART_HULL, Refused, carrier_chart_round, chart_grid, hull_limb};
+    // Each round's composite against this chart alone, the carrier read
+    // through the carrier-enclosure door over the image's domain, cut at
+    // `cuts` besides the round's grid: a halving shrinks a closed form's
+    // remainder too.
     let (pcoords, scoords) = (image.certified_coords(), chart.certified_coords());
     let pimage = (image.knots(), image.weight_channel(), &pcoords[..]);
     let schart = (
@@ -2807,48 +2802,11 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         chart.weight_channel(),
         &scoords[..],
     );
-    let stopped = if let Curve3::Nurbs(net) = carrier {
-        let grid = chart_breaks(net.knots(), image.knots());
-        let coords = net.certified_coords();
-        subdivide(
-            |cuts: &[f64]| -> Result<Hull, crate::ssi::SsiError> {
-                let extra: Vec<f64> = grid.iter().chain(cuts).copied().collect();
-                chart_round(
-                    (net.knots(), net.weight_channel(), &coords),
-                    pimage,
-                    schart,
-                    &extra,
-                )
-            },
-            band,
-        )
-    } else {
-        let (lo, hi) = image.knots().domain();
-        let knots: Vec<f64> = image.knots().interior_knots().map(|(k, _)| k).collect();
-        let grid = range_grid_points(lo, hi, crate::ssi::certify::SSI_CERT_SPANS, &knots);
-        subdivide(
-            |cuts: &[f64]| -> Result<Hull, crate::ssi::SsiError> {
-                let mut breaks: Vec<f64> = knots.iter().chain(&grid).chain(cuts).copied().collect();
-                breaks.extend([lo, hi]);
-                breaks.sort_by(f64::total_cmp);
-                breaks.dedup();
-                let enclosed = crate::carrier_net::enclosing_net(carrier, &breaks).ok_or(
-                    crate::ssi::SsiError::UnsupportedCertificate {
-                        what: "the carrier has no certified enclosure over a span of its \
-                               image's domain",
-                    },
-                )?;
-                let weights = vec![1.0; enclosed.knots.control_count()];
-                chart_round(
-                    (&enclosed.knots, &weights, &enclosed.coords),
-                    pimage,
-                    schart,
-                    &[],
-                )
-            },
-            band,
-        )
-    };
+    let grid = chart_grid(carrier, image.knots());
+    let stopped = crate::ssi::certify::subdivide(
+        |cuts: &[f64]| carrier_chart_round(carrier, pimage, schart, &grid, cuts),
+        band,
+    );
     let stopped = stopped.map_err(ssi_refusal)?;
     hull_limb(&CHART_HULL, stopped, band, &mut Refused::default()).map_err(ssi_refusal)
 }
@@ -2884,6 +2842,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             return PcurveCertifyError::FittedLimb { limb, margin };
         }
         E::UnsupportedCertificate { what } => (None, what, None),
+        E::CarrierEnclosure(refusal) => return PcurveCertifyError::CarrierEnclosure(refusal),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
         // compiler is what enforces that. The hull limb raises none of
