@@ -122,4 +122,21 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
          new surface is not the chart they were stated in, so each reversed \
          wall arrives rowless and is reported unminted ({errs:?})"
     );
+
+    // The rows are not lost for good: a re-mint restores every reversed
+    // wall's, and what is left is the stranded descriptions alone.
+    assert_eq!(
+        topo::mint_pcurves(&mut body, tol),
+        Ok(()),
+        "a re-mint re-derives the reversed walls' rows"
+    );
+    let after = topo::validate_geometric_structural(&body, tol)
+        .expect_err("the stranded descriptions are still there");
+    assert!(
+        after.len() == 4
+            && after
+                .iter()
+                .all(|e| matches!(e, ValidationError::DescriptionNotAdjacent { .. })),
+        "only the four stranded descriptions are left: {after:?}"
+    );
 }

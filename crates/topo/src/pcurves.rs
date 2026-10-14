@@ -1233,14 +1233,15 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     };
 
     // The boundary-iso schedule (the arms' own note, below), named by
-    // the probe's predicate label.
+    // the probe's predicate label. `stated` leads its closed form: the
+    // candidates a description itself states (the wall-seam arm's
+    // columns), judged by the same probe.
     let iso_schedule = |what: &'static str,
-                        stated: Vec<Pcurve<T>>,
-                        prior: Option<Indeterminate>|
+                        stated: Vec<Pcurve<T>>|
      -> Result<Pcurve<T>, PcurveMintError> {
         let Some(wall) = surface.spline_chart() else {
             unreachable!(
-                "nurbs_iso_derive: both callers route only a chart with a spline payload \
+                "nurbs_iso_derive: every caller routes only a chart with a spline payload \
                  here"
             )
         };
@@ -1297,8 +1298,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             stated.into_iter().chain(columns).chain(rows),
         ) {
             Ok(Some(cand)) => return Ok(cand),
-            Ok(None) => prior,
-            Err(cause) => prior.or(Some(cause)),
+            Ok(None) => None,
+            Err(cause) => Some(cause),
         };
         // ---- The fixed schedule found nothing: MEASURE the map. ----
         // The candidates above assume the carrier traverses the chart's
@@ -1313,16 +1314,13 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // quantity reaches ε (D4 ¶1).
         //
         // A measured ROW is offered to every carrier the row space
-        // admits in its direction. A measured COLUMN only to a line,
-        // and the `filter` below is that decision: a spline's seam
-        // class compares the image against the chart's own boundary
-        // net over ONE spline space, and a partial or interior column
-        // is not a control-net copy of it and cannot be made one. So
-        // the certifier would refuse it structurally, and the mint
-        // would fail with text about a boundary for a locus that is
-        // not one — the defect the wall–wall seam arm was once
-        // reverted for. A spline's interior column takes `General`
-        // below (#498). A line's class reads no net.
+        // admits in its direction. A measured COLUMN only to a line
+        // (the `filter` below). A spline's column reaches the exact
+        // class only as a STATED candidate (the wall-seam arm's), whose
+        // interior or partial column the seam class certifies by de
+        // Boor collapse; an `Intersection` spline seam on an interior
+        // column takes `General` below (#498)
+        // (`work/pcert/a-spline-seam-on-an-interior-column-is-offered-no-measured-column.md`).
         if deferred.is_none()
             && (row_space.forward || row_space.backward)
             && let (Some(f0), Some(f1)) = (
@@ -1406,41 +1404,33 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // is nothing left to derive, and re-deriving it would be a
         // second opinion about a locus the description already states.
         geom_brep::EdgeDescription::Chart(ref c) if c.surface == own => Ok(c.pcurve.clone()),
-        // **The wall–wall seam stated on the OTHER wall.** An iso
-        // LINE image on the neighbour's chart is a seam the two walls
-        // usually share the parameterization of, so its `v` map is
-        // offered verbatim first.
+        // **The wall–wall seam stated on the OTHER wall.** An iso LINE
+        // image in another chart, read as a column of this one: the
+        // stated `v` map is a candidate only, since nothing here says
+        // the two charts share the seam's parameterization.
         geom_brep::EdgeDescription::Chart(geom_brep::ChartCurve {
             pcurve: Pcurve::IsoLine { p0, pl },
             ..
         }) => {
-            // The neighbour's own `v` map, as a column of this chart:
-            // a boundary column, then the column the start's measured
-            // foot names (a chart wider than the face it trims). Each
-            // is judged a quarter span in, like every iso candidate;
-            // where none holds — the walls do not share the seam's
-            // parameterization, or the image is no column at all —
-            // the boundary-iso schedule takes the carrier as it is.
-            let stated = |x: T| Pcurve::IsoLine {
+            // The neighbour's `v` map, verbatim, as a column of this
+            // chart: at each chart boundary, then at the column the
+            // start's measured foot names (a chart wider than the face
+            // it trims). They lead the boundary-iso schedule, which
+            // judges every candidate at the interior probe, so a stated
+            // map this chart does not share, or a stated image that is
+            // no column at all, is passed over rather than trusted. A
+            // foot that will not converge places no column: that
+            // candidate is dropped, and the schedule goes on.
+            let column = |x: T| Pcurve::IsoLine {
                 p0: Point2::new(x, p0.y),
                 pl: Vec2::new(T::zero(), pl.y),
             };
-            let what = "pcurve_iso_wall_seam";
-            let prior = match probe_pick(
-                what,
-                &carrier,
-                (t0, span),
-                surface,
-                band,
-                [cu0, cu1].map(stated),
-            ) {
-                Ok(Some(cand)) => return Ok(cand),
-                Ok(None) => None,
-                Err(cause) => Some(cause),
-            };
-            let at_foot = derive_chart_foot(carrier.eval(t0), surface, half_edge)?
-                .map(|foot| stated(computed_foot::<T>(foot).x));
-            iso_schedule(what, at_foot.into_iter().collect(), prior)
+            let at_foot = derive_chart_foot(carrier.eval(t0), surface, half_edge)
+                .ok()
+                .flatten()
+                .map(|foot| column(computed_foot::<T>(foot).x));
+            let stated = [cu0, cu1].map(column).into_iter().chain(at_foot).collect();
+            iso_schedule("pcurve_iso_wall_seam", stated)
         }
         // **The M8-3 ARC-RIM arm.** An ARC cap rim's chart image is
         // the same boundary line the LINE arm mints, but its moving
@@ -1481,35 +1471,36 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // the plane is not a fact about the locus, and the same seam
         // stated natively or restated foreign must mint the same image.
         //
-        // The pick is ONE fixed schedule (D9): the chart's two boundary
-        // columns and two boundary rows × the two directions the
-        // carrier can traverse each, each candidate judged by the
-        // interior probe ([`probe_pick`]): the start point fixes a
-        // chart CORNER, and a column, a row and a direction all pass
-        // through one. A SELECTION, checked: the full iso certification
-        // follows every derivation.
+        // The pick is ONE fixed schedule (D9): any candidates the
+        // description states (the wall-seam arm's columns carrying the
+        // neighbour's `v` map), then the chart's two boundary columns
+        // and two boundary rows × the two directions the carrier can
+        // traverse each, every candidate judged by the interior probe
+        // ([`probe_pick`]): the start point fixes a chart CORNER, and a
+        // column, a row and a direction all pass through one. A
+        // SELECTION, checked: the full iso certification follows every
+        // derivation.
         //
-        // **What the schedule selects is wider than what the seam class
-        // CERTIFIES, and deliberately so.** The certified inventory is
-        // FORWARD only: the class's parameter-map slack is metered
-        // against the identity map and its control hull against the
-        // boundary row's own ordering, so a carrier that traverses the
-        // chart's `v` backwards refuses at certification (the envelope)
-        // rather than charting. The backward candidates stay in the
-        // schedule because the honest answer for such a carrier is the
-        // image it actually has, judged by the certification — not a
-        // forward image that fits the class by construction and states
-        // the wrong traversal.
+        // **Both directions are offered, and the certification decides.**
+        // A LINE carrier's class reads no control net, so a line that
+        // traverses the chart's `v` backwards certifies on its backward
+        // column. A SPLINE carrier's class meters its parameter map
+        // against the identity and its control hull against the
+        // boundary row's own ordering, so a spline traversing `v`
+        // backwards refuses at certification (the envelope) rather than
+        // charting. Either way the candidate offered is the image the
+        // carrier actually has, not a forward one that fits the class
+        // and states the wrong traversal.
         //
         // A carrier the exact candidates do not claim stores its
         // `General` image.
         geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
             if matches!(carrier, geom::Curve3::Line { .. }) =>
         {
-            iso_schedule("pcurve_iso_line_rim", Vec::new(), None)
+            iso_schedule("pcurve_iso_line_rim", Vec::new())
         }
         geom_brep::EdgeDescription::Intersection { .. } => {
-            iso_schedule("pcurve_iso_seam_column", Vec::new(), None)
+            iso_schedule("pcurve_iso_seam_column", Vec::new())
         }
         _ => Err(refuse(
             "no iso derivation for this locus on a NURBS chart — only chart images of \
