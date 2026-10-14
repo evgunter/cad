@@ -5563,7 +5563,7 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
     .map_err(refused)?;
     let role = role.map_err(|refusal| match refusal {
         crate::props::RoleWalkRefusal::Refused(source) => refused(source),
-        crate::props::RoleWalkRefusal::Unread(unread) => undecided(*unread),
+        crate::props::RoleWalkRefusal::Unread { last, .. } => undecided(*last),
     });
     // An `Outer` boundary leaves infinity outside its material, a `Void`
     // one inside.

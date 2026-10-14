@@ -402,7 +402,7 @@ use crate::contact::{ContactRefusal, DeclaredContact};
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
-use crate::props::{AtRestOutcome, Certified};
+use crate::props::AtRestOutcome;
 
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
@@ -5428,20 +5428,19 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     let mut errors = Vec::new();
     let mut parts = Vec::new();
     for (solid, faces) in check7_subjects(body) {
-        let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
-        let walked = match crate::props::sign_walk(
+        let walked = match crate::props::role_walk(
             body,
             &faces,
             band,
             tol,
             quad,
             quad,
-            |round| plus_v_round(round.certify(PLUS_V, PLUS_V_EXACT), &last),
-            |refusal| plus_v_at_target(refusal, last.get()),
+            PLUS_V,
+            PLUS_V_EXACT,
         ) {
-            Ok((verdict, certificate)) => {
+            Ok((role, certificate)) => {
                 parts.push(certificate);
-                Some(verdict)
+                Some(plus_v_verdict(role))
             }
             Err(source) => {
                 errors.push(ValidationError::VolumeUncomputable { solid, source });
@@ -5878,17 +5877,6 @@ pub(crate) enum PlusVVerdict {
     Undecided(Option<Indeterminate>),
 }
 
-/// **How check 7's last open round left the sign**, for
-/// [`plus_v_at_target`] to read once the schedule runs out.
-#[derive(Clone, Copy, Debug)]
-enum OpenRound {
-    /// Taken about the body ([`Certified::Open`]): in band, carrying its
-    /// escalation, or straddling zero by the body's own rounding.
-    AboutTheBody(Option<Indeterminate>),
-    /// Straddling zero at a face's world-origin width.
-    Unresolved,
-}
-
 /// Check 7's names: the bracket's high end under `positive_volume`, the
 /// refusal this check has always made, and its low end under
 /// `positive_volume_enclosure`, whether the sign is already certain.
@@ -5911,42 +5899,30 @@ pub(crate) fn plus_v_read<T: geom_core::Decide>(
     crate::props::read_role(reading, PLUS_V, band).role()
 }
 
-/// **What a round that decided nothing means once there is nothing
-/// left to refine** — the sign-level walk's `last_word`, handed the
-/// outstanding target refusal and how the last round left the sign.
-/// Where the quadrature still owes a refusal, it never produced an
-/// enclosure tight enough to decide, and the body is exactly as
-/// unmeasurable as the reporting door says it is. Where the enclosure
-/// kept a face's world-origin width, a straddle may be that width and
-/// not the body. Otherwise the sign is undecided about the body itself.
-fn plus_v_at_target(
-    refusal: Option<crate::props::MassPropsError>,
-    last: OpenRound,
+/// **Check 7's verdict off the role walk** ([`crate::props::role_walk`]):
+/// a positive volume passes, a negative one refuses; where the walk
+/// stopped on a refusal to measure, check 7 could not be made; where the
+/// last round straddled zero at a face's world-origin width the sign is
+/// unresolved, and otherwise it is undecided about the body.
+fn plus_v_verdict(
+    role: Result<crate::props::ShellRole, crate::props::RoleWalkRefusal>,
 ) -> PlusVVerdict {
-    match (refusal, last) {
-        (Some(source), _) => PlusVVerdict::Uncomputable(source),
-        (None, OpenRound::Unresolved) => PlusVVerdict::Unresolved,
-        (None, OpenRound::AboutTheBody(reading)) => PlusVVerdict::Undecided(reading),
-    }
-}
-
-/// **Check 7's reading of one round** ([`plus_v_by_sign`]'s `settle`):
-/// a certified role decides; an open round decides nothing, and `last`
-/// records how it left the sign, for [`plus_v_at_target`] to read once
-/// the schedule runs out.
-fn plus_v_round(certified: Certified, last: &core::cell::Cell<OpenRound>) -> Option<PlusVVerdict> {
-    match certified {
-        Certified::Role(crate::props::ShellRole::Outer) => Some(PlusVVerdict::Pass),
-        Certified::Role(crate::props::ShellRole::Void) => Some(PlusVVerdict::Refuse),
-        Certified::Open(unread) => {
-            last.set(OpenRound::AboutTheBody(unread.escalation()));
-            None
-        }
-        Certified::Unresolved(_) => {
-            last.set(OpenRound::Unresolved);
-            None
-        }
-        Certified::Refused(source) => Some(PlusVVerdict::Uncomputable(source)),
+    use crate::props::{RoleWalkRefusal, ShellRole};
+    match role {
+        Ok(ShellRole::Outer) => PlusVVerdict::Pass,
+        Ok(ShellRole::Void) => PlusVVerdict::Refuse,
+        Err(
+            RoleWalkRefusal::Refused(source)
+            | RoleWalkRefusal::Unread {
+                measuring: Some(source),
+                ..
+            },
+        ) => PlusVVerdict::Uncomputable(source),
+        Err(RoleWalkRefusal::Unread {
+            about_the_body: false,
+            ..
+        }) => PlusVVerdict::Unresolved,
+        Err(RoleWalkRefusal::Unread { last, .. }) => PlusVVerdict::Undecided(last.escalation()),
     }
 }
 
@@ -10677,6 +10653,7 @@ mod tests {
     use crate::fixtures::{
         mvfs_state, ngon_pillow, ops_genus2, ops_holed_box, pillow, prov, raw_prism,
     };
+    use crate::props::Certified;
     use crate::seqgen;
     use crate::test_support_fixtures::{declined_cube, plane_every_face, plant_ring_face};
 
@@ -10698,13 +10675,19 @@ mod tests {
             crate::props::RoleRead::Unread(unread) => unread,
             crate::props::RoleRead::Decided(role) => panic!("{v:e} read {role:?}"),
         };
+        // The walk's last round, as the role walk leaves it once the
+        // schedule runs out ([`crate::props::role_walk`]).
         let at_target = |certified| {
-            let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
-            assert!(
-                plus_v_round(certified, &last).is_none(),
-                "an open round decides nothing"
-            );
-            plus_v_at_target(None, last.get())
+            let (last, about_the_body) = match certified {
+                Certified::Open(unread) => (unread, true),
+                Certified::Unresolved(unread) => (unread, false),
+                _ => unreachable!("only an open round runs the schedule out"),
+            };
+            plus_v_verdict(Err(crate::props::RoleWalkRefusal::Unread {
+                last: Box::new(last),
+                about_the_body,
+                measuring: None,
+            }))
         };
         let in_band = 3.0 * band.zero();
         assert!(

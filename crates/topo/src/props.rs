@@ -3233,41 +3233,56 @@ pub(crate) fn shell_volume_role<T: Decide>(
     match role {
         Ok(role) => Ok(role),
         Err(RoleWalkRefusal::Refused(source)) => Err(props(source)),
-        Err(RoleWalkRefusal::Unread(unread)) => Err(unread.refusal(shell, band)),
+        Err(RoleWalkRefusal::Unread { last, .. }) => Err(last.refusal(shell, band)),
     }
 }
 
 /// Why a role read decided no role.
 #[derive(Clone, Debug)]
 pub(crate) enum RoleWalkRefusal {
-    /// The interval re-derivation refused a face.
+    /// The interval re-derivation refused a face, or the walk refused
+    /// to measure before any round read.
     Refused(MassPropsError),
     /// The sign is undecided at the last reading.
-    Unread(Box<RoleUnread>),
+    Unread {
+        /// The last round's two ends.
+        last: Box<RoleUnread>,
+        /// Whether that round was taken about the body
+        /// ([`Certified::Open`]: in band, or straddling zero by the
+        /// body's own rounding) rather than at a face's world-origin
+        /// width ([`Certified::Unresolved`]).
+        about_the_body: bool,
+        /// The walk's refusal to measure further, where the schedule
+        /// stopped on one rather than running out.
+        measuring: Option<MassPropsError>,
+    },
 }
 
-/// **A certified reading as a role, the one place**: what the role walk
-/// ([`role_walk`]) makes of [`certify_role`]'s verdict.
-fn role_of(certified: Certified) -> Result<ShellRole, RoleWalkRefusal> {
-    match certified {
-        Certified::Role(role) => Ok(role),
-        Certified::Refused(source) => Err(RoleWalkRefusal::Refused(source)),
-        Certified::Open(unread) | Certified::Unresolved(unread) => {
-            Err(RoleWalkRefusal::Unread(Box::new(unread)))
-        }
-    }
-}
-
-/// **The role walk, at sign level** — the sign walk ([`sign_walk`]) over
+/// **The certified sign of a closed surface's volume, as a role: the
+/// one home of that reading** — the sign walk ([`sign_walk`]) over
 /// `faces`, measured through `measure` and certified through `certify`
 /// round by round ([`Round::certify`], under `names` on the walk's sums
 /// and `certified` on the re-derivation), stopping at the first round
-/// that certifies a role or refuses. Every volume read of a closed
-/// surface's side is this walk, and makes a reading a role through
-/// [`certify_role`] and [`role_of`]: a shell's fallback ([`shell_role`])
-/// and a point-in-solid selection's at infinity (`boolean::solid_contain`)
-/// differ in the faces they hand and the lanes they hold, never in how a
-/// reading becomes a role.
+/// that certifies a role or refuses. `Outer` is a positive volume,
+/// `Void` a negative one ([`certify_role`]).
+///
+/// Its three callers are the side-at-infinity reader's volume
+/// fallbacks ([`crate::side_reader`]), and they read the same fact. They
+/// differ in what they hand it and what they keep of its answer, never
+/// in how a reading becomes a role:
+/// - a shell's role ([`shell_volume_role`]): the shell's faces, the
+///   door's lane for both measuring and certifying, under check 7's
+///   names; it keeps the role, or the last round's refusal;
+/// - check 7 (`validate`'s `plus_v_by_sign`): a solid's faces, the same
+///   lane and names, and also the certificate the walk assembles, the
+///   open/unresolved split ([`RoleWalkRefusal::Unread`]'s
+///   `about_the_body`, which tells `VolumeSignUnresolved` from an
+///   undecided orientation) and the walk's measuring refusal
+///   (`VolumeUncomputable`);
+/// - point containment's side at infinity (`boolean::solid_contain`'s
+///   `at_infinity_side`): the selection's faces, measured in closed form
+///   only and certified through the scalar's own lane, under its own
+///   names (`bool_point_in_solid_infinity`), so its decisions log apart.
 ///
 /// # Errors
 ///
@@ -3292,16 +3307,26 @@ pub(crate) fn role_walk<'b, T: Decide>(
         tol,
         measure,
         certify,
-        |round| match role_of(round.certify(names, certified)) {
-            Err(RoleWalkRefusal::Unread(unread)) => {
-                last.set(Some(*unread));
+        |round| match round.certify(names, certified) {
+            Certified::Role(role) => Some(Ok(role)),
+            Certified::Refused(source) => Some(Err(RoleWalkRefusal::Refused(source))),
+            Certified::Open(unread) => {
+                last.set(Some((unread, true)));
                 None
             }
-            verdict => Some(verdict),
+            Certified::Unresolved(unread) => {
+                last.set(Some((unread, false)));
+                None
+            }
         },
-        |_| match last.get() {
-            Some(unread) => Err(RoleWalkRefusal::Unread(Box::new(unread))),
-            None => unreachable!("a sign walk settles every round it reads"),
+        |measuring| match (last.get(), measuring) {
+            (Some((unread, about_the_body)), measuring) => Err(RoleWalkRefusal::Unread {
+                last: Box::new(unread),
+                about_the_body,
+                measuring,
+            }),
+            (None, Some(source)) => Err(RoleWalkRefusal::Refused(source)),
+            (None, None) => unreachable!("a sign walk settles every round it reads"),
         },
     )
 }
