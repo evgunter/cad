@@ -74,6 +74,15 @@ impl<T: Real> Circles<T> {
         self.d - self.diff.abs()
     }
 
+    /// The nesting margin, `|r₁ − r₂| − d`: positive when one lies
+    /// strictly inside the other. It is [`Self::internal`] negated, and
+    /// is formed as its own difference so that an exact zero reads `+0`
+    /// where the negation would read `−0`.
+    #[must_use]
+    pub fn nested(self) -> T {
+        self.diff.abs() - self.d
+    }
+
     /// `(r₁ − a)·2d = (r₁ + r₂ − d)(d − r₁ + r₂)` and `2d`. The first
     /// factor is minus the external clearance, and the second is the
     /// internal clearance or the identity margin as `r₁ − r₂` is

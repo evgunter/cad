@@ -8446,7 +8446,7 @@ fn circle_pair<T: Decide>(
     Ok(
         match decide(
             "ring_outer_circles_nested",
-            Margin::of(-circles.internal()),
+            Margin::of(circles.nested()),
             band,
         )? {
             Sign::Positive => CirclePair::Nested,
