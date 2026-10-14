@@ -1,7 +1,7 @@
 ---
-id: the-sweep-doors-gate-their-results-at-tier-two-only
+id: the-sweep-doors-check-their-results-only-in-debug-builds
 kind: issue
-title: extrude, revolve, loft, fillet and chamfer gate their results at tier 2 only, so nothing stops one returning a body tier 3 refuses
+title: extrude, revolve, loft, sweep, fillet and chamfer check their results only by a debug-build tier-2 assert, so nothing stops one returning a body tier 3 refuses
 status: open
 opened: 2026-10-14
 priority: P3
@@ -16,12 +16,16 @@ gate was tier 2 alone (`validate_closed`), and gave the split the
 Boolean's at-rest gate (`AtRestPolicy::gate_at_rest`,
 `SplitFinishError::ResultNotAtRest`).
 
-The sweep doors have the same shape. Each ends at `topo::validate_closed`
-and returns a plain `Body`:
+The sweep doors go further: none gates its result at run time. Each ends
+at a `#[cfg(debug_assertions)] debug_assert_eq!(topo::validate_closed(..), Ok(()))`,
+so a release build checks nothing, a debug build panics rather than
+refusing, and neither reads tier 3. Each returns a plain `Body`:
 
-- `sweep::extrude` (`crates/sweep/src/extrude.rs`, the `validate_closed(&built)` gate);
-- `sweep::revolve`, full and partial (`crates/sweep/src/revolve/full.rs`, `revolve/partial.rs`);
-- `sweep::loft` (`crates/sweep/src/loft.rs`);
+- `sweep::extrude` (`crates/sweep/src/extrude.rs`);
+- `sweep::revolve`, full and partial, and the tubes over it
+  (`crates/sweep/src/revolve/full.rs`, `revolve/partial.rs`, `revolve/tube.rs`);
+- `loft_body`, `loft_profiles` and `sweep_body` (`crates/sweep/src/loft.rs`'s
+  shared assembly);
 - `sweep::fillet_edges` and `sweep::chamfer_edges` (`crates/sweep/src/blend/surgery.rs`).
 
 The Boolean (`topo::boolean::ops::gate`), `topo::shell` and STEP import
@@ -39,6 +43,7 @@ it (`editor-core` `finished_operand`), so a leaf node would show such a
 body without a refusal.
 
 **What closes it:** either gate each door's result at the scalar's
-at-rest gate, typed as the Boolean and the split type it, or state in
+at-rest gate, typed as the Boolean and the split type it (a debug assert
+is not a gate: D4's fail-loud refusal is a typed `Err`), or state in
 `crates/sweep/README.md` that these doors return construction state and
 make the editor gate a leaf node's body.
