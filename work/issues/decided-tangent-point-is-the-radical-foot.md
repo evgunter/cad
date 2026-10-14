@@ -80,6 +80,15 @@ tangent's one point, each its owner's to weigh:
   judged it crossing-only, because the frame dispatch refuses tangent
   walls before it is asked; not re-verified here.
 
+- `crates/topo/src/boolean/section_cert.rs` `sphere_sphere`, the
+  `tan.touch` closure on a `REACH` or `NEST` escalation: its touch is
+  `c₁ + k·(dd² + r₁² − r₂²)/2dd` (CLEAVE/HONE/ORBIT). Found by FUSE's
+  sweep for the curve-pair reader (stage (b) of
+  `work/fuse/the-curve-pair-reader.md`). The reader itself places a
+  touch at the residual's extreme, on one circle exactly
+  (`geom_brep::curve_pair::pose`, `harmonic_roots`), and a stage (c)
+  caller switch retires `carrier_cross`'s copy.
+
 All of them put the point on the link line, so its ANGLE about either
 centre is the link's; a reader that only span-checks that angle sees
 nothing. What moves is its radial place, which matters wherever the
