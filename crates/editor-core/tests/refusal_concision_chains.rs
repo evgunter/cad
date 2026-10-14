@@ -1751,6 +1751,15 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     diag: diag(),
                 },
             ),
+            (
+                "SectionUnresolved",
+                J::SectionUnresolved {
+                    face,
+                    check: geom_brep::CertCheck::EndpointStart,
+                    diag: diag(),
+                    resolution: geom_core::MarginDiag::value(4.6e-9),
+                },
+            ),
             // The two section refusals a plane-inclusive pair can reach
             // (the join reads no other): a lane bug, and the conic
             // carrier's own refusal at a near-circular tilt.

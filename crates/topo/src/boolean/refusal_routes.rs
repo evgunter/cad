@@ -307,9 +307,11 @@ pub enum BooleanDecision {
     SeamJet,
     /// Whether an edge of the result lies on both faces it bounds: its
     /// line chord's residual against one of the two faces' surfaces, at
-    /// the attachment gate that certifies its description, or a section
-    /// chord's end against its vertex where the join mints it
-    /// ([`crate::merge_faces::edge_on_faces_reading`]). A residual
+    /// the attachment gate that certifies its description
+    /// ([`crate::merge_faces::edge_on_faces_reading`]), or a section
+    /// chord's end against its vertex where the join mints it, on a
+    /// carrier that resolves the end ([`crate::SplitJoinError::SectionEndEscalated`]).
+    /// A residual
     /// passes only at zero, so no tolerance is its recourse. Its ends are
     /// vertices an earlier reading placed on the faces they meet, so a
     /// carrier read in band of a face says that an edge or a vertex of

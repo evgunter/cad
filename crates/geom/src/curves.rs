@@ -419,6 +419,67 @@ impl<T: Real> Curve3<T> {
     }
 }
 
+/// The roundings [`Curve3::resolution`] charges per unit of its scale,
+/// `u` times the magnitudes a point of the carrier is summed from:
+///
+/// - **evaluation**, at most 14: per coordinate, `sin_cos` (1), the
+///   computed `v_ref = axis × u_ref` (2), the two products and the
+///   frame scaling (3) and the two sums (1), at most 7 per term summed;
+///   the point's Euclidean miss is at most `√3 < 2` times that;
+/// - **construction**, at most 5: a section conic built from its
+///   surfaces holds its points near the face only to about
+///   `5·u·|centre − face|` (CLEAVE's section-end design, measured twice
+///   to the digit; `|centre − face|` is at most the larger semi-axis);
+///
+/// 19, rounded up to a power of two.
+const RESOLUTION_ROUNDINGS: f64 = 32.0;
+
+impl<T: Real> Curve3<T> {
+    /// **The carrier's own resolution over the window `t0 ..= t1`**: a
+    /// bound on how far a point it evaluates there can lie from the
+    /// locus its construction meant, from its stored form alone. `None`
+    /// for a kind with no honest bound here: a spiric, whose radial
+    /// root loses its digits where the oval runs flat across the
+    /// trace, and a spline, whose fit is certified at its own
+    /// tolerance.
+    ///
+    /// It charges [`RESOLUTION_ROUNDINGS`] roundings of the magnitudes
+    /// a point is summed from — the stored origin or centre, the
+    /// radius or both semi-axes, a line's reach `|dir|·τ` — and one of
+    /// the parameter, `u·τ` times the speed's bound, `τ` the window's
+    /// larger end in magnitude. A centre stored far off the arc it
+    /// serves (an ellipse nearly along a cylinder's axis puts it about
+    /// `r/θ` away) therefore resolves the arc only to `u` times that
+    /// distance; an anchored form, whose centre is derived, tightens
+    /// it here.
+    #[must_use]
+    pub fn resolution(&self, t0: T, t1: T) -> Option<T> {
+        let u = T::from_f64(geom_core::running::UNIT_ROUNDOFF);
+        let reach = t0.abs().max(t1.abs());
+        let (scale, speed) = match *self {
+            Self::Line { origin, dir } => {
+                let speed = dir.norm();
+                ((origin - Point3::origin()).norm() + speed * reach, speed)
+            }
+            Self::Circle { center, radius, .. } => {
+                let radius = radius.abs();
+                ((center - Point3::origin()).norm() + radius, radius)
+            }
+            Self::Ellipse {
+                center,
+                semi_u,
+                semi_v,
+                ..
+            } => {
+                let speed = semi_u.abs() + semi_v.abs();
+                ((center - Point3::origin()).norm() + speed, speed)
+            }
+            Self::Spiric { .. } | Self::Nurbs(_) => return None,
+        };
+        Some(u * (T::from_f64(RESOLUTION_ROUNDINGS) * scale + reach * speed))
+    }
+}
+
 impl<T: Real> Curve3<T> {
     /// Which variant this carrier is.
     ///
@@ -1671,6 +1732,65 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **A carrier's resolution charges the magnitudes its points are
+    /// summed from**: the stored origin or centre, its radius, both
+    /// semi-axes or its reach, and the parameter at the window's larger
+    /// end times the speed's bound. A far centre is charged its whole
+    /// distance, though the arc passes the origin; a spiric has no bound.
+    #[test]
+    fn a_carriers_resolution_charges_what_its_points_are_summed_from() {
+        let u = geom_core::running::UNIT_ROUNDOFF;
+        let r = RESOLUTION_ROUNDINGS;
+        let x = 1e5;
+        let rows = [
+            (
+                "line",
+                Curve3::Line {
+                    origin: Point3::new(3.0, 4.0, 0.0),
+                    dir: Vec3::unit_x(),
+                },
+                (-2.0, 1.0),
+                u * (r * (5.0 + 2.0) + 2.0),
+            ),
+            (
+                "circle",
+                Curve3::Circle {
+                    center: Point3::new(0.0, 0.0, 2.0),
+                    axis: Vec3::unit_z(),
+                    radius: 3.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                (0.0, FRAC_PI_2),
+                u * (r * (2.0 + 3.0) + FRAC_PI_2 * 3.0),
+            ),
+            (
+                "far-centre ellipse",
+                Curve3::Ellipse {
+                    center: Point3::new(-x, 0.0, 0.0),
+                    axis: Vec3::unit_z(),
+                    semi_u: x,
+                    semi_v: -1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                (1e-3, -1e-2),
+                u * (r * (x + x + 1.0) + 1e-2 * (x + 1.0)),
+            ),
+        ];
+        for (what, curve, (t0, t1), want) in rows {
+            let got = curve.resolution(t0, t1).unwrap();
+            assert!((got - want).abs() <= 1e-12 * want, "{what}: {got:e} vs {want:e}");
+        }
+        let spiric = Curve3::Spiric {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            offset: 0.5,
+        };
+        assert_eq!(spiric.resolution(0.0, 1.0), None);
+    }
 
     /// **A reversed carrier is the same locus run back**: its point at
     /// `t` is the original's at `−t`, on every kind it reverses — a

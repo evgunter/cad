@@ -519,7 +519,7 @@ fn of_attachment(
     carrier: geom::CurveKind,
     refusal: EulerOpError,
 ) -> SplitFinishError {
-    match crate::merge_faces::edge_on_faces_reading(carrier, &refusal, |_| false) {
+    match crate::merge_faces::edge_on_faces_reading(carrier, &refusal) {
         Some(diag) => SplitFinishError::EdgeOnFacesEscalated { edge, diag },
         None => refusal.into(),
     }

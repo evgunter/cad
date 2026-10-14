@@ -42,6 +42,12 @@ fn outcome(r: Result<topo::SplitResult<f64>, SplitError>) -> String {
         Err(SplitError::Join(SplitJoinError::SectionEndEscalated { reading, diag, .. })) => {
             format!("END {reading:?} {:?}", diag.margin)
         }
+        Err(SplitError::Join(SplitJoinError::SectionUnresolved {
+            check,
+            diag,
+            resolution,
+            ..
+        })) => format!("UNRESOLVED {check:?} {:?} {resolution:?}", diag.margin),
         Err(SplitError::Join(SplitJoinError::Euler(EulerOpError::Certification { error }))) => {
             match error {
                 geom_brep::CertifyError::Escalated { check, cause, .. } => {
@@ -104,6 +110,12 @@ fn boolean(tag: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) {
                     SplitJoinError::SectionEndEscalated { reading, diag, .. } => {
                         format!("END {reading:?} {:?}", diag.margin)
                     }
+                    SplitJoinError::SectionUnresolved {
+                        check,
+                        diag,
+                        resolution,
+                        ..
+                    } => format!("UNRESOLVED {check:?} {:?} {resolution:?}", diag.margin),
                     other => {
                         let text = format!("{other:?}");
                         format!("REFUSED join {}", text.chars().take(90).collect::<String>())

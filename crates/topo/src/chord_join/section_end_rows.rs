@@ -1,25 +1,24 @@
-//! **A section chord's end in band of its vertex is the input's only
-//! where the vertex's own offset off the plane is the miss**
-//! ([`SectionEnds::reading`]), in closed form: the quarter of the unit
-//! circle in `z = 0` from `(1, 0, 0)` to `(0, 1, 0)`, its end pin
-//! escalated, with the vertex or the carrier moved `1.2ε` off.
+//! **A section chord's escalated pin is the input's only where its
+//! carrier resolves the edge** ([`SectionEnds::refusal`]), in closed
+//! form at ε = 1e-9, `K = 10`: the quarter of the unit circle about `z`,
+//! and ellipses whose centre is stored `x` off the arc they serve, read
+//! against the carrier's own resolution ([`geom::Curve3::resolution`]).
 
 use super::*;
 use geom_brep::{CertCheck, CertifyError};
 use geom_core::MarginDiag;
 
 const EPS: f64 = 1e-9;
-const OFF: f64 = 1.2 * EPS;
 
 fn band() -> Band {
     Band::new(EPS, 10.0 * EPS).unwrap()
 }
 
-/// The quarter arc of the unit circle about `z` in the plane `z = h`.
-fn arc(h: f64) -> EdgeCurveSpec<f64> {
+/// The quarter arc of the unit circle about `z` in `z = 0`.
+fn arc() -> EdgeCurveSpec<f64> {
     EdgeCurveSpec::arc_of_circle(
         geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, h),
+            center: Point3::origin(),
             axis: Vec3::unit_z(),
             radius: 1.0,
             u_ref: Vec3::unit_x(),
@@ -30,93 +29,202 @@ fn arc(h: f64) -> EdgeCurveSpec<f64> {
     .unwrap()
 }
 
-/// The section plane `z = 0`, or the stood-in circle's plane.
-fn ends(square: bool) -> SectionEnds<f64> {
-    SectionEnds {
-        origin: Point3::new(0.5, 0.5, 0.0),
-        normal: Vec3::unit_z(),
-        square,
+/// An arc about the major vertex of the ellipse of semi-axes `x` along
+/// `x` and 1 along `y`, its centre stored at `(−x, 0, 0)`, so the arc
+/// passes the origin: the far-centre ellipse of a plane nearly along a
+/// cylinder's axis, `x` about `r/θ`.
+fn far_centre(x: f64) -> EdgeCurveSpec<f64> {
+    EdgeCurveSpec {
+        carrier: geom::Curve3::Ellipse {
+            center: Point3::new(-x, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            semi_u: x,
+            semi_v: 1.0,
+            u_ref: Vec3::unit_x(),
+        },
+        param_start: -1e-3,
+        param_end: 1e-3,
+        ..arc()
     }
 }
 
-fn pin(check: CertCheck) -> (EulerOpError, Indeterminate) {
-    let cause = Indeterminate {
-        margin: MarginDiag::value(OFF),
+fn ends(reading: SectionEndReading) -> SectionEnds {
+    SectionEnds { reading }
+}
+
+fn cause() -> Indeterminate {
+    Indeterminate {
+        margin: MarginDiag::value(1.2 * EPS),
         band: band(),
         predicate: Some("carrier_endpoint_end"),
         terminal_sliver: false,
-    };
-    let error = CertifyError::Escalated {
-        check,
-        sample: 8,
-        cause,
-    };
-    (EulerOpError::Certification { error }, cause)
+    }
 }
 
-/// The vertex `OFF` along the plane's normal is the input's: on the
-/// section plane an edge on its faces, on a stood-in circle's plane the
-/// plane read square, each with the pin's diagnostics. At the start and
-/// at the end alike.
+fn escalated(check: CertCheck) -> EulerOpError {
+    EulerOpError::Certification {
+        error: CertifyError::Escalated {
+            check,
+            sample: 8,
+            cause: cause(),
+        },
+    }
+}
+
+fn residual() -> CertCheck {
+    CertCheck::SurfaceResidual {
+        surface: SurfaceKey::default(),
+    }
+}
+
+/// On a carrier that resolves the edge, an escalated end pin is the
+/// input's, typed by how the table read the plane, at the start and the
+/// end alike; a stood-in circle's surface residual is the plane read
+/// square.
 #[test]
-fn a_vertex_off_the_plane_is_the_inputs() {
-    let start = Point3::new(1.0, 0.0, 0.0);
-    let end = Point3::new(0.0, 1.0, 0.0);
-    let up = Vec3::unit_z() * OFF;
-    for (check, at) in [
-        (CertCheck::EndpointStart, (start + up, end)),
-        (CertCheck::EndpointEnd, (start, end - up)),
-    ] {
-        let (refusal, cause) = pin(check);
-        for (square, want) in [
-            (false, SectionEndReading::OnPlane),
-            (true, SectionEndReading::SquareToAxis),
-        ] {
-            assert_eq!(
-                ends(square).reading(&arc(0.0), at, &refusal, band()),
-                Some((want, cause)),
-                "{check:?}, square {square}"
+fn a_resolved_carriers_pin_is_the_inputs_by_provenance() {
+    let face = FaceKey::default();
+    for check in [CertCheck::EndpointStart, CertCheck::EndpointEnd] {
+        for reading in [SectionEndReading::OnPlane, SectionEndReading::SquareToAxis] {
+            let got = ends(reading).refusal(face, &arc(), escalated(check), band());
+            assert!(
+                matches!(
+                    got,
+                    SplitJoinError::SectionEndEscalated { reading: r, diag, .. }
+                        if r == reading && diag == cause()
+                ),
+                "{check:?}, {reading:?}: {got:?}"
             );
+        }
+    }
+    let got = ends(SectionEndReading::SquareToAxis).refusal(
+        face,
+        &arc(),
+        escalated(residual()),
+        band(),
+    );
+    assert!(
+        matches!(
+            got,
+            SplitJoinError::SectionEndEscalated {
+                reading: SectionEndReading::SquareToAxis,
+                ..
+            }
+        ),
+        "stood-in residual: {got:?}"
+    );
+}
+
+/// **The section's own rounding is never offered as the input's.** A
+/// far centre resolves its arc only to `u` times its distance, so the
+/// pin is a kernel limitation exactly where that resolution, `K` times
+/// over, passes ε, whichever reading of the plane, and its words name no
+/// lever and no defect. Both sides of the line are read: `x = 1e4`
+/// resolves (`ρ ≈ 7e-11`), `x = 3e4` does not (`ρ ≈ 2e-10`).
+#[test]
+fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
+    let face = FaceKey::default();
+    let k = band().escalate() / band().zero();
+    for x in [1e4, 3e4, 1e5, 1e6] {
+        let spec = far_centre(x);
+        let rho = spec
+            .carrier
+            .resolution(spec.param_start, spec.param_end)
+            .unwrap();
+        let unresolved = k * rho > EPS;
+        assert_eq!(unresolved, x > 2e4, "x {x:e}: ρ {rho:e}");
+        for reading in [SectionEndReading::OnPlane, SectionEndReading::SquareToAxis] {
+            let got = ends(reading).refusal(
+                face,
+                &spec,
+                escalated(CertCheck::EndpointStart),
+                band(),
+            );
+            match (&got, unresolved) {
+                (
+                    SplitJoinError::SectionUnresolved {
+                        check: CertCheck::EndpointStart,
+                        diag,
+                        resolution,
+                        ..
+                    },
+                    true,
+                ) => {
+                    assert_eq!(*diag, cause(), "x {x:e}");
+                    assert_eq!(*resolution, MarginDiag::value(k * rho), "x {x:e}");
+                    let text = got.to_string();
+                    assert!(
+                        text.starts_with(
+                            "whether a section curve's end meets its vertex is undecided"
+                        ) && text.contains(SECTION_UNRESOLVED_CAUSE)
+                            && text.ends_with(geom_core::KERNEL_LIMIT_RECOURSE)
+                            && !text.contains("Recourse: move")
+                            && !text.contains(geom_core::KERNEL_DEFECT_ENDING),
+                        "x {x:e}: {text}"
+                    );
+                }
+                (SplitJoinError::SectionEndEscalated { reading: r, .. }, false) => {
+                    assert_eq!(*r, reading, "x {x:e}");
+                }
+                _ => panic!("x {x:e}, {reading:?}, unresolved {unresolved}: {got:?}"),
+            }
         }
     }
 }
 
-/// A miss the vertex's offset does not account for is the carrier's
-/// own, whichever way it points: the vertex on the plane `OFF` from the
-/// end within the plane, or the carrier itself `OFF` off the plane (a
-/// reading that took the normal part of the miss from the carrier would
-/// call that the vertex's). A definite miss and another check stay the
-/// gate's too.
+/// What no reading of the input explains keeps the gate's refusal: a
+/// residual off the surfaces on the plane's own section where the carrier
+/// resolves it, a definite miss and another check on a resolved and an
+/// unresolved carrier alike, and any pin on a carrier with no bound (a
+/// spiric). An unresolved residual is the carrier's limitation.
 #[test]
-fn the_carriers_own_miss_stays_the_gates() {
-    let start = Point3::new(1.0, 0.0, 0.0);
-    let (refusal, _) = pin(CertCheck::EndpointEnd);
-    for (what, carrier, end) in [
-        ("in the plane", arc(0.0), Point3::new(0.0, 1.0 + OFF, 0.0)),
-        ("off the plane", arc(OFF), Point3::new(0.0, 1.0, 0.0)),
-    ] {
-        for square in [false, true] {
-            assert_eq!(
-                ends(square).reading(&carrier, (start, end), &refusal, band()),
-                None,
-                "{what}, square {square}"
-            );
-        }
-    }
-    let at = (start, Point3::new(0.0, 1.0, OFF));
-    let definite = EulerOpError::Certification {
+fn what_no_reading_explains_stays_the_gates() {
+    let face = FaceKey::default();
+    let gates = |got: &SplitJoinError| matches!(got, SplitJoinError::Euler(_));
+    let got = ends(SectionEndReading::OnPlane).refusal(face, &arc(), escalated(residual()), band());
+    assert!(gates(&got), "own section's residual: {got:?}");
+    let got = ends(SectionEndReading::OnPlane).refusal(
+        face,
+        &far_centre(1e6),
+        escalated(residual()),
+        band(),
+    );
+    assert!(
+        matches!(got, SplitJoinError::SectionUnresolved { .. })
+            && got
+                .to_string()
+                .starts_with("whether a section curve lies on the surfaces it is cut from"),
+        "an unresolved residual: {got:?}"
+    );
+    let definite = || EulerOpError::Certification {
         error: CertifyError::ResidualExceeded {
             check: CertCheck::EndpointEnd,
             sample: 8,
             margin: MarginDiag::value(20.0 * EPS),
         },
     };
-    let (other, _) = pin(CertCheck::WitnessMidpoint);
-    for refusal in [definite, other] {
-        assert_eq!(
-            ends(false).reading(&arc(0.0), at, &refusal, band()),
-            None,
-            "{refusal:?}"
-        );
+    for spec in [arc(), far_centre(1e6)] {
+        for refusal in [definite(), escalated(CertCheck::WitnessMidpoint)] {
+            let got = ends(SectionEndReading::SquareToAxis).refusal(face, &spec, refusal, band());
+            assert!(gates(&got), "{got:?}");
+        }
     }
+    let spiric = EdgeCurveSpec {
+        carrier: geom::Curve3::Spiric {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            offset: 0.5,
+        },
+        ..arc()
+    };
+    let got = ends(SectionEndReading::OnPlane).refusal(
+        face,
+        &spiric,
+        escalated(CertCheck::EndpointEnd),
+        band(),
+    );
+    assert!(gates(&got), "spiric: {got:?}");
 }
