@@ -185,18 +185,30 @@ fn outcome<T: Decide>(
         Pose::Generic(cs) => (None, [cs.clone(), pose::end_candidates(a, b)].concat()),
         Pose::Concentric | Pose::Parallel | Pose::Apart => (None, Vec::new()),
     };
+    let base = candidates.len();
     let mut points = Vec::new();
     let mut held = None;
-    for c in &candidates {
+    let mut queue = candidates;
+    let mut read = 0;
+    while let Some(c) = queue.get(read).copied() {
+        read += 1;
         let on_a = a.contact(c.point, c.ta, band).map(Contact::hit);
         let on_b = b.contact(c.point, c.tb, band).map(Contact::hit);
         match (on_a, on_b) {
             (Ok(None), _) | (_, Ok(None)) => {}
-            (Ok(Some(on_a)), Ok(Some(on_b))) => points.push(Meeting {
-                point: c.point,
-                on_a,
-                on_b,
-            }),
+            (Ok(Some(on_a)), Ok(Some(on_b))) => {
+                // A meeting at an end may stand on a run that reaches into
+                // the span; its run is read once, not its run's run.
+                let at_end = matches!(on_a, Hit::End) || matches!(on_b, Hit::End);
+                if at_end && shared.is_none() && read <= base {
+                    queue.extend(pose::run_candidates(a, b, &c, band));
+                }
+                points.push(Meeting {
+                    point: c.point,
+                    on_a,
+                    on_b,
+                });
+            }
             (Err(diag), _) | (_, Err(diag)) => held = held.or(Some(diag)),
         }
     }

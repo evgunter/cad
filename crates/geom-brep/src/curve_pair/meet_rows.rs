@@ -663,3 +663,59 @@ fn a_shallow_crossing_past_a_segment_meets_at_its_end() {
     );
     on_both("past a segment", &m, &x, &y);
 }
+
+/// **A touch at a span's end whose run reaches into the span meets on
+/// both interiors.** The unit circle's arc from `0.3` to `π/2`, and a
+/// unit circle centred at `(0, 2)` touching it from outside at `(0, 1)`,
+/// the arc's end. The two stay within the zero band of each other over
+/// about `√z` of arc either side of the touch, so points of the arc's
+/// interior, clear of its end, lie within the band of the other circle.
+/// The touch itself reads at the end; the run about it reads inside.
+/// Two circles kissing a tenth of a metre inside the arc's end meet there
+/// alike, and pushed `0.1 m` apart meet nowhere.
+#[test]
+fn a_touch_at_a_spans_end_meets_on_both_interiors_along_its_run() {
+    let arc = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let span = (0.3, PI / 2.0);
+    let touching = |c: [f64; 3]| circle(c, [0.0, 0.0, 1.0], 1.0);
+    let at = |theta: f64| [2.0 * theta.cos(), 2.0 * theta.sin(), 0.0];
+    let (end, inside, apart) = (at(PI / 2.0), at(PI / 2.0 - 0.1), at(PI / 2.0 - 0.1));
+    let apart = [apart[0] * 1.05, apart[1] * 1.05, 0.0];
+    for (what, c, want) in [
+        ("at the end", end, true),
+        ("inside", inside, true),
+        ("apart", apart, false),
+    ] {
+        let other = touching(c);
+        let m = meets((&arc, span), (&other, (-PI, PI))).unwrap();
+        assert_eq!(interiors_meet(&m), want, "{what}: {m:?}");
+        on_both(what, &m, &arc, &other);
+    }
+}
+
+/// **A line tangent to an arc at its end, its radius a rounding long,
+/// meets at the end.** The fillet of radius `0.25 + 6·10⁻¹⁷` about
+/// `(2, 0.25)`, from `−π/2` to `0`, and the line `x = 2.25` from its end
+/// upward: the residual's near extreme is `−5.5·10⁻¹⁷`, a crossing only
+/// the rounding makes, whose two roots would lie `10⁻⁸` apart, each in
+/// the band's gap of the shared end. It is a touch, read at the end of
+/// both. Red when the root gap is read at the extreme's own value.
+#[test]
+fn a_tangent_whose_crossing_is_rounding_meets_at_the_end() {
+    let r = 0.25_f64 + 6e-17;
+    let arc = Curve3::Circle {
+        center: Point3::new(2.0, 0.25, 1.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: r,
+        u_ref: Vec3::new(0.0, -1.0, 0.0),
+    };
+    let edge = line([2.25, 0.25, 1.0], [0.0, 1.0, 0.0]);
+    let m = meets((&edge, (0.0, 1.75)), (&arc, (0.0, PI / 2.0))).unwrap();
+    assert!(!interiors_meet(&m), "{m:?}");
+    assert!(
+        m.points
+            .iter()
+            .any(|p| matches!((p.on_a, p.on_b), (Hit::End, Hit::End))),
+        "at both ends: {m:?}"
+    );
+}

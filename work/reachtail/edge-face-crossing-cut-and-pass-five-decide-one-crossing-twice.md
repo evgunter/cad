@@ -27,3 +27,7 @@ does not. A tie would read one decision in both places, for example the
 edge-on-face lane asking pass 5's `crossing_in_both_interiors`, or both
 reading the same metric rows. No configuration that separates them has
 been built.
+
+## Where it stands
+
+The edge-on-face cut no longer reads its own side rows: `census::edge_crossings` reads `geom_brep::curve_pair::meet`, the one reading of two spans' meetings (stage (c) of `work/fuse/the-curve-pair-reader.md`). Pass 5 (`crossing_in_both_interiors`) and the line lane's confirm (`interiors_meet`) still read their own rows for two lines. The tie this row asks for is pass 5 and the line confirm reading `meet` too.

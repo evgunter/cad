@@ -73,7 +73,10 @@
 //! between the two root points (`curve_pair_pose_root_gap`) decides one
 //! touch or two crossings. Two near-concentric circles stay within
 //! `d + |Δr|` of each other all the way round, so an extreme in the band
-//! says nothing about where they meet; the root gap does.
+//! says nothing about where they meet; the root gap does. Where the
+//! extreme is in the zero band, its crossing is read at the least its
+//! rounding allows, the extreme less its noise: roots that only the
+//! noise puts apart are a double root the band cannot split.
 //!
 //! **In one plane, a candidate admitted under a `Zero` reading is placed
 //! by the exactly degenerate formula**: a touch is the extreme's own
@@ -118,7 +121,12 @@
 //! reads. So the outcome of a [`Pose::Tangent`] or [`Pose::Generic`]
 //! also reads each span's ends against the other ([`end_candidates`]): a
 //! span end within the band of the other span is a meeting, and one in
-//! the band's gap escalates.
+//! the band's gap escalates. Where the point lies at a span's end and
+//! the run reaches into it, the meeting read at the end is not the only
+//! one: points of the span clear of its end lie within the band of the
+//! other too. So a meeting read at an end has its run read once more
+//! (`run_candidates`), at the arc either side where the carriers part by
+//! half what the zero band leaves.
 //!
 //! # The band
 //!
@@ -212,6 +220,7 @@ mod row {
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
+    pub(super) const RUN: &str = "curve_pair_pose_run";
 }
 
 /// The coplanar circle × ellipse subdivision's rows.
@@ -370,6 +379,55 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
     }
     let (b0, b1) = b.params();
     for tb in [b0, b1] {
+        let point = b.carrier().eval(tb);
+        out.extend(foot(a.carrier(), point).map(|ta| Candidate { point, ta, tb }));
+    }
+    out
+}
+
+/// **The run about a meeting read at a span's end** (module docs, "The
+/// spans' ends"): where the two carriers stay within the zero band of
+/// each other past the end, into the span. About `c`, whose points are
+/// `g` apart, they part by at most `sin φ·s + (κ₁ + κ₂)·s²/2` over an arc
+/// `s` either way, `φ` the angle between their tangents and `κ` each
+/// carrier's curvature bound, so at the `s` where that reaches half of
+/// what the zero band leaves, `(z − g)/2`, each carrier's points are
+/// within it of the other. A run that reaches past twice the band's
+/// escalation (`curve_pair_pose_run`) holds such a point clear of the
+/// end: each carrier's points `s` either side of `c`, each with its foot
+/// on the other. None where it does not.
+pub(super) fn run_candidates<T: Decide>(
+    a: &Span<'_, T>,
+    b: &Span<'_, T>,
+    c: &Candidate<T>,
+    band: Band,
+) -> Vec<Candidate<T>> {
+    let (Some(ka), Some(kb)) = (
+        crate::carrier_speed::curvature_hi(a.carrier()),
+        crate::carrier_speed::curvature_hi(b.carrier()),
+    ) else {
+        return Vec::new();
+    };
+    let ((pa, da), (pb, db)) = (a.carrier().ders1(c.ta), b.carrier().ders1(c.tb));
+    let left = (T::from_f64(band.zero()) - (pa - pb).norm()) * T::from_f64(0.25);
+    let sine = unit(da).cross(unit(db)).norm();
+    let bend = ka + kb;
+    // `sin φ·s + κ·s²/2 = left`, its positive root written so that it
+    // does not cancel where `κ` vanishes.
+    let s =
+        left * T::from_f64(2.0) / (sine + (sine.powi(2) + bend * left * T::from_f64(2.0)).sqrt());
+    let reach = s - T::from_f64(band.escalate()) * T::from_f64(2.0);
+    if decide(row::RUN, Margin::of(reach), band) != Ok(Sign::Positive) {
+        return Vec::new();
+    }
+    let mut out = Vec::with_capacity(4);
+    let dta = s / da.norm();
+    for ta in [c.ta - dta, c.ta + dta] {
+        let point = a.carrier().eval(ta);
+        out.extend(foot(b.carrier(), point).map(|tb| Candidate { point, ta, tb }));
+    }
+    let dtb = s / db.norm();
+    for tb in [c.tb - dtb, c.tb + dtb] {
         let point = b.carrier().eval(tb);
         out.extend(foot(a.carrier(), point).map(|ta| Candidate { point, ta, tb }));
     }
@@ -1006,23 +1064,29 @@ fn harmonic_roots<T: Decide>(
     let from_hi = past(r.cross_hi);
     let from_lo = T::pi() - past(r.cross_lo);
     let at_lo = r.at_hi + T::pi();
-    let (psi, at_near) = match (lo, hi) {
+    // An extreme in the zero band has crossed by no more than its own
+    // rounding can account for: its roots are read for the gap at the
+    // least crossing that rounding allows, its value less its noise, so
+    // two roots the noise alone puts apart read as the touch they are.
+    let least = |cross: T, extreme: T| {
+        let size = extreme.abs();
+        cross * ((size - r.noise).max(T::zero()) / size.max(r.noise))
+    };
+    let (psi, gap_psi, at_near) = match (lo, hi) {
         (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Found::Apart),
         (Sign::Zero, Sign::Zero) => return Err(MeetFault::Unsettled(Unsettled::Tangency)),
-        (Sign::Zero, Sign::Positive) => (from_lo, at_lo),
-        (Sign::Negative, Sign::Zero) => (from_hi, r.at_hi),
+        (Sign::Zero, Sign::Positive) => (from_lo, T::pi() - past(least(r.cross_lo, r.lo)), at_lo),
+        (Sign::Negative, Sign::Zero) => (from_hi, past(least(r.cross_hi, r.hi)), r.at_hi),
         // Two definite crossings: read from the extreme that has crossed
         // the less, to its own relative precision.
         (Sign::Negative, Sign::Positive) => {
             let nearer_hi = r.cross_hi - r.cross_lo;
-            (
-                nearer_hi.select_le_zero(from_hi, from_lo),
-                nearer_hi.select_le_zero(r.at_hi, at_lo),
-            )
+            let psi = nearer_hi.select_le_zero(from_hi, from_lo);
+            (psi, psi, nearer_hi.select_le_zero(r.at_hi, at_lo))
         }
     };
     let roots = [r.at_hi + psi, r.at_hi - psi];
-    let gap = Margin::norm3(k.point(roots[0]) - k.point(roots[1]));
+    let gap = Margin::norm3(k.point(r.at_hi + gap_psi) - k.point(r.at_hi - gap_psi));
     Ok(match decide(row::ROOT_GAP, gap, band)? {
         Sign::Zero => Found::Touch(at_near),
         Sign::Positive | Sign::Negative => Found::Cross(roots),
