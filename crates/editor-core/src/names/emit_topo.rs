@@ -108,9 +108,10 @@ fn chase_edge_to_table<T: Decide>(
 /// stops at the killed key; the discard rows keep each such edge's
 /// chain ([`topo::DiscardRow::boundary_chains`]) and the output stage
 /// its hop (`topo::BooleanNaming::killed_lineage`), and these are its
-/// hops. `arena` holds the hops in result keys (the output stage's, and
-/// the rows of an operand whose clone is the result arena); `graft_b` a
-/// grafted B's, in B's clone keys.
+/// hops, with those of every edge an operand's carve killed
+/// (`topo::BooleanNaming::carved_lineage`). `arena` holds the hops in
+/// result keys (the output stage's, and an operand's whose clone is the
+/// result arena); `graft_b` a grafted B's, in B's clone keys.
 struct KilledSplits {
     arena: BTreeMap<EdgeKey, EdgeKey>,
     graft_b: BTreeMap<EdgeKey, EdgeKey>,
@@ -118,27 +119,48 @@ struct KilledSplits {
 
 impl KilledSplits {
     fn of(naming: &topo::BooleanNaming) -> Self {
-        use topo::{Operand, OperandKeys};
+        use topo::Operand;
         let mut out = Self {
             arena: BTreeMap::new(),
             graft_b: BTreeMap::new(),
         };
         for row in &naming.discards {
-            let hops = match (row.operand, naming.a_keys, naming.b_keys) {
-                (Operand::A, OperandKeys::Direct, _) | (Operand::B, _, OperandKeys::Direct) => {
-                    &mut out.arena
+            if let Some(hops) = out.space(naming, row.operand) {
+                for chain in &row.boundary_chains {
+                    for w in chain.windows(2) {
+                        hops.insert(w[0], w[1]);
+                    }
                 }
-                (Operand::B, _, OperandKeys::Grafted) => &mut out.graft_b,
-                _ => continue,
-            };
-            for chain in &row.boundary_chains {
-                for w in chain.windows(2) {
-                    hops.insert(w[0], w[1]);
-                }
+            }
+        }
+        for (operand, carved) in [Operand::A, Operand::B]
+            .into_iter()
+            .zip(&naming.carved_lineage)
+        {
+            if let Some(hops) = out.space(naming, operand) {
+                hops.extend(carved);
             }
         }
         out.arena.extend(&naming.killed_lineage);
         out
+    }
+
+    /// The hops of `operand`'s clone keys: the arena's where its clone
+    /// is the result arena, `graft_b` for a grafted B; `None` for an
+    /// absent operand.
+    fn space(
+        &mut self,
+        naming: &topo::BooleanNaming,
+        operand: topo::Operand,
+    ) -> Option<&mut BTreeMap<EdgeKey, EdgeKey>> {
+        use topo::{Operand, OperandKeys};
+        match (operand, naming.a_keys, naming.b_keys) {
+            (Operand::A, OperandKeys::Direct, _) | (Operand::B, _, OperandKeys::Direct) => {
+                Some(&mut self.arena)
+            }
+            (Operand::B, _, OperandKeys::Grafted) => Some(&mut self.graft_b),
+            _ => None,
+        }
     }
 }
 

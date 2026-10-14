@@ -277,3 +277,88 @@ fn an_edge_split_and_merged_away_in_one_step_records_its_parent() {
         }
     }
 }
+
+/// **An edge the boolean's carve kills keeps its parent**
+/// (`BooleanNaming::carved_lineage`): a boss stands on a block's top,
+/// its `+x` wall flush with the block's. The section splits the block's
+/// top `+x` edge where the boss's walls meet it; the piece under the
+/// boss lies in the material the union discards, and the carve takes it
+/// with its birth record, while a piece split off it lives on. Its
+/// lineage reaches the block's own edge only through the copy.
+#[test]
+fn an_edge_the_carve_kills_records_its_parent() {
+    let tol = Tol::witness();
+    let mm = 1e-3;
+    let block: topo::AtRestBody<f64> = finished(
+        "block",
+        brick(
+            (-20.0 * mm, 20.0 * mm),
+            (-10.0 * mm, 10.0 * mm),
+            (0.0, 10.0 * mm),
+            tol,
+        ),
+        tol,
+    );
+    let boss: topo::AtRestBody<f64> = finished(
+        "boss",
+        brick(
+            (10.0 * mm, 20.0 * mm),
+            (-5.0 * mm, 5.0 * mm),
+            (10.0 * mm, 14.0 * mm),
+            tol,
+        ),
+        tol,
+    );
+    let out = match topo::union(&block, &boss, tol) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("the boss unions: {other:?}"),
+    };
+    let naming = &out.naming;
+    assert_eq!(
+        naming.a_keys,
+        topo::OperandKeys::Direct,
+        "A's clone is the arena"
+    );
+    let carved = &naming.carved_lineage[0];
+    // Each carved edge a live piece was split off.
+    let parents: BTreeSet<EdgeKey> = out
+        .body
+        .edges()
+        .filter_map(|(e, _)| match out.body.edge_provenance_of(e) {
+            Some(topo::Provenance::SplitEdge { edge }) => Some(*edge),
+            _ => None,
+        })
+        .collect();
+    let held: Vec<(EdgeKey, EdgeKey)> = carved
+        .iter()
+        .filter(|(g, _)| parents.contains(g))
+        .map(|(&g, &f)| (g, f))
+        .collect();
+    assert!(
+        !held.is_empty(),
+        "a live piece was split off an edge the carve killed: {carved:?}"
+    );
+    for (g, from) in held {
+        assert!(out.body.get_edge(g).is_none(), "{g:?} is dead");
+        // Its parent, followed through the result's records and the
+        // copy, is an edge of the block.
+        let mut up = from;
+        let mut hops = 0;
+        loop {
+            up = match (out.body.edge_provenance_of(up), carved.get(&up)) {
+                (Some(topo::Provenance::SplitEdge { edge }), _) => *edge,
+                (_, Some(&p)) => p,
+                _ => break,
+            };
+            hops += 1;
+            assert!(
+                hops <= carved.len() + out.body.edges().count(),
+                "{g:?}'s lineage cycles"
+            );
+        }
+        assert!(
+            block.edges().any(|(e, _)| e == up),
+            "{g:?}'s lineage reaches an edge of the block, not {up:?}"
+        );
+    }
+}

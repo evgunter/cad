@@ -114,7 +114,7 @@ behaviour. `Remapping` answers the hook with an error beside
   `RemapError::RankedRunReordered { vertex }` (the ranked name, which
   may be an embedded one) and carries the two emission-time reasons,
   which resolved to nothing before the remap too. `remap_name` now
-  returns `RemapError` (`Unmapped` is one arm). Its `Display` is 58
+  returns `RemapError` (`Unmapped` is one arm). Its `Display` is 59
   words with a recourse.
   `refactor::remap_a_ranked_run` is re-pinned as the refusal, the
   order-keeping map's carry, and an embedded run's refusal.
