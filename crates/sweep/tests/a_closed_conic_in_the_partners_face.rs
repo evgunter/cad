@@ -78,7 +78,10 @@ fn fin(what: &str, body: Body<f64>) -> AtRestBody<f64> {
 
 /// The plate `[−1, 1]² × [−0.5, 0]`: 2.
 fn plate() -> AtRestBody<f64> {
-    fin("the plate", brick((-1.0, 1.0), (-1.0, 1.0), (-0.5, 0.0), tol()))
+    fin(
+        "the plate",
+        brick((-1.0, 1.0), (-1.0, 1.0), (-0.5, 0.0), tol()),
+    )
 }
 
 /// One run's verdict: `SOUND` at its closed form, or an empty result
@@ -128,7 +131,10 @@ fn both_unions(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, want: f64) 
 fn a_boss_on_a_plate() {
     let plate = plate();
     for az in [0.0, 1.0, PI, -2.0] {
-        let boss = fin("the boss", extruded(vec![circle(0.0, 0.0, 0.3, az)], 0.0, 1.0));
+        let boss = fin(
+            "the boss",
+            extruded(vec![circle(0.0, 0.0, 0.3, az)], 0.0, 1.0),
+        );
         every_op(
             &format!("a boss, vertex at {az}"),
             &boss,
@@ -136,7 +142,10 @@ fn a_boss_on_a_plate() {
             (0.09 * PI, 2.0, 0.0),
         );
     }
-    let under = fin("the boss", extruded(vec![circle(0.2, 0.1, 0.3, 0.5)], -1.5, 1.0));
+    let under = fin(
+        "the boss",
+        extruded(vec![circle(0.2, 0.1, 0.3, 0.5)], -1.5, 1.0),
+    );
     every_op("a boss under", &under, &plate, (0.09 * PI, 2.0, 0.0));
 }
 
@@ -146,8 +155,14 @@ fn a_boss_on_a_plate() {
 /// disc the rim cuts out.
 #[test]
 fn a_boss_beside_a_ring_and_over_a_hole() {
-    let first = fin("the first boss", extruded(vec![circle(-0.5, 0.0, 0.3, 0.0)], 0.0, 1.0));
-    let second = fin("the second boss", extruded(vec![circle(0.5, 0.0, 0.3, 1.0)], 0.0, 1.0));
+    let first = fin(
+        "the first boss",
+        extruded(vec![circle(-0.5, 0.0, 0.3, 0.0)], 0.0, 1.0),
+    );
+    let second = fin(
+        "the second boss",
+        extruded(vec![circle(0.5, 0.0, 0.3, 1.0)], 0.0, 1.0),
+    );
     let one = topo::union(&plate(), &first, tol())
         .unwrap()
         .body()
@@ -170,7 +185,10 @@ fn a_boss_beside_a_ring_and_over_a_hole() {
         "the holed plate",
         extruded(vec![square, circle(0.0, 0.0, 0.1, 0.0)], -0.5, 0.5),
     );
-    let boss = fin("the boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0));
+    let boss = fin(
+        "the boss",
+        extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0),
+    );
     every_op(
         "a boss over a hole",
         &boss,
@@ -186,9 +204,15 @@ fn a_boss_beside_a_ring_and_over_a_hole() {
 /// and the loop has two sites. `2π`.
 #[test]
 fn coaxial_equal_cylinders_unite() {
-    let lo = fin("the lower", extruded(vec![circle(0.0, 0.0, 1.0, 0.0)], 0.0, 1.0));
+    let lo = fin(
+        "the lower",
+        extruded(vec![circle(0.0, 0.0, 1.0, 0.0)], 0.0, 1.0),
+    );
     for az in [0.0, 2.0] {
-        let hi = fin("the upper", extruded(vec![circle(0.0, 0.0, 1.0, az)], 1.0, 1.0));
+        let hi = fin(
+            "the upper",
+            extruded(vec![circle(0.0, 0.0, 1.0, az)], 1.0, 1.0),
+        );
         both_unions(&format!("the stack, upper vertex at {az}"), &lo, &hi, TAU);
     }
 }
@@ -215,7 +239,11 @@ fn a_rim_inside_a_ball_face() {
         )
         .unwrap();
         let tube = fin("the tube", tube);
-        let v = (2.0 * PI, ball_volume(SQRT_2), cap_volume(SQRT_2, SQRT_2 - z0));
+        let v = (
+            2.0 * PI,
+            ball_volume(SQRT_2),
+            cap_volume(SQRT_2, SQRT_2 - z0),
+        );
         for (op, r, want) in every_op_both_orders(&tube, &ball, v, tol()) {
             let line = outcome(r, want, tol());
             assert!(line.starts_with("OK SOUND"), "turned {turn}, {op}: {line}");

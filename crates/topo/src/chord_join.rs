@@ -3828,7 +3828,10 @@ fn along_edge_spec<T: Decide>(
             // edge's copy is stated in the chart of the face it divides,
             // which it lies on.
             Ok(if closed {
-                let surface = body.get_face(face).ok_or_else(|| corrupt_face(face))?.surface;
+                let surface = body
+                    .get_face(face)
+                    .ok_or_else(|| corrupt_face(face))?
+                    .surface;
                 spec.map(|spec| EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::chart(surface),
                     ..spec
@@ -4175,10 +4178,11 @@ fn lone_ring<T: Real>(
     } else {
         // One of the two runs between the halves is empty and the other
         // is the closed edge alone.
-        let between = |from: &crate::entity::HalfEdge, to: HalfEdgeKey| -> Result<bool, SplitJoinError> {
-            let mid = half(from.next)?;
-            Ok(Some(mid.edge) == locus && mid.next == to)
-        };
+        let between =
+            |from: &crate::entity::HalfEdge, to: HalfEdgeKey| -> Result<bool, SplitJoinError> {
+                let mid = half(from.next)?;
+                Ok(Some(mid.edge) == locus && mid.next == to)
+            };
         let closed = (d1.next == h2 && between(d2, h1)?) || (d2.next == h1 && between(d1, h2)?);
         if !closed {
             return Ok(None);
@@ -4239,9 +4243,12 @@ impl<T: Decide + crate::props::AtRestPolicy> RimSide<T> {
                 };
                 let h = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
                 let edge = body.get_edge(h.edge).ok_or_else(|| corrupt_edge(h.edge))?;
-                let curve = body.edge_curve_linked(h.edge, edge).certified().ok_or(invariant(
-                    "a one-site loop's conic carries no certified curve",
-                ))?;
+                let curve = body
+                    .edge_curve_linked(h.edge, edge)
+                    .certified()
+                    .ok_or(invariant(
+                        "a one-site loop's conic carries no certified curve",
+                    ))?;
                 let geom::Curve3::Circle {
                     center,
                     axis,
@@ -4254,7 +4261,11 @@ impl<T: Decide + crate::props::AtRestPolicy> RimSide<T> {
                     ));
                 };
                 let (t0, _) = curve.params();
-                let forward = if he == edge.he_plus { T::one() } else { -T::one() };
+                let forward = if he == edge.he_plus {
+                    T::one()
+                } else {
+                    -T::one()
+                };
                 let tangent = curve.carrier().deriv(t0) * (forward / radius);
                 let p = vertex_point(body, h.start);
                 let normal = crate::face_normal::face_outward_normal_at(body, face, p, band)
@@ -4268,7 +4279,11 @@ impl<T: Decide + crate::props::AtRestPolicy> RimSide<T> {
                 )
                 .map_err(escalated)?;
                 let mut reads = loop_points(body, outer)?.into_iter().map(|w| {
-                    decide("bool_lone_ring_outer_side", Margin::of((w - center).dot(axis)), band)
+                    decide(
+                        "bool_lone_ring_outer_side",
+                        Margin::of((w - center).dot(axis)),
+                        band,
+                    )
                 });
                 let outer_side = loop {
                     match reads.next() {
@@ -6587,7 +6602,6 @@ mod torn_hop_rows {
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
-
 
     fn cyl_sheet() -> (Body<f64>, FaceKey) {
         let mut body = Body::<f64>::new();
