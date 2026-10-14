@@ -1,12 +1,12 @@
-//! **A near-tangent ∩'s sliver lump reads its role off its own size.**
+//! **A near-tangent ∩'s sliver lump reads its role off a ray aimed at
+//! it.**
 //!
 //! A prism's corner on a cube's face tilted `d` rad off one of the
 //! corner's edges (`crates/sweep/examples/near_tangent_census_probe.rs`,
 //! pose `nt e0 a<k> d<d>`): the ∩ keeps a wedge 2 m long and `2·d` m
 //! thick at its far end as its own shell. At ε = 1e-12 the wedge is tens
-//! of bands thick at `d ≥ 1e-10`, and its certified role is read off the
-//! polyhedron of its vertex points. At `d = 1e-11` it is in band, and the
-//! enclosure sits inside the band.
+//! of bands thick at `d ≥ 1e-10`. At `d = 1e-11` its `V/A` is in band,
+//! and its far end, twenty bands thick, still reads its role.
 //!
 //! Wider ε stands these rows down: the wedge is a band or less thick, and
 //! the in-band twin is the pose measured at ε = 1e-12.
@@ -135,38 +135,37 @@ fn a_near_tangent_wedge_tens_of_bands_thick_reads_outer() {
     }
 }
 
-/// **The in-band twin**: at `d = 1e-11` (pose `a3`) the wedge is less
-/// than a band thick, and the ∩ refuses its result as the operands'
-/// ill-conditioning (D10, Booleans), on the wedge's certified enclosure
-/// wholly inside the sliver band, not on one straddling zero.
+/// **The in-band twin builds**: at `d = 1e-11` (pose `a3`) the wedge's
+/// `V/A` is less than a band, but it is `2d` thick at its far end, twenty
+/// bands at ε = 1e-12, and a ray aimed at one of its faces reads its
+/// role there (D10, Booleans: thinness is judged by pairs). The ∩ builds,
+/// the wedge a solid of its own beside the bulk.
 #[test]
-fn a_near_tangent_wedge_in_band_refuses_on_an_enclosure_inside_the_band() {
+fn a_near_tangent_wedge_whose_volume_is_in_band_reads_its_role_off_a_ray() {
     let tol = Tol::witness();
     if stood_down_above(1e-12, tol) {
         return;
     }
-    let refusal = notch307_meet(3, 1e-11, tol).map(|_| ());
-    let Err(BooleanError::Escalated {
-        decision: BooleanDecision::ShellRole { others: 0, .. },
-        diag,
-    }) = &refusal
-    else {
-        panic!("the ∩ refuses its in-band shell, got {refusal:?}");
-    };
+    let meet = notch307_meet(3, 1e-11, tol).unwrap_or_else(|e| panic!("the ∩ builds, got {e:?}"));
+    let meet = meet.body().expect("the ∩ is not empty");
     assert_eq!(
-        (diag.predicate, diag.terminal_sliver),
-        (Some("positive_volume_exact"), true),
-        "the certified reading is wholly inside the sliver band: {diag:?}"
+        shells_per_solid(meet),
+        [1, 1],
+        "the bulk and the wedge are two solids"
     );
 }
 
-/// **A walk that reads zero does not hide a certified sliver**: at
-/// `vee300 nt e0 a1 d6e-9`, ε = 1e-9, the ∩'s lump has its `V/A`
-/// certified in [1.69973e-9, 1.69973e-9], wholly in band, while the f64
-/// walk reads 8.7e-10 (prism first) and 3.3e-10 (cube first), in the
-/// zero band. The door reads the certificate, in both orders.
+/// **A sliver lump no reading sides refuses as the kernel's until the
+/// door runs the census**: at `vee300 nt e0 a1 d6e-9`, ε = 1e-9, the ∩'s
+/// lump has its `V/A` certified in [1.69973e-9, 1.69973e-9] while the
+/// f64 walk reads 8.7e-10 (prism first) and 3.3e-10 (cube first), in the
+/// zero band, and no ray aimed at one of its faces reads its side or a
+/// pair in band. With no pair in band to name, the door types the
+/// unread role as the kernel's (`ResultInvalid`), in both orders; the
+/// census over the result would name the lump's in-band pair
+/// (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
 #[test]
-fn a_sliver_the_walk_reads_as_zero_refuses_in_band_in_both_orders() {
+fn a_sliver_no_reading_sides_refuses_in_both_orders() {
     let tol = Tol::witness();
     if (tol.eps() - 1e-9).abs() > 1e-21 {
         test_utils::vacuity::stood_down(
@@ -182,17 +181,17 @@ fn a_sliver_the_walk_reads_as_zero_refuses_in_band_in_both_orders() {
         ("cube first", intersect(&cube, &prism, tol)),
     ] {
         let refusal = refusal.map(|_| ());
-        let Err(BooleanError::Escalated {
-            decision: BooleanDecision::ShellRole { others: 0, .. },
-            diag,
-        }) = &refusal
-        else {
-            panic!("{order}: the ∩ refuses its certified sliver in band, got {refusal:?}");
-        };
-        assert!(diag.terminal_sliver, "{order}: {diag:?}");
         assert!(
-            diag.to_string().contains("enclosure [1.69972"),
-            "{order}: the certified V/A is quoted: {diag}"
+            matches!(
+                &refusal,
+                Err(BooleanError::ResultInvalid { errors })
+                    if matches!(errors[..], [ValidationError::ShellRoleUndecided {
+                        error: topo::ShellClassifyError::ZeroVolume { .. }
+                            | topo::ShellClassifyError::Escalated { .. },
+                        ..
+                    }])
+            ),
+            "{order}: the ∩ refuses its unread lump, got {refusal:?}"
         );
     }
 }
@@ -211,22 +210,6 @@ fn stood_down_off_1e9(tol: Tol) -> bool {
         return true;
     }
     false
-}
-
-/// The refusal a result holding one in-band shell earns: `Escalated`
-/// on its shell role, the certified `V/A` wholly in band.
-fn assert_refuses_in_band(what: &str, refusal: Result<(), BooleanError>) {
-    let Err(BooleanError::Escalated {
-        decision: BooleanDecision::ShellRole { others: 0, .. },
-        diag,
-    }) = &refusal
-    else {
-        panic!("{what}: the ∩ refuses its in-band shell, got {refusal:?}");
-    };
-    assert!(
-        diag.terminal_sliver,
-        "{what}: the certified reading is wholly in band: {diag:?}"
-    );
 }
 
 /// The census over a built result's own contacts.
@@ -299,14 +282,14 @@ fn a_needle_ships_an_in_band_edge_pair_until_the_door_runs_the_census() {
     assert!(meet.body().is_none(), "d = -1e-8: the ∩ is empty");
 }
 
-/// **A wedge that lands in a lump's solid refuses through check 10**:
-/// the piece of the row above and a block 0.4 m wide standing apart
-/// from it inside the cube, two solids, ∩ the cube at d = 1e-8. The
-/// block comes through whole, and the pieces sort leaves the wedge,
-/// whose role does not read, in the block's solid, where check 10
-/// reads it.
+/// **A wedge beside a lump is a solid of its own**: the piece of the row
+/// above and a block 0.4 m wide standing apart from it inside the cube,
+/// two solids, ∩ the cube at d = 1e-8. The block comes through whole,
+/// and the pieces sort reads the wedge's role off a ray aimed at one of
+/// its faces, its `V/A` in band notwithstanding, and moves it out of the
+/// block's solid.
 #[test]
-fn a_wedge_sharing_a_lumps_solid_refuses_through_check_10() {
+fn a_wedge_beside_a_lump_is_a_solid_of_its_own() {
     let tol = Tol::witness();
     if stood_down_off_1e9(tol) {
         return;
@@ -332,8 +315,14 @@ fn a_wedge_sharing_a_lumps_solid_refuses_through_check_10() {
     let both = both.body().expect("the union is not empty");
     let solids: Vec<usize> = both.body.solids().map(|(_, s)| s.shells.len()).collect();
     assert_eq!(solids, [1, 1], "the piece and the block are two solids");
-    let refusal = topo::intersect(&both.body, &cube, tol).map(|_| ());
-    assert_refuses_in_band("piece and block", refusal);
+    let meet = topo::intersect(&both.body, &cube, tol)
+        .unwrap_or_else(|e| panic!("piece and block ∩ cube builds, got {e:?}"));
+    let meet = meet.body().expect("the ∩ is not empty");
+    assert_eq!(
+        shells_per_solid(meet),
+        [1, 1],
+        "the block and the wedge are two solids"
+    );
 }
 
 /// Shells per solid of a boolean's result.

@@ -175,16 +175,15 @@
 //!   in band of a junction's (the sine and cosine of their angle,
 //!   levered by the radius), and **`bool_wall_outline_reach`** the
 //!   confined refusal's ball (a distance less a radius, metres).
-//! - **`bool_point_in_solid_infinity`**: the signed volume (scaled to
-//!   a length, `V/A`) — consulted only when a ray
-//!   crosses NO boundary at all: `q` then sits on the at-infinity
-//!   side, which is `Out` for a positively-oriented body and `In` for
-//!   a complement (negative signed volume). Where that margin is not
-//!   definite — a body thin everywhere puts its `V/A` in band however
-//!   far `q` lies from it — a ray aimed from far out along
-//!   the missed ray at a point inside a planar face reads the side
-//!   instead, off its closest crossing, on the rows above
-//!   ([`missed_side`]).
+//! - **The side at infinity** ([`side_at_infinity`], the one reader of
+//!   a shell's role and of a solid's orientation) — consulted here only
+//!   when a ray crosses NO boundary at all: `q` then sits on the
+//!   at-infinity side, which is `Out` for a positively-oriented body
+//!   and `In` for a complement ([`missed_side`]). A ray aimed from beyond
+//!   the selection at a point inside a planar face, at 60° to its normal,
+//!   reads it off its closest crossing on the rows above; only where no
+//!   face offers an aim that reads, **`bool_point_in_solid_infinity`**,
+//!   the selection's signed volume scaled to a length (`V/A`), does.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3};
 
@@ -3940,7 +3939,7 @@ pub struct SolidFaces {
     charts: ChartGroups,
     /// The side a ray that crosses nothing reads, when the selection's
     /// role is already decided ([`SolidFaces::with_role`]); `None`
-    /// reads it off the selection's closed-form signed volume.
+    /// reads it ([`side_at_infinity`]).
     at_infinity: Option<SolidContainment>,
     /// Whether the selection is read as given ([`SolidFaces::read_as_given`]):
     /// its side at infinity reading `In` refuses.
@@ -4001,11 +4000,10 @@ impl SolidFaces {
 
     /// This selection with its role already decided — an `Outer`
     /// boundary leaves infinity outside its material, a `Void` inside —
-    /// so a ray that crosses nothing reads that side instead of
-    /// re-deriving it from the closed-form signed volume, which an
-    /// obliquely trimmed curved face does not certify. The role is the
-    /// same fact either way; a reader that decided it through the
-    /// quadrature lane (`crate::stands::ShellRead`) hands it over.
+    /// so a ray that crosses nothing reads that side instead of reading
+    /// it again ([`side_at_infinity`]). The role is the same fact
+    /// either way; the reader that decided it (`crate::stands::ShellRead`)
+    /// hands it over.
     pub(crate) fn with_role(self, role: crate::props::ShellRole) -> Self {
         let side = match role {
             crate::props::ShellRole::Outer => SolidContainment::Out,
@@ -5234,9 +5232,9 @@ fn cast_ray<T: Decide>(
     let closest = ray_crossings(body, sel, q, d, reach, band)?.closest(
         "bool_point_in_solid_order",
         band,
-        |diag, &(_, face), _| PointInSolidError::Escalated { face, diag },
+        |diag, &(_, face, _), _| PointInSolidError::Escalated { face, diag },
     )?;
-    Ok(closest.map(|(outward, _)| side_before(outward)))
+    Ok(closest.map(|(outward, _, _)| side_before(outward)))
 }
 
 /// The side of a ray's start read off its closest crossing's outward
@@ -5250,9 +5248,9 @@ const fn side_before(outward: Sign) -> SolidContainment {
 }
 
 /// Every crossing of the ray `q + s·d` ahead of `q` with the selection's
-/// faces, each offered with the outward sign of the face it crosses,
-/// and as on an edge where it lands on that face's trim boundary or
-/// meets it tangentially.
+/// faces, each offered with the outward sign of the face it crosses and
+/// its advance, and as on an edge where it lands on that face's trim
+/// boundary or meets it tangentially.
 fn ray_crossings<T: Decide>(
     body: &Body<T>,
     sel: &SolidFaces,
@@ -5260,7 +5258,7 @@ fn ray_crossings<T: Decide>(
     d: Vec3<T>,
     reach: T,
     band: Band,
-) -> Result<Crossings<T, (Sign, FaceKey)>, RayFault<PointInSolidError>> {
+) -> Result<Crossings<T, (Sign, FaceKey, T)>, RayFault<PointInSolidError>> {
     let faces = sel.faces();
     let mut crossings = Crossings::new();
     // A crossing at advance `t` on `face`; behind `q` it is none.
@@ -5269,7 +5267,7 @@ fn ray_crossings<T: Decide>(
         let ahead = ray_walk::advance("bool_point_in_solid_advance", Margin::of(t), band)
             .map_err(|f| f.map(escalate))?;
         if ahead == Sign::Positive {
-            crossings.push(t, (outward, face), edge || outward == Sign::Zero);
+            crossings.push(t, (outward, face, t), edge || outward == Sign::Zero);
         }
         Ok::<(), RayFault<PointInSolidError>>(())
     };
@@ -5839,9 +5837,9 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
 
 /// **Two crossings of an aimed ray in band of each other along it** —
 /// what a side-at-infinity reading that lies in band found
-/// ([`side_at_infinity`]). Two faces whose crossings of one ray lie in
-/// band are a pair of cells at most that far apart, so a ray reads in
-/// band only where a pair does.
+/// ([`side_at_infinity`]). Two faces that do not meet, whose crossings
+/// of one ray lie in band, are a pair of cells at most that far apart, so
+/// a ray reads in band only where a pair does.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AimedPair {
     /// The shell of the face the ray was aimed at.
@@ -5852,7 +5850,8 @@ pub struct AimedPair {
     pub near: FaceKey,
     /// The face of the crossing in band of it.
     pub far: FaceKey,
-    /// Their gap along the ray (`bool_point_in_solid_order`), in band.
+    /// Their gap along the ray (`bool_point_in_solid_order`), in band: a
+    /// magnitude.
     pub gap: Indeterminate,
 }
 
@@ -5860,7 +5859,8 @@ pub struct AimedPair {
 #[derive(Clone, Debug)]
 pub(crate) enum SideUnread<V> {
     /// An aimed ray read in band, and no other decided: the first such
-    /// ray's pair.
+    /// ray's pair on two faces that do not meet, or, where the fallback
+    /// did not read either, the first sharp corner's.
     InBand(AimedPair),
     /// No aimed ray read the side, and the fallback refused with
     /// `volume`. `limit` is the first limit an aimed ray met: a face it
@@ -5871,6 +5871,27 @@ pub(crate) enum SideUnread<V> {
         /// The first limit an aimed ray met, where one did.
         limit: Option<PointInSolidError>,
     },
+}
+
+/// Whether faces `a` and `b` meet: some vertex of one's loops is a vertex
+/// of the other's.
+fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -> bool {
+    let vertices = |face: FaceKey| -> Vec<crate::entity::VertexKey> {
+        let Some(f) = body.get_face(face) else {
+            return Vec::new();
+        };
+        core::iter::once(f.outer)
+            .chain(f.rings.iter().copied())
+            .filter_map(|l| match body.get_loop(l)?.boundary {
+                LoopBoundary::Cycle { first } => Some(body.loop_walk(first).closed("loop", first)),
+                LoopBoundary::Empty { .. } => None,
+            })
+            .flatten()
+            .filter_map(|h| body.get_half_edge(h).map(|he| he.start))
+            .collect()
+    };
+    let of_a = vertices(a);
+    vertices(b).iter().any(|v| of_a.contains(v))
 }
 
 /// The incidence an aimed ray meets its face at: `cos 60°` along the
@@ -5897,16 +5918,21 @@ const AIM_INCIDENCE: (f64, f64) = (0.5, 0.866_025_403_784_438_6);
 /// across two parallel ones, so a pair the census reads definite at
 /// `Kε` leaves the ray `2Kε`, a full `Kε` of slack against the rounding
 /// of advances measured from a start a few reaches out. A ray that
-/// grazes another face, or whose hit lands in band of a face's
-/// boundary, is set aside, and the next face is aimed at.
+/// grazes another face, whose hit lands in band of a face's boundary, or
+/// whose two closest crossings lie in band on faces that meet (a sharp
+/// corner, whose gap closes at the cell the faces share, and no pair) is
+/// set aside, and the next face is aimed at.
 ///
 /// **The volume only where no face offers an aim that reads.**
 /// Where no aimed ray decided and none read in band, `volume` reads
 /// the side: a selection all of whose faces are curved or splines, or
-/// whose rays all grazed or met a limit. An aimed ray read in band
-/// refuses on its pair ([`SideUnread::InBand`]) without the volume: a
-/// pair in band is the answer, and the volume's margin, a mean
-/// half-thickness, would only judge the selection thin.
+/// whose rays all grazed, met a limit or crossed a sharp corner in band.
+/// An aimed ray read in band on two faces that do not meet refuses on
+/// its pair ([`SideUnread::InBand`]) without the volume: a pair in band
+/// is the answer, and the volume's margin, a mean half-thickness, would
+/// only judge the selection thin. Where the volume does not read either,
+/// a sharp corner's pair in band is the refusal: the selection is thin
+/// wherever an aimed ray crossed it.
 ///
 /// # Errors
 ///
@@ -5919,7 +5945,7 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     volume: impl FnOnce() -> Result<SolidContainment, V>,
 ) -> Result<Result<SolidContainment, SideUnread<V>>, PointInSolidError> {
     let faces = sel.faces();
-    let (mut in_band, mut limit) = (None, None);
+    let (mut in_band, mut at_a_corner, mut limit) = (None, None, None);
     let (along, across) = AIM_INCIDENCE;
     for &face in faces {
         let normal = match face_plane(body, face) {
@@ -5947,18 +5973,32 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
             }
             Err(RayFault::InBand(_) | RayFault::Graze | RayFault::Unread) => continue,
         };
-        match crossings.closest(
-            "bool_point_in_solid_order",
-            band,
-            |gap, &(_, far), &(_, near)| AimedPair {
+        // The pair's gap is read as a magnitude, the distance between the
+        // two crossings whichever the scan met first.
+        let pair = |signed, &(_, far, at_far): &(Sign, FaceKey, T), &(_, near, at_near): &_| {
+            let gap = geom_core::k_stats::decide_magnitude(
+                "bool_point_in_solid_order",
+                Margin::of((at_far - at_near).abs()),
+                band,
+            )
+            .err()
+            .unwrap_or(signed);
+            AimedPair {
                 shell,
                 aimed: face,
                 near,
                 far,
                 gap,
-            },
-        ) {
-            Ok(Some((outward, _))) => return Ok(Ok(side_before(outward))),
+            }
+        };
+        match crossings.closest("bool_point_in_solid_order", band, pair) {
+            Ok(Some((outward, _, _))) => return Ok(Ok(side_before(outward))),
+            // Two faces that meet at a vertex are no pair: their gap closes
+            // at the cell they share, and a ray crossing a sharp corner
+            // near it reads in band however definite every pair is.
+            Err(RayFault::InBand(pair)) if meet(body, pair.near, pair.far) => {
+                at_a_corner.get_or_insert(pair);
+            }
             Err(RayFault::InBand(pair)) => {
                 in_band.get_or_insert(pair);
             }
@@ -5968,7 +6008,10 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     if let Some(pair) = in_band {
         return Ok(Err(SideUnread::InBand(pair)));
     }
-    Ok(volume().map_err(|volume| SideUnread::Fallback { volume, limit }))
+    Ok(volume().map_err(|volume| match at_a_corner {
+        Some(pair) => SideUnread::InBand(pair),
+        None => SideUnread::Fallback { volume, limit },
+    }))
 }
 
 /// The at-infinity material side, from the EXACT signed volume the

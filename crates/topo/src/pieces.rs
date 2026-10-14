@@ -470,12 +470,11 @@ mod tests {
         assert_eq!(body.solids().count(), 1, "nothing moved");
     }
 
-    /// **An undecided role beside two decided `Outer`s refuses**: a
-    /// sheet `(1 + K)·ε` thick, whose signed volume stays in band. Its
-    /// thickness is a size the user may intend, so the refusal ends in
-    /// the shell-role decision's tightening, never in loosening.
+    /// **A thin sheet reads its role off its pair**: beside two cubes, a
+    /// sheet `(1 + K)·ε` thick, whose signed volume stays in band but whose
+    /// two faces are a definite pair, is a third piece of material.
     #[test]
-    fn an_in_band_shell_beside_two_pieces_refuses_role_unread() {
+    fn a_thin_sheet_beside_two_pieces_is_a_third() {
         let tol = Tol::witness();
         let t = (1.0 + tol.k()) * tol.eps();
         let mut body = one_solid(&[
@@ -484,32 +483,27 @@ mod tests {
             ([(6.0, 7.0), (0.0, 1.0), (0.0, t)], false),
         ]);
         let sheet = body.shells().nth(2).unwrap().0;
-        let err = sort(&mut body).expect_err("the sheet's role is in band");
-        assert!(
-            matches!(err, PieceSortError::RoleUnread { shell, .. } if shell == sheet),
-            "{err:?}"
-        );
-        let text = err.to_string();
-        assert!(
-            text.contains(
-                "Recourse: thicken or remove the degenerate geometry, or, if this thickness is \
-                 intended, tighten the tolerance below"
-            ) && !text.contains("loosen"),
-            "{text}"
+        sort(&mut body).expect("every role reads");
+        assert_eq!(body.solids().count(), 3, "three pieces");
+        assert_eq!(
+            filed_with(&body, sheet),
+            [sheet],
+            "the sheet is a solid of its own"
         );
     }
 
-    /// **A role read over a poisoned volume margin ends in its decision's
-    /// own words, never in loosening**: beside two cubes, a third whose
-    /// every plane's origin is NaN, so its `V/A` margin cannot be read.
-    /// No tolerance reads it, so no tolerance is offered.
-    #[test]
-    fn a_poisoned_role_beside_two_pieces_offers_no_tolerance() {
+    /// The two cubes of the rows below beside a third whose every plane's
+    /// origin is NaN, so no aimed ray reads it and its `V/A` margin cannot
+    /// be read; `two` keeps both cubes, else only the first.
+    fn beside_a_poisoned_cube(two: bool) -> Body<f64> {
         let tol = Tol::witness();
-        let mut body = one_solid(&[
-            ([(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], false),
-            ([(3.0, 4.0), (0.0, 1.0), (0.0, 1.0)], false),
-        ]);
+        let cube = ([(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], false);
+        let other = ([(3.0, 4.0), (0.0, 1.0), (0.0, 1.0)], false);
+        let mut body = if two {
+            one_solid(&[cube, other])
+        } else {
+            one_solid(&[cube])
+        };
         let mut poisoned = brick((6.0, 7.0), (0.0, 1.0), (0.0, 1.0), tol);
         for surface in poisoned.surfaces.values_mut() {
             if let geom::Surface::Plane { origin, .. } = surface {
@@ -518,6 +512,16 @@ mod tests {
         }
         crate::graft_disjoint_all_keyed(&mut body, &poisoned).unwrap();
         body.merge_all_solids().unwrap();
+        body
+    }
+
+    /// **A role read over a poisoned volume margin ends in its decision's
+    /// own words, never in loosening**: beside two cubes, a third whose
+    /// every plane's origin is NaN, so its `V/A` margin cannot be read.
+    /// No tolerance reads it, so no tolerance is offered.
+    #[test]
+    fn a_poisoned_role_beside_two_pieces_offers_no_tolerance() {
+        let mut body = beside_a_poisoned_cube(true);
         let third = body.shells().nth(2).unwrap().0;
         let err = sort(&mut body).expect_err("the third shell's margin is poisoned");
         assert!(
@@ -538,7 +542,7 @@ mod tests {
         );
         assert!(
             tail.ends_with(
-                "). Recourse: thicken or remove the degenerate geometry; an unreadable margin may indicate a kernel bug worth reporting"
+                "). Recourse: remove the degenerate geometry; an unreadable margin may indicate a kernel bug worth reporting"
             ),
             "{text}"
         );
@@ -546,18 +550,12 @@ mod tests {
     }
 
     /// **An undecided shell beside one decided `Outer` stays under its
-    /// solid** (the residue the sort leaves by design): a sheet whose
-    /// signed volume stays in band, far from a cube, is a second piece
-    /// that no reader can name, and the sort is silent there, as check
-    /// 10 is.
+    /// solid** (the residue the sort leaves by design): the poisoned cube
+    /// beside one cube is a second piece that no reader can name, and the
+    /// sort moves nothing; check 10 refuses it at the at-rest gate.
     #[test]
-    fn an_in_band_shell_beside_one_piece_stays_under_its_solid() {
-        let tol = Tol::witness();
-        let t = (1.0 + tol.k()) * tol.eps();
-        let mut body = one_solid(&[
-            ([(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], false),
-            ([(6.0, 7.0), (0.0, 1.0), (0.0, t)], false),
-        ]);
+    fn an_unread_shell_beside_one_piece_stays_under_its_solid() {
+        let mut body = beside_a_poisoned_cube(false);
         let before: Vec<_> = body.shells().map(|(k, _)| k).collect();
         sort(&mut body).expect("silent beside one decided Outer");
         assert_eq!(filed_with(&body, before[1]), before, "nothing moved");

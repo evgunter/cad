@@ -293,14 +293,16 @@ fn a_hollow_part_in_the_concavity_clears() {
     );
 }
 
-/// **The at-infinity side is the SELECTION's sign.** An arena holding a
+/// **The at-infinity side is the SELECTION's.** An arena holding a
 /// reverted unit cube (a complement: its material is everything
 /// outside it) and an ordinary far-away cube whose volume dominates
 /// the total. A point far from both, whose schedule rays meet no
-/// face: the per-solid door on the complement reads the complement's
-/// own negative volume and answers `In`; the whole-body door reads
-/// the positive total and answers `Out`. (If every ray hits something
-/// the row says so rather than deciding.)
+/// face: the per-solid door on the complement reads its side at
+/// infinity off a ray aimed at one of the complement's faces, and
+/// answers `In`. The whole-body door's selection holds no one side at
+/// infinity, the far cube's being outside its material; a ray aimed at
+/// its first face, the complement's, reads `In` too, where its total
+/// volume, positive, would have read `Out`.
 #[test]
 fn the_per_solid_door_reads_the_container_s_own_sign_at_infinity() {
     let tol = Tol::witness();
@@ -320,7 +322,7 @@ fn the_per_solid_door_reads_the_container_s_own_sign_at_infinity() {
     let whole = point_in_solid(&body, q, band, tol);
     println!("complement at infinity: per-solid {per_solid:?}, whole-body {whole:?}");
     assert_eq!(per_solid.unwrap(), SolidContainment::In);
-    assert_eq!(whole.unwrap(), SolidContainment::Out);
+    assert_eq!(whole.unwrap(), SolidContainment::In);
 }
 
 /// The embedded cube's witness in arena order, for the record: the

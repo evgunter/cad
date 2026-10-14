@@ -4987,7 +4987,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 /// moved parts. Any other finding is the kernel's own defect, and the
 /// refusal is [`BooleanError::ResultInvalid`] carrying every finding.
 /// Each finding's arm is [`finding_arm`]'s.
-fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
+pub(super) fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
     let in_band: Option<Vec<InBandPair>> = errors.iter().map(finding_arm).collect();
     in_band
         .and_then(|pairs| escalated(&pairs))

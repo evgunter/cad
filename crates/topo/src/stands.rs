@@ -10,9 +10,9 @@
 //! (`census::sweep_cross_solid_backstop`), which reads vertices only and
 //! refuses where all of them touch
 //! (`work/inside/the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided.md`).
-//! The containment door's aimed rays (`boolean::solid_contain`
-//! `aimed_side`) read its third rung alone, [`planar_interior_point`], as
-//! points to aim at rather than witnesses to probe.
+//! The reader of the side at infinity (`boolean::solid_contain`
+//! `side_at_infinity`) reads its third rung alone, [`planar_interior_point`],
+//! as points to aim at rather than witnesses to probe.
 //! Each of the questions asks it
 //! under the premise that the complex crosses no surface it is probed
 //! against, so it meets one only where it lies ON it, every point of it

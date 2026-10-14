@@ -321,13 +321,15 @@ pub enum BooleanDecision {
     /// Asked of the result, after every declaration was spent, so none
     /// is read.
     EdgeOnFaces,
-    /// Whether a shell of the result bounds material or a cavity, at the
-    /// finished-body gate (check 10, a shell of a solid of several): its
-    /// volume over its area (`chk_shell_volume_sign`), either definite
-    /// sign a role. Raised only where the shell's certified reading lies wholly
-    /// in band: a shell in band of having no volume, which definite cuts
+    /// Whether a shell of the result bounds material or a cavity (check
+    /// 10, a shell of a solid of several), or which side of a solid's
+    /// faces its material lies on (check 7), at the finished-body gate:
+    /// the side at infinity, read by a ray aimed at one of the shell's
+    /// faces. Raised only where the ray met two faces in band of each
+    /// other (`bool_point_in_solid_order`, their gap along it) and no
+    /// other aimed ray read the side: a pair in band, which definite cuts
     /// can compose, so the operands are ill-conditioned at this ε. It
-    /// names the shell whose reading binds the offer, and how many more
+    /// names the shell whose pair binds the offer, and how many more pairs
     /// lie in band, each decided by the same tolerance.
     ShellRole {
         /// The binding shell's solid, in the refused result. The result is
@@ -337,7 +339,7 @@ pub enum BooleanDecision {
         solid: crate::entity::SolidKey,
         /// The binding shell, diagnostic only as `solid` is.
         shell: crate::entity::ShellKey,
-        /// How many more of the result's shells lie in band.
+        /// How many more of the result's aimed pairs lie in band.
         others: usize,
     },
     /// A question the curved-extent scan asks of a sphere face, which
@@ -853,12 +855,13 @@ const SEAM_WEDGE: SizedDecision = SizedDecision {
 };
 
 /// Whether a shell of the result bounds material or a cavity
-/// ([`BooleanDecision::ShellRole`]): the margin is `V/A`, a length,
-/// and either definite sign is a role.
+/// ([`BooleanDecision::ShellRole`]): the margin is the gap along an aimed
+/// ray between the two faces it met first, a magnitude, and a definite
+/// gap reads the role.
 const RESULT_SHELL: SizedDecision = SizedDecision {
-    lever: "move the parts so the pieces and cavities they leave are clearly thick",
-    size: "thickness",
-    passes: SizedPass::NonZero,
+    lever: "move the parts so the faces of the pieces and cavities they leave are clearly apart",
+    size: "gap",
+    passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
     no_size: None,
 };
@@ -1655,10 +1658,11 @@ impl BooleanDecision {
         match self {
             Self::ShellRole { others: 0, .. } => ending,
             Self::ShellRole { others: 1, .. } => format!(
-                "1 more shell of the result lies in band, decided by the same tolerance. {ending}"
+                "1 more pair of the result's faces lies in band, decided by the same tolerance. \
+                 {ending}"
             ),
             Self::ShellRole { others, .. } => format!(
-                "{others} more shells of the result lie in band, decided by the same \
+                "{others} more pairs of the result's faces lie in band, decided by the same \
                  tolerance. {ending}"
             ),
             _ => ending,
@@ -2319,9 +2323,9 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::ShellRole { .. } => (
                 "whether a shell of the result bounds material or a cavity",
                 Ending::Sized(
-                    "Recourse: move the parts so the pieces and cavities they leave are clearly \
-                     thick",
-                    SizedPass::NonZero,
+                    "Recourse: move the parts so the faces of the pieces and cavities they leave \
+                     are clearly apart",
+                    SizedPass::Positive,
                 ),
             ),
             BooleanDecision::Sphere(SphereQuestion::AgainstPlane) => (

@@ -747,6 +747,22 @@ pub fn posed_prism(h: &Hole, pose: &Pose, tol: Tol) -> AtRestBody<f64> {
 /// body (a base wound clockwise from the apex is inside out).
 #[allow(clippy::unwrap_used)]
 pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
+    posed_pyramid_kept(base, apex, pose, tol)
+        .unwrap_or_else(|e| panic!("a pyramid is not a finished body: {e:?}"))
+}
+
+/// [`posed_pyramid`], with the at-rest gate's refusal kept rather than
+/// panicked on.
+///
+/// # Errors
+///
+/// The at-rest gate's findings.
+pub(crate) fn posed_pyramid_kept(
+    base: &[[f64; 3]],
+    apex: [f64; 3],
+    pose: &Pose,
+    tol: Tol,
+) -> Result<AtRestBody<f64>, Vec<crate::ValidationError>> {
     let n = base.len();
     assert!(n >= 3, "a pyramid needs at least three base corners");
     let bot: Vec<_> = base.iter().map(|&q| pose.at(q)).collect();
@@ -830,7 +846,7 @@ pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -
     body.set_face_surface(seed.face, face(&[bot[n - 1], bot[0], top]))
         .unwrap();
     describe_as_intersections(&mut body, tol);
-    finished("a pyramid", body, tol)
+    <f64 as crate::AtRestPolicy>::gate_at_rest_kept(body, tol)
 }
 
 /// Three base corners relative to [`MEET`]: two at radius `r` 15° either
@@ -986,6 +1002,21 @@ pub fn nest_polygon(base: &[[f64; 3]], s: f64) -> Vec<[f64; 3]> {
 /// runs, placed by `pose` ([`posed_pyramid`]).
 #[must_use]
 pub fn apex_pyramid(base: &[[f64; 3]], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
+    apex_pyramid_kept(base, pose, tol)
+        .unwrap_or_else(|e| panic!("a pyramid is not a finished body: {e:?}"))
+}
+
+/// [`apex_pyramid`], with the at-rest gate's refusal kept rather than
+/// panicked on.
+///
+/// # Errors
+///
+/// The at-rest gate's findings.
+pub fn apex_pyramid_kept(
+    base: &[[f64; 3]],
+    pose: &Pose,
+    tol: Tol,
+) -> Result<AtRestBody<f64>, Vec<crate::ValidationError>> {
     let n = base.len();
     let (mut normal, mut centre) = ([0.0; 3], [0.0; 3]);
     for i in 0..n {
@@ -1004,7 +1035,7 @@ pub fn apex_pyramid(base: &[[f64; 3]], pose: &Pose, tol: Tol) -> AtRestBody<f64>
     if (0..3).map(|k| normal[k] * centre[k]).sum::<f64>() > 0.0 {
         at.reverse();
     }
-    posed_pyramid(&at, MEET, pose, tol)
+    posed_pyramid_kept(&at, MEET, pose, tol)
 }
 
 /// The ring of a [`posed_crown`] with a thin fin: two faces folded at

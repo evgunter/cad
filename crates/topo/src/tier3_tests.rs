@@ -29,8 +29,8 @@ use geom_core::Indeterminate;
 use geom_core::Tol;
 
 /// A geometric digon pillow: two vertices, two chord edges, two
-/// coplanar faces (the z = 0 plane on both sides) — the minimal
-/// tier-3-clean body, and the coplanar-split smooth-dihedral case.
+/// coplanar faces (the z = 0 plane on both sides) — the minimal body
+/// checks 1–6 pass clean, and the coplanar-split smooth-dihedral case.
 pub(crate) fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
@@ -89,11 +89,29 @@ pub(crate) fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
     (body, split)
 }
 
+/// **The pillow at rest: check 7 is its one finding.** Its two faces are
+/// digons of zero area on one plane, so no face offers a ray to aim and
+/// its volume is zero: a solid whose orientation no reading decides (D1
+/// tier 3), which every other check of the tier passes.
+fn assert_pillow_rests(body: &Body<f64>, tol: Tol) {
+    let found = validate_geometric(body, tol);
+    assert!(
+        matches!(
+            found.as_ref().map_err(Vec::as_slice),
+            Err([ValidationError::OrientationUndecided {
+                reading: crate::OrientationUnread::Volume(_),
+                ..
+            }])
+        ),
+        "the pillow's one finding is its unread orientation: {found:?}"
+    );
+}
+
 #[test]
-fn coplanar_split_is_smooth_and_tier3_clean() {
+fn coplanar_split_is_smooth_and_only_its_orientation_unread() {
     let tol = Tol::witness();
     let (body, _) = coplanar_pillow(tol);
-    assert_eq!(validate_geometric(&body, tol), Ok(()));
+    assert_pillow_rests(&body, tol);
 }
 
 /// **The transience fence** (U2's Q2 as corrected, 2026-08-27), red
@@ -110,7 +128,7 @@ fn coplanar_split_is_smooth_and_tier3_clean() {
 fn a_scaffold_at_rest_is_refused_and_the_chart_description_is_not() {
     let tol = Tol::witness();
     let (mut body, split) = coplanar_pillow(tol);
-    assert_eq!(validate_geometric(&body, tol), Ok(()));
+    assert_pillow_rests(&body, tol);
 
     // RED — back through the scaffolding door.
     let scaffolded =
@@ -127,7 +145,7 @@ fn a_scaffold_at_rest_is_refused_and_the_chart_description_is_not() {
     let chart = body.get_face(split.face).unwrap().surface;
     body.set_edge_curve(split.edge, scaffolded.at_rest_in_chart(chart, false), tol)
         .unwrap();
-    assert_eq!(validate_geometric(&body, tol), Ok(()));
+    assert_pillow_rests(&body, tol);
 }
 
 /// The other half of the fence: the door it exists to keep open. An
@@ -205,7 +223,7 @@ fn without_surface_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
 
 fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::entity::FaceKey) {
     let (mut body, split) = coplanar_pillow(tol);
-    assert_eq!(validate_geometric(&body, tol), Ok(()));
+    assert_pillow_rests(&body, tol);
     // Lifts RechartStrandsDescriptions: tier 3's surface verdicts on the swapped face are the row's, whatever it strands.
     body.set_face_surface_unvouched_for_tests(
         split.face,
@@ -1756,7 +1774,7 @@ fn transverse_wedges_stay_legal_and_earn_no_wedge_verdict() {
 fn the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina() {
     let tol = Tol::witness();
     let (body, split) = coplanar_pillow(tol);
-    assert_eq!(validate_geometric(&body, tol), Ok(()));
+    assert_pillow_rests(&body, tol);
     let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
     let errs = validate_geometric(&flipped, tol).unwrap_err();
     assert!(
@@ -2967,18 +2985,19 @@ fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
     );
     // The far point's answer is the AT-INFINITY arm's: the schedule's
     // first ray (+x) from it crosses nothing, so the walk reads the
-    // selection's own signed volume — negative for the cavity wall,
-    // hence `In`. Pinned by the verdict log, so a far point that a ray
-    // happened to reach through a face could not pass for it.
+    // selection's side at infinity off a ray aimed at one of its faces
+    // from beyond it — its closest crossing exits the cavity wall's
+    // material, hence `In` — and never off its volume. Pinned by the
+    // verdict log, so a far point that a ray happened to reach through a
+    // face could not pass for it.
     let bracket = geom_core::k_stats::Bracket::open();
     assert_eq!(probe(void, far), In);
     let log = bracket.finish();
+    let read: Vec<_> = log.verdicts.iter().map(|v| v.predicate).collect();
     assert!(
-        log.verdicts
-            .iter()
-            .any(|v| v.predicate == "bool_point_in_solid_infinity"),
-        "the far probe must be answered at infinity, got {:?}",
-        log.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>()
+        read.contains(&"bool_point_in_solid_order")
+            && !read.contains(&"bool_point_in_solid_infinity"),
+        "the far probe must be answered at infinity by an aimed ray, got {read:?}"
     );
     assert_eq!(validate_geometric(&body, tol), Ok(()));
 }
@@ -3561,15 +3580,14 @@ fn far_thin_half_disc_reads(far: bool, tol: Tol) {
     );
 }
 
-/// **Check 10 reads every shell's role, or refuses the solid typed.** A
-/// 1 m cube with a 1 mm × 1 mm slab filed under the same solid beside
-/// it, anchored 1 km away. With 100 nm walls the slab's role is
-/// certified: upright it is a second piece of material
+/// **Check 10 reads every shell's role.** A 1 m cube with a 1 mm × 1 mm
+/// slab filed under the same solid beside it, anchored 1 km away. With
+/// 100 nm walls upright the slab is a second piece of material
 /// (`SolidOuterShells`), inside out a void outside every outer
 /// (`ShellWinding`). With walls of `1.5·K·ε`, the thinnest an edge may
-/// be, its mean thickness `V/A` is inside the band and its sign is
-/// undecided, and the solid is refused naming that shell
-/// (`ShellRoleUndecided`), never passed unwound.
+/// be, its mean thickness `V/A` is inside the band, but its two faces
+/// are a definite pair and a ray aimed at one of them reads its role: a
+/// second piece again.
 #[test]
 fn check_10_reads_every_shell_s_role_or_refuses_the_solid() {
     let tol = Tol::witness();
@@ -3608,18 +3626,14 @@ fn check_10_reads_every_shell_s_role_or_refuses_the_solid() {
     } else {
         test_utils::vacuity::stood_down(
             "eps above 1e-9",
-            "the 100 nm slab is below a band this wide; the in-band arm below still runs",
+            "the 100 nm slab is below a band this wide; the thin arm below still runs",
         );
     }
     let (body, solid) = solid_with(1.5 * band.escalate(), false);
-    let verdict = validate_geometric(&body, tol).unwrap_err();
-    assert!(
-        matches!(
-            verdict.as_slice(),
-            [ValidationError::ShellRoleUndecided { solid: s, .. }] if *s == solid
-        ),
-        "a slab whose walls are inside the band has no role, and its solid is refused: \
-         {verdict:?}"
+    assert_eq!(
+        validate_geometric(&body, tol),
+        Err(vec![ValidationError::SolidOuterShells { solid, outer: 2 }]),
+        "a slab whose V/A is in band reads its role off its pair: a second piece"
     );
 }
 
