@@ -1339,6 +1339,61 @@ impl CellFirstQuotients<crate::interval::Interval> {
     }
 }
 
+/// The Bernstein row on `[a, b]` of the segment whose row on `[s0, s1]`
+/// is `row`, by two de Casteljau splits: at `(a − s0)/(s1 − s0)`,
+/// keeping the right part (the row on `[a, s1]`), then at
+/// `(b − a)/(s1 − a)`, keeping the left. Each step is
+/// [`Certification::between`] at an interval ratio clamped to `[0, 1]`,
+/// so at `Interval` every coefficient encloses the exact restriction's,
+/// `2p` steps deep; `O(p²)` against the blossom pyramid's `O(p³)`
+/// ([`super::restrict_segment`]). A split at an end of its segment is
+/// skipped. A cut out of order, or a segment that is empty or not
+/// finite, refuses every coefficient.
+///
+/// [`Certification::between`]: crate::interval::certification::Certification::between
+// The negated guard refuses a NaN cut, where `a < s0` would pass it.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+fn split_restrict(
+    row: &[crate::interval::Interval],
+    (s0, s1): (f64, f64),
+    (a, b): (f64, f64),
+) -> Vec<crate::interval::Interval> {
+    use crate::interval::Interval;
+    use crate::interval::certification::Certification as _;
+    if row.is_empty()
+        || !(s0 <= a && a <= b && b <= s1 && s0 < s1 && s0.is_finite() && s1.is_finite())
+    {
+        return vec![Interval::refused(); row.len()];
+    }
+    let ratio = |x: f64, lo: f64| {
+        let lo = Interval::point(lo);
+        ((Interval::point(x) - lo) / (Interval::point(s1) - lo)).clamped_to(0.0, 1.0)
+    };
+    let mut d = row.to_vec();
+    let p = d.len() - 1;
+    if a > s0 {
+        // The right part: entry `k` is level `p − k`'s entry `k`, the
+        // last each level writes from the low end up.
+        let t = ratio(a, s0);
+        for r in 1..=p {
+            for k in 0..=p - r {
+                d[k] = Interval::between(d[k], d[k + 1], t);
+            }
+        }
+    }
+    if b < s1 {
+        // The left part: entry `k` is level `k`'s entry `0`, the last
+        // each level writes from the high end down.
+        let t = ratio(b, a);
+        for r in 1..=p {
+            for k in (r..=p).rev() {
+                d[k] = Interval::between(d[k - 1], d[k], t);
+            }
+        }
+    }
+    d
+}
+
 /// One axis's cut: the span `(s0, s1)` the block covers and the part
 /// `(a, b)` of it to keep.
 pub type AxisCut = ((f64, f64), (f64, f64));
@@ -1369,10 +1424,7 @@ impl<const D: usize> Grid<crate::interval::Interval, D> {
         for line in 0..lines {
             for d in 0..D {
                 let row: Vec<_> = (0..n).map(|k| self.c[at(line, k)].0[d]).collect();
-                for (k, x) in super::restrict_segment(&row, span, ends)
-                    .into_iter()
-                    .enumerate()
-                {
+                for (k, x) in split_restrict(&row, span, ends).into_iter().enumerate() {
                     c[at(line, k)].0[d] = x;
                 }
             }
@@ -1754,6 +1806,89 @@ mod tests {
             before,
             "a cut formed a product"
         );
+    }
+
+    /// **A split restriction encloses the exact restriction, `2p` steps
+    /// deep.** Rows of degree 1–8 with dyadic coefficients spread over
+    /// `2^{±10}` (a wide weight power's span), cut at dyadic ends whose
+    /// two split ratios are dyadic too, so the exact restriction is
+    /// `f64` de Casteljau with no rounding: every coefficient of
+    /// [`super::split_restrict`] contains it. Red under the second split
+    /// at `(b − s0)/(s1 − s0)` (the ratio on the wrong segment), or under
+    /// either split keeping the other part. And on drawn non-dyadic cuts
+    /// it meets the blossom pyramid's restriction coefficient by
+    /// coefficient (two enclosures of one row).
+    #[test]
+    fn a_split_restriction_encloses_the_exact_restriction() {
+        // The exact de Casteljau split of a dyadic row at a dyadic `t`:
+        // the right part (`right`) or the left.
+        fn split(row: &[f64], t: f64, right: bool) -> Vec<f64> {
+            let mut levels = vec![row.to_vec()];
+            for r in 1..row.len() {
+                let prev = &levels[r - 1];
+                levels.push(
+                    (0..prev.len() - 1)
+                        .map(|i| (1.0 - t) * prev[i] + t * prev[i + 1])
+                        .collect(),
+                );
+            }
+            let p = row.len() - 1;
+            (0..=p)
+                .map(|k| {
+                    if right {
+                        levels[p - k][k]
+                    } else {
+                        levels[k][0]
+                    }
+                })
+                .collect()
+        }
+        let mut rng = test_utils::fuzz::start("split-restrict-exact");
+        // (s0, s1, a, b) with (a − s0)/(s1 − s0) and (b − a)/(s1 − a)
+        // dyadic.
+        let cuts = [
+            (0.0, 1.0, 0.25, 0.625),
+            (0.0, 1.0, 0.5, 0.75),
+            (2.0, 6.0, 3.0, 4.5),
+            (-1.0, 1.0, -0.5, 0.25),
+            (0.0, 1.0, 0.0, 0.375),
+            (0.0, 1.0, 0.75, 1.0),
+        ];
+        for _ in 0..test_utils::fuzz::scaled(200) {
+            let p = 1 + rng.below(8);
+            let row: Vec<f64> = (0..=p)
+                .map(|_| {
+                    let mag = 2.0_f64.powi(rng.below(21) as i32 - 10);
+                    (rng.range(-8.0, 8.0)).round() * mag
+                })
+                .collect();
+            let lifted: Vec<Interval> = row.iter().map(|&c| Interval::from_f64(c)).collect();
+            for (s0, s1, a, b) in cuts {
+                let ta = (a - s0) / (s1 - s0);
+                let tb = (b - a) / (s1 - a);
+                let exact = split(&split(&row, ta, true), tb, false);
+                let got = super::split_restrict(&lifted, (s0, s1), (a, b));
+                for (k, (g, e)) in got.iter().zip(&exact).enumerate() {
+                    assert!(
+                        g.is_certified() && g.lo() <= *e && *e <= g.hi(),
+                        "degree {p} on [{s0}, {s1}] cut to [{a}, {b}], coefficient {k}: \
+                         {g:?} misses {e:e}; {}",
+                        test_utils::fuzz::replay()
+                    );
+                }
+            }
+            let (x, y) = (rng.range(0.0, 1.0), rng.range(0.0, 1.0));
+            let (a, b) = (x.min(y), x.max(y));
+            let blossom = super::super::restrict_segment(&lifted, (0.0, 1.0), (a, b));
+            let got = super::split_restrict(&lifted, (0.0, 1.0), (a, b));
+            for (g, w) in got.iter().zip(&blossom) {
+                assert!(
+                    g.lo() <= w.hi() && w.lo() <= g.hi(),
+                    "[{a}, {b}]: {g:?} and the pyramid's {w:?} are disjoint; {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
     }
 
     /// An interval's two ends and its certification, as bits.
