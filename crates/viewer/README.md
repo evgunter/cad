@@ -1779,23 +1779,23 @@ copy would be the hand-written list again with nothing forcing it.
 
 ### Closed vocabularies are declared once
 
-**Ten** enums here are closed vocabularies: a fixed set of choices the
-chrome offers, which something walks in order — a radio row, a combo's
-options, a suite's sweep. Each carried a hand-written `const ALL`
-beside it, and that second copy of the membership was free to fall
-behind the first: adding a variant compiled, the radio row silently
-lost a button, and every sweep keyed on the list quietly narrowed.
-(At the conversion, ten `const ALL` tables existed under `src/` and
-nine were of this kind. `frame::WithdrawalKind` is not one of those
+The enums declared through `vocabulary!` are closed vocabularies: a
+fixed set of choices the chrome offers, which something walks in order
+— a radio row, a combo's options, a suite's sweep. Each carried a
+hand-written `const ALL` beside it, and that second copy of the
+membership was free to fall behind the first: adding a variant
+compiled, the radio row silently lost a button, and every sweep keyed
+on the list quietly narrowed. Which enums those are is
+`git grep -n 'vocabulary! {' -- crates/viewer/src`, less the one hit
+that is `src/vocab.rs`'s own doc example; no number is written here,
+because a written one falls behind the grep the day a vocabulary
+lands. (At the conversion, ten `const ALL` tables existed under `src/`
+and nine were of this kind. `frame::WithdrawalKind` is not one of those
 ten: it carried no membership list at all until the fan-out from a
 `PruneReport` needed holding to it, and the list it got was projected
 rather than written. `marks::EdgeLane`, a renderer's draw order rather
-than a choice the chrome offers, was declared through the macro from
-the start. Both censuses are stated because this program's counts have
-gone wrong before — one is the tree at the conversion, the other is
-the vocabularies today, and nothing makes them the same number. Today's
-is taken as `git grep -n 'vocabulary! {' -- crates/viewer/src`, less
-the one hit that is `src/vocab.rs`'s own doc example.)
+than a choice the chrome offers, and `tools::FormKind` were declared
+through the macro from the start.)
 
 **The enum and its `ALL` are now one declaration.** `src/vocab.rs`'s
 `vocabulary!` takes one list of variants and expands it into both, so a
@@ -1820,7 +1820,7 @@ already holds. If nothing does, they are not table data at all and a
 method beside the enum is the whole of it.
 
 **The sweep that produces the population** is a walk of every loop over
-a vocabulary's `ALL` — one of the ten declared by `vocabulary!`, so a
+a vocabulary's `ALL` — one of those declared by `vocabulary!`, so a
 loop over `Theme::ALL`, `pncad`'s `Axis3::ALL` or the path form's
 `profile::Verb::ALL` is outside it — read
 for what the loop asks each entry for. It reads `src/` **and**
@@ -1829,16 +1829,16 @@ in a suite is still a word read off the table; a sweep scoped to `src/`
 would have nothing to discriminate on the two vocabularies it rules
 bare, and the first tests-only word-walk would arrive unseen.
 
-**Six of the ten are walked under `src/` for their words, and all
-six ask for one.** Each binds `(value, label)` and puts that label on the control
+**Every vocabulary walked under `src/` for its words asks for one.**
+Each binds `(value, label)` and puts that label on the control
 it draws: `pane::create`'s datum row, profile row, pattern-rule row,
 pattern-output row, blend-kind row and projection-selector row. So all
-six are LABELLED, and
+of them are LABELLED, and
 there is no shorter account of them than the sweep itself: their words
 are table data because a table walk reads them.
 
-**`ToolKind`, `Seat`, `WithdrawalKind` and `marks::EdgeLane` are the
-remaining four, and are BARE.** `EdgeLane`'s list is named `DRAW_ORDER`
+**`ToolKind`, `FormKind`, `Seat`, `WithdrawalKind` and
+`marks::EdgeLane` are the rest, and are BARE.** `EdgeLane`'s list is named `DRAW_ORDER`
 rather than `ALL`, because its order is the edge pass's priority; `gpu`
 walks it to lay out the vertex buffer and the per-lane style rows, and
 reads no word off it. `WithdrawalKind` is walked under `src/` and is
@@ -1849,15 +1849,16 @@ KINDS `Withdrawal::all` produced against the list, and reads no word
 off it. A withdrawal's sentence is composed by `Withdrawal`'s `Display`
 from the kind and the faults under it — a count, a consequence clause
 and each cause's own `Display` — so the words were never table data to
-begin with. The other two are bare because
-no loop under `src/` walks their lists at all: a kind's word appears
-inside a sentence `tools` composes, and a seat's inside the refusal
-sentences `seats` and `session::refuse` write — wording read against
-that discipline rather than against a row of buttons. The suites do
-walk both lists, and walk them for the VALUES: `tests/combine_ops.rs`
-maps kinds to booleans and drives one op per seat, where the seat's
-word reaches only an assertion message about the single seat that
-failed. A walk that would still do its job if the words did not exist
+begin with. The other three are bare because
+no loop under `src/` walks their lists at all: a tool's or a form's
+word appears inside a sentence `tools` composes, and a seat's inside
+the refusal sentences `seats` and `session::refuse` write — wording
+read against that discipline rather than against a row of buttons. The
+suites do walk those lists, and walk them for the VALUES:
+`tests/combine_ops.rs` maps kinds to booleans and drives one op per
+seat, where the seat's word reaches only an assertion message about the
+single seat that failed, and `tests/frame_policy.rs` reads
+`FormKind::ALL` only for its length. A walk that would still do its job if the words did not exist
 is not a reader of them. The suites also walk two ALREADY-labelled
 lists for their words (`tests/combine_ops.rs`'s pattern-output row,
 `tests/blend_authoring.rs`' blend-kind row), which confirms the shape
@@ -1877,7 +1878,7 @@ un-converting the enum. `src/vocab.rs`'s own doc carries both, and the
 rustfmt cost below.
 
 **rustfmt does not reach inside the invocation**, so the variants and
-variant docs of all ten are formatted by hand. Demonstrated rather
+variant docs of every one are formatted by hand. Demonstrated rather
 than assumed, and not fixable by making the body parse: `src/vocab.rs`
 records the experiment and
 `work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
@@ -1938,7 +1939,7 @@ entries, which is the same list under a different word — and reds on
 one the table does not carry. `static` opens an item in both arms, for
 the same reason the second shape exists. A converted vocabulary is not
 a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
-the nine are quiet without an entry. What the gate reads is this
+a converted one is quiet without an entry. What the gate reads is this
 section rather than a list of its own: the ROWS below are the
 allowlist, and the KINDS they may claim are the bullets of the
 two-kinds list above — the list the sentence *"Two kinds of list

@@ -114,10 +114,7 @@ impl ToolKind {
     /// **This tool's panel refusing its commit**, as the value
     /// [`crate::frame::tool_news`] takes.
     pub fn refuses(self, why: &impl core::fmt::Display) -> PanelRefusal {
-        PanelRefusal {
-            panel: Panel::Tool(self),
-            why: why.to_string(),
-        }
+        PanelRefusal::new(Panel::Tool(self), why)
     }
 
     /// **What the cursor may pick while this tool is open** — an open
@@ -187,6 +184,12 @@ impl ToolKind {
 /// declined — carrying which tool it was about, so the sentence a
 /// chrome shows is composed once ([`ToolKind::says`]) rather than at
 /// each call site.
+///
+/// **Not a [`PanelRefusal`], and not merged with one**: each arm
+/// answers [`crate::frame::Retold`] for itself, and a survival drop
+/// answers `Never` ([`crate::frame::tool_notice`]), where a panel's
+/// refusal is uniformly `Again`. One type would put both answers
+/// behind one door that could not tell them apart.
 #[derive(Debug)]
 pub enum ToolNotice {
     /// The mate tool lost a pick — its own event vocabulary, which
@@ -222,10 +225,10 @@ fn said(label: &str, what: &impl core::fmt::Display) -> String {
 }
 
 vocabulary! {
-    /// **A panel that commits an edit without being a seated tool**,
-    /// named by what its button does: the creation pane's add-datum,
-    /// add-profile and extrude forms, and the profile editor's apply and
-    /// revert.
+    /// **A panel with a button that is not one of the modal tools'**
+    /// ([`ToolKind`]), named by what the button does: the creation
+    /// pane's add-datum, add-profile and extrude forms, and the profile
+    /// editor's apply and revert.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum FormKind {
         /// The creation pane's add-datum form.
@@ -256,13 +259,10 @@ impl FormKind {
         }
     }
 
-    /// **This form refusing its commit**, as the value
+    /// **This form's button refusing**, as the value
     /// [`crate::frame::tool_news`] takes.
     pub fn refuses(self, why: &impl core::fmt::Display) -> PanelRefusal {
-        PanelRefusal {
-            panel: Panel::Form(self),
-            why: why.to_string(),
-        }
+        PanelRefusal::new(Panel::Form(self), why)
     }
 }
 
@@ -273,25 +273,48 @@ enum Panel {
     Form(FormKind),
 }
 
+impl Panel {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Tool(kind) => kind.label(),
+            Self::Form(form) => form.label(),
+        }
+    }
+}
+
 /// **What a panel's button refused, and which panel's it was** — the
 /// value [`crate::frame::tool_news`] takes. Built only by
-/// [`ToolKind::refuses`] and [`FormKind::refuses`], so its sentence opens
-/// with a panel's name by construction and no other refusal's text can
-/// be handed to that door.
+/// [`ToolKind::refuses`] and [`FormKind::refuses`].
+///
+/// **What the type pins**: the sentence opens with a panel's name, and
+/// the door it reaches answers [`crate::frame::Subject::Document`] and
+/// [`crate::frame::Retold::Again`]. **What it does not**: the words
+/// after the name — `refuses` takes any `Display`, so whether they are
+/// the panel's own refusal is the call site's.
+///
+/// **Not a [`ToolNotice`]**, and not merged with one: a panel's refusal
+/// is uniformly `Again` — the same click says it again — where a tool
+/// event answers [`crate::frame::Retold`] per arm and a survival drop
+/// answers `Never`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PanelRefusal {
     panel: Panel,
     why: String,
 }
 
+impl PanelRefusal {
+    fn new(panel: Panel, why: &impl core::fmt::Display) -> Self {
+        Self {
+            panel,
+            why: why.to_string(),
+        }
+    }
+}
+
 impl core::fmt::Display for PanelRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self { panel, why } = self;
-        let label = match panel {
-            Panel::Tool(kind) => kind.label(),
-            Panel::Form(form) => form.label(),
-        };
-        f.write_str(&said(label, why))
+        f.write_str(&said(panel.label(), why))
     }
 }
 

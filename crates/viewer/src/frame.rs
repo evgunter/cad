@@ -2035,19 +2035,20 @@ pub fn tool_notice(notice: &ToolNotice) -> Message {
 }
 
 /// **What a tool has to say** that is not one of its own events: a
-/// panel's refusal at its commit button ([`PanelRefusal`]), a seated
-/// tool's or a form's. [`Subject::Document`], retired the way that
+/// panel's refusal at its button ([`PanelRefusal`]), a modal tool's
+/// or a form's. [`Subject::Document`], retired the way that
 /// subject says. A tool's own events go through [`tool_notice`]
 /// instead, whose arms answer [`Retold`] from the event.
 ///
 /// **[`Retold::Again`], answered here**: the refusal is the answer to a
 /// click on that button, and the same click says it again.
 ///
-/// **Type-pinned**: [`PanelRefusal`] is built only by
-/// [`ToolKind::refuses`](crate::tools::ToolKind::refuses) and
-/// [`FormKind::refuses`](crate::tools::FormKind::refuses), so every sentence
-/// through this door opens with a panel's name, and text that is not a
-/// panel's does not build:
+/// **Type-pinned to a panel, not to its words**: [`PanelRefusal`] is
+/// built only by [`ToolKind::refuses`](crate::tools::ToolKind::refuses)
+/// and [`FormKind::refuses`](crate::tools::FormKind::refuses), so every
+/// sentence through this door opens with a panel's name and gets this
+/// subject and this [`Retold`]. What follows the name is whatever the
+/// site passed to `refuses`. Bare text does not build:
 ///
 /// ```compile_fail,E0308
 /// use viewer::frame::tool_news;

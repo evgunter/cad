@@ -138,3 +138,9 @@ chrome sentence beside a `node N` refusal about the same node:
   to translate. Thirteen refusal sites say `node {}`, so the first
   describes the tree and the second the direction — the row's open
   question, stated twice in one file with both answers.
+
+**Correction, 2026-10-13 (`vnews/tool-news-is-a-value`):** the survival
+drop in *One status line, two names, one delete* reaches the notices
+through `frame::tool_notice(&ToolNotice)`, not `frame::tool_news`,
+which now takes only a panel's refusal (`tools::PanelRefusal`). The
+sentence and the finding are unchanged.

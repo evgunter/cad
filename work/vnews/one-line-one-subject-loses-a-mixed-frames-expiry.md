@@ -162,3 +162,8 @@ while taking this row first does nothing for that one.
   `crates/viewer/src/frame.rs:334`.
 - `frame_policy::a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ`
   is `crates/viewer/tests/frame_policy.rs:891`.
+
+**Correction, 2026-10-13 (`vnews/tool-news-is-a-value`):** the
+`Document` row's "ten `tool_news` sites in `pane/create.rs`" is stale:
+nine there and two in `pane/profile.rs`, plus `frame::tool_notice`'s
+callers in `app.rs` and `pane/create.rs`, all `Subject::Document`.
