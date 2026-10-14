@@ -1427,3 +1427,15 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - ellipse locus bound: CI ε battery green at 2 of 3 ε;
   - flat frustum: a cone-ruling fix, 5 of 6 rows building.
   PR 5156: no comment from Ev yet; CI green.
+- 2026-10-14 21:55 — Two PRs opened.
+  - **PR 5172** (ellipse-pair locus bound, head `ca6810249c`):
+    - `Conic::locus_gap`, a Procrustes upper bound on the Hausdorff distance with its rounding charged, lifted from topo's `carrier_cross` and shared by `curve_pair::pose`;
+    - the rows are red on main;
+    - it files CLEAVE's `carrier-cross-one-curve-reads-the-locus-gap-without-its-rounding-charge`.
+    - Graded **H** (a wrong Zero merges two curves) → **CONCURRENT**: r5172a and r5172b, template sha `c5a00d9cb0c1`, coding byte 204, even → A = r5172a.
+  - **PR 5173** (degenerate-torus endings, head `6f2faed3a3`):
+    - `TorusRefusal` ends both ring-convention arms in the half's lever;
+    - `replace_face_offset` is shown to reach the guard;
+    - join's frame maps to the pierce's refusals.
+    - Graded M. Arm byte 157, mod 3 = 1 → **SEQUENTIAL**: r5173.
+  - All three reviews run as local Opus subagents.
