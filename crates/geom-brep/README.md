@@ -730,7 +730,7 @@ never from the features near it. Every case follows by set algebra: a
 feature wholly inside `R` goes with it, as a feature wholly inside a
 Boolean's tool goes with the tool, a void and a free solid inside it
 included; a protrusion or an island wholly inside `F` is absorbed, the
-island's voids becoming the solid's; a hole whose mouth lies wholly on
+island's voids, which lie in `F`, filled with it; a hole whose mouth lies wholly on
 the face `F` covers is sealed, a through-hole turning blind and a blind
 hole a void; and a feature crossing the band surface has a result too.
 What is built of it: face clearance reads each face three ways (clear
@@ -741,7 +741,8 @@ caps: a through-feature between the two caps on the ruled fillet and
 the plane–plane fillet and chamfer (a bore under a convex band, a bar
 between the end walls under a concave one), and a cup on one cap on
 the plane–plane band (a blind bore under a convex band, a pin under a
-concave one). Every other case refuses, a
+concave one), each of whose faces that meet the cap is a plane or a
+cylinder. Every other case refuses, a
 case the rule defines and the surgery does not build, and it refuses
 at the meter that reads it, not by which case it is. The clearance
 screen and the exact ring meters read the supports' own boundary

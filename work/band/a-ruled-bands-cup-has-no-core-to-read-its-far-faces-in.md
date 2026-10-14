@@ -4,8 +4,6 @@ kind: issue
 title: blend: a blind bore or a pin inside a ruled cut-off's region refuses as a bound, its far faces having no exact core to be read in
 status: open
 opened: 2026-10-14
----
-
 priority: P3
 cost: M
 ---

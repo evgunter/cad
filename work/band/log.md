@@ -1126,3 +1126,11 @@ the spine by its boundary, and `consume` takes a disk on one cycle,
 bridging a face's rings first, so a bump on a bar now builds too. The
 strip-mouth half (dimple, boss) and the ruled band's cups are filed.
 
+
+The fix pass of its dual review: the core reading of an edge now
+tightens its depth (it reported the first certifying piece's, which,
+not the lean term, refused a slightly leaning bore under the fillet,
+now built); rows witness the disk count, the piece radius and the
+plane reading's slack; C8 says an absorbed island's voids are filled.
+Filed `a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved`
+and `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`.

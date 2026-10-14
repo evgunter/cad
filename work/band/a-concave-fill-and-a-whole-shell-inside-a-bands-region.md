@@ -168,8 +168,30 @@ reports; it replaces row 139's case-by-case recommendation.
 - **Still refusing, typed, at the meter that reads it**: a cup on the
   ruled band (a bound: its reach has no exact core,
   `a-ruled-bands-cup-has-no-core-to-read-its-far-faces-in`); a cup whose
-  axis leans off the spine under the fillet, charged its box diagonal
-  times the lean (a bound, conservative); a mouth or head across the band
-  surface (a measurement); everything on a support's strip (the dimple
-  and the boss: `a-cup-whose-mouth-lies-on-a-supports-strip-is-not-carved`).
+  axis leans off the spine under the fillet by more than its depth
+  pays, its walls charged their seam lines' slack and their box's
+  diagonal times the lean (a bound, conservative:
+  `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`);
+  a cup with a handle, or one feature with two mouths on one cap
+  (`WhollyInside`: `a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved`);
+  a cup face meeting the cap that is neither a plane nor a cylinder (a
+  countersunk mouth: a bound); a mouth or head across the band surface
+  (a measurement); everything on a support's strip (the dimple and the
+  boss: `a-cup-whose-mouth-lies-on-a-supports-strip-is-not-carved`).
+- **The review's fix pass** (two reviews, 2026-10-14): `curve_in_core`
+  reported the first certifying piece's whole-box depth, never refined
+  (`0.00174` for a floor circle `0.006` deep), and that — not the lean
+  term — refused a bore leaning `0.0011` per corner coordinate under the
+  fillet. It now halves the shallowest piece while its box's radius
+  exceeds an eighth of its depth, each half reading the lesser of its
+  own bound and its parent's, so the depth is still a lower bound; that
+  bore now builds. `inside_bound` keeps the same first-certifier
+  looseness: its depth only names a `WhollyInside` refusal's margin, so
+  tightening it would build nothing. A core-read edge's vertices are now
+  charged their distance from the carrier's nearer end. Rows now witness
+  the disk count (a cup with a handle), the piece radius (a head crossing
+  the arc between two boundary samples, and a unit row on
+  `curve_in_core`) and the plane reading's slack (a leaning diamond head
+  dipping `2·10⁻⁶` past the arc between samples); each of their mutants
+  goes red.
 

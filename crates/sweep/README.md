@@ -435,7 +435,16 @@ walls' slivers, at `ΔV = +(A − A_bar)·L`
 A cup on one end face goes the same way: a blind bore at
 `ΔV = −(A·L − V_bore)`, a pin at `ΔV = +(A·L − V_pin)`, an undercut or
 a headed pin whose head stands off the end face included
-(`band_one_cycle_members`).
+(`band_one_cycle_members`). A cup's face that meets the end face is
+read through the mouth: a plane or a cylinder (a countersunk, conical
+mouth refuses as a bound), charged under the fillet its lines' slack
+and, ruled, its box's diagonal times its lean off the spine, so a cup
+leaning more than its depth pays refuses as a bound
+(`band_one_cycle_members::a_leaning_blind_bore_goes_where_its_lean_is_paid`).
+A cup with a handle, or one feature with two mouths on one cap,
+refuses `WhollyInside`: the carve takes a disk on one cap or an
+annulus between two
+(`band_one_cycle_members::a_cup_with_a_handle_and_a_u_tube_refuse_wholly_inside`).
 The fillet's sliver is the ruled cut-off's, between the arc and the
 old vertex; the chamfer's is the triangle of the old vertex and the
 two feet, and a cycle lies inside it when each of its edges stays

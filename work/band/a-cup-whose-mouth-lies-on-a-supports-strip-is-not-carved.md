@@ -4,8 +4,6 @@ kind: issue
 title: blend: a dimple or a boss whose mouth lies on a support's strip inside the band's region refuses, though S − R / S ∪ F takes it
 status: open
 opened: 2026-10-14
----
-
 priority: P2
 cost: H
 ---
