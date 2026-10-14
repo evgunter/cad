@@ -355,3 +355,63 @@ fn a_circle_stated_as_an_iso_line_on_a_spline_chart_is_refused_at_the_door() {
     );
     assert_eq!(format!("{body:?}"), before, "the body is untouched");
 }
+
+/// **Without a foot, a sub-seam takes its stated column.** At `Dual64`
+/// no lane measures a chart foot, so the only column a seam's own
+/// candidates offer is the stated one at each chart boundary. Splitting
+/// a seam leaves two sub-edges whose stated `v` map is the parent's
+/// restricted, which the whole-domain closed forms do not match. Each
+/// child, on each of its two walls, derives its boundary column with
+/// that map; without the stated candidates it would fall to `General`,
+/// which a dual refuses.
+#[test]
+fn at_a_dual_a_split_seam_takes_its_stated_column() {
+    use geom_core::{Bounds, Dual64, Real};
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+    let profile = || {
+        vec![bulge_loop(vec![
+            v(0.0, 0.0, 0.0),
+            v(2.0, 0.0, 1.0),
+            v(2.0, 2.0, 0.0),
+            v(0.0, 2.0, 0.0),
+        ])]
+    };
+    let mut body = sweep::loft_body::<Dual64>(
+        &sweep::test_support::lift_sections::<Dual64>(&[profile(), profile()]),
+        &sweep::test_support::lift_places::<Dual64>(&stacked_at(&[0.0, 1.0])),
+        1,
+        tol(),
+    )
+    .expect("the dual prism builds")
+    .body;
+    let seam = body
+        .pcurves()
+        .find(|(_, c)| matches!(c.pcurve(), Pcurve::IsoLine { pl, .. } if pl.x.lo() == 0.0))
+        .map(|(h, _)| body.get_half_edge(h).unwrap().edge)
+        .expect("the prism has a seam on a column");
+    let (t0, t1) = body
+        .get_curve_geom(body.get_edge(seam).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .params();
+    let made = body
+        .split_edge(seam, (t0 + t1) * Dual64::from_f64(0.5), tol())
+        .expect("the seam splits");
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let halves = [seam, made.new_edge].into_iter().flat_map(|e| {
+        let edge = body.get_edge(e).unwrap();
+        [edge.he_plus, edge.he_minus]
+    });
+    for h in halves {
+        let mut fresh = body.clone();
+        fresh.detach_pcurve(h);
+        let got = topo::pcurve_of(&fresh, h, band);
+        let Ok(Pcurve::IsoLine { p0, pl }) = got else {
+            panic!("{h:?}: a sub-seam takes its column: {got:?}")
+        };
+        assert!(
+            pl.x.lo() == 0.0 && pl.y.lo() != 0.0 && [0.0, 1.0].contains(&p0.x.lo()),
+            "{h:?}: on a boundary column, v moving: {p0:?} {pl:?}"
+        );
+    }
+}
