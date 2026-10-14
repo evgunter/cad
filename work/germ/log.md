@@ -1294,3 +1294,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Red at 1e-12:** both `rigid_map_near_eps_approx` rows, with d = 0.05 reaching no refusal. They were already red at `6f2656af50`, before PR 4966 merged, so 4966 is not the cause. Filed on ENCL (P2) as `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main`: PR 5056, merged `e521ff8a2c`.
   - **Not red on main at 1e-6:** `three_solids_on_one_line::an_edge_crossing_both_wedges…` passes; not filed.
 - 2026-10-14 02:26 — Check-in. 5043's fix pass is running (dispatched 02:15). The spiric-lever lane is running its default-ε geom-brep/topo suite. Known reds now include the ENCL rigid-map rows. Re-armed for 03:26.
+- 2026-10-14 03:30 — Check-in.
+  - **PR 5066** (spiric lever near the pinch) opened at head `a30d70bf23`: `piece_speed` reads sin and f together; the winding reads the length at its own piece count; the face lane reads it at 64. Before the fix, 12 loops stayed undecided (1 Zero, 11 Indeterminate) and the lever ran up to 15 050× the arc; after, 1 stays Indeterminate (correct: its true ratio is in the band) and the lever is at most 1.021×.
+    - Graded M. Arm byte 219, mod 3 = 0 → **HOLDOUT** pair. Dispatched r5066a and r5066b concurrently (local Opus; brief sha256 `2cd5cb0e886e`).
+  - **5043**'s fix pass pushed `184cb16195`; hosted test running, body section pending. Re-armed for 04:27.
