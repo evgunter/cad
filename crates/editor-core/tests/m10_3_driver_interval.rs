@@ -65,8 +65,8 @@ use editor_core::drive::{
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
-    LoopProgram, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileLift,
-    ProfileProgram, VarName, evaluate,
+    LoopProgram, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileProgram, VarName,
+    evaluate,
 };
 use geom_core::{Bounds, Interval, Tol};
 
@@ -579,7 +579,6 @@ fn ceiling_at(eps: f64) -> (f64, f64) {
 fn node_failures(doc: &editor_core::ProfileDoc, analyzed: &AnalyzedBox) -> Vec<String> {
     let opts = EvalOptions {
         param_box: Some(std::sync::Arc::new(ParamBox::of(analyzed))),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     let dials = SymbolicDials::default();
@@ -1273,10 +1272,7 @@ fn a_witness_that_does_not_build_refuses_up_front() {
 #[test]
 fn an_unused_box_seam_changes_no_decision() {
     let doc = slab(1.0, 0.0);
-    let opts = EvalOptions {
-        profile_lift: ProfileLift::Guided,
-        ..EvalOptions::default()
-    };
+    let opts = EvalOptions::default();
     let plain = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, Tol::witness());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let boxed = evaluate::<f64>(

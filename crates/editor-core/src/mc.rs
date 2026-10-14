@@ -51,9 +51,7 @@ use geom_core::Tol;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox, sample_offset};
 use crate::doc::Doc;
-use crate::eval::{
-    CancelToken, ContentKey, EvalOptions, Evaluation, ValuePayload, evaluate,
-};
+use crate::eval::{CancelToken, ContentKey, EvalOptions, Evaluation, ValuePayload, evaluate};
 use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;

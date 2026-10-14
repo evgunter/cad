@@ -172,6 +172,19 @@ pub(crate) struct LaneEnv<'a, T> {
     pub nominal: &'a crate::expr::VarEnv<f64>,
 }
 
+impl<T: super::ProfileLane> LaneEnv<'_, T> {
+    /// **The first pass's validated form as this lane's value**, where
+    /// this lane IS the first pass: an `f64` lane whose environment
+    /// binds the nominal ([`super::ProfileLane`]). `None` wherever the
+    /// second pass runs.
+    pub(crate) fn pass_one<'p>(
+        &self,
+        pre: &'p ProfilePre,
+    ) -> Option<&'p profile::ValidatedProfile<T>> {
+        T::pass_one(&pre.validated_f64, self.params, self.nominal)
+    }
+}
+
 impl<T> Clone for LaneEnv<'_, T> {
     fn clone(&self) -> Self {
         *self
@@ -1520,7 +1533,7 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
         });
     };
     let plane = frame_plane_lane(doc, results, frame, lane.params, tol)?;
-    let validated = match T::pass_one(&pre.validated_f64) {
+    let validated = match lane.pass_one(pre) {
         // The `f64` lane IS the first pass, so its validated form is the
         // value, on the plane minted at the lane: no second pass, and
         // the node's log is the first pass's.

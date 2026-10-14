@@ -157,43 +157,30 @@ fn a_rotated_frame_loft_bisects_to_its_budget_under_a_box_elsewhere() {
 }
 
 /// The refusal behind each budget row, one evaluation at `Interval`
-/// with no box: under the guided lift (the drive's) the arc section
-/// and the rotated plane are a few ulps wide and refuse by name; under
-/// the pinned lift both are the `f64` form lifted, and loft.
+/// with no box: the profile is elaborated at the lane, so the arc
+/// section and the rotated plane are a few ulps wide and refuse by
+/// name.
 #[test]
-fn with_no_box_the_guided_lift_refuses_an_arc_section_and_a_rotated_plane() {
-    use editor_core::{NodeErrorKind, ProfileLift};
+fn with_no_box_an_arc_section_and_a_rotated_plane_refuse() {
+    use editor_core::NodeErrorKind;
     use geom_core::Interval;
     use sweep::LoftError;
-    let run = |doc: &editor_core::ProfileDoc, lift| {
+    let run = |doc: &editor_core::ProfileDoc| {
         editor_core::evaluate::<Interval>(
             doc,
             None,
             &editor_core::CancelToken::new(),
-            &editor_core::EvalOptions {
-                profile_lift: lift,
-                ..editor_core::EvalOptions::default()
-            },
+            &editor_core::EvalOptions::default(),
             Tol::witness(),
         )
     };
     let (arc, arc_loft) = loft_doc(circle, [1.0, 0.0, 0.0]);
     let (rotated, rotated_loft) = loft_doc(|| rect(len(1.0)), [0.6, 0.8, 0.0]);
-    for (doc, loft) in [(&arc, arc_loft), (&rotated, rotated_loft)] {
-        let pinned = run(doc, ProfileLift::Pinned);
-        assert!(
-            pinned.node_error(loft).is_none(),
-            "{:?}",
-            pinned.node_error(loft)
-        );
-    }
-    let guided = run(&arc, ProfileLift::Guided);
-    match guided.node_error(arc_loft).map(|e| &e.kind) {
+    match run(&arc).node_error(arc_loft).map(|e| &e.kind) {
         Some(NodeErrorKind::Loft(LoftError::SectionNotAPoint { section: 0 })) => {}
         other => panic!("the arc section is no point at Interval, got {other:?}"),
     }
-    let guided = run(&rotated, ProfileLift::Guided);
-    match guided.node_error(rotated_loft).map(|e| &e.kind) {
+    match run(&rotated).node_error(rotated_loft).map(|e| &e.kind) {
         Some(NodeErrorKind::Loft(LoftError::PlacementNotAPoint { section: 0 })) => {}
         other => panic!("the rotated plane is no point at Interval, got {other:?}"),
     }

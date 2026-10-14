@@ -527,7 +527,6 @@ fn r2_collinear_walls_should_discharge_side_planes_cosurface() {
         );
         let opts = editor_core::EvalOptions {
             param_box: Some(Arc::new(nominal)),
-            profile_lift: editor_core::ProfileLift::Guided,
             ..editor_core::EvalOptions::default()
         };
         geom_core::k_stats::start_recording();

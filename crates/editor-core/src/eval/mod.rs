@@ -3168,16 +3168,24 @@ pub struct EvalOptions {
 /// loop it describes. A decision the lane cannot confirm refuses the
 /// node typed rather than quietly keeping the nominal structure.
 ///
-/// At `f64` the second pass is the first, bit for bit (the PP6 fence),
-/// so the `f64` lane takes the first pass's validated form instead of
-/// running it again: `f64` answers `Some`, every other scalar `None`.
-/// This is a fact about the TYPE, decided by the impl and never by a
-/// number; it carries no value across scalars (`Self` is `f64` where
-/// it answers). Sealed: no scalar outside this crate can claim it.
+/// At `f64`, over an environment that binds the nominal bit for bit,
+/// the second pass is the first, bit for bit (the PP6 fence), so that
+/// lane takes the first pass's validated form instead of running it
+/// again. A box at `f64` whose degenerate axis binds `nominal + c` is
+/// not the first pass's environment, so the second pass runs there. Which
+/// scalar is `f64` is a fact about the TYPE, decided by the impl and
+/// never by a number; it carries no value across scalars (`Self` is
+/// `f64` where it answers). Sealed: no scalar outside this crate can
+/// claim it.
 pub trait ProfileLane: geom_core::Real + profile_lane::Sealed {
-    /// The first pass's validated form as this lane's, where this
-    /// lane is the first pass (`f64`); `None` on every other scalar.
-    fn pass_one(validated: &profile::ValidatedProfile<f64>) -> Option<&profile::ValidatedProfile<Self>>;
+    /// The first pass's validated form as this lane's, where this lane
+    /// is the first pass: `f64`, with `params` binding every variable
+    /// to `nominal`'s bits. `None` on every other scalar.
+    fn pass_one<'p>(
+        validated: &'p profile::ValidatedProfile<f64>,
+        params: &crate::expr::VarEnv<Self>,
+        nominal: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<Self>>;
 }
 
 mod profile_lane {
@@ -3192,8 +3200,32 @@ mod profile_lane {
 }
 
 impl ProfileLane for f64 {
-    fn pass_one(validated: &profile::ValidatedProfile<f64>) -> Option<&profile::ValidatedProfile<f64>> {
-        Some(validated)
+    fn pass_one<'p>(
+        validated: &'p profile::ValidatedProfile<f64>,
+        params: &crate::expr::VarEnv<f64>,
+        nominal: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<f64>> {
+        use crate::expr::ParamValue;
+        let same = |a: &ParamValue<f64>, b: &ParamValue<f64>| match (a, b) {
+            (
+                ParamValue::Continuous { dim, value },
+                ParamValue::Continuous {
+                    dim: other,
+                    value: at,
+                },
+            ) => dim == other && value.to_bits() == at.to_bits(),
+            (ParamValue::Count(n), ParamValue::Count(m)) => n == m,
+            _ => false,
+        };
+        let binds_nominal = params.bindings.len() == nominal.bindings.len()
+            && params
+                .bindings
+                .iter()
+                .zip(&nominal.bindings)
+                .all(|((v, a), (w, b))| v == w && same(a, b))
+            && params.refused == nominal.refused
+            && params.written == nominal.written;
+        binds_nominal.then_some(validated)
     }
 }
 
@@ -3201,13 +3233,21 @@ impl ProfileLane for f64 {
 /// runs, so the profile's decisions are recorded at it.
 #[cfg(feature = "probe")]
 impl ProfileLane for geom_core::Probe {
-    fn pass_one(_: &profile::ValidatedProfile<f64>) -> Option<&profile::ValidatedProfile<Self>> {
+    fn pass_one<'p>(
+        _: &'p profile::ValidatedProfile<f64>,
+        _: &crate::expr::VarEnv<Self>,
+        _: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<Self>> {
         None
     }
 }
 
 impl ProfileLane for geom_core::Interval {
-    fn pass_one(_: &profile::ValidatedProfile<f64>) -> Option<&profile::ValidatedProfile<Self>> {
+    fn pass_one<'p>(
+        _: &'p profile::ValidatedProfile<f64>,
+        _: &crate::expr::VarEnv<Self>,
+        _: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<Self>> {
         None
     }
 }
@@ -3216,7 +3256,11 @@ impl<T: geom_core::Real> ProfileLane for geom_core::Sym<T>
 where
     geom_core::Sym<T>: geom_core::Real,
 {
-    fn pass_one(_: &profile::ValidatedProfile<f64>) -> Option<&profile::ValidatedProfile<Self>> {
+    fn pass_one<'p>(
+        _: &'p profile::ValidatedProfile<f64>,
+        _: &crate::expr::VarEnv<Self>,
+        _: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<Self>> {
         None
     }
 }
@@ -3225,7 +3269,11 @@ impl<T: geom_core::Real> ProfileLane for geom_core::Dual<T>
 where
     geom_core::Dual<T>: geom_core::Real,
 {
-    fn pass_one(_: &profile::ValidatedProfile<f64>) -> Option<&profile::ValidatedProfile<Self>> {
+    fn pass_one<'p>(
+        _: &'p profile::ValidatedProfile<f64>,
+        _: &crate::expr::VarEnv<Self>,
+        _: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<Self>> {
         None
     }
 }
@@ -4306,9 +4354,7 @@ where
     // mode only. If that ever shows up in a profile, the fix is to pass
     // the value through — not to cache it somewhere both readers reach.
     let lane_program = match (node, &profile_pre) {
-        (crate::node::Node::Profile(program), Some(pre))
-            if T::pass_one(&pre.validated_f64).is_none() =>
-        {
+        (crate::node::Node::Profile(program), Some(pre)) if op_env.lane.pass_one(pre).is_none() => {
             match program.resolve(env) {
                 Ok(r) => Some(r),
                 Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),

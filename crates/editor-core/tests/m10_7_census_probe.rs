@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS, SymbolicDials};
-use editor_core::{CancelToken, EvalOptions, ProfileLift, evaluate};
+use editor_core::{CancelToken, EvalOptions, evaluate};
 use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 use geom_core::{SymBudget, Tol};
 
@@ -72,7 +72,6 @@ fn split(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static str, (u64
     );
     let opts = EvalOptions {
         param_box: Some(Arc::new(nominal)),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     start_recording();

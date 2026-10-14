@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileLift, evaluate};
+use editor_core::{CancelToken, EvalOptions, NodeResult, evaluate};
 use geom_core::{SymCounts, SymRules, Tol};
 
 use crate::m10_9_pins_interval::measured_studies;
@@ -113,7 +113,6 @@ fn replay_on_a_thread(
     test_utils::own_thread::caught(move || {
         let opts = EvalOptions {
             param_box: Some(Arc::new(box_)),
-            profile_lift: ProfileLift::Guided,
             ..EvalOptions::default()
         };
         let budget = geom_core::SymBudget {

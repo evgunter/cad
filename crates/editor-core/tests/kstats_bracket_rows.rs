@@ -27,8 +27,8 @@ use std::sync::Arc;
 
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, EvalScalar, Evaluation,
-    Formula, Frame, FreeValue, FreeVar, LoopProgram, Node, NodeResult, ProfileDoc, ProfileLift,
-    ProfileProgram, RecipeNodeId, VarName, evaluate,
+    Formula, Frame, FreeValue, FreeVar, LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram,
+    RecipeNodeId, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step, xy_frame};
@@ -414,13 +414,7 @@ fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass_at_interval() {
 fn under_the_guided_lift_the_ops_decisions_follow_the_pre_pass() {
     let part_doc = part("kstats-order-part", 0.0, 1.0);
     let pinned = run(&part_doc, &EvalOptions::default());
-    let guided = run(
-        &part_doc,
-        &EvalOptions {
-            profile_lift: ProfileLift::Guided,
-            ..EvalOptions::default()
-        },
-    );
+    let guided = run(&part_doc, &EvalOptions::default());
     let profile = profile_node(&part_doc);
     let pinned_log = &pinned
         .value(profile)
