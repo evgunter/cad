@@ -1311,7 +1311,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // moving channel's map, and the fixed channel is a boundary
         // where it is definitely one, else the value the start's foot
         // measures. Offered to the same metre-valued probe, so no UV
-        // quantity reaches ε (D4 ¶1).
+        // quantity reaches ε (D4 ¶1). A foot that will not converge
+        // measures nothing, as at the wall-seam arm: the step is
+        // skipped and the schedule goes on.
         //
         // A measured ROW is offered to every carrier the row space
         // admits in its direction. A measured COLUMN only to a line
@@ -1324,8 +1326,12 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         if deferred.is_none()
             && (row_space.forward || row_space.backward)
             && let (Some(f0), Some(f1)) = (
-                derive_chart_foot(carrier.eval(t0), surface, half_edge)?,
-                derive_chart_foot(carrier.eval(t1), surface, half_edge)?,
+                derive_chart_foot(carrier.eval(t0), surface, half_edge)
+                    .ok()
+                    .flatten(),
+                derive_chart_foot(carrier.eval(t1), surface, half_edge)
+                    .ok()
+                    .flatten(),
             )
         {
             let rising = f1.x > f0.x;
@@ -1484,11 +1490,11 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // **Both directions are offered, and the certification decides.**
         // A LINE carrier's class reads no control net, so a line that
         // traverses the chart's `v` backwards certifies on its backward
-        // column. A SPLINE carrier's class meters its parameter map
-        // against the identity and its control hull against the
-        // boundary row's own ordering, so a spline traversing `v`
-        // backwards refuses at certification (the envelope) rather than
-        // charting. Either way the candidate offered is the image the
+        // column. A SPLINE carrier's class compares its net with the
+        // column's in one spline space, so a spline traversing `v`
+        // backwards certifies on its backward column when its knots are
+        // the column's exact reflection, and refuses ("not the chart's
+        // own column") otherwise. Either way the candidate offered is the image the
         // carrier actually has, not a forward one that fits the class
         // and states the wrong traversal.
         //
