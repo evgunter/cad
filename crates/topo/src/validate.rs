@@ -8624,8 +8624,9 @@ fn segments_meet<T: Decide>(
             }
             // The radical line's foot on the centre line, and the
             // half-chord either side of it. A secant's half-chord is
-            // read unclamped: its four factors are the margins just
-            // decided definite, so its square is positive at every
+            // read unclamped: two of its four factors are the margins
+            // just decided definite and the other two are sums of
+            // non-negatives, so its square is positive at every
             // scalar. At a tangency, or with the existence margin in
             // the band, the foot is the touching point and the chord
             // ends are asked too, as on a line; there the circles may
