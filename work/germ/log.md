@@ -1414,3 +1414,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - the Boolean's gap refusal is rendered as `PierceCurvature` in A's fixture; route not traced, not reproduced by B;
     - `cap_transverse` reads the plane × cylinder pose itself;
     - a few cone gap poses refuse at the cap edge's plane-parallel question, at a shorter lever than the table's.
+- 2026-10-14 20:05 — **PR 5164 merged** (`d2330733e0`). Orchestrator's read, no row: one test fn plus tracker items.
+  - It closes the steep-frustum endpoint item as fixed by #5043.
+  - Row `steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt` is red against the pre-5043 arm at unset and 1e-12. At 1e-12 it has two fixed-threshold skips, each naming its filed item.
+  - Filed: `a-flat-frustums-revolve-refuses-its-rim-image-at-1e-12` (GERM) and FLUX's `props-cone-ellipse-elevation-over-reads-a-section-ellipse-by-twenty-fold`.
+  - Locally on head + main: `reach_cone_split` 7/7 at 3 ε (two expected skips at 1e-12). Hosted CI green.
+  - NIT, left: the skips won't go red when their items are fixed.
