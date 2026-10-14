@@ -1088,48 +1088,51 @@ pub(crate) fn unglued_coincidence(
 
 /// **An unglued pair a corner reads one carrier, refused on the reading
 /// that binds it**: the one whose clearing the operation waits on.
-/// `corner` is the corner's own refusal, on its standing off two
-/// carriers it lies on, which no tolerance clears. Two readings can be
-/// cleared:
 ///
 /// - `bounds`, the sector's bounds' reading off the other carrier
-///   ([`sectors::BoolSector::bounds_off`]): a smaller tolerance reads the
-///   sector off it, and the corner with it ([`Coincide::Sectors`]);
-/// - the glue door's in-band reading over both faces
-///   ([`GluedPairs::door_refusal`]): one that decides Zero glues the
-///   pair.
+///   ([`sectors::BoolSector::bounds_off`]), where a smaller tolerance a run
+///   admits decides it: that tolerance reads the sector off the carrier
+///   and the corner with it ([`Coincide::Sectors`]).
+/// - Else the glue door's in-band reading over both faces
+///   ([`GluedPairs::door_refusal`]): the sector lies on the other carrier
+///   at every tolerance, and only a glue clears the pair. The door's
+///   reading never offers a tolerance itself (a margin in band shows no
+///   size a smaller tolerance passes), so it is never weighed against the
+///   bounds.
+/// - Else `corner`, the corner's own refusal, on its standing off two
+///   carriers it lies on.
 ///
-/// Of those whose margin a smaller tolerance decides, the refusal quotes
-/// the one that binds first ([`MarginDiag::binds_before`]): the bounds'
-/// offer, where they bind, decides the door's reading too, and a door
-/// that binds first is named with its own recourse rather than an
-/// offer that leaves it in band. Where neither is decided by a
-/// tolerance, the sector lies on the other carrier at every tolerance
-/// and only a glue clears the pair: the door's reading, where the door
-/// read the pair in band, else `corner`.
+/// Both arms reach here only for a planar pair: an undeclared curved
+/// pair keeps its frontier refusal before the ladder runs.
 pub(crate) fn unglued_corner<T: Real>(
     declared: &GluedPairs<T>,
     pair: (Operand, FaceKey, Operand, FaceKey),
     senses: Option<CarrierRelation>,
-    corner: BooleanError,
     bounds: Option<Indeterminate>,
+    corner: impl FnOnce() -> BooleanError,
 ) -> BooleanError {
-    let offers = |diag: Option<Indeterminate>| diag.filter(Indeterminate::offers_tolerance);
-    let door = declared.door_refusal(pair, senses);
-    let bounds_bind = match (offers(bounds), offers(door.as_ref().map(|(d, _)| *d))) {
-        (Some(b), Some(d)) => b.margin.binds_before(d.margin),
-        (Some(_), None) => true,
-        (None, _) => false,
-    };
-    match (bounds, door) {
-        (Some(diag), _) if bounds_bind => {
-            let admitted = senses.and_then(GlueClass::of_senses);
-            let read = declared.read(&[pair], Coincide::Sectors, admitted.as_slice());
-            BooleanError::coincidence(Coincide::Sectors, read, diag)
-        }
-        (_, Some((_, door))) => door,
-        _ => corner,
+    match bounds.filter(Indeterminate::offers_tolerance) {
+        Some(diag) => BooleanError::coincidence(
+            Coincide::Sectors,
+            sectors_read(declared, pair, senses),
+            diag,
+        ),
+        None => declared.door_refusal(pair, senses).unwrap_or_else(corner),
     }
+}
+
+/// **What a sector's coplanar refusal reads of the pair's declaration**
+/// ([`Coincide::Sectors`]): the one-carrier class the pair's `senses` make
+/// it, which would bridge the residue against a planar face. A caller
+/// passes `None` where no class settles it: a tilt decided off, or a
+/// pierced face that is not a plane.
+pub(crate) fn sectors_read<T: Real>(
+    declared: &GluedPairs<T>,
+    pair: (Operand, FaceKey, Operand, FaceKey),
+    senses: Option<CarrierRelation>,
+) -> DeclarationRead {
+    let admitted = senses.and_then(GlueClass::of_senses);
+    declared.read(&[pair], Coincide::Sectors, admitted.as_slice())
 }
 
 /// An undecided coincidence measure between `pair` as the Boolean
@@ -1511,32 +1514,28 @@ impl<T: Real> GluedPairs<T> {
     }
 
     /// **The glue door's refusal of a pair it read in band**, in its
-    /// words at the pair's door ([`PlaneDoor::OnPair`]), with the
-    /// reading it quotes; `None` where the door decided the pair or
-    /// never read it. `senses` is the orientation the caller read of
-    /// the two faces, which a rung's door admits a class by.
+    /// words at the pair's door ([`PlaneDoor::OnPair`]); `None` where the
+    /// door decided the pair or never read it. `senses` is the
+    /// orientation the caller read of the two faces, which a rung's door
+    /// admits a class by.
     fn door_refusal(
         &self,
         pair: (Operand, FaceKey, Operand, FaceKey),
         senses: Option<CarrierRelation>,
-    ) -> Option<(Indeterminate, BooleanError)> {
+    ) -> Option<BooleanError> {
         let (o1, f1, o2, f2) = pair;
         let reading = *self.in_band.get(&Self::key(o1, f1, o2, f2)?)?;
         Some(match reading {
-            DoorReading::Rung { rung, diag } => (
-                diag,
-                BooleanError::plane_identity(rung, self.on_pair_door(pair, senses), diag),
-            ),
+            DoorReading::Rung { rung, diag } => {
+                BooleanError::plane_identity(rung, self.on_pair_door(pair, senses), diag)
+            }
             DoorReading::Coincidence {
                 coincidence,
                 relation,
-            } => (
-                coincidence.reported(),
-                undecided_coincidence(
-                    coincidence,
-                    [(o1, f1), (o2, f2)],
-                    self.carriers_read(pair, relation),
-                ),
+            } => undecided_coincidence(
+                coincidence,
+                [(o1, f1), (o2, f2)],
+                self.carriers_read(pair, relation),
             ),
         })
     }

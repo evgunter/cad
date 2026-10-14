@@ -116,11 +116,33 @@ carrier, on the corner's own offset margin, which no tolerance clears:
 The glue door keeps what it read of each pair it leaves in band
 (`Glue::in_band`, `glue.rs`), and a corner that reads an unglued pair
 one carrier refuses through `boolean::unglued_corner` (`mod.rs`, called
-from `vtxfac.rs` and `recl.rs`): of the sector's bounds' reading
+from `vtxfac.rs` and `recl.rs`): the sector's bounds' reading
 (`BoolSector::bounds_off`, `sectors.rs`, the one home of the steeper
-bound's departure) and the door's in-band reading, the one a smaller
-tolerance decides and that binds first; where neither is decided by a
-tolerance, the door's reading, else the corner's own. a7 now names the
+bound's departure) where a tolerance a run admits decides it, else the
+door's in-band reading, else the corner's own. The door's reading never
+offers a tolerance (a margin in band shows no size), so the two are
+never weighed against each other. One admission rule
+(`boolean::sectors_read`) serves every `Coincide::Sectors` refusal. a7 now names the
 door's `bool_plane_offset` (pin moved); the wedge poses name the bounds,
 and `offer_rows`' `flat_wedge_*` rows execute the offer (true at every
 opening, T1 standing, T2 sunk past a true `CrossingInsertion` offer).
+
+## Found beside it (the review of PR 5008)
+
+A pose whose pair glues refuses its union `ResultVolumeImplausible` on
+rounding-sized excess. That is CLEAVE's
+`a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop`
+shape, but that row lives only on unmerged branches (`flush/given-gate`,
+`contacthold/fold-step-face-face-row`). So the evidence is recorded here,
+for whoever lands the row to carry it over.
+
+- Standing wedge, block `[0,3] × [-2,2.5] × [0,1]`, wedge lengths 1,
+  measured on `e0fed17b`.
+- At ε 1e-9, θ 2e-12, every φ ∈ {2, 5, 20, 60, 90}° refuses in both
+  orders (`got` 14.366025403784464 against `bound` 14.36602540378444 at
+  60°; 14.500000000000034 against 14.5 at 90°).
+- At ε 2e-11, θ 5e-12 it refuses the same way (got minus bound 5e-15 to
+  8e-14).
+- The glue closes the wedge face's Zero-band tilt onto the block's top,
+  and the union backstop (`volume_backstop`, `ops.rs`) has no slack for
+  the volume that closes.

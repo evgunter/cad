@@ -844,21 +844,14 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             // lane refutes the tangency, and also where its reading refuses
             // or escalates, which it swallows (filed:
             // `work/contacthold/the-glue-doors-tangency-swallows-its-escalations.md`).
-            let admitted: Vec<GlueClass> = plane
-                .is_some()
-                .then(|| {
-                    super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band)
-                        .and_then(GlueClass::of_senses)
-                })
-                .flatten()
-                .into_iter()
-                // A decided tilt admits no class: no declaration settles it.
-                .filter(|_| !decided_tilt)
-                .collect();
-            let read = declared.read(
-                &[(piercing, s.face, pierced_op, contact.face)],
-                Coincide::Sectors,
-                &admitted,
+            // A decided tilt admits no class: no declaration settles it.
+            let senses = (plane.is_some() && !decided_tilt)
+                .then(|| super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band))
+                .flatten();
+            let read = super::sectors_read(
+                declared,
+                (piercing, s.face, pierced_op, contact.face),
+                senses,
             );
             return match s.bounds_off(n_pierced.vec(), band) {
                 Err(diag) => Err(BooleanError::coincidence(Coincide::Sectors, read, diag)),
@@ -995,6 +988,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(p, s.span()))
         };
         let pair = (piercing, s.face, pierced_op, contact.face);
+        let senses = super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band);
         let rel = match super::carrier_eq::carrier_eq_reading(
             &sector_carrier,
             &pierced_carrier,
@@ -1014,22 +1008,24 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             // One plane at the sector's arm, for a pair the glue door
             // did not glue over the faces.
             Ok((rel, _, margin)) => {
-                let corner = super::unglued_coincidence(
-                    // A reading with no margin is one carrier by structure (one key,
-                    // or bit-identical descriptions), which the glue door glues
-                    // wherever the two faces meet, as they do at this corner.
-                    margin.ok_or(BooleanError::ClassificationInvariant {
-                        what: "a corner pair one carrier by structure the glue door left unglued",
-                    })?,
-                    declared.carriers_read(pair, rel),
-                    band,
-                );
                 return Err(super::unglued_corner(
                     declared,
                     pair,
-                    super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band),
-                    corner,
+                    senses,
                     s.bounds_off(n_pierced.vec(), band).err(),
+                    // A reading with no margin is one carrier by structure (one key,
+                    // or bit-identical descriptions), which the glue door glues
+                    // wherever the two faces meet, as they do at this corner.
+                    || match margin {
+                        Some(margin) => super::unglued_coincidence(
+                            margin,
+                            declared.carriers_read(pair, rel),
+                            band,
+                        ),
+                        None => BooleanError::ClassificationInvariant {
+                            what: "a corner pair one carrier by structure the glue door left unglued",
+                        },
+                    },
                 ));
             }
             // In band, unreachable here: `bool_sector_coplanar` read
@@ -1040,10 +1036,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Err(PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
-                    declared.on_pair_door(
-                        pair,
-                        super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band),
-                    ),
+                    declared.on_pair_door(pair, senses),
                     diag,
                 ));
             }

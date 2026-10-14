@@ -157,16 +157,6 @@ pub(super) fn require_same<T: Decide>(
         }),
         Ok((rel, ..)) if declared_one_carrier => Ok(rel),
         Ok((rel, _, margin)) => {
-            let corner = super::unglued_coincidence(
-                // A reading with no margin is one carrier by structure (one key,
-                // or bit-identical descriptions), which the glue door glues
-                // wherever the two faces meet, as they do at this corner.
-                margin.ok_or(BooleanError::ClassificationInvariant {
-                    what: "a corner pair one carrier by structure the glue door left unglued",
-                })?,
-                declared.carriers_read(pair, rel),
-                band,
-            );
             let bounds = match &c2 {
                 CarrierDesc::Plane { normal, .. } => s1.bounds_off(*normal, band).err(),
                 _ => None,
@@ -175,8 +165,18 @@ pub(super) fn require_same<T: Decide>(
                 declared,
                 pair,
                 super::plane_eq::senses(s1.normal.vec(), s2.normal.vec(), arm, band),
-                corner,
                 bounds,
+                // A reading with no margin is one carrier by structure (one key,
+                // or bit-identical descriptions), which the glue door glues
+                // wherever the two faces meet, as they do at this corner.
+                || match margin {
+                    Some(margin) => {
+                        super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band)
+                    }
+                    None => BooleanError::ClassificationInvariant {
+                        what: "a corner pair one carrier by structure the glue door left unglued",
+                    },
+                },
             ))
         }
         Err(PlaneEqError::Escalated { rung, diag }) => Err(BooleanError::plane_identity(
@@ -266,7 +266,8 @@ fn unglued_tilt<T: Decide>(
     match s1.bounds_off(*n2, band) {
         Err(diag) => BooleanError::coincidence(
             Coincide::Sectors,
-            declared.read(&[(o1, f1, o2, f2)], Coincide::Sectors, &[]),
+            // A tilt decided off admits no class: no declaration settles it.
+            super::sectors_read(declared, (o1, f1, o2, f2), None),
             diag,
         ),
         Ok(_) => BooleanError::ClassificationInvariant {

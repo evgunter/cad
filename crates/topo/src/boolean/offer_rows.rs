@@ -2701,7 +2701,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
-    ("mod.rs", "unglued_corner", "Coincide::Sectors", 2),
+    ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
+    ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (
         "mod.rs",
@@ -2810,7 +2811,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
     ("recl.rs", "resolve_edge_sector", "Coincide::TangentSide", 1),
-    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 2),
+    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 1),
     ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
         "reduce.rs",
@@ -2964,7 +2965,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "vtxfac.rs",
         "classify_vertex_on_face",
         "Coincide::Sectors",
-        2,
+        1,
     ),
     (
         "vtxfac.rs",

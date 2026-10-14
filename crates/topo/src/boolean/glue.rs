@@ -36,7 +36,10 @@ use crate::contact::GlueClass;
 use crate::entity::FaceKey;
 
 /// `decls` with every undeclared pair the operation decides one carrier
-/// added under its class, in A's face order and B's within each.
+/// added under its class, and every pair it reads in band added to
+/// [`Glue::in_band`] with that reading, each in A's face order and B's
+/// within each. `decls` itself comes back where neither adds anything,
+/// and an owned copy where either does, an in-band pair alone included.
 ///
 /// # Errors
 ///
