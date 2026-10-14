@@ -362,8 +362,8 @@ impl<T: Decide> Body<T> {
             // as definitely interior is truly clear of the endpoints in
             // meters. The stored semi-axes carry no order
             // (`geom_brep::Conic`); it is `minor` in the ordinary order.
-            geom::Curve3::Ellipse { major, minor, .. } => {
-                InfSpeed::new(major.abs().min(minor.abs()))
+            geom::Curve3::Ellipse { semi_u, semi_v, .. } => {
+                InfSpeed::new(geom::Curve3::semi_axes_by_size(semi_u, semi_v).1)
             }
             // The general rung (M5 PR 7, C12.3): a fitted SSI carrier
             // is metered at the CERTIFIED LOWER BOUND on ‖C′(t)‖ —

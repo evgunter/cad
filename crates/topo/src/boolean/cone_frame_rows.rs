@@ -106,7 +106,7 @@ fn shape(frame: &Frame) -> String {
         }
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::RadiusEscalated { .. }) => "radius escalated".into(),
-        Err(FrameError::IntersectingCylinderAxes { .. }) => "pinch".into(),
+        Err(FrameError::CylinderNodes) => "cylinder nodes".into(),
         Err(FrameError::Spiric { loops, .. }) => format!("spiric {loops:?}"),
     }
 }
