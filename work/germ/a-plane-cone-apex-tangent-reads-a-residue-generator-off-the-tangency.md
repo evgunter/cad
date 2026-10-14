@@ -4,6 +4,7 @@ kind: issue
 title: a plane through a cone's apex, tangent within the band from inside, returns one of the residue's two generators as its tangent line
 status: review
 branch: germ/pn-apex-tangent-generator
+pr: 5152
 opened: 2026-10-06
 priority: P3
 cost: E
