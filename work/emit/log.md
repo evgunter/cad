@@ -2351,3 +2351,22 @@ The PR merged with `demos` red on that drift alone.
 - Style: the README sentence was dropped (it was already implied by N3 and N5); topo's `BooleanErrorKind` doc was corrected; the skip rule now lives in one place.
 
 **Nothing moved** apart from those diagnoses.
+
+## 2026-10-14 — PR 5139: borders lineage; notch and pocket-floor rows measured
+
+**Closed: `a-booleans-same-step-split-and-join-loses-the-childs-lineage`.**
+- A new topo record, `BooleanNaming::joined_lineage` (record only), maps each edge the output-stage join kills to the edge it was split from.
+- The boolean and the Split now share the helpers `edge_join::split_records` and `edge_join::record_joined_lineage`, which keep the two-parent assert.
+- `borders.rs` reads the record. Every `split_from` write goes through `note_split`, an agreeing `entry` write.
+- No name moved. A whole-suite probe found no change in which discards each piece reaches.
+
+**Measured and stopped on design** (`design: true`):
+- `a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex`. The notch pins are named `…_read_as_one_obstacle_today`.
+- `a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere`. The pocket-floor pin is `#[ignore]`d.
+- Both questions went to the blinded designer pair `emit-notch-floor`.
+
+**Still open:** `a-face-whose-discarded-fragments-share-a-chord-has-no-fixture`, which no fixture reaches yet.
+
+**Filed:** `a-booleans-merge-stage-kills-split-records-no-row-copies`.
+
+**Process.** The lane's 11G target, together with two designer builds, brought `/` down to 7G free. The fold round skipped its workspace build, and the target was deleted once the fold was pushed.

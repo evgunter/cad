@@ -394,7 +394,14 @@ fn declared(
     let (plane, _) = ground();
     let carrier =
         crate::shared::fixture::segment(Point3::new(0.0, from, 0.0), Point3::new(0.0, to, 0.0));
-    geom_brep::plane_nurbs_limbs::<f64>(&carrier, &plane, wall, 1.0, band())
+    geom_brep::plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        wall,
+        1.0,
+        band(),
+    )
 }
 
 /// A declared carrier that must not certify: refused by limb 3's one-arc
@@ -629,8 +636,14 @@ fn a_flush_side_on_a_conical_or_twisted_wall_certifies() {
         ];
         let wall = NurbsSurface::new(arc, lin(), control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap();
         let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(r1, 0.0, 1.0));
-        let got =
-            geom_brep::plane_nurbs_limbs::<f64>(&carrier, &transverse_plane(), &wall, 1.0, band());
+        let got = geom_brep::plane_nurbs_limbs::<f64>(
+            &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            carrier.knot_values().domain(),
+            &transverse_plane(),
+            &wall,
+            1.0,
+            band(),
+        );
         assert!(got.is_ok(), "the frustum r₁ = {r1}, ε {:e}: {got:?}", eps());
     }
     let ramp = NurbsSurface::new(
@@ -647,7 +660,14 @@ fn a_flush_side_on_a_conical_or_twisted_wall_certifies() {
     .unwrap();
     let (plane, _) = ground();
     let carrier = segment(Point3::new(0.0, 0.2, 0.0), Point3::new(0.0, 0.8, 0.0));
-    let got = geom_brep::plane_nurbs_limbs::<f64>(&carrier, &plane, &ramp, 1.0, band());
+    let got = geom_brep::plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        &ramp,
+        1.0,
+        band(),
+    );
     assert!(got.is_ok(), "the ramp, ε {:e}: {got:?}", eps());
 }
 

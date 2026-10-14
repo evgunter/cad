@@ -1473,6 +1473,22 @@ pub enum EqualCylinderSection<T: Real> {
         e1: Curve3<T>,
         /// The ellipse in the `a1 + a2`-normal bisector plane.
         e2: Curve3<T>,
+        /// The two coincidences decided Zero to reach them, read off
+        /// their decisions: the radii equal (`cc_radius_equality`), then
+        /// the axes meeting (`cc_axes_coplanar`).
+        margins: [MarginDiag; 2],
+        /// The two NODES, where the ellipses cross: `p ∓ r·û`, `p` the
+        /// axes' meeting point and `û = unit(a1 × a2)`. The first is
+        /// `e1` at parameter `π/2` and `e2` at `−π/2`, the second `e1`
+        /// at `−π/2` and `e2` at `π/2` (the minor vertices of both).
+        /// The walls are tangent there, their common tangent plane
+        /// spanned by the axes, and the ellipses cross square, along
+        /// `a1 + a2` (`e1`) and `a1 − a2` (`e2`). Round a node each
+        /// wall's four sectors between the four arcs alternate sides of
+        /// the other solid: on wall 1 the sectors about `±a1` lie outside
+        /// wall 2 and those about `±a2` inside it; on wall 2 the same
+        /// sectors, the other way round.
+        nodes: [Point3<T>; 2],
     },
     /// Parallel axes, gap definitely < r₁ + r₂: two parallel rulings.
     ParallelLines {
@@ -1548,9 +1564,9 @@ pub fn cylinder_cylinder_section<T: Decide>(
     };
 
     // 1. Equal radii, decided by their margin.
-    match decide("cc_radius_equality", Margin::of(r1 - r2), band)
-        .map_err(SectionError::Escalated)?
-    {
+    let radii = decide_reported("cc_radius_equality", Margin::of(r1 - r2), band)
+        .map_err(SectionError::Escalated)?;
+    match radii.sign {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => return Err(SectionError::UnequalRadii),
     }
@@ -1604,9 +1620,9 @@ pub fn cylinder_cylinder_section<T: Decide>(
         }
         Sign::Positive | Sign::Negative => {
             // Crossing lane: coplanarity (intersecting vs skew).
-            match cylinder_axes_coplanar(reach, (o1, a1), (o2, a2), band)
-                .map_err(SectionError::Escalated)?
-            {
+            let meet = cylinder_axes_coplanar_reported(reach, (o1, a1), (o2, a2), band)
+                .map_err(SectionError::Escalated)?;
+            match meet.sign {
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => {
                     return Err(SectionError::RoutesToGeneralRung {
@@ -1635,9 +1651,12 @@ pub fn cylinder_cylinder_section<T: Decide>(
                 let u_major = v_minor.cross(n);
                 Ok(Curve3::ellipse(p, n, r1 / c.abs(), r1, u_major, band)?)
             };
+            let off = cross * (r1.abs() / cross.norm());
             Ok(EqualCylinderSection::TwoEllipses {
                 e1: mk(n1)?,
                 e2: mk(n2)?,
+                margins: [radii.margin, meet.margin],
+                nodes: [p - off, p + off],
             })
         }
     }
@@ -1754,9 +1773,23 @@ pub fn cylinder_axes_coplanar<T: Decide>(
     line2: (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Sign, Indeterminate> {
+    cylinder_axes_coplanar_reported(reach, line1, line2, band).map(|d| d.sign)
+}
+
+/// [`cylinder_axes_coplanar`], keeping the margin it decided on.
+///
+/// # Errors
+///
+/// As [`cylinder_axes_coplanar`].
+pub fn cylinder_axes_coplanar_reported<T: Decide>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<Decided, Indeterminate> {
     let (_, w) = axes_feet(reach, line1, line2);
     let cross = line1.1.cross(line2.1);
-    decide(
+    decide_reported(
         "cc_axes_coplanar",
         Margin::of(w.dot(cross) / cross.norm()),
         band,
@@ -2645,7 +2678,7 @@ pub enum PlaneTorusSection<T: Real> {
         c2: Curve3<T>,
     },
     /// Axis-parallel plane OFF the axis, short of the inner equator
-    /// (`0 < |d| < R − r` for the stand-off `d = n·q − n·c`): the
+    /// (`0 < |d| < R − r` for the stand-off `d = n·(q − c)`): the
     /// spiric's TWO ovals, each the [`Curve3::Spiric`]
     /// [`Curve3::spiric`] mints from the torus and the plane's normal. Zero-residual-by-construction
     /// against both implicit forms in ℝ.
@@ -2708,9 +2741,9 @@ pub enum PlaneTorusSection<T: Real> {
 /// 2. `pt_axis_in_plane` — margin `(a·n)·extent` (the axis' angle off
 ///    the plane, metered at the operand extent): Zero ⇒ the axis
 ///    DIRECTION lies in the plane; then `pt_axis_plane_gap` — margin
-///    the stand-off `d = n·q − n·c` (meters, the plane's constant less
-///    the centre's), read with the meridian circles' lean `r·(a·n)`
-///    beside it ([`decide_across`]): Zero ⇒ the plane CONTAINS the
+///    the stand-off `d = n·(q − c)` (meters, the plane's origin less
+///    the centre, read along the normal), read with the meridian
+///    circles' lean `r·(a·n)` beside it ([`decide_across`]): Zero ⇒ the plane CONTAINS the
 ///    axis ⇒ [`PlaneTorusSection::MeridianCircles`], each standing at
 ///    most that sum off the plane; definite (`pt_axis_plane_gap_floor`) ⇒ the
 ///    axis-parallel plane OFF the axis, and then `pt_spiric_two_ovals`
@@ -2804,7 +2837,7 @@ pub fn plane_torus_section<T: Decide>(
             // `r·|a·n|` more, so the two are decided as one sum. An oval
             // is minted in a plane that the tilt moves off the real one
             // by up to the levered tilt, read beside its own gap.
-            let d = n.dot(q - Point3::origin()) - n.dot(c - Point3::origin());
+            let d = n.dot(q - c);
             match decide_across(
                 ["pt_axis_plane_gap", "pt_axis_plane_gap_floor"],
                 d,
@@ -2883,7 +2916,7 @@ pub fn plane_torus_section<T: Decide>(
                     // and the plane's depth into the tube moves by at
                     // most as much across them: the cap gap is decided
                     // beside it.
-                    let h = (n.dot(q - Point3::origin()) - n.dot(c - Point3::origin())) / a.dot(n);
+                    let h = n.dot(q - c) / a.dot(n);
                     let center = c + a * h;
                     match decide_across(
                         ["pt_cap_gap", "pt_cap_gap_floor"],

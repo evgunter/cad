@@ -805,6 +805,12 @@ fn require_chord_adjacent<T: Real>(
     require_description_adjacent(None, &spec.description, [Slot::Kept(old), after])
 }
 
+/// The lever of an edge at rest whose faces' join reads in band or mixed
+/// along it ([`EulerOpError::RestJoinUndecided`],
+/// [`EulerOpError::RestJoinMixed`]).
+pub(crate) const REST_JOIN_LEVER: &str =
+    "move the geometry so the faces meet clearly smoothly or clearly at a corner along the edge";
+
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
 /// body is untouched whenever one of these is returned (the operators
 /// are atomic).
@@ -1232,46 +1238,74 @@ pub enum EulerOpError {
         /// The in-band/poisoned margin diagnostics.
         diag: geom_core::Indeterminate,
     },
-    /// [`Body::split_edge`] of a tangent edge: whether a child stays
-    /// tangent along its own span is in band, at a station of the
-    /// must-carry rule over the child
+    /// [`Body::split_edge`] of a smooth edge — a tangency, or a pair its
+    /// faces under-determine (`OnPair`): whether a child stays smooth
+    /// along its own span is in band, at a station of the must-carry
+    /// rule over the child
     /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
     ///
-    /// Unreached: the dihedral escalates on its arm only over a child
-    /// whose extent lies inside the band, and the interiority gate
-    /// refuses such a child first; along a ruling, the tangent edge the
-    /// kernel's doors mint, both normals are constant, so a child
-    /// station reads the dihedral the parent's certificate read.
-    SplitTangentEscalated {
+    /// Unreached for a tangency: the dihedral escalates on its arm only
+    /// over a child whose extent lies inside the band, and the
+    /// interiority gate refuses such a child first; along a ruling, the
+    /// tangent edge the kernel's doors mint, both normals are constant,
+    /// so a child station reads the dihedral the parent's certificate
+    /// read. A pair's certificate is incidence alone, so over a pair's
+    /// child this is the rule's own answer.
+    SplitSmoothEscalated {
         /// The edge being split.
         edge: EdgeKey,
         /// The deciding station's diagnostic.
         diag: geom_core::Indeterminate,
     },
-    /// [`Body::split_edge`] of a tangent edge: whether the two faces
-    /// curve apart along a child or share their curvature there is in
-    /// band (`"tangent_second_order"`,
+    /// [`Body::split_edge`] of a smooth edge (a tangency or a pair):
+    /// whether the two faces curve apart along a child or share their
+    /// curvature there is in band (`"tangent_second_order"`,
     /// [`geom_brep::MustCarryEscalation::SecondOrder`]). The rule meters
     /// the sagitta over the child's own extent, so a short child can be
     /// in band where its parent was jet-determinate: the child is
-    /// certifiable as neither the tangency nor a chart image (D4 ¶3).
-    SplitTangentBendEscalated {
+    /// certifiable as neither the tangency nor the pair (D4 ¶3).
+    SplitSmoothBendEscalated {
         /// The edge being split.
         edge: EdgeKey,
         /// The sagitta's diagnostic.
         diag: geom_core::Indeterminate,
     },
-    /// [`Body::split_edge`] of a tangent edge: a station of the
-    /// must-carry rule over a child reads the two faces at a corner
-    /// ([`geom_brep::MustCarryRefusal::Refuted`]), against the tangency
-    /// the parent's certificate holds along the whole edge.
+    /// [`Body::split_edge`] of a smooth edge (a tangency or a pair): a
+    /// station of the must-carry rule over a child reads the two faces
+    /// at a corner ([`geom_brep::MustCarryRefusal::Refuted`]), against
+    /// the smooth join the parent's description states.
     ///
-    /// Unreached, for the reason [`Self::SplitTangentEscalated`] is: a
-    /// child's arm is no longer than its parent's, so a station the
-    /// certified parent holds smooth cannot read definitely transverse.
-    SplitTangentRefuted {
+    /// Unreached for a tangency, for the reason
+    /// [`Self::SplitSmoothEscalated`] is: a child's arm is no longer
+    /// than its parent's, so a station the certified parent holds smooth
+    /// cannot read definitely transverse. Over a pair's child, whose
+    /// parent certified incidence alone, it is the rule's own answer.
+    SplitSmoothRefuted {
         /// The edge being split.
         edge: EdgeKey,
+        /// The two neighbouring stations that disagree, where a child
+        /// reads smooth at one ([`geom_brep::MustCarryRefusal::Mixed`]);
+        /// `None` where every station reads a corner.
+        mixed: Option<geom_brep::MixedStations>,
+    },
+    /// [`Body::describe_at_rest`] of an edge between two distinct
+    /// surfaces: a station of the must-carry rule over it is in band
+    /// ([`geom_brep::reask_pair`]), certifiable as neither the pair nor
+    /// what its surfaces would determine.
+    RestJoinUndecided {
+        /// The edge being described.
+        edge: EdgeKey,
+        /// The deciding station's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
+    /// [`Body::describe_at_rest`] of an edge between two distinct
+    /// surfaces: the must-carry rule over it reads a corner at one
+    /// station and smooth at its neighbour (D2's mixed edge).
+    RestJoinMixed {
+        /// The edge being described.
+        edge: EdgeKey,
+        /// The two neighbouring stations that disagree.
+        stations: geom_brep::MixedStations,
     },
     /// [`Body::split_edge`] could not carry a parent half-edge's stored
     /// **pcurve row** across the split: the parent's chart image,
@@ -1314,10 +1348,11 @@ pub enum EulerOpError {
     /// killed half whole by is not decided at the door's band, so the
     /// joint the kill bridges across it has no element to write. Either
     /// whether the half's ends meet escalated, or they meet and the
-    /// joint decision there missed: a mark at the vertex escalated, or
-    /// the gap reads on a mark and meets no orbit point the near-pole
-    /// read tries at the vertex's lever, or the periods lie past the
-    /// branch reach. Raised in the plan phase, so the body is untouched.
+    /// joint decision there missed: a mark or a near-pole offset at the
+    /// vertex escalated, or the gap reads on a mark and is decided off
+    /// every orbit point the near-pole read tries at the vertex's lever,
+    /// or the periods lie past the branch reach. Raised in the plan
+    /// phase, so the body is untouched.
     KillTurnUndecided {
         /// The killed half-edge whose turn was not decided.
         half_edge: HalfEdgeKey,
@@ -1586,25 +1621,41 @@ impl EulerOpError {
                     )),
                 )
                 .to_string(),
-            Self::SplitTangentEscalated { diag, .. } => diag
+            Self::SplitSmoothEscalated { diag, .. } => diag
                 .undecided(
-                    "whether a piece of a split tangent edge stays tangent along its span",
-                    diag.ending(crate::split::TANGENT_PIECE_LEVER),
+                    "whether a piece of a split smooth edge stays smooth along its span",
+                    diag.ending(crate::split::SMOOTH_PIECE_LEVER),
                 )
                 .to_string(),
-            Self::SplitTangentBendEscalated { diag, .. } => diag
+            Self::SplitSmoothBendEscalated { diag, .. } => diag
                 .undecided(
-                    "whether the faces of a piece of a split tangent edge curve apart along it \
+                    "whether the faces of a piece of a split smooth edge curve apart along it \
                      or share their curvature there",
-                    diag.ending(crate::split::TANGENT_PIECE_LEVER),
+                    diag.ending(crate::split::SMOOTH_PIECE_LEVER),
                 )
                 .to_string(),
-            Self::SplitTangentRefuted { .. } => format!(
-                "a piece of a split tangent edge reads a corner at a station along it, against \
-                 the tangency the edge certified, so what that piece is cannot be said. \
-                 Recourse: {}",
-                crate::split::TANGENT_PIECE_LEVER
+            Self::SplitSmoothRefuted {
+                mixed: Some(stations),
+                ..
+            } => format!(
+                "along a piece of a split smooth edge, {stations}. Recourse: {}",
+                crate::split::SMOOTH_PIECE_LEVER
             ),
+            Self::SplitSmoothRefuted { mixed: None, .. } => format!(
+                "a piece of a split smooth edge reads a corner at every station along it, against \
+                 the smooth join the edge states, so what that piece is cannot be said. \
+                 Recourse: {}",
+                crate::split::SMOOTH_PIECE_LEVER
+            ),
+            Self::RestJoinUndecided { diag, .. } => diag
+                .undecided(
+                    "whether the faces along an edge at rest meet smoothly or at a corner",
+                    diag.ending(REST_JOIN_LEVER),
+                )
+                .to_string(),
+            Self::RestJoinMixed { stations, .. } => {
+                format!("along an edge at rest, {stations}. Recourse: {REST_JOIN_LEVER}")
+            }
             Self::PcurveSplit {
                 edge,
                 half_edge,
@@ -1888,7 +1939,7 @@ pub(crate) fn every_euler_op_error_once()
                 terminal_sliver: false,
             },
         },
-        EulerOpError::SplitTangentEscalated {
+        EulerOpError::SplitSmoothEscalated {
             edge: ek,
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
@@ -1897,7 +1948,7 @@ pub(crate) fn every_euler_op_error_once()
                 terminal_sliver: false,
             },
         },
-        EulerOpError::SplitTangentBendEscalated {
+        EulerOpError::SplitSmoothBendEscalated {
             edge: ek,
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
@@ -1906,7 +1957,29 @@ pub(crate) fn every_euler_op_error_once()
                 terminal_sliver: false,
             },
         },
-        EulerOpError::SplitTangentRefuted { edge: ek },
+        EulerOpError::SplitSmoothRefuted {
+            edge: ek,
+            mixed: Some(geom_brep::MixedStations {
+                transverse: 3,
+                smooth: 4,
+            }),
+        },
+        EulerOpError::RestJoinUndecided {
+            edge: ek,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("tangent_second_order"),
+                terminal_sliver: false,
+            },
+        },
+        EulerOpError::RestJoinMixed {
+            edge: ek,
+            stations: geom_brep::MixedStations {
+                transverse: 3,
+                smooth: 4,
+            },
+        },
         EulerOpError::SplitJointUndecided {
             edge: ek,
             half_edge: he,
