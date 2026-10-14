@@ -53,7 +53,7 @@
 //! for this one predicate (the decisive side verdicts stay strict).
 
 use geom_brep::OutwardNormal;
-use geom_core::{Band, Decide, Margin, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 use slotmap::SecondaryMap;
 
 use super::rules;
@@ -175,6 +175,115 @@ pub(super) fn chord<T: Decide>(
     }
 }
 
+/// Why [`entry_side`] read no side: the walk's own refusal, the far
+/// vertex's (`far`'s), or an escalated reading of a conic's departure,
+/// which the caller names its sector for.
+#[derive(Debug)]
+pub(crate) enum EntryFault<E> {
+    /// [`chord`]'s refusal.
+    Walk(SplitReduceError),
+    /// The far vertex's side did not read.
+    Far(E),
+    /// A conic's departure or bend lies in the band.
+    Undecided(Indeterminate),
+}
+
+/// **Which side of the plane orbit half-edge `he` leaves `vertex`
+/// into**: the walk's entry class before rules (a) and (b), the one
+/// reading the walk below and [`crate::vertex_section`] both take.
+/// Returns the edge's ray ([`chord`]) with the side.
+///
+/// - LINE edges: the far vertex's side (`far`); a straight edge's
+///   interior is the chord.
+/// - CONIC edges: the OUTGOING TANGENT side through the named trilean
+///   `split_conic_departure` (margin `t̂·n̂` metered at the edge's
+///   extent, the ray being exactly `t̂·extent`). The far vertex
+///   misleads on conics: a belly arc between ON vertices departs into
+///   its own side while both endpoints read On. Post-root-insertion the
+///   interior is sign-constant (every interior crossing was split out),
+///   so the departure IS the interior side. An in-plane departure ties
+///   at first order, and the arc then reads by which side it BENDS to
+///   against `reference`, certified as the boolean's vertex-on-face
+///   pass reads it ([`geom_brep::conic_bend_side`]). A whole edge
+///   within the band of the plane reads On; a bend the band does not
+///   separate from the first-order residue escalates (F6).
+pub(crate) fn entry_side<T: Decide, E>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    he: HalfEdgeKey,
+    (normal, reference): (Vec3<T>, geom_brep::ReferenceNormal<T>),
+    far: impl FnOnce(VertexKey) -> Result<PlaneSide, E>,
+    band: Band,
+) -> Result<(Vec3<T>, PlaneSide), EntryFault<E>> {
+    let (final_vertex, dir, conic_bend) = chord(body, vertex, he).map_err(EntryFault::Walk)?;
+    let Some(bend) = conic_bend else {
+        return far(final_vertex)
+            .map(|side| (dir, side))
+            .map_err(EntryFault::Far);
+    };
+    let side = match decide("split_conic_departure", Margin::of(dir.dot(normal)), band) {
+        Ok(Sign::Negative) => PlaneSide::Below,
+        Ok(Sign::Positive) => PlaneSide::Above,
+        Ok(Sign::Zero) => {
+            match geom_brep::conic_bend_side(dir, dir.norm(), bend, reference, band) {
+                Ok(geom_brep::EntersMaterial::Enters) => PlaneSide::Below,
+                Ok(geom_brep::EntersMaterial::Exits) => PlaneSide::Above,
+                Ok(geom_brep::EntersMaterial::Tangent) => PlaneSide::On,
+                Err(diag) => return Err(EntryFault::Undecided(diag)),
+            }
+        }
+        Err(diag) => return Err(EntryFault::Undecided(diag)),
+    };
+    Ok((dir, side))
+}
+
+/// **A wide sector's subdivision entry**: the sector after an orbit
+/// half-edge, bounded by the rays `(dir_a, dir_b)` in `face`, whose
+/// outward normal there is `n_face`, read by the three
+/// [`sector_shape`] rungs. Where it is wide, its subdivision direction,
+/// arm, and the side of the plane along `normal` that direction points
+/// to, levered at the arm (`split_bisector_side`); `None` for a convex
+/// sector. The walk's duplicate entry, and [`crate::vertex_section`]'s
+/// reading of the same sector. Faults and escalations are the split's
+/// refusals at `(vertex, face)`.
+pub(crate) fn wide_entry<T: Decide>(
+    (vertex, face): (VertexKey, FaceKey),
+    (dir_a, dir_b): (Vec3<T>, Vec3<T>),
+    n_face: OutwardNormal<T>,
+    one_edge: bool,
+    normal: Vec3<T>,
+    band: Band,
+) -> Result<Option<(Vec3<T>, T, PlaneSide)>, SplitReduceError> {
+    let sliver = |diag| SplitReduceError::SliverSector {
+        vertex,
+        face,
+        reading: SectorReading::Escalated(diag),
+    };
+    let SectorShape { arm, bisector, .. } = sector_shape(dir_a, dir_b, n_face, one_edge, band)
+        .map_err(|fault| match fault {
+            SectorFault::NonFiniteChord => SplitReduceError::NonFiniteSectorChord { vertex, face },
+            SectorFault::UnderflowedChord => {
+                SplitReduceError::UnderflowedSectorChord { vertex, face }
+            }
+            SectorFault::Rung { diag, .. } => sliver(diag),
+        })?;
+    let Some(bisector) = bisector else {
+        return Ok(None);
+    };
+    let side = match decide(
+        "split_bisector_side",
+        Margin::levered(bisector.dot(normal), arm),
+        band,
+    )
+    .map_err(sliver)?
+    {
+        Sign::Negative => PlaneSide::Below,
+        Sign::Positive => PlaneSide::Above,
+        Sign::Zero => PlaneSide::On,
+    };
+    Ok(Some((bisector, arm, side)))
+}
+
 /// Builds and fully classifies the typed sector array of ON vertex
 /// `vertex`: orbit walk (initial classes from the per-vertex cache),
 /// wide-sector duplicates (module docs), then rule (a) and rule (b)
@@ -226,75 +335,33 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
     let mut entries = Vec::with_capacity(orbit.len());
     let mut dirs = Vec::with_capacity(orbit.len());
     for (i, &he) in orbit.iter().enumerate() {
-        let (final_vertex, dir_a, conic_bend) = chord(body, vertex, he)?;
-        // Entry class — "which side does this edge lead to":
-        // - LINE edges: the far vertex's cached verdict (a straight
-        //   edge's interior is the chord).
-        // - CONIC edges: the OUTGOING TANGENT side through the named
-        //   trilean `split_conic_departure` (margin `t̂·n̂` metered at
-        //   the edge's extent — dir_a is exactly t̂·extent). The far
-        //   vertex misleads on conics: a belly arc between ON vertices
-        //   departs into its own side while both endpoints read On.
-        //   Post-root-insertion the interior is sign-constant (every
-        //   interior crossing was split out), so the departure IS the
-        //   interior side; a Zero margin (in-plane departure — an
-        //   in-plane arc or a graze contact) reads one order down,
-        //   below; in-band escalates typed.
-        let class = if let Some(bend) = conic_bend {
-            let margin = Margin::of(dir_a.dot(plane.normal.get()));
-            match decide("split_conic_departure", margin, band) {
-                Ok(Sign::Negative) => PlaneSide::Below,
-                Ok(Sign::Positive) => PlaneSide::Above,
-                // An in-plane departure ties at first order: the arc
-                // reads by which side it BENDS to, certified as the
-                // boolean's vertex-on-face pass reads it
-                // ([`geom_brep::conic_bend_side`]). A whole edge within
-                // the band of the plane stays On for rule (b)'s
-                // adjudication; a bend the band does not separate from
-                // the first-order residue escalates (F6).
-                Ok(Sign::Zero) => {
-                    // The reference side here is the SPLIT PLANE's
-                    // normal: an operation input that DEFINES
-                    // Above/Below, belonging to no face and with no
-                    // `sense` bit to fold in. Its type says so —
-                    // `enters_material`'s face slot would not accept
-                    // it, and this slot does not accept a bare vector.
-                    match geom_brep::conic_bend_side(
-                        dir_a,
-                        dir_a.norm(),
-                        bend,
-                        geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
-                        band,
-                    ) {
-                        Ok(geom_brep::EntersMaterial::Enters) => PlaneSide::Below,
-                        Ok(geom_brep::EntersMaterial::Exits) => PlaneSide::Above,
-                        Ok(geom_brep::EntersMaterial::Tangent) => PlaneSide::On,
-                        Err(diag) => {
-                            let (face, _, _) = sector_face(body, vertex, he)?;
-                            return Err(SplitReduceError::SliverSector {
-                                vertex,
-                                face,
-                                reading: SectorReading::Escalated(diag),
-                            });
-                        }
-                    }
-                }
-                Err(diag) => {
-                    let (face, _, _) = sector_face(body, vertex, he)?;
-                    return Err(SplitReduceError::SliverSector {
-                        vertex,
-                        face,
-                        reading: SectorReading::Escalated(diag),
-                    });
-                }
-            }
-        } else {
-            *sides
-                .get(final_vertex)
-                .ok_or(SplitReduceError::UnrecordedSide {
-                    vertex: final_vertex,
-                })?
-        };
+        let (dir_a, class) = entry_side(
+            body,
+            vertex,
+            he,
+            (
+                plane.normal.get(),
+                geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
+            ),
+            |far| {
+                sides
+                    .get(far)
+                    .copied()
+                    .ok_or(SplitReduceError::UnrecordedSide { vertex: far })
+            },
+            band,
+        )
+        .map_err(|fault| match fault {
+            EntryFault::Walk(e) | EntryFault::Far(e) => e,
+            EntryFault::Undecided(diag) => match sector_face(body, vertex, he) {
+                Ok((face, _, _)) => SplitReduceError::SliverSector {
+                    vertex,
+                    face,
+                    reading: SectorReading::Escalated(diag),
+                },
+                Err(e) => e,
+            },
+        })?;
         entries.push(SectorEntry {
             he,
             kind: SectorEntryKind::Edge,
@@ -314,34 +381,15 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
         let next_he = orbit[(i + 1) % orbit.len()];
         let (_, dir_b, _) = chord(body, vertex, next_he)?;
         let (face, n_face, _) = sector_face(body, vertex, he)?;
-        let sliver = |diag| SplitReduceError::SliverSector {
-            vertex,
-            face,
-            reading: SectorReading::Escalated(diag),
-        };
-        let SectorShape {
-            arm,
-            bisector: wide,
-            ..
-        } = sector_shape(dir_a, dir_b, n_face, he == next_he, band).map_err(
-            |fault| match fault {
-                SectorFault::NonFiniteChord => {
-                    SplitReduceError::NonFiniteSectorChord { vertex, face }
-                }
-                SectorFault::UnderflowedChord => {
-                    SplitReduceError::UnderflowedSectorChord { vertex, face }
-                }
-                SectorFault::Rung { diag, .. } => sliver(diag),
-            },
+        let wide = wide_entry(
+            (vertex, face),
+            (dir_a, dir_b),
+            n_face,
+            he == next_he,
+            plane.normal.get(),
+            band,
         )?;
-        if let Some(bisector) = wide {
-            let margin = Margin::levered(bisector.dot(plane.normal.get()), arm);
-            let class = match decide("split_bisector_side", margin, band) {
-                Ok(Sign::Negative) => PlaneSide::Below,
-                Ok(Sign::Positive) => PlaneSide::Above,
-                Ok(Sign::Zero) => PlaneSide::On,
-                Err(diag) => return Err(sliver(diag)),
-            };
+        if let Some((bisector, arm, class)) = wide {
             entries.push(SectorEntry {
                 he,
                 kind: SectorEntryKind::WideBisector,

@@ -62,9 +62,9 @@
 //! Either composite is **subdivided until it decides** ([`subdivide`]);
 //! the rule is C2's paragraph in `crates/geom-brep/README.md`.
 //!
-//! # Limb 3 — the uniqueness tube (component selection, made real)
+//! # Limb 3 — the uniqueness tube (branch selection, made real)
 //!
-//! D2's "the connected component selected by the witness" is only
+//! D2's "the branch of S₁∩S₂ through the witness" is only
 //! checkable if branch-uniqueness near the cache is **proved**. Over a
 //! chain of boxes covering the carrier with certified radius ρ — in the
 //! chart form, the pcurve's per-span windows padded along each axis by

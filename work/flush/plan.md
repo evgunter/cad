@@ -18,10 +18,8 @@ lanes in flight are expected to close more, so the track is not split.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |
-| P2 | `boolean-given-pairs-glue-unmeasured-for-any-rust-caller` | E | `BooleanInputs::given` glues its pairs unmeasured for any Rust caller (dispatched 2026-10-13, `flush/given-gate`) |
-| P2 | `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence` | M | an in-band glue verdict is refused as the corner arm's unglued coincidence (dispatched 2026-10-13, `flush/corner-names-glue`) |
-| P2 | `check-10-reads-a-cavitys-role-from-its-volume-sign` | M | check 10 reads a cavity's role from its V/A (asks Ev: `[ev]` PR 4990, the shell-role fork) |
+| P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys (PR 4823, fix pass under a delta check; Ev ratified its sentence on PR 4793) |
+| P2 | `check-10-reads-a-cavitys-role-from-its-volume-sign` | M | check 10 reads a cavity's role from its V/A (Ev ruled on PR 4990; dispatched 2026-10-14, `flush/shell-role-reader`) |
 
 Parked, and not counted:
 

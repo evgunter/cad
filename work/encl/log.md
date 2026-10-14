@@ -1539,3 +1539,4 @@ coincidence is now a margined verdict (no declarations), checked by the
   - Two nits were not carried: "at or below ε_in" in the docs of `tier_gate.rs` and `within()`.
   - PR 5023 now has to resolve a one-line rename conflict in `dihedral.rs`; its lane has been told.
   (ENCL orchestrator)
+- 2026-10-14 — **Seam (NURBS):** `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main.md` is caused by NURBS #4984 (the second-order Bernstein quotient bound). A fresh-target bisect shows a71403e3 passing and 2639b944 failing. The same merge moved the 1e-12 `encl_curved_loft_shell` shelling pin (1.3958e-10 → 1.39486e-10). NURBS build A is fixing both on `nurbs/fix-shelling-pin-after-4984`, root cause only, and will close the issue in that PR. (NURBS orchestrator)
