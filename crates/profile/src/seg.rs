@@ -2394,6 +2394,81 @@ mod pair_contact_tests {
 
 #[cfg(test)]
 #[allow(clippy::panic)]
+mod sweep_range_tests {
+    use super::*;
+    use geom_core::{Interval, Tol};
+
+    /// What [`build_seg`] read: the segment's kind, or the predicate
+    /// that refused it.
+    type Read = Result<&'static str, &'static str>;
+
+    /// The carrier's radius and the short arc's sweep δ: a chord rδ
+    /// = 1e-4 past every ε row's band, and a sagitta rδ²/8 ≈ 1.3e-13
+    /// within every row's ε, so the short arc reads as its chord at
+    /// each row.
+    const R: f64 = 1e4;
+    const DELTA: f64 = 1e-8;
+
+    /// The arc on the circle of radius [`R`] about the origin from
+    /// (R, 0) to the polar angle [`DELTA`], storing `sweep`.
+    fn read<T: Decide>(sweep: f64, band: Band) -> Read {
+        let pt = |t: f64| Point2::new(T::from_f64(R * t.cos()), T::from_f64(R * t.sin()));
+        let carrier = Arc2 {
+            centre: Point2::new(T::zero(), T::zero()),
+            radius: T::from_f64(R),
+            sweep: T::from_f64(sweep),
+        };
+        match build_seg(
+            pt(0.0),
+            pt(DELTA),
+            Segment::Arc(carrier),
+            Consistency::Decide,
+            band,
+        ) {
+            Ok(Seg {
+                kind: SegKind::Line,
+                ..
+            }) => Ok("line"),
+            Ok(Seg {
+                kind: SegKind::Arc(..),
+                ..
+            }) => Ok("arc"),
+            Err(issue) => Err(issue.predicate()),
+        }
+    }
+
+    /// **A stored sweep outside 0 < |Δθ| ≤ 2π refuses whatever its
+    /// sagitta**, at `f64` and at `Interval`. The quarter tangent the
+    /// straightness read takes is 4π-periodic, so 4π ± δ bows like δ;
+    /// 2π + δ bows far off its chord; δ itself is a legitimate arc
+    /// whose sagitta is within ε, read as its chord.
+    #[test]
+    fn a_stored_sweep_past_a_full_turn_refuses_whatever_its_sagitta() {
+        let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("band: {e}"));
+        let tau = std::f64::consts::TAU;
+        let rows: [(&str, f64, Read); 4] = [
+            ("4π + δ", 2.0 * tau + DELTA, Err("arc_sweep_range")),
+            ("−4π − δ", -2.0 * tau - DELTA, Err("arc_sweep_range")),
+            ("2π + δ", tau + DELTA, Err("arc_sweep_range")),
+            ("δ", DELTA, Ok("line")),
+        ];
+        let mut wrong = Vec::new();
+        for (name, sweep, want) in rows {
+            for (scalar, got) in [
+                ("f64", read::<f64>(sweep, band)),
+                ("Interval", read::<Interval>(sweep, band)),
+            ] {
+                if got != want {
+                    wrong.push(format!("{scalar}: {name}: want {want:?}, got {got:?}"));
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
 mod circles_accuracy_tests {
     use super::Circles;
     use crate::dd::{Dd, off_circle, radical_foot};
