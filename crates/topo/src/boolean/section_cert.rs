@@ -2439,10 +2439,7 @@ fn cylinder_cylinder<T: Decide>(
         }
         Err(tan) => {
             return tan.touch(&[REACH], || {
-                let w = o1 - o2;
-                let b = d1.dot(d2);
-                let foot = o1 + d1 * ((b * d2.dot(w) - d1.dot(w)) / sin.powi(2));
-                foot + m * (delta * r1 / (r1 + r2))
+                axis_foot((o1, d1), (o2, d2), sin.powi(2)) + m * (delta * r1 / (r1 + r2))
             });
         }
     };
@@ -2495,10 +2492,7 @@ fn equal_crossing_axes<T: Decide>(
     {
         return None;
     }
-    let sin2 = d1.cross(d2).norm_squared();
-    let w = o1 - o2;
-    let b = d1.dot(d2);
-    let p = o1 + d1 * ((b * d2.dot(w) - d1.dot(w)) / sin2);
+    let p = axis_foot((o1, d1), (o2, d2), d1.cross(d2).norm_squared());
     Some(Section::Components {
         parts: vec![Component {
             unbounded: false,
@@ -2508,6 +2502,19 @@ fn equal_crossing_axes<T: Decide>(
         }],
         single: true,
     })
+}
+
+/// The foot on axis 1 `(o1, d1)` of its common perpendicular with the
+/// non-parallel axis 2 `(o2, d2)`, both directions unit and `sin2` the
+/// squared sine between them: where the axes meet, when they do.
+fn axis_foot<T: geom_core::Real>(
+    (o1, d1): (Point3<T>, Vec3<T>),
+    (o2, d2): (Point3<T>, Vec3<T>),
+    sin2: T,
+) -> Point3<T> {
+    let w = o1 - o2;
+    let b = d1.dot(d2);
+    o1 + d1 * ((b * d2.dot(w) - d1.dot(w)) / sin2)
 }
 
 /// **Cylinder × plane**: an ellipse encircling the wall, or rulings.

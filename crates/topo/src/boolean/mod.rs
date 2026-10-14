@@ -5088,13 +5088,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         (Operand::B, &contacts.b_on_a),
     ] {
         let mut minted = Vec::with_capacity(pierced.len());
-        for c in pierced.iter().map(|c| c.record) {
+        for (k, c) in pierced.iter().map(|c| c.record).enumerate() {
             let reread = rereads.get(&(operand, c.vertex)).copied();
             let (piercing_body, pierced_body) = match operand {
                 Operand::A => (&mut a, &mut b),
                 Operand::B => (&mut b, &mut a),
             };
-            let out = vtxfac::classify_vertex_on_face(
+            let out = match vtxfac::classify_vertex_on_face(
                 piercing_body,
                 pierced_body,
                 operand,
@@ -5104,7 +5104,50 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &contacts,
                 reread,
                 band,
-            )?;
+            ) {
+                Ok(out) => out,
+                // **A definite refusal outranks an escalation in this
+                // pass**: a pierce read in band refuses only once every
+                // later pierce of both operands is read, and one of them
+                // refusing definitely is the pass's answer. So which
+                // operand's vertices are read first does not choose
+                // between the two.
+                Err(escalated @ BooleanError::Escalated { .. }) => {
+                    let later = pierced[k + 1..]
+                        .iter()
+                        .map(|c| (operand, c.record))
+                        .chain(
+                            (operand == Operand::A)
+                                .then_some(&contacts.b_on_a)
+                                .into_iter()
+                                .flatten()
+                                .map(|c| (Operand::B, c.record)),
+                        )
+                        .collect::<Vec<_>>();
+                    for (operand, c) in later {
+                        let (piercing_body, pierced_body) = match operand {
+                            Operand::A => (&mut a, &mut b),
+                            Operand::B => (&mut b, &mut a),
+                        };
+                        match vtxfac::classify_vertex_on_face(
+                            piercing_body,
+                            pierced_body,
+                            operand,
+                            c,
+                            op,
+                            &declared,
+                            &contacts,
+                            rereads.get(&(operand, c.vertex)).copied(),
+                            band,
+                        ) {
+                            Ok(_) | Err(BooleanError::Escalated { .. }) => {}
+                            Err(definite) => return Err(definite),
+                        }
+                    }
+                    return Err(escalated);
+                }
+                Err(e) => return Err(e),
+            };
             // `classify_vertex_on_face` refuses a re-read vertex that
             // would write, so a re-read one touched: its orbit, and the
             // pierced face, are as the operands gave them.
