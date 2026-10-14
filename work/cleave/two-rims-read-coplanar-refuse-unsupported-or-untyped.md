@@ -1,7 +1,7 @@
 ---
 id: two-rims-read-coplanar-refuse-unsupported-or-untyped
 kind: issue
-title: Two ellipse rims read coplanar refuse CurvedPierceUnsupported when definitely apart, and FallbackExtentUnsupported when one within the band
+title: Two ellipse rims read coplanar refuse at frontiers — CurvedPierceUnsupported when definitely apart, FallbackExtentUnsupported when one curve within the band
 status: open
 opened: 2026-10-14
 ---
@@ -23,12 +23,13 @@ the transverse row reads the planes parallel at every k below 100.
    edge: EdgeKey(11v1) }`. The rims definitely cross, so under the
    governing rule this is a missing capability (the coplanar
    ellipse × ellipse meeting in `meetings`), not a band reading.
-2. **k = 0.1, 0.5 and 0.9: an in-band reading refused untyped.** The
-   rims are one curve within the band (`one_curve` reads Zero), and
-   all six ops refuse `FallbackExtentUnsupported` ("tangent or
-   near-tangent carriers and no crossing layer saw an event"). The two
-   cut planes are coincident within the band, which is an in-band
-   reading of the input: it should be `Escalated`, with a lever.
+2. **k = 0.1, 0.5 and 0.9: one curve, then refused as unsupported.**
+   `one_curve` reads Zero: within the band the rims are one curve,
+   which is a definite reading, not an in-band one. All six ops then
+   refuse `FallbackExtentUnsupported` ("tangent or near-tangent
+   carriers and no crossing layer saw an event"). A refusal after a
+   definite reading is the kernel's missing capability, a frontier
+   (PR 4335's rule), never the user's lever: the fix is to build the
+   coincident-cut case, not to escalate it.
 
-The pin asserts today's refusals (case 2 only `is_err()`); the fix
-updates it.
+The pin asserts both refusals exactly; the fix updates it.

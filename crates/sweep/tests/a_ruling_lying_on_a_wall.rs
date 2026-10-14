@@ -714,12 +714,12 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// the band reads them parallel and through one point at every `k`
 /// here, while the rims' far ends lie `k·ε` apart. At `k` = 0.1, 0.5
 /// and 0.9 the rims are one curve within the band, and every op
-/// refuses further on. At 2 and 5 a seam ruling's crossing with the
-/// other rim's plane lies `k·ε` from the ruling's end, and every op
-/// refuses `Escalated` on `bool_carrier_cross_in_span`. At 30 and 80
-/// the rims are definitely two curves, which no closed form here
-/// places, and every op refuses `CurvedPierceUnsupported`. None reads
-/// the rims' crossings away.
+/// refuses `FallbackExtentUnsupported` further on. At 2 and 5 a seam
+/// ruling's crossing with the other rim's plane lies `k·ε` from the
+/// ruling's end, and every op refuses `Escalated` on
+/// `bool_carrier_cross_in_span`. At 30 and 80 the rims are definitely
+/// two curves, which no closed form here places, and every op refuses
+/// `CurvedPierceUnsupported`. None reads the rims' crossings away.
 #[test]
 fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let tol = Tol::witness();
@@ -733,7 +733,10 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
         for (op, res) in six(&a, &b) {
             let label = format!("k = {k}: {op}");
             if k < 1.0 {
-                assert!(res.is_err(), "{label}: refuses: {res:?}");
+                assert!(
+                    matches!(res, Err(BooleanError::FallbackExtentUnsupported { .. })),
+                    "{label}: one curve, refused past it: {res:?}"
+                );
             } else if k < 10.0 {
                 let Err(BooleanError::Escalated { diag, .. }) = &res else {
                     panic!("{label}: escalates: {res:?}");

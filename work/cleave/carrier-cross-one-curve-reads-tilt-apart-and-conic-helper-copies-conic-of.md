@@ -72,3 +72,13 @@ transverse arm if a door reaches it.
    Positive branch is reached by two rims read coplanar but k·ε apart
    at k = 30, 80, which refuse `CurvedPierceUnsupported` (filed:
    `two-rims-read-coplanar-refuse-unsupported-or-untyped`).
+
+Fix pass (review of PR 5058): `parallel_circles`, the circle sibling,
+now decides "one circle" with the same margin (`one_curve_gap`, row
+`bool_carrier_cross_one_curve`) instead of three Zeros. The witness —
+two of a sphere's circles turned 0.9·z about `x = 0.9` — escalates at
+every ε (unit pin). No body door reaches it: the in-span row (one
+ball) or the shared-rim rows (`rim_circle_axis_parallel`, a spun ball)
+fire first. The gap is pinned bitwise symmetric, the k < 1 body rows
+pin `FallbackExtentUnsupported`, and the frame is
+`Conic::semi_axes`.

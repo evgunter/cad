@@ -10,11 +10,13 @@ use geom_brep::Conic;
 use geom_core::{InfSpeed, Real, SpanLocate, SupSpeed, Vec3};
 
 /// The speed `|C′(t)|` at `t`: a line's `|dir|`, a conic's
-/// [`Conic::speed_at`].
+/// [`Conic::speed_at`] held to its semi-axes, so a circle's is its
+/// radius exactly at every scalar.
 pub(crate) fn speed_at<T: SpanLocate>(carrier: &geom::Curve3<T>, t: T) -> Option<T> {
     match Kind::of(carrier) {
-        Kind::Conic(c) => Some(c.speed_at(t)),
-        kind => kind.closed_hi(),
+        kind @ Kind::Line(_) => kind.closed_hi(),
+        Kind::Conic(c) => Some(c.speed_at(t).max(c.speed_lo()).min(c.speed_hi())),
+        Kind::Spiric { .. } | Kind::Nurbs(_) => None,
     }
 }
 
@@ -68,11 +70,13 @@ enum Kind<'a, T: Real> {
 
 impl<'a, T: SpanLocate> Kind<'a, T> {
     fn of(carrier: &'a geom::Curve3<T>) -> Self {
-        if let Some(c) = Conic::of(carrier) {
-            return Self::Conic(c);
-        }
         match carrier {
             geom::Curve3::Line { dir, .. } => Self::Line(*dir),
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => Conic::of(carrier)
+                .map_or_else(
+                    || unreachable!("Conic::of reads every circle and ellipse"),
+                    Self::Conic,
+                ),
             geom::Curve3::Spiric {
                 major_radius,
                 minor_radius,
@@ -84,9 +88,6 @@ impl<'a, T: SpanLocate> Kind<'a, T> {
                 offset: *offset,
             },
             geom::Curve3::Nurbs(n) => Self::Nurbs(n),
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
-                unreachable!("Conic::of reads every circle and ellipse")
-            }
         }
     }
 
