@@ -129,8 +129,8 @@ use super::voids;
 use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
-    EeContact, EfContact, FfContact, Glue, GluedPair, Operand, OperandRecords, ReductionContacts,
-    SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
+    EeContact, EfContact, FfContact, Glue, GlueVerdict, GluedPair, Operand, OperandRecords,
+    ReductionContacts, SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
@@ -202,6 +202,9 @@ pub struct BooleanBody<T: Real> {
     /// The coincidences the op decided from values, in decision order
     /// and operand keys ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
+    /// The face pairs those coincidences glue, in their order
+    /// ([`GlueVerdict`]).
+    pub verdicts: Vec<GlueVerdict>,
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -632,7 +635,7 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let result = Glue::of(inputs).and_then(|glue| boolean_door(op, a, b, &glue, strategy, tol));
+    let result = boolean_door(op, a, b, &Glue::of(inputs), strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     result
@@ -880,6 +883,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         kind: BooleanResultKind::Seamed,
         contacts,
         naming,
+        verdicts: GlueVerdict::of_rows(&coincidences),
         coincidences,
     }))
 }
@@ -2595,7 +2599,6 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .edge_curve_linked(edge, &edge_data)
             .certified()
             .cloned();
-        let curved = existing.as_ref().is_some_and(|c| c.carrier().is_curved());
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (witness, extent) = (draft.witness, draft.extent);
         match seam_reading(surf1, surf2, witness, extent, band)
@@ -2673,40 +2676,13 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier().kind(), e)
                     })?;
                 } else if stale {
-                    if curved {
-                        // The conventional re-description for an arc
-                        // the adjacent surfaces under-determine, on the
-                        // UNCHANGED carrier (no silent geometric
-                        // rewrite — only the description moves). The
-                        // edge comes to REST here, so it is described
-                        // where it rests — as an image in `s1`'s own
-                        // chart (D3's transience fence) — and the arc
-                        // pushforward that used to BE the description
-                        // is recorded as the authority beside it.
-                        // Carrier kinds with no conventional
-                        // pushforward keep the typed refusal.
-                        let c = existing.as_ref().ok_or_else(corrupt)?;
-                        let (t0, t1) = c.params();
-                        let Some(spec) =
-                            geom_brep::EdgeCurveSpec::arc_of_circle(c.carrier().clone(), t0, t1)
-                        else {
-                            return Err(DescribeRefusal::failed(
-                                edge,
-                                EdgeDescribeFailure::NoConventionalLane,
-                            ));
-                        };
-                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|e| {
-                                of_attachment(edge, EdgeDescribeFailure::Arc, c.carrier().kind(), e)
-                            })?;
-                    } else {
-                        let spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                        let carrier = spec.carrier.kind();
-                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|e| {
-                                of_attachment(edge, EdgeDescribeFailure::Line, carrier, e)
-                            })?;
-                    }
+                    // A locus the adjacent surfaces under-determine,
+                    // of any carrier kind, rests in `s1`'s chart.
+                    let c = existing.as_ref().ok_or_else(corrupt)?;
+                    body.set_edge_curve(edge, c.restated_in_chart(s1), tol)
+                        .map_err(|e| {
+                            of_attachment(edge, EdgeDescribeFailure::Chart, c.carrier().kind(), e)
+                        })?;
                 }
             }
         }
@@ -6665,6 +6641,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 kind,
                 contacts,
                 naming,
+                verdicts: GlueVerdict::of_rows(&coincidences),
                 coincidences,
             }))
         }
@@ -6762,6 +6739,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         kind,
         contacts,
         naming,
+        verdicts: GlueVerdict::of_rows(&coincidences),
         coincidences,
     }))
 }
@@ -8804,9 +8782,7 @@ mod tests {
             EdgeDescribeFailure::NotWalkable,
             EdgeDescribeFailure::Intersection,
             EdgeDescribeFailure::Tangency,
-            EdgeDescribeFailure::NoConventionalLane,
-            EdgeDescribeFailure::Arc,
-            EdgeDescribeFailure::Line,
+            EdgeDescribeFailure::Chart,
         ] {
             every.push(DescribeRefusal::failed(strut, failure));
             for fitted in [false, true] {

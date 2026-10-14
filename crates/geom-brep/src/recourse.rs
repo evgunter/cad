@@ -410,7 +410,7 @@ impl SizedDecision {
     /// - The import door ([`ReadAt::File`]) reads as at rest, except that
     ///   a band-decided arm whose margin's nearer end lies at or below the
     ///   file's declared coincidence distance ends in the door's one
-    ///   sentence for a size the file does not state
+    ///   sentence for a size the file cannot tell from zero
     ///   ([`MarginDiag::sized_recourse_in_file`]), whichever arm the run's
     ///   band placed it on, with no decision's note. A straddle carries no
     ///   single margin to place against ε_in.
@@ -662,13 +662,13 @@ mod tests {
                 eps_in,
             )
         };
-        let unstated = "This thickness is below the file's declared coincidence distance \
-                        ε_in = 1e-8 m, so the file does not state it. Recourse: L, or, if this \
-                        thickness is intended, re-export the file with its uncertainty declared \
-                        below 5e-9 m and tighten the tolerance below 5e-10 m";
+        let untold = "This thickness is within the file's declared coincidence distance \
+                        ε_in = 1e-8 m, so the file cannot tell it from zero. Recourse: L, or, if \
+                        this thickness is intended, re-export the file with its uncertainty \
+                        declared below 5e-9 m and tighten the tolerance below 5e-10 m";
         assert_eq!(
             zero_in_file(1e-8),
-            unstated,
+            untold,
             "a zero within ε_in reads as the in-band arm does at the import door"
         );
         assert_eq!(
@@ -676,7 +676,7 @@ mod tests {
                 RefusedArm::Undecided(&cause(MarginDiag::value(-5e-9))),
                 1e-8
             ),
-            unstated,
+            untold,
             "an undecided size within ε_in names both steps that keep it"
         );
         assert_eq!(
@@ -687,8 +687,8 @@ mod tests {
                 }),
                 1e-8
             ),
-            "This thickness is below the file's declared coincidence distance ε_in = 1e-8 m, so \
-             the file does not state it. Recourse: L",
+            "This thickness is within the file's declared coincidence distance ε_in = 1e-8 m, so \
+             the file cannot tell it from zero. Recourse: L",
             "a zero of no size at the import door names the lever and no decision's note"
         );
         assert_eq!(

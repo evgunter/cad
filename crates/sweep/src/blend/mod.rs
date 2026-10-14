@@ -1355,6 +1355,23 @@ pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use plane, sphere, cylinder or co
 pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are both planes; the chamfer over a curved \
      support is not implemented";
 
+/// **How the body failed to hold together** where a
+/// [`BlendError::BodyNotIntact`] read it, rendered by kind so the
+/// refusal states only the cause its site met.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Breach {
+    /// The key does not resolve: the arena holds no live entity under it.
+    Unresolved,
+    /// A walk from the key — a loop's cycle, a vertex's orbit — did not
+    /// close over keys that resolve.
+    Unwalked,
+    /// The keys resolved and walk, but the structure they form disagrees
+    /// with the plan's or the verdict's reading of it: a cycle not flanked
+    /// by the feet the plan split, a link offered to a corner it does not
+    /// touch, a chain across two shells.
+    Disagrees,
+}
+
 /// The shared edge-blend refusal — both verbs' one error vocabulary,
 /// rendered verb-neutral (the door's [`BlendRefusal`] carries the
 /// verb). Closed enum, D3 style. Every variant is one of
@@ -1688,9 +1705,10 @@ pub enum BlendError {
         detail: &'static str,
     },
     /// **The body handed to the surgery does not hold together where
-    /// the plan read it** (D2 addendum row 1): a stored reference that
-    /// did not resolve, a cycle that did not close, or a verdict whose
-    /// keys disagree with the body's own structure — among them a
+    /// the plan read it** (D2 addendum row 1), in one of the three ways
+    /// a [`Breach`] names: a stored reference that did not resolve, a
+    /// walk that did not close, or keys that disagree with the body's
+    /// own structure — among them a
     /// requested chain or corner bounded by faces of two shells, which
     /// tier 1 rules out (`EdgeAcrossShells`, one orbit per vertex).
     /// This is not a blend frontier and carries no recourse — the
@@ -1699,7 +1717,9 @@ pub enum BlendError {
     BodyNotIntact {
         /// The entity the plan was reading.
         at: EntityId,
-        /// What the plan was reading when the reference failed.
+        /// Which way the body failed to hold together at `at`.
+        breach: Breach,
+        /// What the plan was reading there.
         detail: &'static str,
     },
     /// **The operand is well-formed but not a closed solid at rest**:
@@ -2045,11 +2065,21 @@ impl fmt::Display for BlendError {
             Self::UnsupportedGeometry { detail, .. } => {
                 write!(f, "{detail}. Recourse: {FILLET3_GEOMETRY_RECOURSE}")
             }
-            Self::BodyNotIntact { at, detail } => write!(
-                f,
-                "{detail} — {at} did not resolve, so the body is not intact there. There \
-                 is no way through"
-            ),
+            Self::BodyNotIntact { at, breach, detail } => {
+                let what = match breach {
+                    Breach::Unresolved => format!("{at} did not resolve"),
+                    Breach::Unwalked => format!("the walk from {at} did not close"),
+                    Breach::Disagrees => {
+                        format!(
+                            "{at} resolved, but its structure disagrees with the blend's reading"
+                        )
+                    }
+                };
+                write!(
+                    f,
+                    "{detail} — {what}, so the body is not intact there. There is no way through"
+                )
+            }
             Self::ScaffoldingOperand { .. } => {
                 write!(f, "the body {}", topo::Unfinished::SCAFFOLDING_REFUSAL)
             }
@@ -2156,11 +2186,11 @@ pub const ALL_RECOURSES: [(&str, &str); 22] = [
 #[allow(clippy::expect_used)]
 mod recourse_tests {
     use geom_core::{Band, BandError, Indeterminate, MarginDiag, Sign};
-    use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+    use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 
     use super::{
-        BlendDecision, BlendError, BlendSite, CHAMFER_ARM_RECOURSE, ClassifiedMargin, Convexity,
-        CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE,
+        BlendDecision, BlendError, BlendSite, Breach, CHAMFER_ARM_RECOURSE, ClassifiedMargin,
+        Convexity, CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_INSIDE_RECOURSE,
         FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE,
@@ -2317,8 +2347,8 @@ mod recourse_tests {
     /// A variant whose sentence is chosen by a payload field appears
     /// once per choice: `UnsupportedCorner` per recourse its TAG picks,
     /// `FaceClearanceUncertified` per `cross_chain`, `RingClearance` per
-    /// `chain`, and `Escalated` once per [`BlendDecision`], from the
-    /// closed set itself.
+    /// `chain`, `BodyNotIntact` per [`Breach`], and `Escalated` once per
+    /// [`BlendDecision`], from the closed set itself.
     fn seeds() -> Vec<BlendError> {
         let band = Band::new(1e-9, 1e-6).expect("a band");
         let decided = |predicate, m: f64, sign| ClassifiedMargin {
@@ -2423,7 +2453,18 @@ mod recourse_tests {
             },
             BlendError::BodyNotIntact {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),
+                breach: Breach::Unresolved,
                 detail: "a reference the plan followed",
+            },
+            BlendError::BodyNotIntact {
+                at: EntityId::Loop(LoopKey::default()),
+                breach: Breach::Unwalked,
+                detail: "a cycle the plan walked",
+            },
+            BlendError::BodyNotIntact {
+                at: EntityId::Vertex(VertexKey::default()),
+                breach: Breach::Disagrees,
+                detail: "a corner the verdict classified",
             },
             BlendError::ScaffoldingOperand { errors: Vec::new() },
             BlendError::InsideOutOperand { errors: Vec::new() },
@@ -2511,6 +2552,40 @@ mod recourse_tests {
                 "{corner} names policy {:?} but recourse {:?} — the two maps have drifted",
                 corner.policy(),
                 corner.recourse()
+            );
+        }
+    }
+
+    /// **`BodyNotIntact` states the cause its breach names, and no
+    /// other**: only an unresolved key is rendered as one that did not
+    /// resolve.
+    #[test]
+    fn body_not_intact_renders_each_breach_as_its_own_cause() {
+        let at = EntityId::Face(FaceKey::default());
+        let render = |breach| {
+            BlendError::BodyNotIntact {
+                at,
+                breach,
+                detail: "a support",
+            }
+            .to_string()
+        };
+        let tail = "so the body is not intact there. There is no way through";
+        for (breach, cause) in [
+            (Breach::Unresolved, format!("{at} did not resolve")),
+            (
+                Breach::Unwalked,
+                format!("the walk from {at} did not close"),
+            ),
+            (
+                Breach::Disagrees,
+                format!("{at} resolved, but its structure disagrees with the blend's reading"),
+            ),
+        ] {
+            assert_eq!(
+                render(breach),
+                format!("a support — {cause}, {tail}"),
+                "{breach:?}"
             );
         }
     }
