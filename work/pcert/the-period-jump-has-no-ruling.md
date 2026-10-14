@@ -7,7 +7,6 @@ opened: 2026-10-13
 priority: P3
 cost: M
 design: true
-needs_ev: false
 refs: [periodic-branch-floor-remains-at-the-raw-picks, periodic-branch-floor-remains-at-three-sites]
 ---
 
