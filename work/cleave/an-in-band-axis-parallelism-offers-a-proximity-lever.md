@@ -39,3 +39,30 @@ names the axes' angle. One way is a `Coincide` variant, or a
 `BooleanDecision` beside `WallRoots(AxisParallel)`, whose ending
 already speaks of axes. The section predicates that are distances can
 keep `MEET`.
+
+## Built (branch cleave/join-face-surface-one-home)
+
+- `BooleanDecision::CylinderAxes`, subject "whether the axes of a
+  cylinder face of each solid are parallel", ending
+  `Ending::Lever("turn one part so the two cylinders' axes are clearly
+  parallel, or clearly not")`. `cylinder_pair_axes` raises
+  `FrameError::AxesEscalated`, which `frame_refusal` refuses as it.
+  No existing lever reads this tilt: the nearest are
+  `WallRoots(AxisParallel)` ("turn the edge clearly away from the
+  direction of the cylinder's axis", an edge against an axis) and the
+  merge's "turn one of the two faces", so the verb is theirs.
+- Measured on main at ε = 1e-9, 1e-6 and 1e-12: the seams pose tipped
+  `1.5·zero/3.2` refused `Coincidence(Section, Moot)` with the proximity
+  lever in every op. Following the new lever: toward parallel
+  (`0.5·zero/3.7`, `0.9·zero/3.7`) builds SOUND at all three ε; away
+  (`1.1·esc/3.7`, `3·esc/3.7`) ends at in-band distance readings
+  (`VertexOnCurvedFace`, `Containment`) and further (1e-3, 0.1 rad) at
+  `CurvedSectorSideUnsupported` / `GermFrameUnsupported` (or the
+  `PierceCurvature` escalation at 1e-6), all typed, none a defect.
+- Pinned at the door: `seams_lying_on_the_walls_read_the_axes_at_the_walls_span`
+  (two tilt axes; the decision, the predicate and the ending's wording;
+  the parallel side builds, 0.1 rad ends typed) and
+  `one_face_walls_read_their_axes_as_an_angle`. The site census in
+  `offer_rows` carries the new site; `every_decision` and so the word
+  budget cover the new decision. Both tests are in the slow set.
+- Sweep sibling filed: `the-germ-frames-in-band-angle-rungs-offer-a-proximity-lever`.

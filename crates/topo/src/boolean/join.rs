@@ -339,10 +339,10 @@ impl<T: Decide> SegmentPair<T> {
 /// edge-plane lane. A reading in the band is refused by
 /// [`frame_refusal`].
 ///
-/// Read before any segment's surgery, as the frame dispatch reads the
-/// pair while the segments are matched: the frame lever reads the
-/// faces' boundary vertices, which a chord dividing a face moves, and
-/// every segment of one face pair takes the arm that pair reads.
+/// Read before any segment's surgery, in the state the segments were
+/// matched in: the frame lever reads the faces' boundary vertices,
+/// which a chord dividing a face moves, so every segment of one face
+/// pair takes the one arm that pair reads.
 fn segment_arm<T: Decide>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,

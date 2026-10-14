@@ -463,6 +463,10 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
+/// The lever of an in-band reading of a cylinder pair's axes.
+const AXES_LEVER: &str =
+    "Recourse: turn one part so the two cylinders' axes are clearly parallel, or clearly not";
+
 /// The unit rod about `(1, 1)` over `z ∈ [−0.5, 0.5]` tipped `theta`
 /// about `axis` through its centre, against the unit rod about the
 /// origin over `z ∈ [−1, 1]`. Their walls cross along the rulings at
@@ -502,8 +506,6 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
 /// refusal, none a defect and none this decision.
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
-    const LEVER: &str =
-        "Recourse: turn one part so the two cylinders' axes are clearly parallel, or clearly not";
     let tol = Tol::witness();
     let zero = geom_core::Band::linear(tol).unwrap().zero();
     let axes = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)];
@@ -521,7 +523,7 @@ fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
                         decision: topo::BooleanDecision::CylinderAxes,
                         diag,
                     }) if diag.predicate == Some("cc_axes_parallel")
-                        && e.to_string().ends_with(LEVER)
+                        && e.to_string().ends_with(AXES_LEVER)
                 ),
                 "{} | {op}: {:?}",
                 tipped.label,
@@ -538,6 +540,94 @@ fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
                 !defect && key != "CylinderAxes",
                 "{} | {op}: {key}: {e}",
                 turned.label
+            );
+        }
+    }
+}
+
+/// A one-face wall: the circle of radius `r` about `c` with its one
+/// vertex at azimuth `az`, extruded over `z ∈ [z0, z1]`, its seam the
+/// wall's wrap edge.
+fn one_face_rod(c: (f64, f64), r: f64, az: f64, (z0, z1): (f64, f64)) -> AtRestBody<f64> {
+    use profile::{Profile, RawLoop, Segment, SketchPlane};
+    let tol = Tol::witness();
+    let circle = RawLoop::new([(
+        Point2::new(c.0 + r * az.cos(), c.1 + r * az.sin()),
+        Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(c.0, c.1),
+            radius: r,
+            sweep: 2.0 * PI,
+        }),
+    )]);
+    let profile = Profile::new(SketchPlane::<f64>::xy(), vec![circle])
+        .validate(tol)
+        .unwrap();
+    let depth = sweep::Extrusion::Distance {
+        depth: z1 - z0,
+        side: sweep::ExtrudeSide::Along,
+    };
+    let body = sweep::extrude(&profile, depth, tol).unwrap().body;
+    let up = Affine3::translation(Vec3::new(0.0, 0.0, z0));
+    finished(
+        "the one-face rod",
+        topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol), tol).unwrap(),
+        tol,
+    )
+}
+
+/// The one-face unit rod about `(1.2, 0)` over `z ∈ [−0.3, 0.3]`,
+/// its seam at azimuth `az`, tipped `theta` about `x` through its
+/// centre, against the one-face unit rod about the origin over
+/// `z ∈ [−1, 1]` with its seam at the same azimuth. Every germ lies
+/// inside a wall face of both, so the frame reads the axes as the
+/// segments are matched.
+fn one_face_walls(az: f64, theta: f64) -> Pose {
+    let tol = Tol::witness();
+    let m =
+        Affine3::rotation_about_axis(Point3::new(1.2, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), theta);
+    let b = topo::transform_rigid(
+        &one_face_rod((1.2, 0.0), 1.0, az, (-0.3, 0.3)),
+        &geom_core::test_support::rigid(&m, tol),
+        tol,
+    )
+    .unwrap();
+    Pose {
+        label: format!("one-face walls, seams at {az}, tipped {theta:e}"),
+        a: one_face_rod((0.0, 0.0), 1.0, az, (-1.0, 1.0)),
+        b: finished("the tipped rod", b, tol),
+        va: 2.0 * PI,
+        vb: 0.6 * PI,
+        shared: 0.6 * lens((0.0, 0.0), 1.0, (1.2, 0.0), 1.0).0,
+    }
+}
+
+/// **The frame reads one-face walls' axes as an angle too.**
+/// [`one_face_walls`] tipped `0.2·zero` builds SOUND in every op and
+/// order; tipped `0.6·zero`, read over the walls' span, the tip is in
+/// the band and every op escalates `cc_axes_parallel` as the axes' own
+/// decision, its lever a turn.
+#[test]
+fn one_face_walls_read_their_axes_as_an_angle() {
+    let tol = Tol::witness();
+    let zero = geom_core::Band::linear(tol).unwrap().zero();
+    let seams = [0.0, PI];
+    let bad = unsound(&seams.map(|az| one_face_walls(az, 0.2 * zero)));
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    for az in seams {
+        let tipped = one_face_walls(az, 0.6 * zero);
+        for (op, r, _) in tipped.runs() {
+            assert!(
+                matches!(
+                    &r,
+                    Err(e @ BooleanError::Escalated {
+                        decision: topo::BooleanDecision::CylinderAxes,
+                        diag,
+                    }) if diag.predicate == Some("cc_axes_parallel")
+                        && e.to_string().ends_with(AXES_LEVER)
+                ),
+                "{} | {op}: {:?}",
+                tipped.label,
+                r.map(|_| "a body").map_err(|e| e.to_string())
             );
         }
     }
