@@ -921,3 +921,6 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
 - 2026-10-14: PR 5086 (joined_lineage checked at write) is in a fix pass.
   - **Review:** found a MAJOR. `Minted::push`'s freshness check refuses a valid, acyclic, kill-ordered table (a child killed before its parent).
 - 2026-10-14: PR 5090 merges at 70f5d126. It re-aims 11 pair-question gap rows to D3's readings across hone, shell, tang, restread, chart, inside and roots. Two of them (point-to-carrier distance, chart inversion) now name `geom` as the reading's home.
+- 2026-10-14: PR 5082 (merge_faces: a declared pair the ladder cannot read refuses typed) merges at addde3e5.
+  - **Fix pass:** `DeclaredPairUnread` now carries its kind. The hand-written inventory lists are gone. The reviewer's mixed-kind premise was false: the entry gate already refuses two kinds alike, and a test now pins that. glue's two drops of undeclared pairs are noted at their sites and added to the hone coincidence row.
+  - **Before merge:** main was merged in, resolving two conflicts against 5090's re-aimed hone rows (both sides kept). topo+sweep compile on the merged tree, and the merge, glue and declared-pair tests pass (220/220). The merge relied on that local run plus the fix head's green CI.
