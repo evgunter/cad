@@ -46,7 +46,7 @@
 //! cannot be tangent to the axis at two different heights: no single
 //! torus has both of the loop's ends. Two tangent arcs can, and that
 //! is what the loop is. (This is geometry, not a kernel limit, and
-//! it does not make the loop two bodies: one sweep carries the
+//! it does not make the loop two bodies: one loft carries the
 //! annulus along both arcs.)
 //!
 //! **(b) "fillet that torus–cone junction".** Taken literally — blend
@@ -110,7 +110,7 @@
 //!    Indeterminate }`, wall 2).
 //! 4. **Neither join can start** (walls 3, 4). `union` refuses at the
 //!    operand gate before any pair is looked at:
-//!    `CurvedEdgeUnsupported { operand: B }` — the loop is a sweep, its
+//!    `CurvedEdgeUnsupported { operand: B }` — the loop is a loft, its
 //!    longitudinal edges are NURBS carriers, and rung-3 edges are what
 //!    the curved zip MINTS, not what it consumes. `subtract` answers
 //!    first at the revert roster with `{ op: Some(Subtract), kind:
@@ -299,7 +299,7 @@ const SWEEP_IN: f64 = 0.5 * PI;
 /// The loop's spine samples: one interval per 7.5° on each arc.
 const SPINE_OVER: u32 = 36;
 const SPINE_IN: u32 = 12;
-/// Sections the loop's sweep places along its spine, and the skin's
+/// Sections the loop's loft places along its spine, and the skin's
 /// degree through them. Chosen inside a measured neighbourhood rather
 /// than at a lucky cell: at v-degree 2, every station count from 9 to
 /// 19 passes tier 3 and meshes at the stop's δ at ε = 1e-6, 1e-9 and
@@ -670,7 +670,7 @@ fn swept_loop<S: Scalar>(
 }
 
 /// The bottle: the bulb and the loop, each finished, and the spine the
-/// loop was swept along.
+/// loop was lofted along.
 struct Bottle<S: Scalar> {
     bulb: AtRestBody<S>,
     top: AtRestBody<S>,
@@ -681,7 +681,7 @@ fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     let m = meridian();
     let spine = loop_spine(&m);
     let top = lofted_loop::<S>(&spine, &annulus::<f64>(&m, 0.0, true, tol), tol)
-        .expect("the annulus sweeps along the loop's whole spine");
+        .expect("the annulus lofts along the loop's whole spine");
     Bottle {
         bulb: finished(
             "the bulb",
@@ -856,7 +856,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The loop's volume in the continuum is the annulus times the
     // spine length (Pappus: a planar spine, the section's centroid ON
     // it and the section symmetric about its plane), A·L with
-    // L = RLOOP·2π. The swept body is not that continuum: the skin
+    // L = RLOOP·2π. The lofted body is not that continuum: the skin
     // interpolates STATIONS sections, evenly spaced Δ = 2π/(STATIONS−1)
     // around the spine, so its volume differs from A·L by the
     // discretization. The ALLOWANCE is the chordal deficit of the
@@ -898,7 +898,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     assert!(
         band_lo <= v_mesh && v_mesh <= band_hi,
         "the loop's mesh volume {v_mesh} is outside Pappus's A·L = {pappus} ± {allowance:e}: \
-         the swept body is not the authored loop"
+         the lofted body is not the authored loop"
     );
     // The census: two annular caps and four quarter walls per side —
     // a hollow tube, so one handle.
@@ -1011,8 +1011,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let story = "a Klein bottle — as a THIN 3-manifold, because a 2-manifold sheet is not a \
                  body this kernel holds. The bulb (neck, flare, the wide rim it turns back \
                  on, and the straight tube coming back up through that rim's hole) is ONE \
-                 full revolve of ONE meridian band; the loop over the top is ONE sweep \
-                 of the annulus along its whole U-turn spine. The two MEET on annular \
+                 full revolve of ONE meridian band; the loop over the top is ONE loft \
+                 of the annulus through normal planes of its whole U-turn spine. The two MEET on annular \
                  faces, each cap tilted off the bulb's rim by its spine's end tangent, \
                  and they cannot be joined: union refuses the loop's NURBS edges at the \
                  operand gate, and subtract refuses the loop's NURBS walls against a \
@@ -1199,7 +1199,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
     // annular faces — the REST mate — and the union refuses before
-    // any pair is looked at: the loop is a sweep, its longitudinal
+    // any pair is looked at: the loop is a loft, its longitudinal
     // edges are NURBS carriers, and the operand gate admits a rung-3
     // edge in no INPUT operand (rung-3 is what the curved zip mints,
     // not what it consumes) —
@@ -1228,7 +1228,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // Wall 5: the loop with its section spelled the natural way, as
     // two `circle`s. It builds, tier-1 valid and closed, and tier 3 —
     // which every scene body passes — cannot decide the sign of its
-    // volume on a rational swept wall at the loop's position. The
+    // volume on a rational lofted wall at the loop's position. The
     // refusal is the flux enclosure's width (1.04e-5 m, the same at
     // every ε row) against a 1024·ε target, so it stands at the
     // default ε and finer, and at the coarse row the sign decides.
@@ -1256,7 +1256,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         EpsRow::Default | EpsRow::Fine => crate::walls::wall(
             "bottle",
             5,
-            "validate the loop swept with `circle` sections at tier 3",
+            "validate the loop lofted with `circle` sections at tier 3",
             round_tier3,
             |e| {
                 matches!(
@@ -1429,7 +1429,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     crate::walls::wall(
         "bottle",
         8,
-        "tessellate the loop swept with `circle` sections",
+        "tessellate the loop lofted with `circle` sections",
         pncad::mesh::tessellate(&round64, DELTA, tol),
         |e| matches!(e, pncad::mesh::TessellateError::UnsupportedNurbsFace { .. }),
         "and if wall 5 has retired too, spell [`annulus`]'s lofted walls as `circle` \
