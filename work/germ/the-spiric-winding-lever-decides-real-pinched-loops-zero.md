@@ -7,6 +7,7 @@ opened: 2026-10-13
 priority: P3
 cost: M
 branch: germ/spiric-lever-pinch
+pr: 5066
 ---
 
 
