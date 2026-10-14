@@ -2,11 +2,14 @@
 id: a-blend-corner-patch-holds-a-chart-pole
 kind: issue
 title: A fillet corner patch's sphere chart puts a pole inside the patch, which the ratified PR 2850 rule says must be a vertex
-status: open
+status: closed
 opened: 2026-10-10
 priority: P2
 cost: M
 refs: [validity-refuses-an-interior-chart-singularity]
+branch: band/corner-patch-chart-pole
+closed: 2026-10-14
+pr: 5048
 ---
 
 
@@ -43,3 +46,19 @@ only swaps which pole is inside) — and
 re-baseline the corner patches' pcurves and meshes that move. Done when
 every corner face of f4 reads `MaterialSign::Encoded` and agrees with
 its bit.
+
+## Closed
+
+`sweep::blend::arms::corner_chart` charts every fillet corner patch
+with its pole on one of the patch's feet (a vertex) and the antipode
+outside it, derived at the site: the patch is the spherical triangle of
+nonnegative combinations of its three foot directions, so `−f_c` is in
+it only if the feet are dependent, which predicate 6 refuses, and no
+patch reaches a hemisphere. `build::octant_chart` (production) and
+`corner_ball` (the arm's own chart) both call it; box corners keep
+their chart up to the sign of a zero component, oblique corners move
+their pole onto a foot. `crates/sweep/tests/corner_patch_chart_poles.rs`
+holds every corner face of a corpus (cubes at six poses and two
+scales, the vented and skewed cavities, the f4 oblique clip, a vented
+void in its shape, a cube at `Interval`) to `MaterialSign::Encoded`
+agreeing with its bit and to no pole strictly inside a face.

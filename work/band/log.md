@@ -980,3 +980,54 @@ quadrature with membership grids; a Monte Carlo opening), now rows. The two
 residues (`an-overruns-sliver-refuses-a-short-near-edge`,
 `a-turns-overrun-meters-the-whole-cut-off-sliver`) are verb-neutral and
 carry the fillet's evidence; the round sliver over-refused nothing probed.
+
+## 2026-10-13 — the line meter's Interval low end far from the centre (PR 5025, P1)
+
+The Interval line meter read `G` through the point `q0 + e·[s]`, so `s`
+sat in every coordinate and a near-0/0 crossing candidate's spread
+lowered even a term flat along the segment. `g` now reads each term with
+`s` once (`√((s + b)² + d2)`, `a + k·s`); each still encloses its term at
+every point of `[s]`. Main reddened the fuzz row on 8/1000 seeds; the
+branch on 0/1000 and on ~400k effort-100 cases. Both seeds' cases are
+fixed rows. Cost E, verified by the orchestrator (the seeds green on the
+head, clippy clean).
+
+## 2026-10-14 — BodyNotIntact says how the body broke (PR 5021)
+
+`BodyNotIntact` carries a typed `Breach { Unresolved, Unwalked,
+Disagrees }` and renders that cause, not "did not resolve" for every
+detail; all 213 raise sites classified, nine mixed ones split. Each
+breach's text is pinned, with a real refusal per kind where one is
+reachable (`Disagrees` through the public door; the other two only
+crate-internally, since the doors validate tiers 1 and 2). The lane
+filed seven sibling refusals that render several causes through one
+sentence, across six programs. Cost E, verified by the orchestrator.
+
+## 2026-10-14 — Ev ruled the band's feature semantics (PR 4963)
+
+Re-forked on Ev's comments into one question and answered by two
+designers in agreement (fork-log rows 139–140): Boolean semantics is a
+blend's definition (convex `S − R`, concave `S ∪ F`); a feature crossing
+the band surface refuses as an unbuilt case, with the intention to build
+it once the Boolean serves the band × feature pairs; a mouth a fill
+covers is sealed; an advisory lint for every operation reports a feature
+an op makes vanish or change type unasked; `docs/DESIGN.md`'s
+void-insertion convention gains the blend's seal as a fourth producer.
+The reorder recourse (`subtract(fillet(body), hole)`) needs the blend's
+edges re-picked upstream, because a name on a feature's output is that
+node's `From { read, of }`. Build order and status:
+`work/band/a-concave-fill-and-a-whole-shell-inside-a-bands-region.md`.
+
+## 2026-10-14 — a fillet corner's chart poles on its third foot (PR 5048)
+
+`arms::corner_chart` poles every fillet corner patch on one of its feet,
+so one pole is a vertex and the antipode lies outside (the feet are
+independent, predicate 6); the patch stays in an open hemisphere and its
+`u` window in `[0, θ]`, `θ < π`. Ev's C12 (7) rule held for blend corners
+at last: the f4 clip read `Unencoded` on main and reads `Encoded` here,
+over 160 corners. Cost M, full review APPROVE-WITH-FIXES (text only; the
+geometry held over 2000+ charts and 124 built corners, and a mutant);
+the fix pass took the reviewer's oblique corpus into the row. Oblique
+fillet corners still do not tessellate (`NotIsoRectangle`, the P0 tess
+item, which now carries them as a witness); box corners move only by
+signed zeros at axis poses and by ulps elsewhere.
