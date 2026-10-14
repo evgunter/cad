@@ -1356,3 +1356,12 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Local verify (vpr.sh) is running. The pt-section-gaps lane is working (no PR yet). Re-armed for 12:38.
 - 2026-10-14 12:40 — Check-in. 5066's local verify on head + main is green (geom-brep 1332, topo 3006, sweep 2687 at three ε); waiting only on d5066. The pt-section-gaps lane is working. Re-armed for 13:39.
 - 2026-10-14 12:50 — **PR 5125** (pt-section-gaps) opened at head `4d2dd60f23`: the frame-rule gaps; the in-box far row (0 misreads at every ε and EPS_MIN, red against the old gaps); spiric_rim's re-pose row re-baselined to 4 ulps of the carrier's reach; the item closed into the scalar box item with a seam note; FLUX's position-dependent volume budget filed and reproduced. Graded M. Arm byte 125, mod 3 = 2 → **SEQUENTIAL**. Dispatched r5125 (local Opus; brief at scratchpad/dr5125/brief.md).
+- 2026-10-14 14:55 — **r5125 report** (single review, SEQUENTIAL): sound; 0 MAJOR, 1 MINOR, 3 NIT.
+  - Executed: 2.22M plane×torus oracle sections on head and on main's gaps. Head: 0 built-wrong; 0 misreads at ε ≥ 1e-12. It fixes 89 EPS_MIN escalations that main has inside the box. Origin verdicts are unchanged.
+  - CI green at 3 ε on geom-brep, topo and sweep.
+  - In-box row confirmed red against the old gaps. Re-pose mutants: +1e-15 red, +4e-16 green.
+  - FLUX repro exact.
+  - MINOR, adjudicated as a filing (not this PR's file; CLEAVE owns it): `carrier_cross.rs:449` `common_line` uses the same far-dot-difference shape; 7e-11 at 990 m in a Python replica, with no wrong verdict shown. Filed `work/cleave/carrier-cross-common-line-reads-far-dot-differences.md` on 5125's branch.
+  - NITs (re-pose slack also bounds unit fields; 29 oval-edge EPS_MIN refusals now escalate rather than going general; FLUX cites symbols, not lines) stay as they are.
+  - Also seen: `germ_plane_torus_spiric::the_fat_corner_bars_lens…` pin red at ε = EPS_MIN only, identical on main. EPS_MIN is not a CI ε; noted, not filed.
+  - Merge verify started in /home/user/m5125 (main merged clean).
