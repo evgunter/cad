@@ -254,11 +254,15 @@ impl<T: Decide + Bounds> EndCut<T> {
 /// - within `reach` and above every `floorₖ`, because `‖p − center‖` is
 ///   convex and `(p − center)·dₖ` linear, so over the compact `S` the
 ///   first is largest, and each second smallest, somewhere on `S`'s
-///   boundary, which is `A` and the two rim pieces; `reach` and the
-///   floors are those extremes over the three pieces, each in closed
-///   form over its own window ([`piece_distance`], [`piece_along`]; an
-///   ellipse's distance from its own centre is extreme at its window's
-///   ends or at a major vertex).
+///   boundary, which is `A` and the two rim pieces. `A` adds no
+///   extreme of its own: its ends are the feet, which end the rim
+///   pieces too; a chord is extreme only at its ends; and inside its
+///   window an arc of the convex `E` is farthest from `center`, or
+///   lowest along `dₖ`, only where `E`'s outward normal points the way
+///   the function runs on, and `S`, outside `E`, runs on past that
+///   point. So `reach` and the floors are those extremes over the two
+///   rim pieces, each in closed form over its own window
+///   ([`piece_distance`], [`piece_along`]).
 ///
 /// The directions `dₖ` are free for soundness — every unit direction
 /// gives a sound floor. They are `toward`, the unit direction from
@@ -280,12 +284,6 @@ impl<T: Decide + Bounds> EndCut<T> {
 /// it certifies neither way is a bound — on a chord end too, where the
 /// exact triangle could certify it outside (work item
 /// `a-chord-ends-triangle-could-read-a-cycle-outside`).
-///
-/// Two of its terms are pinned by no assembly row, only by the piece
-/// meters' unit row: the arc's term of a floor, which binds only when a
-/// rim piece spans more than π, and the whole-circle arm of an arc
-/// extreme on a cap edge (work item
-/// `cap-sliver-floor-arc-term-and-whole-circle-arm-are-unpinned`).
 pub(in crate::blend) struct CapSliver<T: Real> {
     /// The end face the sliver is cut from.
     pub(in crate::blend) cap: FaceKey,
@@ -837,8 +835,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
             rim_piece(body, rim_a, vertex, foot_a)?,
             rim_piece(body, rim_b, vertex, foot_b)?,
         ];
-        // The end curve's own piece, its centre, and on a round end the
-        // section's frame and its far extent from that centre.
+        // The end curve's centre, and on a round end the section's frame.
         let (center, round) = match curve {
             EndCurve::Chord => (foot_a + (foot_b - foot_a) * T::from_f64(0.5), None),
             EndCurve::Round(arc) => {
@@ -881,44 +878,18 @@ impl<T: Decide + Bounds> CapSliver<T> {
                     major,
                     minor,
                 };
-                // The distance from the centre at `t` is
-                // `√(major²·cos²t + minor²·sin²t)`, largest at a window
-                // end or at a major vertex `t = kπ` inside the window.
-                let at = |p: Point3<T>| (p - center).norm();
-                let first = T::zero() - (T::zero() - ta / T::pi()).floor();
-                let vertex_inside = (first * T::pi() - tb).lo() <= 0.0;
-                let far = if vertex_inside {
-                    major
-                } else {
-                    at(foot_a).max(at(foot_b))
-                };
-                (center, Some((arc, (ta, tb), frame, far, axis)))
+                (center, Some((frame, axis)))
             }
         };
         let toward = (pv - center).normalize();
         let mut directions = vec![toward];
-        if let Some((_, _, frame, _, _)) = round {
+        if let Some((frame, _)) = round {
             directions.extend([frame.u, -frame.u, frame.w, -frame.w]);
         }
-        let mut reach = match round {
-            Some((_, _, _, far, _)) => far,
-            None => (foot_a - center).norm().max((foot_b - center).norm()),
-        };
-        let mut floors = Vec::with_capacity(directions.len());
-        for d in directions {
-            let low = match round {
-                Some((arc, window, _, _, _)) => {
-                    piece_along(arc, window, center, d)
-                        .ok_or_else(|| {
-                            unbuilt_geometry(EntityId::Vertex(vertex), "a cut-off's round section")
-                        })?
-                        .0
-                }
-                None => (foot_a - center).dot(d).min((foot_b - center).dot(d)),
-            };
-            floors.push((d, low));
-        }
-        for (i, (carrier, window)) in pieces.iter().enumerate() {
+        // `reach` and the floors over the rim pieces alone: `A` adds no
+        // extreme of its own.
+        let extent = |i: usize| {
+            let (carrier, window) = &pieces[i];
             let unsupported = || {
                 unbuilt_geometry(
                     EntityId::Edge(rims[i].0),
@@ -926,21 +897,26 @@ impl<T: Decide + Bounds> CapSliver<T> {
                      rims the sliver's extent is closed-form over",
                 )
             };
-            reach = reach.max(
-                piece_distance(carrier, *window, center)
-                    .ok_or_else(unsupported)?
-                    .1,
-            );
-            for (d, floor) in &mut floors {
-                let (low, _) = piece_along(carrier, *window, center, *d).ok_or_else(unsupported)?;
-                *floor = floor.min(low);
-            }
-        }
+            let (_, far) = piece_distance(carrier, *window, center).ok_or_else(unsupported)?;
+            let lows = directions
+                .iter()
+                .map(|&d| Some(piece_along(carrier, *window, center, d)?.0))
+                .collect::<Option<Vec<T>>>()
+                .ok_or_else(unsupported)?;
+            Ok::<_, BlendError>((far, lows))
+        };
+        let ((far_a, lows_a), (far_b, lows_b)) = (extent(0)?, extent(1)?);
+        let reach = far_a.max(far_b);
+        let floors = directions
+            .iter()
+            .zip(lows_a.into_iter().zip(lows_b))
+            .map(|(&d, (a, b))| (d, a.min(b)))
+            .collect();
         // A chord end whose rims are lines cuts off the triangle
         // `V, foot_a, foot_b`.
         let lines = pieces.iter().all(|(c, _)| matches!(c, Curve3::Line { .. }));
         let exact = match round {
-            Some((_, _, _, _, axis)) => Exact::Round(SliverBoundary {
+            Some((_, axis)) => Exact::Round(SliverBoundary {
                 feet: [foot_a, foot_b],
                 axis,
                 rims: pieces.map(|(carrier, window)| (carrier.clone(), window)),
@@ -952,7 +928,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
             cap,
             rims: [rim_a, rim_b],
             center,
-            inside: round.map(|(_, _, frame, _, _)| frame),
+            inside: round.map(|(frame, _)| frame),
             reach,
             floors,
             exact,
