@@ -250,17 +250,27 @@ pub fn restrict_segment(
     pyramid(row, ((a - below) / width, (b - below) / width), |_, _, u| u)
 }
 
+/// A split's weights `(t, 1 − t)` for the thin convex step
+/// `x·(1 − t) + y·t`, three outward interval operations per entry.
+/// [`Certification::between`]'s monotone and convex forms met are built
+/// for the blossom door's general ratios; a window's ratio is the
+/// enclosure of one point's, a few ulps wide. The plain step encloses
+/// the exact step for every `t` in that enclosure (`[0, 1]` after the
+/// clamp); what it costs in width is measured on the cut's meets.
+fn convex(t: Interval) -> (Interval, Interval) {
+    (t, Interval::point(1.0) - t)
+}
+
 /// The Bernstein row on `[a, b]` of the segment whose row on `[s0, s1]`
 /// is `row`, by two de Casteljau splits: at `(a − s0)/(s1 − s0)`,
 /// keeping the right part (the row on `[a, s1]`), then at
-/// `(b − a)/(s1 − a)`, keeping the left. Each step is
-/// [`Certification::between`] at an interval ratio clamped to `[0, 1]`,
-/// so at `Interval` every coefficient encloses the exact restriction's,
+/// `(b − a)/(s1 − a)`, keeping the left. Each step is the thin convex
+/// step ([`convex`]) at an interval ratio clamped to `[0, 1]`, so at
+/// `Interval` every coefficient encloses the exact restriction's,
 /// `2p` steps deep; `O(p²)` against the blossom pyramid's `O(p³)`
 /// ([`restrict_segment`]). A split at an end of its segment is
 /// skipped. A cut out of order, or a segment that is empty or not
 /// finite, refuses every coefficient.
-///
 // The negated guard refuses a NaN cut, where `a < s0` would pass it.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub(crate) fn split_restrict(
@@ -282,20 +292,20 @@ pub(crate) fn split_restrict(
     if a > s0 {
         // The right part: entry `k` is level `p − k`'s entry `k`, the
         // last each level writes from the low end up.
-        let t = ratio(a, s0);
+        let (t, s) = convex(ratio(a, s0));
         for r in 1..=p {
             for k in 0..=p - r {
-                d[k] = Interval::between(d[k], d[k + 1], t);
+                d[k] = d[k] * s + d[k + 1] * t;
             }
         }
     }
     if b < s1 {
         // The left part: entry `k` is level `k`'s entry `0`, the last
         // each level writes from the high end down.
-        let t = ratio(b, a);
+        let (t, s) = convex(ratio(b, a));
         for r in 1..=p {
             for k in (r..=p).rev() {
-                d[k] = Interval::between(d[k - 1], d[k], t);
+                d[k] = d[k - 1] * s + d[k] * t;
             }
         }
     }
