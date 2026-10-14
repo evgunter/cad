@@ -2,10 +2,13 @@
 id: the-arc-rim-pick-on-a-chart-closed-in-v-has-no-row
 kind: issue
 title: on a chart closed in v the arc rim's pick handed both halves of a seam circle the v₀ row by candidate order
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: E
+closed: 2026-10-14
+branch: pcert/arc-rim-closed-in-v
+pr: 5137
 ---
 
 
