@@ -5985,6 +5985,15 @@ fn plus_v_verdict(
 /// to measure ([`ValidationError::VolumeUncomputable`]) is reported
 /// whatever the rays read: it is the certificate's, which the door
 /// hands on.
+///
+/// **A volume definitely negative refuses whatever the rays read**: it
+/// breaks tier 3's positive-volume invariant on its own, and it is never
+/// the case the rays are for (a volume in band). The two readings take
+/// the face's side from different places — the rays from its sense, the
+/// volume from its loops, which choose its region on the carrier — so a
+/// body whose loops are wound against its faces' senses reads `Out` by
+/// ray and negative by volume, and is refused as main refused it
+/// (`node_probe_rows`' bicylinder minted the other way round).
 fn plus_v_errors<T: Decide>(
     body: &Body<T>,
     solid: SolidKey,
@@ -6001,6 +6010,10 @@ fn plus_v_errors<T: Decide>(
             solid,
             source: source.clone(),
         });
+    }
+    if matches!(walked, Some(PlusVVerdict::Refuse)) {
+        errors.push(ValidationError::NegativeVolume { solid });
+        return errors;
     }
     let undecided = |reading| ValidationError::OrientationUndecided { solid, reading };
     // The walk's verdict as the reader's fallback: a side, or why not.
