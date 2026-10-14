@@ -7055,9 +7055,10 @@ mod rim_holding_rows {
     }
 
     /// **An arc a few tolerances long escalates rather than guess its
-    /// way** (`Track::runs_with`): a 20 nm arc on the base arc's circle
-    /// lies on it, and the two stretches it compares differ by a quarter
-    /// of its length, 5 nm, inside the escalate band. Certification
+    /// way** (`Track::runs_with`): an arc two escalate bands long on the
+    /// base arc's circle lies on it, and the two stretches it compares
+    /// differ by a quarter of its length, half an escalate band, inside
+    /// the band at every tolerance. Certification
     /// refuses a span under the escalate band, so no arc reaches the
     /// zero band and the `Emission` arm.
     #[test]
@@ -7069,11 +7070,11 @@ mod rim_holding_rows {
         let line = |(b, e): (Body<f64>, EdgeKey)| EdgeCarrier::of_edge(&b, e).unwrap();
         let base = line(chord_arc(0.0, 90.0));
         let t = 30.0 * DEG;
-        let short = line(arc_on(&circle(), t, t + 2.0e-8));
+        let short = line(arc_on(&circle(), t, t + 2.0 * bnd.escalate()));
         let way = base.runs_with(&short, ON_MEMBER_EDGE, bnd);
         assert!(
             matches!(way, Err(NamingError::Escalated { .. })),
-            "a 20 nm arc's way escalates, got {way:?}"
+            "an arc two escalate bands long escalates its way, got {way:?}"
         );
     }
 
