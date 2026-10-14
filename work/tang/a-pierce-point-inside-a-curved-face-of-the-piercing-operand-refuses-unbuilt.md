@@ -2,9 +2,10 @@
 id: a-pierce-point-inside-a-curved-face-of-the-piercing-operand-refuses-unbuilt
 kind: issue
 title: A pierce point inside a curved face of the piercing operand, or a plane face holding one over a curved pierced face, refuses unbuilt
-status: dispatched
+status: closed
 branch: tang/pierce-held-built
 opened: 2026-10-13
+closed: 2026-10-14
 priority: P3
 cost: M
 refs: [an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring]
@@ -44,3 +45,44 @@ plate, with a prism whose edge lies along one of the cylinder's
 rulings, folded so the cylinder and the prism are one operand when the
 plate joins them.
 
+## Closed (2026-10-14, TANG)
+
+Rows: `crates/sweep/tests/a_pierce_held_in_a_curved_face.rs`. Each of
+the three refused `HeldPierceUnbuilt` on main (`9fda94407`).
+
+- **The item's witness** is the rod with a square prism whose edge is
+  one of its rulings, joined, against a plate. On main it refused
+  `placed: false`, not `placed: true`. The wall's outline read as
+  unsupported because the pierce's own strut already stood in its
+  loop (`solid_contain::wall_outline`'s chain check). A null half is
+  zero-length, so the chain now steps past it, and the trim places the
+  point In.
+- **A plane face over a curved pierced face**: two prisms touching
+  along a line, joined, against a lying cylinder.
+- **`placed: false`**: the joined pair pocketed beside the point, so
+  the wall carries a ring the cylinder trim does not read.
+
+`faces_holding_pierce` now builds the curved cases as it builds the
+plane one:
+
+- a ring vertex at the point;
+- one Out run, with germs `±n × n_p` across the two faces' tangent
+  planes;
+- the run's half charged for both faces' bends at the pierce's arm
+  (`sectors::sagitta_charge`, shared with `read_side`).
+
+A trim that cannot say still refuses `HeldPierceUnbuilt` typed. Its
+recourse now names cutting the face after the join, which builds.
+
+The first two build:
+
+- every op, either operand first;
+- both join orders and three poses of the ruling;
+- every member order of the fold, carried.
+
+Each passes tier 3 and tier 3′, matches its closed-form volume, and
+matches the material at the probes, at all three ε.
+
+A curved face over a curved pierced face is not reached. The rod alone
+refuses against a lying cylinder (`GermFrameUnsupported`) and against
+a coaxial ball (`CurvedBooleanUnsupported`).

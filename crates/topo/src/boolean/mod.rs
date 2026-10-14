@@ -2694,14 +2694,16 @@ pub enum BooleanError {
         /// geometry.
         wedge: geom_brep::MaterialWedge,
     },
-    /// **A pierce point inside a face of the piercing operand that the
-    /// Boolean cannot yet build a vertex in** (`vtxfac::faces_holding_pierce`).
-    /// An operand whose solids touch, one's edge lying in another's face,
-    /// pierces the other operand's face where that face crosses its own,
-    /// and the section of the two passes the point. The vertex that needs
-    /// is built where both faces are planes; here one is curved, or the
-    /// curved face's trim could not say whether it holds the point.
-    /// Refused before anything is built.
+    /// **A pierce point that a curved face of the piercing operand may
+    /// hold, where the Boolean cannot build a vertex**
+    /// (`vtxfac::faces_holding_pierce`). An operand whose solids touch,
+    /// one's edge lying in another's face, pierces the other operand's
+    /// face where that face crosses its own, and the section of the two
+    /// passes the point. The face holding the point takes a vertex
+    /// there. Here the curved face's trim could not say whether it holds
+    /// the point (a ringed wall, a spline face, an outline the chart door
+    /// does not read), so nothing is guessed. Refused before anything is
+    /// built.
     HeldPierceUnbuilt {
         /// The piercing operand, whose face holds the point.
         operand: Operand,
@@ -2714,7 +2716,9 @@ pub enum BooleanError {
         /// The pierced face's surface kind.
         pierced_kind: geom::SurfaceKind,
         /// Whether the holding face's trim placed the point inside it:
-        /// `false` where it could not read its trim there.
+        /// `false` where it could not read its trim there; `true` where
+        /// it did, on a face with no residual or normal to build on (a
+        /// spline face, whose trim no door reads yet).
         placed: bool,
     },
     /// A boolean's input ([`BooleanInputs`]) references an entity that
@@ -4291,17 +4295,16 @@ impl core::fmt::Display for BooleanError {
             } => write!(
                 f,
                 "a solid of the {} operand has an edge lying in a {} face of another of its \
-                 solids, and a {} face of the other operand crosses both there{}; the Boolean \
-                 builds that only on two planes. Recourse: join the \
-                 solid holding that face to the other operand first, or move the edge off the \
-                 face",
+                 solids, and a {} face of the other operand crosses both there{}. Recourse: \
+                 join the solid holding that face to the other operand first, cut that face \
+                 after this join, or move the edge off the face",
                 operand_word(*operand),
                 kind_word(*kind),
                 kind_word(*pierced_kind),
                 if *placed {
-                    ""
+                    "; the Boolean cannot build a vertex on that face"
                 } else {
-                    " (or may: its outline is unread there)"
+                    " (or may: the Boolean cannot read that face's outline there)"
                 },
             ),
             Self::InvalidInput { operand, what } => write!(

@@ -2994,6 +2994,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "Coincide::TangentSide",
         1,
     ),
+    (
+        "vtxfac.rs",
+        "faces_holding_pierce",
+        "BooleanDecision::PierceCurvature",
+        1,
+    ),
     ("vtxfac.rs", "faces_holding_pierce", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",

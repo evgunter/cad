@@ -15,19 +15,24 @@
 //! - **A plane face holds it over a curved pierced face**: two prisms,
 //!   one's edge lying in the other's side face, joined, and a lying
 //!   cylinder whose top that edge pierces.
-//! - **Both curved**: the rod and its square, joined, and the lying
-//!   cylinder.
-//! - **A wall whose trim cannot be read there**: the rod's wall pocketed
-//!   beside the point, which the trim does not read with its ring. The
-//!   point may lie in the face, so nothing is guessed: every pose
-//!   refuses `HeldPierceUnbuilt` typed, its recourse the fold's other
-//!   order, which builds.
+//! - **A wall whose trim cannot be read there**: the joined rod and
+//!   square pocketed beside the point, so the wall carries the pocket's
+//!   ring, which the cylinder's trim does not read. The point may lie
+//!   in the face, so nothing is guessed: the plate against it refuses
+//!   `HeldPierceUnbuilt` typed, either operand first, and pocketing
+//!   after the join builds.
+//!
+//! A curved face holding the point over a curved pierced face is not
+//! reached: the rod alone already refuses against the lying cylinder
+//! (`GermFrameUnsupported`) and against a coaxial ball
+//! (`CurvedBooleanUnsupported`).
 //!
 //! Each body that builds is sound: tier 3, tier 3′ on the carried fold,
 //! its material at probes about the point against the members' closed
-//! forms, and its volume against theirs (the lying cylinder's
-//! intersections by quadrature over its height function, which is
-//! exact to far below the tolerance).
+//! forms (a probe the in-solid walk leaves unread read off the
+//! tessellation's winding number), and its volume against theirs (the
+//! lying cylinder's parts by quadrature over its height function, far
+//! below the tolerance).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
@@ -128,9 +133,13 @@ fn bearing(a: f64, r: f64) -> (f64, f64) {
     (C.0 + r * c, C.1 + r * s)
 }
 
+/// An upright prism: its footprint (counterclockwise) and its height
+/// range.
+type Upright = (Vec<(f64, f64)>, (f64, f64));
+
 /// Two prisms touching along the rod's axis line: one over the sector
 /// 120°–170°, the other over a triangle whose side holds the line.
-fn line_prisms() -> [(Vec<(f64, f64)>, (f64, f64)); 2] {
+fn line_prisms() -> [Upright; 2] {
     [
         (
             vec![C, bearing(120.0, 0.4), bearing(170.0, 0.4)],
@@ -302,20 +311,25 @@ fn winding(mesh: &mesh::Mesh, q: [f64; 3]) -> f64 {
     omega / (4.0 * PI)
 }
 
-/// **A body sound against a closed form**: tier 3, its volume, and its
-/// material at the probes against `holds`. A probe the in-solid walk
-/// leaves unread is read off the body's tessellation by its winding
-/// number, where that is clear of a half; at least 99% are read.
+/// **A body sound against a closed form**: tier 3, its volume within
+/// its certified bracket, and its material at the probes against
+/// `holds`. A probe the in-solid walk leaves unread is read off the
+/// body's tessellation by its winding number, where that is clear of a
+/// half; at least 99% are read.
 fn sound(what: &str, body: &AtRestBody<f64>, holds: &dyn Fn([f64; 3]) -> bool, volume: f64) {
     assert_eq!(
         topo::validate_geometric(body, tol()),
         Ok(()),
         "{what}: tier 3"
     );
-    let v = topo::mass_properties(body, tol()).unwrap().volume;
+    // Within the certified bracket, which a face read by quadrature
+    // widens, and the closed form's own quadrature.
+    let m = topo::mass_properties(body, tol()).unwrap();
     assert!(
-        (v - volume).abs() < 1e-9,
-        "{what}: volume {v}, closed form {volume}"
+        (m.volume - volume).abs() < m.volume_pad + 1e-9,
+        "{what}: volume {} ± {}, closed form {volume}",
+        m.volume,
+        m.volume_pad
     );
     let probes = probes();
     let mut mesh = None;

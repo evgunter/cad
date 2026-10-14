@@ -1430,8 +1430,9 @@ pub(super) fn wall_outline<T: Decide>(
     // The images skip null scaffolding; the loop must be the images'
     // own chain, each half-edge's `next` past any null halves the
     // following image's. A null half is zero-length, so the chain it
-    // sits in bounds what it bounds without it: mid-Boolean, a pierce's
-    // strut stands in the face's loop where the pierce met its edge.
+    // sits in bounds what it bounds without it: mid-Boolean, a vertex of
+    // the face's own that pierced the other operand leaves its run's
+    // strut in the loop.
     for (i, image) in images.iter().enumerate() {
         let mut next = body.get_half_edge(image.he).ok_or_else(corrupt)?.next;
         for _ in 0..body.half_edges.len() {

@@ -1617,19 +1617,29 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// piercing vertex's own faces lies on (their siblings on one carrier,
 /// which a valid body never lets overlap them), and where the point is
 /// not definitely off that carrier.
-/// only: a curved face that holds the point, or whose trim cannot say
-/// whether it does, and a plane face holding it over a curved pierced
-/// face, refuse [`BooleanError::HeldPierceUnbuilt`] before anything is
-/// written.
+///
+/// **On a curved face, or over one**, the run is the plane case's. Its
+/// germs are the two faces' section's tangents at the point, `±n × n_p`
+/// across their tangent planes, exact for every smooth pair as
+/// [`pierce_germ_dir`] argues. Its half is charged for the two faces'
+/// bends as a pierce sector's side is (`sectors::sagitta_charge`): what
+/// the first order puts above the pierced face must stand off it past
+/// both sagittas within the pierce's arm. A curved face whose trim
+/// cannot say whether it holds the point refuses
+/// [`BooleanError::HeldPierceUnbuilt`] before anything is written:
+/// nothing is guessed.
 ///
 /// # Errors
 ///
 /// [`BooleanError::HeldPierceUnbuilt`] as above; a coincidence or an
-/// escalation where the point's side of a plane, its place in a face,
-/// or the two planes' angle is in band; and
+/// escalation where the point's place on a face's carrier, its place in
+/// a face, or the two faces' angle is in band;
+/// [`BooleanError::CurvedSectorSideUnsupported`], or an escalation of
+/// [`super::BooleanDecision::PierceCurvature`], where the bends' charge
+/// does not clear the band; and
 /// [`BooleanError::ClassificationInvariant`] where a face holding the
-/// point lies in the pierced face's plane, which a valid operand cannot
-/// reach.
+/// point lies in the pierced face's tangent plane, which a valid operand
+/// cannot reach.
 pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     piercing_body: &mut Body<T>,
     pierced_body: &Body<T>,
@@ -1686,7 +1696,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
             continue;
         }
         // The face's outward normal at the point, its bend there (`None`
-        // on a plane), and the margin that put the point on it.
+        // on a plane), and the reading that puts the point on it.
         let (held_normal, held_lever, on) = match face_plane(piercing_body, face) {
             None => {
                 // A curved face is read only where its box can hold the
@@ -1746,9 +1756,6 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 let Some(side) = side else {
                     return Err(unbuilt(face, kind, true));
                 };
-                let side = side.map_err(|diag| {
-                    BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
-                })?;
                 let normal =
                     match crate::face_normal::face_outward_normal_at(piercing_body, face, p, band) {
                         Ok(Some(n)) => n.vec(),
@@ -1757,7 +1764,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                             return Err(BooleanError::of_pierced_normal(refusal, piercing, face));
                         }
                     };
-                (normal, Some(held_lever), side.margin)
+                (normal, Some(held_lever), side)
             }
             Some(plane) => {
                 let side = geom_core::k_stats::decide_reported(
@@ -1778,19 +1785,23 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 if at != FaceContainment::In {
                     continue;
                 }
-                let side = side.map_err(|diag| {
-                    BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
-                })?;
-                (plane.normal, None, side.margin)
+                (plane.normal, None, side)
             }
         };
+        // The point lies in the face: its place on the face's carrier
+        // in band is a coincidence, decided nowhere else.
+        let on = on
+            .map_err(|diag| {
+                BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
+            })?
+            .margin;
         let int = held_normal.cross(plan.normal);
         match decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "a pierce point lies inside a face of the piercing operand in the \
-                           pierced face's plane",
+                           pierced face's tangent plane",
                 });
             }
             Err(diag) => {
