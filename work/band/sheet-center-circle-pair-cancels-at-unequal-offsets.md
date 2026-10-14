@@ -54,3 +54,5 @@ clearances: `r₁ − a = (r₁ + r₂ − d)(d − r₁ + r₂)/2d` and
 there at under 3 ulps of scale at any ratio. A shared home for that
 algebra is `work/issues/circle-pair-radical-chord-has-no-shared-home.md`;
 without it, fixing this site mints another copy.
+
+2026-10-14 (PATHS, `paths/circle-pair-shared-home`): the shared home has landed as `geom_core::Circles` (`crates/geom-core/src/arc/pair.rs`): built from `d` and the two radii, it hands out the identity, external and internal margins and the cancellation-free `radical` foot and `half_chord` from one `r₁ + r₂` and `r₁ − r₂`; `Circles2` places them in the plane. profile `seg.rs` and topo `validate.rs` arm 5 read it. Fix this site by reading it, deciding its margins from the same value, rather than minting a copy.

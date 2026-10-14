@@ -2,11 +2,12 @@
 id: circle-pair-edge-candidates-cancel-at-unequal-radii
 kind: issue
 title: The at-rest validator's circle x circle edge-pair candidates are placed by differences of squares, so at radii orders of magnitude apart they sit off the smaller circle and a crossing reads apart
-status: dispatched
+status: closed
 opened: 2026-10-13
 priority: P0
 cost: E
 branch: paths/circle-pair-shared-home
+closed: 2026-10-14
 ---
 
 
@@ -82,3 +83,30 @@ not this one's.
 A shared `geom_core` home for that algebra is
 `work/issues/circle-pair-radical-chord-has-no-shared-home.md`; fixing
 this site before it lands mints another copy.
+
+## Outcome
+
+Fixed by PATHS on `paths/circle-pair-shared-home`, with the shared home
+(`work/issues/circle-pair-radical-chord-has-no-shared-home.md`).
+`validate.rs` `circle_pair` decides `ring_outer_circles_apart` and
+`_nested` from `geom_core::Circles` (`external()`, and `-internal()`,
+the same value as `|r₁ − r₂| − d` bit for bit), and arm 5's circle ×
+circle candidates take the foot (`radical()`) and the half-chord from
+the same value, so the half-chord's four factors are the margins just
+decided. In the secant branch the half-chord is unclamped
+(`half_chord()`): its square is a product of definite factors, so a
+negative there cannot arise from the decided margins, and if it did
+the poison reaches the trims as an invalid margin and the pair reads
+`Unsure`, never `Apart`. At a tangency, or with the existence margin in
+the band, the circles may stand apart or nested by up to the band,
+the chord does not exist, and its ends are the foot (`max(0)`, stated
+at the site).
+
+Row, red first (commit `b12ad4cfd1`, red at 1e-12: the second pair,
+larger arc first, `Apart` at `f64`):
+`validate::tests::arcs_crossing_at_unequal_radii_read_meeting`. Both
+pairs, both orders, at `f64` and `Interval`, now read `Meet` at 1e-6,
+1e-9 and 1e-12 (before: `Apart` once at `f64` and `Unsure` twice at
+`Interval`, at 1e-12; `Unsure` once at `Interval`, at 1e-9). It also
+pins that a poisoned candidate reads `Unsure`.
+

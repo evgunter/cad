@@ -51,3 +51,5 @@ at most 3.6 ulps off either carrier across the same range, and an
 identity, so Interval encloses. A shared `geom_core` home for it is
 `work/issues/circle-pair-radical-chord-has-no-shared-home.md`; fixing
 these sites before it lands mints a copy at each.
+
+2026-10-14 (PATHS, `paths/circle-pair-shared-home`): the shared home has landed as `geom_core::Circles` (`crates/geom-core/src/arc/pair.rs`): built from `d` and the two radii, it hands out the identity, external and internal margins and the cancellation-free `radical` foot and `half_chord` from one `r₁ + r₂` and `r₁ − r₂`; `Circles2` places them in the plane. profile `seg.rs` and topo `validate.rs` arm 5 read it. Fix this site by reading it, deciding its margins from the same value, rather than minting a copy.

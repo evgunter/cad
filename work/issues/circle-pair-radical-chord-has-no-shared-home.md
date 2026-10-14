@@ -2,11 +2,12 @@
 id: circle-pair-radical-chord-has-no-shared-home
 kind: issue
 title: The circle-pair radical foot and half-chord have no shared home, so each site that fixes its cancellation mints its own copy
-status: dispatched
+status: closed
 opened: 2026-10-13
 priority: P1
 cost: M
 branch: paths/circle-pair-shared-home
+closed: 2026-10-14
 ---
 
 Found by both reviews of #5032 (`arc-arc-secant-arm-misses-crossings-at-unequal-radii`).
@@ -47,3 +48,29 @@ and `r₁ − r₂` once, hands out the identity, external and internal
 margins, and the foot and half-chord from the same fields, 2D and on a
 plane in 3D. profile's `Circles` would then be its first caller, and
 the rows above would take it rather than each writing one.
+
+## Outcome
+
+Fixed on `paths/circle-pair-shared-home`. The home is
+`geom_core::Circles` and `geom_core::Circles2`, in
+`crates/geom-core/src/arc/pair.rs`, beside `Arc2`, the planar arc
+carrier profile and geom-brep share. `Circles` is built from `d` and
+the two radii, forms `r₁ + r₂` and `r₁ − r₂` once, and hands out the
+identity, external and internal margins, `radical()` (the foot's
+distance from `c₁`), `half_chord_squared()` and `half_chord()`; it is
+plane-agnostic, so a caller in 3D places the points in its own frame.
+`Circles2` adds the two centres and places the foot and the crossings
+in the plane. Generic over `Real`; it decides nothing.
+
+Readers: `profile/src/seg.rs` (`arc_arc`, `joint_tangency`), bit for
+bit (400,000 pairs at `f64` and `Interval`, every margin, foot and
+crossing coordinate, against the old private `Circles`: 0 differing),
+and `topo/src/validate.rs` (`circle_pair`, arm 5), which closes
+`circle-pair-edge-candidates-cancel-at-unequal-radii` (RESTFRONT P0).
+The accuracy row `seg::circles_accuracy_tests::circle_pair_points_sit_within_a_few_ulps_of_scale`
+stays in profile beside its double-double oracle (`dd.rs`) and now
+measures the geom-core type. The HONE, ROOTS and BAND rows carry a
+dated pointer to the home. The sweep found one more copy, on PATHS's
+own ground: `work/paths/arc-fillet-corner-circle-pair-cancels-at-unequal-radii.md`.
+`parallel_radical_plane` stays as #5032 measured it (harmless).
+
