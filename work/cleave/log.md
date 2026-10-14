@@ -1054,3 +1054,10 @@ Signed (CLEAVE orchestrator).
   - `decision_words` names the shared constant.
   - Filed (P3): `join-census-blind-spots`.
   - Both rows are closed.
+- 2026-10-14 — PR 5106 full review: FIX-FIRST.
+  - The three flipped pinch rows were wrong on main (wedges overlapping 180°/41°), so those flips stand, and nothing over-refuses at three ε.
+  - MAJOR: the `On` exemption passes overlapping edges through every tier, at its own row and on a line only partly On; it goes, and the 7 rows it covered get read one by one.
+  - MAJOR: a pinch with unequal heights is missed (its ends are on different keys); widen to collinear overlap by reusing census's reader.
+  - Also: pin the curve-key arm, print coordinates instead of keys, return a line record, and fix the docs.
+  - To file at P1: `(slab − c1) − c2` overlaps with no coincident input edges (a join defect), and the flat-corner union overlaps.
+  - Restread's side-check row gets the witnesses.
