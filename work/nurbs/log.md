@@ -1428,3 +1428,7 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - The saddle-wall pin from 4984 is being fixed in PR 5053 (head 23c140af), pin only. It merges when green.
   - The digest `tilted_cut_upper` red is not 4984's. A clean bisect first fails at 5f0d1cf5, the merge of #4952 (pcert). Build A re-cuts the table in its own PR citing #4952, and stops if any pad other than tilted_cut_upper's moves. A seam note went to pcert's log.
   - The 1e-6 reds (`cone_operand_rows`, `r1_lane0_e2e`, topo `three_solids_on_one_line`) and the 1e-12 `encl_curved_loft_shell` shelling pin all fail at a71403e3, before 4984, so they are base red and not ours. Build A bisects the shelling pin next.
+- 2026-10-14 02:20Z — **Step 3 (cut becomes restriction) WIP** at c4fb888bd on `nurbs/cut-becomes-restriction`.
+  - Its sound, tighter slope exposed a **latent soundness bug on main**: `NurbsBoxes::rect_box`'s midpoint over a point window is a plain f64 evaluation on the f64 lane, so it is not an enclosure. `edge_runs` then decides a wrong sign at an edge touch (`ssi::one_arc` `a_touch_inside_an_edge_resolves_no_count` reads `Some(2)`).
+  - The fix lands first as its own PR (`nurbs/rect-box-midpoint-certified`, FULL review, with a red-under-mutant row), with step 3 on top.
+  - The fork's "meet becomes a containment `debug_assert`" was falsified by measurement: 0.19% of 578,728 meets fall outside, by up to 108% of the whole box's width. The meet stays. A postscript is on the fork record.
