@@ -66,9 +66,24 @@ decision record):
   `new`, the `placement` field, `map` and `try_map` are gone;
   `placement()` is derived; `u()`/`v()`/`normal()` are `UnitVec3`s;
   `xy_at` is the sugar the demos and fixtures wanted.
-- The crossings are `embed`, `embed_computed` and `point_value` (see
-  the Crossings bullet); `pin` is not built. `Profile::map_scalar` is
-  `Profile::embed`.
+- The crossings, as Ev ruled on #5068 (answer A, 2026-10-14): a frame
+  crosses no scalar upward, and `point_value` is the one crossing.
+  `embed`, `embed_computed`, `Profile::embed` (the rename of
+  `Profile::map_scalar`) and `UnitVec3`'s crate-private halves are
+  gone; `pin` is not built. The demos mint their frames at their
+  scalar from inputs entered through `S::from_computed`; fixtures mint
+  at `T` through the world mints or `check_rigid`.
+- `ProfileLift` retired with the ruling: every evaluation elaborates
+  profile geometry at its scalar, guided by the `f64` record. The
+  `f64` lane over the nominal takes the first pass's validated form
+  (`editor_core::ProfileLane`, sealed, per scalar; held bit for bit
+  against the second pass run at `f64` by
+  `m10_p_lift::the_f64_lane_is_the_second_pass_bit_for_bit`). The E6
+  drive's `f64` witness runs the second pass anyway
+  (`eval::evaluate_witness`), because its verdict log is compared with
+  each leaf's. INLANE's `the-pinned-profile-lift-launders-at-sym` is
+  narrowed to the loft's enclosure arm, `lift_onto`'s last production
+  consumer.
 - `RigidMotion::turned_between` (one decision, `1 + a·b > 0`, ledger
   row F21, site `sweep_path_turn`; built as the quaternion
   `(1 + a·b, a × b)`'s matrix rather than the Rodrigues-between form,
