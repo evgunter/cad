@@ -1,0 +1,61 @@
+---
+id: the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite
+kind: issue
+title: The side reader refuses a body thin in two directions whose pairs are all definite (check 7 as a thinness gate on needles)
+status: open
+opened: 2026-10-14
+priority: P1
+cost: M
+needs_ev: true
+branch: flush/shell-role-reader
+pr: 5119
+refs: [4990]
+---
+
+Found by both reviews of PR 5119 (the shell-role reader, D10
+"Booleans" as ratified on PR 4990), at the frozen head `e672e97ac`.
+D10's premise "a ray's reading lies in band only where a pair does" is
+false for one class of body, so check 7 refuses solids whose every face
+pair is definite (> Kε): a thinness gate, which D1 says it is not.
+
+## Measured
+
+- At rest, `brick (0,1)×(0,w)×(0,w)` refuses `OrientationUndecided {
+  Volume }` for w = 10.5, 12, 15, 19, 21 and 30ε at ε 1e-9 and 1e-6, and
+  passes at 25 and 40ε. For w ≲ 2Kε no planar face offers an aim
+  (`planar_interior_point` wants a point more than Kε inside its
+  boundary); at 21ε every ray is set aside on a crossing within Kε of a
+  loop boundary (`point_in_loop`); the volume fallback then holds V/A
+  ≈ w/4 against the band.
+- Through a public boolean, `brick ∩ brick` leaving a needle 2–3Kε
+  across refuses at the door in 8 of 18 poses that main builds, typed
+  `ResultInvalid`.
+- The sweep needles in `fillet_h6_cap_rim` and
+  `review_blend_k_rk_probes` refuse `OrientationUndecided { Volume(None)
+  }`; they used to require "must validate at rest".
+- At ε 1e-12 a revolve-door torus (R 1e-10, r 2e-11, tube 4Kε across)
+  refuses: every 60° aim is set aside on a point-in-face margin within
+  Kε of a face boundary, and V/A is Kε less one ulp.
+- Main passes all of these at rest through the sliver hand-off PR 5119
+  retires, which reads no orientation, so main passes their inside-out
+  copies silently too.
+
+Probes: `flush/shell-role-review-r1` at `0731fe3f7`,
+`flush/shell-role-review-r2` at `c5d6fa21b`
+(`crates/topo/tests/r2_shell_role_probes.rs`), and the designers'
+`flush/needle-design-x` at `feb5b660e` and `flush/needle-design-y` at
+`bfec39bf9`.
+
+## The fork
+
+Two designers converged in round 2 (fork-log row 142): a ray that
+decides each edge it passes once for both faces it bounds and reads the
+role as the sign of its count of crossings reads every planar needle
+with definite pairs (measured: all 20 needle cases, both orientations,
+ε 1e-9 and 1e-6); the volume's sign certified by its interval enclosure
+alone, never held against the band, reads the needles and the torus
+(measured: width/|V| ≈ 5e-16 on axis needles, 1.7e-14 on the torus).
+The enclosure of an oblique needle carries an absolute floor of about
+1e-16 from the re-derivation's fan about one corner of the body (width
+1.28·V at 10.5ε, ε 1e-9; straddles zero on two boolean needle results
+at ε 1e-12). The question is on PR 5119.
