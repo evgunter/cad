@@ -101,16 +101,13 @@ fn door(pose: Pose, t0: f64, t1: f64, w: [f64; 3]) -> Result<CircleRoots<f64>, U
 /// The door's roots on `[t0, t1]` match the oracle's, in number and
 /// to well inside the band, and every one lies on the wall.
 fn assert_matches_oracle(label: &str, pose: Pose, t0: f64, t1: f64, w: [f64; 3], want: usize) {
-    let Ok(CircleRoots::Certified {
-        count,
-        roots: thetas,
-    }) = door(pose, t0, t1, w)
-    else {
+    let Ok(CircleRoots::Certified(found)) = door(pose, t0, t1, w) else {
         panic!(
             "{label}: expected certified roots, got {:?}",
             door(pose, t0, t1, w)
         );
     };
+    let (count, thetas) = (found.count(), found.roots());
     assert_eq!(count, want, "{label}: the certified count");
     let mid = (t0 + t1) / 2.0;
     let mut got: Vec<f64> = thetas[..count].to_vec();
@@ -189,13 +186,10 @@ fn a_graze_is_read_by_its_depth() {
             );
             continue;
         }
-        let Ok(Ok(CircleRoots::Certified {
-            count,
-            roots: thetas,
-        })) = got
-        else {
+        let Ok(Ok(CircleRoots::Certified(found))) = got else {
             panic!("{label}: two certified crossings, got {got:?}");
         };
+        let (count, thetas) = (found.count(), found.roots());
         assert_eq!(count, 2, "{label}");
         for &t in &thetas[..count] {
             let off = off_wall(pose, t, 0.0, 0.0, r).abs();
@@ -300,7 +294,7 @@ fn the_second_harmonic_band_reaches_past_the_tilt_band() {
                         got,
                         Ok(Ok(CircleRoots::On(_))
                             | Ok(CircleRoots::Miss)
-                            | Ok(CircleRoots::Certified { .. }))
+                            | Ok(CircleRoots::Certified(_)))
                     ),
                     "{label}: a tangency from inside, got {got:?}"
                 );
@@ -445,13 +439,10 @@ fn the_interval_lane_encloses_the_oracle_roots() {
             band(),
         )
         .unwrap();
-        let Ok(CircleRoots::Certified {
-            count,
-            roots: thetas,
-        }) = got
-        else {
+        let Ok(CircleRoots::Certified(found)) = got else {
             panic!("{label}: expected certified roots, got {got:?}");
         };
+        let (count, thetas) = (found.count(), found.roots());
         let mid = (t0 + t1) / 2.0;
         let want = oracle(
             pose,

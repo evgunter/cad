@@ -370,14 +370,14 @@ impl<T: Decide> SphereFaceRegion<T> {
         for (j, arc) in self.arcs.iter().enumerate() {
             let thetas = match self.ray_roots(arc, g, band) {
                 Ok(Roots::Miss) => continue,
-                Ok(Roots::Certified { roots, .. }) => roots,
+                Ok(Roots::Certified(found)) => found,
                 // The arc in the ray's plane, or a tangency.
                 Ok(Roots::On(_)) | Err(RootRefusal::Unsettled(_)) => {
                     return Err(RayFault::Graze);
                 }
                 Err(RootRefusal::Escalated(diag)) => return Err(in_band(diag)),
             };
-            for theta in thetas {
+            for &theta in thetas.roots() {
                 let start = row("bool_sphere_region_span", arc.radius * (theta - arc.t0))?;
                 let end = row("bool_sphere_region_span", arc.radius * (arc.t1 - theta))?;
                 if start == Sign::Negative || end == Sign::Negative {

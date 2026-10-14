@@ -75,9 +75,10 @@ fn every_quartic_outcome_is_reached_by_a_real_pose() {
     for (q, d) in poses {
         match roots(q, d) {
             Ok(QuarticRoots::Miss) => miss += 1,
-            Ok(QuarticRoots::Certified { count: 2, .. }) => two += 1,
-            Ok(QuarticRoots::Certified { count: 4, .. }) => four += 1,
-            Ok(QuarticRoots::Certified { count, .. }) => {
+            Ok(QuarticRoots::Certified(found)) if found.count() == 2 => two += 1,
+            Ok(QuarticRoots::Certified(found)) if found.count() == 4 => four += 1,
+            Ok(QuarticRoots::Certified(found)) => {
+                let count = found.count();
                 panic!("a certified count is 2 or 4, never {count}")
             }
             Err(RootRefusal::Unsettled(Unsettled::CountDisagrees { .. })) => {
@@ -110,9 +111,10 @@ fn both_closed_forms_are_selected_and_both_answer() {
     // `±(R ± r)`, and `q̂` is exactly zero because `e = 0`.
     let (q, d) = (centre(), Vec3::new(1.0, 0.0, 0.0));
     assert_eq!(q_hat(q, d), 0.0, "a midplane ray has q̂ = 0 exactly");
-    let Ok(QuarticRoots::Certified { count, roots: ts }) = roots(q, d) else {
+    let Ok(QuarticRoots::Certified(found)) = roots(q, d) else {
         panic!("the four-root midplane ray must certify")
     };
+    let (count, ts) = (found.count(), found.roots());
     assert_eq!(count, 4);
     let mut got: Vec<f64> = ts.to_vec();
     got.sort_by(f64::total_cmp);
@@ -132,9 +134,10 @@ fn both_closed_forms_are_selected_and_both_answer() {
         q_hat(q, d).abs() > 1e-3,
         "this pose must select the resolvent, not the biquadratic form"
     );
-    let Ok(QuarticRoots::Certified { count, roots: ts }) = roots(q, d) else {
+    let Ok(QuarticRoots::Certified(found)) = roots(q, d) else {
         panic!("a definite pierce must certify")
     };
+    let (count, ts) = (found.count(), found.roots());
     assert_eq!(count, 2, "a tilted pierce crosses the tube twice");
     // Each root is on the tube, to the arm's own accuracy: the check
     // that the resolvent, the cube root and the depression compose.
@@ -175,9 +178,10 @@ fn the_period_guards_zero_arm_is_what_serves_a_wrapping_face() {
     // module records the split rather than duplicating a fixture it
     // cannot build.
     let (q, d) = (Point3::new(0.0, 0.0, 2.0), Vec3::new(0.0, 0.0, -1.0));
-    let Ok(QuarticRoots::Certified { count, .. }) = roots(q, d) else {
+    let Ok(QuarticRoots::Certified(found)) = roots(q, d) else {
         panic!("a radial midplane ray must certify")
     };
+    let count = found.count();
     assert_eq!(count, 4, "a diameter of the ring crosses four walls");
 }
 
@@ -198,7 +202,8 @@ fn the_certified_count_and_the_constructed_roots_agree_on_a_lattice() {
         for j in 0..7 {
             let q = Point3::new(-2.2 + 0.4 * f64::from(i), -0.45 + 0.15 * f64::from(j), 0.13);
             let d = Vec3::new(0.87, 0.21, 0.44);
-            if let Ok(QuarticRoots::Certified { count, roots: ts }) = roots(q, d) {
+            if let Ok(QuarticRoots::Certified(found)) = roots(q, d) {
+                let (count, ts) = (found.count(), found.roots());
                 certified += 1;
                 for &t in &ts[..count] {
                     let p = q + d.normalize() * t;
@@ -223,7 +228,7 @@ fn the_four_versus_none_split_is_exercised_both_ways() {
     // Positive discriminant, four real roots: the hole.
     assert!(matches!(
         roots(centre(), Vec3::new(1.0, 0.0, 0.0)),
-        Ok(QuarticRoots::Certified { count: 4, .. })
+        Ok(QuarticRoots::Certified(found)) if found.count() == 4
     ));
     // Positive discriminant, NO real roots: a ray through the hole but
     // tilted steeply enough to leave through the middle without meeting
@@ -244,7 +249,7 @@ fn the_four_versus_none_split_is_exercised_both_ways() {
         ),
         "the axis meets no tube, and must never be answered as a crossing: {:?}",
         axial.map(|r| match r {
-            QuarticRoots::Certified { count, .. } => count,
+            QuarticRoots::Certified(found) => found.count(),
             _ => 0,
         })
     );

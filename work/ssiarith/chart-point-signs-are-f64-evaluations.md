@@ -2,10 +2,12 @@
 id: chart-point-signs-are-f64-evaluations
 kind: issue
 title: the chart lane's point signs are f64 evaluations read as certified, so a zero within rounding of a window corner or cut can take a sign
-status: open
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: M
+closed: 2026-10-14
+branch: nurbs/rect-box-midpoint-certified
 ---
 
 ## Found (limb-3 fix pass, branch `ssi/limb3-one-arc`, 2026-10-03; a review of PR 3999 named it)
@@ -45,3 +47,20 @@ Make the point evaluation an enclosure on the `f64` lane: evaluate at the
 interval scalar, or widen by a certified rounding bound. Then a point's
 sign is certified or unknown, never rounding noise. Both readers move
 together.
+
+## Closed (2026-10-14)
+
+`nurbs/rect-box-midpoint-certified`: `rect_box`'s midpoint is
+`NurbsBoxes::enclosed_point`, `eval_in_span`'s sum over the window's
+net and knot values crossed into certification arithmetic, read about
+the window's corner control point so its width scales with the
+window's extent. Every point sign named above reads through it:
+`sign_at` → `phi_over` → `rect_box` (`edge_runs`, `boundary_zeros`,
+`holds_zero`, `crossing_near`), and `exhaust::sweep_chart_plane`'s cell
+box. The pair walk's `four::PairBoxes::residual` reads it too.
+`one_arc::pcurve_at` still evaluates in `f64`, but it places a window
+and reads no sign. Rows: `one_arc::tests::a_point_windows_box_encloses_the_exact_point`
+(red under the `f64` midpoint) and
+`a_far_walls_point_box_is_as_narrow_as_a_near_ones` (red about the
+origin). The pair walk's ends on a domain side, which main certified
+only through the unenclosed point, are `nurbs/pair-walk-domain-side-end`.

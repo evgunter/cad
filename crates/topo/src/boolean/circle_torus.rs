@@ -641,14 +641,7 @@ fn parallel_axes_roots<T: Decide>(
             count += 1;
         }
     }
-    Ok(if count == 0 {
-        CircleRoots::Miss
-    } else {
-        CircleRoots::Certified {
-            count,
-            roots: thetas,
-        }
-    })
+    Ok(CircleRoots::of(&thetas[..count]).ok_or(Unsettled::ImpossibleCount)?)
 }
 
 #[cfg(test)]
@@ -785,13 +778,10 @@ mod tests {
 
     /// The door's roots that fall in `[t0, t1]`, sorted.
     fn in_arc(pose: Pose, t0: f64, t1: f64) -> (usize, Vec<f64>) {
-        let Ok(CircleRoots::Certified {
-            count,
-            roots: thetas,
-        }) = door(pose, t0, t1)
-        else {
+        let Ok(CircleRoots::Certified(found)) = door(pose, t0, t1) else {
             panic!("expected a certified count");
         };
+        let (count, thetas) = (found.count(), found.roots());
         let mut ts: Vec<f64> = thetas[..count]
             .iter()
             .copied()
@@ -1057,9 +1047,10 @@ mod tests {
                 Band::new(eps, 10.0 * eps).unwrap(),
             )
             .unwrap();
-            let Ok(CircleRoots::Certified { count, .. }) = got else {
+            let Ok(CircleRoots::Certified(found)) = got else {
                 panic!("ε {eps}: a certified count, got {got:?}");
             };
+            let count = found.count();
             assert_eq!(count, 2, "ε {eps}: the inner contour only");
         }
         assert_matches_oracle("just short", pose, -3.0, 3.0, 2);
@@ -1099,13 +1090,10 @@ mod tests {
                 band(),
             )
             .unwrap();
-            let Ok(CircleRoots::Certified {
-                count,
-                roots: thetas,
-            }) = got
-            else {
+            let Ok(CircleRoots::Certified(found)) = got else {
                 panic!("interval lane: expected a certified count");
             };
+            let (count, thetas) = (found.count(), found.roots());
             let want = oracle(pose, -3.1, 3.1);
             assert_eq!(count, want.len(), "interval count");
             for w in want {
@@ -1434,7 +1422,8 @@ mod tests {
             !matches!(got, Ok(CircleRoots::Miss)),
             "a real dip is not a certified miss: {got:?}"
         );
-        if let Ok(CircleRoots::Certified { count, .. }) = got {
+        if let Ok(CircleRoots::Certified(found)) = got {
+            let count = found.count();
             assert_eq!(count, 2, "the whole turn holds the dip's two roots");
         }
         // The interval lane encloses the rounding the meter estimates,
@@ -1523,10 +1512,8 @@ mod tests {
                             assert!(truth.is_empty(), "{label}: a certified miss on a dip");
                             answered[i] += 1;
                         }
-                        Ok(CircleRoots::Certified {
-                            count,
-                            roots: thetas,
-                        }) => {
+                        Ok(CircleRoots::Certified(found)) => {
+                            let (count, thetas) = (found.count(), found.roots());
                             let mut got: Vec<f64> = thetas[..count]
                                 .iter()
                                 .copied()
@@ -1674,10 +1661,9 @@ mod tests {
             },
         };
         match roots_of(p(2), w(5), at(v[8]), w(9), at(v[0]), at(v[1]), &torus, band) {
-            Ok(Ok(CircleRoots::Certified {
-                count,
-                roots: thetas,
-            })) => Ok(thetas[..count].iter().map(|&t| pair(t)).collect()),
+            Ok(Ok(CircleRoots::Certified(found))) => {
+                Ok(found.roots().iter().map(|&t| pair(t)).collect())
+            }
             Ok(Ok(other)) => Err(format!("{other:?}")),
             Ok(Err(why)) => Err(format!("unsettled: {why:?}")),
             Err(e) => Err(format!("refused: {e:?}")),
@@ -1784,13 +1770,10 @@ mod tests {
                 fixed_band(),
             );
             if tilt == 0.0 {
-                let Ok(Ok(CircleRoots::Certified {
-                    count,
-                    roots: thetas,
-                })) = got
-                else {
+                let Ok(Ok(CircleRoots::Certified(found))) = got else {
                     panic!("untilted: a certified count, got {got:?}");
                 };
+                let (count, thetas) = (found.count(), found.roots());
                 assert_eq!(count, 4, "untilted: both contours");
                 let mut ts: Vec<f64> = thetas[..count]
                     .iter()

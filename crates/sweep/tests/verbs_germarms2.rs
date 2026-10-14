@@ -187,14 +187,13 @@ fn seams_off_the_pinch_reach_the_join_and_name_it() {
         matches!(err, BooleanError::GermFrameCylinderPinch { .. }),
         "expected the germ frame's pinch door, got {err:?}"
     );
-    // The message must name the crossing axes and stay true for both
-    // radius cases (the raise site never compares radii), and end on
-    // what the person can do. The pinch points' formula (the UNIT
+    // The message must name the crossing axes and the equal radii, and
+    // end on what the person can do. The nodes' formula (the UNIT
     // cross product) is the variant's rustdoc, not the sentence.
     let text = format!("{err}");
     for want in [
-        "two cylinder walls whose axes cross",
-        "whether their radii are equal",
+        "two cylinder walls of equal radius whose axes cross",
+        "two ellipses that cross each other",
         "Recourse: reshape the parts",
     ] {
         assert!(text.contains(want), "the door must say {want:?}: {text}");
@@ -241,14 +240,14 @@ fn every_pose_of_the_family_answers_typed_and_pose_independently() {
 /// statement about intersecting equal-radius axes and not about
 /// cylinder pairs at large.
 ///
-/// - Unequal radii: the axes still intersect, so the frame dispatch
-///   names the pinch door with the radii decided unequal: the locus, a
-///   space quartic, routes the general rung.
+/// - Unequal radii: the axes still intersect, but the radii decide
+///   unequal, so the locus is a space quartic, the skew pair's class:
+///   the dispatch has no arm (`GermFrameUnsupported`).
 /// - Skew axes: the locus is a space quartic, canal territory; the
 ///   general rung has not retired, and the dispatch has no arm
 ///   (`GermFrameUnsupported`). Its verdict on this pose is pinned at
 ///   both radii by
-///   `the_non_parallel_cylinder_pair_splits_on_coplanarity_alone`
+///   `the_non_parallel_cylinder_pair_splits_on_coplanarity_then_radius`
 ///   (`boolean::join`).
 /// - Parallel equal radii: the crossing events are a rim CIRCLE against
 ///   a wall, certified by the circle × cylinder root lane; at one height
@@ -264,12 +263,13 @@ fn the_fenced_poses_keep_their_own_outcomes() {
     assert!(
         matches!(
             e,
-            BooleanError::GermFrameCylinderPinch {
-                equal_radii: false,
+            BooleanError::GermFrameUnsupported {
+                a_kind: geom::SurfaceKind::Cylinder,
+                b_kind: geom::SurfaceKind::Cylinder,
                 ..
             }
         ),
-        "unequal radii: the pinch door, the radii decided unequal, got {e:?}"
+        "unequal radii: the space quartic has no section arm, got {e:?}"
     );
     assert_same_door(
         &e,

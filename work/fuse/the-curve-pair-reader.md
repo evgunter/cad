@@ -48,6 +48,13 @@ Its second part builds step 3 and the rows of step 5:
 - then the census edge-face cut (`restread/the-census-edge-face-cut-crosses-chords-and-conics-only`);
 - the near-concentric census row re-baselines to the decided answer that `meet` gives (`near_concentric_arcs_are_decided` pins it in `geom-brep`).
 
+Stage (c) also owes the split of `roots::Unsettled` by what its consumers act on. It holds three kinds in one enum:
+- pose-caused refusals: `Tangency`, and the cone door's `AtApex` and `Degenerate`, which are cone vocabulary in a crate with no cone door;
+- resolution-caused ones: `Meter`, `SignInBand`, `Exhausted`;
+- self-contradictions, a kernel-bug class: `ImpossibleCount`, `Resolvent`, `CountDisagrees`.
+
+`reduce::wall_crossing` reads `AtApex` by name, and the line × torus door and `solid_contain::torus_crossings` read `CountDisagrees`; every other consumer treats them alike. The split moves `AtApex` and `Degenerate` into topo's cone door and the contradictions into an arm consumers cannot fold into a graze. It touches every root-finder row, so it was left out of stage (b).
+
 These four readings still decide the point-on-span question themselves, and move onto `Span::contact`:
 - `carrier_cross::strictly_inside`;
 - `census::curved::interior_at` and `clear_of_end`;

@@ -92,10 +92,9 @@ impl Pose {
             &self.torus(),
             band,
         ) {
-            Ok(Ok(CircleRoots::Certified {
-                count,
-                roots: thetas,
-            })) => Ok(thetas[..count].iter().map(|&t| pair(t)).collect()),
+            Ok(Ok(CircleRoots::Certified(found))) => {
+                Ok(found.roots().iter().map(|&t| pair(t)).collect())
+            }
             Ok(Ok(other)) => Err(format!("{other:?}")),
             Ok(Err(why)) => Err(format!("unsettled: {why:?}")),
             Err(e) => Err(format!("refused: {e:?}")),

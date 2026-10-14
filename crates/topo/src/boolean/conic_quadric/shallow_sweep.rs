@@ -202,10 +202,9 @@ fn answer<T: Decide>(
     pair: fn(T) -> (f64, f64),
 ) -> Result<Vec<(f64, f64)>, String> {
     match got {
-        Ok(Ok(CircleRoots::Certified {
-            count,
-            roots: thetas,
-        })) => Ok(thetas[..count].iter().map(|&t| pair(t)).collect()),
+        Ok(Ok(CircleRoots::Certified(found))) => {
+            Ok(found.roots().iter().map(|&t| pair(t)).collect())
+        }
         Ok(Ok(other)) => Err(format!("{other:?}")),
         Ok(Err(why)) => Err(format!("unsettled: {why:?}")),
         Err(e) => Err(format!("refused: {e:?}")),

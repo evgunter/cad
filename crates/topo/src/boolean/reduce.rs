@@ -3390,15 +3390,15 @@ fn wall_crossing<T: Decide + Bounds>(
             },
         )
     };
-    let (count, roots) = match found {
-        CircleRoots::Certified { count, roots } => (count, roots),
+    let found = match found {
+        CircleRoots::Certified(found) => found,
         // A conic ON the surface: its residual is a zero constant — the
         // circle or ellipse that lies on a sphere, wall or torus. (A
         // ruling on a wall is the line door's `Constant`, above.)
         CircleRoots::On(_) => return Ok(SpanVerdict::LiesOn),
         CircleRoots::Miss => return Ok(SpanVerdict::Miss),
     };
-    let ts = &roots[..count];
+    let ts = found.roots();
     // **A root on the far nappe is not this face's.** The roots are the
     // DOUBLE cone's, the carrier [`geom_brep::implicit_residual`]
     // states; a cone face lies on one nappe, and a root definitely off
@@ -3572,13 +3572,7 @@ fn line_wall_roots_of<T: Decide>(
 ) -> Result<Result<RootsOrUnsettled<T>, SpanVerdict<T>>, BooleanError> {
     use super::solid_contain::WallRoots;
     let span = (t1 - t0).abs();
-    let two = |ts: [T; 2]| {
-        Ok(Roots::<T, 2>::Certified {
-            count: 2,
-            roots: ts,
-        }
-        .widen())
-    };
+    let two = |ts: [T; 2]| Ok(Roots::<T, 2>::all(ts).widen());
     // The certified roots, per kind. Every lane answers the same three
     // ways — a certified root set, a definite miss, or no certain
     // count — and the cylinder adds a fourth, the axis-parallel line
@@ -3654,7 +3648,18 @@ fn line_wall_roots_of<T: Decide>(
             half_angle,
             ..
         } => line_cone_roots(origin, dir, (apex, axis, half_angle), (t0, t1), band)?,
-        _ => return Ok(Err(SpanVerdict::Unsettled)),
+        // No root lane. A door's refusal goes to `carrier_touch::off_face`,
+        // which settles nothing on a kind with no reach, so this answer
+        // is the one that read would give; a kind here that gains a reach
+        // is refused rather than left unread.
+        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+            if super::carrier_touch::reach(surface).is_some() {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a surface with no line root lane has a reach to read it off the face by",
+                });
+            }
+            return Ok(Err(SpanVerdict::Unsettled));
+        }
     }))
 }
 
@@ -3750,7 +3755,7 @@ fn line_cone_roots<T: Decide>(
             Ok(Sign::Positive) | Err(_) => return Ok(Err(Unsettled::Meter)),
         }
     }
-    Ok(Ok(Roots::<T, 2>::Certified { count: 2, roots }.widen()))
+    Ok(Ok(Roots::<T, 2>::all(roots).widen()))
 }
 
 /// What one edge×curved-face pair asks of the sweep.
@@ -6114,21 +6119,18 @@ mod line_cone_rows {
                 true,
             ),
         ] {
-            let Ok(CircleRoots::Certified {
-                count: 2,
-                roots: thetas,
-            }) = roots(origin, dir, (0.0, 4.0))
-            else {
+            let Ok(CircleRoots::Certified(found)) = roots(origin, dir, (0.0, 4.0)) else {
                 panic!(
                     "{label}: two roots, got {:?}",
                     roots(origin, dir, (0.0, 4.0))
                 );
             };
-            for &t in &thetas[..2] {
+            let thetas: [_; 2] = found.roots().try_into().unwrap();
+            for &t in &thetas {
                 let f = form(origin, dir, t);
                 assert!(f.abs() < 1e-14, "{label}: the form is {f} at the root {t}");
             }
-            let heights: Vec<f64> = thetas[..2].iter().map(|t| origin[2] + dir[2] * t).collect();
+            let heights: Vec<f64> = thetas.iter().map(|t| origin[2] + dir[2] * t).collect();
             assert_eq!(
                 heights[0].signum() != heights[1].signum(),
                 nappes,
@@ -6248,10 +6250,8 @@ mod line_cone_rows {
                             .filter(inside)
                             .collect();
                         match line_cone_roots(origin, axis, (apex, axis, alpha), span, band) {
-                            Ok(Ok(CircleRoots::Certified {
-                                count,
-                                roots: thetas,
-                            })) => {
+                            Ok(Ok(CircleRoots::Certified(found))) => {
+                                let (count, thetas) = (found.count(), found.roots());
                                 certified += 1;
                                 let got: Vec<f64> =
                                     thetas[..count].iter().copied().filter(inside).collect();

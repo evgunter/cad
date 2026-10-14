@@ -466,14 +466,10 @@ fn off_the_apex<T: Decide>(
     roots: CircleRoots<T>,
     band: Band,
 ) -> Result<CircleRoots<T>, Unsettled> {
-    let CircleRoots::Certified {
-        count,
-        roots: thetas,
-    } = roots
-    else {
+    let CircleRoots::Certified(found) = roots else {
         return Ok(roots);
     };
-    for &theta in &thetas[..count] {
+    for &theta in found.roots() {
         match decide(CONE_APEX, Margin::norm3(conic.point(theta) - apex), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) | Err(_) => return Err(Unsettled::AtApex),

@@ -20,9 +20,11 @@
 //! definitely past the band leaves only the side of the end the point is
 //! on, the sign of the parameter's distance `m` from the end, inside the
 //! span positive, metered by the carrier's greatest speed
-//! (`curve_pair_span_end_side`): the arc from the point to the end is at
-//! least the chord less the gap, so that reading is definite wherever the
-//! chord is, and a zero there bounds the arc inside the band.
+//! (`curve_pair_span_end_side`). The arc from the point to the end is at
+//! least the chord less the gap, so a chord past `K·ε` with the gap inside
+//! `ε` leaves `|m|·speed` past `(K − 1)·ε`: definite once that clears the
+//! band's gap, and an escalation where it falls in `(ε, K·ε]`. It cannot
+//! read zero there, since the chord would then be within `2ε`.
 //!
 //! A span whose ends are no vertex — a closed edge whose start is not a
 //! vertex of its own, [`Span::endless`] — has no end to be near: a point

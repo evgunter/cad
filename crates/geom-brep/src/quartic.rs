@@ -446,7 +446,7 @@ pub fn depressed_quartic_roots<T: Decide>(
         }
         .into());
     }
-    Ok(Roots::Certified { count, roots: ts })
+    Ok(Roots::of(&ts[..found]).ok_or(Unsettled::ImpossibleCount)?)
 }
 
 #[cfg(test)]

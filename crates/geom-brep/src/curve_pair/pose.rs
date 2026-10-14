@@ -763,8 +763,8 @@ fn coplanar_ellipse_circle<T: Decide>(
     let residual = |theta: T| (ke.point(theta) - kc.center).norm() - r;
     match certified_subdivision(&poly, &residual, &frame, &COPLANAR_ROWS, None, band) {
         Ok(Roots::Miss) => Ok(Pose::Apart),
-        Ok(Roots::Certified { count, roots }) => Ok(Pose::Generic(
-            roots[..count].iter().map(|&t| place(t)).collect(),
+        Ok(Roots::Certified(found)) => Ok(Pose::Generic(
+            found.roots().iter().map(|&t| place(t)).collect(),
         )),
         Err(why) => Err(PoseRefusal::Unsettled(why)),
     }

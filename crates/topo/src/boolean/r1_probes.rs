@@ -158,7 +158,8 @@ impl Tally {
         let got = line_torus_roots(o, d, c, a, rr, r, band());
         let (oracle, gap) = oracle_roots(o, d, c, a, rr, r);
         match got {
-            Ok(QuarticRoots::Certified { count, roots: ts }) => {
+            Ok(QuarticRoots::Certified(found)) => {
+                let (count, ts) = (found.count(), found.roots());
                 self.certified += 1;
                 if count != oracle.len() {
                     self.bad.push(format!(
@@ -365,7 +366,8 @@ fn r1_the_hole_ray_certifies_exactly_four_roots() {
     let a = Vec3::new(0.0, 1.0, 0.0);
     let d = Vec3::new(1.0, 0.0, 0.0);
     match line_torus_roots(Point3::new(0.0, 0.0, 0.0), d, c, a, rr, r, band()) {
-        Ok(QuarticRoots::Certified { count, roots: ts }) => {
+        Ok(QuarticRoots::Certified(found)) => {
+            let (count, ts) = (found.count(), found.roots());
             let mut v = ts[..count].to_vec();
             v.sort_by(|x, y| x.partial_cmp(y).unwrap());
             println!("R1 hole ray: count={count} ts={v:?}");
@@ -412,7 +414,8 @@ fn r1_the_near_perpendicular_ray_keeps_its_roots() {
         0.9,
         pinned,
     ) {
-        Ok(QuarticRoots::Certified { count, roots: ts }) => {
+        Ok(QuarticRoots::Certified(found)) => {
+            let (count, ts) = (found.count(), found.roots());
             assert_eq!(count, 2, "F64 COUNT: the exact Sturm count is 2");
             let mut v = ts[..count].to_vec();
             v.sort_by(|x, y| x.partial_cmp(y).unwrap());
@@ -437,7 +440,8 @@ fn r1_the_near_perpendicular_ray_keeps_its_roots() {
         iv(0.9),
         pinned,
     ) {
-        Ok(QuarticRoots::Certified { count, roots: ts }) => {
+        Ok(QuarticRoots::Certified(found)) => {
+            let (count, ts) = (found.count(), found.roots());
             assert_eq!(count, 2, "INTERVAL COUNT: the exact Sturm count is 2");
             let mut v = ts[..count].to_vec();
             v.sort_by(|x, y| x.lo().partial_cmp(&y.lo()).unwrap());
@@ -487,7 +491,8 @@ fn r1_a_ray_on_the_resolvents_q_zero_surface_still_certifies_at_interval() {
         iv(0.9),
         Band::new(1e-12, 1e-11).unwrap(),
     ) {
-        Ok(QuarticRoots::Certified { count, roots: ts }) => {
+        Ok(QuarticRoots::Certified(found)) => {
+            let (count, ts) = (found.count(), found.roots());
             assert_eq!(count, 2);
             let mut v = ts[..count].to_vec();
             v.sort_by(|x, y| x.lo().partial_cmp(&y.lo()).unwrap());
@@ -599,7 +604,8 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
                 0.9,
                 pinned,
             ) {
-                Ok(QuarticRoots::Certified { count, roots: ts }) => {
+                Ok(QuarticRoots::Certified(found)) => {
+                    let (count, ts) = (found.count(), found.roots());
                     assert_eq!(count, 2, "F64 COUNT at {at}");
                     let mut v = ts[..count].to_vec();
                     v.sort_by(|x, y| x.partial_cmp(y).unwrap());
@@ -621,7 +627,8 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
                 iv(0.9),
                 pinned,
             ) {
-                Ok(QuarticRoots::Certified { count, roots: ts }) => {
+                Ok(QuarticRoots::Certified(found)) => {
+                    let (count, ts) = (found.count(), found.roots());
                     assert_eq!(count, 2, "INTERVAL COUNT at {at}");
                     let mut v = ts[..count].to_vec();
                     v.sort_by(|x, y| x.lo().partial_cmp(&y.lo()).unwrap());

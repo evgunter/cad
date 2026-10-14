@@ -213,13 +213,10 @@ pub(super) fn assert_matches_oracle(
 ) {
     use core::f64::consts::PI;
     let t1 = t0 + 1.0;
-    let Ok(super::circle_roots::CircleRoots::Certified {
-        count,
-        roots: thetas,
-    }) = door(e, s, t0, t1)
-    else {
+    let Ok(super::circle_roots::CircleRoots::Certified(found)) = door(e, s, t0, t1) else {
         panic!("{label}: certified roots, got {:?}", door(e, s, t0, t1));
     };
+    let (count, thetas) = (found.count(), found.roots());
     assert_eq!(count, want, "{label}: the certified count");
     let mid = (t0 + t1) / 2.0;
     let mut got = thetas[..count].to_vec();

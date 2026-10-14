@@ -88,7 +88,8 @@ fn probe(q: Point3<f64>, d_raw: Vec3<f64>, band: Band) -> (Option<(usize, Vec<f6
         Ok(QuarticRoots::Miss) => (Some((0, Vec::new())), false),
         Err(RootRefusal::Unsettled(Unsettled::CountDisagrees { .. })) => (None, true),
         Err(RootRefusal::Unsettled(_)) => (None, false),
-        Ok(QuarticRoots::Certified { count, roots: ts }) => {
+        Ok(QuarticRoots::Certified(found)) => {
+            let (count, ts) = (found.count(), found.roots());
             let mut v: Vec<f64> = ts[..count].to_vec();
             v.sort_by(f64::total_cmp);
             (Some((count, v)), false)
@@ -277,7 +278,8 @@ fn r2_extreme_radii_ratios_keep_the_certified_roots_honest() {
             pf = v;
         }
         match got {
-            Ok(QuarticRoots::Certified { count, roots: ts }) => {
+            Ok(QuarticRoots::Certified(found)) => {
+                let (count, ts) = (found.count(), found.roots());
                 assert_eq!(count, roots.len(), "count at ratio {rr}/{rm}");
                 let mut v: Vec<f64> = ts[..count].to_vec();
                 v.sort_by(f64::total_cmp);
