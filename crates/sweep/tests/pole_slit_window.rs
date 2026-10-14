@@ -190,6 +190,67 @@ fn the_interval_walk_encloses_the_f64_window_on_every_slit() {
     }
 }
 
+/// `slit` with a null strut at its pole: a zero-length scaffold edge
+/// spliced into the slit face's loop between the meridian's climb and
+/// its descent, so the walk skips two halves there.
+fn strutted<T: Decide + topo::AtRestPolicy + Bounds>(slit: &Body<T>) -> Body<T> {
+    let pole = slit
+        .vertex_points()
+        .find(|(_, p)| (p.y.lo() - 1.0).abs() < 1e-9 && p.x.hi().abs() < 1e-9)
+        .map(|(v, _)| v)
+        .expect("the slit's pole");
+    let (down, _) = slit
+        .half_edges()
+        .find(|(_, he)| he.start == pole)
+        .expect("the meridian leaves the pole");
+    let mut body = slit.clone();
+    body.mev_null(
+        topo::MevSite::Fan {
+            he1: down,
+            he2: down,
+        },
+        topo::NewVertexSide::Above,
+    )
+    .expect("a null strut at the pole");
+    body
+}
+
+/// **The slit face covers one turn, read through the walk's own
+/// wiring**: every slit's window is exactly a turn wide, at `f64` and at
+/// `Interval`, with and without a null strut between the meridian's two
+/// passes through the pole. The face wraps the pole once, so where the
+/// walk crosses the slit mid-walk its entry is the previous branch one
+/// turn on in the face's own sense: a branch the other way, or a pick
+/// that missed the same edge across the skipped strut, opens the window
+/// to three turns or refuses it.
+fn one_turn<T: Decide + topo::AtRestPolicy + Bounds>(lane: &str) {
+    for (i, slit) in slits::<T>().iter().enumerate() {
+        for (what, body) in [("bare", slit.clone()), ("strutted", strutted(slit))] {
+            let (lo, hi) = window(&body)
+                .unwrap_or_else(|e| panic!("[{lane}] slit {i} ({what}): {e:?}"))
+                .expect("the slit face's loop is a cycle");
+            let width = hi - lo;
+            let tau = core::f64::consts::TAU;
+            assert!(
+                (width.lo() - tau).abs() < 1e-9 && (width.hi() - tau).abs() < 1e-9,
+                "[{lane}] slit {i} ({what}): the window is one turn wide: [{:e}, {:e}]",
+                width.lo(),
+                width.hi()
+            );
+        }
+    }
+}
+
+#[test]
+fn every_slit_window_is_one_turn_at_f64() {
+    one_turn::<f64>("f64");
+}
+
+#[test]
+fn every_slit_window_is_one_turn_at_interval() {
+    one_turn::<Interval>("Interval");
+}
+
 /// The unit ball about `(0.5, 1, 0.5)`'s `y` axis at radius 0.3, whose
 /// slits each leave both poles strut tips: the die-pip placement on the
 /// unit cube's top face.

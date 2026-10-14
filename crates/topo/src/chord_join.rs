@@ -319,8 +319,10 @@ pub enum SplitJoinError {
         /// The cone face whose window was read.
         face: FaceKey,
     },
-    /// Two distinct edges of a sphere face leave its pole along one
-    /// direction: they overlap there, or meet in a cusp. Either way the
+    /// Two distinct edges of a sphere face meet at its pole at an angle
+    /// that, levered by the shorter one's reach from the axis, is within
+    /// ε of a whole turn: they overlap there, meet in a cusp, or the
+    /// shorter is too short for any angle to separate them by ε. The
     /// face's azimuth walk has no strict branch to read at the pole
     /// ([`pole_branch`]).
     PoleEdgesCoincide {
@@ -600,10 +602,11 @@ impl core::fmt::Display for SplitJoinError {
             ),
             Self::PoleEdgesCoincide { .. } => write!(
                 f,
-                "two edges of a sphere face leave its pole along one direction: they overlap \
-                 there, or meet in a cusp, and the face's azimuth window has no branch to read \
-                 at the pole. Recourse: merge the overlapping edges, or move one off the other \
-                 at the pole"
+                "two edges of a sphere face meet at its pole within the tolerance of one \
+                 direction over the shorter one's reach: they overlap there, meet in a cusp, or \
+                 the shorter is too short to tell apart, so the face's azimuth window has no \
+                 branch to read at the pole. Recourse: merge the overlapping edges, or move one \
+                 off the other at the pole"
             ),
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
@@ -2793,8 +2796,8 @@ fn run_azimuth_images<T: Decide>(
                                     prev_k,
                                     same_edge: prev_edge == Some(he_data.edge),
                                 },
-                                (&prior.carrier, prior.t.0),
-                                (curve.carrier(), exit_t),
+                                (&prior.carrier, prior.t.1, prior.t.0),
+                                (curve.carrier(), entry_t, exit_t),
                                 band,
                             )?);
                         }
@@ -2923,11 +2926,15 @@ struct PoleJoint<T: Decide> {
 ///   escalates.
 ///
 /// `arrived` and `leaving` are the two edges' carriers with the
-/// parameter of each one's far end.
+/// parameters of each one's pole end and far end.
+///
+/// Where the lever is so short that both marks either side of the gap
+/// lie under the escalation band, which is read first decides between
+/// the refusal and the escalation; both fail loud.
 fn pole_branch<T: Decide>(
     joint: PoleJoint<T>,
-    arrived: (&geom::Curve3<T>, T),
-    leaving: (&geom::Curve3<T>, T),
+    arrived: (&geom::Curve3<T>, T, T),
+    leaving: (&geom::Curve3<T>, T, T),
     band: Band,
 ) -> Result<i32, SplitJoinError> {
     let PoleJoint {
@@ -2978,21 +2985,40 @@ fn pole_branch<T: Decide>(
 
 /// **The length over which an angle at a sphere pole displaces an
 /// edge**: the edge's furthest distance from the axis, capped at its
-/// relative curvature radius `1/κ_g` (its geodesic curvature, which a
-/// meridian lacks). The furthest distance is the sphere's radius where
-/// the edge crosses the equator, and its far end's distance otherwise:
-/// a lower bound, exact on an edge sweeping under half its circle, so
-/// the lever never exceeds the true one. `None` for a carrier other than
-/// a circle, the only one a sphere section draws through a pole.
+/// curvature radius. The ruling's "relative curvature radius" is read as
+/// the edge's own `1/κ_g`, its geodesic curvature against the sphere,
+/// which a meridian lacks.
+///
+/// The pole is where the edge's circle peaks in axial height, so the
+/// height falls monotonically for half the circle from it. The arc's
+/// furthest point from the axis is therefore where it has swept half its
+/// circle from the pole, `pole_t ± π`, or its far end `far_t` if that
+/// comes first; and it is the sphere's radius where that point lies
+/// across the equator. An edge whose far end is back at the pole (a
+/// closed circle, a near-full sweep) reads its antipode, not its end.
+///
+/// **What it bounds.** Two meridians `θ` apart separate by at most
+/// `2ρ·sin(θ/2) ≤ θ·ρ` at reach `ρ`, so for them the meter `θ·lever`
+/// is exact to first order. Against a curved edge bending back toward
+/// its partner (the lens between a meridian and a small circle) it
+/// overstates the pair's largest separation about four times
+/// (`work/pcert/the-pole-lever-overstates-a-lens-about-four-times.md`),
+/// which a band with `K` under 4 would decide apart. No answer rides on
+/// that today: a non-meridian circle's chart image is projected, and the
+/// walk refuses it as FITTED.
+///
+/// `None` for a carrier other than a circle, the only one a sphere
+/// section draws through a pole.
 fn pole_lever<T: Decide>(
-    (carrier, far_t): (&geom::Curve3<T>, T),
+    (carrier, pole_t, far_t): (&geom::Curve3<T>, T, T),
     (center, radius, axis): (geom_core::Point3<T>, T, geom_core::Vec3<T>),
     pole_height: T,
 ) -> Option<T> {
     let geom::Curve3::Circle { radius: r, .. } = *carrier else {
         return None;
     };
-    let w = carrier.eval(far_t) - center;
+    let swept = (far_t - pole_t).max(T::zero() - T::pi()).min(T::pi());
+    let w = carrier.eval(pole_t + swept) - center;
     let height = w.dot(axis);
     let far = (w - axis * height).norm();
     let reach = (height * pole_height).select_le_zero(radius, far);
@@ -6908,18 +6934,18 @@ mod pole_branch_rows {
         let theta = 100.0 * band.escalate();
         let s = band.zero() / (1000.0 * theta);
         let (a, b) = (meridian::<f64>(0.0), meridian::<f64>(theta));
-        let lever = pole_lever((&a, s), sphere(), 1.0).unwrap();
+        let lever = pole_lever((&a, 0.0, s), sphere(), 1.0).unwrap();
         assert!(
             (lever - s.sin()).abs() <= 1e-15 * s,
             "θ = {theta:e}, s = {s:e}: the stub's lever is its reach sin s, not R = 1: {lever:e}"
         );
-        let got = pole_branch(joint(-theta, false), (&a, s), (&b, s), band);
+        let got = pole_branch(joint(-theta, false), (&a, 0.0, s), (&b, 0.0, s), band);
         assert!(
             matches!(got, Err(SplitJoinError::PoleEdgesCoincide { .. })),
             "θ = {theta:e}, s = {s:e}: the stubs are within ε everywhere: {got:?}"
         );
         // The same angle on full meridians, pole to pole, is a wedge.
-        let got = pole_branch(joint(-theta, false), (&a, PI), (&b, PI), band);
+        let got = pole_branch(joint(-theta, false), (&a, 0.0, PI), (&b, 0.0, PI), band);
         assert_eq!(
             got.ok(),
             Some(0),
@@ -6943,7 +6969,7 @@ mod pole_branch_rows {
         let curved = small_circle(beta);
         let end = curved.eval(far);
         let reach = end.x.hypot(end.y);
-        let lever = pole_lever((&curved, far), sphere(), 1.0).unwrap();
+        let lever = pole_lever((&curved, 0.0, far), sphere(), 1.0).unwrap();
         assert!(
             (lever - beta.tan()).abs() <= 1e-12 && lever < 0.75 * reach,
             "β = {beta}: the lever is tan β = {:e}, under the reach {reach:e}: {lever:e}",
@@ -6951,14 +6977,19 @@ mod pole_branch_rows {
         );
         let theta = 0.9 * band.zero() / beta.tan();
         let m = meridian::<f64>(-PI / 2.0 + theta);
-        let got = pole_branch(joint(-theta, false), (&m, PI), (&curved, far), band);
+        let got = pole_branch(
+            joint(-theta, false),
+            (&m, 0.0, PI),
+            (&curved, 0.0, far),
+            band,
+        );
         assert!(
             matches!(got, Err(SplitJoinError::PoleEdgesCoincide { .. })),
             "θ = {theta:e}: a meridian within ε of the curved edge over its bend: {got:?}"
         );
         // A meridian half a turn off is clear at the same lever.
         let m = meridian::<f64>(PI / 2.0);
-        let got = pole_branch(joint(-PI, false), (&m, PI), (&curved, far), band);
+        let got = pole_branch(joint(-PI, false), (&m, 0.0, PI), (&curved, 0.0, far), band);
         assert_eq!(
             got.ok(),
             Some(0),
@@ -6982,8 +7013,8 @@ mod pole_branch_rows {
                     prev_k: 3,
                     ..joint(3.0 * TAU, true)
                 },
-                (&a, PI),
-                (&a, PI),
+                (&a, 0.0, PI),
+                (&a, 0.0, PI),
                 band,
             );
             assert_eq!(at_f64.ok(), Some(want), "f64, advancing {advancing}");
@@ -6995,8 +7026,8 @@ mod pole_branch_rows {
                     prev_k: 3,
                     ..joint(straddle, true)
                 },
-                (&ai, Interval::pi()),
-                (&ai, Interval::pi()),
+                (&ai, Interval::zero(), Interval::pi()),
+                (&ai, Interval::zero(), Interval::pi()),
                 band,
             );
             assert_eq!(
@@ -7014,7 +7045,7 @@ mod pole_branch_rows {
     fn distinct_edges_on_a_mark_refuse_as_an_overlap_or_a_cusp() {
         let band = band();
         let a = meridian::<f64>(0.5);
-        let got = pole_branch(joint(0.0, false), (&a, PI), (&a, PI), band);
+        let got = pole_branch(joint(0.0, false), (&a, 0.0, PI), (&a, 0.0, PI), band);
         let Err(e @ SplitJoinError::PoleEdgesCoincide { .. }) = got else {
             panic!("an exact overlap at the pole: {got:?}");
         };
@@ -7026,8 +7057,8 @@ mod pole_branch_rows {
         let ai = meridian::<Interval>(0.5);
         let got = pole_branch(
             joint(Interval::from_f64(TAU), false),
-            (&ai, Interval::pi()),
-            (&ai, Interval::pi()),
+            (&ai, Interval::zero(), Interval::pi()),
+            (&ai, Interval::zero(), Interval::pi()),
             band,
         );
         assert!(
@@ -7038,11 +7069,79 @@ mod pole_branch_rows {
         // the zero and escalation bands.
         let theta = 0.5 * (band.zero() + band.escalate());
         let b = meridian::<f64>(0.5 + theta);
-        let got = pole_branch(joint(-theta, false), (&a, PI), (&b, PI), band);
+        let got = pole_branch(joint(-theta, false), (&a, 0.0, PI), (&b, 0.0, PI), band);
         assert!(
             matches!(got, Err(SplitJoinError::Escalated { .. })),
             "θ = {theta:e} at a unit lever is in band: {got:?}"
         );
+    }
+
+    /// **An edge whose far end is back at the pole is levered at its
+    /// furthest point, not its end**: a closed meridian and a closed
+    /// small circle through the pole (and one a hair short of closing)
+    /// reach their antipodes, so a quarter-turn wedge against a meridian
+    /// decides its branch, the entry a turn on.
+    #[test]
+    fn an_edge_closing_back_at_the_pole_is_levered_at_its_antipode() {
+        let band = band();
+        let beta: f64 = 0.3;
+        let curved = small_circle(beta);
+        let m = meridian::<f64>(0.0);
+        for far in [TAU, TAU - 1e-9] {
+            let lever = pole_lever((&curved, 0.0, far), sphere(), 1.0).unwrap();
+            assert!(
+                (lever - beta.tan()).abs() <= 1e-12,
+                "far = {far}: the closed small circle reaches sin 2β past its cap tan β: \
+                 {lever:e}"
+            );
+            let got = pole_branch(
+                joint(PI / 2.0, false),
+                (&curved, 0.0, far),
+                (&m, 0.0, PI),
+                band,
+            );
+            assert_eq!(got.ok(), Some(1), "far = {far}: a quarter-turn wedge");
+        }
+        let closed = meridian::<f64>(0.0);
+        assert_eq!(
+            pole_lever((&closed, 0.0, TAU), sphere(), 1.0),
+            Some(1.0),
+            "a closed meridian crosses the equator"
+        );
+        let got = pole_branch(
+            joint(PI / 2.0, false),
+            (&closed, 0.0, TAU),
+            (&meridian::<f64>(-PI / 2.0), 0.0, PI),
+            band,
+        );
+        assert_eq!(
+            got.ok(),
+            Some(1),
+            "a quarter-turn wedge against a closed meridian"
+        );
+    }
+
+    /// **In band escalates at every scalar**: a wedge whose displacement
+    /// at a unit lever sits between the zero and escalation bands.
+    #[test]
+    fn a_wedge_in_band_escalates_at_interval_and_at_a_dual() {
+        fn escalates<T: geom_core::Decide>(lane: &str) {
+            let band = band();
+            let theta = 0.5 * (band.zero() + band.escalate());
+            let (a, b) = (meridian::<T>(0.5), meridian::<T>(0.5 + theta));
+            let got = pole_branch(
+                joint(T::from_f64(-theta), false),
+                (&a, T::zero(), T::pi()),
+                (&b, T::zero(), T::pi()),
+                band,
+            );
+            assert!(
+                matches!(got, Err(SplitJoinError::Escalated { .. })),
+                "[{lane}] θ = {theta:e} at a unit lever is in band: {got:?}"
+            );
+        }
+        escalates::<Interval>("Interval");
+        escalates::<geom_core::Dual64>("Dual64");
     }
 
     use core::f64::consts::{PI, TAU};

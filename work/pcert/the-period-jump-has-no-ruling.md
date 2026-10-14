@@ -175,3 +175,9 @@ row, `an-arc-side-sweeping-half-a-turn-or-more-to-its-corner-is-refused-as-behin
   four same-edge calls were all in `pole_slit_window`. At `f64` their k
   was unchanged, and at `Interval` the `[−1, 0]` and `[0, 1]` straddles
   became the `f64` literals.
+
+Filed from the review of PR 5080:
+- `the-pole-lever-overstates-a-lens-about-four-times` (PCERT, design);
+- `inline-tau-reductions-do-not-enclose-tau-at-interval` (PCERT, with the
+  territory noted);
+- `mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers` (TESS).
