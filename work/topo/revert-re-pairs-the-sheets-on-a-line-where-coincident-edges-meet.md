@@ -52,3 +52,17 @@ Two kissing cusps (D1's doubled cusp) re-pair as two seams; see the
 
 Blocked on 4795: the pairing rule is that PR's principle, and a ruling
 for radial edges would change what the complement is.
+
+## What today's refusal does not read
+
+The refusal reads point keys and curve keys only, so these reach the
+naive map unrefused (none measured):
+- coincident edges whose ends are distinct point keys a vertex–vertex
+  record joins, and partial overlaps backed by vertex–edge records:
+  `revert` sees no records;
+- coincident curved edges on two curve keys, e.g. PR 4622's curved
+  keel slit if the split mints its two arcs on two keys;
+- an edge lying in a face and a face–face line touch (measured for the
+  edge in a face: `subtracting-a-glued-tip-reverts-its-edge-on-face-line-into-the-rider-form`).
+
+The re-pairing retires the refusal and these with it.
