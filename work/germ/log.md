@@ -1344,3 +1344,13 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - FLUX's turned-frame QuadratureBudget defect filed;
     - the c5 item's stale front matter refreshed.
 - 2026-10-14 10:40 — Check-in. 5066's fix pass is nearly done: the body section is written and the lane is timing its new rows before the final push. Item 5 (the winding tries finer counts before refusing) moves loops toward decided answers: Uncertified 1 415 → 141, decided 1 324 → 2 133. That is answer-moving in the answering direction, so as with 4927 I'll dispatch a focused delta review on the fix-pass commits once they are pushed. pt-section-gaps lane is working. Re-armed for 11:36.
+- 2026-10-14 11:40 — Check-in.
+  - **5066's fix pass is done** (head `b4329486b1`, hosted CI green). All 7 items handled:
+    - the `min` is pinned by a thin-tube row;
+    - fuzz draws now reach both mutants (10/10 red at effort 1);
+    - 1e-12 pinch poses added (red on pre-fix code at all three ε);
+    - the widening is disclosed and argued;
+    - the winding tries finer counts before refusing;
+    - NITs and shared window rates.
+  - **My call (as for 4886 and 4927):** the finer-counts change moves loops toward decided answers, so I dispatched a focused **delta review d5066** of `d794645563` + `b5919546d4` (local Opus, not tallied).
+  - Local verify (vpr.sh) is running. The pt-section-gaps lane is working (no PR yet). Re-armed for 12:38.
