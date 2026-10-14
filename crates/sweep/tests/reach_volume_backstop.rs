@@ -452,11 +452,11 @@ fn a_planted_union_result_short_by_less_than_the_reporting_pads_refuses() {
 /// lower). Planting the one with the higher midpoint as the result of
 /// subtracting from the other puts the margin's midpoint below zero
 /// while the true margin is zero: the backstop must not call it
-/// implausible. It passes where the last round decides a zero margin
-/// on this pair, and refuses `VolumeUndecided` where it cannot
-/// ([`last_round_decides`]). A gate that read the midpoint, or
-/// subtracted the enclosures' width instead of adding it, refuses it as
-/// implausible.
+/// implausible. Its last round decides a zero margin on this pair at
+/// every ε row, so it passes there (measured; the rod pair of
+/// [`last_round_decides`] stays open at ε = 1e-12). A gate that read the
+/// midpoint, or subtracted the enclosures' width instead of adding it,
+/// refuses it as implausible.
 #[test]
 fn a_result_equal_in_truth_but_larger_at_the_midpoint_passes() {
     let cutter = oblique_cutter(0.0);
@@ -491,12 +491,10 @@ fn a_result_equal_in_truth_but_larger_at_the_midpoint_passes() {
     } else {
         (&circle, &arcs)
     };
-    let expect = if last_round_decides(1.0) {
+    assert_eq!(
+        planted(BooleanOp::Subtract, lower, &cutter, higher),
         Ok(AtRestOutcome::Validated)
-    } else {
-        Err(BooleanErrorKind::VolumeUndecided)
-    };
-    assert_eq!(planted(BooleanOp::Subtract, lower, &cutter, higher), expect);
+    );
 }
 
 /// **A dual runs no backstop** (DL3): the backstop is a validation, and

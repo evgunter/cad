@@ -357,7 +357,9 @@ struct SliverBoundary<T: Real> {
 }
 
 /// A round section's frame in the end plane: `p − center` is inside
-/// it when `(d·u/major)² + (d·w/minor)² < 1`.
+/// it when `(d·u/major)² + (d·w/minor)² < 1`. `u` is along the larger
+/// semi-axis, so `major ≥ minor > 0` and `1/minor` bounds the scaling's
+/// stretch ([`Self::depth`], [`Self::outside`]).
 #[derive(Clone, Copy)]
 struct SectionFrame<T: Real> {
     u: Vec3<T>,
@@ -390,8 +392,11 @@ impl<T: Bounds> SectionFrame<T> {
                 center: c, radius, ..
             } => self.scaled(c - center) + radius / self.minor,
             Curve3::Ellipse {
-                center: c, major, ..
-            } => self.scaled(c - center) + major / self.minor,
+                center: c,
+                semi_u,
+                semi_v,
+                ..
+            } => self.scaled(c - center) + Curve3::semi_axes_by_size(semi_u, semi_v).0 / self.minor,
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
         };
         Some(self.minor * (T::one() - rho))
@@ -423,8 +428,11 @@ impl<T: Bounds> SectionFrame<T> {
                 center: c, radius, ..
             } => self.scaled(c - center) - radius / self.minor,
             Curve3::Ellipse {
-                center: c, major, ..
-            } => self.scaled(c - center) - major / self.minor,
+                center: c,
+                semi_u,
+                semi_v,
+                ..
+            } => self.scaled(c - center) - Curve3::semi_axes_by_size(semi_u, semi_v).0 / self.minor,
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
         };
         Some(self.minor * (rho - T::one()))
@@ -550,7 +558,7 @@ impl<T: Bounds> CapSliver<T> {
         // `‖q‖ = a + k·s`, `|k| ≤ 1`: with `τ = s + b` and `a′ = a − k·b`,
         // `(1 − k²)·τ² − 2·a′·k·τ + d2 − a′² = 0`, whose roots are
         // `(d2 − a′²)/(a′·k ∓ r)`, both signs taken where `topo`'s
-        // `solid_contain::quadratic_roots` picks one. It never divides by
+        // `geom_brep::quartic::quadratic_roots` picks one. It never divides by
         // `1 − k²`, which vanishes on an edge along a floor's direction
         // and leaves the equation linear with the one root it takes. A
         // divisor vanishes alone only where `a′² = d2`: the other root
@@ -606,10 +614,13 @@ fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
         Curve3::Circle { center, radius, .. } => Some((center, radius, radius)),
         Curve3::Ellipse {
             center,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             ..
-        } => Some((center, major, minor)),
+        } => {
+            let (outer, inner) = Curve3::semi_axes_by_size(semi_u, semi_v);
+            Some((center, outer, inner))
+        }
         _ => None,
     };
     let about = |(o, outer, inner): (Point3<T>, T, T), (carrier, window): Piece<'_, T>| {
@@ -841,6 +852,8 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let (center, round) = match curve {
             EndCurve::Chord => (foot_a + (foot_b - foot_a) * T::from_f64(0.5), None),
             EndCurve::Round(arc) => {
+                // The frame with the major semi-axis first
+                // (`Curve3::major_frame`).
                 let (center, axis, major, minor, u) = match *arc {
                     Curve3::Circle {
                         center,
@@ -848,13 +861,12 @@ impl<T: Decide + Bounds> CapSliver<T> {
                         radius,
                         u_ref,
                     } => (center, axis, radius, radius, u_ref),
-                    Curve3::Ellipse {
-                        center,
-                        axis,
-                        major,
-                        minor,
-                        u_ref,
-                    } => (center, axis, major, minor, u_ref),
+                    ref ellipse @ Curve3::Ellipse { center, axis, .. } => {
+                        let Some(f) = ellipse.major_frame() else {
+                            unreachable!("an Ellipse carrier has a major frame")
+                        };
+                        (center, axis, f.major.abs(), f.minor.abs(), f.major_dir)
+                    }
                     Curve3::Line { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                         return Err(unbuilt_geometry(
                             EntityId::Vertex(vertex),
@@ -1015,7 +1027,9 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
             Curve3::Line { .. } => InfSpeed::new(T::one()),
             Curve3::Circle { radius, .. } => InfSpeed::new(radius),
             // An ellipse's speed is never below its minor semi-axis.
-            Curve3::Ellipse { major, minor, .. } => InfSpeed::new(major.min(minor)),
+            Curve3::Ellipse { semi_u, semi_v, .. } => {
+                InfSpeed::new(Curve3::semi_axes_by_size(semi_u, semi_v).1)
+            }
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                 return Err(unbuilt_geometry(
                     EntityId::Edge(rim),

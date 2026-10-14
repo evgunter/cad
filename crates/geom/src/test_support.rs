@@ -126,8 +126,8 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
                     build: |x| Curve3::Ellipse {
                         center: pt(&x[0..3]),
                         axis: dir(&x[3..6]),
-                        major: x[6],
-                        minor: x[7],
+                        semi_u: x[6],
+                        semi_v: x[7],
                         u_ref: dir(&x[8..11]),
                     },
                     scalars: 11,

@@ -50,8 +50,8 @@ fn ellipse_in(
     Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     }
 }

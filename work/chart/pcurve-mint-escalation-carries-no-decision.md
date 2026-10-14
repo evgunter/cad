@@ -14,7 +14,7 @@ decision and its verdict, and the decision is a closed type at its site.
 ## What
 
 `PcurveMintError::Escalated { half_edge, cause }` (`crates/topo/src/pcurves.rs`)
-is raised by several decisions (`pcurve_iso_side`,
+is raised by several decisions (`pcurve_iso_wall_seam`,
 `pcurve_iso_arc_row_direction`, `pcurve_loop_continuity`, and the others in
 `pcurves.rs` that map an `Indeterminate` onto it) and keeps only the
 `Indeterminate`, whose predicate name is the one trace of which it was.

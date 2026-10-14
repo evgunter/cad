@@ -2,7 +2,8 @@
 id: an-ellipse-stored-minor-over-major-passes-tier-3
 kind: issue
 title: An Ellipse carrier stored with minor > major mints and passes tier 3; only the constructor decides the ordering
-status: open
+status: closed
+closed: 2026-10-14
 opened: 2026-09-25
 priority: P4
 cost: E
@@ -99,3 +100,16 @@ item's question (whether tier 3 should decide it) is unchanged.
   `major` certifies as before (`ellipse_signed_semi_axis_gate`). Whether
   a swapped or signed frame should be normalised at the mint stays this
   item's question.
+
+## Closed
+
+2026-10-14, by CLEAVE's PR 4861
+(`a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex`).
+Order-free is now the intended state, so there is no ordering for
+tier 3 to certify. `geom::Curve3::Ellipse` stores `semi_u` and
+`semi_v` in either order, and its `u_ref` may be either principal
+direction. `EllipseInvalid::AxesSwapped` is retired, so the
+constructor does not decide an order either. A reader that needs the
+major semi-axis reads it through `Curve3::semi_axes_by_size` or
+`Curve3::major_frame`. The consumer sweep for readers of the old order
+is in PR 4861's body.
