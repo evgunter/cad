@@ -676,6 +676,11 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         surface
             .project_from_seed(carrier.eval(th), p.x.lo(), p.y.lo())
             .is_ok_and(|proj| {
+                eprintln!(
+                    "PROBE-5160 tell at {tb}: foot distance {:?} -> {:?}",
+                    proj.distance.hi(),
+                    decide_reported("probe_5160", Margin::of(proj.distance), band)
+                );
                 matches!(
                     decide_reported("ssi_on_locus_foot", Margin::of(proj.distance), band),
                     Ok(Decided {
@@ -685,6 +690,9 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 )
             })
     };
+    if let Subdivided::Value { at: tb, floor, .. } = &stopped {
+        eprintln!("PROBE-5160 value break at {tb}, floor {floor:e}");
+    }
     let arm = match stopped {
         Subdivided::Value { at: tb, .. } if carrier_on_surface(tb) => &CHART_IMAGE_HULL,
         _ => &CHART_HULL,

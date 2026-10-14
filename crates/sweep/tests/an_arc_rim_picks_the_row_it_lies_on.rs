@@ -205,7 +205,21 @@ fn an_intersection_circle_on_a_spline_wall_is_refused_at_the_door() {
         witness: geom.carrier().eval(0.5 * (t0 + t1)),
     };
     let before = format!("{body:?}");
-    let refused = body.set_edge_curve(edge, spec, tol());
+    let (refused, rec) =
+        geom_core::k_stats::detached(|| body.set_edge_curve(edge, spec, tol()));
+    // PROBE (review 5160): the tell's foot decision is logged on the frame.
+    let names: Vec<_> = rec
+        .recorded()
+        .verdicts
+        .iter()
+        .map(|v| (v.predicate, v.sign))
+        .collect();
+    eprintln!(
+        "PROBE-5160 last verdicts {:?} escalations {:?}",
+        &names[names.len().saturating_sub(4)..],
+        rec.recorded().escalations
+    );
+    let refused = refused;
     let Err(EulerOpError::Certification {
         error: ref error @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, margin }),
     }) = refused

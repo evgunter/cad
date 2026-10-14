@@ -451,10 +451,14 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // Limb 2 refuses on its bound, or on its composite's value
             // at a break against either operand, which subdividing the
             // bound reads past ε.
-            Err(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
+            Err(ref e @ SsiError::CertificateLimb {
+                limb: limb @ (SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart),
                 margin,
             }) => {
+                // PROBE (review 5160): both operands are analytic here, so
+                // no pcurve exists; the words must not name one.
+                eprintln!("PROBE-5160 limb {limb:?}: {e}");
+                assert!(!e.to_string().contains("pcurve"), "PROBE-5160: {e}");
                 found = Some((d, upper(margin)));
                 break;
             }

@@ -462,7 +462,20 @@ fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
     };
     let wall = bumped_wall(2.0 * eps());
     for (name, carrier) in [("line", line.clone()), ("spline", twin(&line, (0.0, 1.0)))] {
-        match plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, 1.0, band()) {
+        let (got, rec) = geom_core::k_stats::detached(|| {
+            plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, 1.0, band())
+        });
+        // PROBE (review 5160): which escalations the frame carries.
+        eprintln!(
+            "PROBE-5160 {name}: {:?} escalations {:?}",
+            got.as_ref().err().map(ToString::to_string),
+            rec.recorded()
+                .escalations
+                .iter()
+                .map(|e| e.predicate())
+                .collect::<Vec<_>>()
+        );
+        match got {
             Err(PlaneNurbsRefusal::Escalated { limb, cause }) => {
                 assert!(
                     matches!(limb, SsiLimb::HullSup | SsiLimb::HullValueChart),
