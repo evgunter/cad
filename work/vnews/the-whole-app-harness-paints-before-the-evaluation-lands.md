@@ -2,10 +2,12 @@
 id: the-whole-app-harness-paints-before-the-evaluation-lands
 kind: issue
 title: The whole-app headless harness paints two frames and never waits for the evaluation, so a row can catch it still running
-status: open
+status: closed
 opened: 2026-09-28
 priority: P2
 cost: E
+branch: vnews/the-harness-waits-for-the-landing
+closed: 2026-10-13
 ---
 
 Seen by the `preview-error-picks-its-tone-by-hand-in-a-comment` lane
@@ -81,3 +83,29 @@ section fits and its opening animation is past. `app_frame` fixes the
 window at 1600 by 1000, so this helper could not route through it as it
 stands; the fix this row owes should give `app_frame` the window size
 as an argument and fold this copy in with the wait.
+
+## Closed (2026-10-13)
+
+`properties_pane_tests::settle` is the one bounded wait: it paints
+until the toolbar's own progress read (`frame::progress` over the
+session's `Outstanding` and the index seam) is the rest state the
+caller names, at most 3000 frames with a 10 ms sleep between, and
+panics naming the progress it was stuck at. `None` means nothing
+outstanding, which implies the startup document landed and its index
+is built. `painted_with`, `painted_with_tool`, the `Driven` harness
+(`with`, `quiet`, `click`), `painted_adding_a_profile` and the
+`index_seam_tests` row all draw through it. The `index_seam_tests` row
+rests at `Some(Progress::Indexing)`, because its fit never answers.
+`app_frame` takes the window size, so the 1600 by 4000 add-profile
+helper goes through it.
+
+`the_wait_answers_a_frame_with_nothing_outstanding` holds the wait to
+its word: a settled frame paints no `evaluating…`, `Cancel` or
+`indexing…`. A wait that stops at the landing answers the landing
+frame, whose display fit was submitted in that same frame, so that
+row fails deterministically. Under mutation it also failed with a
+fixed two-frame wait.
+
+The toolbar-only harnesses (`tests::toolbar_drawn`, `tests::Toolbar`)
+are left alone. They draw `toolbar_ui` and never `ViewerApp::ui`, so
+nothing polls a seam and their state cannot change between frames.

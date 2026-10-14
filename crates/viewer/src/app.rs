@@ -3342,6 +3342,7 @@ mod tests {
 mod properties_pane_tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
 
     use eframe::egui;
     use pncad::document::{Axis3, ParamName, RecipeNodeId, SlotId};
