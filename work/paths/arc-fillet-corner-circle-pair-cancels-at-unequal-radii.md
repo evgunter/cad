@@ -5,7 +5,8 @@ title: An arc-leg fillet corner between two circular carriers is placed by diffe
 status: open
 opened: 2026-10-14
 priority: P2
-cost: E
+cost: M
+design: true
 ---
 
 
@@ -38,15 +39,56 @@ centre coordinate:
 | r = 1e3 × 1e-3, d = 1e3 + 1e-4 | 2.2e5 ulps (4.9e-8, 49ε at 1e-9) | 0.03 |
 | r = 62.76 × 1.28e-7 (the first pair) | NaN: `r₁²/d² − k²` rounds negative | 0.25 |
 
-Whether a fillet whose two sides are arcs this unequal reaches the
-corner (rather than refusing earlier) was not measured; the NaN row
-poisons the gates after it, so it refuses rather than misplaces.
+**What a misplaced corner does downstream** (2026-10-14, the fix pass
+of PR 5124). A lens through the public door, `Open.arc_fillet_arc`
+with both sides `Center`, counter-clockwise, the larger circle first:
+centres on the x axis, both carriers through one f64 start point `p`,
+so the true corner is `p` mirrored across the axis. Each case ran
+twice, once with `circle_circle` as it is and once with its corner
+taken from `geom_core::Circles2::crossings` (a throwaway patch), at
+the default ε (1e-9):
+
+| R × r, d − R | fillet r | corner off the small carrier | outcome |
+|---|---|---|---|
+| 1 × 1e-7, 1e-8 | 3e-8 | 4.6e-10 (0.46ε) | builds; the arrival tangent point sits 4.6e-10 off the small carrier (1.9e-17 from the exact corner); `Profile::validate` accepts it |
+| 1 × 1e-6, 1e-7 | 1e-7 | 1.0e-10 | builds and validates; that tangent point 1.0e-10 off (3.7e-17) |
+| 10 × 1e-3, 1e-4 | 1e-4 | 7.3e-12 | builds and validates; 7.3e-12 off (3.7e-16) |
+| 1 × 1e-5, 1e-6 | 3e-6 | 5.3e-12 | builds and validates; 5.3e-12 off (6.7e-18) |
+| 100 × 1e-4, 1e-5 | 1e-5, 3e-5 | 4.9e-9 (4.9ε) | refuses at the advance gate, "whether the corner lies ahead of its anchor on an arc side is undecided" (margin −4.9e-9). The exact corner passes that gate and refuses later, on the offset tangency or the stored arc's band |
+| 1e3 × 1e-3, 1e-4 | 1e-4, 3e-4 | 4.9e-8 (49ε) | refuses on the offset tangency (`carrier_circles_internal`) with either corner, so the misplacement is not what decides |
+
+So a misplacement below the band ships silently: the construction
+carries the corner's error into the arrival tangent point, which lands
+off its carrier by that error and validates. Here that was up to half
+the band. A misplacement past the band was refused in every case
+tried, sometimes by a gate reading the misplaced corner's own margin.
+Hence P2: error propagation into emitted coordinates, not a wrong
+answer past the tolerance.
 
 ## Where to look
 
-`geom_core::Circles2` (`crates/geom-core/src/arc/pair.rs`): build it
-from the two centres and the radii, decide the three margins from its
-`identity`/`external`/`internal` (the concentric `d` gate is its own),
-and take the corners from `crossings()`. The squared radii the caller
-passes are `(anchor − c)·(anchor − c)`; the radii are their roots,
-which this function already takes for the margins.
+The fix is blocked on a ratified rule. `arc_fillet.rs`'s module doc
+states LB4, the squared-radius rule: every derived corner is computed
+from squared radii and never round-trips `√(R²)²`; the `sqrt`s in the
+file feed classification margins only, never an emitted coordinate;
+the squared form is what lands the rocker eye's corner bit for bit
+(`path_differential` `the_derived_circle_by_circle_corner_lands_on_the_authored_one`).
+PATHS-DESIGN §2b keeps LB4, and `work/lib/log.md` records it ("the
+squared-radius circle×circle form is ruled IN as the design").
+`geom_core::Circles2::crossings` takes the radii themselves (its
+factors are `r₁ ± r₂ ± d`), so reading it here breaks LB4. There are
+two ways out:
+
+- **A cancellation-free form over squared radii.** It keeps LB4, and
+  it has to land the eye's corner bit for bit as the current form
+  does. `h²`'s factored form needs `r₁` and `r₂` themselves, so this
+  form is not yet known to exist.
+- **A change to LB4**, so that a derived corner may read the radii
+  (and `Circles2`, deciding the three margins from its
+  `identity`/`external`/`internal`, with the concentric `d` gate its
+  own). That is a change to a ratified decision and needs Ev, on an
+  `[ev]` PR, with the eye row's verdict under the new form measured
+  first.
+
+The three margins (`d`, `r₁ + r₂ − d`, `d − |r₁ − r₂|`) are a third
+spelling of the circle-pair margins whichever way is taken.
