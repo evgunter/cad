@@ -1365,3 +1365,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - NITs (re-pose slack also bounds unit fields; 29 oval-edge EPS_MIN refusals now escalate rather than going general; FLUX cites symbols, not lines) stay as they are.
   - Also seen: `germ_plane_torus_spiric::the_fat_corner_bars_lens…` pin red at ε = EPS_MIN only, identical on main. EPS_MIN is not a CI ε; noted, not filed.
   - Merge verify started in /home/user/m5125 (main merged clean).
+- 2026-10-14 16:05 — **PR 5125 merged** (`edbb1a8058`) on local green: main merged twice (`d54ecfc064`, then `1053d95a18`). Full geom-brep 1338, topo 3017, sweep 2698 at 3 ε; the PR's rows 566 at 3 ε on the second merge. The CLEAVE filing rides the PR. The PR body is corrected to name the missed `common_line`. Row PR-5125 is sequential, M, tallied 0.
