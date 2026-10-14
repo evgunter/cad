@@ -1061,3 +1061,8 @@ Signed (CLEAVE orchestrator).
   - Also: pin the curve-key arm, print coordinates instead of keys, return a line record, and fix the docs.
   - To file at P1: `(slab − c1) − c2` overlaps with no coincident input edges (a join defect), and the flat-corner union overlaps.
   - Restread's side-check row gets the witnesses.
+- 2026-10-14 — PR 5106 fix pass stopped at its stop condition.
+  - Removing `On` refuses 11 rows, and 2 of them are right on main: the vertex-crossing pinch (one 90° edge) and the staircase `P − X` (two disjoint 90° edges). The input reading can't tell them from the 9 wrong ones.
+  - Ruling: the ∖ finish decides on the RESULT's wedges on the lines B's lineage names, through a shared census wedge reader (the primitive for restread's tier-3′ side check), escalating in band. No `On` exemption.
+  - `revert` and the void door keep the structural refusal.
+  - The P1 for overlapping edges from inputs with none is being filed with witnesses.
