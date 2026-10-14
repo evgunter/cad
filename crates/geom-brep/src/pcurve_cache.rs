@@ -1269,7 +1269,8 @@ pub enum PcurveCheck {
     /// `|S(P(tᵢ)) − C(tᵢ)|` at a schedule sample — metres through the
     /// map (module docs).
     MapResidual,
-    /// The closed-form between-samples envelope — metres.
+    /// The between-samples envelope — metres: the closed-form lanes'
+    /// sum of terms, or the fitted lane's hull sup.
     Envelope,
     /// The closed-form envelope on a periodic chart, refused with this
     /// one term over the band on its own ([`EnvelopeTerm`]). A refusal
@@ -1399,17 +1400,11 @@ const _: () = {
 /// The fitted lane's definite refusals each measured something
 /// different, so each rides its own named arm: flattening them onto one
 /// anonymous number loses the only thing a reader needs, what the
-/// number means. The foot distances are quantities the image producer
-/// projected out of an enclosure when it refused. The limb residual is
-/// the reporting margin the hull limb's verdict was decided on
-/// ([`geom_core::MarginDiag`], for the message only), as `edge_nurbs`'
-/// `Limb` carries it: a point at `f64`, and at `Interval` the
-/// enclosure, rendered `[lo, hi] m`.
+/// number means. Both are quantities the image producer projected out
+/// of an enclosure when it refused. A decided limb's own reading rides
+/// [`PcurveCertifyError::FittedLimb`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FittedMagnitude {
-    /// A certificate limb exceeded ε: what the classifier saw of the
-    /// limb's residual, in metres, for the message only.
-    LimbResidual(geom_core::MarginDiag),
     /// A certified foot point would not converge: the last distance the
     /// projection saw, in metres, at the schedule parameter it gave up
     /// on.
@@ -1652,13 +1647,27 @@ pub enum PcurveCertifyError {
         /// The spline layer's typed refusal.
         source: SplineError,
     },
+    /// A certificate limb of the fitted lane refused definitely: which
+    /// limb, and what the classifier saw of its value
+    /// ([`geom_core::MarginDiag`], for the message only), as
+    /// `edge_nurbs`' `Limb` carries it: a point at `f64`, and at
+    /// `Interval` the enclosure, rendered `[lo, hi] m`. What that value
+    /// measures here is this door's to say
+    /// ([`PcurveCertifyError::ending`]).
+    FittedLimb {
+        /// The limb that refused.
+        limb: SsiLimb,
+        /// What the classifier saw of its value.
+        margin: geom_core::MarginDiag,
+    },
     /// The fitted lane's SSI certificate refused, **flattened to its
     /// three actionable parts** rather than nested whole.
     ///
     /// The triple IS the actionable content — which limb, why, and the
-    /// offending margin — which is what a consumer can act on and what
+    /// number measured — which is what a consumer can act on and what
     /// this module's other refusals carry; nesting `SsiError` whole
-    /// would add nothing a caller can act on.
+    /// would add nothing a caller can act on. A limb's decided refusal
+    /// is [`PcurveCertifyError::FittedLimb`].
     FittedCertificate {
         /// The SSI limb that refused, when the refusal names one.
         limb: Option<SsiLimb>,
@@ -1817,7 +1826,6 @@ impl core::fmt::Display for PcurveCertifyError {
                     None => String::new(),
                 },
                 match magnitude {
-                    Some(FittedMagnitude::LimbResidual(v)) => format!(" (limb residual {v:e} m)"),
                     Some(FittedMagnitude::LastFootDistance { t, last_distance }) => format!(
                         " (the projection's last distance was {last_distance:e} m at t = {t:e})"
                     ),
@@ -1826,6 +1834,12 @@ impl core::fmt::Display for PcurveCertifyError {
                     ),
                     None => String::new(),
                 }
+            ),
+            Self::FittedLimb { limb, margin } => write!(
+                f,
+                "pcurve certification: the fitted lane's certificate refused at {} — a \
+                 certificate limb exceeded ε (limb residual {margin:e} m)",
+                limb.name()
             ),
             Self::CarrierDomain(refusal) => write!(f, "pcurve certification: {refusal}"),
             // Each escalation ends in its decision's own labelled
@@ -1882,12 +1896,19 @@ impl core::fmt::Display for PcurveCertifyError {
                  {MAX_BRANCH_PERIODS} periods from its carrier's — a winding no producer is \
                  known to mint, refused rather than searched for"
             ),
-            Self::ResidualExceeded { check, sample } => write!(
-                f,
-                "pcurve certification: {check:?} at sample {sample} definitely exceeds the \
-                 tolerance band — the pcurve does not represent the carrier through the \
-                 map (D4 ¶2; the residual is a 3-D displacement in metres)"
-            ),
+            Self::ResidualExceeded { check, sample } => {
+                let claim = if check.bounds_a_miss() {
+                    "the certificate cannot show the pcurve represents the carrier through the map"
+                } else {
+                    "the pcurve does not represent the carrier through the map"
+                };
+                write!(
+                    f,
+                    "pcurve certification: {check:?} at sample {sample} definitely exceeds the \
+                     tolerance band — {claim} (D4 ¶2; the residual is a 3-D displacement in \
+                     metres)"
+                )
+            }
             Self::Escalated {
                 check,
                 sample,
@@ -1906,25 +1927,26 @@ impl core::fmt::Display for PcurveCertifyError {
 impl std::error::Error for PcurveCertifyError {}
 
 impl PcurveCertifyError {
-    /// The ending this refusal's decision gives it, read at `reading`
-    /// ([`PcurveCheck::recourse`]), or `None` for a refusal that is no
-    /// decision's refused arm (an unsupported class, a missing operand,
-    /// a band the tolerance cannot form, a fitted certificate's own
-    /// refusal).
-    #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
-        let (check, arm) = match self {
+    /// The check this refusal restates and the arm it refused on, or
+    /// `None` for a refusal no check of this door owns: an unsupported
+    /// class, a missing operand, a band the tolerance cannot form, a
+    /// fitted certificate's structural refusal, or an escalation at the
+    /// SSI door (which ends by that door's decision).
+    fn decided(&self) -> Option<(PcurveCheck, RefusedArm<'_>)> {
+        Some(match self {
             Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
             Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain(None)),
+            Self::FittedLimb { limb, margin } => (
+                PcurveCheck::of_fitted_limb(*limb)?,
+                RefusedArm::SignCertain(Some(*margin)),
+            ),
             Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain(None)),
             Self::AzimuthPeriodExceeded => {
                 (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain(None))
             }
             Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain(None)),
-            Self::FittedEscalated { decision, cause } => {
-                return Some(decision.ending(cause, reading));
-            }
-            Self::UnsupportedChart { .. }
+            Self::FittedEscalated { .. }
+            | Self::UnsupportedChart { .. }
             | Self::CarrierOffChart { .. }
             | Self::CarrierGrazesChart { .. }
             | Self::ImageMismatch { .. }
@@ -1938,32 +1960,99 @@ impl PcurveCertifyError {
             | Self::BranchOutOfReach
             | Self::PlaceholderChart
             | Self::Band(_) => return None,
-        };
-        Some(check.recourse(arm, reading))
+        })
+    }
+
+    /// The ending this refusal's decision gives it, read at `reading`
+    /// ([`PcurveCheck::recourse`], or the SSI decision an escalation
+    /// there names), or `None` for a refusal that is no decision's
+    /// refused arm (an unsupported class, a missing operand, a band the
+    /// tolerance cannot form, a fitted certificate's structural refusal).
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> Option<String> {
+        if let Self::FittedEscalated { decision, cause } = self {
+            return Some(decision.ending(cause, reading));
+        }
+        self.decided()
+            .map(|(check, arm)| check.recourse(arm, reading))
+    }
+
+    /// Whether this is a definite refusal on a certified upper bound on
+    /// the miss ([`PcurveCheck::bounds_a_miss`]): it says only that the
+    /// certificate cannot show the image represents the carrier.
+    #[must_use]
+    pub fn refuses_on_a_bound(&self) -> bool {
+        self.decided().is_some_and(|(check, arm)| {
+            matches!(arm, RefusedArm::SignCertain(_)) && check.bounds_a_miss()
+        })
     }
 }
 
+/// How a refusal of a [`PcurveCheck`] ends: by the edge certifier's own
+/// decision where the check restates it, otherwise as a decision with
+/// no size.
+#[derive(Clone, Copy)]
+enum Routing {
+    Edge(CertCheck),
+    Unsized(Unsized),
+}
+
 impl PcurveCheck {
-    /// The one ending a refusal of this check carries on `arm`, read at
-    /// `reading` (D4 ¶1 (i)): the edge certifier's own decision where
-    /// this check restates it, otherwise a decision with no size.
-    #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+    fn routing(self) -> Routing {
         match self {
-            Self::ParamSpan => crate::certify::recourse(CertCheck::ParamSpan, arm, reading),
-            Self::AzimuthPeriod | Self::TubePeriod => {
-                crate::certify::recourse(CertCheck::ParamWinding, arm, reading)
-            }
+            Self::ParamSpan => Routing::Edge(CertCheck::ParamSpan),
+            Self::AzimuthPeriod | Self::TubePeriod => Routing::Edge(CertCheck::ParamWinding),
             // The winding the kernel stores exactly: a form selection.
             Self::ChartWinding | Self::ChartIncidence | Self::Sector => {
-                Unsized::Defect.recourse(arm, reading)
+                Routing::Unsized(Unsized::Defect)
             }
-            // A map residual and its between-samples envelope are
-            // bounds on a fitted image as well as an exact one, and the
-            // routing reads the check alone.
-            Self::MapResidual | Self::Envelope | Self::EnvelopeTerm(_) => {
-                Unsized::Fit.recourse(arm, reading)
+            // A sample's residual is the miss at that sample, on a
+            // fitted image as well as an exact one.
+            Self::MapResidual => Routing::Unsized(Unsized::Fit),
+            // The envelope and each of its terms bound a part of the
+            // miss from above, and the parts share `t`, so they can
+            // partly cancel: a loose bound contradicts nothing stored.
+            Self::Envelope | Self::EnvelopeTerm(_) => {
+                #[cfg(test)]
+                if mutants::envelope_fit() {
+                    return Routing::Unsized(Unsized::Fit);
+                }
+                Routing::Unsized(Unsized::Bound)
             }
+        }
+    }
+
+    /// The one ending a refusal of this check carries on `arm`, read at
+    /// `reading` (D4 ¶1 (i)).
+    #[must_use]
+    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+        match self.routing() {
+            Routing::Edge(check) => crate::certify::recourse(check, arm, reading),
+            Routing::Unsized(decision) => decision.recourse(arm, reading),
+        }
+    }
+
+    /// Whether this check refuses on a certified upper bound on a miss
+    /// rather than on the miss: its refusal says only that the
+    /// certificate cannot show the image represents the carrier.
+    #[must_use]
+    pub fn bounds_a_miss(self) -> bool {
+        matches!(self.routing(), Routing::Unsized(Unsized::Bound))
+    }
+
+    /// What a decided SSI limb measures at this door, as the check it
+    /// restates. The door decides it, not the limb: here the image `P`
+    /// is the STORED one, so the hull's value at a break,
+    /// `|S(P(t)) − C(t)|`, is the stored image's own miss there, where
+    /// at the SSI door `P` is a witness and the same value over-reads
+    /// the carrier's distance from the surface ([`SsiLimb::check`]).
+    /// The hull's sup is the envelope over the window. A limb this door
+    /// never decides is `None`.
+    fn of_fitted_limb(limb: SsiLimb) -> Option<Self> {
+        match limb {
+            SsiLimb::HullSup => Some(Self::Envelope),
+            SsiLimb::HullValueChart => Some(Self::MapResidual),
+            SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => None,
         }
     }
 }
@@ -2790,11 +2879,9 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
                 cause,
             };
         }
-        E::CertificateLimb { limb, margin } => (
-            Some(limb),
-            "a certificate limb exceeded ε",
-            Some(FittedMagnitude::LimbResidual(margin)),
-        ),
+        E::CertificateLimb { limb, margin } => {
+            return PcurveCertifyError::FittedLimb { limb, margin };
+        }
         E::UnsupportedCertificate { what } => (None, what, None),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
@@ -9118,6 +9205,90 @@ mod tests {
             .unwrap_or_else(|| panic!("no term over the band alone: {:?}", terms.0))
     }
 
+    /// **A refused envelope is a bound, read at rest as one.** A rim
+    /// whose stored image drifts axially by `l·(t − t_mid)` over a short
+    /// window far from `t = 0` misses by at most `|l|·w/2`, under the
+    /// band, yet its fidelity term levers the drift by the window's
+    /// reach from the origin, and refuses definitely. At rest that
+    /// refusal ends in the kernel-limit recourse and claims only that
+    /// the certificate cannot show the image; a rim off the axis by
+    /// `100·ε`, whose sample residual is the miss itself, ends in the
+    /// defect ending.
+    #[test]
+    fn a_refused_envelope_reads_as_a_bound_at_rest() {
+        use crate::recourse::{Reading, defect_ending};
+        let r = 0.5;
+        let cyl = cylinder(r);
+        let rim = |center: Point3<f64>| Curve3::Circle {
+            center,
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let carrier = rim(Point3::origin());
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap()
+        else {
+            panic!("the closed-form lane stores harmonic images")
+        };
+        // The drift's true miss is half the zero band; the term levers
+        // it by about `2·t0/w` past that.
+        let (t0, w) = (100.0, 0.1);
+        let l = band().zero() / w;
+        let mid = t0 + w / 2.0;
+        let drifting = Pcurve::Harmonic {
+            p0: Point2::new(p0.x, p0.y - l * mid),
+            pa,
+            pb,
+            pl: Vec2::new(pl.x, pl.y + l),
+        };
+        assert!(
+            l * w / 2.0 < band().zero(),
+            "the drift's true miss is inside the zero band"
+        );
+        let loose = PcurveCache::certify(drifting, t0, t0 + w, &carrier, &cyl, band())
+            .map(|_| ())
+            .expect_err("the drift's fidelity term refuses");
+        assert!(
+            matches!(
+                loose,
+                PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityV),
+                    ..
+                }
+            ),
+            "a definite refusal on the axial fidelity: {loose:?}"
+        );
+        assert_eq!(
+            loose.ending(Reading::AtRest).as_deref(),
+            Some(geom_core::KERNEL_LIMIT_RECOURSE),
+            "a loose envelope contradicts nothing stored"
+        );
+        assert!(
+            loose.to_string().contains("the certificate cannot show"),
+            "{loose}"
+        );
+        let off = rim(Point3::new(100.0 * Tol::witness().eps(), 0.0, 0.0));
+        let image = chart_pcurve(&off, &cyl, band()).unwrap();
+        let miss = PcurveCache::certify(image, 0.0, PI, &off, &cyl, band())
+            .map(|_| ())
+            .expect_err("a rim off the axis by 100·ε refuses");
+        assert!(
+            matches!(
+                miss,
+                PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::MapResidual,
+                    ..
+                }
+            ),
+            "its samples read the miss: {miss:?}"
+        );
+        assert_eq!(
+            miss.ending(Reading::AtRest).as_deref(),
+            Some(defect_ending(Reading::AtRest)),
+            "a sample's residual is the miss"
+        );
+    }
+
     /// **A refused envelope names the incidence that failed.** Each row
     /// moves the carrier off the cylinder, or the stored image off the
     /// one derived from it, in exactly one respect, and the term the
@@ -10213,7 +10384,7 @@ mod fitted_lane_tests {
         assert!(
             matches!(
                 fitted_lane(&line(1e-3), &image, &wall, (0.0, 1.0), band),
-                Err(PcurveCertifyError::FittedCertificate { .. })
+                Err(PcurveCertifyError::FittedLimb { .. })
             ),
             "a millimetre off the chart refuses at the hull"
         );

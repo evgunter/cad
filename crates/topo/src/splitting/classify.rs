@@ -15,6 +15,7 @@ use crate::boolean::boxes::BoxFrame;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::{decide, decide_nonzero};
+use crate::vertex_section::VertexRefusal;
 
 /// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
@@ -235,9 +236,11 @@ fn reach_clears<T: Decide>(
 
 /// F6: classify every vertex against the plane through the
 /// `split_vertex_side` trilean (margin = signed distance in meters,
-/// linear band), caching the verdict per vertex — one predicate site,
-/// one evaluation per vertex (the book recomputes per incident edge).
-/// In-band ⇒ typed [`SplitReduceError::SliverVertex`], never a snap.
+/// linear band), then each vertex that reads ON against the sections
+/// the plane ends at it ([`crate::vertex_section`]), its walk reading
+/// the far vertices' offset verdicts. One offset evaluation per vertex
+/// (the book recomputes per incident edge). In-band ⇒ typed
+/// [`SplitReduceError::SliverVertex`], never a snap.
 pub(super) fn classify_vertices<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -255,46 +258,82 @@ pub(super) type MarginedSides = (
 );
 
 /// [`classify_vertices`], with the margin each ON vertex was decided
-/// Zero on: the coincidence a pinch records ([`crate::coincidence`]).
+/// Zero on: the coincidence a pinch records ([`crate::coincidence`]) —
+/// its section reading where one was read, else its offset.
 pub(super) fn classify_vertices_margined<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<MarginedSides, SplitReduceError> {
-    let mut sides = SecondaryMap::new();
+    let side_of = |sign| match sign {
+        Sign::Negative => PlaneSide::Below,
+        Sign::Positive => PlaneSide::Above,
+        Sign::Zero => PlaneSide::On,
+    };
+    let mut offsets = SecondaryMap::new();
+    let mut zero = Vec::new();
+    for (vertex_key, p) in body.vertex_points() {
+        let offset = crate::sector_shape::plane_offset_rounded(plane.origin, plane.normal.get(), p);
+        let decided = crate::validate::decide_reported(
+            "split_vertex_side",
+            geom_core::Margin::of(offset.value),
+            band,
+        )
+        .map_err(|diag| SplitReduceError::SliverVertex {
+            vertex: vertex_key,
+            diag,
+        })?;
+        if decided.sign == Sign::Zero {
+            zero.push((vertex_key, p, offset, decided));
+        }
+        offsets.insert(vertex_key, side_of(decided.sign));
+    }
+    let mut sides = offsets.clone();
     let mut on_vertices = Vec::new();
     let mut on_margins = SecondaryMap::new();
-    for (vertex_key, p) in body.vertex_points() {
-        let margin = Margin::of(crate::sector_shape::plane_offset(
-            plane.origin,
-            plane.normal.get(),
-            p,
-        ));
-        let side = match crate::validate::decide_reported("split_vertex_side", margin, band) {
-            Ok(geom_core::Decided {
-                sign: Sign::Negative,
-                ..
-            }) => PlaneSide::Below,
-            Ok(geom_core::Decided {
-                sign: Sign::Positive,
-                ..
-            }) => PlaneSide::Above,
-            Ok(geom_core::Decided {
-                sign: Sign::Zero,
-                margin,
-            }) => {
-                on_vertices.push(vertex_key);
-                on_margins.insert(vertex_key, margin);
-                PlaneSide::On
-            }
-            Err(diag) => {
-                return Err(SplitReduceError::SliverVertex {
-                    vertex: vertex_key,
-                    diag,
-                });
-            }
-        };
-        sides.insert(vertex_key, side);
+    let section_plane = || {
+        Ok(crate::vertex_section::SectionPlane {
+            origin: plane.origin,
+            normal: plane.normal,
+            reference: geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
+        })
+    };
+    for (vertex_key, p, offset, on_plane) in zero {
+        let far =
+            |far| {
+                offsets.get(far).copied().ok_or(VertexRefusal::Walk(
+                    SplitReduceError::UnrecordedSide { vertex: far },
+                ))
+            };
+        let decided = crate::vertex_section::read_sections(
+            body,
+            (vertex_key, p),
+            section_plane,
+            (
+                crate::vertex_section::Offset {
+                    value: offset,
+                    normal: plane.normal.get(),
+                },
+                on_plane,
+                far,
+            ),
+            band,
+        )
+        .map_err(|refusal| match refusal {
+            VertexRefusal::Undecided(diag) => SplitReduceError::SliverVertex {
+                vertex: vertex_key,
+                diag,
+            },
+            VertexRefusal::Walk(e) => e,
+            VertexRefusal::Plane(what) => unreachable!(
+                "{vertex_key:?}: the split plane reads into the table whole, yet {what}"
+            ),
+        })?;
+        if decided.sign == Sign::Zero {
+            on_vertices.push(vertex_key);
+            on_margins.insert(vertex_key, decided.margin);
+        }
+        sides.insert(vertex_key, side_of(decided.sign));
     }
     Ok((sides, on_vertices, on_margins))
 }

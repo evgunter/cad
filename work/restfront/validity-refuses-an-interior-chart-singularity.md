@@ -151,16 +151,16 @@ tier-3 assertions that would move.
   Where a pole lies off the loop on EACH side, the face holds a pole
   under either sense, so the reader answers `Unencoded` and the face
   measures under its bit. That covers the rim-only cap, a tilted cap
-  around a pole, and a fillet corner patch whose chart puts a pole
-  inside it. This row's rule must refuse any sphere face with an
+  around a pole. This row's rule must refuse any sphere face with an
   interior pole, not only a meridian-free one.
-- **A kernel-minted witness.** `crates/sweep/tests/m5_pr12_fix_pass.rs`,
-  `f4_an_oblique_trihedron_builds_and_passes_tier_3`: the fillet's
-  corner sphere face has chart axis `(0, −0.958, −0.286)` and its south
-  pole inside the corner triangle (barycentric weights 0.09, 1.04,
-  0.31). That row is green today and goes red in this row's PR, unless
-  the blend's chart choice is fixed first
-  (`work/band/a-blend-corner-patch-holds-a-chart-pole.md`).
+- **The kernel-minted witness is fixed.** The fillet's oblique corner
+  patch (`crates/sweep/tests/m5_pr12_fix_pass.rs`,
+  `f4_an_oblique_trihedron_builds_and_passes_tier_3`) held its chart's
+  south pole inside the corner triangle; the blend now poles every
+  corner patch on one of its feet (`sweep::blend::arms::corner_chart`,
+  `work/band/a-blend-corner-patch-holds-a-chart-pole.md`), and
+  `crates/sweep/tests/corner_patch_chart_poles.rs` holds every corner
+  face of a corpus to `Encoded`.
 
 The sphere's rim-only arm (`sphere_rim_only_pole_level`,
 `rim_interior_side`) is gone from props with the iso flux branch, so

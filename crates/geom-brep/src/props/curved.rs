@@ -100,12 +100,12 @@ pub enum MaterialSign {
     ///   neither pole is read, though the face may hold neither
     ///   (`props_sphere_pole_side.rs`,
     ///   `a_pole_in_the_band_of_a_great_carriers_plane_leaves_the_loop_unread`);
-    /// * one whose loop has a pole off it on EACH side (a rim-only cap,
-    ///   a tilted cap or a blend corner patch holding a pole). Under
-    ///   either sense such a face holds a pole, which breaks the rule
-    ///   that a chart singularity inside a face is a vertex of it; the
-    ///   reading carries nothing about the bit, and validity, not the
-    ///   side reader, is what refuses the face.
+    /// * one whose loop has a pole off it on EACH side (a rim-only cap
+    ///   or a tilted cap holding a pole). Under either sense such a
+    ///   face holds a pole, which breaks the rule that a chart
+    ///   singularity inside a face is a vertex of it; the reading
+    ///   carries nothing about the bit, and validity, not the side
+    ///   reader, is what refuses the face.
     Unencoded,
 }
 
