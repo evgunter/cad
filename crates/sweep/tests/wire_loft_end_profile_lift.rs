@@ -201,7 +201,10 @@ mod interval {
     fn interval_escalates(raw: &Profile<f64>) -> bool {
         matches!(
             Profile::new(
-                sweep::test_support::lift_places::<Interval>(&[raw.plane])[0],
+                sweep::test_support::lift_places::<Interval>(
+                    &[raw.plane],
+                    geom_core::Tol::witness()
+                )[0],
                 sweep::test_support::lift_sections::<Interval>(core::slice::from_ref(&raw.loops))
                     .remove(0),
             )
@@ -239,7 +242,7 @@ mod interval {
         let (h, b, sections, places) = separating_pair();
         if let Err(e) = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&places),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             1,
             Tol::witness(),
         ) {
@@ -256,7 +259,7 @@ mod interval {
         let (sections, places) = cone_sections();
         let lofted = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&places),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             1,
             Tol::witness(),
         )

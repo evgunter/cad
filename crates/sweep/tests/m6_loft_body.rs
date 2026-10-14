@@ -230,7 +230,7 @@ mod certified {
         let (sections, places) = shape_iii_sections();
         let lofted = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&places),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             2,
             Tol::witness(),
         )

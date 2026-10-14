@@ -57,7 +57,7 @@ fn a_swaying_loft_builds_closed() {
             .unwrap_or_else(|e| panic!("{at}: {e:?}"));
         let lofted_i = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&places),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             v_degree,
             Tol::witness(),
         )

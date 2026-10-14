@@ -187,7 +187,10 @@ fn sym_arc_loft() -> Body<Sym<f64>> {
             arc_section(s),
             arc_section(s),
         ]),
-        &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0, 2.0], s)),
+        &sweep::test_support::lift_places::<Sym<f64>>(
+            &stacked(&[0.0, 1.0, 2.0], s),
+            geom_core::Tol::witness(),
+        ),
         2,
         Tol::witness(),
     )
@@ -203,7 +206,10 @@ fn sym_thin_strip() -> Body<Sym<f64>> {
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
         ]),
-        &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0], 1.0e12 * eps)),
+        &sweep::test_support::lift_places::<Sym<f64>>(
+            &stacked(&[0.0, 1.0], 1.0e12 * eps),
+            geom_core::Tol::witness(),
+        ),
         1,
         Tol::witness(),
     )

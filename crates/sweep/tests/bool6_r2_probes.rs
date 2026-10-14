@@ -91,7 +91,10 @@ fn r2_middle_slab_band_edges_at_interval() {
     let run = |s: f64| {
         loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&four_squares()),
-            &sweep::test_support::lift_places::<Interval>(&stacked_at(&[-1.0, 0.0, s, 1.0])),
+            &sweep::test_support::lift_places::<Interval>(
+                &stacked_at(&[-1.0, 0.0, s, 1.0]),
+                geom_core::Tol::witness(),
+            ),
             2,
             tol,
         )

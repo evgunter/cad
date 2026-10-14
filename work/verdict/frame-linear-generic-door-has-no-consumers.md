@@ -499,3 +499,13 @@ The "Measured" table's `SketchPlane::map` row (live through
 `embed_computed` / `point_value`. `Affine3::map` stays live through
 `editor-core`'s `Frame::affine`, so `Mat3::map` and `Vec3::map` keep
 their in-crate consumer; the ladder dispositions above are unchanged.
+
+## The frame's up doors are gone (2026-10-14, Ev's ruling A on #5068)
+
+`SketchPlane::embed` / `embed_computed` and `RigidMotion::embed` /
+`embed_computed` retired: a frame exists at a scalar only by being
+minted there, and `point_value` is its one crossing. `Profile::embed`
+(no production consumer) went with them. The ladder dispositions above
+are unchanged; `Affine3::map` stays live through `Frame::affine` and
+through the fixtures that admit a placement again at `T`
+(`sweep::test_support::lift_places`).

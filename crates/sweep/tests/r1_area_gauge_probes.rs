@@ -98,7 +98,7 @@ fn r1_e2e_gauge_is_silent_at_the_interval_lane() {
     let (sections, places) = r1_sections();
     let lofted = loft_body::<Interval>(
         &sweep::test_support::lift_sections::<Interval>(&sections),
-        &sweep::test_support::lift_places::<Interval>(&places),
+        &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
         2,
         Tol::witness(),
     )

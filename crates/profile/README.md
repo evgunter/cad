@@ -236,7 +236,7 @@ validate or hold by construction, and never be decided twice. Which one
 applies is a fact of the loop's provenance, carried by its type.
 
 - **A table** (`ProfileLoop`: the fixture door, a hand-built loop,
-  `map_scalar`, a pinned lift) is checked: `Profile::validate` decides
+  `map_scalar`) is checked: `Profile::validate` decides
   the three as ε-decisions at the validating scalar
   (`arc_start_on_carrier`, `arc_landing`, `arc_sweep_range`) and refuses
   `InconsistentArc`. A check whose difference the scene cannot resolve

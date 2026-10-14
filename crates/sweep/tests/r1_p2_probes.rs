@@ -557,7 +557,7 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
     ];
     let mut body = sweep::loft_body::<Dual64>(
         &sweep::test_support::lift_sections::<Dual64>(&sections),
-        &sweep::test_support::lift_places::<Dual64>(&places),
+        &sweep::test_support::lift_places::<Dual64>(&places, geom_core::Tol::witness()),
         2,
         Tol::witness(),
     )

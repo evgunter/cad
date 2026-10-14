@@ -46,3 +46,13 @@ re-decide a literal frame is the question this row asks, not a
 re-spelling: the guided lane re-decides everything at its own scalar
 by design (`ProfileLift`'s doc), and a literal placement has no
 `Pinned`/`Guided` distinction of its own today.
+
+## The shape above is no longer available (2026-10-14, Ev's ruling A on #5068)
+
+`RigidMotion::embed` is gone: a frame crosses no scalar upward, and
+`ProfileLift` (with its `Pinned` lift) retired, so every lane decides
+at its own scalar. A fix here therefore cannot carry the `f64` witness
+up. What remains is whether `Frame::affine`'s lift by
+`affine_f64().map(T::from_f64)` and the rigid readers' re-decision at
+`T` is the right reading of a literal placement, which by the ruling's
+rule is a frame minted at `T` from its stored constants.

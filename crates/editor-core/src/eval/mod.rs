@@ -3177,7 +3177,7 @@ pub struct EvalOptions {
 /// never by a number; it carries no value across scalars (`Self` is
 /// `f64` where it answers). Sealed: no scalar outside this crate can
 /// claim it.
-pub trait ProfileLane: geom_core::Real + profile_lane::Sealed {
+pub trait ProfileLane: profile_lane::Sealed {
     /// The first pass's validated form as this lane's, where this lane
     /// is the first pass: `f64`, with `params` binding every variable
     /// to `nominal`'s bits. `None` on every other scalar.
@@ -3189,14 +3189,15 @@ pub trait ProfileLane: geom_core::Real + profile_lane::Sealed {
 }
 
 mod profile_lane {
-    /// The seal on [`super::ProfileLane`].
-    pub trait Sealed {}
+    /// The seal on [`super::ProfileLane`], over the scalars this crate
+    /// evaluates at.
+    pub trait Sealed: geom_core::Real {}
     impl Sealed for f64 {}
     #[cfg(feature = "probe")]
     impl Sealed for geom_core::Probe {}
     impl Sealed for geom_core::Interval {}
-    impl<T> Sealed for geom_core::Sym<T> {}
-    impl<T> Sealed for geom_core::Dual<T> {}
+    impl<T> Sealed for geom_core::Sym<T> where geom_core::Sym<T>: geom_core::Real {}
+    impl<T> Sealed for geom_core::Dual<T> where geom_core::Dual<T>: geom_core::Real {}
 }
 
 impl ProfileLane for f64 {

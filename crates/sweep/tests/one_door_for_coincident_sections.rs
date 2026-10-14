@@ -187,7 +187,8 @@ fn a_sweep_whose_two_stations_coincide_refuses_at_the_fold() {
     }
     let lane_profile =
         &sweep::test_support::lift_sections::<Interval>(core::slice::from_ref(&profile))[0];
-    let lane_place = sweep::test_support::lift_places::<Interval>(&[place])[0];
+    let lane_place =
+        sweep::test_support::lift_places::<Interval>(&[place], geom_core::Tol::witness())[0];
     match sweep_body::<Interval>(lane_profile, lane_place, &path, 2, 1, tol) {
         Err(LoftError::DegenerateStacking { slab: 0 }) => {}
         other => panic!("Interval: expected DegenerateStacking at slab 0, got {other:?}"),

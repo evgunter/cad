@@ -52,7 +52,7 @@ fn an_interior_slab_at_the_band_edges_decides_the_same_at_interval() {
         let places = stacked(&[0.0, 1.0, 1.0 + step, 2.0]);
         let got = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&places),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             2,
             tol,
         )
@@ -80,7 +80,7 @@ fn a_forward_stack_builds_at_interval_at_every_station_count() {
         let sections = vec![sq(); k];
         let out = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&stacked(&zs)),
+            &sweep::test_support::lift_places::<Interval>(&stacked(&zs), geom_core::Tol::witness()),
             k.min(4) - 1,
             tol,
         );

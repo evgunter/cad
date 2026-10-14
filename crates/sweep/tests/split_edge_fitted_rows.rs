@@ -52,7 +52,7 @@ fn prism<T: AtRestPolicy>() -> Body<T> {
     ];
     sweep::loft_body::<T>(
         &sweep::test_support::lift_sections::<T>(&[square(), square(), square()]),
-        &sweep::test_support::lift_places::<T>(&places),
+        &sweep::test_support::lift_places::<T>(&places, geom_core::Tol::witness()),
         2,
         Tol::witness(),
     )

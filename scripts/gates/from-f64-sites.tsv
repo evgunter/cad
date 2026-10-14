@@ -64,7 +64,6 @@ crates/geom-core/src/dual.rs	1	constant	f64::from(n)	powi's exponent
 crates/geom-core/src/dual.rs	1	constant	x	the Real impl's own door: Dual::from_f64 embeds at its value scalar
 crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval::from_computed is the point embed by design
 crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed, the door itself: never Sym
-crates/geom-core/src/linalg/rigid_motion.rs	1	launders(the-pinned-profile-lift-launders-at-sym)	<fn>	RigidMotion::embed, an f64 frame carried as constants: its one production caller is the pinned lift's sketch plane (editor-core eval/wire.rs, a function of the variables at Sym); a computed frame that wants an unknown per component crosses through embed_computed
 crates/geom-core/src/spline/algebra.rs	1	constant	a	apply_rational: degree elevation's binomial ratio i/(p + 1), a constant of the operation
 crates/geom-core/src/spline/basis.rs	1	constant	factor	a falling factorial of the degree, a count
 crates/geom-core/src/spline/basis.rs	1	constant	self.0.knots().knots()[i]	the lifted basis over a bare KnotVector, which holds no value in a scalar: its one production caller is geom's f64 fit, where from_f64 is the identity; a carrier's evaluation reads basis_funs_in over its held knots. KNOWN GAP: pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
@@ -90,13 +89,12 @@ crates/geom/src/test_support/held_arc.rs	2	constant	k as f64	a sub-arc index
 crates/pncad/src/authoring.rs	2	constant	z	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
 crates/pncad/src/authoring.rs	5	constant	y	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
 crates/pncad/src/authoring.rs	6	constant	x	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
-crates/profile/src/lib.rs	1	constant	<fn>	Profile::embed's loops: a raw f64 profile lifted whole for a caller holding authored data; no production caller
 crates/profile/src/path.rs	1	constant	k as f64	a vertex index of a circle's split
 crates/profile/src/path.rs	1	constant	n as f64	a circle's split count
 crates/profile/src/seg.rs	1	constant	band.escalate() / (ulps * f64::EPSILON)	a resolution threshold from the band and an ulp count
 crates/profile/src/sugar.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/profile/src/validate.rs	1	constant	angle	a containment ray's fixed angle (RAY_BASE + k·RAY_STEP)
-crates/profile/src/validate.rs	4	launders(the-pinned-profile-lift-launders-at-sym)	<fn>	the pinned lift: the nominal f64 elaboration of profile geometry, a function of the variables, entered as constants
+crates/profile/src/validate.rs	4	launders(the-pinned-profile-lift-launders-at-sym)	<fn>	ValidatedProfile::lift_onto: its one production caller, sweep's loft at an enclosure scalar, re-enters the f64 canonical form of its lane sections' value channel as constants (a function of the variables at Sym<Interval>)
 crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's box pad, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
@@ -108,7 +106,7 @@ crates/sweep/src/skin.rs	1	constant	k as f64	a sub-arc index
 crates/sweep/src/skin.rs	1	constant	k as f64 / steps	a sub-arc breakpoint k/m, structure
 crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
-crates/sweep/src/test_support.rs	3	fixture	<fn>	a fixture's f64 points lifted into T
+crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T, and its placements' twelve constants admitted again at T
 crates/topo/src/bisect.rs	1	constant	escalate	the band's escalation width, a tolerance
 crates/topo/src/boolean/boxes.rs	1	constant	l as f64	a sample index
 crates/topo/src/boolean/boxes.rs	3	constant	k as f64	a sample index
