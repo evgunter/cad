@@ -2,11 +2,11 @@
 id: a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side
 kind: issue
 title: A whole ball intersected or united with a tilted brick that cuts a cap off it refuses UNCLASSIFIED_SIDE at a union vertex
-status: open
+status: parked
 opened: 2026-10-13
 priority: P2
 cost: M
-design: true
+blocked_on: [closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut]
 ---
 
 
@@ -116,3 +116,13 @@ if the re-chart outlives this row. (1) would build union machinery on a
 mechanism that ORBIT has already scheduled for deletion. It would also
 make a name's position depend on a rotation sign that no recorded
 verdict decides.
+
+## Parked
+
+Parked on ORBIT's
+`closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`,
+which retires the re-chart this row's question exists for (answer 3).
+The question goes to a designer pair only if that row lands with the
+re-chart kept. Until then intersect and union refuse, and
+`emit_ball_cut_by_brick.rs` pins the subtract's turned pole, so the
+test flips when the re-chart goes.
