@@ -22,6 +22,8 @@
 //! 3's one-arc proof over the two-chart tube ([`one_arc_pair`]), the
 //! analogue of [`super::one_arc::one_arc_r3`] one dimension up.
 
+use std::rc::Rc;
+
 use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::{Bounds, CertifiedBounds, Interval};
@@ -110,18 +112,23 @@ impl Box4 {
 /// certified chart speed in metres per parameter unit: what a width in
 /// state units is read in metres by.
 pub(crate) struct PairBoxes<'a, T: CertifiedBounds> {
-    a: NurbsBoxes<'a, T>,
-    b: NurbsBoxes<'a, T>,
+    a: Rc<NurbsBoxes<'a, T>>,
+    b: Rc<NurbsBoxes<'a, T>>,
     /// The chart speeds `(u₁, v₁, u₂, v₂)`.
     pub(crate) speeds: [f64; 4],
 }
 
 impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
-    /// The pair, with its four chart speeds.
-    pub(crate) fn new(a: &'a NurbsSurface<T>, b: &'a NurbsSurface<T>, speeds: [f64; 4]) -> Self {
+    /// The pair over the two operands' own cells (the enclosures they
+    /// hold, shared), with its four chart speeds.
+    pub(crate) fn new(
+        a: &super::ChartedNurbs<'a, T>,
+        b: &super::ChartedNurbs<'a, T>,
+        speeds: [f64; 4],
+    ) -> Self {
         Self {
-            a: NurbsBoxes::new(a),
-            b: NurbsBoxes::new(b),
+            a: Rc::clone(a.own_boxes()),
+            b: Rc::clone(b.own_boxes()),
             speeds,
         }
     }
