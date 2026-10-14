@@ -7,7 +7,6 @@ opened: 2026-10-13
 priority: P3
 cost: H
 design: true
-needs_ev: true
 ---
 
 Found by FUSE's review of PR 4946 (`census-curved-record-lanes-read-circles-only`, branch `fuse/census-reads-every-curved-edge`).
@@ -45,3 +44,5 @@ The near-concentric arcs are decided by the circle×circle arm. That closes `nea
 **The fork put to Ev is the home:** `geom-brep`, with the v0 Layering row amended, or `geom`, as that row stands.
 
 Measured on the way, and filed: `cleave/a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles` (P1). `carrier_cross` misplaces circle-pair candidates near the band, so the boolean reads `Clear` where the edges cross.
+
+**Ev ruled (2026-10-14, PR 5027):** the home is `geom-brep`, and C5 governs curve pairs. The implementation unit follows. Ev also asked whether the principle generalizes further; the audit of non-compliant pair questions is a separate unit.
