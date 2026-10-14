@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-14
 ---
 
-Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), which tests every geometric pair question against C5's rule: one total kind-pair table, one method per pair, no runtime fallback (`crates/geom-brep/README.md`, C5).
+Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
 
 ## What
 
@@ -20,4 +20,9 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), 
 
 ## Owed
 
-One point-in-face reading per surface kind, total over the kinds with a typed refusal for the rest, which both point-in-face and point-in-solid read.
+Re-aimed to D3 "One reading per question". Point-in-face is a reading over trimmed faces, so it lives in `topo` and reaches carrier facts (on-carrier, chart coordinates) only through the carrier readings (`hone/point-to-carrier-distance-is-spelled-seven-times`, `chart/chart-inversion-is-spelled-three-times`).
+
+- One point-in-face reading, one exhaustive match over surface kinds with a typed refusal for the rest. Point-in-face and point-in-solid both read it.
+- `face_placement`'s `_ =>` delegation, the cylinder outline chain, and `face_geo`'s cone and sphere chains are methods reached because another declined: fallbacks D3 forbids. Each arm has one method.
+- `face_geo`'s `Some(s) => KindUnsupported` catch-all becomes the reading's typed refusal, listed per kind.
+- The three planar entries (`contfp`, `point_in_face`, `point_in_loop`) are one reading with one entry.
