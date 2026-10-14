@@ -225,21 +225,17 @@ impl<K: Ord + Clone> Obstacles<K> {
             }
             // A chain edge an earlier seam was split into since that
             // seam's step still touches it: its lineage reaches the seam.
-            let mut touches = Vec::new();
+            let mut touches = BTreeSet::new();
             for &k in chains.iter().flatten() {
-                let mut up = k;
-                let mut seen = BTreeSet::new();
-                while seen.insert(up) {
-                    if earlier.contains(&up) {
-                        touches.push(up);
-                        break;
+                self.up_lineage(body, k, |up| {
+                    let hit = earlier.contains(&up);
+                    if hit {
+                        touches.insert(up);
                     }
-                    match self.split_from.get(&up) {
-                        Some(&next) => up = next,
-                        None => break,
-                    }
-                }
+                    hit
+                })?;
             }
+            let touches = touches.into_iter().collect();
             let parents = parents_of(row.operand, row.face)?;
             for k in &parents {
                 self.by_parent
@@ -261,6 +257,40 @@ impl<K: Ord + Clone> Obstacles<K> {
         }
         self.records += 1;
         Ok(())
+    }
+
+    /// Walks edge `e`'s split lineage upward, `e` first: the edge `body`'s
+    /// provenance says it was split from, else the one the records say
+    /// (`split_from`). `stop` sees each edge and ends the walk by
+    /// answering true; it also ends where the lineage does, or at a
+    /// provenance other than a split.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::Emission`] where the lineage comes back to an edge.
+    fn up_lineage<T: geom_core::Real>(
+        &self,
+        body: &Body<T>,
+        mut e: EdgeKey,
+        mut stop: impl FnMut(EdgeKey) -> bool,
+    ) -> Result<(), NamingError> {
+        let mut chain = BTreeSet::new();
+        loop {
+            if !chain.insert(e) {
+                return Err(bug("a piece edge's split lineage is cyclic"));
+            }
+            if stop(e) {
+                return Ok(());
+            }
+            e = match body.edge_provenance_of(e) {
+                Some(Provenance::SplitEdge { edge }) => *edge,
+                Some(_) => return Ok(()),
+                None => match self.split_from.get(&e) {
+                    Some(&up) => up,
+                    None => return Ok(()),
+                },
+            };
+        }
     }
 
     /// The rule on a face: `pieces`, the faces of `body` that one face
@@ -425,29 +455,22 @@ impl<K: Ord + Clone> Obstacles<K> {
             let mut out = BTreeSet::new();
             let mut seen = BTreeSet::new();
             let mut todo = vec![e];
-            'chain: while let Some(mut e) = todo.pop() {
-                let mut chain = BTreeSet::new();
-                loop {
-                    if !chain.insert(e) {
-                        return Err(bug("a piece edge's split lineage is cyclic"));
+            while let Some(e) = todo.pop() {
+                let mut joined: Vec<EdgeKey> = Vec::new();
+                self.up_lineage(body, e, |up| {
+                    if !seen.insert(up) {
+                        return true;
                     }
-                    if !seen.insert(e) {
-                        continue 'chain;
+                    joined.extend(self.joined_from.get(&up).into_iter().flatten());
+                    match seam_of.get(&up) {
+                        Some(ds) => {
+                            out.extend(ds.iter().copied());
+                            true
+                        }
+                        None => false,
                     }
-                    todo.extend(self.joined_from.get(&e).into_iter().flatten());
-                    if let Some(ds) = seam_of.get(&e) {
-                        out.extend(ds.iter().copied());
-                        continue 'chain;
-                    }
-                    e = match body.edge_provenance_of(e) {
-                        Some(Provenance::SplitEdge { edge }) => *edge,
-                        Some(_) => continue 'chain,
-                        None => match self.split_from.get(&e) {
-                            Some(&up) => up,
-                            None => continue 'chain,
-                        },
-                    };
-                }
+                })?;
+                todo.extend(joined);
             }
             Ok(out)
         };
