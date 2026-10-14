@@ -5169,24 +5169,55 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     Ok(kept)
 }
 
-/// **How the finished-body gate types what it found** (D10, Booleans):
-/// a result read in band is the operands' ill-conditioning, which
-/// definite cuts can compose. So where every finding is a reading in
-/// band of a shell's role (check 10) or a solid's orientation (check 7)
-/// — an aimed ray's pair in band ([`BooleanDecision::ShellRole`]), or,
-/// where no aimed ray read the side, a solid's volume in band
-/// ([`BooleanDecision::SolidSide`]) — the refusal is
-/// [`BooleanError::Escalated`] on the reading whose margin binds the
-/// offer (nearest zero: a tolerance deciding it decides every other),
-/// naming how many more lie in band; its recourse is a smaller tolerance
-/// or moved parts. Any other finding is the kernel's own defect, and the
-/// refusal is [`BooleanError::ResultInvalid`] carrying every finding.
-/// Each finding's arm is [`finding_arm`]'s.
-pub(super) fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
+/// **How the at-rest gate's refusal of a door's result is typed** (D10,
+/// Booleans), for the two doors that share it: the Boolean's [`gate`]
+/// and [`crate::splitting::split`]. The other doors that gate at rest
+/// type on their own
+/// (`work/cleave/the-at-rest-result-gate-and-its-typing-live-in-five-homes.md`).
+/// A result read in band is the operands' ill-conditioning, which
+/// definite cuts can compose: where every finding is a reading in band of
+/// a shell's role (check 10) or a solid's orientation (check 7) — an
+/// aimed ray's pair in band ([`BooleanDecision::ShellRole`]), or, where
+/// no aimed ray read the side, a solid's volume in band
+/// ([`BooleanDecision::SolidSide`]) — the refusal is in band, on the
+/// reading whose margin binds the offer (nearest zero: a tolerance
+/// deciding it decides every other), naming how many more lie in band.
+#[derive(Debug)]
+pub(crate) enum AtRestRefusal {
+    /// Every finding is a reading in band: the binding one's decision,
+    /// counting the others, with its margin. Its recourse is a smaller
+    /// tolerance or moved geometry.
+    InBand {
+        /// [`BooleanDecision::ShellRole`] or
+        /// [`BooleanDecision::SolidSide`] on the binding reading.
+        decision: BooleanDecision,
+        /// The binding reading's margin.
+        diag: geom_core::Indeterminate,
+    },
+    /// Any other finding: the kernel's own defect or limit, every
+    /// finding carried, each with its own ending.
+    Kernel(Vec<ValidationError>),
+}
+
+/// The at-rest gate's findings typed ([`AtRestRefusal`]); each finding's
+/// arm is [`finding_arm`]'s.
+pub(crate) fn at_rest_refusal(errors: Vec<ValidationError>) -> AtRestRefusal {
     let in_band: Option<Vec<InBand>> = errors.iter().map(finding_arm).collect();
-    in_band
-        .and_then(|readings| escalated(&readings))
-        .unwrap_or(BooleanError::ResultInvalid { errors })
+    match in_band.as_deref().and_then(binding) {
+        Some(InBand { decision, diag }) => AtRestRefusal::InBand { decision, diag },
+        None => AtRestRefusal::Kernel(errors),
+    }
+}
+
+/// **How the finished-body gate's refusal reads at the Boolean**: the
+/// shared typing ([`at_rest_refusal`]), a reading in band as
+/// [`BooleanError::Escalated`] and the kernel's findings as
+/// [`BooleanError::ResultInvalid`].
+pub(super) fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
+    match at_rest_refusal(errors) {
+        AtRestRefusal::InBand { decision, diag } => BooleanError::Escalated { decision, diag },
+        AtRestRefusal::Kernel(errors) => BooleanError::ResultInvalid { errors },
+    }
 }
 
 /// **A reading in band** of the result's side at infinity: the decision
@@ -5199,10 +5230,10 @@ struct InBand {
     diag: Indeterminate,
 }
 
-/// The refusal for `readings`, the result's readings in band: on the one
-/// whose margin binds the offer, naming how many more there are. `None`
-/// where there are none.
-fn escalated(readings: &[InBand]) -> Option<BooleanError> {
+/// The binding one of `readings`, the result's readings in band: the one
+/// whose margin binds the offer, its decision counting the others.
+/// `None` where there are none.
+fn binding(readings: &[InBand]) -> Option<InBand> {
     let binding = readings.iter().copied().reduce(|a, b| {
         if a.diag.margin.binds_before(b.diag.margin) {
             a
@@ -5230,7 +5261,7 @@ fn escalated(readings: &[InBand]) -> Option<BooleanError> {
         },
         other => other,
     };
-    Some(BooleanError::Escalated {
+    Some(InBand {
         decision,
         diag: binding.diag,
     })

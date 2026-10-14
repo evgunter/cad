@@ -898,6 +898,23 @@ const RESULT_SIDE: SizedDecision = SizedDecision {
     no_size: None,
 };
 
+/// [`crate::props::AIMED_PAIR`] at the split door
+/// ([`BooleanDecision::render_at_split`]): the same decision on the same
+/// margin, in the split's lever, since the split has one operand and a
+/// plane.
+const SPLIT_AIMED_PAIR: SizedDecision = SizedDecision {
+    lever: "move the split plane or the geometry so the two faces the aimed ray met are clearly \
+            apart",
+    ..crate::props::AIMED_PAIR
+};
+
+/// [`RESULT_SIDE`] at the split door ([`BooleanDecision::render_at_split`]),
+/// as [`SPLIT_AIMED_PAIR`] is.
+const SPLIT_RESULT_SIDE: SizedDecision = SizedDecision {
+    lever: "move the split plane or the geometry so each piece it leaves is clearly thicker",
+    ..RESULT_SIDE
+};
+
 /// Whether the faces touching along a seam curve apart or share their
 /// curvature ([`BooleanDecision::SeamJet`]): the sagitta their relative
 /// bend subtends over the folded lever arm, a determinate tangency on a
@@ -1692,6 +1709,24 @@ impl BooleanDecision {
     pub(crate) fn render(self, diag: &Indeterminate) -> String {
         diag.undecided(self.subject(), self.recourse(diag))
             .to_string()
+    }
+
+    /// [`Self::render`] at the split door ([`crate::SplitFinishError::ResultEscalated`]):
+    /// a reading of the result's side ([`Self::ShellRole`],
+    /// [`Self::SolidSide`]) ends in the split's own spelling of its
+    /// lever, every other decision as at the Boolean.
+    #[must_use]
+    pub(crate) fn render_at_split(self, diag: &Indeterminate) -> String {
+        let ending = match self {
+            Self::ShellRole { .. } => Ending::Sized(SPLIT_AIMED_PAIR),
+            Self::SolidSide { .. } => Ending::Sized(SPLIT_RESULT_SIDE),
+            _ => self.ending(diag),
+        };
+        diag.undecided(
+            self.subject(),
+            format!("{}{}", self.evidence(), ending.recourse(diag)),
+        )
+        .to_string()
     }
 
     /// The one ending the verdict gives at `diag`, with no subject: a

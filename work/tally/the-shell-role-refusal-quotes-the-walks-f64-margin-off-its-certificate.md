@@ -55,3 +55,12 @@ This row narrows to the volume fallback (a shell no face of which offers an aim,
 `the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`), where
 `validate`'s and `classify_shells`' refusals still quote the walk's
 reading.
+
+## Measured (FLUSH PR 5119's fix pass, 2026-10-14)
+
+Narrowed, not closed. Every volume reading of a side now goes through one
+home (`props::role_walk`), check 7's included, so the volume's margin is
+read one way everywhere; the reading is still the walk's sums. The door
+now types a solid's volume in band (`Escalated { SolidSide }`, check 7 on
+a result no aimed ray read): that refusal quotes the walk's `V/A`, the
+margin this row is about, as `validate`'s and `classify_shells`' still do.

@@ -4860,7 +4860,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "euler",
             "fallback_extent_unsupported",
             "germ_edge_carrier_unsupported",
-            "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
             "germ_section_outside_inventory",
             "germ_section_spiric",
@@ -4876,6 +4875,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "merge",
             "mixed_seam",
             "nesting_unread",
+            "node_unbuilt",
             "non_finite_sector_chord",
             "non_manifold_result",
             "non_maximal_faces",
@@ -6283,7 +6283,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_op_error_tag",
         values: &["finish", "join", "pcurves", "pieces", "reduce"],
-        delegates: &["join_refusal_tag"],
+        delegates: &["boolean_error_tag", "join_refusal_tag"],
     },
     TagEntry {
         function: "stale_declaration_tag",

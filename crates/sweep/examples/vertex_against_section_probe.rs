@@ -46,7 +46,7 @@ fn vol(b: Option<&Body<f64>>) -> f64 {
 }
 
 /// `VS_DOOR=witness`: the plane exactly through the seam vertex of the
-/// cylinder turned φ = 2.2 at dihedral `VS_PSI`, its origin moved each
+/// cylinder turned φ = `VS_PHI` (default 2.2) at dihedral `VS_PSI`, its origin moved each
 /// `VS_L` (metres) along the rim's tangent, in the plane; each body a
 /// split returns is checked with `validate_geometric`.
 fn witness() {
@@ -57,7 +57,7 @@ fn witness() {
             .map(|x| x.parse().unwrap())
             .collect()
     };
-    let phi = 2.2f64;
+    let phi: f64 = std::env::var("VS_PHI").map_or(2.2, |p| p.parse().unwrap());
     let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
     let cyl = turned(
         &finished(sweep::test_support::prism(circle, 1.0, tol())),

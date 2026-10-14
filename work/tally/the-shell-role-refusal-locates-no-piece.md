@@ -41,3 +41,15 @@ decision still names its solid and shell, keys into the unreturned
 result; the pair beside it (`AimedPair`: the aimed face and the two
 faces met) is keys into the same body, so it locates nothing a caller
 holds either. Still open.
+
+## Measured (FLUSH PR 5119's fix pass, 2026-10-14)
+
+Narrowed, not closed. The door's `Escalated { ShellRole }` now carries the
+pair's two faces (`near`, `far`) and names them in its sentence, and no
+longer the solid or shell, which located nothing either; the aimed point
+rides in the at-rest refusal (`AimedPair::aim`, coordinates). A new
+decision, `Escalated { SolidSide }`, refuses a result solid whose volume
+lies in band where no aimed ray read its side, and names the solid and how
+many rays were aimed and set aside. Both are still keys into a result the
+door never returns, so a caller still cannot find the piece; the aim
+point is the one coordinate the refusals now carry, and only at rest.
