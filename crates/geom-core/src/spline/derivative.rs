@@ -1571,6 +1571,41 @@ mod tests {
         );
     }
 
+    /// **A curve span is halved into the pieces its schedule asks for at
+    /// any degree.** At degree 13 the exact-weight tables reached 32
+    /// pieces only to degree 9 and 16 to degree 12, so the integral arm
+    /// (counted for degree 12) read 16 and the rational arm and the
+    /// acceleration (counted for 13) read 8. Halving reads 32 on each,
+    /// and every piece's weight power stays positive.
+    #[test]
+    fn a_span_past_the_exact_tables_reads_every_piece_it_asks_for() {
+        let p = 13;
+        let knots = super::Knots::from(
+            super::super::KnotVector::bezier(p, (0.0, 1.0)).expect("a Bézier vector"),
+        );
+        let points: Vec<[f64; 3]> = (0..=p)
+            .map(|i| {
+                let t = i as f64;
+                [t, (0.7 * t).sin(), 0.1 * t * t]
+            })
+            .collect();
+        let w: Vec<f64> = (0..=p).map(|k| 1.0 + 0.25 * ((k * 7) % 5) as f64).collect();
+        let integral = super::speed_pieces(&knots, &points, None, 32).expect("the integral arm");
+        assert_eq!(integral.len(), 32, "the integral arm's pieces");
+        let rational =
+            super::speed_pieces(&knots, &points, Some(&w), 32).expect("the rational arm");
+        assert_eq!(rational.len(), 32, "the rational arm's pieces");
+        let accel = super::accel_pieces(&knots, &points, &w, 32).expect("a degree-39 second order");
+        assert_eq!(accel.len(), 32, "the second order's pieces");
+        assert!(
+            rational
+                .iter()
+                .chain(&accel)
+                .all(|s| s.denom().iter().all(|&b| b > 0.0)),
+            "a piece's weight power is not positive"
+        );
+    }
+
     /// An interval's two ends and its certification, as bits.
     fn bits(x: Interval) -> (u64, u64, bool) {
         (x.lo().to_bits(), x.hi().to_bits(), x.is_certified())
