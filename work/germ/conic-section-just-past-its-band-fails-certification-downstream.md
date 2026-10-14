@@ -244,3 +244,15 @@ The carrier's own rounding, `u·A`, sits at the band there: the same
 `α`, `f` and scale in `pcurve_cone_section.rs`'s `skew_section` pose
 (another rotation) is refused before any image, at chart incidence
 (enclosure `[0, 1.9e-9]`). That is this row's carrier half.
+
+## Third note from PCERT (2026-10-14)
+
+The span envelope (`focal-section-envelope-bounds-the-whole-ellipse-not-the-span`)
+is closed as overtaken by PRs 4960 and 5004 (closed in PR 5050). No pose of
+this row's cone sweep refuses at the envelope now: at the item's
+`f = 0.999999` the consumed arcs miss by 1.0e-10 and certify (envelope
+1.2e-10), where the whole-turn miss was 1.1e-8. The refusals left are the
+Euler gate's `EndpointStart` on the carrier (this row's carrier half) and a
+`MapResidual` sample of the consumed arc itself, which no span bound
+reaches.
+

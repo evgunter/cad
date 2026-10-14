@@ -11,8 +11,8 @@ use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
     AtRestBody, Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind,
-    ContactRecords, ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart,
-    SplitResult, SweepStrategy, boolean_op_with, split,
+    ContactRecords, GlueVerdict, ShellDoor, ShellError, ShellNaming, Shelled, SplitError,
+    SplitPart, SplitResult, SweepStrategy, boolean_op_with, split,
 };
 
 use crate::verb::{Arity, Verb, VerbKind};
@@ -73,9 +73,9 @@ pub enum VerbRecord<T: Real> {
     /// which the document layer refuses as a kernel bug, and an empty
     /// struct would be refused by nothing.
     Blend(Option<BlendNaming>),
-    /// The boolean's non-body result, whole — the three fields of the
-    /// kernel's `BooleanBody` beside the body itself, each the
-    /// kernel's own type moved across by value.
+    /// The boolean's non-body result, whole — the fields of the
+    /// kernel's `BooleanBody` beside the body and its coincidences,
+    /// each the kernel's own type moved across by value.
     Boolean {
         /// How the result body came to be.
         kind: BooleanResultKind,
@@ -85,6 +85,9 @@ pub enum VerbRecord<T: Real> {
         contacts: ContactRecords,
         /// Mint-time naming facts the naming layer consumes.
         naming: BooleanNaming,
+        /// The face pairs the op glued on its own decision — what an
+        /// n-ary union's pairwise judgement hands its fold steps.
+        verdicts: Vec<GlueVerdict>,
     },
     /// The extrude door's whole bundle — body, solid, shell, caps,
     /// side walls per loop, struts per loop.
@@ -323,6 +326,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
                             contacts,
                             naming,
                             coincidences,
+                            verdicts,
                         } = bb;
                         Ok(PairOut::Out(VerbOut {
                             body,
@@ -330,6 +334,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
                                 kind,
                                 contacts,
                                 naming,
+                                verdicts,
                             },
                             coincidences,
                         }))
