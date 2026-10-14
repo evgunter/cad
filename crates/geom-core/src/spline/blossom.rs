@@ -250,6 +250,58 @@ pub fn restrict_segment(
     pyramid(row, ((a - below) / width, (b - below) / width), |_, _, u| u)
 }
 
+/// The Bernstein row on `[a, b]` of the segment whose row on `[s0, s1]`
+/// is `row`, by two de Casteljau splits: at `(a − s0)/(s1 − s0)`,
+/// keeping the right part (the row on `[a, s1]`), then at
+/// `(b − a)/(s1 − a)`, keeping the left. Each step is
+/// [`Certification::between`] at an interval ratio clamped to `[0, 1]`,
+/// so at `Interval` every coefficient encloses the exact restriction's,
+/// `2p` steps deep; `O(p²)` against the blossom pyramid's `O(p³)`
+/// ([`restrict_segment`]). A split at an end of its segment is
+/// skipped. A cut out of order, or a segment that is empty or not
+/// finite, refuses every coefficient.
+///
+// The negated guard refuses a NaN cut, where `a < s0` would pass it.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+pub(crate) fn split_restrict(
+    row: &[Interval],
+    (s0, s1): (f64, f64),
+    (a, b): (f64, f64),
+) -> Vec<Interval> {
+    if row.is_empty()
+        || !(s0 <= a && a <= b && b <= s1 && s0 < s1 && s0.is_finite() && s1.is_finite())
+    {
+        return vec![Interval::refused(); row.len()];
+    }
+    let ratio = |x: f64, lo: f64| {
+        let lo = Interval::point(lo);
+        ((Interval::point(x) - lo) / (Interval::point(s1) - lo)).clamped_to(0.0, 1.0)
+    };
+    let mut d = row.to_vec();
+    let p = d.len() - 1;
+    if a > s0 {
+        // The right part: entry `k` is level `p − k`'s entry `k`, the
+        // last each level writes from the low end up.
+        let t = ratio(a, s0);
+        for r in 1..=p {
+            for k in 0..=p - r {
+                d[k] = Interval::between(d[k], d[k + 1], t);
+            }
+        }
+    }
+    if b < s1 {
+        // The left part: entry `k` is level `k`'s entry `0`, the last
+        // each level writes from the high end down.
+        let t = ratio(b, a);
+        for r in 1..=p {
+            for k in (r..=p).rev() {
+                d[k] = Interval::between(d[k - 1], d[k], t);
+            }
+        }
+    }
+    d
+}
+
 /// `u` met with the closure `[lo, hi]` (module docs' argument contract):
 /// a refusal flows on, a certified argument with no point there refuses.
 fn admit(u: Interval, index: usize, (lo, hi): (f64, f64)) -> Result<Interval, BlossomError> {
@@ -549,6 +601,89 @@ mod tests {
             i.iter().all(|c| !c.is_certified()),
             "Interval short held: {i:?}"
         );
+    }
+
+    /// **A split restriction encloses the exact restriction, `2p` steps
+    /// deep.** Rows of degree 1–8 with dyadic coefficients spread over
+    /// `2^{±10}` (a wide weight power's span), cut at dyadic ends whose
+    /// two split ratios are dyadic too, so the exact restriction is
+    /// `f64` de Casteljau with no rounding: every coefficient of
+    /// [`split_restrict`] contains it. Red under the second split
+    /// at `(b − s0)/(s1 − s0)` (the ratio on the wrong segment), or under
+    /// either split keeping the other part. And on drawn non-dyadic cuts
+    /// it meets the blossom pyramid's restriction coefficient by
+    /// coefficient (two enclosures of one row).
+    #[test]
+    fn a_split_restriction_encloses_the_exact_restriction() {
+        // The exact de Casteljau split of a dyadic row at a dyadic `t`:
+        // the right part (`right`) or the left.
+        fn split(row: &[f64], t: f64, right: bool) -> Vec<f64> {
+            let mut levels = vec![row.to_vec()];
+            for r in 1..row.len() {
+                let prev = &levels[r - 1];
+                levels.push(
+                    (0..prev.len() - 1)
+                        .map(|i| (1.0 - t) * prev[i] + t * prev[i + 1])
+                        .collect(),
+                );
+            }
+            let p = row.len() - 1;
+            (0..=p)
+                .map(|k| {
+                    if right {
+                        levels[p - k][k]
+                    } else {
+                        levels[k][0]
+                    }
+                })
+                .collect()
+        }
+        let mut rng = test_utils::fuzz::start("split-restrict-exact");
+        // (s0, s1, a, b) with (a − s0)/(s1 − s0) and (b − a)/(s1 − a)
+        // dyadic.
+        let cuts = [
+            (0.0, 1.0, 0.25, 0.625),
+            (0.0, 1.0, 0.5, 0.75),
+            (2.0, 6.0, 3.0, 4.5),
+            (-1.0, 1.0, -0.5, 0.25),
+            (0.0, 1.0, 0.0, 0.375),
+            (0.0, 1.0, 0.75, 1.0),
+        ];
+        for _ in 0..test_utils::fuzz::scaled(200) {
+            let p = 1 + rng.below(8);
+            let row: Vec<f64> = (0..=p)
+                .map(|_| {
+                    let mag = 2.0_f64.powi(rng.below(21) as i32 - 10);
+                    (rng.range(-8.0, 8.0)).round() * mag
+                })
+                .collect();
+            let lifted: Vec<Interval> = row.iter().map(|&c| Interval::point(c)).collect();
+            for (s0, s1, a, b) in cuts {
+                let ta = (a - s0) / (s1 - s0);
+                let tb = (b - a) / (s1 - a);
+                let exact = split(&split(&row, ta, true), tb, false);
+                let got = split_restrict(&lifted, (s0, s1), (a, b));
+                for (k, (g, e)) in got.iter().zip(&exact).enumerate() {
+                    assert!(
+                        g.is_certified() && g.lo() <= *e && *e <= g.hi(),
+                        "degree {p} on [{s0}, {s1}] cut to [{a}, {b}], coefficient {k}: \
+                         {g:?} misses {e:e}; {}",
+                        test_utils::fuzz::replay()
+                    );
+                }
+            }
+            let (x, y) = (rng.range(0.0, 1.0), rng.range(0.0, 1.0));
+            let (a, b) = (x.min(y), x.max(y));
+            let blossom = restrict_segment(&lifted, (0.0, 1.0), (a, b));
+            let got = split_restrict(&lifted, (0.0, 1.0), (a, b));
+            for (g, w) in got.iter().zip(&blossom) {
+                assert!(
+                    g.lo() <= w.hi() && w.lo() <= g.hi(),
+                    "[{a}, {b}]: {g:?} and the pyramid's {w:?} are disjoint; {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
     }
 
     /// **A segment cut is the Bézier span's restriction, to the bit.**
