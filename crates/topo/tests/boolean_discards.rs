@@ -148,3 +148,52 @@ fn a_through_slot_records_the_strip_it_discards_between_two_kept_pieces() {
         "four plate faces lose a middle strip to the slot"
     );
 }
+
+/// **An edge the boolean split and its own join killed keeps its
+/// parent** (`BooleanNaming::joined_lineage`): two bricks overlapping
+/// along x, flush on their other four sides, union into one brick. Each
+/// operand's long edges are cut where the other's end face crosses
+/// them, and the join makes each long edge of the result again, killing
+/// pieces the cut minted, whose birth records die with them.
+#[test]
+fn an_edge_split_and_joined_away_in_one_step_records_its_parent() {
+    let tol = Tol::witness();
+    let a: topo::AtRestBody<f64> =
+        finished("a", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol);
+    let b: topo::AtRestBody<f64> =
+        finished("b", brick((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol), tol);
+    let out = match topo::union(&a, &b, tol) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("the union builds: {other:?}"),
+    };
+    let naming = &out.naming;
+    let gone: BTreeSet<EdgeKey> = naming.edge_joins.iter().map(|j| j.gone).collect();
+    assert!(
+        !naming.joined_lineage.is_empty(),
+        "a piece the cut minted is joined away: {:?}",
+        naming.edge_joins
+    );
+    assert_eq!(out.body.edges().count(), 12, "the union is one brick");
+    for (g, from) in &naming.joined_lineage {
+        assert!(gone.contains(g), "{g:?} is a joined-away edge");
+        assert!(out.body.get_edge(*g).is_none(), "{g:?} is dead");
+        // The parent, followed through any parent the join also
+        // killed, lies on the result edge `g` was joined into: the long
+        // edge the cut divided.
+        let mut up = *from;
+        let mut hops = 0;
+        while let Some(&p) = naming.joined_lineage.get(&up) {
+            up = p;
+            hops += 1;
+            assert!(
+                hops <= naming.joined_lineage.len(),
+                "{g:?}'s lineage cycles"
+            );
+        }
+        assert_eq!(
+            naming.joined_edge(up),
+            naming.joined_edge(*g),
+            "{g:?}'s parent {from:?} lies on the edge {g:?} was joined into"
+        );
+    }
+}
