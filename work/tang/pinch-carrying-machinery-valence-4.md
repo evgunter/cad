@@ -8,8 +8,6 @@ github: 1377
 refs: [1353, 1372]
 priority: P1
 cost: H
-design: true
-needs_ev: true
 ---
 
 ## From GitHub issue 1377
@@ -110,6 +108,11 @@ pair's section crosses itself with no operand edge there (a *node*).
   - **What builds:** ∪, ∩ and ∖ for two rods, two bores, and a rod against a bore, at the closed forms (`sweep/tests/bisector_nodes.rs`). A slanted bore's difference is one solid pinched to itself at both nodes, which D1 admits.
   - **The retired refusal:** `GermFrameCylinderPinch` is gone. A node not built refuses `NodeUnbuilt { why }`.
   - **∖'s census touch:** filed on `census-cross-solid-curved-pairs-undecidable-on-shell-results`.
+
+## Ev's decision on U2 (PR 5178, 2026-10-15)
+
+Approved by Ev after four reconciliation rounds (row 143 of
+`docs/DESIGN-FORK-LOG.md`); both designers hold the design below.
 
 ## Remaining
 
