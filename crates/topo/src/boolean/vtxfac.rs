@@ -326,7 +326,8 @@ pub(super) fn touch_classes<T: geom_core::Real>(
 /// naming the partner and one beside it, where a partner's cone reads
 /// nothing beside another's: against the vertex's edges, or against
 /// the other's in reading which cone holds which. One pair alone keeps
-/// its rows, none where its partner reads nothing.
+/// its rows; where its partner reads nothing it has none, and names the
+/// partner and its neighbourhood instead ([`super::UnreadPartner`]).
 ///
 /// Several partners read [`layered`]: the cones that no other holds
 /// are outermost, and the material beyond them is outside the solid
@@ -360,7 +361,7 @@ pub(super) fn pair_classes<T: Decide>(
     own: &[BoolSector<T>],
     pairs: &[PairRead<T>],
     band: Band,
-) -> Result<Vec<(HalfEdgeKey, SideCode)>, BooleanError> {
+) -> Result<PairClasses, BooleanError> {
     let refuse = |unread: usize, beside: usize| BooleanError::VertexReadTwice {
         operand,
         vertex,
@@ -370,11 +371,21 @@ pub(super) fn pair_classes<T: Decide>(
         ],
     };
     if let [one] = pairs {
-        return Ok(one
-            .read
-            .as_ref()
-            .map(|r| r.rows.clone())
-            .unwrap_or_default());
+        return Ok(match &one.read {
+            Some(read) => (read.rows.clone(), None),
+            None => {
+                let mut faces: Vec<_> = one.sectors.iter().map(|s| s.face).collect();
+                faces.sort();
+                faces.dedup();
+                (
+                    Vec::new(),
+                    Some((
+                        one.partner,
+                        super::UnreadNeighbourhood::of_faces(faces.len()),
+                    )),
+                )
+            }
+        });
     }
     if let Some(unread) = pairs.iter().position(|p| p.read.is_none()) {
         return Err(refuse(unread, usize::from(unread == 0)));
@@ -386,8 +397,19 @@ pub(super) fn pair_classes<T: Decide>(
         vertex,
         partners: [pairs[inner].partner, pairs[outer].partner],
     };
-    layered_alone(own, pairs, &reads, band, refuse, unwitnessed)
+    Ok((
+        layered_alone(own, pairs, &reads, band, refuse, unwitnessed)?,
+        None,
+    ))
 }
+
+/// [`pair_classes`]' answer: the vertex's edge classes, and the lone
+/// partner it read nothing of, with that partner's neighbourhood
+/// ([`super::UnreadPartner`]), where there is one.
+pub(super) type PairClasses = (
+    Vec<(HalfEdgeKey, SideCode)>,
+    Option<(VertexKey, super::UnreadNeighbourhood)>,
+);
 
 /// [`pair_classes`]' layering of partners that each read (`reads`, one
 /// per pair); `refuse(j, i)` where partner `j`'s cone reads nothing
@@ -3017,17 +3039,20 @@ mod tests {
             (
                 "one arch",
                 vec![read(w, None, true, &three)],
-                Ok(three.to_vec()),
+                Ok((three.to_vec(), None)),
             ),
             (
                 "one void's apex",
                 vec![read(w, None, false, &three)],
-                Ok(three.to_vec()),
+                Ok((three.to_vec(), None)),
             ),
             (
-                "one partner that reads nothing",
+                "one partner that reads nothing, its sectors on no face",
                 vec![unread(w, None)],
-                Ok(Vec::new()),
+                Ok((
+                    Vec::new(),
+                    Some((w, crate::boolean::UnreadNeighbourhood::OneFace)),
+                )),
             ),
             (
                 "an arch beside a partner that reads nothing",

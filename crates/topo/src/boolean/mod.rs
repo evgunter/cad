@@ -503,6 +503,54 @@ pub struct EdgePieceClass {
     pub class: SideCode,
 }
 
+/// **A vertex in one pair whose partner the classification read
+/// nothing of** (`vtxfac::pair_classes`): the vertex publishes no
+/// [`EdgePieceClass`], and the result is built all the same. Its edges
+/// meet the other operand only at the point, through its partner's
+/// neighbourhood, which no wedge or corner reading classes them against.
+/// A reader that needs a class there reads why from here rather than
+/// finding a row missing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UnreadPartner {
+    /// The operand whose vertex it is.
+    pub operand: Operand,
+    /// The vertex, in that operand's CLONE keys (as [`EdgePieceClass`]),
+    /// each null-edge copy of it listed too.
+    pub vertex: VertexKey,
+    /// Its partner, the other operand's vertex, in that operand's clone
+    /// keys.
+    pub partner: VertexKey,
+    /// What the partner's neighbourhood is.
+    pub neighbourhood: UnreadNeighbourhood,
+}
+
+/// The neighbourhood of an [`UnreadPartner`]'s partner, by the faces
+/// its sectors lie on: what kept the classification from reading it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum UnreadNeighbourhood {
+    /// One face: the partner lies inside a single smooth face of its
+    /// operand, as a coaxial or full-turn mate leaves a seam vertex, so
+    /// there is no edge or corner to read.
+    OneFace,
+    /// Two faces whose wedge has no bisector to read it by.
+    Wedge,
+    /// A corner of three or more faces read as a polygon cone with some
+    /// edge undecided against every reference.
+    Corner,
+}
+
+impl UnreadNeighbourhood {
+    /// The neighbourhood of a partner whose sectors lie on `faces`
+    /// distinct faces.
+    pub(crate) fn of_faces(faces: usize) -> Self {
+        match faces {
+            0 | 1 => Self::OneFace,
+            2 => Self::Wedge,
+            _ => Self::Corner,
+        }
+    }
+}
+
 /// A coincident vertex pair in the reduction's working set (`sonvv`):
 /// vertex `a` of operand A and vertex `b` of operand B, each in its
 /// operand clone's keys ([`ReductionContacts`]). Carried within one
@@ -2089,6 +2137,9 @@ pub struct BooleanReduction<T: Real> {
     /// Every operand edge piece the sector passes classified beside a
     /// vertex ([`EdgePieceClass`]), sorted.
     pub edge_classes: Vec<EdgePieceClass>,
+    /// Every vertex in one pair whose partner the sector passes read
+    /// nothing of ([`UnreadPartner`]), sorted.
+    pub unread_partners: Vec<UnreadPartner>,
     /// The coincidences the declaration door decided from values whose
     /// faces the sweep found meeting ([`glue::touched`]), in operand
     /// keys ([`crate::coincidence`]).
@@ -5152,6 +5203,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut covered = Vec::new();
     let mut held = Vec::new();
     let mut edge_classes = Vec::new();
+    let mut unread_partners = Vec::new();
 
     let rereads = vtxfac::pierced_and_paired(&contacts)?;
     // Each vertex that touches a face and pairs, its rows combined once
@@ -5475,7 +5527,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         read.push(((operand, vertex), classes));
     }
     for (&key, (own, pairs)) in &paired {
-        read.push((key, vtxfac::pair_classes(key.0, key.1, own, pairs, band)?));
+        let (classes, unread) = vtxfac::pair_classes(key.0, key.1, own, pairs, band)?;
+        unread_partners.extend(unread.map(|(partner, neighbourhood)| UnreadPartner {
+            operand: key.0,
+            vertex: key.1,
+            partner,
+            neighbourhood,
+        }));
+        read.push((key, classes));
     }
     for ((operand, vertex), classes) in read {
         let body = match operand {
@@ -5585,6 +5644,15 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     a.sweep_and_close();
     b.sweep_and_close();
     let edge_classes = with_copies(edge_classes, &null_edges);
+    let unread_partners = unread_with_copies(unread_partners, &null_edges);
+    // A vertex read no partner of holds no class: naming reads the
+    // list, never a missing row, as the reason.
+    debug_assert!(
+        !edge_classes.iter().any(|c| unread_partners
+            .iter()
+            .any(|u| (u.operand, u.vertex) == (c.operand, c.vertex))),
+        "a vertex read no partner of holds an edge class"
+    );
     let kept = glue::touched(
         &declared.verified.coincidences,
         &pending,
@@ -5627,6 +5695,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         coincident,
         edge_splits,
         edge_classes,
+        unread_partners,
         coincidences,
         glued,
         pending,
@@ -5771,6 +5840,34 @@ pub(super) fn null_copy_rows<T: Real>(
 /// `rows`, read at every vertex the null edges join a classified vertex
 /// to as well: the copies lie on its point, and the join hands each of
 /// them some of its edges. Sorted and deduplicated.
+/// [`with_copies`] for [`UnreadPartner`]s: each listed vertex's
+/// null-edge copies listed too, sorted.
+fn unread_with_copies<T: Real>(
+    mut rows: Vec<UnreadPartner>,
+    null_edges: &[BoolNullEdgeRecord<T>],
+) -> Vec<UnreadPartner> {
+    loop {
+        let mut copied = Vec::new();
+        for r in null_edges {
+            let (x, y) = (r.attr.below_end, r.attr.above_end);
+            for row in rows.iter().filter(|row| row.operand == r.operand) {
+                for (from, to) in [(x, y), (y, x)] {
+                    if row.vertex == from {
+                        copied.push(UnreadPartner { vertex: to, ..*row });
+                    }
+                }
+            }
+        }
+        let before = rows.len();
+        rows.extend(copied);
+        rows.sort();
+        rows.dedup();
+        if rows.len() == before {
+            return rows;
+        }
+    }
+}
+
 fn with_copies<T: Real>(
     mut rows: Vec<EdgePieceClass>,
     null_edges: &[BoolNullEdgeRecord<T>],

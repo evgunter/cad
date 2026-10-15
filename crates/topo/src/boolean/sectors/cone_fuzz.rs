@@ -980,7 +980,9 @@ fn check_partners(
             std::slice::from_ref(&probe),
             &pairs,
             band,
-        ) {
+        )
+        .map(|(rows, _)| rows)
+        {
             Err(BooleanError::VertexReadTwice { .. }) if unread => {
                 counts.unread += 1;
                 continue;

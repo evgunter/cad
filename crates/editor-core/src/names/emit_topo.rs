@@ -2078,7 +2078,7 @@ fn name_boolean_vertices<T: Decide>(
         }
         // What the boolean classified here: the senses a crossing is
         // named by.
-        let at_v = senses_at(naming, &keys, a, b)?;
+        let at_v = senses_at(naming, v, &keys, a, b)?;
         // Seam vertex: parents from incident edges' names.
         let edges = inc
             .vertex_edges
@@ -2634,17 +2634,34 @@ struct EdgeSense {
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where one side of the vertex holds pieces
-/// of one edge on both sides of the other operand, or holds no
-/// classified piece: a vertex that is not an operand's own holds the
-/// edge on both sides, so a row the boolean owed is missing.
+/// [`NamingError::PartnerUnread`] where a key is one the boolean read no
+/// partner of ([`topo::UnreadPartner`]), whose edges hold no class to
+/// read a sense from; [`NamingError::Emission`] where
+/// one side of the vertex holds pieces of one edge on both sides of the
+/// other operand, or holds no classified piece: a vertex that is not an
+/// operand's own holds the edge on both sides, so a row the boolean owed
+/// is missing.
 fn senses_at<T: Decide>(
     naming: &topo::BooleanNaming,
+    v: VertexKey,
     keys: &BTreeSet<(topo::Operand, VertexKey)>,
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
 ) -> Result<Vec<EdgeSense>, NamingError> {
     let bug = |what| NamingError::Emission { what };
+    // A key the boolean read no partner of holds no class, by the
+    // boolean's own account: its edges would drop out of the senses
+    // unseen, so the crossing refuses naming why instead.
+    if let Some(u) = naming
+        .unread_partners
+        .iter()
+        .find(|u| keys.contains(&(u.operand, u.vertex)))
+    {
+        return Err(NamingError::PartnerUnread {
+            vertex: v,
+            neighbourhood: u.neighbourhood,
+        });
+    }
     // (side, edge) → (the sides of the vertex in the closed body,
     // before it and after it).
     let mut sides: BTreeMap<(topo::Operand, EdgeKey), [BTreeSet<bool>; 2]> = BTreeMap::new();

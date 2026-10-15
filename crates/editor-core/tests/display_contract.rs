@@ -2583,6 +2583,7 @@ test_utils::f6_variants! {
         ConventionalVertex,
         ClosedCarrierUnread,
         CarrierUnplaced,
+        PartnerUnread,
         Band,
         Escalated,
     ];
@@ -2730,6 +2731,16 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 carrier: geom::CurveKind::Nurbs,
             },
             vec!["gives no parameter for a point", "holds a point"],
+        ),
+        (
+            NamingError::PartnerUnread {
+                vertex: topo::VertexKey::default(),
+                neighbourhood: topo::UnreadNeighbourhood::Wedge,
+            },
+            vec![
+                "no bisector to read their wedge by",
+                "classed none of its edges",
+            ],
         ),
         (
             NamingError::Settle(topo::SettleError::Dead {

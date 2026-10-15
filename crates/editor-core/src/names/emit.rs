@@ -38,8 +38,8 @@ use crate::node::RecipeNodeId;
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
 ///    [`Self::MergedChordConstituents`], [`Self::MemberEdgeTied`],
-///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`] and
-///    [`Self::CarrierUnplaced`],
+///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`],
+///    [`Self::CarrierUnplaced`] and [`Self::PartnerUnread`],
 ///    reached from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
@@ -303,6 +303,19 @@ pub enum NamingError {
         /// Its carrier's kind.
         carrier: geom::CurveKind,
     },
+    /// A **crossing at a vertex whose partner the boolean read nothing
+    /// of** ([`topo::UnreadPartner`]): the vertex sits in one pair with
+    /// a vertex of the other operand whose neighbourhood no wedge or
+    /// corner reading classes its edges against, so the boolean holds no
+    /// class for them, and the crossing's senses cannot be read. The
+    /// boolean builds such a result soundly; what is missing is a rule
+    /// that reads the edges against the partner's neighbourhood.
+    PartnerUnread {
+        /// The result-body vertex.
+        vertex: VertexKey,
+        /// What the partner's neighbourhood is.
+        neighbourhood: topo::UnreadNeighbourhood,
+    },
     /// A union's member edge read where ONE edge is needed, where a tie
     /// stands: the member's own table ties the edge's name (or the
     /// least row on its line) to several edges, or the fold tied two of
@@ -490,6 +503,22 @@ impl crate::spoken::Say for NamingError {
                  parameter for a point, so whether the edge holds a point it is read against \
                  cannot be said",
                 carrier.name()
+            ),
+            Self::PartnerUnread {
+                vertex,
+                neighbourhood,
+            } => write!(
+                f,
+                "{UNRULED_FRAMING}: vertex {vertex:?} meets the other operand at a vertex {}, \
+                 so the boolean classed none of its edges and the crossing there has no senses \
+                 to name it by",
+                match neighbourhood {
+                    topo::UnreadNeighbourhood::OneFace =>
+                        "inside one smooth face, as a coaxial or full-turn mate leaves it",
+                    topo::UnreadNeighbourhood::Wedge =>
+                        "between two faces with no bisector to read their wedge by",
+                    topo::UnreadNeighbourhood::Corner => "at a corner whose cone it could not read",
+                }
             ),
             Self::ConventionalVertex { vertex, body } => write!(
                 f,
@@ -1753,6 +1782,13 @@ mod display_tests {
                 vec!["gives no parameter for a point", "holds a point"],
             ),
             (
+                NamingError::PartnerUnread {
+                    vertex: two_vertices().0,
+                    neighbourhood: topo::UnreadNeighbourhood::OneFace,
+                },
+                vec!["inside one smooth face", "classed none of its edges"],
+            ),
+            (
                 NamingError::Settle(topo::SettleError::Dead {
                     vertex: two_vertices().0,
                     reached: topo::Cell::Vertex(two_vertices().1),
@@ -1832,7 +1868,8 @@ mod display_tests {
                 | NamingError::MemberEdgeTied { .. }
                 | NamingError::ConventionalVertex { .. }
                 | NamingError::ClosedCarrierUnread { .. }
-                | NamingError::CarrierUnplaced { .. } => Some(UNRULED_FRAMING),
+                | NamingError::CarrierUnplaced { .. }
+                | NamingError::PartnerUnread { .. } => Some(UNRULED_FRAMING),
                 NamingError::Band(_) | NamingError::Escalated { .. } => None,
             }
         };
@@ -1856,6 +1893,7 @@ mod display_tests {
                 NamingError::ClosedCarrierUnread { .. } => 15,
                 NamingError::Settle(_) => 16,
                 NamingError::CarrierUnplaced { .. } => 17,
+                NamingError::PartnerUnread { .. } => 18,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

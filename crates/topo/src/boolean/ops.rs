@@ -321,6 +321,12 @@ pub struct BooleanNaming {
     /// clone keys, as `reduction_contacts`. Read off the classification,
     /// so a path that never classifies has none.
     pub edge_classes: Vec<super::EdgePieceClass>,
+    /// Every vertex in one pair whose partner the classification read
+    /// nothing of, so it holds no [`Self::edge_classes`] row, with why
+    /// ([`UnreadPartner`](super::UnreadPartner)), sorted: the vertex in
+    /// clone keys as `edge_classes`. A reader that needs a class there
+    /// refuses naming the partner, not a missing row.
+    pub unread_partners: Vec<super::UnreadPartner>,
     /// The meridian edges a sphere cut-in minted in each operand before
     /// the op re-entered on the cut operands, A's then B's, in clone keys
     /// as `edge_classes`. Each divides one operand face into two of its
@@ -389,6 +395,7 @@ impl Default for BooleanNaming {
             discards: Default::default(),
             covered: Default::default(),
             edge_classes: Default::default(),
+            unread_partners: Default::default(),
             chart_cuts: Default::default(),
             null_copies: Default::default(),
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
@@ -770,6 +777,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let reduction_contacts = red.contacts.clone();
     let covered = red.covered.clone();
     let edge_classes = red.edge_classes.clone();
+    let unread_partners = red.unread_partners.clone();
     let null_copies = super::null_copy_rows(&red.null_edges);
     let copies = Descendants::null_copies(&red.null_edges);
     let along = connected.along.clone();
@@ -892,6 +900,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         carved_lineage: fin.carved_lineage,
         covered,
         edge_classes,
+        unread_partners,
         chart_cuts: [Vec::new(), Vec::new()],
         null_copies,
         cone_splits,
@@ -6942,6 +6951,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 reduction_contacts: red.contacts.clone(),
                 covered: red.covered.clone(),
                 edge_classes: red.edge_classes.clone(),
+                unread_partners: red.unread_partners.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
                 killed_lineage,
@@ -7038,6 +7048,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
             edge_classes: red.edge_classes.clone(),
+            unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
             killed_lineage: killed_lineage.clone(),
@@ -7053,6 +7064,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
             edge_classes: red.edge_classes.clone(),
+            unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
             killed_lineage: killed_lineage.clone(),
