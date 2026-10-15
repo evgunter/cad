@@ -116,8 +116,8 @@ pub use dihedral::{
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
-    PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_rung3, is_analytic, nurbs_pair_limbs,
-    plane_nurbs_limbs,
+    PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_rung3,
+    is_analytic, nurbs_pair_limbs, plane_nurbs_incidence, plane_nurbs_limbs,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
