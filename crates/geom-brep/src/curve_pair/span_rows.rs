@@ -1,5 +1,5 @@
-//! [`Span::contact`] on each of its answers and its refusal, on a
-//! line, a circle and an ellipse: an enumeration of poses, each placed a
+//! [`Span::contact`], and [`Span::place`] under it, on each of their
+//! answers and refusals, on a line, a circle and an ellipse: an enumeration of poses, each placed a
 //! stated number of zero bands from the place it tests.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
@@ -9,7 +9,7 @@ use core::f64::consts::{PI, TAU};
 use geom::Curve3;
 use geom_core::{Band, Point3, Vec3};
 
-use super::{Contact, Span};
+use super::{Hit, Place, Span, SpanEnd};
 
 const ZERO: f64 = 1e-9;
 
@@ -44,23 +44,39 @@ fn ellipse() -> Curve3<f64> {
 }
 
 /// What a contact reads as, for the table: its variant's name.
-fn name(got: Result<Contact<f64>, geom_core::Indeterminate>) -> &'static str {
+fn name(got: Result<Option<Hit<f64>>, geom::CarrierRefusal>) -> &'static str {
     match got {
-        Ok(Contact::Off) => "off",
-        Ok(Contact::Carrier) => "carrier",
-        Ok(Contact::On { .. }) => "on",
-        Ok(Contact::End) => "end",
-        Ok(Contact::Past) => "past",
+        Ok(None) => "none",
+        Ok(Some(Hit::On { .. })) => "on",
+        Ok(Some(Hit::End(_))) => "end",
         Err(_) => "escalated",
     }
 }
 
-/// **Each answer, on each kind.** A point is read at its own parameter,
-/// moved along the carrier (`along`, metres, past the span's end at `t1`
-/// when positive) and off it (`off`, metres, along a direction square to
-/// the carrier there).
+/// What a place reads as: its variant's name.
+fn place(got: Result<Place<f64>, geom_core::Indeterminate>) -> &'static str {
+    match got {
+        Ok(Place::Inside { .. }) => "inside",
+        Ok(Place::End(_)) => "end",
+        Ok(Place::Past) => "past",
+        Err(_) => "escalated",
+    }
+}
+
+/// `q` read on `span` at its foot, seeded at `t`.
+fn read(span: &Span<'_, f64>, q: Point3<f64>, t: f64) -> &'static str {
+    name(span.contact(q, &span.carrier().foot(q, t), band()))
+}
+
+/// **Each answer, on each kind**, with the place under it. A point is
+/// read at its foot seeded at its own parameter, moved along the carrier
+/// (`along`, metres, past the span's end at `t1` when positive) and off
+/// it (`off`, metres, along a direction square to the carrier there).
+/// Past the span is no contact whether or not the carrier reads the point
+/// on it: thirty zeros past and in the band's gap off it is none, the
+/// carrier in band and the place past (the 5154 case).
 #[test]
-fn a_point_reads_off_on_at_an_end_or_past_the_span() {
+fn a_point_reads_on_at_an_end_or_none() {
     let b = band();
     let curves = [
         ("line", line()),
@@ -72,37 +88,81 @@ fn a_point_reads_off_on_at_an_end_or_past_the_span() {
         let span = Span::new(carrier, (t0, t1));
         // `t1 + s` for an arc length `s` past the end, read to first
         // order at the end's own speed.
-        let speed = crate::carrier_speed::speed_at(carrier, t1).unwrap();
+        let speed = geom::carrier_speed::speed_at(carrier, t1).unwrap();
         let at = |along: f64, off: f64| {
             let t = t1 + along / speed;
             let (p, d) = carrier.ders1(t);
             let normal = d.cross(Vec3::new(0.3, -0.5, 0.8)).normalize();
             (p + normal * off, t)
         };
-        for (label, along, off, want) in [
-            ("inside, on the carrier", -0.3, 0.0, "on"),
-            ("inside, half a zero off", -0.3, 0.5 * ZERO, "on"),
-            ("inside, off the carrier", -0.3, 30.0 * ZERO, "off"),
-            ("inside, in the gap off it", -0.3, 3.0 * ZERO, "escalated"),
-            ("at the end", 0.0, 0.0, "end"),
-            ("half a zero inside the end", -0.5 * ZERO, 0.0, "end"),
-            ("half a zero past the end", 0.5 * ZERO, 0.0, "end"),
-            ("in the gap past the end", 3.0 * ZERO, 0.0, "escalated"),
-            ("in the gap inside the end", -3.0 * ZERO, 0.0, "escalated"),
-            ("thirty zeros inside the end", -30.0 * ZERO, 0.0, "on"),
-            ("thirty zeros past the end", 30.0 * ZERO, 0.0, "carrier"),
-            ("well past the end", 0.2, 0.0, "carrier"),
-            ("well past the end, off it", 0.2, 30.0 * ZERO, "off"),
+        for (label, along, off, want, placed) in [
+            ("inside, on the carrier", -0.3, 0.0, "on", "inside"),
+            ("inside, half a zero off", -0.3, 0.5 * ZERO, "on", "inside"),
+            (
+                "inside, off the carrier",
+                -0.3,
+                30.0 * ZERO,
+                "none",
+                "inside",
+            ),
+            (
+                "inside, in the gap off it",
+                -0.3,
+                3.0 * ZERO,
+                "escalated",
+                "inside",
+            ),
+            ("at the end", 0.0, 0.0, "end", "end"),
+            ("half a zero inside the end", -0.5 * ZERO, 0.0, "end", "end"),
+            ("half a zero past the end", 0.5 * ZERO, 0.0, "end", "end"),
+            (
+                "in the gap past the end",
+                3.0 * ZERO,
+                0.0,
+                "escalated",
+                "escalated",
+            ),
+            (
+                "in the gap inside the end",
+                -3.0 * ZERO,
+                0.0,
+                "escalated",
+                "escalated",
+            ),
+            (
+                "thirty zeros inside the end",
+                -30.0 * ZERO,
+                0.0,
+                "on",
+                "inside",
+            ),
+            (
+                "thirty zeros past the end",
+                30.0 * ZERO,
+                0.0,
+                "none",
+                "past",
+            ),
+            ("well past the end", 0.2, 0.0, "none", "past"),
+            (
+                "well past the end, off it",
+                0.2,
+                30.0 * ZERO,
+                "none",
+                "past",
+            ),
             (
                 "well past the end, in the gap off it",
                 0.2,
                 3.0 * ZERO,
+                "none",
                 "past",
             ),
             (
                 "thirty zeros past, in the gap off it",
                 30.0 * ZERO,
                 3.0 * ZERO,
+                "none",
                 "past",
             ),
             (
@@ -110,18 +170,24 @@ fn a_point_reads_off_on_at_an_end_or_past_the_span() {
                 3.0 * ZERO,
                 3.0 * ZERO,
                 "escalated",
+                "escalated",
             ),
         ] {
             let (q, t) = at(along, off);
-            let got = name(span.contact(q, t, b));
-            assert_eq!(got, want, "{kind}, {label}");
+            let foot = carrier.foot(q, t);
+            assert_eq!(name(span.contact(q, &foot, b)), want, "{kind}, {label}");
+            assert_eq!(
+                place(span.place(q, &foot, b)),
+                placed,
+                "{kind}, {label}: place"
+            );
         }
     }
 }
 
 /// **A closed carrier is read on the branch about the span's middle**: a
-/// point given a whole turn away reads where it lies, and the parameter
-/// an `On` reports is the span's.
+/// foot seeded a whole turn away reads where the point lies, and the
+/// parameter an `On` reports is the span's.
 #[test]
 fn a_closed_carrier_reads_the_parameter_on_the_spans_branch() {
     let b = band();
@@ -129,16 +195,18 @@ fn a_closed_carrier_reads_the_parameter_on_the_spans_branch() {
         let span = Span::new(&carrier, (-0.4, 0.6));
         let q = carrier.eval(0.1);
         for turns in [-2.0, -1.0, 1.0, 3.0] {
-            let got = span.contact(q, 0.1 + turns * TAU, b).unwrap();
-            let Contact::On { t, .. } = got else {
+            let got = span
+                .contact(q, &carrier.foot(q, 0.1 + turns * TAU), b)
+                .unwrap();
+            let Some(Hit::On { t, .. }) = got else {
                 panic!("{turns} turns away: {got:?}");
             };
             assert!((t - 0.1).abs() < 1e-12, "{turns} turns away: read at {t}");
         }
         // The antipode of the middle is past the span, whichever branch.
         let far = carrier.eval(0.1 + PI);
-        assert_eq!(name(span.contact(far, 0.1 + PI, b)), "carrier");
-        assert_eq!(name(span.contact(far, 0.1 - PI, b)), "carrier");
+        assert_eq!(read(&span, far, 0.1 + PI), "none");
+        assert_eq!(read(&span, far, 0.1 - PI), "none");
     }
 }
 
@@ -146,14 +214,38 @@ fn a_closed_carrier_reads_the_parameter_on_the_spans_branch() {
 /// its start reads on it, where the same span with ends reads `End`.
 #[test]
 fn an_endless_span_reads_its_end_point_on_it() {
-    let b = band();
     let carrier = circle();
     let span = Span::new(&carrier, (0.0, TAU));
     let q = carrier.eval(0.0);
-    assert_eq!(name(span.contact(q, 0.0, b)), "end");
-    assert_eq!(name(span.endless().contact(q, 0.0, b)), "on");
+    assert_eq!(read(&span, q, 0.0), "end");
+    assert_eq!(read(&span.endless(), q, 0.0), "on");
     let off = q + Vec3::unit_z() * (30.0 * ZERO);
-    assert_eq!(name(span.endless().contact(off, 0.0, b)), "off");
+    assert_eq!(read(&span.endless(), off, 0.0), "none");
+}
+
+/// **An end is the end's point, on its raw chord, whatever the foot**:
+/// each end's point reads that end by name, read at a foot seeded at the
+/// span's other end, or at the foot of another point altogether.
+#[test]
+fn an_end_reads_by_name_at_any_foot() {
+    let b = band();
+    for carrier in [line(), circle(), ellipse()] {
+        let span = Span::new(&carrier, (0.2, 1.4));
+        for (end, other, which) in [(0.2, 1.4, SpanEnd::Start), (1.4, 0.2, SpanEnd::Stop)] {
+            let q = carrier.eval(end);
+            for foot in [
+                carrier.foot(q, other),
+                carrier.foot(carrier.eval(other), other),
+            ] {
+                assert_eq!(
+                    span.contact(q, &foot, b),
+                    Ok(Some(Hit::End(which))),
+                    "{:?}",
+                    carrier.kind()
+                );
+            }
+        }
+    }
 }
 
 /// **An end is the end's point**, on a slow stretch too: where the
@@ -162,19 +254,18 @@ fn an_endless_span_reads_its_end_point_on_it() {
 /// band's gap off the carrier and five zeros past is not read past.
 #[test]
 fn an_end_is_read_by_its_chord_on_a_slow_stretch() {
-    let b = band();
     let carrier = ellipse();
     // At `t = 0` the ellipse runs at its minor semi-axis, 0.5 m/rad.
     let span = Span::new(&carrier, (-PI / 2.0, 0.0));
     let t = 0.5 * ZERO / 0.5;
-    assert_eq!(name(span.contact(carrier.eval(t), t, b)), "end");
+    assert_eq!(read(&span, carrier.eval(t), t), "end");
     let t = 30.0 * ZERO / 0.5;
-    assert_eq!(name(span.contact(carrier.eval(t), t, b)), "carrier");
+    assert_eq!(read(&span, carrier.eval(t), t), "none");
     // Five zeros of arc past the end and three off the carrier: the
     // greatest speed meters the parameter thirty zeros past, but the
-    // chord less the gap is two zeros, in the band's gap, so whether it
-    // is past is not read. Red where `Past` reads the side alone.
+    // chord is in the band's gap, so whether it is past is not read. Red
+    // where the place reads the side alone.
     let t = 5.0 * ZERO / 0.5;
     let q = carrier.eval(t) + Vec3::unit_z() * (3.0 * ZERO);
-    assert_eq!(name(span.contact(q, t, b)), "escalated");
+    assert_eq!(read(&span, q, t), "escalated");
 }

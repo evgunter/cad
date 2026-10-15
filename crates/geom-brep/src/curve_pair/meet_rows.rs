@@ -613,7 +613,7 @@ fn a_touch_past_a_span_meets_at_its_end() {
     assert!(
         m.points
             .iter()
-            .any(|p| matches!((p.on_a, p.on_b), (Hit::On { .. }, Hit::End))),
+            .any(|p| matches!((p.on_a, p.on_b), (Hit::On { .. }, Hit::End(_)))),
         "the second span's end meets the first: {m:?}"
     );
     on_both("past a span", &m, &a, &b);
@@ -659,7 +659,7 @@ fn a_shallow_crossing_past_a_segment_meets_at_its_end() {
     assert!(
         m.points
             .iter()
-            .any(|p| matches!((p.on_a, p.on_b), (Hit::End, Hit::On { .. }))),
+            .any(|p| matches!((p.on_a, p.on_b), (Hit::End(_), Hit::On { .. }))),
         "the segment's end meets the other line: {m:?}"
     );
     on_both("past a segment", &m, &x, &y);
@@ -697,7 +697,9 @@ fn a_touch_at_a_spans_end_meets_on_both_interiors_along_its_run() {
             let touches = m.points.iter().filter(|p| !p.run).count();
             assert_eq!(touches, 1, "one touch: {m:?}");
             assert!(
-                m.points.iter().all(|p| p.run || matches!(p.on_a, Hit::End)),
+                m.points
+                    .iter()
+                    .all(|p| p.run || matches!(p.on_a, Hit::End(_))),
                 "{m:?}"
             );
             assert!(m.points.iter().filter(|p| p.run).count() <= 4, "{m:?}");
@@ -727,7 +729,7 @@ fn a_tangent_whose_crossing_is_rounding_meets_at_the_end() {
     assert!(
         m.points
             .iter()
-            .any(|p| matches!((p.on_a, p.on_b), (Hit::End, Hit::End))),
+            .any(|p| matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
         "at both ends: {m:?}"
     );
 }

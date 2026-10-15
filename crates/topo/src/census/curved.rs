@@ -13,7 +13,7 @@
 //! kind inverts in closed form (which is no foot off an ellipse), and
 //! otherwise from each piece of the span the foot search keeps. An end
 //! is cleared when the parameter's distance from it, metered by the
-//! carrier's least speed ([`geom_brep::carrier_speed::speed_range`]), decides
+//! carrier's least speed ([`geom::carrier_speed::speed_range`]), decides
 //! positive, and reached when it decides negative; between the two the
 //! same distance metered by the greatest speed decides the side, and on
 //! the inner side the point's distance from the end's point decides.
@@ -172,7 +172,7 @@ fn read<T: Decide>(
         return None;
     };
     let carrier = curve.carrier().clone();
-    let (lo, hi) = geom_brep::carrier_speed::speed_range(&carrier);
+    let (lo, hi) = geom::carrier_speed::speed_range(&carrier);
     let span = curve.params();
     let span_reach = Margin::metered_sup((span.1 - span.0).abs(), hi);
     if decided("pm_census_curved_speed_hi", span_reach, band, errors)? != Sign::Positive {
@@ -339,7 +339,7 @@ pub(super) fn may_rest_on<T: Decide>(body: &Body<T>, e: EdgeKey, q: Point3<T>, b
     else {
         return true;
     };
-    let hi = geom_brep::carrier_speed::speed_range(curve.carrier()).1;
+    let hi = geom::carrier_speed::speed_range(curve.carrier()).1;
     near_pieces(curve.carrier(), curve.params(), hi, q, band).map_or(true, |p| !p.is_empty())
 }
 
@@ -599,7 +599,7 @@ mod tests {
     }
 
     fn read(curve: Curve3<f64>, span: (f64, f64)) -> Read<f64> {
-        let (lo, hi) = geom_brep::carrier_speed::speed_range(&curve);
+        let (lo, hi) = geom::carrier_speed::speed_range(&curve);
         Read {
             edge: EdgeKey::default(),
             curve,
