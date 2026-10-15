@@ -223,7 +223,7 @@ fn plane_rows_meet_their_twins(rows: Vec<PlaneRow>) {
             match v {
                 Verdict::Certified => assert!(b <= eps(), "{name}: the {who} within ε: {b:e}"),
                 Verdict::Refused(limb) => assert!(
-                    matches!(limb, SsiLimb::HullSup | SsiLimb::ImageMiss)
+                    matches!(limb, SsiLimb::HullSupChart | SsiLimb::ImageMiss)
                         && (eps()..1e-3).contains(&b),
                     "{name}: the {who} refused at limb 2 on a miss past ε: {limb:?}, {b:e}"
                 ),
@@ -462,10 +462,13 @@ fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
     };
     let wall = bumped_wall(2.0 * eps());
     for (name, carrier) in [("line", line.clone()), ("spline", twin(&line, (0.0, 1.0)))] {
-        match plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, 1.0, band()) {
+        let (got, frame) = geom_core::k_stats::detached(|| {
+            plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, 1.0, band())
+        });
+        match got {
             Err(PlaneNurbsRefusal::Escalated { limb, cause }) => {
                 assert!(
-                    matches!(limb, SsiLimb::HullSup | SsiLimb::HullValueChart),
+                    matches!(limb, SsiLimb::HullSupChart | SsiLimb::HullValueChart),
                     "{name}: limb 2 is what cannot decide: {limb:?}"
                 );
                 let read = upper(cause.margin);
@@ -473,10 +476,140 @@ fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
                     (1.9 * eps()..=4.0 * eps()).contains(&read),
                     "{name}: the bound it read is the 2ε the wall stands off: {read:e}"
                 );
+                // The image-miss tell reads the carrier's foot here too,
+                // 2ε off and in band, but it names a refusal and states
+                // nothing: the frame's one escalation is limb 2's own.
+                let escalated: Vec<_> = frame
+                    .recorded()
+                    .escalations
+                    .iter()
+                    .map(|e| e.predicate())
+                    .collect();
+                assert_eq!(
+                    escalated,
+                    [cause
+                        .predicate
+                        .expect("limb 2's escalation names its predicate")],
+                    "{name}: the escalation log holds limb 2's decision alone"
+                );
             }
             other => panic!("{name}: a 2ε miss between samples escalates at limb 2: {other:?}"),
         }
     }
+}
+
+/// **A carrier definitely off the wall at a break is not the image's
+/// miss.** The same line and wall as the 2ε row with the bump at 100ε:
+/// limb 1 and the image's feet still read zero at every station, and at
+/// the break where limb 2's composite reads past the band the carrier's
+/// own foot is 100ε off too, so the refusal is the bound on the
+/// carrier's miss (`HullValueChart`), never [`SsiLimb::ImageMiss`].
+#[test]
+fn a_carrier_definitely_off_the_wall_at_a_break_refuses_on_its_own_miss() {
+    let line = Curve3::Line {
+        origin: Point3::new(0.0, 0.5, 0.0),
+        dir: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.5, 0.0),
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let wall = bumped_wall(100.0 * eps());
+    for (name, carrier) in [("line", line.clone()), ("spline", twin(&line, (0.0, 1.0)))] {
+        match plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, 1.0, band()) {
+            Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
+                assert_eq!(
+                    limb,
+                    SsiLimb::HullValueChart,
+                    "{name}: the carrier is off at the break, so the miss is its own"
+                );
+                let read = upper(margin);
+                assert!(
+                    (50.0 * eps()..=200.0 * eps()).contains(&read),
+                    "{name}: the reading is the 100ε the wall stands off: {read:e}"
+                );
+            }
+            other => panic!("{name}: a 100ε miss between samples refuses at limb 2: {other:?}"),
+        }
+    }
+}
+
+/// `z = k·x` over `[0, 1]²`, bilinear: it meets the plane `z = 0` along
+/// `x = 0`.
+fn slanted_wall(k: f64) -> NurbsSurface<f64> {
+    let p = |x, y, z| Point3::new(x, y, z);
+    bilinear([
+        p(0.0, 0.0, 0.0),
+        p(0.0, 1.0, 0.0),
+        p(1.0, 0.0, k),
+        p(1.0, 1.0, k),
+    ])
+}
+
+/// Degree 2 along `x = 0`, `y ∈ [0.1, 0.9]`, every interior knot doubled:
+/// on the plane `z = 0` at each of its `n + 1` knots and bulging `h` off
+/// it, toward `+z`, between them.
+fn scallops(n: usize, h: f64) -> Curve3<f64> {
+    let mut kv = vec![0.0; 3];
+    for i in 1..n {
+        #[allow(clippy::cast_precision_loss)]
+        let t = i as f64 / n as f64;
+        kv.extend([t, t]);
+    }
+    kv.extend([1.0; 3]);
+    let control: Vec<Point3<f64>> = (0..=2 * n)
+        .map(|j| {
+            #[allow(clippy::cast_precision_loss)]
+            let t = j as f64 / (2 * n) as f64;
+            let z = if j % 2 == 1 { 2.0 * h } else { 0.0 };
+            Point3::new(0.0, 0.1 + 0.8 * t, z)
+        })
+        .collect();
+    Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            KnotVector::clamped(kv, 2).unwrap(),
+            control,
+            vec![1.0; 2 * n + 1],
+        )
+        .unwrap(),
+    ))
+}
+
+/// **A bound on the plane is about the carrier alone.** Scallops on the
+/// plane `z = 0` at every knot, bulging off it between them, refuse at
+/// limb 2 against the PLANE, the first operand the lane certifies: the
+/// limb is [`SsiLimb::HullSup`], the analytic one, and its words name
+/// an analytic surface and no image.
+#[test]
+fn a_plane_side_scallop_refuses_on_the_carriers_own_bound() {
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let carrier = scallops(8192, 50.0 * eps());
+    let got = plane_nurbs_limbs(
+        &carrier,
+        (0.0, 1.0),
+        &plane,
+        &slanted_wall(10.0),
+        1.0,
+        band(),
+    );
+    let Err(refusal @ PlaneNurbsRefusal::Limb { limb, .. }) = &got else {
+        panic!("the scallops refuse at a limb against the plane: {got:?}")
+    };
+    assert_eq!(
+        *limb,
+        SsiLimb::HullSup,
+        "the plane's bound, the carrier read alone"
+    );
+    let words = refusal.to_string();
+    assert!(
+        words.contains("from an analytic surface") && !words.contains("image"),
+        "the words name the analytic surface and no image: {words}"
+    );
 }
 
 /// **The door's typed refusal reaches the edge certificate.** A spiric
@@ -587,7 +720,7 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
         panic!("the circle refuses at a limb through the door: {got:?}")
     };
     assert!(
-        matches!(limb, SsiLimb::HullSup | SsiLimb::ImageMiss),
+        matches!(limb, SsiLimb::HullSupChart | SsiLimb::ImageMiss),
         "limb 2 refuses: {limb:?}"
     );
     assert!(

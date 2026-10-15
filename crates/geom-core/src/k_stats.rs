@@ -570,7 +570,9 @@ pub fn straddle(name: &'static str, lower: Decided, upper: Decided, band: Band) 
 /// expression it produces (`editor_core::expr::refuse_non_finite`,
 /// ledger row F18), and `geom_brep`'s pcurve schedule on a `Harmonic`
 /// row, which cross-checks check 4's closed form where the scalar is
-/// a point and is not run over a parameter box (C4; ledger row F20). It classifies through the one body, so its K
+/// a point and is not run over a parameter box (C4; ledger row F20),
+/// and limb 2's image-miss tell, which names a refusal the certificate
+/// has already made (ledger row F21). It classifies through the one body, so its K
 /// samples carry its name (they were charged to whichever predicate
 /// classified last until M10-8 scoped the name — 1,054 corpus rows at
 /// ε = 1e-6), and it stays OUT of the verdict log on purpose: the log is

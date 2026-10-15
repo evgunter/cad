@@ -15,7 +15,7 @@ design: true
 row about thirteen silent stand-downs. Eleven of them stand down on this
 certificate, and the question *"why is this fixture ε-conditional"* has
 a kernel answer rather than a test answer. Filed here because
-`crates/geom-brep/src/edge_nurbs.rs` is TRIM's territory
+`crates/geom-brep/src/edge_nurbs.rs` is ISO's territory
 (`work.py territory`). **Nothing is proposed and no fix is scheduled** —
 this row states a defect and the measurement that would settle it.
 
@@ -103,7 +103,7 @@ A cheap arm exists if the image term dominates: at degree 1 the error
 falls as `h²`, so clearing 6.217e-12 → under 1e-12 needs `h` smaller by
 ~2.5×, i.e. a schedule of roughly 81 samples rather than 33 — refinement,
 not the algebraic route `PXN_IMAGE_DEGREE`'s docs bank with #264's
-envelope findings. **Whether that is the right fix is TRIM's call**, and
+envelope findings. **Whether that is the right fix is ISO's call**, and
 it may not be: the ring-widening term does not obviously improve with
 more spans, and an ε-driven schedule is a different contract from a
 fixed one. What this row asserts is only that the present contract
@@ -221,5 +221,4 @@ and `PXN_FIT_SAMPLES` edited locally:
 Only that pair escapes `h²`. Raising the degree alone does not.
 `PXN_IMAGE_DEGREE`'s own doc fixes "one structure" and banks curved loci
 on the algebraic route. The schedule, the image and the doc are all in
-`edge_nurbs`, which is ISO's territory per `work.py territory`, not
-TRIM's.
+`edge_nurbs`, which is ISO's territory per `work.py territory`.

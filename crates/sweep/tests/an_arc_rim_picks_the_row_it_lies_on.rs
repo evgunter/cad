@@ -178,7 +178,7 @@ fn a_half_rim_reaches_the_pick_and_is_refused_there() {
 }
 
 /// **An `Intersection` circle on a spline chart is refused at the
-/// door, on the certificate's own image.** The plane × NURBS certificate
+/// door, on the certificate's own image.** The spline Intersection certificate
 /// takes a circle carrier and reads it as it reads a spline, so the
 /// rim's circle restated as the cap × wall `Intersection` reaches limb
 /// 2: its chart image, degree 1 over the schedule's feet, misses the
@@ -211,7 +211,7 @@ fn an_intersection_circle_on_a_spline_wall_is_refused_at_the_door() {
     }) = refused
     else {
         panic!(
-            "the rim's circle is refused at a limb of the plane × NURBS certificate: {refused:?}"
+            "the rim's circle is refused at a limb of the spline Intersection certificate: {refused:?}"
         )
     };
     assert_eq!(

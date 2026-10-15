@@ -291,8 +291,13 @@ pub struct SsiCertificate<T: Real> {
 pub enum SsiLimb {
     /// Limb 1 — on-locus residual.
     OnLocus,
-    /// Limb 2 — the control-hull sup-norm bound.
+    /// Limb 2 against an analytic operand — the carrier's certified
+    /// distance bound from the surface, the carrier read alone.
     HullSup,
+    /// Limb 2 against a NURBS operand — the certified bound on
+    /// `|S(P(t)) − C(t)|`, the carrier read through its pcurve: a bound
+    /// on the carrier's miss and on the pcurve's together.
+    HullSupChart,
     /// Limb 2 against an analytic operand — the composite's certified
     /// value at one of its breaks, past the band's zero: limb 1's
     /// linearized residual, measured where the bound did not clear.
@@ -305,9 +310,9 @@ pub enum SsiLimb {
     HullValueChart,
     /// [`HullValueChart`](Self::HullValueChart) at a break where the
     /// carrier's own distance from the surface, read through its foot
-    /// as limb 1 reads it, is within the band: the carrier is on the
-    /// surface there, so the value past the band is the pcurve's own
-    /// miss of the carrier's foot path.
+    /// as limb 1 reads it, decides Zero: the carrier is on the surface
+    /// there, so the value past the band is the pcurve's own miss of
+    /// the carrier's foot path.
     ImageMiss,
     /// Limb 3 — the uniqueness tube.
     Tube,
@@ -319,6 +324,10 @@ impl SsiLimb {
         match self {
             Self::OnLocus => "limb 1 (on-locus residual)",
             Self::HullSup => "limb 2 (control-hull sup-norm bound)",
+            Self::HullSupChart => {
+                "limb 2 (control-hull sup-norm bound of the carrier against its pcurve's \
+                 surface point)"
+            }
             Self::HullValue => "limb 2 (the carrier's residual at a break of its composite)",
             Self::HullValueChart => {
                 "limb 2 (the carrier against its pcurve's surface point at a break of its \
@@ -349,7 +358,7 @@ impl SsiLimb {
     pub fn check(self) -> CertCheck {
         match self {
             Self::OnLocus => CertCheck::PlaneNurbsOnLocus,
-            Self::HullSup => CertCheck::PlaneNurbsHull,
+            Self::HullSup | Self::HullSupChart => CertCheck::PlaneNurbsHull,
             Self::HullValue => CertCheck::AnalyticBreakResidual,
             Self::HullValueChart | Self::ImageMiss => CertCheck::PlaneNurbsHullValue,
             Self::Tube => CertCheck::Transversality,
@@ -662,8 +671,10 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // composite and the bound stays honest.
     let stopped = subdivide(hull, band)?;
     // A break past the band bounds the carrier's miss through its
-    // pcurve's surface point. Where the carrier's own foot there reads
-    // within the band, the miss is the pcurve's ([`SsiLimb::ImageMiss`]).
+    // pcurve's surface point. Where the carrier's own foot there decides
+    // Zero, the miss is the pcurve's ([`SsiLimb::ImageMiss`]). The tell
+    // names the refusal; it is not part of what the certificate states,
+    // so it is decided outside the verdict log (ledger row F21).
     let carrier_on_surface = |tb: f64| {
         let th = if tb == t0 {
             h0
@@ -677,11 +688,13 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             .project_from_seed(carrier.eval(th), p.x.lo(), p.y.lo())
             .is_ok_and(|proj| {
                 matches!(
-                    decide_reported("ssi_on_locus_foot", Margin::of(proj.distance), band),
-                    Ok(Decided {
-                        sign: Sign::Zero,
-                        ..
-                    })
+                    geom_core::k_stats::check_unlogged(
+                        "ssi_image_miss_tell",
+                        proj.distance,
+                        band,
+                        "F21"
+                    ),
+                    Ok(Sign::Zero)
                 )
             })
     };
@@ -1102,6 +1115,8 @@ pub(crate) fn subdivide<P, E>(
 pub(crate) struct HullArm {
     /// The bound's predicate.
     sup: &'static str,
+    /// The limb a refusal on the bound names.
+    sup_limb: SsiLimb,
     /// The value's predicate.
     value: &'static str,
     /// The limb a refusal on the value names.
@@ -1112,6 +1127,7 @@ pub(crate) struct HullArm {
 /// residual.
 const ANALYTIC_HULL: HullArm = HullArm {
     sup: "ssi_hull_sup",
+    sup_limb: SsiLimb::HullSup,
     value: "ssi_hull_value",
     value_limb: SsiLimb::HullValue,
 };
@@ -1120,6 +1136,7 @@ const ANALYTIC_HULL: HullArm = HullArm {
 /// quantity at a point.
 pub(crate) const CHART_HULL: HullArm = HullArm {
     sup: "ssi_hull_sup_chart",
+    sup_limb: SsiLimb::HullSupChart,
     value: "ssi_hull_value_chart",
     value_limb: SsiLimb::HullValueChart,
 };
@@ -1164,7 +1181,7 @@ pub(crate) fn hull_limb<T: Decide>(
         hull.uncleared(band, &mut at.spans);
     }
     limb_verdict(
-        SsiLimb::HullSup,
+        arm.sup_limb,
         decided,
         || RefusedResidual::Over(hull.sup),
         at,

@@ -6584,7 +6584,7 @@ mod recourse_tests {
         let finding = PcurveMintError::Certify {
             half_edge: HalfEdgeKey::default(),
             error: PcurveCertifyError::FittedEscalated {
-                decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
+                decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSupChart),
                 cause: Indeterminate {
                     margin: MarginDiag::value(5e-9),
                     band: Band::new(1e-9, 1e-8).unwrap(),

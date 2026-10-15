@@ -957,6 +957,12 @@ impl core::fmt::Display for SsiError {
             Self::CertificateLimb { limb, margin } => match limb {
                 SsiLimb::HullSup => write!(
                     f,
+                    "ssi: {} bounds the fitted carrier's distance from the locus it claims by \
+                     {margin:e} m, past the tolerance",
+                    limb.name()
+                ),
+                SsiLimb::HullSupChart => write!(
+                    f,
                     "ssi: {} bounds the fitted carrier's distance from the locus it claims, \
                      through its pcurve, by {margin:e} m, past the tolerance",
                     limb.name()
@@ -974,10 +980,19 @@ impl core::fmt::Display for SsiError {
                      the surface — its pcurve misses the carrier's foot path there",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
+                SsiLimb::OnLocus | SsiLimb::HullValue => write!(
                     f,
                     "ssi: the fitted carrier failed {} at {margin:e} m — the cache is not \
                      within tolerance of the locus it claims",
+                    limb.name()
+                ),
+                // No producer writes a `CertificateLimb` of limb 3: the
+                // tube refuses as `TubeStraddles` or `TubeNotOneArc`, or
+                // escalates.
+                SsiLimb::Tube => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {margin:e} m — the certificate cannot \
+                     show the cache is its surfaces' one crossing",
                     limb.name()
                 ),
             },

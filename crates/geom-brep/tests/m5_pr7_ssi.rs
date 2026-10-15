@@ -452,7 +452,11 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // at a break against either operand, which subdividing the
             // bound reads past ε.
             Err(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
+                limb:
+                    SsiLimb::HullSup
+                    | SsiLimb::HullSupChart
+                    | SsiLimb::HullValue
+                    | SsiLimb::HullValueChart,
                 margin,
             }) => {
                 found = Some((d, upper(margin)));
@@ -462,11 +466,20 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // escalation band, so limb 2 speaks as an F6 escalation
             // rather than a definite refusal, naming the same limb.
             Err(SsiError::CertificateEscalated {
-                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
+                limb:
+                    SsiLimb::HullSup
+                    | SsiLimb::HullSupChart
+                    | SsiLimb::HullValue
+                    | SsiLimb::HullValueChart,
                 ref cause,
             }) if matches!(
                 cause.predicate,
-                Some("ssi_hull_sup" | "ssi_hull_value" | "ssi_hull_value_chart")
+                Some(
+                    "ssi_hull_sup"
+                        | "ssi_hull_sup_chart"
+                        | "ssi_hull_value"
+                        | "ssi_hull_value_chart"
+                )
             ) =>
             {
                 found = Some((d, f64::NAN));
@@ -4957,7 +4970,7 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     let margins: Vec<f64> = rounds
         .iter()
         .map(|round| match round.margin {
-            RoundMargin::InBand(m) if round.limb == SsiLimb::HullSup => {
+            RoundMargin::InBand(m) if round.limb == SsiLimb::HullSupChart => {
                 match m.diagnostic_f64_for_error_text() {
                     geom_core::ErrorTextReading::Value(m) => m,
                     other => panic!("a point margin: {other:?}"),
