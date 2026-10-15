@@ -2,10 +2,12 @@
 id: the-profiles-badge-names-the-arc-case-only
 kind: issue
 title: The undrawn-profiles badge says 'with an arc' and the flattener now refuses a vertex too
-status: open
+status: closed
 opened: 2026-09-21
 priority: P3
 cost: E
+branch: vnews/tool-news-is-a-value
+closed: 2026-09-28
 ---
 
 
@@ -52,3 +54,13 @@ the badge names the wrong thing for that document.
 badge sentence is vnews' words. Filed rather than fixed from
 `vgeom/sketch-infinity` for that reason. `crates/viewer/tests/frame_policy.rs`
 pins both spellings of the sentence and moves with it.
+
+## Closed
+
+`frame::profiles_badge` says *"profiles: {n} {noun} with a point the
+viewport cannot draw"*, and its doc names the three arms — a vertex's
+own position, an arc's frame, a point along an arc — matching
+`sketch::CommittedProfiles::undrawn`'s own "a point the flattener
+cannot draw". Both spellings in `frame_policy.rs`'
+`the_profiles_badge_counts_what_it_could_not_draw` moved with it,
+with the test's doc ("an undrawable point").

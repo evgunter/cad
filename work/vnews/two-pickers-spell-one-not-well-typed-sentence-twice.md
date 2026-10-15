@@ -2,11 +2,13 @@
 id: two-pickers-spell-one-not-well-typed-sentence-twice
 kind: issue
 title: Two pickers compose the same not-well-typed sentence, and one of them is the shared helper
-status: open
+status: closed
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
 priority: P3
 cost: E
+branch: vnews/one-not-well-typed-sentence
+closed: 2026-09-28
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`, at
@@ -94,3 +96,37 @@ claimed by no VIEW successor
 carve-out of 2026-09-15 cedes `pane/*` to VIEW, which this program
 inherits. A lane that takes that half announces the crossing to CHROME,
 or the row re-homes with the file.
+
+## Closed
+
+Re-derived against main after batch #3391: `offer` in
+`crates/viewer/src/widgets.rs` (~`:1184`) and the verb combo in
+`crates/viewer/src/pane/profile.rs`'s `path_steps_ui` (~`:290-310`)
+still composed the sentence twice, as the row said. The sweep found a
+**third** composition the row did not name: `PreviewError`'s
+`Transition` arm in `crates/viewer/src/sketch.rs`, *"loop {loop_} step
+{step}: {verb} is not well-typed there — the tip is {}"*.
+
+The repair is the row's second candidate — lift the sentence, not the
+control — with one change of home. The words live in
+`crates/viewer/src/sketch.rs` as `pub fn not_well_typed(choice: impl
+Display, state: TipState) -> String`, beside `tip_state_words`, not in
+`widgets.rs`: the preview's composition is in `sketch.rs`, which is
+built without the `app` feature and cannot reach `widgets.rs`, so a
+`widgets.rs` home would have left the third copy standing. `offer`
+stays private; it, the verb combo and the preview all call the one
+helper. The preview's sentence reads "here" where it read "there",
+behind its "loop N step M:" locator.
+
+Pinned by `pane::profile::tests::both_pickers_say_a_refused_choice_is_not_well_typed_in_one_sentence`,
+which opens each picker through the panel harness (a new
+`pane::headless::painted_while_hovering_opened`) and hovers a refused
+choice — `line_to` at the entry, and an `arc_to`'s `radius` mode off a
+plain point — asserting the exact text; and by the exact-text
+assertions added to `tests/path_authoring.rs`'s
+`an_illegal_walk_refuses_at_the_preview_and_at_the_door`.
+
+Filed from the sweep:
+`work/edit/the-commit-doors-transition-refusal-drops-the-verb-and-state-it-carries`
+— editor-core's `ProgramRefusal::Transition` renders neither the verb
+nor the state it carries.
