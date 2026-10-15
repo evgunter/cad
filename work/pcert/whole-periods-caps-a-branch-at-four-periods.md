@@ -37,3 +37,25 @@ producer), and no row exercises a real one; the corruption table in
 What would close this: either a statement in C4 that a row's branch
 lies within `MAX_BRANCH_PERIODS` of its derivation's, or a branch read
 off the row's own winding when a producer that needs it lands.
+
+## The question for Ev
+
+PR 5126 found the cap reached by valid input: a circle carrier may be stated any number of periods off the azimuth its points sit at. Its two reviews then found the same cap refusing downstream. Check 4 is reached through `chart_boundary`'s lifted images, and through the public `certify` on the attach path. The torus point-in-solid walk, `offset_axial::keep_turn` and `chart_region::period_fold` have the same shape. Two designers converged on removing the cap everywhere:
+- check 4 certifies modulo the chart's deck (a renaming, not a decision), which reverses PR 3812's refusal of a whole-period-shifted image;
+- every walk reads a joint's element from the two marks about the gap's own estimate;
+- the harmonic derivation places an image over the edge's span in the chart's principal window.
+
+That adds clauses to C4, so it waits for Ev on the `[ev]` PR that sets this flag. PR 5126 is held until it is answered.
+
+Ev then asked (on that PR) whether an angle type that compares modulo
+the period would fix this class. Two more designers converged in three
+rounds: two small types, a `Period` per periodic channel that the chart
+owns (nets included) and an `Azimuth` exit from `atan2` read through a
+stated reference, radians kept, stored coordinates never wrapped. They
+also settled the open sub-point (a lifted image is the row plus its deck
+element, never re-certified) and dropped the walk's estimate (every
+decision's gap is within about two periods once images are placed).
+
+## The answer
+
+Ev took the recommendation on `[ev]` PR 5142 (2026-10-15, "i think this sounds good"): no cap; images placed over the edge's span in the principal window; a row is its placed image and a lifted copy is the (row, deck element) pair, never re-certified; the walk reads the half-period marks from zero; a `Period` per closed channel (a net's `v` included) owned by the chart, and an `Azimuth` exit from `atan2` through a stated reference. C4 carries it.

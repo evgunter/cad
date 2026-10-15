@@ -157,6 +157,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                     "in crates/topo/src/lineage.rs"),
     "RowDefect": ("argued", "non-carriage with its falsifier, beside the declaration "
                   "in crates/topo/src/lineage.rs"),
+    # `BooleanError::NodeUnbuilt`'s reason: `SpiricLoops`' shape, argued
+    # beside the declaration.
+    "NodeWhy": ("argued", "non-carriage with its falsifier, beside the declaration "
+                "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::GermSectionSpiric`'s loops: `WedgeCheck`'s shape,
     # argued beside the declaration.
     "SpiricLoops": ("argued", "non-carriage with its falsifier, beside the declaration "

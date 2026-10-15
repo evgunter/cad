@@ -38,3 +38,14 @@ with a lever. Decide where the split reads a face of in-band width,
 which is likely reduce's sliver reading, so that the refusal is typed
 there with its lever, not left for the at-rest gate to end. Then
 re-baseline `COIN_FLIP_1E6`.
+
+## Note from `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body` (PR 5100, 2026-10-14)
+
+The split now gates its sides at rest. These 18 poses (ε = 1e-6, θ = 3e-5,
+coin-flip planes) refuse at the split door as
+`SplitFinishError::ResultNotAtRest` on the side named in
+`section_ellipse_seam_poses.rs`'s table, so they no longer refuse "only at
+rest". The finding is `VolumeUncomputable`, not an in-band `ShellRole`, so
+the shared typing (`topo::boolean::at_rest_refusal`) types it as the
+kernel's. If the face's in-band width is the input's reading, the lever this
+row asks for still has to come from a reading upstream of the gate.

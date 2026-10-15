@@ -3381,7 +3381,7 @@ pub(crate) fn face_reach_in<T: Decide>(
 ) -> Option<(Point3<T>, Point3<T>)> {
     let face = proven(&body.faces, f, EntityId::Face);
     let surface = body.face_surface_linked(f, face);
-    // A cylinder whose axis has no decided length is a broken carrier,
+    // A cylinder whose axis is no direction is a broken carrier,
     // and a description with no claim in it answers `None`.
     match crate::boolean::boxes::face_box_rule(surface, band).ok()? {
         crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f, face, frame),
@@ -3450,20 +3450,23 @@ pub(crate) fn face_reach_in<T: Decide>(
                 h,
                 radius,
             ));
-            // The azimuth clip, mirroring the boolean lane's
-            // `clip_to_boundary`: the slab is the whole turn and the face
-            // is a patch of it. Clipping ANY coordinate to the
-            // boundary's reach is sound, in any frame: a linear
-            // functional on a cylinder is `α·v + g(u)`, which has no
-            // interior extremum when `α ≠ 0` and, when `α = 0`, ranges
-            // over the face's `u`-projection, which its boundary
-            // reaches. Coordinate 2 is left unclipped only because the
-            // boolean lane leaves it so, and the two lanes must clip
-            // alike or `the_two_box_lanes_agree_face_for_face` reds.
+            // The clip to the boundary's reach, mirroring the boolean
+            // lane's `clip_to_boundary`: a cylinder face lies in its
+            // boundary's hull because the cylinder is ruled
+            // (`FaceBoxRule`'s `BoundaryHull` arm), so clipping every
+            // coordinate is sound.
             Some(match boundary_reach(body, f, face, frame) {
                 Some((blo, bhi)) => (
-                    Point3::new(slab.0.x.max(blo.x), slab.0.y.max(blo.y), slab.0.z),
-                    Point3::new(slab.1.x.min(bhi.x), slab.1.y.min(bhi.y), slab.1.z),
+                    Point3::new(
+                        slab.0.x.max(blo.x),
+                        slab.0.y.max(blo.y),
+                        slab.0.z.max(blo.z),
+                    ),
+                    Point3::new(
+                        slab.1.x.min(bhi.x),
+                        slab.1.y.min(bhi.y),
+                        slab.1.z.min(bhi.z),
+                    ),
                 ),
                 None => slab,
             })

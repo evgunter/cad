@@ -12,9 +12,7 @@
 use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::{ends, insert, point, table};
-use editor_core::{
-    EntityKey, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg, Sense, Speaker, StableName,
-};
+use editor_core::{EntityKey, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg, Sense, StableName};
 use geom_core::Tol;
 
 /// A closed rectangle in plan, `(x0, x1, y0, y1)`.
@@ -123,17 +121,20 @@ fn names_at(
         .collect()
 }
 
-/// **A rim lying on the other operand's face on both sides of where
-/// it meets a wall touches that wall from inside** (N2: a side on the
-/// face counts as inside). In the corpus's `crossing_slots`, the second
-/// slot's floor is flush with the first cavity's, so a bottom rim of the
-/// second slot lies on that floor across the first cavity: where it
-/// meets a wall of the cavity it touches the wall from inside, and where
-/// it meets the cavity's own bottom rims the two edges cross, the
-/// cavity's rim entering or leaving the slot and the slot's rim inside
-/// the cavity on both sides.
+/// **A rim lying on the other cavity's floor meets that cavity's rim
+/// wherever it meets its wall** (N2). In the corpus's `crossing_slots`,
+/// the second slot's floor is flush with the first cavity's, so a bottom
+/// rim of the second slot lies on that floor across the first cavity.
+/// The cavity's wall meets the floor along the cavity's bottom rim, so
+/// where the slot's rim meets a wall it meets that rim: each such vertex
+/// is the two edges' crossing, the cavity's rim entering or leaving the
+/// slot and the slot's rim inside the cavity on both sides (a side on
+/// the face counts as inside). That holds where the merge of the two
+/// floors took one stretch of the cavity's rim and kept the next: the
+/// stretch kept is still a piece of the rim, so no vertex there is a
+/// touch of the wall alone.
 #[test]
-fn a_rim_on_the_other_cavitys_floor_touches_its_wall_from_inside() {
+fn a_rim_on_the_other_cavitys_floor_meets_its_rim_where_it_meets_its_wall() {
     let d = crate::corpus::documents()
         .into_iter()
         .find(|d| d.name == "crossing_slots")
@@ -167,44 +168,34 @@ fn a_rim_on_the_other_cavitys_floor_touches_its_wall_from_inside() {
             _ => {}
         }
     }
-    let [(name, sense, p)] = touches.as_slice() else {
-        panic!("one touch: {touches:?}");
-    };
-    assert_eq!(*sense, Sense::Inside, "{name:?}");
     assert!(
-        (p.z - 0.5).abs() < 1e-12,
-        "the touch is on the floor: {p:?}"
+        touches.is_empty(),
+        "every vertex where the slot's rim meets a wall lies on the cavity's rim: {touches:?}"
     );
-    let said = Speaker::TAG.within(&ev).name(name).to_string();
-    assert!(
-        said.starts_with("the touch where ") && said.contains(" meets from inside the body of "),
-        "{said}"
-    );
-    // The slot's rim is the touch's edge's operand; the cavity's rim is
-    // the other operand's.
-    let [RoleSeg::Crossing { edge: slot_rim, .. }] = name.path.as_slice() else {
-        panic!("the touch is a crossing: {name:?}");
-    };
-    assert_eq!(crossings.len(), 3, "{crossings:?}");
+    assert_eq!(crossings.len(), 4, "{crossings:?}");
+    let mut slot_nodes = std::collections::BTreeSet::new();
+    let mut cavity_nodes = std::collections::BTreeSet::new();
     for (run, p) in &crossings {
         let [x, y] = run.as_slice() else {
             panic!("two lines at {p:?}: {run:?}");
         };
-        let (slot, cavity) = match (x.line.node == slot_rim.node, y.line.node == slot_rim.node) {
-            (true, false) => (x, y),
-            (false, true) => (y, x),
-            _ => panic!("one line of each operand at {p:?}: {run:?}"),
+        let (slot, cavity) = match (x.sense, y.sense) {
+            (Some(Sense::Inside), Some(s)) if s.crosses() => (x, y),
+            (Some(s), Some(Sense::Inside)) if s.crosses() => (y, x),
+            _ => panic!("one rim inside, the other crossing, at {p:?}: {run:?}"),
         };
-        assert_eq!(
-            slot.sense,
-            Some(Sense::Inside),
-            "the slot's rim at {p:?}: {run:?}"
-        );
         assert!(
-            cavity.sense.is_some_and(Sense::crosses) && (p.z - 0.5).abs() < 1e-12,
-            "the cavity's rim crosses the slot on the floor at {p:?}: {run:?}"
+            (p.z - 0.5).abs() < 1e-12,
+            "the rims cross on the floor at {p:?}: {run:?}"
         );
+        slot_nodes.insert(slot.line.node);
+        cavity_nodes.insert(cavity.line.node);
     }
+    assert!(
+        slot_nodes.len() == 1 && cavity_nodes.len() == 1 && slot_nodes != cavity_nodes,
+        "the slot's rims are one operand's and the cavity's the other's: \
+         {slot_nodes:?}, {cavity_nodes:?}"
+    );
 }
 
 /// **A corner resting on the other member's face is that corner** (N2),

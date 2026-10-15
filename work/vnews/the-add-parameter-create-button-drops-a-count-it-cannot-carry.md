@@ -2,11 +2,12 @@
 id: the-add-parameter-create-button-drops-a-count-it-cannot-carry
 kind: issue
 title: The add-parameter form's Create button drops a Count draft SlotValue::of refuses, with no word
-status: open
+status: parked
 opened: 2026-09-25
 refs: [a-refused-typed-value-reaches-no-word, a-disabled-control-says-why-in-four-shapes]
 priority: P3
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## Finding
