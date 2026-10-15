@@ -8320,10 +8320,9 @@ fn derive_class<T: Decide>(
                         }
                     }
                     // v(t) = σ·t + δ with sin δ = aa/r, cos δ = ‖a_r‖/r
-                    // (principal branch), and the constant azimuth
-                    // direction d̂ read off whichever radial part is
-                    // structurally nonzero.
-                    let delta = aa.atan2(a_r.norm());
+                    // (placed below, once σ is known), and the constant
+                    // azimuth direction d̂ read off whichever radial part
+                    // is structurally nonzero.
                     let use_a =
                         match decide("pcurve_sphere_chart_pole_frame", Margin::norm3(a_r), band)
                             .map_err(esc)?
@@ -8367,6 +8366,10 @@ fn derive_class<T: Decide>(
                     };
                     let alpha =
                         place.phase(Azimuth::of(d_hat.dot(cv), d_hat.dot(u_ref)), |_| T::zero());
+                    // The polar angle moves along the meridian: placed in
+                    // the window at the span's midpoint like the azimuth.
+                    let delta =
+                        place.phase(Azimuth::of(aa, a_r.norm()), |m| sigma.value::<T>() * m);
                     Ok((
                         Pcurve::Harmonic {
                             p0: Point2::new(alpha, delta),
@@ -9133,6 +9136,9 @@ mod envelope_lemma_fuzz;
 mod harmonic_sup_rows;
 #[cfg(test)]
 mod mutants;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod placement_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod radial_pair_rows;

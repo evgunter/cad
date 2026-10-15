@@ -6925,6 +6925,17 @@ pub(crate) mod pole_slit_tests {
     /// covers, a ruling up `u = π`, the top arc back to `u = 0` and a
     /// ruling down. Minted, or the minting pass's refusal.
     pub(crate) fn cylinder_patch_below(periods: f64) -> Result<Body<f64>, super::PcurveMintError> {
+        cylinder_patch_turned(periods, 0.0)
+    }
+
+    /// [`cylinder_patch_below`] on a cylinder whose `u_ref` is turned by
+    /// `turn` about its axis: the same patch in the world, its chart
+    /// azimuth `turn` less, so its left meridian (the world's `x` axis)
+    /// sits at chart `u = −turn`.
+    pub(crate) fn cylinder_patch_turned(
+        periods: f64,
+        turn: f64,
+    ) -> Result<Body<f64>, super::PcurveMintError> {
         let tol = Tol::witness();
         let p = |u: f64, z: f64| Point3::new(u.cos(), u.sin(), z);
         let mut body = Body::<f64>::new();
@@ -6937,7 +6948,7 @@ pub(crate) mod pole_slit_tests {
                         origin: Point3::new(0.0, 0.0, 0.0),
                         axis: Vec3::unit_z(),
                         radius: 1.0,
-                        u_ref: Vec3::unit_x(),
+                        u_ref: Vec3::new(turn.cos(), turn.sin(), 0.0),
                     },
                     sense: true,
                 },
@@ -7013,6 +7024,108 @@ pub(crate) mod pole_slit_tests {
                 he2: bottom.he_plus,
             },
             EdgeCurveSpec::line_between(p(0.0, 1.0), p(0.0, 0.0)),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+        crate::mint_pcurves(&mut body, tol)?;
+        Ok(body)
+    }
+
+    /// A half-turn patch of the cone of half-angle `0.4` about `z`, apex
+    /// at the origin, between the rims at heights `1` and `2`, over the
+    /// world azimuths `[0, π]`, on a chart whose `u_ref` is turned by
+    /// `turn`: its left ruling (the world's `x` side) at chart `u = −turn`.
+    pub(crate) fn cone_patch_turned(turn: f64) -> Result<Body<f64>, super::PcurveMintError> {
+        let alpha: f64 = 0.4;
+        let (z0, z1) = (1.0, 2.0);
+        let tol = Tol::witness();
+        let p =
+            |u: f64, z: f64| Point3::new(z * alpha.tan() * u.cos(), z * alpha.tan() * u.sin(), z);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0, z0), true).unwrap();
+        let cone = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Cone {
+                        apex: Point3::new(0.0, 0.0, 0.0),
+                        axis: Vec3::unit_z(),
+                        half_angle: alpha,
+                        u_ref: Vec3::new(turn.cos(), turn.sin(), 0.0),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let rim = |body: &mut Body<f64>, z: f64, t0: f64, t1: f64| {
+            let plane = body.add_surface(Surface::Plane {
+                origin: Point3::new(0.0, 0.0, z),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            });
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(cone, plane),
+                    witness: p(0.5 * (t0 + t1), z),
+                },
+                carrier: Curve3::Circle {
+                    center: Point3::new(0.0, 0.0, z),
+                    axis: Vec3::unit_z(),
+                    radius: z * alpha.tan(),
+                    u_ref: Vec3::unit_x(),
+                },
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let bottom_spec = rim(&mut body, z0, 0.0, PI);
+        let bottom = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(PI, z0),
+                bottom_spec,
+                tol,
+            )
+            .unwrap();
+        let up = body
+            .mev(
+                MevSite::Fan {
+                    he1: bottom.he_minus,
+                    he2: bottom.he_minus,
+                },
+                p(PI, z1),
+                EdgeCurveSpec::line_between(p(PI, z0), p(PI, z1)),
+                tol,
+            )
+            .unwrap();
+        // The top arc, from `u = π` back to `u = 0`.
+        let mut top_spec = rim(&mut body, z1, 0.0, PI);
+        top_spec.carrier = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, z1),
+            axis: Vec3::new(0.0, 0.0, -1.0),
+            radius: z1 * alpha.tan(),
+            u_ref: Vec3::new(-1.0, 0.0, 0.0),
+        };
+        let top = body
+            .mev(
+                MevSite::Fan {
+                    he1: up.he_minus,
+                    he2: up.he_minus,
+                },
+                p(0.0, z1),
+                top_spec,
+                tol,
+            )
+            .unwrap();
+        body.mef(
+            MefSite::Chords {
+                he1: top.he_minus,
+                he2: bottom.he_plus,
+            },
+            EdgeCurveSpec::line_between(p(0.0, z1), p(0.0, z0)),
             FaceSurface::Inherit,
             tol,
         )
@@ -7199,6 +7312,119 @@ pub(crate) mod pole_slit_tests {
                     (lo + 0.3).abs() < 1e-12 && (hi - 0.3).abs() < 1e-12,
                     "the patch spans the seam: {us:?}"
                 );
+            }
+        }
+    }
+
+    /// **A meridian on the window's cut reads the same either side of
+    /// it.** A generic cut makes an image on it rare, not impossible: a
+    /// half-turn cylinder patch and a half-turn cone patch on charts
+    /// turned so the left meridian sits at `u = −1`, the principal
+    /// window's start, within an ulp either way. Rounding names that
+    /// meridian's image `−1` on one side and `τ − 1` on the other (the
+    /// premise, read off the stored rows), and nothing downstream tells
+    /// the two copies apart: each body validates, bounds its faces, and
+    /// overlaps itself with the same answer.
+    #[test]
+    fn a_meridian_on_the_windows_cut_reads_the_same_either_side_of_it() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let tau = core::f64::consts::TAU;
+        let turn = -geom_brep::ANGLE_WINDOW_START;
+        let turns = [turn.next_down(), turn, turn.next_up()];
+        let builds: [(&str, fn(f64) -> Body<f64>); 2] = [
+            ("cylinder", |t| cylinder_patch_turned(0.0, t).unwrap()),
+            ("cone", |t| cone_patch_turned(t).unwrap()),
+        ];
+        for (name, build) in builds {
+            let bodies: Vec<Body<f64>> = turns.iter().map(|&t| build(t)).collect();
+            let mut copies = Vec::new();
+            for (t, body) in turns.iter().zip(&bodies) {
+                assert_eq!(
+                    super::validate_pcurves(body, band),
+                    vec![],
+                    "{name}, turned {t}: validates"
+                );
+                for (f, face) in body.faces() {
+                    let s = body.get_surface(face.surface).unwrap().clone();
+                    super::chart_boundary(body, f, &s, band)
+                        .unwrap_or_else(|e| panic!("{name}, turned {t}, {f:?}: bounds: {e:?}"));
+                }
+                // The left meridian's stored image: the constant azimuth
+                // one copy of which is `−1`.
+                for (he, _) in body.half_edges() {
+                    if let Some(geom_brep::Pcurve::Harmonic { p0, pl, .. }) =
+                        body.pcurve(he).map(|c| c.pcurve())
+                    {
+                        let off = (p0.x + 1.0).rem_euclid(tau);
+                        if pl.x == 0.0 && (off < 1e-6 || tau - off < 1e-6) {
+                            copies.push(p0.x);
+                        }
+                    }
+                }
+            }
+            assert!(
+                copies.iter().any(|u| (u + 1.0).abs() < 1e-6)
+                    && copies.iter().any(|u| (u - (tau - 1.0)).abs() < 1e-6),
+                "{name}: the premise, the meridian named on both sides of the cut: {copies:?}"
+            );
+            let faces: Vec<FaceKey> = bodies[0].faces().map(|(f, _)| f).collect();
+            let outcome = |a: usize, b: usize, f: FaceKey| {
+                crate::declared_pair_overlap(
+                    &bodies[a],
+                    f,
+                    &bodies[b],
+                    f,
+                    crate::contact::ContactVerdict::Definite,
+                    band,
+                )
+            };
+            // Each face's polygon, read modulo a turn in `u`, is the same
+            // across the cut.
+            let corners = |body: &Body<f64>, f: FaceKey| {
+                let s = body
+                    .get_surface(body.get_face(f).unwrap().surface)
+                    .unwrap()
+                    .clone();
+                let bound = super::chart_boundary(body, f, &s, band).unwrap();
+                let mut c: Vec<(f64, f64)> = bound
+                    .loops
+                    .iter()
+                    .flat_map(|l| &l.edges)
+                    .map(|e| (e.a().x.rem_euclid(tau), e.a().y))
+                    .collect();
+                c.sort_by(|p, q| p.partial_cmp(q).unwrap());
+                c
+            };
+            for &f in &faces {
+                let first = corners(&bodies[0], f);
+                for a in 1..3 {
+                    let other = corners(&bodies[a], f);
+                    assert_eq!(first.len(), other.len(), "{name}, {f:?}");
+                    for (p, q) in first.iter().zip(&other) {
+                        let du = (p.0 - q.0).abs();
+                        assert!(
+                            du.min(tau - du) < 1e-9 && (p.1 - q.1).abs() < 1e-9,
+                            "{name}, {f:?}: turned {} reads {other:?} against {first:?}",
+                            turns[a]
+                        );
+                    }
+                }
+            }
+            // Each body against itself: the copies the rounding named
+            // are the only difference across the cut (bodies turned an
+            // ulp apart differ in geometry too, which a near-flush seat
+            // reads as such).
+            for &f in &faces {
+                let first = outcome(0, 0, f);
+                for a in 1..3 {
+                    assert_eq!(
+                        outcome(a, a, f),
+                        first,
+                        "{name}, {f:?}: turned {} against turned {}",
+                        turns[a],
+                        turns[0]
+                    );
+                }
             }
         }
     }
