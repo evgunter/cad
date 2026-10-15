@@ -20,7 +20,7 @@
 //! the band of each other, it passes through a node, and this read
 //! declines: the edge keeps the quadric's route. In band, it escalates.
 
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
+use geom_core::{Band, Decide, Margin, Point3, Sign};
 
 use super::{CurvedEvent, Landing, Placement, edge_face_read, landing, vertex_on_curved_face};
 use crate::body::Body;
@@ -53,7 +53,7 @@ use crate::validate::decide;
 /// door escalates; the typed frontier where a landing or an end has no
 /// verdict.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn factored_crossing<T: Decide + Bounds + crate::props::AtRestPolicy>(
+pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     (x, x_is): (&Body<T>, Operand),
     (edge, carrier, (t0, t1)): (&Edge, &geom::Curve3<T>, (T, T)),
     [(u, pu), (v, pv)]: [(VertexKey, Point3<T>); 2],

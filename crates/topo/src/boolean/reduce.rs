@@ -3553,7 +3553,7 @@ enum Landing {
 /// a real one, so it is `Unplaced` too, as is a boundary read the face
 /// refuses (a lone-vertex loop, a loop it cannot walk, a chart refusal,
 /// an arc's end its corners disagree with).
-fn landing<T: Decide + Bounds>(
+fn landing<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
     p: Point3<T>,
