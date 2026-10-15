@@ -1189,7 +1189,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     FaceContainment::In => {
                         let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                         push_vf(contacts, x_is, w, face, on);
-                        requeue(
+                        read_then_requeue(
                             &mut worklist,
                             (x, x_is, edge_key, &edge),
                             y,
@@ -1206,7 +1206,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                         let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
                         push_vv(contacts, x_is, w, wy, on);
-                        requeue(
+                        read_then_requeue(
                             &mut worklist,
                             (x, x_is, edge_key, &edge),
                             y,
@@ -1230,7 +1230,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             contacts,
                         )?;
                         push_vv(contacts, x_is, w, vy, on);
-                        requeue(
+                        read_then_requeue(
                             &mut worklist,
                             (x, x_is, edge_key, &edge),
                             y,
@@ -1373,7 +1373,6 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 ));
                             }
                         };
-                        lying_in.push(face);
                         let mut hit =
                             vertex_on_face(x_is, y, u, pu, face, &plane, on, contacts, band, tol)?;
                         if v != u {
@@ -1432,7 +1431,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 FaceContainment::In => {
                                     let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                                     push_vf(contacts, x_is, w, face, on);
-                                    requeue(
+                                    read_then_requeue(
                                         &mut worklist,
                                         (x, x_is, edge_key, &edge),
                                         y,
@@ -1458,7 +1457,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         contacts,
                                     )?;
                                     push_vv(contacts, x_is, w, wy, on);
-                                    requeue(
+                                    read_then_requeue(
                                         &mut worklist,
                                         (x, x_is, edge_key, &edge),
                                         y,
@@ -1483,7 +1482,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         contacts,
                                     )?;
                                     push_vv(contacts, x_is, w, vy, on);
-                                    requeue(
+                                    read_then_requeue(
                                         &mut worklist,
                                         (x, x_is, edge_key, &edge),
                                         y,
@@ -1557,7 +1556,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         FaceContainment::In => {
                             let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                             push_vf(contacts, x_is, w, face, on);
-                            requeue(
+                            read_then_requeue(
                                 &mut worklist,
                                 (x, x_is, edge_key, &edge),
                                 y,
@@ -1576,7 +1575,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             let wy =
                                 split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
                             push_vv(contacts, x_is, w, wy, on);
-                            requeue(
+                            read_then_requeue(
                                 &mut worklist,
                                 (x, x_is, edge_key, &edge),
                                 y,
@@ -1601,7 +1600,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 contacts,
                             )?;
                             push_vv(contacts, x_is, w, vy, on);
-                            requeue(
+                            read_then_requeue(
                                 &mut worklist,
                                 (x, x_is, edge_key, &edge),
                                 y,
@@ -4379,13 +4378,18 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// An edge the sweep has yet to read, from face index `start` on.
-/// `lying_in` holds the planar faces before `start` the edge lies in,
-/// whose reading took its ends only: a split of the edge reads the
-/// vertex it mints against them ([`requeue`]).
+/// `lying_in` holds the planar faces before `start` that the line lane's
+/// coplanar arm read the edge in, ends only: a split of the edge reads
+/// the vertex it mints against them ([`read_then_requeue`]), whichever
+/// lane splits it. A conic edge's is empty: a conic lying in a face's
+/// plane (`ConicPlaneMeet::Parallel`) is not recorded, since reading a
+/// later split's vertex against that face turns operations that build
+/// sound into refusals
+/// (`a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before`).
 ///
 /// An edge lying on a CURVED face (the curved arm's endpoint postures)
-/// is not carried: reading a minted vertex there is a placement
-/// question of its own
+/// is not carried either, and refuses order-dependently where a later
+/// split mints a vertex on it
 /// (`work/tang/a-vertex-minted-on-an-edge-lying-on-a-curved-face-is-unread.md`).
 struct Pending {
     edge: EdgeKey,
@@ -4421,18 +4425,43 @@ fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
     vertex_on_face(x_is, y, w, p, face, plane, on.margin, contacts, band, tol)
 }
 
-/// Requeues both children of a just-split edge (parent keeps the
-/// leading span and its key; `w` is the minted vertex whose emanating
-/// half-edge names the trailing child), from face index `next_face`.
-/// First `w` is read against each face of `lying_in`, as the edge's
-/// ends were, and the children carry `lying_in` on.
+/// Reads `w`, a vertex a split minted on `edge` of `x`, against each
+/// face of `lying_in` as the edge's ends were read, then requeues the
+/// edge's two pieces from face index `next_face`, carrying `lying_in`
+/// on. Every split goes on through here, so none skips the read.
 #[allow(clippy::too_many_arguments)]
-fn requeue<T: Decide + crate::props::AtRestPolicy>(
+fn read_then_requeue<T: Decide + crate::props::AtRestPolicy>(
     worklist: &mut std::collections::VecDeque<Pending>,
     (x, x_is, parent, edge): (&Body<T>, Operand, EdgeKey, &crate::entity::Edge),
     y: &mut Body<T>,
     w: VertexKey,
     next_face: usize,
+    lying_in: &[FaceKey],
+    declared: &super::GluedPairs<T>,
+    contacts: &mut ContactAcc,
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    read_lying_in(
+        (x, x_is, edge),
+        y,
+        w,
+        lying_in,
+        declared,
+        contacts,
+        band,
+        tol,
+    )?;
+    requeue(worklist, x, parent, w, next_face, lying_in)
+}
+
+/// The contact half of [`read_then_requeue`]: `w` of `x`, minted on
+/// `edge`, against each planar face of `y` in `lying_in`.
+#[allow(clippy::too_many_arguments)]
+fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
+    (x, x_is, edge): (&Body<T>, Operand, &crate::entity::Edge),
+    y: &mut Body<T>,
+    w: VertexKey,
     lying_in: &[FaceKey],
     declared: &super::GluedPairs<T>,
     contacts: &mut ContactAcc,
@@ -4456,6 +4485,21 @@ fn requeue<T: Decide + crate::props::AtRestPolicy>(
             tol,
         )?;
     }
+    Ok(())
+}
+
+/// Requeues both children of a just-split edge (parent keeps the
+/// leading span and its key; `w` is the minted vertex whose emanating
+/// half-edge names the trailing child), from face index `next_face`,
+/// each carrying `lying_in`.
+fn requeue<T: Decide>(
+    worklist: &mut std::collections::VecDeque<Pending>,
+    x: &Body<T>,
+    parent: EdgeKey,
+    w: VertexKey,
+    next_face: usize,
+    lying_in: &[FaceKey],
+) -> Result<(), BooleanError> {
     let emanating =
         x.get_vertex(w)
             .and_then(|v| v.emanating)

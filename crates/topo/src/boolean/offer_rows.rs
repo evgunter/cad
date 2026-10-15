@@ -2896,7 +2896,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::WallRoots",
         1,
     ),
-    ("reduce.rs", "requeue", "Coincide::VertexOnFace", 1),
+    ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
     (
         "reduce.rs",
         "split_other_at_point",
