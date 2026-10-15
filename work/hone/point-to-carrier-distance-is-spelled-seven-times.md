@@ -62,6 +62,12 @@ The sweep's residue (§5, "a spelling of the foot or of the carrier gap outside 
   - `shell.rs:3169`, `3206` and `3262`;
   - `replace_face.rs:3566`, `4255` and `4333`;
   - `blend/surgery.rs:3644` and `5339`;
-  - `blend/open/end_face.rs:884`.
+  - `blend/open/end_face.rs:884`;
+  - `offset_derive.rs:456` (`running_with`: the candidate's tangent at the old middle's parameter);
+  - `edge_join.rs:967`;
+  - `shell.rs:3219`;
+  - editor-core `names/emit_topo.rs:3246`, `3381`, `3880` and `6835`;
+  - `curve_pair/walk.rs:194`, which is a seed: each parameter it yields is read at `Curve3::foot`.
+- **Fixed in the PR:** `offset_derive.rs` `nearest` read `param_near` as a foot to choose the section branch nearest the old middle. On an ellipse that is the defect class, so it now reads the gap at `Curve3::foot`.
 
   None of these decides on-carrier at that parameter here. Each is a foot only where the point is on the carrier, which is not where the unit-coordinate angle fails. On an ellipse they read the unit-coordinate angle, which is not the foot of a point off the curve: each site owes a check that its point is on the carrier.

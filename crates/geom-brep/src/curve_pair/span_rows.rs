@@ -54,7 +54,7 @@ fn name(got: Result<Option<Hit<f64>>, geom::CarrierRefusal>) -> &'static str {
 }
 
 /// What a place reads as: its variant's name.
-fn place(got: Result<Place<f64>, geom_core::Indeterminate>) -> &'static str {
+fn place(got: Result<Place<f64>, geom::CarrierRefusal>) -> &'static str {
     match got {
         Ok(Place::Inside { .. }) => "inside",
         Ok(Place::End(_)) => "end",
@@ -65,7 +65,7 @@ fn place(got: Result<Place<f64>, geom_core::Indeterminate>) -> &'static str {
 
 /// `q` read on `span` at its foot, seeded at `t`.
 fn read(span: &Span<'_, f64>, q: Point3<f64>, t: f64) -> &'static str {
-    name(span.contact(q, &span.carrier().foot(q, t), band()))
+    name(span.contact(q, t, band()))
 }
 
 /// **Each answer, on each kind**, with the place under it. A point is
@@ -174,13 +174,8 @@ fn a_point_reads_on_at_an_end_or_none() {
             ),
         ] {
             let (q, t) = at(along, off);
-            let foot = carrier.foot(q, t);
-            assert_eq!(name(span.contact(q, &foot, b)), want, "{kind}, {label}");
-            assert_eq!(
-                place(span.place(q, &foot, b)),
-                placed,
-                "{kind}, {label}: place"
-            );
+            assert_eq!(name(span.contact(q, t, b)), want, "{kind}, {label}");
+            assert_eq!(place(span.place(q, t, b)), placed, "{kind}, {label}: place");
         }
     }
 }
@@ -195,9 +190,7 @@ fn a_closed_carrier_reads_the_parameter_on_the_spans_branch() {
         let span = Span::new(&carrier, (-0.4, 0.6));
         let q = carrier.eval(0.1);
         for turns in [-2.0, -1.0, 1.0, 3.0] {
-            let got = span
-                .contact(q, &carrier.foot(q, 0.1 + turns * TAU), b)
-                .unwrap();
+            let got = span.contact(q, 0.1 + turns * TAU, b).unwrap();
             let Some(Hit::On { t, .. }) = got else {
                 panic!("{turns} turns away: {got:?}");
             };
@@ -223,9 +216,9 @@ fn an_endless_span_reads_its_end_point_on_it() {
     assert_eq!(read(&span.endless(), off, 0.0), "none");
 }
 
-/// **An end is the end's point, on its raw chord, whatever the foot**:
-/// each end's point reads that end by name, read at a foot seeded at the
-/// span's other end, or at the foot of another point altogether.
+/// **An end is the end's point, on its raw chord, whatever the seed**:
+/// each end's point reads that end by name, its foot seeded at the
+/// span's other end or half a turn away.
 #[test]
 fn an_end_reads_by_name_at_any_foot() {
     let b = band();
@@ -233,12 +226,9 @@ fn an_end_reads_by_name_at_any_foot() {
         let span = Span::new(&carrier, (0.2, 1.4));
         for (end, other, which) in [(0.2, 1.4, SpanEnd::Start), (1.4, 0.2, SpanEnd::Stop)] {
             let q = carrier.eval(end);
-            for foot in [
-                carrier.foot(q, other),
-                carrier.foot(carrier.eval(other), other),
-            ] {
+            for seed in [other, end + PI] {
                 assert_eq!(
-                    span.contact(q, &foot, b),
+                    span.contact(q, seed, b),
                     Ok(Some(Hit::End(which))),
                     "{:?}",
                     carrier.kind()
@@ -268,4 +258,83 @@ fn an_end_is_read_by_its_chord_on_a_slow_stretch() {
     let t = 5.0 * ZERO / 0.5;
     let q = carrier.eval(t) + Vec3::unit_z() * (3.0 * ZERO);
     assert_eq!(read(&span, q, t), "escalated");
+}
+
+/// A hairpin spline: out along `y = 0` over its first knot span, back
+/// along `y = 1e-6` over forty more, the two branches a thousand zero
+/// bands apart.
+fn hairpin() -> Curve3<f64> {
+    let mut points = vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)];
+    for i in 0..=40 {
+        points.push(Point3::new(1.0 - f64::from(i) / 40.0, 1e-6, 0.0));
+    }
+    let n = points.len();
+    let last = f64::from(u32::try_from(n - 1).unwrap());
+    let mut knots = vec![0.0, 0.0];
+    knots.extend((1..n - 1).map(|i| f64::from(u32::try_from(i).unwrap()) / last));
+    knots.extend([1.0, 1.0]);
+    Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(knots, 1).unwrap(),
+            points,
+            vec![1.0; n],
+        )
+        .unwrap(),
+    ))
+}
+
+/// **Past stands only on a nearest foot or a certificate.** On a hairpin
+/// spline the span over the outgoing branch, seeded at its middle, finds
+/// some interior points' feet on the return branch, past the span. That
+/// foot is no nearest point, so `Past` is not taken from it: the span's
+/// own walk keeps a piece at the point, and every interior point reads
+/// on the span or escalates, never off it. Red where `Past` is read from
+/// any foot.
+#[test]
+fn a_foot_on_a_hairpin_spline_far_branch_is_no_past() {
+    let c = hairpin();
+    let out = 1.0 / 42.0;
+    let span = Span::new(&c, (0.0, out));
+    let mid = 0.5 * out;
+    for i in 1..100 {
+        let q = c.eval(out * f64::from(i) / 100.0);
+        assert!(
+            !matches!(span.contact(q, mid, band()), Ok(None)),
+            "{q:?}: an interior point read off the span"
+        );
+    }
+}
+
+/// **A circle's foot is its nearest point, so its `Past` stands**: a
+/// point on the unit circle read on the span `(0, 1)` with its seed a
+/// half turn away is still read where it lies, never at another point's
+/// foot. Red where a foot found for another point can be read.
+#[test]
+fn a_point_is_read_at_its_own_foot_whatever_the_seed() {
+    let c = circle();
+    let span = Span::new(&c, (0.0, 1.0));
+    let q = c.eval(0.5);
+    assert!(matches!(
+        span.contact(q, 3.0, band()),
+        Ok(Some(Hit::On { .. }))
+    ));
+    let far = c.eval(3.0);
+    assert_eq!(read(&span, far, 0.5), "none");
+}
+
+/// **A place the band cannot read is off where the carrier reads the
+/// point off.** A point thirty zeros off a circle beside its span's end,
+/// its foot three zeros of arc inside the end: the chord to the end is
+/// past the band, the side of the end is in the band's gap, and the
+/// carrier reads the point off, so it is off the span. Red where an
+/// undecided place escalates whatever the carrier says.
+#[test]
+fn an_undecided_place_beside_an_off_carrier_is_off() {
+    let c = circle();
+    let span = Span::new(&c, (0.2, 1.4));
+    let speed = geom::carrier_speed::speed_at(&c, 1.4).unwrap();
+    let t = 1.4 - 3.0 * ZERO / speed;
+    let q = c.eval(t) + Vec3::unit_z() * (30.0 * ZERO);
+    assert_eq!(place(span.place(q, t, band())), "escalated");
+    assert_eq!(read(&span, q, t), "none");
 }

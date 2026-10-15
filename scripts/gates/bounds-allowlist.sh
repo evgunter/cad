@@ -515,7 +515,12 @@ BOUNDS_ALLOWLIST=(
   # fallback sites that build a result and hand it to `gate`; and
   # `boolean_door`, the front door's body, split from `boolean_op_with`
   # so the door can time and meter the call around it. 17 + 4 = 21.
-  'crates/topo/src/boolean/ops.rs 21 2026-07-29 (M5 PR 8), the driver amendment'
+  # Two more carry ∖'s reading of its operand's coincident edges to
+  # `census::collinear_overlaps`, the edge-edge pass's tree over the
+  # line edges' boxes: `reverted_lines_disjoint` (the seamed result's
+  # lines) and `no_unjoined_line` (the fallbacks'). Neither reads a
+  # bracket of its own. 21 + 2 = 23.
+  'crates/topo/src/boolean/ops.rs 23 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
@@ -703,7 +708,7 @@ BOUNDS_ALLOWLIST=(
   # at its domain middle and read no bracket, and its callers in
   # `ssi.rs` now take `Curve3::mid_point`, the witness pin's own point.
   # The seam is unmoved: the branch certificate keeps its bounds.
-  'crates/geom-brep/src/ssi/certify.rs 16 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound'
+  'crates/geom-brep/src/ssi/certify.rs 18 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound; its limbs 1-2 alone (incidence_limbs), which certify_branch now calls, at the same bound'
   # M7-8, the declare-and-check edge lane.
   # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
   # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
@@ -715,7 +720,7 @@ BOUNDS_ALLOWLIST=(
   # ratified at this bound) with `Limbs::Tube`, and its bound is its
   # callee's: nothing weaker compiles. The kernel reaches it only through `NurbsLane::certified`;
   # it is public so the at-rest rows can run the limb directly.
-  'crates/geom-brep/src/edge_nurbs.rs 10 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound'
+  'crates/geom-brep/src/edge_nurbs.rs 12 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -763,7 +768,10 @@ BOUNDS_ALLOWLIST=(
   # `census_traces`, `census_with`) and the backstop's own tree over its
   # reach boxes (`sweep_cross_solid_backstop`) — spatial-index driver
   # code over the C10 tree, under the driver amendment like `separation`.
-  'crates/topo/src/census.rs 6 2026-07-29 (M5 PR 8), the driver amendment'
+  # The seventh is `collinear_overlaps`, the edge-edge pass's candidates
+  # over the same edge boxes, lifted out for ∖'s reading of coincident
+  # edges.
+  'crates/topo/src/census.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/face_boxes.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the

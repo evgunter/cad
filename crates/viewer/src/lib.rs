@@ -47,7 +47,7 @@
 //! A view is drawn at a **display tolerance** ([`DisplayTolerance`]):
 //! how far the triangles may sag from the exact surfaces. The kernel
 //! tolerance ε — what the model *is* — is never touched by anything
-//! in this crate (the ratified micro-decision in GUI-DESIGN, and
+//! in this crate (G4's ratified micro-decision in GUI-DESIGN, and
 //! `mesh`'s own δ-is-not-ε contract).
 
 pub mod blend;

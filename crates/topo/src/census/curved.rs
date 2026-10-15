@@ -158,9 +158,8 @@ pub(super) fn may_rest_on<T: Decide>(body: &Body<T>, e: EdgeKey, q: Point3<T>, b
         return true;
     };
     let (t0, t1) = curve.params();
-    let foot = curve.carrier().foot(q, geom::mid_param(t0, t1));
     !matches!(
-        Span::new(curve.carrier(), curve.params()).contact(q, &foot, band),
+        Span::new(curve.carrier(), curve.params()).contact(q, geom::mid_param(t0, t1), band),
         Ok(None)
     )
 }
@@ -204,8 +203,7 @@ fn on_interior_reading<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<MarginDiag>> {
     let span = span(body, r);
-    let foot = r.curve.foot(q, geom::mid_param(r.span.0, r.span.1));
-    match span.contact(q, &foot, band) {
+    match span.contact(q, geom::mid_param(r.span.0, r.span.1), band) {
         Ok(Some(Hit::On { margin, .. })) => Some(Some(margin)),
         Ok(Some(Hit::End(_)) | None) => Some(None),
         Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
@@ -573,7 +571,7 @@ mod tests {
         let t = t0 + 15.0 * eps;
         let q = r.curve.eval(t);
         let inside = super::span(&Body::new(), &r)
-            .contact(q, &r.curve.foot(q, t), band())
+            .contact(q, t, band())
             .map(|c| matches!(c, Some(geom_brep::curve_pair::Hit::On { .. })));
         assert_eq!(inside.ok(), Some(true));
     }

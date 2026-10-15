@@ -464,7 +464,7 @@ which is what actually moves the number.
 |---|---|---|---|---|
 | boolean/contact_verify.rs (`touching`, `tangent_locus_reading`) | contact_tangent_gap / contact_tangent_touch | the pair's separation `ε₁r₁ + ε₂r₂` (each implicit residual, /2r-normalized, read as the witness's height above its face); its sampled max plus `TangentSpanBounds::gap_sag`, as `tangent_gap_hull_sup` | m | OK |
 | boolean/contain.rs (`boundary_pre_pass`) | bool_contact_vertex / bool_contact_edge_length / bool_contact_edge | point distance; a straight edge's own length (the degeneracy gate) and the distance from the point to its closed segment, through `ray_walk::on_segment` | m | OK (CONTACT-4) |
-| boolean/contain.rs (`boundary_pre_pass`, a conic's `End`) | bool_contact_arc_end_vertex | the distance from a conic edge's carrier end to a stored vertex, a norm (`decide_magnitude_reported`) — any in-band value escalates; with all four decided, the point at the end is the finding `ContainError::ArcEndClearOfCorners`, carrying them. The ends are read through `Curve3::eval`, as certification reads them, so at the run's band the finding is the band's own parting (`K ≤ 3`); an end off both corners is read at a caller's band finer than the run's, or where the certifier's distance and this reading part by rounding across a band narrower than it (`K` near one), which the census reports as a defect (`ValidationError::ArcEndOffCorner`) | m | OK (CONTACT-4) |
+| boolean/contain.rs (`boundary_pre_pass`, a conic's `End`) | bool_contact_arc_end_vertex | the distance from a conic edge's carrier end to a stored vertex, a norm (`decide_magnitude_reported`) — any in-band value escalates; with all four decided, the point at the end is the finding `ContainError::ArcEndClearOfCorners`, carrying them. The ends are read through `Curve3::eval`, as certification reads them, so at the run's band the finding is the band's own parting (`K < 2`); an end off both corners is read at a caller's band finer than the run's, or where the certifier's distance and this reading part by rounding across a band narrower than it (`K` near one), which the census reports as a defect (`ValidationError::ArcEndOffCorner`) | m | OK (CONTACT-4) |
 | boolean/contain.rs (`boundary_pre_pass`, through `splitting::containment::LoopEdge::contact`) | bool_contact_arc_span | `(τ − w)` levered by the smaller semi-axis. Where the point sits against the arc is `ConicArc::hit`: `geom`'s on-carrier reading at the point's foot (`curve_carrier_gap`, the gap at the foot, for ON; `curve_carrier_clear` for OFF, a lower bound on the distance from the whole conic, exact on a circle and the Hessian-bounded root `2|F|/(g + √(g² + 4|F|/b²))` on an ellipse, the two straddling on `curve_carrier_straddle`), and the span's reading of its ends (`curve_pair_span_end_chord`, the raw chord to an end's point; `_side`, the foot's parameter distance from the end metered by the greatest speed) | m | OK (CONTACT-4) |
 | boolean/sphere_region.rs (`SphereFaceRegion::contains`'s boundary pass, through `splitting::containment::ConicArc::hit` on the arc's circle) | bool_sphere_region_arc_span | `(τ − w)` levered by the radius; where the point sits against the arc is `ConicArc::hit`'s two readings (the row above) | m | OK |
 | boolean/sphere_region.rs (the rays) | bool_sphere_region_arm / bool_sphere_region_span / bool_sphere_region_at / bool_sphere_region_order / bool_sphere_region_cross | a ray direction's tangential fraction `\|raw\|/\|toward\|` × the sphere's radius; a root's parameter less a span end × the arc's radius (arc length); a crossing's angle along the great circle × the sphere's radius (geodesic length), and two such lengths' difference; the heading's sine against the face side × the sphere's radius | m | OK |
@@ -1157,6 +1157,26 @@ Flagged, NOT fixed here (dispositions):
   sample over the band still refuses the certificate, and the witness
   build with it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES`
   does not move.
+
+- **F21** (added by PCERT's limb-2 wording unit, PR 5160)
+  `geom-brep/src/ssi/certify.rs` `nurbs_limbs`, the image-miss tell
+  (`ssi_image_miss_tell`): at the break where limb 2's composite
+  `|S(P(t)) − C(t)|` reads past the band against a spline operand, the
+  carrier's own foot distance from the surface, in metres. It is a
+  length, so `Margin::of` would fit it dimensionally. What keeps it off
+  the logged doors is WHAT it decides:
+  - It states nothing. Limb 2 has already refused at that break.
+  - The tell only names the refusal: `SsiLimb::ImageMiss` where the
+    foot decides Zero, `HullValueChart` otherwise.
+  - Logged, it would put a verdict, or in band an escalation, beside the
+    certificate's own. A reader that lets the first escalation speak
+    for a leaf (`editor_core`'s drive `log_read`) would then charge
+    limb 2's refusal to the tell (executed by PR 5160's review: two
+    escalations on the 2ε-off row).
+
+  **Carried as `k_stats::check_unlogged(.., "F21")`**, the same door as
+  F18 and F20. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does
+  not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

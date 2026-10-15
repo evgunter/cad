@@ -164,7 +164,7 @@ pub use convention::{
 };
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
-    CarrierRefusal, Collocation, ComposeError, Curve3, CurveData, CurveDatum, CurveKind,
+    CarrierRefusal, Clearance, Collocation, ComposeError, Curve3, CurveData, CurveDatum, CurveKind,
     CurveWindow2, CurveWindow3, EllipseInvalid, FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot,
     MajorFrame, NurbsCurve2, NurbsCurve3, OnCarrier, Projection2, Projection3,
     ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,

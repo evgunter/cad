@@ -105,8 +105,7 @@ fn a_point_is_on_or_off_every_carrier_by_its_distance() {
         let n = normal(&c, t);
         for (bands, want) in [(0.5, "on"), (30.0, "off")] {
             let q = c.eval(t) + n * (bands * ZERO);
-            let foot = c.foot(q, t + 1.0);
-            let got = name(c.on_carrier(q, &foot, band()));
+            let got = name(c.on_carrier(q, t + 1.0, band()));
             assert_eq!(got, want, "{:?} at {t}, {bands} bands", c.kind());
         }
     }
@@ -115,21 +114,41 @@ fn a_point_is_on_or_off_every_carrier_by_its_distance() {
         dir: Vec3::new(0.6, 0.0, 0.8),
     };
     let q = line.eval(4.0) + Vec3::unit_y() * (0.5 * ZERO);
-    assert_eq!(name(line.on_carrier(q, &line.foot(q, 0.0), band())), "on");
+    assert_eq!(name(line.on_carrier(q, 0.0, band())), "on");
 }
 
-/// **Off needs the whole carrier clear.** A point on a circle read at a
-/// foot handed in from a parameter half a turn away has a gap of the
-/// diameter, yet the circle's exact distance puts it on the band's zero
-/// side, so the two straddle the band and escalate. Read at its own foot
-/// it is on.
+/// **Off needs the whole carrier clear.** An ellipse bending tighter
+/// than the band (`b²/a = ε/100`) and a point `20ε` beyond its major
+/// vertex: its gap at the vertex is `20ε`, past the band, while the
+/// ellipse's lower bound there reads within the zero band, so the two
+/// straddle the band and escalate typed, never `Off`.
 #[test]
-fn a_far_gap_with_the_carrier_near_straddles_and_escalates() {
-    let c = circle();
+fn a_gap_past_the_band_with_the_bound_inside_it_straddles() {
+    let b = (ZERO / 100.0).sqrt();
+    let c = ellipse(1.0, b);
+    let q = c.eval(0.0) + Vec3::unit_x() * (20.0 * ZERO);
+    assert!(matches!(
+        c.on_carrier(q, 0.0, band()),
+        Err(CarrierRefusal::Straddle(_))
+    ));
+}
+
+/// **A circle stored with a negative radius is the same circle**: its
+/// clearance reads the radius's magnitude, so a point on it is not off
+/// it, read at a seed half a turn away or at its own parameter.
+#[test]
+fn a_negative_radius_circle_holds_its_points() {
+    let c = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 1.0),
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+        radius: -2.0,
+    };
     let q = c.eval(0.7);
-    let far = c.foot(c.eval(0.7 + core::f64::consts::PI), 0.0);
-    assert_eq!(name(c.on_carrier(q, &far, band())), "escalated");
-    assert_eq!(name(c.on_carrier(q, &c.foot(q, 0.0), band())), "on");
+    assert!(c.clearance(q).unwrap() < 1e-12, "{:?}", c.clearance(q));
+    for seed in [0.7, 0.7 + core::f64::consts::PI] {
+        assert_eq!(name(c.on_carrier(q, seed, band())), "on", "seed {seed}");
+    }
 }
 
 /// **A point between the zero band and the escalation escalates**, five
@@ -138,9 +157,8 @@ fn a_far_gap_with_the_carrier_near_straddles_and_escalates() {
 fn a_point_in_the_bands_gap_escalates() {
     for (c, t) in [(circle(), 0.7), (ellipse(3.0, 1.0), 1.2), (spiric(), 0.8)] {
         let q = c.eval(t) + normal(&c, t) * (5.0 * ZERO);
-        let foot = c.foot(q, t);
         assert_eq!(
-            name(c.on_carrier(q, &foot, band())),
+            name(c.on_carrier(q, t, band())),
             "escalated",
             "{:?}",
             c.kind()
@@ -159,4 +177,9 @@ fn a_thin_ellipses_foot_reads_the_distance_not_its_unit_image() {
     let foot = c.foot(q, 0.0);
     assert!(foot.gap() < 1.5 * ZERO, "{}", foot.gap());
     assert!((foot.t() - t).abs() < 1e-6, "{}", foot.t());
+    assert!((foot.point() - q).norm() == 0.0);
+    assert!(
+        !foot.is_nearest(),
+        "an ellipse's foot is a stationary point"
+    );
 }
