@@ -653,7 +653,14 @@ pair with a spiric or spline side is the certified bisection walk, which
 is also the closed forms' differential test oracle. A candidate generator's
 in-band decision escalates and never prunes, and a candidate admitted under
 a `Zero` reading is placed by the exactly degenerate formula, never by the
-generic one.
+generic one. Two spans' meetings are the runs of their in-band locus, one
+meeting each: each span's ends are read against the other span first, a
+meeting so found claims its run, and a candidate within the band's
+escalation of a found meeting is that meeting again, never a second one; a
+run holding no decided meeting, or more than one, escalates. A closed form
+divides a found meeting's root out of its equation and solves for the
+rest, never re-deriving it. The reader takes no topology: a joint is found
+as the meeting of the two spans' ends.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (all but the parabola and hyperbola),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
