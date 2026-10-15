@@ -1121,3 +1121,9 @@ Signed (CLEAVE orchestrator).
   - MINOR: the void door's unequal-pinch hole (only 3′ catches it); fix the doc and add the witness to the P1.
   - Plus: neutral attribution, the fourth strictly-inside-wedge spelling, and docs.
   - Fix pass 2 sent.
+- 2026-10-15 — The circle-pair P1 is up as PR 5190 (`66322ac2fa`, gate ok).
+  - Every witness survived 5058, and the lane found a third arm.
+  - Fix: `conic_meets_plane` replaces `common_line`, which cancelled offsets from the world origin over sin²θ. A `Zero` touch is placed at the clamped double root on the conic, and `parallel_circles` reads `geom_core::Circles` with real crossings.
+  - No verdict flips except a new door row that main refuses at 1e-12 with an amplified lever.
+  - Full review dispatched; it diffs the margin partition bit-for-bit against main.
+  - Disk: removed the merged 4810 dir and my target dir (17→23 GB free).

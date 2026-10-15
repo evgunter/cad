@@ -2,7 +2,7 @@
 id: a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles
 kind: issue
 title: carrier_cross misplaces circle-pair candidates near the band (common_line for planes tilted under ~3e-4 rad; parallel_circles' touch arm at d ≈ Kε), so boundary_crossing reads Clear where the edges cross
-status: dispatched
+status: review
 opened: 2026-10-13
 priority: P1
 cost: M
