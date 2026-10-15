@@ -1011,11 +1011,23 @@ pub(crate) fn face_geo<T: Decide>(
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     // The kinds this dispatch has an arm for are [`ray_crosses`]'s, and
     // it refuses the others through it, as the reader's pre-filter does
-    // ([`crate::side_reader::side_at_infinity`]): one predicate, so a new arm is a new kind
-    // there or it is never reached.
+    // ([`crate::side_reader::side_at_infinity`]): one predicate, which
+    // `face_geo_arms_are_the_kinds_rays_cross` holds to the arms.
     if let Some(e) = uncrossable(body, face)? {
         return Err(e);
     }
+    face_geo_arms(body, face, charts, band)
+}
+
+/// [`face_geo`]'s dispatch, past the predicate: an arm for each kind
+/// [`ray_crosses`] lists, and [`PointInSolidError::KindUnsupported`] for
+/// each it does not, named variant by variant.
+fn face_geo_arms<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    charts: &ChartGroups,
+    band: Band,
+) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
@@ -1124,12 +1136,14 @@ pub(crate) fn face_geo<T: Decide>(
                     .sense,
             })
         }
-        // Refused above through `uncrossable`: only the match's
-        // exhaustiveness reaches here, and it refuses the same way.
-        Some(s) => Err(PointInSolidError::KindUnsupported {
-            face,
-            kind: s.kind(),
-        }),
+        // Refused in `face_geo` through `uncrossable`: only this
+        // dispatch read alone reaches here, and it refuses the same way.
+        Some(s @ (Surface::Nurbs(_) | Surface::Approx(_))) => {
+            Err(PointInSolidError::KindUnsupported {
+                face,
+                kind: s.kind(),
+            })
+        }
         None => Err(PointInSolidError::CorruptFace { face }),
     }
 }
@@ -6069,5 +6083,85 @@ mod joint_branch_rows {
             matches!(joint, Ok(None)),
             "the walk does not meet on either branch: {joint:?}"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod kind_arm_tests {
+    //! [`ray_crosses`] is [`face_geo`]'s arms, kind by kind.
+
+    use super::*;
+
+    /// **The predicate is the dispatch's arms**: a brick's face given a
+    /// surface of each kind, read by the dispatch alone (past
+    /// [`uncrossable`]), refuses as `KindUnsupported` exactly where
+    /// [`ray_crosses`] says no ray crosses it. An arm added for a kind the
+    /// predicate refuses would be unreachable, and a kind the predicate
+    /// admits with no arm would fault every ray; either turns this red.
+    #[test]
+    fn face_geo_arms_are_the_kinds_rays_cross() {
+        use geom::SurfaceKind;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (o, z, x) = (
+            Point3::new(0.5, 0.5, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        for kind in SurfaceKind::ALL {
+            // Every kind, named: a new one is a compile error here.
+            let surface: Surface<f64> =
+                match kind {
+                    SurfaceKind::Plane => Surface::Plane {
+                        origin: o,
+                        normal: z,
+                        u_ref: x,
+                    },
+                    SurfaceKind::Cylinder => Surface::Cylinder {
+                        origin: o,
+                        axis: z,
+                        radius: 0.5,
+                        u_ref: x,
+                    },
+                    SurfaceKind::Cone => Surface::Cone {
+                        apex: o,
+                        axis: z,
+                        half_angle: 0.5,
+                        u_ref: x,
+                    },
+                    SurfaceKind::Sphere => Surface::Sphere {
+                        center: o,
+                        radius: 0.5,
+                        axis: z,
+                        u_ref: x,
+                    },
+                    SurfaceKind::Torus => Surface::Torus {
+                        center: o,
+                        axis: z,
+                        major_radius: 0.4,
+                        minor_radius: 0.1,
+                        u_ref: x,
+                    },
+                    SurfaceKind::Nurbs => Surface::nurbs_placeholder(),
+                    SurfaceKind::Approx => Surface::Approx(std::sync::Arc::new(
+                        crate::fixtures::bowed_offset_approx::<f64>(),
+                    )),
+                };
+            let mut body =
+                crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+            let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+            let face = faces[0];
+            let key = body.get_face(face).unwrap().surface;
+            *body.surfaces.get_mut(key).unwrap() = surface;
+            let sel = SolidFaces::select(&body, faces).unwrap();
+            let read = face_geo_arms(&body, face, &sel.charts, band);
+            let refused = matches!(read, Err(PointInSolidError::KindUnsupported { .. }));
+            assert_eq!(
+                refused,
+                !ray_crosses(kind),
+                "{kind:?}: the dispatch has an arm iff rays cross it"
+            );
+        }
     }
 }
