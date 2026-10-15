@@ -2418,7 +2418,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermSectionOutsideInventory
         | BooleanErrorKind::GermSectionSpiric
-        | BooleanErrorKind::GermFrameCylinderPinch
+        | BooleanErrorKind::NodeUnbuilt
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::LineageRow
         | BooleanErrorKind::SplitLineage
@@ -2694,6 +2694,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "strut_order", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
+    (
+        "join.rs",
+        "crossing_cylinder_reading",
+        "BooleanDecision::Radius",
+        1,
+    ),
     ("join.rs", "cs_pair_frame", "BooleanDecision::Radius", 1),
     (
         "join.rs",
@@ -2702,6 +2708,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("join.rs", "join_escalate", "Coincide::Join", 1),
+    ("join.rs", "of_join", "BooleanDecision::EdgeOnFaces", 1),
     ("join.rs", "parallel_radical_plane", "Coincide::Section", 1),
     (
         "join.rs",
@@ -2792,7 +2799,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
-    ("ops.rs", "escalated", "BooleanDecision::ShellRole", 1),
+    ("ops.rs", "at_rest_refusal", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (
@@ -3004,6 +3011,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
+    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 3),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",

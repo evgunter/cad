@@ -294,3 +294,25 @@ definite finding): `0 3 2 ba S`, `1 6 0 ba S`, `3 1 0 ba S`,
 `6 1 0 ab I`, `6 1 0 ba S`. Replay with `CURVED_POSE="i j k order op"
 cargo test -p sweep --release --test all curved_notch_pinch_one --
 --ignored --nocapture`.
+
+## 2026-10-14 — the node family's `∖` (TANG, branch `tang/pinch-node-ring`)
+
+Two equal cylinders whose axes meet now build every boolean, each
+node minted as a ring in both walls. `A ∖ B` is two solids, the
+pieces of `A`'s rod either side of `B`, touching at the two nodes
+`q ± r·unit(â₁ × â₂)` (`q` the axes' meeting point), each piece with
+its own valence-2 vertex on each node. Every one of
+`sweep::bisector_nodes`'s ∖ results (θ ∈ {90°, 60°, 120°, 35°}, both
+operand orders, and the re-posed twin) builds at the closed form
+`2πrh − 16r³/(3 sin θ)`. Tier 3 passes, ∩ and ∪ pass 3′ on their own
+records, and ∖'s 3′ answers only this lane's frontier: 7
+`CensusUndecidable` "a curved face of one is within reach of the
+other" between the two pieces' faces, and the `Unexamined` pair of
+the two solids. The row admits exactly that
+(`touch_union::only_curved_within_reach`); flip it to `Ok` when this
+lane lands.
+
+The pairs touch at the nodes, so no box gap separates them, but one
+plane always does: the plane through `q` with normal `â₁` has each
+piece of `A ∖ B` (`B ∖ A`: normal `â₂`) wholly on one side, and meets
+the pieces only at the two nodes, which are shared point keys.

@@ -136,8 +136,9 @@
 //! boundary vertices a section frame is levered at ([`frame_lever`]),
 //! so every frame and kind arm the join reads is read in that
 //! pre-surgery state ([`SegmentPair`]). A record left whole whose two
-//! germs are one closed conic through a wrap edge is one more segment
-//! ([`wrap_site_segments`]), read with the matched ones
+//! germs are one closed loop through its one site, a wrap edge or a
+//! closed edge's vertex, is one more segment
+//! ([`one_site_segments`]), read with the matched ones
 //! ([`join_segments`]). The sweep then joins them in that order. Joins,
 //! retirements, and completions must occur in
 //! BOTH solids together; any divergence is the typed
@@ -157,7 +158,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, CutOutcome, Datum, JoinLane, JoinPlan, Leave, SegmentCurve, SegmentEdge,
+    ChordJoiner, CutOutcome, Datum, JoinLane, JoinPlan, Leave, RimSide, SegmentCurve, SegmentEdge,
     SplitJoinError,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -635,12 +636,30 @@ impl SolidJoin {
             reordered = self.plan(body, roles, segment)?;
             &reordered
         };
-        let minted = self.joiner.join(body, plan, curve, tol)?;
+        let minted = self.joiner.join(body, plan, curve, tol).map_err(of_join)?;
         if let Some(edge) = segment {
             self.along
                 .extend(minted.into_iter().map(|chord| (edge, chord)));
         }
         Ok(())
+    }
+}
+
+/// The Boolean's refusal for a chord its join refused: a chord's end
+/// whose vertex reads at the zero band's edge of the plane is an edge of
+/// the result on its faces, the Boolean's own decision; every other
+/// refusal is the join's.
+fn of_join(refusal: SplitJoinError) -> BooleanError {
+    match refusal {
+        SplitJoinError::SectionEndEscalated {
+            reading: crate::chord_join::SectionEndReading::OnPlane,
+            diag,
+            ..
+        } => BooleanError::Escalated {
+            decision: BooleanDecision::EdgeOnFaces,
+            diag,
+        },
+        other => other.into(),
     }
 }
 
@@ -764,6 +783,17 @@ pub(super) enum SegmentLane {
     Section,
 }
 
+impl SegmentLane {
+    /// The lane of a segment whose germ runs along an edge of both
+    /// solids, or not.
+    fn of<T: geom_core::Real>(germ: &HalfGerm<T>) -> Self {
+        match (germ.a_locus, germ.b_locus) {
+            (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => Self::AlongEdge,
+            _ => Self::Section,
+        }
+    }
+}
+
 /// Every pair record with its germs, none consumed, in `red.null_pairs`
 /// order.
 fn open_records<T: Decide>(red: &BooleanReduction<T>) -> Result<Vec<OpenRecord<T>>, BooleanError> {
@@ -798,14 +828,14 @@ fn open_records<T: Decide>(red: &BooleanReduction<T>) -> Result<Vec<OpenRecord<T
 }
 
 /// **Every segment the join builds**: the matched ones
-/// ([`matched_records`]), then each one-site loop on a wrap edge
-/// ([`wrap_site_segments`]).
+/// ([`matched_records`]), then each one-site loop
+/// ([`one_site_segments`]).
 pub(super) fn join_segments<T: Decide>(
     red: &BooleanReduction<T>,
     band: Band,
 ) -> Result<Vec<SectionSegment<T>>, BooleanError> {
     let (mut segments, open) = matched_records(red, band)?;
-    segments.extend(wrap_site_segments(red, &open, band)?);
+    segments.extend(one_site_segments(red, &open, band)?);
     Ok(segments)
 }
 
@@ -830,14 +860,10 @@ fn matched_records<T: Decide>(
             open[r].a[slot].1 = true;
             open[r].b[slot].1 = true;
         }
-        let lane = match (germ.a_locus, germ.b_locus) {
-            (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => SegmentLane::AlongEdge,
-            _ => SegmentLane::Section,
-        };
         segments.push(SectionSegment {
             ends: [entry, cand],
             germ,
-            lane,
+            lane: SegmentLane::of(&germ),
         });
     }
     Ok((segments, open))
@@ -876,23 +902,27 @@ fn germ_site<T: Decide>(
         })
 }
 
-/// **The section loops with one site on a wrap edge**: a loop of a
-/// transverse section of a one-face closed wall can cross the wall's
-/// wrap edge (both its halves bound that face) once, so that it has one
-/// site, and the record there carries both of the loop's germs, one each
-/// way round it. The loop is one segment, from that site round the whole
-/// loop back to it ([`crate::chord_join`]'s self-loop chord): its two
-/// ends are the record's two slots.
+/// **The section loops with one site**: a closed section loop whose
+/// one site holds both of its germs, one each way round it, on one pair
+/// record. The loop is one segment, from that site round the whole loop
+/// back to it ([`crate::chord_join`]'s self-loop chord): its two ends are
+/// the record's two slots. Two shapes close at one site
+/// ([`closes_at_its_site`]):
 ///
-/// Read from the records [`matched_records`]' quiescence left. A
-/// [`one_site`] record whose germs lie inside a face on both operands is
-/// taken where its site is a wrap edge of one operand's face and a
-/// pierce of the other's planar face
-/// ([`crate::chord_join::ChordJoiner::join_lone_ring`]), as
-/// [`site_cell`] reads them. Every other one-site record is left for
-/// the [`SplitJoinError::SingleSiteSectionLoop`] refusal: a conic lying
-/// along an operand edge (a coincidence), a pierce of a curved face, and
-/// a site on both operands' wrap edges.
+/// - **a transverse section of a one-face closed wall** that crosses the
+///   wall's wrap edge (both its halves bound that face) once, piercing
+///   the partner's planar face there;
+/// - **a closed edge lying in the partner** (a one-segment circle, both
+///   of whose ends are its one vertex): the loop is that edge, and the
+///   site is its vertex. The partner holds it inside a planar or a
+///   spherical face, whose interior the site pierces, or along a closed
+///   edge of its own through the same site.
+///
+/// Read from the records [`matched_records`]' quiescence left. Every
+/// other [`one_site`] record is left for the
+/// [`SplitJoinError::SingleSiteSectionLoop`] refusal: a pierce of a face
+/// the joiner cannot side a whole conic on, a site on both operands'
+/// wrap edges, and a site where the loop meets an edge of another face.
 ///
 /// Where a record is taken, three things are kernel bugs, refused as
 /// [`BooleanError::JoinDesync`]: another record naming its locus pair
@@ -902,40 +932,26 @@ fn germ_site<T: Decide>(
 /// loop's records); B germs whose loci are not the A germs'; and two
 /// germs that agree in sense or turn one way round the loop (insertion
 /// mints a null edge's two germs facing apart).
-fn wrap_site_segments<T: Decide>(
+fn one_site_segments<T: Decide>(
     red: &BooleanReduction<T>,
     open: &[OpenRecord<T>],
     band: Band,
 ) -> Result<Vec<SectionSegment<T>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
-    let planar = |body: &Body<T>, f: FaceKey| {
-        face_surface(body, f).map(|(_, s)| matches!(s, geom::Surface::Plane { .. }))
-    };
     let mut out = Vec::new();
     for (r, rec) in open.iter().enumerate() {
         let Some((g0, frame)) = one_site(red, rec, band)? else {
             continue;
         };
-        let (super::Locus::InFace(fa), super::Locus::InFace(fb)) = (g0.a_locus, g0.b_locus) else {
-            continue;
-        };
-        let crossed = match (
-            site_cell(&red.a, fa, g0.he)?,
-            site_cell(&red.b, fb, rec.b[0].0.he)?,
-        ) {
-            (SiteCell::Wrap, SiteCell::Pierce) => planar(&red.b, fb)?,
-            (SiteCell::Pierce, SiteCell::Wrap) => planar(&red.a, fa)?,
-            _ => false,
-        };
-        if !crossed {
+        if !closes_at_its_site(red, &g0, rec.b[0].0.he)? {
             continue;
         }
         for (_, other) in open.iter().enumerate().filter(|&(o, _)| o != r) {
             for (g, _) in &other.a {
                 if g.a_locus == g0.a_locus && g.b_locus == g0.b_locus && g.branch == g0.branch {
                     return Err(desync(
-                        "a one-site record on a wrap edge shares its loop with another record",
+                        "a one-site record shares its loop with another record",
                     ));
                 }
             }
@@ -966,29 +982,73 @@ fn wrap_site_segments<T: Decide>(
         out.push(SectionSegment {
             ends: [(r, 0), (r, 1)],
             germ: g0,
-            lane: SegmentLane::Section,
+            lane: SegmentLane::of(&g0),
         });
     }
     Ok(out)
 }
 
-/// What a null half's site is in its germ's face ([`site_cell`]).
+/// **Whether a one-site record's loop closes at its site**
+/// ([`one_site_segments`]), read from what the site is in the germ's cell
+/// on each operand ([`site_cell`]): a wrap edge against a pierce of a
+/// planar face, or a closed edge against a pierce of a face
+/// [`RimSide::of`] sides or against another closed edge. A pierce is
+/// joined in its face as a ring of its own
+/// ([`crate::chord_join::ChordJoiner`]'s lone ring), on the face's
+/// [`RimSide`]; the transverse section's conic is the wall's, not a
+/// plane section, so only a planar face takes it.
+fn closes_at_its_site<T: Decide>(
+    red: &BooleanReduction<T>,
+    g0: &HalfGerm<T>,
+    b_he: HalfEdgeKey,
+) -> Result<bool, BooleanError> {
+    let rim =
+        |body: &Body<T>, f: FaceKey| Ok::<_, BooleanError>(RimSide::of(face_surface(body, f)?.1));
+    Ok(
+        match (
+            site_cell(&red.a, g0.a_locus, g0.he)?,
+            site_cell(&red.b, g0.b_locus, b_he)?,
+        ) {
+            (SiteCell::Wrap, SiteCell::Pierce(f)) => rim(&red.b, f)? == Some(RimSide::Plane),
+            (SiteCell::Pierce(f), SiteCell::Wrap) => rim(&red.a, f)? == Some(RimSide::Plane),
+            (SiteCell::Closed, SiteCell::Pierce(f)) => rim(&red.b, f)?.is_some(),
+            (SiteCell::Pierce(f), SiteCell::Closed) => rim(&red.a, f)?.is_some(),
+            (SiteCell::Closed, SiteCell::Closed) => true,
+            _ => false,
+        },
+    )
+}
+
+/// What a null half's site is in its germ's cell on one operand
+/// ([`site_cell`]).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SiteCell {
-    /// Every real edge there is a piece of the face's wrap edge.
+    /// Inside a face, every real edge there a piece of the face's wrap
+    /// edge.
     Wrap,
-    /// No real edge reaches it: a pierce of the face's interior.
-    Pierce,
-    /// A real edge there bounds another face.
+    /// Inside this face, no real edge reaching it: a pierce of the face's
+    /// interior.
+    Pierce(FaceKey),
+    /// Along an edge: a closed one, both of whose ends are the site
+    /// ([`site_cell`]).
+    Closed,
+    /// Inside a face, a real edge there bounding another face.
     Other,
 }
 
-/// [`SiteCell`] of the site of null half `he` in `face`.
+/// [`SiteCell`] of the site of null half `he`, its germ's cell `locus`.
+/// A one-site record's two germs both run along an `OnEdge` locus from
+/// the one site, one each way, and an edge leaves each of its ends one
+/// way only, so that edge's two ends are both the site: it is closed
+/// there.
 fn site_cell<T: Decide>(
     body: &Body<T>,
-    face: FaceKey,
+    locus: super::Locus,
     he: HalfEdgeKey,
 ) -> Result<SiteCell, BooleanError> {
+    let super::Locus::InFace(face) = locus else {
+        return Ok(SiteCell::Closed);
+    };
     let desync = |what| BooleanError::JoinDesync { what };
     let start = body
         .get_half_edge(he)
@@ -999,7 +1059,7 @@ fn site_cell<T: Decide>(
         .ok_or(desync("germ half no longer resolves"))?;
     let site =
         crate::chord_join::null_site(body, &[start, end]).map_err(super::sectors::stale_site)?;
-    let mut cell = SiteCell::Pierce;
+    let mut cell = SiteCell::Pierce(face);
     for v in site {
         for k in body.edges_of_vertex_linked(v) {
             let e = body
@@ -1073,7 +1133,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    place_nodes_of_germs(red, (a_pristine, b_pristine), band)?;
+    crossing_germs_have_their_reading(red, (a_pristine, b_pristine), band)?;
     let segments = join_segments(red, band)?;
     let pairs = segments
         .iter()
@@ -1676,27 +1736,27 @@ fn bisector_planes<T: Decide>(
     Ok(planes)
 }
 
-/// **Where the nodes of every germ's cylinder pair lie**, read before
-/// any matching: each germ inside a face of each operand on a cylinder
-/// pair whose section is the two bisector-plane ellipses (its branch is
-/// one of them) has its face pair's nodes placed ([`place_nodes`]),
-/// once per face pair. A node outside either face leaves the pair's
-/// section two disjoint arcs there, which the bisector lane joins. A
-/// node in both faces is a crossing of the section inside the pair:
-/// along an arc through it each wall's sector changes side of the other
-/// solid, so no two germs bound it, and the node itself is not built.
-fn place_nodes_of_germs<T: Decide>(
+/// **Every germ that rides an ellipse of an equal cylinder pair finds
+/// the pair read so on the operands**: the reading its coincidence rows
+/// are recorded from (`glue::frame_rows`) and its nodes are minted from
+/// (`node::mint_nodes`), [`crossing_cylinder_reading`] on the unmutated
+/// operands' faces. The germ's branch was decided where the germ was
+/// minted, on the working bodies; a pair that reading finds crossing
+/// and this one does not would build without its rows or its nodes.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] for such a pair; the reading's own
+/// refusals.
+fn crossing_germs_have_their_reading<T: Decide>(
     red: &BooleanReduction<T>,
     pristine: (&Body<T>, &Body<T>),
     band: Band,
 ) -> Result<(), BooleanError> {
     let wall = |body: &Body<T>, f: FaceKey| {
-        matches!(
-            face_surface(body, f).map(|(_, s)| s),
-            Ok(geom::Surface::Cylinder { .. })
-        )
+        face_surface(body, f).is_ok_and(|(_, s)| super::node::is_wall(s))
     };
-    let mut placed = std::collections::BTreeSet::new();
+    let mut read = std::collections::BTreeSet::new();
     for germ in red.null_edges_of(Operand::A).flat_map(|r| r.germs) {
         let (super::Locus::InFace(fa), super::Locus::InFace(fb)) = (germ.a_locus, germ.b_locus)
         else {
@@ -1705,65 +1765,14 @@ fn place_nodes_of_germs<T: Decide>(
         if germ.branch == super::Branch::Only
             || !wall(&red.a, fa)
             || !wall(&red.b, fb)
-            || !placed.insert((fa, fb))
+            || !read.insert((fa, fb))
         {
             continue;
         }
-        place_nodes(pristine, (fa, fb), band)?;
-    }
-    Ok(())
-}
-
-/// **Where an equal cylinder pair's nodes lie in its two faces**: the
-/// section table's nodes `p ± r·n̂`, `p` the axes' meeting point read
-/// between the axes' feet across the pair's reach and `n̂ = unit(â₁ ×
-/// â₂)`, where the two bisector-plane ellipses cross
-/// ([`crossing_cylinder_section`]), placed in A's face `fa` and B's face
-/// `fb` of the unmutated operands by the containment door
-/// ([`super::contain::curved_face_placement`]), margined there. A node
-/// definitely outside either face is no point of the pair's section.
-///
-/// # Errors
-///
-/// [`BooleanError::GermFrameCylinderPinch`] where a node is not
-/// definitely outside one of the faces: inside both, on an edge of
-/// either, or where the door has no verdict. The door's own refusals
-/// as [`BooleanError::Containment`]; a node read off a carrier it lies
-/// on by construction, or a pair whose own reading (the one its
-/// coincidence rows are recorded from) is no crossing pair, as a
-/// desync.
-fn place_nodes<T: Decide>(
-    (a, b): (&Body<T>, &Body<T>),
-    (fa, fb): (FaceKey, FaceKey),
-    band: Band,
-) -> Result<(), BooleanError> {
-    use super::contain::{CurvedPlacement, curved_face_placement};
-    let desync = |what| BooleanError::JoinDesync { what };
-    // The same reading the pair's coincidence rows are recorded from
-    // (`glue::frame_rows`): a germ that decided the pair crossing where
-    // that reading does not would leave the build without its rows.
-    let section = crossing_cylinder_section((a, fa), (b, fb), band).ok_or(desync(
-        "a germ rides an equal cylinder pair's ellipse where the pair's own reading finds none",
-    ))?;
-    for node in section.nodes {
-        let mut outside = false;
-        for (operand, body, face) in [(Operand::A, a, fa), (Operand::B, b, fb)] {
-            match curved_face_placement(body, face, node, band)
-                .map_err(|e| super::reduce::esc(e, operand, face))?
-            {
-                CurvedPlacement::Trim(Some(super::FaceContainment::Out)) => outside = true,
-                CurvedPlacement::Trim(_) => {}
-                CurvedPlacement::OffCarrier => {
-                    return Err(desync(
-                        "a node of an equal cylinder pair reads off a wall it lies on",
-                    ));
-                }
-            }
-        }
-        if !outside {
-            return Err(BooleanError::GermFrameCylinderPinch {
-                a_face: fa,
-                b_face: fb,
+        if crossing_cylinder_reading((pristine.0, fa), (pristine.1, fb), band)?.is_none() {
+            return Err(BooleanError::JoinDesync {
+                what: "a germ rides an equal cylinder pair's ellipse where the pair's own \
+                       reading finds none",
             });
         }
     }
@@ -3130,9 +3139,9 @@ impl<T: Decide> SectionLoops<T> {
 /// # Errors
 ///
 /// The section's own refusals ([`frame_refusal`]), the split's
-/// escalation and desync, and [`BooleanError::GermFrameCylinderPinch`]
-/// for a germ on a node of the cylinder pair's section, where the two
-/// ellipses cross.
+/// escalation and desync, and [`BooleanError::NodeUnbuilt`] for a germ
+/// on a node of the cylinder pair's section, where the two ellipses
+/// cross: an operand's edge through the node.
 pub(super) fn germ_branch<T: Decide>(
     (body_a, face_a): (&Body<T>, FaceKey),
     (body_b, face_b): (&Body<T>, FaceKey),
@@ -3158,9 +3167,10 @@ pub(super) fn germ_branch<T: Decide>(
     };
     loops
         .branch_at(site, band)?
-        .ok_or(BooleanError::GermFrameCylinderPinch {
+        .ok_or(BooleanError::NodeUnbuilt {
             a_face: face_a,
             b_face: face_b,
+            why: super::NodeWhy::GermOnNode,
         })
 }
 
@@ -3689,28 +3699,35 @@ fn pt_germ_frame<T: Decide>(
 const PT_TOUCHING_UNDER_A_GERM: &str = "bool_join_torus_section_touching_under_a_germ";
 
 /// **An equal cylinder pair with meeting axes, as its section table
-/// classifies it**: the two Zero margins it is decided from and the
-/// nodes where its two ellipses cross
-/// ([`geom_brep::EqualCylinderSection::TwoEllipses`]).
+/// classifies it**: the two Zero margins its two bisector-plane
+/// ellipses are decided from and the nodes where they cross
+/// ([`geom_brep::EqualCylinderSection::TwoEllipses`]), with the two
+/// walls' axes, A's first.
 pub(super) struct CrossingSection<T: geom_core::Real> {
     pub(super) margins: [geom_core::MarginDiag; 2],
     pub(super) nodes: [Point3<T>; 2],
+    pub(super) axes: [Vec3<T>; 2],
 }
 
 /// **The face pair `(face_a, face_b)` as an equal cylinder pair with
 /// meeting axes** ([`CrossingSection`]), read as the join reads it
-/// ([`frame_lever`], [`cylinder_pair_axes`]). `None` for any other pair
-/// or pose, and where a reading refuses: the join raises those refusals
-/// itself, at the germ that reads the pair.
-pub(super) fn crossing_cylinder_section<T: Decide>(
+/// ([`frame_lever`], [`cylinder_pair_axes`]). `Ok(None)` for any other
+/// pair or pose: other kinds, parallel axes, unequal radii or skew axes,
+/// each decided.
+///
+/// # Errors
+///
+/// A reading the pair cannot decide: the parallelism, coplanarity or
+/// radius margin in band ([`frame_refusal`]), or the reading's desync.
+pub(super) fn crossing_cylinder_reading<T: Decide>(
     (body_a, face_a): (&Body<T>, FaceKey),
     (body_b, face_b): (&Body<T>, FaceKey),
     band: Band,
-) -> Option<CrossingSection<T>> {
-    fn surf<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Option<&geom::Surface<T>> {
-        face_surface(body, f).ok().map(|(_, s)| s)
-    }
-    let (sa, sb) = (surf(body_a, face_a)?, surf(body_b, face_b)?);
+) -> Result<Option<CrossingSection<T>>, BooleanError> {
+    let (Ok((_, sa)), Ok((_, sb))) = (face_surface(body_a, face_a), face_surface(body_b, face_b))
+    else {
+        return Ok(None);
+    };
     let (
         &geom::Surface::Cylinder {
             origin: o1,
@@ -3726,20 +3743,75 @@ pub(super) fn crossing_cylinder_section<T: Decide>(
         },
     ) = (sa, sb)
     else {
-        return None;
+        return Ok(None);
     };
-    let (at, extent) = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band).ok()?;
-    let CylinderAxes::Apart(reach) =
-        cylinder_pair_axes((o1, a1), (o2, a2), (r1, r2), at, extent, band).ok()?
-    else {
-        return None;
+    let refused = |e| frame_refusal(e, (face_a, sa), (face_b, sb));
+    let (at, extent) = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
+    let reach = match cylinder_pair_axes((o1, a1), (o2, a2), (r1, r2), at, extent, band) {
+        Ok(CylinderAxes::Apart(reach)) => reach,
+        Ok(CylinderAxes::Parallel) => return Ok(None),
+        Err(e) => return Err(refused(e)),
     };
     match geom_brep::cylinder_cylinder_section(sa, sb, &reach, band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { margins, nodes, .. }) => {
-            Some(CrossingSection { margins, nodes })
+            Ok(Some(CrossingSection {
+                margins,
+                nodes,
+                axes: [a1, a2],
+            }))
         }
-        _ => None,
+        Err(
+            e @ (geom_brep::SectionError::Escalated(_)
+            | geom_brep::SectionError::Carrier(
+                geom::EllipseInvalid::Escalated(_) | geom::EllipseInvalid::CircularAxes(_),
+            )),
+        ) => Err(refused(section_refusal(e))),
+        Err(geom_brep::SectionError::RadiusEscalated { radius, diag }) => {
+            Err(refused(FrameError::Escalated {
+                decision: BooleanDecision::Radius(radius),
+                diag,
+            }))
+        }
+        // Decided: not the crossing family. The parallel-axes loci (the
+        // table's own parallelism reading the other way on this margin),
+        // unequal radii, skew axes, and a radius or minor semi-axis
+        // decided not positive.
+        Ok(
+            geom_brep::EqualCylinderSection::ParallelLines { .. }
+            | geom_brep::EqualCylinderSection::TangentLine(_)
+            | geom_brep::EqualCylinderSection::Empty,
+        )
+        | Err(
+            geom_brep::SectionError::UnequalRadii
+            | geom_brep::SectionError::RoutesToGeneralRung { .. }
+            | geom_brep::SectionError::DegenerateOperand { .. }
+            | geom_brep::SectionError::Carrier(geom::EllipseInvalid::MinorNotPositive),
+        ) => Ok(None),
+        // Refusals two cylinders read apart cannot raise: the kinds
+        // were matched above, the coaxial pose answered parallel, no
+        // torus question is asked, and no extent is handed to this pair.
+        Err(
+            geom_brep::SectionError::WrongLane { .. }
+            | geom_brep::SectionError::BeyondOperandExtent { .. }
+            | geom_brep::SectionError::CoincidentSurfaces
+            | geom_brep::SectionError::DegenerateTorus
+            | geom_brep::SectionError::Spiric(_),
+        ) => Err(BooleanError::JoinDesync {
+            what: "two cylinder walls read apart refused as no cylinder pair can",
+        }),
     }
+}
+
+/// [`crossing_cylinder_reading`], a refused reading taken as no crossing
+/// pair: for the coincidence rows (`glue::frame_rows`), which record no
+/// row where a reading refuses, a later decision refusing where the
+/// faces meet (the node's mint, [`crossing_germs_have_their_reading`]).
+pub(super) fn crossing_cylinder_section<T: Decide>(
+    a: (&Body<T>, FaceKey),
+    b: (&Body<T>, FaceKey),
+    band: Band,
+) -> Option<CrossingSection<T>> {
+    crossing_cylinder_reading(a, b, band).ok().flatten()
 }
 
 /// **The two coincidences an equal cylinder pair with meeting axes is
@@ -4094,7 +4166,7 @@ type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 /// so the (record, slot) partner relation is computed once (A-clone
 /// points — coincident copies) and translated per solid. A one-site
 /// loop's two halves, which [`partners`] never pairs (they are one
-/// record's), are each other's: its segment ([`wrap_site_segments`])
+/// record's), are each other's: its segment ([`one_site_segments`])
 /// runs from one round the loop to the other. A loose half with no
 /// partner maps to `None` (conservatively separated wherever captured).
 fn loose_partners<T: Decide>(
@@ -6055,7 +6127,7 @@ mod frame_dispatch_tests {
             // node: the walls touch at one azimuth, so neither the
             // coaxial frame nor the transverse one exists. `NoArm` is
             // the routing, not a frontier: the general rung marches
-            // this pair. The pinch
+            // this pair. The nodes
             // variant stays unreachable — pinned exactly.
             (cylinder(Vec3::new(0.0, 0.0, 1.0)), node_sphere(), false),
             (node_sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
@@ -6076,7 +6148,7 @@ mod frame_dispatch_tests {
                 assert!(
                     matches!(got, Err(FrameError::NoArm)),
                     "a non-cylinder pair with no arm must refuse with NoArm exactly — \
-                     the pinch variant is not reachable for these kinds"
+                     the nodes variant is not reachable for these kinds"
                 );
             }
         }
@@ -6235,7 +6307,7 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// **The pinch is a property of the whole intersecting
+    /// **The nodes are a property of the whole intersecting
     /// equal-radius family, not of the perpendicular pose.** The two
     /// bisector planes' common line runs through the axes' meeting
     /// point along `â₁ × â₂` and is perpendicular to both axes, so it
@@ -6246,9 +6318,9 @@ mod frame_dispatch_tests {
     /// therefore lie on BOTH section ellipses, at every angle between
     /// the axes. This row reads them straight out of the section
     /// table, which is where the claim in
-    /// [`BooleanError::GermFrameCylinderPinch`]'s doc is checkable.
+    /// the section table's `nodes` doc is checkable.
     #[test]
-    fn the_equal_radius_section_always_crosses_at_two_pinch_points() {
+    fn the_equal_radius_section_always_crosses_at_two_nodes() {
         use geom_brep::{EqualCylinderSection, cylinder_cylinder_section};
         let p = Point3::new(0.3, -0.2, 0.7);
         let a1 = Vec3::new(0.0, 0.0, 1.0);
@@ -6305,7 +6377,7 @@ mod frame_dispatch_tests {
                     let d = (e.eval(t) - pinch).norm();
                     assert!(
                         d < 1e-12,
-                        "{deg}°, {name}, sign {sign}: the pinch point is {d} off the ellipse"
+                        "{deg}°, {name}, sign {sign}: the node is {d} off the ellipse"
                     );
                 }
             }
@@ -6506,7 +6578,7 @@ mod frame_dispatch_tests {
     /// frame this dispatch returns or about either circle's OWN centre.
     /// That invariance is what makes a single frame correct here and is
     /// exactly what a crossing cylinder pair lacks — its two ellipses
-    /// have two different axes, which is why the pinch door exists
+    /// have two different axes, which is why the nodes variant exists
     /// there and nothing like it is needed here.
     #[test]
     fn one_frame_serves_both_coaxial_cylinder_sphere_circles() {
@@ -7642,6 +7714,60 @@ mod first_pair_rows {
             Some(true),
             "the escalating round is all mutual and straight, so the K gate is what reads it"
         );
+    }
+}
+
+/// **The Boolean's own decision for a join's reading of a section end**
+/// ([`of_join`]): a vertex on the plane at the band's edge is an edge of
+/// the result on its faces; the plane read square, and a carrier that
+/// cannot resolve its end, stay the join's refusal.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod of_join_rows {
+    use super::*;
+    use crate::chord_join::SectionEndReading;
+    use geom_core::{Indeterminate, MarginDiag};
+
+    fn diag() -> Indeterminate {
+        Indeterminate {
+            margin: MarginDiag::value(1.2e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("carrier_endpoint_end"),
+            terminal_sliver: false,
+        }
+    }
+
+    #[test]
+    fn only_an_end_on_the_plane_is_the_booleans_edge_on_faces() {
+        let face = FaceKey::default();
+        let end = |reading| SplitJoinError::SectionEndEscalated {
+            face,
+            reading,
+            diag: diag(),
+        };
+        assert!(matches!(
+            of_join(end(SectionEndReading::OnPlane)),
+            BooleanError::Escalated {
+                decision: BooleanDecision::EdgeOnFaces,
+                diag: d,
+            } if d == diag()
+        ));
+        let joins = |refusal: SplitJoinError| {
+            let kept = format!("{refusal:?}");
+            match of_join(refusal) {
+                BooleanError::Join(j) => format!("{:?}", j.error()) == kept,
+                _ => false,
+            }
+        };
+        assert!(joins(end(SectionEndReading::SquareToAxis)));
+        assert!(joins(SplitJoinError::SectionUnresolved {
+            face,
+            miss: crate::chord_join::SectionPinMiss::Undecided {
+                check: geom_brep::CertCheck::EndpointEnd,
+                diag: diag(),
+                resolution: MarginDiag::value(2e-9),
+            },
+        }));
     }
 }
 
