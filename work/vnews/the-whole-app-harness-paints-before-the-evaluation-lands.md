@@ -98,12 +98,15 @@ for the picture on screen is answered (`index_answered`).
 delegates to it, and so do the rest of the whole-app helpers:
 - `painted_with` (through `Driven::quiet`), `painted_with_tool` and
   `painted_adding_a_profile`;
-- the `Driven` harness's `quiet`, `each`, `landed` and `click`;
+- the `Driven` harness's `quiet`, `each`, `landed` and `settle`, and
+  the helpers built on them;
 - the `index_seam_tests` row.
 
 `Driven::with` and `a_face_of_the_body` still draw one frame, because
 `a_hover_diff_waits_for_a_run_that_lands_between_its_frames` reads the
-state after exactly that frame.
+state after exactly that frame. `Driven::click` does not wait either:
+the `gated` rows hold a run open on purpose and click through it, so
+a row that needs the picture settled settles first.
 
 Two rows wait on something else, and their docs say why:
 - The `index_seam_tests` row waits for `Some(Progress::Indexing)`,
