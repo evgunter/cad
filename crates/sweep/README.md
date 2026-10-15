@@ -35,15 +35,19 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
 | In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams) | `crates/sweep/src/blend/surgery.rs` |
 | Predicate 2's reach: every band against every face of the body that is not a support of its chain, in any shell, before any mutation | `crates/sweep/src/blend/reach.rs` |
-| The carve that takes a feature wholly inside a convex straight band's material: the grouping into features, and the walk that removes one | `crates/sweep/src/blend/consume.rs` |
+| The carve that takes a feature wholly inside a straight band's material, removed or filled: the grouping into features, and the walk that removes one | `crates/sweep/src/blend/consume.rs` |
 | The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
 
 ## The band's reach (predicate 2)
 
 A band changes the material between its supports and its blend surface:
-a convex band removes it, a concave one adds it. Predicate 2 meters that
-region — the band's REACH — against every face of the body that is not
+a convex band removes it, a concave one adds it. The blend's result is
+that change as a Boolean (C8): `S − R` under a convex band and `S ∪ F`
+under a concave one, the region read from the supports' carriers and
+the band's ends, so a feature in or across the region has the result
+set algebra gives it whether or not the surgery builds it. Predicate 2
+meters that region — the band's REACH — against every face of the body that is not
 a support of the chain, in any shell, and reads each face as clear of
 it, wholly inside it, or crossing it. A feature wholly inside the reach
 goes with that material, as a feature wholly inside a Boolean's tool goes
@@ -51,14 +55,55 @@ with the tool: the carve that consumes it takes its faces, edges and
 rings, and the verdict is logged in the blend node's verdict log (under
 `fillet3_face_clearance` and `fillet3_ring_clearance`), so that a later
 reader of one of its names resolves `Vanished` with the blend's verdict
-as the cause (`PredicateFlip`). The carve is built at a convex
-straight band's cut-off: the ruled fillet's, and the plane–plane
-fillet's and chamfer's (below). A request whose inside readings lie
-anywhere else — a void or an island with no cap cycle, a hole whose
-mouth a concave fill covers — refuses: `BlendError::WhollyInside`, or a
-bound where the feature's wall meets the end face's plane. A face crossing the
-reach would need the band trimmed by it, which the surgery has no step
-for, and refuses. The supports' own
+as the cause (`PredicateFlip`). The carve is built at a straight
+band's cut-off: the ruled fillet's, and the plane–plane fillet's and
+chamfer's (below), a through-bore under a convex band and a bar
+between the end walls under a concave one; and on the plane–plane band
+a cup on one end face, a blind bore under a convex band and a pin under
+a concave one
+(`band_one_cycle_members::a_blind_bore_and_a_pin_go_with_the_band_at_every_scale`).
+Every other inside case refuses as one the rule defines and the surgery
+does not build, at the meter that reads it: a void or an island with
+no cap cycle `BlendError::WhollyInside`; a cup on the ruled band, whose
+far faces have no exact core to be read in
+(`band_one_cycle_members::a_pin_inside_a_concave_ruled_creases_fill_refuses_as_a_bound`),
+or a hole whose mouth a concave fill covers, a bound where its wall
+meets the end face's plane; and a blind hole entering from a support
+face, a boundary feature of the support, at the clearance screen
+(`FaceClearanceUncertified`), its ring nearer the edge than the band
+sets back
+(`blend_recourse_followability::a_blind_hole_from_the_support_face_inside_the_region_refuses_at_the_screen`).
+
+A face crossing the reach refuses as an unbuilt case too: building it
+needs the band face cut against the faces that cross it, which the
+surgery has no step for, and most of those surface pairs are outside
+the Boolean's intersection table. Such a feature meets the clearance
+screen (`FaceClearanceUncertified`), the reach (`FaceClearance`) or a
+ring meter (`RingClearance`), and those recourses
+(`FILLET3_CLEARANCE_RECOURSE`, `FILLET3_RING_RECOURSE`) name the
+reorder beside a smaller blend and moving the feature clear: a feature
+that came after the edge is applied after the blend instead, so
+`fillet(subtract(body, hole))` becomes `subtract(fillet(body), hole)`.
+The blend's edges are then re-picked on the earlier body, since a
+selection written on the feature's output names the feature's node
+(`From { read, of }`, N1 in `crates/editor-core/src/names/README.md`)
+and does not resolve upstream. Where the feature did not split the
+edge, the reorder gives the same body for a feature of the band's own
+sign (a hole under a convex band, a protrusion under a fill), set
+difference and union each commuting with themselves, and the other
+body for the opposite sign. An edge the feature split re-picks as its
+whole parent edge, so the band runs the whole edge rather than the
+piece picked, and the reorder is a different request. A feature born
+with the edge (a hole in an extruded profile) has no reorder, and the
+sentence's condition says so. The reordered request builds where the
+Boolean serves the band against the feature, a chamfer's plane strip
+against a bore and either band against a bore parallel to its edge
+(`blend_recourse_followability::the_ring_recourses_reorder_leg_builds_on_a_parallel_bore`),
+and refuses at the Boolean where it does not yet, a fillet's cylinder
+against a skew bore
+(`blend_recourse_followability::the_reorder_leg_builds_where_the_boolean_serves_the_band`).
+
+The supports' own
 boundary features are judged first, by the battery's screen and the
 surgery's exact ring and boundary meters; the reach runs after them,
 before any mutation. A face not certified clear is read against each
@@ -77,30 +122,41 @@ every face and end-face cycle not clear is read wholly inside refuses
 refusal is the same in every read order). The cell walk never reads
 inside a face that touches the region's boundary, so on an exact core a
 through-feature's wall, which meets the window's end plane, reads as a
-bound whatever its rings read at the cap. A convex straight band's
-reach reads such a wall through its caps instead: the ruled band's
+bound whatever its rings read at the cap. A straight band's
+reach reads such a wall through its boundary instead: the ruled band's
 always, and the plane–plane band's for a wall its exact core read as a
 bound (that boundary reading runs first, so a wall with a point in
-kept material still refuses as a crossing). A face on a surface ruled
-near the spine (a cylinder's axis, a plane's direction nearest it),
-every edge of which is an edge of a cap cycle read inside the sliver or
-a line between two of their vertices, lies inside the prism the band
-removes when the cycles' least depth, projected along the spine,
-exceeds how far the face's rulings and lines stray from the spine over
-its extent (`reach::prism_inside`). Where the caps' slivers are read
-as a chord end's exact triangle (the chamfer's) the section is convex
-and the reading owes no such slack: every point of such a face is a
-convex combination of points at least the least depth inside, and the
-distance from a convex region's boundary is concave inside it, so the
-least depth is the reading. The prism's slice in a cap's plane
-is the sliver the cap meter reads, so the two readings agree on what
-dies by construction. A request whose verdict is then inside groups the
-faces read inside into features, joined by the edges they share, and
-the carve takes each whole or refuses `WhollyInside`
-(`blend/consume.rs`). What it takes is a through-feature between the
-band's two caps: an annulus of faces, each bounded by one cycle, whose
-edges join each other or one cycle read inside on each cap. A blind
-feature, whose floor is neither, refuses as a bound. The faces, edges
+kept material still refuses as a crossing). Each edge of the face is
+certified inside the prism the band removes or fills one of three
+ways: an edge of a cap cycle read inside the sliver, its depth
+projected along the spine; an edge read inside the band's exact core
+piece by piece, each piece of a line, circle or ellipse inside the box
+its carrier's speed bounds it to (a plane–plane band's only, the ruled
+band's bounds enclosing its material rather than being it); or a line
+between two vertices so certified, which strays from the spine by its
+run times its tilt. A face on a plane not parallel to the spine
+projects one-to-one onto the section's plane, onto the region its
+boundary encloses there, and the section is simply connected, so the
+face lies inside at its boundary's least depth less the lines' stray;
+a face on any other surface ruled near the spine (a cylinder's axis, a
+plane's direction nearest it) lies inside when that depth also exceeds
+how far its rulings stray over its extent (`reach::prism_inside`).
+Where the caps' slivers are read as a chord end's exact triangle (the
+chamfer's) the section is convex and the reading owes no slack: every
+point of such a face is a convex combination of points at least the
+least depth inside, and the distance from a convex region's boundary
+is concave inside it, so the least depth is the reading. The prism's
+slice in a cap's plane is the sliver the cap meter reads, so the two
+readings agree on what dies by construction. A face the cell walk
+reads inside a straight band's exact core lies in its prism too. A
+request whose verdict is then inside groups the faces read inside into
+features, joined by the edges they share, and the carve takes each
+whole or refuses `WhollyInside` (`blend/consume.rs`). What it takes is
+a through-feature between one band's two caps, an annulus of faces
+(`V − E + F − R = 0`, `R` their rings), or a cup on one cap, a disk
+(`V − E + F − R = 1`), each face read inside that band's material and
+joined only to the others or to the cycles read inside on the caps; a
+face's rings are bridged to its outer cycle first. The faces, edges
 and vertices it takes are recorded as retired (`BlendNaming::dead`).
 
 Each reach is an intersection of 1-Lipschitz bounds: per link, the
@@ -371,7 +427,24 @@ across the near band, the quadrilateral it cuts off (the triangle and
 the overrun) folded into the far one. A
 convex cut-off takes a through-feature wholly inside the material it
 removes, between its two end faces, as the ruled cut-off does
-(predicate 2, above, and the ruled cut-off, below), under both verbs.
+(predicate 2, above, and the ruled cut-off, below), under both verbs,
+and a concave cut-off between two end walls absorbs a bar between
+them wholly inside the material it fills, its cycles buried with the
+walls' slivers, at `ΔV = +(A − A_bar)·L`
+(`band_concave_bar::a_bar_inside_a_concave_bands_fill_is_absorbed_at_every_lean`).
+A cup on one end face goes the same way: a blind bore at
+`ΔV = −(A·L − V_bore)`, a pin at `ΔV = +(A·L − V_pin)`, an undercut or
+a headed pin whose head stands off the end face included
+(`band_one_cycle_members`). A cup's face that meets the end face is
+read through the mouth: a plane or a cylinder (a countersunk, conical
+mouth refuses as a bound), charged under the fillet its lines' slack
+and, ruled, its box's diagonal times its lean off the spine, so a cup
+leaning more than its depth pays refuses as a bound
+(`band_one_cycle_members::a_leaning_blind_bore_goes_where_its_lean_is_paid`).
+A cup with a handle, or one feature with two mouths on one cap,
+refuses `WhollyInside`: the carve takes a disk on one cap or an
+annulus between two
+(`band_one_cycle_members::a_cup_with_a_handle_and_a_u_tube_refuse_wholly_inside`).
 The fillet's sliver is the ruled cut-off's, between the arc and the
 old vertex; the chamfer's is the triangle of the old vertex and the
 two feet, and a cycle lies inside it when each of its edges stays
@@ -381,8 +454,19 @@ outside it). A bore or a square slot along the edge whose rings lie
 inside each end face's sliver goes at `ΔV = −(A − A_feature)·L`, at a
 perpendicular end face and at oblique ones, and its wall's name
 resolves `Vanished` on the blend's clearance flip after a size edit
-puts it inside (`crates/sweep/tests/band_planar_consume.rs`,
-`editor-core` `edit_planar_carve`).
+puts it inside
+(`band_planar_consume::a_bore_inside_the_planar_bands_sliver_goes_with_it_at_every_lean`,
+`edit_planar_carve::a_bore_a_size_edit_puts_inside_a_planar_sliver_vanishes_on_the_blends_verdict`).
+A feature through a turn's overrun is not taken: the overrun's sliver is read through the far band's
+triangle, a bound larger than the overrun, so its wall refuses as a
+bound
+(`band_turn_overrun_chamfer::a_slot_through_the_overrun_is_never_consumed`).
+Nor is a void inside the union of a mitre's two bands: "wholly inside"
+is read band by band, against each band's uncut prism rather than its
+mitre-cut region, so a void inside both prisms refuses `WhollyInside`
+(`band_planar_mitre::a_void_straddling_the_mitre_inside_both_prisms_refuses_wholly_inside`)
+and one inside only their union crosses each and refuses as a crossing
+(`band_planar_mitre::an_l_void_inside_only_a_mitres_union_refuses_as_a_crossing`).
 
 The battery's other Zero verdicts are coincidences decided from values
 too, and record the same way: a junction chain G1 reads tangent is a
@@ -465,10 +549,12 @@ the band's tangent contact with a curved support, the arcs as its
 transverse intersection with the cap, on either material side. On
 either side the cap loses the sliver between the arc and the old
 vertex, cut away on the convex side and covered by the fill on the
-concave side; on the convex side a through-feature between the two
-caps, wholly inside the material the band removes, goes with it, its
-cycles leaving the caps and its faces the body (predicate 2, above; a
-blind bore refuses), and every other edge of the cap stays where it
+concave side; a through-feature between the two caps, wholly inside
+the material the band removes or fills (a bore on the convex side, a
+bar between end walls on the concave side), goes with it, its cycles
+leaving the caps and its faces the body (predicate 2, above; a blind
+bore or a pin, whose far faces the ruled band has no exact core to read
+in, refuses as a bound), and every other edge of the cap stays where it
 was — the edges of its other cycles (a bore's ring, or the outer cycle
 where the cut runs in a ring) and those of the cut cycle other than
 the two rims it shortens (a notch in the outline). Each is metered

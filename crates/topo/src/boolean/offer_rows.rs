@@ -239,6 +239,29 @@ cases! {
     // one a smaller tolerance clears.
     thin_wedge_in_band_over_its_faces: "Coincidence(Sectors)", 2e-9 * sin_deg(5.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 5.0, 2e-9);
+    // Tilted inside the zero band at its arm, so the corner reads the
+    // pair one plane, and in band over the two faces at the glue door:
+    // at every opening the bounds' margin is the one a smaller tolerance
+    // clears, not the glue door's and not the corner's offset.
+    flat_wedge_at_2_degrees: "Coincidence(Sectors)", Z * sin_deg(2.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Union, 2.0, Z);
+    flat_wedge_at_5_degrees: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Union, 5.0, Z);
+    flat_wedge_at_20_degrees: "Coincidence(Sectors)", Z * sin_deg(20.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Union, 20.0, Z);
+    flat_wedge_at_60_degrees: "Coincidence(Sectors)", Z * sin_deg(60.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Union, 60.0, Z);
+    flat_wedge_at_90_degrees: "Coincidence(Sectors)", Z * sin_deg(90.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Union, 90.0, Z);
+    flat_wedge_cut_from_a_block: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Subtract, 5.0, Z);
+    flat_wedge_meeting_a_block: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Intersect, 5.0, Z);
+    // Sunk into the block, its re-run meets the crossing insertion.
+    flat_wedge_sunk_at_5_degrees: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+        sunk_wedge_in_a_block(5.0, Z);
+    flat_wedge_sunk_at_20_degrees: "Coincidence(Sectors)", Z * sin_deg(20.0), Public, Valued =>
+        sunk_wedge_in_a_block(20.0, Z);
     // The coincfr4 review's wedges (W1–W4), on its own poses: turned,
     // scaled, hanging from the bottom face, and tilted into the block,
     // each through the three public ops.
@@ -1039,6 +1062,27 @@ fn wedge_on_a_block(
     .map(|_| ())
 }
 
+/// The union of a block and a wedge sunk half its height into the
+/// block's top, cornered on it as [`wedge_on_a_block`]'s.
+fn sunk_wedge_in_a_block(opening_deg: f64, tilt: f64) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let (block, wedge) =
+        crate::test_support_fixtures::wedge_on_a_block_top(opening_deg, tilt, 0.5, 0.5, tol);
+    let (block, wedge) = (
+        finished("the lane's block", block, tol),
+        finished("the lane's sunk wedge", wedge, tol),
+    );
+    super::super::boolean_op_with(
+        super::super::BooleanOp::Union,
+        &block,
+        &wedge,
+        &super::super::BooleanInputs::default(),
+        super::super::SweepStrategy::Realized,
+        tol,
+    )
+    .map(|_| ())
+}
+
 /// The block and the wedge of [`wedge_on_a_block`].
 fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
     let tol = Tol::witness();
@@ -1148,7 +1192,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
 /// flankers' arm `arm`: the membership tie on a curved flank (the
 /// review's probe, undeclared).
 fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
-    use super::super::recl::resolve_edge_edge;
+    use super::super::recl::{Wedge, resolve_edge_edge};
     use super::super::sectors::BoolSector;
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
@@ -1195,16 +1239,18 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
     };
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
+    let (sa, sb) = (corner(fca), corner(fcb));
     resolve_edge_edge(
-        &corner(fca),
-        &corner(fcb),
+        &sa,
+        &sb,
         &ca,
         &cb,
         super::super::BooleanOp::Union,
         &declared,
         band(),
-        0,
-        0,
+        Wedge::at_bound(&sa, 0),
+        Wedge::at_bound(&sb, 0),
+        None,
     )
     .map(|_| ())
 }
@@ -1507,8 +1553,8 @@ fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
     let ellipse = geom::Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let half = D / (2.0 * minor);
@@ -1614,6 +1660,14 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
         band(),
     )
     .map(|_| ())
+    .map_err(|refusal| match refusal {
+        super::super::ops::SeamRefusal::Undecided(reading, diag) => {
+            super::super::ops::seam_refusal(reading, diag)
+        }
+        mixed @ super::super::ops::SeamRefusal::Mixed(_) => {
+            panic!("a resting cylinder reads smooth at every station, got {mixed:?}")
+        }
+    })
 }
 
 /// A re-cut sphere of radius 1 whose polar axis leans off the escape
@@ -1673,6 +1727,7 @@ fn germ_facing(lean: f64) -> Result<(), BooleanError> {
         a_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
         b_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
         dir,
+        branch: super::super::Branch::Only,
     };
     let (p1, p2) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     let g1 = germ(Vec3::new(lean, 1.0, 0.0).normalize());
@@ -1690,7 +1745,7 @@ fn planar_flank_membership(against: bool, rest: bool) -> Result<(), BooleanError
 
 /// [`planar_flank_membership`] at the flankers' arm `arm`.
 fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(), BooleanError> {
-    use super::super::recl::resolve_edge_edge;
+    use super::super::recl::{Wedge, resolve_edge_edge};
     use super::super::sectors::BoolSector;
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
@@ -1730,16 +1785,19 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     };
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
     let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, band())?;
+    let sa = [sector(z, x, fa), sector(x, z, fa)];
+    let sb = [sector(z, flank, fb), sector(flank, z, fb)];
     resolve_edge_edge(
-        &[sector(z, x, fa), sector(x, z, fa)],
-        &[sector(z, flank, fb), sector(flank, z, fb)],
+        &sa,
+        &sb,
         &pa.body,
         &pb.body,
         super::super::BooleanOp::Union,
         &declared,
         band(),
-        0,
-        0,
+        Wedge::at_bound(&sa, 0),
+        Wedge::at_bound(&sb, 0),
+        None,
     )
     .map(|_| ())
 }
@@ -2348,7 +2406,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::InvalidInput
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
-        | BooleanErrorKind::PinchConesOnSeparateKeys
         | BooleanErrorKind::PinchRaysInAFace
         | BooleanErrorKind::CrossingsAlongAContactLine
         | BooleanErrorKind::VertexReadTwice
@@ -2361,11 +2418,12 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermSectionOutsideInventory
         | BooleanErrorKind::GermSectionSpiric
-        | BooleanErrorKind::GermFrameCylinderPinch
+        | BooleanErrorKind::NodeUnbuilt
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::LineageRow
         | BooleanErrorKind::SplitLineage
         | BooleanErrorKind::EdgeUndescribed
+        | BooleanErrorKind::MixedSeam
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted
@@ -2636,9 +2694,21 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "strut_order", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
-    ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
-    ("join.rs", "frame_refusal", "Coincide::Section", 1),
+    (
+        "join.rs",
+        "crossing_cylinder_reading",
+        "BooleanDecision::Radius",
+        1,
+    ),
+    ("join.rs", "cs_pair_frame", "BooleanDecision::Radius", 1),
+    (
+        "join.rs",
+        "cylinder_pair_axes",
+        "BooleanDecision::CylinderAxes",
+        1,
+    ),
     ("join.rs", "join_escalate", "Coincide::Join", 1),
+    ("join.rs", "of_join", "BooleanDecision::EdgeOnFaces", 1),
     ("join.rs", "parallel_radical_plane", "Coincide::Section", 1),
     (
         "join.rs",
@@ -2654,9 +2724,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("join.rs", "rotational_sense", "SelfCheck::ArcFacing", 1),
+    ("join.rs", "section", "BooleanDecision::Coincidence", 1),
+    ("join.rs", "section", "Coincide::Section", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
+    ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
+    ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (
         "mod.rs",
@@ -2725,7 +2799,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
-    ("ops.rs", "escalated", "BooleanDecision::ShellRole", 1),
+    ("ops.rs", "at_rest_refusal", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (
@@ -2765,7 +2839,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
     ("recl.rs", "resolve_edge_sector", "Coincide::TangentSide", 1),
-    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 2),
+    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 1),
     ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
         "reduce.rs",
@@ -2841,7 +2915,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 6),
+    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 3),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
@@ -2860,6 +2934,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
+    ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
+    ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
@@ -2919,12 +2995,18 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "vtxfac.rs",
         "classify_vertex_on_face",
         "Coincide::Sectors",
-        2,
+        1,
     ),
     (
         "vtxfac.rs",
         "classify_vertex_on_face",
         "Coincide::TangentSide",
+        1,
+    ),
+    (
+        "vtxfac.rs",
+        "faces_holding_pierce",
+        "BooleanDecision::PierceCurvature",
         1,
     ),
     ("vtxfac.rs", "faces_holding_pierce", "Coincide::Sectors", 1),
@@ -2935,6 +3017,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
+    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 3),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",

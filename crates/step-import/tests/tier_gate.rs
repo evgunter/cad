@@ -406,13 +406,13 @@ const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// offer's words cannot match.
 const POLEBAND_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
      forward (margin 5.654866773844621e-9 m). Recourse: move the geometry so this \
-     edge is not vanishingly short, or, if this length is intended, tighten the tolerance below \
-     5.654866773844621e-10 m";
+     edge runs forward over a clear length, or, if this length is intended, tighten the tolerance \
+     below 5.654866773844621e-10 m";
 /// [`POLEBAND_ZERO_SPAN_TOLD`], for the frustum twin's shorter span.
 const POLEFRUSTUM_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
      forward (margin 1.799999999166981e-9 m). Recourse: move the geometry so this \
-     edge is not vanishingly short, or, if this length is intended, tighten the tolerance below \
-     1.799999999166981e-10 m";
+     edge runs forward over a clear length, or, if this length is intended, tighten the tolerance \
+     below 1.799999999166981e-10 m";
 /// The ε-relative sibling at every band: its span lies within the
 /// file's ε_in (1e-10 m), so the file cannot tell it from zero, and the
 /// import door ends it in one sentence whether the run's band reads it as
@@ -423,15 +423,15 @@ const POLEFRUSTUM_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not s
 const INTERVAL_ZERO_SPAN_UNTOLD: &str = "the stored parameter interval is not shown to run \
      forward (margin 5.65487109168879e-12 m). This length is within the file's \
      declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it from zero. \
-     Recourse: move the geometry so this edge is not vanishingly short, or, if this length is \
-     intended, re-export the file with its uncertainty declared below 5.65487109168879e-12 m and \
-     tighten the tolerance below 5.65487109168879e-13 m";
+     Recourse: move the geometry so this edge runs forward over a clear length, or, if this length \
+     is intended, re-export the file with its uncertainty declared below 5.65487109168879e-12 m \
+     and tighten the tolerance below 5.65487109168879e-13 m";
 /// [`INTERVAL_ZERO_SPAN_UNTOLD`]'s sentence on the fine band's
 /// escalation of the same span.
 const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). This length is \
      within the file's declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it \
-     from zero. Recourse: move the geometry so this edge is not vanishingly short, or, if this \
-     length is intended, re-export the file with its uncertainty declared below \
+     from zero. Recourse: move the geometry so this edge runs forward over a clear length, or, if \
+     this length is intended, re-export the file with its uncertainty declared below \
      5.65487109168879e-12 m and tighten the tolerance below 5.65487109168879e-13 m";
 /// Their fine-band sub-reason: with the spans certified, adoption
 /// refuses the rim/sphere near-tangency — the second-order arm's own

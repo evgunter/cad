@@ -57,3 +57,23 @@ branch the diagonal adopts through the conventional rung, mints its
 **The wall × wall case stays open**, as above: it needs the edge
 certificate to take a line carrier, or recognition to leave the spline
 alone (`work/exch/d7-promotes-an-off-iso-straight-spline-the-intersection-rung-then-refuses.md`).
+
+## The certificate half of the wall × wall case is closed (2026-10-14)
+
+`pcert/spline-pair-any-carrier` let the NURBS × NURBS edge certificate
+take a line carrier: `geom-brep`'s
+`spline_pair_any_carrier::the_door_certifies_a_closed_form_carrier_on_a_spline_pair`
+certifies an off-iso `Line` between two bilinear spline charts through
+`EdgeCurve::certify_via`.
+
+**Still missing**: a STEP file that reaches it. That branch tried the
+tetrahedron above with its slanted face a non-planar degree 3 × 2 patch
+through the triangle's three lines (`h = c·L_oq·L_oa·L_qa` off the
+plane). The import refused, not at the diagonal but at a plane × patch
+`LINE` (`ao` or `qa`): the uniqueness tube's boundary walk resolved no
+count. The likely cause, not measured: at the triangle's corners two
+of `h`'s factors vanish, so the patch meets the triangle's plane to
+second order there. A fixture whose second wall meets
+its other faces cleanly (its other edges isos of it, say) is what
+remains, and with it the row that the diagonal adopts at the
+`Intersection` rung and mints its `General` row on both walls.

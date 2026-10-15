@@ -19,22 +19,27 @@
 //!
 //! A pair whose one-carrier coincidence does not decide (in band, or
 //! poisoned) is left to the stage that meets it, which refuses it there:
-//! two faces whose carriers do not decide one may never touch.
+//! two faces whose carriers do not decide one may never touch. The door
+//! keeps what it read of each such pair ([`Glue::in_band`]), for a
+//! corner that meets the pair to quote where that reading binds.
 
 use std::borrow::Cow;
 
 use geom_core::{Band, Bounds, Decide};
 
 use super::{
-    BooleanError, CarrierRelation, DeclarationRead, Glue, GluedPair, Operand, PairUnread,
-    TangencyFailure, boxes, carrier_pair_relation, glued_tangency,
+    BooleanError, CarrierRelation, DeclarationRead, DoorReading, Glue, GluedPair, InBandPair,
+    Operand, PairUnread, TangencyFailure, boxes, carrier_pair_relation, glued_tangency,
 };
 use crate::body::Body;
 use crate::contact::GlueClass;
 use crate::entity::FaceKey;
 
 /// `decls` with every undeclared pair the operation decides one carrier
-/// added under its class, in A's face order and B's within each.
+/// added under its class, and every pair it reads in band added to
+/// [`Glue::in_band`] with that reading, each in A's face order and B's
+/// within each. `decls` itself comes back where neither adds anything,
+/// and an owned copy where either does, an in-band pair alone included.
 ///
 /// # Errors
 ///
@@ -50,7 +55,7 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
         return Ok(Cow::Borrowed(decls));
     }
     let declared = |fa, fb| decls.pairs.iter().any(|d| d.a == fa && d.b == fb);
-    let mut found = Vec::new();
+    let (mut found, mut in_band) = (Vec::new(), Vec::new());
     for (fa, fb) in overlapping_pairs(a, b, |_| true, band)? {
         if declared(fa, fb) {
             continue;
@@ -61,17 +66,27 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
             Ok(Ok(CarrierRelation::Distinct)) | Err(PairUnread::OutsideInventory) => {
                 tangency(a, fa, b, fb, band)?.then_some(GlueClass::Tangent)
             }
-            Ok(Err(_)) | Err(PairUnread::Extent(_)) => None,
+            Ok(Err(refusal)) => {
+                in_band.extend(DoorReading::of(refusal).map(|reading| InBandPair {
+                    a: fa,
+                    b: fb,
+                    reading,
+                }));
+                None
+            }
+            // Unread, like in band: left to the stage that meets the pair (module doc).
+            Err(PairUnread::Extent(_)) => None,
         };
         if let Some(class) = class {
             found.push(GluedPair::new(fa, fb, class));
         }
     }
-    if found.is_empty() {
+    if found.is_empty() && in_band.is_empty() {
         return Ok(Cow::Borrowed(decls));
     }
     let mut out = decls.clone();
     out.pairs.extend(found);
+    out.in_band.extend(in_band);
     Ok(Cow::Owned(out))
 }
 
@@ -144,7 +159,7 @@ pub(crate) fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
 ///
 /// A face box's own refusal; [`BooleanError::ClassificationInvariant`]
 /// where the face tree returns an index past its input.
-fn overlapping_pairs<T: Decide + Bounds>(
+pub(super) fn overlapping_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     keep: impl Fn(&geom::Surface<T>) -> bool,
@@ -178,17 +193,20 @@ fn overlapping_pairs<T: Decide + Bounds>(
     Ok(out)
 }
 
-/// **The coaxial cylinder×sphere pairs of the two operands**, one row
-/// each: the sphere's centre decided on the cylinder's axis by its
-/// margin (`geom_brep::cylinder_sphere_section`), the classification
-/// the join's germ frame reads for the pair. In A's face order and B's
-/// within each; none where the operation's verdicts are given.
+/// **The coincidences the join's germ frames read, per face pair of
+/// the two operands**: a coaxial cylinder×sphere pair's one row, the
+/// sphere's centre decided on the cylinder's axis by its margin
+/// (`geom_brep::cylinder_sphere_section`); and a crossing cylinder
+/// pair's two rows, its radii decided equal and its axes decided
+/// meeting ([`super::join::crossing_cylinder_margins`]), the
+/// classification the join's bisector lane reads. In A's face order and
+/// B's within each; none where the operation's verdicts are given.
 ///
 /// # Errors
 ///
 /// A face box's own refusal; [`BooleanError::ClassificationInvariant`]
 /// where the face tree returns an index past its input.
-pub(crate) fn coaxial_rows<T: Decide + Bounds>(
+pub(crate) fn frame_rows<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &Glue,
@@ -208,6 +226,16 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
             geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
         )
     };
+    let row = |(fa, fb), relation, site, margin| crate::Coincidence {
+        cells: [
+            crate::RowCell::face(Operand::A, fa),
+            crate::RowCell::face(Operand::B, fb),
+        ],
+        relation,
+        site,
+        margin,
+        discharge: crate::Discharge::of(margin),
+    };
     let mut rows = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, curved, band)? {
         let (Some(sa), Some(sb)) = (surface(a, fa), surface(b, fb)) else {
@@ -220,19 +248,27 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
             (geom::Surface::Sphere { .. }, geom::Surface::Cylinder { .. }) => {
                 geom_brep::cylinder_sphere_section(&sb, &sa, band)
             }
+            (geom::Surface::Cylinder { .. }, geom::Surface::Cylinder { .. }) => {
+                if let Some([radii, meet]) =
+                    super::join::crossing_cylinder_margins((a, fa), (b, fb), band)
+                {
+                    let site = crate::DecisionSite::CrossingCylinders;
+                    rows.push(row((fa, fb), crate::Relation::SameRadius, site, radii));
+                    rows.push(row((fa, fb), crate::Relation::AxesMeet, site, meet));
+                }
+                continue;
+            }
             _ => continue,
         };
+        // A refusal adds no row: where the faces meet, a later decision
+        // refuses (`hone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         if let Ok((_, margin)) = section {
-            rows.push(crate::Coincidence {
-                cells: [
-                    crate::RowCell::face(Operand::A, fa),
-                    crate::RowCell::face(Operand::B, fb),
-                ],
-                relation: crate::Relation::OnCarrier,
-                site: crate::DecisionSite::CoaxialSphere,
+            rows.push(row(
+                (fa, fb),
+                crate::Relation::OnCarrier,
+                crate::DecisionSite::CoaxialSphere,
                 margin,
-                discharge: crate::Discharge::of(margin),
-            });
+            ));
         }
     }
     Ok(rows)

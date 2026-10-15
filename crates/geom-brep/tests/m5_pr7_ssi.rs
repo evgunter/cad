@@ -2655,7 +2655,14 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
             }
             other => panic!("{name}: plane_nurbs_ssi expected {want:?}, got {other:?}"),
         }
-        match geom_brep::plane_nurbs_limbs::<f64>(&carrier, &cutting_plane(), &wall, 1.0, band()) {
+        match geom_brep::plane_nurbs_limbs::<f64>(
+            &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            carrier.knot_values().domain(),
+            &cutting_plane(),
+            &wall,
+            1.0,
+            band(),
+        ) {
             Err(geom_brep::PlaneNurbsRefusal::ChartSpeed(got)) => {
                 assert_eq!(
                     got, want,

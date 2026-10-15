@@ -131,10 +131,8 @@
 //! ```
 
 pub mod attach;
-pub(crate) mod bisect;
 pub mod body;
 pub mod boolean;
-pub(crate) mod carrier_speed;
 pub(crate) mod census;
 pub mod chart;
 pub mod chart_bound;
@@ -313,6 +311,23 @@ pub mod test_support {
         wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// Tier 3's local checks on `body` at the band of `eps` rather than
+    /// the run's: `Tol` is committed once per process, so this is how
+    /// one test reads a body built at the run's ε at a tighter one.
+    ///
+    /// # Panics
+    ///
+    /// Where `eps` forms no band with the run's K.
+    #[allow(clippy::expect_used)]
+    pub fn tier3_at(
+        body: &Body<f64>,
+        eps: f64,
+        tol: geom_core::Tol,
+    ) -> Vec<crate::ValidationError> {
+        let band = geom_core::Band::linear_at(tol, eps).expect("a band at eps");
+        crate::validate::tier3_local_checks(body, band, tol, None, None).0
+    }
 
     /// **Restates the surface at `key`** as `surface`: a row that needs
     /// a datum no construction mints (a cone's seam off square to its
@@ -816,6 +831,28 @@ pub mod test_support {
         )
     }
 
+    /// **Where `face` holds `p`, as the census confirms it**: the read
+    /// that places a `(vertex, face)` record at rest, and that the
+    /// boolean's carry asks of a divided face's pieces
+    /// ([`crate::boolean::face_placement`]). `Ok(Some(_))` placed (a
+    /// point decided off a planar face's plane is `Out`), `Ok(None)` a
+    /// curved trim's unread remainder, `Err` the escalations or refusal
+    /// the census would push.
+    ///
+    /// # Errors
+    ///
+    /// The census's own findings for the read, as above.
+    pub fn face_holds<T: geom_core::Decide>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        p: geom_core::Point3<T>,
+        band: geom_core::Band,
+    ) -> Result<Option<crate::FaceContainment>, Vec<crate::ValidationError>> {
+        let mut errors = Vec::new();
+        crate::census::face_holds(body, face, p, band, "pm_census_confirm_vf", &mut errors)
+            .ok_or(errors)
+    }
+
     /// Is `p`, on `face`'s plane, inside the face? `point_in_solid`'s
     /// planar in-face test, which the ray sweep reaches only through a
     /// hit it decides to take — named here so a row can ask it about a
@@ -842,6 +879,7 @@ mod r2_probes;
 mod tier3_tests;
 pub mod transform;
 pub mod validate;
+pub(crate) mod vertex_section;
 
 pub use body::Body;
 pub use boolean::{
@@ -852,17 +890,18 @@ pub use boolean::{
     ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords, ContainDecision,
     ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact,
     EfContact, FaceContainment, FfContact, Fusions, GlueVerdict, GluedPair, HeldEdge, JOIN_LEVER,
-    JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm, NullEdgePairRecord, Operand,
-    OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord,
-    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError,
-    ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck, SettleError, Settler,
-    Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion,
-    SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment,
-    VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
-    boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
-    flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
-    joinable_vertices, joined_cell, joined_edge, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, tangent_pair_relation, union,
+    JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm, NodeWhy, NullEdgePairRecord,
+    Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread,
+    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
+    PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,
+    SettleError, Settler, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces,
+    SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact,
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
+    subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -874,8 +913,9 @@ pub use surgery::Surgery;
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{
-    PlantedDegradation, StagePoints, arm_output_stage_points, swap_split_roles, sweep_records,
-    sweep_split, sweep_traces, sweep_traces_with_pad, take_output_stage_points, take_shared_points,
+    PlantedDegradation, SharedClass, StagePoints, arm_output_stage_points, swap_split_roles,
+    sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad, take_output_stage_points,
+    take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;
@@ -976,11 +1016,12 @@ pub use split::SplitEdgeCreated;
 pub use splitting::{
     ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation, KnifeEdge, KnifeEdgeSite,
     LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
-    PointInLoopError, Section, SectionEdge, SectionError, SectionGermFault, SectionGermReading,
-    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading, SplitContacts,
-    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError,
-    SplitReduction, SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier,
-    classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    PointInLoopError, Section, SectionEdge, SectionEndReading, SectionError, SectionGermFault,
+    SectionGermReading, SectionPinMiss, SectionPolygon, SectionRegion, SectorEntry,
+    SectorEntryKind, SectorReading, SplitContacts, SplitError, SplitFinishError, SplitJoinError,
+    SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, TangencyReadings,
+    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
+    split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{

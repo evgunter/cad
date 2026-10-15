@@ -1539,3 +1539,50 @@ coincidence is now a margined verdict (no declarations), checked by the
   - Two nits were not carried: "at or below ε_in" in the docs of `tier_gate.rs` and `within()`.
   - PR 5023 now has to resolve a one-line rename conflict in `dihedral.rs`; its lane has been told.
   (ENCL orchestrator)
+- 2026-10-14 — **Seam (NURBS):** `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main.md` is caused by NURBS #4984 (the second-order Bernstein quotient bound). A fresh-target bisect shows a71403e3 passing and 2639b944 failing. The same merge moved the 1e-12 `encl_curved_loft_shell` shelling pin (1.3958e-10 → 1.39486e-10). NURBS build A is fixing both on `nurbs/fix-shelling-pin-after-4984`, root cause only, and will close the issue in that PR. (NURBS orchestrator)
+- 2026-10-14 — **Merged PR 5023** (a definite refused arm at a build tells its in-band sibling's story, D4 ¶1 (iv)).
+  - `MarginDiag::shows` gains `Shows::Refused`: a reading past the band, wholly on the refused side. It ends like NoSize, with the lever plus the decision's note.
+  - `DIHEDRAL_ARM`'s note now reads "an edge of no length or a cone's point leaves no angle to measure; a radius below zero is a defect". It is true of a negative wedge, which the earlier note was not.
+  - Closed `negative-dihedral-wedge-over-stored-geometry-as-contradiction`: it stays `Contradiction`.
+  - Filed `param-span-lever-says-vanishingly-short-of-a-reversed-span` and `past-payload-word-and-negative-arm-collapsed-render-are-unguarded`.
+  - The ssiarith fuzz red `rigid-map-chart-readings-fuzz-reds-past-its-rounding-bound` reproduces on main.
+  - The review and fix pass went through a takeover lane after a container restart.
+  (ENCL orchestrator)
+- 2026-10-14 — **Seam (NURBS): PR 5034 merged at `67a9bb4e`.** It touches `crates/geom-brep/src/patch_bound.rs`, in the meter row `the_meter_sups_bound_every_sampled_magnitude` only.
+  - **`SPEED_CEILING` is `1 + 1e-12` (was a measured slack).** Each coefficient vector lies in the cell's box on both arms: the integral arm's derived control vectors and the rational arm's ratios `ã_k/b_k`. So the vector sup is never above the box reading in ℝ (measured at most `1 + 4.5e-16`).
+  - **Witness:** a `1e-9` loosening of `certified_sup` or `window_norm_sup` turns the row red; a `1e-13` one does not.
+  - **`M_CEILING` stays `1.13`.** The integral `m_sup` measures `1.024`.
+  - **Not taken from `encl/one-chart-speed`:**
+    - the f64 `screened_max`/`vectors_sup` screen and its fuzz: the window norms it speeds up are now a few percent of the integral arm, where the area floor is 87%;
+    - the subnormal carry row: no `pair_norm_sup` exists on main.
+  - **Closed:** `work/nurbs/other-rational-speed-readings-read-relaxed-quotient-recipes.md`.
+  (NURBS build A)
+- 2026-10-14 — **Merged PR 5101.** One definite reading now ends one way at rest, whichever arm routes it.
+  - Lever decisions end in the lever plus the note.
+  - Contradiction decisions end in the defect ending, at rest and at the door past ε_in.
+  - geom-core `SizedWords` gains `refused: RefusedReading { AsShown, ContradictsStoredData }`, a closed choice; geom-core spells the defect ending itself.
+  - `reporting-margin-door.sh` allows `ContradictsStoredData` and `sign_certain_recourse` only in `geom-brep/src/recourse.rs`.
+  - The door within ε_in ignores the choice (pinned).
+  - Filed:
+    - encl `a-proven-zero-is-definite-yet-ends-as-no-size-at-rest` (design);
+    - encl `pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache`;
+    - encl `a-definite-reading-within-eps-in-ends-two-ways-at-the-import-door`;
+    - restfront `an-at-rest-certify-lead-calls-a-gates-definite-rejection-undecided`;
+    - guard `loop-boundary-discards-selftest-fails-on-a-clean-tree`, which is red on main and not ours.
+  (ENCL orchestrator)
+- 2026-10-14 — **Design fork on the proven zero** (`a-proven-zero-is-definite-yet-ends-as-no-size-at-rest`). One designer pair ran three rounds: they disagreed, crossed, then converged. The converged answer is a three-valued kind per sized decision (lever / stored contradiction / unminted), read by both the no-size and the refused class. It clarifies D4 ¶1 (iv), so it went to Ev as `[ev]` PR 5134 (fork-log row 142). Code waits for Ev's answer.
+  - The blinding byte and every report are on `analysis/design-fork/proven-zero`.
+  - The designer A dispatch was lost to a container restart and re-dispatched with the same brief.
+  - Found on the way: PR 5101's body was wrong that `NotTransverse` at rest "was already the defect ending". A Transversality or TangentSecondOrder zero verdict at rest still ends in the lever alone.
+  (ENCL orchestrator)
+- 2026-10-14 — **Ev on `[ev]` PR 5134:** "aren't stored contradictions kernel bugs (and hence should panic)?" Then: "adoption should re-certify everything … wouldn't want to make a decision on that without weighing the current state."
+  - A read-only survey answered: adoption certifies every edge at ε twice (the ladder and `gate3`), but keeps the file's carriers, vertices and surfaces verbatim. Bodies past the import door (adopted or kernel-built, same ε) reach these contradictions only through a kernel bug. The import door itself is input, and it reads "as at rest".
+  - Posted to the PR, with options (a) Ev rules or (b) another designer round. Waiting on Ev.
+  - Filed exch `step-import-reads-a-negative-surface-radius-unchecked-before-edge-certification` and topotail `flipped-face-sense-for-tests-is-not-feature-gated`.
+  (ENCL orchestrator)
+- 2026-10-14 — At Ev's request, the import-validation question is split out of `[ev]` PR 5134 as exch `can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches`. PR 5134 waits on it. (ENCL orchestrator)
+- 2026-10-14 — **Merged PR 5138:** `CertCheck::ParamSpan`'s lever now reads "move the geometry so this edge runs forward over a clear length", true of a zero span and a reversed one. Pcurve spans share it.
+  - Review: no MAJOR.
+  - The orchestrator's review pass restored a closed row's quote and the proven-zero row's quote, and corrected the filed dihedral row's mechanism (the arm is the stored radius clamped by the extent). It also noted that the dihedral row depends on `[ev]` PR 5134.
+  - If 5134 lands, ParamSpan's build pins move again.
+  (ENCL orchestrator)

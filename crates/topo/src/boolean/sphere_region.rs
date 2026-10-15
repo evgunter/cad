@@ -61,7 +61,7 @@
 //!
 //! Past that, every reading is about one ray ([`crate::ray_walk`]): a
 //! closest crossing at a vertex, a tie with the closest crossing, a
-//! tangency of the ray with an arc (the root door's `Uncertain`), or an
+//! tangency of the ray with an arc (the root door's refusal), or an
 //! arc lying in the ray's plane grazes; a direction with no tangent
 //! share, or a great circle that meets no arc (it lies wholly on one
 //! side), gives nothing to read; and the next is tried. Root counts that
@@ -97,7 +97,6 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 use super::BooleanDecision;
 use super::circle_roots::{
     FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band,
-    rounding_charge,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -106,6 +105,8 @@ use crate::ray_walk::{self, Crossings, RayFault};
 use crate::splitting::PointInLoopError;
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows, SCHEDULE};
 use crate::validate::decide;
+use geom_brep::roots::{RootRefusal, Roots};
+use geom_brep::rounding_charge;
 
 const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     noise: "bool_sphere_region_roots_noise",
@@ -367,15 +368,16 @@ impl<T: Decide> SphereFaceRegion<T> {
         let g = a.cross(t);
         let mut crossings = Crossings::new();
         for (j, arc) in self.arcs.iter().enumerate() {
-            let thetas = match self.ray_roots(arc, g, band).map_err(in_band)? {
-                FirstHarmonicRoots::Miss => continue,
-                FirstHarmonicRoots::Certified(thetas) => thetas,
+            let thetas = match self.ray_roots(arc, g, band) {
+                Ok(Roots::Miss) => continue,
+                Ok(Roots::Certified(found)) => found,
                 // The arc in the ray's plane, or a tangency.
-                FirstHarmonicRoots::OnSurface | FirstHarmonicRoots::Uncertain => {
+                Ok(Roots::On(_)) | Err(RootRefusal::Unsettled(_)) => {
                     return Err(RayFault::Graze);
                 }
+                Err(RootRefusal::Escalated(diag)) => return Err(in_band(diag)),
             };
-            for theta in thetas {
+            for &theta in thetas.roots() {
                 let start = row("bool_sphere_region_span", arc.radius * (theta - arc.t0))?;
                 let end = row("bool_sphere_region_span", arc.radius * (arc.t1 - theta))?;
                 if start == Sign::Negative || end == Sign::Negative {
@@ -416,7 +418,7 @@ impl<T: Decide> SphereFaceRegion<T> {
         arc: &RegionArc<T>,
         g: Vec3<T>,
         band: Band,
-    ) -> Result<FirstHarmonicRoots<T>, Indeterminate> {
+    ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
         let v_ref = arc.axis.cross(arc.u_ref);
         let offset = arc.center - self.center;
         let d = g.dot(offset);

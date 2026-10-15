@@ -68,7 +68,9 @@ use crate::geometry::SurfaceKey;
 use geom::CurveKind;
 
 /// **A frame read off stored geometry**: an origin plus the carrier's
-/// own reference directions, verbatim.
+/// own reference directions, verbatim but for an ellipse's `u_ref`,
+/// which is read off its semi-axes ([`Curve3::major_frame`]): its seam
+/// may sit at either principal vertex.
 ///
 /// The triad is right-handed where it is complete: `u_ref`,
 /// `v_ref = axis × u_ref` ([`Pose::v_ref`]), `axis`.
@@ -224,22 +226,23 @@ impl From<CarrierAbsence> for ReadbackError {
 }
 
 /// **The walk to a face's carrier surface** — face, then the surface
-/// its record names — with the face's own orientation sense beside
-/// it, and the two refusals that walk can produce, in one body.
+/// its record names — with the surface's key and the face's own
+/// orientation sense beside it, and the refusal that walk can produce,
+/// in one body.
 ///
-/// What it guarantees is exactly this and no more: the two face doors
-/// make ONE walk to a face's geometry between them, so WHICH lookup
-/// came back empty is decided in one place rather than twice. It is
-/// the face-side twin of [`edge_carrier_ref`].
-fn carrier_surface<T: Real>(
+/// What it guarantees is exactly this and no more: the face doors and
+/// the Boolean's join make ONE walk to a face's geometry between them,
+/// so WHICH lookup came back empty is decided in one place rather than
+/// several. It is the face-side twin of [`edge_carrier_ref`].
+pub(crate) fn carrier_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
-) -> Result<(&Surface<T>, bool), ReadbackError> {
+) -> Result<(SurfaceKey, &Surface<T>, bool), ReadbackError> {
     let f = body.get_face(face).ok_or(ReadbackError::Dangling {
         what: EntityId::Face(face),
     })?;
     let surface = body.face_surface_linked(face, f);
-    Ok((surface, f.sense))
+    Ok((f.surface, surface, f.sense))
 }
 
 /// **A face's carrier frame** — the stored plane/axis data of the
@@ -300,7 +303,7 @@ fn carrier_surface<T: Real>(
 /// assert!(pose.sense);
 /// ```
 pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, ReadbackError> {
-    let (surface, sense) = carrier_surface(body, face)?;
+    let (_, surface, sense) = carrier_surface(body, face)?;
     let frame = |origin: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>| Pose {
         origin,
         axis,
@@ -393,7 +396,7 @@ pub fn face_carrier_kind<T: Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<SurfaceKind, ReadbackError> {
-    let (surface, _sense) = carrier_surface(body, face)?;
+    let (_, surface, _sense) = carrier_surface(body, face)?;
     Ok(surface.kind())
 }
 
@@ -512,7 +515,9 @@ pub fn edge_carrier_kind<T: Real>(
 /// The carrier is a cache certified against the edge's intensional
 /// description (D4 ¶2), so what comes back is the concrete curve the
 /// model actually holds, and its `u_ref` is the seam convention that
-/// curve carries. A [`Curve3::Line`] answers with `u_ref: None`: it
+/// curve carries — but for a [`Curve3::Ellipse`], whose seam may sit at
+/// either principal vertex: its `u_ref` is its major direction
+/// ([`Curve3::major_frame`]). A [`Curve3::Line`] answers with `u_ref: None`: it
 /// fixes a direction and no perpendicular (rule 3). A
 /// [`Curve3::Spiric`] answers its stored TORUS frame — `origin` the
 /// torus centre (off the curve, by `≥ R − r − |offset|`), `axis` the
@@ -538,13 +543,13 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             u_ref: None,
             sense: true,
         }),
+        ellipse @ Curve3::Ellipse { center, axis, .. } => Ok(Pose {
+            origin: *center,
+            axis: *axis,
+            u_ref: ellipse.major_frame().map(|f| f.major_dir),
+            sense: true,
+        }),
         Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        }
-        | Curve3::Ellipse {
             center,
             axis,
             u_ref,

@@ -143,7 +143,7 @@
 //!   **`bool_ray_torus_split_lead`** and **`bool_ray_torus_split`** are
 //!   the factorization's own certifications. A constructed root set
 //!   that disagrees with the certified count
-//!   ([`TorusRoots::CountDisagrees`]) blocks the ray, carrying both
+//!   ([`Unsettled::CountDisagrees`]) blocks the ray, carrying both
 //!   counts ([`PointInSolidError::RootCountDisagrees`]).
 //! - **`bool_ray_torus_incidence`**: `d·n̂` at a torus hit, levered by
 //!   the tube radius.
@@ -200,7 +200,9 @@ use crate::splitting::containment::{
     point_in_loop_projected,
 };
 use crate::validate::decide;
+use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
 use geom_brep::recourse::Reading;
+use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use super::rim_wedge::Rim;
 use super::sphere_region::{RegionRefusal, SphereFaceRegion, sphere_face_region};
@@ -462,7 +464,7 @@ pub enum PointInSolidError {
     },
     /// A test ray met a `Torus` face where the crossings built from its
     /// quartic disagree in number with the count the quartic's signs
-    /// certify ([`TorusRoots::CountDisagrees`]). The certified count is
+    /// certify ([`Unsettled::CountDisagrees`]). The certified count is
     /// the wrong one: the sign ladder's discriminant carries `f64`
     /// rounding its band does not charge
     /// (`work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`),
@@ -1427,9 +1429,25 @@ pub(super) fn wall_outline<T: Decide>(
         Err(_) => return unsupported(),
     };
     // The images skip null scaffolding; the loop must be the images'
-    // own chain, each half-edge's `next` the following image's.
+    // own chain, each half-edge's `next` past any null halves the
+    // following image's. A null half is zero-length, so the chain it
+    // sits in bounds what it bounds without it: mid-Boolean, a vertex of
+    // the face's own that pierced the other operand leaves its run's
+    // strut in the loop.
     for (i, image) in images.iter().enumerate() {
-        let next = body.get_half_edge(image.he).ok_or_else(corrupt)?.next;
+        let mut next = body.get_half_edge(image.he).ok_or_else(corrupt)?.next;
+        for _ in 0..body.half_edges.len() {
+            let half = body.get_half_edge(next).ok_or_else(corrupt)?;
+            let edge = body.get_edge(half.edge).ok_or_else(corrupt)?;
+            if body
+                .edge_curve_linked(half.edge, edge)
+                .certified()
+                .is_some()
+            {
+                break;
+            }
+            next = half.next;
+        }
         if images.get((i + 1) % images.len()).map(|n| n.he) != Some(next) {
             return unsupported();
         }
@@ -1488,13 +1506,18 @@ pub(super) fn wall_outline<T: Decide>(
                 }
                 (center, c_axis, true)
             }
-            geom::Curve3::Ellipse {
-                center,
-                axis: n,
-                major,
-                minor,
-                u_ref: major_dir,
+            ref ellipse @ geom::Curve3::Ellipse {
+                center, axis: n, ..
             } => {
+                let Some(geom::MajorFrame {
+                    major,
+                    minor,
+                    major_dir,
+                    ..
+                }) = ellipse.major_frame()
+                else {
+                    unreachable!("an Ellipse carrier has a major frame")
+                };
                 let cos = n.dot(axis);
                 if zero("bool_wall_section_tilt", sine(cos))?
                     || !zero(
@@ -3814,6 +3837,19 @@ fn latitude_extremes<T: Decide>(
 /// answer outside its reach is [`PointInSolidError::EdgeCarrierUnsupported`]
 /// where `p` could land in it.
 ///
+/// **Not the census's read, on purpose.** A vertex-on-face record and a
+/// boolean's carry place a point through [`super::face_placement`],
+/// which decides the point on the plane first and walks the face's
+/// boundary before its interior, escalating a point in the band of a
+/// vertex. This test is the ray walk's: `p` is a ray's hit on the face's
+/// own plane, read against the loops' projection (an admitted operand's
+/// face may hold a vertex off that plane by more than a tightened band),
+/// and any boundary is `None`, a graze the walk retries on another ray.
+/// Both walk each loop on the one core
+/// (`splitting::containment::carrier_walk`); they differ around it, on
+/// whether the point is decided on the plane and on how a boundary is
+/// read.
+///
 /// # Panics
 ///
 /// Where a loop `face` lists does not resolve (D2 row 4): a torn outer
@@ -4499,32 +4535,6 @@ pub struct WallRootFault {
     pub diag: Indeterminate,
 }
 
-/// **The two roots of `a·t² + 2b·t + c`**, `[(−b − √disc)/a,
-/// (−b + √disc)/a]` with `disc = b² − a·c` decided positive by the
-/// caller, each spelled so that no sum in it cancels.
-///
-/// Of the two numerators `−b ∓ √disc`, one adds magnitudes and the
-/// other cancels when `a·c` is small beside `b²`; divided by a lead `a`
-/// that is only decided nonzero, the cancelled one is wrong by
-/// `≈ ulp·|b|/a`, far above the band on a line all but parallel to a
-/// wall's axis. Since `(−b − √disc)(−b + √disc) = a·c`, that root is
-/// also `c` over the other numerator, which adds magnitudes, and that is
-/// the spelling taken for it. Which numerator adds magnitudes is the
-/// sign of `b`, read by [`geom_core::Real::select_le_zero`] as a value
-/// selection, not a decision: both spellings name the same root, so
-/// where an enclosure of `b` straddles zero the hull of the two is as
-/// narrow as either, and neither denominator nears zero there (it is
-/// `√disc` plus a sliver).
-pub(super) fn quadratic_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
-    let root = disc.max(T::zero()).sqrt();
-    // `−b − √disc` adds magnitudes for `b > 0`, `√disc − b` for `b ≤ 0`.
-    let (minus, plus) = (T::zero() - b - root, root - b);
-    [
-        b.select_le_zero(c / plus, minus / a),
-        b.select_le_zero(plus / a, c / minus),
-    ]
-}
-
 /// **The line × cone quadratic**: the cone's quadric form along the
 /// line `q + d·t`, negated, `(w·â)² − |w|²·cos²α = A t² + 2B t + C` with
 /// `w = q + d·t − apex` — `A` in `d`'s units squared, `B` in metres
@@ -4592,227 +4602,6 @@ pub(super) fn line_sphere_roots<T: Decide>(
     Ok(WallRoots::Two(quadratic_roots(a2, b2, c2, disc)))
 }
 
-/// What [`line_torus_roots`] found — the same three-way keep-them-apart
-/// posture [`WallRoots`] takes, with the middle case widened: on a
-/// quartic the thing a ray must abandon on is not only a tangency but
-/// any root count this door cannot CERTIFY at the run's tolerance.
-#[derive(Debug, Clone, Copy)]
-pub(super) enum TorusRoots<T> {
-    /// A certified count of ZERO: the line misses the tube definitely.
-    Miss,
-    /// The real-root count is not certain at this tolerance — a repeated
-    /// root (the line grazes the tube, or runs along a symmetry the
-    /// quartic degenerates on), or a classifying sign in the band. Not a
-    /// miss and not an answer: the ray abandons and the schedule
-    /// retries, exactly as a tangency does.
-    Uncertain,
-    /// A certified count, and that many roots — unordered, since the
-    /// closest-hit fold orders by advance.
-    Certified {
-        /// How many of `ts` are roots: 2 or 4.
-        count: usize,
-        /// The roots, `ts[..count]`.
-        ts: [T; 4],
-    },
-    /// The roots constructed disagree in number with the count
-    /// certified. Never an answer: one of the two is wrong, and where
-    /// measured it is the certified count (rung 5 of
-    /// [`line_torus_roots`]).
-    CountDisagrees {
-        /// The count the sign ladder certified.
-        certified: usize,
-        /// The count the factorization built.
-        constructed: usize,
-    },
-}
-
-/// A real cube root, built from `sqrt` alone — and a TRUNCATED one, with
-/// the truncation covered by a magnitude argument rather than by
-/// containment.
-///
-/// The scalar trait has no `cbrt`, and this arm needs one for exactly
-/// one branch (below). Rather than reach for an iteration the `Interval`
-/// scalar cannot follow — a Newton step seeded from a float returns a
-/// tight interval that need not contain the answer — take the identity
-/// `1/3 = Σ_{k≥1} 4^{-k}`: `x^{1/3} = Π_{k≥1} x^{4^{-k}}`, and each
-/// factor is two more square roots of the last one.
-///
-/// # What the enclosure covers, and what it does not
-///
-/// Truncating at `n` terms computes `x^{(1−4^{-n})/3}`. The
-/// construction is a FIXED composition of `sqrt` — monotone, total —
-/// so the interval instantiation encloses **that** power by composition
-/// of containments. It does not enclose `x^{1/3}`: the gap between the
-/// two is a systematic BIAS, identical on every run, and no interval
-/// arithmetic will widen to cover it.
-///
-/// So the gap is bounded by magnitude instead. At `n = 27` the exponent
-/// is short of a third by `4^{-27}/3 ≈ 1.8e-17`, and the relative gap is
-/// `|x^{-4^{-27}/3} − 1| ≈ 1.8e-17·|ln x|`. The resolvent's argument is
-/// a length⁶, so `|ln x| ≤ 83` even at the extreme `x = 1e36` a
-/// kilometre-scale torus could reach — a relative gap under `1.5e-15`,
-/// which `boolean::solid_contain::r1_probes::r1_cbrt_truncation_is_a_
-/// bias_not_a_containment` reports directly (a printed census, not a
-/// gate: the bound above is held by `r1_cbrt_chain_tracks_the_true_
-/// cube_root`). Against the ε-scale margins every
-/// decision here is metered at, that is fifteen orders of headroom at
-/// the coarsest shipped row and six at the finest.
-///
-/// **And the certified COUNT never touches this function.** The count is
-/// read off `Δ`, `p` and `D` — exact sign algebra on the coefficients —
-/// before any root is constructed, so the truncation can perturb a root
-/// VALUE and can never move the count the arm answers on. What a
-/// perturbed root value can do is shift a hit by that relative gap,
-/// which the trim and incidence predicates then decide with their own
-/// margins.
-fn cbrt<T: geom_core::Real>(x: T) -> T {
-    let mut u = x.abs();
-    let mut acc = T::one();
-    for _ in 0..27 {
-        u = u.sqrt().sqrt();
-        acc = acc * u;
-    }
-    acc.copysign(x)
-}
-
-/// The LARGEST real root of `z³ + c2·z² + c1·z + c0`, given whether the
-/// cubic has three real roots.
-///
-/// Which branch to take is not decided here: the caller has already
-/// decided the QUARTIC's discriminant, and the Ferrari resolvent shares
-/// it, so `three_real` is that sign rather than a second decision on the
-/// same quantity.
-///
-/// * three real roots — Viète's trigonometric form, whose `−P/3` is
-///   positive exactly when three real roots exist, so the square root is
-///   real by the branch's own premise, and whose `k = 0` member is the
-///   largest. The caller reaches it only with four real quartic roots,
-///   where the resolvent's roots are squares of real sums, so none is
-///   negative and the largest is at least a third of their sum `−c2`:
-///   removing the shift `c2/3` then adds magnitudes rather than
-///   cancelling them;
-/// * one real root — Cardano's, on [`cbrt`], assembled so that no
-///   cancellation reaches the root's RELATIVE accuracy (below).
-///
-/// # The one-real-root branch keeps the root's relative accuracy
-///
-/// With `x³ + P x + Q` the depressed cubic and `s = c2/3` its shift, the
-/// real root is `z = x − s` with `x = a + b`, where `a³`, `b³` are
-/// Cardano's two radicands `−Q/2 ± √(Q²/4 + P³/27)` and `ab = −P/3`. Two
-/// subtractions in that form can lose every digit, and the resolvent
-/// reaches both:
-///
-/// * **Inside a radicand.** One of the two cancels whenever `P³/27` is
-///   small beside `Q²/4`. Only `|Q|/2 + √(…)`, whose terms are both
-///   non-negative, goes through [`cbrt`], as `A`; its partner's
-///   magnitude comes from `|ab| = |P|/3`, as `B = P/(3A)`, and
-///   `x = −sgn Q·(A − B)`.
-/// * **Against the shift.** When the real root is small beside the other
-///   two, `x` and `s` agree in their leading digits and `x − s` keeps
-///   only their rounding. That is the resolvent of every ray whose odd
-///   coefficient `q̂` is small but decided nonzero (a ray all but
-///   perpendicular to the axis, or passing near the midplane): its real
-///   root is `≈ q̂²/c1`, and `x − s` would multiply the relative error of
-///   `x` by `|s|/z` — a factor the [`cbrt`] magnitude argument does not
-///   cover.
-///
-/// # Where `Q`'s sign goes, and why its zero is harmless
-///
-/// `Q = 0` is not a degenerate pose: it is a codimension-one surface of
-/// GENERIC rays (there the real root is simply `z = −s`), and at the
-/// `Interval` scalar its neighbourhood is where an enclosure of `Q`
-/// straddles zero and `copysign` answers with the hull of both signs.
-/// So the sign is transferred only onto `A − B`, which VANISHES at
-/// `Q = 0` — there `A³ = √(P³/27)`, so `A = √(P/3) = B` — making
-/// `x = (A − B)·sgn(−Q)` continuous across the surface, and its
-/// straddling enclosure `[−|A − B|, |A − B|]` as narrow as `x` itself
-/// (`≈ |Q|/P`). The textbook stable form transfers it onto `√(…)`
-/// instead, which does not vanish there: the radicand straddles zero,
-/// `P/(3A)` becomes the whole line, and the arm escalates a ray it has
-/// every digit for (`r1_the_q_zero_surface_certifies_on_both_sides`). The
-/// quadratic arms escape the same hazard by selecting, per root, between
-/// two spellings of that one root ([`quadratic_roots`]).
-///
-/// `A − B` itself cancels when `x` is small beside `A`, which costs an
-/// ABSOLUTE error `≈ ulp·A`, and only for `P > 0`: for `P < 0`, `B < 0`
-/// and `A − B` is a sum of magnitudes. Where `x − s` carries weight
-/// below (`|z| ≥ |w|`), that absolute error is a relative one of the
-/// root: `B > 0` makes `|w|² ≥ ¾(A + B)² ≥ ¾A²`, so `|z| ≥ (√3/2)·A`.
-///
-/// # The shift, by a fraction rather than a blend
-///
-/// The product of the three roots is `−c0`, and the complex pair `w, w̄`
-/// has `|w|² = (x/2 + s)² + ¾(A + B)²` — a sum of squares, whose
-/// `x/2 + s` cancels only when the real root is LARGE (`z ≈ −3s`). So
-/// `−c0/|w|²` is accurate exactly where `d = x − s` is not, and
-/// `z + 2·Re w = −3s` makes at least one of `|z|`, `|w|` as large as
-/// `|s|`. The two are weighted by `τ = d²/(d² + |w|²)`, small precisely
-/// when `z` is, and since `(−c0/|w|²)·|w|² = −c0`,
-///
-/// ```text
-/// τ·d + (1 − τ)·(−c0/|w|²) = (d³ − c0) / (d² + |w|²)
-/// ```
-///
-/// which takes the well-conditioned form without branching on a value
-/// (this scalar cannot) and without an interval weight: spelled as a
-/// blend, `τ`'s enclosure is as wide as `d`'s relative width even at
-/// `τ ≈ 1`, and multiplies `|z|` twice. The denominator is positive,
-/// `|w|² ≥ ¾(A + B)²`.
-///
-/// # What the `Interval` instantiation encloses
-///
-/// Not the root. Every step after [`cbrt`] is a fixed composition, so
-/// the enclosure holds the value this function takes with `cbrt`'s
-/// truncated power `x^{(1−4^{-27})/3}` in place of the cube root — a
-/// bias of relative size `δ ≤ 1.5e-15` in `A` (`cbrt`'s own doc) that no
-/// interval widens to cover. The construction's job is that `δ` reaches
-/// `z` as a RELATIVE error of its own order rather than multiplied by
-/// `|s|/z`: through `d` it moves `x` by `δ·(A + B)`, which the weight
-/// `d²/(d² + |w|²)` scales to at most `δ·|z|/√3`; through `|w|²` it
-/// moves a sum of squares by `≤ 2δ` relative. That is what
-/// `r1_the_near_perpendicular_ray_keeps_its_roots` checks against the
-/// pose's exact roots — a biased enclosure that missed them would fail
-/// it — and at 1e-15 against the 1e-9 width that row allows, the bias is
-/// not what an enclosure's width is made of.
-///
-/// # `P = Q = 0`
-///
-/// There the radicand `|Q|/2 + √(…)` is exactly zero, `A = 0`, and
-/// `B = P/(3A)` is `0/0`: the f64 result is NaN. It is not reached: the
-/// cubic then has a TRIPLE root, i.e. a zero discriminant, which this
-/// branch's caller has decided definitely negative. And if a rounding
-/// ever did produce it, the NaN is loud where it lands: the caller's
-/// `bool_ray_torus_split_lead` reads a NaN margin as `Invalid` and
-/// escalates, rather than returning a plausible root.
-fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: bool) -> T {
-    let three = T::from_f64(3.0);
-    let two = T::from_f64(2.0);
-    let shift = c2 / three;
-    let p = c1 - c2.powi(2) / three;
-    let q = c2.powi(3) * two / T::from_f64(27.0) - c2 * c1 / three + c0;
-    if three_real {
-        let scale = (T::zero() - p / three).max(T::zero()).sqrt();
-        let arg = (three * q) / (two * p) * (T::zero() - three / p).max(T::zero()).sqrt();
-        // The argument is a cosine by construction; clamping is the
-        // rounding guard, not a decision (an out-of-range value here
-        // would be a rounding artefact of the branch's own premise).
-        let arg = arg.max(T::zero() - T::one()).min(T::one());
-        return two * scale * (arg.acos() / three).cos() - shift;
-    }
-    let inner = (q.powi(2) / T::from_f64(4.0) + p.powi(3) / T::from_f64(27.0))
-        .max(T::zero())
-        .sqrt();
-    // Both terms non-negative: the sum does not cancel, and needs no sign.
-    let big_a = cbrt(q.abs() / two + inner);
-    let big_b = p / (three * big_a);
-    // `A − B` vanishes at `Q = 0`, so its sign transfer is continuous
-    // there (the doc above).
-    let x = (big_a - big_b).copysign(T::zero() - q);
-    let d = x - shift;
-    let pair = (x / two + shift).powi(2) + T::from_f64(0.75) * (big_a + big_b).powi(2);
-    (d.powi(3) - c0) / (d.powi(2) + pair)
-}
-
 /// The certified real roots of the LINE `q + d·t` (with `d` a UNIT
 /// direction) against the torus `(center, axis, R, r)`.
 ///
@@ -4829,82 +4618,32 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 /// p = 2M − 4R²(1 − e²)      q̂ = 8R²·e·n      s = M² − 4R²(m − n²)
 /// ```
 ///
-/// **The degenerate-quartic ladder, stated where it lives.** A reader
-/// arriving from the cone arm will look for the vanishing leading
-/// coefficient that arm makes a posture of, and there is none to find:
-/// `d` is a unit direction, so the leading coefficient is `|d|⁴` and the
-/// degree cannot drop. At `f64` that is exactly 1; at the `Interval`
-/// scalar it is an enclosure of 1, a few ulps wide, since `normalize`
-/// cannot round to a unit vector exactly — **bounded away from zero
-/// either way**, which is all this posture needs, and the arm never
-/// divides by it (the depression and both closed forms are written for
-/// the monic form and take `1` as a literal). What the ray's symmetry
-/// alignments degrade is the ROOT STRUCTURE, and each rung of that
-/// ladder is typed here:
+/// **The ladder that solves it is [`depressed_quartic_roots`]**, whose
+/// docs state its count, its band and its rungs; what is the RAY's is
+/// stated here. A reader arriving from the cone arm will look for the
+/// vanishing leading coefficient that arm makes a posture of, and there
+/// is none to find: `d` is a unit direction, so the leading coefficient
+/// is `|d|⁴` and the degree cannot drop. At `f64` that is exactly 1; at
+/// the `Interval` scalar it is an enclosure of 1, a few ulps wide, since
+/// `normalize` cannot round to a unit vector exactly — **bounded away
+/// from zero either way**, which is all the monic form needs. The lever
+/// is `ext = R + r`.
 ///
-/// 1. **`bool_ray_torus_disc` Zero** — the quartic has a repeated real
-///    root. Both alignments that a reader expects to break the degree
-///    arrive here instead: a ray along the axis (`e = ±1`, where
-///    `1 − e² = 0` and the `t²` coefficient loses its `R²` term) and a
-///    ray in the midplane (`n = 0`, `q̂ = 0`), each of which merges roots
-///    for the poses that touch the tube. Uncertain count — graze, retry.
-/// 2. **`bool_ray_torus_odd` Zero** — `q̂ = 8R²·e·n` vanishes and the
-///    quartic is BIQUADRATIC. Not a degeneracy but a different closed
-///    form: `y² ` solves a quadratic and the roots come out of two
-///    square roots, which is also the only form the resolvent below
-///    cannot be used for (its `α = √z` would be zero and `q̂/α` poison).
-///    Reached by every axis-parallel ray (`n = 0` there) and by every
-///    midplane ray (`e = 0`) — the four-root ray through the hole is in
-///    this arm.
-///    **This arm has a band, and it costs root accuracy rather than a
-///    count.** It is taken whenever `|q̂| ≤ K·ε·ext²`, i.e. for a `q̂`
-///    that is small rather than zero, and it then solves the quartic
-///    with `q̂` SET to zero — the nearby quartic, not the posed one. The
-///    root error that buys is first order in the dropped term,
-///    `≈ q̂/ext²  ≤ K·ε` in metres, so it is bounded by the same band
-///    every downstream trim and incidence margin is metered at. The
-///    count is unaffected: it was certified from `Δ` before this branch
-///    was chosen.
-/// 3. **`bool_ray_torus_split_lead` non-Positive** — the resolvent's
-///    largest real root is not positive, which contradicts its own
-///    constant term `−q̂² < 0` on the branch that computed it.
-///    Uncertain, graze. It is NOT only a rounding-scale contradiction:
-///    a `q̂` small
-///    enough that the root `≈ q̂²/c1` falls inside the band, but large
-///    enough to clear rung 2, reaches it too — a legitimate root refused
-///    on its size (`work/inside/torus-split-lead-escalates-a-
-///    legitimately-small-resolvent-root.md`).
-/// 4. **`bool_ray_torus_split` Zero** — one of the two quadratic factors
-///    has a zero discriminant, i.e. a double root, which contradicts the
-///    definite discriminant of rung 1. Uncertain, graze.
-/// 5. **[`TorusRoots::CountDisagrees`]** — the roots CONSTRUCTED disagree
-///    in number with the count CERTIFIED by rung 1. Where measured
-///    exactly, the construction is right and rung 1 is wrong: `Δ`'s
-///    `f64` evaluation carries rounding far past the band that no
-///    decision charges, so a definite-looking sign can be the noise's
-///    (`work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`;
-///    `torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`
-///    and `a_far_ray_reaches_the_count_disagreement`). This rung catches
-///    the defect only where the two counts differ; where the noise flips
-///    the count to `Miss`, the answer is wrong and nothing here sees it.
-///    On a ray it blocks that ray
-///    ([`PointInSolidError::RootCountDisagrees`]) and another may settle.
+/// What the ray's symmetry alignments degrade is the root structure,
+/// and they land on the ladder's rungs (rows `bool_ray_torus_*`):
 ///
-/// # The certified count, and what it costs
-///
-/// The count is read off exact sign algebra, never off the roots: with
-/// `Δ` the quartic's discriminant and `D = 64s − 16p²`,
-///
-/// * `Δ` Negative ⇒ exactly **2** real roots;
-/// * `Δ` Positive ⇒ **4** real when `p` and `D` are both Negative, and
-///   **0** otherwise;
-/// * `Δ` Zero, or a Zero on `p`/`D` inside the positive branch ⇒ the
-///   count is NOT certain, and this door answers only on a certain one.
-///
-/// `Δ` is `m¹²` and is metered over `ext¹¹` (`ext = R + r`), which is
-/// the D4-honest length: for a monic quartic `Δ = Π_{i<j}(t_i − t_j)²`,
-/// so two roots a distance `δ` apart with the rest spread over the
-/// body's own scale put `Δ ≈ δ²·ext¹⁰` and the margin at `δ²/ext`.
+/// * a ray along the axis (`e = ±1`, where `1 − e² = 0` and the `t²`
+///   coefficient loses its `R²` term) and a ray in the midplane
+///   (`n = 0`, `q̂ = 0`) each merge roots for the poses that touch the
+///   tube: rung 1, `bool_ray_torus_disc` Zero. Uncertain count — graze,
+///   retry.
+/// * every axis-parallel ray (`n = 0`) and every midplane ray (`e = 0`)
+///   has `q̂ = 8R²·e·n` zero, the biquadratic arm (rung 2,
+///   `bool_ray_torus_odd`); the four-root ray through the hole is in it.
+/// * a ray all but perpendicular to the axis has a resolvent root
+///   `≈ q̂²/c1` that can fall in rung 3's band (`bool_ray_torus_split_lead`).
+/// * an [`Unsettled::CountDisagrees`] blocks that ray
+///   ([`PointInSolidError::RootCountDisagrees`]) and another may settle.
 ///
 /// **So this door refuses over a BAND around a tangency, and the band is
 /// wide.** A caller reading "a tangent ray grazes" will assume a
@@ -4919,8 +4658,9 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///
 /// # Errors
 ///
-/// [`geom_core::Indeterminate`] — an in-band classifying sign. The
-/// caller wraps it in its own error type.
+/// [`RootRefusal::Escalated`] — an in-band classifying sign, which the
+/// caller wraps in its own error type — and [`RootRefusal::Unsettled`],
+/// a count the ladder does not certify.
 pub(super) fn line_torus_roots<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
@@ -4929,7 +4669,7 @@ pub(super) fn line_torus_roots<T: Decide>(
     major_radius: T,
     minor_radius: T,
     band: Band,
-) -> Result<TorusRoots<T>, Indeterminate> {
+) -> Result<QuarticRoots<T>, RootRefusal> {
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
     let ext = major_radius + minor_radius;
@@ -4948,28 +4688,10 @@ pub(super) fn line_torus_roots<T: Decide>(
     let q_hat = T::from_f64(8.0) * rr * e * n;
     let s = big_m.powi(2) - four * rr * (m - n.powi(2));
     match depressed_quartic_roots(p, q_hat, s, ext, &RAY_TORUS_ROWS, band)? {
-        TorusRoots::Certified { count, ts: ys } => {
-            let mut ts = [T::zero(); 4];
-            for (t, y) in ts.iter_mut().zip(ys).take(count) {
-                // Undo the depression: `t = y − b`.
-                *t = y - b;
-            }
-            Ok(TorusRoots::Certified { count, ts })
-        }
-        other => Ok(other),
+        // Undo the depression: `t = y − b`.
+        Roots::Certified(ys) => Ok(Roots::Certified(ys.map(|y| y - b))),
+        Roots::Miss => Ok(Roots::Miss),
     }
-}
-
-/// The predicate names one caller of [`depressed_quartic_roots`] meters
-/// its ladder under, so each lane's rows stay its own in the verdict
-/// log.
-pub(super) struct QuarticRows {
-    pub(super) disc: &'static str,
-    pub(super) shape: &'static str,
-    pub(super) depth: &'static str,
-    pub(super) odd: &'static str,
-    pub(super) split: &'static str,
-    pub(super) split_lead: &'static str,
 }
 
 /// The ray × torus lane's rows ([`line_torus_roots`]).
@@ -4982,145 +4704,6 @@ const RAY_TORUS_ROWS: QuarticRows = QuarticRows {
     split_lead: "bool_ray_torus_split_lead",
 };
 
-/// **The certified real roots of the depressed monic quartic**
-/// `y⁴ + p y² + q̂ y + s`, the ladder [`line_torus_roots`] documents
-/// rung by rung: the count read off exact sign algebra (`Δ`, then `p`
-/// and `D = 64s − 16p²` on the positive branch), the biquadratic arm
-/// when `q̂` is in band, Ferrari's factorization otherwise, and the
-/// constructed count checked against the certified one.
-///
-/// `y` is a LENGTH and `lever` the length scale its roots spread over:
-/// every margin is metered as `coefficient / lever^k` so that it is a
-/// length (`Δ` over `lever¹¹`, `p` over `lever`, `D` over `lever³`,
-/// `q̂` over `lever²`, the factors' discriminants over `lever`), which
-/// is what makes the ladder's band a statement in metres. The roots
-/// come back unordered in `ts[..count]`, in the `y` variable.
-///
-/// # Errors
-///
-/// [`geom_core::Indeterminate`] — an in-band classifying sign.
-#[allow(clippy::too_many_lines)] // one closed form and its ladder
-pub(super) fn depressed_quartic_roots<T: Decide>(
-    p: T,
-    q_hat: T,
-    s: T,
-    lever: T,
-    rows: &QuarticRows,
-    band: Band,
-) -> Result<TorusRoots<T>, Indeterminate> {
-    let two = T::from_f64(2.0);
-    let four = T::from_f64(4.0);
-    let disc = T::from_f64(256.0) * s.powi(3) - T::from_f64(128.0) * p.powi(2) * s.powi(2)
-        + T::from_f64(144.0) * p * q_hat.powi(2) * s
-        - T::from_f64(27.0) * q_hat.powi(4)
-        + T::from_f64(16.0) * p.powi(4) * s
-        - four * p.powi(3) * q_hat.powi(2);
-    let disc_sign = decide(rows.disc, Margin::over_lever(disc, lever.powi(11)), band)?;
-    let count = match disc_sign {
-        Sign::Negative => 2usize,
-        Sign::Zero => return Ok(TorusRoots::Uncertain),
-        Sign::Positive => {
-            let shape = decide(rows.shape, Margin::over_lever(p, lever), band)?;
-            let depth = decide(
-                rows.depth,
-                Margin::over_lever(
-                    T::from_f64(64.0) * s - T::from_f64(16.0) * p.powi(2),
-                    lever.powi(3),
-                ),
-                band,
-            )?;
-            match (shape, depth) {
-                (Sign::Negative, Sign::Negative) => 4,
-                (Sign::Positive, _) | (_, Sign::Positive) => 0,
-                // One of the two is on its own zero while the other does
-                // not settle the question: the count is not certain.
-                _ => return Ok(TorusRoots::Uncertain),
-            }
-        }
-    };
-    if count == 0 {
-        return Ok(TorusRoots::Miss);
-    }
-    // The two quadratic factors of the depressed quartic, as
-    // `(y² + α y + β)(y² − α y + γ)`. The biquadratic arm is the
-    // `α = 0` one and is taken on its own closed form.
-    let (f0, f1) =
-        if decide(rows.odd, Margin::over_lever(q_hat, lever.powi(2)), band)? == Sign::Zero {
-            // `y⁴ + p y² + s`: with `α = 0` the factorization's own
-            // relations collapse to `β + γ = p` and `βγ = s`, so the two
-            // factors are `y² + β` and `y² + γ` with `β`, `γ` the roots of
-            // `X² − pX + s`. Those are the NEGATIVES of the roots of the
-            // quadratic in `y²`, which is the sign this arm is easy to get
-            // backwards and which no in-band case would have caught.
-            let inner = p.powi(2) - four * s;
-            match decide(rows.split, Margin::over_lever(inner, lever.powi(3)), band)? {
-                Sign::Positive => {}
-                // A repeated `y²`, or none at all with a count that says
-                // otherwise: neither is a certified pair of factors.
-                Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
-            }
-            let [lo, hi] = quadratic_roots(T::one(), T::zero() - p / two, s, inner / four);
-            ((T::zero(), hi), (T::zero(), lo))
-        } else {
-            // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
-            // whose constant term is negative, so its LARGEST real root is
-            // positive — the one root whose square root splits the quartic
-            // over the reals. On four real quartic roots the resolvent has
-            // three and the largest is at least a third of their sum; on two
-            // it has exactly ONE, and that one can be as small as `≈ q̂²/c1`
-            // (a ray all but perpendicular to the axis), which is where
-            // `cubic_largest_real_root`'s conditioning has to come from its
-            // own construction rather than from the choice. The resolvent
-            // shares the quartic's discriminant, so the branch is the sign
-            // already decided above rather than a second decision.
-            let z = cubic_largest_real_root(
-                two * p,
-                p.powi(2) - four * s,
-                T::zero() - q_hat.powi(2),
-                disc_sign == Sign::Positive,
-            );
-            match decide(rows.split_lead, Margin::over_lever(z, lever), band)? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
-            }
-            let alpha = z.max(T::zero()).sqrt();
-            let half_gap = q_hat / alpha;
-            (
-                (alpha, (p + z - half_gap) / two),
-                (T::zero() - alpha, (p + z + half_gap) / two),
-            )
-        };
-    // Each factor `y² + a y + c` contributes its own two roots when its
-    // discriminant is definitely positive, none when definitely
-    // negative. A ZERO discriminant is a double root, which contradicts
-    // the definite quartic discriminant above — uncertain, not answered.
-    let mut ts = [T::zero(); 4];
-    let mut found = 0usize;
-    for (a, c) in [f0, f1] {
-        let inner = a.powi(2) - four * c;
-        match decide(rows.split, Margin::over_lever(inner, lever), band)? {
-            Sign::Negative => continue,
-            Sign::Zero => return Ok(TorusRoots::Uncertain),
-            Sign::Positive => {}
-        }
-        for y in quadratic_roots(T::one(), a / two, c, inner / four) {
-            ts[found] = y;
-            found += 1;
-        }
-    }
-    // **Rung 5.** Two factors contribute two roots each, so `found` is
-    // 0, 2 or 4 by construction and the array cannot overflow; what this
-    // compares is the CONSTRUCTED count against the CERTIFIED one, the
-    // one place the sign ladder and the factorization are made to agree.
-    if found != count {
-        return Ok(TorusRoots::CountDisagrees {
-            certified: count,
-            constructed: found,
-        });
-    }
-    Ok(TorusRoots::Certified { count, ts })
-}
-
 /// **What the torus arm reads off a ray's quartic** ([`line_torus_roots`]):
 /// `None` a certified miss, `Some` the certified crossings. An uncertain
 /// count grazes; a constructed count that disagrees with the certified
@@ -5132,20 +4715,20 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
 /// [`RayFault::Graze`] and [`RayFault::Blocked`], as above.
 fn torus_crossings<T: Decide>(
     face: FaceKey,
-    roots: TorusRoots<T>,
-) -> Result<Option<(usize, [T; 4])>, RayFault<PointInSolidError>> {
+    roots: Result<QuarticRoots<T>, Unsettled>,
+) -> Result<Option<Found<T, 4>>, RayFault<PointInSolidError>> {
     match roots {
-        TorusRoots::Miss => Ok(None),
-        TorusRoots::Uncertain => Err(RayFault::Graze),
-        TorusRoots::Certified { count, ts } => Ok(Some((count, ts))),
-        TorusRoots::CountDisagrees {
+        Ok(Roots::Miss) => Ok(None),
+        Ok(Roots::Certified(found)) => Ok(Some(found)),
+        Err(Unsettled::CountDisagrees {
             certified,
             constructed,
-        } => Err(RayFault::Blocked(PointInSolidError::RootCountDisagrees {
+        }) => Err(RayFault::Blocked(PointInSolidError::RootCountDisagrees {
             face,
             certified,
             constructed,
         })),
+        Err(_) => Err(RayFault::Graze),
     }
 }
 
@@ -5668,12 +5251,16 @@ fn cast_ray<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let roots = line_torus_roots(q, d, center, axis, major_radius, minor_radius, band)
-                    .map_err(escalate)?;
-                let Some((count, ts)) = torus_crossings(face, roots)? else {
+                let roots =
+                    match line_torus_roots(q, d, center, axis, major_radius, minor_radius, band) {
+                        Ok(roots) => Ok(roots),
+                        Err(RootRefusal::Unsettled(why)) => Err(why),
+                        Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
+                    };
+                let Some(found) = torus_crossings(face, roots)? else {
                     continue;
                 };
-                for &t in &ts[..count] {
+                for &t in found.roots() {
                     let p = q + d * t;
                     match point_on_torus_in_face(
                         face,
