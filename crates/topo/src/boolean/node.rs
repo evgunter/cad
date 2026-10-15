@@ -228,3 +228,48 @@ pub(super) fn bisector_datum<T: Decide>(
     let grows = (other == Sign::Positive) == (piercing == Operand::A);
     Some(geom_brep::OutwardNormal::from_chart(on.1, grows == outward))
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::{Operand, bisector_datum};
+    use crate::boolean::Branch;
+
+    /// **A pierce the sweep's record does not name keeps the tangent
+    /// plane**: no plane for a branch naming none, and none at a node,
+    /// on both planes, where the other plane's distance is no sign. The
+    /// pierce then reads the pierced face as every other pierce does,
+    /// never a guessed plane.
+    #[test]
+    fn a_pierce_no_plane_names_keeps_the_tangent_plane() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let unit = |v: Vec3<f64>| v / v.norm();
+        let (a1, a2) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0));
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let planes = [(o, unit(a1 - a2)), (o, unit(a1 + a2))];
+        let wall = geom::Surface::Cylinder {
+            origin: o,
+            axis: a2,
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let out = geom_brep::OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true);
+        let datum = |branch, p| bisector_datum(planes, branch, Operand::A, p, (&wall, out), band);
+        let off_node = Point3::new(1.0, 0.1, 0.1);
+        assert!(
+            datum(Branch::Only, off_node).is_none(),
+            "a branch naming no plane"
+        );
+        let node = Point3::new(1.0, 0.0, 0.0);
+        assert!(
+            datum(Branch::Positive, node).is_none(),
+            "a pierce at a node, on both planes"
+        );
+        assert!(
+            datum(Branch::Positive, off_node).is_some(),
+            "a pierce on its branch's plane, off the node, reads it"
+        );
+    }
+}

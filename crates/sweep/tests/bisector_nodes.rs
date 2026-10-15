@@ -283,6 +283,7 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let (zero, escalate) = (band.zero(), band.escalate());
+    let fine = zero < 1e-10;
     let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
     let v_rod = 4.0 * PI;
     // The Steinmetz solid's piece beyond `y = d` of B's axis.
@@ -364,6 +365,16 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                             // each pierce to the node `2δ` long at a dihedral of
                             // `δ`, which tier 3 reads a lamina until the wedge
                             // is levered at its faces (U-lever).
+                            // At ε 1e-12 the ruling where the cap meets the
+                            // partner wall between the two pierces mints its
+                            // pcurve at the wall's seam
+                            // (`work/pcert/a-short-ruling-on-a-cylinder-chart-mints-its-pcurve-at-the-seams-u.md`).
+                            Want::PastThePierce if capped && fine && pose == "re-posed" => {
+                                assert!(
+                                    map_residual(&r),
+                                    "{cut}: the short ruling's pcurve, got {r:?}"
+                                );
+                            }
                             Want::PastThePierce if capped || op != "∖" => {
                                 let Ok(BooleanResult::Body(out)) = r else {
                                     panic!("{cut}: builds, got {r:?}");
@@ -409,6 +420,182 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Whether `r` is a pcurve's chart map refusing its residual, at the
+/// merge or at rest.
+fn map_residual(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
+    let text = format!("{r:?}");
+    text.contains("Pcurve") && text.contains("MapResidual")
+}
+
+/// **U2p's acceptance poses at the witness band**: two unit rods at right
+/// angles, each seam turned and each cap standing `δ ∈ {1e-8, 1e-6,
+/// 1e-4}` off a node, and both operands capped, every operation, both
+/// operand orders and both poses.
+///
+/// - Each cap alone, and both caps from 1e-6, build at their closed forms.
+/// - A seam at 1e-6 builds `∪` and `∩`; its `∖` keeps arcs `2δ` long at a
+///   dihedral of `δ`, a lamina at rest until U-lever. At 1e-4 its seam's
+///   wedge escalates (`SeamWedge`), U-lever's too.
+/// - 1e-8 is the witness band's escalation edge (K·ε). The node stands
+///   1e-8 off the seam, so its placement escalates (margin 9.99e-9); both
+///   caps' sectors stand about a band apart (margins 1e-9 to 4e-9) and
+///   escalate; a single cap builds at its closed form, or escalates where
+///   its margin of about `δ` rounds inside the edge (9.999999995e-9 in one
+///   re-posed order). D4's ε < δ < K·ε.
+#[test]
+fn the_near_node_poses_at_the_witness_band() {
+    let tol = Tol::witness();
+    if geom_core::Band::linear(tol).unwrap().zero() != 1e-9 {
+        test_utils::vacuity::stood_down(
+            "the witness band only",
+            "the near-node acceptance poses are stated at ε 1e-9; the band-relative \
+             row `an_edge_near_a_node_crosses_through_the_bisector_planes` holds them \
+             at every ε",
+        );
+        return;
+    }
+    let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
+    let v = |d: f64| PI * (2.0 - d);
+    let beyond = |d: f64| {
+        let s = (1.0 - d * d).sqrt();
+        2.0 * (s.powi(3) / 3.0 - d * d.acos() + s)
+    };
+    for d in [1e-8, 1e-6, 1e-4] {
+        let poses = [
+            (
+                "A's seam",
+                rod_at(-2.0, 2.0, d),
+                across(&rod(-2.0, 2.0)),
+                4.0 * PI,
+                4.0 * PI,
+                16.0 / 3.0,
+            ),
+            (
+                "B's seam",
+                rod(-2.0, 2.0),
+                across(&rod_at(-2.0, 2.0, d)),
+                4.0 * PI,
+                4.0 * PI,
+                16.0 / 3.0,
+            ),
+            (
+                "A's cap",
+                rod(d, 2.0),
+                across(&rod(-2.0, 2.0)),
+                v(d),
+                4.0 * PI,
+                beyond(d),
+            ),
+            (
+                "B's cap",
+                rod(-2.0, 2.0),
+                across(&rod(d, 2.0)),
+                4.0 * PI,
+                v(d),
+                beyond(d),
+            ),
+            (
+                "both caps",
+                rod(d, 2.0),
+                across(&rod(d, 2.0)),
+                v(d),
+                v(d),
+                f64::NAN,
+            ),
+        ];
+        for (what, a, b, va, vb, cap) in poses {
+            for (pose, a, b) in [
+                ("direct", a.clone(), b.clone()),
+                ("re-posed", repose(&a), repose(&b)),
+            ] {
+                let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+                let mut vols = Vec::new();
+                for (order, x, y, vx, vy) in [("A, B", &a, &b, va, vb), ("B, A", &b, &a, vb, va)] {
+                    for (op, r, closed) in [
+                        ("∪", topo::union(x, y, tol), vx + vy - cap),
+                        ("∩", topo::intersect(x, y, tol), cap),
+                        ("∖", topo::subtract(x, y, tol), vx - cap),
+                    ] {
+                        let cut = format!("{what} δ = {d:e}, {pose} ({order}), {op}");
+                        let seam = what.ends_with("seam");
+                        // 1e-8 is the witness band's escalation edge: a
+                        // margin of about `δ` there lands either side of it
+                        // by its rounding, so a pose builds or escalates.
+                        if d == 1e-8 && (seam || what == "both caps" || r.is_err()) {
+                            assert!(
+                                matches!(r, Err(topo::BooleanError::Escalated { .. })),
+                                "{cut}: at the band's edge, a build or an escalation, got {r:?}"
+                            );
+                            continue;
+                        }
+                        if seam && d == 1e-4 {
+                            assert!(
+                                matches!(
+                                    r,
+                                    Err(topo::BooleanError::Escalated {
+                                        decision: topo::BooleanDecision::SeamWedge,
+                                        ..
+                                    })
+                                ),
+                                "{cut}: the seam wedge at rest, U-lever's, got {r:?}"
+                            );
+                            continue;
+                        }
+                        if seam && op == "∖" {
+                            assert!(
+                                matches!(
+                                    &r,
+                                    Err(topo::BooleanError::ResultInvalid { errors })
+                                        if errors.iter().all(|e| matches!(
+                                            e,
+                                            topo::ValidationError::LaminaWedge { .. }
+                                        ))
+                                ),
+                                "{cut}: the short arcs' wedge at rest, U-lever's, got {r:?}"
+                            );
+                            continue;
+                        }
+                        let Ok(BooleanResult::Body(out)) = r else {
+                            panic!("{cut}: builds, got {r:?}");
+                        };
+                        let m = topo::mass_properties(&out.body, tol).unwrap();
+                        if what == "both caps" {
+                            vols.push((op, m.volume, m.volume_pad));
+                        } else {
+                            assert!(
+                                (m.volume - closed).abs() <= m.volume_pad + 1e-9,
+                                "{cut}: volume {} ± {}, want {closed}",
+                                m.volume,
+                                m.volume_pad
+                            );
+                        }
+                    }
+                }
+                // Both caps: by inclusion–exclusion within the brackets.
+                if what == "both caps" && !vols.is_empty() {
+                    let get = |op: &str| vols.iter().find(|(o, ..)| *o == op).copied();
+                    if let (Some((_, u, pu)), Some((_, i, pi)), Some((_, s, ps))) =
+                        (get("∪"), get("∩"), get("∖"))
+                    {
+                        let cut = format!("{what} δ = {d:e}, {pose}");
+                        assert!(
+                            (u + i - va - vb).abs() <= pu + pi + 1e-9,
+                            "{cut}: ∪ + ∩ = {} against {}",
+                            u + i,
+                            va + vb
+                        );
+                        assert!(
+                            (s + i - va).abs() <= ps + pi + 1e-9,
+                            "{cut}: ∖ + ∩ = {} against {va}",
+                            s + i
+                        );
                     }
                 }
             }
