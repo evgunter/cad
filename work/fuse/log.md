@@ -906,3 +906,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **CI:** red only on #5045's remaining lily row. Main fixed the other two.
   - **Before merge:** compiled merged with main.
   - **Filed:** `an-unrecorded-curved-edge-meeting-is-unseen-at-tier-three-prime` (waits on the reader).
+
+- 2026-10-15 — **No live row is at or above this track's own band (P0).** The 35 rows left are 1 at P1, 6 at P2, 25 at P3, 2 at P4, 1 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 1 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
+  (tracker sweep)
