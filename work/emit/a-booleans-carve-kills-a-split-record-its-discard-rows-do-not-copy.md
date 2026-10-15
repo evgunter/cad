@@ -71,7 +71,12 @@ ended at none.
   edge names do not move (all 24 compared before and after): the
   collapse re-reads them off the finished body, so the fold step's
   seam spelling never reached the table. The full editor-core suite
-  moves no golden.
+  moves no golden. One refusal falls: the Python north-star crosslap
+  union (beam A ∪ beam B), which refused `merged_chord_constituents`,
+  now evaluates at its exact oracle 1.875 (toggling the copy's read
+  brings the refusal back). `TestCrosslapAtTheNamingWall` became
+  `TestCrosslapGlued`, and `docs/guide/north-star-audit.md` row 37
+  flips NO → YES (45 of 53, 33 outright, 8 blocked).
 - **Pinned.** `topo` `boolean_discards::an_edge_the_carve_kills_records_its_parent`:
   the same block and flush boss as a topo union; a live edge is split
   off an edge A's carve killed, and that edge's lineage, through the
