@@ -8,6 +8,7 @@ closed: 2026-10-15
 priority: P3
 cost: M
 branch: ciw/readable-reds
+pr: 5206
 refs: [5104, an-all-tier-diff-with-no-crate-seed-runs-no-slow-row]
 ---
 
