@@ -70,6 +70,8 @@ mod a_flipped_shallow_dimple;
 mod a_loft_computes_its_walls_in_t;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
+#[path = "a_pierce_held_in_a_curved_face.rs"]
+mod a_pierce_held_in_a_curved_face;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
 #[path = "a_plane_along_an_elliptic_cut.rs"]
