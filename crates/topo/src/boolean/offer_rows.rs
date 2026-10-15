@@ -1398,7 +1398,9 @@ fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
         },
         ..sector(Vec3::new(0.0, -1.0, 0.0))
     };
-    super::super::vtxfac::along_partners(&edge, &[&flat, &turned], band()).map(|_| ())
+    // A curved face may be tangent where flush, so flush refuses.
+    let curved = |_| super::super::sectors::FaceShape::Curved;
+    super::super::vtxfac::along_partners(&edge, &[&flat, &turned], &curved, band()).map(|_| ())
 }
 
 /// A declared-`Tangent` cylinder resting on a floor along a ruling from
