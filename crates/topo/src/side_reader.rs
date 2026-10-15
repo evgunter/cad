@@ -52,7 +52,7 @@ pub struct AimedPair {
     /// the run's scalar, and a refusal payload carries no `f64` out of a
     /// `T: Decide` (#990, `geom_core::real`'s "two shapes that are not
     /// decisions"), so it takes the witness posture
-    /// ([`crate::census`]'s `witness`).
+    /// (`census::witness`).
     pub aim: String,
     /// The face of the ray's closest crossing.
     pub near: FaceKey,
