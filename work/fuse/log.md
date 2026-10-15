@@ -999,3 +999,8 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Designer pair dispatched** at about 03:55Z: one Opus, one Fable, the same problem statement, no candidate solutions.
   - **Blinding:** byte 191, drawn at dispatch and recorded on `analysis/design-fork/span-carrier-split` (e77d127d). It is odd, so A = Fable and B = Opus.
   - **Lane:** the split is on hold; the lane carries on with c2's fixes and the c3 items that don't touch `span.rs`.
+- 2026-10-15: the span/carrier designer pair converged after one crossed round; fork-log row 146.
+  - **Converged:** a carrier reading in `geom` that decides Off only on a certified lower bound, a span reading against the span's ends, and one composition written once. `Past`/`Carrier` and C5's answer list go.
+  - **Residual:** the `carrier_speed` home (both lean `geom`), and a typed `Foot` vs a seed (cosmetic).
+  - **Live defect** found by the Fable designer: `carrier_cross` reads vertices at `param_near`, which is not an ellipse's foot, so it can decide a false Off. Sent to the lane to fix in c1.
+  - **For Ev:** 5154's body updated with A/B verbatim; a comment posted.
