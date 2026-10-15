@@ -2540,7 +2540,7 @@ fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
 /// re-authored sweep in [`reauthor`].
 ///
 /// The number of turns is decided as structure
-/// ([`geom_brep::whole_period_count`]): sign decisions at the half-turn
+/// ([`geom_brep::Period::decide`]): sign decisions at the half-turn
 /// marks of `read − old`, levered at `lever`, so it is a literal at every
 /// scalar, and [`forward_window`]'s `offset_axial_edge_turn` reads
 /// `kept − read` as the constant it is. A mark decided either way admits
@@ -2556,8 +2556,8 @@ fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
 /// # Errors
 ///
 /// - [`ReplaceFaceError::Escalated`] where a mark is in band.
-/// - [`ReplaceFaceError::TogetherAxialEdge`] where a mark decides Zero
-///   or the gap is past the branch reach. A mark decides Zero where
+/// - [`ReplaceFaceError::TogetherAxialEdge`] where a mark decides Zero.
+///   A mark decides Zero where
 ///   `read` sits half a turn from `old`, and everywhere on a carrier
 ///   whose slowest speed is under the band per half turn: there no turn
 ///   is told from the next.
@@ -2568,26 +2568,26 @@ fn keep_turn<T: Decide>(
     edge: EdgeKey,
     band: Band,
 ) -> Result<T, ReplaceFaceError<T>> {
-    let (gap, tau) = (read - old, T::tau());
-    match geom_brep::whole_period_count(
-        "offset_axial_keep_turn",
-        gap,
-        tau,
-        |g| Margin::levered(g, lever),
-        band,
-    ) {
-        Ok(k) => Ok(old + (gap - tau * T::from_f64(f64::from(k)))),
+    let (gap, period) = (read - old, geom_brep::Period::new(T::tau()));
+    match period
+        .decide(
+            "offset_axial_keep_turn",
+            gap,
+            |g| Margin::levered(g, lever),
+            band,
+        )
+        .map_err(|stop| stop.miss)
+    {
+        Ok(k) => Ok(old + (gap - period.times(k))),
         Err(geom_brep::BranchMiss::Undecided(source)) => {
             Err(ReplaceFaceError::Escalated { source })
         }
-        Err(geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach) => {
-            Err(ReplaceFaceError::TogetherAxialEdge {
-                edge,
-                what: "a moved edge's re-read sweep cannot be told a turn of its carrier from the \
+        Err(geom_brep::BranchMiss::OnMark) => Err(ReplaceFaceError::TogetherAxialEdge {
+            edge,
+            what: "a moved edge's re-read sweep cannot be told a turn of its carrier from the \
                        old one: it sits half a turn out, or the carrier is too slow for half a \
                        turn to clear the band",
-            })
-        }
+        }),
     }
 }
 
@@ -3464,7 +3464,7 @@ mod keep_turn_rows {
     #[test]
     fn a_kept_turn_is_a_literal_over_a_box() {
         let band = Band::linear(Tol::witness()).unwrap();
-        for k in [-1.0, 0.0, 1.0, 2.0] {
+        for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |read, old| {
                     let kept =
@@ -3490,7 +3490,7 @@ mod keep_turn_rows {
     fn a_moved_window_keeps_the_old_turn_as_a_theorem_over_a_box() {
         use geom_core::{Interval, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
-        for k in [-1.0, 0.0, 1.0, 2.0] {
+        for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |read, old| {
                     let f = Sym::<Interval>::from_f64;

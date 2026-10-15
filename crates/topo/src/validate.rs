@@ -3308,8 +3308,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
                 | C::IsoUnsupported { .. }
-                | C::ChartWindingUnsupported
-                | C::BranchOutOfReach => (KIND, Some(NOT_YET_ENDING)),
+                | C::ChartWindingUnsupported => (KIND, Some(NOT_YET_ENDING)),
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
                     Some(crate::pcurves::PLACEHOLDER_RECOURSE),

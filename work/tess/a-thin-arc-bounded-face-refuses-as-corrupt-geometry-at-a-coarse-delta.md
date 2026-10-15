@@ -109,3 +109,17 @@ bodies refuse `mesh::tessellate` at δ 0.05 with this row's signature,
 `Triangulation` on a planar face with no rings, with the oracle's
 volume, tier 2 and the certificate: `0 3 2 ab S`, `0 3 2 ba S`,
 `1 6 0 ba S`, `6 1 0 ba U`. Same replay as above.
+
+## 2026-10-15 — a capped rod's cap lunes beside a crossing rod (TANG)
+
+Two unit rods at right angles, A about `z` over `[dz, 2]` and B about
+`y` over `[−2, 2]`. On main and on `tang/pinch-u2a-factored-crossing`
+alike, A ∪ B and A ∖ B refuse `Triangulation` on A's cap face at
+δ = 2e-3 for dz ∈ {3e-4, 1e-3, 1e-2}, and at δ ∈ {2e-4, 2e-5} where
+those were tried (dz = 5e-4). They build at dz = 0.1, and ∩ and B ∖ A
+build at every dz. B's strip `|x| ≤ √(1 − dz²)` leaves the cap disc
+two lunes about `dz²/2` wide and `2·dz` long, each bounded by the rim
+arc and one straight cut: this row's sliver. The certified volumes
+match the closed forms. The row
+`crates/sweep/tests/bisector_nodes.rs::an_edge_near_a_node_crosses_through_the_bisector_planes`
+holds its cap poses to the certified bracket alone, citing this file.
