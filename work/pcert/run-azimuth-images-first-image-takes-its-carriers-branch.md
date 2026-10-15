@@ -46,3 +46,14 @@ its own. The row to carry: start `run_azimuth_images` at every member
 of PR 5126's `cylinder_patch_below(5.0)` and `(10.0)` and of
 `slit_cap_below(3.0)` and `(10.0)`, and read each start's window
 against the principal twin's from the same member.
+
+## A row B must flip
+
+`topo::pcurves::pole_slit_tests::a_body_stated_periods_off_reads_downstream_as_its_principal_twin`
+pins `chart_region_overlap`'s `Err(TouchingBoundary)` on the half-turn
+cylinder patch's second face at 6 and 10 periods below (PR 5126's
+second review, S8). That is a refusal of a valid body: the corner reads
+`π` plus 4 ulp because the image runs on the carrier's far-stated
+parameter. Once B places images over their edges' spans, that row is
+expected to read `PositiveArea` like its twin. B re-reads it and moves
+the pin.

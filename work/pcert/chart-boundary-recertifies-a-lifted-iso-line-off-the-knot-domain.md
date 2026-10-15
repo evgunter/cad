@@ -37,11 +37,21 @@ pair. Pin the case with a row first; it goes red today if reachable.
 
 ## Closed
 
-By construction, in PR 5126. `chart_boundary` now certifies each walked
-row in the caller's chart before lifting it, and carries the lifted
-copy as the row and its deck element, never certifying it again (C4).
-No row pins the case. Nothing built reaches it: the one candidate
-fixture tried, the lofted closed wall
-(`crates/sweep/tests/one_segment_loop.rs`), passes with the
-certify-after-lift order as well, so its walk sums no nonzero `Deck.u`
-on a net closed in `u`.
+In PR 5126. `chart_boundary` now certifies each walked row in the
+caller's chart before lifting it, and carries the lifted copy as the
+row and its deck element, never certifying it again (C4).
+
+The case is pinned by
+`topo::pcurves::pole_slit_tests::a_lifted_iso_line_off_the_knot_domain_is_its_row_and_element`
+(PR 5126's second review, M3). The fixture is a triangular prism stated
+as one degree-1 net closed in `u` (period 1), with a patch across its
+seam. Its bottom and top rows are split at the seam vertex, `u ∈
+[0.7, 1]` then `[0, 0.3]`, and its sides are iso lines. Each face's walk
+decides `Deck.u = ±1` and lifts iso-line rows off the knot domain. Both
+faces bound, and the patch's polygon spans `u ∈ [−0.3, 0.3]`. With the
+certify moved after the lift (the mutant), the lifted bottom row refuses
+`ResidualExceeded { MapResidual }`.
+
+The first fixture tried, the lofted closed wall in
+`crates/sweep/tests/one_segment_loop.rs`, passes under either order: its
+walk sums no nonzero `Deck.u` on an iso row.

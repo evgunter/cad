@@ -4170,11 +4170,7 @@ fn decide_joint<T: Decide>(
     let arm = joint_arm(chart, vertex);
     let whole = |k: i32| T::from_f64(f64::from(k));
     let twin = sphere_twin(surface, image);
-    let orbit = if twin.is_some() {
-        Orbit::HalfPeriodsWithTwin
-    } else {
-        Orbit::Periods
-    };
+    let orbit = Orbit::of(surface, image);
     let gap = prev.x - image.eval(entry_t).x;
     let marks = |p: T| lever_periods("pcurve_loop_branch", arm, gap, p, orbit, band);
     let rule = AzimuthRule::of(u_period.is_some(), singular_at(chart, vertex, band), spline);
@@ -4185,10 +4181,12 @@ fn decide_joint<T: Decide>(
         }
         _ => 0,
     };
-    let (is_twin, ku) = match twin {
-        Some(_) => (m.rem_euclid(2) == 1, m.div_euclid(2)),
-        None => (false, m),
-    };
+    // An odd step of a two-step orbit lands on the twin; the whole
+    // periods are the steps over the orbit's count.
+    let (is_twin, ku) = (
+        m.rem_euclid(orbit.steps()) == 1,
+        m.div_euclid(orbit.steps()),
+    );
     let sheet = match twin {
         Some(t) if is_twin => t,
         _ => image.clone(),
@@ -4324,9 +4322,21 @@ pub(crate) enum Orbit {
 }
 
 impl Orbit {
+    /// The orbit of a joint into `image` on `surface`: half periods
+    /// where the image has a sphere twin ([`sphere_twin`]), whole periods
+    /// elsewhere. The one fact the walk ([`decide_joint`]) and the room
+    /// fence ([`joint_has_room`]) both read.
+    pub(crate) fn of<T: Real>(surface: &Surface<T>, image: &Pcurve<T>) -> Self {
+        if sphere_twin(surface, image).is_some() {
+            Self::HalfPeriodsWithTwin
+        } else {
+            Self::Periods
+        }
+    }
+
     /// The steps in one period: 1, or 2 where the twin sits half a
     /// period over.
-    fn steps(self) -> i32 {
+    pub(crate) fn steps(self) -> i32 {
         match self {
             Self::Periods => 1,
             Self::HalfPeriodsWithTwin => 2,
@@ -4557,6 +4567,7 @@ fn joint_has_room<T: Decide>(
     chart: DescribedChart<'_, T>,
     vertex: geom_core::Point3<T>,
     u_period: Option<T>,
+    orbit: Orbit,
     band: Band,
 ) -> bool {
     let surface = chart.surface();
@@ -4566,11 +4577,8 @@ fn joint_has_room<T: Decide>(
     if surface.spline_chart().is_some() {
         return true;
     }
-    let step = if matches!(surface, Surface::Sphere { .. }) {
-        period * T::from_f64(0.5)
-    } else {
-        period
-    };
+    // The step the walk decided this joint's integer in.
+    let step = orbit.step(period).length();
     // The ends' least distance from the axis, and a quarter of the
     // chord between two of them half a step apart.
     let lever = joint_arm(chart, vertex).magnitude() - T::from_f64(2.0 * band.zero());
@@ -4893,7 +4901,8 @@ pub fn chart_boundary<T: AtRestPolicy>(
         // bound a different region. So each joint's room is decided here
         // ([`joint_has_room`]), and a joint without it refuses.
         for w in &walked {
-            if !joint_has_room(described, entry_vertex(body, w.key), period, band) {
+            let orbit = Orbit::of(chart, &w.pcurve);
+            if !joint_has_room(described, entry_vertex(body, w.key), period, orbit, band) {
                 return Err(PcurveMintError::JointWithoutRoom {
                     face,
                     r#loop: *lp,
@@ -7008,6 +7017,179 @@ pub(crate) mod pole_slit_tests {
             .collect()
     }
 
+    /// **A patch across the seam of a net closed in `u`.** A triangular
+    /// prism stated as one degree-1 net, `u` knots at `0.3` and `0.7`,
+    /// its first and last columns the same locus, so the chart closes in
+    /// `u` with period `1`. The patch covers the two facets either side
+    /// of the seam, `u ∈ [0.7, 1] ∪ [0, 0.3]`, `v ∈ [0, 1]`: a bottom
+    /// split at the seam vertex, iso-line sides at `u = 0.3` and `0.7`,
+    /// a top split the same way. Every edge is a straight line on a
+    /// facet's edge or along a knot line, so each row is an iso line.
+    pub(crate) fn prism_patch_across_the_seam()
+    -> Result<(Body<f64>, FaceKey), super::PcurveMintError> {
+        let tol = Tol::witness();
+        let (c0, c1, c2) = (
+            (1.0, 0.0),
+            (-0.5, 0.75_f64.sqrt()),
+            (-0.5, -(0.75_f64.sqrt())),
+        );
+        let at = |c: (f64, f64), z: f64| Point3::new(c.0, c.1, z);
+        let ku =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.3, 0.7, 1.0, 1.0], 1).unwrap();
+        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [c0, c1, c2, c0]
+            .into_iter()
+            .flat_map(|c| [at(c, 0.0), at(c, 1.0)])
+            .collect();
+        let net = geom::NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(at(c2, 0.0), true).unwrap();
+        let wall = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Nurbs(std::sync::Arc::new(net)),
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let column = |c: (f64, f64)| [at(c, 0.0), at(c, 1.0)];
+        // A cap edge: the net's own row at height `v`, its carrier the
+        // row on the net's basis and the chart's `u` as its parameter,
+        // over `[u0, u1]`; its image the row `v`, stated, since the seam's
+        // two sides `u = 1` and `u = 0` are one point to a projection.
+        let row = |v: f64, (u0, u1): (f64, f64)| EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart_image(
+                wall,
+                geom_brep::Pcurve::IsoLine {
+                    p0: geom_core::Point2::new(0.0, v),
+                    pl: geom_core::Vec2::new(1.0, 0.0),
+                },
+            ),
+            carrier: Curve3::Nurbs(std::sync::Arc::new(
+                geom::NurbsCurve3::new(
+                    geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.3, 0.7, 1.0, 1.0], 1)
+                        .unwrap(),
+                    vec![at(c0, v), at(c1, v), at(c2, v), at(c0, v)],
+                    vec![1.0; 4],
+                )
+                .unwrap(),
+            )),
+            param_start: u0,
+            param_end: u1,
+        };
+        // A side: the straight column at `u`, from height `v0` to `v1`.
+        let side = |c: (f64, f64), u: f64, (v0, v1): (f64, f64)| {
+            let [p, q] = column(c);
+            let (p, q) = if v0 < v1 { (p, q) } else { (q, p) };
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::chart_image(
+                    wall,
+                    geom_brep::Pcurve::IsoLine {
+                        p0: geom_core::Point2::new(u, v0),
+                        pl: geom_core::Vec2::new(0.0, v1 - v0),
+                    },
+                ),
+                carrier: Curve3::Line {
+                    origin: p,
+                    dir: q - p,
+                },
+                param_start: 0.0,
+                param_end: 1.0,
+            }
+        };
+        let fan = |he| MevSite::Fan { he1: he, he2: he };
+        // The bottom, rising in `u` across the seam vertex.
+        let b1 = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                at(c0, 0.0),
+                row(0.0, (0.7, 1.0)),
+                tol,
+            )
+            .unwrap();
+        let b2 = body
+            .mev(fan(b1.he_minus), at(c1, 0.0), row(0.0, (0.0, 0.3)), tol)
+            .unwrap();
+        // Up the side at `u = 0.7` from the start, and the top the same
+        // way as the bottom.
+        let up = body
+            .mev(fan(b1.he_plus), at(c2, 1.0), side(c2, 0.7, (0.0, 1.0)), tol)
+            .unwrap();
+        let t1 = body
+            .mev(fan(up.he_minus), at(c0, 1.0), row(1.0, (0.7, 1.0)), tol)
+            .unwrap();
+        let t2 = body
+            .mev(fan(t1.he_minus), at(c1, 1.0), row(1.0, (0.0, 0.3)), tol)
+            .unwrap();
+        body.mef(
+            MefSite::Chords {
+                he1: t2.he_minus,
+                he2: b2.he_minus,
+            },
+            side(c1, 0.3, (1.0, 0.0)),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+        crate::mint_pcurves(&mut body, tol)?;
+        Ok((body, seed.face))
+    }
+
+    /// **A lifted copy is the row and its element, never certified
+    /// again.** On the prism patch across the seam of a net closed in
+    /// `u`, each face's walk decides a joint element of a whole chart
+    /// period, `Deck.u = ±1`, and lifts iso-line rows by it: the patch's
+    /// side at `u = 0.7` to `u = −0.3`, off the knot domain an iso line's
+    /// hull bound holds on. `chart_boundary` certifies each row as the
+    /// row it is, before the lift, so both faces bound, the patch's
+    /// polygon spanning `u ∈ [−0.3, 0.3]` across the seam. Certifying
+    /// the lifted copy instead refuses: the bottom row lifted to
+    /// `u ∈ [−0.3, 0]` reads its net off the domain, and its map
+    /// residual is exceeded.
+    #[test]
+    fn a_lifted_iso_line_off_the_knot_domain_is_its_row_and_element() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, patch) = prism_patch_across_the_seam().unwrap();
+        for (f, face) in body.faces() {
+            let s = body.get_surface(face.surface).unwrap().clone();
+            let elements: Vec<_> = {
+                let LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+                else {
+                    panic!("the outer loop is a cycle")
+                };
+                body.loop_walk(first)
+                    .closed("loop", first)
+                    .into_iter()
+                    .map(|he| body.joint(he))
+                    .collect()
+            };
+            assert!(
+                elements.iter().any(|e| matches!(
+                    e,
+                    Some(crate::joint::JointElement::Shift(d)) if d.u != 0
+                )),
+                "{f:?}: the walk crosses the seam: {elements:?}"
+            );
+            let bound = super::chart_boundary(&body, f, &s, band)
+                .unwrap_or_else(|e| panic!("{f:?} bounds: {e:?}"));
+            if f == patch {
+                let us: Vec<f64> = bound.loops[0].edges.iter().map(|e| e.a().x).collect();
+                let (lo, hi) = us
+                    .iter()
+                    .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), &u| {
+                        (l.min(u), h.max(u))
+                    });
+                assert!(
+                    (lo + 0.3).abs() < 1e-12 && (hi - 0.3).abs() < 1e-12,
+                    "the patch spans the seam: {us:?}"
+                );
+            }
+        }
+    }
+
     /// **A body stated periods off reads downstream as its principal
     /// twin.** The rows the walk mints far out reach the readers built
     /// on them, and each reads what the same body at zero periods reads:
@@ -7861,7 +8043,7 @@ mod turn_miss {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod room_fence_tests {
-    use super::{DescribedChart, joint_has_room};
+    use super::{DescribedChart, Orbit, joint_has_room};
     use geom::Surface;
     use geom_core::{Band, Point3, Vec3};
 
@@ -7872,11 +8054,20 @@ mod room_fence_tests {
         Band::new(EPS, 1.5 * EPS).unwrap()
     }
 
+    /// The fence at `vertex`, on the orbit a harmonic image on
+    /// `surface` walks (a sphere's, half periods with its twin).
     fn room(surface: &Surface<f64>, vertex: Point3<f64>) -> bool {
+        let image = geom_brep::Pcurve::Harmonic {
+            p0: geom_core::Point2::new(0.0, 0.0),
+            pa: geom_core::Vec2::new(0.0, 0.0),
+            pb: geom_core::Vec2::new(0.0, 0.0),
+            pl: geom_core::Vec2::new(1.0, 0.0),
+        };
         joint_has_room(
             DescribedChart::of(surface).unwrap(),
             vertex,
             Some(core::f64::consts::TAU),
+            Orbit::of(surface, &image),
             tight(),
         )
     }
