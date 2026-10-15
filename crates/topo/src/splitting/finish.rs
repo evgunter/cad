@@ -338,16 +338,11 @@ impl SplitNaming {
         split_from: &std::collections::BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>,
         joins: Vec<crate::boolean::EdgeJoin>,
     ) {
-        for j in &joins {
-            if let Some(&from) = split_from.get(&j.gone) {
-                let earlier = self.joined_lineage.insert(j.gone, from);
-                debug_assert!(
-                    earlier.is_none_or(|e| e == from),
-                    "{:?} recorded with two parents ({earlier:?}, {from:?})",
-                    j.gone
-                );
-            }
-        }
+        crate::boolean::edge_join::record_killed_lineage(
+            &mut self.joined_lineage,
+            split_from,
+            joins.iter().map(|j| j.gone),
+        );
         self.edge_joins.extend(joins.into_iter().map(|j| (side, j)));
     }
 }
@@ -485,17 +480,44 @@ pub enum SplitFinishError {
     },
     /// A finished side fails tier 2 ([`crate::validate_closed`]): a
     /// split never returns a body that is not a closed solid. Reached
-    /// by a kernel defect, or by an operand that was not a closed
-    /// solid to begin with: the operand is never validated, and the
-    /// one tier-2 finding the reduction refuses is an empty OUTER loop
-    /// on a face rule (a) measures at an ON vertex
-    /// ([`super::SplitReduceError::UnboundedFace`], via
-    /// `rules::face_extent`). `side` is in the caller's orientation.
+    /// by a kernel defect: [`super::split`] reads its operand's tier 2
+    /// at every scalar before it cuts (`gate_finished`). `side` is in the
+    /// caller's orientation.
     ResultInvalid {
         /// The side whose body failed.
         side: PlaneSide,
         /// The validator's findings.
         errors: Vec<crate::validate::ValidationError>,
+    },
+    /// A side, sorted into its solids, fails the scalar's at-rest gate
+    /// ([`crate::AtRestPolicy::gate_at_rest`]: [`crate::validate_geometric`]
+    /// at a certifying scalar, nothing at a dual), the gate the Boolean's
+    /// result passes, on findings that are the kernel's: at a certifying
+    /// scalar a split never returns a side its validator refuses. Typed and
+    /// worded as the Boolean's [`crate::BooleanError::ResultInvalid`], each
+    /// finding with its own ending. `side` is in the caller's orientation.
+    ResultNotAtRest {
+        /// The side whose body failed.
+        side: PlaneSide,
+        /// The validator's findings.
+        errors: Vec<crate::validate::ValidationError>,
+    },
+    /// A side fails the at-rest gate only on shells whose role it
+    /// certified in band: the Boolean's [`crate::BooleanError::Escalated`]
+    /// on [`crate::BooleanDecision::ShellRole`], at this door and in its
+    /// lever ([`crate::BooleanDecision::render_at_split`]). `side` is in
+    /// the caller's orientation. No split is known to reach it: the
+    /// reduction's input readings refuse an in-band sliver first
+    /// ([`super::SplitReduceError::SliverVertex`], the section's area
+    /// certificate), so the typing's own row (`at_rest_rows`) is its
+    /// guard.
+    ResultEscalated {
+        /// The side whose body failed.
+        side: PlaneSide,
+        /// [`crate::BooleanDecision::ShellRole`] on the binding shell.
+        decision: crate::BooleanDecision,
+        /// The binding shell's certified reading.
+        diag: geom_core::Indeterminate,
     },
     /// The join a side ends with ([`crate::Body::join_edges`]) refused
     /// on that side's body.
@@ -505,6 +527,25 @@ pub enum SplitFinishError {
         /// Why the join refused, typed and keyless.
         refusal: crate::boolean::JoinRefusal,
     },
+}
+
+impl SplitFinishError {
+    /// The refusal of `side`, whose body the at-rest gate refused on
+    /// `errors`, typed as the Boolean types its result
+    /// ([`crate::boolean::at_rest_refusal`]).
+    pub(crate) fn not_at_rest(
+        side: PlaneSide,
+        errors: Vec<crate::validate::ValidationError>,
+    ) -> Self {
+        match crate::boolean::at_rest_refusal(errors) {
+            crate::boolean::AtRestRefusal::InBand { decision, diag } => Self::ResultEscalated {
+                side,
+                decision,
+                diag,
+            },
+            crate::boolean::AtRestRefusal::Kernel(errors) => Self::ResultNotAtRest { side, errors },
+        }
+    }
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -595,12 +636,9 @@ impl core::fmt::Display for SplitFinishError {
                     diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
-            Self::EdgeOnFacesEscalated { diag, .. } => diag
-                .undecided(
-                    crate::merge_faces::edge_on_faces_subject!("an edge along the cut"),
-                    diag.lever_ending(crate::merge_faces::EDGE_ON_PLANE_LEVER),
-                )
-                .fmt(f),
+            Self::EdgeOnFacesEscalated { diag, .. } => {
+                crate::merge_faces::edge_on_plane_refusal(diag).fmt(f)
+            }
             Self::SmoothJoinRefuted {
                 mixed: Some(stations),
                 ..
@@ -645,6 +683,21 @@ impl core::fmt::Display for SplitFinishError {
                     side.word()
                 )
             }
+            Self::ResultNotAtRest { side, errors } => crate::validate::write_result_not_at_rest(
+                f,
+                format_args!("the piece on the {} side of the plane", side.word()),
+                errors,
+            ),
+            Self::ResultEscalated {
+                side,
+                decision,
+                diag,
+            } => write!(
+                f,
+                "the piece on the {} side of the plane: {}",
+                side.word(),
+                decision.render_at_split(diag)
+            ),
             Self::ResultInvalid { side, errors } => match errors.as_slice() {
                 [first, ..] => write!(
                     f,
@@ -2143,6 +2196,80 @@ mod joined_lineage_rows {
                 .map(|j| (PlaneSide::Above, j))
                 .collect::<Vec<_>>(),
             "every join, with its side"
+        );
+    }
+}
+
+/// **The split types its at-rest refusal as the Boolean does, in its own
+/// lever.** A side refused only on a shell certified in band is
+/// `ResultEscalated` on that shell, ending in the split's lever; beside a
+/// definite finding it is the kernel's, `ResultNotAtRest`.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod at_rest_rows {
+    use super::{PlaneSide, SplitFinishError};
+    use crate::entity::{ShellKey, SolidKey};
+    use crate::props::CertifiedSliver;
+    use crate::{BooleanDecision, ShellClassifyError, ValidationError};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    #[test]
+    fn an_in_band_shell_escalates_in_the_splits_lever() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = |margin, terminal_sliver| Indeterminate {
+            margin,
+            band,
+            predicate: Some("positive_volume"),
+            terminal_sliver,
+        };
+        let thin = CertifiedSliver::of(read(MarginDiag::enclosure(-3.29e-9, -3.28e-9), true))
+            .expect("in band");
+        let shell: ShellKey = slotmap::KeyData::from_ffi((1 << 32) | 1).into();
+        let role = ValidationError::ShellRoleUndecided {
+            solid: SolidKey::default(),
+            error: ShellClassifyError::Escalated {
+                shell,
+                source: read(MarginDiag::value(3.05e-9), false),
+            },
+            sliver: Some(Box::new(thin)),
+        };
+        let refusal = SplitFinishError::not_at_rest(PlaneSide::Below, vec![role.clone()]);
+        assert!(
+            matches!(
+                &refusal,
+                SplitFinishError::ResultEscalated {
+                    side: PlaneSide::Below,
+                    decision: BooleanDecision::ShellRole { shell: s, others: 0, .. },
+                    diag,
+                } if *s == shell && diag == thin.reading()
+            ),
+            "an in-band shell alone escalates on it: {refusal:?}"
+        );
+        let msg = refusal.to_string();
+        assert!(
+            msg.starts_with("the piece on the below side of the plane: ")
+                && msg.contains("whether a shell of the result bounds material or a cavity")
+                && msg.contains(
+                    "move the split plane or the geometry so each piece it leaves is clearly thick"
+                )
+                && !msg.contains("move the parts"),
+            "the split's lever, not the Boolean's: {msg}"
+        );
+        let beside = SplitFinishError::not_at_rest(
+            PlaneSide::Above,
+            vec![
+                role,
+                ValidationError::NegativeVolume {
+                    solid: SolidKey::default(),
+                },
+            ],
+        );
+        assert!(
+            matches!(
+                &beside,
+                SplitFinishError::ResultNotAtRest { side: PlaneSide::Above, errors } if errors.len() == 2
+            ),
+            "beside a definite finding it is the kernel's: {beside:?}"
         );
     }
 }

@@ -2,7 +2,7 @@
 id: a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join
 kind: issue
 title: A section curve's end read in band of the vertex it meets refuses at the join as a kernel defect, at the split and at the Boolean
-status: dispatched
+status: review
 opened: 2026-10-12
 priority: P2
 cost: M
@@ -164,3 +164,32 @@ The units therefore become:
    PR 4858. The section reading offers a lever only where its own
    rounding bound admits it. An unresolved reading keeps the offset's
    verdict, as main does, and refuses nothing new.
+
+## Built: PR 4810 reworked on Ev's PR 4812 decision (2026-10-14)
+
+- **The bound.** `geom_brep::carrier_resolution::resolution(carrier,
+  t0, t1)`: `u·speed_hi·(32·reach + τ)`, read relative to the edge's
+  window, so it is the same wherever the part sits (the coordinates'
+  rounding at the model's extent is the band's own headroom, Q1).
+  Lines, circles and ellipses have one; spirics and splines have none
+  and keep the gate's refusal. A guard holds it against the exact miss
+  of every section table's carriers (worst an eighth of it). The
+  anchored conic tightens it in that one place.
+- **The rule.** `chord_join::section_pin_refusal`, admitting through
+  `validate::resolved` (also `vertex_section`'s rule):
+  - an escalated end pin, or a stood-in circle's surface residual, on a
+    carrier whose resolution `K` times over reads Zero is the input's,
+    typed `OnPlane` / `SquareToAxis` with its lever;
+  - past it, an escalated end pin, residual or witness is
+    `SectionUnresolved { Undecided }`, D4 ¶1 (i)'s last resort, no lever;
+  - a definite end miss that the resolution covers to within the zero
+    band is `SectionUnresolved { Past }` (Ev's interim reads every miss
+    within a carrier's resolution so); any other definite miss stays the
+    gate's.
+- A torus's concentric circles carry the square reading, as a rim does.
+- **Measured** (census probe, merged main): the 83 in-band and 119
+  definite near-axial poses at 1e-12 that ended "kernel defect" now end
+  `SectionUnresolved`; every typed pose stays typed; the torus square
+  poses read `SquareToAxis`; nothing that built refuses.
+- Filed: `a-torus-meridian-circle-is-a-stood-in-section-read-on-its-own-plane`,
+  `three-readings-of-a-points-rounding-charge-it-three-ways`.

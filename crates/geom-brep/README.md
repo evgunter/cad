@@ -737,9 +737,10 @@ the face `F` covers is sealed, a through-hole turning blind and a blind
 hole a void; and a feature crossing the band surface has a result too.
 What is built of it: face clearance reads each face three ways (clear
 of the region, wholly inside it, or crossing it), and the carve takes a
-through-feature wholly inside the material a convex straight band's
-cut-off removes (the ruled fillet's, the plane–plane fillet's and
-chamfer's), between the band's two caps. Every other case refuses, a
+through-feature wholly inside the material a straight band's cut-off
+removes or fills (the ruled fillet's, the plane–plane fillet's and
+chamfer's), between the band's two caps: a bore under a convex band, a
+bar between the end walls under a concave one. Every other case refuses, a
 case the rule defines and the surgery does not build, and it refuses
 at the meter that reads it, not by which case it is. The clearance
 screen and the exact ring meters read the supports' own boundary
