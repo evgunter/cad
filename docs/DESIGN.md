@@ -1410,7 +1410,8 @@ so stands at any dimension as the omission it marks (`0 mm` is a
 dimensioned literal, so typing it mints a variable); each is the shape
 of a formula rather than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value that it is not already the
-same as (VR8), so a constant is neither offered nor offered to;
+same as (VR8). A constant is not a variable, so typing a lone `0`
+draws no offer and a default `0` is never the one offered;
 declining the offer is what
 makes the two distinct. A variable without a name is read by exactly
 one slot or definition, which is how it is spoken; a variable two
