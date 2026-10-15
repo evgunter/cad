@@ -8,6 +8,7 @@
 
 [profile.ci]
 fail-fast = false
+failure-output = "final"
 # The filter's own entries are its count; the last measured total, under
 # 817 s of test time on 4 vCPU, was taken when it held 145.
 default-filter = """
