@@ -1011,3 +1011,15 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - `Span::place`, and one composition, `Span::contact`.
     - `Hit::End` names its end.
     - C5 is reworded, with no list.
+- 2026-10-15: the 5154 split (996741b) is reviewed by Opus and Fable; both gate the merge.
+  - **Opus MAJOR:** `Span::place` decides Past from the foot's parameter alone. A spline foot (and an ellipse or spiric one) is not certified nearest, and a `Foot` is not tied to its point. So a point on the span's interior can read Past and then None: 98 of 99 points on a hairpin spline. That is a new decided "no crossing", since splines used to be Unread.
+  - **Both reviewers, MAJOR:** a negative-radius circle gives a false decided Off (`rho − radius`).
+  - **Fable MAJOR:** two slow sweep rows are red at 1e-6 (cone oblique rod: crossing layer, likely this PR's; the f64 seam row: likely pre-existing). A main-vs-branch run is owed.
+  - **Minors:**
+    - `Foot::gap` is unread, a deviation from the ratified wording;
+    - the straddle docs are inverted;
+    - `ConicArc::hit` is a second composition;
+    - one unpinned table row;
+    - copies minted (`carrier_speed`'s private `Conic`, `conic_clearance`, the least band ×13);
+    - missed sweep sites (`offset_derive` `nearest` reads `param_near` as a foot).
+  - **Next:** all of it goes to the lane. Past is decided only on a certified-nearest foot, and a Foot is tied to its point: this keeps Ev's decision rather than opening a new fork, unless the lane finds Past rarely decidable.
