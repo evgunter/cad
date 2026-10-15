@@ -423,6 +423,7 @@ jobs:
         with:
           version: ${{ steps.nextest.outputs.version }}
       - name: build
+        id: build
         run: cargo nextest run --workspace --no-run
       - name: every eps row, the whole suite (default profile — no slow-set filter)
         run: |
@@ -440,6 +441,12 @@ jobs:
       - name: doc-tests
         if: '!cancelled()'
         run: cargo test --doc --workspace
+      - name: the slow set names only tests that exist (the whole workspace)
+        if: '!cancelled() && steps.build.outcome == ''success'''
+        run: |
+          set -o pipefail
+          cargo nextest list --workspace --ignore-default-filter --message-format json \
+            | python3 scripts/check-slow-set-names.py --complete
       - name: the per-op postcondition scalpel (topo)
         if: '!cancelled()'
         run: |
