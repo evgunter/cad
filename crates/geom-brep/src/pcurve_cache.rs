@@ -5053,6 +5053,91 @@ mod period_rows {
         ));
     }
 
+    /// REVIEW PROBE (5126, second review): a gap whose branch is exactly
+    /// `i32::MAX` is named by an `i32`; the walk stops `Undecided`
+    /// instead (the astride pair `[i32::MAX, i32::MAX + 1]` is built
+    /// before the decided branch is returned). `-i32::MAX` answers.
+    #[test]
+    fn review_probe_a_branch_at_i32_max() {
+        let tau = f64::tau();
+        let k = f64::from(i32::MAX);
+        let up = Period::new(tau).decide("t", (k + 0.1) * tau, Margin::of, band());
+        let down = Period::new(tau).decide("t", -(k + 0.1) * tau, Margin::of, band());
+        eprintln!("up {up:?}\ndown {down:?}");
+        assert!(matches!(down, Ok(-2_147_483_647)), "down: {down:?}");
+        assert!(matches!(up, Ok(i32::MAX)), "up: {up:?}");
+    }
+
+    /// REVIEW PROBE (5126, second review): the gallop against a step
+    /// walk at Interval, random widths and centres out to 300 periods,
+    /// half of them snapped within 1e-7 periods of a mark, levered.
+    #[test]
+    fn review_probe_interval_gallop_is_step_walk() {
+        use geom_core::{Sign, k_stats::decide};
+        let t = Interval::tau();
+        let arm = Interval::from_f64(0.37);
+        let b = band();
+        let step = |gap: Interval| -> String {
+            let half = Interval::from_f64(0.5);
+            let mark = |k: i32, side: Interval| {
+                decide(
+                    "t",
+                    Margin::levered(gap - (Interval::from_f64(f64::from(k)) + side) * t, arm),
+                    b,
+                )
+            };
+            let (mut k, mut below, mut above) = (0i32, false, false);
+            loop {
+                if !above {
+                    match mark(k, half) {
+                        Ok(Sign::Negative) => {}
+                        Ok(Sign::Positive) => {
+                            (k, below, above) = (k + 1, true, false);
+                            continue;
+                        }
+                        Ok(Sign::Zero) => return format!("OnMark {:?}", [k, k + 1]),
+                        Err(_) => return format!("Undecided {:?}", [k, k + 1]),
+                    }
+                }
+                if !below {
+                    match mark(k, Interval::zero() - half) {
+                        Ok(Sign::Positive) => {}
+                        Ok(Sign::Negative) => {
+                            (k, below, above) = (k - 1, false, true);
+                            continue;
+                        }
+                        Ok(Sign::Zero) => return format!("OnMark {:?}", [k - 1, k]),
+                        Err(_) => return format!("Undecided {:?}", [k - 1, k]),
+                    }
+                }
+                return format!("Ok({k})");
+            }
+        };
+        let mut seed: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut rnd = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        for _ in 0..200_000 {
+            let c = (rnd() - 0.5) * 600.0;
+            let w = [0.0, 1e-12, 1e-9, 3e-8, 1e-3, 0.4, 2.0][(rnd() * 7.0) as usize % 7];
+            let c = if rnd() < 0.5 { c.round() + 0.5 + (rnd() - 0.5) * 1e-7 } else { c };
+            let gap = (t * Interval::from_f64(c)).enclosure_hull(t * Interval::from_f64(c + w));
+            let want = step(gap);
+            let got = match Period::new(t).decide("t", gap, |g| Margin::levered(g, arm), b) {
+                Ok(k) => format!("Ok({k})"),
+                Err(WalkStop { miss: BranchMiss::OnMark, astride: Some(a) }) => format!("OnMark {a:?}"),
+                Err(WalkStop { miss: BranchMiss::Undecided(_), astride: Some(a) }) => {
+                    format!("Undecided {a:?}")
+                }
+                Err(o) => format!("{o:?}"),
+            };
+            assert_eq!(got, want, "c {c} w {w}");
+        }
+    }
+
     /// **A gap that names no number decides nothing.** An infinite or
     /// NaN gap stops at once as undecided, with no mark: an infinite
     /// margin would read every mark definite and the walk would never
