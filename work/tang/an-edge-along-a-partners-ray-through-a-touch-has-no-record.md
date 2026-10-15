@@ -2,7 +2,7 @@
 id: an-edge-along-a-partners-ray-through-a-touch-has-no-record
 kind: issue
 title: An edge along a touching partner's ray on the face leaves its overlap with that ray unrecorded, and tier 3′ refuses it
-status: open
+status: dispatched
 opened: 2026-10-12
 priority: P3
 cost: M
