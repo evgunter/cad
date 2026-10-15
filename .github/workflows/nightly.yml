@@ -424,16 +424,19 @@ jobs:
           version: ${{ steps.nextest.outputs.version }}
       - name: build
         run: cargo nextest run --workspace --no-run
-      - name: every eps row, the whole suite (default profile — no slow-set filter)
+      - name: every eps row, the whole suite (the ci profile with its slow-set filter ignored)
         run: |
           rc=0
           for eps in default 1e-6 1e-12; do
             echo "::group::eps=$eps"
+            r=0
             if [ "$eps" = default ]; then
-              cargo nextest run --workspace --no-fail-fast || rc=1
+              cargo nextest run --profile ci --ignore-default-filter --workspace --no-fail-fast || r=$?
             else
-              CAD_TOLERANCE_EPS=$eps cargo nextest run --workspace --no-fail-fast || rc=1
+              CAD_TOLERANCE_EPS=$eps cargo nextest run --profile ci --ignore-default-filter --workspace --no-fail-fast || r=$?
             fi
+            scripts/nextest-failures.py "eps $eps" "$r"
+            [ "$r" = 0 ] || rc=1
             echo "::endgroup::"
           done
           exit $rc
@@ -449,6 +452,10 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
           cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --target wasm32-unknown-unknown
+      # Last, so the failing rows close the log whatever ran after them.
+      - name: failing tests (name, panic, seed)
+        if: failure()
+        run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
   python:
     name: python suite (wheel + guide + north-star)
     runs-on: ubuntu-latest

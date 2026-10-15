@@ -2,8 +2,12 @@
 id: a-red-test-steps-fail-line-past-the-log-tail-cannot-be-named
 kind: issue
 title: A red test step whose FAIL line falls outside the last 5000 log lines cannot be named from a session
-status: open
+status: closed
 opened: 2026-10-14
+closed: 2026-10-15
+priority: P3
+cost: M
+branch: ciw/readable-reds
 refs: [5104, an-all-tier-diff-with-no-crate-seed-runs-no-slow-row]
 ---
 
@@ -58,3 +62,23 @@ host refuses the session's proxy (403). The panic was read only after
 pushing a temporary `failure-output = "final"` on the `ci` profile,
 which moved the output into the closing summary, and reverting it in
 the next commit.
+
+## Closed
+
+Every failing nextest row is now named where a session can read it.
+The `ci` profile in `.config/nextest.toml` writes `junit.xml`
+(`[profile.ci.junit]`) and sets `failure-output = "immediate-final"`.
+`scripts/nextest-failures.py` runs after each nextest invocation. It reads
+that report and deletes it, so a later run that dies cannot re-report a
+stale one. For each failing test it writes the name, the panic's location
+and message (the backtrace is dropped) and any `seed=` line in three
+places: an `::error` annotation, the step summary, and
+`$RUNNER_TEMP/nextest-failures.txt`. A final `if: failure()` step prints
+that file, so the rows close the job log.
+
+The script covers every nextest step of ci.yml's `test` job (default ε,
+the 1e-6/1e-12 loop, the slow set) and nightly.yml's `full suite` job.
+The nightly job now runs `--profile ci --ignore-default-filter`, which is
+the default profile's whole suite plus the junit report. A nonzero exit
+with no failing row in the report (a build error, no tests matched) is
+recorded as such.
