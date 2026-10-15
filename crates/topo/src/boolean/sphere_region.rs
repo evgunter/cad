@@ -86,8 +86,8 @@
 //!   face side at the closest crossing, at the sphere's radius.
 //! - `bool_sphere_region_roots_*`: the first-harmonic door's own meters.
 //! - `bool_sphere_region_arc_span`: an arc's gap to a period. Where `p`
-//!   sits against the arc is [`ConicArc::hit`], the point-on-span
-//!   reading's rows (`curve_pair_span_*`). `bool_sphere_region_arc_straddle`
+//!   sits against the arc is [`ConicArc::hit`], the on-carrier and span
+//!   readings' rows (`curve_carrier_*`, `curve_pair_span_*`). `bool_sphere_region_arc_straddle`
 //!   is the name an ellipse's straddle would carry; a circle never does.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
@@ -499,7 +499,7 @@ mod tests {
                         matches!(
                             region.contains(at(rim + off, az), band),
                             Err(RegionRefusal::Escalated(diag))
-                                if diag.predicate == Some("curve_pair_span_gap")
+                                if diag.predicate == Some("curve_carrier_gap")
                         ),
                         "in the band: forward {forward}, azimuth {az}, {off:e} off"
                     );
@@ -573,7 +573,7 @@ mod tests {
 
     /// **On a partial arc, the boundary reading is the arc's own**: within
     /// the zero band of the arc's interior on the boundary, in the band
-    /// refused on the point-on-span reading's gap, past it on its side — the lune
+    /// refused on the on-carrier reading's gap, past it on its side — the lune
     /// lies on the `+y` side of the meridian at azimuth 0.
     #[test]
     fn a_point_near_a_partial_arc_is_read_by_its_distance_from_it() {
@@ -592,7 +592,7 @@ mod tests {
                     matches!(
                         region.contains(off_meridian(theta, off), band),
                         Err(RegionRefusal::Escalated(diag))
-                            if diag.predicate == Some("curve_pair_span_gap")
+                            if diag.predicate == Some("curve_carrier_gap")
                     ),
                     "in band: theta {theta}, {off:e}"
                 );

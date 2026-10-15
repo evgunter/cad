@@ -27,3 +27,8 @@ The floor these rows meet is the basin meter's, as computed: `sin φ > 2(κ₁ +
 **Routes.**
 - Below the basin floor, the answer the band allows is a contact over a run, not an isolated point. The pose could carry that run (a `Pose` arm for it), as `Coincident` carries an overlap, and read the run's ends on both spans.
 - For wide crossings in nearly parallel planes, the basin could read `κ` over the polish's actual travel rather than over the whole run `ℓ`, with a second certificate that no other stationary pair lies in the run.
+
+## Evidence: a line crossing an ellipse's plane steeply at its tip (2026-10-15)
+
+`sweep/tests/a_ruling_lying_on_a_wall.rs` `two_rims_the_band_reads_coplanar_are_one_curve_only_within_it`: a seam ruling crosses a rim's plane at `|d̂·n̂| ≈ 0.01` and meets the rim at its tip, where the radius of curvature is `b²/a = 10⁻⁴` m. The basin meter (`Polish::closest`, `crates/geom-brep/src/curve_pair/pose.rs`) charges the curvature bound over the line's whole band stretch, `e/|d̂·n̂|`, to the conic as well, though the line runs across the conic there (sine 1). At `ε = 10⁻⁶` the turn reads `≈ 40` against a sine of `1`, so every op refuses `CurvedPierceUnsupported` where main's own carrier reading refused `FallbackExtentUnsupported` further on. At `10⁻⁹` and `10⁻¹²` it decides. The row states the threshold (`ε` past about `2.5·10⁻⁸`). A per-side region (the conic's stretch near the foot, not the line's) would decide it, once its bound is argued.
+

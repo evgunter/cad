@@ -2387,3 +2387,21 @@ The PR merged with `demos` red on that drift alone.
 - `work/origin/body-split-root-stops-at-a-parent-an-output-stage-killed` (with a sibling sweep).
 
 **Review.** The falsifier's A4 reading turned the remap design stop into a build. Without it, the stop would have become a third `[ev]` question.
+
+## 2026-10-15 — PRs 5107, 5174 and 5180
+
+**PR 5107: a union reads flush edges along a curved carrier.**
+- Closed `a-unions-flush-reading-is-straight-only` and `crossings-of-a-union-seam-of-several-curves-tie`.
+- `EdgeCarrier` (`Straight`, `Curved` or `Unread`, the last for a NURBS carrier) and `Track::runs_with` decide the flush lines. `least_per_line` is shared with the pair boolean.
+- The `Track::offset` start point is decided first.
+- Ev ratified (2026-10-14) the N2 / flush README re-wording, "line" = carrier. On ranking along a curved seam: "that can be a separate pr". It is filed as `a-union-seam-whose-pieces-lie-on-one-open-carrier-ranks-its-crossings-along-it`.
+- Re-baselined: the ball-brick refusal message.
+
+**PR 5174: split and inline keep step-id order; `remap_name` refuses typed; the carve keeps split records.**
+- Closed `a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical` under ASSEMBLY.md A4 Acceptance. The split's and inline's step maps keep id order, through a recorded `SetProgram` that mints nothing.
+- A ranked run across two profiles refuses typed. It is unreachable today.
+- `remap_name` returns `RemapError`, and `RankedRunReordered` is a new typed refusal.
+- Closed `a-booleans-carve-kills-a-split-record-its-discard-rows-do-not-copy` through `carved_lineage`, records only.
+- North-star `TestCrosslapGlued` now succeeds: audit row 37 flips NO→YES.
+
+**PR 5180: main red, fixed.** TANG #5111 added a `copysign` site that the Rule F census did not count, and main's own CI scoped geom-core out. 5107 and 5174, both at `TIER=all`, went red. The census was re-asked: the site makes no decision. The fix was merged into both, then into main.

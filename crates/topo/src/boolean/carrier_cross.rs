@@ -40,7 +40,7 @@
 //! door. A refusal's decided meetings are read like an answer's: a
 //! crossing among them is split, and the fragments are read again.
 
-use geom_brep::curve_pair::{Contact, Hit, MeetFault, Span, meet};
+use geom_brep::curve_pair::{Hit, MeetFault, Span, meet};
 use geom_core::{Band, Decide, Point3};
 
 use super::contain::FaceContainment;
@@ -95,7 +95,6 @@ pub(super) fn boundary_crossing<T: Decide>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<BoundaryCrossing<T>, BooleanError> {
-    let mid = geom::mid_param(t0, t1);
     let swept = Span::new(carrier, (t0, t1));
     let face_data = y
         .get_face(face)
@@ -109,12 +108,9 @@ pub(super) fn boundary_crossing<T: Decide>(
             return Ok(BoundaryCrossing::Unread);
         };
         let vertex = y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
-        let Some(t) = carrier.param_near(vertex, mid) else {
-            return Ok(BoundaryCrossing::Unread);
-        };
-        match swept.contact(vertex, t, band).map_err(escalated)? {
-            Contact::On { t, .. } => crossings.push(t),
-            Contact::Off | Contact::Carrier | Contact::Past | Contact::End => {}
+        match vertex_on_span(&swept, vertex, band) {
+            Ok(t) => crossings.extend(t),
+            Err(refusal) => return vertex_refusal(refusal),
         }
         let CurveGeom::Certified(other) = y.edge_curve_linked(ek, edge) else {
             return Ok(BoundaryCrossing::Unread);
@@ -133,7 +129,7 @@ pub(super) fn boundary_crossing<T: Decide>(
                 crossings.extend(refusal.found.iter().filter(|m| !m.run).filter_map(
                     |m| match m.on_a {
                         Hit::On { t, .. } => Some(t),
-                        Hit::End => None,
+                        Hit::End(_) => None,
                     },
                 ));
                 continue;
@@ -161,7 +157,7 @@ pub(super) fn boundary_crossing<T: Decide>(
         for m in met.points.iter().filter(|m| !m.run) {
             match m.on_a {
                 Hit::On { t, .. } => crossings.push(t),
-                Hit::End => {}
+                Hit::End(_) => {}
             }
         }
     }
@@ -182,6 +178,41 @@ pub(super) fn boundary_crossing<T: Decide>(
     )
 }
 
+/// **Whether the swept span holds a boundary vertex on its interior**:
+/// the vertex read by [`Span::contact`] at its foot on the swept carrier
+/// ([`geom::Curve3::foot`]), `Some` of the parameter where it is on the
+/// interior. The foot, not the carrier's [`geom::Curve3::param_near`]: on
+/// an ellipse that is the angle of the point's unit-coordinate image,
+/// whose point lies up to `(1 + a/b)·ε` from a vertex `ε` off the
+/// carrier, which the band would read off it.
+fn vertex_on_span<T: Decide>(
+    swept: &Span<'_, T>,
+    vertex: geom_core::Point3<T>,
+    band: Band,
+) -> Result<Option<T>, geom::CarrierRefusal> {
+    let (t0, t1) = swept.params();
+    let foot = swept.carrier().foot(vertex, geom::mid_param(t0, t1));
+    Ok(match swept.contact(vertex, &foot, band)? {
+        Some(Hit::On { t, .. }) => Some(t),
+        Some(Hit::End(_)) | None => None,
+    })
+}
+
+/// A point-on-span refusal of the vertex reading: an escalation is this
+/// module's, and a spline that cannot be read is not read.
+fn vertex_refusal<T: geom_core::Real>(
+    refusal: geom::CarrierRefusal,
+) -> Result<BoundaryCrossing<T>, BooleanError> {
+    match refusal {
+        geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag) => {
+            Err(escalated(diag))
+        }
+        geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded => {
+            Ok(BoundaryCrossing::Unread)
+        }
+    }
+}
+
 /// An in-band decision of this module: where a crossing lands along its
 /// edge is undetermined.
 fn escalated(diag: geom_core::Indeterminate) -> BooleanError {
@@ -199,12 +230,45 @@ mod crossing_rows {
     //! wall sheet's rim, which no vertex projects onto. (Coaxial
     //! iso-curves are found by either kind of candidate; this is the row
     //! that needs the meeting reading.)
-    use super::{BoundaryCrossing, boundary_crossing};
+    use super::{BoundaryCrossing, boundary_crossing, vertex_on_span};
     use crate::boolean::Operand;
     use crate::boolean::contain::FaceContainment;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
+    use geom_brep::curve_pair::Span;
     use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **A vertex within the band of a thin ellipse is read on it.** An
+    /// ellipse of semi-axes `a/b` from 100 to 1000, and a vertex half the
+    /// band's zero off it along its in-plane normal at three parameters
+    /// across the span. Read at the ellipse's foot it is `On`; read at the
+    /// angle of its unit-coordinate image (`param_near`) its gap is about
+    /// `(1 + a/b)` times that, which the band decides off. Red on the
+    /// `param_near` reading.
+    #[test]
+    fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let z = band.zero();
+        for ratio in [100.0, 1e3] {
+            let thin = Curve3::Ellipse {
+                center: Point3::new(0.2, -0.1, 0.4),
+                axis: Vec3::unit_z(),
+                semi_u: ratio,
+                semi_v: 1.0,
+                u_ref: Vec3::unit_x(),
+            };
+            let swept = Span::new(&thin, (0.5, 2.5));
+            for t in [0.9, 1.3, 2.1] {
+                let (p, d) = thin.ders1(t);
+                let normal = Vec3::unit_z().cross(d).normalize();
+                let vertex = p + normal * (0.5 * z);
+                let on = vertex_on_span(&swept, vertex, band)
+                    .unwrap_or_else(|e| panic!("{ratio} at {t}: {e:?}"));
+                let at = on.unwrap_or_else(|| panic!("{ratio} at {t}: read off"));
+                assert!((at - t).abs() < 1e-6, "{ratio} at {t}: {at}");
+            }
+        }
+    }
 
     #[test]
     fn a_tilted_circle_meets_a_rim_no_vertex_projects_onto() {
@@ -362,13 +426,16 @@ mod crossing_rows {
 
     /// **A swept span crossing a rim at a shallow angle at its own end
     /// crosses nothing inside.** The section of the unit cylinder by
-    /// `z = c + ½·cos(θ − 0.8)`, its top `δ = ½(1 − cos 0.01)` above the
+    /// `z = c + ½·cos(θ − 0.8)`, its top `δ = ½(1 − cos 0.05)` above the
     /// sheet's top rim, crosses the rim at its own parameters `±t_c`,
-    /// `t_c ≈ 0.01`, at about `0.005` rad. A span from `t_c` inward meets
+    /// `t_c ≈ 0.05`, at about `0.025` rad. A span from `t_c` inward meets
     /// the rim at its end, which the endpoint arms place. The run of its
-    /// points within the band of the rim, about `5·10⁻⁸` long, is no
-    /// crossing of its own, so the interior is clear. A span through both
-    /// crossings is crossed at one of them.
+    /// points within the band of the rim, some `10⁻⁸` long at
+    /// `ε = 10⁻⁹`, is no crossing of its own, so the interior is clear. A
+    /// span through both crossings is crossed at one of them. The angle
+    /// holds at `ε = 10⁻⁶` too, where `0.005` rad is the basin meter's
+    /// refusal (the note below), and the row is red without the run
+    /// filter at every ε.
     ///
     /// (A section tangent to the rim reads `Unread`: across planes the
     /// basin meter refuses a crossing angle of zero,
@@ -386,7 +453,7 @@ mod crossing_rows {
             tol,
         );
         let (m, a) = (0.5f64, 0.8f64);
-        let c = 1.0 + m * (1.0 - 0.01f64.cos()) - m;
+        let c = 1.0 + m * (1.0 - 0.05f64.cos()) - m;
         let k = m.hypot(1.0);
         let section = Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, c),

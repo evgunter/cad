@@ -240,7 +240,7 @@ fn a_slot_and_a_rounded_rectangle_answer_their_regions() {
 /// **`contfp` reads `q` against each edge once.** Its pre-pass places `q`
 /// off every edge, and the loop walk after it takes those readings rather
 /// than deciding them again: each of the slot's two arcs is read once,
-/// under the point-on-span reading's gap row (`curve_pair_span_gap`).
+/// under the on-carrier reading's gap row (`curve_carrier_gap`).
 /// The walk's ray rows still decide its crossings. The probes
 /// include points on an arc's carrier beyond the arc, whose `Carrier`
 /// reading the walk's crossing count takes from the pre-pass.
@@ -278,7 +278,7 @@ fn contfp_reads_each_edge_once() {
         let read = recorded
             .verdicts
             .iter()
-            .filter(|v| v.predicate == "curve_pair_span_gap")
+            .filter(|v| v.predicate == "curve_carrier_gap")
             .count();
         assert_eq!(
             read, 2,

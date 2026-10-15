@@ -329,14 +329,17 @@ fn middle<T: Decide>(s: &Span<'_, T>) -> Point3<T> {
     s.carrier().eval(geom::mid_param(t0, t1))
 }
 
-/// The conic's parameter nearest `q`: the angle of `q`'s unit
-/// coordinates, exact on a circle and on any point of the ellipse,
-/// polished otherwise. A foot that is not the nearest point only reads
-/// the point farther off ([`Span::contact`]).
+/// The conic's foot of `q` ([`Curve3::foot`], the one foot reading).
 fn conic_foot<T: Decide>(k: &Conic<T>, q: Point3<T>) -> T {
-    let w = q - k.center;
-    let seed = (w.dot(k.v_ref()) / k.semi_v).atan2(w.dot(k.u_ref) / k.semi_u);
-    super::polish::foot(|t| Side::Conic(k).ders(t), q, seed, |_| true)
+    Curve3::Ellipse {
+        center: k.center,
+        axis: k.axis,
+        semi_u: k.semi_u,
+        semi_v: k.semi_v,
+        u_ref: k.u_ref,
+    }
+    .foot(q, T::zero())
+    .t()
 }
 
 /// A lower bound on `q`'s distance from the conic: the conic lies in its
@@ -351,22 +354,16 @@ fn conic_clearance<T: Decide>(k: &Conic<T>, q: Point3<T>) -> T {
     (h.powi(2) + out.powi(2)).sqrt()
 }
 
-/// The line's parameter nearest `q`.
+/// The line's foot of `q` ([`Curve3::foot`], the one foot reading).
 fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T {
-    (q - origin).dot(dir) / dir.dot(dir)
+    Curve3::Line { origin, dir }.foot(q, T::zero()).t()
 }
 
-/// **The carrier's parameter nearest `q`**, on a line or a conic: a
-/// line's projection, a conic's unit-coordinate angle polished by
-/// Gauss–Newton (exact on a circle). `None` on a kind with no closed
-/// pose. A parameter that is not the foot only reads `q` farther off
-/// ([`Span::contact`]).
-pub fn foot<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> Option<T> {
-    match *c {
-        Curve3::Line { origin, dir } => Some(line_foot((origin, dir), q)),
-        Curve3::Circle { .. } | Curve3::Ellipse { .. } => Some(conic_foot(&Conic::of(c)?, q)),
-        Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
-    }
+/// `q`'s foot on `s`'s carrier ([`Curve3::foot`]), seeded at the span's
+/// middle.
+fn foot<T: Decide>(s: &Span<'_, T>, q: Point3<T>) -> T {
+    let (t0, t1) = s.params();
+    s.carrier().foot(q, geom::mid_param(t0, t1)).t()
 }
 
 /// **Each span's ends, read against the other** (module docs, "The
@@ -377,12 +374,20 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
     let (a0, a1) = a.params();
     for ta in [a0, a1] {
         let point = a.carrier().eval(ta);
-        out.extend(foot(b.carrier(), point).map(|tb| Candidate { point, ta, tb }));
+        out.push(Candidate {
+            point,
+            ta,
+            tb: foot(b, point),
+        });
     }
     let (b0, b1) = b.params();
     for tb in [b0, b1] {
         let point = b.carrier().eval(tb);
-        out.extend(foot(a.carrier(), point).map(|ta| Candidate { point, ta, tb }));
+        out.push(Candidate {
+            point,
+            ta: foot(a, point),
+            tb,
+        });
     }
     out
 }
@@ -408,8 +413,8 @@ pub(super) fn run_candidates<T: Decide>(
     band: Band,
 ) -> Vec<Candidate<T>> {
     let (Some(ka), Some(kb)) = (
-        crate::carrier_speed::curvature_hi(a.carrier()),
-        crate::carrier_speed::curvature_hi(b.carrier()),
+        geom::carrier_speed::curvature_hi(a.carrier()),
+        geom::carrier_speed::curvature_hi(b.carrier()),
     ) else {
         return Vec::new();
     };
@@ -442,12 +447,14 @@ pub(super) fn run_candidates<T: Decide>(
     let dta = s / da.norm();
     for ta in [c.ta - dta, c.ta + dta] {
         let point = a.carrier().eval(ta);
-        out.extend(foot(b.carrier(), point).map(|tb| Candidate { point, ta, tb }));
+        let tb = b.carrier().foot(point, c.tb).t();
+        out.push(Candidate { point, ta, tb });
     }
     let dtb = s / db.norm();
     for tb in [c.tb - dtb, c.tb + dtb] {
         let point = b.carrier().eval(tb);
-        out.extend(foot(a.carrier(), point).map(|ta| Candidate { point, ta, tb }));
+        let ta = a.carrier().foot(point, c.ta).t();
+        out.push(Candidate { point, ta, tb });
     }
     out
 }

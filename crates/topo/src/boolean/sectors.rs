@@ -751,10 +751,9 @@ fn read_side<T: Decide>(
     // the ½ gives `l²/R`, an upper bound unconditionally (`l* ≤ R/2`
     // here, inside the circle's reach).
     let slope = displacement / length;
-    let l = (slope * T::from_f64(0.5) * lever).min(length);
     match crate::validate::decide_reported(
         "bool_pierce_sector_side_curved",
-        Margin::of(slope * l - l.powi(2) / lever),
+        Margin::of(sagitta_charge(slope, lever, length)),
         band,
     ) {
         Ok(decided) => match Refused::of(decided, band) {
@@ -772,6 +771,17 @@ fn read_side<T: Decide>(
             diag,
         }),
     }
+}
+
+/// **The curvature charge**: the least separation from a face that a
+/// ray leaving it at `slope` (a sine) keeps past a bend of radius
+/// `lever`, `slope·l − l²/lever`, read at `l = min(slope·lever/2,
+/// reach)`, where it peaks within the reach. [`read_side`] carries the
+/// argument and the witness; `vtxfac::faces_holding_pierce` charges a
+/// held pierce's run with it.
+pub(super) fn sagitta_charge<T: Decide>(slope: T, lever: T, reach: T) -> T {
+    let l = (slope * T::from_f64(0.5) * lever).min(reach);
+    slope * l - l.powi(2) / lever
 }
 
 /// **A conic bound's side of a plane face one order down**, where its

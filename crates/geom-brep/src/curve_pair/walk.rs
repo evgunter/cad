@@ -1,7 +1,7 @@
 //! **The certified walk**: the meetings of two spans whose pair has a
 //! spiric or spline side, and the closed forms' differential test oracle
 //! on the rest. It reads any two carriers through their rate bounds
-//! alone ([`crate::carrier_speed`]).
+//! alone ([`geom::carrier_speed`]).
 //!
 //! **Candidates first.** Each span's middle, and the points halfway
 //! between one span's end and the other's ends, one of which a
@@ -31,7 +31,7 @@
 use geom::Curve3;
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::span::Span;
 use super::{MeetFault, MeetRefusal, Meeting, Meetings};
@@ -49,8 +49,8 @@ impl<'r, 's, T: Decide> Read<'r, 's, T> {
     fn of(span: &'r Span<'s, T>) -> Self {
         Self {
             span,
-            accel: crate::carrier_speed::accel_hi(span.carrier()),
-            curvature: crate::carrier_speed::curvature_hi(span.carrier()),
+            accel: geom::carrier_speed::accel_hi(span.carrier()),
+            curvature: geom::carrier_speed::curvature_hi(span.carrier()),
         }
     }
 
@@ -133,11 +133,6 @@ fn step_taken<T: Decide>(moved: T, slack: T) -> bool {
     })
 }
 
-/// Gauss–Newton from `t` toward `span`'s foot of `q` (`step_taken`).
-fn polish_foot<T: Decide>(span: &Span<'_, T>, q: Point3<T>, t: T, slack: T) -> T {
-    super::polish::foot(|t| span.carrier().ders1(t), q, t, |m| step_taken(m, slack))
-}
-
 /// Whether a piece of reach `reach` is small enough to stop at, decided on
 /// `row`: within the floor, or within the band where there is no finite
 /// floor.
@@ -188,45 +183,23 @@ fn near_pieces<T: Decide>(
     Ok(out)
 }
 
-impl<T: Decide> Span<'_, T> {
-    /// **The parameters of the carrier where `q` may lie on the span
-    /// within the band** — the one foot search: the carrier's closed-form
-    /// parameter where it inverts ([`Curve3::param_near`]), else the
-    /// middle of each piece of the span `q` may rest on, each polished
-    /// toward its foot by Gauss–Newton. Every point of the span within the
-    /// band of `q` lies near one of them. A parameter is a candidate to
-    /// read ([`Span::contact`]), never a verdict. A search past
-    /// [`geom_core::bisect::PIECE_BUDGET`] is `Exhausted`.
-    ///
-    /// # Errors
-    /// `Exhausted` past the budget.
-    pub fn feet(&self, q: Point3<T>, band: Band) -> Result<Vec<T>, geom_core::bisect::Exhausted> {
-        let (t0, t1) = self.params();
-        if let Some(t) = self.carrier().param_near(q, geom::mid_param(t0, t1)) {
-            let slack = (self.carrier().eval(t) - q).norm();
-            return Ok(vec![polish_foot(self, q, t, slack)]);
-        }
-        let hi = self.speeds().1;
-        Ok(near_pieces(self, q, band)?
-            .into_iter()
-            .map(|p| {
-                let m = p.mid();
-                let slack = (self.carrier().eval(m) - q).norm() + p.reach(hi);
-                polish_foot(self, q, m, slack)
-            })
-            .collect())
+/// The seeds of `q`'s feet on `r`'s carrier where it may lie on it within
+/// the band (module docs): [`Curve3::param_near`]'s parameter where the
+/// kind inverts, else the middle of each piece of the span `q` may rest
+/// on. Each is read at its foot ([`Curve3::foot`]).
+fn feet<T: Decide>(
+    r: &Read<'_, '_, T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Vec<T>, geom_core::bisect::Exhausted> {
+    let (t0, t1) = r.span.params();
+    if let Some(t) = r.curve().param_near(q, geom::mid_param(t0, t1)) {
+        return Ok(vec![t]);
     }
-
-    /// **Whether `q` may rest on the span**: `false` only where the foot
-    /// search's walk ([`Span::feet`]) decides every piece of the span clear
-    /// of `q`, so no point of the span lies within the band of it. An
-    /// abstaining screen: `true` is no verdict.
-    ///
-    /// # Errors
-    /// `Exhausted` past the budget.
-    pub fn may_hold(&self, q: Point3<T>, band: Band) -> Result<bool, geom_core::bisect::Exhausted> {
-        near_pieces(self, q, band).map(|p| !p.is_empty())
-    }
+    Ok(near_pieces(r.span, q, band)?
+        .into_iter()
+        .map(Piece::mid)
+        .collect())
 }
 
 /// What a point read on both spans makes of it.
@@ -236,7 +209,7 @@ enum Read2<T: geom_core::Real> {
     /// Definitely not on one span or the other.
     Missed,
     /// Neither decided: the first escalation.
-    Held(Indeterminate),
+    Held(geom::CarrierRefusal),
 }
 
 /// `q` read on `a` at each of `ta` and on `b` at each of `tb`: on a span
@@ -251,13 +224,10 @@ fn read_both<T: Decide>(
     let side = |s: &Span<'_, T>, ts: &[T]| {
         let mut held = None;
         for &t in ts {
-            match s.contact(q, t, band) {
-                Ok(c) => {
-                    if let Some(hit) = c.hit() {
-                        return Ok(Some(hit));
-                    }
-                }
-                Err(diag) => held = held.or(Some(diag)),
+            match s.contact(q, &s.carrier().foot(q, t), band) {
+                Ok(Some(hit)) => return Ok(Some(hit)),
+                Ok(None) => {}
+                Err(refusal) => held = held.or(Some(refusal)),
             }
         }
         held.map_or(Ok(None), Err)
@@ -347,7 +317,7 @@ pub(super) fn meet<T: Decide>(
         let (o0, o1) = other.span.params();
         let mut ends = Vec::new();
         for q in [other.curve().eval(o0), other.curve().eval(o1)] {
-            let Ok(ts) = r.span.feet(q, band) else {
+            let Ok(ts) = feet(r, q, band) else {
                 return Err(exhausted(found));
             };
             ends.extend(ts);
@@ -360,7 +330,7 @@ pub(super) fn meet<T: Decide>(
         );
     }
     for q in points {
-        let (Ok(ta), Ok(tb)) = (ra.span.feet(q, band), rb.span.feet(q, band)) else {
+        let (Ok(ta), Ok(tb)) = (feet(&ra, q, band), feet(&rb, q, band)) else {
             return Err(exhausted(found));
         };
         take(read_both((a, &ta), (b, &tb), q, band), &mut found);
@@ -385,8 +355,8 @@ pub(super) fn meet<T: Decide>(
                     (ma, mb),
                     |m| step_taken(m, slack),
                 );
-                let t = polish_foot(rb.span, ra.curve().eval(s), t, slack);
-                let s = polish_foot(ra.span, rb.curve().eval(t), s, slack);
+                let t = rb.curve().foot(ra.curve().eval(s), t).t();
+                let s = ra.curve().foot(rb.curve().eval(t), s).t();
                 let q = ra.curve().eval(s);
                 take(read_both((a, &[s]), (b, &[t]), q, band), &mut found);
                 return Step::Settled;
@@ -406,8 +376,8 @@ pub(super) fn meet<T: Decide>(
             shared: None,
             points: found,
         }),
-        Some(diag) => Err(MeetRefusal {
-            fault: MeetFault::Escalated(diag),
+        Some(refusal) => Err(MeetRefusal {
+            fault: super::carrier_fault(refusal),
             found,
             shared: None,
         }),

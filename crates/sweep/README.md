@@ -58,10 +58,15 @@ reader of one of its names resolves `Vanished` with the blend's verdict
 as the cause (`PredicateFlip`). The carve is built at a straight
 band's cut-off: the ruled fillet's, and the plane–plane fillet's and
 chamfer's (below), a through-bore under a convex band and a bar
-between the end walls under a concave one. Every other inside case refuses as one
-the rule defines and the surgery does not build, at the meter that
-reads it: a void or an island with no cap cycle
-`BlendError::WhollyInside`; a blind feature entering from an end face,
+between the end walls under a concave one; and on the plane–plane band
+a cup on one end face, a blind bore under a convex band and a pin under
+a concave one
+(`band_one_cycle_members::a_blind_bore_and_a_pin_go_with_the_band_at_every_scale`).
+Every other inside case refuses as one the rule defines and the surgery
+does not build, at the meter that reads it: a void or an island with
+no cap cycle `BlendError::WhollyInside`; a cup on the ruled band, whose
+far faces have no exact core to be read in
+(`band_one_cycle_members::a_pin_inside_a_concave_ruled_creases_fill_refuses_as_a_bound`),
 or a hole whose mouth a concave fill covers, a bound where its wall
 meets the end face's plane; and a blind hole entering from a support
 face, a boundary feature of the support, at the clearance screen
@@ -118,29 +123,40 @@ refusal is the same in every read order). The cell walk never reads
 inside a face that touches the region's boundary, so on an exact core a
 through-feature's wall, which meets the window's end plane, reads as a
 bound whatever its rings read at the cap. A straight band's
-reach reads such a wall through its caps instead: the ruled band's
+reach reads such a wall through its boundary instead: the ruled band's
 always, and the plane–plane band's for a wall its exact core read as a
 bound (that boundary reading runs first, so a wall with a point in
-kept material still refuses as a crossing). A face on a surface ruled
-near the spine (a cylinder's axis, a plane's direction nearest it),
-every edge of which is an edge of a cap cycle read inside the sliver or
-a line between two of their vertices, lies inside the prism the band
-removes or fills when the cycles' least depth, projected along the spine,
-exceeds how far the face's rulings and lines stray from the spine over
-its extent (`reach::prism_inside`). Where the caps' slivers are read
-as a chord end's exact triangle (the chamfer's) the section is convex
-and the reading owes no such slack: every point of such a face is a
-convex combination of points at least the least depth inside, and the
-distance from a convex region's boundary is concave inside it, so the
-least depth is the reading. The prism's slice in a cap's plane
-is the sliver the cap meter reads, so the two readings agree on what
-dies by construction. A request whose verdict is then inside groups the
-faces read inside into features, joined by the edges they share, and
-the carve takes each whole or refuses `WhollyInside`
-(`blend/consume.rs`). What it takes is a through-feature between the
-band's two caps: an annulus of faces, each bounded by one cycle, whose
-edges join each other or one cycle read inside on each cap. A blind
-feature, whose floor is neither, refuses as a bound. The faces, edges
+kept material still refuses as a crossing). Each edge of the face is
+certified inside the prism the band removes or fills one of three
+ways: an edge of a cap cycle read inside the sliver, its depth
+projected along the spine; an edge read inside the band's exact core
+piece by piece, each piece of a line, circle or ellipse inside the box
+its carrier's speed bounds it to (a plane–plane band's only, the ruled
+band's bounds enclosing its material rather than being it); or a line
+between two vertices so certified, which strays from the spine by its
+run times its tilt. A face on a plane not parallel to the spine
+projects one-to-one onto the section's plane, onto the region its
+boundary encloses there, and the section is simply connected, so the
+face lies inside at its boundary's least depth less the lines' stray;
+a face on any other surface ruled near the spine (a cylinder's axis, a
+plane's direction nearest it) lies inside when that depth also exceeds
+how far its rulings stray over its extent (`reach::prism_inside`).
+Where the caps' slivers are read as a chord end's exact triangle (the
+chamfer's) the section is convex and the reading owes no slack: every
+point of such a face is a convex combination of points at least the
+least depth inside, and the distance from a convex region's boundary
+is concave inside it, so the least depth is the reading. The prism's
+slice in a cap's plane is the sliver the cap meter reads, so the two
+readings agree on what dies by construction. A face the cell walk
+reads inside a straight band's exact core lies in its prism too. A
+request whose verdict is then inside groups the faces read inside into
+features, joined by the edges they share, and the carve takes each
+whole or refuses `WhollyInside` (`blend/consume.rs`). What it takes is
+a through-feature between one band's two caps, an annulus of faces
+(`V − E + F − R = 0`, `R` their rings), or a cup on one cap, a disk
+(`V − E + F − R = 1`), each face read inside that band's material and
+joined only to the others or to the cycles read inside on the caps; a
+face's rings are bridged to its outer cycle first. The faces, edges
 and vertices it takes are recorded as retired (`BlendNaming::dead`).
 
 Each reach is an intersection of 1-Lipschitz bounds: per link, the
@@ -416,6 +432,19 @@ and a concave cut-off between two end walls absorbs a bar between
 them wholly inside the material it fills, its cycles buried with the
 walls' slivers, at `ΔV = +(A − A_bar)·L`
 (`band_concave_bar::a_bar_inside_a_concave_bands_fill_is_absorbed_at_every_lean`).
+A cup on one end face goes the same way: a blind bore at
+`ΔV = −(A·L − V_bore)`, a pin at `ΔV = +(A·L − V_pin)`, an undercut or
+a headed pin whose head stands off the end face included
+(`band_one_cycle_members`). A cup's face that meets the end face is
+read through the mouth: a plane or a cylinder (a countersunk, conical
+mouth refuses as a bound), charged under the fillet its lines' slack
+and, ruled, its box's diagonal times its lean off the spine, so a cup
+leaning more than its depth pays refuses as a bound
+(`band_one_cycle_members::a_leaning_blind_bore_goes_where_its_lean_is_paid`).
+A cup with a handle, or one feature with two mouths on one cap,
+refuses `WhollyInside`: the carve takes a disk on one cap or an
+annulus between two
+(`band_one_cycle_members::a_cup_with_a_handle_and_a_u_tube_refuse_wholly_inside`).
 The fillet's sliver is the ruled cut-off's, between the arc and the
 old vertex; the chamfer's is the triangle of the old vertex and the
 two feet, and a cycle lies inside it when each of its edges stays
@@ -524,7 +553,8 @@ concave side; a through-feature between the two caps, wholly inside
 the material the band removes or fills (a bore on the convex side, a
 bar between end walls on the concave side), goes with it, its cycles
 leaving the caps and its faces the body (predicate 2, above; a blind
-bore or a pin refuses), and every other edge of the cap stays where it
+bore or a pin, whose far faces the ruled band has no exact core to read
+in, refuses as a bound), and every other edge of the cap stays where it
 was — the edges of its other cycles (a bore's ring, or the outer cycle
 where the cut runs in a ring) and those of the cut cycle other than
 the two rims it shortens (a notch in the outline). Each is metered

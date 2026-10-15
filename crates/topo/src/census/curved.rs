@@ -6,11 +6,10 @@
 //!
 //! One reading serves every carrier kind. A point is on a curved edge's
 //! interior when [`geom_brep::curve_pair::Span::contact`], the one
-//! point-on-span reading, places it `On` the edge's span at one of its
-//! feet: on the carrier and clear of both ends, or anywhere on a closed
-//! edge whose vertex is conventional, which reads as a span with no ends.
-//! The feet are [`geom_brep::curve_pair::Span::feet`], the one foot
-//! search.
+//! point-on-span reading, places it `On` the edge's span at its foot
+//! ([`geom::Curve3::foot`], the one foot reading): on the carrier and
+//! clear of both ends, or anywhere on a closed edge whose vertex is
+//! conventional, which reads as a span with no ends.
 //!
 //! Two edges' interiors meet when [`geom_brep::curve_pair::meet`], the
 //! one reading of two carrier spans' meetings, places a meeting on both
@@ -20,7 +19,7 @@
 //! escalation is pushed typed on both edges.
 
 use geom::Curve3;
-use geom_brep::curve_pair::{Contact, Hit, MeetFault, Meeting, Span, meet};
+use geom_brep::curve_pair::{Hit, MeetFault, Meeting, Span, meet};
 use geom_brep::roots::Unsettled;
 use geom_core::{Band, Decide, Margin, MarginDiag, Point3, Real, Sign};
 
@@ -105,7 +104,7 @@ fn read<T: Decide>(
         return None;
     };
     let carrier = curve.carrier().clone();
-    let (lo, hi) = geom_brep::carrier_speed::speed_range(&carrier);
+    let (lo, hi) = geom::carrier_speed::speed_range(&carrier);
     let span = curve.params();
     let span_reach = Margin::metered_sup((span.1 - span.0).abs(), hi);
     if decided("pm_census_curved_speed_hi", span_reach, band, errors)? != Sign::Positive {
@@ -144,11 +143,11 @@ pub(super) fn carrier<T: Decide>(
 }
 
 /// **Whether `q` may rest on `e`'s span** — pass 2′'s skip, a consumer of
-/// the one foot search's walk ([`Span::may_hold`]): `false` only where every
-/// piece is decided clear of `q`, so a vertex the sweep passes by holds
-/// no touch the reading would have found; `true` where a piece survives,
-/// past the budget, or for an edge with no certified curve, leaving the
-/// question to the reading.
+/// the point-on-span reading ([`Span::contact`] at `q`'s foot): `false`
+/// only where it decides `q` off the span, so a vertex the sweep passes by
+/// holds no touch the reading would have found; `true` where it places
+/// `q` on the span or refuses, or for an edge with no certified curve,
+/// leaving the question to the reading.
 pub(super) fn may_rest_on<T: Decide>(body: &Body<T>, e: EdgeKey, q: Point3<T>, band: Band) -> bool {
     let Some(curve) = body
         .edges
@@ -158,9 +157,12 @@ pub(super) fn may_rest_on<T: Decide>(body: &Body<T>, e: EdgeKey, q: Point3<T>, b
     else {
         return true;
     };
-    Span::new(curve.carrier(), curve.params())
-        .may_hold(q, band)
-        .unwrap_or(true)
+    let (t0, t1) = curve.params();
+    let foot = curve.carrier().foot(q, geom::mid_param(t0, t1));
+    !matches!(
+        Span::new(curve.carrier(), curve.params()).contact(q, &foot, band),
+        Ok(None)
+    )
 }
 
 /// Whether `q` lies on `e`'s interior (module docs). `None` where a
@@ -189,10 +191,11 @@ pub(super) fn on_curved_interior_reading<T: Decide>(
 }
 
 /// [`on_curved_interior_reading`] on an edge already read: `q` read
-/// against the edge's span ([`span`]) at each of its feet by
+/// against the edge's span ([`span`]) at its foot by
 /// [`geom_brep::curve_pair::Span::contact`], the one point-on-span
-/// reading. A foot whose reading escalates may stand beside another on
-/// the interior: its escalations stand only if no foot decides.
+/// reading. A refusal is pushed typed: an escalation as itself, a
+/// spline's walk past its budget or a spline with no speed bound as the
+/// edge's.
 fn on_interior_reading<T: Decide>(
     body: &Body<T>,
     r: &Read<T>,
@@ -201,27 +204,31 @@ fn on_interior_reading<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<MarginDiag>> {
     let span = span(body, r);
-    let Ok(feet) = span.feet(q, band) else {
-        refuse(
-            r.edge,
-            "the census's foot search on a curved edge ran past its budget",
-            errors,
-        );
-        return None;
-    };
-    let mut held = Vec::new();
-    for t in feet {
-        match span.contact(q, t, band) {
-            Ok(Contact::On { margin, .. }) => return Some(Some(margin)),
-            Ok(Contact::Off | Contact::Carrier | Contact::Past | Contact::End) => {}
-            Err(cause) => held.push(ValidationError::CensusEscalated { cause }),
+    let foot = r.curve.foot(q, geom::mid_param(r.span.0, r.span.1));
+    match span.contact(q, &foot, band) {
+        Ok(Some(Hit::On { margin, .. })) => Some(Some(margin)),
+        Ok(Some(Hit::End(_)) | None) => Some(None),
+        Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
+            errors.push(ValidationError::CensusEscalated { cause });
+            None
+        }
+        Err(geom::CarrierRefusal::Exhausted) => {
+            refuse(
+                r.edge,
+                "the census's reading of a point on a spline edge ran past its budget",
+                errors,
+            );
+            None
+        }
+        Err(geom::CarrierRefusal::Unbounded) => {
+            refuse(
+                r.edge,
+                "a spline edge whose speed bound is zero or poison",
+                errors,
+            );
+            None
         }
     }
-    if held.is_empty() {
-        return Some(None);
-    }
-    errors.extend(held);
-    None
 }
 
 /// Whether `a`'s and `b`'s interiors meet, one of them curved (module
@@ -564,9 +571,10 @@ mod tests {
         let t0 = core::f64::consts::FRAC_PI_2;
         let r = read(ellipse(1.0, 0.05, Vec3::unit_x()), (t0, t0 + 1.0));
         let t = t0 + 15.0 * eps;
+        let q = r.curve.eval(t);
         let inside = super::span(&Body::new(), &r)
-            .contact(r.curve.eval(t), t, band())
-            .map(|c| matches!(c, geom_brep::curve_pair::Contact::On { .. }));
+            .contact(q, &r.curve.foot(q, t), band())
+            .map(|c| matches!(c, Some(geom_brep::curve_pair::Hit::On { .. })));
         assert_eq!(inside.ok(), Some(true));
     }
 

@@ -3390,11 +3390,9 @@ fn wall_crossing<T: Decide + Bounds>(
     // a kernel bug, refused — never a zero speed that would read every
     // root as at the span's end.
     let speed_at = |t: T| {
-        geom_brep::carrier_speed::speed_at(carrier, t).ok_or(
-            BooleanError::ClassificationInvariant {
-                what: "a wall root's carrier is neither a line nor a conic",
-            },
-        )
+        geom::carrier_speed::speed_at(carrier, t).ok_or(BooleanError::ClassificationInvariant {
+            what: "a wall root's carrier is neither a line nor a conic",
+        })
     };
     let found = match found {
         CircleRoots::Certified(found) => found,
@@ -6351,18 +6349,21 @@ mod contact_acc_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod arc_end_rows {
-    use super::{SpanVerdict, wall_crossing};
+    use super::wall_crossing;
     use crate::test_support_fixtures::half_disc_cap;
     use geom_core::{Band, Tol, Vec3};
 
-    /// **A wall root landing at an arc's end its corners disagree with
-    /// keeps the caller's door**, as the face door's other refusals that
-    /// are no escalation do here. A line from a sphere's centre crosses
-    /// it at the point the band `(ε, 1.25ε)` reads at the half-disc
-    /// cap's arc end and clear of its corner; the face read is the cap's,
-    /// so the root is placed against that boundary.
+    /// **A wall root landing beside an arc's end, in the band's own
+    /// parting, escalates.** A line from a sphere's centre crosses it at
+    /// a point `≈ 1.34·zero` from the half-disc cap's arc end and its
+    /// corner, which the band `(ε, 1.25ε)` reads clear of both: the
+    /// boundary reading puts a point at an end only on its raw chord, the
+    /// distance the vertex pass reads to the corner, so the two no longer
+    /// part. The point's foot lies within the zero band of the end along
+    /// the arc, which the side of the end cannot place beside a chord past
+    /// the band, so the root's placement escalates on that straddle.
     #[test]
-    fn a_root_at_an_arc_end_clear_of_its_corners_is_unsettled() {
+    fn a_root_beside_an_arc_end_in_the_bands_own_parting_escalates() {
         let tol = Tol::witness();
         let zero = Band::linear(tol).unwrap().zero();
         let (body, cap, end) = half_disc_cap(0.0, tol);
@@ -6381,8 +6382,9 @@ mod arc_end_rows {
         };
         let got = wall_crossing(&body, cap, &sphere, &line, 0.5 * reach, 1.5 * reach, narrow);
         assert!(
-            matches!(got, Ok(SpanVerdict::Unsettled)),
-            "the root is not placed, and the caller keeps its door: {got:?}"
+            matches!(&got, Err(crate::boolean::BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some("curve_pair_span_end_straddle")),
+            "the root's placement escalates on the end's straddle: {got:?}"
         );
     }
 }

@@ -276,7 +276,7 @@
 use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
-use geom_brep::curve_pair::{Contact, Hit, MeetFault, Span, meet};
+use geom_brep::curve_pair::{Hit, MeetFault, Span, meet};
 use geom_core::k_stats::Magnitude;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3,
@@ -1720,7 +1720,7 @@ fn on_edge_interior<T: Decide>(
 }
 
 /// `q` against `e`'s segment by [`Span::contact`], the one point-on-span
-/// reading, at its foot on the line: `Some(Some(margin))` on the
+/// reading, at its foot on the line ([`geom::Curve3::foot`]): `Some(Some(margin))` on the
 /// interior, by the margin that put it on the line; `Some(None)` off the
 /// interior, an end included (pass 1's); `None` escalated (pushed).
 fn on_edge_interior_reading<T: Decide>(
@@ -1733,12 +1733,16 @@ fn on_edge_interior_reading<T: Decide>(
         origin: e.p0,
         dir: e.dir,
     };
-    match Span::new(&line, (T::zero(), e.len)).contact(q, (q - e.p0).dot(e.dir), band) {
-        Ok(Contact::On { margin, .. }) => Some(Some(margin)),
-        Ok(Contact::Off | Contact::Carrier | Contact::Past | Contact::End) => Some(None),
-        Err(cause) => {
+    let foot = line.foot(q, T::zero());
+    match Span::new(&line, (T::zero(), e.len)).contact(q, &foot, band) {
+        Ok(Some(Hit::On { margin, .. })) => Some(Some(margin)),
+        Ok(Some(Hit::End(_)) | None) => Some(None),
+        Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
             errors.push(ValidationError::CensusEscalated { cause });
             None
+        }
+        Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => {
+            unreachable!("a line's carrier reading walks no pieces")
         }
     }
 }
@@ -2512,7 +2516,7 @@ fn edge_crossings<T: Decide>(
         .filter(|m| !m.run)
         .filter_map(|m| match (m.on_a, m.on_b) {
             (Hit::On { t, .. }, Hit::On { .. }) => Some((t, at)),
-            (Hit::On { .. } | Hit::End, Hit::End) | (Hit::End, Hit::On { .. }) => None,
+            (Hit::On { .. } | Hit::End(_), Hit::End(_)) | (Hit::End(_), Hit::On { .. }) => None,
         })
         .collect())
 }
@@ -8345,15 +8349,19 @@ mod tests {
         }
     }
 
-    /// **The arc-end finding the census reaches is the band's own
-    /// parting, carried whole**: at rest every carrier end lies at its
-    /// corner, so the census meets the finding only where `K ≤ 3` parts a
-    /// point at the end from the corner (the band `(ε, 1.25ε)` here, on a
-    /// half-disc cap the public operators built). It left no margin
-    /// undecided, so it is no escalation, and it ends in the arc end's
-    /// lever.
+    /// **The band's own parting no longer parts an arc's end from its
+    /// corner.** At rest every carrier end lies at its corner, and the
+    /// boundary reading puts a point at an arc's end only on its raw chord
+    /// to the end's point ([`geom_brep::curve_pair::Span::place`]), the
+    /// same distance the vertex pass reads to the corner. So the band
+    /// `(ε, 1.25ε)`, on a half-disc cap the public operators built, reads
+    /// a point `≈ 1.34·zero` from the corner clear of the corner and of the
+    /// end alike. Its foot lies within the zero band of the end along the
+    /// arc, which the side of the end cannot place beside a chord past the
+    /// band, so it escalates on that straddle and the census carries the
+    /// escalation.
     #[test]
-    fn the_band_parting_an_arc_end_from_its_corner_is_carried_whole() {
+    fn the_band_parting_an_arc_end_from_its_corner_escalates() {
         use crate::test_support_fixtures::half_disc_cap;
         let tol = Tol::witness();
         let zero = Band::linear(tol).unwrap().zero();
@@ -8361,20 +8369,15 @@ mod tests {
         let q = end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0);
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
         let read = crate::boolean::contfp(&body, cap, Vec3::unit_z(), q, narrow);
-        let Err(refusal @ ContainError::ArcEndClearOfCorners(_)) = read.clone() else {
+        let Err(ContainError::Escalated { diag, .. }) = read.clone() else {
             panic!("the band's own parting: {read:?}");
         };
+        assert_eq!(diag.predicate, Some("curve_pair_span_end_straddle"));
         let mut errors = Vec::new();
         assert_eq!(read_containment(cap, read, &mut errors), None);
-        let want = ValidationError::CensusUnsupported {
-            subject: CensusSubject::Entity(EntityId::Face(cap)),
-            cause: CensusUnsupportedCause::Containment(refusal),
-        };
-        assert_eq!(errors, vec![want.clone()]);
-        let text = want.to_string();
-        assert!(
-            text.ends_with("Recourse: move the point clear of the arc's end"),
-            "{text}"
+        assert_eq!(
+            errors,
+            vec![ValidationError::CensusEscalated { cause: diag }]
         );
     }
 
@@ -8417,8 +8420,10 @@ mod tests {
     /// The two ends part by rounding past `(K − 1)·zero` at `K = 1.001`,
     /// so a boundary pass reading the frame's end read the end off its
     /// corner. It reads `eval`'s, the point certification pinned: at
-    /// `K = 1.001` and `K = 1.2` every end lies at a corner (the band's
-    /// own parting), and the census reports no defect.
+    /// `K = 1.001` and `K = 1.2` every end lies at a corner, read as the
+    /// band's own parting or, where the point's chord to the end falls in
+    /// the band's hair-wide gap, as the end reading's escalation, and the
+    /// census reports no defect.
     #[test]
     fn a_far_arc_at_k_near_one_reads_its_end_where_certification_pinned_it() {
         use crate::test_support_fixtures::arc_cap;
@@ -8460,8 +8465,13 @@ mod tests {
         for k in [1.001, 1.2] {
             let band = Band::new(zero, k * zero).unwrap();
             let read = crate::boolean::contfp(&body, cap, axis, q, band);
+            // The point's chord to the end sits within a hair of the zero
+            // band, which a band this narrow reads either way as the
+            // rounding falls: the finding with every end at a corner, or
+            // the end reading's escalation. Never an end off its corner.
             assert!(
-                matches!(&read, Err(ContainError::ArcEndClearOfCorners(g)) if !g.off_corner()),
+                matches!(&read, Err(ContainError::ArcEndClearOfCorners(g)) if !g.off_corner())
+                    || matches!(&read, Err(ContainError::Escalated { .. })),
                 "K {k}: the end lies at its corner, and only the band parts the passes (frame \
                  and eval part by {parting:e}): {read:?}"
             );

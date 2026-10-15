@@ -269,9 +269,10 @@ pub enum ContainError {
 /// corners** (`bool_contact_arc_end_vertex`), every one decided: what
 /// [`ContainError::ArcEndClearOfCorners`] carries. The two passes of
 /// [`boundary_pre_pass`] part only by as much as an end sits off its
-/// corner, plus the point's own slack at the end (two zero bands at
-/// most). So where every end lies at a corner the parting is the band's,
-/// reachable only at `K ≤ 3`. Certification pins each end within the
+/// corner: the boundary reading puts the point at an end on its raw
+/// chord to the end's point, the distance the vertex pass reads to the
+/// corner. So where every end lies at a corner the parting is the band's,
+/// reachable only at `K < 2`. Certification pins each end within the
 /// run's zero band of its corner (`geom_brep`'s
 /// `carrier_endpoint_{start,end}`), and the ends here are read through
 /// the same `Curve3::eval`, so an end off both corners is read where a
@@ -1707,23 +1708,25 @@ mod tests {
     }
 
     /// **A point at an arc's end the vertex pass placed clear of its
-    /// corners is a finding, not an escalation** (D4 ¶1 (iv)), in both of
-    /// the two ways it is reached, through the public door on bodies the
-    /// public operators built.
+    /// corners is a finding, not an escalation** (D4 ¶1 (iv)), through the
+    /// public door on a body the public operators built.
     ///
     /// - **An end off both corners**, here at a band finer than the
     ///   run's: the cap's corner stands `off = zero/2` from its arc's
     ///   end, certified at the run's band, and `contfp` reads it at a band
     ///   of zero `off/50`. The finding leads with the gap to the end's own
-    ///   corner, `off`.
-    /// - **The band's own parting** (`K ≤ 3`): on a cap whose corner is
-    ///   its arc's end, a point `≈ 1.34·zero` from the corner reads clear
-    ///   of it at `K = 1.25` and at the end. At the run's `K` the same
-    ///   point is the vertex reading's escalation, not the finding.
-    ///
-    /// Both arms log no escalation, and each end is decided once against
-    /// each corner. They end in the arc end's lever at a build and
-    /// through the Boolean.
+    ///   corner, `off`. It logs no escalation, each end is decided once
+    ///   against each corner, and it ends in the arc end's lever at a
+    ///   build and through the Boolean.
+    /// - **The band's own parting no longer parts them**: on a cap whose
+    ///   corner is its arc's end, the boundary reading puts a point at the
+    ///   end only on its raw chord to the end's point, the distance the
+    ///   vertex pass reads to the corner. A point `≈ 1.34·zero` from the
+    ///   corner at `K = 1.25` is clear of both, with its foot within the
+    ///   zero band of the end along the arc, which the side of the end
+    ///   cannot place beside a chord past the band: it escalates on that
+    ///   straddle (`curve_pair_span_end_straddle`). At the run's `K` the
+    ///   same point is the vertex reading's escalation.
     #[test]
     fn a_point_at_an_arc_end_clear_of_its_corners_is_a_finding() {
         use crate::boolean::{BooleanError, Operand};
@@ -1778,8 +1781,14 @@ mod tests {
         let (body, cap, end) = half_disc_cap(0.0, tol);
         let q = beside_the_arc_end(end, zero);
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
-        let gaps = finding("the band's own parting", &body, cap, q, narrow);
-        assert!(!gaps.off_corner(), "every end lies at a corner: {gaps:?}");
+        assert!(
+            matches!(
+                contfp(&body, cap, Vec3::unit_z(), q, narrow),
+                Err(ContainError::Escalated { diag, .. })
+                    if diag.predicate == Some("curve_pair_span_end_straddle")
+            ),
+            "the band's own parting escalates on the end's straddle"
+        );
         if run.escalate() / zero <= 1.4 {
             test_utils::vacuity::stood_down(
                 "a_point_at_an_arc_end_clear_of_its_corners_is_a_finding",
