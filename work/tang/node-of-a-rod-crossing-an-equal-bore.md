@@ -2,8 +2,9 @@
 id: node-of-a-rod-crossing-an-equal-bore
 kind: issue
 title: The node of a rod crossing a bore of its radius refuses NodeUnbuilt: A's Out sectors and B's In sectors are different ones, which a pierce ring cannot pair
-status: dispatched
+status: closed
 opened: 2026-10-14
+closed: 2026-10-15
 branch: tang/node-rod-bore
 ---
 
@@ -23,3 +24,9 @@ Measured before the gate: with A's runs about `±â₂` the join refuses `Single
 ## What building it needs
 
 A node whose two rings pair the four germs differently on the two sides: A's struts across one pair of opposite sectors, B's across the other. That is a sibling of `RingPlan` with per-side runs, and the join must then accept a germ whose A half and B half sit in struts of different runs. The bodies are ordinary at rest: e.g. a rod through a brick bored to its radius, ∩ = the rod in the brick less the bicylinder.
+
+## Closed
+
+Built on `tang/node-rod-bore`; no new ring vocabulary was needed. The runs are the same four arcs on both sides: B's sectors inside A, the ones about `±â₁` when A is a rod and about `±â₂` when it is a bore. B's ring spans them as before. What differs by sense is only which side of each strut A's material lies on: A's struts stand Out of A when A and B are the same kind, and In when they differ (`mint_node`, `crates/topo/src/boolean/vtxfac.rs`). So the "What building it needs" above was wrong: the strut sides, not the runs, follow the senses. A probe minting the struts that way built every op at its closed form, so the null-edge pairing contract (slot k is the same germ in both) holds unchanged.
+
+`NodeWhy::OppositeSenses` is gone. `sweep/tests/bisector_nodes.rs::a_rod_against_a_bore_builds_every_operation` builds ∪, ∩ and both differences, both orders, at 90°, 60°, 35° and 150° and a re-posed 90°, against the closed form ∩ = 4π − 16/3 at 90° and inclusion–exclusion elsewhere, with the mesh volume as an independent oracle.
