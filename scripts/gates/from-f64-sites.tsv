@@ -31,7 +31,7 @@ crates/geom-brep/src/certify.rs	1	constant	f	a sample schedule's fraction
 crates/geom-brep/src/certify.rs	1	constant	schedule_param(domain.0, domain.1, i, samples)	held_station: an interior station of a fixed sample schedule, a point the schedule chose (the ends are the carrier's held ends)
 crates/geom-brep/src/certify.rs	3	constant	schedule_fraction(i, CERT_SAMPLES)	a sample schedule's fraction
 crates/geom-brep/src/curve_pair/pose.rs	4	constant	band.escalate()	the band's escalation width, a tolerance
-crates/geom-brep/src/curve_pair/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance
+crates/geom-brep/src/curve_pair/pose.rs	2	constant	band.zero()	the band's zero width, a tolerance
 crates/geom-brep/src/dihedral.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/edge_nurbs.rs	1	constant	*w	on_carrier_domain: the interpolation's unit weights, a constant of its form
 crates/geom-brep/src/edge_nurbs.rs	1	launders(an-edges-parameter-ends-enter-a-carrier-piece-as-constants)	<fn>	edge_piece: a piece end that is no carrier breakpoint is the f64 end of the edge's parameter enclosure, a computed value entered as a constant (breakpoints keep their held values)
@@ -159,4 +159,4 @@ crates/topo/src/test_support_fixtures.rs	1	fixture	self.radius	a fixture surface
 crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	1	fixture	t1	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	10	fixture	<fn>	a fixture's f64 frame lifted into T
-crates/topo/src/vertex_section.rs	1	constant	band.escalate() / band.zero()	the band's K, the ratio of its two widths
+crates/topo/src/validate.rs	1	constant	band.escalate() / band.zero()	the band's K, the ratio of its two widths

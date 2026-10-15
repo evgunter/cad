@@ -406,10 +406,9 @@ fn an_unresolved_section_reading_keeps_the_offsets_verdict() {
 /// **A reading through a vanishing sine offers no lever.** At
 /// `ψ = 0.1·K·u/ε` the rounding of an offset a few ulps of a metre
 /// lands, over `sin ψ`, about the band by the rounding's choice: no row
-/// refuses at the vertex on it. Some rows return bodies that fail
-/// validation on main and here alike
-/// (`a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body`),
-/// so this row reads the ending only.
+/// refuses at the vertex on it, and every side a row returns passes
+/// tier 3 (the split refuses the rest at its at-rest gate,
+/// `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body`).
 #[test]
 fn a_reading_through_a_vanishing_sine_offers_no_lever() {
     let (e, k) = (tol().eps(), tol().k());
@@ -420,8 +419,19 @@ fn a_reading_through_a_vanishing_sine_offers_no_lever() {
         assert!(
             !offers_the_section_lever(&r),
             "ψ {psi:e} L {l}: the kernel's rounding offered as the user's lever: {:?}",
-            r.err()
+            r.as_ref().err()
         );
+        if let Ok(halves) = &r {
+            for part in [halves.above.body(), halves.below.body()]
+                .into_iter()
+                .flatten()
+            {
+                assert!(
+                    topo::validate_geometric(part, tol()).is_ok(),
+                    "ψ {psi:e} L {l}: a side returned that tier 3 refuses"
+                );
+            }
+        }
     }
 }
 

@@ -76,7 +76,9 @@
 //! says nothing about where they meet; the root gap does. Where the
 //! extreme is in the zero band, its crossing is read at the least its
 //! rounding allows, the extreme less its noise: roots that only the
-//! noise puts apart are a double root the band cannot split.
+//! noise puts apart are a double root the band cannot split. Merged so,
+//! two crossings can lie up to about `√(8R·noise)` apart along a carrier
+//! of radius `R`, each within the zero band of the touch's point.
 //!
 //! **In one plane, a candidate admitted under a `Zero` reading is placed
 //! by the exactly degenerate formula**: a touch is the extreme's own
@@ -127,8 +129,8 @@
 //! the run reaches into it, the meeting read at the end is not the only
 //! one: points of the span clear of its end lie within the band of the
 //! other too. So a meeting read at an end has its run read once more
-//! (`run_candidates`), at the arc either side where the carriers part by
-//! half what the zero band leaves.
+//! (`run_candidates`), midway between the escalation and the arc where
+//! the carriers part by half what the zero band leaves.
 //!
 //! # The band
 //!
@@ -390,12 +392,15 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
 /// each other past the end, into the span. About `c`, whose points are
 /// `g` apart, they part by at most `sin φ·s + (κ₁ + κ₂)·s²/2` over an arc
 /// `s` either way, `φ` the angle between their tangents and `κ` each
-/// carrier's curvature bound, so at the `s` where that reaches half of
-/// what the zero band leaves, `(z − g)/2`, each carrier's points are
-/// within it of the other. A run that reaches past twice the band's
-/// escalation (`curve_pair_pose_run`) holds such a point clear of the
-/// end: each carrier's points `s` either side of `c`, each with its foot
-/// on the other. None where it does not.
+/// carrier's curvature bound. At the `s₂` where that reaches half of what
+/// the zero band leaves, `(z − g)/2`, the run ends as far as this bound
+/// can say. The meeting lies within the zero band `z` of the end, so a
+/// run that reaches past `e + 2z`, the escalation and that slack twice
+/// (`curve_pair_pose_run`, two of the bound's own lengths, read exactly),
+/// holds points clear of the end: each carrier's points midway between
+/// the two, `(s₂ + e + 2z)/2` either side of `c`, each with its foot on the
+/// other, past the escalation from the end and within half the zero band
+/// of the other carrier. None where the run is shorter.
 pub(super) fn run_candidates<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
@@ -409,17 +414,30 @@ pub(super) fn run_candidates<T: Decide>(
         return Vec::new();
     };
     let ((pa, da), (pb, db)) = (a.carrier().ders1(c.ta), b.carrier().ders1(c.tb));
-    let left = (T::from_f64(band.zero()) - (pa - pb).norm()) * T::from_f64(0.25);
+    let two = T::from_f64(2.0);
+    let left = (T::from_f64(band.zero()) - (pa - pb).norm()) / two;
     let sine = unit(da).cross(unit(db)).norm();
     let bend = ka + kb;
     // `sin φ·s + κ·s²/2 = left`, its positive root written so that it
     // does not cancel where `κ` vanishes.
-    let s =
-        left * T::from_f64(2.0) / (sine + (sine.powi(2) + bend * left * T::from_f64(2.0)).sqrt());
-    let reach = s - T::from_f64(band.escalate()) * T::from_f64(2.0);
-    if decide(row::RUN, Margin::of(reach), band) != Ok(Sign::Positive) {
+    let s2 = left * two / (sine + (sine.powi(2) + bend * left * two).sqrt());
+    // Two of the bound's own lengths compared, not a distance the band
+    // resolves: read exactly (the least pair of positive `f64`s), and an
+    // enclosure that straddles is read on.
+    // The meeting is read within the zero band of the end, so a point the
+    // run puts `o` from it lies at least `o − z` from the end: clear of it
+    // past the escalation where `o > e + z`.
+    let e = T::from_f64(band.escalate()) + T::from_f64(band.zero()) * two;
+    let exact = Band::new(f64::from_bits(1), f64::from_bits(2));
+    if exact.is_ok_and(|exact| {
+        matches!(
+            decide(row::RUN, Margin::of(s2 - e), exact),
+            Ok(Sign::Negative | Sign::Zero)
+        )
+    }) {
         return Vec::new();
     }
+    let s = (s2 + e) / two;
     let mut out = Vec::with_capacity(4);
     let dta = s / da.norm();
     for ta in [c.ta - dta, c.ta + dta] {

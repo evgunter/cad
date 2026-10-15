@@ -96,6 +96,10 @@ pub struct Meeting<T: geom_core::Real> {
     pub on_a: Hit<T>,
     /// Where it sits on the second span.
     pub on_b: Hit<T>,
+    /// A point of the run about a meeting read at an end: within the band
+    /// of both spans, but no crossing or touch of its own
+    /// ([`pose::run_candidates`]).
+    pub run: bool,
 }
 
 /// What [`meet`] found.
@@ -106,8 +110,10 @@ pub struct Meetings<T: geom_core::Real> {
     /// point of the overlap meets; none read on both where the spans
     /// share no run of the curve, which is `Some` with no points.
     pub shared: Option<Sense>,
-    /// The meetings, each read on both spans. Two candidates polished onto
-    /// one crossing, by the walk or across planes, may repeat it.
+    /// The meetings, each read on both spans. A point the zero band puts
+    /// at a meeting already read is not one again, so a touch at a span's
+    /// end, which the pose and the span's end both propose, and a crossing
+    /// the walk reaches from several pieces, are each one meeting.
     pub points: Vec<Meeting<T>>,
 }
 
@@ -183,6 +189,18 @@ pub fn meet<T: Decide>(
     }
 }
 
+/// Whether `point` is a meeting already read: within the zero band of
+/// one (`curve_pair_meet_same`). Only a definite `Zero` repeats it.
+fn repeats<T: Decide>(read: &[Meeting<T>], point: Point3<T>, band: Band) -> bool {
+    read.iter().any(|m| {
+        geom_core::k_stats::decide(
+            "curve_pair_meet_same",
+            geom_core::Margin::norm3(m.point - point),
+            band,
+        ) == Ok(geom_core::Sign::Zero)
+    })
+}
+
 /// The meetings a pose's candidates are: each read on both spans.
 fn outcome<T: Decide>(
     pose: &Pose<T>,
@@ -197,12 +215,18 @@ fn outcome<T: Decide>(
         Pose::Concentric | Pose::Parallel | Pose::Apart => (None, Vec::new()),
     };
     let base = candidates.len();
-    let mut points = Vec::new();
+    let mut points: Vec<Meeting<T>> = Vec::new();
     let mut held = None;
     let mut queue = candidates;
     let mut read = 0;
+    // Each span end's run is read once, whichever candidate met there.
+    let mut ran = (false, false);
     while let Some(c) = queue.get(read).copied() {
         read += 1;
+        let run = read > base;
+        if repeats(&points, c.point, band) {
+            continue;
+        }
         let on_a = a.contact(c.point, c.ta, band).map(Contact::hit);
         let on_b = b.contact(c.point, c.tb, band).map(Contact::hit);
         match (on_a, on_b) {
@@ -210,14 +234,16 @@ fn outcome<T: Decide>(
             (Ok(Some(on_a)), Ok(Some(on_b))) => {
                 // A meeting at an end may stand on a run that reaches into
                 // the span; its run is read once, not its run's run.
-                let at_end = matches!(on_a, Hit::End) || matches!(on_b, Hit::End);
-                if at_end && shared.is_none() && read <= base {
+                let ends = (matches!(on_a, Hit::End), matches!(on_b, Hit::End));
+                if shared.is_none() && !run && ((ends.0 && !ran.0) || (ends.1 && !ran.1)) {
+                    ran = (ran.0 || ends.0, ran.1 || ends.1);
                     queue.extend(pose::run_candidates(a, b, &c, band));
                 }
                 points.push(Meeting {
                     point: c.point,
                     on_a,
                     on_b,
+                    run,
                 });
             }
             (Err(diag), _) | (_, Err(diag)) => held = held.or(Some(diag)),

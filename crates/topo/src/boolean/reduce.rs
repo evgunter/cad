@@ -424,7 +424,7 @@ pub(super) struct UnsupportedPair {
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] for a cylinder face whose
-/// axis has no decided length (`boxes::face_box`).
+/// axis is no direction (`boxes::face_box`).
 pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
