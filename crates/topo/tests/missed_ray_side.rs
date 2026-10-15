@@ -91,7 +91,7 @@ fn a_thin_slab_reads_out_far_away_and_its_complement_in() {
         );
         sides(
             &format!("reverted slab {m}ε"),
-            &body.revert(),
+            &body.revert().unwrap(),
             &far_points(t),
             SolidContainment::In,
         );
@@ -178,7 +178,7 @@ fn a_thin_walled_hollow_reads_out_far_away_and_in_its_cavity() {
         );
         sides(
             &format!("reverted hollow {m}ε"),
-            &hollow.revert(),
+            &hollow.revert().unwrap(),
             &points,
             SolidContainment::In,
         );
@@ -229,7 +229,7 @@ fn two_thin_slabs_in_one_body_read_their_sides() {
         );
         sides(
             &format!("two reverted slabs {m}ε"),
-            &body.revert(),
+            &body.revert().unwrap(),
             &points,
             SolidContainment::In,
         );
@@ -290,7 +290,7 @@ fn an_inside_out_slab_is_refused_as_an_operand() {
     ];
     for m in WINDOW {
         let t = m * tol.eps();
-        let rev = at_rest(slab(t, tol).revert(), tol);
+        let rev = at_rest(slab(t, tol).revert().unwrap(), tol);
         assert_eq!(
             rev.outcome(),
             AtRestOutcome::Validated,
@@ -322,7 +322,11 @@ fn an_inside_out_slab_is_refused_as_an_operand_at_a_dual() {
     ];
     for m in WINDOW {
         let t = m * tol.eps();
-        let rev = kept(brick::<Dual64>((0.0, 1.0), (0.0, 1.0), (0.0, t), tol).revert());
+        let rev = kept(
+            brick::<Dual64>((0.0, 1.0), (0.0, 1.0), (0.0, t), tol)
+                .revert()
+                .unwrap(),
+        );
         assert_eq!(rev.outcome(), AtRestOutcome::NotRunAtThisScalar);
         refused_as_inside_out(&format!("dual {m}ε"), &rev, &others);
     }

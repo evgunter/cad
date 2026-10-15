@@ -756,6 +756,8 @@ mod emit_split_duplicate;
 mod emit_split_edge_lineage;
 #[path = "emit_union_borders.rs"]
 mod emit_union_borders;
+#[path = "emit_union_curved_flush.rs"]
+mod emit_union_curved_flush;
 #[path = "emit_union_flush_names.rs"]
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]

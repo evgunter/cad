@@ -1429,9 +1429,25 @@ pub(super) fn wall_outline<T: Decide>(
         Err(_) => return unsupported(),
     };
     // The images skip null scaffolding; the loop must be the images'
-    // own chain, each half-edge's `next` the following image's.
+    // own chain, each half-edge's `next` past any null halves the
+    // following image's. A null half is zero-length, so the chain it
+    // sits in bounds what it bounds without it: mid-Boolean, a vertex of
+    // the face's own that pierced the other operand leaves its run's
+    // strut in the loop.
     for (i, image) in images.iter().enumerate() {
-        let next = body.get_half_edge(image.he).ok_or_else(corrupt)?.next;
+        let mut next = body.get_half_edge(image.he).ok_or_else(corrupt)?.next;
+        for _ in 0..body.half_edges.len() {
+            let half = body.get_half_edge(next).ok_or_else(corrupt)?;
+            let edge = body.get_edge(half.edge).ok_or_else(corrupt)?;
+            if body
+                .edge_curve_linked(half.edge, edge)
+                .certified()
+                .is_some()
+            {
+                break;
+            }
+            next = half.next;
+        }
         if images.get((i + 1) % images.len()).map(|n| n.he) != Some(next) {
             return unsupported();
         }

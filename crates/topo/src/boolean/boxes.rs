@@ -52,7 +52,10 @@
 //!   a vertex every piece clears with no decision pushed. It costs that
 //!   walk, and a refusal only where the walk runs past its budget, which
 //!   reads the vertex as one that may rest on the span and hands it to
-//!   the reading.
+//!   the reading. `census::collinear_overlaps`, the edge-edge pass's
+//!   candidates lifted out for ∖'s reading of coincident edges, boxes
+//!   the line edges the same way ([`edge_box`]): a loose box hands the
+//!   parallel screen and the overlap more pairs, which they part.
 //! - `validate`'s check 9 (`ring_pairs`) PRUNES the same way: two
 //!   rings of one face whose hulled edge boxes clear are never handed
 //!   to the contact arms, and whether two rings meet is decided by those
@@ -3732,9 +3735,10 @@ pub(crate) mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts EIGHT: the pre-filter's `face_box` and
-        // `edge_box` reads and pass 2′'s curved-edge `edge_box` read
-        // (`census::Candidates::build`, the pruning door),
+        // `census.rs` counts NINE: the pre-filter's `face_box` and
+        // `edge_box` reads, pass 2′'s curved-edge `edge_box` read
+        // (`census::Candidates::build`, the pruning door) and
+        // `collinear_overlaps`' `edge_box` read (the same pruning door),
         // three rule reads of its own, and two that are not doors —
         // two rows in its test module call `face_box` to pin what a
         // described net carrying poison answers there. The number is stated with that content rather
@@ -3760,7 +3764,7 @@ pub(crate) mod tests {
             ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
-            ("census.rs", 8),
+            ("census.rs", 9),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),
