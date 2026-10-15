@@ -70,6 +70,8 @@ mod a_flipped_shallow_dimple;
 mod a_loft_computes_its_walls_in_t;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
+#[path = "a_pierce_held_in_a_curved_face.rs"]
+mod a_pierce_held_in_a_curved_face;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
 #[path = "a_plane_along_an_elliptic_cut.rs"]
@@ -309,6 +311,8 @@ mod band_annulus_host_boundary;
 mod band_co_requested_boundary;
 #[path = "band_concave_bar.rs"]
 mod band_concave_bar;
+#[path = "band_one_cycle_members.rs"]
+mod band_one_cycle_members;
 #[path = "band_planar_consume.rs"]
 mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
@@ -684,6 +688,8 @@ mod strut_cover_on_cylinder_pairs;
 mod run_walls_built;
 #[path = "section_ellipse_seam_poses.rs"]
 mod section_ellipse_seam_poses;
+#[path = "section_end_poses.rs"]
+mod section_end_poses;
 #[path = "split_across_a_revolve_seam.rs"]
 mod split_across_a_revolve_seam;
 #[path = "split_along_a_face_plane.rs"]

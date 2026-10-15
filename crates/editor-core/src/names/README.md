@@ -316,16 +316,17 @@ lies on, read off the finished body and the members' own bodies
   a piece of the first minted of them (the least in name order, since name
   order compares the minting node's id first and ids order as minted), so a
   member added later never takes a stretch from an earlier one, whatever the
-  fold named it. An edge lies within a member edge when it lies on that edge's
-  segment and both of its faces descend from that member edge's two faces. An
-  edge one of whose member faces was glued away, another member's face lying
-  over it, does not: it is the seam of the faces it separates, as a subtract's
-  pocket rim is, and it vanishes when the junction does.
+  fold named it. An edge lies within a member edge when it lies within that
+  edge along its carrier and both of its faces descend from that member edge's
+  two faces. An edge one of whose member faces was glued away, another
+  member's face lying over it, does not: it is the seam of the faces it
+  separates, as a subtract's pocket rim is, and it vanishes when the junction
+  does.
 - An edge that lies within none, but runs along several member edges that
   together cover it, is named for that set: `Merged` of those member edges,
   flat and in name order, the shape faces have (N3). Such an edge is a flush
   rim the output stage joined across members (maximal edges, `docs/DESIGN.md`).
-  "Along" means on the edge's line and overlapping it over a length, so a rim
+  "Along" means on the edge's carrier and overlapping it over a length, so a rim
   that only partly overlaps an edge is in its set. Several pieces of one set
   are told apart by their ends (N2).
 - An edge that runs along member edges for part of its length and along a seam
@@ -338,8 +339,8 @@ never the bare member edge. Unlike two coplanar faces, the stretch and the set
 are different cells on the line, and a name cites only what its cell lies on.
 
 A subtract names a joined edge by the same reading over its two operands'
-edges, read along the edge's carrier: its line, or the curve a curved edge is
-carried by, where "along" is overlapping it over a length of that curve. A
+edges. Both read along the edge's carrier: its line, or the curve a curved edge
+is carried by, where "along" is overlapping it over a length of that curve. A
 closed edge, one the output stage joined round a closed carrier, lies within a
 closed operand edge alone and is covered over its whole period, so its name
 reads nothing off where its vertex sits.

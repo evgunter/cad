@@ -472,6 +472,35 @@ pub(crate) fn decide_negative<T: Decide>(
     geom_core::k_stats::decide_negative(name, margin, band)
 }
 
+/// **Whether a reading's own rounding leaves an in-band reading the
+/// input's**: the rounding, `K` times over, decided Zero under `name`, so
+/// it lies within the `ε/K` share of the band that K's noise headroom
+/// presumes (DESIGN.md Q1). A reading whose chain amplifies its rounding
+/// past a few ulp at the model's extent — a quotient by a small sine, a
+/// section carrier stored far from its arc — is typed as the input's,
+/// with its lever, only where this admits it; past it, no lever is
+/// offered. A reading whose rounding is a few ulp of coordinates (a
+/// line chord's residual, `merge_faces::edge_on_faces_reading`) is
+/// within that share by Q1's premise, and asks nothing here.
+///
+/// # Errors
+///
+/// The rounding `K` times over, as the band read it, where it is past
+/// that share.
+pub(crate) fn resolved<T: Decide>(
+    name: &'static str,
+    rounding: T,
+    band: Band,
+) -> Result<(), geom_core::MarginDiag> {
+    let k = T::from_f64(band.escalate() / band.zero());
+    match decide_reported(name, Margin::levered(k, rounding), band) {
+        Ok(geom_core::Decided {
+            sign: Sign::Zero, ..
+        }) => Ok(()),
+        Ok(geom_core::Decided { margin, .. }) | Err(Indeterminate { margin, .. }) => Err(margin),
+    }
+}
+
 /// [`decide`], keeping the reporting margin for a sized decision's
 /// refusal ([`geom_core::k_stats::decide_reported`]).
 pub(crate) fn decide_reported<T: Decide>(
