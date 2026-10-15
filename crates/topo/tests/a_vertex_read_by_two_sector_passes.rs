@@ -35,6 +35,9 @@
 //! - **two arches sharing a ray**, united with the plate, against a
 //!   pyramid with an edge along that ray, which lies on both arches'
 //!   boundaries (`vtxfac::along_partners`);
+//! - **two blocks glued** at their corners' face, against a pyramid
+//!   whose edge runs through the contact face, on both blocks' flush
+//!   faces (`vtxfac::along_partners`);
 //! - a pyramid with an edge lying **along** the arch's face;
 //! - a pyramid **lying** on the plate, an edge on its top, which a
 //!   touching vertex pairs with (`vtxfac::partner_side`), pyramids along
@@ -158,13 +161,16 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// carried; and an edge of the other operand along the ray, whose
 /// overlap with it the result's record does not carry
 /// (`work/tang/an-edge-along-a-partners-ray-through-a-touch-has-no-record.md`).
-/// Returns whether 3′ held.
+/// Where `glued` names three points of a plane in which one operand's
+/// own pieces touch, glued face to face, their contacts there, likewise
+/// not carried, may refuse too. Returns whether 3′ held.
 fn three_prime(
     what: &str,
     r: &topo::BooleanBody<f64>,
     pose: &Pose,
     along: bool,
     ray: Option<[f64; 3]>,
+    glued: Option<[[f64; 3]; 3]>,
 ) -> bool {
     let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
         return true;
@@ -195,10 +201,29 @@ fn three_prime(
         ),
         _ => false,
     };
+    // In the plane through `glued`'s three points, posed, to a micron.
+    let in_glued = |v| {
+        let Some(g) = glued else { return false };
+        let [o, u, w] = g.map(|c| pose.at(c));
+        let n = (u - o).cross(w - o);
+        let q = readback::vertex_point(&r.body, v).unwrap();
+        ((q - o).dot(n) / n.norm()).abs() < 1e-6
+    };
+    let edge_in_glued = |e| {
+        let edge = r.body.get_edge(e).unwrap();
+        let plus = r.body.get_half_edge(edge.he_plus).unwrap();
+        let next = r.body.get_half_edge(plus.next).unwrap();
+        in_glued(plus.start) && in_glued(next.start)
+    };
     for e in &errors {
         let ok = match e {
             ValidationError::UnrecordedContact { contact, .. } => match *contact {
-                CensusContact::VertexVertex { a, b } => at_meet(a) && at_meet(b),
+                CensusContact::VertexVertex { a, b } => {
+                    (at_meet(a) && at_meet(b)) || (in_glued(a) && in_glued(b))
+                }
+                CensusContact::EdgeEdgeOverlap { a, b } if edge_in_glued(a) && edge_in_glued(b) => {
+                    true
+                }
                 CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex) || at_far(vertex),
                 CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
                 CensusContact::EdgeEdgeOverlap { a, b } => on_ray(a) && on_ray(b),
@@ -343,7 +368,7 @@ fn builds_along(
     along: bool,
     ray: Option<[f64; 3]>,
 ) -> usize {
-    builds_where(label, x, y, pose, along, ray, &[])
+    builds_where(label, x, y, pose, along, ray, &[], None)
 }
 
 /// [`builds_along`], where each op of `reverting` refuses instead:
@@ -352,6 +377,7 @@ fn builds_along(
 /// re-baselines these cells
 /// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 /// Only the sums its result enters are checked without it.
+#[allow(clippy::too_many_arguments)]
 fn builds_where(
     label: &str,
     x: &AtRestBody<f64>,
@@ -360,6 +386,7 @@ fn builds_where(
     along: bool,
     ray: Option<[f64; 3]>,
     reverting: &[&str],
+    glued: Option<[[f64; 3]; 3]>,
 ) -> usize {
     let mut held = 0;
     let mut v = [0.0; 6];
@@ -402,7 +429,7 @@ fn builds_where(
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
                 material_holds(&what, keep, Some(&r.body), &probes);
                 classes_hold(&what, &r, a, b, pose);
-                held += usize::from(three_prime(&what, &r, pose, along, ray));
+                held += usize::from(three_prime(&what, &r, pose, along, ray, glued));
                 volume(&r.body)
             }
             Ok(BooleanResult::Empty) => {
@@ -1032,7 +1059,113 @@ fn along_two_arches_shared_ray(pose: &Pose, &(label, corners, reverting): &ArchP
     });
     let [(b, r, z), (c, s, w)] = corners;
     let base = [bearing(40.0, 0.6, 0.75), bearing(b, r, z), bearing(c, s, w)];
-    builds_where(label, &tet(base, pose), &line, pose, false, None, reverting)
+    builds_where(
+        label,
+        &tet(base, pose),
+        &line,
+        pose,
+        false,
+        None,
+        reverting,
+        None,
+    )
+}
+
+/// **A vertex whose edge runs through two blocks' glued faces builds in
+/// every op**: two blocks in face contact, their corners at [`MEET`],
+/// against a pyramid standing there whose edge runs through the contact
+/// face's interior and leaves the blocks, out the side, the bottom, or
+/// a far corner. The edge lies on both blocks' boundaries, their
+/// contact faces flush along it: plane faces bounding material on
+/// opposite sides, coincident only to within the band, so the edge is
+/// `On` (`vtxfac::along_partners`), its class as the naming records it
+/// and as the blocks read the point beside it ([`classes_hold`]). Tier 3′
+/// is as [`three_prime`] allows. Slow set, at every pose; the row below
+/// is its per-PR pose.
+#[test]
+fn an_edge_through_two_blocks_glued_faces_builds_in_every_op() {
+    for pose in &poses() {
+        for pyramid in &GLUED_PYRAMIDS {
+            through_glued_faces(pose, pyramid);
+        }
+    }
+}
+
+/// The per-PR pose of the row above: the pyramid out the side, at rest.
+#[test]
+fn an_edge_through_two_blocks_glued_faces_builds_at_rest() {
+    through_glued_faces(&Pose::rest(), &GLUED_PYRAMIDS[0]);
+}
+
+/// A pyramid through the blocks' glued faces: a label, the far end of
+/// its edge along the contact face, and its base's two corners off it
+/// (bearing, radius and height), relative to [`MEET`].
+type GluedPyramid = (&'static str, [f64; 3], [(f64, f64, f64); 2]);
+
+/// The pyramids through the blocks' glued faces.
+const GLUED_PYRAMIDS: [GluedPyramid; 3] = [
+    (
+        "a pyramid through the glued faces, out the side",
+        [0.0, 0.8, -0.8],
+        [(200.0, 0.4, 0.2), (240.0, 0.4, 0.2)],
+    ),
+    (
+        "a pyramid through the glued faces, out the bottom",
+        [0.0, 0.3, -0.8],
+        [(200.0, 0.4, 0.2), (240.0, 0.4, 0.2)],
+    ),
+    (
+        "a pyramid through the glued faces, out a far corner",
+        [0.0, 0.7, -0.7],
+        [(170.0, 0.4, 0.3), (260.0, 0.4, 0.3)],
+    ),
+];
+
+/// The glued blocks' scene ([`an_edge_through_two_blocks_glued_faces_builds_in_every_op`])
+/// at `pose`, against one of [`GLUED_PYRAMIDS`]: every op builds, and
+/// the union names the edge through the glued faces `On`.
+fn through_glued_faces(pose: &Pose, &(label, along, corners): &GluedPyramid) {
+    let blocks = posed_boxes(
+        "two blocks glued at their corners' face",
+        &[
+            [(1.0, 1.5), (1.0, 1.5), (0.5, 1.0)],
+            [(1.5, 2.0), (1.0, 1.5), (0.5, 1.0)],
+        ],
+        pose,
+        t(),
+    );
+    let [(b, r, z), (c, s, w)] = corners;
+    let x = tet([along, bearing(b, r, z), bearing(c, s, w)], pose);
+    // The blocks' own contacts in their glued plane, x = 1.5, which no
+    // record carries here, may refuse 3′ too.
+    let glued = [[1.5, 1.0, 0.5], [1.5, 1.5, 0.5], [1.5, 1.0, 1.0]];
+    builds_where(label, &x, &blocks, pose, false, None, &[], Some(glued));
+    let meet = at(pose.at(MEET));
+    let far = at(pose.at([0, 1, 2].map(|k| MEET[k] + along[k])));
+    let r = match union(&x, &blocks, t()) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("{label}: x ∪ y: {:?}", other.map(|_| ())),
+    };
+    let through: Vec<_> = r
+        .naming
+        .edge_classes
+        .iter()
+        .filter(|row| row.operand == Operand::A)
+        .filter(|row| {
+            let Ok(p) = readback::vertex_point(&x, row.vertex) else {
+                return false;
+            };
+            let edge = x.get_edge(row.edge).unwrap();
+            let plus = x.get_half_edge(edge.he_plus).unwrap();
+            let ends = [plus.start, x.get_half_edge(plus.next).unwrap().start]
+                .map(|v| at(readback::vertex_point(&x, v).unwrap()));
+            at(p) == meet && ends.contains(&far)
+        })
+        .collect();
+    assert!(!through.is_empty(), "{label}: the union names the edge");
+    for row in through {
+        assert_eq!(row.class, SideCode::On, "{label}: {row:?}");
+    }
 }
 
 /// **A vertex that crosses a face it is paired on, or pierces two
@@ -1236,7 +1369,7 @@ fn standing_pyramids_folded_onto_the_plate_build_in_every_member_order() {
             }
             let last = last.unwrap();
             assert_eq!(validate_geometric(&body, t()), Ok(()), "{what}: tier 3");
-            three_prime(&what, &last, &pose, false, None);
+            three_prime(&what, &last, &pose, false, None, None);
             let v = volume(&body);
             assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
         }
@@ -1270,7 +1403,7 @@ fn five_members_fold_onto_the_plate_in_sampled_member_orders() {
                 }
             }
             assert_eq!(validate_geometric(&body, t()), Ok(()), "{what}: tier 3");
-            three_prime(&what, &last.unwrap(), pose, false, None);
+            three_prime(&what, &last.unwrap(), pose, false, None, None);
             let v = volume(&body);
             assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
         }

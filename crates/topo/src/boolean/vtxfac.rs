@@ -588,25 +588,28 @@ fn interior<T: Decide>(
 
 /// **The class of an edge on two or more partners' boundaries** (`on`):
 /// `On` where the material their faces bound changes side somewhere
-/// around it, `In` where it changes nowhere. Around the edge each
-/// partner's material turns at the half-planes its faces leave the edge
-/// in ([`super::sectors::half_planes`]), so the solid's material turns
-/// at a half-plane one partner alone leaves it in: the edge is on the
-/// solid's boundary where one such is decidedly apart from every other
-/// partner's.
+/// around it, or where their faces are glued along it. Around the edge
+/// each partner's material turns at the half-planes its faces leave the
+/// edge in ([`super::sectors::half_planes`]), so the solid's material
+/// turns at a half-plane one partner alone leaves it in: the edge is on
+/// the solid's boundary where one such is decidedly apart from every
+/// other partner's.
 ///
 /// Where every half-plane meets another's at a decided zero, the
 /// partners lie flush along the edge. Where each such meeting is of two
-/// plane faces (`shape`) bounding material on opposite sides, each face
-/// is glued to its match, and the partners' materials cover the edge's
-/// neighbourhood, so it is `In`. Matched plane faces bounding material
-/// on one side would overlap the partners' materials, which a solid at
-/// rest does not hold: an invariant. A curved face in a meeting may be
-/// tangent to its match rather than glued, which these first-order
-/// readings do not tell apart; that refuses, as a half-plane in band of
-/// another's does, with [`super::BooleanDecision::PartnerFaces`]. Faces
-/// flush along the edge part by the half-planes' chord at the farthest
-/// reach of the edge and the partners' sectors.
+/// plane faces (`shape`) bounding material on opposite sides, the faces
+/// are glued, coincident only to within the band: a sub-band tilt parts
+/// them by a sliver whose boundary the edge lies on, so only `On` is
+/// decided there (D4), as the polygon-cone oracle reads any direction
+/// on a face (`sectors::cone_fuzz`). Matched plane faces bounding
+/// material on one side would overlap the partners' materials, which a
+/// solid at rest does not hold: an invariant. A curved face in a meeting
+/// may be tangent to its match rather than glued, which these
+/// first-order readings do not tell apart, and a chord in band of zero
+/// is neither apart nor flush; both refuse with
+/// [`super::BooleanDecision::PartnerFaces`]. Faces flush along the edge
+/// part by the half-planes' chord at the farthest reach of the edge and
+/// the partners' sectors.
 pub(super) fn along_partners<T: Decide>(
     edge: &BoolSector<T>,
     on: &[&PairRead<T>],
@@ -3159,9 +3162,11 @@ mod tests {
     /// one face leaving it, one in the plane z = 0 and the other's turned
     /// `tilt` about x. Their half-planes part by the tilt, so the edge is
     /// on the solid's boundary, `On`. Flush, as plane faces bounding
-    /// material on opposite sides, they are glued, and the edge is `In`;
-    /// on one side, they would overlap, an invariant; with a curved face
-    /// they may be tangent, which refuses
+    /// material on opposite sides, they are glued, coincident only to
+    /// within the band, and the edge is `On`, at ε 1e-9 and, both turned
+    /// 3e-7 about x, at ε 1e-12; on one side, they would overlap, an
+    /// invariant; with a curved face they may be tangent, and a chord in
+    /// band of zero is neither apart nor flush: both refuse
     /// [`super::super::BooleanDecision::PartnerFaces`]. Beside a partner on
     /// the edge's side whose cone lies in no half-space, the edge still
     /// names it to refuse on, its faces unread.
@@ -3188,6 +3193,16 @@ mod tests {
             normal: OutwardNormal::from_chart(along.cross(end), true),
             arm: 1.0,
         };
+        let partner_of = |partner| PairRead {
+            partner,
+            side: Some(SideCode::Out),
+            read: Some(WedgeRead {
+                pointed: true,
+                met: true,
+                rows: vec![(he, SideCode::On)],
+            }),
+            sectors: Vec::new(),
+        };
         let partner = |partner, pointed, end| PairRead {
             partner,
             side: Some(SideCode::Out),
@@ -3210,19 +3225,26 @@ mod tests {
         let flat = partner(w, true, Vec3::new(0.0, 1.0, 0.0));
         let turned =
             |tilt: f64, pointed| partner(x, pointed, Vec3::new(0.0, tilt.cos(), tilt.sin()));
-        // The face z = 0 seen from below: the same quarter-plane, run
-        // the other way round its normal.
-        let glued = PairRead {
-            sectors: vec![BoolSector {
-                start: Vec3::new(0.0, 1.0, 0.0),
-                start_reach: chord(Vec3::new(0.0, 1.0, 0.0)),
-                end: along,
-                end_reach: chord(along),
-                normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
-                ..sector(along)
-            }],
-            ..partner(x, true, along)
+        // The face z = 0 turned `tilt` about x, seen from above (`up`)
+        // or from below: the same quarter-plane, run the other way round
+        // its normal.
+        let face = |partner, tilt: f64, up: bool| {
+            let y = Vec3::new(0.0, tilt.cos(), tilt.sin());
+            let n = Vec3::new(0.0, -tilt.sin(), tilt.cos());
+            let (start, end, n) = if up { (along, y, n) } else { (y, along, -n) };
+            PairRead {
+                sectors: vec![BoolSector {
+                    start,
+                    start_reach: chord(start),
+                    end,
+                    end_reach: chord(end),
+                    normal: OutwardNormal::from_chart(n, true),
+                    ..sector(along)
+                }],
+                ..partner_of(partner)
+            }
         };
+        let glued = face(x, 0.0, false);
         let (plane, curved) = (|_| FaceShape::Plane, |_| FaceShape::Curved);
         let classes = |partners: &[PairRead<f64>], shape: ShapeOf<'_>| {
             touch_classes(&own, &touch, partners, shape, band)
@@ -3234,8 +3256,31 @@ mod tests {
         );
         let got = classes(&[flat.clone(), glued], &plane);
         assert!(
-            matches!(got.as_deref(), Ok([(h, SideCode::In)]) if *h == he),
+            matches!(got.as_deref(), Ok([(h, SideCode::On)]) if *h == he),
             "plane faces glued along it: {got:?}"
+        );
+        let fine = Band::new(1e-12, 1e-11).unwrap();
+        let got = touch_classes(
+            &own,
+            &touch,
+            &[face(w, 3e-7, true), face(x, 3e-7, false)],
+            &plane,
+            fine,
+        );
+        assert!(
+            matches!(got.as_deref(), Ok([(h, SideCode::On)]) if *h == he),
+            "plane faces glued along it, turned 3e-7, at ε 1e-12: {got:?}"
+        );
+        let got = classes(&[flat.clone(), face(x, 3e-9, false)], &plane);
+        assert!(
+            matches!(
+                got,
+                Err(TouchUndecided::Along(BooleanError::Escalated {
+                    decision: super::super::BooleanDecision::PartnerFaces,
+                    ..
+                }))
+            ),
+            "plane faces parted in band along it: {got:?}"
         );
         let got = classes(&[flat.clone(), turned(0.0, true)], &plane);
         assert!(
