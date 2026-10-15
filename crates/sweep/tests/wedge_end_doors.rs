@@ -1146,7 +1146,9 @@ fn a_pair_stated_over_a_determinate_tangency_is_a_defect() {
         .expect("the pair certifies by incidence");
     assert_eq!(
         topo::validate_geometric(&wall, tol()),
-        Err(vec![topo::ValidationError::TangentNotIntrinsic { edge: seam }]),
+        Err(vec![topo::ValidationError::TangentNotIntrinsic {
+            edge: seam
+        }]),
         "the hand-stated pair is a defect"
     );
 }
@@ -1166,7 +1168,10 @@ fn a_conventional_form_stated_over_a_corner_is_a_defect() {
             c.description().pair().map(|_| (k, c.clone()))
         })
         .expect("a brick edge between two planes");
-    assert!(!curve.authority().is_declared(), "the brick's edge is derived");
+    assert!(
+        !curve.authority().is_declared(),
+        "the brick's edge is derived"
+    );
     let pair = curve.description().pair().unwrap();
     for (form, spec) in [
         ("OnPair", curve.restated_on_pair(pair)),

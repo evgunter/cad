@@ -2445,7 +2445,14 @@ mod tests {
                 "an edge listed from the helper keeps its kind, on the new key"
             );
         }
-        assert_eq!(validate_geometric(&body, tol()), Ok(()));
+        // The image is a conventional form on a corner, which tier 3
+        // refuses whoever stated it (D2).
+        assert_eq!(
+            validate_geometric(&body, tol()),
+            Err(vec![ValidationError::TransverseNotIntrinsic {
+                edge: listed
+            }])
+        );
     }
 
     /// **The describing door takes a shared chart too**, so a `Shared`

@@ -12682,12 +12682,8 @@ mod tests {
 
         let check_9 = |body: &Body<f64>| check_9_words(body, tol);
         let inverted_roles = |body: &Body<f64>| -> Vec<LoopKey> {
-            let (errors, _) = tier3_local_checks(
-                body,
-                tol,
-                None,
-                Some(crate::props::QuadLane::certified()),
-            );
+            let (errors, _) =
+                tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
             errors
                 .into_iter()
                 .filter_map(|e| match e {
@@ -12812,12 +12808,8 @@ mod tests {
 
     /// Check 9's NESTING words, on `body`.
     fn nesting_words(body: &Body<f64>, tol: Tol) -> Vec<ValidationError> {
-        let (errors, _) = tier3_local_checks(
-            body,
-            tol,
-            None,
-            Some(crate::props::QuadLane::certified()),
-        );
+        let (errors, _) =
+            tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
         errors
             .into_iter()
             .filter(|e| {
@@ -12832,12 +12824,8 @@ mod tests {
 
     /// Every one of check 9's words, on `body`.
     fn check_9_words(body: &Body<f64>, tol: Tol) -> Vec<ValidationError> {
-        let (errors, _) = tier3_local_checks(
-            body,
-            tol,
-            None,
-            Some(crate::props::QuadLane::certified()),
-        );
+        let (errors, _) =
+            tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
         errors
             .into_iter()
             .filter(|e| {
@@ -13275,12 +13263,8 @@ mod tests {
     fn check_9_refuses_a_crossed_corner_on_a_cylinder_wall() {
         let tol = Tol::witness();
         let inverted = |body: &Body<f64>, wall: FaceKey| {
-            let (all, _) = tier3_local_checks(
-                body,
-                tol,
-                None,
-                Some(crate::props::QuadLane::certified()),
-            );
+            let (all, _) =
+                tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
             all.iter().any(
                 |e| matches!(e, ValidationError::CurvedSenseInverted { face } if *face == wall),
             )
@@ -15501,54 +15485,16 @@ mod tests {
     /// threading (`plane_every_face` states `sense: true` on each plane
     /// it grafts, so the multiply is `· +1`) — pinned here as
     /// "no `LoopRoleInverted` before the flip". The fixture is [`crate::test_support_fixtures::declined_cube`] with real planes
-    /// grafted on; its twelve chords stay conventional, so the honest
-    /// report is about those chords and nothing else. (The all-green
-    /// variant of this row, on the fully certified cube, lives in
-    /// `tests/geometric_cube.rs`.)
-    ///
-    /// **Re-expressed at PCURVE P-1b.** The honest report used to be
-    /// twelve `TransverseNotIntrinsic` complaints; U2's transience
-    /// fence added a second, independent at-rest rule that the same
-    /// twelve chords break — they were minted through the Euler-op
-    /// door, which describes an edge before any face surface exists,
-    /// and `plane_every_face` grafts the planes without restating
-    /// them. The row asserts the PAIR — one report per rule per chord
-    /// and nothing else — rather than widening the `matches!` to admit
-    /// a second variant, which would have let a body with eleven of
-    /// one and thirteen of the other through.
+    /// grafted on; its twelve chords stay at the scaffolding door, so
+    /// the honest report is the transience fence's, once per chord, and
+    /// nothing else. (The all-green variant of this row, on the fully
+    /// certified cube, lives in `tests/geometric_cube.rs`.)
     #[test]
     fn tier_three_refuses_a_hand_flipped_face_sense() {
         let mut cube = declined_cube::<f64>(Tol::witness()).body;
         plane_every_face(&mut cube, Tol::witness());
         let honest = validate_geometric(&cube, Tol::witness()).unwrap_err();
-        let edges: Vec<EdgeKey> = cube.edges().map(|(k, _)| k).collect();
-        let named = |pick: fn(&ValidationError) -> Option<EdgeKey>| {
-            honest.iter().filter_map(pick).collect::<Vec<_>>()
-        };
-        assert_eq!(
-            named(|e| match e {
-                ValidationError::ScaffoldAtRest { edge } => Some(*edge),
-                _ => None,
-            }),
-            edges,
-            "the fence names every chord still at the scaffolding \
-             door, once; got {honest:?}"
-        );
-        assert_eq!(
-            named(|e| match e {
-                ValidationError::TransverseNotIntrinsic { edge } => Some(*edge),
-                _ => None,
-            }),
-            edges,
-            "prefer-intrinsic names every declared transverse chord, \
-             once; got {honest:?}"
-        );
-        assert_eq!(
-            honest.len(),
-            2 * edges.len(),
-            "the grafted cube's only complaints are its conventional \
-             chords; got {honest:?}"
-        );
+        crate::test_support_fixtures::assert_every_chord_named_by_the_fence(&cube, &honest);
 
         let (face, f) = cube.faces.iter().next().unwrap();
         let outer = f.outer;
@@ -16212,14 +16158,8 @@ mod offset_fit_door_rows {
         let tol = Tol::witness();
         let (body, face) = approx_faced_body::<T>();
         let mut marks = slotmap::SecondaryMap::new();
-        let (errors, _) = tier3_local_checks_marked(
-            &body,
-            &mut marks,
-            tol,
-            PlusVCheck::NotMade,
-            None,
-            door,
-        );
+        let (errors, _) =
+            tier3_local_checks_marked(&body, &mut marks, tol, PlusVCheck::NotMade, None, door);
         (errors, face)
     }
 
@@ -16288,12 +16228,8 @@ mod offset_fit_door_rows {
     fn the_f64_seam_is_what_check_1_reads() {
         let tol = Tol::witness();
         let (body, face) = approx_faced_body::<f64>();
-        let (errors, _) = super::tier3_local_checks(
-            &body,
-            tol,
-            None,
-            Some(crate::props::QuadLane::certified()),
-        );
+        let (errors, _) =
+            super::tier3_local_checks(&body, tol, None, Some(crate::props::QuadLane::certified()));
         assert!(
             !errors.iter().any(
                 |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f, .. } if *f == face)
