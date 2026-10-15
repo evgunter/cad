@@ -2,8 +2,10 @@
 id: a-wall-holding-two-pierces-refuses-at-its-own-ring
 kind: issue
 title: A cylinder wall a ruling pierces twice refuses HeldPierceUnbuilt at the ring its own first held pierce minted
-status: open
+status: closed
+branch: tang/two-held-pierces-one-wall
 opened: 2026-10-15
+closed: 2026-10-15
 priority: P3
 cost: M
 refs: [a-pierce-point-inside-a-curved-face-of-the-piercing-operand-refuses-unbuilt]
@@ -40,3 +42,33 @@ The same ringed-wall reading also stops two other poses:
 
 - **The pocketed wall.** The pocket's ring makes it refuse `placed: false` (`a_ringed_wall_holding_the_pierce_refuses_typed_and_pocketing_last_builds`, line 597). That ring is a real hole, so the refusal is honest there.
 - **The lying cylinder over its whole span.** Folds that ring its wall before the second prism comes refuse `CurvedPierceUnsupported` (`a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order`, line 536).
+
+## Closed (2026-10-15, TANG)
+
+**The mechanism, confirmed.** When the second point is read, the wall's one ring is the first held pierce's strut loop: two null halves. `curved_interior_placement` reads any ring as unread.
+
+**The fix: every pierce's held faces are read before any is minted.**
+
+- `vtxfac::faces_holding_pierce` now takes every plan of the operand. It reads each one (`held_reads`), writing nothing, and only then mints the ring vertices (`mint_held`).
+- This keeps one reader of whether a face holds a point: the trim, at rest, as the operand gave it. The other shape would have taught both trim readers that a ring of null halves bounds nothing, a second notion of the face's region beside the one the readers already hold.
+- The order of the minted pierces is unchanged.
+
+**The row.** `a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order` builds:
+
+- every op, either operand first;
+- both join orders;
+- every member order of the fold, carried;
+- at the three turns.
+
+Each passes tier 3 and tier 3′, matches its closed-form volume, and matches the material at the probes.
+
+**What still refuses.** The pocketed wall still refuses `placed: false`: its ring is a real hole.
+
+**`wall_outline` (`solid_contain.rs:1412`) is unchanged.** The mechanism named it as a second ringed-wall reader. The fix keeps the scaffolding ring away from both readers instead of teaching either of them about it, so neither changes.
+
+**The rest of the pass:**
+
+- Two pierces of one face at one point mint one ring vertex there, as the face's boundary read of the first's ring vertex had made them before.
+- A definite refusal at any face of any pierce outranks an escalation at another, as in the pierce pass this serves.
+
+**The lying-cylinder sibling** has a different root, and this does not close it. Over the cylinder's whole span, the folds that ring the wall before the second prism comes still refuse `CurvedPierceUnsupported`. There the ring is the first prism's footprint, a real hole in the wall at rest.
