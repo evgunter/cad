@@ -20,7 +20,7 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #
   - Wildcards: `wall_crossing` `_ => Unsettled` (twice), `line_wall_roots_of` `_ => Uncertain`, `conic_quadric_roots` `_ => {}`.
   - Runtime fallbacks: enclosures first, then roots, then `carrier_touch::off_face`; the dip-bound clearance, then roots; `implicit::conic_residual_extremes` harmonic, else sampled.
 - **Circle×plane is solved in about six places:**
-  - `carrier_cross::circle_meets_plane` (`crates/topo/src/boolean/carrier_cross.rs:507`);
+  - `carrier_cross::conic_meets_plane` (`crates/topo/src/boolean/carrier_cross.rs`; formerly `circle_meets_plane`, PR 5190);
   - `conic_plane_candidates`;
   - `ops::apply_cut_ins` (`crates/topo/src/boolean/ops.rs:6053`);
   - `sphere_region::ray_roots` (`crates/topo/src/boolean/sphere_region.rs:414`);

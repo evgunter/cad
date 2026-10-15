@@ -52,3 +52,11 @@ identity, so Interval encloses. It is the one home for that algebra;
 fixing these sites with a local spelling mints a copy at each.
 
 2026-10-14 (PATHS, `paths/circle-pair-shared-home`): the shared home has landed as `geom_core::Circles` (`crates/geom-core/src/arc/pair.rs`): built from `d` and the two radii, it hands out the identity, external and internal margins and the cancellation-free `radical` foot and `half_chord` from one `r₁ + r₂` and `r₁ − r₂`; `Circles2` places them in the plane. profile `seg.rs` and topo `validate.rs` arm 5 read it. Fix this site by reading it, deciding its margins from the same value, rather than minting a copy.
+
+2026-10-15 (CLEAVE, `cleave/circle-pair-touch-on-both`): the
+`carrier_cross.rs` coplanar arm (`parallel_circles`) now reads
+`geom_core::Circles`: its `apart` and `nested` margins are the pair's
+`external` (negated) and `internal`, and its candidates are
+`c₁ + û·radical ± v̂·half_chord`, the radical clamped to `±r₁` and
+the half-chord's square to `0` where a touch read `Zero` has no chord.
+The other three sites here are unchanged.

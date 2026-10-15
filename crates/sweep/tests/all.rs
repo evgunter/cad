@@ -84,6 +84,8 @@ mod a_plane_moved_to_a_cone_apex;
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_rim_in_a_face_beside_a_resting_ridge.rs"]
 mod a_rim_in_a_face_beside_a_resting_ridge;
+#[path = "a_rim_tilted_across_another_on_one_wall.rs"]
+mod a_rim_tilted_across_another_on_one_wall;
 #[path = "a_ring_on_a_cone_face.rs"]
 mod a_ring_on_a_cone_face;
 #[path = "a_ring_on_a_sphere_face.rs"]

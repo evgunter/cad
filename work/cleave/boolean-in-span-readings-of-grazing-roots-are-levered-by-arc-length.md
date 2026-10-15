@@ -36,7 +36,9 @@ PR 4246 found and fixed this shape in the ring lane
 - **`bool_carrier_cross_in_span`** (`carrier_cross.rs:186`, called at
   `:161`) reads `gap · metres_per_param`, again arc length. The meeting
   comes from `meetings` (`carrier_cross.rs:228`): a line through a
-  circle's or an ellipse's plane, or `circle_meets_plane` (`:381`).
+  circle's or an ellipse's plane, or a conic met with the other's plane
+  (`conic_meets_plane` since PR 5190, which replaced
+  `circle_meets_plane`).
   These are decided `transverse` by a sine levered at the reach or the
   radius. A decided sine `≥ Kε/arm` still leaves the meeting's error at
   `δ·arm/(Kε)`.

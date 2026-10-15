@@ -352,7 +352,7 @@ fn meetings<T: Decide>(
             )? {
                 return Ok(Some(parallel_circles(&e, &f, band)?));
             }
-            circle_meets_plane(e.center, e.axis, e.speed_hi(), f.center, f.axis, band)?
+            conic_meets_plane(&e, &f, MEETS_CIRCLE, band)?
         }
         // An ellipse is a plane section, so whatever meets it meets its
         // plane: those meetings are the candidates, and the boundary
@@ -380,7 +380,7 @@ fn meetings<T: Decide>(
             if !transverse(c.axis.cross(e.axis).norm(), r.max(e.speed_hi()), band)? {
                 return Ok(off_plane(c.center, e.center, e.axis, band)?.then(Vec::new));
             }
-            circle_meets_plane(c.center, c.axis, r, e.center, e.axis, band)?
+            conic_meets_plane(&c, &e, MEETS_CIRCLE, band)?
         }
         (&Ellipse { .. }, &Line { .. } | &Circle { .. }, _) => return meetings(b, a, band),
         (&Ellipse { .. }, &Ellipse { .. }, (Some(e), Some(f))) => {
@@ -400,7 +400,7 @@ fn meetings<T: Decide>(
                 // plane's tilt by the semi-axes' ratio.
                 return Ok(one_curve(&e, &f, band)?.then(Vec::new));
             }
-            ellipse_meets_plane(&e, c2, n2, band)?
+            conic_meets_plane(&e, &f, MEETS_ELLIPSE, band)?
         }
         (&Circle { .. } | &Ellipse { .. }, _, (None, _))
         | (_, &Circle { .. } | &Ellipse { .. }, (_, None)) => {
@@ -483,106 +483,143 @@ fn off_plane<T: Decide>(
     }
 }
 
-/// The common line of the planes through `c1` and `c2` with unit
-/// normals `n1` and `n2`, decided transverse: its point nearest the
-/// origin of the two-plane system, and its unit direction `n1 × n2`.
-fn common_line<T: Decide>(
-    c1: Point3<T>,
-    n1: Vec3<T>,
-    c2: Point3<T>,
-    n2: Vec3<T>,
-) -> (Point3<T>, Vec3<T>) {
-    let m = n1.cross(n2);
-    let s = m.norm();
-    let (h1, h2) = (n1.dot(c1 - Point3::origin()), n2.dot(c2 - Point3::origin()));
-    let c = n1.dot(n2);
-    let k = s.powi(2);
-    let p0 = Point3::origin() + (n1 * ((h1 - h2 * c) / k) + n2 * ((h2 - h1 * c) / k));
-    (p0, m * (T::one() / s))
-}
+/// The rows of [`conic_meets_plane`], by the conic it cuts. Their names
+/// say `line_meets` from when the planes' common line was formed and met
+/// with the conic; the decision is still that line's gap from tangency,
+/// and the names stay so their k-lint history does.
+const MEETS_CIRCLE: &str = "bool_carrier_cross_line_meets_circle";
+const MEETS_ELLIPSE: &str = "bool_carrier_cross_line_meets_ellipse";
 
-/// Where the circle (`c1`, unit `n1`, `r1`) meets the plane through
-/// `c2` with unit normal `n2`, the two planes decided transverse: the
-/// planes' [`common_line`]'s meetings with the circle's sphere, which,
-/// in the circle's plane, are its meetings with the circle.
-fn circle_meets_plane<T: Decide>(
-    c1: Point3<T>,
-    n1: Vec3<T>,
-    r1: T,
-    c2: Point3<T>,
-    n2: Vec3<T>,
-    band: Band,
-) -> Result<Vec<Point3<T>>, BooleanError> {
-    let (p0, u) = common_line(c1, n1, c2, n2);
-    let w = p0 - c1;
-    let b = w.dot(u);
-    let disc = b.powi(2) - (w.dot(w) - r1.powi(2));
-    Ok(
-        match decide(
-            "bool_carrier_cross_line_meets_circle",
-            Margin::levered_inv(disc, r1 + r1),
-            band,
-        ) {
-            Ok(Sign::Negative) => Vec::new(),
-            Ok(Sign::Zero) => vec![p0 + u * (-b)],
-            Ok(Sign::Positive) => {
-                let root = disc.sqrt();
-                vec![p0 + u * (-b - root), p0 + u * (-b + root)]
-            }
-            Err(diag) => return Err(escalated(diag)),
-        },
-    )
-}
+/// Whether [`conic_meets_plane`]'s own rounding leaves its reading the
+/// input's ([`crate::validate::resolved`]).
+pub(super) const MEETS_RESOLUTION: &str = "bool_carrier_cross_meets_resolution";
 
-/// Where the ellipse `e` meets the plane through `c` with unit normal
-/// `n`, the two planes decided transverse: the planes' [`common_line`]
-/// `p0 + s·u`, then its meetings with `e` in `e`'s frame, the roots of
-/// `qa·s² + 2qb·s + qc = 0` from `(x/a)² + (y/b)² = 1` scaled by `a²b²`.
+/// Where the conic `e` meets the plane of the conic `f`, through `c`
+/// with unit normal `n`, the two planes decided transverse, read in
+/// `e`'s own angle: its height over the plane is
+/// `lift + x·cos θ + y·sin θ`, with `(x, y)` its semi-axis vectors'
+/// components along `n`, so its meetings solve
+/// `cos(θ − φ) = −lift/reach`, `reach = |(x, y)|` and `φ` the phase of
+/// `(x, y)`. Each candidate is then a point of `e`, at the plane but
+/// for the rounding of `lift`.
 ///
-/// The discriminant is `a²b²·qa·(1 − D²)`, `D` the line's distance from
-/// the centre in the frame that takes the ellipse to the unit circle,
-/// where the line's gap from tangency, along its normal in the plane, is
-/// `√qa·(1 − D)` metres. Near tangency `1 − D² = 2(1 − D)` to first
-/// order, so the discriminant over `2a²b²·√qa` is that gap: the
-/// circle's row at `a = b = r`.
-fn ellipse_meets_plane<T: Decide>(
+/// The decision is the planes' common line against `e`: the line lies
+/// `D = |lift|/reach` from the centre in the frame that takes `e` to
+/// the unit circle, and its gap from tangency, along its normal in
+/// `e`'s plane, is `1 − D` of `e`'s semi-diameter across it,
+/// `reach / sin` with `sin` the planes' tilt. To first order in that
+/// gap it is the circle row's former `(r² − δ²)/2r` and the ellipse
+/// row's former discriminant over `2a²b²√qa`; away from tangency it
+/// differs from them by up to `2×`, which no decision here reads.
+///
+/// `x`, `y` and `lift` are dot products of vectors that are nearly
+/// square to `n`, so each carries about `u·(r + |Δc|)` of rounding
+/// that does not shrink with them, and the gap carries that over
+/// `sin`: past `ε/K` once the tilt is under about `u·(r + |Δc|)·K/ε`.
+/// Its running bound ([`geom_core::running`]) is charged where it is
+/// not [resolved](crate::validate::resolved): the gap is read as the
+/// interval the bound spans ([`geom_brep::roots::extreme_sign`]), a
+/// definite sign there is the input's, and one the rounding straddles
+/// escalates, since neither a crossing's place nor whether there is
+/// one is then the input's. A resolved `Zero` is a touch: the double
+/// root, the point of `e` nearest the plane.
+///
+/// The meeting found is the conic's with the plane, which is where
+/// the two curves meet when they do exactly. Two curves of different
+/// carriers that only come within the band of each other, at a small
+/// tilt, do so up to `u·|c|/sin` away from it, which nothing here
+/// reads; FUSE's curve-pair reader takes the closest pair across
+/// planes, polished from this meeting
+/// (`work/fuse/the-curve-pair-reader.md`). It is also where this, a
+/// fourth conic × plane meeting beside
+/// `splitting::conic_plane_candidates`, `geom_brep::curve_pair`'s
+/// poses and [`super::circle_roots`], becomes one with them.
+fn conic_meets_plane<T: Decide>(
     e: &geom_brep::Conic<T>,
-    c: Point3<T>,
-    n: Vec3<T>,
+    f: &geom_brep::Conic<T>,
+    row: &'static str,
     band: Band,
 ) -> Result<Vec<Point3<T>>, BooleanError> {
-    let (p0, u) = common_line(e.center, e.axis, c, n);
-    let (u_ref, v_ref) = (e.u_ref, e.v_ref());
-    let w = p0 - e.center;
-    let (x0, y0, ux, uy) = (w.dot(u_ref), w.dot(v_ref), u.dot(u_ref), u.dot(v_ref));
-    let (a2, b2) = (e.semi_u.powi(2), e.semi_v.powi(2));
-    let qa = b2 * ux.powi(2) + a2 * uy.powi(2);
-    let qb = b2 * x0 * ux + a2 * y0 * uy;
-    let qc = b2 * x0.powi(2) + a2 * y0.powi(2) - a2 * b2;
-    let disc = qb.powi(2) - qa * qc;
-    let per = a2 * b2 * (qa.sqrt() + qa.sqrt());
-    Ok(
-        match decide(
-            "bool_carrier_cross_line_meets_ellipse",
-            Margin::levered_inv(disc, per),
-            band,
-        ) {
-            Ok(Sign::Negative) => Vec::new(),
-            Ok(Sign::Zero) => vec![p0 + u * (-qb / qa)],
-            Ok(Sign::Positive) => {
-                let root = disc.sqrt();
-                vec![p0 + u * ((-qb - root) / qa), p0 + u * ((-qb + root) / qa)]
+    use geom_core::running::{self, Rounded};
+    let (c, n) = (f.center, f.axis);
+    // Each value as the plain expression evaluates it, with its running
+    // bound beside it.
+    let (axis, u, normal) = (
+        running::exact_vec(e.axis),
+        running::exact_vec(e.u_ref),
+        running::exact_vec(n),
+    );
+    let along = |v: [Rounded<T>; 3], semi: T| v.map(|k| k * Rounded::exact(semi));
+    let x = running::dot(along(u, e.semi_u), normal);
+    let y = running::dot(along(running::cross(axis, u), e.semi_v), normal);
+    let reach = x.hypot(y);
+    let lift = running::dot(
+        [(e.center.x, c.x), (e.center.y, c.y), (e.center.z, c.z)]
+            .map(|(p, q)| Rounded::exact(p) - Rounded::exact(q)),
+        normal,
+    );
+    let height = Rounded {
+        value: lift.value.abs(),
+        error: lift.error,
+    };
+    let [tx, ty, tz] = running::cross(axis, normal);
+    let tilt = tx.hypot(ty).hypot(tz);
+    let (short, across) = (
+        Rounded::exact(T::one()) - height.quotient(reach),
+        reach.quotient(tilt),
+    );
+    let gap = short * across;
+    let sign = match crate::validate::resolved(MEETS_RESOLUTION, gap.error, band) {
+        Ok(()) => {
+            decide(row, Margin::levered(short.value, across.value), band).map_err(escalated)?
+        }
+        Err(resolution) => match geom_brep::roots::extreme_sign(row, gap.value, gap.error, band) {
+            Ok(Sign::Zero) => {
+                return Err(escalated(geom_core::Indeterminate {
+                    margin: resolution,
+                    band,
+                    predicate: Some(MEETS_RESOLUTION),
+                    terminal_sliver: false,
+                }));
             }
+            Ok(sign) => sign,
             Err(diag) => return Err(escalated(diag)),
         },
-    )
+    };
+    if sign == Sign::Negative {
+        return Ok(Vec::new());
+    }
+    let (first, second) = e.semi_axis_vectors();
+    let (x, y, reach) = (x.value, y.value, reach.value);
+    // The roots' half-angle about `φ`; a ratio read past `±1` is a
+    // touch, its two roots one.
+    let cos = (T::zero() - lift.value / reach)
+        .min(T::one())
+        .max(T::zero() - T::one());
+    let sin = ((T::one() - cos) * (T::one() + cos)).sqrt();
+    let (cx, sx) = (x / reach, y / reach);
+    Ok([sin, T::zero() - sin]
+        .into_iter()
+        .map(|s| {
+            let (cos_t, sin_t) = (cx * cos - sx * s, sx * cos + cx * s);
+            e.center + first * cos_t + second * sin_t
+        })
+        .collect())
 }
 
 /// Two circles in planes read parallel: none where the planes are
 /// distinct, where the circles are one within the band ([`one_curve`]),
-/// or where they share a centre (nested ones), else the meetings of two
-/// circles in one plane — two, one where they touch, none where they are
-/// apart or one holds the other.
+/// where they share a centre (nested ones), or where they are apart or
+/// one holds the other; else where two circles in `e`'s plane meet, on
+/// `e`, read from [`geom_core::Circles`]. Read `Zero`, the circles can
+/// still cross twice far from where they come closest (near-concentric
+/// ones stay within the band of each other all the way round), and then
+/// the two crossings are the candidates; where they do not cross, the
+/// touch is the double root, the point of `e` on the line of centres.
+///
+/// The circles are read in `e`'s plane, `f`'s centre projected into it:
+/// the centres' offset across the plane, read `Zero`, is up to the band,
+/// and their distance may be little more.
 fn parallel_circles<T: Decide>(
     e: &geom_brep::Conic<T>,
     f: &geom_brep::Conic<T>,
@@ -598,25 +635,26 @@ fn parallel_circles<T: Decide>(
     if sign("bool_carrier_cross_concentric", Margin::norm3(w))? == Sign::Zero {
         return Ok(Vec::new());
     }
-    let d = w.norm();
-    // Apart, or one inside the other: no meeting. Touching: one.
-    let apart = sign("bool_carrier_cross_circles_apart", Margin::of(r1 + r2 - d))?;
+    let w = w - n1 * w.dot(n1);
+    let pair = geom_core::Circles::new(w.norm(), r1, r2);
+    let apart = sign(
+        "bool_carrier_cross_circles_apart",
+        Margin::of(T::zero() - pair.external()),
+    )?;
     let nested = sign(
         "bool_carrier_cross_circles_nested",
-        Margin::of(d - (r1 - r2).abs()),
+        Margin::of(pair.internal()),
     )?;
     if apart == Sign::Negative || nested == Sign::Negative {
         return Ok(Vec::new());
     }
-    let toward = w * (T::one() / d);
-    let a = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d + d);
-    let foot = c1 + toward * a;
-    if apart == Sign::Zero || nested == Sign::Zero {
-        return Ok(vec![foot]);
-    }
-    let h = (r1.powi(2) - a.powi(2)).sqrt();
-    let across = n1.cross(toward);
-    Ok(vec![foot + across * h, foot - across * h])
+    // Placed from `c₁`, so the offset `w` is not re-formed as a
+    // difference of points that round at their distance from the origin.
+    let at = pair.at(Vec3::zero(), w);
+    Ok(at
+        .on_first(n1.cross(at.direction()))
+        .map(|off| c1 + off)
+        .to_vec())
 }
 
 #[cfg(test)]
@@ -626,7 +664,9 @@ mod meetings_rows {
     //! of two carriers is among the candidates, a pair that meets only
     //! along a stretch or nowhere has none, and a pair with no closed
     //! form says so.
-    use super::{Span, meetings, one_curve, one_curve_gap};
+    use super::{
+        MEETS_CIRCLE, Span, conic_meets_plane, meetings, one_curve, one_curve_gap, transverse,
+    };
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -1005,10 +1045,6 @@ mod meetings_rows {
         use geom_brep::Conic;
         let b = band();
         let z = b.zero();
-        let turn = |x: Vec3<f64>, k: Vec3<f64>, t: f64| {
-            let (s, c) = t.sin_cos();
-            x * c + k.cross(x) * s + k * (k.dot(x) * (1.0 - c))
-        };
         let n = Vec3::new(1.0, 2.0, 3.0).normalize();
         let u = n.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
         let v = n.cross(u);
@@ -1183,10 +1219,11 @@ mod meetings_rows {
     /// an ellipse whose plane, tilted 45°, cuts `z = 0` along `y = b + δ`:
     /// with `z` the band's zero threshold, `δ = 100·z` misses,
     /// `δ = −100·z` crosses twice, and `δ = z/2` and `0.75·z` touch at
-    /// `(0, b, 0)`. Read at `(a, b) = (4, 2)` and `(40, 0.5)`: the
-    /// discriminant is `−2a²b²·b·δ` there, so a margin that did not
-    /// divide out `2a²b²·√qa` reads the touch as a miss, and one
-    /// overstated twice reads the `0.75·z` touch in band.
+    /// `(0, b, 0)`, the double root placed there. Read at
+    /// `(a, b) = (4, 2)` and `(40, 0.5)`: the gap is `(1 − D)` of the
+    /// semi-diameter `b` across the line, so a margin left unlevered in
+    /// the unit-circle frame reads the `0.75·z` touch in band at
+    /// `b = 0.5`.
     #[test]
     fn the_common_line_meets_an_ellipse_at_its_gap_from_tangency() {
         let b = band();
@@ -1211,7 +1248,10 @@ mod meetings_rows {
             for delta in [z / 2.0, 0.75 * z] {
                 let touch = got(delta);
                 assert!(
-                    touch.len() == 1 && touch[0].distance(Point3::new(0.0, minor, 0.0)) < 1e-6,
+                    !touch.is_empty()
+                        && touch
+                            .iter()
+                            .all(|p| p.distance(Point3::new(0.0, minor, 0.0)) < z / 10.0),
                     "{label}, δ = {delta:e}: a touch at the minor vertex: {touch:?}"
                 );
             }
@@ -1250,6 +1290,403 @@ mod meetings_rows {
                 "{order}: read parallel and off the plane"
             );
         }
+    }
+
+    /// How far `p` lies from the conic `k`, computed apart from the
+    /// closed forms under test: its offset from the conic's plane, and
+    /// in that plane a circle's radial gap or an ellipse's implicit
+    /// residual over its gradient (first order, which is exact enough
+    /// for the distances asserted here).
+    fn off(k: &Curve3<f64>, p: Point3<f64>) -> f64 {
+        let e = geom_brep::Conic::of(k).unwrap();
+        let w = p - e.center;
+        let (x, y) = (w.dot(e.u_ref), w.dot(e.v_ref()));
+        let (a, b) = (e.semi_u, e.semi_v);
+        let across = ((x / a).powi(2) + (y / b).powi(2) - 1.0).abs()
+            / (2.0 * ((x / (a * a)).powi(2) + (y / (b * b)).powi(2)).sqrt());
+        w.dot(e.axis).hypot(across)
+    }
+
+    /// `x` turned by `t` about the unit `k`.
+    fn turn(x: Vec3<f64>, k: Vec3<f64>, t: f64) -> Vec3<f64> {
+        let (s, c) = t.sin_cos();
+        x * c + k.cross(x) * s + k * (k.dot(x) * (1.0 - c))
+    }
+
+    /// Where the line `on + s·dir` (`dir` unit) meets the sphere, or a
+    /// cylinder whose axis is `z` read as the sphere of its `xy`
+    /// section, through `centre` and `radius`.
+    fn line_meets_round(
+        on: Point3<f64>,
+        dir: Vec3<f64>,
+        centre: Point3<f64>,
+        radius: f64,
+        flat: bool,
+    ) -> [Point3<f64>; 2] {
+        let squash = |v: Vec3<f64>| if flat { Vec3::new(v.x, v.y, 0.0) } else { v };
+        let (w, d) = (squash(on - centre), squash(dir));
+        let (qa, qb) = (d.dot(d), w.dot(d));
+        let root = (qb * qb - qa * (w.dot(w) - radius * radius)).sqrt();
+        [
+            on + dir * ((-qb - root) / qa),
+            on + dir * ((-qb + root) / qa),
+        ]
+    }
+
+    /// **Every arm places its meetings on both curves.** Each pair below
+    /// meets at points written down apart from the arms, and in either
+    /// order every candidate lies on both curves within rounding, or,
+    /// where the two only come within the band of each other (a touch
+    /// with no crossing, or circles in two planes the band reads as
+    /// one), on the first and within the band's zero of the second, and
+    /// every meeting is a candidate's, to within what rounding moves a
+    /// crossing at the angle the two cross at.
+    ///
+    /// - two sections of one sphere about `C = (3.7, −2.1, 0.4)`, and
+    ///   about `(990, −742.5, 396)`, about a kilometre off the origin,
+    ///   their planes turned `θ` apart about a chord of the first: they
+    ///   cross at the chord's ends on the sphere;
+    /// - two sections of the unit cylinder so turned, and a rim against
+    ///   its plane turned about a chord: likewise, on the cylinder;
+    /// - two circles in one plane, `d = 30·z` apart (`z` the band's
+    ///   zero), one inside the other but for the `0.5·z` it overhangs
+    ///   (crossing at `±2.96` rad from the centre line), or held inside
+    ///   it `0.5·z` short (a touch), and two of one radius `15·z` apart
+    ///   with the second's centre `0.9·z` off the first's plane.
+    ///
+    /// At `θ ≤ 3e-4` the planes' common line, formed from their offsets
+    /// over `sin²θ`, sat up to `u·|C|/θ²` off both curves; a touch read
+    /// `Zero` was the radical-line foot, `r·(1 − |Δr|/d)` off both
+    /// circles; and the in-plane crossings took the centres' offset
+    /// across the plane into their direction.
+    #[test]
+    fn every_arm_places_its_meetings_on_both_curves() {
+        let b = band();
+        let (z, ke) = (b.zero(), b.escalate());
+        // (first, second, the meetings, how far a candidate may lie off
+        // the second where the two do not quite meet, and the angle that
+        // fixes the meeting along them, which rounding moves it by over:
+        // the crossing angle, or for a touch the centres' offset `d`
+        // over a unit arm)
+        type Pose = (String, Curve3<f64>, Curve3<f64>, Vec<Point3<f64>>, f64, f64);
+        let exact = 1e-12;
+        let mut poses: Vec<Pose> = Vec::new();
+        for (theta, sc) in [10.0 * ke, 1e3 * ke].into_iter().flat_map(|theta| {
+            [
+                Point3::new(3.7, -2.1, 0.4),
+                Point3::new(990.0, -742.5, 396.0),
+            ]
+            .map(|sc| (theta, sc))
+        }) {
+            for (n, h, x0) in [
+                (Vec3::new(0.3, -0.5, 0.8), 0.3_f64, 0.6),
+                (Vec3::new(-0.7, 0.2, 0.4), -0.5, -0.4),
+            ] {
+                let n1 = n.normalize();
+                let r1 = (1.0 - h * h).sqrt();
+                let c1 = sc + n1 * h;
+                let first = circle(c1.to_array(), n1.to_array(), r1);
+                let Curve3::Circle { u_ref: u, .. } = first else {
+                    unreachable!("a circle")
+                };
+                let v = n1.cross(u);
+                let on = c1 + u * (x0 * r1);
+                let n2 = turn(n1, v, theta);
+                let h2 = (on - sc).dot(n2);
+                let second = circle(
+                    (sc + n2 * h2).to_array(),
+                    n2.to_array(),
+                    (1.0 - h2 * h2).sqrt(),
+                );
+                let at = line_meets_round(on, v, sc, 1.0, false);
+                poses.push((
+                    format!("sphere sections about {sc:?}, θ = {theta:e}, h = {h}"),
+                    first,
+                    second,
+                    at.to_vec(),
+                    exact,
+                    theta,
+                ));
+            }
+            for (slope, azimuth, x0) in [(0.4, 0.3, 0.5), (2.5, 2.0, -0.7)] {
+                let (s, c) = f64::sin_cos(azimuth);
+                let n1 = Vec3::new(-slope * c, -slope * s, 1.0).normalize();
+                let minor = Vec3::new(-s, c, 0.0);
+                let major = minor.cross(n1);
+                let section = |n: Vec3<f64>, through: Point3<f64>| {
+                    let zc = through.z + (through.x * n.x + through.y * n.y) / n.z;
+                    let flat = Vec3::new(n.x, n.y, 0.0).normalize();
+                    let up = flat + Vec3::unit_z() * (-(n.x * flat.x + n.y * flat.y) / n.z);
+                    Curve3::Ellipse {
+                        center: Point3::new(0.0, 0.0, zc),
+                        axis: n,
+                        semi_u: up.norm(),
+                        semi_v: 1.0,
+                        u_ref: up.normalize(),
+                    }
+                };
+                let first = section(n1, Point3::new(0.0, 0.0, 0.3));
+                let on = Point3::new(0.0, 0.0, 0.3) + major * (x0 * slope.hypot(1.0));
+                let second = section(turn(n1, minor, theta), on);
+                let at = line_meets_round(on, minor, Point3::origin(), 1.0, true);
+                poses.push((
+                    format!("cylinder sections, θ = {theta:e}, slope {slope}"),
+                    first,
+                    second,
+                    at.to_vec(),
+                    exact,
+                    theta,
+                ));
+                let rim = circle([0.0, 0.0, 0.3], [0.0, 0.0, 1.0], 1.0);
+                let on = Point3::new(c * x0, s * x0, 0.3);
+                let tilted = section(turn(Vec3::unit_z(), minor, theta), on);
+                let at = line_meets_round(on, minor, Point3::origin(), 1.0, true);
+                poses.push((
+                    format!("a rim and a section, θ = {theta:e}, azimuth {azimuth}"),
+                    rim,
+                    tilted,
+                    at.to_vec(),
+                    exact,
+                    theta,
+                ));
+            }
+        }
+        // Two circles in one skew plane.
+        let n = Vec3::new(1.0, 2.0, 3.0).normalize();
+        let first = circle([1.0, -2.0, 0.5], n.to_array(), 0.8);
+        let Curve3::Circle {
+            center: c1,
+            u_ref: u,
+            ..
+        } = first
+        else {
+            unreachable!("a circle")
+        };
+        let v = n.cross(u);
+        let d = 30.0 * z;
+        for (what, dr) in [("overhanging", d - 0.5 * z), ("held inside", d + 0.5 * z)] {
+            let second = circle((c1 + u * d).to_array(), n.to_array(), 0.8 + dr);
+            let cos = -(dr * (1.6 + dr) - d * d) / (1.6 * d);
+            let touch = cos < -1.0;
+            let at = if touch {
+                vec![c1 - u * 0.8]
+            } else {
+                let sin = (1.0 - cos * cos).sqrt();
+                vec![
+                    c1 + (u * cos + v * sin) * 0.8,
+                    c1 + (u * cos - v * sin) * 0.8,
+                ]
+            };
+            let (within, angle) = if touch {
+                (z, d)
+            } else {
+                (exact, d * (1.0 - cos * cos).sqrt() / 0.8)
+            };
+            poses.push((
+                format!("one plane, {what}"),
+                first.clone(),
+                second,
+                at,
+                within,
+                angle,
+            ));
+        }
+        let lifted = circle(
+            (c1 + u * (15.0 * z) + n * (0.9 * z)).to_array(),
+            n.to_array(),
+            0.8,
+        );
+        let half = 7.5 * z;
+        let rise = (0.64 - half * half).sqrt();
+        poses.push((
+            "one plane, one radius, a centre off the plane".to_owned(),
+            first,
+            lifted,
+            vec![c1 + u * half + v * rise, c1 + u * half - v * rise],
+            z,
+            15.0 * z / 0.8,
+        ));
+        for (what, first, second, at, within, angle) in &poses {
+            // A meeting written down `|p|` from the origin is rounded to
+            // about `u·|p|`, and the crossing moves by that over `angle`.
+            let far = at
+                .iter()
+                .map(|p| (*p - Point3::origin()).norm() / 10.0)
+                .fold(1.0, f64::max);
+            let slack = (1e-14 * far / angle).max(z);
+            for (x, y, order) in [(first, second, "in order"), (second, first, "swapped")] {
+                let got = meet(x, y, b)
+                    .unwrap_or_else(|e| panic!("{what}, {order}: {e:?}"))
+                    .unwrap_or_else(|| panic!("{what}, {order}: unread"));
+                for q in &got {
+                    let (on_x, on_y) = (off(x, *q), off(y, *q));
+                    assert!(
+                        on_x < exact && on_y < *within,
+                        "{what}, {order}: {q:?} lies {on_x:e} and {on_y:e} off the curves"
+                    );
+                }
+                for p in at {
+                    let near = got
+                        .iter()
+                        .map(|q| q.distance(*p))
+                        .fold(f64::INFINITY, f64::min);
+                    assert!(
+                        near < slack,
+                        "{what}, {order}: the meeting {p:?} is {near:e} from every candidate in {got:?}"
+                    );
+                }
+            }
+        }
+        assert!(
+            poses.iter().any(|(_, _, _, at, ..)| at.len() == 1),
+            "a touch with no crossing is among the poses"
+        );
+    }
+
+    /// A double-double, `hi + lo`, for [`plane_reach_over_lift`].
+    #[derive(Clone, Copy)]
+    struct Dd(f64, f64);
+
+    impl Dd {
+        fn sum(a: f64, b: f64) -> Self {
+            let s = a + b;
+            let v = s - a;
+            Self(s, (a - (s - v)) + (b - v))
+        }
+
+        fn product(a: f64, b: f64) -> Self {
+            let p = a * b;
+            Self(p, a.mul_add(b, -p))
+        }
+
+        fn add(self, o: Self) -> Self {
+            let Self(s, e) = Self::sum(self.0, o.0);
+            let lo = e + self.1 + o.1;
+            let hi = s + lo;
+            Self(hi, lo - (hi - s))
+        }
+
+        fn neg(self) -> Self {
+            Self(-self.0, -self.1)
+        }
+
+        fn mul(self, o: Self) -> Self {
+            let Self(p, e) = Self::product(self.0, o.0);
+            let lo = e + (self.0 * o.1 + self.1 * o.0);
+            let hi = p + lo;
+            Self(hi, lo - (hi - p))
+        }
+    }
+
+    /// **Whether the conic `e` meets the plane of `f`, from the records
+    /// as stored**: `reach² − lift²` ([`super::conic_meets_plane`]'s
+    /// quantities, `v̂ = n̂ × û` and each product taken exactly) in
+    /// double-double, which leaves it to about `1e-32` of the
+    /// semi-axes' and centres' scale where `f64` leaves it to `u` of
+    /// it. Positive where the two cross, and the gap from tangency it
+    /// gives, `(reach − |lift|)/sin`, in metres.
+    fn plane_reach_over_lift(e: &geom_brep::Conic<f64>, f: &geom_brep::Conic<f64>) -> (f64, f64) {
+        let parts = |v: Vec3<f64>| [v.x, v.y, v.z];
+        let (a, u, n) = (parts(e.axis), parts(e.u_ref), parts(f.axis));
+        let cross = |i: usize, j: usize| Dd::product(a[i], u[j]).add(Dd::product(a[j], u[i]).neg());
+        let v = [cross(1, 2), cross(2, 0), cross(0, 1)];
+        let dot = |w: [Dd; 3]| (0..3).fold(Dd(0.0, 0.0), |s, i| s.add(w[i].mul(Dd(n[i], 0.0))));
+        let x = dot(u.map(|k| Dd::product(k, e.semi_u)));
+        let y = dot(v.map(|k| k.mul(Dd(e.semi_v, 0.0))));
+        let at = |p: Point3<f64>| [p.x, p.y, p.z];
+        let (ce, cf) = (at(e.center), at(f.center));
+        let lift = dot([0, 1, 2].map(|i| Dd::sum(ce[i], -cf[i])));
+        let q = x.mul(x).add(y.mul(y)).add(lift.mul(lift).neg());
+        let q = q.0 + q.1;
+        let (reach, height) = ((x.0 * x.0 + y.0 * y.0).sqrt(), lift.0.abs());
+        (q, q / ((reach + height) * e.axis.cross(f.axis).norm()))
+    }
+
+    /// **A near-tangent pair at a small tilt reads no definite miss
+    /// where its records cross.** Two sections of the unit sphere about
+    /// `(3.7, −2.1, 0.4)` whose planes share a line `g` short of
+    /// tangency to the first (`g` within `±20·z`, `z` the band's zero),
+    /// turned `θ` apart about it, `θ` from `1e-11` to `1e-3`; and the
+    /// review's witness, `θ = 1e-6` with crossings `16.6 µm` apart.
+    /// Each conic is met with the other's plane, in both orders, and
+    /// wherever the records cross (by [`plane_reach_over_lift`]) the
+    /// reading is candidates or a typed escalation, never none.
+    ///
+    /// `x`, `y` and `lift` each carry about `u·(r + |Δc|)` of rounding,
+    /// and the gap that over the tilt: past `Kε` under a tilt of about
+    /// `3e-5` at `ε = 1e-12`. Read bare, the gap took that rounding's
+    /// sign there, and 47 of the review's 600 such poses read a
+    /// definite miss where the records cross (at `1e-9` and `1e-6`,
+    /// none).
+    #[test]
+    fn a_near_tangent_pair_at_a_small_tilt_reads_no_miss_where_it_crosses() {
+        let b = band();
+        let (z, ke) = (b.zero(), b.escalate());
+        let sc = Point3::new(3.7, -2.1, 0.4);
+        let n1 = Vec3::new(0.3, -0.5, 0.8).normalize();
+        let h1 = 0.3_f64;
+        let r1 = (1.0 - h1 * h1).sqrt();
+        let first = circle((sc + n1 * h1).to_array(), n1.to_array(), r1);
+        let Curve3::Circle { u_ref: u, .. } = first else {
+            unreachable!("a circle")
+        };
+        let v = n1.cross(u);
+        let pose = |theta: f64, g: f64| {
+            let on = sc + n1 * h1 + u * (r1 - g);
+            let n2 = turn(n1, v, theta);
+            let h2 = (on - sc).dot(n2);
+            circle(
+                (sc + n2 * h2).to_array(),
+                n2.to_array(),
+                (1.0 - h2 * h2).sqrt(),
+            )
+        };
+        let mut poses = vec![(1e-6, 0.5 * (8.3e-6_f64).powi(2) / r1)];
+        for i in 0..30 {
+            let theta = 10f64.powf(-11.0 + 8.0 * f64::from(i) / 29.0);
+            for j in 0..20 {
+                poses.push((theta, z * (-20.0 + 40.0 * f64::from(j) / 19.0)));
+            }
+        }
+        let (mut crossing, mut missed, mut escalated, mut placed) = (0, Vec::new(), 0, 0.0_f64);
+        for &(theta, g) in &poses {
+            let second = pose(theta, g);
+            for (x, y) in [(&first, &second), (&second, &first)] {
+                let (e, f) = (
+                    geom_brep::Conic::of(x).unwrap(),
+                    geom_brep::Conic::of(y).unwrap(),
+                );
+                // Within the band's tilt the pair is read parallel (or
+                // the tilt escalates), and its plane is not met.
+                let tilt = e.axis.cross(f.axis).norm();
+                if transverse(tilt, e.speed_hi().max(f.speed_hi()), b).ok() != Some(true) {
+                    continue;
+                }
+                let (q, gap) = plane_reach_over_lift(&e, &f);
+                let got = conic_meets_plane(&e, &f, MEETS_CIRCLE, b);
+                if q <= 0.0 {
+                    continue;
+                }
+                crossing += 1;
+                match got {
+                    Err(_) => escalated += 1,
+                    Ok(at) if at.is_empty() => missed.push((theta, g, gap)),
+                    Ok(at) => {
+                        placed = at.iter().map(|p| off(y, *p)).fold(placed, f64::max);
+                    }
+                }
+            }
+        }
+        eprintln!(
+            "ε = {z:e}: {} poses, {crossing} readings that cross, {escalated} escalated, {} missed, candidates up to {placed:e} off the second",
+            poses.len(),
+            missed.len()
+        );
+        assert!(
+            missed.is_empty(),
+            "a definite miss where the records cross (θ, g, exact gap): {missed:?}"
+        );
+        let _ = ke;
     }
 }
 
@@ -1618,5 +2055,92 @@ mod crossing_rows {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| boundary_crossing(b, Operand::B, face, &tilted, (-0.5, 0.5), band),
         );
+    }
+
+    /// The unit wall sheet of [`a_tilted_circle_meets_a_rim_no_vertex_projects_onto`]
+    /// over azimuths `u`, its axis through `C = (3.7, −2.1, 0.4)`, away
+    /// from the world origin.
+    fn sheet_off_the_origin(
+        body: &mut crate::body::Body<f64>,
+        u: (f64, f64),
+    ) -> crate::entity::FaceKey {
+        let frame = CylFrame {
+            origin: Point3::new(3.7, -2.1, 0.4),
+            ..CylFrame::canonical(1.0)
+        };
+        cyl_wall_sheet(body, frame, u, (0.0, 1.0), Tol::witness())
+    }
+
+    /// **A section turned a little off the top rim's plane crosses the
+    /// rim where it does.** The sheet over azimuths `[0.2, 1.4]`, and the
+    /// cylinder's section by its top rim's plane turned `θ = 10·Kε`
+    /// about the chord `x = cos 0.8`, its parameter the azimuth: it
+    /// leaves the sheet across the rim at azimuth `0.8`. Read from the
+    /// planes' offsets from the world origin, their common line sat up
+    /// to `u·1.4/θ²` off both (`1e-2` at ε = 1e-9), and the span
+    /// `[0.5, 1.1]` read clear; at ε = 1e-6 (`θ = 1e-4`) it held.
+    #[test]
+    fn a_section_turned_off_the_rims_plane_crosses_the_rim_where_it_does() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let theta = 10.0 * band.escalate();
+        let mut body = crate::body::Body::<f64>::new();
+        let face = sheet_off_the_origin(&mut body, (0.2, 1.4));
+        let x0 = 0.8f64.cos();
+        let (s, c) = theta.sin_cos();
+        let section = Curve3::Ellipse {
+            center: Point3::new(3.7, -2.1, 1.4 + theta.tan() * x0),
+            axis: Vec3::new(s, 0.0, c),
+            semi_u: 1.0 / c,
+            semi_v: 1.0,
+            u_ref: Vec3::new(c, 0.0, -s),
+        };
+        match boundary_crossing(&body, Operand::B, face, &section, (0.5, 1.1), band).unwrap() {
+            BoundaryCrossing::At { t, at, .. } => {
+                let slack = (1e-14 / theta).max(1e-12);
+                assert!((t - 0.8).abs() < slack, "at the rim's azimuth: {t}");
+                assert!(
+                    matches!(at, FaceContainment::OnEdge(_)),
+                    "on the rim: {at:?}"
+                );
+            }
+            other => panic!("θ = {theta:e}: the section crosses the rim: {other:?}"),
+        }
+    }
+
+    /// **A circle in the bottom rim's plane, nearly concentric with it,
+    /// crosses the rim where it does.** With `z` the band's zero, a
+    /// circle `30·z` off the axis toward azimuth 0 and `29.5·z` larger
+    /// overhangs the rim by `0.5·z` at azimuth `π`, so the margin that
+    /// says whether one holds the other reads `Zero`, and the two cross
+    /// at azimuth `±2.958`. The sheet over `[2.0, 4.2]` ends where they
+    /// are definitely apart; the circle's span `[2.5, 3.1]` holds the
+    /// crossing at `2.958` and not the radical line's foot at `π`, which
+    /// is where the touch was placed, `r/60` off both circles.
+    #[test]
+    fn a_nearly_concentric_circle_in_the_rims_plane_crosses_it_where_it_does() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let z = band.zero();
+        let mut body = crate::body::Body::<f64>::new();
+        let face = sheet_off_the_origin(&mut body, (2.0, 4.2));
+        let (d, dr) = (30.0 * z, 29.5 * z);
+        let nearly = Curve3::Circle {
+            center: Point3::new(3.7 + d, -2.1, 0.4),
+            axis: Vec3::unit_z(),
+            radius: 1.0 + dr,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let crossing = (-(dr * (2.0 + dr) - d * d) / (2.0 * d)).acos();
+        match boundary_crossing(&body, Operand::B, face, &nearly, (2.5, 3.1), band).unwrap() {
+            BoundaryCrossing::At { p, at, .. } => {
+                let want = Point3::new(3.7 + crossing.cos(), -2.1 + crossing.sin(), 0.4);
+                let slack = (1e-14 / (d * crossing.sin())).max(1e-12);
+                assert!(p.distance(want) < slack, "at azimuth {crossing}: {p:?}");
+                assert!(
+                    matches!(at, FaceContainment::OnEdge(_)),
+                    "on the rim: {at:?}"
+                );
+            }
+            other => panic!("the circle crosses the rim: {other:?}"),
+        }
     }
 }

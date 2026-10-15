@@ -106,3 +106,17 @@ the other sites as `circle-pair-edge-candidates-cancel-at-unequal-radii`
 (RESTFRONT), `circle-crossing-closed-forms-cancel-at-unequal-radii`
 (HONE) and `sphere-sphere-section-radius-cancels-at-unequal-radii`
 (ROOTS).
+
+2026-10-15 (CLEAVE, `cleave/circle-pair-touch-on-both`): the
+`carrier_cross.rs` hit is fixed. Measured there, the foot's error is not
+bounded by the gap times a modest factor once the centres are near the
+band: at `d = Kε` and `|Δr| = 0.9·d` the `nested` margin reads `Zero`,
+the circles really cross at `cos θ = −0.9` (0.44 m from the foot on a
+unit circle), and the foot sits 0.1 m off both. So where `d` is a few
+`Kε`, "the one point is still taken on the link" does not hold: the
+overlap `gap` crosses at an angle `√(2·gap/d)` from the link, not
+`√(gap/r)`. `carrier_cross` now places the two crossings where the
+half-chord exists and the point of the first circle on the link where
+it does not. The same reading applies to `sphere_sphere_section`'s
+internal `Zero` arm (a `TangentPoint` where the spheres can cross on a
+circle of angular radius up to `√(2ε/d)`) and to PATHS's internal arm.

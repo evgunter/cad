@@ -2,7 +2,8 @@
 id: carrier-cross-common-line-reads-far-dot-differences
 kind: issue
 title: carrier_cross's common_line forms its point from a difference of far dot products, off its planes by 1e-11 at the box edge
-status: open
+status: closed
+closed: 2026-10-15
 opened: 2026-10-14
 priority: P3
 cost: E
@@ -47,3 +48,21 @@ in `n2·(c2 − c1)`, so that only the planes' gap to each other enters,
 as `plane_torus_section` now does (`n·(q − c)`). Add a row that holds
 a circle × plane meeting at the box edge to its in-origin verdict at
 three ε, red against the current spelling.
+
+2026-10-15 (`cleave/circle-pair-touch-on-both`): `common_line` is gone.
+`carrier_cross::conic_meets_plane` meets a conic with the other plane
+in the conic's own angle, from `lift = n·(c_e − c_f)`, so only the
+planes' offset from each other enters. The same branch measured the
+cancellation this row argued: at the 1 km box it is the minor term;
+at small tilt the difference `h1 − h2·c` over `s²` put candidates up
+to `u·|h|/s²` off both curves (`1e-6` at `s = 1e-5`, ε = 1e-9), which
+is the parent row's defect. Pinned by
+`carrier_cross::meetings_rows::every_arm_places_its_meetings_on_both_curves`,
+whose sphere poses sit at `(3.7, −2.1, 0.4)`.
+
+## Closed (PR 5190)
+
+Closed with its twin `common-line-anchors-at-the-world-origin`: the
+function is gone. The translated pose about 1 km off the origin in
+`every_arm_places_its_meetings_on_both_curves` pins the box-edge case at
+three ε.

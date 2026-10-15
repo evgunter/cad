@@ -23,7 +23,7 @@ The principle in question: every geometric pair question has exactly one total k
 - **Curve × surface has no table.**
   - `boolean::carrier_touch` is a bisection with conic-only speed bounds; it refuses spiric and spline carriers.
   - `circle_roots` and `conic_quadric` each have their own door.
-  - Conic × plane is solved twice: `carrier_cross::circle_meets_plane`/`ellipse_meets_plane` and `splitting::conic_plane_candidates`.
+  - Conic × plane is solved twice: `carrier_cross::conic_meets_plane` (PR 5190; formerly `circle_meets_plane`/`ellipse_meets_plane`) and `splitting::conic_plane_candidates`.
 - **The census edge-face cut** reads only chords and conics; anything else is `Uncrossable` (restread row).
 - **Line × line is spelled three times.** `the-curve-pair-reader` absorbs this.
 - **Point against curve has four readings.** `the-curve-pair-reader` absorbs this.

@@ -77,3 +77,47 @@ These four readings still decide the point-on-span question themselves, and move
 - cleave's conditioning P1, when cleave has not landed its own fix first
 
 Coordinate with cleave on `carrier_cross` (cleave/hone ground).
+
+## Evidence for "across planes, a closest pair" (CLEAVE, PR 5190, 2026-10-15)
+
+Measured on `carrier_cross::conic_meets_plane`, which meets each conic
+with the other's plane in its own angle.
+
+**The pose:**
+- a unit circle in `z = 0`;
+- a circle of radius `0.59` whose plane turns `θ` about the line
+  `x = 0.95`;
+- built so that the two cross at `(0.95, ±0.31, 0)` at a wide in-plane
+  angle.
+
+**At the origin** every candidate lies within `1e-15` of both stored
+curves, at every θ.
+
+**Translated to about 990 m off the origin**, the stored records round
+at `u·990`, and that moves the planes' common line by about that over θ.
+The curves still come within about `1e-13` of each other near the
+designed crossings, but the candidates on the conic's meeting with the
+other's plane sit off the other curve by:
+
+| θ | 1e-9 | 1e-8 | 1e-6 | 1e-4 | 1e-3 |
+|---|---|---|---|---|---|
+| off | 1.3e-5 | 9.8e-7 | 3.1e-9 | 3.4e-10 | 2.7e-11 |
+
+The offsets are the same at ε = 1e-9 and at 1e-12.
+
+- **At 1e-12**, `meetings` reads every θ shown as transverse, and every
+  offset is past Kε.
+- **At 1e-9**, it reads the planes parallel at `θ = 1e-9` (the
+  in-plane arm then places the crossings to `1e-13`). It is past Kε at
+  `1e-8` and `1e-7` (`4.2e-7`).
+
+- The cause is the input's own rounding, amplified by `1/θ`. The
+  evaluation's rounding is a few ulps, so the branch's running-bound
+  charge does not see it.
+- It is not two curves the band reads apart. It is the plane meeting
+  being the wrong place to look.
+- Sections of one sphere do not show it: a point of one section near
+  the other's plane is near the other section.
+- Main's `common_line` arms shared it.
+
+`conic_meets_plane`'s doc cites this row.

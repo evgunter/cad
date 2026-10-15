@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-13
 priority: P1
 cost: M
+branch: cleave/circle-pair-touch-on-both
 ---
 
 
@@ -57,3 +58,54 @@ A second designer lane ran its own probe, also never committed: 2000 random pair
 - Rows: one red-then-green row per reproduction above.
 
 FUSE's curve-meeting design (`work/fuse/two-curve-curve-meeting-finders.md`, now with Ev) would absorb these arms. **This defect is silent today, so fix it now, independently of that design.**
+
+## Built (branch `cleave/circle-pair-touch-on-both`)
+
+Re-measured on main after PR 5058 with a 50-digit oracle at ε = 1e-9,
+1e-6 and 1e-12. Every witness above survives 5058: its reorder and its
+`Conic` input left the touch arm's foot and both `common_line` arms as
+they were. The row's literal witness (`Δr = 0.9·d`, `d = Kε`) sits on
+the zero threshold (`d − Δr = ε`), so it reads `Zero` only at 1e-9;
+`Δr = 0.95·d` reproduces at all three. `common_line` drifts at 1e-9 and
+1e-12 and holds at 1e-6. A third arm drifted too: the in-plane
+crossings took their direction from the 3D centre offset, which a
+`Zero` plane reading leaves up to the band.
+
+- `conic_meets_plane` replaces `common_line`, `circle_meets_plane` and
+  `ellipse_meets_plane`: each conic meets the other plane in its own
+  angle, from `lift = n·(c_e − c_f)`, with the same rows and the same
+  gap from tangency, now read from `lift`. A `Zero` touch is the
+  clamped double root on the conic.
+- `parallel_circles` reads `geom_core::Circles` in `e`'s plane, `f`'s
+  centre projected into it: the real crossings wherever the half-chord
+  exists, else the point of `e` on the line of centres.
+
+The review (APPROVE-WITH-FIXES) found the gap's own rounding unread:
+`x`, `y` and `lift` are dot products nearly square to `n`, each about
+`u·(r + |Δc|)` off, and the gap that over the tilt. That rounding is
+past Kε under a tilt of about `3e-5` at ε = 1e-12, where the gap read
+bare took its sign: 47 of the review's 600 near-tangent poses read a
+definite miss where the records cross. The gap now carries a running
+bound (`geom_core::running`), and where `K` times the bound is past the
+band's zero (new row `bool_carrier_cross_meets_resolution`):
+
+- the gap is read as the interval the bound spans
+  (`geom_brep::roots::extreme_sign`), and a definite sign there stands;
+- a straddle escalates typed.
+
+On the branch's own 601-pose family, against a double-double oracle on
+the stored records, that is 24 definite misses at 1e-12 before and 0
+after, and 0 and 0 at 1e-9 and 1e-6.
+
+Placing the meeting accurately rather than charging it would need
+compensated dot products at every scalar `T`, which is the
+curve-pair reader's ground. The meeting that reader takes across
+planes is the closest pair, which this arm does not read (evidence on
+`fuse/the-curve-pair-reader`).
+Pinned by `carrier_cross::meetings_rows::every_arm_places_its_meetings_on_both_curves`,
+two `crossing_rows` (`a_section_turned_off_the_rims_plane_…`,
+`a_nearly_concentric_circle_in_the_rims_plane_…`) and the boolean
+row `sweep::a_rim_tilted_across_another_on_one_wall`, which main
+refuses at 1e-12. No door reaches the coplanar witness: two circles
+the band reads coplanar but not one curve leave a band-thin region
+between their planes, which the boolean refuses elsewhere.
