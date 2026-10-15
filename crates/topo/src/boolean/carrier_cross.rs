@@ -111,63 +111,6 @@ pub(super) fn boundary_crossing<T: Decide>(
     y_is: Operand,
     face: FaceKey,
     carrier: &geom::Curve3<T>,
-    span: (T, T),
-    band: Band,
-) -> Result<BoundaryCrossing<T>, BooleanError> {
-    let out = lane_inner(y, y_is, face, carrier, span, band);
-    if std::env::var("LANE_LOG_DIR").is_ok() {
-        let verdict = match &out {
-            Ok(BoundaryCrossing::At { t, .. }) => {
-                let t = format!("{t:?}");
-                let t: f64 = t.parse().unwrap_or(f64::NAN);
-                format!("At {:.6e}", t)
-            }
-            Ok(BoundaryCrossing::Clear) => "Clear".to_owned(),
-            Ok(BoundaryCrossing::Unread) => "Unread".to_owned(),
-            Err(e) => format!("Err {}", format!("{e:?}").chars().take(40).collect::<String>()),
-        };
-        let input = format!("{face:?} {carrier:?} {span:?}");
-        lane_digest::note(&input, &verdict);
-    }
-    out
-}
-
-mod lane_digest {
-    use std::cell::RefCell;
-    use std::hash::{Hash, Hasher};
-    pub struct D { n: u64, h: std::collections::hash_map::DefaultHasher, verbose: Vec<String> }
-    impl Drop for D {
-        fn drop(&mut self) {
-            use std::io::Write;
-            let Ok(dir) = std::env::var("LANE_LOG_DIR") else { return };
-            let test = std::thread::current().name().unwrap_or("?").to_owned();
-            let mut line = format!("{test}\t{}\t{:016x}\n", self.n, self.h.finish());
-            for v in &self.verbose { line.push_str(&format!("  {test}\t{v}\n")); }
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(format!("{dir}/{}.log", std::process::id())) {
-                let _ = f.write_all(line.as_bytes());
-            }
-        }
-    }
-    thread_local!(static CUR: RefCell<D> = RefCell::new(D { n: 0, h: Default::default(), verbose: Vec::new() }));
-    pub fn note(input: &str, verdict: &str) {
-        CUR.with(|c| {
-            let mut c = c.borrow_mut();
-            c.n += 1;
-            input.hash(&mut c.h);
-            verdict.hash(&mut c.h);
-            if std::env::var("LANE_VERBOSE").is_ok() {
-                let v = format!("{} => {verdict}", input.chars().take(400).collect::<String>());
-                c.verbose.push(v);
-            }
-        });
-    }
-}
-
-fn lane_inner<T: Decide>(
-    y: &Body<T>,
-    y_is: Operand,
-    face: FaceKey,
-    carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<BoundaryCrossing<T>, BooleanError> {
