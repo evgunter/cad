@@ -805,17 +805,14 @@ jet-determinate tangency must carry `TangentIntersection`
 admits the class); a second-order-underdetermined join keeps its
 conventional form by the predicate itself. The check reads the
 description's form, not who declared the locus: a conventional
-description (`OnPair`, or a `Chart` that is not a wrap) on an edge the
-must-carry rule reads determinate is a wrong description, declared or
-derived. A wrap edge has one surface, and its chart image (a
-cylinder's at its angle) is exact in that surface's own coordinates, so
-the rule has nothing to ask of it. An escalated dihedral is already
-refused (`SliverDihedral`), and a NURBS/`Approx`-adjacent edge has no
-implicit form to read its dihedral from, so it is left unjudged. A body is validated at the ε it was built at and only
-there (D4 ¶1); a change of ε replays the recipe (`SetTolerance`), and
-since every door describes its edges by this rule at the run's ε, a
-tighter ε can escalate at a door or turn a conventional form intrinsic,
-but never yields a body this check refuses. An
+description on an edge the must-carry rule reads determinate is wrong,
+declared or derived. The rule needs two surfaces and a definite
+reading, so a wrap edge (one surface) and an edge whose dihedral is not
+read definitely (in band, or beside a spline face) fall outside it. A
+body is validated only at the ε it was built at (D4 ¶1); changing ε
+rebuilds it from its recipe (`SetTolerance`), describing every edge by
+this rule at the new ε, so a change of ε never yields a body this check
+refuses. An
 unenforced preference drifts silently — exactly the failure shape this
 document exists to kill.
 
