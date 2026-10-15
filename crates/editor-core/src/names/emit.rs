@@ -309,11 +309,18 @@ pub enum NamingError {
     /// corner reading classes its edges against, so the boolean holds no
     /// class for them, and the crossing's senses cannot be read. The
     /// boolean builds such a result soundly; what is missing is a rule
-    /// that reads the edges against the partner's neighbourhood.
+    /// that reads the edges against the partner's neighbourhood
+    /// (`work/tang/a-lone-unread-partner-has-no-class-rule`).
     PartnerUnread {
         /// The result-body vertex.
         vertex: VertexKey,
-        /// What the partner's neighbourhood is.
+        /// The operand of the boolean whose vertex it is, the one whose
+        /// edges went unclassed.
+        operand: topo::Operand,
+        /// The partner, the other operand's vertex, in that operand's
+        /// clone keys.
+        partner: VertexKey,
+        /// Why the partner read nothing.
         neighbourhood: topo::UnreadNeighbourhood,
     },
     /// A union's member edge read where ONE edge is needed, where a tie
@@ -506,17 +513,23 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::PartnerUnread {
                 vertex,
+                operand,
+                partner,
                 neighbourhood,
             } => write!(
                 f,
-                "{UNRULED_FRAMING}: vertex {vertex:?} meets the other operand at a vertex {}, \
-                 so the boolean classed none of its edges and the crossing there has no senses \
-                 to name it by",
+                "{UNRULED_FRAMING}: vertex {vertex:?} is operand {operand:?}'s vertex meeting the \
+                 other operand's vertex {partner:?}, which the boolean read nothing of: it lies \
+                 {}. So the boolean classed none of the vertex's edges and the crossing there has \
+                 no senses to name it by; reading them against the partner's neighbourhood is not \
+                 built yet (work/tang/a-lone-unread-partner-has-no-class-rule)",
                 match neighbourhood {
                     topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
-                    topo::UnreadNeighbourhood::Wedge =>
-                        "between two faces with no bisector to read their wedge by",
-                    topo::UnreadNeighbourhood::Corner => "at a corner whose cone it could not read",
+                    topo::UnreadNeighbourhood::NoBisector =>
+                        "on an edge of two faces, neither holding a bisector to read their wedge by",
+                    topo::UnreadNeighbourhood::ConeUnread =>
+                        "at an edge or corner read as a polygon cone, some edge of which no \
+                         reference decides",
                 }
             ),
             Self::ConventionalVertex { vertex, body } => write!(
@@ -1783,9 +1796,15 @@ mod display_tests {
             (
                 NamingError::PartnerUnread {
                     vertex: two_vertices().0,
+                    operand: topo::Operand::B,
+                    partner: two_vertices().1,
                     neighbourhood: topo::UnreadNeighbourhood::OneFace,
                 },
-                vec!["inside one smooth face", "classed none of its edges"],
+                vec![
+                    "inside one smooth face",
+                    "classed none of the vertex's edges",
+                    "work/tang/a-lone-unread-partner-has-no-class-rule",
+                ],
             ),
             (
                 NamingError::Settle(topo::SettleError::Dead {

@@ -524,31 +524,20 @@ pub struct UnreadPartner {
     pub neighbourhood: UnreadNeighbourhood,
 }
 
-/// The neighbourhood of an [`UnreadPartner`]'s partner, by the faces
-/// its sectors lie on: what kept the classification from reading it.
+/// Why an [`UnreadPartner`]'s partner read nothing, as the reading of
+/// its neighbourhood (`sectors::wedge_read`) found it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UnreadNeighbourhood {
-    /// One face: the partner lies inside a single smooth face of its
-    /// operand, so there is no edge or corner to read.
+    /// Its sectors lie on fewer than two faces: inside one smooth face
+    /// of its operand, with no edge or corner to read.
     OneFace,
-    /// Two faces whose wedge has no bisector to read it by, as a
-    /// full-turn bore's rim leaves the vertex a mate on its seam meets.
-    Wedge,
-    /// A corner of three or more faces read as a polygon cone with some
-    /// edge undecided against every reference.
-    Corner,
-}
-
-impl UnreadNeighbourhood {
-    /// The neighbourhood of a partner whose sectors lie on `faces`
-    /// distinct faces.
-    pub(crate) fn of_faces(faces: usize) -> Self {
-        match faces {
-            0 | 1 => Self::OneFace,
-            2 => Self::Wedge,
-            _ => Self::Corner,
-        }
-    }
+    /// Its sectors lie on two faces, and neither holds the subdivision
+    /// bisector a wedge is read by.
+    NoBisector,
+    /// Its edge or corner was read as a polygon cone, and some edge of
+    /// the vertex has no reference whose every reading is decided
+    /// (`sectors::cone_side`'s `None`).
+    ConeUnread,
 }
 
 /// A coincident vertex pair in the reduction's working set (`sonvv`):
@@ -5424,7 +5413,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             (Operand::A, c.a, &a_sectors, &b_sectors, c.b),
             (Operand::B, c.b, &b_sectors, &a_sectors, c.a),
         ] {
-            let read = sectors::wedge_classes(own, other, band)?;
+            let read = sectors::wedge_read(own, other, band)?;
             let mut pair = vtxfac::PairRead {
                 partner,
                 side: None,
@@ -5644,9 +5633,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     a.sweep_and_close();
     b.sweep_and_close();
     let edge_classes = with_copies(edge_classes, &null_edges);
-    let unread_partners = unread_with_copies(unread_partners, &null_edges);
+    let unread_partners = with_copies(unread_partners, &null_edges);
     // A vertex read no partner of holds no class: naming reads the
-    // list, never a missing row, as the reason.
+    // list, never a missing row, as the reason. The copies keep it so
+    // where a null edge's other end has no pair of its own, as an end
+    // `insert::mint_plans` mints after the pair reading never does; an
+    // end minted before it (a pierce ring's, `node::mint_nodes`') that
+    // met a pair of its own would lend the listed vertex its classes,
+    // and this says so in a debug build.
     debug_assert!(
         !edge_classes.iter().any(|c| unread_partners
             .iter()
@@ -5837,49 +5831,49 @@ pub(super) fn null_copy_rows<T: Real>(
         .collect()
 }
 
-/// `rows`, read at every vertex the null edges join a classified vertex
-/// to as well: the copies lie on its point, and the join hands each of
-/// them some of its edges. Sorted and deduplicated.
-/// [`with_copies`] for [`UnreadPartner`]s: each listed vertex's
-/// null-edge copies listed too, sorted.
-fn unread_with_copies<T: Real>(
-    mut rows: Vec<UnreadPartner>,
-    null_edges: &[BoolNullEdgeRecord<T>],
-) -> Vec<UnreadPartner> {
-    loop {
-        let mut copied = Vec::new();
-        for r in null_edges {
-            let (x, y) = (r.attr.below_end, r.attr.above_end);
-            for row in rows.iter().filter(|row| row.operand == r.operand) {
-                for (from, to) in [(x, y), (y, x)] {
-                    if row.vertex == from {
-                        copied.push(UnreadPartner { vertex: to, ..*row });
-                    }
-                }
-            }
-        }
-        let before = rows.len();
-        rows.extend(copied);
-        rows.sort();
-        rows.dedup();
-        if rows.len() == before {
-            return rows;
-        }
+/// A record kept at one operand vertex, which the null edges' copies
+/// of that vertex hold too ([`with_copies`]).
+trait AtVertex: Copy + Ord {
+    /// The operand and vertex it is kept at.
+    fn at(&self) -> (Operand, VertexKey);
+    /// The same record kept at `vertex` instead.
+    fn moved(self, vertex: VertexKey) -> Self;
+}
+
+impl AtVertex for EdgePieceClass {
+    fn at(&self) -> (Operand, VertexKey) {
+        (self.operand, self.vertex)
+    }
+    fn moved(self, vertex: VertexKey) -> Self {
+        Self { vertex, ..self }
     }
 }
 
-fn with_copies<T: Real>(
-    mut rows: Vec<EdgePieceClass>,
+impl AtVertex for UnreadPartner {
+    fn at(&self) -> (Operand, VertexKey) {
+        (self.operand, self.vertex)
+    }
+    fn moved(self, vertex: VertexKey) -> Self {
+        Self { vertex, ..self }
+    }
+}
+
+/// `rows`, kept at every vertex the null edges join a row's vertex to
+/// as well: the copies lie on its point, and the join hands each of
+/// them some of its edges. An edge class is so read at each copy, and
+/// an unread partner listed at each. Sorted and deduplicated.
+fn with_copies<T: Real, R: AtVertex>(
+    mut rows: Vec<R>,
     null_edges: &[BoolNullEdgeRecord<T>],
-) -> Vec<EdgePieceClass> {
+) -> Vec<R> {
     loop {
         let mut copied = Vec::new();
         for r in null_edges {
             let (x, y) = (r.attr.below_end, r.attr.above_end);
-            for row in rows.iter().filter(|row| row.operand == r.operand) {
+            for row in rows.iter().filter(|row| row.at().0 == r.operand) {
                 for (from, to) in [(x, y), (y, x)] {
-                    if row.vertex == from {
-                        copied.push(EdgePieceClass { vertex: to, ..*row });
+                    if row.at().1 == from {
+                        copied.push(row.moved(to));
                     }
                 }
             }

@@ -54,6 +54,7 @@ use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
 use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
+    UnreadNeighbourhood,
 };
 use crate::body::Body;
 use crate::chord_join::StaleSite;
@@ -1850,6 +1851,21 @@ pub(super) fn wedge_classes<T: Decide>(
     other: &[BoolSector<T>],
     band: Band,
 ) -> Result<Option<WedgeRead>, BooleanError> {
+    wedge_read(own, other, band).map(Result::ok)
+}
+
+/// [`wedge_classes`], saying why it read nothing where it did not: the
+/// other operand's sectors on fewer than two faces, two with no
+/// bisector, or a polygon cone some edge of which no reference decides
+/// ([`cone_read`]'s `None`).
+pub(super) fn wedge_read<T: Decide>(
+    own: &[BoolSector<T>],
+    other: &[BoolSector<T>],
+    band: Band,
+) -> Result<Result<WedgeRead, UnreadNeighbourhood>, BooleanError> {
+    let cone = |read: Result<Option<WedgeRead>, BooleanError>| {
+        read.map(|r| r.ok_or(UnreadNeighbourhood::ConeUnread))
+    };
     let mut faces: Vec<(FaceKey, OutwardNormal<T>)> = Vec::new();
     for s in other {
         if !faces.iter().any(|&(f, _)| f == s.face) {
@@ -1890,7 +1906,7 @@ pub(super) fn wedge_classes<T: Decide>(
                         (true, _, _) => None,
                     });
             let Some((dir, reach)) = inside else {
-                return Ok(None);
+                return Ok(Err(UnreadNeighbourhood::NoBisector));
             };
             match code(dir, reach, *n1) {
                 Ok(SideCode::In) => true,
@@ -1899,7 +1915,7 @@ pub(super) fn wedge_classes<T: Decide>(
                     true
                 }
                 Ok(SideCode::On) | Err(BooleanError::Escalated { .. }) => {
-                    return cone_read(own, other, band);
+                    return cone(cone_read(own, other, band));
                 }
                 Err(e) => return Err(e),
             }
@@ -1923,7 +1939,7 @@ pub(super) fn wedge_classes<T: Decide>(
                                 if one_plane(s.normal, normal)
                                     || one_plane(across.normal, normal) => {}
                             Ok(SideCode::On) | Err(BooleanError::Escalated { .. }) => {
-                                return cone_read(own, other, band);
+                                return cone(cone_read(own, other, band));
                             }
                             Err(e) => return Err(e),
                         }
@@ -1934,10 +1950,10 @@ pub(super) fn wedge_classes<T: Decide>(
                 (true, false) => true,
                 (false, true) => false,
                 (true, true) if faces.iter().all(|&(_, n)| one_plane(*first, n)) => true,
-                _ => return cone_read(own, other, band),
+                _ => return cone(cone_read(own, other, band)),
             }
         }
-        _ => return Ok(None),
+        _ => return Ok(Err(UnreadNeighbourhood::OneFace)),
     };
     let (wins, loses) = if met {
         (SideCode::Out, SideCode::In)
@@ -1950,7 +1966,7 @@ pub(super) fn wedge_classes<T: Decide>(
         for &(_, n) in &faces {
             match code(s.end, s.end_reach, n) {
                 Ok(c) => codes.push(c),
-                Err(BooleanError::Escalated { .. }) => return cone_read(own, other, band),
+                Err(BooleanError::Escalated { .. }) => return cone(cone_read(own, other, band)),
                 Err(e) => return Err(e),
             }
         }
@@ -1963,7 +1979,7 @@ pub(super) fn wedge_classes<T: Decide>(
         };
         rows.push((s.he, class));
     }
-    Ok(Some(WedgeRead {
+    Ok(Ok(WedgeRead {
         met,
         pointed: true,
         rows,
@@ -2616,7 +2632,7 @@ mod tests {
         let pair = super::super::vtxfac::PairRead {
             partner,
             side: Some(SideCode::Out),
-            read: Some(read),
+            read: Ok(read),
             sectors: saddle,
         };
         assert_eq!(

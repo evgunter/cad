@@ -1067,22 +1067,24 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         }
         let p = vertex_point(self.body, v)?;
         let read = |i: usize| self.members.get(i).map(|m| m.read);
+        // Whether a judgement of the edge's member against one the name
+        // cites recorded something at the point `at` that is `v`'s.
+        let here = |member: usize, other: usize, at: geom_core::Point3<T>| {
+            if read(member) != Some(*n) || !read(other).is_some_and(|o| others.contains(&o)) {
+                return Ok(false);
+            }
+            let gap = Margin::of((at - p).norm());
+            decide(ON_MEMBER_EDGE, gap, self.bnd)
+                .map(|off| off == Sign::Zero)
+                .map_err(|source| NamingError::Escalated {
+                    predicate: ON_MEMBER_EDGE,
+                    source,
+                })
+        };
         let mut sides: [Option<bool>; 2] = [None, None];
         let mut piece = BTreeSet::new();
         for c in &links.classes {
-            if !rows.contains_key(&c.edge)
-                || read(c.member) != Some(*n)
-                || !read(c.other).is_some_and(|o| others.contains(&o))
-            {
-                continue;
-            }
-            let gap = Margin::of((c.at - p).norm());
-            let off =
-                decide(ON_MEMBER_EDGE, gap, self.bnd).map_err(|source| NamingError::Escalated {
-                    predicate: ON_MEMBER_EDGE,
-                    source,
-                })?;
-            if off != Sign::Zero {
+            if !rows.contains_key(&c.edge) || !here(c.member, c.other, c.at)? {
                 continue;
             }
             piece.insert(c.edge);
@@ -1094,20 +1096,11 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         // naming why, so no listed vertex reaches the missing-row bug.
         let unread = || -> Result<Option<NamingError>, NamingError> {
             for u in &links.unread {
-                if read(u.member) != Some(*n) || !read(u.other).is_some_and(|o| others.contains(&o))
-                {
-                    continue;
-                }
-                let gap = Margin::of((u.at - p).norm());
-                let off = decide(ON_MEMBER_EDGE, gap, self.bnd).map_err(|source| {
-                    NamingError::Escalated {
-                        predicate: ON_MEMBER_EDGE,
-                        source,
-                    }
-                })?;
-                if off == Sign::Zero {
+                if here(u.member, u.other, u.at)? {
                     return Ok(Some(NamingError::PartnerUnread {
                         vertex: v,
+                        operand: u.operand,
+                        partner: u.partner,
                         neighbourhood: u.neighbourhood,
                     }));
                 }
@@ -1801,12 +1794,15 @@ struct PairClass<T: geom_core::Real> {
 /// One member vertex a pairwise judgement met the other member at and
 /// read no partner of (`BooleanNaming::unread_partners`), in member
 /// terms: member `member`'s edges at the point `at` have no piece the
-/// judgement against member `other` classified, and `neighbourhood`
-/// says why.
+/// judgement against member `other` classified. The judgement's own
+/// record rides along: the vertex's operand in it, the partner it met
+/// and why that read nothing.
 struct UnreadAt<T: geom_core::Real> {
     member: usize,
     other: usize,
     at: geom_core::Point3<T>,
+    operand: topo::Operand,
+    partner: topo::VertexKey,
     neighbourhood: topo::UnreadNeighbourhood,
 }
 
@@ -1907,6 +1903,8 @@ impl<T: geom_core::Real> Links<T> {
                 member,
                 other,
                 at,
+                operand: u.operand,
+                partner: u.partner,
                 neighbourhood: u.neighbourhood,
             });
         }
@@ -3514,38 +3512,61 @@ mod tests {
     /// **A member edge with no classified side at a vertex the
     /// judgement read no partner of refuses why**
     /// (`topo::UnreadPartner`), and at any other vertex stays the
-    /// missing-row bug. Constructed on [`CitedGroup`]'s member edge, the
-    /// judgement read as against the member itself: no union in
-    /// editor-core reaches a crossed edge at such a vertex (the coaxial
-    /// stacks list none at their judgement).
+    /// missing-row bug. Constructed on [`CitedGroup`]'s member 5 judged
+    /// against a member 2, since a model does not reach it
+    /// (`a_mate_on_a_full_turn_bore_names` lists partners and names
+    /// cleanly): a pairwise judgement's operands are members, so a
+    /// listed vertex is a member's own, and a finished vertex at a member
+    /// vertex is cited as one, never read by its lines in
+    /// [`Flush::meeting`], the one caller of `sense_against`.
     #[test]
     fn a_side_unclassed_at_an_unread_partner_refuses_why() {
         let g = CitedGroup::new();
-        let members = g.members();
+        let empty = NameTable::new();
+        let [five] = g.members();
+        let members = [
+            five,
+            Member {
+                read: crate::VarId::new(1, 2),
+                body: &g.member_body,
+                table: &empty,
+            },
+        ];
         let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
         let flush = Flush::of(g.union, &g.body, &members, &Parents::empty(), bnd).unwrap();
         let [listed, other] = g.along;
+        let partner = g.member_body.vertices().next().unwrap().0;
         let links = Links {
             pairs: Vec::new(),
             classes: Vec::new(),
             unread: vec![UnreadAt {
                 member: 0,
-                other: 0,
+                other: 1,
                 at: vertex_point(&g.body, listed).unwrap(),
-                neighbourhood: topo::UnreadNeighbourhood::Wedge,
+                operand: topo::Operand::B,
+                partner,
+                neighbourhood: topo::UnreadNeighbourhood::NoBisector,
             }],
         };
         let RoleSeg::From { of, .. } = &member_edge(g.union, 5).path[0] else {
             unreachable!("member_edge is one From segment")
         };
         let line = (members[0].read, NameRef::new((**of).clone()));
-        let others = BTreeSet::from([members[0].read]);
+        let others = BTreeSet::from([members[1].read]);
         assert!(matches!(
             flush.sense_against(listed, &line, &others, &links),
             Err(NamingError::PartnerUnread {
                 vertex,
-                neighbourhood: topo::UnreadNeighbourhood::Wedge,
-            }) if vertex == listed
+                operand: topo::Operand::B,
+                partner: met,
+                neighbourhood: topo::UnreadNeighbourhood::NoBisector,
+            }) if vertex == listed && met == partner
+        ));
+        // Judged against a member the name does not cite, the record
+        // says nothing of this crossing.
+        assert!(matches!(
+            flush.sense_against(listed, &line, &BTreeSet::from([members[0].read]), &links),
+            Err(NamingError::Emission { what }) if what == UNCLASSIFIED_SIDE
         ));
         assert!(matches!(
             flush.sense_against(other, &line, &others, &links),

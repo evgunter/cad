@@ -2651,7 +2651,11 @@ fn senses_at<T: Decide>(
     let bug = |what| NamingError::Emission { what };
     // A key the boolean read no partner of holds no class, by the
     // boolean's own account: its edges would drop out of the senses
-    // unseen, so the crossing refuses naming why instead.
+    // unseen, so the crossing refuses naming why instead. A listed key
+    // is an operand's own vertex, which the identity pass names first
+    // (`name_boolean_vertices`), so this is reached only where its
+    // operand's table names no vertex at any key the result vertex
+    // holds.
     if let Some(u) = naming
         .unread_partners
         .iter()
@@ -2659,6 +2663,8 @@ fn senses_at<T: Decide>(
     {
         return Err(NamingError::PartnerUnread {
             vertex: v,
+            operand: u.operand,
+            partner: u.partner,
             neighbourhood: u.neighbourhood,
         });
     }
@@ -4533,10 +4539,12 @@ mod tests {
     /// why** (`topo::UnreadPartner`): its edges hold no class, so their
     /// senses would drop out of the name unseen. A crossing whose keys
     /// the list does not hold reads its rows as before (here, none).
-    /// Constructed: no editor-core body found reaches a crossing at such
-    /// a vertex (stacked coaxial cylinders list none; the kernel's
-    /// full-turn bore mate, `sweep`'s `full_turn_bore_mate`, is no
-    /// editor-core model).
+    /// Constructed, since a crossing is not reached at a listed vertex
+    /// in a model (`a_mate_on_a_full_turn_bore_names` lists partners and
+    /// names cleanly): a listed key is an operand's own vertex, and
+    /// `name_boolean_vertices` names a result vertex by that identity
+    /// before it reads senses, so `senses_at` meets a listed key only
+    /// where the operand's table names no vertex at it.
     #[test]
     fn a_crossing_at_an_unread_partner_refuses_why() {
         let built = unit_cube();
@@ -4569,9 +4577,11 @@ mod tests {
         assert!(matches!(
             senses_at(&naming, other, &keys, &a, &b),
             Err(NamingError::PartnerUnread {
-                vertex,
+                vertex: at,
+                operand: topo::Operand::A,
+                partner: met,
                 neighbourhood: topo::UnreadNeighbourhood::OneFace,
-            }) if vertex == other
+            }) if at == other && met == partner
         ));
         // The same vertex key read from the other operand is not listed.
         let keys = BTreeSet::from([(topo::Operand::B, listed)]);

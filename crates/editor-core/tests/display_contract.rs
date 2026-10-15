@@ -2735,11 +2735,14 @@ fn naming_error_display_names_its_content_not_its_struct() {
         (
             NamingError::PartnerUnread {
                 vertex: topo::VertexKey::default(),
-                neighbourhood: topo::UnreadNeighbourhood::Wedge,
+                operand: topo::Operand::A,
+                partner: topo::VertexKey::default(),
+                neighbourhood: topo::UnreadNeighbourhood::NoBisector,
             },
             vec![
-                "no bisector to read their wedge by",
-                "classed none of its edges",
+                "neither holding a bisector to read their wedge by",
+                "classed none of the vertex's edges",
+                "a-lone-unread-partner-has-no-class-rule",
             ],
         ),
         (

@@ -412,10 +412,11 @@ fn intersect_and_differences_answer_the_closed_form() {
 
 /// **The mate's vertices on the bore's rims are read no partner of,
 /// and say so**: a shaft ruling on the bore's seam meets the collar at
-/// a rim vertex, where the bore and the end face meet in a wedge with
-/// no bisector to read, so the boolean classes none of the shaft's
-/// edges there; the record lists each such shaft vertex and why
-/// (`BooleanNaming::unread_partners`), which naming refuses by
+/// a rim vertex, where neither the bore nor the end face holds a
+/// subdivision bisector to read their wedge by
+/// (`UnreadNeighbourhood::NoBisector`), so the boolean classes none of
+/// the shaft's edges there; the record lists each such shaft vertex and
+/// why (`BooleanNaming::unread_partners`), which naming refuses by
 /// (`NamingError::PartnerUnread`) rather than reading a missing row,
 /// and no listed vertex holds a class.
 #[test]
@@ -440,8 +441,11 @@ fn the_mate_records_its_unread_partners() {
             for u in unread {
                 assert_eq!(
                     (u.operand == topo::Operand::A, u.neighbourhood),
-                    (order.starts_with("shaft"), topo::UnreadNeighbourhood::Wedge),
-                    "{span}, {order}: the shaft's vertex at the rim's wedge: {u:?}"
+                    (
+                        order.starts_with("shaft"),
+                        topo::UnreadNeighbourhood::NoBisector
+                    ),
+                    "{span}, {order}: the shaft's vertex at the rim, no bisector: {u:?}"
                 );
                 assert!(
                     !bb.naming
