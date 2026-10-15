@@ -5885,6 +5885,31 @@ pub(crate) struct InBandShell {
     pub(crate) sliver: crate::props::CertifiedSliver,
 }
 
+/// **The one spelling of a result the at-rest gate refused for the
+/// kernel's findings** ([`crate::boolean::AtRestRefusal::Kernel`]), at the
+/// Boolean and the split:
+/// `subject` names the result, and the first finding renders with its
+/// own ending.
+pub(crate) fn write_result_not_at_rest(
+    f: &mut fmt::Formatter<'_>,
+    subject: fmt::Arguments<'_>,
+    errors: &[ValidationError],
+) -> fmt::Result {
+    match errors {
+        [first, ..] => write!(
+            f,
+            "{subject} did not pass the at-rest gate, so no body is returned ({} finding(s)); \
+             the first: {first}",
+            errors.len(),
+        ),
+        [] => write!(
+            f,
+            "{subject} did not pass the at-rest gate, so no body is returned. {}",
+            geom_core::KERNEL_DEFECT_ENDING
+        ),
+    }
+}
+
 /// Check 7's names: the bracket's high end under `positive_volume`, the
 /// refusal this check has always made, and its low end under
 /// `positive_volume_enclosure`, whether the sign is already certain.
@@ -6413,7 +6438,7 @@ fn is_finite_point<T: Real>(p: &geom_core::Point3<T>) -> bool {
 /// too: not unit, but a direction. Unit-ness and orthogonality are the
 /// frame's convention, read by the representability question at check 1
 /// ([`geom::Surface::representability_margins`]), not poison.
-fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
+pub(crate) fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
     use geom_core::is_finite_length as finite;
     let components = finite(v.x) && finite(v.y) && finite(v.z);
     let len = v.norm();

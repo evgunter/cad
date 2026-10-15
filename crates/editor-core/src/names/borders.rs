@@ -152,9 +152,10 @@ impl<K: Ord + Clone> Obstacles<K> {
                 note_split(&mut self.split_from, k, *edge);
             }
         }
-        // An edge this step split and its join killed lost its record
-        // with the kill; the boolean copied it out first.
-        for (&g, &f) in &naming.joined_lineage {
+        // An edge this step split and its output stage (merge or join)
+        // killed lost its record with the kill; the boolean copied it
+        // out first.
+        for (&g, &f) in &naming.killed_lineage {
             note_split(&mut self.split_from, g, f);
         }
         let earlier: BTreeSet<EdgeKey> = self

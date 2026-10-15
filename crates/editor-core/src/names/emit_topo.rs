@@ -65,9 +65,10 @@ struct Side<'a, T: Decide> {
 /// where to stop, so the argument covers it too.
 ///
 /// **The kills' hops are copies of the same records.** `killed` comes
-/// from `BooleanNaming::discards`' boundary chains ([`KilledSplits`]),
-/// which copy the clone's `SplitEdge` records before the kills drop
-/// them, so as the kernel writes them they are as acyclic as the records
+/// from `BooleanNaming::discards`' boundary chains and
+/// `BooleanNaming::killed_lineage` ([`KilledSplits`]), which copy the
+/// clone's `SplitEdge` records before the kills drop them, so as the
+/// kernel writes them they are as acyclic as the records
 /// (`topo::Provenance::SplitEdge`). They are public fields a caller can
 /// also write, and nothing checks the records where `Body::split_edge`
 /// writes them, so this walk keeps its own bound and refusal
@@ -101,13 +102,15 @@ fn chase_edge_to_table<T: Decide>(
 
 /// **The split hops a boolean's kills took out of the provenance**:
 /// edge → the edge it was split from, for each edge that bounded a
-/// face the boolean discarded and died with it. A kill drops the
-/// edge's birth record, so a live piece split off a killed one has a
-/// lineage that stops at the killed key; the discard rows keep each
-/// such edge's chain ([`topo::DiscardRow::boundary_chains`]), and these
-/// are its hops. `arena` holds the rows of an operand whose clone is
-/// the result arena, in arena keys; `graft_b` a grafted B's, in B's
-/// clone keys.
+/// face the boolean discarded and died with it, and each edge its
+/// output stage merged or joined away. A kill drops the edge's birth
+/// record, so a live piece split off a killed one has a lineage that
+/// stops at the killed key; the discard rows keep each such edge's
+/// chain ([`topo::DiscardRow::boundary_chains`]) and the output stage
+/// its hop (`topo::BooleanNaming::killed_lineage`), and these are its
+/// hops. `arena` holds the hops in result keys (the output stage's, and
+/// the rows of an operand whose clone is the result arena); `graft_b` a
+/// grafted B's, in B's clone keys.
 struct KilledSplits {
     arena: BTreeMap<EdgeKey, EdgeKey>,
     graft_b: BTreeMap<EdgeKey, EdgeKey>,
@@ -134,6 +137,7 @@ impl KilledSplits {
                 }
             }
         }
+        out.arena.extend(&naming.killed_lineage);
         out
     }
 }
