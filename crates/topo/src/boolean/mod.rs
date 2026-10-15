@@ -2280,9 +2280,10 @@ pub enum RefusedRow {
 /// with no reader that acts on the difference.
 ///
 /// **The falsifier is a caller that acts on the case by itself**: a
-/// placement driver that nudges a part off a node when it reads
-/// `OnBoundary` but not `OppositeSenses`. Then carry it and delete this
-/// paragraph and the disposition row with it.
+/// placement driver that slides a part along its axis when it reads
+/// `OnBoundary`, which moves the seam or rim off the node, and turns it
+/// when it reads `NearlyParallel`, which no slide mends. Then carry it
+/// and delete this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeWhy {
     /// The node lies on an edge or a vertex of the operand's face: a
@@ -2293,10 +2294,6 @@ pub enum NodeWhy {
     /// A crossing of an edge of one operand with the other's wall lies
     /// at the node: its germ reads neither ellipse.
     GermOnNode,
-    /// One wall bounds a bore and the other a rod: round the node A's
-    /// sectors outside B are not B's sectors inside A, which no pierce
-    /// ring pairs.
-    OppositeSenses,
     /// The node's arcs cannot be told apart by their turn toward an
     /// axis: the axes are this nearly parallel at the walls' radius.
     NearlyParallel,
@@ -4226,11 +4223,6 @@ impl core::fmt::Display for BooleanError {
                         "where they cross, which an edge of the other part meets",
                         "move or turn the parts so that no edge of either part meets a wall \
                          at a crossing point",
-                    ),
-                    NodeWhy::OppositeSenses => (
-                        "where they cross when one wall bounds a bore and the other a rod",
-                        "make both walls rods or both bores, or move the parts so that the \
-                         crossing points lie outside one of the walls' faces",
                     ),
                     NodeWhy::NearlyParallel => (
                         "where they cross when the axes are this nearly parallel",

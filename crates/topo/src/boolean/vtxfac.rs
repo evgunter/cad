@@ -50,10 +50,8 @@
 //!    `A`'s face gets a lone ring vertex with a strut per run, and that
 //!    vertex then pierces `B`'s face through the same [`RingPlan`] as
 //!    any other, its struts paired with `B`'s across the operands. The
-//!    runs' sides are fixed by construction once the walls' senses are
-//!    read: `A`'s sectors about `±â₁` for two rods, about `±â₂` for two
-//!    bores, each bounded by one germ of each ellipse. A rod against a
-//!    bore refuses ([`super::NodeWhy::OppositeSenses`]).
+//!    runs and their sides are fixed by construction once the walls'
+//!    senses are read ([`mint_node`] states the rule).
 //!
 //! **On-edges** (an edge through the pierce vertex lying IN the face's
 //! plane): resolved by the flanking classes — `(In,·,In) → In`,
@@ -1627,18 +1625,19 @@ fn ring_struts<T: Decide>(
 /// sectors between the arcs alternate sides of the other cylinder (the
 /// section table's `nodes`): on A's wall the sectors about `±â₁` lie
 /// outside B's cylinder and those about `±â₂` inside; on B's wall the
-/// same sectors, the other way round. Which of those is outside B's
-/// material, and inside A's, is each face's sense: for two rods both are
-/// the sectors about `±â₁`, for two bores both about `±â₂`. So the node
-/// is a pierce of B's face by A's ring vertex whose two runs are those
-/// sectors, each bounded by one arc of each ellipse: A's struts span
-/// them on A's side ([`NewVertexSide`] Above), and B's ring, minted as
-/// the pierce's ring ([`mint_ring`]), spans the same sectors In. A rod
-/// against a bore makes A's Out sectors and B's In sectors different
-/// ones, which no pierce ring pairs, and refuses. Both rings hang their
-/// struts by one tree ([`ring_struts`]), A's facing each germ with the
-/// other half of its strut from B's, as a held pierce's strut does
-/// ([`faces_holding_pierce`]). `arm` meters the germs' order.
+/// same sectors, the other way round. Which side of a cylinder is its
+/// solid's material is the face's sense. So the node is a pierce of B's
+/// face by A's ring vertex whose two runs are the sectors of B's wall
+/// inside A's material — about `±â₁` where A's face bounds a rod, `±â₂`
+/// where it bounds a bore — each bounded by one arc of each ellipse.
+/// B's ring, minted as the pierce's ring ([`mint_ring`]), spans them In,
+/// and A's struts span the same sectors on A's wall. Both rings hang
+/// their struts by one tree ([`ring_struts`]), ordered about B's normal,
+/// A's facing each germ with the other half of its strut from B's, as a
+/// held pierce's strut does ([`faces_holding_pierce`]); where the walls'
+/// senses differ (a rod against a bore) A's normal at the node is B's
+/// reversed, so A's struts read each run in A's own turn: from B's end
+/// germ, In. `arm` meters the germs' order.
 ///
 /// The germs ride their arcs' ellipses: `e₁`'s the split's positive
 /// branch, `e₂`'s its negative one ([`crate::ring_path::LoopSplit`]'s
@@ -1646,8 +1645,8 @@ fn ring_struts<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::NodeUnbuilt`] for walls of opposite senses, or arcs
-/// whose turn toward the axis reads Zero at the walls' radius; either
+/// [`BooleanError::NodeUnbuilt`] for arcs whose turn toward the axis
+/// reads Zero at the walls' radius; either
 /// face's normal refusing at the node; [`germ_order`]'s and
 /// [`mint_ring`]'s refusals; the Euler operators'.
 #[allow(clippy::too_many_arguments)]
@@ -1679,13 +1678,12 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     // **The runs, by the walls' senses.** Round the node the sectors
     // about `±â₁` on A's wall lie outside B's cylinder and those about
     // `±â₂` inside it; on B's wall those about `±â₁` lie inside A's
-    // cylinder and those about `±â₂` outside it. The pierce ring pairs
-    // A's sectors outside B's material with B's inside A's: for two rods
-    // (each face's material on its axis's side) both are the sectors
-    // about `±â₁`, for two bores both about `±â₂`. A rod against a bore
-    // makes them different sectors, which no pierce ring pairs. Each
-    // wall's sense is its outward normal against the radial `node − p`,
-    // which the walls, tangent at the node, are both square to: `±r`.
+    // cylinder and those about `±â₂` outside it. The runs are B's
+    // sectors inside A's material: those about `±â₁` where A's face
+    // bounds a rod (its material on its axis's side), about `±â₂` where
+    // it bounds a bore. Each wall's sense is its outward normal against
+    // the radial `node − p`, which the walls, tangent at the node, are
+    // both square to: `±r`.
     let sense = |operand, body: &Body<T>, face| -> Result<bool, BooleanError> {
         let n = outward(operand, body, face)?;
         match decide("bool_node_wall_sense", Margin::of(n.dot(radial)), band) {
@@ -1705,20 +1703,14 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
             )),
         }
     };
-    let out_axis = match (
+    let (a_rod, b_rod) = (
         sense(Operand::A, a, faces.0)?,
         sense(Operand::B, b, faces.1)?,
-    ) {
-        (true, true) => axes[0],
-        (false, false) => axes[1],
-        _ => {
-            return Err(BooleanError::NodeUnbuilt {
-                a_face: faces.0,
-                b_face: faces.1,
-                why: super::NodeWhy::OppositeSenses,
-            });
-        }
-    };
+    );
+    let run_axis = if a_rod { axes[0] } else { axes[1] };
+    // The walls' outward normals at the node are both `±radial`, so
+    // they agree where the senses do and are opposed where they differ.
+    let normals_agree = a_rod == b_rod;
     // Each tangent turned toward that axis, so a run's two germs bound
     // the sector about it and their opposites the one about its
     // opposite. `t·â` is `cos(θ/2)` or `sin(θ/2)` for the angle `θ`
@@ -1728,7 +1720,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     let toward = |t: Vec3<T>| -> Result<Vec3<T>, BooleanError> {
         match decide(
             "bool_node_tangent_toward_axis",
-            Margin::levered(t.dot(out_axis), arm),
+            Margin::levered(t.dot(run_axis), arm),
             band,
         ) {
             Ok(Sign::Positive) => Ok(t),
@@ -1808,6 +1800,20 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     let mut strut_edge = BTreeMap::new();
     let mut root_anchor: Option<HalfEdgeKey> = None;
     let mut tips: BTreeMap<usize, (VertexKey, HalfEdgeKey)> = BTreeMap::new();
+    // The runs' starts and the tree's facing turn about B's normal, and
+    // `mev_null_run` reads a run in A's own turn (the sense theorem's
+    // forward wedge, `join`'s module docs). Where the normals agree that
+    // is the same turn, and A's runs lie out of B's material: two rods'
+    // runs about `±â₁` outside B's cylinder, two bores' about `±â₂`
+    // inside it. Where they are opposed A's turn is B's reversed, so each
+    // run starts at the germ it ends at in B's, the tree's facing names
+    // A's start as it names B's, and the run lies in B's material: a rod's about `±â₁`
+    // outside the bore's cylinder, a bore's about `±â₂` inside the rod's.
+    let run_side = if normals_agree {
+        NewVertexSide::Above
+    } else {
+        NewVertexSide::Below
+    };
     for strut in &tree {
         let (start_germ, end_germ) = run_germs[strut.run];
         let (at, site) = match strut.parent {
@@ -1833,8 +1839,15 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
                 )
             }
         };
-        let mint = a.mev_null_run(site, at, NewVertexSide::Above, strut.plus_faces_start)?;
-        let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
+        let mint = a.mev_null_run(site, at, run_side, strut.plus_faces_start)?;
+        // The halves face A's start and end; the record keeps B's slot
+        // order, slot k one germ in both (the null-edge pair's contract).
+        let (created, attr, [a_start, a_end]) = (mint.created, mint.attr, mint.halves);
+        let (start_he, end_he) = if normals_agree {
+            (a_start, a_end)
+        } else {
+            (a_end, a_start)
+        };
         if strut.parent.is_none() {
             root_anchor.get_or_insert(created.he_plus);
         }
