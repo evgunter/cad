@@ -3284,7 +3284,10 @@ fn re_anchored<T: Decide>(
             )
             .map_err(|refusal| rim_seam_refusal(edge, refusal))?;
     }
-    // An image is asked the same over the kept stretch.
+    // An image is asked the same over the kept stretch, as every door
+    // that keeps one is. Every edge re-anchored here is a seam of the
+    // designated chart, with both faces on its one surface key, which
+    // the rule leaves alone, so no input reaches its demand here.
     if let geom_brep::EdgeDescriptionSpec::Chart { wrap: false, .. } = kept.description
         && let Some(description) = body
             .reask_chart_on(

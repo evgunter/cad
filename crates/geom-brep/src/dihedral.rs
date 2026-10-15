@@ -2722,4 +2722,62 @@ mod tests {
              {off_locus:?}"
         );
     }
+
+    /// **`reask_chart` asks only where the rule applies.** Two planes at
+    /// a right angle along the `x` axis: as two keys the rule reads a
+    /// corner and demands the section; as one key, or with one side a
+    /// spline face (the same plane as a bilinear net), the edge falls
+    /// outside the rule and the image is kept unasked.
+    #[test]
+    fn reask_chart_asks_only_where_the_rule_applies() {
+        use geom::NurbsSurface;
+        use geom_core::spline::KnotVector;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mut keys: slotmap::SlotMap<crate::SurfaceKey, ()> = slotmap::SlotMap::with_key();
+        let (ka, kb) = (keys.insert(()), keys.insert(()));
+        let floor = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let wall = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_y(),
+            u_ref: Vec3::unit_x(),
+        };
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let spline_wall = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(
+                kv.clone(),
+                kv,
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(0.0, 0.0, 1.0),
+                    Point3::new(1.0, 0.0, 0.0),
+                    Point3::new(1.0, 0.0, 1.0),
+                ],
+                vec![1.0; 4],
+            )
+            .unwrap(),
+        ));
+        let edge = geom::Curve3::Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_x(),
+        };
+        let ask = |a: (crate::SurfaceKey, &Surface<f64>), b| {
+            reask_chart([a, b], &edge, (0.0, 1.0), band).unwrap()
+        };
+        assert!(
+            matches!(
+                ask((ka, &floor), (kb, &wall)),
+                Some(crate::EdgeDescriptionSpec::Intersection { .. })
+            ),
+            "two keys at a corner: the section"
+        );
+        assert!(ask((ka, &floor), (ka, &wall)).is_none(), "one key: kept");
+        assert!(
+            ask((ka, &floor), (kb, &spline_wall)).is_none(),
+            "beside a spline face: kept"
+        );
+    }
 }

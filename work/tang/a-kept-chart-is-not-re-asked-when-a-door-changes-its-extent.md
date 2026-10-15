@@ -95,10 +95,23 @@ the pair under-determined, and that reading has two sources:
   is the real hole**, and it has no valid witness today. No body in
   the suites carries such an image into one of these doors. The extruded
   line-tangent-to-arc profile, the nearest candidate, stores its struts
-  as declared `OnPair` and takes the pair arm.
+  as declared `OnPair` and takes the pair arm. It is tracked as
+  `a-smooth-chart-describe-edges-keeps-reads-under-determined-only-at-its-extent`.
 
 The moved-chart shift arm is unreachable for a closed form, by
 construction rather than by today's bodies. It runs only where the
 neighbour holds the move, every such pose meets square
 (`offset_derive::square`), and an offset leaves the normals along the
 edge as they were, so its input image was already on a corner.
+
+Three arms cannot reach the rule's demand from any input, by
+construction:
+
+- the shift arm, above;
+- `edge_join`'s image arm: the join takes two images only where both
+  faces are on one surface key (`joinable`'s iso family of one chart);
+- the shell's `re_anchored`: every edge it re-anchors is a seam of the
+  designated chart, with both faces on its one key.
+
+`reask_chart` leaves an image on one key alone. Each arm still asks,
+for uniformity, and says why in its comment.

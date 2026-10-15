@@ -2660,20 +2660,16 @@ fn plan_edge<T: Decide>(
         // and an offset leaves the normals along the edge as they were,
         // so the edge was already a corner, where an image is refused.
         EdgeDescription::Chart(ref c) if c.surface == old_key => {
-            let demanded = if other_key == old_key {
-                None
-            } else {
-                let held = body.get_surface(other_key).unwrap_or_else(|| {
-                    dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
-                });
-                crate::offset_restate::re_ask_chart(
-                    edge,
-                    [(old_key, new_surface), (other_key, held)],
-                    &carrier,
-                    (t0, t1),
-                    band,
-                )?
-            };
+            let held = body.get_surface(other_key).unwrap_or_else(|| {
+                dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
+            });
+            let demanded = crate::offset_restate::re_ask_chart(
+                edge,
+                [(old_key, new_surface), (other_key, held)],
+                &carrier,
+                (t0, t1),
+                band,
+            )?;
             match demanded {
                 Some(intrinsic) => intrinsic,
                 None => EdgeDescriptionSpec::Chart {
@@ -3729,27 +3725,10 @@ fn plan_reanchors<T: Decide>(
                 )?
             }
             // An image is asked the same, between the edge's faces.
-            chart @ EdgeDescriptionSpec::Chart { wrap: false, .. } => {
-                let sides = crate::readback::edge_sides_of(
-                    body,
-                    edge,
-                    proven(&body.edges, edge, EntityId::Edge),
-                );
-                let (ka, kb) = sides.surfaces();
-                let surface = |k| {
-                    body.get_surface(k).unwrap_or_else(|| {
-                        dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(k))
-                    })
-                };
-                crate::offset_restate::re_ask_chart(
-                    edge,
-                    [(ka, surface(ka)), (kb, surface(kb))],
-                    &carrier,
-                    (t0, t1),
-                    band,
-                )?
-                .unwrap_or(chart)
-            }
+            chart @ EdgeDescriptionSpec::Chart { wrap: false, .. } => body
+                .reask_chart_on(edge, &carrier, (t0, t1), band)
+                .map_err(|refusal| crate::offset_restate::pair_refusal(edge, refusal))?
+                .unwrap_or(chart),
             other @ (EdgeDescriptionSpec::Chart { .. } | EdgeDescriptionSpec::Scaffold(_)) => other,
         };
         // A line or a clamped spline has no turn to choose, so a span

@@ -47,10 +47,9 @@ pub(crate) fn chart_moves<T: Decide>(distance: T, band: Band) -> Result<bool, Re
 /// - an image the door keeps (not a wrap) is asked the rule again
 ///   through `re_ask_chart` ([`re_ask_chart`]), against the pair as the
 ///   door leaves it: the rule may demand the intrinsic form where the
-///   surfaces moved or the edge slid. For a closed form no valid body
-///   reaches that demand today: an image kept on two distinct surfaces
-///   reads under-determined, and an offset keeps coincident surfaces
-///   coincident;
+///   surfaces moved or the edge slid. No valid body in the suites
+///   reaches that demand (an image kept on two distinct surfaces there
+///   reads under-determined); a hand-stated image on a corner does;
 /// - a **declaration** or a **scaffold** is 3-space sketch data, and
 ///   rides `carried` — only where the restated edge keeps it, so a
 ///   declaration the rule's intrinsic reading drops is never asked to
@@ -127,17 +126,8 @@ pub(crate) fn re_ask_on_pair<T: Decide>(
     declared: impl FnOnce() -> Result<Option<MappedCurve<T>>, ReplaceFaceError<T>>,
     band: Band,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    let read =
-        geom_brep::reask_pair(surfaces, carrier, (t0, t1), None, band).map_err(|refusal| {
-            match refusal {
-                geom_brep::PairRefusal::Mixed(stations) => {
-                    ReplaceFaceError::MixedEdge { edge, stations }
-                }
-                geom_brep::PairRefusal::InBand(escalation) => ReplaceFaceError::Escalated {
-                    source: escalation.diag(),
-                },
-            }
-        })?;
+    let read = geom_brep::reask_pair(surfaces, carrier, (t0, t1), None, band)
+        .map_err(|refusal| pair_refusal(edge, refusal))?;
     Ok(match read {
         EdgeDescriptionSpec::OnPair { pair, .. } => EdgeDescriptionSpec::OnPair {
             pair,
@@ -162,12 +152,22 @@ pub(crate) fn re_ask_chart<T: Decide>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<Option<EdgeDescriptionSpec<T>>, ReplaceFaceError<T>> {
-    geom_brep::reask_chart(surfaces, carrier, (t0, t1), band).map_err(|refusal| match refusal {
+    geom_brep::reask_chart(surfaces, carrier, (t0, t1), band)
+        .map_err(|refusal| pair_refusal(edge, refusal))
+}
+
+/// An offset door's refusal of the rule's reading of `edge`: a mixed
+/// edge, or an in-band station.
+pub(crate) fn pair_refusal<T: Real>(
+    edge: crate::entity::EdgeKey,
+    refusal: geom_brep::PairRefusal,
+) -> ReplaceFaceError<T> {
+    match refusal {
         geom_brep::PairRefusal::Mixed(stations) => ReplaceFaceError::MixedEdge { edge, stations },
         geom_brep::PairRefusal::InBand(escalation) => ReplaceFaceError::Escalated {
             source: escalation.diag(),
         },
-    })
+    }
 }
 
 /// The moving side's key, where the chart `named` is the edge's other

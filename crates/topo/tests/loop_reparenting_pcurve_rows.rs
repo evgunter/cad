@@ -1207,23 +1207,25 @@ fn he_at(body: &Body<f64>, face: FaceKey, p: Point3<f64>) -> topo::HalfEdgeKey {
 /// (`m1→b`), `he2` the top one `m2` (`m2→f`), and the chord `m1→m2`
 /// is the ruling itself, a line ON the cylinder.
 ///
-/// Where the bottom rim's other face is the sheet's plane, which does
-/// not contain it ([`the_fixture_is_not_a_structurally_valid_body`]),
+/// Where the bottom rim's other face is the sheet's planar back, which
+/// does not contain it ([`the_fixture_is_not_a_structurally_valid_body`]),
 /// the split's re-ask of its chart image would read a corner where
 /// there is none and refuse the intrinsic form it cannot certify. That
-/// face rests on the cylinder for the split, through the test-only
-/// bypass, and is put back after: these rows are about the rows
-/// `split_edge` carries, not about that re-ask.
+/// back rests on the cylinder for the split, through the test-only
+/// bypass, and its own surface is put back after, under a fresh key:
+/// these rows are about the rows `split_edge` carries, not about that
+/// re-ask.
 fn ruling_site(s: &mut Sheet) -> (topo::HalfEdgeKey, topo::HalfEdgeKey, EdgeCurveSpec<f64>) {
     let (a, c) = (at(U0, V0), at(U1, VM));
     let bottom = s.body.get_half_edge(he_at(&s.body, s.low, a)).unwrap().edge;
     let mid = s.body.get_half_edge(he_at(&s.body, s.low, c)).unwrap().edge;
     let back = s.body.get_face(s.plane).unwrap().clone();
-    let flat_back = matches!(
-        s.body.get_surface(back.surface),
-        Some(Surface::Plane { .. })
-    );
-    if flat_back {
+    let original = s.body.get_surface(back.surface).unwrap().clone();
+    // A back on the cylinder under a second key (the second-key row)
+    // contains the rims, and its key is that row's subject: it is left
+    // where it is.
+    let lifted = matches!(original, Surface::Plane { .. });
+    if lifted {
         let cyl = s.body.get_face(s.low).unwrap().surface;
         s.body
             .set_face_surface_unvouched_for_tests(
@@ -1239,12 +1241,12 @@ fn ruling_site(s: &mut Sheet) -> (topo::HalfEdgeKey, topo::HalfEdgeKey, EdgeCurv
     // parameter runs from `U1` down.
     let m1 = s.body.split_edge(bottom, UM, tol()).unwrap();
     let m2 = s.body.split_edge(mid, U1 - UM, tol()).unwrap();
-    if flat_back {
+    if lifted {
         s.body
             .set_face_surface_unvouched_for_tests(
                 s.plane,
                 FaceSurface::New {
-                    surface: flat(),
+                    surface: original,
                     sense: back.sense,
                 },
             )

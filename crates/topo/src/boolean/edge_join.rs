@@ -1014,8 +1014,11 @@ fn joined_spec<T: Decide>(
         geom_brep::EdgeDescription::OnPair { pair } => body
             .reask_on(*pair, carrier, (a, b), declared, band)
             .map_err(refused)?,
-        // An image is asked the same, between the joined edge's faces:
-        // the rule may demand the intrinsic form over the longer span.
+        // An image is asked the same, between the joined edge's faces,
+        // as every door that keeps one is. The join takes two images only
+        // where both faces are on one surface key ([`joinable`]'s iso
+        // family of one chart), which the rule leaves alone, so no input
+        // reaches its demand here.
         geom_brep::EdgeDescription::Chart(c) => {
             let demanded = if c.wrap {
                 None
