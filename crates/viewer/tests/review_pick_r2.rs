@@ -68,7 +68,24 @@ struct Tally {
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
 ///
-/// Last moved when a revolve's point-axis carriers came to be anchored
+/// Last moved when a section ellipse came to be seamed at the principal
+/// vertex nearest its arc (PR 4861): from `(441198, 141261, 14088, 7230)`.
+/// A retessellation of the documents that cut such an ellipse; the rays
+/// per landing are unchanged.
+/// - `cut_cylinder`: 33 and 21 fewer grazes at its two landings, and
+///   516 and 1278 fewer refused candidates over 384 and 342 fewer rays.
+///   More of its wall triangles meet an axis ray at an exactly zero
+///   determinant, which is not a refusal, and 45 more `±z` rays lie in
+///   the wall at their aimed vertex (39 of them with every triangle
+///   there at a zero determinant) and answer beyond it. The lost
+///   refusals sat at conditioning `1e-18`..`1e-16`, as the remaining
+///   ones do.
+/// - `boss_union`: 3 fewer grazes at each landing; its refusals are
+///   unchanged.
+///
+/// No genuine crossing is refused either way.
+///
+/// Before that, it moved when a revolve's point-axis carriers came to be anchored
 /// on the axis (PR 4518): from `(441198, 141249, 14088, 7230)`. The
 /// rays and the refusals are unchanged; 12 more rays are answered at
 /// the aimed vertex.
@@ -115,7 +132,7 @@ struct Tally {
 /// unchanged.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (441_198, 141_261, 14_088, 7_230);
+const PINNED: (usize, usize, usize, usize) = (441_198, 141_201, 12_294, 6_504);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
