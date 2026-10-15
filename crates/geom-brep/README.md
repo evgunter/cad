@@ -730,14 +730,19 @@ never from the features near it. Every case follows by set algebra: a
 feature wholly inside `R` goes with it, as a feature wholly inside a
 Boolean's tool goes with the tool, a void and a free solid inside it
 included; a protrusion or an island wholly inside `F` is absorbed, the
-island's voids becoming the solid's; a hole whose mouth lies wholly on
+island's voids, which lie in `F`, filled with it; a hole whose mouth lies wholly on
 the face `F` covers is sealed, a through-hole turning blind and a blind
 hole a void; and a feature crossing the band surface has a result too.
 What is built of it: face clearance reads each face three ways (clear
 of the region, wholly inside it, or crossing it), and the carve takes a
-through-feature wholly inside the material a convex straight band's
-cut-off removes (the ruled fillet's, the plane–plane fillet's and
-chamfer's), between the band's two caps. Every other case refuses, a
+feature wholly inside the material a straight band's cut-off removes or
+fills, attached to the rest of the body only by cycles on the band's
+caps: a through-feature between the two caps on the ruled fillet and
+the plane–plane fillet and chamfer (a bore under a convex band, a bar
+between the end walls under a concave one), and a cup on one cap on
+the plane–plane band (a blind bore under a convex band, a pin under a
+concave one), each of whose faces that meet the cap is a plane or a
+cylinder. Every other case refuses, a
 case the rule defines and the surgery does not build, and it refuses
 at the meter that reads it, not by which case it is. The clearance
 screen and the exact ring meters read the supports' own boundary
@@ -746,9 +751,10 @@ features and the end faces' cycles (`FaceClearanceUncertified`,
 measurement and a face it cannot certify either way as a bound
 (`FaceClearance`); and a request whose every reading is inside but
 that no carve takes refuses `WhollyInside` (a void or an island with no
-cap cycle). So a blind feature entering from an end face, or a hole
-whose mouth a concave fill covers, refuses as a bound where its wall
-meets the end face's plane, while a blind hole entering from a support
+cap cycle). So a cup on the ruled band, whose far faces have no exact
+region to be read in, or a hole whose mouth a concave fill covers,
+refuses as a bound where its wall meets the end face's plane, while a
+blind hole entering from a support
 face is read at the screen, its ring nearer the edge than the band
 sets back, and refuses there although it lies wholly inside. A
 crossing refuses as an unbuilt case too, not as an exception to the

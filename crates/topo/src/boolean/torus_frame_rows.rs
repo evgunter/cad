@@ -79,12 +79,11 @@ fn shape(got: &Loops) -> String {
     match got {
         Ok(Some(loops)) => format!("loops {loops:?}"),
         Ok(None) => "straight".into(),
-        Err(FrameError::Escalated(d)) => format!("escalated {:?}", d.predicate),
+        Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
         Err(FrameError::Spiric { loops, section }) => format!("spiric {loops:?} {section}"),
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::OutsideInventory { .. }) => "outside the inventory".into(),
-        Err(FrameError::RadiusEscalated { .. }) => "radius escalated".into(),
     }
 }
 
@@ -416,7 +415,7 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
     let p = plane([0.0, 0.0, 0.0], n);
     let got = frame(&p);
     assert!(
-        matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some("pt_axis_in_plane")),
+        matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("pt_axis_in_plane")),
         "in band at the reach: got {}",
         shape(&got)
     );
@@ -588,7 +587,7 @@ fn a_general_pose_the_certificate_reads_touching_escalates() {
     ] {
         let got = frame(&p);
         assert!(
-            matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some(want)),
+            matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some(want)),
             "{pose}: want an escalation on {want}, got {}",
             shape(&got)
         );
