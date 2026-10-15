@@ -89,26 +89,6 @@ pub fn loop_vector_area<T: SpanLocate>(
     Ok(acc)
 }
 
-/// A CLOSED loop's vector area, summed about the loop's own first point
-/// — the reference [`loop_vector_area`] is independent of on a closed
-/// loop, chosen so every term's lever is the loop's own size. A surface
-/// datum (a plane's origin, a cone's apex, a cylinder's origin on its
-/// axis) may stand anywhere from the face, and summed about it the terms
-/// grow with that distance and cancel to the face's area, carrying the
-/// rounding at the distance with them. An empty loop bounds nothing.
-///
-/// # Errors
-///
-/// As [`loop_vector_area`].
-pub(crate) fn closed_loop_vector_area<T: SpanLocate>(
-    edges: &[LoopEdge<T>],
-) -> Result<Vec3<T>, PropsError> {
-    match edges.first() {
-        Some(first) => loop_vector_area(edges, first.p0()),
-        None => Ok(Vec3::zero()),
-    }
-}
-
 /// Twice an arc's vector area about `ref_point`, its areal rate
 /// `rate·axis` per unit parameter: the triangle `ref_point, p0, p1` and
 /// the segment the arc cuts off its chord (module docs of

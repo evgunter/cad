@@ -91,10 +91,12 @@ at 1e-12 (ψ 1e-3), 0 of 348 at 1e-6. With the arc read as the triangle
 `ref, p0, p1` plus its segment `a·b·(Δt − sin Δt)`: 0 misses at all
 three, worst 0.043 of the slack, and the probe's 40 flips are 0.
 
-Sibling fixed on the same branch: `curved::cone_loops` summed each loop
-about the cone's apex, so a partial revolve tapered by 1e-5 (apex 1e5
-away) read 1.5386 m³ for 1.49999 once turned, `Ok` with pad 0; it now
-sums about the loop's own point (miss 1e-11).
+Sibling filed, not fixed here: a cone wall sums about its apex, the
+same shape with the apex as the lever
+(`work/fluxtail/a-cone-wall-far-from-its-apex-measures-its-rounding-at-the-apex-lever`,
+P1: a drafted revolve turned reads 2.6 % wrong with pad 0). Its cure
+has to decide what a loop's gap means, which the arc's does not: the
+arc's new form equals the old one edge by edge in ℝ.
 
 Sibling, already filed and not fixed here:
 `work/fluxtail/a-planar-face-sums-its-area-about-a-far-carrier-origin`

@@ -142,7 +142,6 @@ pub use curved::{
     curved_face, curved_face_loops, require_iso_rectangle, require_one_chart_branch,
     sphere_region_material_sign,
 };
-pub(crate) use loop_area::closed_loop_vector_area;
 pub use loop_area::loop_vector_area;
 
 /// One traversed boundary edge of a face loop: a key-free view of
