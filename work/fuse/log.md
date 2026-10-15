@@ -991,3 +991,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - doc rot;
     - the coplanar-ellipse census refusal wants a named follow-on unit.
   - **Next:** the fixes are queued to the lane ahead of c3.
+- 2026-10-15: on 5154, Ev asked "why are we checking if it's on the span and on the carrier in a single call?"
+  - **Answer:** there is no good reason. These are two questions, so D3 calls for two readings.
+  - **Proposed in reply:** an on-carrier reading (a one-carrier reading, homed per D3) and a span reading that takes the measured distance as a value. Consumers combine the two. `Past` disappears, and C5 names both readings.
+  - **Next:** the split is queued to the lane after c2's fix pass. 5154 still waits on Ev's sign-off of the C5 text.
