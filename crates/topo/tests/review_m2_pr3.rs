@@ -220,6 +220,9 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     // face surface exists.
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     common::assert_every_chord_named_by_the_fence(&body, &errs);
+    // Stated conventionally instead, all nine read a corner: the
+    // dihedral classification the scaffolds hide.
+    common::assert_every_chord_reads_transverse(&body, Tol::witness());
     // The prefer-intrinsic upgrade: all nine upgrade via set_edge_curve.
     common::describe_as_intersections(&mut body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
@@ -1106,6 +1109,7 @@ mod interval_lane {
         // scalar.
         let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
         common::assert_every_chord_named_by_the_fence(&body, &errs);
+        common::assert_every_chord_reads_transverse(&body, geom_core::Tol::witness());
         // The prefer-intrinsic upgrade at the interval scalar.
         common::describe_as_intersections(&mut body, geom_core::Tol::witness());
         assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));

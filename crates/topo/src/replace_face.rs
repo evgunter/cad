@@ -2550,16 +2550,14 @@ fn plan_edge<T: Decide>(
     // at its new home silently destroyed it for every edge the fence
     // had converted.
     //
-    // Dropping it also flips `EdgeAuthority::is_declared`, which tier
-    // 3's prefer-intrinsic rules read — a verdict change.
-    //
     // The `delta` requirement is the pre-collapse one, unchanged and
     // for the pre-collapse reason: a pushforward can only be carried
     // when the offset is a rigid translation of a family that
     // translates. It is asked for ONLY when a declaration is actually
-    // present, so an edge whose locus nothing declared still crosses a
-    // non-translating offset freely — which is what the retirement
-    // bought, and this keeps it.
+    // present and the restated edge keeps it, so an edge whose locus
+    // nothing declared, or whose moved pair the rule reads intrinsic,
+    // still crosses a non-translating offset freely — which is what
+    // the retirement bought, and this keeps it.
     let carried_declaration =
         || -> Result<Option<geom_brep::MappedCurve<T>>, ReplaceFaceError<T>> {
             match curve.authority() {
@@ -2678,7 +2676,7 @@ fn plan_edge<T: Decide>(
                 [(old_key, new_surface), (other, held)],
                 &carrier,
                 (t0, t1),
-                carried_declaration()?,
+                carried_declaration,
                 band,
             )?
         }
@@ -2758,7 +2756,6 @@ fn plan_edge<T: Decide>(
         // neighbour, whose pair the rule is asked; it stores what the
         // rule reads, declared or not.
         EdgeDescription::Chart(ref c) => {
-            let declared = carried_declaration()?;
             neighbour_section(c.surface)?;
             let held = body.get_surface(c.surface).unwrap_or_else(|| {
                 dangling_link(
@@ -2772,7 +2769,7 @@ fn plan_edge<T: Decide>(
                 [(old_key, new_surface), (c.surface, held)],
                 &carrier,
                 (t0, t1),
-                declared,
+                carried_declaration,
                 band,
             )?
         }
@@ -3102,7 +3099,7 @@ fn derive_edge<T: Decide>(
             [(old_key, new_surface), (other_key, neighbour)],
             &carrier,
             (t0, t1),
-            None,
+            || Ok(None),
             band,
         )?,
         _ => EdgeDescriptionSpec::Intersection {
@@ -3690,7 +3687,7 @@ fn plan_reanchors<T: Decide>(
                     [(ka, surface(ka)), (kb, surface(kb))],
                     &carrier,
                     (t0, t1),
-                    declared,
+                    || Ok(declared),
                     band,
                 )?
             }

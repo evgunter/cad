@@ -1213,6 +1213,147 @@ mod holds {
     }
 }
 
+/// **A held neighbour meets the moved surface square.** Every closed-form
+/// pose [`holds_the_move`] admits has the held surface contain the moved
+/// surface's normal along the edge, so the two meet at a right angle:
+/// the must-carry rule reads the pair `Intersection` there, never
+/// under-determined, and the pair routes and serves the pose. So an
+/// edge an offset door re-asks beside a held neighbour (`replace_face`'s
+/// chart and pair arms) stores the section, which `neighbour_section`'s
+/// route question is the precondition of, declared or derived alike.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod square {
+    use super::holds_the_move;
+    use crate::geometry::SurfaceKey;
+    use geom::{Curve3, Surface};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    #[test]
+    fn every_held_pose_routes_and_reads_the_section() {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let mut keys: slotmap::SlotMap<SurfaceKey, ()> = slotmap::SlotMap::with_key();
+        let (ka, kb) = (keys.insert(()), keys.insert(()));
+        let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
+        let o = Point3::origin();
+        let plane = |origin, normal: Vec3<f64>, u_ref| Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        };
+        let line = |origin, dir| Curve3::Line { origin, dir };
+        let circle = |center, axis, radius, u_ref| Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        };
+        let cylinder = Surface::Cylinder {
+            origin: o,
+            axis: z,
+            radius: 1.0,
+            u_ref: x,
+        };
+        let torus = Surface::Torus {
+            center: o,
+            axis: z,
+            major_radius: 3.0,
+            minor_radius: 1.0,
+            u_ref: x,
+        };
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let poses: Vec<(&str, Surface<f64>, Surface<f64>, Curve3<f64>, (f64, f64))> = vec![
+            (
+                "plane beside a plane holding its normal",
+                plane(o, z, x),
+                plane(o, x, y),
+                line(o, y),
+                (0.0, 1.0),
+            ),
+            (
+                "plane beside a cylinder along its normal",
+                plane(o, z, x),
+                cylinder.clone(),
+                circle(o, z, 1.0, x),
+                (0.0, 1.0),
+            ),
+            (
+                "cylinder beside a plane across its axis",
+                cylinder.clone(),
+                plane(o, z, x),
+                circle(o, z, 1.0, x),
+                (0.0, 1.0),
+            ),
+            (
+                "cylinder beside a plane holding its axis",
+                cylinder.clone(),
+                plane(o, x, y),
+                line(Point3::new(0.0, 1.0, 0.0), z),
+                (0.0, 1.0),
+            ),
+            (
+                "sphere beside a plane through its centre",
+                Surface::Sphere {
+                    center: o,
+                    radius: 1.0,
+                    axis: z,
+                    u_ref: x,
+                },
+                plane(o, z, x),
+                circle(o, z, 1.0, x),
+                (0.0, 1.0),
+            ),
+            (
+                "cone beside a plane holding its axis",
+                Surface::Cone {
+                    apex: o,
+                    axis: z,
+                    half_angle: std::f64::consts::FRAC_PI_4,
+                    u_ref: x,
+                },
+                plane(o, x, y),
+                line(o, Vec3::new(0.0, s, s)),
+                (0.5, 1.5),
+            ),
+            (
+                "torus beside a meridian plane",
+                torus.clone(),
+                plane(o, x, y),
+                circle(Point3::new(0.0, 3.0, 0.0), x, 1.0, y),
+                (0.0, 1.0),
+            ),
+            (
+                "torus beside its equatorial plane",
+                torus,
+                plane(o, z, x),
+                circle(o, z, 4.0, x),
+                (0.0, 1.0),
+            ),
+        ];
+        for (name, moved, held, carrier, (t0, t1)) in poses {
+            assert!(
+                holds_the_move(&moved, &held, None, 0.1, band),
+                "{name}: holds"
+            );
+            let reach = geom_brep::Reach::Span {
+                carrier: carrier.clone(),
+                t0,
+                t1,
+            };
+            let route = geom_brep::intersect::route_pose(&moved, &held, &reach, band)
+                .expect("the pose is decided");
+            assert!(route.implemented, "{name}: {}", route.note);
+            let read =
+                geom_brep::reask_pair([(ka, &moved), (kb, &held)], &carrier, (t0, t1), None, band)
+                    .expect("the rule reads the pair");
+            assert!(
+                matches!(read, geom_brep::EdgeDescriptionSpec::Intersection { .. }),
+                "{name}: {read:?}"
+            );
+        }
+    }
+}
+
 /// The plane × spline-wall door where the old edge's middle settles in a
 /// region the boundary pass reports.
 #[cfg(test)]

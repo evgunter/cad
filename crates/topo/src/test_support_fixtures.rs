@@ -697,6 +697,49 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
     }
 }
 
+/// **Every chord reads transverse.** Each edge of a copy of `body`,
+/// restated as the pair its two faces' surfaces under-determine (a
+/// straight `OnPair`, derived), draws `TransverseNotIntrinsic` once, in
+/// arena order, and nothing else is reported: the dihedral reads a
+/// corner along every chord, which is the classification an
+/// Euler-op-built body's chords hide while they are still scaffolds.
+pub fn assert_every_chord_reads_transverse<
+    T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+>(
+    body: &Body<T>,
+    tol: Tol,
+) {
+    let mut paired = body.clone();
+    let edges: Vec<_> = paired.edges().map(|(k, e)| (k, e.clone())).collect();
+    for &(edge_key, ref edge) in &edges {
+        let (s1, s2) = crate::readback::edge_sides(&paired, edge_key)
+            .unwrap()
+            .surfaces();
+        let start = paired.get_half_edge(edge.he_plus).unwrap().start;
+        let end = paired.half_edge_end(edge.he_plus).unwrap();
+        let point = |v| {
+            *paired
+                .get_point(paired.get_vertex(v).unwrap().point)
+                .unwrap()
+        };
+        let mut spec = EdgeCurveSpec::line_between(point(start), point(end));
+        spec.description = EdgeDescriptionSpec::OnPair {
+            pair: SurfacePair::new(s1, s2),
+            declared: None,
+        };
+        paired.set_edge_curve(edge_key, spec, tol).unwrap();
+    }
+    let want: Vec<_> = edges
+        .iter()
+        .map(|&(edge, _)| crate::ValidationError::TransverseNotIntrinsic { edge })
+        .collect();
+    assert_eq!(
+        crate::validate_geometric(&paired, tol),
+        Err(want),
+        "every chord, stated as its pair, reads a corner"
+    );
+}
+
 /// A cube built like [`geometric_cube`] but through an arbitrary point
 /// transform — and **with** the description step, so its edges carry
 /// `Intersection`/`Derived` where `geometric_cube`'s carry

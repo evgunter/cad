@@ -1166,10 +1166,10 @@ pub enum ValidationError {
     /// pass classified **every** interior sample definitely Transverse:
     /// definitely-smooth edges, a seam between two faces of one surface
     /// among them, keep their conventional descriptions (the D2
-    /// conventional split); NURBS- and `Approx`-adjacent edges are
-    /// exempt by kind; and escalated dihedrals already report
-    /// [`ValidationError::SliverDihedral`]. A sample set that is neither
-    /// is [`ValidationError::MixedDihedral`].
+    /// conventional split). A wrap edge (one surface), a NURBS- or
+    /// `Approx`-adjacent edge and an escalated dihedral (which reports
+    /// [`ValidationError::SliverDihedral`]) fall outside the rule. A
+    /// sample set that is neither is [`ValidationError::MixedDihedral`].
     TransverseNotIntrinsic {
         /// The definitely-transverse edge.
         edge: EdgeKey,
@@ -1239,8 +1239,9 @@ pub enum ValidationError {
     /// conventional join's second-order margin is zero-side (the
     /// surfaces under-determine the locus — κ_rel exactly zero, e.g.
     /// any same-surface or same-value smooth split), so it never
-    /// classifies jet-determinate; `Seam` edges are exempt by kind
-    /// exactly as today; in-band second order escalates as
+    /// classifies jet-determinate; a wrap edge (one surface) and a
+    /// NURBS- or `Approx`-adjacent edge fall outside the rule; in-band
+    /// second order escalates as
     /// [`ValidationError::SliverDihedral`] with the
     /// `tangent_second_order` cause (F6 — an osculating pair is a
     /// sliver at this ε), which exempts the edge here.
@@ -6928,11 +6929,11 @@ pub(crate) fn tier3_local_checks_marked<
     //    edge's honest extent (`geom_brep::edge_extent` — the carrier
     //    diameter for closed circle carriers, whose chord collapses; M2
     //    PR 3 fix pass, B2 — self-loop edges no longer classify
-    //    vacuously Smooth). Exempt BY KIND: `Seam`-described edges
-    //    (as always) and Nurbs-ADJACENT edges (M6-3 flip B — see the
-    //    in-loop note: implicit-form gradients are poison on NURBS,
-    //    and the wall junction's contact class is fixed by the
-    //    profile's corner structure, Q8/C11).
+    //    vacuously Smooth). Exempt BY KIND: Nurbs-ADJACENT edges
+    //    (M6-3 flip B — see the in-loop note: implicit-form gradients
+    //    are poison on NURBS, and the wall junction's contact class is
+    //    fixed by the profile's corner structure, Q8/C11). A wrap edge
+    //    falls outside the must-carry rule (one surface).
     // 5. Planar-boundary containment (M2 PR 3 fix pass, S3): the same
     //    interior carrier samples are checked against each ADJACENT
     //    face's surface when that surface is a plane — the
@@ -7002,15 +7003,16 @@ pub(crate) fn tier3_local_checks_marked<
         // and exempts the edge, and a mixed sample set is refused
         // (`MixedDihedral`).
         //
-        // **Nurbs-adjacent edges are exempt BY KIND** (M6-3 flip B —
-        // the `Seam` exemption idiom, one shelf over): implicit-form
+        // **Nurbs-adjacent edges are exempt BY KIND** (M6-3 flip B):
+        // implicit-form
         // gradients are poison on a NURBS surface, so
         // `classify_dihedral` cannot run there, and no derived contact
         // class exists to enforce. That is not a gap being papered
         // over — a definitional wall junction's contact class is fixed
         // by the profile's corner structure (Q8/C11), carried by the
-        // conventional `IsoCurve`/`MappedCurve` descriptions the
-        // loft/sweep builder mints, and no wedge verdict is derivable
+        // conventional `Chart` descriptions (iso images, and declared
+        // images) the loft/sweep builder mints, and no wedge verdict is
+        // derivable
         // on it; the mark stays `Unmarked` (unjudged, exactly the
         // escalation posture — never a blessing).
         // An `Approx` face is exempt on the SAME terms and by the same
@@ -7024,13 +7026,8 @@ pub(crate) fn tier3_local_checks_marked<
         let mut readings = Vec::with_capacity(samples.len());
         // The must-carry rule's demand keys on the description's FORM:
         // a conventional form claims the pair under-determines the
-        // locus, which the rule decides whoever stated it. A wrap edge
-        // (one surface) is outside the rule.
-        let conventional = match curve.description() {
-            geom_brep::EdgeDescription::OnPair { .. } => true,
-            geom_brep::EdgeDescription::Chart(c) => !c.wrap,
-            _ => false,
-        };
+        // locus, which the rule decides whoever stated it.
+        let conventional = curve.description().is_conventional();
         if !nurbs_adjacent {
             for &(p, _) in &samples {
                 match geom_brep::classify_dihedral(s_plus, s_minus, p, extent, band) {
@@ -7068,8 +7065,8 @@ pub(crate) fn tier3_local_checks_marked<
         // a zero-side sample ⇒ under-determined (G2 conventional —
         // exempt BY THE PREDICATE); in-band ⇒ SliverDihedral with the
         // `tangent_second_order` cause (F6), which exempts the edge
-        // here. `Seam` edges are exempt by kind, as always —
-        // and Nurbs-adjacent edges likewise (flip B above): no jet is
+        // here. Nurbs-adjacent edges are exempt by kind (flip B
+        // above): no jet is
         // derivable from a poison implicit form, so they carry
         // `Unmarked`.
         // The two `Unmarked` arms are deliberately separate branches

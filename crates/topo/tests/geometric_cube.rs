@@ -44,6 +44,9 @@ fn geometric_cube_passes_all_three_tiers() {
     // describes chords before any face surface exists.
     let errs = validate_geometric(&t.body, Tol::witness()).unwrap_err();
     assert_every_chord_named_by_the_fence(&t.body, &errs);
+    // Stated conventionally instead, every chord reads a corner: the
+    // dihedral classification the scaffolds hide.
+    common::assert_every_chord_reads_transverse(&t.body, Tol::witness());
     // Upgraded (the construction-discipline the rule enforces), the
     // cube passes all three tiers.
     let mut body = t.body;

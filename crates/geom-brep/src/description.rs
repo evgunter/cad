@@ -169,6 +169,21 @@ impl<T: Real> EdgeDescription<T> {
         matches!(self, EdgeDescription::Scaffold(_))
     }
 
+    /// Whether this is a **conventional form** the must-carry rule
+    /// judges (D2): an `OnPair`, or a chart image that is not a wrap.
+    /// It claims the edge's two surfaces under-determine its locus,
+    /// whoever stated it. A wrap edge (one surface) falls outside the
+    /// rule, and a scaffold is no description at rest.
+    pub fn is_conventional(&self) -> bool {
+        match self {
+            EdgeDescription::OnPair { .. } => true,
+            EdgeDescription::Chart(c) => !c.wrap,
+            EdgeDescription::Intersection { .. }
+            | EdgeDescription::TangentIntersection { .. }
+            | EdgeDescription::Scaffold(_) => false,
+        }
+    }
+
     /// The chart image, when this description has one — the accessor
     /// consumers read instead of matching two conventional variants.
     pub fn chart(&self) -> Option<&ChartCurve<T>> {

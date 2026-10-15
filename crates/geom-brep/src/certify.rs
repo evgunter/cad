@@ -4213,7 +4213,7 @@ mod tests {
     /// **The authority record** (U2 Q3): a declared locus answers
     /// `true` and carries its source; a derived one answers `false`.
     #[test]
-    fn the_authority_record_replaces_the_negative_space() {
+    fn the_authority_record_says_who_declared_the_locus() {
         let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
         let (_, empty) = table(vec![]);
         let declared = EdgeCurve::certify(line_spec(a, b), a, b, &empty, band())

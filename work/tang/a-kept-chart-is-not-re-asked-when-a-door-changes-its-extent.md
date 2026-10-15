@@ -1,7 +1,7 @@
 ---
 id: a-kept-chart-is-not-re-asked-when-a-door-changes-its-extent
 kind: issue
-title: Four doors re-ask an OnPair over a changed extent but keep a derived Chart verbatim, which tier 3 can now refuse
+title: Doors re-ask an OnPair over a changed extent or pair but keep a derived Chart, which tier 3 can now refuse
 status: open
 opened: 2026-10-15
 priority: P3
@@ -36,9 +36,31 @@ tier 3 then refuses. `edge_join` is the reachable one: `join_stage`
 runs after `describe_minted_edges` (`ops.rs:2435`), and `join_one`
 does not re-describe a non-planar join.
 
+The offset doors' own-chart arms share the hole, over a new pair
+rather than a new extent (review of PR 5191):
+
+- `offset_restate::restate`'s keep arm (`beside_moving` answers
+  `None`: both sides move, neither does, or the image names the
+  moving side) keeps the `Chart`, or asks it derived afresh, against
+  a pair whose surfaces moved, without asking the rule
+  (`crates/topo/src/offset_restate.rs`, the `EdgeDescription::Chart`
+  arm);
+- `replace_face::plan_edge`'s moved-chart shift arm shifts a non-wrap
+  image on the moved chart and keeps it a `Chart` beside a neighbour
+  it now meets anew (`crates/topo/src/replace_face.rs`, the arm
+  commented "Every other image on the MOVED chart shifts").
+
+`crates/sweep/tests/offset_restates_a_neighbour_chart_rim.rs`'s
+`the_planar_door_derives_the_image_afresh_when_both_charts_move`
+witnesses the first: `offset_planes_together` returns `Ok` with the
+edge an image in the minted side's chart, and tier 3 refuses the body
+`TransverseNotIntrinsic`. Its input is a hand-stated chart image on
+the same corner, which tier 3 refuses too, so no valid body is known
+to reach it.
+
 ## Owed
 
-A witness (a boolean whose joined seam is a kept smooth `Chart` on two
-curved surfaces), then the fix: each of the four `Chart` arms asks the
-rule over the new extent where the two sides' surfaces are distinct,
-as their `OnPair` arms do.
+A witness from a valid body (a boolean whose joined seam is a kept
+smooth `Chart` on two curved surfaces), then the fix: each of these
+`Chart` arms asks the rule over the edge as it now stands where the two
+sides' surfaces are distinct, as their `OnPair` arms do.

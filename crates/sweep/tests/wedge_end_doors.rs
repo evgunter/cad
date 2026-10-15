@@ -1116,16 +1116,17 @@ fn shoulder_seam_edge(piece: &Body<f64>) -> EdgeKey {
     seam
 }
 
-/// **A pair stated over a determinate tangency is a defect** (the third
-/// review's witness). The shoulder `3√K·√(2ε)` deep stores its seam as
-/// the intrinsic tangency; restated by hand as the pair
+/// **A conventional form stated over a determinate tangency is a
+/// defect** (the third review's witness). The shoulder `3√K·√(2ε)` deep
+/// stores its seam as the intrinsic tangency; restated by hand as the
+/// pair, or as a derived image in the plane's chart
 /// (`Body::set_edge_curve`, which certifies incidence alone), tier 3
 /// reads the rule determinate and refuses `TangentNotIntrinsic`: the
 /// check keys on the description's form.
 #[test]
-fn a_pair_stated_over_a_determinate_tangency_is_a_defect() {
+fn a_conventional_form_stated_over_a_determinate_tangency_is_a_defect() {
     let depth = 3.0 * tol().k().sqrt() * (2.0 * tol().eps()).sqrt();
-    let mut wall = topo::split(&shoulder(depth), &shoulder_cut(), tol())
+    let wall = topo::split(&shoulder(depth), &shoulder_cut(), tol())
         .expect("the shoulder cuts at its seam")
         .above
         .body()
@@ -1142,40 +1143,80 @@ fn a_pair_stated_over_a_determinate_tangency_is_a_defect() {
         .description()
         .pair()
         .expect("the tangency names its pair");
-    wall.set_edge_curve(seam, curve.restated_on_pair(pair), tol())
-        .expect("the pair certifies by incidence");
-    assert_eq!(
-        topo::validate_geometric(&wall, tol()),
-        Err(vec![topo::ValidationError::TangentNotIntrinsic {
-            edge: seam
-        }]),
-        "the hand-stated pair is a defect"
-    );
+    let plane = pair
+        .keys()
+        .into_iter()
+        .find(|&k| matches!(wall.get_surface(k), Some(geom::Surface::Plane { .. })))
+        .expect("the cut's plane is one side of the seam");
+    assert!(!curve.authority().is_declared(), "the seam is derived");
+    for (form, spec) in [
+        ("OnPair", curve.restated_on_pair(pair)),
+        ("Chart", curve.restated_in_chart(plane)),
+    ] {
+        let mut restated = wall.clone();
+        restated
+            .set_edge_curve(seam, spec, tol())
+            .unwrap_or_else(|e| panic!("{form}: the restatement certifies by incidence: {e:?}"));
+        assert_eq!(
+            topo::validate_geometric(&restated, tol()),
+            Err(vec![topo::ValidationError::TangentNotIntrinsic {
+                edge: seam
+            }]),
+            "{form}: the hand-stated conventional form is a defect"
+        );
+    }
 }
 
 /// **The transverse arm, alike, and keyed on the form** (ruling 1 of the
 /// third review; D2): a brick's edge, two planes at a right angle,
 /// restated by hand in a conventional form refuses
-/// `TransverseNotIntrinsic` whoever stated it — as their pair, and as a
-/// derived image in one plane's chart, which carries no declaration.
+/// `TransverseNotIntrinsic` whoever stated it — as their pair, as a
+/// derived image in one plane's chart, and as the pair carrying a
+/// sketch declaration of the edge.
 #[test]
 fn a_conventional_form_stated_over_a_corner_is_a_defect() {
     let cube = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let point = |v| *cube.get_point(cube.get_vertex(v).unwrap().point).unwrap();
+    // The top edge on `y = 0`, which a segment of the sketch at `z = 1`
+    // declares.
     let (edge, curve) = cube
         .edges()
         .find_map(|(k, e)| {
+            let (p0, p1) = (
+                point(cube.get_half_edge(e.he_plus)?.start),
+                point(cube.half_edge_end(e.he_plus)?),
+            );
+            let top = (p0.z, p1.z, p0.y, p1.y) == (1.0, 1.0, 0.0, 0.0);
             let c = cube.get_curve_geom(e.curve)?.certified()?;
-            c.description().pair().map(|_| (k, c.clone()))
+            (top && c.description().pair().is_some()).then(|| (k, c.clone()))
         })
-        .expect("a brick edge between two planes");
+        .expect("the brick's top edge on y = 0, between two planes");
     assert!(
         !curve.authority().is_declared(),
         "the brick's edge is derived"
     );
     let pair = curve.description().pair().unwrap();
+    let mut declared_pair = curve.restated_on_pair(pair);
+    let (p0, p1) = (
+        declared_pair.carrier.eval(declared_pair.param_start),
+        declared_pair.carrier.eval(declared_pair.param_end),
+    );
+    declared_pair.description = geom_brep::EdgeDescriptionSpec::OnPair {
+        pair,
+        declared: Some(geom_brep::MappedCurve::whole(
+            geom_brep::MappedSource::PlacedSegment {
+                segment: geom_brep::SketchSegment::Line {
+                    a: Point2::new(p0.x, p0.y),
+                    b: Point2::new(p1.x, p1.y),
+                },
+                place: geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+            },
+        )),
+    };
     for (form, spec) in [
         ("OnPair", curve.restated_on_pair(pair)),
         ("Chart", curve.restated_in_chart(pair.keys()[0])),
+        ("declared OnPair", declared_pair),
     ] {
         let mut restated = cube.clone();
         restated
@@ -1187,4 +1228,35 @@ fn a_conventional_form_stated_over_a_corner_is_a_defect() {
             "{form}: the hand-stated conventional form is a defect"
         );
     }
+}
+
+/// **A wrap edge is outside the rule.** A one-segment circle extrudes
+/// to one cylinder wall, whose strut is a wrap image in the wall's
+/// chart: its two halves bound the one face, so check 4 makes no demand
+/// of it, and the drum is clean.
+#[test]
+fn a_wrap_seam_is_left_alone() {
+    let one_segment = profile::RawLoop::new([(
+        Point2::new(1.0, 0.0),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(0.0, 0.0),
+            radius: 1.0,
+            sweep: std::f64::consts::TAU,
+        }),
+    )]);
+    let plate = extruded(vec![one_segment], 0.0, 1.0).body;
+    let wraps: Vec<EdgeKey> = plate
+        .edges()
+        .filter(|(_, e)| {
+            plate
+                .get_curve_geom(e.curve)
+                .and_then(topo::CurveGeom::certified)
+                .is_some_and(
+                    |c| matches!(c.description(), geom_brep::EdgeDescription::Chart(ch) if ch.wrap),
+                )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(wraps.len(), 1, "the drum's wall has one wrap strut");
+    assert_eq!(topo::validate_geometric(&plate, tol()), Ok(()));
 }
