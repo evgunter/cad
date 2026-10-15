@@ -309,6 +309,8 @@ mod band_annulus_host_boundary;
 mod band_co_requested_boundary;
 #[path = "band_concave_bar.rs"]
 mod band_concave_bar;
+#[path = "band_one_cycle_members.rs"]
+mod band_one_cycle_members;
 #[path = "band_planar_consume.rs"]
 mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
