@@ -31,7 +31,7 @@ pub mod pose;
 pub mod span;
 mod walk;
 
-pub use pose::{Candidate, Pose, PoseRefusal, Sense, pose};
+pub use pose::{Candidate, Pose, PoseRefusal, Sense, foot, pose};
 pub use span::{Contact, Hit, Span};
 
 use geom::CurveKind;
@@ -150,6 +150,9 @@ pub struct MeetRefusal<T: geom_core::Real> {
     /// Meetings decided before the refusal: a subset of the spans'
     /// meetings, never the complete set.
     pub found: Vec<Meeting<T>>,
+    /// As [`Meetings::shared`]: `Some` where the pose read the carriers
+    /// as one curve, so `found` holds the overlap's witnesses.
+    pub shared: Option<Sense>,
 }
 
 impl<T: geom_core::Real> From<MeetFault> for MeetRefusal<T> {
@@ -157,6 +160,7 @@ impl<T: geom_core::Real> From<MeetFault> for MeetRefusal<T> {
         Self {
             fault,
             found: Vec::new(),
+            shared: None,
         }
     }
 }
@@ -224,6 +228,7 @@ fn outcome<T: Decide>(
         Some(diag) => Err(MeetRefusal {
             fault: MeetFault::Escalated(diag),
             found: points,
+            shared,
         }),
     }
 }

@@ -37,7 +37,8 @@
 //! [`BoundaryCrossing::Unread`]. So does every refusal `meet` types past
 //! the band's own escalation, and a face holding a lone vertex (a pierce
 //! ring), which has no boundary pre-pass: the caller keeps its frontier
-//! door.
+//! door. A refusal's decided meetings are read like an answer's: a
+//! crossing among them is split, and the fragments are read again.
 
 use geom_brep::curve_pair::{Contact, Hit, MeetFault, Span, meet};
 use geom_core::{Band, Decide, Point3};
@@ -120,6 +121,21 @@ pub(super) fn boundary_crossing<T: Decide>(
         };
         let met = match meet(&swept, &Span::new(other.carrier(), other.params()), band) {
             Ok(met) => met,
+            // A crossing decided before the refusal is a crossing: the
+            // sweep splits there and reads both fragments again.
+            Err(refusal)
+                if refusal.shared.is_none()
+                    && refusal
+                        .found
+                        .iter()
+                        .any(|m| matches!(m.on_a, Hit::On { .. })) =>
+            {
+                crossings.extend(refusal.found.iter().filter_map(|m| match m.on_a {
+                    Hit::On { t, .. } => Some(t),
+                    Hit::End => None,
+                }));
+                continue;
+            }
             Err(refusal) => {
                 return match refusal.fault {
                     MeetFault::Escalated(diag) => Err(escalated(diag)),

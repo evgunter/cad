@@ -276,7 +276,7 @@
 use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
-use geom_brep::curve_pair::{Hit, MeetFault, Span, meet};
+use geom_brep::curve_pair::{Contact, Hit, MeetFault, Span, meet};
 use geom_core::k_stats::Magnitude;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3,
@@ -497,9 +497,7 @@ impl CensusTrace {
 /// tests only (D9; PERF-PLAN §2.1's contract).
 ///
 /// What a pruned pair CAN carry in the exact sweep is an outcome
-/// decided on the infinite CARRIERS rather than on the entities: a
-/// vertex whose distance to an edge's line is in band while it sits
-/// metres beyond the edge's end (`pm_census_ve_line_gap`); two lines
+/// decided on the infinite CARRIERS rather than on the entities: two lines
 /// whose crossing lies in band of one edge's endpoint while the other
 /// edge is far from it (`pm_census_ee_span`); two far edges at a
 /// marginal angle — `pm_census_ee_parallel` is an angle quantity with
@@ -1708,11 +1706,10 @@ fn pair_vertex_curved_edge<T: Decide>(
     }
 }
 
-/// Whether `q` lies on `e`'s interior: on its line, and strictly inside
-/// its span at both ends. `None` where a decision escalated (pushed): a
-/// span escalation on an on-line point is a genuine sliver, and a span
-/// Zero is endpoint territory (pass 1's). Pass 2 and the confirm pass of
-/// a `(vertex, edge)` record ask this one question.
+/// Whether `q` lies on `e`'s interior: [`on_edge_interior_reading`]
+/// placing it on the edge. `None` where a decision escalated (pushed).
+/// Pass 2 and the confirm pass of a `(vertex, edge)` record ask this one
+/// question.
 fn on_edge_interior<T: Decide>(
     q: Point3<T>,
     e: &EdgeGeo<T>,
@@ -1722,32 +1719,28 @@ fn on_edge_interior<T: Decide>(
     on_edge_interior_reading(q, e, band, errors).map(|on| on.is_some())
 }
 
-/// [`on_edge_interior`], keeping the reading of the Zero that put `q`
-/// on the line: `Some(Some(margin))` on the interior, `Some(None)` off
-/// it, `None` escalated (pushed).
+/// `q` against `e`'s segment by [`Span::contact`], the one point-on-span
+/// reading, at its foot on the line: `Some(Some(margin))` on the
+/// interior, by the margin that put it on the line; `Some(None)` off the
+/// interior, an end included (pass 1's); `None` escalated (pushed).
 fn on_edge_interior_reading<T: Decide>(
     q: Point3<T>,
     e: &EdgeGeo<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<MarginDiag>> {
-    let off = Margin::norm3((q - e.p0).cross(e.dir));
-    let Some(margin) = gap_zero_reading("pm_census_ve_line_gap", off, band, errors)? else {
-        return Some(None);
+    let line = geom::Curve3::Line {
+        origin: e.p0,
+        dir: e.dir,
     };
-    let s = (q - e.p0).dot(e.dir);
-    let mut interior = Some(Some(margin));
-    for m in [s, e.len - s] {
-        match decide("pm_census_ve_span", Margin::of(m), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => interior = interior.map(|_| None),
-            Err(cause) => {
-                errors.push(ValidationError::CensusEscalated { cause });
-                interior = None;
-            }
+    match Span::new(&line, (T::zero(), e.len)).contact(q, (q - e.p0).dot(e.dir), band) {
+        Ok(Contact::On { margin, .. }) => Some(Some(margin)),
+        Ok(Contact::Off | Contact::Carrier | Contact::Past | Contact::End) => Some(None),
+        Err(cause) => {
+            errors.push(ValidationError::CensusEscalated { cause });
+            None
         }
     }
-    interior
 }
 
 /// A signed residual as a trilean on-verdict: `Some(true)` on,
@@ -2265,9 +2258,6 @@ const EF_CROSS_ROWS: crate::splitting::containment::BoundaryRows =
         },
         conic: crate::splitting::containment::ConicRows {
             span: "pm_census_ef_cross_arc_span",
-            on: EF_CROSS_UNREAD,
-            end: EF_CROSS_UNREAD,
-            trim: EF_CROSS_UNREAD,
             straddle: "pm_census_ef_cross_arc_straddle",
         },
         spiric: crate::splitting::spiric_arc::SpiricRows {
@@ -9485,9 +9475,10 @@ mod tests {
         // band's escalation zone (`zero` 1e-9, `escalate` 1e-8) of the
         // first cube's x-parallel edge LINES, and metres from its
         // edges. The exact sweeps escalate on the carrier questions
-        // (a vertex's distance to a line, two parallel lines' gap, a
-        // span at the crossing of two lines) and can decide nothing
-        // else; the filter answers the entity question by separation.
+        // (two parallel lines' gap, a span at the crossing of two lines)
+        // and can decide nothing else; a vertex metres past an edge's
+        // span reads past it, whatever its distance from the line. The
+        // filter answers the entity question by separation.
         // This is the named class of `Trees`'s contract, pinned as the
         // ONE difference: every exact error is a carrier-stage
         // escalation, the realized census is silent, and the realized
@@ -9520,7 +9511,7 @@ mod tests {
             predicates.insert(cause.predicate.expect("a named predicate"));
         }
         assert!(
-            predicates.contains("pm_census_ve_line_gap"),
+            predicates.contains("curve_pair_pose_offset"),
             "{predicates:?}"
         );
         restricted_and_silent(&real, &ideal);

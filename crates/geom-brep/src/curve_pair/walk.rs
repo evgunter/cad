@@ -309,6 +309,7 @@ pub(super) fn meet<T: Decide>(
     let exhausted = |found| MeetRefusal {
         fault: MeetFault::Unsettled(Unsettled::Exhausted),
         found,
+        shared: None,
     };
     let mut take = |read: Read2<T>, found: &mut Vec<Meeting<T>>| match read {
         Read2::Met(m) => found.push(m),
@@ -382,6 +383,7 @@ pub(super) fn meet<T: Decide>(
         Some(diag) => Err(MeetRefusal {
             fault: MeetFault::Escalated(diag),
             found,
+            shared: None,
         }),
     }
 }

@@ -98,7 +98,7 @@
 //! `e` of the other's plane, so it lies on the arc about a crossing or a
 //! touch where the height is within `e`: `ℓ`, read off the harmonic (or
 //! `e/σ` on a line). The pair the polish is after lies within
-//! `2(ℓ + e)` of where it starts, on either carrier. Two meters guard it,
+//! `2(ℓ + e)` of where it starts, on either carrier. Three meters guard it,
 //! each refusing [`Unsettled::Meter`] unless definite:
 //!
 //! - **its basin** (`curve_pair_pose_basin`): over that reach each
@@ -108,6 +108,8 @@
 //!   the tangents then keep at least half the angle between them,
 //!   the closest pair is the one stationary pair there, and the polish
 //!   contracts toward it;
+//! - **its travel** (`curve_pair_pose_travel`): the polished pair lies
+//!   within twice the region of where it started, as the basin says;
 //! - **its convergence** (`curve_pair_pose_polish`): the polish's last
 //!   step moves the pair within the band's zero.
 //!
@@ -134,7 +136,7 @@
 //! ([`MeetFault::Escalated`]); none prunes a candidate.
 
 use geom::{Curve3, CurveKind};
-use geom_core::k_stats::{decide, decide_reported, straddle};
+use geom_core::k_stats::{decide, straddle};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::span::Span;
@@ -215,6 +217,7 @@ mod row {
     pub(super) const EXTREME: &str = "curve_pair_pose_extreme";
     pub(super) const ROOT_GAP: &str = "curve_pair_pose_root_gap";
     pub(super) const CLEAR: &str = "curve_pair_pose_clear";
+    pub(super) const TRAVEL: &str = "curve_pair_pose_travel";
     pub(super) const BASIN: &str = "curve_pair_pose_basin";
     pub(super) const POLISH: &str = "curve_pair_pose_polish";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
@@ -324,12 +327,6 @@ fn middle<T: Decide>(s: &Span<'_, T>) -> Point3<T> {
     s.carrier().eval(geom::mid_param(t0, t1))
 }
 
-/// The conic's tangent `C′(θ)`.
-fn tangent<T: Decide>(k: &Conic<T>, theta: T) -> Vec3<T> {
-    let (sin, cos) = theta.sin_cos();
-    k.u_ref * (T::zero() - k.semi_u * sin) + k.v_ref() * (k.semi_v * cos)
-}
-
 /// The conic's parameter nearest `q`: the angle of `q`'s unit
 /// coordinates, exact on a circle and on any point of the ellipse,
 /// polished otherwise. A foot that is not the nearest point only reads
@@ -357,9 +354,12 @@ fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T 
     (q - origin).dot(dir) / dir.dot(dir)
 }
 
-/// The carrier's parameter nearest `q`, on a line or a conic; `None` on
-/// a kind with no closed pose.
-fn foot<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> Option<T> {
+/// **The carrier's parameter nearest `q`**, on a line or a conic: a
+/// line's projection, a conic's unit-coordinate angle polished by
+/// Gauss–Newton (exact on a circle). `None` on a kind with no closed
+/// pose. A parameter that is not the foot only reads `q` farther off
+/// ([`Span::contact`]).
+pub fn foot<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> Option<T> {
     match *c {
         Curve3::Line { origin, dir } => Some(line_foot((origin, dir), q)),
         Curve3::Circle { .. } | Curve3::Ellipse { .. } => Some(conic_foot(&Conic::of(c)?, q)),
@@ -520,11 +520,19 @@ enum Side<'k, T: geom_core::Real> {
 }
 
 impl<T: Decide> Side<'_, T> {
-    /// The point and tangent at `t`.
+    /// The point and tangent at `t`: the carrier's own
+    /// [`Curve3::ders1`].
     fn ders(self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
-            Self::Line((origin, dir)) => (origin + dir * t, dir),
-            Self::Conic(k) => (k.point(t), tangent(k, t)),
+            Self::Line((origin, dir)) => Curve3::Line { origin, dir }.ders1(t),
+            Self::Conic(k) => Curve3::Ellipse {
+                center: k.center,
+                axis: k.axis,
+                semi_u: k.semi_u,
+                semi_v: k.semi_v,
+                u_ref: k.u_ref,
+            }
+            .ders1(t),
         }
     }
 
@@ -592,12 +600,15 @@ impl<T: Decide> Polish<'_, T> {
         let (s, t, moved) =
             super::polish::pair(|s| self.a.ders(s), |t| self.b.ders(t), self.start, |_| true);
         let ((p, _), (q, _)) = (self.a.ders(s), self.b.ders(t));
-        // Within its basin the polish contracts toward a pair inside the
-        // region; one that left it twice over had none to contract to.
+        // Within its basin the polish stays in the region; one that left
+        // it twice over is a polish the basin meter did not certify.
         let travel = (p - p0).norm() + (q - q0).norm();
-        if decide(row::CLEAR, Margin::of(travel - region - region), band) == Ok(Sign::Positive) {
-            return Ok(None);
-        }
+        metered(
+            row::TRAVEL,
+            Margin::of(region + region - travel),
+            Sign::Positive,
+            band,
+        )?;
         match decide(row::POLISH, Margin::of(moved), band) {
             Ok(Sign::Zero | Sign::Negative) => {}
             Ok(Sign::Positive) | Err(_) => return Err(MeetFault::Unsettled(Unsettled::Meter)),
@@ -893,8 +904,7 @@ fn constant<T: Decide>(
     spread: T,
     band: Band,
 ) -> Result<bool, MeetFault> {
-    let below = decide_reported(row, Margin::of(value - spread), band)?;
-    let above = decide_reported(row, Margin::of(value + spread), band)?;
+    let (below, above) = crate::roots::spread_readings(row, value, spread, band)?;
     match (below.sign, above.sign) {
         (Sign::Positive, _) | (_, Sign::Negative) => Ok(true),
         (Sign::Zero, Sign::Zero) => Ok(false),

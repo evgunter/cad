@@ -218,8 +218,8 @@ fn a_line_meets_a_circle_through_its_plane_or_in_it() {
 }
 
 /// **Two circles cut from one sphere**, their planes tilted by `θ`, built
-/// to meet: they cross at an angle of about `θ`. Above the tangency floor
-/// (the basin meter's, about `√(8κe)`, `2.4·10⁻⁴` here) every meeting
+/// to meet: they cross at an angle of about `θ`. Above the basin floor
+/// (the basin meter's crossing angle, about `√(8κe)`, `2.4·10⁻⁴` here) every meeting
 /// lands on both circles;
 /// below it the circles stay within the band's escalation `e` of each
 /// other over a run of about `e/θ`, the polish's basin meter refuses
@@ -255,7 +255,7 @@ fn circles_on_one_sphere_meet_on_both_at_any_tilt() {
         if !decided {
             assert!(
                 matches!(m, Err(ref r) if matches!(r.fault, MeetFault::Unsettled(Unsettled::Meter))),
-                "{label}: below the tangency floor, {m:?}"
+                "{label}: below the basin floor, {m:?}"
             );
             continue;
         }

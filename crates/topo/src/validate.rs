@@ -14495,12 +14495,12 @@ mod tests {
                     verdict,
                     RingNestingVerdict::Outside { ring_vertex } if ring_vertex == vertex
                 ),
-                // The walk's one point-level row on a circle — the radial
-                // gap — is the predicate that speaks, not a ray's.
+                // The point-on-span reading's gap from the circle is the
+                // predicate that speaks, not a ray's.
                 _ => matches!(
                     verdict,
                     RingNestingVerdict::Undecided(ContainError::Escalated { diag: ref d, .. })
-                        if d.predicate == Some("point_in_arc_loop_conic_on")
+                        if d.predicate == Some("curve_pair_span_gap")
                 ),
             };
             assert!(ok, "{name}: wrong verdict");

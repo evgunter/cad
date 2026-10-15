@@ -100,18 +100,13 @@
 //!   period, `(τ − w)` levered by the smaller semi-axis — read only for a
 //!   window wound definitely PAST a period, which is no edge. Anything
 //!   else is an arc, a whole turn included (its two ends coincide).
-//! - **`point_in_arc_loop_conic_on`**: the distance from the conic. A
-//!   circle: exact through the radius. An ellipse: ON on an upper bound
-//!   (a point of the ellipse near the foot), OFF on a lower bound (the
-//!   Hessian-bounded root) — [`ConicArc::hit`].
-//! - **`point_in_arc_loop_conic_end`**: the distance to either end of the
-//!   arc ([`arc_trim`]'s step 1). On the boundary, a circle's is the unit
-//!   chord times the radius and an ellipse's the exact distance from the
-//!   point to the end point; on a ray's crossing, the unit chord times
-//!   the smaller semi-axis.
-//! - **`point_in_arc_loop_conic_trim`**: the chordal-defect sum saying
-//!   which side of the ends a BOUNDARY point lies, levered by the radius
-//!   or, on an ellipse, the larger semi-axis.
+//! - **A boundary point against a conic arc** ([`ConicArc::hit`]) is the
+//!   one point-on-span reading, [`geom_brep::curve_pair::Span::contact`],
+//!   at the point's foot on the carrier: its rows are that reading's
+//!   (`curve_pair_span_gap`, `_end_chord`, `_end_side`).
+//! - **`point_in_arc_loop_conic_end`**: on a ray's crossing, the distance
+//!   to either end of the arc ([`arc_trim`]'s step 1), the unit chord
+//!   times the smaller semi-axis.
 //! - **`point_in_arc_loop_conic_window`**, **`_disc`**, **`_advance`**: a
 //!   ray's crossing of a conic — the distance trim's defect sum
 //!   ([`arc_trim`]), the discriminant, the root's advance — each levered
@@ -119,20 +114,20 @@
 //!   in-band margin sets it aside.
 //!
 //! **`point_in_arc_loop_conic_straddle`** classifies nothing: it names an
-//! ellipse's two decided bounds on one quantity straddling the whole band
-//! ([`geom_core::k_stats::straddle`]), its distance or its span's overlap.
+//! ellipse's two decided bounds on its span's overlap straddling the
+//! whole band ([`geom_core::k_stats::straddle`]).
 
 use geom_brep::recourse::{
     LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
-use geom_core::k_stats::{Magnitude, decide_magnitude, decide_magnitude_reported, decide_reported};
+use geom_core::k_stats::decide_reported;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
 use crate::live::{linked, proven};
 use crate::ray_walk::{self, ParityRows, RayFault};
-use crate::splitting::spiric_arc::{Oval, SpiricArc, SpiricHit, SpiricRows};
+use crate::splitting::spiric_arc::{Oval, SpiricArc, SpiricHit, SpiricRefusal, SpiricRows};
 use crate::validate::decide;
 
 /// This consumer's K rows for the shared walk, and the greppable
@@ -702,15 +697,9 @@ const ARC_LOOP_ROWS: ParityRows = ParityRows {
 pub(crate) struct ConicRows {
     /// The arc's width against a period (`τ − w`, levered).
     pub(crate) span: &'static str,
-    /// The point's distance from the conic.
-    pub(crate) on: &'static str,
-    /// The distance from the point to either end of the arc.
-    pub(crate) end: &'static str,
-    /// The chordal-defect sum that says which side of the ends it is.
-    pub(crate) trim: &'static str,
-    /// The name an ellipse's escalation carries where a lower and an
-    /// upper bound on one quantity straddle the whole band — no margin
-    /// of `on` or `span` says that, so it is not charged to them
+    /// The name an ellipse's span escalation carries where its two
+    /// levers' readings straddle the whole band — no margin of `span`
+    /// says that, so it is not charged to it
     /// ([`geom_core::k_stats::straddle`]).
     pub(crate) straddle: &'static str,
 }
@@ -733,9 +722,6 @@ const WALK_ROWS: BoundaryRows = BoundaryRows {
     line: &ARC_LOOP_ROWS,
     conic: ConicRows {
         span: "point_in_arc_loop_conic_span",
-        on: "point_in_arc_loop_conic_on",
-        end: "point_in_arc_loop_conic_end",
-        trim: "point_in_arc_loop_conic_trim",
         straddle: "point_in_arc_loop_conic_straddle",
     },
     spiric: SpiricRows {
@@ -791,6 +777,8 @@ pub(crate) struct ConicArc<T: geom_core::Real> {
     /// definitely short of a whole turn, `Zero` a whole turn (`Negative`
     /// never builds a `ConicArc`), and `Err` a span in the band.
     span_turn: Result<Sign, Indeterminate>,
+    /// The arc's parameter interval on its carrier ([`Self::carrier`]).
+    span: (T, T),
 }
 
 /// Why a conic carrier gives no [`ConicArc`].
@@ -923,7 +911,27 @@ impl<T: Decide> ConicArc<T> {
             ends: [carrier.eval(t0), carrier.eval(t1)],
             trim: [(c0, s0), (c1, s1), (cm, sm)],
             span_turn: low.map(|d| d.sign),
+            span: (t0, t1),
         }))
+    }
+
+    /// The carrier, rebuilt from the arc's frame as [`Self::of`] read it.
+    fn carrier(&self) -> geom::Curve3<T> {
+        match self.kind {
+            ConicKind::Circle => geom::Curve3::Circle {
+                center: self.center,
+                axis: self.axis,
+                radius: self.a,
+                u_ref: self.u,
+            },
+            ConicKind::Ellipse => geom::Curve3::Ellipse {
+                center: self.center,
+                axis: self.axis,
+                semi_u: self.a,
+                semi_v: self.b,
+                u_ref: self.u,
+            },
+        }
     }
 
     fn unit(&self, x: Point3<T>) -> (T, T) {
@@ -957,219 +965,24 @@ impl<T: Decide> ConicArc<T> {
         )
     }
 
-    /// **Where `q` sits against this edge.**
-    ///
-    /// **A circle**: its unit coordinates are an isometry scaled by the
-    /// radius, so every reading is levered into metres exactly — the
-    /// distance from the circle ([`circle_miss`]), then the
-    /// arc's trim ([`arc_trim`], its `Zero` the band of an end).
-    ///
-    /// **An ellipse**: no single lever is exact. The smaller semi-axis
-    /// understates a distance by up to `b/a` and the larger overstates it
-    /// by up to `a/b`, so an `ON` verdict taken through the one and an
-    /// `OFF` verdict through the other would each be wrong somewhere.
-    /// The distance `d` from `q`'s in-plane image `Q` to the ellipse is
-    /// bounded on both sides instead, and each verdict reads the bound
-    /// that makes it sound:
-    ///
-    /// - **Lower**, `d ≥ 2|F| / (g + √(g² + 4|F|/s²))`, for
-    ///   `F = X²/a² + Y²/b² − 1` (zero on the ellipse), `g = |∇F(Q)|`
-    ///   and `s = min(|a|, |b|)`, the smaller semi-axis whichever is
-    ///   stored first: along the segment from `Q` to its foot, `F` falls
-    ///   to zero while `|∇F|` grows at most at the Hessian's norm `2/s²`,
-    ///   so `|F| ≤ g·d + d²/s²`, whose positive root is the bound.
-    /// - **Upper**, `d ≤ |Q − P|` for any point `P` of the ellipse; `P` is
-    ///   one Newton step of `F` from `Q` (along `∇F`) snapped radially
-    ///   onto the ellipse in unit coordinates. Both bounds approach `d`
-    ///   as `d → 0`; they part by more than the band's own ratio only
-    ///   where the ellipse bends tighter than the band resolves (its
-    ///   smallest radius of curvature `s²/max(|a|, |b|)` within a few `ε`).
-    ///
-    /// `OFF` only where the LOWER bound clears the escalation band; `ON`
-    /// the carrier only where the UPPER bound is within the zero band;
-    /// between them the answer escalates. The out-of-plane miss
-    /// `(q − c)·n̂` folds into both. On the carrier, an end is read as the
-    /// EXACT distance from `q` to the end point — never a unit chord — and
-    /// the side of the ends from the foot `P` (within the band of `q`, so
-    /// on the same side of an end that is more than the escalation band
-    /// from `q`), by [`arc_trim_margin`] levered by the LARGER semi-axis:
-    /// a unit angle costs at most `a` metres of arc, so the margin still
-    /// bounds the arc length to the nearer end from above.
-    ///
-    /// **The distance read is to the ARC, not the conic.** Where `q` is
-    /// in the band of the conic — the band of its whole carrier — it is
-    /// in the band of the edge only if its foot is on the arc; a foot
-    /// definitely past the arc's ends, both ends clear of `q`, is off the
-    /// edge ([`Self::clear_of_arc`]), as a segment is read by its clamped
-    /// foot. Only a point that could be in the band of the arc itself
-    /// refuses.
-    pub(crate) fn hit(
-        &self,
-        q: Point3<T>,
-        rows: ConicRows,
-        band: Band,
-    ) -> Result<ConicHit, ReadEscalation> {
-        let (x, y) = self.unit(q);
-        let axial = (q - self.center).dot(self.axis);
-        let (ends, apex, anti) = self.trim_points();
-        if self.kind == ConicKind::Circle {
-            let rho = (x.powi(2) + y.powi(2)).sqrt();
-            let miss = circle_miss(q, self.center, self.axis, self.lever);
-            let on = match decide_magnitude_reported(rows.on, Margin::of(miss), band) {
-                Ok((Magnitude::Positive, _)) => return Ok(ConicHit::Off),
-                Ok((Magnitude::Zero, on)) => on,
-                // In band of the circle — which is the distance to the ARC
-                // only where the foot is on it. Past its ends the arc's
-                // nearest point is the nearer end, so a foot definitely
-                // outside the window with both ends clear is off the edge.
-                Err(diag) => {
-                    return if self.clear_of_arc(q, (x / rho, y / rho), self.lever, rows, band) {
-                        Ok(ConicHit::Off)
-                    } else {
-                        Err(diag.into())
-                    };
-                }
-            };
-            let trim = ArcTrimRows {
-                end: rows.end,
-                trim: rows.trim,
-            };
-            return Ok(
-                match arc_trim(
-                    Self::lift((x / rho, y / rho)),
-                    ends,
-                    apex,
-                    anti,
-                    self.lever,
-                    &trim,
-                    band,
-                )? {
-                    Sign::Zero => ConicHit::End,
-                    Sign::Positive => ConicHit::On(on),
-                    Sign::Negative => ConicHit::Carrier,
-                },
-            );
-        }
-        let two = T::from_f64(2.0);
-        let (a, b) = (self.a, self.b);
-        let f = x.powi(2) + y.powi(2) - T::one();
-        let (gx, gy) = (two * x / a, two * y / b);
-        let g2 = gx.powi(2) + gy.powi(2);
-        let g = g2.sqrt();
-        // The LOWER bound first: it is finite everywhere — at the centre,
-        // where `∇F` vanishes, it is the smaller semi-axis exactly, the
-        // true distance — and a definite OFF needs nothing else.
-        let small = a.abs().min(b.abs());
-        let lower = two * f.abs() / (g + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt());
-        let lower = (lower.powi(2) + axial.powi(2)).sqrt();
-        let far = decide_magnitude_reported(rows.on, Margin::of(lower), band);
-        if let Ok((Magnitude::Positive, _)) = far {
-            return Ok(ConicHit::Off);
-        }
-        // Within the escalation band of the conic by the lower bound, so
-        // `∇F` is nonzero here and the Newton foot is defined.
-        let (px, py) = (x * a - f * gx / g2, y * b - f * gy / g2);
-        let (ux, uy) = (px / a, py / b);
-        let r = (ux.powi(2) + uy.powi(2)).sqrt();
-        let foot = (ux / r, uy / r);
-        let upper = ((x * a - foot.0 * a).powi(2) + (y * b - foot.1 * b).powi(2)).sqrt();
-        let upper = (upper.powi(2) + axial.powi(2)).sqrt();
-        // ON only on the upper bound. Using the lower bound here instead
-        // cannot be told apart on a body whose ellipse bends looser than
-        // the band — the two bounds agree to within the band's own ratio
-        // there — and is wrong on one that bends tighter
-        // (`tests::an_ellipse_tighter_than_the_band_straddles_it`).
-        let decided = match (
-            decide_magnitude_reported(rows.on, Margin::of(upper), band),
-            far,
-        ) {
-            (Ok((Magnitude::Zero, on)), _) => Ok(on),
-            (_, Err(diag)) | (Err(diag), _) => Err(ReadEscalation::from(diag)),
-            // The lower bound within the zero band, the upper definitely
-            // beyond it: the two straddle the whole band, which only an
-            // ellipse bending tighter than the band resolves (`b²/a`
-            // within a few `ε`) allows.
-            (Ok((Magnitude::Positive, high)), Ok((_, low))) => Err(ReadEscalation::straddle(
-                rows.straddle,
-                Decided {
-                    sign: Sign::Zero,
-                    margin: low,
-                },
-                Decided {
-                    sign: Sign::Positive,
-                    margin: high,
-                },
-                band,
-            )),
+    /// **Where `q` sits against this edge**: `q` read against the arc's
+    /// span at its foot on the carrier by
+    /// [`geom_brep::curve_pair::Span::contact`], the one point-on-span
+    /// reading. A point definitely past the arc, whether or not the band
+    /// places it on the carrier, is off the edge.
+    pub(crate) fn hit(&self, q: Point3<T>, band: Band) -> Result<ConicHit, ReadEscalation> {
+        let carrier = self.carrier();
+        let span = geom_brep::curve_pair::Span::new(&carrier, self.span);
+        let Some(t) = geom_brep::curve_pair::foot(&carrier, q) else {
+            unreachable!("a conic arc's carrier is a circle or an ellipse")
         };
-        // Undecided against the conic, as a circle's in-band miss: off
-        // the edge only where the foot is definitely past its ends.
-        let on = match decided {
-            Ok(on) => on,
-            Err(diag) => {
-                return if self.clear_of_arc(q, foot, a.max(b), rows, band) {
-                    Ok(ConicHit::Off)
-                } else {
-                    Err(diag)
-                };
-            }
-        };
-        let at = self
-            .ends
-            .map(|end| decide_magnitude(rows.end, Margin::norm3(q - end), band));
-        if at.contains(&Ok(Magnitude::Zero)) {
-            return Ok(ConicHit::End);
-        }
-        // Past the end check, each is `Positive` or escalated.
-        for end in at {
-            end.map_err(ReadEscalation::from)?;
-        }
-        let side = arc_trim_margin(Self::lift(foot), ends[0], apex, anti);
-        Ok(
-            match decide(rows.trim, Margin::levered(side, a.max(b)), band)? {
-                // `Zero` is unreachable: both ends are definitely more than
-                // `10ε` from `q` and the foot is within `ε` of `q`, so the
-                // foot is more than `9ε` of arc from either end, and the
-                // margin, levered by the larger semi-axis, is at least that
-                // arc length. It reads as on, as a circle's does, should
-                // rounding reach it.
-                Sign::Positive | Sign::Zero => ConicHit::On(on),
-                Sign::Negative => ConicHit::Carrier,
-            },
-        )
-    }
-
-    /// **Is `q`, near the conic, definitely clear of the ARC?** — `q`'s
-    /// `foot` on the unit circle definitely outside the window, by the
-    /// trim margin levered by `lever` (the radius on a circle; on an
-    /// ellipse the larger semi-axis, which bounds an arc length from
-    /// above as [`Self::hit`] argues), and both ends definitely farther
-    /// from `q` than the band. Past its ends the arc's nearest point to
-    /// `q` is the nearer end, so `q` is then off the edge by more than
-    /// the band, as the planar pre-pass reads a segment by its clamped
-    /// foot. Anything undecided is `false`, and the caller keeps its
-    /// refusal.
-    fn clear_of_arc(
-        &self,
-        q: Point3<T>,
-        foot: (T, T),
-        lever: T,
-        rows: ConicRows,
-        band: Band,
-    ) -> bool {
-        let ends_clear = self.ends.into_iter().all(|end| {
-            decide_magnitude(rows.end, Margin::norm3(q - end), band) == Ok(Magnitude::Positive)
-        });
-        let (ends, apex, anti) = self.trim_points();
-        ends_clear
-            && decide(
-                rows.trim,
-                Margin::levered(
-                    arc_trim_margin(Self::lift(foot), ends[0], apex, anti),
-                    lever,
-                ),
-                band,
-            ) == Ok(Sign::Negative)
+        use geom_brep::curve_pair::Contact;
+        Ok(match span.contact(q, t, band)? {
+            Contact::Off | Contact::Past => ConicHit::Off,
+            Contact::Carrier => ConicHit::Carrier,
+            Contact::On { margin, .. } => ConicHit::On(margin),
+            Contact::End => ConicHit::End,
+        })
     }
 
     /// Is the unit-circle point `(x, y)` inside the arc's window?
@@ -1395,17 +1208,20 @@ impl<T: Decide> LoopEdge<T> {
                 Some(on) => EdgeContact::On(on),
                 None => EdgeContact::Off,
             },
-            Self::Conic(k) => match k.hit(q, rows.conic, band)? {
+            Self::Conic(k) => match k.hit(q, band)? {
                 ConicHit::Off => EdgeContact::Off,
                 ConicHit::Carrier => EdgeContact::Carrier,
                 ConicHit::On(on) => EdgeContact::On(on),
                 ConicHit::End => EdgeContact::End,
             },
-            Self::Spiric(k) => match k.contact(q, rows.spiric, band)? {
-                SpiricHit::Off => EdgeContact::Off,
-                SpiricHit::On(on) => EdgeContact::On(on),
-                SpiricHit::End => EdgeContact::End,
-                SpiricHit::Unsettled => EdgeContact::Unread,
+            Self::Spiric(k) => match k.contact(q, rows.spiric, band) {
+                Ok(SpiricHit::Off) => EdgeContact::Off,
+                Ok(SpiricHit::On(on)) => EdgeContact::On(on),
+                Ok(SpiricHit::End) => EdgeContact::End,
+                // The pass cannot place the point; the region walk holds
+                // the arc as it holds a spline's ball.
+                Err(SpiricRefusal::Unsettled) => EdgeContact::Unread,
+                Err(SpiricRefusal::Escalated(diag)) => return Err(diag.into()),
             },
             Self::Unrowed { .. } => EdgeContact::Unread,
         })
@@ -2262,7 +2078,7 @@ mod tests {
             let Ok(Some(k)) = ConicArc::of(&carrier, (t0, t1), WALK_ROWS.conic, band) else {
                 panic!("a circle arc under a period");
             };
-            let ask = |q| k.hit(q, WALK_ROWS.conic, band).expect("decided");
+            let ask = |q| k.hit(q, band).expect("decided");
             for s in [20.0 * eps, 50.0 * eps, 500.0 * eps, 5000.0 * eps] {
                 let d = s / r;
                 assert!(
@@ -2325,7 +2141,7 @@ mod tests {
         for s in [12.0, 15.0, 40.0] {
             for side in [1.0, -1.0] {
                 let q = Point3::new(-a - side * s * eps, 0.0, 0.0);
-                let got = k.hit(q, WALK_ROWS.conic, band);
+                let got = k.hit(q, band);
                 assert_eq!(
                     got,
                     Ok(ConicHit::Off),
@@ -2336,7 +2152,7 @@ mod tests {
         // `15ε` of arc from the minor vertex: the speed there is `a`.
         for s in [11.0, 15.0, 18.0, 40.0] {
             let q = k.point(t0 + s * eps / a);
-            let got = k.hit(q, WALK_ROWS.conic, band);
+            let got = k.hit(q, band);
             assert!(
                 matches!(got, Ok(ConicHit::On(_))),
                 "{s}ε along the arc from its end: on the arc, neither its end nor an escalation"
@@ -2375,39 +2191,30 @@ mod tests {
         let Ok(Some(k)) = steep(band, (t0, t1)) else {
             panic!("the arc is read");
         };
-        let mid_gap = k.hit(k.point(core::f64::consts::FRAC_PI_2), WALK_ROWS.conic, band);
+        let mid_gap = k.hit(k.point(core::f64::consts::FRAC_PI_2), band);
         assert!(
             !matches!(mid_gap, Ok(ConicHit::On(_))),
             "the gap is not the arc: {mid_gap:?}"
         );
         for s in [5.0, 11.0] {
             // `s·ε` of arc into the gap from the arc's end at `t1`.
-            let past = k.hit(k.point(t1 + s * eps / 20.0), WALK_ROWS.conic, band);
+            let past = k.hit(k.point(t1 + s * eps / 20.0), band);
             assert!(
                 !matches!(past, Ok(ConicHit::On(_))),
                 "{s}ε past the end, in the gap: {past:?}"
             );
         }
-        assert!(matches!(
-            k.hit(k.point(1.0), WALK_ROWS.conic, band),
-            Ok(ConicHit::On(_))
-        ));
+        assert!(matches!(k.hit(k.point(1.0), band), Ok(ConicHit::On(_))));
         let Ok(Some(full)) = steep(band, (0.0, core::f64::consts::TAU)) else {
             panic!("the full ellipse is read");
         };
         for t in [0.3, core::f64::consts::FRAC_PI_2, 3.0, 5.0] {
             assert!(
-                matches!(
-                    full.hit(full.point(t), WALK_ROWS.conic, band),
-                    Ok(ConicHit::On(_))
-                ),
+                matches!(full.hit(full.point(t), band), Ok(ConicHit::On(_))),
                 "a full period is on the arc at {t}"
             );
         }
-        assert_eq!(
-            full.hit(full.point(0.0), WALK_ROWS.conic, band),
-            Ok(ConicHit::End)
-        );
+        assert_eq!(full.hit(full.point(0.0), band), Ok(ConicHit::End));
     }
 
     /// **An over-wound ellipse window is not read as an arc.** The review's
@@ -2577,19 +2384,6 @@ mod tests {
         }
     }
 
-    /// The lower bound and the upper bound `ConicArc::hit` reads on the
-    /// distance from the ellipse of semi-axes `a` (along x) and `b` to the
-    /// point `x` out along its major axis: the Hessian-bounded root of the
-    /// implicit form, and the distance to the Newton foot, the vertex.
-    fn major_vertex_bounds(a: f64, b: f64, x: f64) -> (f64, f64) {
-        let u = x / a;
-        let f = u.powi(2) - 1.0;
-        let g = 2.0 * u / a;
-        let small = a.min(b);
-        let lower = 2.0 * f.abs() / (g + (g.powi(2) + 4.0 * f.abs() / small.powi(2)).sqrt());
-        (lower, x - a)
-    }
-
     /// **A straddle is one escalation on the frame, carrying the
     /// enclosure of its two bounds** (`k_stats::straddle`): under the
     /// walk's straddle row, the enclosure `bounds` the site's own lower
@@ -2649,10 +2443,7 @@ mod tests {
         let Ok(Some(k)) = steep(band, (0.0, core::f64::consts::PI)) else {
             panic!("the arc is read");
         };
-        assert_eq!(
-            k.hit(Point3::new(0.0, 0.0, 0.0), WALK_ROWS.conic, band),
-            Ok(ConicHit::Off)
-        );
+        assert_eq!(k.hit(Point3::new(0.0, 0.0, 0.0), band), Ok(ConicHit::Off));
     }
 
     /// The same, in the telemetry: the centre records no `Invalid`
@@ -2679,7 +2470,7 @@ mod tests {
             panic!("the arc is read");
         };
         k_stats::start_recording();
-        let got = k.hit(Point3::new(p(0.0), p(0.0), p(0.0)), WALK_ROWS.conic, band);
+        let got = k.hit(Point3::new(p(0.0), p(0.0), p(0.0)), band);
         let samples = k_stats::take_samples();
         assert_eq!(got, Ok(ConicHit::Off));
         assert!(
@@ -2688,14 +2479,15 @@ mod tests {
         );
     }
 
-    /// **An ellipse bending tighter than the band** (`b²/a = ε/100`): at
-    /// its major vertex the lower bound on a point `kε` out reads within
-    /// the zero band while the upper bound — here the distance itself —
-    /// reads definitely beyond it. The answer escalates as a straddle of
-    /// the two ([`assert_straddle`]); it is never `On`, which reading ON
-    /// off the lower bound would give.
+    /// **An ellipse bending tighter than the band** (`b²/a = ε/100`) is
+    /// read at its foot: a point `kε` beyond its major vertex is `kε` from
+    /// it, its foot the vertex itself, so it reads off past the band, in
+    /// the band's gap it escalates, and within the zero band it reads at
+    /// the vertex, the arc's start.
+    /// No bound on the distance stands in for the distance, so the
+    /// tight bend straddles nothing.
     #[test]
-    fn an_ellipse_tighter_than_the_band_straddles_it() {
+    fn an_ellipse_tighter_than_the_band_is_read_at_its_foot() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
         for a in [1.0, 4.0] {
@@ -2707,30 +2499,42 @@ mod tests {
                 semi_v: b,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
-            let Ok(Some(k)) = ConicArc::of(
-                &carrier,
-                (0.0, core::f64::consts::TAU),
-                WALK_ROWS.conic,
-                band,
-            ) else {
-                panic!("a {a}: the full ellipse is read");
-            };
-            for out in [15.0, 20.0, 40.0] {
-                let bracket = geom_core::k_stats::Bracket::open();
-                let got = k.hit(Point3::new(a + out * eps, 0.0, 0.0), WALK_ROWS.conic, band);
-                let recorded = bracket.finish();
-                let Err(got) = got else {
-                    panic!("a {a}, {out}ε out: expected a straddle, got {got:?}");
-                };
-                assert_straddle(
-                    got,
-                    &recorded,
-                    LoopDecision::Boundary,
-                    major_vertex_bounds(a, b, a + out * eps),
-                    &format!("a {a}, {out}ε"),
-                );
-            }
+            read_beyond_the_major_vertex(&carrier, a, band, true, &format!("a {a}"));
         }
+    }
+
+    /// A point `kε` beyond `carrier`'s major vertex `(a, 0, 0)`, the whole
+    /// ellipse its arc: off at 15, 20 and 40, escalated at 5, and at a
+    /// half `End` where the vertex is the arc's start (`at_end`), else `On`.
+    fn read_beyond_the_major_vertex(
+        carrier: &geom::Curve3<f64>,
+        a: f64,
+        band: Band,
+        at_end: bool,
+        label: &str,
+    ) {
+        let eps = band.zero();
+        let Ok(Some(k)) = ConicArc::of(
+            carrier,
+            (0.0, core::f64::consts::TAU),
+            WALK_ROWS.conic,
+            band,
+        ) else {
+            panic!("{label}: the full ellipse is read");
+        };
+        for out in [15.0, 20.0, 40.0] {
+            let got = k.hit(Point3::new(a + out * eps, 0.0, 0.0), band);
+            assert_eq!(got, Ok(ConicHit::Off), "{label}, {out}ε out");
+        }
+        let got = k.hit(Point3::new(a + 5.0 * eps, 0.0, 0.0), band);
+        assert!(got.is_err(), "{label}, 5ε out: in the band's gap: {got:?}");
+        let got = k.hit(Point3::new(a + 0.5 * eps, 0.0, 0.0), band);
+        let want = if at_end {
+            matches!(got, Ok(ConicHit::End))
+        } else {
+            matches!(got, Ok(ConicHit::On(_)))
+        };
+        assert!(want, "{label}, ε/2 out: {got:?}");
     }
 
     /// The ellipse of semi-axes `a` along x and `b` along y about the
@@ -2748,34 +2552,19 @@ mod tests {
         }
     }
 
-    /// **[`an_ellipse_tighter_than_the_band_straddles_it`], stored minor
-    /// first.** The lower bound's Hessian term is the SMALLER semi-axis
-    /// whichever field holds it; read off `b` (here the larger), it
-    /// over-states the distance and reads the point `Off`.
+    /// **[`an_ellipse_tighter_than_the_band_is_read_at_its_foot`], stored
+    /// minor first**: the foot is the carrier's, whichever field holds the
+    /// larger semi-axis.
     #[test]
-    fn an_ellipse_stored_minor_first_tighter_than_the_band_straddles_it() {
+    fn an_ellipse_stored_minor_first_tighter_than_the_band_is_read_at_its_foot() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
         let (a, b) = (1.0, (eps / 100.0).sqrt());
-        let Ok(Some(k)) = ConicArc::of(
+        read_beyond_the_major_vertex(
             &stored_minor_first(a, b),
-            (0.0, core::f64::consts::TAU),
-            WALK_ROWS.conic,
+            a,
             band,
-        ) else {
-            panic!("the full ellipse is read");
-        };
-        let bracket = geom_core::k_stats::Bracket::open();
-        let got = k.hit(Point3::new(a + 20.0 * eps, 0.0, 0.0), WALK_ROWS.conic, band);
-        let recorded = bracket.finish();
-        let Err(got) = got else {
-            panic!("expected a straddle, got {got:?}");
-        };
-        assert_straddle(
-            got,
-            &recorded,
-            LoopDecision::Boundary,
-            major_vertex_bounds(a, b, a + 20.0 * eps),
+            false,
             "stored minor first",
         );
     }

@@ -230,7 +230,7 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
 /// the band. Between the crossings the great circle dips at most `0.1·θ`
 /// below the section's plane, so at `k = 30` the two stay within the
 /// band's gap of each other over that whole arc and escalate too. At
-/// `θ = 0.2`, past the tangency floor at every ε row, they cross
+/// `θ = 0.2`, past the basin floor at every ε row, they cross
 /// definitely, and meet at both crossings.
 #[test]
 fn two_sphere_sections_read_coplanar_are_one_circle_only_within_the_band() {

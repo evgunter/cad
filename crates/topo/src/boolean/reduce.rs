@@ -3334,11 +3334,14 @@ fn wall_crossing<T: Decide + Bounds>(
     // The wall and sphere quadratics take any non-zero `dir`; the torus
     // quartic ([`super::solid_contain::line_torus_roots`]) assumes it UNIT,
     // the `Line` carrier's convention, which nothing checks.
+    // `None`: a kind pair with no root lane, which takes the refusals'
+    // path below, as a door's refusal does.
     let found = match *carrier {
         geom::Curve3::Line { origin, dir } => {
             match line_wall_roots_of(origin, dir, (t0, t1), surface, band)? {
-                Ok(found) => found,
-                Err(verdict) => return Ok(verdict),
+                Some(Ok(found)) => Some(found),
+                Some(Err(verdict)) => return Ok(verdict),
+                None => None,
             }
         }
         // The conic root doors ([`super::circle_roots`]), one answer
@@ -3352,24 +3355,27 @@ fn wall_crossing<T: Decide + Bounds>(
                 geom::Surface::Sphere { .. }
                 | geom::Surface::Cylinder { .. }
                 | geom::Surface::Cone { .. },
-            ) => super::conic_quadric::conic_quadric_roots(carrier, t0, t1, surface, band)?,
-            (geom::Curve3::Circle { .. }, geom::Surface::Torus { .. }) => {
-                super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band)?
-            }
-            (_, geom::Surface::Torus { .. }) => {
-                super::ellipse_torus::ellipse_torus_roots(carrier, t0, t1, surface, band)?
-            }
-            _ => return Ok(SpanVerdict::Unsettled),
+            ) => Some(super::conic_quadric::conic_quadric_roots(
+                carrier, t0, t1, surface, band,
+            )?),
+            (geom::Curve3::Circle { .. }, geom::Surface::Torus { .. }) => Some(
+                super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band)?,
+            ),
+            (_, geom::Surface::Torus { .. }) => Some(super::ellipse_torus::ellipse_torus_roots(
+                carrier, t0, t1, surface, band,
+            )?),
+            _ => None,
         },
         _ => return Ok(SpanVerdict::Unsettled),
     };
     let found = match found {
-        Ok(found) => found,
-        Err(Unsettled::AtApex) => return Ok(SpanVerdict::AtApex),
-        // A tangency, or a count the door could not certify: where the
-        // span may meet the carrier is localized and read against the
-        // face, which settles it off the face or keeps the door.
-        Err(_) => {
+        Some(Ok(found)) => found,
+        Some(Err(Unsettled::AtApex)) => return Ok(SpanVerdict::AtApex),
+        // A tangency, a count the door could not certify, or no root lane
+        // at all: where the span may meet the carrier is localized and
+        // read against the face, which settles it off the face or keeps
+        // the door.
+        Some(Err(_)) | None => {
             return Ok(
                 if super::carrier_touch::off_face(y, face, surface, carrier, (t0, t1), band)? {
                     SpanVerdict::OffFace
@@ -3556,6 +3562,11 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
 /// A root door's answer: its roots, or the count it could not certify.
 type RootsOrUnsettled<T> = Result<CircleRoots<T>, Unsettled>;
 
+/// [`line_wall_roots_of`]'s answer: `None` for a surface with no line
+/// root lane, else the roots or the verdict the roots' shape has no word
+/// for.
+type LineWallRoots<T> = Option<Result<RootsOrUnsettled<T>, SpanVerdict<T>>>;
+
 /// The certified LINE × wall roots, per kind, in the root doors' answer
 /// shape — or, for the one answer that shape has no word for, the
 /// verdict itself: an axis-parallel line's residual is constant along it
@@ -3569,7 +3580,7 @@ fn line_wall_roots_of<T: Decide>(
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<Result<RootsOrUnsettled<T>, SpanVerdict<T>>, BooleanError> {
+) -> Result<LineWallRoots<T>, BooleanError> {
     use super::solid_contain::WallRoots;
     let span = (t1 - t0).abs();
     let two = |ts: [T; 2]| Ok(Roots::<T, 2>::all(ts).widen());
@@ -3581,7 +3592,7 @@ fn line_wall_roots_of<T: Decide>(
     // this lane can act on — the material verdicts behind a pierce are
     // first-order, and along a tangency every first-order datum ties —
     // so it keeps the door.
-    Ok(Ok(match *surface {
+    Ok(Some(Ok(match *surface {
         geom::Surface::Cylinder {
             origin: c_origin,
             axis,
@@ -3596,7 +3607,7 @@ fn line_wall_roots_of<T: Decide>(
         })? {
             WallRoots::Two(ts) => two(ts),
             WallRoots::Tangent => Err(Unsettled::Tangency),
-            WallRoots::AxisParallel => return Ok(Err(SpanVerdict::Constant)),
+            WallRoots::AxisParallel => return Ok(Some(Err(SpanVerdict::Constant))),
             WallRoots::Miss => Ok(CircleRoots::Miss),
         },
         // The quartic: the ray lane's own certified root door, over the
@@ -3648,19 +3659,12 @@ fn line_wall_roots_of<T: Decide>(
             half_angle,
             ..
         } => line_cone_roots(origin, dir, (apex, axis, half_angle), (t0, t1), band)?,
-        // No root lane. A door's refusal goes to `carrier_touch::off_face`,
-        // which settles nothing on a kind with no reach, so this answer
-        // is the one that read would give; a kind here that gains a reach
-        // is refused rather than left unread.
+        // No root lane: the caller reads the span against the face as it
+        // reads a door's refusal.
         geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
-            if super::carrier_touch::reach(surface).is_some() {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "a surface with no line root lane has a reach to read it off the face by",
-                });
-            }
-            return Ok(Err(SpanVerdict::Unsettled));
+            return Ok(None);
         }
-    }))
+    })))
 }
 
 /// **The certified roots of the LINE `origin + dir·t` against a CONE**:
@@ -4184,8 +4188,7 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 ///
 /// On a circle, `p` must lie ON the carrier for the azimuth to name the
 /// event: the distance from `p` to the circle (radial and axial misses
-/// folded, the exact hypotenuse) is classified on `bool_contact_arc` —
-/// the same row the boundary pre-pass uses for the same quantity —
+/// folded, the exact hypotenuse) is classified on `bool_contact_arc`
 /// before the parameter is taken, and the span is checked to be at most
 /// a period. The angular half of "on the ARC" is not repeated here:
 /// `split_edge`'s interiority gate is exactly that question, metered in
@@ -4215,8 +4218,7 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     } = *curve.carrier()
     {
         // On the carrier? `point_on_circle` is the row's body, with its
-        // impossible-negative arm; the boundary pre-pass's conic arm
-        // asks the same distance under the same row name.
+        // impossible-negative arm.
         match super::contain::point_on_circle(p, center, axis, radius, band) {
             Ok(Some(_)) => {}
             // The caller placed the event ON this edge; a point
