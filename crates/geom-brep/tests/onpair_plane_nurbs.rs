@@ -6,11 +6,13 @@
 //! `|S(P(t)) − C(t)|` over the chart image.
 //!
 //! The fixture is M7-8's: the rational quarter-cylinder wall and a plane
-//! through its `u = 0` ruling. A transverse plane certifies the ruling
-//! as an `OnPair`, and so does the TANGENT plane `x = 1`, which the
-//! `Intersection` lane refuses `NotTransverse`: an `OnPair` states the
-//! carrier lies on both, and leaves the meeting to tier 3. An `Approx`
-//! wall is metered against its fit.
+//! through its `u = 0` ruling, and a flat patch lying in a plane, the
+//! pair D2 leaves conventional (it under-determines their shared side).
+//! The certificate states incidence alone, so the TANGENT plane `x = 1`
+//! certifies too, though D2's honest form there is a
+//! `TangentIntersection`: which form an edge must carry is tier 3's
+//! question, not this certificate's. An `Approx` wall is metered against
+//! its fit.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -105,12 +107,15 @@ fn a_ruling_on_a_transverse_plane_certifies_on_the_pair() {
     assert_on_pair(&edge, "the transverse plane");
 }
 
-/// **The smooth seam.** The tangent plane meets the wall along the
-/// same ruling with parallel normals: the `Intersection` lane refuses it
-/// `NotTransverse` (`m7_8_plane_nurbs_edge`), and the pair still carries
-/// it, incidence being all an `OnPair` states.
+/// **Incidence alone.** The tangent plane meets the wall along the same
+/// ruling with parallel normals, a tangency the wall's curvature
+/// determines, so D2's honest form there is a `TangentIntersection`, and
+/// the `Intersection` lane refuses it `NotTransverse`
+/// (`m7_8_plane_nurbs_edge`). The pair's certificate still passes,
+/// incidence being all it states: holding the edge to the form D2 asks
+/// of it is tier 3's must-carry check, which no door here is asking.
 #[test]
-fn a_ruling_on_the_tangent_plane_certifies_on_the_pair() {
+fn a_ruling_on_the_tangent_plane_certifies_incidence_alone() {
     let edge = on_pair(
         tangent_plane(),
         wall(),
@@ -141,6 +146,43 @@ fn a_carrier_off_the_wall_refuses_with_the_measured_miss() {
     }
 }
 
+/// **The pair D2 leaves conventional.** A flat NURBS patch in the plane
+/// `x = 0` and that plane itself: the two surfaces are one, so they
+/// under-determine any locus on both, and the patch's `y = 0` side
+/// rests on the pair.
+#[test]
+fn a_side_a_flat_patch_shares_with_its_plane_certifies_on_the_pair() {
+    let edge = on_pair(
+        Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(1.0, 0.0, 0.0),
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        },
+        Surface::Nurbs(Arc::new(flat_patch())),
+        segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0)),
+        Some(geom_brep::NurbsLane::certified()),
+    )
+    .expect("the side lies on both");
+    assert_on_pair(&edge, "the coincident flat patch");
+}
+
+/// The flat patch `x = 0` over `y, z ∈ [0, 1]`.
+fn flat_patch() -> NurbsSurface<f64> {
+    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    NurbsSurface::new(
+        k.clone(),
+        k,
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap()
+}
+
 /// With no lane in hand the pair refuses typed, before any check of the
 /// edge, as the plane × NURBS `Intersection` does.
 #[test]
@@ -156,21 +198,8 @@ fn the_pair_with_no_lane_refuses_typed() {
 /// `x = ±d` itself, and its `y = 0` side lies on the `y = 0` plane.
 #[test]
 fn a_side_of_an_approx_wall_certifies_on_the_pair() {
-    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let flat = NurbsSurface::new(
-        k.clone(),
-        k,
-        vec![
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(0.0, 0.0, 1.0),
-            Point3::new(0.0, 1.0, 0.0),
-            Point3::new(0.0, 1.0, 1.0),
-        ],
-        vec![1.0; 4],
-    )
-    .unwrap();
     let approx =
-        geom_brep::offset_fit::approx_offset_surface_at(Arc::new(flat), 0.05, 1e-6, band())
+        geom_brep::offset_fit::approx_offset_surface_at(Arc::new(flat_patch()), 0.05, 1e-6, band())
             .expect("the flat patch's offset fits");
     let side = segment(approx.eval(0.0, 0.0), approx.eval(0.0, 1.0));
     assert_eq!(
@@ -200,4 +229,73 @@ fn two_spline_charts_still_refuse_the_pair() {
         ),
         Err(CertifyError::Unimplemented)
     ));
+}
+
+/// **The fit, not the description.** The parabolic cylinder
+/// `z = 3v²`, extruded along `x`, offset by `d = 0.05` and fitted
+/// coarsely (to `1e-3`): every `v`-iso of the true offset is a straight
+/// line in a plane `y = const`, and at `v = 0.75` the fit lies a
+/// measured distance off it. The true offset line, on its plane, refuses
+/// with that miss wherever the band reads it, and certifies where the
+/// band is coarser: the lane meters the fit. A lane that metered the
+/// description would certify it at every band.
+#[test]
+fn an_approx_wall_is_metered_against_its_fit() {
+    let kv2 =
+        geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let control = (0..9)
+        .map(|k| {
+            let (i, j) = (k / 3, k % 3);
+            Point3::new(
+                f64::from(i) * 0.5,
+                f64::from(j) * 0.5,
+                [0.0, 0.0, 3.0][j as usize],
+            )
+        })
+        .collect();
+    let base = NurbsSurface::new(kv2.clone(), kv2, control, vec![1.0; 9]).unwrap();
+    let d = 0.05;
+    let approx = geom_brep::offset_fit::approx_offset_surface_at(Arc::new(base), d, 1e-3, band())
+        .expect("the parabolic cylinder's offset fits");
+    // The true offset at `v`: `(x, v − 6v·d/n, 3v² + d/n)`, `n = √(1 + 36v²)`.
+    let v = 0.75_f64;
+    let n = (1.0 + 36.0 * v * v).sqrt();
+    let (y, z) = (v - 6.0 * v * d / n, 3.0 * v * v + d / n);
+    let line = segment(Point3::new(0.0, y, z), Point3::new(1.0, y, z));
+    // The fit's distance from the line within the plane `y`, through
+    // the fit's iso that meets the line's `y` at mid-span: an upper
+    // bound on its distance from the fit.
+    let mut w = v;
+    for _ in 0..60 {
+        w -= 0.9 * (approx.eval(0.5, w).y - y);
+    }
+    let miss = (0..=40)
+        .map(|i| {
+            let p = approx.eval(f64::from(i) / 40.0, w);
+            (p.y - y).hypot(p.z - z)
+        })
+        .fold(0.0_f64, f64::max);
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, y, 0.0),
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let got = on_pair(plane, approx, line, Some(geom_brep::NurbsLane::certified()));
+    println!("the fit lies {miss:e} off the description's line");
+    if miss > 2.0 * band().zero() {
+        match got {
+            Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { margin, .. })) => {
+                // The limb's margin is a foot distance at the sample it
+                // refused at, at most the slice's miss.
+                let value = upper(margin);
+                assert!(
+                    value > band().zero() && value <= miss,
+                    "the refusal carries a miss off the fit within {miss:e}: {value:e}"
+                );
+            }
+            other => panic!("the description's line lies {miss:e} off the fit: {other:?}"),
+        }
+    } else if miss < 0.5 * band().zero() {
+        assert_on_pair(&got.expect("within the band of the fit"), "the coarse fit");
+    }
 }

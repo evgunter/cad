@@ -571,17 +571,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     extent: T,
     band: Band,
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
-    let Surface::Plane { normal, .. } = *plane else {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the analytic operand of this lane is a PLANE; another kind needs its own \
-                   chart uniqueness form",
-        });
-    };
-    if wall.is_placeholder() {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: geom::PLACEHOLDER_SURFACE,
-        });
-    }
+    let normal = plane_lane_door(plane, wall)?;
     // The wall the tube localizes on, with its chart speeds minted at the
     // door: a wall constant along an axis, or with no finite speed bound
     // along one, has no chart a length in metres can cross into, and the
@@ -676,6 +666,26 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     })
 }
 
+/// The plane × NURBS lanes' door: the analytic operand a plane, whose
+/// normal it returns, and the wall a described surface.
+fn plane_lane_door<T: Real>(
+    plane: &Surface<T>,
+    wall: &NurbsSurface<T>,
+) -> Result<Vec3<T>, PlaneNurbsRefusal> {
+    let Surface::Plane { normal, .. } = *plane else {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: "the analytic operand of this lane is a PLANE; another kind needs its own \
+                   chart uniqueness form",
+        });
+    };
+    if wall.is_placeholder() {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: geom::PLACEHOLDER_SURFACE,
+        });
+    }
+    Ok(normal)
+}
+
 /// What [`plane_nurbs_incidence`] certified: limbs 1 and 2 over both
 /// operands, as [`PlaneNurbsLimbs`] reports them.
 #[derive(Clone, Copy, Debug)]
@@ -698,7 +708,8 @@ pub struct PlaneNurbsIncidence<T: Real> {
 /// described NURBS wall itself, or an `Approx` wall's FIT. Incidence on
 /// an `Approx` wall's description is therefore this bound plus the fit's
 /// own recorded distance from it, which the surface carries
-/// ([`geom::ApproxSurface`]); nothing here adds the two.
+/// ([`geom::ApproxSurface`]); nothing here adds the two
+/// (`work/tang/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`).
 ///
 /// The image is [`chart_image`]'s, from the same fixed schedule of foot
 /// points as the full lane's, so the pcurve the mint stores is the one
@@ -716,31 +727,19 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
     wall: &NurbsSurface<T>,
     band: Band,
 ) -> Result<PlaneNurbsIncidence<T>, PlaneNurbsRefusal> {
-    if !matches!(plane, Surface::Plane { .. }) {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the analytic operand of this lane is a PLANE",
-        });
-    }
-    if wall.is_placeholder() {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: geom::PLACEHOLDER_SURFACE,
-        });
-    }
-    let grid = wall_grid(wall);
-    let wall_op = match &grid {
-        Some(g) => SsiOperand::nurbs_on(wall, g),
-        None => SsiOperand::nurbs(wall),
-    }
-    .map_err(refusal)?;
+    plane_lane_door(plane, wall)?;
+    // The chart image alone: the wall's grid and chart speeds are the
+    // tube's, which incidence does not ask.
     let eval = |t| carrier.eval(t);
     let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
     let pcurve = chart_image(Schedule::new(&eval, domain, ends), wall, |_, _| Ok(()))?;
+    use crate::ssi::certify::IncidenceOperand;
     let (on_locus_max, hull_sup) = crate::ssi::certify::incidence_limbs(
         carrier,
         params,
         &[
-            (&SsiOperand::Analytic(plane), None),
-            (&wall_op, Some(&pcurve)),
+            IncidenceOperand::Analytic(plane),
+            IncidenceOperand::Chart(wall, &pcurve),
         ],
         band,
         &mut crate::ssi::certify::Refused::default(),

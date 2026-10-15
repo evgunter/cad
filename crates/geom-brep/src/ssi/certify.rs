@@ -1803,39 +1803,40 @@ fn certificate<T: Real>(
     }
 }
 
+/// An operand of limbs 1 and 2: what [`incidence_limbs`] reads of it,
+/// and nothing a tube needs (no chart speeds).
+#[derive(Clone, Copy)]
+pub(crate) enum IncidenceOperand<'a, T: geom_core::CertifiedBounds> {
+    /// An analytic surface, read through its implicit form.
+    Analytic(&'a Surface<T>),
+    /// A spline chart, read through the carrier's image on it.
+    Chart(&'a NurbsSurface<T>, &'a NurbsCurve2<T>),
+}
+
 /// **Limbs 1 and 2 against each of `operands`**: the carrier's largest
 /// sampled on-locus residual and its certified sup-norm distance over
 /// `params`, the worst over the operands. An analytic operand reads its
-/// implicit form; a NURBS one its chart, through the pcurve beside it
-/// (the foot residual at each sample, and the composite hull of
-/// `|S(P(t)) − C(t)|` between them). Incidence alone: nothing here
-/// reads how the operands meet, which is limb 3's and the lanes'
-/// transversality's.
+/// implicit form; a chart, the carrier's image on it (the foot residual
+/// at each sample, and the composite hull of `|S(P(t)) − C(t)|` between
+/// them). Incidence alone: nothing here reads how the operands meet,
+/// which is limb 3's and the lanes' transversality's.
 ///
 /// # Errors
 ///
-/// [`SsiError::UnsupportedCertificate`] for a NURBS operand with no
-/// pcurve, and either limb's refusal with its measured bound.
+/// Either limb's refusal with its measured bound.
 pub(crate) fn incidence_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
-    operands: &[(&SsiOperand<'_, T>, Option<&NurbsCurve2<T>>)],
+    operands: &[IncidenceOperand<'_, T>],
     band: Band,
     at: &mut Refused,
 ) -> Result<(T, T), SsiError> {
     let mut on_locus = T::zero();
     let mut hull_sup = T::zero();
-    for &(op, pc) in operands {
-        let (l1, l2) = match op {
-            SsiOperand::Analytic(s) => analytic_limbs(carrier, params, s, band, at)?,
-            SsiOperand::Nurbs(s) => {
-                let Some(p) = pc else {
-                    return Err(SsiError::UnsupportedCertificate {
-                        what: NURBS_LIMBS_NEED_PCURVE,
-                    });
-                };
-                nurbs_limbs(carrier, params, p, s.surface(), band, at)?
-            }
+    for op in operands {
+        let (l1, l2) = match *op {
+            IncidenceOperand::Analytic(s) => analytic_limbs(carrier, params, s, band, at)?,
+            IncidenceOperand::Chart(s, p) => nurbs_limbs(carrier, params, p, s, band, at)?,
         };
         on_locus = on_locus.max(l1);
         hull_sup = hull_sup.max(l2);
@@ -2087,7 +2088,18 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
         Limbs::All => &[(a, pcurve_a), (b, pcurve_b)],
         Limbs::Tube => &[],
     };
-    let (on_locus, hull_sup) = incidence_limbs(carrier, params, asked, band, at)?;
+    let operands = asked
+        .iter()
+        .map(|&(op, pc)| match op {
+            SsiOperand::Analytic(s) => Ok(IncidenceOperand::Analytic(s)),
+            SsiOperand::Nurbs(s) => pc.map(|p| IncidenceOperand::Chart(s.surface(), p)).ok_or(
+                SsiError::UnsupportedCertificate {
+                    what: NURBS_LIMBS_NEED_PCURVE,
+                },
+            ),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let (on_locus, hull_sup) = incidence_limbs(carrier, params, &operands, band, at)?;
     // The carrier's two ends, as the carrier's scalar evaluates them: on
     // the f64 lane a point, not an enclosure of the exact end, which the
     // end checks then read within ε of
