@@ -297,8 +297,8 @@ The qualifier depends on what was split:
   Crossings of one line by one face with the same sense, and vertices with
   the same run, are ranked along a line they share by its carrier's own
   parameter, in its stored orientation: the run's least edge, or where the
-  run holds no edge, a straight seam in it. An equal pair, or a run with no
-  such line, ties.
+  run holds no edge, a seam in it whose pieces lie on one open carrier. An
+  equal pair, or a run with no such line, ties.
   Where the result holds an operand corner as several vertices, each is a
   fragment of it, `Fragment(Borders)` over the walls that divide the corner
   there, read as a face piece's walls are (`borders.rs`); equal sets tie, and

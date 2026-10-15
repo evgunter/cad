@@ -120,8 +120,9 @@ use crate::names::emit::{
 };
 use crate::names::emit_topo::{
     Cover, CrossedEdge, EdgeCarrier, EdgePieces, FaceDescent, Lone, Segment, UNORIENTED,
-    crossed_edge_orientation, edge_holds, edges_holding, is_straight, joined_along,
-    joined_candidates, least_per_line, name_edge_pieces, name_parent_faces, rank_crossings,
+    carrier_arc, crossed_edge_orientation, edge_holds, edges_holding, is_straight, joined_along,
+    joined_candidates, least_per_line, name_edge_pieces, name_parent_faces, rank_along_track,
+    rank_crossings,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -1393,9 +1394,9 @@ fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
 /// and not the one the fold happened to rank along at the step that met
 /// the group. A seam citing two member edges refuses, as the collapse
 /// already does for such a group's ranks. A run is ranked along its least
-/// edge, and where it holds none along a seam in it that is one straight
-/// line through every vertex of the group, and otherwise ties
-/// ([`rank_along_seam`]); so is a group whose one seam crosses a union
+/// edge, and where it holds none along a seam in it whose pieces lie on
+/// one open carrier through every vertex of the group, and otherwise
+/// ties ([`rank_along_seam`]); so is a group whose one seam crosses a union
 /// seam [`name_by_parents`] re-spelled by its head. A
 /// group with a moved name and no single seam, or a seam citing no
 /// edge, refuses. A group with no moved name and no member edge to rank
@@ -1581,11 +1582,14 @@ fn cite_member_edges<T: geom_core::Decide>(
 }
 
 /// **Vertices ranked along a union seam they lie on**: along the first
-/// of `seams` whose pieces lie on one straight line with every vertex on
-/// it — the line's parameter, the seam oriented as the loop of its first
-/// side runs along it, read off the finished body and the faces `t`
-/// names ([`rank_crossings`]) — and otherwise N2's tie, because a seam
-/// of several curves has no one carrier to order them along.
+/// of `seams` whose pieces lie on one open carrier with every vertex on
+/// it, by the carrier's parameter, the seam oriented as the loop of its
+/// first side runs along it, read off the finished body and the faces
+/// `t` names — a line's ([`rank_crossings`]), or a curve's from where
+/// its pieces start along it (`Track::open_offsets`,
+/// [`rank_along_track`]) — and otherwise N2's tie: a seam of several
+/// carriers has no one carrier to order them along, and one that runs
+/// round a closed carrier no start but where the kernel cut it.
 #[allow(clippy::too_many_arguments)]
 fn rank_along_seam<T: geom_core::Decide>(
     t: &NameTable,
@@ -1614,41 +1618,69 @@ fn rank_along_seam<T: geom_core::Decide>(
             }
         }
     }
-    let mut line = None;
+    /// The carrier a group is ranked along.
+    enum Along<T: geom_core::Real> {
+        Line,
+        Curve(Vec<T>),
+    }
+    let mut found = None;
     for g in seams {
         if !(unique && points.len() == keys.len()) {
             break;
         }
-        if !g.edges.iter().all(|&e| is_straight(body, e)) {
-            continue;
-        }
         let first = *g.edges.first().ok_or(NamingError::Emission {
             what: "a union seam group holds no edge",
         })?;
-        let seg = Segment::of_edge(body, first)?;
-        let mut on = true;
-        for &e in &g.edges {
-            let (v0, v1) = edge_ends(body, e)?;
-            for v in [v0, v1] {
-                on &= seg.on_line(vertex_point(body, v)?, ON_SEAM_LINE, bnd)?;
+        let along = if g.edges.iter().all(|&e| is_straight(body, e)) {
+            let seg = Segment::of_edge(body, first)?;
+            let mut on = true;
+            for &e in &g.edges {
+                let (v0, v1) = edge_ends(body, e)?;
+                for v in [v0, v1] {
+                    on &= seg.on_line(vertex_point(body, v)?, ON_SEAM_LINE, bnd)?;
+                }
             }
-        }
-        for &p in &points {
-            on &= seg.on_line(p, ON_SEAM_LINE, bnd)?;
-        }
-        if on {
-            line = Some((first, &g.base));
+            for &p in &points {
+                on &= seg.on_line(p, ON_SEAM_LINE, bnd)?;
+            }
+            on.then_some(Along::Line)
+        } else if g.edges.iter().any(|&e| is_straight(body, e)) {
+            None
+        } else if let EdgeCarrier::Curved(track) = EdgeCarrier::of_edge(body, first)? {
+            let mut arcs = Vec::with_capacity(g.edges.len());
+            for &e in &g.edges {
+                if let EdgeCarrier::Unread = EdgeCarrier::of_edge(body, e)? {
+                    arcs.clear();
+                    break;
+                }
+                arcs.push(carrier_arc(body, e)?);
+            }
+            if arcs.len() == g.edges.len() {
+                track
+                    .open_offsets(&arcs, &points, ON_SEAM_LINE, bnd)?
+                    .map(Along::Curve)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Some(along) = along {
+            found = Some((first, &g.base, along));
             break;
         }
     }
-    match line {
-        Some((edge, name)) => {
-            let crossed = CrossedEdge {
-                body,
-                table: t,
-                edge,
-                name,
-            };
+    let Some((edge, name, along)) = found else {
+        return Ok(mint_candidates(out, tie, false, base.clone(), keys)?);
+    };
+    let crossed = CrossedEdge {
+        body,
+        table: t,
+        edge,
+        name,
+    };
+    match along {
+        Along::Line => {
             let crossings: Vec<_> = keys
                 .into_iter()
                 .zip(points)
@@ -1656,7 +1688,7 @@ fn rank_along_seam<T: geom_core::Decide>(
                 .collect();
             rank_crossings(out, tie, false, base, &crossings, bnd)
         }
-        None => Ok(mint_candidates(out, tie, false, base.clone(), keys)?),
+        Along::Curve(offsets) => rank_along_track(out, tie, base, keys, &offsets, crossed, bnd),
     }
 }
 
