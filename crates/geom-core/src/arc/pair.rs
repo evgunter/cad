@@ -286,7 +286,10 @@ mod tests {
         let (a, h) = secant.pair().on_first();
         assert_eq!(
             (a.to_bits(), h.to_bits()),
-            (secant.pair().radical().to_bits(), secant.pair().half_chord().to_bits())
+            (
+                secant.pair().radical().to_bits(),
+                secant.pair().half_chord().to_bits()
+            )
         );
     }
 }

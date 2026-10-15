@@ -554,12 +554,8 @@ fn conic_meets_plane<T: Decide>(
     let y = running::dot(along(running::cross(axis, u), e.semi_v), normal);
     let reach = x.hypot(y);
     let lift = running::dot(
-        [
-            (e.center.x, c.x),
-            (e.center.y, c.y),
-            (e.center.z, c.z),
-        ]
-        .map(|(p, q)| Rounded::exact(p) - Rounded::exact(q)),
+        [(e.center.x, c.x), (e.center.y, c.y), (e.center.z, c.z)]
+            .map(|(p, q)| Rounded::exact(p) - Rounded::exact(q)),
         normal,
     );
     let height = Rounded {
@@ -574,7 +570,9 @@ fn conic_meets_plane<T: Decide>(
     );
     let gap = short * across;
     let sign = match crate::validate::resolved(MEETS_RESOLUTION, gap.error, band) {
-        Ok(()) => decide(row, Margin::levered(short.value, across.value), band).map_err(escalated)?,
+        Ok(()) => {
+            decide(row, Margin::levered(short.value, across.value), band).map_err(escalated)?
+        }
         Err(resolution) => match geom_brep::roots::extreme_sign(row, gap.value, gap.error, band) {
             Ok(Sign::Zero) => {
                 return Err(escalated(geom_core::Indeterminate {
@@ -1374,7 +1372,11 @@ mod meetings_rows {
         let exact = 1e-12;
         let mut poses: Vec<Pose> = Vec::new();
         for (theta, sc) in [10.0 * ke, 1e3 * ke].into_iter().flat_map(|theta| {
-            [Point3::new(3.7, -2.1, 0.4), Point3::new(990.0, -742.5, 396.0)].map(|sc| (theta, sc))
+            [
+                Point3::new(3.7, -2.1, 0.4),
+                Point3::new(990.0, -742.5, 396.0),
+            ]
+            .map(|sc| (theta, sc))
         }) {
             for (n, h, x0) in [
                 (Vec3::new(0.3, -0.5, 0.8), 0.3_f64, 0.6),
@@ -1583,17 +1585,12 @@ mod meetings_rows {
     /// semi-axes' and centres' scale where `f64` leaves it to `u` of
     /// it. Positive where the two cross, and the gap from tangency it
     /// gives, `(reach − |lift|)/sin`, in metres.
-    fn plane_reach_over_lift(
-        e: &geom_brep::Conic<f64>,
-        f: &geom_brep::Conic<f64>,
-    ) -> (f64, f64) {
+    fn plane_reach_over_lift(e: &geom_brep::Conic<f64>, f: &geom_brep::Conic<f64>) -> (f64, f64) {
         let parts = |v: Vec3<f64>| [v.x, v.y, v.z];
         let (a, u, n) = (parts(e.axis), parts(e.u_ref), parts(f.axis));
         let cross = |i: usize, j: usize| Dd::product(a[i], u[j]).add(Dd::product(a[j], u[i]).neg());
         let v = [cross(1, 2), cross(2, 0), cross(0, 1)];
-        let dot = |w: [Dd; 3]| {
-            (0..3).fold(Dd(0.0, 0.0), |s, i| s.add(w[i].mul(Dd(n[i], 0.0))))
-        };
+        let dot = |w: [Dd; 3]| (0..3).fold(Dd(0.0, 0.0), |s, i| s.add(w[i].mul(Dd(n[i], 0.0))));
         let x = dot(u.map(|k| Dd::product(k, e.semi_u)));
         let y = dot(v.map(|k| k.mul(Dd(e.semi_v, 0.0))));
         let at = |p: Point3<f64>| [p.x, p.y, p.z];

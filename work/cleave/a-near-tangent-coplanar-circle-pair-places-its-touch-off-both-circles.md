@@ -80,9 +80,28 @@ crossings took their direction from the 3D centre offset, which a
   centre projected into it: the real crossings wherever the half-chord
   exists, else the point of `e` on the line of centres.
 
-No decision, row or escalation was added. The two crossings, where they
-exist, are on both curves however the touch reads, so the double root
-needs no separate decision here; that is FUSE's reader's to settle.
+The review (APPROVE-WITH-FIXES) found the gap's own rounding unread:
+`x`, `y` and `lift` are dot products nearly square to `n`, each about
+`u·(r + |Δc|)` off, and the gap that over the tilt. That rounding is
+past Kε under a tilt of about `3e-5` at ε = 1e-12, where the gap read
+bare took its sign: 47 of the review's 600 near-tangent poses read a
+definite miss where the records cross. The gap now carries a running
+bound (`geom_core::running`), and where `K` times the bound is past the
+band's zero (new row `bool_carrier_cross_meets_resolution`):
+
+- the gap is read as the interval the bound spans
+  (`geom_brep::roots::extreme_sign`), and a definite sign there stands;
+- a straddle escalates typed.
+
+On the branch's own 601-pose family, against a double-double oracle on
+the stored records, that is 24 definite misses at 1e-12 before and 0
+after, and 0 and 0 at 1e-9 and 1e-6.
+
+Placing the meeting accurately rather than charging it would need
+compensated dot products at every scalar `T`, which is the
+curve-pair reader's ground. The meeting that reader takes across
+planes is the closest pair, which this arm does not read (evidence on
+`fuse/the-curve-pair-reader`).
 Pinned by `carrier_cross::meetings_rows::every_arm_places_its_meetings_on_both_curves`,
 two `crossing_rows` (`a_section_turned_off_the_rims_plane_…`,
 `a_nearly_concentric_circle_in_the_rims_plane_…`) and the boolean

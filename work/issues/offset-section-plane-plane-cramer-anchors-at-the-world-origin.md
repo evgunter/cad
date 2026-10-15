@@ -44,3 +44,8 @@ which is the offset case. A ci row should pin a pair of planes about
 Ownership: `offset_derive.rs` is in no program's territory. Its section
 lane is read by SHELL's replace-face
 (`shell/replace-face-trusts-route-pose-for-pairs-section-closed-refuses`).
+
+**A sibling with the same shape:** `offset_together::cramer`
+(`crates/topo/src/offset_together.rs:626-628`). Before it solves, it
+decides `|det|·arm` against the band (`:577-583`), which bounds the
+amplification at about `u·|d|·arm/(Kε)`, but not at `ε`. Not measured.
