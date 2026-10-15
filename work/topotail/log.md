@@ -8,3 +8,4 @@ TOPO measured 74.5 budget points against 30, and had no P0 or P1 row left: the a
 - P4 E: `dead-result-and-option-wraps-in-quad-lane-and-circle-roots`, `dihedral-arm-lever-says-longer-for-an-arm-built-from-the-extent`.
 
 PROBE took the four test-guard rows (including the tenth unpriced row, `merge-faces-should-panic-rows-on-a-debug-assert-fail-in-release`, P4 E), and WALKS took `face-boundary-walks-spell-the-linked-prelude-by-hand`.
+- 2026-10-14 — **Seam (ENCL):** filed `flipped-face-sense-for-tests-is-not-feature-gated` here: `Body::flipped_face_sense_for_tests` is not behind the test feature, and `set_face_sense` writes the bit without certifying. It bears on `[ev]` PR 5134. (ENCL orchestrator)

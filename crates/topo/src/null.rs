@@ -308,7 +308,11 @@ impl<T: geom_core::Decide> Body<T> {
     ///
     /// `run_side` is the run's side, which the copy takes when
     /// `plus_faces_start` (`he_plus`, old → copy, faces the start germ);
-    /// otherwise the copy takes the other side. The mint side, the
+    /// otherwise the copy takes the other side. Both read the run in the
+    /// minting body's own orbit (the sense theorem's forward wedge,
+    /// about that body's outward normal): the start germ is the one the
+    /// run follows there, and a run ordered about the other body's
+    /// opposed normal starts at its end. The mint side, the
     /// attribute and the halves come from these two inputs alone, so
     /// the body's scaffold attribute and the caller's record are one
     /// datum.

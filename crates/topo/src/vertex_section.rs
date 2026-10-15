@@ -176,19 +176,7 @@ pub(crate) fn read_sections<T: Decide>(
         error: offset.value.error + skew(offset.normal, plane, at),
     }
     .quotient(sine);
-    let k = T::from_f64(band.escalate() / band.zero());
-    let admitted = matches!(
-        decide_reported(
-            VERTEX_SECTION_RESOLUTION,
-            Margin::levered(k, reading.error),
-            band
-        ),
-        Ok(Decided {
-            sign: Sign::Zero,
-            ..
-        })
-    );
-    if admitted {
+    if crate::validate::resolved(VERTEX_SECTION_RESOLUTION, reading.error, band).is_ok() {
         return decide_reported(VERTEX_SECTION_SIDE, Margin::of(reading.value), band)
             .map_err(VertexRefusal::Undecided);
     }

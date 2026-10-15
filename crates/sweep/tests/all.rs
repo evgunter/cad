@@ -70,6 +70,8 @@ mod a_flipped_shallow_dimple;
 mod a_loft_computes_its_walls_in_t;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
+#[path = "a_pierce_held_in_a_curved_face.rs"]
+mod a_pierce_held_in_a_curved_face;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
 #[path = "a_plane_along_an_elliptic_cut.rs"]
@@ -122,6 +124,10 @@ mod at_rest_pcurve_faces;
 mod band_apart_partners_on_a_steep_ellipse;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
+#[path = "bisector_lane_stubs.rs"]
+mod bisector_lane_stubs;
+#[path = "bisector_nodes.rs"]
+mod bisector_nodes;
 #[path = "bool1_fix_pass.rs"]
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
@@ -303,6 +309,10 @@ mod axis_lap;
 mod band_annulus_host_boundary;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
+#[path = "band_concave_bar.rs"]
+mod band_concave_bar;
+#[path = "band_one_cycle_members.rs"]
+mod band_one_cycle_members;
 #[path = "band_planar_consume.rs"]
 mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
@@ -676,6 +686,10 @@ mod strut_cover_on_cylinder_pairs;
 
 #[path = "run_walls_built.rs"]
 mod run_walls_built;
+#[path = "section_ellipse_seam_poses.rs"]
+mod section_ellipse_seam_poses;
+#[path = "section_end_poses.rs"]
+mod section_end_poses;
 #[path = "split_across_a_revolve_seam.rs"]
 mod split_across_a_revolve_seam;
 #[path = "split_along_a_face_plane.rs"]
@@ -688,6 +702,8 @@ mod split_edge_fitted_rows;
 mod split_edge_loft_charts;
 #[path = "split_edge_on_faces_poses.rs"]
 mod split_edge_on_faces_poses;
+#[path = "split_seam_vanishing_tilt.rs"]
+mod split_seam_vanishing_tilt;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
@@ -1151,6 +1167,8 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_closed_conic_in_the_partners_face.rs"]
+mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
 mod a_cone_with_a_tilted_seam;
 #[path = "join_lever_is_the_joined_edge.rs"]

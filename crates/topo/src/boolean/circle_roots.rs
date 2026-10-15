@@ -5,7 +5,7 @@
 //! decision, and answers [`CircleRoots`]; the first harmonic's root
 //! finding lives here, and a degree-two or higher residual's in
 //! [`geom_brep::half_angle`], which [`door_half_angle_roots`] and
-//! [`CircleRoots::from`] read in the door's vocabulary.
+//! [`door_refusal`] read in the door's vocabulary.
 //! Every door has one shape: `(carrier, t0, t1, surface, band)`,
 //! a wrong kind is [`BooleanError::ClassificationInvariant`], and an
 //! in-band classifying sign escalates as the door's own decision,
@@ -37,8 +37,8 @@
 //!   bound spans, both ends decided — definitely one-signed is a miss,
 //!   definitely straddling is two roots, an end in the escalation gap
 //!   escalates, and an extreme otherwise not definite is a tangency,
-//!   which is not a crossing at any order this lane sees and answers
-//!   [`CircleRoots::Uncertain`]. The noise meter bounds the error by the
+//!   which is not a crossing at any order this lane sees and refuses
+//!   [`Unsettled::Tangency`]. The noise meter bounds the error by the
 //!   zero band, not by the gap's far edge, so an extreme read bare could
 //!   clear `Kε` while its true value sits in the gap.
 //! - **root slack** — at either root the extremes' errors move the
@@ -80,97 +80,72 @@
 //! `s` about `c` — a bound each door derives from that offset and tilt,
 //! never from the band — is charged into the one decision every
 //! constant-residual answer takes ([`constant_residual_roots`]): the
-//! carrier is a [`CircleRoots::Miss`] when `c − s` is definitely
-//! positive or `c + s` definitely negative, [`CircleRoots::OnSurface`]
-//! when both are in the zero band, and otherwise `Uncertain`. Read at
+//! carrier is a [`Roots::Miss`] when `c − s` is definitely
+//! positive or `c + s` definitely negative, [`Roots::On`]
+//! when both are in the zero band, and otherwise refused. Read at
 //! `c` alone, an in-band spread can cross zero while `c` sits past the
 //! escalation threshold whenever `K` is near 1.
 //!
 
 use geom_brep::half_angle::{
-    HalfAngleFrame, HalfAngleRows, LadderRefusal, MAX_DEGREE, RootSlack, TrigPoly, TrigRoots,
-    half_angle_roots,
+    DegreeTwo, HalfAngleFrame, HalfAngleRows, MAX_DEGREE, RootSlack, half_angle_roots,
 };
-use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
+use geom_brep::roots::{OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_signs};
+use geom_core::{Band, Decide, Margin, Sign};
 
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
 
 /// What the certified roots of a circle against a surface say about the
-/// whole carrier — the one answer every circle root door gives.
-#[derive(Debug, Clone, Copy)]
-pub(super) enum CircleRoots<T> {
-    /// The residual is constant along the carrier and ZERO: the circle
-    /// lies on the surface. A constant definite residual is a
-    /// [`Self::Miss`].
-    OnSurface,
-    /// A certified count of zero: the carrier misses the surface.
-    Miss,
-    /// No certain count — a tangency, a carrier on the surface the door
-    /// cannot read as one, a meter that refuses, or no anchor whose pole
-    /// is definitely off the surface AND well conditioned.
-    Uncertain,
-    /// A certified count (even, at most twice the residual's degree) and
-    /// the carrier parameters `θ` of those roots, unordered, in
-    /// `thetas[..count]`. Every `θ` lies within `π`
-    /// of the arc's midpoint, so it compares with the arc `[t₀, t₁]` the
-    /// caller passed without wrapping.
-    Certified {
-        count: usize,
-        thetas: [T; 2 * MAX_DEGREE],
-    },
-    /// A root within the band of a cone's apex, where the surface has no
-    /// tangent plane and its quadric form's gradient vanishes: no
-    /// crossing there can be read, and the door refuses rather than
-    /// answer.
-    AtApex,
-}
-
-impl<T: geom_core::Real> From<TrigRoots<T>> for CircleRoots<T> {
-    fn from(roots: TrigRoots<T>) -> Self {
-        match roots {
-            TrigRoots::Miss => Self::Miss,
-            TrigRoots::Uncertain => Self::Uncertain,
-            TrigRoots::Certified { count, thetas } => Self::Certified { count, thetas },
-        }
-    }
-}
+/// whole carrier — the one answer every circle root door gives, in the
+/// root finders' one shape ([`geom_brep::roots`]): a miss, the carrier ON
+/// the surface (its residual a zero constant; a constant definite
+/// residual is a miss), or a certified count (even, at most twice the
+/// residual's degree) of carrier parameters `θ`, each within `π` of the
+/// arc's midpoint, so it compares with the arc `[t₀, t₁]` the caller
+/// passed without wrapping. A door that certifies none of these refuses
+/// with an [`Unsettled`] beside its [`BooleanError`].
+pub(super) type CircleRoots<T> = Roots<T, { 2 * MAX_DEGREE }, OnCarrier>;
 
 /// [`half_angle_roots`] as a door answers it: its roots as
-/// [`CircleRoots`], the ladder's in-band sign escalated as the door's
-/// `decision`, and a residual past degree two the door's
-/// [`BooleanError::ClassificationInvariant`].
+/// [`CircleRoots`], its count it could not certify as the inner `Err`,
+/// and the ladder's in-band sign escalated as the door's `decision`.
 ///
 /// # Errors
 ///
 /// As above.
 pub(super) fn door_half_angle_roots<T: Decide>(
-    f: &TrigPoly<T>,
+    f: &DegreeTwo<T>,
     residual: impl Fn(T) -> T,
     frame: HalfAngleFrame<T>,
     rows: &HalfAngleRows,
     slack: &RootSlack<'_, T>,
     decision: BooleanDecision,
     band: Band,
-) -> Result<CircleRoots<T>, BooleanError> {
-    half_angle_roots(f, residual, frame, rows, slack, band)
-        .map(CircleRoots::from)
-        .map_err(|refusal| match refusal {
-            LadderRefusal::Escalated(diag) => BooleanError::Escalated { decision, diag },
-            LadderRefusal::PastDegreeTwo => BooleanError::ClassificationInvariant {
-                what: "the half-angle ladder was handed a residual of degree past two",
-            },
-        })
+) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
+    Ok(door_refusal(
+        half_angle_roots(f, residual, frame, rows, slack, band),
+        decision,
+    )?
+    .map(Roots::widen))
 }
 
-/// The rounding charged against a term bound `terms`
-/// ([`geom_brep::rounding_charge`], [`geom_brep::HARMONIC_NOISE_ULPS`]
-/// half-ulps of it) — the meters' one spelling of the charge. The
-/// conic × quadric door's first-harmonic arm charges its first harmonic
-/// the same count, except on a circle against a sphere, whose extremes
-/// carry their own running bounds (`geom_brep::CircleSphereHarmonic`).
-pub(super) fn rounding_charge<T: geom_core::Real>(terms: T) -> T {
-    geom_brep::rounding_charge(terms)
+/// A root finder's answer as a door gives it: an uncertified count as
+/// the inner `Err`, and an in-band sign escalated as the door's
+/// `decision`.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`], as above.
+pub(super) fn door_refusal<V>(
+    found: Result<V, RootRefusal>,
+    decision: BooleanDecision,
+) -> Result<Result<V, Unsettled>, BooleanError> {
+    match found {
+        Ok(roots) => Ok(Ok(roots)),
+        Err(RootRefusal::Unsettled(why)) => Ok(Err(why)),
+        Err(RootRefusal::Escalated(diag)) => Err(BooleanError::Escalated { decision, diag }),
+    }
 }
 
 /// **The answer for a residual constant along the carrier to within
@@ -180,50 +155,27 @@ pub(super) fn rounding_charge<T: geom_core::Real>(terms: T) -> T {
 ///
 /// # Errors
 ///
-/// The band's escalation when `value ∓ spread` lies in its gap.
+/// [`RootRefusal::Escalated`] when `value ∓ spread` lies in the band's
+/// gap, and [`Unsettled::Tangency`] when one end is in the zero band and
+/// the other definite: the carrier is neither on the surface nor clear
+/// of it.
 pub(super) fn constant_residual_roots<T: Decide>(
     value: T,
     spread: T,
     row: &'static str,
     band: Band,
-) -> Result<FirstHarmonicRoots<T>, Indeterminate> {
-    Ok(match span_signs(row, value, spread, band)? {
-        (Sign::Positive, _) | (_, Sign::Negative) => FirstHarmonicRoots::Miss,
-        (Sign::Zero, Sign::Zero) => FirstHarmonicRoots::OnSurface,
-        _ => FirstHarmonicRoots::Uncertain,
-    })
+) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
+    match spread_signs(row, value, spread, band)? {
+        (Sign::Positive, _) | (_, Sign::Negative) => Ok(Roots::Miss),
+        (Sign::Zero, Sign::Zero) => Ok(Roots::On(OnCarrier)),
+        _ => Err(Unsettled::Tangency.into()),
+    }
 }
 
 /// What [`first_harmonic_roots`] and [`constant_residual_roots`] answer:
-/// [`CircleRoots`] without the arms only another door reaches — a first
-/// harmonic has at most two roots and no apex.
-#[derive(Debug, Clone, Copy)]
-pub(super) enum FirstHarmonicRoots<T> {
-    /// [`CircleRoots::OnSurface`].
-    OnSurface,
-    /// [`CircleRoots::Miss`].
-    Miss,
-    /// [`CircleRoots::Uncertain`].
-    Uncertain,
-    /// Two certified roots, each within `π` of the arc's midpoint
-    /// ([`CircleRoots::Certified`]).
-    Certified([T; 2]),
-}
-
-impl<T: geom_core::Real> From<FirstHarmonicRoots<T>> for CircleRoots<T> {
-    fn from(roots: FirstHarmonicRoots<T>) -> Self {
-        match roots {
-            FirstHarmonicRoots::OnSurface => Self::OnSurface,
-            FirstHarmonicRoots::Miss => Self::Miss,
-            FirstHarmonicRoots::Uncertain => Self::Uncertain,
-            FirstHarmonicRoots::Certified(ts) => {
-                let mut thetas = [T::zero(); 2 * MAX_DEGREE];
-                thetas[..2].copy_from_slice(&ts);
-                Self::Certified { count: 2, thetas }
-            }
-        }
-    }
-}
+/// [`CircleRoots`]' shape with room for two roots, the most a first
+/// harmonic has.
+pub(super) type FirstHarmonicRoots<T> = Roots<T, 2, OnCarrier>;
 
 /// A residual `c₀ + A₁ cos(θ − φ)` along a circle, `φ = atan2(sin_part, cos_part)`,
 /// in metres of residual, given by its extremes `lo = c₀ − A₁` and
@@ -262,7 +214,7 @@ pub(super) struct FirstHarmonicRows {
 
 /// **The certified roots of a first-harmonic residual along a carrier
 /// whose speed `|C′(θ)|` is at most `speed`** (a circle's radius, an
-/// ellipse's semi-major axis), reported within `π` of the midpoint of `[t0, t1]`: the
+/// ellipse's larger semi-axis), reported within `π` of the midpoint of `[t0, t1]`: the
 /// decisions of the module docs ("The first-harmonic door"), under the
 /// caller's `rows`.
 ///
@@ -271,10 +223,11 @@ pub(super) struct FirstHarmonicRows {
 /// A coincidence escalation, as `rows.decision`, when the constant
 /// residual of a coaxial carrier, or an extreme residual, lies in the
 /// band's escalation gap. An escalated noise or root-slack reading is
-/// NOT an error: it answers `Uncertain`, as a definitely excessive one
-/// does — a meter that cannot be read does not license the roots it
-/// meters. An escalated coaxial test falls through to the extremes,
-/// which decide the same carrier.
+/// NOT an escalation: it refuses [`Unsettled::Meter`] in the inner `Err`,
+/// as a definitely excessive one does — a meter that cannot be read does
+/// not license the roots it meters. An extreme in the zero band refuses
+/// [`Unsettled::Tangency`] there. An escalated coaxial test falls through
+/// to the extremes, which decide the same carrier.
 pub(super) fn first_harmonic_roots<T: Decide>(
     h: &FirstHarmonic<T>,
     speed: T,
@@ -282,22 +235,20 @@ pub(super) fn first_harmonic_roots<T: Decide>(
     t1: T,
     rows: &FirstHarmonicRows,
     band: Band,
-) -> Result<FirstHarmonicRoots<T>, BooleanError> {
-    first_harmonic_roots_in_band(h, speed, t0, t1, rows, band).map_err(|diag| {
-        BooleanError::Escalated {
-            decision: rows.decision,
-            diag,
-        }
-    })
+) -> Result<Result<FirstHarmonicRoots<T>, Unsettled>, BooleanError> {
+    door_refusal(
+        first_harmonic_roots_in_band(h, speed, t0, t1, rows, band),
+        rows.decision,
+    )
 }
 
-/// [`first_harmonic_roots`] with its one refusal left as the in-band
-/// reading itself, for a caller that is not the boolean's and names no
+/// [`first_harmonic_roots`] with its refusals left as the root finders'
+/// own, for a caller that is not the boolean's and names no
 /// [`BooleanDecision`] (`rows.decision` is not read).
 ///
 /// # Errors
 ///
-/// As [`first_harmonic_roots`], as the bare [`Indeterminate`].
+/// As [`first_harmonic_roots`], as the bare [`RootRefusal`].
 pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     h: &FirstHarmonic<T>,
     speed: T,
@@ -305,7 +256,7 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     t1: T,
     rows: &FirstHarmonicRows,
     band: Band,
-) -> Result<FirstHarmonicRoots<T>, Indeterminate> {
+) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
     let FirstHarmonic {
         lo: lo_value,
         hi: hi_value,
@@ -321,7 +272,7 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     let noise = lo_noise.max(hi_noise);
     match decide(rows.noise, Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => return Ok(FirstHarmonicRoots::Uncertain),
+        Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter.into()),
     }
     let (c0, a1) = ((lo_value + hi_value) / two, (hi_value - lo_value) / two);
     if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
@@ -329,14 +280,14 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     }
     let lo = extreme_sign(rows.extreme, lo_value, lo_noise, band)?;
     if lo == Sign::Positive {
-        return Ok(FirstHarmonicRoots::Miss);
+        return Ok(Roots::Miss);
     }
     let hi = extreme_sign(rows.extreme, hi_value, hi_noise, band)?;
     if hi == Sign::Negative {
-        return Ok(FirstHarmonicRoots::Miss);
+        return Ok(Roots::Miss);
     }
     if (lo, hi) != (Sign::Negative, Sign::Positive) {
-        return Ok(FirstHarmonicRoots::Uncertain);
+        return Err(Unsettled::Tangency.into());
     }
     // At either root `R = lo·(1 − cos ψ)/2 + hi·(1 + cos ψ)/2` with
     // `(1 + cos ψ)/2 = −lo/(hi − lo)`, so the extremes' errors move the
@@ -346,15 +297,15 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     let slope = ((T::zero() - lo_value) * hi_value).max(T::zero()).sqrt();
     let at_root = (hi_value * lo_noise - lo_value * hi_noise) / swing;
     let phase = phase_noise / (cos_part.powi(2) + sin_part.powi(2)).sqrt();
-    let slack = speed * (at_root / slope + phase + rounding_charge(T::tau()));
+    let slack = speed * (at_root / slope + phase + geom_brep::rounding_charge(T::tau()));
     match decide(rows.root_slack, Margin::of(slack), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => return Ok(FirstHarmonicRoots::Uncertain),
+        Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter.into()),
     }
     let phi = sin_part.atan2(cos_part);
     // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
     // zero (module docs).
-    let past = |near: T| two * (near.abs() / swing).sqrt().asin();
+    let past = |near: T| geom_brep::roots::arc_past(near.abs() / swing);
     let half_chord = (lo_value + hi_value).select_le_zero(past(hi_value), T::pi() - past(lo_value));
     // The roots on the branch of the span's middle: sound at every scalar
     // by `ring_path::branch`'s window re-centring argument. Its readers
@@ -365,41 +316,8 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     // pick would decide nothing a reader uses.
     let mid = (t0 + t1) / two;
     let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
-    Ok(FirstHarmonicRoots::Certified([
+    Ok(Roots::all([
         near_mid(phi - half_chord),
         near_mid(phi + half_chord),
     ]))
-}
-
-/// The signs of both ends of `[value − spread, value + spread]`, each
-/// decided under `row`: the one reading of a value known only to within
-/// `spread`.
-///
-/// # Errors
-///
-/// The band's escalation when either end lies in its gap.
-pub(super) fn span_signs<T: Decide>(
-    row: &'static str,
-    value: T,
-    spread: T,
-    band: Band,
-) -> Result<(Sign, Sign), Indeterminate> {
-    let below = decide(row, Margin::of(value - spread), band)?;
-    let above = decide(row, Margin::of(value + spread), band)?;
-    Ok((below, above))
-}
-
-/// The sign of an extreme read as `value` with error at most `noise`
-/// ([`span_signs`]): ends that disagree read `Zero`. `noise` must bound
-/// the whole error, rounding included, and a caller's charge may hold no
-/// slack beyond that (the conic × quadric door's true error reaches
-/// 0.99999999 of it), so no term of it can be trimmed.
-fn extreme_sign<T: Decide>(
-    row: &'static str,
-    value: T,
-    noise: T,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    let (below, above) = span_signs(row, value, noise, band)?;
-    Ok(if below == above { below } else { Sign::Zero })
 }

@@ -65,9 +65,10 @@ struct Side<'a, T: Decide> {
 /// where to stop, so the argument covers it too.
 ///
 /// **The kills' hops are copies of the same records.** `killed` comes
-/// from `BooleanNaming::discards`' boundary chains ([`KilledSplits`]),
-/// which copy the clone's `SplitEdge` records before the kills drop
-/// them, so as the kernel writes them they are as acyclic as the records
+/// from `BooleanNaming::discards`' boundary chains and
+/// `BooleanNaming::killed_lineage` ([`KilledSplits`]), which copy the
+/// clone's `SplitEdge` records before the kills drop them, so as the
+/// kernel writes them they are as acyclic as the records
 /// (`topo::Provenance::SplitEdge`). They are public fields a caller can
 /// also write, and nothing checks the records where `Body::split_edge`
 /// writes them, so this walk keeps its own bound and refusal
@@ -101,13 +102,16 @@ fn chase_edge_to_table<T: Decide>(
 
 /// **The split hops a boolean's kills took out of the provenance**:
 /// edge → the edge it was split from, for each edge that bounded a
-/// face the boolean discarded and died with it. A kill drops the
-/// edge's birth record, so a live piece split off a killed one has a
-/// lineage that stops at the killed key; the discard rows keep each
-/// such edge's chain ([`topo::DiscardRow::boundary_chains`]), and these
-/// are its hops. `arena` holds the rows of an operand whose clone is
-/// the result arena, in arena keys; `graft_b` a grafted B's, in B's
-/// clone keys.
+/// face the boolean discarded and died with it, and each edge its
+/// output stage merged or joined away. A kill drops the edge's birth
+/// record, so a live piece split off a killed one has a lineage that
+/// stops at the killed key; the discard rows keep each such edge's
+/// chain ([`topo::DiscardRow::boundary_chains`]) and the output stage
+/// its hop (`topo::BooleanNaming::killed_lineage`), and these are its
+/// hops, with those of every edge an operand's carve killed
+/// (`topo::BooleanNaming::carved_lineage`). `arena` holds the hops in
+/// result keys (the output stage's, and an operand's whose clone is the
+/// result arena); `graft_b` a grafted B's, in B's clone keys.
 struct KilledSplits {
     arena: BTreeMap<EdgeKey, EdgeKey>,
     graft_b: BTreeMap<EdgeKey, EdgeKey>,
@@ -115,26 +119,48 @@ struct KilledSplits {
 
 impl KilledSplits {
     fn of(naming: &topo::BooleanNaming) -> Self {
-        use topo::{Operand, OperandKeys};
+        use topo::Operand;
         let mut out = Self {
             arena: BTreeMap::new(),
             graft_b: BTreeMap::new(),
         };
         for row in &naming.discards {
-            let hops = match (row.operand, naming.a_keys, naming.b_keys) {
-                (Operand::A, OperandKeys::Direct, _) | (Operand::B, _, OperandKeys::Direct) => {
-                    &mut out.arena
-                }
-                (Operand::B, _, OperandKeys::Grafted) => &mut out.graft_b,
-                _ => continue,
-            };
-            for chain in &row.boundary_chains {
-                for w in chain.windows(2) {
-                    hops.insert(w[0], w[1]);
+            if let Some(hops) = out.space(naming, row.operand) {
+                for chain in &row.boundary_chains {
+                    for w in chain.windows(2) {
+                        hops.insert(w[0], w[1]);
+                    }
                 }
             }
         }
+        for (operand, carved) in [Operand::A, Operand::B]
+            .into_iter()
+            .zip(&naming.carved_lineage)
+        {
+            if let Some(hops) = out.space(naming, operand) {
+                hops.extend(carved);
+            }
+        }
+        out.arena.extend(&naming.killed_lineage);
         out
+    }
+
+    /// The hops of `operand`'s clone keys: the arena's where its clone
+    /// is the result arena, `graft_b` for a grafted B; `None` for an
+    /// absent operand.
+    fn space(
+        &mut self,
+        naming: &topo::BooleanNaming,
+        operand: topo::Operand,
+    ) -> Option<&mut BTreeMap<EdgeKey, EdgeKey>> {
+        use topo::{Operand, OperandKeys};
+        match (operand, naming.a_keys, naming.b_keys) {
+            (Operand::A, OperandKeys::Direct, _) | (Operand::B, _, OperandKeys::Direct) => {
+                Some(&mut self.arena)
+            }
+            (Operand::B, _, OperandKeys::Grafted) => Some(&mut self.graft_b),
+            _ => None,
+        }
     }
 }
 
@@ -2424,54 +2450,44 @@ fn flush_lines<T: Decide>(
     least_per_line(
         edges.iter().cloned(),
         |e| match crossed_edge(e, op.table) {
-            Some(k) => straight_segment(op.body, k),
+            Some(k) => EdgeCarrier::of_edge(op.body, k).map(Some),
             None => Ok(None),
         },
         bnd,
     )
 }
 
-/// **Edges that run flush on one straight line, counted once as the
-/// least of them** (N2's lines at a vertex), least first: each of
-/// `edges` in order, except one whose segment lies on the line of a
-/// lesser one's, through [`ON_MEMBER_EDGE`]. `segment` reads an edge's
-/// segment, `None` for an edge that is no straight line
-/// ([`straight_segment`]), which is a line of its own. The one home of
+/// **Edges that run flush on one line, counted once as the least of
+/// them** (N2's lines at a vertex), least first: each of `edges` in
+/// order, except one that lies on the line of a lesser one's, through
+/// [`ON_MEMBER_EDGE`]: a straight edge on its straight line, a curved
+/// one on its certified carrier ([`EdgeCarrier::runs_with`]). `line`
+/// reads an edge's carrier; an edge it answers `None` for (the pair's
+/// edge its operand's table does not name once, `flush_lines`), and an
+/// [`EdgeCarrier::Unread`] one, is a line of its own. The one home of
 /// the collapse the pair boolean (`flush_lines`) and the union
 /// (`emit_union::Flush::meeting`) both read.
 pub(super) fn least_per_line<E: Ord, T: Decide>(
     edges: impl IntoIterator<Item = E>,
-    mut segment: impl FnMut(&E) -> Result<Option<Segment<T>>, NamingError>,
+    mut line: impl FnMut(&E) -> Result<Option<EdgeCarrier<T>>, NamingError>,
     bnd: geom_core::Band,
 ) -> Result<Vec<E>, NamingError> {
     let mut sorted: Vec<E> = edges.into_iter().collect();
     sorted.sort();
-    let mut kept: Vec<(E, Option<Segment<T>>)> = Vec::with_capacity(sorted.len());
+    let mut kept: Vec<(E, Option<EdgeCarrier<T>>)> = Vec::with_capacity(sorted.len());
     for e in sorted {
-        let seg = segment(&e)?;
+        let on_line = line(&e)?;
         let mut flush = false;
-        if let Some(seg) = &seg {
+        if let Some(on_line) = &on_line {
             for on in kept.iter().filter_map(|(_, on)| on.as_ref()) {
-                flush |= on.runs_with(seg, ON_MEMBER_EDGE, bnd)?.is_some();
+                flush |= on.runs_with(on_line, ON_MEMBER_EDGE, bnd)?.is_some();
             }
         }
         if !flush {
-            kept.push((e, seg));
+            kept.push((e, on_line));
         }
     }
     Ok(kept.into_iter().map(|(e, _)| e).collect())
-}
-
-/// Edge `e`'s segment if it is straight ([`is_straight`]), else `None`.
-pub(super) fn straight_segment<T: Decide>(
-    body: &Body<T>,
-    e: EdgeKey,
-) -> Result<Option<Segment<T>>, NamingError> {
-    if is_straight(body, e) {
-        Segment::of_edge(body, e).map(Some)
-    } else {
-        Ok(None)
-    }
 }
 
 /// The edge a seam vertex is ranked along: an A-side edge, a B-side
@@ -3146,12 +3162,7 @@ impl<T: Decide> Track<T> {
     /// Edge `e` of `body` along its certified carrier, from its
     /// `he_plus` start to its end.
     pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Result<Self, NamingError> {
-        let bug = |what| NamingError::Emission { what };
-        let curve = body
-            .get_edge(e)
-            .and_then(|d| body.get_curve_geom(d.curve))
-            .and_then(topo::CurveGeom::certified)
-            .ok_or(bug("a curved edge has no certified curve"))?;
+        let curve = certified_curve(body, e)?;
         let carrier = curve.carrier().clone();
         let (t0, t1) = curve.params();
         let period = match carrier {
@@ -3196,10 +3207,17 @@ impl<T: Decide> Track<T> {
             .map_err(|source| NamingError::Escalated { predicate, source })
     }
 
-    /// `p`'s offset from the start along the carrier, in `[0, period)`
-    /// on a periodic one, where `p` lies on the carrier (its distance
-    /// from the carrier's point at its recovered parameter decided
-    /// zero through `predicate`); `None` off it.
+    /// `p`'s offset from the start along the carrier, where `p` lies on
+    /// the carrier (its distance from the carrier's point at its
+    /// recovered parameter decided zero through `predicate`); `None` off
+    /// it. On a periodic carrier the offset lies in `[0, period)`: zero
+    /// at the start, decided first, and otherwise read from the point
+    /// half a period on ([`geom::Curve3::param_near`] anchored there)
+    /// and reduced into one period ([`Track::forward`]), so the one
+    /// point whose reading the anchor cuts, and where the reduction
+    /// jumps, is the start.
+    /// A closed arc's whole turn is `arc.closed`, which
+    /// [`Self::stretches`] answers from whatever its offsets read.
     ///
     /// # Errors
     ///
@@ -3212,26 +3230,41 @@ impl<T: Decide> Track<T> {
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Option<T>, NamingError> {
-        let Some(u) = self.carrier.param_near(p, self.mid) else {
+        let gap = |q: Point3<T>| {
+            decide(predicate, Margin::of((p - q).norm()), bnd)
+                .map_err(|source| NamingError::Escalated { predicate, source })
+        };
+        let anchor = match self.period {
+            Some(per) => {
+                if gap(self.carrier.eval(self.t0))? == Sign::Zero {
+                    return Ok(Some(T::zero()));
+                }
+                self.t0 + per * T::from_f64(0.5)
+            }
+            None => self.mid,
+        };
+        let Some(u) = self.carrier.param_near(p, anchor) else {
             return Err(NamingError::CarrierUnplaced {
                 edge: self.edge,
                 carrier: self.carrier.kind(),
             });
         };
-        let gap = decide(
-            predicate,
-            Margin::of((p - self.carrier.eval(u)).norm()),
-            bnd,
-        )
-        .map_err(|source| NamingError::Escalated { predicate, source })?;
-        if gap != Sign::Zero {
+        if gap(self.carrier.eval(u))? != Sign::Zero {
             return Ok(None);
         }
-        let off = u - self.t0;
-        Ok(Some(match self.period {
-            Some(per) => off - per * (off / per).floor(),
-            None => off,
-        }))
+        // `param_near` answers within half a period of its anchor, so
+        // `u − t0` lies in `(0, period]`, and the reduction moves only
+        // the start's own reading, which is decided above.
+        Ok(Some(self.forward(u - self.t0)))
+    }
+
+    /// `x` reduced into `[0, period)` on a periodic carrier, unchanged
+    /// on another: a forward stretch along the carrier.
+    fn forward(&self, x: T) -> T {
+        match self.period {
+            Some(per) => x - per * (x / per).floor(),
+            None => x,
+        }
     }
 
     /// The stretches of offsets `arc` holds: one on an open carrier;
@@ -3261,8 +3294,7 @@ impl<T: Decide> Track<T> {
         if arc.closed {
             return Ok(Some(vec![(T::zero(), per), (T::zero() - per, T::zero())]));
         }
-        let fwd = |x: T| x - per * (x / per).floor();
-        let (d1, dm) = (fwd(a1 - a0), fwd(am - a0));
+        let (d1, dm) = (self.forward(a1 - a0), self.forward(am - a0));
         // The middle is half the arc from either end, so this verdict
         // is never near its band.
         let (lo, n) = match self.sign(d1 - dm, predicate, bnd)? {
@@ -3317,6 +3349,126 @@ impl<T: Decide> Track<T> {
         walk_cover(read, (T::zero(), self.len), |p, q| {
             Ok(self.sign(p - q, predicate, bnd)? == Sign::Positive)
         })
+    }
+}
+
+/// **An edge's line for the flush readings**: its [`Segment`] where it
+/// is straight ([`is_straight`]), its [`Track`] along its certified
+/// carrier where it is curved, and [`EdgeCarrier::Unread`] where that
+/// carrier places no point.
+pub(super) enum EdgeCarrier<T: Decide> {
+    Straight(Segment<T>),
+    Curved(Track<T>),
+    /// A curved edge whose carrier recovers no parameter for a point
+    /// (a spline: [`geom::Curve3::param_near`] answers `None`), so no
+    /// reading along it can say whether a point lies on it. It is a
+    /// line of its own and runs with nothing, and a union's joined edge
+    /// on it covers nothing (`emit_union::Flush::edge_cover`): the
+    /// readings refuse nothing they would not refuse on a straight
+    /// edge, at the cost of not counting such edges flush
+    /// (`work/emit/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
+    Unread,
+}
+
+impl<T: Decide> EdgeCarrier<T> {
+    /// Edge `e` of `body`, from its `he_plus` start to its end.
+    pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Result<Self, NamingError> {
+        if is_straight(body, e) {
+            return Ok(EdgeCarrier::Straight(Segment::of_edge(body, e)?));
+        }
+        let carrier = certified_curve(body, e)?.carrier();
+        let origin = Point3::new(T::zero(), T::zero(), T::zero());
+        if carrier.param_near(origin, T::zero()).is_none() {
+            return Ok(EdgeCarrier::Unread);
+        }
+        Ok(EdgeCarrier::Curved(Track::of_edge(body, e)?))
+    }
+
+    /// Whether `other` lies on this edge's line, and if so whether the
+    /// two run the same way along it: [`Segment::runs_with`] for two
+    /// straight edges, [`Track::runs_with`] for two curved ones. A
+    /// straight edge lies on no curved one's carrier, nor a curved one
+    /// on a straight one's line, and an [`EdgeCarrier::Unread`] edge
+    /// lies on no other's line, nor another on its.
+    pub(super) fn runs_with(
+        &self,
+        other: &Self,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Option<bool>, NamingError> {
+        match (self, other) {
+            (EdgeCarrier::Straight(a), EdgeCarrier::Straight(b)) => a.runs_with(b, predicate, bnd),
+            (EdgeCarrier::Curved(a), EdgeCarrier::Curved(b)) => a.runs_with(b, predicate, bnd),
+            (EdgeCarrier::Unread, _) | (_, EdgeCarrier::Unread) => Ok(None),
+            (EdgeCarrier::Straight(_), EdgeCarrier::Curved(_))
+            | (EdgeCarrier::Curved(_), EdgeCarrier::Straight(_)) => Ok(None),
+        }
+    }
+}
+
+/// Edge `e`'s certified curve.
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] where it has none.
+fn certified_curve<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+) -> Result<&geom_brep::EdgeCurve<T>, NamingError> {
+    body.get_edge(e)
+        .and_then(|d| body.get_curve_geom(d.curve))
+        .and_then(topo::CurveGeom::certified)
+        .ok_or(NamingError::Emission {
+            what: "a curved edge has no certified curve",
+        })
+}
+
+impl<T: Decide> Track<T> {
+    /// Whether edge `other` lies on this edge's carrier, and if so
+    /// whether the two run the same way along it, read off `other`'s
+    /// points a quarter, half and three quarters of the way along it:
+    /// it lies on the carrier when all three do ([`Track::offset`]),
+    /// and runs this edge's way when, going forward along the carrier
+    /// from the first, the second comes before the third. The two
+    /// stretches compared differ by a quarter of `other`'s length in
+    /// metres. Certification refuses an edge whose span is under the
+    /// escalate band (`interval_span_forward`), so that quarter is at
+    /// least a quarter of the escalate band, above the zero band: the
+    /// verdict never decides zero, and for an edge under four escalate
+    /// bands long it may escalate.
+    ///
+    /// # Errors
+    ///
+    /// As [`Track::offset`]; [`NamingError::Escalated`] where the band
+    /// cannot decide the two stretches; and [`NamingError::Emission`]
+    /// where it decides them equal, which a certified edge cannot
+    /// reach.
+    pub(super) fn runs_with(
+        &self,
+        other: &Self,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Option<bool>, NamingError> {
+        if self.carrier.kind() != other.carrier.kind() {
+            return Ok(None);
+        }
+        let mut at = Vec::with_capacity(3);
+        for f in [T::from_f64(0.25), T::from_f64(0.5), T::from_f64(0.75)] {
+            let t = other.t0 + other.len * f;
+            match self.offset(other.carrier.eval(t), predicate, bnd)? {
+                Some(o) => at.push(o),
+                None => return Ok(None),
+            }
+        }
+        let ahead = self.forward(at[2] - at[0]) - self.forward(at[1] - at[0]);
+        match self.sign(ahead, predicate, bnd)? {
+            Sign::Positive => Ok(Some(true)),
+            Sign::Negative => Ok(Some(false)),
+            Sign::Zero => Err(NamingError::Emission {
+                what: "a certified edge on another's carrier is shorter than the zero band, \
+                       which certification refuses",
+            }),
+        }
     }
 }
 
@@ -3716,12 +3868,12 @@ pub(super) fn param_along<T: Decide>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let w = p - *center;
-            let (x, y) = (w.dot(*u_ref) / *major, w.dot(axis.cross(*u_ref)) / *minor);
+            let (x, y) = (w.dot(*u_ref) / *semi_u, w.dot(axis.cross(*u_ref)) / *semi_v);
             let (s, c) = near.sin_cos();
             Some(near + (y * c - x * s).atan2(x * c + y * s))
         }
@@ -5493,7 +5645,7 @@ mod nurbs_crossings_rank_by_parameter {
 
     /// The loft through 2 × 2 squares at z = 0, 1, 2, 3 whose x offsets
     /// alternate `−a, a, −a, a`, skinned at v-degree 2: its value.
-    fn wavy(a: f64) -> (RecipeNodeId, crate::eval::NodeValue<f64>) {
+    pub(super) fn wavy(a: f64) -> (RecipeNodeId, crate::eval::NodeValue<f64>) {
         let mut doc = ProfileDoc::empty(DocumentId::derive("nurbs-crossings"), Tol::witness());
         let mut profiles = Vec::new();
         for (k, dx) in [-a, a, -a, a].into_iter().enumerate() {
@@ -6720,26 +6872,30 @@ mod rim_holding_rows {
         a < deg && deg < b
     }
 
-    /// A body whose one edge is the unit circle's arc from `d0` to `d1`
-    /// degrees, counter-clockwise, at z = 0, and that edge.
-    fn chord_arc(d0: f64, d1: f64) -> (Body<f64>, EdgeKey) {
-        let tol = Tol::witness();
-        let c = circle();
+    /// A body whose one edge is the arc of circle `c` from its own
+    /// parameter `t0` to `t1`, and that edge.
+    fn arc_on(c: &geom::Curve3<f64>, t0: f64, t1: f64) -> (Body<f64>, EdgeKey) {
         let mut body = Body::<f64>::new();
-        let born = body.mvfs(at(d0), true).unwrap();
-        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(c, d0 * DEG, d1 * DEG).unwrap();
+        let born = body.mvfs(c.eval(t0), true).unwrap();
+        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(c.clone(), t0, t1).unwrap();
         let e = body
             .mev(
                 topo::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
-                at(d1),
+                c.eval(t1),
                 spec,
-                tol,
+                Tol::witness(),
             )
             .unwrap()
             .edge;
         (body, e)
+    }
+
+    /// A body whose one edge is the unit circle's arc from `d0` to `d1`
+    /// degrees, counter-clockwise, at z = 0, and that edge.
+    fn chord_arc(d0: f64, d1: f64) -> (Body<f64>, EdgeKey) {
+        arc_on(&circle(), d0 * DEG, d1 * DEG)
     }
 
     /// A body whose one edge is the segment from `p` to `q`.
@@ -6852,5 +7008,155 @@ mod rim_holding_rows {
     #[test]
     fn a_straight_chord_is_held_by_no_curved_piece() {
         assert_eq!(holding(chord_line(at(45.0), at(120.0))), None);
+    }
+
+    /// The circle of `radius` about `center` in the plane z = 0, about
+    /// `axis` (±z), its parameter zero toward +x.
+    fn circle_of(center: [f64; 2], radius: f64, axis: Vec3<f64>) -> geom::Curve3<f64> {
+        geom::Curve3::Circle {
+            center: Point3::new(center[0], center[1], 0.0),
+            axis,
+            radius,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// **Two arcs lie on one line when they lie on one circle, and run
+    /// the way their tangents agree** (`EdgeCarrier::runs_with`), so the
+    /// lines at a vertex count coincident arcs once (`least_per_line`):
+    /// an arc of the unit circle runs with a disjoint arc of it the
+    /// same way, and with a clockwise one (carried by the circle about
+    /// −z) the other way; an arc of another circle through both ends of
+    /// the base arc, a straight edge, and an arc of a wider circle are
+    /// not on its line.
+    #[test]
+    fn arcs_of_one_circle_are_one_line_either_way_along_it() {
+        use super::{EdgeCarrier, least_per_line};
+        use crate::names::discriminate::ON_MEMBER_EDGE;
+        let bnd = band(Tol::witness()).unwrap();
+        let line = |(b, e): (Body<f64>, EdgeKey)| EdgeCarrier::of_edge(&b, e).unwrap();
+        let base = line(chord_arc(0.0, 90.0));
+        let runs = |other: (Body<f64>, EdgeKey)| {
+            base.runs_with(&line(other), ON_MEMBER_EDGE, bnd).unwrap()
+        };
+        let clockwise = circle_of([0.0, 0.0], 1.0, -Vec3::unit_z());
+        assert_eq!(
+            runs(chord_arc(120.0, 200.0)),
+            Some(true),
+            "a disjoint arc, counter-clockwise"
+        );
+        assert_eq!(
+            runs(arc_on(&clockwise, -60.0 * DEG, -10.0 * DEG)),
+            Some(false),
+            "an overlapping arc, clockwise"
+        );
+        // The unit circle about (1, 1) passes through (0, 1) at 180°
+        // and (1, 0) at 270°, the base arc's two ends.
+        let through_ends = circle_of([1.0, 1.0], 1.0, Vec3::unit_z());
+        assert_eq!(
+            runs(arc_on(&through_ends, 180.0 * DEG, 270.0 * DEG)),
+            None,
+            "an arc of another circle through the base arc's ends"
+        );
+        assert_eq!(
+            runs(chord_line(at(0.0), at(90.0))),
+            None,
+            "the straight chord"
+        );
+        let wider = circle_of([0.0, 0.0], 2.0, Vec3::unit_z());
+        assert_eq!(
+            runs(arc_on(&wider, 0.0, 90.0 * DEG)),
+            None,
+            "an arc of a wider circle"
+        );
+        let edges = [
+            chord_arc(0.0, 90.0),
+            arc_on(&clockwise, -60.0 * DEG, -10.0 * DEG),
+            chord_arc(200.0, 250.0),
+        ];
+        let lines = least_per_line(
+            0..edges.len(),
+            |&i| EdgeCarrier::of_edge(&edges[i].0, edges[i].1).map(Some),
+            bnd,
+        )
+        .unwrap();
+        assert_eq!(
+            lines,
+            vec![0],
+            "three arcs of one circle are one line, the least"
+        );
+    }
+
+    /// **An arc a few tolerances long escalates rather than guess its
+    /// way** (`Track::runs_with`): an arc two escalate bands long on the
+    /// base arc's circle lies on it, and the two stretches it compares
+    /// differ by a quarter of its length, half an escalate band, inside
+    /// the band at every tolerance. Certification
+    /// refuses a span under the escalate band, so no arc reaches the
+    /// zero band and the `Emission` arm.
+    #[test]
+    fn an_arc_a_few_tolerances_long_escalates_its_way() {
+        use super::EdgeCarrier;
+        use crate::names::discriminate::ON_MEMBER_EDGE;
+        use crate::names::emit::NamingError;
+        let bnd = band(Tol::witness()).unwrap();
+        let line = |(b, e): (Body<f64>, EdgeKey)| EdgeCarrier::of_edge(&b, e).unwrap();
+        let base = line(chord_arc(0.0, 90.0));
+        let t = 30.0 * DEG;
+        let short = line(arc_on(&circle(), t, t + 2.0 * bnd.escalate()));
+        let way = base.runs_with(&short, ON_MEMBER_EDGE, bnd);
+        assert!(
+            matches!(way, Err(NamingError::Escalated { .. })),
+            "an arc two escalate bands long escalates its way, got {way:?}"
+        );
+    }
+
+    /// **A spline edge is a line of its own** (`EdgeCarrier::Unread`):
+    /// the wavy loft's corner edges are NURBS curves, whose carrier
+    /// places no point, so an edge runs with neither itself nor another,
+    /// and two of them are two lines at a vertex, as before the curved
+    /// reading. No union reaches such an edge today: the boolean refuses
+    /// an operand with one (`CurvedEdgeUnsupported`).
+    #[test]
+    fn a_spline_edge_is_a_line_of_its_own() {
+        use super::{EdgeCarrier, least_per_line};
+        use crate::names::discriminate::ON_MEMBER_EDGE;
+        let bnd = band(Tol::witness()).unwrap();
+        let (_, value) = super::nurbs_crossings_rank_by_parameter::wavy(0.3);
+        let crate::eval::ValuePayload::Body(body) = &value.payload else {
+            panic!("the loft is a body");
+        };
+        let splines: Vec<EdgeKey> = body
+            .edges()
+            .map(|(k, _)| k)
+            .filter(|&k| {
+                topo::query::edge_carrier_kind(body, k) == Some(topo::query::CurveKind::Nurbs)
+            })
+            .collect();
+        assert!(splines.len() >= 2, "the loft has spline edges: {splines:?}");
+        let lines: Vec<EdgeCarrier<f64>> = splines
+            .iter()
+            .map(|&k| EdgeCarrier::of_edge(body, k).unwrap())
+            .collect();
+        assert!(
+            lines.iter().all(|l| matches!(l, EdgeCarrier::Unread)),
+            "every spline edge reads as Unread"
+        );
+        assert_eq!(
+            lines[0].runs_with(&lines[0], ON_MEMBER_EDGE, bnd).unwrap(),
+            None,
+            "a spline edge runs with nothing, itself included"
+        );
+        let kept = least_per_line(
+            0..splines.len(),
+            |&i| EdgeCarrier::of_edge(body, splines[i]).map(Some),
+            bnd,
+        )
+        .unwrap();
+        assert_eq!(
+            kept,
+            (0..splines.len()).collect::<Vec<_>>(),
+            "each spline edge is a line of its own"
+        );
     }
 }

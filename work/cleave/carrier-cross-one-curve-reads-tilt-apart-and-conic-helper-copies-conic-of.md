@@ -2,11 +2,12 @@
 id: carrier-cross-one-curve-reads-tilt-apart-and-conic-helper-copies-conic-of
 kind: issue
 title: carrier_cross's one-curve margin leans on the tilt row's separate Zero, and its conic helper re-spells Conic::of
-status: review
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
 branch: cleave/carrier-cross-one-curve
+closed: 2026-10-14
 ---
 
 Found by the narrow re-review of PR 4782 (head d88f865dd1, verdict
@@ -39,3 +40,46 @@ Fold the tilt into the one-curve margin so its Zero is one decision;
 build the conic through `Conic::of`; one per-kind arm in
 `carrier_speed.rs`; make the margin symmetric; add a body pin for the
 transverse arm if a door reaches it.
+
+## Built (branch cleave/carrier-cross-one-curve)
+
+1. `one_curve`'s margin is now `|c_e − c_f| + ‖L_e − L_f·Q‖` (operator
+   norm), `L = [a·û, b·v̂]`, `Q` turning `f`'s frame the way up `e`'s is
+   and then by the best-matching (Procrustes) rotation. Pairing
+   `c_e + L_e·x` with `c_f + L_f·Q·x` bounds the curves' Hausdorff
+   distance outright, tilt out of the plane included, so its Zero is
+   one decision. Order- and sign-free in the stored semi-axes (an
+   orthogonal factor of `L`, absorbed by `Q`).
+   Measured against a dense-sample Hausdorff distance (2048-point coarse
+   search plus Newton per point, 512 samples plus golden refinement for
+   the sup), a/b ∈ {1, 1.001, 1.1, 2, 10, 100}, b ∈ {0.01, 1, 10},
+   perturbations of 0.2–5·ε in centre, semi-axes, in-plane turn, tilt
+   and all at once, `f` stored in either order and either way up:
+   margin / Hausdorff on main 0.24–0.94 for a tilt (the separate tilt
+   row covered it), 1.2–4.0 for the semi-axes; now 1.00 for centre,
+   semi-axes and tilt, 1.00–1.20 for a turn, 1.00–1.54 all at once, at
+   ε = 1e-9 and 1e-6. At 1e-12 the sampler's own rounding on 1000 m
+   ellipses reads isolated rows down to 0.72; the bound is an upper
+   bound by construction, so no pose reads Zero past the zero threshold.
+2. `meetings` builds its conics with `Conic::of`; the `conic` helper is
+   gone.
+3. `carrier_speed.rs` reads the carrier once (`Kind::of`, whose conic
+   arm is `Conic::of`), and every bound is a `Kind` method;
+   `carrier_touch::speed_bound` is `carrier_speed::speed_and_curvature_hi`.
+4. Symmetric: the larger of the two orders is read.
+5. Body pins (sweep `a_ruling_lying_on_a_wall`): the transverse
+   ellipse × ellipse arm is reached by two oblique bottoms crossing on
+   one wall, which build every op at their closed form; the one-curve
+   Positive branch is reached by two rims read coplanar but k·ε apart
+   at k = 30, 80, which refuse `CurvedPierceUnsupported` (filed:
+   `two-rims-read-coplanar-refuse-unsupported-or-untyped`).
+
+Fix pass (review of PR 5058): `parallel_circles`, the circle sibling,
+now decides "one circle" with the same margin (`one_curve_gap`, row
+`bool_carrier_cross_one_curve`) instead of three Zeros. The witness —
+two of a sphere's circles turned 0.9·z about `x = 0.9` — escalates at
+every ε (unit pin). No body door reaches it: the in-span row (one
+ball) or the shared-rim rows (`rim_circle_axis_parallel`, a spun ball)
+fire first. The gap is pinned bitwise symmetric, the k < 1 body rows
+pin `FallbackExtentUnsupported`, and the frame is
+`Conic::semi_axis_vectors`.

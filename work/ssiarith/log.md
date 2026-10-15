@@ -69,3 +69,10 @@ Rows moved with `git mv` and keep their ids.
   - **Guard:** `every_rung_reads_the_operands_one_build_of_each_cell`.
   - **Next:** products-once with de Casteljau halving, then the cut becomes exact restriction (`analysis/design-fork/nurbs-quotient-cost`, converged). — (NURBS orchestrator)
 - 2026-10-14 — **Seam (NURBS):** a latent soundness bug on this ground. `NurbsBoxes::rect_box` takes the midpoint value for `edge_runs`' mean-value form from `eval_in_span` crossed with `Interval::from_certified`. On the f64 lane that is a plain f64 evaluation, not an enclosure. At a wall touching its edge (z = (x−½)² + y − 0.2 on y = 0.2) the f64 point value comes out negative. Main's wide slope term swallowed it; a tighter sound slope (NURBS step 3, restriction) lets the wrong sign through, and `boundary_zeros` reads `Some(2)` instead of `None`. NURBS build C is fixing it first on `nurbs/rect-box-midpoint-certified` (the midpoint evaluated from the net in interval arithmetic), with a mutant-red row and a FULL review. (NURBS orchestrator)
+- 2026-10-14 — **Seam note from NURBS: NURBS is taking your rigid-map chart-readings fuzzer P2** (`rigid-map-chart-readings-fuzz-reds-past-its-rounding-bound`, with `a-rigid-map-moves-an-enclose-chart-margin-past-its-rounding-allowance`), because it reds PR CI at random across programs.
+  - **Root cause:** the test, not a bound. A transverse margin rounds at the stretch's scale, so its allowance belongs at magnitude one, not at its own value.
+  - **Fix:** in the test module only, on `nurbs/rigid-map-chart-allowance`. `within_rounding` gains a `Magnitude`.
+  - **Pinned:** all four recorded seeds as fixed rows.
+  - **Production:** no change to `chart_transverse_margin` or any reading.
+  (NURBS build A)
+

@@ -512,12 +512,14 @@ impl ProfileEdit {
         sketch::loop_programs(&self.shapes(), notation)
     }
 
-    /// **Whether applying would write anything**: the held program,
-    /// every step kept where it was loaded, is not the committed one
-    /// (by value, blind to notation — the door's own no-op). A held
-    /// state that does not lower counts as moved: applying it is how
-    /// its refusal is said.
-    pub(crate) fn moved(&self) -> bool {
+    /// **Whether the held state differs from the committed program at
+    /// all**: it edits it, or it cannot be read as it. The first is
+    /// the held program, every step kept where it was loaded, not
+    /// being the committed one (by value, blind to notation — the
+    /// door's own no-op); the second is a held state that does not
+    /// lower, and applying it writes nothing — it is how its refusal
+    /// is said.
+    pub(crate) fn differs_from_base(&self) -> bool {
         let untouched = self
             .programs(Notation::CANONICAL)
             .is_ok_and(|loops| sketch::is_committed(&self.base, &loops, &self.ids()));
@@ -1670,7 +1672,10 @@ mod tests {
         let edit = drafts
             .profile_edit(&doc, profile)
             .expect("the editor holds the form's profile");
-        assert!(!edit.moved(), "a fresh load has nothing to apply");
+        assert!(
+            !edit.differs_from_base(),
+            "a fresh load has nothing to apply"
+        );
         assert!(sketch::authors_same_loops(&edit.shapes(), &authored));
         let Some(Node::Profile(current)) = doc.node(profile) else {
             panic!("a profile")
@@ -1703,26 +1708,32 @@ mod tests {
         };
         let edit = drafts.profile_edit(&before, profile).expect("held");
         edit.steps_mut(0)[1] = moved_to;
-        assert!(edit.moved());
+        assert!(edit.differs_from_base());
         // Held across frames while the document stands still.
         let edit = drafts.profile_edit(&before, profile).expect("held");
-        assert!(edit.moved(), "the typed number survived a second read");
+        assert!(
+            edit.differs_from_base(),
+            "the typed number survived a second read"
+        );
         let after = applied(&before, edit, notation);
         let edit = drafts.profile_edit(&after, profile).expect("held");
-        assert!(!edit.moved(), "the applied program is the new base");
+        assert!(
+            !edit.differs_from_base(),
+            "the applied program is the new base"
+        );
         assert!(same_step(edit.loops()[0][1], moved_to));
         // Undo: the document the history steps back to.
         let edit = drafts.profile_edit(&before, profile).expect("held");
-        assert!(!edit.moved());
+        assert!(!edit.differs_from_base());
         assert!(
             !same_step(edit.loops()[0][1], moved_to),
             "the undone number is gone from the draft"
         );
         // Revert puts typed numbers back.
         edit.steps_mut(0)[2] = Step::LineTo(Target::Point(Point2::new(0.03, 0.03)));
-        assert!(edit.moved());
+        assert!(edit.differs_from_base());
         edit.revert(&before).expect("revertible");
-        assert!(!edit.moved());
+        assert!(!edit.differs_from_base());
         drafts.abandon_profile_edit_off(Some(profile));
         assert!(drafts.profile_edit.is_some(), "still selected, still held");
         drafts.abandon_profile_edit_off(None);
@@ -1821,7 +1832,7 @@ mod tests {
             vec![vec![Some(a), Some(b), Some(c), Some(d), Some(e)]],
             "a revert loads every step as itself again"
         );
-        assert!(!edit.moved());
+        assert!(!edit.differs_from_base());
         let same = edit.loops()[0][1];
         edit.edit_row(
             0,
@@ -1831,7 +1842,7 @@ mod tests {
             },
         );
         assert!(
-            edit.moved(),
+            edit.differs_from_base(),
             "a step re-made with the numbers it had is still a new step, which Apply writes"
         );
     }

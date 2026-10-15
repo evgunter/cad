@@ -79,16 +79,16 @@ fn trig_at_start<T: Decide + Bounds + CertifiedEnclosure>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let v_ref = axis.cross(*u_ref);
             let w = p - *center;
-            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*major);
-            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*minor);
-            let pad_c = (Interval::point(eps) / Interval::from_certified(*major)).mag();
-            let pad_s = (Interval::point(eps) / Interval::from_certified(*minor)).mag();
+            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*semi_u);
+            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*semi_v);
+            let pad_c = (Interval::point(eps) / Interval::from_certified(*semi_u)).mag();
+            let pad_s = (Interval::point(eps) / Interval::from_certified(*semi_v)).mag();
             Ok((clamp(c, pad_c), clamp(s, pad_s)))
         }
         // The spiric's chart images are not harmonic (its `m`
@@ -327,14 +327,14 @@ fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Cu
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => Curve3::Ellipse {
             center: shift(center),
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         },
         Curve3::Spiric {
@@ -569,18 +569,20 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
 }
 
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
-/// ellipse's major) times its span, a spiric's speed bound
-/// `r(R − r)/f_min` times its span.
+/// ellipse's larger semi-axis) times its span, a spiric's piecewise
+/// [`spiric::spiric_length_bound`].
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
         Curve3::Line { dir, .. } => (dir.norm() * Interval::point(span)).mag(),
         Curve3::Circle { radius, .. } => (radius * Interval::point(span)).mag(),
-        Curve3::Ellipse { major, .. } => (major * Interval::point(span)).mag(),
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            (geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * Interval::point(span)).mag()
+        }
         Curve3::Spiric { .. } => spiric_edge_q(e, Point3::origin(), None)
-            .and_then(|q| spiric::spiric_length_bound(&q))
+            .and_then(|q| spiric::spiric_length_bound(&q, spiric::LENGTH_PIECES))
             .ok_or(PropsError::QuadratureUnsupported {
-                what: "a spiric edge whose span's rate window has no certified positive f",
+                what: "a spiric edge with a piece whose f is not certified positive",
             })?,
         Curve3::Nurbs(_) => {
             return Err(PropsError::QuadratureUnsupported {

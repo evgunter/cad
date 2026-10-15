@@ -34,7 +34,7 @@
 //!   REQUIRED, for two poses the ladder cannot answer truthfully: a
 //!   CONSTANT residual (`F·(1 + t²)²`, which the ladder cannot read; the
 //!   extremes answer on-surface or miss), and a TANGENCY, whose extreme
-//!   reads in the zero band and answers `Uncertain` (escalating only where
+//!   reads in the zero band and refuses `Unsettled::Tangency` (escalating only where
 //!   an end of that extreme's error interval lies in the gap), where the
 //!   ladder can certify a miss
 //!   (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
@@ -103,12 +103,13 @@
 //!   gradient, and the slack with it refuses.
 //! - **`|res| ≤ |F| / floor`**, the floor `min(sin α, cos α)·d/R`, `d`
 //!   a lower bound on the carrier's distance from the apex. An
-//!   `OnSurface` from the first-harmonic arm certifies only that `F` is
+//!   `Roots::On` from the first-harmonic arm certifies only that `F` is
 //!   in the band; it stands once its whole reach read through the floor
-//!   is too (`bool_conic_cone_on_surface`), and is `Uncertain` otherwise.
+//!   is too (`bool_conic_cone_on_surface`), and refuses `Unsettled::Meter`
+//!   otherwise.
 //! - **Every certified root's distance from the apex** is decided
 //!   (`bool_conic_cone_apex`): not definitely positive, and the door
-//!   answers [`CircleRoots::AtApex`] — no material side and no slope can
+//!   refuses [`Unsettled::AtApex`] — no material side and no slope can
 //!   be read at a point where the cone has no tangent plane.
 //!
 //! The roots are the double cone's. Which of them a cone FACE holds — the
@@ -118,14 +119,15 @@ use geom_core::{Band, Decide, Margin, Sign};
 
 use super::circle_roots::{
     CircleRoots, FirstHarmonic, FirstHarmonicRows, door_half_angle_roots, first_harmonic_roots,
-    rounding_charge,
 };
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
 use geom_brep::half_angle::{
-    HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly,
+    DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
 };
 use geom_brep::quartic::QuarticRows;
+use geom_brep::roots::{OnCarrier, Roots, Unsettled};
+use geom_brep::rounding_charge;
 
 #[cfg(test)]
 mod circle_sphere_rows;
@@ -192,14 +194,15 @@ const LADDER_ROWS: HalfAngleRows = HalfAngleRows {
 /// never an answer. An escalation as the surface's arc decision for an
 /// in-band classifying sign: an extreme or constant residual of the
 /// first-harmonic arm, or a rung of the ladder. A second harmonic in the
-/// band's GAP is not an error: it takes the ladder.
+/// band's GAP is not an error: it takes the ladder. A count the door
+/// cannot certify is the inner [`Unsettled`].
 pub(super) fn conic_quadric_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<CircleRoots<T>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
     let desync = || BooleanError::ClassificationInvariant {
         what: "the conic × quadric root door was handed a carrier that is not a circle or an \
                ellipse or a surface that is not a sphere, a cylinder or a cone",
@@ -238,7 +241,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
                 &first_rows(BooleanDecision::ArcSphereRoots),
                 band,
             )
-            .map(CircleRoots::from);
+            .map(|found| found.map(Roots::widen));
         }
         (
             _,
@@ -268,10 +271,10 @@ pub(super) fn conic_quadric_roots<T: Decide>(
             &first_rows(decision),
             band,
         )
-        .map(CircleRoots::from);
+        .map(|found| found.map(Roots::widen));
     }
     door_half_angle_roots(
-        &TrigPoly::second(h.c0, h.c1, h.s1, h.c2, h.s2),
+        &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
         |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
         frame,
         &LADDER_ROWS,
@@ -403,29 +406,30 @@ fn cone_roots<T: Decide>(
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<CircleRoots<T>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
     let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
     let noise = rounding_charge(h.terms) / h.per;
-    let roots = if let Some(first) = first_harmonic_arm(&h, noise, band) {
-        let roots = CircleRoots::from(first_harmonic_roots(
+    let found = if let Some(first) = first_harmonic_arm(&h, noise, band) {
+        let found = first_harmonic_roots(
             &first,
             conic.speed_hi(),
             t0,
             t1,
             &first_rows(BooleanDecision::ArcConeRoots),
             band,
-        )?);
-        if let CircleRoots::OnSurface = roots {
+        )?
+        .map(Roots::widen);
+        if let Ok(Roots::On(OnCarrier)) = found {
             // `|res| ≤ |F| / floor`: a constant `F` in the band certifies
             // the carrier on the cone only once its whole reach, read
             // through the floor, is in the band too.
             let reach = (first.lo.abs().max(first.hi.abs()) + first.lo_noise) / h.floor;
             return Ok(match decide(CONE_ON_SURFACE, Margin::of(reach), band) {
-                Ok(Sign::Zero) => CircleRoots::OnSurface,
-                Ok(Sign::Positive | Sign::Negative) | Err(_) => CircleRoots::Uncertain,
+                Ok(Sign::Zero) => Ok(Roots::On(OnCarrier)),
+                Ok(Sign::Positive | Sign::Negative) | Err(_) => Err(Unsettled::Meter),
             });
         }
-        roots
+        found
     } else {
         let placed =
             |theta: T| geom_brep::conic_cone_residual(conic, apex, axis, half_angle, theta);
@@ -435,7 +439,7 @@ fn cone_roots<T: Decide>(
             f_per_metre_hi: T::one(),
         };
         door_half_angle_roots(
-            &TrigPoly::second(h.c0, h.c1, h.s1, h.c2, h.s2),
+            &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
             |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
             ladder_frame(conic, (t0, t1), noise, h.floor),
             &LADDER_ROWS,
@@ -444,12 +448,12 @@ fn cone_roots<T: Decide>(
             band,
         )?
     };
-    Ok(off_the_apex(conic, apex, roots, band))
+    Ok(found.and_then(|roots| off_the_apex(conic, apex, roots, band)))
 }
 
 /// The apex rung (module docs, "Against a cone"): `roots` stand only if
-/// every certified root is definitely off the apex, and are
-/// [`CircleRoots::AtApex`] otherwise.
+/// every certified root is definitely off the apex, and refuse
+/// [`Unsettled::AtApex`] otherwise.
 ///
 /// Through the door it is a second line: a root the subdivision isolates
 /// within the escalation band of the apex is refused first by the slack
@@ -461,17 +465,17 @@ fn off_the_apex<T: Decide>(
     apex: geom_core::Point3<T>,
     roots: CircleRoots<T>,
     band: Band,
-) -> CircleRoots<T> {
-    let CircleRoots::Certified { count, thetas } = roots else {
-        return roots;
+) -> Result<CircleRoots<T>, Unsettled> {
+    let CircleRoots::Certified(found) = roots else {
+        return Ok(roots);
     };
-    for &theta in &thetas[..count] {
+    for &theta in found.roots() {
         match decide(CONE_APEX, Margin::norm3(conic.point(theta) - apex), band) {
             Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) | Err(_) => return CircleRoots::AtApex,
+            Ok(Sign::Zero | Sign::Negative) | Err(_) => return Err(Unsettled::AtApex),
         }
     }
-    roots
+    Ok(roots)
 }
 
 #[cfg(test)]
@@ -505,8 +509,8 @@ mod tests {
         let ellipse = geom::Curve3::Ellipse {
             center: o,
             axis: z,
-            major: 1.0,
-            minor: 0.5,
+            semi_u: 1.0,
+            semi_v: 0.5,
             u_ref: x,
         };
         let sphere = geom::Surface::Sphere {

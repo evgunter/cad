@@ -2,13 +2,11 @@
 id: whole-periods-caps-a-branch-at-four-periods
 kind: issue
 title: whole_periods refuses a branch more than four periods out (MAX_BRANCH_PERIODS), a cap no producer reaches and no clause states
-status: closed
+status: open
 opened: 2026-10-02
 priority: P3
 cost: E
 refs: [loop-walk-branch-is-an-opaque-floor-atom]
-closed: 2026-10-14
-pr: 5126
 ---
 
 
@@ -40,84 +38,24 @@ What would close this: either a statement in C4 that a row's branch
 lies within `MAX_BRANCH_PERIODS` of its derivation's, or a branch read
 off the row's own winding when a producer that needs it lands.
 
-## Measured (PCERT, 2026-10-14)
+## The question for Ev
 
-**Census.** I instrumented `whole_period_count`, which every branch
-search calls, and ran geom-brep, topo, sweep, step-import, mesh and
-editor-core in release (10555 passed, about 12M calls):
+PR 5126 found the cap reached by valid input: a circle carrier may be stated any number of periods off the azimuth its points sit at. Its two reviews then found the same cap refusing downstream. Check 4 is reached through `chart_boundary`'s lifted images, and through the public `certify` on the attach path. The torus point-in-solid walk, `offset_axial::keep_turn` and `chart_region::period_fold` have the same shape. Two designers converged on removing the cap everywhere:
+- check 4 certifies modulo the chart's deck (a renaming, not a decision), which reverses PR 3812's refusal of a whole-period-shifted image;
+- every walk reads a joint's element from the two marks about the gap's own estimate;
+- the harmonic derivation places an image over the edge's span in the chart's principal window.
 
-- `split_window_branch` reads k ∈ {−1, 0, 1, 2}.
-- `pcurve_fidelity_branch` reads k ∈ {−1, 0, 1, 2} on real rows. It reads
-  k = −3 and `OutOfReach` only in the hand-built corruption rows of
-  `envelope_lemma_fuzz`.
-- The other non-walk callers read |k| ≤ 2.
-- `pcurve_loop_branch` reads mostly k ∈ {0, ±1}, and k = ±2 in about 48k
-  calls across about 60 suites. That is one whole period on a sphere,
-  whose walk counts half periods.
-- It reads **k = ±4 in 24 calls**, all in `pcurves::pole_slit_tests`, on
-  a minted pole-slit cap.
+That adds clauses to C4, so it waits for Ev on the `[ev]` PR that sets this flag. PR 5126 is held until it is answered.
 
-**The premise is false.** On the sphere the cap was counted in the
-walk's half steps, so `4` was two whole periods. The pole-slit cap sat
-exactly at it.
+Ev then asked (on that PR) whether an angle type that compares modulo
+the period would fix this class. Two more designers converged in three
+rounds: two small types, a `Period` per periodic channel that the chart
+owns (nets included) and an `Azimuth` exit from `atan2` read through a
+stated reference, radians kept, stored coordinates never wrapped. They
+also settled the open sub-point (a lifted image is the row plus its deck
+element, never re-certified) and dropped the walk's estimate (every
+decision's gap is within about two periods once images are placed).
 
-**Cause.** The cap's first rim arc is a circle carrier whose parameter
-runs a period below the azimuth it covers. The joint gap carries that
-offset, and nothing bounds it: an `EdgeCurveSpec` circle may run over any
-`[t0, t1]`. The same fixture with the arc 3 periods below refused
-`BranchOutOfReach` from plain `mint_pcurves` on a legal body. So valid
-input reached the cap; this was not a missing statement.
+## The answer
 
-**Check 4 never sees the offset.** On the sphere slit cap and on a
-half-turn cylinder patch, with arcs 0, 1, 3, 4, 5 and 10 periods below,
-every fidelity read was `Ok(0)` with the gap exactly 0. The stored image
-is minted as its own re-derivation, and the offset lives only in the
-walk's joint gap.
-
-## Closed (PCERT, 2026-10-14)
-
-Where the loop walk's branch search from zero runs out of reach, it now
-searches again from the gap's own estimate
-(`geom_brep::whole_step_count_any`, `geom_brep::branch_estimate`). The
-search from zero is kept first, so every answer it already gave, and
-every decision behind it, stays as it was. A first cut that started
-every search at the estimate moved pinned decision streams in six
-editor-core rows, and one answer: a narrow-cone joint whose gap of
-exactly π ties the estimate to 1 read its far mark first, in band at
-that lever, and escalated instead of answering `OnMark`. The estimate,
-`geom_brep::branch_estimate`:
-- It is `⌊gap/step + ½⌋`, through `Real::periodic_branch`, read as an
-  integer where the scalar's floor is a point bracket.
-- Where the gap's bracket straddles a mark, it is the step below that
-  mark, so the search decides the mark rather than running out of reach.
-- The marks still decide every integer, so any parameter offset is in
-  reach.
-
-The cap counts whole periods on every orbit (`whole_step_count`, with
-`Orbit::per_period` steps to a period). `MAX_BRANCH_PERIODS`' doc states
-what it bounds:
-- for the walk, the estimate's error plus the near-pole read's offsets;
-- for check 4 and the other callers, which start at zero, the branch
-  itself, which valid input leaves at zero.
-
-Check 4 and its corruption rows are unchanged. C4 needs no edit: it says
-the walk decides the deck element as an integer with half a step of
-room, and names no cap.
-
-Rows:
-- `pcurves::pole_slit_tests::a_carrier_stated_periods_off_its_azimuth_mints`:
-  the sphere at 3 and 10 periods (mints, re-mints from every anchor,
-  reads clean) and the cylinder at 5 and 10 (mints, reads clean). On
-  main the sphere refuses from 2 periods and the cylinder from 5; a
-  cylinder 3 periods out is inside the cap even on main.
-- `pcurve_cache::branch_search_rows`:
-  - the cap counted in whole periods on a half-step orbit;
-  - a gap 25.3 periods out, decided from its estimate and refused from
-    zero;
-  - a straddled mark 40.5 periods out, ending `OnMark`.
-
-Mutants:
-- The search never retried from the estimate reds the door row.
-- `Orbit::per_period` read as 1 on the sphere is not reachable through
-  the walk, because the estimate keeps the search within a step. The unit
-  row pins the counting in `whole_step_count`.
+Ev took the recommendation on `[ev]` PR 5142 (2026-10-15, "i think this sounds good"): no cap; images placed over the edge's span in the principal window; a row is its placed image and a lifted copy is the (row, deck element) pair, never re-certified; the walk reads the half-period marks from zero; a `Period` per closed channel (a net's `v` included) owned by the chart, and an `Azimuth` exit from `atan2` through a stated reference. C4 carries it.

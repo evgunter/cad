@@ -1032,6 +1032,22 @@ fillet corners still do not tessellate (`NotIsoRectangle`, the P0 tess
 item, which now carries them as a witness); box corners move only by
 signed zeros at axis poses and by ulps elsewhere.
 
+## 2026-10-14 — the cap sliver reads reach and floors over its rim pieces alone (PR 5110)
+
+`CapSliver::of` no longer takes the end curve's own terms into `reach`
+or the floors: over the compact sliver the distance and each floor's
+linear function reach their extremes on its boundary, and inside an arc
+of the strictly convex end curve an extreme would need the outward
+normal to point the way the function grows, where the sliver runs on
+past it; so the rim pieces hold every extreme (proof at the site). The
+review re-derived it and ran the whole sweep suite instrumented (10,383
+sliver constructions; the dropped terms never beat the rims by more
+than 6.5e-14, foot-tie rounding). One row pins the arc extremes the cap
+meter reads (the far and along-high arms). Cost M, full review
+APPROVE-WITH-FIXES (a stale doc). Filed
+`a-cap-slivers-rim-arcs-whole-circle-arms-have-no-cap-row`: the rim
+arcs' whole-circle arms, now the only source of those extremes, have no
+cap row.
 ## 2026-10-14 — sheet_clip clips a cylinder or plane at any pose (PR 5052)
 
 `sheet_clip` admitted a cylinder by its stored origin's offset and an
@@ -1061,3 +1077,60 @@ against a skew bore refusing at the Boolean (`GermFrameUnsupported
 `work/doctail/an-editor-action-moves-a-node-after-another.md`; the
 lint item carries Ev's op-agnostic ruling. Cost M, full review
 APPROVE-WITH-FIXES (two README sentences named the wrong arm or row).
+
+## 2026-10-14 — blend refusals say what their site met (PR 5116)
+
+`Breach` gains `Scaffolding` (with topo's own recourse, "finish that
+edit first", shared through one literal with `Unfinished`'s door
+sentence) and `Degenerate`; null-edge and lone-vertex sites leave
+`UnsupportedGeometry`'s shape recourse; folded `None`s refuse per cause
+through one `surgery::certified_curve` read (`stored_piece` and
+`battery::carrier_of` its `Result` forms). `Scaffolding` is reachable
+through the public `run_battery_for` on a raw body (a row pins it);
+`Degenerate` only crate-internally. Cost M, full review
+APPROVE-WITH-FIXES. Filed `blend-two-geometry-refusals-meet-no-shape`
+and `blend-reach-may-refuse-a-valid-thin-cylinder-as-degenerate`.
+
+## 2026-10-14 — a thin cylinder boxes by its boundary (closes blend-reach-may-refuse-a-valid-thin-cylinder-as-degenerate)
+
+Tier 3 admits any exactly positive radius; the face box's levered axis
+refused one the band does not decide positive. No door was found to
+mint one (profile, STEP, fillet each refuse it at the band), but the
+margin chain does not exclude it, so `face_box_rule` now falls back to
+the boundary hull (sound for any ruled face) where the axis is a
+direction and the lever does not decide. The review's fix pass splices
+the lever's escalation superseded on that fallback, clips the slab to the
+hull on every coordinate (one home for the ruled containment), and
+filed `cleave/separating-axis-reads-swallow-their-unit-escalations`.
+
+## 2026-10-14 — a bar inside a concave band's fill is absorbed (PR 5099, step 2)
+
+A bar between two end walls wholly inside the material a concave band's
+fill adds goes at `ΔV = +(A − A_bar)·L`: a cut-off's cap ring read
+inside its sliver carries its crease on either convexity
+(`SliverOrigin::CutOff`), and nothing else reads the side, so step 1's
+carve runs for the fill unchanged. Cost H: a concurrent dual (DR row
+`PR-5099`), both APPROVE, tally 0. The fix pass took in both reviewers'
+probes; the ruled table's island-voids cell carries an erratum (the
+voids lie in `F`, which fills them), and the step-2 refusals steps 3 and
+4 inherit are pinned (a bump on the bar, a sealed tube, blind holes in
+the walls). Filed `a-feature-inside-a-turns-overrun-is-not-carved`.
+
+## 2026-10-14 — a cup on one end wall goes with the band (PR 5161, step 3)
+
+The end-wall half of step 3: a blind bore under a convex plane–plane
+band and a pin under a concave one, wholly inside the region, go at
+`ΔV = ∓(A·L − V_cup)`. A cup's faces off the cap are certified through
+their edges read in the band's exact core, a plane face not parallel to
+the spine by its boundary, and `consume` takes a disk on one cycle,
+bridging a face's rings first, so a bump on a bar now builds too. The
+strip-mouth half (dimple, boss) and the ruled band's cups are filed.
+
+
+The fix pass of its dual review: the core reading of an edge now
+tightens its depth (it reported the first certifying piece's, which,
+not the lean term, refused a slightly leaning bore under the fillet,
+now built); rows witness the disk count, the piece radius and the
+plane reading's slack; C8 says an absorbed island's voids are filled.
+Filed `a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved`
+and `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`.

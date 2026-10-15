@@ -95,8 +95,8 @@ pub(super) fn ellipse(c: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64) -> 
     geom::Curve3::Ellipse {
         center: Point3::from_array(c),
         axis: n,
-        major: a,
-        minor: b,
+        semi_u: a,
+        semi_v: b,
         u_ref: (u - n * u.dot(n)).normalize(),
     }
 }
@@ -209,13 +209,14 @@ pub(super) fn assert_matches_oracle(
         &geom::Surface<f64>,
         f64,
         f64,
-    ) -> super::circle_roots::CircleRoots<f64>,
+    ) -> Result<super::circle_roots::CircleRoots<f64>, geom_brep::roots::Unsettled>,
 ) {
     use core::f64::consts::PI;
     let t1 = t0 + 1.0;
-    let super::circle_roots::CircleRoots::Certified { count, thetas } = door(e, s, t0, t1) else {
+    let Ok(super::circle_roots::CircleRoots::Certified(found)) = door(e, s, t0, t1) else {
         panic!("{label}: certified roots, got {:?}", door(e, s, t0, t1));
     };
+    let (count, thetas) = (found.count(), found.roots());
     assert_eq!(count, want, "{label}: the certified count");
     let mid = (t0 + t1) / 2.0;
     let mut got = thetas[..count].to_vec();

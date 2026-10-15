@@ -1449,7 +1449,17 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
         if !scaffolded {
             continue;
         }
-        body.describe_at_rest(edge, chart, tol)?;
+        // The rim is the cap's own profile, the plane fitted through it,
+        // stated in that chart: the pair cannot carry it, the spline wall
+        // having no implicit form to meter incidence on
+        // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
+        let spec = body
+            .get_curve_geom(curve_key)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap_or_else(|| unreachable!("{edge:?} was read scaffolded just above"))
+            .restated_spec()
+            .at_rest_in_chart(chart, false);
+        body.set_edge_curve(edge, spec, tol)?;
     }
     Ok(())
 }
