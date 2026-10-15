@@ -184,8 +184,10 @@ fn r1_many_sided_coin_cost() {
 fn r1_a_needle_result_at_the_door() {
     let ke = tol().k() * tol().eps();
     for pose in poses().into_iter().take(3) {
-        for m in [1.2, 1.5, 2.0, 3.0, 5.0] {
-            let w = m * ke;
+        let fixed = std::env::var("R1_NEEDLE_W").ok().and_then(|x| x.parse::<f64>().ok());
+        let ms: Vec<f64> = if fixed.is_some() { vec![0.0] } else { vec![1.2, 1.5, 2.0, 3.0, 5.0] };
+        for m in ms {
+            let w = fixed.unwrap_or(m * ke);
             let a = rest(prism(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)], (0.0, 1.0), &pose)).unwrap();
             let b = rest(prism(
                 &[(-1.0, 1.0 - w), (3.0, 1.0 - w), (3.0, 2.0), (-1.0, 2.0)],
@@ -196,9 +198,9 @@ fn r1_a_needle_result_at_the_door() {
             let r = match topo::intersect(&a, &b, tol()) {
                 Ok(BooleanResult::Body(_)) => "built".to_owned(),
                 Ok(BooleanResult::Empty) => "empty".to_owned(),
-                Err(e) => short(&e),
+                Err(e) => format!("{} || {e}", short(&e)),
             };
-            eprintln!("{} needle w={m}Kε: {r}", pose.label);
+            eprintln!("{} needle w={w:e}: {r}", pose.label);
         }
     }
 }
