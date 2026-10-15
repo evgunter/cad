@@ -96,15 +96,17 @@ in: the pieces went on from the next face. The other slot mints that
 vertex on the other operand, whose own sweep reads it from the first
 face.
 
-The worklist now carries the faces each edge lies in. A split reads its
-vertex against them, as the ends were read, and the pieces inherit
-them. Every witness above refuses `VertexReadTwice` alike in every op,
+The worklist now carries the planar faces each edge lies in, from the
+line lane's coplanar arm and the conic lane's in-plane arm. Every split
+reads its vertex against them in `requeue`, as the ends were read, and
+the pieces inherit them. An edge lying on a curved face is not carried:
+`a-vertex-minted-on-an-edge-lying-on-a-curved-face-is-unread`. Every witness above refuses `VertexReadTwice` alike in every op,
 slot and member order. The wedge's tool-first union, which refused
 `ClassificationInvariant` on main, builds sound in every order, tier 3′
 included.
 
-`VertexReadTwice` now names its recourse: apply the operation to the
-pieces of the other solid that touch there, before they are joined.
+`VertexReadTwice` now names its recourse: apply the operation to each
+piece of the other solid that touches there, then combine the results.
 `the_recourse_of_a_prism_crossing_a_face_beside_a_resting_corner_builds`
 runs that route for every op at both tops, and it builds sound.
 Building the shape itself is

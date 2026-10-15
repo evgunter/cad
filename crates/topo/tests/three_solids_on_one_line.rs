@@ -844,13 +844,65 @@ fn a_prism_against_a_contact_line_on_a_bisector_builds_or_refuses_typed_in_every
     }
 }
 
+/// **A split of an edge lying in an earlier face reads the vertex it
+/// mints against that face**: the per-PR set's poses of
+/// [`a_contact_line_beside_a_face_holding_it_builds_in_every_op`] that
+/// go wrong without that read. The wedge towards 350° holds the
+/// line in its face, and the 120° prism's edge lies in it; each upright
+/// prism, met first, splits that edge at a later face, and unions with
+/// the line body into a body sound against the members' closed forms.
+#[test]
+fn a_split_of_an_edge_lying_in_an_earlier_face_reads_its_vertex_against_it() {
+    let p120 = Prism::on_line(120.0, 170.0, (0.47, 1.7));
+    let plate = finished(
+        "the plate",
+        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        t(),
+    );
+    let above = |p: &Prism| area(&p.footprint()) * (p.z.1 - PLATE[2].1);
+    let wedge = Wedge {
+        half: 45.0,
+        toward: 350.0,
+    };
+    let members = [plate, p120.body(), wedge.body()];
+    let in_line = |q| in_plate(q) || p120.holds(q) || wedge.holds(q);
+    let line_volume = 6.0 + above(&p120) + wedge.volume() - wedge.common_with(&p120);
+    for order in [[0, 1, 2], [1, 0, 2]] {
+        let line = fold(&members, &order)
+            .unwrap_or_else(|(k, e)| panic!("the line body {order:?}: step {k} refused: {e:?}"))
+            .body;
+        for tool in [
+            Prism::on_line(0.0, 50.0, (0.5, 2.0)),
+            Prism::on_line(40.0, 110.0, (0.5, 2.0)),
+            Prism::on_line(180.0, 230.0, (0.5, 2.0)),
+            Prism::on_line(280.0, 330.0, (0.5, 2.0)),
+        ] {
+            let what = format!("the line body {order:?} and the prism over {:?}", tool.foot);
+            let body = match union(&tool.body(), &line, t()) {
+                Ok(BooleanResult::Body(r)) => r.body,
+                other => panic!("{what}: {other:?}"),
+            };
+            sound(&what, &body, &|q| tool.holds(q) || in_line(q));
+            let solo = area(&tool.footprint()) * (tool.z.1 - tool.z.0);
+            let common =
+                area(&tool.footprint()) * (PLATE[2].1 - tool.z.0) + wedge.common_with(&tool);
+            let v = topo::mass_properties(&body, t()).unwrap().volume;
+            let volume = line_volume + solo - common;
+            assert!(
+                (v - volume).abs() < 1e-9,
+                "{what}: volume {v}, closed form {volume}"
+            );
+        }
+    }
+}
+
 /// **The recourse of a prism crossing a face beside a corner resting on
 /// it builds in every op**: the line body of the row above is two
 /// pieces, the plate with the third and the 120° prism, touching along
 /// the line where the 120° prism's corner rests on the third's face. A
 /// prism over 40°–110°, its top above that corner or below it, refuses
 /// `VertexReadTwice` against the joined body in every op; applied to
-/// the pieces before they are joined, as the refusal's recourse says,
+/// each piece, the results then combined, as the refusal's recourse says,
 /// each op builds a body sound against the members' closed forms: the
 /// union in either grouping, the intersection of each piece joined, the
 /// line less the prism as the plate's piece less it joined to the 120°
