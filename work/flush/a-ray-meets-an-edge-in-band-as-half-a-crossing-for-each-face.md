@@ -53,7 +53,10 @@ forbids it to make.
    - An edge between two carriers needs one number per edge and ray:
      the ray's signed offset from the edge near the crossing.
 3. **`point_in_solid` reads through the same walk,** so its needle
-   operands keep their rays.
+   operands keep their rays. That is CLEAVE's
+   `point-in-solid-sets-a-ray-aside-near-a-narrow-faces-edge`, which
+   this unit closes when it lands; settle the split with CLEAVE before
+   dispatch.
 4. **Re-measure:**
    - the needle row's fixtures;
    - the `brick ∩ brick` needle poses;
