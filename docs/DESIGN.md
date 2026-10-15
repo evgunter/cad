@@ -1175,10 +1175,9 @@ of forms for it: one enum whose variants each keep exactly the numbers
 the person wrote, all lowering through one reading that every consumer
 goes through (a `circle` reads back as `circle` and lowers as
 `circle_split(c, r, 1, 0)` does, PATHS-DESIGN). That is how an exact
-authored value and a single interface coexist. D10's "one way" is one
-meaning, not one spelling: what it forbids as a second spelling is one
-fact held in two places that can disagree, or a derived number stored
-in place of the one written. A form joins a family only because it is
+authored value and a single interface coexist. A family is not a
+second spelling, which is one fact held in two places that can
+disagree, or a derived number stored in place of the one written. A form joins a family only because it is
 how someone authors the value, never for the kernel's convenience; it
 lowers totally, or refuses typed where it has no result. Moving one
 pose from another by a slide and a spin (FORK-MOVE) is one such form
