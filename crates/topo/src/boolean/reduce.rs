@@ -2114,6 +2114,26 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         });
     }
     let curve = certified(x.get_curve_geom(edge.curve))?.clone();
+    // **An edge on a wall of an equal cylinder pair with meeting axes,
+    // against the pair's other wall**: read through the two bisector
+    // planes, whose crossings are first order where the quadric's are
+    // not ([`factored_crossing`]).
+    if !covered
+        && matches!(surface, geom::Surface::Cylinder { .. })
+        && let Some(event) = factored_crossing::factored_crossing(
+            (x, x_is),
+            (edge, curve.carrier(), curve.params()),
+            [(u, pu), (v, pv)],
+            (&mut *y, face),
+            declared,
+            contacts,
+            frontier,
+            band,
+            tol,
+        )?
+    {
+        return Ok(event);
+    }
     // Conic carriers: a CIRCLE carrier gets a definite-miss verdict in
     // closed form, and the verdict is the edge's ARC, not the carrier
     // it rides. Two enclosures of the residual are folded, and the
@@ -3595,58 +3615,13 @@ fn wall_crossing<T: Decide + Bounds>(
                 Ok(Sign::Negative) | Err(_) => return Ok(SpanVerdict::Unsettled),
             }
         }
-        // The face's own trim decides whether a crossing of the CARRIER
-        // is a crossing of this FACE. `None` is the chart door's honest
-        // remainder (a ringed face, a boundary outside its outline
-        // classes, a full-period window outside the band class) and
-        // keeps the caller's
-        // frontier rather than reading as "outside".
-        //
-        // **A landing point definitely OFF the carrier is not "outside
-        // the trim".** The root was certified ON the surface, so the
-        // point containment decides is off it CONTRADICTS that
-        // certificate — a root the band cannot stand behind at this
-        // pose. Reading it as a sibling face's crossing would step over
-        // a real crossing and report the span clear; it keeps the door.
-        match super::contain::curved_face_placement_decided(y, face, p, band) {
-            Ok((CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None), _)) => {
-                return Ok(SpanVerdict::Unsettled);
-            }
+        match landing(y, face, p, band)? {
+            Landing::Unplaced => return Ok(SpanVerdict::Unsettled),
             // On the carrier and definitely outside THIS face's trim:
             // the carrier is crossed, but not here. The other roots may
             // still land in the face, so the loop continues.
-            Ok((CurvedPlacement::Trim(Some(FaceContainment::Out)), _)) => crossed_elsewhere = true,
-            Ok((CurvedPlacement::Trim(Some(at)), on)) => {
-                return Ok(SpanVerdict::Pierce { t, p, at, on });
-            }
-            Err(super::contain::ContainError::Escalated {
-                decision,
-                escalation,
-                diag,
-            }) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Containment {
-                        decision,
-                        escalation,
-                    },
-                    diag,
-                });
-            }
-            Err(super::contain::ContainError::StaleFace(face)) => {
-                super::contain::driver_face_stale(face)
-            }
-            // The face's boundary read refused (a lone-vertex loop, a
-            // loop it cannot walk, a chart refusal, an arc's end its
-            // corners disagree with): the roots are not placed, so the
-            // caller keeps its door.
-            Err(
-                super::contain::ContainError::EmptyLoop(_)
-                | super::contain::ContainError::LoopUnreadable(_)
-                | super::contain::ContainError::Curved(_)
-                | super::contain::ContainError::RayExhausted
-                | super::contain::ContainError::Uncrossable(_)
-                | super::contain::ContainError::ArcEndClearOfCorners(_),
-            ) => return Ok(SpanVerdict::Unsettled),
+            Landing::Out => crossed_elsewhere = true,
+            Landing::At(at, on) => return Ok(SpanVerdict::Pierce { t, p, at, on }),
         }
     }
     Ok(no_pierce_verdict(crossed_elsewhere, at_end))
@@ -3663,6 +3638,66 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
         SpanVerdict::Elsewhere
     } else {
         SpanVerdict::NoInterior
+    }
+}
+
+/// Where a crossing of a curved face's carrier lands in the face
+/// ([`landing`]).
+enum Landing {
+    /// In the face or on its boundary, `at`, by the margin that decided
+    /// a boundary landing.
+    At(FaceContainment, Option<MarginDiag>),
+    /// On the carrier and definitely outside the face's trim.
+    Out,
+    /// No verdict: the caller keeps its door.
+    Unplaced,
+}
+
+/// **Where the crossing point `p`, certified on `face`'s carrier, lands
+/// in the face's trim** ([`super::contain::curved_face_placement_decided`]).
+///
+/// `Unplaced` is the chart door's honest remainder (a ringed face, a
+/// boundary outside its outline classes, a full-period window outside
+/// the band class), never "outside". **A landing point definitely OFF
+/// the carrier is not "outside the trim" either**: the crossing was
+/// certified ON the surface, so a point containment decides is off it
+/// contradicts that certificate, a crossing the band cannot stand behind
+/// at this pose. Reading it as a sibling face's crossing would step over
+/// a real one, so it is `Unplaced` too, as is a boundary read the face
+/// refuses (a lone-vertex loop, a loop it cannot walk, a chart refusal,
+/// an arc's end its corners disagree with).
+fn landing<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Landing, BooleanError> {
+    match super::contain::curved_face_placement_decided(y, face, p, band) {
+        Ok((CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None), _)) => Ok(Landing::Unplaced),
+        Ok((CurvedPlacement::Trim(Some(FaceContainment::Out)), _)) => Ok(Landing::Out),
+        Ok((CurvedPlacement::Trim(Some(at)), on)) => Ok(Landing::At(at, on)),
+        Err(super::contain::ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        }) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Containment {
+                decision,
+                escalation,
+            },
+            diag,
+        }),
+        Err(super::contain::ContainError::StaleFace(face)) => {
+            super::contain::driver_face_stale(face)
+        }
+        Err(
+            super::contain::ContainError::EmptyLoop(_)
+            | super::contain::ContainError::LoopUnreadable(_)
+            | super::contain::ContainError::Curved(_)
+            | super::contain::ContainError::RayExhausted
+            | super::contain::ContainError::Uncrossable(_)
+            | super::contain::ContainError::ArcEndClearOfCorners(_),
+        ) => Ok(Landing::Unplaced),
     }
 }
 
@@ -4603,6 +4638,9 @@ mod undeclared_rule_rows {
         }
     }
 }
+
+#[path = "factored_crossing.rs"]
+pub(super) mod factored_crossing;
 
 #[cfg(test)]
 #[path = "coplanar_conic_rows.rs"]

@@ -2,11 +2,14 @@
 id: whole-periods-caps-a-branch-at-four-periods
 kind: issue
 title: whole_periods refuses a branch more than four periods out (MAX_BRANCH_PERIODS), a cap no producer reaches and no clause states
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: E
 refs: [loop-walk-branch-is-an-opaque-floor-atom]
+closed: 2026-10-15
+branch: pcert/whole-periods-cap
+pr: 5126
 ---
 
 
@@ -59,3 +62,26 @@ decision's gap is within about two periods once images are placed).
 ## The answer
 
 Ev took the recommendation on `[ev]` PR 5142 (2026-10-15, "i think this sounds good"): no cap; images placed over the edge's span in the principal window; a row is its placed image and a lifted copy is the (row, deck element) pair, never re-certified; the walk reads the half-period marks from zero; a `Period` per closed channel (a net's `v` included) owned by the chart, and an `Azimuth` exit from `atan2` through a stated reference. C4 carries it.
+
+## Closed
+
+PR 5126, reworked to the answer's unit A. `MAX_BRANCH_PERIODS`,
+`whole_periods`, `BranchMiss::OutOfReach` and
+`PcurveCertifyError::BranchOutOfReach` are gone, and so are the
+retry-from-estimate and `branch_estimate` 5126 first carried. Every
+walk decides a joint through `geom_brep::Period::decide`, which reads
+the half-period marks outward from zero until one is decided on the
+far side of the gap. The walks are check 4, the loop walk, `chart_region::period_fold`, the
+torus point-in-solid walk, `offset_axial::keep_turn`, and `chord_join`'s
+window and pole branches. A walk stops only on a decided mark: a gap
+in band of one, a non-finite gap, or a count past `i32` stops typed.
+Before the cap came off `chord_join`, its gaps were measured over the
+workspace suite on main. `split_window_branch` had 11.4 million reads
+and `split_sphere_pole_branch` 92 thousand; none from a built body
+passes about two periods (the `whole_period_gap_over_a_box` rows at
+`k = 2`). The 26 reads past that are
+`a_half_turn_gap_answers_by_the_band_at_every_turn_count`'s, which hands
+`nearest_branch` gaps of ±2.5 and ±3.5 periods to pin the band at every
+turn count.
+The `u + 7τ` corruption row now certifies; it refuses again as a
+residual once unit B places images.
