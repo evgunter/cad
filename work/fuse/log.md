@@ -1038,3 +1038,10 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Loft/NURBS imports (about 20):** they escalate on `curve_pair_span_end_chord` (margins 1.4–7.4e-9). Hypothesis: the census reads, by geometry, a vertex that is the edge's own end, where D3 exempts reading a record.
   - **Sweep fillet/seam bodies (11):** tier 3′ refuses `NotCertifiable` from `meet`'s walk, where the old census walk decided. The two walks had drifted.
   - **Next:** not re-blessed; sent back to the lane to root-cause. 5154 and 5162 are unaffected (both green); the Opus re-review of 5154 is still running.
+- 2026-10-15: Opus re-review of 5154 (c5835dd).
+  - **Held:** the Past fix, `|radius|`, mutant F, one composition, and no false Parallel in 20k pairs; the 1e-6/1e-12 sweep reds are main's.
+  - **MAJOR:** ruling A's split invariance is not delivered. The router goes Parallel only when the overlap tilt reads Zero, so a whole read escalates where pieces decide. The result is honest, but the invariant fails.
+  - **Fix sent:** the parallel argument goes first, whatever the tilt reads.
+  - **Minors:**
+    - a shallow corner reads Coincident (L=0 overlap); it must bound both whole spans before c2's `shared` consumers land;
+    - containment's `unreachable!` is reachable via `clear_of`; it becomes a typed refusal.
