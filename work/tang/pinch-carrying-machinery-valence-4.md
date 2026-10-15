@@ -111,7 +111,7 @@ pair's section crosses itself with no operand edge there (a *node*).
 
 ## Ev's decision on U2 (PR 5178, 2026-10-15)
 
-Approved by Ev after four reconciliation rounds (row 143 of
+Approved by Ev after four reconciliation rounds (row 147 of
 `docs/DESIGN-FORK-LOG.md`); both designers hold the design below.
 
 ## Remaining
