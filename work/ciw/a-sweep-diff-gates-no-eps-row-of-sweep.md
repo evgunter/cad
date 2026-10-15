@@ -1,11 +1,11 @@
 ---
 id: a-sweep-diff-gates-no-eps-row-of-sweep
 kind: issue
-title: a diff touching only sweep's tests runs none of sweep's 1e-6/1e-12 rows at the PR gate, though today's eps-only red sat there
+title: a kernel diff's rows that it does not edit — sweep's under a topo change (PR 5192), or a seeded crate's outside the four — meet 1e-6/1e-12 only at the nightly
 status: open
 opened: 2026-10-01
 priority: P2
-cost: E
+cost: M
 ---
 
 Filed by the reach-eps lane (REACH, PR 3636).
@@ -44,3 +44,63 @@ at the default ε passed. CI caught it only because the same diff edited
 A topo-only diff makes `eps_extra=package(topo)`. That runs none of the
 sweep rows where topo's booleans are exercised, so the same defect
 would have merged green and reddened the nightly.
+
+## 2026-10-15 — the changed files are covered; the rest is priced (CIW)
+
+The extra rows now include every test file the diff adds or modifies,
+in any crate (`scripts/ci-filter.py`'s `eps_rows_filter`, closing
+`a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge`).
+That covers the cases above: PR 3636's
+`crates/sweep/tests/reach_volume_backstop.rs` would now print
+`(binary_id(sweep::all) & test(/^reach_volume_backstop::/))`.
+
+What this row still holds is a red in a row the diff does not edit.
+
+**PR 5192.** Run locally on its crate files, without the
+`.config/nextest.toml` edit that forced `TIER=all`, the filter now prints
+`package(topo) | (binary_id(sweep::all) & test(/^bisector_nodes::/))`.
+The red row sits in `crates/sweep/tests/verbs_germarms2_interval.rs`,
+which the diff does not edit, so it would still merge green.
+
+**What covering it costs.** These are step times from `get_workflow_job`
+on 2026-10-15:
+
+| run | `eps_extra` | ε 1e-6 + 1e-12 step |
+|---|---|---|
+| 38804490307 (PR 5198) | `package(geom-brep) \| package(topo)` | 4m05s |
+| 38806115057 (PR 5204) | `package(geom-brep) \| package(topo) \| package(sweep)` | 8m58s |
+
+The 1e-12 pass of 38806115057 ran 7193 tests in 320 s. So sweep's own
+rows cost about 4.9 min a PR across the two passes, on a job whose
+build already exceeds the 15-minute bar
+(`a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar`).
+
+- Adding `package(sweep)` for a seeded sweep would cost about 5 min
+  on every sweep PR.
+- Adding it for every topo-seeded PR, which is PR 5192's case, would
+  cost the same on every topo PR.
+
+Both exceed the "a few minutes" this gate can afford, so neither is
+done.
+
+**Seeded crates outside the four** (geom-core, editor-core, mesh, and
+the rest). A `src/` edit there runs only its own changed file's rows.
+Their whole-suite row cost is unmeasured. A local measurement was
+abandoned because the box ran out of disk. The per-test logs that
+would give it are past the 5000-line tail that `get_job_logs` returns.
+
+## Owed
+
+- The per-crate cost of one ε row for each member outside the four.
+  A run whose `eps_extra` names them would give it, for example a
+  `workflow_dispatch` with `scope=all` read per binary from a log
+  artefact, or a nextest JUnit upload.
+- With those costs in hand, decide `EPS_ROWS_PACKAGES`
+  (`scripts/ci-filter.py`). One option is "every seed except those
+  whose rows cost more than N s".
+- PR 5192's case, a dependent crate's untouched rows: either accept
+  it as the nightly's, or find a cheaper selector than
+  `package(sweep)`. One candidate is the sweep suites that call the
+  changed topo module, if a reverse index from module to suites is
+  cheap to keep.
+
