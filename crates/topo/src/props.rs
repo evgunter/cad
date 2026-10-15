@@ -2984,12 +2984,11 @@ impl fmt::Display for ShellClassifyPayload<'_> {
                 "the certified enclosure of a shell's volume holds zero: {}",
                 EnclosureWords(source.margin)
             ),
-            ShellClassifyError::ZeroVolume { .. } => f.write_str(
-                "a shell's signed volume, or an end of its certified bracket, is zero at this \
-                 tolerance",
-            ),
+            ShellClassifyError::ZeroVolume { .. } => {
+                f.write_str("a shell's certified volume, or an end of its bracket, is zero")
+            }
             ShellClassifyError::Straddles { .. } => {
-                f.write_str("a shell's certified volume bracket straddles zero at this tolerance")
+                f.write_str("a shell's certified volume bracket straddles zero")
             }
             ShellClassifyError::RayInBand { pair, .. } => write!(
                 f,

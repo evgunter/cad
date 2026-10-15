@@ -155,13 +155,12 @@ fn assert_smooth_built_and_refused_at_rest(text: &str, label: &str) {
     );
 }
 
-/// Every rim transverse, and tier 3 refuses only the orientation: a
-/// needle whose short sides are about `K·ε` holds no face a point can be
-/// certified inside, so no ray is aimed at it, and its volume straddles
-/// zero by its own rounding (D1 tier 3, check 7: a solid whose
-/// orientation no reading decides refuses). Today's answer to the open
-/// class, pinned so its fix shows here
-/// (`work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
+/// Every rim transverse, and the body valid at rest: a needle whose short
+/// sides are about `K·ε` holds no face a point can be certified inside,
+/// so no ray is aimed at it, and its volume's certified enclosure reads
+/// its sign (D10, Ev's ruling on the class a body thin in two directions
+/// belongs to,
+/// `work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
 fn assert_all_transverse_and_valid(text: &str, label: &str) {
     for needle in ["RKPROBE extrude=Ok", "RKPROBE non_intersection_rims=0"] {
         assert!(
@@ -170,12 +169,8 @@ fn assert_all_transverse_and_valid(text: &str, label: &str) {
         );
     }
     assert!(
-        text.contains("RKPROBE tier3=Err n=1")
-            && text.contains(
-                "RKPROBE tier3_error=OrientationUndecided { solid: SolidKey(1v1), reading: \
-                 Volume { margin: None, aimed: 0, set_aside: [] } }"
-            ),
-        "{label}: tier 3 refuses only the orientation:\n{text}"
+        text.contains("RKPROBE tier3=Ok"),
+        "{label}: the body must validate at rest:\n{text}"
     );
 }
 

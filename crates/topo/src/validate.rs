@@ -4141,13 +4141,10 @@ impl fmt::Display for ValidationError {
                     match margin {
                         Some(diag) => write!(
                             f,
-                            "; and the certified enclosure of its volume holds zero: {}. {DEFECT}",
+                            "; and its volume's enclosure holds zero: {}. {DEFECT}",
                             crate::props::EnclosureWords(diag.margin)
                         ),
-                        None => write!(
-                            f,
-                            "; and the certified enclosure of its volume holds zero. {DEFECT}"
-                        ),
+                        None => write!(f, "; and its volume's enclosure holds zero. {DEFECT}"),
                     }
                 }
                 OrientationUnread::Ray(source) => write!(

@@ -542,11 +542,6 @@ fn print_the_arm_at_a_small_k() {
     }
 }
 
-/// The needle's one at-rest finding above the crossover: no face offers
-/// an aim, and its volume straddles zero by its own rounding.
-const NEEDLE_ORIENTATION: &str = "KPROBE tier3_error=OrientationUndecided { solid: SolidKey(1v1), \
-     reading: Volume { margin: None, aimed: 0, set_aside: [] } }";
-
 /// Runs [`print_the_arm_at_a_small_k`] in a child process at a K on
 /// each side of the crossover and reads the outcome back.
 fn at_k(k: &str, arm_factor: &str) -> String {
@@ -619,14 +614,13 @@ fn the_cap_rim_arm_is_unreachable_above_the_crossover_and_is_reached_below_it() 
         "above K* every cap rim must be an Intersection:\n{above}",
     );
     // The body is a needle a few `K·ε` across: no face of it holds a
-    // point certified inside, so check 7 aims no ray at it, its volume
-    // straddles zero by its own rounding, and it refuses its orientation
-    // alone (D1 tier 3). Today's answer to the open class, pinned so its
-    // fix shows here
-    // (`work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
+    // point certified inside, so check 7 aims no ray at it, and its
+    // volume's certified enclosure reads its sign (D10, Ev's ruling on the
+    // class a body thin in two directions belongs to,
+    // `work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
     assert!(
-        above.contains("KPROBE tier3=Err n=1") && above.contains(NEEDLE_ORIENTATION),
-        "above K* the built body refuses its orientation alone:\n{above}",
+        above.contains("KPROBE tier3=Ok"),
+        "above K* the built body must validate at rest:\n{above}",
     );
 
     // K = 1.1: below K*. The same construction reaches the arm — here

@@ -155,17 +155,16 @@ fn a_near_tangent_wedge_whose_volume_is_in_band_reads_its_role_off_a_ray() {
     );
 }
 
-/// **A sliver lump no reading sides refuses as the kernel's until the
-/// door runs the census**: at `vee300 nt e0 a1 d6e-9`, ε = 1e-9, the ∩'s
-/// lump has its `V/A` certified in [1.69973e-9, 1.69973e-9] while the
-/// f64 walk reads 8.7e-10 (prism first) and 3.3e-10 (cube first), in the
-/// zero band, and no ray aimed at one of its faces reads its side or a
-/// pair in band. With no pair in band to name, the door types the
-/// unread role as the kernel's (`ResultInvalid`), in both orders; the
-/// census over the result would name the lump's in-band pair
-/// (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+/// **A sliver lump its certified volume sides builds**: at `vee300 nt e0
+/// a1 d6e-9`, ε = 1e-9, no ray aimed at one of the ∩'s lump's faces
+/// reads its side or a pair in band, and the f64 walk reads its `V/A` at
+/// 8.7e-10 (prism first) and 3.3e-10 (cube first), in the zero band;
+/// its certified enclosure is [1.69973e-9, 1.69973e-9], and the volume's
+/// sign is read off that enclosure alone (D10), so the lump is `Outer`
+/// and the ∩ builds, in both orders. It refused as the kernel's while
+/// the volume was held against the band.
 #[test]
-fn a_sliver_no_reading_sides_refuses_in_both_orders() {
+fn a_sliver_lump_its_certified_volume_sides_builds_in_both_orders() {
     let tol = Tol::witness();
     if (tol.eps() - 1e-9).abs() > 1e-21 {
         test_utils::vacuity::stood_down(
@@ -176,23 +175,12 @@ fn a_sliver_no_reading_sides_refuses_in_both_orders() {
     }
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5), (0.0, 4.0)];
     let (prism, cube) = corner_pose(&profile, [2.0, 0.5, 1.0], [2.0, 3.5, 0.0], 1, 6e-9, tol);
-    for (order, refusal) in [
+    for (order, result) in [
         ("prism first", intersect(&prism, &cube, tol)),
         ("cube first", intersect(&cube, &prism, tol)),
     ] {
-        let refusal = refusal.map(|_| ());
-        assert!(
-            matches!(
-                &refusal,
-                Err(BooleanError::ResultInvalid { errors })
-                    if matches!(errors[..], [ValidationError::ShellRoleUndecided {
-                        error: topo::ShellClassifyError::ZeroVolume { .. }
-                            | topo::ShellClassifyError::Escalated { .. },
-                        ..
-                    }])
-            ),
-            "{order}: the ∩ refuses its unread lump, got {refusal:?}"
-        );
+        let result = result.unwrap_or_else(|e| panic!("{order}: the ∩ builds, got {e:?}"));
+        assert!(result.body().is_some(), "{order}: the ∩ is not empty");
     }
 }
 
