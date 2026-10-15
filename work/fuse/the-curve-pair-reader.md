@@ -7,13 +7,16 @@ opened: 2026-10-14
 priority: P1
 cost: H
 refs: [two-curve-curve-meeting-finders, 5027]
-needs_ev: true
 ---
 
 
 ## The decision it carries out
 
 Ev ruled on PR 5027 (2026-10-14). The reader lives in `geom-brep`, beside C5's surface-pair table, and C5 governs curve pairs too: one exhaustive `(CurveKind, CurveKind)` table, one method per pair fixed at write time, no runtime fallback. The designer pair's agreed final state is in the PR body and in `two-curve-curve-meeting-finders`.
+
+## Decision: two readings and their composition (2026-10-15)
+
+Ev approved the designers' converged recommendation on 5154 (2026-10-15): the point-on-span reading splits into `geom`'s one-carrier readings (the point's foot, `Curve3::foot`, and whether it lies on the carrier, `Curve3::on_carrier`, decided off only on a lower bound on its distance to the whole carrier) and the span's reading of its ends (`Span::place`), composed once beside `Span` (`Span::contact`), which decides nothing of its own. The fork-log is row 146.
 
 ## What to build, in order
 
