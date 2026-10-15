@@ -1045,3 +1045,12 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Minors:**
     - a shallow corner reads Coincident (L=0 overlap); it must bound both whole spans before c2's `shared` consumers land;
     - containment's `unreachable!` is reachable via `clear_of`; it becomes a typed refusal.
+- 2026-10-15/16: 5154's re-review fixes are pushed (5d1b24e) and merged into c2 (98a171a); local full `ci` runs are green on both.
+  - **M1:** the parallel test now runs first in one `route()`, so the reading is split-invariant (rows red on old).
+  - **m1:** Coincident must bound both whole spans.
+  - **m2:** containment's `unreachable!` becomes `ConicHit::Unsettled`.
+  - **Next:** waiting on hosted CI to merge 5154, then 5162.
+- 2026-10-16: c3's 31 reds are root-caused.
+  - **Where:** all come from the new pass 5′ (`sweep_curved_edge_edge`), sweeping curved edge × edge pairs as main never did. Nearly all (355 of 361) refusals are at a shared vertex.
+  - **Breakdown:** NURBS × line escalates at walk points 1–7 nm from the joint; tangent fillet joints hit the meter; 6 are the coplanar-ellipse frontier.
+  - **Designer pair dispatched** on how the census should read joined edge pairs: byte 108, A = Opus, B = Fable, recorded on `analysis/design-fork/census-joined-edge-pairs`.
