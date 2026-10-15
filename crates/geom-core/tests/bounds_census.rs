@@ -357,6 +357,21 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/reach.rs",
+        subject: "curve_in_core",
+        why: Selection(
+            "the reach's inside reading of an edge, a walk over parameter pieces through \
+             `sure`, as `inside_bound` walks a face's cells. Each read selects whether a \
+             piece is inside the core or halved, and any piece not certified ends the walk \
+             uncertified, so the face the edge bounds reads as a bound. Only a walk whose \
+             every piece is certain reads inside, and the depth it reports is one term of \
+             `prism_inside`'s reading, which `sure` decides and the funnel classifies. The \
+             tightening that follows reads each certified piece's upper end only to choose \
+             which piece to halve and when to stop, a cost choice: every piece it leaves \
+             holds a bound that already certified it",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
         subject: "impl<T: Bounds> Unclear<T>",
         why: Selection(
             "the request's three-way verdict. Its reads only choose which of several \

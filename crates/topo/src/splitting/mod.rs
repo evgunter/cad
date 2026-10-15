@@ -101,7 +101,9 @@ use crate::validate::{AtRestBody, Unfinished, ValidationError};
 use geom_core::Tol;
 use slotmap::SecondaryMap;
 
-pub use crate::chord_join::{ConicCrossingsCase, SplitJoinError};
+pub use crate::chord_join::{
+    ConicCrossingsCase, SectionEndReading, SectionPinMiss, SplitJoinError,
+};
 pub use containment::{
     Escalation, LoopContainment, LoopDecision, OffPlane, OffPlaneCause, PointInLoopError,
     Uncrossable, UncrossableCarrier, point_in_loop,
@@ -1110,11 +1112,18 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// # Errors
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole (no
-/// degenerate body is ever emitted). The sides are gated at tier 2
-/// ([`SplitFinishError::ResultInvalid`]); tier 3 is not run on them. A
-/// pinch side's touching pieces need no contact record, since their
-/// copies of the pinched vertex share its point key, and the ON verdict
-/// that pinched them is in [`SplitResult::coincidences`].
+/// degenerate body is ever emitted). Each side is gated at tier 2
+/// ([`SplitFinishError::ResultInvalid`]) and, as sorted into its
+/// solids, at the scalar's at-rest gate
+/// ([`crate::AtRestPolicy::gate_at_rest`], the gate the Boolean's result
+/// passes, its findings typed as the Boolean types them:
+/// [`SplitFinishError::ResultEscalated`] for shells in band,
+/// [`SplitFinishError::ResultNotAtRest`] otherwise). So at a certifying
+/// scalar no side is returned that [`crate::validate_geometric`]
+/// refuses; at a dual the gate runs nothing beyond tier 2. A pinch side's
+/// touching pieces need no contact record, since their copies of the
+/// pinched vertex share its point key, and the ON verdict that pinched
+/// them is in [`SplitResult::coincidences`].
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
@@ -1133,10 +1142,15 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
         operand
     };
     let mut result = split_direct(operand, plane, tol)?;
-    for part in [&mut result.above, &mut result.below] {
+    for (side, part) in [
+        (PlaneSide::Above, &mut result.above),
+        (PlaneSide::Below, &mut result.below),
+    ] {
         if let finish::SplitPart::Body(body) = part {
             crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), None)
                 .map_err(SplitError::Pieces)?;
+            T::gate_at_rest(body, tol)
+                .map_err(|errors| SplitFinishError::not_at_rest(side, errors))?;
         }
     }
     Ok(result)

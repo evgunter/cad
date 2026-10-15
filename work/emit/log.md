@@ -2370,3 +2370,38 @@ The PR merged with `demos` red on that drift alone.
 **Filed:** `a-booleans-merge-stage-kills-split-records-no-row-copies`.
 
 **Process.** The lane's 11G target, together with two designer builds, brought `/` down to 7G free. The fold round skipped its workspace build, and the target was deleted once the fold was pushed.
+
+## 2026-10-14 — PR 5169: the merge stage keeps split records; the remap row re-scoped
+
+**Closed: `a-booleans-merge-stage-kills-split-records-no-row-copies`.**
+- Measured first. The merge dropped a record 1134 times, and `chase_edge_to_table` stopped short 342 times, each time naming a piece of an operand edge as a seam.
+- `finish_output` now records the merge's own `killed_edges` and the join's kills into `BooleanNaming::killed_lineage` (renamed from `joined_lineage`). It does so from one snapshot, through the one-parent writer. Records only.
+- `KilledSplits::of` reads the map.
+- What moved: only `crossing_slots`. A cavity-rim stretch is now a piece of the rim, not a seam, and the four floor corners now read alike. Four goldens were re-baselined.
+
+**Re-scoped: `a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical`.** No design question remains. ASSEMBLY.md A4 Acceptance requires split and inline maps to keep name order. The public `remap_name` gives a typed refusal (fail-loud). The row is open for a build lane.
+
+**Filed:**
+- `a-booleans-carve-kills-a-split-record-its-discard-rows-do-not-copy`;
+- `a-grafted-b-piece-whose-parent-the-merge-killed-chases-short`;
+- `work/origin/body-split-root-stops-at-a-parent-an-output-stage-killed` (with a sibling sweep).
+
+**Review.** The falsifier's A4 reading turned the remap design stop into a build. Without it, the stop would have become a third `[ev]` question.
+
+## 2026-10-15 — PRs 5107, 5174 and 5180
+
+**PR 5107: a union reads flush edges along a curved carrier.**
+- Closed `a-unions-flush-reading-is-straight-only` and `crossings-of-a-union-seam-of-several-curves-tie`.
+- `EdgeCarrier` (`Straight`, `Curved` or `Unread`, the last for a NURBS carrier) and `Track::runs_with` decide the flush lines. `least_per_line` is shared with the pair boolean.
+- The `Track::offset` start point is decided first.
+- Ev ratified (2026-10-14) the N2 / flush README re-wording, "line" = carrier. On ranking along a curved seam: "that can be a separate pr". It is filed as `a-union-seam-whose-pieces-lie-on-one-open-carrier-ranks-its-crossings-along-it`.
+- Re-baselined: the ball-brick refusal message.
+
+**PR 5174: split and inline keep step-id order; `remap_name` refuses typed; the carve keeps split records.**
+- Closed `a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical` under ASSEMBLY.md A4 Acceptance. The split's and inline's step maps keep id order, through a recorded `SetProgram` that mints nothing.
+- A ranked run across two profiles refuses typed. It is unreachable today.
+- `remap_name` returns `RemapError`, and `RankedRunReordered` is a new typed refusal.
+- Closed `a-booleans-carve-kills-a-split-record-its-discard-rows-do-not-copy` through `carved_lineage`, records only.
+- North-star `TestCrosslapGlued` now succeeds: audit row 37 flips NO→YES.
+
+**PR 5180: main red, fixed.** TANG #5111 added a `copysign` site that the Rule F census did not count, and main's own CI scoped geom-core out. 5107 and 5174, both at `TIER=all`, went red. The census was re-asked: the site makes no decision. The fix was merged into both, then into main.

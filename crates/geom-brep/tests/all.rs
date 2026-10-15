@@ -135,6 +135,8 @@ mod pcurve_frame_premise_rows;
 mod pn_apex_pair_over_a_span;
 #[path = "pn_apex_reach.rs"]
 mod pn_apex_reach;
+#[path = "pn_apex_tangent_generator.rs"]
+mod pn_apex_tangent_generator;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
 #[path = "props_cone_incidence.rs"]

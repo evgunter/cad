@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use crate::fixture::member_of;
 use editor_core::ExtrudeSide;
 
 use crate::corpus::body_of;
@@ -61,17 +62,6 @@ fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeI
     let boxes = [a, b, c];
     let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]));
     (doc, boxes, u)
-}
-
-/// The member a union-minted name came from, or `None` for a name that
-/// is not a carried (`From`) row. Read off the member's READ, which is
-/// the only thing that answers: the inner name's minting node is the
-/// PROTOTYPE's where a member is a placement of one.
-fn member_of(doc: &ProfileDoc, name: &StableName) -> Option<RecipeNodeId> {
-    match name.path.first() {
-        Some(RoleSeg::From { read, .. }) => doc.operation_of(*read),
-        _ => None,
-    }
 }
 
 // ---------------------------------------------------------------------

@@ -4860,7 +4860,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "euler",
             "fallback_extent_unsupported",
             "germ_edge_carrier_unsupported",
-            "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
             "germ_section_outside_inventory",
             "germ_section_spiric",
@@ -4876,6 +4875,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "merge",
             "mixed_seam",
             "nesting_unread",
+            "node_unbuilt",
             "non_finite_sector_chord",
             "non_manifold_result",
             "non_maximal_faces",
@@ -5358,6 +5358,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_carries_metadata",
             "part_dead_gauge",
             "placement_pose_crosses",
+            "ranked_run_reordered",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
@@ -6255,6 +6256,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_id_collides",
             "part_name_reaches_remainder",
             "placing_mate_left",
+            "ranked_run_reordered",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
@@ -6274,7 +6276,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_op_error_tag",
         values: &["finish", "join", "pcurves", "pieces", "reduce"],
-        delegates: &["join_refusal_tag"],
+        delegates: &["boolean_error_tag", "join_refusal_tag"],
     },
     TagEntry {
         function: "stale_declaration_tag",
@@ -6756,6 +6758,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `program`, which leaves `profile` to the operand the slot
     // alphabet forwards.
     ("profile", 2),
+    // A split's and an inline's refusal of a ranked run its re-minted
+    // ids reorder: one fact (`editor_core::RemapError::RankedRunReordered`).
+    ("ranked_run_reordered", 2),
     // One fact: `topo::readback` refused the face it read, as a face
     // frame's refusal and as a pose read off geometry's.
     ("readback", 2),

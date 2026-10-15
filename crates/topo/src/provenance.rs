@@ -120,7 +120,7 @@ pub enum Provenance {
     /// **A copy of these records is as sound as the records.** Three
     /// naming tables copy them out of a body before a kill drops them:
     /// a split's `SplitNaming::joined_lineage`, and a Boolean's
-    /// `BooleanNaming::joined_lineage` and
+    /// `BooleanNaming::killed_lineage` and
     /// `DiscardRow::boundary_chains`. A body holds one record per edge,
     /// written when the key is minted (here, or by a graft forwarding
     /// one) and never rewritten, and an arena never hands a key out
