@@ -28,10 +28,10 @@ somewhere it is wound inside out.
 **Its unions.** Every union of the crown with the probe pyramids 1, 2
 and 4 (bearings 130°, 130° and 250°), in both orders, carries the same
 points. On the branch:
-- `x ∪ y` of probes 2 and 4 refuses at three poses of four (at rest,
+- `x ∪ y` of probes 2 and 4 refuses at three poses of five (at rest,
   turned about z, turned) as `ResultInvalid { NegativeVolume }`;
 - `y ∪ x` of both at every pose, probe 1 in both orders, and the
-  flipped pose's `x ∪ y` build and pass tier 3 holding the region.
+  two flipped poses' `x ∪ y` build and pass tier 3 holding the region.
 
 Check 7 reads a solid's side off the first aimed ray that decides, in
 face order. The ray that finds the region (probe 2 at rest, aimed at 60°

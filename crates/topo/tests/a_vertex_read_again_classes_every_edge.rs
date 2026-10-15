@@ -212,6 +212,8 @@ fn local(pose: &Pose, w: Vec3<f64>) -> [f64; 3] {
 #[derive(Default, Debug)]
 struct Tally {
     built: usize,
+    /// The cells that built, by pose.
+    built_by_pose: BTreeMap<String, usize>,
     refused: BTreeMap<String, usize>,
     /// Each refused cell, `"<pose>, <op>: <kind>"`.
     refused_cells: Vec<String>,
@@ -260,6 +262,10 @@ fn check(
             }
         };
         tally.built += 1;
+        *tally
+            .built_by_pose
+            .entry(pose.label.to_string())
+            .or_default() += 1;
         assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
         for (op, own, other) in [(Operand::A, a, bg), (Operand::B, b, ag)] {
             for (v, _) in own.vertices() {
@@ -997,13 +1003,17 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         if tally.refused_cells != refused || tally.wrong + tally.missing + tally.doubled > 0 {
             failures.push(format!("{label}: {tally:?}"));
         }
-        if let Some((_, built)) = KNOWN_WRONG.iter().find(|(l, _)| l == label)
-            && tally.built != *built
-        {
-            failures.push(format!(
-                "{label}: {} built, {built} known wrong (the crown's −1 region): {tally:?}",
-                tally.built
-            ));
+        if let Some((_, built)) = KNOWN_WRONG.iter().find(|(l, _)| l == label) {
+            let known: BTreeMap<String, usize> = built
+                .iter()
+                .map(|&(pose, n)| (pose.to_owned(), n))
+                .collect();
+            if tally.built_by_pose != known {
+                failures.push(format!(
+                    "{label}: built by pose {:?}, known wrong (the crown's −1 region) {known:?}",
+                    tally.built_by_pose
+                ));
+            }
         }
     }
     assert!(failures.is_empty(), "{failures:#?}");
@@ -1012,10 +1022,10 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
 
 /// The fin scenes whose union check 7 reads inside out
 /// (`ResultInvalid { NegativeVolume }`), cell by cell: `x ∪ y` at three
-/// poses of four. The region it reads is the fin crown's own
+/// poses of five. The region it reads is the fin crown's own
 /// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`);
 /// the aimed ray that finds it is the first in face order that decides,
-/// so `y ∪ x` and the flipped pose's `x ∪ y` take another ray, read
+/// so `y ∪ x` and the two flipped poses' `x ∪ y` take another ray, read
 /// `Out`, and build.
 const KNOWN_INSIDE_OUT: [(&str, [&str; 3]); 2] = [
     (
@@ -1039,13 +1049,41 @@ const KNOWN_INSIDE_OUT: [(&str, [&str; 3]); 2] = [
 /// **Known wrong**: the fin scenes whose results build and pass tier 3
 /// holding the crown's −1 region (an independent winding count reads it
 /// in every union with probes 1, 2 and 4, in both orders, and in the
-/// crown alone: review R1, PR 5119), with the cells that build. Check 7
+/// crown alone: review R1, PR 5119), with the cells that build at each
+/// pose, so a new pose adds a row rather than moving a count. Check 7
 /// and the census pass a body with a −1 region today; the row owns it
 /// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`).
-const KNOWN_WRONG: [(&str, usize); 3] = [
-    ("a fin, probe 1", 20),
-    ("a fin, probe 2", 27),
-    ("a fin, probe 4", 27),
+const KNOWN_WRONG: [(&str, &[(&str, usize)]); 3] = [
+    (
+        "a fin, probe 1",
+        &[
+            ("at rest", 4),
+            ("turned about z", 4),
+            ("turned", 4),
+            ("flipped", 4),
+            ("flipped and turned", 4),
+        ],
+    ),
+    (
+        "a fin, probe 2",
+        &[
+            ("at rest", 5),
+            ("turned about z", 5),
+            ("turned", 5),
+            ("flipped", 6),
+            ("flipped and turned", 6),
+        ],
+    ),
+    (
+        "a fin, probe 4",
+        &[
+            ("at rest", 5),
+            ("turned about z", 5),
+            ("turned", 5),
+            ("flipped", 6),
+            ("flipped and turned", 6),
+        ],
+    ),
 ];
 
 /// A probe cell's tally beside [`Tally`]: what built, what was empty or
