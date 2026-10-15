@@ -68,7 +68,7 @@ Each passes tier 3 and tier 3′, matches its closed-form volume, and matches th
 
 **The rest of the pass:**
 
-- Two pierces of one face at one point mint one ring vertex there, as the face's boundary read of the first's ring vertex had made them before.
+- Two pierces of one face at one point refuse `HeldPierceUnbuilt { placed: true }` before anything is written. No row reaches the pose, so no answer to it is checked. In band of one point, they escalate `VertexOnVertex`.
 - A definite refusal at any face of any pierce outranks an escalation at another, as in the pierce pass this serves.
 
 **The lying-cylinder sibling** has a different root, and this does not close it. Over the cylinder's whole span, the folds that ring the wall before the second prism comes still refuse `CurvedPierceUnsupported`. There the ring is the first prism's footprint, a real hole in the wall at rest.
