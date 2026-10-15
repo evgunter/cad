@@ -114,8 +114,8 @@ use crate::recourse::{NoSize, SizedDecision, SizedPass, StoredDefinite};
 /// wedge goes below zero, a stored radius below zero, which breaks the
 /// stored convention and so is a defect.
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
-    lever: "move the geometry so that edge's faces clearly run farther from it and none curves \
-            tightly there",
+    lever: "move the geometry so that edge's faces clearly run farther and none curves tightly \
+            there",
     size: "length or the gap its faces open",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Contradiction,
@@ -136,7 +136,7 @@ pub const DIHEDRAL_ARM_CLAUSE: &str = crate::dihedral_arm_clause!();
 #[macro_export]
 macro_rules! dihedral_arm_clause {
     () => {
-        "between faces that run far enough, for how they curve, to measure their angle"
+        "between faces wide enough, for how they curve, to measure their angle"
     };
 }
 
@@ -1624,10 +1624,10 @@ mod tests {
         let negative = reject(Margin::of(-1e-3));
         assert_eq!(negative.margin.rejected_sign(), Some(Sign::Negative));
 
-        let lever = "Recourse: move the geometry so that edge is clearly longer and no face \
+        let lever = "Recourse: move the geometry so that edge's faces clearly run farther and none \
                      curves tightly there";
         let noted = format!(
-            "{lever}; an edge of no length or a cone's point leaves no angle to measure; a \
+            "{lever}; faces of no extent or a cone's point leave no angle to measure; a \
              radius below zero is a defect"
         );
         let untold = "This length or the gap its faces open is within the file's declared \
@@ -2444,8 +2444,8 @@ mod tests {
             "the apex arm reads exactly +0.0"
         );
         let collapsed = err.collapsed_arm().expect("the apex's arm is decided zero");
-        let note = "a cone's point leaves no angle to measure; a radius below zero is a defect";
-        let lever = "Recourse: move the geometry so that edge is clearly longer and no face \
+        let note = "a cone's point leave no angle to measure; a radius below zero is a defect";
+        let lever = "Recourse: move the geometry so that edge's faces clearly run farther and none \
                      curves tightly there";
         let file = FileCoincidence::new(1e-6);
         for arm in [RefusedArm::Undecided(&diag), collapsed.arm()] {

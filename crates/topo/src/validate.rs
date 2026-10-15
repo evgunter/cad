@@ -11819,18 +11819,19 @@ mod tests {
             (
                 "wedge arm, in band",
                 sliver(WedgeCheck::Arm, in_band),
-                "whether an edge is long enough, for how its faces curve, to measure their \
-                 angle is undecided. Recourse: move the geometry so \
-                 that edge is clearly longer and no face curves tightly there, or, if this length \
-                 or the gap its faces open is intended, tighten the tolerance below 5e-10 m"
+                "whether an edge is between faces wide enough, for how they curve, to measure \
+                 their angle is undecided. Recourse: move the geometry so \
+                 that edge's faces clearly run farther and none curves tightly there, or, \
+                 if this length or the gap its faces open is intended, tighten the tolerance \
+                 below 5e-10 m"
                     .to_owned(),
             ),
             (
                 "wedge arm, zero band",
                 sliver(WedgeCheck::Arm, diag(MarginDiag::value(5e-10))),
-                "Recourse: move the geometry so that edge is clearly longer and no face curves \
-                 tightly there, or, if this length or the gap its faces open is intended, \
-                 tighten the tolerance below 5e-11 m"
+                "Recourse: move the geometry so that edge's faces clearly run farther and none \
+                 curves tightly there, or, if this length or the gap its faces open is \
+                 intended, tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
             (
@@ -11842,10 +11843,10 @@ mod tests {
                         band,
                     }),
                 },
-                "an edge is not long enough, for how its faces curve, to measure their angle. \
-                 Recourse: move the geometry so that edge is clearly longer and no face curves \
-                 tightly there, or, if this length or the gap its faces open is intended, \
-                 tighten the tolerance below 5e-11 m"
+                "an edge is not between faces wide enough, for how they curve, to measure their \
+                 angle. Recourse: move the geometry so that edge's faces clearly run farther \
+                 and none curves tightly there, or, if this length or the gap its faces \
+                 open is intended, tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
             (
@@ -11857,8 +11858,8 @@ mod tests {
                         band,
                     }),
                 },
-                "Recourse: move the geometry so that edge is clearly longer and no face curves \
-                 tightly there; an edge of no length or a cone's point leaves no angle to \
+                "Recourse: move the geometry so that edge's faces clearly run farther and none \
+                 curves tightly there; faces of no extent or a cone's point leave no angle to \
                  measure; a radius below zero is a defect"
                     .to_owned(),
             ),
@@ -11883,16 +11884,16 @@ mod tests {
                 "material pairing, in band",
                 sliver(WedgeCheck::MaterialPairing, in_band),
                 "which side of an edge the material of its two smoothly meeting faces lies on \
-                 is undecided. Recourse: move the geometry so that edge is clearly longer and no \
-                 face curves tightly there, or, if this length is intended, tighten the \
-                 tolerance below 5e-10 m"
+                 is undecided. Recourse: move the geometry so that edge's faces clearly run \
+                 farther and none curves tightly there, or, if this length is intended, \
+                 tighten the tolerance below 5e-10 m"
                     .to_owned(),
             ),
             (
                 "material pairing, poisoned",
                 sliver(WedgeCheck::MaterialPairing, diag(MarginDiag::INVALID)),
                 format!(
-                    "Recourse: move the geometry so that edge is clearly longer and no face \
+                    "Recourse: move the geometry so that edge's faces clearly run farther and none \
                      curves tightly there; {}",
                     geom_core::UNREADABLE_STORED_MARGIN_NOTE
                 ),
@@ -12116,7 +12117,7 @@ mod tests {
     /// through [`dihedral_finding`] as the edge loop takes them. An
     /// in-band arm is a sliver of the arm's decision; the cone apex's
     /// arm is decided zero, so it is the definite `NoDihedralArm`, never
-    /// "undecided"; both name the edge's length and bend, never
+    /// "undecided"; both name the faces' reach and bend, never
     /// an angle, and neither says the margin was unreadable. A
     /// near-tangent wedge keeps the angle.
     #[test]
@@ -12174,19 +12175,20 @@ mod tests {
                 other => panic!("{row}: {other:?}"),
             };
             assert_eq!(got, want, "{row}: {text}");
-            let reads_the_arm = text.contains("move the geometry so that edge is clearly longer")
+            let reads_the_arm = text
+                .contains("move the geometry so that edge's faces clearly run farther")
                 && !text.contains("angle is intended");
             assert_eq!(reads_the_arm, want != Reads::Angle, "{row}: {text}");
             assert!(!text.contains("unreadable"), "{row}: {text}");
             if want == Reads::ArmUndecided {
                 assert!(
-                    text.contains("whether an edge is long enough"),
+                    text.contains("whether an edge is between faces wide enough"),
                     "{row}: {text}"
                 );
             }
             if want == Reads::NoArm {
                 assert!(
-                    text.starts_with("an edge is not long enough")
+                    text.starts_with("an edge is not between faces wide enough")
                         && !text.contains("too close")
                         && text.ends_with("no angle to measure; a radius below zero is a defect"),
                     "{row}: {text}"

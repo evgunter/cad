@@ -896,7 +896,15 @@ mod interval_lane {
         let p0: Point3<Interval> = p3(0.0, 0.0, 0.0);
         let p1 = p3(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec::line_between(p0, p1);
-        let c = EdgeCurve::certify(spec, p0, p1, |_| None, geom_core::Real::from_f64(1.0), band()).unwrap();
+        let c = EdgeCurve::certify(
+            spec,
+            p0,
+            p1,
+            |_| None,
+            geom_core::Real::from_f64(1.0),
+            band(),
+        )
+        .unwrap();
         let r = c.certificate().max_residual;
         assert!(r.hi().is_finite(), "no poison in the certificate: {r:?}");
     }
@@ -934,7 +942,8 @@ mod interval_lane {
             param_start: Interval::from_f64(0.0),
             param_end: Interval::from_f64(9.0 * core::f64::consts::TAU),
         };
-        let err = EdgeCurve::certify(spec, p, p, |_| None, geom_core::Real::from_f64(1.0), band()).unwrap_err();
+        let err = EdgeCurve::certify(spec, p, p, |_| None, geom_core::Real::from_f64(1.0), band())
+            .unwrap_err();
         assert_eq!(
             err,
             CertifyError::WindingExceeded,
@@ -966,7 +975,9 @@ mod interval_lane {
             Interval::from_f64(7.0),
         );
         let spec = EdgeCurveSpec::self_loop_circle_at(p);
-        let curve = EdgeCurve::certify(spec, p, p, |_| None, geom_core::Real::from_f64(1.0), band()).unwrap();
+        let curve =
+            EdgeCurve::certify(spec, p, p, |_| None, geom_core::Real::from_f64(1.0), band())
+                .unwrap();
         let r = curve.certificate().max_residual;
         assert!(r.hi().is_finite(), "clean certificate, no poison: {r:?}");
     }

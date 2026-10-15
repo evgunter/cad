@@ -1878,8 +1878,9 @@ mod smooth_arm_rows {
             let (_, ending) = text.split_once(". Recourse: ").expect("one recourse");
             let quoted: f64 = ending
                 .strip_prefix(
-                    "move the geometry so that edge is clearly longer and no face curves \
-                     tightly there, or, if this length is intended, tighten the tolerance below ",
+                    "move the geometry so that edge's faces clearly run farther and none curves \
+                     tightly there, or, if this length is intended, tighten the \
+                     tolerance below ",
                 )
                 .and_then(|v| v.strip_suffix(" m"))
                 .unwrap_or_else(|| panic!("{label}: the pairing's lever and offer, got {text}"))

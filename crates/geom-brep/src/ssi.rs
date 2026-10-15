@@ -2041,8 +2041,8 @@ const STEP_BUDGET_CURVATURE_RECOURSE: &str = concat!(
 
 /// [`SsiError::StepBudget`]'s ending where the idealized step held the
 /// steps short: it is a thousandth of the caller's feature extent.
-const STEP_BUDGET_IDEALIZED_RECOURSE: &str = "Recourse: name a feature extent near the size of the feature traced; the idealized step is a \
-     thousandth of it";
+const STEP_BUDGET_IDEALIZED_RECOURSE: &str = "Recourse: name a feature extent near the size of the \
+     feature traced; the idealized step is a thousandth of it";
 
 const _: () = assert!(
     certify::SSI_TUBE_RADIUS_MAX * 8.0 == 1.0,
@@ -3213,9 +3213,9 @@ mod ending_tests {
         });
         assert_eq!(
             escalated(TraceDecision::TransversalityArm).ending(Reading::Build),
-            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
-             there, or, if this length or the gap its faces open is intended, tighten the \
-             tolerance below 5e-10 m",
+            "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
+             tightly there, or, if this length or the gap its faces open is intended, \
+             tighten the tolerance below 5e-10 m",
             "the arm gate ends as a length, not the angle it guards"
         );
         let transversal = [

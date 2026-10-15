@@ -427,12 +427,13 @@ pub enum ExtrudeError {
     /// or wedge or its second-order bend did — the rim's counterpart of
     /// [`ExtrudeError::SliverJoin`].
     ///
-    /// Reachable from admitted inputs: the direction gates admit a tilt
-    /// of up to `1/K` against a rim the profile door floors at `K·ε`,
-    /// so the shortest admitted rim under the worst admitted tilt can
-    /// meter its wedge inside the band (`dihedral_wedge`) —
-    /// `review_fillet_h6_r1_probes` and `review_blend_k_rk_probes`
-    /// build exactly that.
+    /// Defense in depth: no admitted input is known to reach it. The
+    /// wedge is levered at the faces' extent (`topo::wedge_reach`), at
+    /// least the wall's distance to its far rim, and that distance
+    /// times the cap–wall dihedral's sine is the extrusion's height,
+    /// which the direction gate decides past `K·ε`
+    /// (`review_fillet_h6_r1_probes` and `review_blend_k_rk_probes`
+    /// pin the worst admitted tilt on the shortest admitted rim).
     SliverRim {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -1595,20 +1596,21 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
             Ok(())
         }
         // The must-carry rule decides what a definitely-smooth rim
-        // stores (module docs, step 6). Which pairs reach this arm:
-        // it is live only at a run K below the crossover `√φ`. The
-        // direction gates admit a tilt of `w` off the sketch normal of
-        // up to `1/K`; a LINE leg's wall is the plane through the quad
-        // swept along `w`, so it leans against the cap's `±n` by that
-        // tilt, and the wedge is metered as `sin θ` over the faces'
-        // extent. An ARC leg's wall is a cylinder
+        // stores (module docs, step 6). No admitted input is known to
+        // reach this arm. The direction gates admit a tilt of `w` off
+        // the sketch normal of up to `1/K`; a LINE leg's wall is the
+        // plane through the quad swept along `w`, so it leans against
+        // the cap's `±n` by that tilt, and the wedge is levered at the
+        // faces' extent, at least the wall's distance to its far rim,
+        // whose product with the dihedral's sine is the extrusion's
+        // height, past `K·ε`. An ARC leg's wall is a cylinder
         // whose axis is `±n` on both doors ([`side_surface`];
         // `work/strut/extrude-arc-walls-are-ruled-in-n-not-w.md` would
         // move it), so it is perpendicular to the cap at every rim
         // point and never reads smooth. `fillet_h6_cap_rim` measures
         // both facts.
         //
-        // So the pairs that arrive are plane pairs over a line rim,
+        // So the pairs that would arrive are plane pairs over a line rim,
         // whose `κ_rel` is identically zero: the rule reads them
         // under-determined, and the rim rests as the pair's
         // conventional locus. The at-rest gate then refuses the body,

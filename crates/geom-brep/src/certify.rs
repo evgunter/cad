@@ -5873,8 +5873,8 @@ mod tests {
             ),
             (
                 undecided(CertCheck::Transversality, MarginDiag::INVALID),
-                "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable \
-                 margin may indicate a kernel bug worth reporting",
+                "Recourse: move the geometry so the surfaces cross at a clearer angle; an \
+                 unreadable margin may indicate a kernel bug worth reporting",
             ),
             (
                 undecided(CertCheck::EndpointStart, MarginDiag::value(5e-9)),
@@ -6513,10 +6513,10 @@ mod tests {
         let text = err.render(Reading::Build);
         assert_eq!(
             text,
-            "at sample 4 the edge is not shown long enough, for how its faces curve, to measure \
-             their angle (margin 0e0 m). Recourse: move the geometry so that edge is clearly \
-             longer and no face curves tightly there; an edge of no length or a cone's point \
-             leaves no angle to measure; a radius below zero is a defect",
+            "at sample 4 the edge is not shown between faces wide enough, for how they curve, to \
+             measure their angle (margin 0e0 m). Recourse: move the geometry so that \
+             edge's faces clearly run farther and none curves tightly there; faces of no \
+             extent or a cone's point leave no angle to measure; a radius below zero is a defect",
         );
     }
 
@@ -6595,8 +6595,8 @@ mod tests {
             ),
             (
                 arm(zero(across)),
-                "at sample 4 the edge is not shown long enough, for how its faces curve, to \
-                 measure their angle (margin [-2e-10, 3e-10] m)",
+                "at sample 4 the edge is not shown between faces wide enough, for how they curve, \
+                 to measure their angle (margin [-2e-10, 3e-10] m)",
             ),
             (
                 crossing(None, zero(sized)),
@@ -6659,7 +6659,7 @@ mod tests {
         for (error, note) in [
             (forward(zero(none)), "an edge of no length"),
             (meter(zero(none)), "the speed floor has reached its limit"),
-            (arm(zero(none)), "an edge of no length"),
+            (arm(zero(none)), "faces of no extent"),
         ] {
             let text = error.render(Reading::Build);
             assert!(
@@ -6762,9 +6762,9 @@ mod tests {
             assert!(
                 arm.contains("the length its faces' angle is measured over")
                     && arm.ends_with(&format!(
-                        "Recourse: move the geometry so that edge is clearly longer and no face \
-                         curves tightly there, or, if this length or the gap its faces open is \
-                         intended, tighten the tolerance below {below} m"
+                        "Recourse: move the geometry so that edge's faces clearly run farther and \
+                         none curves tightly there, or, if this length or the gap its faces \
+                         open is intended, tighten the tolerance below {below} m"
                     )),
                 "{arm}"
             );

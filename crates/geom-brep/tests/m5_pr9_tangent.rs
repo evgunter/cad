@@ -781,7 +781,14 @@ fn certify_line_at_interval(
         param_end: t1,
     };
     let bracket = geom_core::k_stats::Bracket::open();
-    let out = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), geom_core::Real::from_f64(1.0), band());
+    let out = EdgeCurve::certify(
+        spec,
+        p0,
+        p1,
+        |k| map.get(k).cloned(),
+        geom_core::Real::from_f64(1.0),
+        band(),
+    );
     (out, bracket.finish())
 }
 

@@ -1,19 +1,17 @@
-//! **The join levers a vertex's reading over the edge it makes**
+//! **The join levers a vertex's reading at its faces' extent**
 //! (`topo::boolean::edge_join`'s `joinable`): the pair's wedge at a
-//! valence-2 vertex is read over the larger of its two edges' extents,
-//! a lower bound on the joined edge's, so a short edge beside the
-//! vertex does not shrink the lever.
+//! valence-2 vertex is read as every reader of an edge's wedge reads it
+//! (`topo::wedge_reach`), so a short edge beside the vertex does not
+//! shrink the lever.
 //!
-//! A short edge is not the way into the band anyway: a few-ε arc's own
-//! certification refuses it where it would be minted. The D prism ∩ a
-//! brick from `x = c` (`c = √(1 − sin²θ)`) leaves a vertical line edge
-//! where the plane `x = c` meets the cylinder at `y = sin θ`, the pair's
-//! wedge `sin θ`. Cutting a station `s` from that edge's end mints a
-//! piece `s` long, whose transversality margin is `sin θ · s`: the cut
-//! refuses `Certification { Escalated { Transversality } }` where that
-//! is under the band's escalation threshold `Kε`, and past it the join
-//! takes the station back and the result passes tiers 3 and 3′.
-//! (`work/fuse/a-sliver-arc-beside-a-joinable-vertex-refuses-the-boolean.md`.)
+//! The D prism ∩ a brick from `x = c` (`c = √(1 − sin²θ)`) leaves a
+//! vertical line edge where the plane `x = c` meets the cylinder at
+//! `y = sin θ`, the pair's wedge `sin θ`. Cutting a station `s` from
+//! that edge's end mints a piece `s` long, whose transversality margin,
+//! levered at its own length, would be `sin θ · s`; levered at its
+//! faces' extent it is definite, so the cut certifies on either side of
+//! `sin θ · s = Kε`, and the join takes the station back and the result
+//! passes tiers 3 and 3′.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -121,19 +119,6 @@ fn arc_station(s: f64) -> Result<Body<f64>, topo::EulerOpError> {
     body.split_edge(arc, u, tol()).map(|_| body)
 }
 
-/// Whether `r` is the transversality escalation of a too-short piece.
-fn transversality_refused(r: &Result<Body<f64>, topo::EulerOpError>) -> bool {
-    matches!(
-        r,
-        Err(topo::EulerOpError::Certification {
-            error: geom_brep::CertifyError::Escalated {
-                check: geom_brep::CertCheck::Transversality,
-                ..
-            }
-        })
-    )
-}
-
 /// `body` joins its one station back and passes tiers 3 and 3′.
 fn joins_sound(what: &str, mut body: Body<f64>) {
     let joined = body
@@ -152,27 +137,20 @@ fn joins_sound(what: &str, mut body: Body<f64>) {
     );
 }
 
-/// **A station cut where `sin θ · s` is under `Kε` refuses at the
-/// cut's certification, and one cut past it joins back sound**, at
-/// `sin θ` = 0.5, 0.1 and 0.02: the piece's own transversality margin
-/// is the reading the join would make, so no certified edge beside the
-/// vertex is short enough to read in the band. Red when the cut mints
-/// an in-band piece (the refusal moves to the join) or the join refuses
-/// a station past the line.
+/// **A station cut either side of `sin θ · s = Kε` builds and joins
+/// back sound**, at `sin θ` = 0.5, 0.1 and 0.02: the piece's wedge is
+/// levered at its faces' extent, not at its own length, so neither cut
+/// mints a piece the band holds.
 #[test]
 fn a_station_on_the_line_edge_refuses_at_its_cut_under_k_eps_and_joins_past_it() {
     let k = band().escalate();
     for sin in [0.5, 0.1, 0.02] {
-        let under = station(sin, 0.95 * k / sin);
-        assert!(
-            transversality_refused(&under),
-            "sin θ = {sin}, sin θ · s = 0.95 Kε: the cut refuses its transversality, got {:?}",
-            under.as_ref().map(|_| ())
-        );
-        let past = station(sin, 1.05 * k / sin).unwrap_or_else(|e| {
-            panic!("sin θ = {sin}, sin θ · s = 1.05 Kε: the cut builds, got {e:?}")
-        });
-        joins_sound(&format!("sin θ = {sin}, sin θ · s = 1.05 Kε"), past);
+        for frac in [0.95, 1.05] {
+            let what = format!("sin θ = {sin}, sin θ · s = {frac} Kε");
+            let cut = station(sin, frac * k / sin)
+                .unwrap_or_else(|e| panic!("{what}: the cut builds, got {e:?}"));
+            joins_sound(&what, cut);
+        }
     }
 }
 
