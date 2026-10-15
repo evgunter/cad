@@ -2,8 +2,10 @@
 id: the-corner-fan-volume-of-an-oblique-needle-cancels-the-bodys-extent-cubed
 kind: issue
 title: The volume re-derivation fans every face from one corner, so an oblique needle's enclosure carries an absolute floor of ulp(L)·L² and its f64 volume can be orders wrong
-status: open
+status: closed
 opened: 2026-10-14
+closed: 2026-10-15
+pr: 5119
 priority: P2
 cost: M
 refs: [a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever]
@@ -43,3 +45,25 @@ rules the volume's sign bandless on PR 5119 (row 149), this is the
 conditioning that makes that sign hold on oblique needles, and the
 needle unit takes it; otherwise it stands on its own as a wrong
 `mass_properties` value.
+
+## Resolution
+
+FLUSH's volume half, PR 5119, commit `735bee07c`: the re-derivation reads
+each planar face's flux as its plane's distance from the corner along the
+stored normal times its own signed area, `((a − c)·N)(A⃗·N)/(N·N)`, on the
+fan route and the polygon route alike (`props::quad_lane`'s
+`plane_flux`). The polygon rows' exact oracle reads the same value.
+
+Width/|V| of the re-derivation's enclosure, the needle `1 × w × w` turned
+about (37, −21, 13) by 0.7 rad off (0.3, −0.2, 0.5), before → after:
+
+| ε | w = 10.5ε | 12ε | 15ε | 21ε | 30ε |
+|---|---|---|---|---|---|
+| 1e-9 | 0.15 → 1.9e-8 | 0.095 → 1.4e-8 | 0.069 → 1.6e-8 | 0.037 → 9.6e-9 | 0.017 → 7.7e-9 |
+| 1e-6 | 1.6e-7 → 1.6e-11 | 1.2e-7 → 2.2e-11 | 7.2e-8 → 1.1e-11 | 3.1e-8 → 1.1e-11 | 1.5e-8 → 7.4e-12 |
+
+Along the axes it is unchanged, at about 4e-16. The f64 sums
+`mass_properties` reports still fan from one corner, so their value on an
+oblique needle stays as measured above; the volume's sign, which the
+certified enclosure now reads alone, no longer rests on them.
+
