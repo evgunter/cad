@@ -1543,7 +1543,7 @@ fn two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_tod
 /// its wall, cuts at the leg; the arm covers `m1`'s end wall, so the
 /// piece the cut minted is joined into the arm's seam in the same step.
 /// The right piece's edge along the walls reaches `m1`'s discard
-/// through that piece's lineage (`topo::BooleanNaming::joined_lineage`).
+/// through that piece's lineage (`topo::BooleanNaming::killed_lineage`).
 #[test]
 fn an_earlier_seam_split_and_joined_away_in_one_step_names_alike() {
     check(&u(

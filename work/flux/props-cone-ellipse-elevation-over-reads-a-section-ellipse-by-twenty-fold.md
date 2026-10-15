@@ -55,3 +55,12 @@ extent and say so in the row's doc.
 Pinned skip: `sweep/tests/reach_cone_split.rs`
 `steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt`, the
 `(1.3, 100)` row, reads tier 3 only from ε = 1e-9.
+
+**Note from CLEAVE (2026-10-14).** Since PR 5100, the split's own at-rest
+gate reads tier 3, so at ε = 1e-12 the `(α 1.3, S 100, f 0.5)` split no
+longer returns the halves. It refuses as
+`SplitFinishError::ResultNotAtRest`, and every finding is this row's
+`VolumeUncomputable`. `steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt`
+now pins that refusal below its `measured_from` floor, so fixing this row
+turns the split's refusal into halves and reddens that arm. Lift the
+floor then.
