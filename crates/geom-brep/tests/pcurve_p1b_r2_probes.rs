@@ -226,7 +226,7 @@ fn r2_the_rest_conversion_moves_only_the_description() {
     assert!(matches!(edge.description(), EdgeDescription::Chart(_)));
     assert!(
         edge.authority().is_declared(),
-        "the pushforward became the authority record, so prefer-intrinsic still reads Declared"
+        "the pushforward became the authority record, which still reads Declared"
     );
 }
 
@@ -341,7 +341,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
 }
 
 /// **R2-G7.** Splitting a declared chart image leaves BOTH children
-/// declared — the prefer-intrinsic verdict cannot be shed by cutting
+/// declared — the declaration cannot be shed by cutting
 /// an edge in half.
 #[test]
 fn r2_splitting_a_declared_chart_image_keeps_both_children_declared() {
