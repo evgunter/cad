@@ -124,7 +124,10 @@ fn answers(what: &str, got: Result<BooleanResult<f64>, BooleanError>, want: Answ
 }
 
 /// **A rim in the block's top beside a ridge resting on it answers in
-/// every cell as on the merge base** (module docs).
+/// every cell as on the merge base** (module docs). It pins main's
+/// answers, the slot-asymmetric refusals among them, which
+/// `work/tang/a-vertex-minted-on-an-edge-lying-on-a-curved-face-is-unread.md`
+/// files as defects: fixing that re-baselines this row.
 #[test]
 fn a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before() {
     use Answer::{Body, Empty, Refuses};
@@ -220,17 +223,16 @@ fn a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before() {
     }
 }
 
-/// **A box's edges in the block's top, run into a wall's foot, build in
-/// every op** (module docs).
-#[test]
-fn edges_in_a_face_run_into_a_walls_foot_build_every_op() {
+/// A box: its x, y and z spans.
+type Box3 = ((f64, f64), (f64, f64), (f64, f64));
+
+/// Each box of `boxes` against the block and a cylinder on its top or
+/// through it, per pose of `poses` (cylinder first in the union, its
+/// foot, its length), by each op of `ops` in both slots: each builds
+/// at inclusion–exclusion, tier 3 clean.
+fn edges_run_into_a_walls_foot(poses: &[(bool, f64, f64)], boxes: &[Box3], ops: &[(&str, Op)]) {
     let b = block();
-    for (cylinder_first, z0, len) in [
-        (false, 1.0, 1.0),
-        (true, 1.0, 1.0),
-        (false, 0.5, 1.5),
-        (true, 0.5, 1.5),
-    ] {
+    for &(cylinder_first, z0, len) in poses {
         let c = rod((0.0, 0.0), z0, len);
         let y = if cylinder_first {
             topo::union(&c, &b, t())
@@ -242,12 +244,7 @@ fn edges_in_a_face_run_into_a_walls_foot_build_every_op() {
             other => panic!("the block and cylinder: {other:?}"),
         };
         let y_volume = 4.0 + PI * R * R;
-        for (bx, by, bz) in [
-            ((-0.2, 2.0), (-0.1, 0.1), (1.0, 1.3)),
-            ((-2.0, 2.0), (-0.1, 0.1), (1.0, 1.3)),
-            ((-0.2, 2.0), (0.3, 0.6), (1.0, 1.3)),
-            ((0.0, 2.0), (-0.1, 0.1), (0.5, 1.0)),
-        ] {
+        for &(bx, by, bz) in boxes {
             let x = finished("the box", brick(bx, by, bz, t()), t());
             let x_volume = (bx.1 - bx.0) * (by.1 - by.0) * (bz.1 - bz.0);
             let common = if bz.0 >= 1.0 {
@@ -270,8 +267,12 @@ fn edges_in_a_face_run_into_a_walls_foot_build_every_op() {
                 } else {
                     (&y, &x, y_volume)
                 };
-                let volumes = [common, p_volume - common, x_volume + y_volume - common];
-                for ((name, op), volume) in OPS.into_iter().zip(volumes) {
+                for &(name, op) in ops {
+                    let volume = match name {
+                        "intersection" => common,
+                        "subtraction" => p_volume - common,
+                        _ => x_volume + y_volume - common,
+                    };
                     answers(
                         &format!("{name} of {what}, the box first: {x_first}"),
                         op(p, q, t()),
@@ -281,4 +282,40 @@ fn edges_in_a_face_run_into_a_walls_foot_build_every_op() {
             }
         }
     }
+}
+
+/// **A box's edges in the block's top, run into a wall's foot, build in
+/// every op** (module docs). Slow set; its per-PR pose is the row below.
+#[test]
+fn edges_in_a_face_run_into_a_walls_foot_build_every_op() {
+    edges_run_into_a_walls_foot(
+        &[
+            (false, 1.0, 1.0),
+            (true, 1.0, 1.0),
+            (false, 0.5, 1.5),
+            (true, 0.5, 1.5),
+        ],
+        &[
+            ((-0.2, 2.0), (-0.1, 0.1), (1.0, 1.3)),
+            ((-2.0, 2.0), (-0.1, 0.1), (1.0, 1.3)),
+            ((-0.2, 2.0), (0.3, 0.6), (1.0, 1.3)),
+            ((0.0, 2.0), (-0.1, 0.1), (0.5, 1.0)),
+        ],
+        &OPS,
+    );
+}
+
+/// **The per-PR pose of the row above**: one box run into the foot of a
+/// cylinder standing on the block, intersected in both slots. With the
+/// box first, a wall splits its bottom edges after the block's top read
+/// their ends, so the vertex the wall mints is read against the top
+/// (`reduce::read_lying_in`); read at the wrong point there, this pose
+/// refuses where it builds.
+#[test]
+fn an_edge_in_a_face_run_into_a_walls_foot_builds() {
+    edges_run_into_a_walls_foot(
+        &[(false, 1.0, 1.0)],
+        &[((-0.2, 2.0), (-0.1, 0.1), (1.0, 1.3))],
+        &OPS[..1],
+    );
 }

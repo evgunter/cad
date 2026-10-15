@@ -1290,6 +1290,13 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                     PlaneCrossingLane::Conic(meet) => Some(meet),
                 };
+                // Only the line lane's coplanar arm grows `lying_in`, and a
+                // conic's pieces are conics, so its splits read nothing
+                // (`Pending`).
+                debug_assert!(
+                    meet.is_none() || lying_in.is_empty(),
+                    "a conic edge carries the faces it lies in"
+                );
                 let covers = edge_covers(x, x_is, &edge, face, declared);
                 let touch_at_end = if meet.is_none() || covers.is_empty() {
                     None
