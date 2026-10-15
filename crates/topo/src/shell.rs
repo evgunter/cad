@@ -3284,6 +3284,19 @@ fn re_anchored<T: Decide>(
             )
             .map_err(|refusal| rim_seam_refusal(edge, refusal))?;
     }
+    // An image is asked the same over the kept stretch.
+    if let geom_brep::EdgeDescriptionSpec::Chart { wrap: false, .. } = kept.description
+        && let Some(description) = body
+            .reask_chart_on(
+                edge,
+                &kept.carrier,
+                (kept.param_start, kept.param_end),
+                band,
+            )
+            .map_err(|refusal| rim_seam_refusal(edge, refusal))?
+    {
+        kept.description = description;
+    }
     Ok(kept)
 }
 

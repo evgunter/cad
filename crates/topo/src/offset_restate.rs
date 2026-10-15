@@ -44,6 +44,13 @@ pub(crate) fn chart_moves<T: Decide>(distance: T, band: Band) -> Result<bool, Re
 ///   ([`re_ask_on_pair`]), which the door supplies with the edge's two
 ///   sides' moved surfaces and its moved carrier, handed the
 ///   declaration to carry where the rule reads the pair conventional;
+/// - an image the door keeps (not a wrap) is asked the rule again
+///   through `re_ask_chart` ([`re_ask_chart`]), against the pair as the
+///   door leaves it: the rule may demand the intrinsic form where the
+///   surfaces moved or the edge slid. For a closed form no valid body
+///   reaches that demand today: an image kept on two distinct surfaces
+///   reads under-determined, and an offset keeps coincident surfaces
+///   coincident;
 /// - a **declaration** or a **scaffold** is 3-space sketch data, and
 ///   rides `carried` — only where the restated edge keeps it, so a
 ///   declaration the rule's intrinsic reading drops is never asked to
@@ -52,6 +59,7 @@ pub(crate) fn chart_moves<T: Decide>(distance: T, band: Band) -> Result<bool, Re
 /// `sides` is each side's key and whether its chart moves. Nothing
 /// stated here is trusted: the attach layer certifies the spec against
 /// the new carrier and refuses a mismatch.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn restate<T: Real>(
     description: EdgeDescription<T>,
     authority: EdgeAuthority<T>,
@@ -62,6 +70,7 @@ pub(crate) fn restate<T: Real>(
     re_ask: impl FnOnce(
         &dyn Fn() -> Result<Option<MappedCurve<T>>, ReplaceFaceError<T>>,
     ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>>,
+    re_ask_chart: impl FnOnce() -> Result<Option<EdgeDescriptionSpec<T>>, ReplaceFaceError<T>>,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
     let declared = || match authority {
         EdgeAuthority::Derived => Ok(None),
@@ -81,11 +90,14 @@ pub(crate) fn restate<T: Real>(
             // the moved pair, which the rule is asked again, and it
             // stores what the rule reads, declared or not.
             Some(_) => re_ask(&declared)?,
-            None => EdgeDescriptionSpec::Chart {
-                surface: c.surface,
-                image: (!slides).then_some(c.pcurve),
-                wrap: c.wrap,
-                declared: declared()?,
+            None => match (!c.wrap).then(re_ask_chart).transpose()?.flatten() {
+                Some(intrinsic) => intrinsic,
+                None => EdgeDescriptionSpec::Chart {
+                    surface: c.surface,
+                    image: (!slides).then_some(c.pcurve),
+                    wrap: c.wrap,
+                    declared: declared()?,
+                },
             },
         },
         EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
@@ -132,6 +144,29 @@ pub(crate) fn re_ask_on_pair<T: Decide>(
             declared: declared()?,
         },
         intrinsic => intrinsic,
+    })
+}
+
+/// **A chart image an offset door keeps, re-asked the must-carry rule**
+/// ([`geom_brep::reask_chart`]) between `surfaces`, the edge's two sides
+/// after the door, over `carrier` on `(t0, t1)`: `Some` is the intrinsic
+/// description the rule now demands, `None` keeps the image.
+///
+/// # Errors
+///
+/// As [`re_ask_on_pair`].
+pub(crate) fn re_ask_chart<T: Decide>(
+    edge: crate::entity::EdgeKey,
+    surfaces: [(SurfaceKey, &geom::Surface<T>); 2],
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    band: Band,
+) -> Result<Option<EdgeDescriptionSpec<T>>, ReplaceFaceError<T>> {
+    geom_brep::reask_chart(surfaces, carrier, (t0, t1), band).map_err(|refusal| match refusal {
+        geom_brep::PairRefusal::Mixed(stations) => ReplaceFaceError::MixedEdge { edge, stations },
+        geom_brep::PairRefusal::InBand(escalation) => ReplaceFaceError::Escalated {
+            source: escalation.diag(),
+        },
     })
 }
 

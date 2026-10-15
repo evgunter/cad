@@ -1102,6 +1102,41 @@ pub fn reask_pair<T: Decide>(
     }
 }
 
+/// **A chart image a door kept, re-asked the must-carry rule** over
+/// the edge as the door leaves it: its extent (a split, a join, a
+/// re-anchored end) or its surfaces (an offset). `surfaces` are the
+/// edge's two sides after the door, each with its key.
+///
+/// A chart image is a conventional form: it claims the two surfaces
+/// under-determine the locus, which the rule reads over the edge's
+/// extent as well as its pair. So the door asks again, as it does an
+/// `OnPair` ([`reask_pair`]): `Some` is the intrinsic description the
+/// rule now demands — the pair's `Intersection` at a corner, its
+/// `TangentIntersection` at a determinate tangency, each derived, so a
+/// declaration does not ride either — and `None` keeps the image, where
+/// the rule still reads the join under-determined or the edge falls
+/// outside it (one surface on both sides, or a spline face beside it).
+/// The caller leaves a wrap image alone: it bounds one face.
+///
+/// # Errors
+///
+/// [`PairRefusal`] on an in-band or mixed verdict.
+pub fn reask_chart<T: Decide>(
+    surfaces: [(crate::SurfaceKey, &Surface<T>); 2],
+    carrier: &geom::Curve3<T>,
+    interval: (T, T),
+    band: Band,
+) -> Result<Option<crate::EdgeDescriptionSpec<T>>, PairRefusal> {
+    let [(ka, a), (kb, b)] = surfaces;
+    if ka == kb || a.spline_chart().is_some() || b.spline_chart().is_some() {
+        return Ok(None);
+    }
+    Ok(match reask_pair(surfaces, carrier, interval, None, band)? {
+        crate::EdgeDescriptionSpec::OnPair { .. } => None,
+        intrinsic => Some(intrinsic),
+    })
+}
+
 /// Why a join entered as definitely smooth gets no description:
 /// [`must_carry_description`] routes it to its caller's typed refusals.
 #[derive(Clone, Copy, Debug, PartialEq)]
