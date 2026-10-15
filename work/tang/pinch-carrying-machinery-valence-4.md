@@ -9,7 +9,6 @@ refs: [1353, 1372]
 priority: P1
 cost: H
 design: true
-needs_ev: true
 ---
 
 ## From GitHub issue 1377
