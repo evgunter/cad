@@ -1383,6 +1383,21 @@ variable), says "this is there" in one way (a placement), and says
 coincidence, or asserting a bound). Nothing else carries dependency or
 intent.
 
+**One meaning, a family of forms.** "One way" is one meaning, not one
+spelling. Where people state the same thing in more than one natural
+way, the document may hold a family of forms for it: one enum whose
+variants each keep exactly the numbers the person wrote, all lowering
+through one reading that every consumer goes through (a `circle` reads
+back as `circle` and lowers as `circle_split(c, r, 1, 0)` does,
+PATHS-DESIGN). That is how an exact authored value and a single
+interface coexist. What is forbidden as a second spelling is something
+else: one fact held in two places that can disagree, or a derived number
+stored in place of the one written. A form joins a family only because
+it is how someone authors the value, never for the kernel's convenience;
+it lowers totally, or refuses typed where it has no result. Moving one
+pose from another by a slide and a spin (FORK-MOVE) is one such form
+today, and the other ways of relating two poses may join it as a family.
+
 **Variables.** Every slot that admits more than one value holds a
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
