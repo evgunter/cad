@@ -1410,11 +1410,10 @@ so stands at any dimension as the omission it marks (`0 mm` is a
 dimensioned literal, so typing it mints a variable); each is the shape
 of a formula rather than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value that it is not already the
-same as (VR8). A lone `0` is the one typed value that is a constant
-rather than a variable, so typing it draws no offer and a default `0`
-is never the one offered;
-declining the offer is what
-makes the two distinct. A variable without a name is read by exactly
+same as (VR8); declining the offer is what makes the two distinct. A
+lone `0` is the one typed value that is a constant rather than a
+variable, so typing it draws no offer and a default `0` is never the
+one offered. A variable without a name is read by exactly
 one slot or definition, which is how it is spoken; a variable two
 readers share has a name the person gave it; an output is spoken by
 its operation.
