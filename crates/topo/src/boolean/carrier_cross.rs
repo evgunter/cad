@@ -142,6 +142,8 @@ pub(super) fn boundary_crossing<T: Decide>(
     // The first meeting in the boundary's walk order: the sweep splits
     // there and re-examines both fragments against this face, so every
     // other meeting is found again on them.
+    // Per end, the metred gaps of the candidates that read at it.
+    let mut at_end: [Vec<T>; 2] = [Vec::new(), Vec::new()];
     for q in candidates {
         let Some(t) = carrier.param_near(q, mid) else {
             return Ok(BoundaryCrossing::Unread);
@@ -149,7 +151,14 @@ pub(super) fn boundary_crossing<T: Decide>(
         let Some(speed) = geom_brep::carrier_speed::speed_at(carrier, t) else {
             return Ok(BoundaryCrossing::Unread);
         };
-        if !strictly_inside(t, t0, t1, speed, band)? {
+        let gaps = [(t - t0) * speed, (t1 - t) * speed];
+        let signs = span_signs(gaps, band)?;
+        for ((group, gap), sign) in at_end.iter_mut().zip(gaps).zip(signs) {
+            if sign == Sign::Zero {
+                group.push(gap);
+            }
+        }
+        if signs != [Sign::Positive; 2] {
             continue;
         }
         let p = carrier.eval(t);
@@ -159,7 +168,32 @@ pub(super) fn boundary_crossing<T: Decide>(
             return Ok(BoundaryCrossing::At { t, p, at, margin });
         }
     }
+    for group in &at_end {
+        one_point_at_end(group, band)?;
+    }
     Ok(BoundaryCrossing::Clear)
+}
+
+/// Whether the candidates that read at one end of the span, with the
+/// end itself, read as one point: every pair of them, as
+/// [`super::vtxfac::ring_groups`] reads the pierces at one point. Each
+/// reads at the end alone, which is not transitive: candidates for one
+/// crossing a sliver of carriers spreads along the edge (a ruling tilted
+/// within the band of its bore's axis meets each rim at a slightly
+/// different turn) each read Zero at whichever of them the sweep split
+/// at, while two of them lie in the band of each other. Which of them
+/// is the split is the operand order's choice, so the pair's verdict
+/// must not wait on it: a pair in band escalates however the edge was
+/// split.
+fn one_point_at_end<T: Decide>(gaps: &[T], band: Band) -> Result<(), BooleanError> {
+    for (i, &a) in gaps.iter().enumerate() {
+        for &b in std::iter::once(&T::zero()).chain(&gaps[i + 1..]) {
+            if let Err(diag) = decide("bool_carrier_cross_in_span", Margin::of(a - b), band) {
+                return Err(escalated(diag));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// An in-band decision of this module: where a crossing lands along its
@@ -171,28 +205,16 @@ fn escalated(diag: geom_core::Indeterminate) -> BooleanError {
     }
 }
 
-/// Whether `t` lies strictly inside `[t0, t1]`, each gap metred by
-/// `speed`, the carrier's speed at `t`
-/// ([`geom_brep::carrier_speed::speed_at`]): the chord from
-/// `t` to an end is the gap times that speed to second order in the
-/// gap, and a gap near the band is a few band widths long. An end is
-/// not inside: an endpoint's incidence is the endpoint arms' question.
-fn strictly_inside<T: Decide>(
-    t: T,
-    t0: T,
-    t1: T,
-    speed: T,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let mut inside = true;
-    for gap in [t - t0, t1 - t] {
-        match decide("bool_carrier_cross_in_span", Margin::of(gap * speed), band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) => inside = false,
-            Err(diag) => return Err(escalated(diag)),
-        }
-    }
-    Ok(inside)
+/// The signs of a candidate's gaps to the span's two ends, `t − t0`
+/// and `t1 − t`, each metred by the carrier's speed at the candidate
+/// ([`geom_brep::carrier_speed::speed_at`]): the chord from it to an end
+/// is the gap times that speed to second order in the gap, and a gap
+/// near the band is a few band widths long. The candidate is strictly
+/// inside where both are Positive; an end is not inside, since an
+/// endpoint's incidence is the endpoint arms' question.
+fn span_signs<T: Decide>(gaps: [T; 2], band: Band) -> Result<[Sign; 2], BooleanError> {
+    let sign = |gap| decide("bool_carrier_cross_in_span", Margin::of(gap), band).map_err(escalated);
+    Ok([sign(gaps[0])?, sign(gaps[1])?])
 }
 
 /// Whether a dimensionless `x` (a sine), levered at `arm`, is
