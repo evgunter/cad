@@ -1714,7 +1714,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
         sense(Operand::A, a, faces.0)?,
         sense(Operand::B, b, faces.1)?,
     );
-    let out_axis = if a_rod { axes[0] } else { axes[1] };
+    let run_axis = if a_rod { axes[0] } else { axes[1] };
     // A's struts stand on A's side of the null edge where A's sectors
     // lie outside B, on the other where they lie inside it: the strut's
     // halves swap which germ each faces.
@@ -1728,7 +1728,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     let toward = |t: Vec3<T>| -> Result<Vec3<T>, BooleanError> {
         match decide(
             "bool_node_tangent_toward_axis",
-            Margin::levered(t.dot(out_axis), arm),
+            Margin::levered(t.dot(run_axis), arm),
             band,
         ) {
             Ok(Sign::Positive) => Ok(t),
