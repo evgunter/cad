@@ -2,7 +2,7 @@
 id: ciw
 kind: program
 title: CIW — hosted CI, workflows and scripts
-status: ready
+status: active
 opened: 2026-09-03
 area: infra
 prefix: ciw/
