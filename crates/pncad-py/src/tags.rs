@@ -1674,6 +1674,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UnrepresentableResult => "unrepresentable_result",
         BooleanErrorKind::GraftRecertify => "graft_recertify",
         BooleanErrorKind::Pieces => "pieces",
+        BooleanErrorKind::Revert => "revert",
     }
 }
 
@@ -3139,8 +3140,6 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::JoinableVertexAtRest { .. } => "joinable_vertex_at_rest",
         ValidationError::JoinUndecidedAtRest { .. } => "join_undecided_at_rest",
         ValidationError::TangentNotIntrinsic { .. } => "tangent_not_intrinsic",
-        ValidationError::PairTangencyDetermined { .. } => "pair_tangency_determined",
-        ValidationError::PairCornerDetermined { .. } => "pair_corner_determined",
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",

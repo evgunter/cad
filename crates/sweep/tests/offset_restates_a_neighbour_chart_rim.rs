@@ -5,9 +5,11 @@
 //! the wall offset inward, the caps held (`offset_charts_together`
 //! keeps a chart asked to move nothing). The rim's image names only the
 //! cap, which no longer vouches for the moved wall's side, so the door
-//! states the moved rim on the minted wall: as the section of the two
-//! charts, or, where a declaration rides the image, as an image in the
-//! wall's own chart.
+//! asks the must-carry rule of the minted wall and the cap and stores
+//! what it reads — the section of the two charts — declared or not.
+//!
+//! The image itself is a conventional form on a corner, which tier 3
+//! refuses before the offset (D2: the check keys on the form).
 //!
 //! The planar door (`offset_planes_together`) takes the same shape on a
 //! cube: its top edge re-described as an image in a side's chart, the
@@ -20,8 +22,8 @@ use std::sync::Arc;
 use crate::common::approx::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_brep::{
-    EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve,
-    MappedSource, Pcurve, SketchSegment, SurfacePair,
+    EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, MappedSource,
+    Pcurve, SketchSegment, SurfacePair,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
@@ -31,7 +33,7 @@ use topo::readback::edge_sides;
 use topo::{
     Body, ChartMove, CurveGeom, EdgeKey, FaceSurface, HalfEdgeKey, LoopBoundary, MefSite,
     SurfaceKey, ValidationError, offset_charts_together, offset_planes_together,
-    replace_faces_offset, validate_closed, validate_geometric,
+    replace_faces_offset, validate_geometric,
 };
 
 const R: f64 = 3.0 / 64.0;
@@ -130,7 +132,11 @@ fn offset_the_wall(body: &mut Body<f64>, wall: SurfaceKey) -> SurfaceKey {
 #[test]
 fn a_rim_in_the_caps_chart_is_restated_as_the_section_with_the_minted_wall() {
     let (mut body, wall, rim, cap) = drum_with_a_rim_in_the_caps_chart(None);
-    validate_geometric(&body, Tol::witness()).expect("the re-described drum is tier-3 valid");
+    assert_eq!(
+        validate_geometric(&body, Tol::witness()),
+        Err(vec![ValidationError::TransverseNotIntrinsic { edge: rim }]),
+        "the hand-stated image is a conventional form on a corner"
+    );
     let minted = offset_the_wall(&mut body, wall);
     validate_geometric(&body, Tol::witness()).expect("the offset drum is tier-3 valid");
     let description = description_of(&body, rim).description();
@@ -143,11 +149,13 @@ fn a_rim_in_the_caps_chart_is_restated_as_the_section_with_the_minted_wall() {
     );
 }
 
-/// The declaration is the rim's own revolve trajectory: the profile's
-/// top corner turned half a revolution about `y`.
+/// A declaration riding the image does not change what the door
+/// stores: the rule's reading, the section, whose description carries
+/// no declaration. The declaration is the rim's own revolve trajectory:
+/// the profile's top corner turned half a revolution about `y`.
 #[test]
-fn a_declared_rim_in_the_caps_chart_keeps_its_declaration_on_the_minted_wall() {
-    let (mut body, wall, rim, _) =
+fn a_declared_rim_in_the_caps_chart_is_restated_as_the_section_too() {
+    let (mut body, wall, rim, cap) =
         drum_with_a_rim_in_the_caps_chart(Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(R, H),
             place: Affine3::identity(),
@@ -156,29 +164,20 @@ fn a_declared_rim_in_the_caps_chart_keeps_its_declaration_on_the_minted_wall() {
             angle: std::f64::consts::PI,
         })));
     let minted = offset_the_wall(&mut body, wall);
-    validate_closed(&body).expect("the offset drum is tier-2 valid");
+    validate_geometric(&body, Tol::witness()).expect("the offset drum is tier-3 valid");
     let curve = description_of(&body, rim);
     assert!(
-        matches!(curve.description(), EdgeDescription::Chart(c) if c.surface == minted),
-        "the declared rim is an image in the minted wall's chart: {:?}",
+        matches!(
+            *curve.description(),
+            EdgeDescription::Intersection { pair, .. } if pair == SurfacePair::new(minted, cap)
+        ),
+        "the declared rim is the section of the minted wall and the held cap: {:?}",
         curve.description()
     );
     assert!(
-        matches!(
-            curve.authority(),
-            EdgeAuthority::Declared(MappedCurve { source: MappedSource::RevolvedPoint { point, .. }, .. })
-                if (point.x - (R - 1.0 / 64.0)).abs() < 1e-12 && (point.y - H).abs() < 1e-12
-        ),
-        "the declaration is re-authored at the moved corner: {:?}",
+        !curve.authority().is_declared(),
+        "the section carries no declaration: {:?}",
         curve.authority()
-    );
-    // A declared transverse edge is what tier 3's prefer-intrinsic rule
-    // names, before the offset and after it alike.
-    let errors = validate_geometric(&body, Tol::witness()).unwrap_err();
-    assert_eq!(
-        errors,
-        vec![ValidationError::TransverseNotIntrinsic { edge: rim }],
-        "the declaration survived the offset"
     );
 }
 
@@ -215,12 +214,13 @@ fn the_per_chart_door_restates_a_rim_in_the_caps_chart_as_the_section() {
     }
 }
 
-/// A declaration that translates rides into the moved face's own chart:
-/// a cube's top edge, declared by its own segment in the top's plane and
-/// described in a side's chart, with the top offset by `d`.
+/// A declared image in a held neighbour's chart is restated as the
+/// rule reads the moved pair, as a derived one is: a cube's top edge,
+/// declared by its own segment in the top's plane and described in a
+/// side's chart, with the top offset by `d`.
 #[test]
-fn the_per_chart_door_moves_a_declared_edge_into_the_moved_faces_chart() {
-    let (mut body, edge, top, _) = cube_with_the_top_edge_in_the_sides_chart(true);
+fn the_per_chart_door_restates_a_declared_edge_as_the_section() {
+    let (mut body, edge, top, side) = cube_with_the_top_edge_in_the_sides_chart(true);
     let faces: Vec<_> = body
         .faces()
         .filter(|(_, f)| f.surface == top)
@@ -230,7 +230,7 @@ fn the_per_chart_door_moves_a_declared_edge_into_the_moved_faces_chart() {
     let got = replace_faces_offset(&mut body, &faces, d, Tol::witness());
     assert!(got.is_ok(), "the top's offset: {got:?}");
     let minted = body.get_face(faces[0]).unwrap().surface;
-    assert_declared_in_the_moved_top(&body, edge, minted, d);
+    assert_the_declared_edge_is_the_section(&body, edge, minted, side);
 }
 
 /// The planar door takes moves of zero, which keep their chart: a
@@ -260,11 +260,16 @@ fn the_planar_door_restates_an_edge_in_a_held_sides_chart_as_the_section() {
 }
 
 #[test]
-fn the_planar_door_moves_a_declared_edge_into_the_moved_faces_chart() {
-    let (mut body, edge, top, _) = cube_with_the_top_edge_in_the_sides_chart(true);
-    let d = 1.0 / 64.0;
-    let minted = offset_the_planes(&mut body, top, d);
-    assert_declared_in_the_moved_top(&body, edge, minted, d);
+fn the_planar_door_restates_a_declared_edge_as_the_section() {
+    let (mut body, edge, top, side) = cube_with_the_top_edge_in_the_sides_chart(true);
+    let side_face = body
+        .faces()
+        .find(|(_, f)| f.surface == side)
+        .map(|(k, _)| k)
+        .unwrap();
+    let minted = offset_the_planes(&mut body, top, 1.0 / 64.0);
+    let held = body.get_face(side_face).unwrap().surface;
+    assert_the_declared_edge_is_the_section(&body, edge, minted, held);
 }
 
 /// A cube, its top edge on `y = 0` re-described as an image in the
@@ -335,29 +340,29 @@ fn offset_the_planes(body: &mut Body<f64>, top: SurfaceKey, d: f64) -> SurfaceKe
         .expect("the top moved onto a minted chart")
 }
 
-/// The declared top edge is an image in the minted top's chart, its
-/// declaration translated with the top, and tier 3 still names it.
-fn assert_declared_in_the_moved_top(body: &Body<f64>, edge: EdgeKey, minted: SurfaceKey, d: f64) {
+/// The declared top edge is the section of the minted top and the held
+/// side, with no declaration, and the body is tier-3 valid.
+fn assert_the_declared_edge_is_the_section(
+    body: &Body<f64>,
+    edge: EdgeKey,
+    minted: SurfaceKey,
+    side: SurfaceKey,
+) {
     let curve = description_of(body, edge);
     assert!(
-        matches!(curve.description(), EdgeDescription::Chart(c) if c.surface == minted),
-        "the declared edge is an image in the moved top's chart: {:?}",
+        matches!(
+            *curve.description(),
+            EdgeDescription::Intersection { pair, .. } if pair == SurfacePair::new(minted, side)
+        ),
+        "the declared edge is the section of the moved top and the held side: {:?}",
         curve.description()
     );
     assert!(
-        matches!(
-            curve.authority(),
-            EdgeAuthority::Declared(MappedCurve { source: MappedSource::PlacedSegment { place, .. }, .. })
-                if (place.translation - Vec3::new(0.0, 0.0, 1.0 + d)).norm() < 1e-12
-        ),
-        "the declaration is translated with the top: {:?}",
+        !curve.authority().is_declared(),
+        "the section carries no declaration: {:?}",
         curve.authority()
     );
-    assert_eq!(
-        validate_geometric(body, Tol::witness()).unwrap_err(),
-        vec![ValidationError::TransverseNotIntrinsic { edge }],
-        "the declaration survived the offset"
-    );
+    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
 fn is_top(body: &Body<f64>, key: SurfaceKey) -> bool {
@@ -398,15 +403,11 @@ fn the_planar_door_derives_the_image_afresh_when_both_charts_move() {
             "declared {declared}: the edge is an image in the minted side's chart: {:?}",
             curve.description()
         );
-        let expected = if declared {
-            Err(vec![ValidationError::TransverseNotIntrinsic { edge }])
-        } else {
-            Ok(())
-        };
         assert_eq!(
             validate_geometric(&body, Tol::witness()),
-            expected,
-            "declared {declared}: tier 3 names the declaration and nothing else"
+            Err(vec![ValidationError::TransverseNotIntrinsic { edge }]),
+            "declared {declared}: tier 3 names the conventional form on a corner and \
+             nothing else"
         );
     }
 }
@@ -598,6 +599,9 @@ fn the_planar_door_keeps_the_image_of_an_edge_whose_planes_both_hold() {
         "the edge keeps its stored image: {:?}",
         now.pcurve
     );
-    let valid = validate_geometric(&body, Tol::witness());
-    assert!(valid.is_ok(), "tier-3 valid: {valid:?}");
+    assert_eq!(
+        validate_geometric(&body, Tol::witness()),
+        Err(vec![ValidationError::TransverseNotIntrinsic { edge }]),
+        "the kept image is a conventional form on a corner"
+    );
 }

@@ -462,8 +462,7 @@ impl ViewerBehavior<'_> {
                 match crate::drafts::label_typed(&typed) {
                     Ok(label) => self.ops.push(SessionOp::SetLabel { node, label }),
                     Err(fault) => self.notices.push(crate::frame::tool_news(
-                        format!("label: {fault}"),
-                        crate::frame::Retold::Again,
+                        &crate::tools::FormKind::Label.refuses(&fault),
                     )),
                 }
             }
@@ -1175,9 +1174,11 @@ fn selected_node_heading(
 /// A picked entity's noun is read off its own arm, so no caller can
 /// hand this "face" for an edge.
 ///
-/// The words are composed per arm — for a picked entity, the
-/// resolution machinery's own payload, never a sentence composed here
-/// about somebody else's refusal. How LOUD they are is not composed
+/// The words are chosen per arm — for an undeclared variable,
+/// [`Refusal::undeclared_wording`], the fact the refusal a drag on it
+/// gets opens with; for a picked entity, the resolution machinery's
+/// own payload — never a sentence composed here about somebody else's
+/// refusal. How LOUD they are is not composed
 /// per arm: it is read once, off the value.
 ///
 /// A picked entity's resolution was asked of the landed run
@@ -1211,13 +1212,7 @@ pub(crate) fn standing_verdict(
             var,
             present: false,
         } => {
-            // A name the document no longer holds is not spoken, so a
-            // nameless variable is said by its tag alone.
-            let said = match var.name() {
-                Some(name) => format!("variable {name} is no longer declared"),
-                None => format!("{var} is no longer declared"),
-            };
-            crate::widgets::message_toned(ui, said, theme, tone);
+            crate::widgets::message_toned(ui, Refusal::undeclared_wording(var), theme, tone);
             return;
         }
         Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
@@ -1396,7 +1391,7 @@ pub(crate) fn slot_doors(
 /// The affordance is attached to the row rather than raised on
 /// refusal alone so the user can see WHY the number will not move
 /// before they fight it — the refusal itself still surfaces in the
-/// status line when they try. Its wording is the ratified one, from
+/// status line when they try. Its wording comes from
 /// its one home, the same string the status line shows when the edit
 /// is actually attempted. Its doors share a WRAPPING row, one per
 /// variable the expression reads, so a door too long for what is
@@ -2571,17 +2566,20 @@ mod verdict_tests {
     }
 
     /// **An undeclared variable is said once, loud** — the only line
-    /// the pane draws for it (`properties_ui`'s `Variable` arm draws none).
+    /// the pane draws for it (`properties_ui`'s `Variable` arm draws none)
+    /// — and in the refusal vocabulary's words: the line is
+    /// `Refusal::undeclared_wording`, which `Refusal::NoSuchVariable`
+    /// opens with, so the pane and a drag's refusal cannot drift apart.
     #[test]
     fn an_undeclared_variables_verdict_is_drawn_loud() {
+        let var = SpokenVar::new(VarId::new(0, 9), Some(VarName::from_static("width")));
+        let said = crate::session::Refusal::undeclared_wording(&var);
+        assert_eq!(said, "variable width is not in this document");
         let (painted, voices) = drawn(&Standing::Variable {
-            var: SpokenVar::new(VarId::new(0, 9), Some(VarName::from_static("width"))),
+            var,
             present: false,
         });
-        assert_eq!(
-            find(&painted, "variable width is no longer declared").ink,
-            Some(voices.actionable)
-        );
+        assert_eq!(find(&painted, &said).ink, Some(voices.actionable));
     }
 
     /// **A selection that still denotes has no verdict**, so nothing

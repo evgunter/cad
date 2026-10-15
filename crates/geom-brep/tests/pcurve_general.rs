@@ -617,7 +617,7 @@ fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
         matches!(
             got,
             Err(PcurveCertifyError::FittedLimb {
-                limb: geom_brep::SsiLimb::HullSup | geom_brep::SsiLimb::HullValueChart,
+                limb: geom_brep::SsiLimb::HullSupChart | geom_brep::SsiLimb::HullValueChart,
                 ..
             })
         ),

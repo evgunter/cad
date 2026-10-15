@@ -4033,8 +4033,6 @@ MEMBERS_BOUND_AS = {
     "ValidationError::NoDihedralArm": "ValidationFinding.variant",
     "ValidationError::TransverseNotIntrinsic": "ValidationFinding.variant",
     "ValidationError::MixedDihedral": "ValidationFinding.variant",
-    "ValidationError::PairTangencyDetermined": "ValidationFinding.variant",
-    "ValidationError::PairCornerDetermined": "ValidationFinding.variant",
     "ValidationError::ScaffoldAtRest": "ValidationFinding.variant",
     "ValidationError::JoinableVertexAtRest": "ValidationFinding.variant",
     "ValidationError::JoinUndecidedAtRest": "ValidationFinding.variant",

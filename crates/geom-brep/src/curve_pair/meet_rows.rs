@@ -790,3 +790,64 @@ fn crossings_only_the_rounding_separates_are_one_touch() {
         on_both(&format!("{depth:e} inside"), &m, &l, &c);
     }
 }
+
+/// **Two lines read whole or in pieces get one verdict.** A line along
+/// `x̂` over `(0, 8)` and a second a millimetre beside it over `(1, 5)`,
+/// tilted `1.5·10⁻¹⁰` toward it. Where they can meet is their overlap,
+/// four metres, over which the tilt moves them `6·10⁻¹⁰`, within the zero
+/// band: parallel, read whole and read in the pieces a sweep would split
+/// the first into. Levered by the longer span, the whole pair read the
+/// tilt in the band's gap (`1.2·10⁻⁹`) and escalated where its pieces
+/// decided. Red where the lever is a span's own length.
+#[test]
+fn two_lines_read_whole_or_in_pieces_meet_alike() {
+    let s = 1.5e-10;
+    let x = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let beside = line([0.0, 1e-3, 0.0], [1.0, -s, 0.0]);
+    for span in [(0.0, 8.0), (0.0, 2.0), (2.0, 6.0), (6.0, 8.0)] {
+        let got = pose(
+            &Span::new(&x, span),
+            &Span::new(&beside, (1.0, 5.0)),
+            band(),
+        );
+        assert!(
+            matches!(got, Ok(Pose::Parallel)),
+            "{span:?}: one verdict, parallel: {got:?}"
+        );
+        let m = meets((&x, span), (&beside, (1.0, 5.0))).unwrap();
+        assert!(m.points.is_empty(), "{span:?}: {m:?}");
+    }
+}
+
+/// **A near-parallel pair is read where it can meet.** A line along `x̂`
+/// over `(0, 1)`, and a second `2·10⁻⁸` beside it at the first's span,
+/// converging on it at `10⁻¹⁰` per metre over `(0, 100)`, so it would
+/// reach it two hundred metres on, far past both spans. Over the overlap
+/// the gap moves `10⁻¹⁰`: parallel, no meeting. Levered by the second
+/// span, the tilt read `10⁻⁸` and escalated. Set `5ε` beside instead, the
+/// gap at the overlap is in the band's gap and the pose escalates; set
+/// `ε/2` beside, it is one line.
+#[test]
+fn a_near_parallel_pair_is_read_over_its_overlap() {
+    let s = 1e-10;
+    let x = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let read = |off: f64| {
+        let other = line([0.0, off, 0.0], [1.0, -s, 0.0]);
+        pose(
+            &Span::new(&x, (0.0, 1.0)),
+            &Span::new(&other, (0.0, 100.0)),
+            band(),
+        )
+    };
+    assert!(
+        matches!(read(20.0 * ZERO), Ok(Pose::Parallel)),
+        "{:?}",
+        read(20.0 * ZERO)
+    );
+    assert!(read(5.0 * ZERO).is_err(), "{:?}", read(5.0 * ZERO));
+    assert!(
+        matches!(read(0.5 * ZERO), Ok(Pose::Coincident { .. })),
+        "{:?}",
+        read(0.5 * ZERO)
+    );
+}
