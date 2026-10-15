@@ -684,6 +684,8 @@ mod strut_cover_on_cylinder_pairs;
 mod run_walls_built;
 #[path = "section_ellipse_seam_poses.rs"]
 mod section_ellipse_seam_poses;
+#[path = "section_end_poses.rs"]
+mod section_end_poses;
 #[path = "split_across_a_revolve_seam.rs"]
 mod split_across_a_revolve_seam;
 #[path = "split_along_a_face_plane.rs"]
@@ -696,6 +698,8 @@ mod split_edge_fitted_rows;
 mod split_edge_loft_charts;
 #[path = "split_edge_on_faces_poses.rs"]
 mod split_edge_on_faces_poses;
+#[path = "split_seam_vanishing_tilt.rs"]
+mod split_seam_vanishing_tilt;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
@@ -1159,6 +1163,8 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_closed_conic_in_the_partners_face.rs"]
+mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
 mod a_cone_with_a_tilted_seam;
 #[path = "join_lever_is_the_joined_edge.rs"]

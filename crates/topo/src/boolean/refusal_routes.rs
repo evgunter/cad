@@ -318,7 +318,10 @@ pub enum BooleanDecision {
     /// Whether an edge of the result lies on both faces it bounds: its
     /// line chord's residual against one of the two faces' surfaces, at
     /// the attachment gate that certifies its description
-    /// ([`crate::merge_faces::edge_on_faces_reading`]). A residual
+    /// ([`crate::merge_faces::edge_on_faces_reading`]), or a section
+    /// chord's end against its vertex where the join mints it, on a
+    /// carrier that resolves the end ([`crate::SplitJoinError::SectionEndEscalated`]).
+    /// A residual
     /// passes only at zero, so no tolerance is its recourse. Its ends are
     /// vertices an earlier reading placed on the faces they meet, so a
     /// carrier read in band of a face says that an edge or a vertex of
@@ -328,8 +331,8 @@ pub enum BooleanDecision {
     /// carrier, not its vertices, and a chord's carrier reads its start
     /// as its own origin and its end as `carrier(t₁)`, one rounding off
     /// the vertex.
-    /// Asked of the result, after every declaration was spent, so none
-    /// is read.
+    /// Asked after the operands' coincidences were read, so no
+    /// declaration is read.
     EdgeOnFaces,
     /// Whether a shell of the result bounds material or a cavity, at the
     /// finished-body gate (check 10, a shell of a solid of several): its
@@ -871,6 +874,14 @@ const RESULT_SHELL: SizedDecision = SizedDecision {
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
     no_size: None,
+};
+
+/// [`RESULT_SHELL`] at the split door ([`BooleanDecision::render_at_split`]):
+/// the same decision on the same margin, in the split's lever, since the
+/// split has one operand and a plane.
+const SPLIT_RESULT_SHELL: SizedDecision = SizedDecision {
+    lever: "move the split plane or the geometry so each piece it leaves is clearly thick",
+    ..RESULT_SHELL
 };
 
 /// Whether the faces touching along a seam curve apart or share their
@@ -1667,11 +1678,29 @@ impl BooleanDecision {
             .to_string()
     }
 
+    /// [`Self::render`] at the split door ([`crate::SplitFinishError::ResultEscalated`]):
+    /// [`Self::ShellRole`] ends in the split's own lever, every other
+    /// decision as at the Boolean.
+    #[must_use]
+    pub(crate) fn render_at_split(self, diag: &Indeterminate) -> String {
+        let ending = match self {
+            Self::ShellRole { .. } => Ending::Sized(SPLIT_RESULT_SHELL),
+            _ => self.ending(diag),
+        };
+        diag.undecided(self.subject(), self.counted(ending.recourse(diag)))
+            .to_string()
+    }
+
     /// The one ending the verdict gives at `diag`, with no subject: a
     /// result shell's role read in band also counts the shells beside it
     /// the same tolerance decided.
     pub(crate) fn recourse(self, diag: &Indeterminate) -> String {
-        let ending = self.ending(diag).recourse(diag);
+        self.counted(self.ending(diag).recourse(diag))
+    }
+
+    /// `ending`, after the count of the other in-band shells where this
+    /// is [`Self::ShellRole`].
+    fn counted(self, ending: String) -> String {
         match self {
             Self::ShellRole { others: 0, .. } => ending,
             Self::ShellRole { others: 1, .. } => format!(

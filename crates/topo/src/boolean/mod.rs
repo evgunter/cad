@@ -102,6 +102,7 @@ pub(crate) mod insert;
 mod join;
 mod node;
 mod ops;
+pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
 pub(crate) mod section_cert;
 pub(crate) use ops::volume_backstop;
 #[cfg(any(test, feature = "test-support"))]
@@ -4649,19 +4650,11 @@ impl core::fmt::Display for BooleanError {
                 write!(f, "seam zip correspondence failed: {what} (kernel bug)")
             }
             Self::Merge(e) => write!(f, "coplanar-merge output stage refused: {e}"),
-            Self::ResultInvalid { errors } => match errors.as_slice() {
-                [first, ..] => write!(
-                    f,
-                    "the Boolean's result did not pass the at-rest gate, so no body is \
-                     returned ({} finding(s)); the first: {first}",
-                    errors.len(),
-                ),
-                [] => write!(
-                    f,
-                    "the Boolean's result did not pass the at-rest gate, so no body is \
-                     returned. {KERNEL_DEFECT_ENDING}"
-                ),
-            },
+            Self::ResultInvalid { errors } => crate::validate::write_result_not_at_rest(
+                f,
+                format_args!("the Boolean's result"),
+                errors,
+            ),
             Self::ResultVolumeImplausible { which, got, bound } => write!(
                 f,
                 "the Boolean's result broke a bound a correct result's volume always meets \

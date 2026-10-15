@@ -2,7 +2,7 @@
 id: reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier
 kind: issue
 title: Body::revert of a body with coincident distinct edges on one line yields overlapping material wedges, and every tier passes it
-status: dispatched
+status: review
 opened: 2026-10-14
 priority: P1
 cost: M

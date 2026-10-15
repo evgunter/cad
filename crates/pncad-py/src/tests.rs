@@ -6275,7 +6275,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_op_error_tag",
         values: &["finish", "join", "pcurves", "pieces", "reduce"],
-        delegates: &["join_refusal_tag"],
+        delegates: &["boolean_error_tag", "join_refusal_tag"],
     },
     TagEntry {
         function: "stale_declaration_tag",

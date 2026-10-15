@@ -411,11 +411,13 @@ const NEAR_AZIMUTHS: [f64; 7] = [0.0, 0.3, 1.0, 2.0, 3.0, 4.0, 5.5];
 /// A frustum of radius `r0` at `s = 0` and `r1` at `s = 1` about y, cut
 /// through its ruling at each azimuth a hair off tangency, both normals.
 /// A pose that answers hands back sides that are closed, valid bodies
-/// (the split's own contract, tiers 1 and 2), and every volume a side
-/// certifies is its closed form, the sliver read as the cone's share of
-/// the larger disc's thin segment at the floor the cylinder's
-/// near-tangent rows read. A side whose volume the band cannot certify
-/// refuses typed at `mass_properties`; it never reads a wrong number.
+/// (the split's own contract: tiers 1 and 2, and tier 3 at a certifying
+/// scalar, whose refusal the split returns as its own), and every volume
+/// a side certifies is its closed form, the sliver read as the cone's
+/// share of the larger disc's thin segment at the floor the cylinder's
+/// near-tangent rows read. A side whose volume `mass_properties` cannot
+/// certify to its target refuses typed there; it never reads a wrong
+/// number.
 /// A sliver whose depth off the plane is within ε is a graze at this ε,
 /// and the frustum may land whole on its material side instead: that
 /// side holds every tier and the whole volume. Returns how many poses
@@ -488,6 +490,8 @@ fn near_tangent_rulings(name: &str, r0: f64, r1: f64) -> usize {
                     topo::validate(b).unwrap_or_else(|e| panic!("{label}: {side}: tier 1: {e:?}"));
                     topo::validate_closed(b)
                         .unwrap_or_else(|e| panic!("{label}: {side}: tier 2: {e:?}"));
+                    topo::validate_geometric(b, tol)
+                        .unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
                     if let Ok(m) = mass_properties(b, tol) {
                         assert!(
                             (m.volume - want).abs() <= 1e-9 * want + m.volume_pad + floor,
