@@ -4844,7 +4844,7 @@ impl<T: Decide> Period<T> {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod period_rows {
     use geom_core::{Band, Interval, Margin, Real, SpanLocate};
 
@@ -4861,10 +4861,19 @@ mod period_rows {
     fn a_far_gap_decides_its_branch_with_no_cap() {
         let tau = f64::tau();
         let period = Period::new(tau);
-        assert!(matches!(period.decide("t", 25.3 * tau, Margin::of, band()), Ok(25)));
-        assert!(matches!(period.decide("t", -25.3 * tau, Margin::of, band()), Ok(-25)));
+        assert!(matches!(
+            period.decide("t", 25.3 * tau, Margin::of, band()),
+            Ok(25)
+        ));
+        assert!(matches!(
+            period.decide("t", -25.3 * tau, Margin::of, band()),
+            Ok(-25)
+        ));
         let half = Period::new(tau / 2.0);
-        assert!(matches!(half.decide("t", 3.5 * tau, Margin::of, band()), Ok(7)));
+        assert!(matches!(
+            half.decide("t", 3.5 * tau, Margin::of, band()),
+            Ok(7)
+        ));
     }
 
     /// **A far gap on a mark names the branches astride it.** A bracket
@@ -4873,7 +4882,8 @@ mod period_rows {
     #[test]
     fn a_far_gap_on_a_mark_stops_astride_it() {
         let mark = Interval::from_f64(40.5 * f64::tau());
-        let gap = (mark - Interval::from_f64(1e-10)).enclosure_hull(mark + Interval::from_f64(1e-10));
+        let gap =
+            (mark - Interval::from_f64(1e-10)).enclosure_hull(mark + Interval::from_f64(1e-10));
         match Period::new(Interval::tau()).decide("t", gap, Margin::of, band()) {
             Err(WalkStop {
                 miss: BranchMiss::OnMark | BranchMiss::Undecided(_),
@@ -5008,10 +5018,7 @@ fn fidelity<T: Decide>(
         None => offset.abs(),
     };
     let k_v = if angular_v {
-        match branch("pcurve_fidelity_branch", p0.y - q0.y, arm_v) {
-            Ok(k) => Some(k),
-            Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => None,
-        }
+        branch("pcurve_fidelity_branch", p0.y - q0.y, arm_v).ok()
     } else {
         Some(T::zero())
     };
