@@ -3384,11 +3384,9 @@ fn wall_crossing<T: Decide + Bounds>(
     // a kernel bug, refused — never a zero speed that would read every
     // root as at the span's end.
     let speed_at = |t: T| {
-        geom_brep::carrier_speed::speed_at(carrier, t).ok_or(
-            BooleanError::ClassificationInvariant {
-                what: "a wall root's carrier is neither a line nor a conic",
-            },
-        )
+        geom::carrier_speed::speed_at(carrier, t).ok_or(BooleanError::ClassificationInvariant {
+            what: "a wall root's carrier is neither a line nor a conic",
+        })
     };
     let found = match found {
         CircleRoots::Certified(found) => found,

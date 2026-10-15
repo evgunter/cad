@@ -747,9 +747,6 @@ const ROWS: BoundaryRows = BoundaryRows {
     line: &EDGE_ROWS,
     conic: ConicRows {
         span: "bool_contact_arc_span",
-        on: "bool_contact_arc",
-        end: "bool_contact_arc_end",
-        trim: "bool_contact_arc_trim",
         straddle: "bool_contact_arc_straddle",
     },
     spiric: SpiricRows {

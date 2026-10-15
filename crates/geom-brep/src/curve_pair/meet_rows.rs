@@ -613,7 +613,7 @@ fn a_touch_past_a_span_meets_at_its_end() {
     assert!(
         m.points
             .iter()
-            .any(|p| matches!((p.on_a, p.on_b), (Hit::On { .. }, Hit::End))),
+            .any(|p| matches!((p.on_a, p.on_b), (Hit::On { .. }, Hit::End(_)))),
         "the second span's end meets the first: {m:?}"
     );
     on_both("past a span", &m, &a, &b);
@@ -659,7 +659,7 @@ fn a_shallow_crossing_past_a_segment_meets_at_its_end() {
     assert!(
         m.points
             .iter()
-            .any(|p| matches!((p.on_a, p.on_b), (Hit::End, Hit::On { .. }))),
+            .any(|p| matches!((p.on_a, p.on_b), (Hit::End(_), Hit::On { .. }))),
         "the segment's end meets the other line: {m:?}"
     );
     on_both("past a segment", &m, &x, &y);

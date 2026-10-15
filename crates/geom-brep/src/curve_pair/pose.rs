@@ -321,14 +321,17 @@ fn tangent<T: Decide>(k: &Conic<T>, theta: T) -> Vec3<T> {
     k.u_ref * (T::zero() - k.semi_u * sin) + k.v_ref() * (k.semi_v * cos)
 }
 
-/// The conic's parameter nearest `q`: the angle of `q`'s unit
-/// coordinates, exact on a circle and on any point of the ellipse,
-/// polished otherwise. A foot that is not the nearest point only reads
-/// the point farther off ([`Span::contact`]).
+/// The conic's foot of `q` ([`Curve3::foot`], the one foot reading).
 fn conic_foot<T: Decide>(k: &Conic<T>, q: Point3<T>) -> T {
-    let w = q - k.center;
-    let seed = (w.dot(k.v_ref()) / k.semi_v).atan2(w.dot(k.u_ref) / k.semi_u);
-    super::polish::foot(|t| Side::Conic(k).ders(t), q, seed, |_| true)
+    Curve3::Ellipse {
+        center: k.center,
+        axis: k.axis,
+        semi_u: k.semi_u,
+        semi_v: k.semi_v,
+        u_ref: k.u_ref,
+    }
+    .foot(q, T::zero())
+    .t()
 }
 
 /// A lower bound on `q`'s distance from the conic: the conic lies in its
@@ -343,28 +346,16 @@ fn conic_clearance<T: Decide>(k: &Conic<T>, q: Point3<T>) -> T {
     (h.powi(2) + out.powi(2)).sqrt()
 }
 
-/// The line's parameter nearest `q`.
+/// The line's foot of `q` ([`Curve3::foot`], the one foot reading).
 fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T {
-    (q - origin).dot(dir) / dir.dot(dir)
+    Curve3::Line { origin, dir }.foot(q, T::zero()).t()
 }
 
-/// **The carrier's parameter nearest `q`**, the foot a point is read at:
-/// on a line in closed form, on a conic the angle of `q`'s unit
-/// coordinates polished by Gauss–Newton ([`conic_foot`]), and on a spiric
-/// oval [`Curve3::param_near`]'s angle polished the same way. `None` on a
-/// spline, which has no foot reading here. A point within the band of
-/// the carrier near its foot reads within the band at it; the unpolished
-/// angle of an ellipse does not (`(1 + a/b)·ε` for a point `ε` off).
-pub fn foot<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> Option<T> {
-    match *c {
-        Curve3::Line { origin, dir } => Some(line_foot((origin, dir), q)),
-        Curve3::Circle { .. } | Curve3::Ellipse { .. } => Some(conic_foot(&Conic::of(c)?, q)),
-        Curve3::Spiric { .. } => {
-            let seed = c.param_near(q, T::zero())?;
-            Some(super::polish::foot(|t| c.ders1(t), q, seed, |_| true))
-        }
-        Curve3::Nurbs(_) => None,
-    }
+/// `q`'s foot on `s`'s carrier ([`Curve3::foot`]), seeded at the span's
+/// middle.
+fn foot<T: Decide>(s: &Span<'_, T>, q: Point3<T>) -> T {
+    let (t0, t1) = s.params();
+    s.carrier().foot(q, geom::mid_param(t0, t1)).t()
 }
 
 /// **Each span's ends, read against the other** (module docs, "The
@@ -375,12 +366,20 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
     let (a0, a1) = a.params();
     for ta in [a0, a1] {
         let point = a.carrier().eval(ta);
-        out.extend(foot(b.carrier(), point).map(|tb| Candidate { point, ta, tb }));
+        out.push(Candidate {
+            point,
+            ta,
+            tb: foot(b, point),
+        });
     }
     let (b0, b1) = b.params();
     for tb in [b0, b1] {
         let point = b.carrier().eval(tb);
-        out.extend(foot(a.carrier(), point).map(|ta| Candidate { point, ta, tb }));
+        out.push(Candidate {
+            point,
+            ta: foot(a, point),
+            tb,
+        });
     }
     out
 }

@@ -39,7 +39,7 @@
 //! ring), which has no boundary pre-pass: the caller keeps its frontier
 //! door.
 
-use geom_brep::curve_pair::{Contact, Hit, MeetFault, Span, foot, meet};
+use geom_brep::curve_pair::{Hit, MeetFault, Span, meet};
 use geom_core::{Band, Decide, Point3};
 
 use super::contain::FaceContainment;
@@ -107,10 +107,10 @@ pub(super) fn boundary_crossing<T: Decide>(
             return Ok(BoundaryCrossing::Unread);
         };
         let vertex = y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
-        let Some(read) = vertex_on_span(&swept, vertex, band) else {
-            return Ok(BoundaryCrossing::Unread);
-        };
-        crossings.extend(read.map_err(escalated)?);
+        match vertex_on_span(&swept, vertex, band) {
+            Ok(t) => crossings.extend(t),
+            Err(refusal) => return vertex_refusal(refusal),
+        }
         let CurveGeom::Certified(other) = y.edge_curve_linked(ek, edge) else {
             return Ok(BoundaryCrossing::Unread);
         };
@@ -137,7 +137,7 @@ pub(super) fn boundary_crossing<T: Decide>(
         for m in met.points {
             match m.on_a {
                 Hit::On { t, .. } => crossings.push(t),
-                Hit::End => {}
+                Hit::End(_) => {}
             }
         }
     }
@@ -160,22 +160,37 @@ pub(super) fn boundary_crossing<T: Decide>(
 
 /// **Whether the swept span holds a boundary vertex on its interior**:
 /// the vertex read by [`Span::contact`] at its foot on the swept carrier
-/// ([`geom_brep::curve_pair::foot`], a polished closest point), `Some` of
-/// the parameter where it is `On`. `None` where the carrier has no foot
-/// reading (a spline). The foot, not the carrier's
-/// [`geom::Curve3::param_near`]: on an ellipse that is the angle of the
-/// point's unit-coordinate image, whose point lies up to `(1 + a/b)·ε`
-/// from a vertex `ε` off the carrier, which the band would read off it.
+/// ([`geom::Curve3::foot`]), `Some` of the parameter where it is on the
+/// interior. The foot, not the carrier's [`geom::Curve3::param_near`]: on
+/// an ellipse that is the angle of the point's unit-coordinate image,
+/// whose point lies up to `(1 + a/b)·ε` from a vertex `ε` off the
+/// carrier, which the band would read off it.
 fn vertex_on_span<T: Decide>(
     swept: &Span<'_, T>,
     vertex: geom_core::Point3<T>,
     band: Band,
-) -> Option<Result<Option<T>, geom_core::Indeterminate>> {
-    let t = foot(swept.carrier(), vertex)?;
-    Some(swept.contact(vertex, t, band).map(|c| match c {
-        Contact::On { t, .. } => Some(t),
-        Contact::Off | Contact::Carrier | Contact::Past | Contact::End => None,
-    }))
+) -> Result<Option<T>, geom::CarrierRefusal> {
+    let (t0, t1) = swept.params();
+    let foot = swept.carrier().foot(vertex, geom::mid_param(t0, t1));
+    Ok(match swept.contact(vertex, &foot, band)? {
+        Some(Hit::On { t, .. }) => Some(t),
+        Some(Hit::End(_)) | None => None,
+    })
+}
+
+/// A point-on-span refusal of the vertex reading: an escalation is this
+/// module's, and a spline that cannot be read is not read.
+fn vertex_refusal<T: geom_core::Real>(
+    refusal: geom::CarrierRefusal,
+) -> Result<BoundaryCrossing<T>, BooleanError> {
+    match refusal {
+        geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag) => {
+            Err(escalated(diag))
+        }
+        geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded => {
+            Ok(BoundaryCrossing::Unread)
+        }
+    }
 }
 
 /// An in-band decision of this module: where a crossing lands along its
@@ -227,8 +242,8 @@ mod crossing_rows {
                 let (p, d) = thin.ders1(t);
                 let normal = Vec3::unit_z().cross(d).normalize();
                 let vertex = p + normal * (0.5 * z);
-                let read = vertex_on_span(&swept, vertex, band).expect("an ellipse has a foot");
-                let on = read.unwrap_or_else(|e| panic!("{ratio} at {t}: {e:?}"));
+                let on = vertex_on_span(&swept, vertex, band)
+                    .unwrap_or_else(|e| panic!("{ratio} at {t}: {e:?}"));
                 let at = on.unwrap_or_else(|| panic!("{ratio} at {t}: read off"));
                 assert!((at - t).abs() < 1e-6, "{ratio} at {t}: {at}");
             }

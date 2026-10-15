@@ -285,12 +285,17 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
             CrossingDecision::OnEdge.subject()
         }
         "split_conic_root_order" => CrossingDecision::Order.subject(),
-        // `geom_brep::curve_pair`'s readings, which the on-carrier
-        // crossing reads its meetings by.
-        "curve_pair_span_end_chord" | "curve_pair_span_end_side" => {
-            CrossingDecision::OnEdge.subject()
-        }
-        "curve_pair_span_gap" => "whether a point lies on an edge's carrier",
+        // The point-on-span reading's two halves, which the on-carrier
+        // crossing and the boundary pass read: `geom`'s one-carrier
+        // reading and `geom_brep::curve_pair`'s span reading.
+        "curve_pair_span_end_chord"
+        | "curve_pair_span_end_side"
+        | "curve_pair_span_end_straddle" => CrossingDecision::OnEdge.subject(),
+        "curve_carrier_gap"
+        | "curve_carrier_clear"
+        | "curve_carrier_straddle"
+        | "curve_carrier_piece_clear"
+        | "curve_carrier_piece" => "whether a point lies on an edge's carrier",
         "curve_pair_pose_tilt"
         | "curve_pair_pose_offset"
         | "curve_pair_pose_sense"
@@ -336,9 +341,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_region_roots_extreme"
         | "bool_sphere_region_roots_slack"
         | "bool_sphere_region_arc_span"
-        | "bool_sphere_region_arc_on"
-        | "bool_sphere_region_arc_end"
-        | "bool_sphere_region_arc_trim"
         | "bool_sphere_region_arc_straddle"
         | "bool_torus_chart_affine"
         | "bool_torus_chart_box"
@@ -366,9 +368,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_arm"
         | "point_in_arc_loop_reach"
         | "point_in_arc_loop_conic_span"
-        | "point_in_arc_loop_conic_on"
         | "point_in_arc_loop_conic_end"
-        | "point_in_arc_loop_conic_trim"
         | "point_in_arc_loop_conic_straddle"
         | "point_in_arc_loop_conic_window"
         | "point_in_arc_loop_conic_disc"

@@ -1702,7 +1702,7 @@ mod boundary_midpoint_rows {
             });
             assert_rows(
                 arc,
-                "bool_contact_arc",
+                "curve_carrier_gap",
                 Departure::Untouched,
                 &format!("tangent arc, theta {theta}"),
             );
@@ -1841,7 +1841,7 @@ mod boundary_midpoint_rows {
             });
             assert_rows(
                 got,
-                "bool_contact_arc",
+                "curve_carrier_gap",
                 Departure::Untouched,
                 &format!("tangent circle, alpha {alpha}"),
             );

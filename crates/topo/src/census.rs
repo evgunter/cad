@@ -2280,9 +2280,6 @@ const EF_CROSS_ROWS: crate::splitting::containment::BoundaryRows =
         },
         conic: crate::splitting::containment::ConicRows {
             span: "pm_census_ef_cross_arc_span",
-            on: "pm_census_ef_cross_arc_on",
-            end: "pm_census_ef_cross_arc_end",
-            trim: "pm_census_ef_cross_arc_trim",
             straddle: "pm_census_ef_cross_arc_straddle",
         },
         spiric: crate::splitting::spiric_arc::SpiricRows {
