@@ -5291,7 +5291,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             let point = bvh::Aabb::from_points([p]).unwrap_or_else(bvh::Aabb::poison);
             curved_boxes.get(&face).is_none_or(|b| b.overlaps(&point))
         };
-        let plans: Vec<_> = minted.iter().filter_map(|(_, plan)| plan.as_ref()).collect();
+        let plans: Vec<_> = minted
+            .iter()
+            .filter_map(|(_, plan)| plan.as_ref())
+            .collect();
         if !plans.is_empty() {
             held.extend(vtxfac::faces_holding_pierce(
                 piercing_body,

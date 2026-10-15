@@ -1895,7 +1895,11 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// vertex through the ring's vertex.
 ///
 /// Mints each such ring vertex and its run's strut in `piercing_body`
-/// and returns them with the pierce's half of its ring. A plane face is
+/// and returns them with the pierce's half of its ring, every pierce of
+/// `plans` read ([`held_reads`]) before any is minted ([`mint_held`]): a
+/// minted ring vertex's strut stands in its face as a ring, so a face
+/// holding two points read one after the other's mint would read its
+/// trim unplaced at the second. A plane face is
 /// read where the point is on its plane or in band of it, a curved face
 /// whose box `box_holds` says holds the point, on a carrier none of the
 /// piercing vertex's own faces lies on (their siblings on one carrier,
@@ -1939,7 +1943,13 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     // read unplaced.
     let mut reads = Vec::new();
     for plan in plans {
-        reads.extend(held_reads(&*piercing_body, pierced_body, box_holds, plan, band)?);
+        reads.extend(held_reads(
+            &*piercing_body,
+            pierced_body,
+            box_holds,
+            plan,
+            band,
+        )?);
     }
     reads
         .into_iter()
