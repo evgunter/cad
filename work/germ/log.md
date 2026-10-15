@@ -465,3 +465,4 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-15 — **No live row is at or above this track's own band (P0).** The 24 rows left are 3 at P1, 1 at P2, 14 at P3, 3 at P4, 3 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
   Band the 3 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
   (tracker sweep)
+- 2026-10-15 — Seam note from CIW (at Ev's direction, since TINT has no orchestrator): `an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12` moves here from TINT. It is red on every nightly `full suite`. (CIW orchestrator)

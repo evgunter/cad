@@ -59,3 +59,11 @@ This row closes when both are green and the pre-pass passes.
   `cargo test -p editor-core --features probe --test all -- assemble_one_local_battery::`
 
   It panics at `assemble_one_local_battery.rs:70:5`: "the assembly gate recorded 0 samples, tier 3 2053 and tier 3′ 2533: the gate must be tier 3′ less one battery" (left 2053, right 2533). It is not bisected. The likely cause is INTENT's census moving into the gather: PR 4669 (`intent/s4-census-records-what-it-decides`) or PR 4733 (s4-j, ce834bd231), both merged 10-11. The fix is either to count the gather's samples into the gate or to re-state the equality. This still blocks nightly `k-lint (dev-probe)` through `scripts/k_probe_sweep.sh`'s `run_plain`. A note is posted on INTENT's log.
+
+## 2026-10-15 — moved from TINT to INTENT (CIW orchestrator, at Ev's direction)
+
+TINT has no orchestrator. Nightly 61's `k-lint (dev-probe)` (run 38687151370, job 116264822569) still stops in `run_plain` on this row's NEW assertion: "the assembly gate recorded 0 samples, tier 3 2053 and tier 3′ 2533: the gate must be tier 3′ less one battery". The likeliest cause is INTENT's census moving into the gather (#4669 or #4733). INTENT knows whether the gate should count the gather's samples or the equality should be re-stated, so the row goes there.
+
+The other two pre-pass reds this row tracked:
+- `mm-scale-sphere-rim-probe-no-longer-refuses` is closed by #4696 (merged 2026-10-11).
+- `silent-fixed-predicates-probe-reds-under-all-features-on-main` moves to CIW, which owns `scripts/k_probe_sweep.sh`.
