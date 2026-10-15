@@ -380,6 +380,57 @@ fn a_boolean_leaving_a_needle_builds_it() {
     assert_eq!(shells_per_solid(&body), [1], "one needle");
 }
 
+/// **A boolean leaving a needle turned off the axes builds it**, at every
+/// ε a run takes (designer B's four poses, 2Kε and 3Kε across). The
+/// re-derivation takes the volume about the mean of the body's points,
+/// within its thickness of every long face; about the least corner of
+/// its points, which a turned needle stands off by up to its length, the
+/// long faces' terms cancelled in pairs inside an enclosure that held
+/// zero at ε 1e-12.
+#[test]
+fn a_boolean_leaving_a_turned_needle_builds_it_in_every_pose() {
+    let tol = Tol::witness();
+    let rot = |axis: [f64; 3], ang: f64| {
+        let n = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt();
+        let (x, y, z) = (axis[0] / n, axis[1] / n, axis[2] / n);
+        let (s, c) = ang.sin_cos();
+        let k = 1.0 - c;
+        [
+            [c + x * x * k, x * y * k - z * s, x * z * k + y * s],
+            [y * x * k + z * s, c + y * y * k, y * z * k - x * s],
+            [z * x * k - y * s, z * y * k + x * s, c + z * z * k],
+        ]
+    };
+    let poses: [([f64; 3], f64, [f64; 3]); 4] = [
+        ([0.0, 0.0, 1.0], 0.0, [0.0; 3]),
+        ([1.0, 2.0, 3.0], 1.1, [0.3, -0.2, 0.5]),
+        ([0.3, -0.7, 0.2], 2.4, [1.7, 0.4, -0.9]),
+        ([1.0, 1.0, 0.0], core::f64::consts::FRAC_PI_4, [0.0; 3]),
+    ];
+    for across in [2.0, 3.0] {
+        let w = across * tol.k() * tol.eps();
+        for (i, &(axis, ang, c)) in poses.iter().enumerate() {
+            let r = rot(axis, ang);
+            let place = move |p: [f64; 3]| {
+                let at = |k: usize| c[k] + r[k][0] * p[0] + r[k][1] * p[1] + r[k][2] * p[2];
+                Point3::new(at(0), at(1), at(2))
+            };
+            let at_rest = |body| AtRestBody::validate(body, tol).expect("an operand at rest");
+            let a = at_rest(common::mapped_cube::<f64>(
+                move |x, y, z| place([x, y, z]),
+                tol,
+            ));
+            let b = at_rest(common::mapped_cube::<f64>(
+                move |x, y, z| place([x, 1.0 - w + y * (1.0 + w), 1.0 - w + z * (1.0 + w)]),
+                tol,
+            ));
+            let what = format!("brick ∩ brick leaving a {across}Kε needle, pose {i}");
+            let body = built(&what, topo::intersect(&a, &b, tol));
+            assert_eq!(shells_per_solid(&body), [1], "{what}: one needle");
+        }
+    }
+}
+
 /// **A needle cavity at the door** (review R2's
 /// `r2_needle_cavity_and_solid_at_the_door`): `brick (−1,2)³ ∖ slab`,
 /// then `∪` a fill that leaves of the slab's cavity a channel `w × w`

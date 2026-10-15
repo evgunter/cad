@@ -1280,18 +1280,28 @@ struct Rederived {
     recentred: bool,
 }
 
-/// The least corner of the runs' loop points, lifted through `lane`: a
-/// point within the body's own extent of every face, exact (a lattice
-/// `min`, so a point interval), and the same point for the same geometry
-/// whatever order its faces are stored in. The centre is order-free; the
-/// value about it is not quite: a plane's flux is read from its loop's
-/// first point (`quad_lane::planar_face_about`,
-/// `quad_lane::polygon_face_about`), and where a loop's points stand off
-/// their plane two bodies storing one boundary from different first
-/// points re-derive values that differ by up to
+/// **The reference point the re-derivation takes the flux about**: the
+/// mean of the runs' loop points in the walk's scalar, lifted through
+/// `lane` (a point interval at `f64`). A mean
+/// of the body's own points lies in their convex hull, so its distance
+/// from each face's plane is at most the body's extent along that face's
+/// normal: a needle's or a slab's thickness for its long faces. A plane's
+/// flux is its distance times its area ([`quad_lane::polygon_face_about`]),
+/// so this keeps each long face's term the size of its own share of the
+/// volume. The least corner of the loop points, which this was, lies off
+/// a body turned off the axes by up to its length: on a needle 2e-11
+/// across turned at ε 1e-12, its long faces' terms read ~6e-12 each with
+/// ~2e-16 of width, cancelling in pairs to a volume of 4e-22 inside an
+/// enclosure that holds zero.
+///
+/// Any fixed point is a sound centre for a closed surface; the mean is
+/// the same point for one stored body every time (D9), and two bodies
+/// storing one boundary in different orders take it a few roundings
+/// apart. The value about it also reads a plane's flux from its loop's
+/// first point, and where a loop's points stand off their plane two such
+/// bodies re-derive values that differ by up to
 /// `Σ_f δ_f·(Σ|T^a| + Σ|T^b|)` over those faces, `|T^a|` and `|T^b|` the
-/// unsigned areas of face `f`'s fan triangles from either first point — within the
-/// band's metering of a sign, not of a bound read at the exact band. On
+/// unsigned areas of face `f`'s fan triangles from either first point. On
 /// the polygon route ([`shell_polygons`]) that is the whole difference; on
 /// the fan route the loops' gaps at their carrier ends add their own
 /// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
@@ -1300,26 +1310,29 @@ fn corner_of<T: Decide>(
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
 ) -> Result<Point3<Interval>, MassPropsError> {
-    let mut corner: Option<Point3<T>> = None;
+    let mut sum: Option<(Point3<T>, T)> = None;
     for run in runs {
         let (face, _) = resolve_face(body, run.face);
         for edges in face_loops(body, face)? {
             for e in &edges {
                 let p = e.carrier.eval(e.t0);
-                corner = Some(match corner {
-                    None => p,
-                    Some(c) => Point3::new(c.x.min(p.x), c.y.min(p.y), c.z.min(p.z)),
+                sum = Some(match sum {
+                    None => (p, T::one()),
+                    Some((s, n)) => (Point3::new(s.x + p.x, s.y + p.y, s.z + p.z), n + T::one()),
                 });
             }
         }
     }
-    let c = corner.ok_or(MassPropsError::Corrupt {
+    let (s, n) = sum.ok_or(MassPropsError::Corrupt {
         what: "a walk with faces has no loop point",
     })?;
+    // The mean in the walk's own scalar, then lifted: a point interval
+    // at `f64`, so no face's closed form reads a centre wider than the
+    // body's coordinates round.
     Ok(Point3::new(
-        (lane.lift)(c.x),
-        (lane.lift)(c.y),
-        (lane.lift)(c.z),
+        (lane.lift)(s.x / n),
+        (lane.lift)(s.y / n),
+        (lane.lift)(s.z / n),
     ))
 }
 
