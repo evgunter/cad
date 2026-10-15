@@ -721,8 +721,9 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// and 0.9 the rims are one curve within the band, and every op
 /// refuses `FallbackExtentUnsupported` further on. At 2 and 5 a seam
 /// ruling's crossing with the other rim's plane lies `k·ε` from the
-/// ruling's end, and every op refuses `Escalated` on
-/// `bool_carrier_cross_in_span`. At 30 and 80 the rims are definitely
+/// ruling's end, in band of it: it joins the end's cluster, whose
+/// spread reads in band, and every op refuses `Escalated` on
+/// `bool_carrier_cross_cluster_spread`, the crossings' order. At 30 and 80 the rims are definitely
 /// two curves, which no closed form here places, and every op refuses
 /// `CurvedPierceUnsupported`. None reads the rims' crossings away.
 #[test]
@@ -743,13 +744,16 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                     "{label}: one curve, refused past it: {res:?}"
                 );
             } else if k < 10.0 {
-                let Err(BooleanError::Escalated { diag, .. }) = &res else {
+                let Err(BooleanError::Escalated { diag, decision }) = &res else {
                     panic!("{label}: escalates: {res:?}");
                 };
                 assert_eq!(
-                    diag.predicate,
-                    Some("bool_carrier_cross_in_span"),
-                    "{label}: on the span row"
+                    (diag.predicate, *decision),
+                    (
+                        Some("bool_carrier_cross_cluster_spread"),
+                        topo::BooleanDecision::Crossing(topo::CrossingDecision::Order)
+                    ),
+                    "{label}: on the end's cluster"
                 );
             } else {
                 assert!(
