@@ -7,11 +7,10 @@
 //! nothing — profile geometry reached every lane as f64 bits. These
 //! rows are what changed and what did not.
 //!
-//! - **Off is off.** The lift defaults to `Pinned` and the whole build
-//!   path runs there; `m10_p_fence.rs` digests that against the
-//!   pre-lift tree. Here the narrower claim: turning the lift ON at
-//!   `f64` changes nothing, because guided elaboration at `f64` is
-//!   plain elaboration at `f64`.
+//! - **The `f64` lane is the first pass.** It takes the first pass's
+//!   validated form and runs no second one (`editor_core::ProfileLane`);
+//!   here the claim that justifies it: the second pass, run at `f64`,
+//!   is that form bit for bit, over the whole corpus.
 //! - **The seam is open.** Resolving the same program at `Dual` and
 //!   elaborating it GUIDED carries a seed on the hole radius through to
 //!   the vertices it moves — a derivative where there was a zero.
@@ -25,100 +24,96 @@
 
 use crate::corpus;
 
-use editor_core::{
-    CancelToken, EvalOptions, Node, NodeResult, ParamValue, ProfileLift, ValuePayload, evaluate,
-};
-use geom_core::Tol;
+use editor_core::{CancelToken, EvalOptions, Node, NodeResult, ParamValue, ValuePayload, evaluate};
+use geom_core::{Real, Tol};
+use profile::{SegmentKind, ValidatedProfile};
 
-/// Every body point of an evaluation, by bits — the comparable surface.
-fn body_bits(ev: &editor_core::Evaluation<f64>) -> Vec<u64> {
-    let mut out = Vec::new();
-    for result in ev.nodes.values() {
-        if let NodeResult::Ok(v) = result
-            && let ValuePayload::Body(b) = &v.payload
-        {
-            for (_, p) in b.points() {
-                out.extend([p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]);
+/// Every scalar a validated profile stores, in one fixed order — the
+/// plane's twelve, then per loop each vertex, each segment's ends and
+/// an arc's centre, radius and sweep — and its decided facts, rendered:
+/// roles, joint sets, segment kinds and turns.
+fn form(vp: &ValidatedProfile<f64>) -> (Vec<u64>, String) {
+    let mut bits: Vec<u64> = vp
+        .plane()
+        .placement()
+        .components()
+        .iter()
+        .map(|x| x.to_bits())
+        .collect();
+    let mut facts = String::new();
+    for lp in vp.loops() {
+        facts.push_str(&format!(
+            "{:?} {:?} {:?} {:?}:",
+            lp.role(),
+            lp.tangent_joints(),
+            lp.cusp_joints(),
+            lp.decided_joints()
+        ));
+        for v in lp.vertices() {
+            bits.extend(v.to_array().map(f64::to_bits));
+        }
+        for sg in lp.segments() {
+            bits.extend([sg.start.x, sg.start.y, sg.end.x, sg.end.y].map(f64::to_bits));
+            match sg.kind {
+                SegmentKind::Line => facts.push_str(" L"),
+                SegmentKind::Arc { arc, turn } => {
+                    facts.push_str(&format!(" {turn:?}"));
+                    bits.extend(
+                        [arc.centre.x, arc.centre.y, arc.radius, arc.sweep].map(f64::to_bits),
+                    );
+                }
             }
         }
+        facts.push('\n');
     }
-    out
+    (bits, facts)
 }
 
-fn options(lift: ProfileLift) -> EvalOptions {
-    EvalOptions {
-        profile_lift: lift,
-        ..EvalOptions::default()
-    }
-}
-
-/// Turning the lift on at `f64` changes no geometry.
-///
-/// It is not a tautology: with the lift on, the profile node's payload
-/// comes from a program RE-RESOLVED at the lane scalar and re-elaborated
-/// under guidance, not from the f64 precompute embedded. That the two
-/// agree bit for bit at `T = f64` is the differential the design asks
-/// for, taken through the public evaluation door.
+/// **The `f64` lane's profile is the second pass, bit for bit.** At
+/// `f64` over the nominal the evaluator serves the first pass's
+/// validated form on the lane's plane and runs no second pass
+/// (`editor_core::ProfileLane`). Here the second pass is run at `f64`
+/// beside it, through the evaluator's own code
+/// (`editor_core::eval::second_pass_at_f64`), for every profile node of
+/// every corpus document, and the two agree on every stored scalar's
+/// bits and every decided fact. A node the second pass would refuse
+/// is a refusal here.
 #[test]
-fn the_lift_at_f64_reproduces_the_pinned_evaluation() {
+fn the_f64_lane_is_the_second_pass_bit_for_bit() {
+    let tol = Tol::witness();
+    let mut profiles = 0usize;
     for doc in corpus::documents() {
-        let run = |lift| {
-            evaluate::<f64>(
-                &doc.doc,
-                None,
-                &CancelToken::new(),
-                &options(lift),
-                Tol::witness(),
-            )
-        };
-        let pinned = run(ProfileLift::Pinned);
-        let guided = run(ProfileLift::Guided);
-        assert_eq!(
-            body_bits(&pinned),
-            body_bits(&guided),
-            "{}: guided elaboration at f64 moved the geometry",
-            doc.name
-        );
-        for (id, a) in pinned.nodes.iter() {
-            let b = guided.nodes.get(id).expect("same node set");
-            assert_eq!(
-                a.error().map(ToString::to_string),
-                b.error().map(ToString::to_string),
-                "{}: node {id:?} refused differently under the lift",
-                doc.name
-            );
-        }
-    }
-}
-
-/// The lift moves the CONTENT KEY, and must: two evaluations whose
-/// profile geometry is computed at different scalars are not
-/// interchangeable, so one may not serve the other's memo.
-#[test]
-fn the_lift_changes_the_content_key() {
-    let doc = plate();
-    let run = |lift| {
-        evaluate::<f64>(
+        let ev = evaluate::<f64>(
             &doc.doc,
             None,
             &CancelToken::new(),
-            &options(lift),
-            Tol::witness(),
-        )
-    };
-    let (pinned, guided) = (run(ProfileLift::Pinned), run(ProfileLift::Guided));
-    let profile_node = profile_node_of(&doc);
-    let key = |ev: &editor_core::Evaluation<f64>| {
-        ev.value(profile_node)
-            .expect("the profile node evaluates")
-            .content_key
-    };
-    assert_ne!(
-        key(&pinned),
-        key(&guided),
-        "a lifted profile node's key must differ from the pinned one's — \
-         otherwise a seeded or widened evaluation hits the nominal's memo"
-    );
+            &EvalOptions::default(),
+            tol,
+        );
+        for (&id, result) in &ev.nodes {
+            let NodeResult::Ok(v) = result else {
+                continue;
+            };
+            let ValuePayload::Profile(served) = &v.payload else {
+                continue;
+            };
+            let second = editor_core::eval::second_pass_at_f64(&doc.doc, &ev, id, tol)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{}: profile {id:?}: the second pass at f64 refuses: {e}",
+                        doc.name
+                    )
+                });
+            assert_eq!(
+                form(&served.validated),
+                form(&second),
+                "{}: profile {id:?}: the served form is not the second pass's",
+                doc.name
+            );
+            profiles += 1;
+        }
+    }
+    assert!(profiles > 20, "the corpus carries profiles: {profiles}");
 }
 
 /// **The seam the unit exists to open.** A `Dual` seed on the hole
@@ -191,7 +186,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // All three of these are used ONLY by this row, so they are
     // imported here rather than at module scope.
     use crate::fixture;
-    use geom_core::{Interval, Real};
+    use geom_core::Interval;
     /// The nominal f64 loops, replayed for the record's sake.
     fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ConstructedLoop<f64>> {
         resolved
@@ -257,9 +252,13 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     let (_, canonical) = profile::ConstructedProfile::new(plane, nominal_loops(&nominal))
         .validate_recording(Tol::witness())
         .expect("the nominal validates and records");
-    // The sketch plane at the lane scalar lifts as constants: VQ8 keeps
-    // the plane out of the parameter layer.
-    let err = profile::ConstructedProfile::new(plane.map(Interval::from_f64), loops)
+    // The sketch plane minted at the lane scalar from the fixture's
+    // constants: VQ8 keeps the plane out of the parameter layer.
+    let lane_plane = profile::SketchPlane::from_frame(geom_core::test_support::rigid(
+        &plane.placement().map(Interval::from_f64),
+        Tol::witness(),
+    ));
+    let err = profile::ConstructedProfile::new(lane_plane, loops)
         .validate_guided(Tol::witness(), &canonical)
         .expect_err("a hole radius spanning four orders of magnitude cannot certify");
     // The FAMILY, not the fact that some string came back. This wall is
@@ -292,82 +291,41 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     println!("wide-box refusal: {err}");
 }
 
-/// **The two-ladder parity.** The sweep/loft seam and the profile
-/// node's seam do not fork.
-///
-/// The strong half of this is structural and lives in the source: the
-/// loft/sweep seam CALLS `prepare_profile`, the profile node's own f64
-/// ladder, instead of repeating its four steps beside it, and runs the
-/// same second pass as a gate. What is checked here is the consequence
-/// a test can see: a document whose profile feeds a loft evaluates the
-/// same way under the lift as under the pin, exactly as the extrude
-/// ladder does.
-#[test]
-fn the_loft_ladder_tracks_the_profile_ladder_under_the_lift() {
-    let doc = corpus::loft_prism::document();
-    let run = |lift| {
-        evaluate::<f64>(
-            &doc.doc,
-            None,
-            &CancelToken::new(),
-            &options(lift),
-            Tol::witness(),
-        )
-    };
-    let (pinned, guided) = (run(ProfileLift::Pinned), run(ProfileLift::Guided));
-    assert_eq!(
-        body_bits(&pinned),
-        body_bits(&guided),
-        "the loft ladder's geometry moved under the lift"
-    );
-    for (id, a) in pinned.nodes.iter() {
-        let b = guided.nodes.get(id).expect("same node set");
-        assert_eq!(
-            a.error().map(ToString::to_string),
-            b.error().map(ToString::to_string),
-            "node {id:?} refused differently through the loft ladder"
-        );
-    }
-    assert!(
-        guided.nodes.values().any(|r| matches!(
-            r,
-            NodeResult::Ok(v) if matches!(v.payload, ValuePayload::Body(_))
-        )),
-        "the loft document must actually build something for this row to mean anything"
-    );
-}
-
 /// The lift runs end to end at `Dual64` through the evaluation door,
-/// and does not move the value channel.
+/// and puts the value channel exactly where the `f64` lane does.
 ///
-/// What this row does NOT show is a seeded tangent, and the reason is
-/// worth stating rather than leaving as an absence: `Doc::var_env`
-/// embeds every parameter through `from_f64`, so a document evaluation
-/// has no seed to carry — putting one there is the seeding surface,
-/// which is another unit's. The seam this unit opened is that a seed
-/// PRESENT in the environment now reaches the vertices, and that is
-/// asserted one door down, at
+/// What this row does NOT show is a seeded tangent: an unseeded
+/// document evaluation has none to carry, and the seed is
+/// `EvalOptions::seed`'s door (`m10_4_seed`). The seam this unit opened
+/// is that a seed PRESENT in the environment reaches the vertices, and
+/// that is asserted one door down, at
 /// [`a_dual_seed_on_a_profile_parameter_now_carries_a_tangent`], on the
 /// exact call `wire_profile` makes.
 ///
 /// What this row does show is that the whole lifted path — resolving
 /// the program at `VarEnv<Dual64>`, elaborating it guided, feeding
 /// both dual channels into the content key — runs at `Dual` and leaves
-/// the value channel exactly where the pinned lane put it.
+/// the value channel bit for bit at the `f64` lane's profile, with no
+/// derivative anywhere.
 #[test]
 fn the_evaluation_door_runs_the_lift_at_dual() {
     use geom_core::Dual64;
     let doc = plate();
-    let run = |lift| {
-        evaluate::<Dual64>(
-            &doc.doc,
-            None,
-            &CancelToken::new(),
-            &options(lift),
-            Tol::witness(),
-        )
-    };
-    let profiles = |ev: &editor_core::Evaluation<Dual64>| {
+    let dual = evaluate::<Dual64>(
+        &doc.doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let at_f64 = evaluate::<f64>(
+        &doc.doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    fn vertices<T: editor_core::EvalScalar>(ev: &editor_core::Evaluation<T>) -> Vec<(T, T)> {
         let mut out = Vec::new();
         for result in ev.nodes.values() {
             if let NodeResult::Ok(v) = result
@@ -375,105 +333,78 @@ fn the_evaluation_door_runs_the_lift_at_dual() {
             {
                 for lp in p.validated.loops() {
                     for vx in lp.vertices() {
-                        out.push((
-                            vx.x.value.to_bits(),
-                            vx.y.value.to_bits(),
-                            vx.x.deriv,
-                            vx.y.deriv,
-                        ));
+                        out.push((vx.x, vx.y));
                     }
                 }
             }
         }
         out
-    };
-    let (pinned, guided) = (run(ProfileLift::Pinned), run(ProfileLift::Guided));
-    let (a, b) = (profiles(&pinned), profiles(&guided));
-    assert!(!a.is_empty(), "the plate has profile loops to compare");
+    }
+    let lane: Vec<(Dual64, Dual64)> = vertices(&dual);
+    let nominal: Vec<(f64, f64)> = vertices(&at_f64);
+    assert!(!lane.is_empty(), "the plate has profile loops to compare");
     assert_eq!(
-        a, b,
-        "the lift moved the Dual lane's profile payload — value channel or \
-         tangent — and with no seed in the environment it may move neither"
+        lane.iter()
+            .map(|(x, y)| (x.value.to_bits(), y.value.to_bits()))
+            .collect::<Vec<_>>(),
+        nominal
+            .iter()
+            .map(|(x, y)| (x.to_bits(), y.to_bits()))
+            .collect::<Vec<_>>(),
+        "the Dual lane's profile value channel is the f64 lane's"
     );
     assert!(
-        a.iter().all(|(_, _, dx, dy)| *dx == 0.0 && *dy == 0.0),
-        "an unseeded environment has no derivative to carry, at either lane"
+        lane.iter().all(|(x, y)| x.deriv == 0.0 && y.deriv == 0.0),
+        "an unseeded environment has no derivative to carry"
     );
 }
 
-/// **A lofted body at `Interval` is the same under both lifts.** A loft
-/// reads its sections' profile values, and at `Interval` it encloses
-/// the `f64` skin of their value channel (`sweep::loft_profiles`). The
-/// loft prism's sections are polygons on unrotated frames, so with no
-/// parameter box the two lifts' profile values hold the same points,
-/// and the lofted body is bit for bit one body. An arc section or a
-/// rotated authored frame is not such a document: under the guided lift
-/// its values are a few ulps wide, and the loft refuses. The profile node's own
-/// payload under the guided lift is elaborated at the lane (its vertex
-/// enclosures are the lane's own).
+/// **A loft and a profile evaluate at `Interval`.** A loft reads its
+/// sections' profile values, and at `Interval` it encloses the `f64`
+/// skin of their value channel (`sweep::loft_profiles`). The loft
+/// prism's sections are polygons on unrotated frames, so with no
+/// parameter box their values are points and the loft builds. An arc
+/// section or a rotated authored frame is not such a document: its
+/// values are a few ulps wide, and the loft refuses
+/// (`e6_drive_over_a_loft_at_interval`). The profile node's own payload
+/// is elaborated at the lane (its vertex enclosures are the lane's
+/// own).
 #[test]
-fn a_lofted_body_at_interval_is_one_body_under_both_lifts() {
-    use geom_core::Interval;
-    let run = |doc: &editor_core::ProfileDoc, lift| {
+fn a_lofted_body_and_a_profile_evaluate_at_interval() {
+    use geom_core::{Bounds, Interval};
+    let run = |doc: &editor_core::ProfileDoc| {
         evaluate::<Interval>(
             doc,
             None,
             &CancelToken::new(),
-            &options(lift),
+            &EvalOptions::default(),
             Tol::witness(),
         )
     };
-    let body_bits = |ev: &editor_core::Evaluation<Interval>| {
-        use geom_core::Bounds;
-        let mut out = Vec::new();
-        for result in ev.nodes.values() {
-            if let NodeResult::Ok(v) = result
-                && let ValuePayload::Body(b) = &v.payload
-            {
-                for (_, p) in b.points() {
-                    for c in p.to_array() {
-                        out.push((c.lo().to_bits(), c.hi().to_bits()));
-                    }
-                }
-            }
-        }
-        out
-    };
-
-    // The loft half: both lifts' sections have one value channel here,
-    // and the loft encloses its `f64` skin.
     let loft = corpus::loft_prism::document();
-    let (pinned, guided) = (
-        run(&loft.doc, ProfileLift::Pinned),
-        run(&loft.doc, ProfileLift::Guided),
-    );
+    let ev = run(&loft.doc);
     assert!(
-        !body_bits(&pinned).is_empty(),
-        "the loft document must build a body for this row to mean anything"
-    );
-    assert_eq!(
-        body_bits(&pinned),
-        body_bits(&guided),
-        "the lift moved a lofted body at Interval, though both lifts' sections hold the \
-         same points"
+        ev.nodes.values().any(|r| matches!(
+            r,
+            NodeResult::Ok(v) if matches!(v.payload, ValuePayload::Body(_))
+        )),
+        "the loft document builds a body at Interval"
     );
 
     // The extrude half: the profile node's own payload IS elaborated at
-    // the lane, which is the other side of the asymmetry. Both lanes
-    // enclose the same point here — this evaluation carries no
-    // parameter box, so its bindings are the document's nominals and
-    // the enclosure is degenerate by construction. What is asserted is
-    // that the payload is produced and encloses the nominal, not that
-    // it is wider; a widened binding is `EvalOptions::param_box`'s
-    // door and is driven in `m10_3_driver_interval`.
+    // the lane. This evaluation carries no parameter box, so its
+    // bindings are the document's nominals and the enclosure is
+    // degenerate by construction. What is asserted is that the payload
+    // is produced and well formed, not that it is wider; a widened
+    // binding is `EvalOptions::param_box`'s door and is driven in
+    // `m10_3_driver_interval`.
     let plate = plate();
-    let g = run(&plate.doc, ProfileLift::Guided);
+    let g = run(&plate.doc);
     let mut profiles = 0usize;
     for result in g.nodes.values() {
         if let NodeResult::Ok(v) = result
             && let ValuePayload::Profile(p) = &v.payload
         {
-            use geom_core::Bounds;
             profiles += 1;
             for lp in p.validated.loops() {
                 for vx in lp.vertices() {

@@ -51,9 +51,7 @@ use geom_core::Tol;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox, sample_offset};
 use crate::doc::Doc;
-use crate::eval::{
-    CancelToken, ContentKey, EvalOptions, Evaluation, ProfileLift, ValuePayload, evaluate,
-};
+use crate::eval::{CancelToken, ContentKey, EvalOptions, Evaluation, ValuePayload, evaluate};
 use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
@@ -649,14 +647,11 @@ pub fn monte_carlo(
     })
 }
 
-/// The replay's evaluation options: the guided profile lift, so a
-/// sampled profile dimension reaches the geometry the same way the
-/// driver's leaves do (M10-P), and nothing else.
+/// The replay's evaluation options: the defaults, which are the
+/// driver's leaves' own, so a sampled profile dimension reaches the
+/// geometry the same way (M10-P).
 fn lane_opts() -> EvalOptions {
-    EvalOptions {
-        profile_lift: ProfileLift::Guided,
-        ..EvalOptions::default()
-    }
+    EvalOptions::default()
 }
 
 /// What one sample read at each sink, in `sinks` order, and at each

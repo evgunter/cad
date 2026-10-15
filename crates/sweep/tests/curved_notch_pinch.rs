@@ -11,6 +11,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point3;
 use topo::{AtRestBody, Body, BooleanError, BooleanResult, mass_properties};
 
 use crate::common::pinch_cones::{
@@ -55,7 +56,7 @@ fn curved_pieces(b: f64, n: usize) -> Ps {
 
 /// The notch extruded from a profile whose `v → (2, 1.15)` edge bulges `b`.
 fn curved_notch_body(b: f64) -> AtRestBody<f64> {
-    use geom_core::{Affine3, Mat3, Point2, Vec3};
+    use geom_core::Point2;
     let pts = [
         (0.0, 0.0, 0.0),
         (2.0, 0.0, 0.0),
@@ -70,10 +71,7 @@ fn curved_notch_body(b: f64) -> AtRestBody<f64> {
             .map(|&(x, y, g)| (Point2::new(x, y), g))
             .collect(),
     );
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Vec3::new(0.0, 0.0, 0.0),
-    ));
+    let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(tol())
         .expect("the curved notch validates");

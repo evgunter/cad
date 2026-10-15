@@ -59,10 +59,9 @@ use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_v
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
-    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EntityKind,
-    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload, VarName,
-    evaluate,
+    AssertionRelation, AssertionVerdict, Dimension, Distribution, DocEdit, EntityKind, EvalOptions,
+    Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload, VarName,
 };
 use geom_core::{Bounds, Tol};
 
@@ -116,10 +115,12 @@ fn eval_over<T: editor_core::EvalScalar>(
 ) -> editor_core::Evaluation<T> {
     let opts = EvalOptions {
         param_box: box_.map(std::sync::Arc::new),
-        profile_lift: editor_core::ProfileLift::Guided,
         ..EvalOptions::default()
     };
-    evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
+    // The drive's own evaluation: its witness runs the profile's second
+    // pass at `f64` too, so the vectors read here are the ones it
+    // compares.
+    editor_core::eval::evaluate_as_drive_witness(doc, &opts, Tol::witness())
 }
 
 fn one_axis(doc: &ProfileDoc, n: &'static str, h: f64) -> ParamBox {

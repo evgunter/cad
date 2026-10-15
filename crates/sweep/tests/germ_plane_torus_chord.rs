@@ -474,13 +474,16 @@ fn comb(teeth: &[(f64, f64)]) -> Solid {
         }
     }
     ring.pop();
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(
-            Vec3::unit_x(),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
+    let plane = profile::SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(
+            Mat3::from_cols(
+                Vec3::unit_x(),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+            ),
+            Vec3::new(0.0, 0.0, -3.0),
         ),
-        Vec3::new(0.0, 0.0, -3.0),
+        geom_core::Tol::witness(),
     ));
     let vp = profile::Profile::new(plane, vec![profile::ProfileLoop::polygon(ring)])
         .validate(Tol::witness())
@@ -610,9 +613,9 @@ fn tilted_slab(h: f64, theta: f64, s: f64) -> Solid {
         Point2::new(u_span.1, v_span.1),
         Point2::new(u_span.0, v_span.1),
     ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(u, v, d),
-        at - Point3::origin(),
+    let plane = profile::SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(Mat3::from_cols(u, v, d), at - Point3::origin()),
+        geom_core::Tol::witness(),
     ));
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())

@@ -137,8 +137,7 @@ use std::time::Instant;
 
 use pncad::analysis::{AnalysisPolicy, DriveConfig, ParamBox, analyzed_box, assertion_at, drive};
 use pncad::document::{
-    CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, ProfileLift, ValuePayload,
-    evaluate,
+    CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, ValuePayload, evaluate,
 };
 use pncad::geom_core::{Bounds, Interval, Sym, SymBudget, SymCounts, SymRules, Tol};
 
@@ -172,12 +171,11 @@ fn drive_dials() -> (SymBudget, SymRules) {
 }
 
 /// One leaf's evaluation options over the WHOLE declared box, in the
-/// driver's own lane (`ProfileLift::Guided`, as `drive` sets it).
+/// driver's own lane.
 fn whole_box(doc: &ProfileDoc) -> EvalOptions {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     }
 }
@@ -316,7 +314,7 @@ pub fn narration(tol: Tol) {
     );
     println!(
         "   ONE leaf over the WHOLE box per row (no splitting), in the driver's own lane \
-         (ProfileLift::Guided, the driver's symbolic budget and rules):"
+         (the driver's symbolic budget and rules):"
     );
 
     let mut rows = Vec::new();

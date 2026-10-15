@@ -851,7 +851,8 @@ fn swept<T: Real>(from: T, to: T, turn: T) -> T {
 /// before.
 ///
 /// Over the scalars:
-/// - `ProfileLift::Guided` replays this at the evaluation scalar, through
+/// - every evaluation replays this at its own scalar (editor-core's
+///   profile lift), through
 ///   the coincidence door at `Sym<f64>` and the drive's symbolic leaf at
 ///   `Sym<Interval>`;
 /// - at `Sym` a `floor` folds only on a zero-form argument (the exact

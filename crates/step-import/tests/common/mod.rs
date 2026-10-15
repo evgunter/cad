@@ -237,8 +237,8 @@ pub fn arc_section(s: f64) -> sweep::Section {
 
 /// Loft placements: the given heights, each scaled by `s`, as pure
 /// `+z` translations.
-pub fn stacked(z: &[f64], s: f64) -> Vec<geom_core::Affine3<f64>> {
+pub fn stacked(z: &[f64], s: f64) -> Vec<profile::SketchPlane<f64>> {
     z.iter()
-        .map(|h| geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 0.0, h * s)))
+        .map(|h| profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, h * s)))
         .collect()
 }

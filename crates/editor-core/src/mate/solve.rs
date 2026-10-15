@@ -1486,7 +1486,7 @@ fn face_base<P: crate::ProfilePayload, T: SolveScalar>(
     let Some(u_ref) = pose.u_ref else {
         unreachable!("readback::face_pose fixes u_ref for every carrier it answers")
     };
-    geom_core::linalg::frame::point_at_frame(pose.origin, pose.origin + pose.axis, u_ref, tol)
+    geom_core::linalg::frame::point_at(pose.origin, pose.origin + pose.axis, u_ref, tol)
         .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
 }
 

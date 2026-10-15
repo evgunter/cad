@@ -4868,7 +4868,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
-///   can carry).
+///   can carry; and `ProfileLane`, the sealed fact that the `f64`
+///   lane is a profile's first pass).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
 ///   (M10-6): the driver and its box,
@@ -4907,7 +4908,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 95] = [
+const NOT_CARRIED: [&str; 96] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4951,6 +4952,7 @@ const NOT_CARRIED: [&str; 95] = [
     "PairingViolation",
     "ParamValue",
     "PredicateDivergence",
+    "ProfileLane",
     "ProfilePayload",
     "Qualifier",
     "RangeField",
@@ -6526,9 +6528,9 @@ mod unit_vector_witness_through_the_facade {
             Tol::witness(),
         )
         .unwrap();
-        assert_eq!(bits(frame.linear * Vec3::unit_z()), bits(normal.get()));
+        assert_eq!(bits(frame.linear() * Vec3::unit_z()), bits(normal.get()));
         let start = path_start_frame(ao, dir.get(), Tol::witness()).unwrap();
-        assert_eq!(bits(start.linear * Vec3::unit_z()), bits(dir.get()));
+        assert_eq!(bits(start.linear() * Vec3::unit_z()), bits(dir.get()));
         let mirror = mirror_across_plane(origin, normal.get(), Tol::witness()).unwrap();
         let p = mirror.transform_point(Point3::new(1.0, 2.0, 4.0));
         assert!((p.z - 2.0).abs() < 1e-12, "{p:?}");
@@ -7180,8 +7182,8 @@ fn a_lattice_built_loft_section_decides_no_consistency_check() {
             .expect("the section authors")
     };
     let places = [
-        pncad::geom_core::Affine3::identity(),
-        pncad::geom_core::Affine3::translation(pncad::geom_core::Vec3::new(0.0, 0.0, 1.0)),
+        pncad::profile::SketchPlane::xy(),
+        pncad::profile::SketchPlane::xy_at(pncad::geom_core::Point3::new(0.0, 0.0, 1.0)),
     ];
     let constructed: Vec<Vec<ConstructedLoop<f64>>> = vec![vec![d_shape().into()]; 2];
     let asked = consistency_asked(|| {

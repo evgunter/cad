@@ -40,8 +40,8 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeVar, LoopProgram, MeridianEnd, Node, NodeResult, ProfileDoc, ProfileLift, ProfileProgram,
-    RecipeNodeId, RoleSeg, UnitSym, VarName, evaluate,
+    FreeVar, LoopProgram, MeridianEnd, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId,
+    RoleSeg, UnitSym, VarName, evaluate,
 };
 use geom_core::{Interval, SymBudget, SymRules, Tol};
 
@@ -67,33 +67,26 @@ fn failures<T: geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .collect()
 }
 
-fn opts(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> EvalOptions {
+fn opts(doc: &editor_core::ProfileDoc) -> EvalOptions {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
-        profile_lift: lift,
         ..EvalOptions::default()
     }
 }
 
-fn plain(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> Vec<String> {
-    let ev: Evaluation<Interval> = evaluate(
-        doc,
-        None,
-        &CancelToken::new(),
-        &opts(doc, lift),
-        Tol::witness(),
-    );
+fn plain(doc: &editor_core::ProfileDoc) -> Vec<String> {
+    let ev: Evaluation<Interval> =
+        evaluate(doc, None, &CancelToken::new(), &opts(doc), Tol::witness());
     failures(&ev)
 }
 
 fn sym(
     doc: &ProfileDoc,
-    lift: ProfileLift,
     rules: SymRules,
     budget: SymBudget,
 ) -> (Vec<String>, geom_core::SymCounts) {
-    let o = opts(doc, lift);
+    let o = opts(doc);
     geom_core::sym::with_session_rules(budget, rules, || {
         let ev: Evaluation<geom_core::Sym<Interval>> =
             evaluate(doc, None, &CancelToken::new(), &o, Tol::witness());
@@ -189,14 +182,14 @@ fn ladder() -> Vec<(&'static str, SymRules)> {
 fn sym5_tilted_width_parameter_ladder() {
     for half in [1.0e-3, 5.0e-2] {
         let doc = boss_on_widened_width_box(half);
-        let p = plain(&doc, ProfileLift::Pinned);
+        let p = plain(&doc);
         println!(
             "width half={half:e} plain: {} {}",
             p.len(),
             head(p.first().map_or("", String::as_str), 300)
         );
         for (name, rules) in ladder() {
-            let (f, c) = sym(&doc, ProfileLift::Pinned, rules, budget());
+            let (f, c) = sym(&doc, rules, budget());
             println!(
                 "width half={half:e} {name}: {c:?}\n  fails {} {}",
                 f.len(),
@@ -269,24 +262,22 @@ fn sym5_tilted_frame_ladder() {
     for half in [1.0e-3, 5.0e-2] {
         for (kind, derived) in [("authored", false), ("derived", true)] {
             let doc = boss_on_tilted(half, derived);
-            for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-                let p = plain(&doc, lift);
+            let p = plain(&doc);
+            println!(
+                "tilted {kind} half={half:e} plain: {} {}",
+                p.len(),
+                head(p.first().map_or("", String::as_str), 260)
+            );
+            for (name, rules) in ladder() {
+                let (f, c) = sym(&doc, rules, budget());
                 println!(
-                    "tilted {kind} half={half:e} {lift:?} plain: {} {}",
-                    p.len(),
-                    head(p.first().map_or("", String::as_str), 260)
+                    "tilted {kind} half={half:e} {name}: frozen {} sym0 {} num {}\n  fails {} {}",
+                    c.frozen,
+                    c.symbolic,
+                    c.numeric,
+                    f.len(),
+                    head(f.first().map_or("", String::as_str), 260)
                 );
-                for (name, rules) in ladder() {
-                    let (f, c) = sym(&doc, lift, rules, budget());
-                    println!(
-                        "tilted {kind} half={half:e} {lift:?} {name}: frozen {} sym0 {} num {}\n  fails {} {}",
-                        c.frozen,
-                        c.symbolic,
-                        c.numeric,
-                        f.len(),
-                        head(f.first().map_or("", String::as_str), 260)
-                    );
-                }
             }
         }
     }
@@ -324,7 +315,6 @@ fn sym5_tilted_derived_guided_profiled() {
     ] {
         let o = EvalOptions {
             param_box: Some(Arc::new(box_.clone())),
-            profile_lift: ProfileLift::Guided,
             ..EvalOptions::default()
         };
         start_profile();
@@ -408,7 +398,7 @@ fn sym5_tilted_derived_guided_budget_ladder() {
         ),
     ] {
         let t = std::time::Instant::now();
-        let (f, c) = sym(&doc, ProfileLift::Guided, SymRules::shipped(), b);
+        let (f, c) = sym(&doc, SymRules::shipped(), b);
         println!(
             "tilted derived Guided 1e-3 shipped budget {label}: frozen {} sym0 {} num {} in {:?}\n  fails {} {}",
             c.frozen,
@@ -422,9 +412,8 @@ fn sym5_tilted_derived_guided_budget_ladder() {
 }
 
 /// **SYM-5's pin: the derived boss on a tilted frame certifies where
-/// its authored twin does.** The acceptance row of the unit, under
-/// BOTH `ProfileLift`s, at the widths the twin certifies at on the
-/// symbolic lane.
+/// its authored twin does.** The acceptance row of the unit, at the
+/// widths the twin certifies at on the symbolic lane.
 ///
 /// What carries it is rule E ([`SymRules::common_factor`], the
 /// quotient's common factor): with the rule off — `without_rule_e`,
@@ -448,48 +437,24 @@ fn sym5_tilted_derived_guided_budget_ladder() {
 fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
     let eps = Tol::witness().eps();
     for half in [eps / 8.0, 1.0e-3] {
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-            let authored = sym(
-                &boss_on_tilted(half, false),
-                lift,
-                SymRules::shipped(),
-                budget(),
-            )
-            .0;
-            let derived = sym(
-                &boss_on_tilted(half, true),
-                lift,
-                SymRules::shipped(),
-                budget(),
-            )
-            .0;
-            assert!(
-                authored.is_empty(),
-                "half={half:e} {lift:?}: the authored twin certifies: {authored:?}"
-            );
-            assert!(
-                derived.is_empty(),
-                "half={half:e} {lift:?}: the derived boss must certify where its twin does — \
-                 this is rule E's acceptance row: {derived:?}"
-            );
-        }
+        let authored = sym(&boss_on_tilted(half, false), SymRules::shipped(), budget()).0;
+        let derived = sym(&boss_on_tilted(half, true), SymRules::shipped(), budget()).0;
+        assert!(
+            authored.is_empty(),
+            "half={half:e}: the authored twin certifies: {authored:?}"
+        );
+        assert!(
+            derived.is_empty(),
+            "half={half:e}: the derived boss must certify where its twin does — \
+             this is rule E's acceptance row: {derived:?}"
+        );
     }
 
     // Rule E is what carries it: with the rule off the derived boss
     // refuses under Guided where the twin certifies.
     let off = SymRules::without_rule_e();
-    let (derived_off, _) = sym(
-        &boss_on_tilted(1.0e-3, true),
-        ProfileLift::Guided,
-        off,
-        budget(),
-    );
-    let (authored_off, _) = sym(
-        &boss_on_tilted(1.0e-3, false),
-        ProfileLift::Guided,
-        off,
-        budget(),
-    );
+    let (derived_off, _) = sym(&boss_on_tilted(1.0e-3, true), off, budget());
+    let (authored_off, _) = sym(&boss_on_tilted(1.0e-3, false), off, budget());
     assert!(
         authored_off.is_empty(),
         "the twin certifies with rule E off too: {authored_off:?}"
@@ -505,12 +470,7 @@ fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
     );
 
     // The one width still refused, and the reason, read off the kernel.
-    let (wide, _) = sym(
-        &boss_on_tilted(5.0e-2, true),
-        ProfileLift::Guided,
-        SymRules::shipped(),
-        budget(),
-    );
+    let (wide, _) = sym(&boss_on_tilted(5.0e-2, true), SymRules::shipped(), budget());
     assert_eq!(wide.len(), 1, "one refusal at 5e-2: {wide:?}");
     assert!(
         wide[0].contains("interval_span_forward"),
@@ -820,30 +780,28 @@ fn sym5_the_reach_on_documents_the_unit_did_not_build() {
             continue;
         }
         let doc = r2_document(half, base, place);
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-            let p = plain(&doc, lift);
-            let t0 = std::time::Instant::now();
-            let (off, c_off) = sym(&doc, lift, SymRules::without_rule_e(), budget());
-            let d_off = t0.elapsed().as_secs_f64();
-            let t1 = std::time::Instant::now();
-            let (on, c_on) = sym(&doc, lift, SymRules::shipped(), budget());
-            let d_on = t1.elapsed().as_secs_f64();
-            println!(
-                "{name:<20} {lift:?}: plain {} | off {} frozen {} sym0 {} {d_off:.1}s | on {} frozen {} sym0 {} {d_on:.1}s",
-                p.len(),
-                off.len(),
-                c_off.frozen,
-                c_off.symbolic,
-                on.len(),
-                c_on.frozen,
-                c_on.symbolic
-            );
-            for f in &on {
-                println!("      on:    {}", head(f, 200));
-            }
-            if off.is_empty() && !on.is_empty() {
-                lost.push(format!("{name} {lift:?}: {on:?}"));
-            }
+        let p = plain(&doc);
+        let t0 = std::time::Instant::now();
+        let (off, c_off) = sym(&doc, SymRules::without_rule_e(), budget());
+        let d_off = t0.elapsed().as_secs_f64();
+        let t1 = std::time::Instant::now();
+        let (on, c_on) = sym(&doc, SymRules::shipped(), budget());
+        let d_on = t1.elapsed().as_secs_f64();
+        println!(
+            "{name:<20}: plain {} | off {} frozen {} sym0 {} {d_off:.1}s | on {} frozen {} sym0 {} {d_on:.1}s",
+            p.len(),
+            off.len(),
+            c_off.frozen,
+            c_off.symbolic,
+            on.len(),
+            c_on.frozen,
+            c_on.symbolic
+        );
+        for f in &on {
+            println!("      on:    {}", head(f, 200));
+        }
+        if off.is_empty() && !on.is_empty() {
+            lost.push(format!("{name}: {on:?}"));
         }
     }
     assert!(lost.is_empty(), "rule E lost a certification: {lost:?}");
@@ -866,7 +824,7 @@ fn shipped_with_rule_f() -> SymRules {
 }
 
 /// **The wall, rendered** — one document at the named widths, both
-/// lifts (`CAD_SYM8_LIFT` narrows), rule F OFF and ON: the counts,
+/// rule F OFF and ON: the counts,
 /// the refusals, the split, and for every blocked residual its
 /// enclosure, early form, atom census, the DAG below it explained to
 /// `CAD_SYM12_DEPTH` levels (default 6; `CAD_SYM12_DIAL` narrows to
@@ -904,115 +862,105 @@ fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
                 &doc.spoken_var(*name_).to_string(),
             );
         }
-        let only_lift = std::env::var("CAD_SYM8_LIFT").ok();
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-            if only_lift
-                .as_deref()
-                .is_some_and(|l| l.trim() != format!("{lift:?}"))
-            {
+        let only_dial = std::env::var("CAD_SYM12_DIAL").ok();
+        for (label, rules) in [
+            ("F-off", SymRules::without_rule_f()),
+            ("F-on", shipped_with_rule_f()),
+        ] {
+            if only_dial.as_deref().is_some_and(|d| d.trim() != label) {
                 continue;
             }
-            let only_dial = std::env::var("CAD_SYM12_DIAL").ok();
-            for (label, rules) in [
-                ("F-off", SymRules::without_rule_f()),
-                ("F-on", shipped_with_rule_f()),
-            ] {
-                if only_dial.as_deref().is_some_and(|d| d.trim() != label) {
-                    continue;
-                }
-                let o = EvalOptions {
-                    param_box: Some(Arc::new(box_.clone())),
-                    profile_lift: lift,
-                    ..EvalOptions::default()
-                };
-                start_shape_report();
-                explain_depth(depth);
-                // Per pass, AFTER `start_shape_report`: `take_shape_report`
-                // restores the default width, so a width set once
-                // before the loop reaches the first pass only.
-                if let Some(chars) = chars {
-                    geom_core::sym::report::explain_render_chars(chars);
-                }
-                let t0 = std::time::Instant::now();
-                let (refusal, counts) = geom_core::sym::with_session_rules(budget(), rules, || {
-                    let ev: Evaluation<geom_core::Sym<Interval>> =
-                        evaluate(&doc, None, &CancelToken::new(), &o, Tol::witness());
-                    failures(&ev)
-                });
-                let dt = t0.elapsed().as_secs_f64();
-                let shapes = take_shape_report();
-                explain_depth(0);
-                println!("=== {name} half={half:e} {lift:?} {label} depth {depth} ({dt:.1}s)");
-                println!("    counts {counts:?}");
-                println!(
-                    "    refusals {:?}",
-                    refusal.iter().map(|r| head(r, 220)).collect::<Vec<_>>()
-                );
-                for (pred, row) in crate::m10_8_harness::split(&shapes) {
-                    println!("    split {pred:<36} {row:?}");
-                }
-                // Every rendered form of the replay, blocked or not:
-                // the atoms a NumericZero residual carries say whether
-                // the fold fired on a decision the document DID reach.
-                let mut all_atoms: Vec<String> = Vec::new();
-                let mut rendered = 0usize;
-                for s in &shapes {
-                    if let Some(f) = &s.early_form {
-                        rendered += 1;
-                        for kind in ["copysign", "abs"] {
-                            for a in distinct_atoms(f, kind) {
-                                if !all_atoms.contains(&a) {
-                                    all_atoms.push(a);
-                                }
+            let o = EvalOptions {
+                param_box: Some(Arc::new(box_.clone())),
+                ..EvalOptions::default()
+            };
+            start_shape_report();
+            explain_depth(depth);
+            // Per pass, AFTER `start_shape_report`: `take_shape_report`
+            // restores the default width, so a width set once
+            // before the loop reaches the first pass only.
+            if let Some(chars) = chars {
+                geom_core::sym::report::explain_render_chars(chars);
+            }
+            let t0 = std::time::Instant::now();
+            let (refusal, counts) = geom_core::sym::with_session_rules(budget(), rules, || {
+                let ev: Evaluation<geom_core::Sym<Interval>> =
+                    evaluate(&doc, None, &CancelToken::new(), &o, Tol::witness());
+                failures(&ev)
+            });
+            let dt = t0.elapsed().as_secs_f64();
+            let shapes = take_shape_report();
+            explain_depth(0);
+            println!("=== {name} half={half:e} {label} depth {depth} ({dt:.1}s)");
+            println!("    counts {counts:?}");
+            println!(
+                "    refusals {:?}",
+                refusal.iter().map(|r| head(r, 220)).collect::<Vec<_>>()
+            );
+            for (pred, row) in crate::m10_8_harness::split(&shapes) {
+                println!("    split {pred:<36} {row:?}");
+            }
+            // Every rendered form of the replay, blocked or not:
+            // the atoms a NumericZero residual carries say whether
+            // the fold fired on a decision the document DID reach.
+            let mut all_atoms: Vec<String> = Vec::new();
+            let mut rendered = 0usize;
+            for s in &shapes {
+                if let Some(f) = &s.early_form {
+                    rendered += 1;
+                    for kind in ["copysign", "abs"] {
+                        for a in distinct_atoms(f, kind) {
+                            if !all_atoms.contains(&a) {
+                                all_atoms.push(a);
                             }
                         }
                     }
                 }
-                println!(
-                    "    rendered {rendered} early forms; distinct copysign/abs atoms across them: {}",
-                    all_atoms.len()
-                );
-                for a in &all_atoms {
-                    println!("      atom {}", head(a, 300));
-                }
-                let mut seen: std::collections::BTreeSet<&str> = Default::default();
-                for s in &shapes {
-                    if matches!(
-                        s.outcome,
-                        ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
-                    ) && seen.insert(s.predicate)
-                    {
-                        println!("--- blocked {} {:?}", s.predicate, s.outcome);
-                        println!("    enclosure {:?} sizes {:?}", s.enclosure, s.sizes);
-                        if let Some(f) = &s.early_form {
-                            println!("    early  {}", head(f, 400));
-                            println!("    census {}", atom_census(f));
-                        }
-                        if let Some(e) = &s.explain {
-                            let frozen = e.lines().filter(|l| l.contains("FROZEN")).count();
-                            println!("    explain: {} lines, {frozen} FROZEN", e.lines().count());
-                            let mut path_atoms: Vec<String> = Vec::new();
-                            for l in e.lines() {
-                                if l.contains("FROZEN") || l.contains(": num") {
-                                    println!("      {}", head(l, 200));
-                                } else if l.trim_start().starts_with("= ") {
-                                    println!("        census {}", atom_census(l));
-                                    for kind in ["copysign", "abs"] {
-                                        for a in distinct_atoms(l, kind) {
-                                            if !path_atoms.contains(&a) {
-                                                path_atoms.push(a);
-                                            }
+            }
+            println!(
+                "    rendered {rendered} early forms; distinct copysign/abs atoms across them: {}",
+                all_atoms.len()
+            );
+            for a in &all_atoms {
+                println!("      atom {}", head(a, 300));
+            }
+            let mut seen: std::collections::BTreeSet<&str> = Default::default();
+            for s in &shapes {
+                if matches!(
+                    s.outcome,
+                    ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
+                ) && seen.insert(s.predicate)
+                {
+                    println!("--- blocked {} {:?}", s.predicate, s.outcome);
+                    println!("    enclosure {:?} sizes {:?}", s.enclosure, s.sizes);
+                    if let Some(f) = &s.early_form {
+                        println!("    early  {}", head(f, 400));
+                        println!("    census {}", atom_census(f));
+                    }
+                    if let Some(e) = &s.explain {
+                        let frozen = e.lines().filter(|l| l.contains("FROZEN")).count();
+                        println!("    explain: {} lines, {frozen} FROZEN", e.lines().count());
+                        let mut path_atoms: Vec<String> = Vec::new();
+                        for l in e.lines() {
+                            if l.contains("FROZEN") || l.contains(": num") {
+                                println!("      {}", head(l, 200));
+                            } else if l.trim_start().starts_with("= ") {
+                                println!("        census {}", atom_census(l));
+                                for kind in ["copysign", "abs"] {
+                                    for a in distinct_atoms(l, kind) {
+                                        if !path_atoms.contains(&a) {
+                                            path_atoms.push(a);
                                         }
                                     }
                                 }
                             }
-                            println!(
-                                "    distinct copysign/abs atoms on the explained path: {}",
-                                path_atoms.len()
-                            );
-                            for a in &path_atoms {
-                                println!("      path atom {}", head(a, 8000));
-                            }
+                        }
+                        println!(
+                            "    distinct copysign/abs atoms on the explained path: {}",
+                            path_atoms.len()
+                        );
+                        for a in &path_atoms {
+                            println!("      path atom {}", head(a, 8000));
                         }
                     }
                 }
@@ -1076,29 +1024,27 @@ fn sym8_phase1_the_tilt_u_ladder() {
             ("derived", Place::Derived(1)),
         ] {
             let doc = r2_document(half, Base::TiltU, place);
-            for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-                let p = plain(&doc, lift);
+            let p = plain(&doc);
+            println!(
+                "tiltU {kind} half={half:e} plain: {} {}",
+                p.len(),
+                head(p.first().map_or("", String::as_str), 200)
+            );
+            for (label, rules) in [
+                ("F-off", SymRules::without_rule_f()),
+                ("F-on", shipped_with_rule_f()),
+            ] {
+                let t = std::time::Instant::now();
+                let (f, c) = sym(&doc, rules, budget());
                 println!(
-                    "tiltU {kind} half={half:e} {lift:?} plain: {} {}",
-                    p.len(),
-                    head(p.first().map_or("", String::as_str), 200)
+                    "tiltU {kind} half={half:e} {label}: frozen {} sym0 {} num {} in {:.1}s\n  fails {} {}",
+                    c.frozen,
+                    c.symbolic,
+                    c.numeric,
+                    t.elapsed().as_secs_f64(),
+                    f.len(),
+                    head(f.first().map_or("", String::as_str), 200)
                 );
-                for (label, rules) in [
-                    ("F-off", SymRules::without_rule_f()),
-                    ("F-on", shipped_with_rule_f()),
-                ] {
-                    let t = std::time::Instant::now();
-                    let (f, c) = sym(&doc, lift, rules, budget());
-                    println!(
-                        "tiltU {kind} half={half:e} {lift:?} {label}: frozen {} sym0 {} num {} in {:.1}s\n  fails {} {}",
-                        c.frozen,
-                        c.symbolic,
-                        c.numeric,
-                        t.elapsed().as_secs_f64(),
-                        f.len(),
-                        head(f.first().map_or("", String::as_str), 200)
-                    );
-                }
             }
         }
     }
@@ -1146,7 +1092,7 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
         ("shipped", shipped_with_rule_f()),
     ] {
         start_shape_report();
-        let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
+        let (fails, counts) = sym(&doc, rules, budget());
         let shapes = take_shape_report();
         let split = crate::m10_8_harness::split(&shapes);
         let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 2]);
@@ -1201,7 +1147,7 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
 /// the widest half-width that certifies whole — a log bisection of
 /// `half` between `1e-4` and `5e-2` in eight steps, `(certifies,
 /// refuses)`, `NaN` when even `1e-4` refuses. `CAD_SYM12_CASES` names
-/// a comma-separated subset; `CAD_SYM8_LIFT` narrows the lift. The
+/// a comma-separated subset. The
 /// split is taken only on a rung that refuses (the shape report over
 /// a `Pinned` replay of these cubes renders forms that exhaust a
 /// small box's memory).
@@ -1210,7 +1156,6 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
 fn sym12_phase1_the_one_sided_documents_ladder() {
     use geom_core::sym::report::{start_shape_report, take_shape_report};
     let only = std::env::var("CAD_SYM12_CASES").ok();
-    let only_lift = std::env::var("CAD_SYM8_LIFT").ok();
     for (name, base, place) in [
         ("tiltU start-cap", Base::TiltU, Place::DerivedStartCap),
         ("flipZ derived", Base::FlipZ, Place::Derived(1)),
@@ -1225,80 +1170,72 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
         {
             continue;
         }
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-            if only_lift
-                .as_deref()
-                .is_some_and(|l| l.trim() != format!("{lift:?}"))
-            {
-                continue;
+        for (label, rules) in [
+            ("F-off", SymRules::without_rule_f()),
+            ("F-on ", shipped_with_rule_f()),
+        ] {
+            let doc = r2_document(1.0e-3, base, place);
+            let t0 = std::time::Instant::now();
+            let (f, c) = sym(&doc, rules, budget());
+            let dt = t0.elapsed().as_secs_f64();
+            // The split is read from the shape report, which
+            // renders every numeric residual: on the `Pinned`
+            // lift of these cubes that is hundreds of forms of
+            // thousands of terms and exhausts a small box (the
+            // `flipZ` rung did, at 10 GB), so the report is
+            // installed only where there is a refusal to name —
+            // which is the `Guided` lift, whose replay is small.
+            let split = if f.is_empty() {
+                Default::default()
+            } else {
+                start_shape_report();
+                let _ = sym(&doc, rules, budget());
+                crate::m10_8_harness::split(&take_shape_report())
+            };
+            println!(
+                "{name} half=1e-3 {label}: sym {} num {} frozen {} \
+                 in {dt:.1}s\n  fails {} {}",
+                c.symbolic,
+                c.numeric,
+                c.frozen,
+                f.len(),
+                head(f.first().map_or("", String::as_str), 200)
+            );
+            let mut named: Vec<&str> = Vec::new();
+            for (pred, row) in &split {
+                if row[1] > 0 && f.iter().any(|r| r.contains(pred)) {
+                    named.push(pred);
+                    println!("  refused split {pred:<32} {row:?}");
+                }
             }
-            for (label, rules) in [
-                ("F-off", SymRules::without_rule_f()),
-                ("F-on ", shipped_with_rule_f()),
-            ] {
-                let doc = r2_document(1.0e-3, base, place);
-                let t0 = std::time::Instant::now();
-                let (f, c) = sym(&doc, lift, rules, budget());
-                let dt = t0.elapsed().as_secs_f64();
-                // The split is read from the shape report, which
-                // renders every numeric residual: on the `Pinned`
-                // lift of these cubes that is hundreds of forms of
-                // thousands of terms and exhausts a small box (the
-                // `flipZ` rung did, at 10 GB), so the report is
-                // installed only where there is a refusal to name —
-                // which is the `Guided` lift, whose replay is small.
-                let split = if f.is_empty() {
-                    Default::default()
-                } else {
-                    start_shape_report();
-                    let _ = sym(&doc, lift, rules, budget());
-                    crate::m10_8_harness::split(&take_shape_report())
-                };
-                println!(
-                    "{name} half=1e-3 {lift:?} {label}: sym {} num {} frozen {} \
-                     in {dt:.1}s\n  fails {} {}",
-                    c.symbolic,
-                    c.numeric,
-                    c.frozen,
-                    f.len(),
-                    head(f.first().map_or("", String::as_str), 200)
-                );
-                let mut named: Vec<&str> = Vec::new();
-                for (pred, row) in &split {
-                    if row[1] > 0 && f.iter().any(|r| r.contains(pred)) {
-                        named.push(pred);
-                        println!("  refused split {pred:<32} {row:?}");
+            // The widest certifying half-width under this lift and
+            // arm: cheap on these cubes (a replay is well under a
+            // second each way with the report off).
+            let certifies = |h: f64| {
+                sym(&r2_document(h, base, place), rules, budget())
+                    .0
+                    .is_empty()
+            };
+            let (mut lo, mut hi) = (1.0e-4_f64, 5.0e-2_f64);
+            let ceiling = if !certifies(lo) {
+                (f64::NAN, lo)
+            } else if certifies(hi) {
+                (hi, f64::INFINITY)
+            } else {
+                for _ in 0..8 {
+                    let mid = (0.5 * (lo.ln() + hi.ln())).exp();
+                    if certifies(mid) {
+                        lo = mid;
+                    } else {
+                        hi = mid;
                     }
                 }
-                // The widest certifying half-width under this lift and
-                // arm: cheap on these cubes (a replay is well under a
-                // second each way with the report off).
-                let certifies = |h: f64| {
-                    sym(&r2_document(h, base, place), lift, rules, budget())
-                        .0
-                        .is_empty()
-                };
-                let (mut lo, mut hi) = (1.0e-4_f64, 5.0e-2_f64);
-                let ceiling = if !certifies(lo) {
-                    (f64::NAN, lo)
-                } else if certifies(hi) {
-                    (hi, f64::INFINITY)
-                } else {
-                    for _ in 0..8 {
-                        let mid = (0.5 * (lo.ln() + hi.ln())).exp();
-                        if certifies(mid) {
-                            lo = mid;
-                        } else {
-                            hi = mid;
-                        }
-                    }
-                    (lo, hi)
-                };
-                println!(
-                    "  half-width ceiling: certifies {:.4e}, refuses {:.4e}",
-                    ceiling.0, ceiling.1
-                );
-            }
+                (lo, hi)
+            };
+            println!(
+                "  half-width ceiling: certifies {:.4e}, refuses {:.4e}",
+                ceiling.0, ceiling.1
+            );
         }
     }
 }
@@ -1336,7 +1273,7 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
     let f_shut = SymRules::without_rule_f();
     let read = |doc: &ProfileDoc, rules: SymRules| {
         start_shape_report();
-        let (fails, counts) = sym(doc, ProfileLift::Guided, rules, budget());
+        let (fails, counts) = sym(doc, rules, budget());
         let split = crate::m10_8_harness::split(&take_shape_report());
         let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 2]);
         (
@@ -1436,13 +1373,8 @@ fn m10_what_the_read_buys_on_the_tilted_caps() {
     let mut got = Vec::new();
     for (name, base, place, want_on, want_off, refuses_at) in rows {
         let doc = doc_of(base, place);
-        let (on_fails, on) = sym(&doc, ProfileLift::Guided, SymRules::shipped(), budget());
-        let (off_fails, off) = sym(
-            &doc,
-            ProfileLift::Guided,
-            SymRules::without_the_reads(),
-            budget(),
-        );
+        let (on_fails, on) = sym(&doc, SymRules::shipped(), budget());
+        let (off_fails, off) = sym(&doc, SymRules::without_the_reads(), budget());
         println!("{name} read on: {on:?} {on_fails:?}\n{name} read shut: {off:?} {off_fails:?}");
         assert!(
             on_fails.is_empty(),
@@ -1501,9 +1433,9 @@ fn m10_what_the_read_buys_on_the_tilted_caps() {
 fn sym12_rule_f_is_inert_on_the_reviews_negative_nz_documents() {
     use geom_core::sym::report::{start_shape_report, take_shape_report};
     let f_shut = SymRules::without_rule_f();
-    let read = |doc: &ProfileDoc, lift, rules| {
+    let read = |doc: &ProfileDoc, rules| {
         start_shape_report();
-        let (fails, counts) = sym(doc, lift, rules, budget());
+        let (fails, counts) = sym(doc, rules, budget());
         let split = crate::m10_8_harness::split(&take_shape_report());
         let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 2]);
         (
@@ -1514,20 +1446,19 @@ fn sym12_rule_f_is_inert_on_the_reviews_negative_nz_documents() {
         )
     };
     let mut cases = vec![
-        ("flipX derived", Base::FlipX, 2.0e-3, ProfileLift::Pinned),
-        ("flipX derived", Base::FlipX, 2.0e-3, ProfileLift::Guided),
-        ("tiltU end cap", Base::TiltU, 2.0e-3, ProfileLift::Guided),
+        ("flipX derived", Base::FlipX, 2.0e-3),
+        ("tiltU end cap", Base::TiltU, 2.0e-3),
     ];
     for half in [3.0e-3, 1.0e-2, 5.0e-2] {
-        cases.push(("flipV derived", Base::FlipV, half, ProfileLift::Guided));
+        cases.push(("flipV derived", Base::FlipV, half));
     }
-    cases.push(("flipV derived", Base::FlipV, 3.0e-3, ProfileLift::Pinned));
-    for (name, base, half, lift) in cases {
+    cases.push(("flipV derived", Base::FlipV, 3.0e-3));
+    for (name, base, half) in cases {
         let doc = r2_document(half, base, Place::Derived(1));
-        let on = read(&doc, lift, shipped_with_rule_f());
-        let off = read(&doc, lift, f_shut);
+        let on = read(&doc, shipped_with_rule_f());
+        let off = read(&doc, f_shut);
         println!(
-            "{name} half={half:e} {lift:?} shipped: {}\n  fails {} {}\n  \
+            "{name} half={half:e} shipped: {}\n  fails {} {}\n  \
              carrier_endpoint_end {:?} newell_plane_residual {:?}",
             on.0,
             on.1.len(),
@@ -1537,7 +1468,7 @@ fn sym12_rule_f_is_inert_on_the_reviews_negative_nz_documents() {
         );
         assert_eq!(
             on, off,
-            "{name} half={half:e} {lift:?}: rule F is inert — shutting its two arms moves \
+            "{name} half={half:e}: rule F is inert — shutting its two arms moves \
              nothing, because the frame mints no copysign for the negative arm to fold"
         );
     }
@@ -1569,7 +1500,7 @@ fn sym12_the_copysign_census_on_the_revolved_cap() {
     ] {
         start_shape_report();
         let t0 = std::time::Instant::now();
-        let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
+        let (fails, counts) = sym(&doc, rules, budget());
         let shapes = take_shape_report();
         println!(
             "revolved-cap Guided 1e-3 {label}: {counts:?} ({:.1}s)\n  fails {} {}",
@@ -1691,35 +1622,33 @@ fn sym8_the_reviews_documents_the_unit_did_not_measure() {
         ),
     ] {
         let doc = r2_document(half, base, place);
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-            let p = plain(&doc, lift);
+        let p = plain(&doc);
+        println!(
+            "{name} half={half:e} plain: {} {}",
+            p.len(),
+            head(p.first().map_or("", String::as_str), 160)
+        );
+        let mut off_ok = false;
+        for (label, rules) in [
+            ("F-off", SymRules::without_rule_f()),
+            ("F-on ", shipped_with_rule_f()),
+        ] {
+            let t0 = std::time::Instant::now();
+            let (f, c) = sym(&doc, rules, budget());
             println!(
-                "{name} half={half:e} {lift:?} plain: {} {}",
-                p.len(),
-                head(p.first().map_or("", String::as_str), 160)
+                "{name} half={half:e} {label}: sym {} num {} \
+                 frozen {} in {:.1}s\n  fails {} {}",
+                c.symbolic,
+                c.numeric,
+                c.frozen,
+                t0.elapsed().as_secs_f64(),
+                f.len(),
+                head(f.first().map_or("", String::as_str), 200)
             );
-            let mut off_ok = false;
-            for (label, rules) in [
-                ("F-off", SymRules::without_rule_f()),
-                ("F-on ", shipped_with_rule_f()),
-            ] {
-                let t0 = std::time::Instant::now();
-                let (f, c) = sym(&doc, lift, rules, budget());
-                println!(
-                    "{name} half={half:e} {lift:?} {label}: sym {} num {} \
-                     frozen {} in {:.1}s\n  fails {} {}",
-                    c.symbolic,
-                    c.numeric,
-                    c.frozen,
-                    t0.elapsed().as_secs_f64(),
-                    f.len(),
-                    head(f.first().map_or("", String::as_str), 200)
-                );
-                if label.trim() == "F-off" {
-                    off_ok = f.is_empty();
-                } else if off_ok && !f.is_empty() {
-                    lost.push(format!("{name} half={half:e} {lift:?}: {f:?}"));
-                }
+            if label.trim() == "F-off" {
+                off_ok = f.is_empty();
+            } else if off_ok && !f.is_empty() {
+                lost.push(format!("{name} half={half:e}: {f:?}"));
             }
         }
     }
@@ -1752,7 +1681,7 @@ fn sym10_census(rendered: &str) -> String {
 
 /// **SYM-10 Phase 1.2 — the tilted row's refused residual at `ε/8`,
 /// rendered.** `boss_on_tilted(ε/8, derived)` under `Guided` and the
-/// shipped set (`CAD_SYM10_HALF`, `CAD_SYM10_LIFT` narrow the sweep):
+/// shipped set (`CAD_SYM10_HALF` narrows the sweep):
 /// counts, refusals, the per-predicate split, and for every blocked
 /// residual its enclosure, early form, the census of atoms by op and
 /// the DAG below it at `explain_depth 6` with a census per rendered
@@ -1766,7 +1695,6 @@ fn sym10_phase1_the_tilted_rows_residual_rendered() {
     };
     let eps = Tol::witness().eps();
     let only_half = std::env::var("CAD_SYM10_HALF").ok();
-    let only_lift = std::env::var("CAD_SYM10_LIFT").ok();
     for (hname, half) in [("eps/8", eps / 8.0), ("1e-3", 1.0e-3)] {
         if only_half.as_deref().is_some_and(|h| h.trim() != hname) {
             continue;
@@ -1780,66 +1708,57 @@ fn sym10_phase1_the_tilted_rows_residual_rendered() {
                 &doc.spoken_var(*name).to_string(),
             );
         }
-        for lift in [ProfileLift::Guided, ProfileLift::Pinned] {
-            if only_lift
-                .as_deref()
-                .is_some_and(|l| l.trim() != format!("{lift:?}"))
+        let o = EvalOptions {
+            param_box: Some(Arc::new(box_.clone())),
+            ..EvalOptions::default()
+        };
+        start_shape_report();
+        explain_depth(6);
+        let t0 = std::time::Instant::now();
+        let (refusal, counts) =
+            geom_core::sym::with_session_rules(budget(), SymRules::shipped(), || {
+                let ev: Evaluation<geom_core::Sym<Interval>> =
+                    evaluate(&doc, None, &CancelToken::new(), &o, Tol::witness());
+                failures(&ev)
+            });
+        let dt = t0.elapsed().as_secs_f64();
+        let shapes = take_shape_report();
+        explain_depth(0);
+        println!("=== tilted derived half={hname} shipped ({dt:.1}s)");
+        println!("    counts {counts:?}");
+        println!(
+            "    refusals {:?}",
+            refusal.iter().map(|r| head(r, 300)).collect::<Vec<_>>()
+        );
+        for (pred, row) in crate::m10_8_harness::split(&shapes) {
+            println!("    split {pred:<36} {row:?}");
+        }
+        let mut seen: std::collections::BTreeSet<&str> = Default::default();
+        for s in &shapes {
+            if matches!(
+                s.outcome,
+                ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
+            ) && seen.insert(s.predicate)
             {
-                continue;
-            }
-            let o = EvalOptions {
-                param_box: Some(Arc::new(box_.clone())),
-                profile_lift: lift,
-                ..EvalOptions::default()
-            };
-            start_shape_report();
-            explain_depth(6);
-            let t0 = std::time::Instant::now();
-            let (refusal, counts) =
-                geom_core::sym::with_session_rules(budget(), SymRules::shipped(), || {
-                    let ev: Evaluation<geom_core::Sym<Interval>> =
-                        evaluate(&doc, None, &CancelToken::new(), &o, Tol::witness());
-                    failures(&ev)
-                });
-            let dt = t0.elapsed().as_secs_f64();
-            let shapes = take_shape_report();
-            explain_depth(0);
-            println!("=== tilted derived half={hname} {lift:?} shipped ({dt:.1}s)");
-            println!("    counts {counts:?}");
-            println!(
-                "    refusals {:?}",
-                refusal.iter().map(|r| head(r, 300)).collect::<Vec<_>>()
-            );
-            for (pred, row) in crate::m10_8_harness::split(&shapes) {
-                println!("    split {pred:<36} {row:?}");
-            }
-            let mut seen: std::collections::BTreeSet<&str> = Default::default();
-            for s in &shapes {
-                if matches!(
-                    s.outcome,
-                    ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
-                ) && seen.insert(s.predicate)
-                {
-                    println!("--- blocked {} {:?}", s.predicate, s.outcome);
-                    println!("    enclosure {:?} sizes {:?}", s.enclosure, s.sizes);
-                    if let Some(f) = &s.form {
-                        println!("    plain  {}", head(f, 600));
-                        println!("    plain census {}", sym10_census(f));
-                    }
-                    if let Some(f) = &s.early_form {
-                        println!("    early  {}", head(f, 1500));
-                        println!("    early census {}", sym10_census(f));
-                    }
-                    if let Some(e) = &s.explain {
-                        let frozen = e.lines().filter(|l| l.contains("FROZEN")).count();
-                        println!("    explain: {} lines, {frozen} FROZEN", e.lines().count());
-                        for l in e.lines() {
-                            if l.trim_start().starts_with("= ") {
-                                println!("        census {}", sym10_census(l));
-                                println!("        {}", head(l, 400));
-                            } else {
-                                println!("      {}", head(l, 200));
-                            }
+                println!("--- blocked {} {:?}", s.predicate, s.outcome);
+                println!("    enclosure {:?} sizes {:?}", s.enclosure, s.sizes);
+                if let Some(f) = &s.form {
+                    println!("    plain  {}", head(f, 600));
+                    println!("    plain census {}", sym10_census(f));
+                }
+                if let Some(f) = &s.early_form {
+                    println!("    early  {}", head(f, 1500));
+                    println!("    early census {}", sym10_census(f));
+                }
+                if let Some(e) = &s.explain {
+                    let frozen = e.lines().filter(|l| l.contains("FROZEN")).count();
+                    println!("    explain: {} lines, {frozen} FROZEN", e.lines().count());
+                    for l in e.lines() {
+                        if l.trim_start().starts_with("= ") {
+                            println!("        census {}", sym10_census(l));
+                            println!("        {}", head(l, 400));
+                        } else {
+                            println!("      {}", head(l, 200));
                         }
                     }
                 }
@@ -1861,28 +1780,20 @@ fn sym10_phase1_the_tilted_rows_residual_rendered() {
 fn sym10_phase1_hand_plant_table_tilted() {
     let eps = Tol::witness().eps();
     for (hname, half) in [("eps/8", eps / 8.0), ("1e-3", 1.0e-3)] {
-        for lift in [ProfileLift::Guided, ProfileLift::Pinned] {
-            let t0 = std::time::Instant::now();
-            let (f, c) = sym(
-                &boss_on_tilted(half, true),
-                lift,
-                SymRules::shipped(),
-                budget(),
-            );
-            println!(
-                "derived {hname} {lift:?}: fails {} in {:.1}s | sym {} num {} frozen {}\n    {}",
-                f.len(),
-                t0.elapsed().as_secs_f64(),
-                c.symbolic,
-                c.numeric,
-                c.frozen,
-                head(f.first().map_or("", String::as_str), 260)
-            );
-        }
+        let t0 = std::time::Instant::now();
+        let (f, c) = sym(&boss_on_tilted(half, true), SymRules::shipped(), budget());
+        println!(
+            "derived {hname}: fails {} in {:.1}s | sym {} num {} frozen {}\n    {}",
+            f.len(),
+            t0.elapsed().as_secs_f64(),
+            c.symbolic,
+            c.numeric,
+            c.frozen,
+            head(f.first().map_or("", String::as_str), 260)
+        );
     }
     let (f, c) = sym(
         &boss_on_tilted(eps / 8.0, false),
-        ProfileLift::Guided,
         SymRules::shipped(),
         budget(),
     );

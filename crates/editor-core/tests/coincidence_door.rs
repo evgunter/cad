@@ -1145,7 +1145,6 @@ fn measure_rows(doc: &ProfileDoc, node: RecipeNodeId) {
     use geom_core::{Sym, SymBudget, SymRules};
     let opts = editor_core::EvalOptions {
         symbols: true,
-        profile_lift: editor_core::ProfileLift::Guided,
         ..editor_core::EvalOptions::default()
     };
     let t = std::time::Instant::now();
@@ -1362,7 +1361,6 @@ fn census_the_door_over_the_corpus() {
                 || {
                     let opts = editor_core::EvalOptions {
                         symbols: true,
-                        profile_lift: editor_core::ProfileLift::Guided,
                         ..editor_core::EvalOptions::default()
                     };
                     let _: Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(

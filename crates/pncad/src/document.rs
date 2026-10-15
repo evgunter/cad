@@ -328,7 +328,7 @@ pub use editor_core::{
     Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
     EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired, NodeError,
     NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue,
-    ProfileLift, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
+    SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.

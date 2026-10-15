@@ -87,7 +87,8 @@ where
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
-        + editor_core::mate::SolveScalar,
+        + editor_core::mate::SolveScalar
+        + editor_core::ProfileLane,
 {
 }
 
@@ -112,7 +113,8 @@ where
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
-        + editor_core::mate::SolveScalar,
+        + editor_core::mate::SolveScalar
+        + editor_core::ProfileLane,
 {
     let _ = editor_core::eval::evaluate::<T>;
 }
@@ -133,7 +135,8 @@ where
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
-        + editor_core::mate::SolveScalar,
+        + editor_core::mate::SolveScalar
+        + editor_core::ProfileLane,
 {
     requires_the_whole_eval_scalar_set::<T>();
 }

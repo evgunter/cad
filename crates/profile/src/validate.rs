@@ -1805,6 +1805,15 @@ impl<T: Real> ValidatedProfile<T> {
         &self.plane
     }
 
+    /// **The same canonical form on `plane`**, at the same scalar:
+    /// validation is 2-D and reads nothing of the plane
+    /// ([`ValidatedProfile::plane`]), so every decision it made holds on
+    /// any plane. Nothing is computed, and no scalar is crossed.
+    #[must_use]
+    pub fn on_plane(self, plane: crate::SketchPlane<T>) -> Self {
+        Self { plane, ..self }
+    }
+
     /// The canonicalized loops (outer first, then holes in input
     /// order).
     pub fn loops(&self) -> &[ValidatedLoop<T>] {
@@ -1820,13 +1829,17 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
     /// (its one `f64`, NaN where it has none), and everything else —
     /// roles, the segment classifications and turns, the joint sets —
     /// carried. The decisions were made along this channel (C6), so
-    /// they hold of it as they hold of the form; a value with no point
-    /// comes back NaN, for the reader to refuse.
+    /// they hold of it as they hold of the form; a loop value with no
+    /// point comes back NaN, for the reader to refuse.
+    ///
+    /// The plane is a frame, which holds no NaN: it is read through
+    /// [`SketchPlane::point_value`], and a plane with no single `f64`
+    /// point makes the whole read `None`.
     #[must_use]
-    pub fn value_channel(&self) -> ValidatedProfile<f64> {
+    pub fn value_channel(&self) -> Option<ValidatedProfile<f64>> {
         let v = geom_core::spline::SpanLocate::value_channel;
-        ValidatedProfile {
-            plane: self.plane.map(v),
+        Some(ValidatedProfile {
+            plane: self.plane.point_value()?,
             loops: self
                 .loops
                 .iter()
@@ -1853,7 +1866,7 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                     role: lp.role,
                 })
                 .collect(),
-        }
+        })
     }
 }
 
@@ -1867,8 +1880,9 @@ impl ValidatedProfile<f64> {
     /// minted by [`Profile::validate`] and [`Profile::validate_recording`]
     /// from a raw profile, by [`ConstructedProfile`]'s three validations
     /// from a replayed one, by this
-    /// from an `f64` one, and by [`ValidatedProfile::value_channel`]
-    /// from one at another scalar; nothing else mints one.
+    /// from an `f64` one, by [`ValidatedProfile::value_channel`]
+    /// from one at another scalar, and by [`ValidatedProfile::on_plane`]
+    /// from one at the same scalar; nothing else mints one.
     ///
     /// # What is carried, and on whose authority
     ///
@@ -1884,17 +1898,18 @@ impl ValidatedProfile<f64> {
     /// tangency, the absence of contact — are the verdicts `validate`
     /// made at `f64`. They are carried AS THE `f64` DECISIONS, and that
     /// is the design of this door rather than a claim that a validation
-    /// at `U` would agree: under the evaluator's pinned lift, structure
-    /// is selected once, at `f64`, identically for every lane, and the
-    /// guided lift is the lane that re-verifies every decision at its
-    /// own scalar and refuses what that scalar cannot confirm
-    /// (`ProfileLift`'s doc in `editor-core`). What a validation at `U`
+    /// at `U` would agree: the door is for a build whose structure is the
+    /// `f64` one by construction (sweep's loft at an enclosure scalar,
+    /// which encloses the `f64` loft its sections' value channel
+    /// describes), while a profile elaborated at its own scalar
+    /// re-verifies every decision there through
+    /// [`ConstructedProfile::validate_guided`]. What a validation at `U`
     /// would say, for the record: at `Dual64` the value channel is bit
     /// for bit the `f64` computation, so every predicate would decide
     /// the same; at `Interval` every margin is an enclosure of the
     /// `f64` margin, so a predicate would decide the same or escalate
     /// as indeterminate — and that escalation is deliberately the
-    /// guided lift's job, not re-consulted here. The one bit the two
+    /// guided validation's job, not re-consulted here. The one bit the two
     /// forms can differ in is a `Dual64` derivative channel: constants
     /// embed with `+0.0` where a negated constant's derivative at `U`
     /// would be `-0.0` — equal as numbers, read by no predicate.

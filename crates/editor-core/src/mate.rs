@@ -145,7 +145,7 @@ impl FrameBase {
 /// coordinates ([`MateReach::face_pose`]): the pose's origin, its
 /// CHART axis as local +Z, and the carrier's own in-frame reference
 /// direction as the roll reference, through the witness ladder
-/// (`geom_core::linalg::frame::point_at_frame`), which puts the
+/// (`geom_core::linalg::frame::point_at`), which puts the
 /// reference on local +Y and their cross product on local +X. The head is the
 /// state and the frame is derived, so whatever moves or re-spells the
 /// head — a part edit, `Rebind`, split, inline — carries the frame
@@ -237,7 +237,7 @@ impl<S: Clone> MateFrame<S> {
         tol: Tol,
     ) -> Result<Self, FrameError> {
         let eye = Point3::from_array(origin);
-        let frame = geom_core::linalg::frame::point_at_frame(
+        let frame = geom_core::linalg::frame::point_at(
             eye,
             eye + Vec3::from_array(axis),
             Vec3::from_array(reference),

@@ -1,6 +1,6 @@
 //! **DOCM-1 under the Interval lane** — DM1c's rows: a profile on a
-//! derived frame is placed at the lane scalar under EVERY lift (its
-//! 2-D structure record still `f64`-pinned), a loft section on a
+//! derived frame is placed at the lane scalar (its 2-D structure
+//! record still `f64`-pinned), a loft section on a
 //! derived frame refuses typed off `f64`, and a widened parameter the
 //! frame's body reads recomputes the profile rather than serving the
 //! nominal memo entry.
@@ -18,8 +18,7 @@ use editor_core::PoseValue;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeVar, Node, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg, UnitSym, ValuePayload, VarName,
-    evaluate,
+    FreeVar, Node, ProfileDoc, RecipeNodeId, RoleSeg, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol, UnitVec3};
 use topo::validate_closed;
@@ -32,19 +31,11 @@ fn run(
     evaluate::<Interval>(doc, prior, &CancelToken::new(), opts, Tol::witness())
 }
 
-fn lifted(lift: ProfileLift) -> EvalOptions {
-    EvalOptions {
-        profile_lift: lift,
-        ..EvalOptions::default()
-    }
-}
-
-/// **The corpus document's profile is placed at the lane scalar under
-/// both lifts**: the profile on the derived frame evaluates green at
-/// `Interval`, and the boss's bottom encloses the cap's height —
+/// **The corpus document's profile is placed at the lane scalar**: the
+/// profile on the derived frame evaluates green at `Interval`, and the boss's bottom encloses the cap's height —
 /// which is the frame's landed origin, not a placeholder.
 #[test]
-fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() {
+fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar() {
     let cd = corpus::face_sketch::document();
     let boss = cd.result.expect("the boss");
     let frame = cd
@@ -54,38 +45,33 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
         .copied()
         .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
         .expect("the derived frame");
-    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let ev = run(&cd.doc, None, &lifted(lift));
-        assert!(
-            corpus::failures(&ev).is_empty(),
-            "{lift:?}: {:?}",
-            corpus::failures(&ev)
-        );
-        let ValuePayload::Datum(PoseValue::Frame(f)) = &ev.value(frame).expect("the frame").payload
-        else {
-            panic!("a frame value");
-        };
-        let (origin, u, v) = (&f.origin(), &f.u(), &f.v());
-        assert!(
-            origin.z.lo() <= 1.0 && 1.0 <= origin.z.hi(),
-            "{lift:?}: origin {origin:?}"
-        );
-        let n = UnitVec3::get(*u).cross(UnitVec3::get(*v));
-        assert!(
-            n.z.lo() <= 1.0 && 1.0 <= n.z.hi(),
-            "{lift:?}: outward normal {n:?}"
-        );
-        let body = corpus::body_of(&ev, boss);
-        assert_eq!(validate_closed(body), Ok(()), "{lift:?}");
-        let bottom = body
-            .points()
-            .map(|(_, p)| p.z.lo())
-            .fold(f64::INFINITY, f64::min);
-        assert!(
-            (bottom - 1.0).abs() <= 1e-9,
-            "{lift:?}: the boss stands on the cap: {bottom}"
-        );
-    }
+    let ev = run(&cd.doc, None, &EvalOptions::default());
+    assert!(
+        corpus::failures(&ev).is_empty(),
+        "{:?}",
+        corpus::failures(&ev)
+    );
+    let ValuePayload::Datum(PoseValue::Frame(f)) = &ev.value(frame).expect("the frame").payload
+    else {
+        panic!("a frame value");
+    };
+    let (origin, u, v) = (&f.origin(), &f.u(), &f.v());
+    assert!(
+        origin.z.lo() <= 1.0 && 1.0 <= origin.z.hi(),
+        "origin {origin:?}"
+    );
+    let n = UnitVec3::get(*u).cross(UnitVec3::get(*v));
+    assert!(n.z.lo() <= 1.0 && 1.0 <= n.z.hi(), "outward normal {n:?}");
+    let body = corpus::body_of(&ev, boss);
+    assert_eq!(validate_closed(body), Ok(()));
+    let bottom = body
+        .points()
+        .map(|(_, p)| p.z.lo())
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        (bottom - 1.0).abs() <= 1e-9,
+        "the boss stands on the cap: {bottom}"
+    );
 }
 
 /// **A loft whose section is drawn on a derived frame refuses typed at
@@ -94,8 +80,7 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
 /// landed value, and a derived frame's landed placement at `Interval`
 /// is an enclosure, wider than a point. The loft encloses the `f64`
 /// skin of its sections' value channel, which such a placement does not
-/// have, so it refuses `PlacementNotAPoint` naming the section, under
-/// both lifts. Lofting it waits on the enclosure skin
+/// have, so it refuses `PlacementNotAPoint` naming the section. Lofting it waits on the enclosure skin
 /// (`work/inlane/the-skin-at-interval-encloses-the-nominal-skin.md`);
 /// the profile itself evaluates.
 #[test]
@@ -107,19 +92,14 @@ fn a_section_on_a_derived_frame_refuses_a_wide_placement_at_interval() {
     let section = doc
         .operation_of(profiles[0])
         .expect("the section read is live");
-    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let ev = run(&doc, None, &lifted(lift));
-        match ev.node_error(loft).map(|e| &e.kind) {
-            Some(editor_core::NodeErrorKind::Loft(sweep::LoftError::PlacementNotAPoint {
-                section: 0,
-            })) => {}
-            other => panic!("{lift:?}: the loft must refuse its wide placement, got {other:?}"),
-        }
-        assert!(
-            ev.node_error(section).is_none(),
-            "{lift:?}: the profile evaluates"
-        );
+    let ev = run(&doc, None, &EvalOptions::default());
+    match ev.node_error(loft).map(|e| &e.kind) {
+        Some(editor_core::NodeErrorKind::Loft(sweep::LoftError::PlacementNotAPoint {
+            section: 0,
+        })) => {}
+        other => panic!("the loft must refuse its wide placement, got {other:?}"),
     }
+    assert!(ev.node_error(section).is_none(), "the profile evaluates");
 }
 
 /// An exact unit box LIFTED by a document parameter `lift` (a rigid
@@ -237,7 +217,7 @@ fn widening_the_frames_body_parameter_recomputes_the_profile() {
     let ValuePayload::Profile(p) = &widened.value(boss_p).expect("the boss profile").payload else {
         panic!("a profile");
     };
-    let z = p.validated.plane().placement.translation.z;
+    let z = p.validated.plane().placement().translation.z;
     assert!(
         z.hi() - z.lo() >= 1.9 * width,
         "the placement carries the widened height: {z:?}"
@@ -377,7 +357,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     let ValuePayload::Profile(p) = &widened.value(boss_p).expect("the boss profile").payload else {
         panic!("a profile");
     };
-    let z = p.validated.plane().placement.translation.z;
+    let z = p.validated.plane().placement().translation.z;
     assert!(
         z.hi() - z.lo() >= 1.9 * width,
         "the placement carries the widened height: {z:?}"

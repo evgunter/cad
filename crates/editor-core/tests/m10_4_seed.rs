@@ -18,9 +18,8 @@
 //!   parameter's pass as its memo prior reads its own tangent, bit for
 //!   bit, and reuses only the seed-independent subgraph.
 //! - **The REQUIRED profile pin.** A seed on a profile dimension
-//!   reaches the measure through the guided lift with the analytically
-//!   correct nonzero tangent, and the pinned lift shows the silent zero
-//!   the lift exists to end.
+//!   reaches the measure with the analytically correct nonzero
+//!   tangent, where a lift through `from_f64` gave a silent zero.
 //! - **Composition** (interval rows): `seed` and `param_box` together
 //!   are legal exactly at `Dual<Interval>`; `Dual64` keeps the
 //!   degenerate-only box rule; `Interval` plus a seed refuses.
@@ -33,8 +32,8 @@ use editor_core::ExtrudeSide;
 use editor_core::UnitSym;
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
-    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileLift,
-    ProfileProgram, ProgramStep, ProgramTarget, SeedError, SitedRef, VarName, evaluate, seed_env,
+    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileProgram,
+    ProgramStep, ProgramTarget, SeedError, SitedRef, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -65,10 +64,9 @@ fn continuous(value: f64) -> FreeVar {
     }
 }
 
-fn opts(doc: &ProfileDoc, seed: Option<&'static str>, lift: ProfileLift) -> EvalOptions {
+fn opts(doc: &ProfileDoc, seed: Option<&'static str>) -> EvalOptions {
     EvalOptions {
         seed: seed.map(|n| var(doc, n)),
-        profile_lift: lift,
         ..EvalOptions::default()
     }
 }
@@ -256,7 +254,7 @@ fn an_unseeded_evaluation_is_the_default_options_evaluation() {
     assert!(EvalOptions::default().seed.is_none());
     for doc in corpus::documents() {
         let default = run::<f64>(&doc.doc, None, &EvalOptions::default());
-        let explicit = run::<f64>(&doc.doc, None, &opts(&doc.doc, None, ProfileLift::Pinned));
+        let explicit = run::<f64>(&doc.doc, None, &opts(&doc.doc, None));
         assert_eq!(default.order, explicit.order, "{}", doc.name);
         for id in &default.order {
             let (a, b) = (default.value(*id), explicit.value(*id));
@@ -278,7 +276,7 @@ fn an_unseeded_evaluation_is_the_default_options_evaluation() {
 #[test]
 fn a_seed_at_f64_refuses_every_node_typed() {
     let doc = two_param_web();
-    let ev = run::<f64>(&doc, None, &opts(&doc, Some("hole_r"), ProfileLift::Pinned));
+    let ev = run::<f64>(&doc, None, &opts(&doc, Some("hole_r")));
     every_node_refuses_seed(&ev, |e| {
         assert_eq!(
             *e,
@@ -294,7 +292,7 @@ fn a_seed_at_f64_refuses_every_node_typed() {
 #[test]
 fn an_unknown_or_count_seed_refuses_at_env_construction() {
     let doc = with_count();
-    let unknown = run::<Dual64>(&doc, None, &opts(&doc, Some("nope"), ProfileLift::Pinned));
+    let unknown = run::<Dual64>(&doc, None, &opts(&doc, Some("nope")));
     every_node_refuses_seed(&unknown, |e| {
         assert_eq!(
             *e,
@@ -303,7 +301,7 @@ fn an_unknown_or_count_seed_refuses_at_env_construction() {
             }
         );
     });
-    let count = run::<Dual64>(&doc, None, &opts(&doc, Some("n"), ProfileLift::Pinned));
+    let count = run::<Dual64>(&doc, None, &opts(&doc, Some("n")));
     every_node_refuses_seed(&count, |e| {
         assert_eq!(
             *e,
@@ -359,24 +357,22 @@ fn the_web_tangent_is_the_plates_own_formula_through_the_public_door() {
     let m = measure_node(&doc);
     let f = run::<f64>(&doc, None, &EvalOptions::default());
     let web = crate::fixture::reading(&doc, &f, m).expect("the measured value reads");
-    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let on_r = measured(
-            &doc,
-            &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"), lift)),
-            m,
-        );
-        assert_eq!(on_r.deriv.to_bits(), (-2.0f64).to_bits(), "{lift:?}");
-        assert_eq!(on_r.value.to_bits(), web.to_bits(), "{lift:?}");
-        let on_d = measured(
-            &doc,
-            &run::<Dual64>(&doc, None, &opts(&doc, Some("depth"), lift)),
-            m,
-        );
-        assert_eq!(on_d.deriv.to_bits(), 1.0f64.to_bits(), "{lift:?}");
-        assert_eq!(on_d.value.to_bits(), web.to_bits(), "{lift:?}");
-        let unseeded = measured(&doc, &run::<Dual64>(&doc, None, &opts(&doc, None, lift)), m);
-        assert_eq!(unseeded.deriv.to_bits(), 0.0f64.to_bits(), "{lift:?}");
-    }
+    let on_r = measured(
+        &doc,
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"))),
+        m,
+    );
+    assert_eq!(on_r.deriv.to_bits(), (-2.0f64).to_bits());
+    assert_eq!(on_r.value.to_bits(), web.to_bits());
+    let on_d = measured(
+        &doc,
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("depth"))),
+        m,
+    );
+    assert_eq!(on_d.deriv.to_bits(), 1.0f64.to_bits());
+    assert_eq!(on_d.value.to_bits(), web.to_bits());
+    let unseeded = measured(&doc, &run::<Dual64>(&doc, None, &opts(&doc, None)), m);
+    assert_eq!(unseeded.deriv.to_bits(), 0.0f64.to_bits());
 }
 
 /// D9 at the evaluation level: a seeded pass's tangent is the same bits
@@ -387,7 +383,7 @@ fn a_seeded_pass_is_schedule_independent() {
     let m = measure_node(&doc);
     let seq = measured(
         &doc,
-        &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"), ProfileLift::Guided)),
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"))),
         m,
     );
     let par = measured(
@@ -397,7 +393,7 @@ fn a_seeded_pass_is_schedule_independent() {
             None,
             &EvalOptions {
                 parallel: true,
-                ..opts(&doc, Some("hole_r"), ProfileLift::Guided)
+                ..opts(&doc, Some("hole_r"))
             },
         ),
         m,
@@ -418,13 +414,9 @@ fn a_seeded_pass_is_schedule_independent() {
 fn the_memo_never_serves_one_parameters_pass_to_another() {
     let doc = two_param_web();
     let m = measure_node(&doc);
-    let on_r = run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"), ProfileLift::Guided));
-    let on_d_fresh = run::<Dual64>(&doc, None, &opts(&doc, Some("depth"), ProfileLift::Guided));
-    let on_d_threaded = run::<Dual64>(
-        &doc,
-        Some(&on_r),
-        &opts(&doc, Some("depth"), ProfileLift::Guided),
-    );
+    let on_r = run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r")));
+    let on_d_fresh = run::<Dual64>(&doc, None, &opts(&doc, Some("depth")));
+    let on_d_threaded = run::<Dual64>(&doc, Some(&on_r), &opts(&doc, Some("depth")));
     let (fresh, threaded) = (
         measured(&doc, &on_d_fresh, m),
         measured(&doc, &on_d_threaded, m),
@@ -465,36 +457,17 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
 
 /// **The REQUIRED profile-dimension pin.** A seed on `w` — a chain
 /// program's point, reachable only through the lift — reaches the
-/// width measure with tangent exactly `1.0` under the GUIDED lift, and
-/// exactly `0.0` under the pinned one: the silent zero the lift exists
-/// to end, shown side by side.
+/// width measure with tangent exactly `1.0`.
 #[test]
-fn a_profile_dimension_seed_propagates_through_the_guided_lift() {
+fn a_profile_dimension_seed_propagates_through_the_lift() {
     let (doc, m) = width_slab(2.0);
-    let guided = measured(
-        &doc,
-        &run::<Dual64>(&doc, None, &opts(&doc, Some("w"), ProfileLift::Guided)),
-        m,
-    );
-    assert_eq!(guided.value.to_bits(), 2.0f64.to_bits());
+    let seeded = measured(&doc, &run::<Dual64>(&doc, None, &opts(&doc, Some("w"))), m);
+    assert_eq!(seeded.value.to_bits(), 2.0f64.to_bits());
     assert_eq!(
-        guided.deriv.to_bits(),
+        seeded.deriv.to_bits(),
         1.0f64.to_bits(),
-        "∂width/∂w through the guided lift is 1, got {}",
-        guided.deriv
-    );
-    let pinned = measured(
-        &doc,
-        &run::<Dual64>(&doc, None, &opts(&doc, Some("w"), ProfileLift::Pinned)),
-        m,
-    );
-    assert_eq!(pinned.value.to_bits(), 2.0f64.to_bits());
-    // IEEE equality on purpose: the zero arrives as `-0.0` (the
-    // distance arm's `abs` multiplies its sign factor into a zero
-    // tangent), and a signed zero is still the silent zero.
-    assert_eq!(
-        pinned.deriv, 0.0,
-        "the pinned lift embeds profile geometry through from_f64 — a zero, not a tangent"
+        "∂width/∂w through the lift is 1, got {}",
+        seeded.deriv
     );
 }
 
@@ -591,7 +564,7 @@ fn seed_and_box_compose_exactly_at_dual_interval() {
     let box_ = Arc::new(ParamBox::from_axes(axes));
     let both = EvalOptions {
         param_box: Some(Arc::clone(&box_)),
-        ..opts(&doc, Some("depth"), ProfileLift::Guided)
+        ..opts(&doc, Some("depth"))
     };
     let ev = run::<DualInterval>(&doc, None, &both);
     let value = crate::fixture::reading(&doc, &ev, m).expect("the measured value reads");

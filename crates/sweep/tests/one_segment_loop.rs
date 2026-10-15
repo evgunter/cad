@@ -614,7 +614,7 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
         let at_i = |loops: Vec<ProfileLoop<f64>>| {
             let lofted = sweep::loft_body::<Interval>(
                 &sweep::test_support::lift_sections::<Interval>(&[loops.clone(), loops]),
-                &sweep::test_support::lift_places::<Interval>(&places),
+                &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
                 1,
                 tol(),
             )

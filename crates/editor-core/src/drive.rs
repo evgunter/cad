@@ -101,7 +101,7 @@ use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
-    ProfileLift, evaluate,
+    evaluate,
 };
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
@@ -1313,12 +1313,13 @@ pub fn drive(
     }
 
     // The WITNESS build: the document at its nominals, at f64, with the
-    // profile lift on. The lift is on rather than off because the leaf
-    // replay runs guided and the two vectors must be comparable —
-    // guided elaboration at f64 IS plain elaboration at f64, bit for
-    // bit (the lift's own differential pin), so this changes the build
-    // it produces in no way and makes the two passes the same code.
-    let witness: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
+    // profile's second pass run (`evaluate_witness`) rather than
+    // skipped. A leaf's log holds both passes and the two vectors must
+    // be comparable; the second pass at f64 IS the first, bit for bit
+    // (the lift's own differential pin), so this changes the build it
+    // produces in no way and makes the two passes the same code.
+    let witness: Evaluation<f64> =
+        crate::eval::evaluate_witness(doc, &CancelToken::new(), &lane_opts(), tol);
     if let Some(standing) = witness
         .order
         .iter()
@@ -1529,16 +1530,14 @@ fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
     })
 }
 
-/// The evaluation options every pass of a drive uses: the profile lift
-/// ON (so profile geometry is a function of the leaf's parameters and
-/// every structure decision is re-verified at the lane), sequential
+/// The evaluation options every pass of a drive uses: sequential
 /// (leaf-level parallelism is the driver's, and nesting a rayon scope
 /// per leaf inside one buys nothing), and no memo.
 ///
 /// **Crate-visible because the clearance engine replays INSIDE a leaf**
 /// ([`crate::clearance`]) and must replay it the way this driver
 /// certified it. Two copies of these options are two lanes: a clearance
-/// query whose lift setting drifted from the driver's would be
+/// query whose options drifted from the driver's would be
 /// certifying a body other than the one the leaf's verdict vector is
 /// about.
 ///
@@ -1558,10 +1557,7 @@ pub(crate) fn lane_opts() -> EvalOptions {
     // stale-result discrimination token for a caller holding several
     // in-flight evaluations, which a drive is not: each leaf's result
     // is consumed before the next is asked for.
-    EvalOptions {
-        profile_lift: ProfileLift::Guided,
-        ..EvalOptions::default()
-    }
+    EvalOptions::default()
 }
 
 /// A frontier entry: a box and how many times each axis has been split

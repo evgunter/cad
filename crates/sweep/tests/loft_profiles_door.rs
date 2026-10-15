@@ -10,7 +10,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Decide, Dual64, Interval, Point2, Real, Tol, Vec3};
+use geom_core::Point3;
+use geom_core::{Decide, Dual64, Interval, Point2, Real, Tol};
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{LoftError, Lofted, loft_body, loft_profiles};
@@ -28,13 +29,13 @@ fn section<T: Real>(r: T, b: T) -> Vec<ProfileLoop<T>> {
 }
 
 /// The plane at height `z`.
-fn at<T: Real>(z: T) -> Affine3<T> {
-    Affine3::translation(Vec3::new(T::zero(), T::zero(), z))
+fn at<T: Real>(z: T) -> SketchPlane<T> {
+    SketchPlane::xy_at(Point3::new(T::zero(), T::zero(), z))
 }
 
 /// `section(r, b)` on the plane at `z`, validated at `T`.
 fn validated<T: Decide>(r: T, b: T, z: T) -> ValidatedProfile<T> {
-    Profile::new(SketchPlane::new(at(z)), section(r, b))
+    Profile::new(at(z), section(r, b))
         .validate(Tol::witness())
         .expect("the section validates")
 }
@@ -202,7 +203,9 @@ fn at_interval_a_wide_plane_refuses_as_placement_not_a_point() {
 #[test]
 fn a_dual_forms_value_channel_is_its_f64_form() {
     let c = Dual64::constant;
-    let dual = validated(Dual64::variable(1.2), c(0.2), c(1.0)).value_channel();
+    let dual = validated(Dual64::variable(1.2), c(0.2), c(1.0))
+        .value_channel()
+        .expect("a dual form's plane has one f64 point");
     let nominal = validated(1.2, 0.2, 1.0);
     assert_eq!(format!("{dual:?}"), format!("{nominal:?}"));
 }

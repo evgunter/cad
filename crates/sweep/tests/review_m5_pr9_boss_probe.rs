@@ -9,7 +9,7 @@
 
 use crate::common::operands::{m5_boss, n_arc_boss};
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
@@ -179,7 +179,7 @@ fn a_second_curved_boolean_chains_on_the_first_result() {
     // Second plate: 3 x 3 slab z in [1.0, 1.15], crossing the boss
     // wall strictly above the first plate.
     let lp = rect(3.0, 3.0);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -315,7 +315,7 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
             .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     );
-    let plane2 = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
+    let plane2 = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.4));
     let profile2 = Profile::new(plane2, vec![lp2])
         .validate(Tol::witness())
         .unwrap();

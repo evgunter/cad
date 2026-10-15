@@ -5,7 +5,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Vec2};
+use geom_core::{Point2, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{loft_prism_sections, stacked_at};
 use sweep::{LoftError, Revolution, RevolveAxis, loft_body, revolve};
@@ -36,11 +36,7 @@ fn probe_reversed_stacking_refuses_typed() {
 fn probe_coincident_stacking_refuses_degenerate() {
     let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let sections = vec![quad(square), quad(square), quad(square)];
-    let places = vec![
-        Affine3::identity(),
-        Affine3::identity(),
-        Affine3::identity(),
-    ];
+    let places = vec![SketchPlane::xy(), SketchPlane::xy(), SketchPlane::xy()];
     match loft_body::<f64>(&sections, &places, 2, Tol::witness()) {
         Err(LoftError::DegenerateStacking { slab: 0 }) => {}
         other => panic!("expected a degenerate refusal, got {other:?}"),

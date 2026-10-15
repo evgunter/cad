@@ -36,6 +36,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use profile::SketchPlane;
 
 use common::{arc_section, stacked, sup_dist};
 use geom::{Curve3, Surface};
@@ -48,14 +49,14 @@ use sweep::{Section, loft_body};
 /// section is not an affine image of the ends, so the four walls are
 /// genuinely curved degree-2 nets rather than ruled strips — and, being
 /// polyline profiles, every weight is 1.
-fn walled_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
+fn walled_sections() -> (Vec<Section>, Vec<SketchPlane<f64>>) {
     (loft_prism_sections(), stacked_at(&PRISM_Z))
 }
 
 /// The arc-bearing profile at two scales: its quarter-circle side
 /// skins to a RATIONAL wall, which is the storage the map's
 /// correctness actually depends on.
-fn rational_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
+fn rational_sections() -> (Vec<Section>, Vec<SketchPlane<f64>>) {
     let sections = vec![arc_section(1.0), arc_section(1.4), arc_section(1.0)];
     (sections, stacked(&[0.0, 1.0, 2.0], 1.0))
 }

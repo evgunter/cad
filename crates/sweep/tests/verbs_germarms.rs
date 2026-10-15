@@ -19,6 +19,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use geom_core::Point3;
 use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
@@ -37,7 +38,7 @@ fn pipe() -> AtRestBody<f64> {
 fn pipe_at((cx, cy): (f64, f64)) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(cx, cy), 1.0, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -2.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, -2.0));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     let pipe = extrude(
         &profile,

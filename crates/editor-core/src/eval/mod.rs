@@ -2840,8 +2840,9 @@ impl CancelToken {
 /// analysis capabilities
 /// (`crate::analysis::AxisScalar` for the parameter box,
 /// `crate::analysis::SeedScalar` for the E4 seed — both scalar-free
-/// options whose capability lives at the scalar), and `Send + Sync`
-/// for the rayon schedule.
+/// options whose capability lives at the scalar), whether its lane is
+/// the profile's first pass ([`ProfileLane`]), and `Send + Sync` for
+/// the rayon schedule.
 /// ONE name for the set, stated at the evaluation-service seam that
 /// owns it — so the modules below this one (`parts`) name the
 /// requirement rather than restate it, and the compound `Bounds` bound
@@ -2857,6 +2858,7 @@ pub trait EvalScalar:
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
     + crate::mate::SolveScalar
+    + ProfileLane
 {
 }
 
@@ -2871,6 +2873,7 @@ impl<T> EvalScalar for T where
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
         + crate::mate::SolveScalar
+        + ProfileLane
 {
 }
 
@@ -3112,10 +3115,6 @@ pub struct EvalOptions {
     /// kernel-only evaluation, in which every instantiate node refuses
     /// typed rather than pretending a part is empty.
     pub resolver: Option<Arc<dyn crate::part::PartResolver>>,
-    /// Whether profile GEOMETRY is a function of the parameters at
-    /// this evaluation's scalar. Default [`ProfileLift::Pinned`] — the
-    /// build path, unchanged.
-    pub profile_lift: ProfileLift,
     /// The PARAMETER BOX this evaluation runs over (E6's leaf replay):
     /// each named axis binds `nominal + [lo, hi]` instead of the
     /// nominal. `None` — the default — is the nominal build, and is
@@ -3154,34 +3153,179 @@ pub struct EvalOptions {
     pub symbols: bool,
 }
 
-/// Where profile geometry comes from at a non-`f64` scalar.
+/// **Whether this scalar's lane IS the profile's first pass** — the
+/// one per-scalar fact the profile lift turns on.
 ///
-/// The document's parameters feed two kinds of slot, and until the
-/// lift they behaved differently: a node's MAGNITUDE argument (an
-/// extrude distance) is lane-live, so the interval lane sees a
-/// genuinely interval-evaluated expression, while profile geometry is
-/// f64-pinned — the lanes consume the f64 elaboration's bits through
-/// `from_f64`. The asymmetry is inherited from the substrate and is
-/// correct for building: structure must be selected once, identically
-/// for every lane.
+/// Every evaluation elaborates profile geometry twice. The first pass
+/// runs at `f64` whatever the evaluation's scalar: it resolves the
+/// program at the nominal, replays it and validates it, and records
+/// every structure decision it made (C6: structure is selected once,
+/// identically for every lane). The second pass resolves the same
+/// program at the evaluation's scalar, over its own environment, and
+/// elaborates it GUIDED by that record: every decision is consumed and
+/// re-verified there and none is remade, so a `Dual` seed on a profile
+/// dimension carries its tangent and an interval parameter widens the
+/// loop it describes. A decision the lane cannot confirm refuses the
+/// node typed rather than quietly keeping the nominal structure.
 ///
-/// It is wrong for ANALYSIS. A `Dual` seed on a profile dimension
-/// propagates no tangent through a constant, and an interval profile
-/// parameter does not widen anything downstream of it — silent zeros
-/// and points exactly where a sensitivity or an enclosure needs
-/// signal. The second pass exists for those lanes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ProfileLift {
-    /// Profile geometry is the f64 elaboration, embedded through
-    /// `from_f64` — the build path, bit for bit.
-    #[default]
-    Pinned,
-    /// Profile geometry is elaborated at THIS evaluation's scalar,
-    /// GUIDED by the f64 pass's structure record: every discrete
-    /// decision is consumed and re-verified here, and none is remade.
-    /// A decision this scalar cannot confirm refuses the node typed
-    /// rather than quietly keeping the nominal structure.
-    Guided,
+/// At `f64`, over an environment that binds the nominal bit for bit,
+/// the second pass is the first, bit for bit (the PP6 fence), so that
+/// lane takes the first pass's validated form instead of running it
+/// again. A box at `f64` whose degenerate axis binds `nominal + c` is
+/// not the first pass's environment, so the second pass runs there. Which
+/// scalar is `f64` is a fact about the TYPE, decided by the impl and
+/// never by a number; it carries no value across scalars (`Self` is
+/// `f64` where it answers). Sealed: no scalar outside this crate can
+/// claim it.
+pub trait ProfileLane: profile_lane::Sealed {
+    /// The first pass's validated form as this lane's, where this lane
+    /// is the first pass: `f64`, with `params` binding every variable
+    /// to `nominal`'s bits. `None` on every other scalar.
+    fn pass_one<'p>(
+        validated: &'p profile::ValidatedProfile<f64>,
+        params: &crate::expr::VarEnv<Self>,
+        nominal: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<Self>>;
+}
+
+mod profile_lane {
+    /// The seal on [`super::ProfileLane`], over the scalars this crate
+    /// evaluates at.
+    pub trait Sealed: geom_core::Real {}
+    impl Sealed for f64 {}
+    #[cfg(feature = "probe")]
+    impl Sealed for geom_core::Probe {}
+    impl Sealed for geom_core::Interval {}
+    impl<T> Sealed for geom_core::Sym<T> where geom_core::Sym<T>: geom_core::Real {}
+    impl<T> Sealed for geom_core::Dual<T> where geom_core::Dual<T>: geom_core::Real {}
+}
+
+impl ProfileLane for f64 {
+    fn pass_one<'p>(
+        validated: &'p profile::ValidatedProfile<f64>,
+        params: &crate::expr::VarEnv<f64>,
+        nominal: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<f64>> {
+        use crate::expr::ParamValue;
+        let same = |a: &ParamValue<f64>, b: &ParamValue<f64>| match (a, b) {
+            (
+                ParamValue::Continuous { dim, value },
+                ParamValue::Continuous {
+                    dim: other,
+                    value: at,
+                },
+            ) => dim == other && value.to_bits() == at.to_bits(),
+            (ParamValue::Count(n), ParamValue::Count(m)) => n == m,
+            _ => false,
+        };
+        let binds_nominal = params.bindings.len() == nominal.bindings.len()
+            && params
+                .bindings
+                .iter()
+                .zip(&nominal.bindings)
+                .all(|((v, a), (w, b))| v == w && same(a, b))
+            && params.refused == nominal.refused
+            && params.written == nominal.written;
+        binds_nominal.then_some(validated)
+    }
+}
+
+/// `f64` wearing a counter, and a lane of its own: its second pass
+/// runs, so the profile's decisions are recorded at it.
+#[cfg(feature = "probe")]
+impl ProfileLane for geom_core::Probe {
+    fn pass_one<'p>(
+        _: &'p profile::ValidatedProfile<f64>,
+        _: &crate::expr::VarEnv<Self>,
+        _: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<Self>> {
+        None
+    }
+}
+
+impl ProfileLane for geom_core::Interval {
+    fn pass_one<'p>(
+        _: &'p profile::ValidatedProfile<f64>,
+        _: &crate::expr::VarEnv<Self>,
+        _: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<Self>> {
+        None
+    }
+}
+
+impl<T: geom_core::Real> ProfileLane for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: geom_core::Real,
+{
+    fn pass_one<'p>(
+        _: &'p profile::ValidatedProfile<f64>,
+        _: &crate::expr::VarEnv<Self>,
+        _: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<Self>> {
+        None
+    }
+}
+
+impl<T: geom_core::Real> ProfileLane for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: geom_core::Real,
+{
+    fn pass_one<'p>(
+        _: &'p profile::ValidatedProfile<f64>,
+        _: &crate::expr::VarEnv<Self>,
+        _: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<Self>> {
+        None
+    }
+}
+
+/// **[`evaluate_witness`] for a row outside this crate**: the
+/// evaluation the E6 drive takes as its `f64` witness, whose profile
+/// nodes' logs hold both passes, so a row can read the vector the drive
+/// compares its leaves against.
+#[cfg(any(test, feature = "test-support"))]
+pub fn evaluate_as_drive_witness<T: EvalScalar>(
+    doc: &Doc<ProfileProgram>,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Evaluation<T> {
+    evaluate_witness(doc, &CancelToken::new(), opts, tol)
+}
+
+/// **The profile's second pass, run at `f64`** — the pass the `f64`
+/// lane does not run ([`ProfileLane`]), run here so a row can hold the
+/// `f64` evaluation's profile value against it, bit for bit. Pass 1 is
+/// rebuilt from `doc` and the frame `ev` landed, as the evaluation
+/// builds it, and the second pass is the evaluation's own, over the
+/// nominal environment and on the plane minted at the lane.
+///
+/// # Errors
+///
+/// The [`NodeErrorKind`] either pass refuses with, and
+/// [`NodeErrorKind::MissingInput`] when `id` names no profile node.
+#[cfg(any(test, feature = "test-support"))]
+pub fn second_pass_at_f64(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    ev: &Evaluation<f64>,
+    id: RecipeNodeId,
+    tol: Tol,
+) -> Result<profile::ValidatedProfile<f64>, NodeErrorKind> {
+    let Some(crate::node::Node::Profile(program)) = doc.node(id) else {
+        return Err(NodeErrorKind::MissingInput { input: id });
+    };
+    let nominal = doc.var_env::<f64>();
+    let resolved = program
+        .resolve(&nominal)
+        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
+    let placement = wire::profile_plane_f64(doc, &ev.nodes, id, program.frame)?;
+    let pre = wire::prepare_profile(placement, &resolved, &program.ids, tol)?;
+    let plane = wire::frame_plane_lane(doc, &ev.nodes, program.frame, &nominal, tol)?;
+    let lane = wire::LaneEnv {
+        params: &nominal,
+        nominal: &nominal,
+        pass_two: PassTwo::Always,
+    };
+    wire::lane_profile::<f64>(program, plane, lane, &pre, tol)
 }
 
 /// The interval lane's solve: a refusal quotes an enclosure's midpoint,
@@ -3290,7 +3434,6 @@ impl Default for EvalOptions {
             parallel: false,
             boolean_sweep: topo::SweepStrategy::Realized,
             resolver: None,
-            profile_lift: ProfileLift::Pinned,
             param_box: None,
             seed: None,
             symbols: false,
@@ -3401,7 +3544,7 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
     /// a run: the edit door, a solve read outside an evaluation, a
     /// refactoring. Such a door has no evaluation options of its own,
     /// so its parts evaluate under the defaults (`EvalOptions`'s sweep
-    /// strategy and profile lift), spelled here once; a door that IS
+    /// strategy), spelled here once; a door that IS
     /// a run, or holds a run's options, goes through [`mate_reach`].
     /// `None` is the refusing reach: every part is the typed
     /// no-resolver fault.
@@ -3410,14 +3553,13 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
         tol: Tol,
     ) -> Self {
         let defaults = EvalOptions::default();
-        Self::over(resolver, defaults.boolean_sweep, defaults.profile_lift, tol)
+        Self::over(resolver, defaults.boolean_sweep, tol)
     }
 
     /// A reach over a part cache built from these options' parts.
     fn over(
         resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
         boolean_sweep: topo::SweepStrategy,
-        profile_lift: ProfileLift,
         tol: Tol,
     ) -> Self {
         Self {
@@ -3426,7 +3568,7 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
                 &[],
                 parts::Reached::none(),
                 boolean_sweep,
-                profile_lift,
+                PassTwo::SkippedAtF64,
                 tol,
             ),
             tol,
@@ -3452,17 +3594,12 @@ impl<T: EvalScalar> crate::mate::MateReach<T> for PartReach<'_, T> {
 /// [`crate::mate::solve_document`] and [`crate::edit::apply`]: each
 /// mated part's extent, resolved through `opts`' resolver the way an
 /// evaluation over `opts` would resolve it (same seam, same sweep
-/// strategy, same profile lift), at the top of the descent. A caller
+/// strategy), at the top of the descent. A caller
 /// with no resolver gets a reach whose every answer is the typed
 /// no-resolver fault, so the solve refuses each mate in the
 /// resolver's own voice rather than levering over nothing.
 pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartReach<'a, T> {
-    PartReach::over(
-        opts.resolver.as_ref(),
-        opts.boolean_sweep,
-        opts.profile_lift,
-        tol,
-    )
+    PartReach::over(opts.resolver.as_ref(), opts.boolean_sweep, tol)
 }
 
 /// **A pose variable bound against an evaluation**, as a reader at
@@ -3512,7 +3649,58 @@ pub fn evaluate<T>(
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, prior, cancel, opts, &[], parts::Reached::none(), tol)
+    evaluate_at_descent(
+        doc,
+        prior,
+        cancel,
+        opts,
+        &[],
+        parts::Reached::none(),
+        PassTwo::SkippedAtF64,
+        tol,
+    )
+}
+
+/// **Whether the `f64` lane runs the profile's second pass.** The
+/// lane's VALUE is the first pass's either way ([`ProfileLane`]); what
+/// differs is the node's verdict LOG, which the skip leaves as the first
+/// pass's alone. An evaluation whose log is compared against a lane
+/// scalar's — the E6 drive's `f64` witness, against each leaf, whose log
+/// holds both passes — runs it ([`evaluate_witness`]); every other
+/// evaluation skips it. Crate-private: no caller of [`evaluate`]
+/// chooses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PassTwo {
+    /// The `f64` lane over the nominal takes the first pass's form.
+    SkippedAtF64,
+    /// Every lane runs the second pass, so its log holds both.
+    Always,
+}
+
+/// **An evaluation whose verdict log compares with a lane scalar's**:
+/// [`evaluate`] with the profile's second pass run at `f64` too
+/// ([`PassTwo::Always`]), so each profile node's log holds both passes,
+/// as a leaf's at `Interval` or `Sym` does. The value is the same bits
+/// either way (the PP6 fence).
+pub(crate) fn evaluate_witness<T>(
+    doc: &Doc<ProfileProgram>,
+    cancel: &CancelToken,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Evaluation<T>
+where
+    T: EvalScalar,
+{
+    evaluate_at_descent(
+        doc,
+        None,
+        cancel,
+        opts,
+        &[],
+        parts::Reached::none(),
+        PassTwo::Always,
+        tol,
+    )
 }
 
 /// An instantiated document's own evaluation (ASM-2A D-3), one level
@@ -3529,12 +3717,13 @@ pub(crate) fn evaluate_nested<T>(
     opts: &EvalOptions,
     chain: &[crate::ident::DocRef],
     reached: parts::Reached<T>,
+    pass_two: PassTwo,
     tol: Tol,
 ) -> Evaluation<T>
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, None, cancel, opts, chain, reached, tol)
+    evaluate_at_descent(doc, None, cancel, opts, chain, reached, pass_two, tol)
 }
 
 /// Whether `doc` was recorded at the process's ε — the D4 door below.
@@ -3544,6 +3733,7 @@ pub(crate) fn recorded_at_process_eps<P>(doc: &Doc<P>, tol: Tol) -> bool {
     doc.epsilon().to_bits() == tol.eps().to_bits()
 }
 
+#[allow(clippy::too_many_arguments)] // the run-tolerance witness and the descent's two seams
 fn evaluate_at_descent<T>(
     doc: &Doc<ProfileProgram>,
     prior: Option<&Evaluation<T>>,
@@ -3551,6 +3741,7 @@ fn evaluate_at_descent<T>(
     opts: &EvalOptions,
     chain: &[crate::ident::DocRef],
     reached: parts::Reached<T>,
+    pass_two: PassTwo,
     tol: Tol,
 ) -> Evaluation<T>
 where
@@ -3613,7 +3804,7 @@ where
         chain,
         reached,
         opts.boolean_sweep,
-        opts.profile_lift,
+        pass_two,
         tol,
     )
     .with_symbols(opts.symbols);
@@ -3641,9 +3832,9 @@ where
         poses: &poses,
         across: &spaces.across,
         lane: wire::LaneEnv {
-            lift: opts.profile_lift,
             params: &env,
             nominal: &nominal_env,
+            pass_two,
         },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
@@ -4125,16 +4316,9 @@ where
 
     // Profile-program resolution (LIB-SWITCH §4b): program Exprs
     // resolve at f64 because they feed C6 structure selection, which
-    // must be lane-identical (the verified asymmetry: node magnitude
-    // slots stay lane-live, profile geometry is f64-pinned). Resolved
-    // ONCE here; the same values feed the content key (resolved-value
-    // convention, §4e) and the op.
-    //
-    // "and never at `T`" was true until M10-P and is not any more, so
-    // it is qualified rather than dropped: under `ProfileLift::Guided`
-    // the SAME program is additionally resolved at `T` below. What is
-    // still f64-only is the resolution that STRUCTURE is selected from
-    // — this one — which is the part the C6 sentence was ever about.
+    // must be lane-identical. Resolved ONCE here; the same values feed
+    // the content key (resolved-value convention, §4e) and the op. The
+    // lane's own resolution of the same program, at `T`, is below.
     let resolved_program = match node {
         crate::node::Node::Profile(program) => match program.resolve(op_env.lane.nominal) {
             Ok(r) => Some(r),
@@ -4146,9 +4330,9 @@ where
     // The profile F64 PRECOMPUTE (replay + f64 validation + the naming
     // anchor): C6 structure selection — the successor of the stored
     // f64 bits — made on this node's behalf, so its decisions are the
-    // first entries of the node's log: the whole of it under the
-    // pinned lift, and ahead of the op's own replay and validation
-    // under the guided lift.
+    // first entries of the node's log: the whole of it at `f64`, whose
+    // lane is this pass (`ProfileLane`), and ahead of the op's own
+    // replay and validation at every other scalar.
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
             // The frame the profile is drawn on, at f64 — READ off
@@ -4226,9 +4410,9 @@ where
     // scalar (M10-P PP5). It feeds the content key so a seeded or
     // widened profile parameter moves the key the way a magnitude slot
     // already does — otherwise two evaluations differing only in a
-    // profile seed would hit each other's memo. Not computed at all
-    // when the lift is off, which is what keeps the f64 build path
-    // exactly where it was.
+    // profile seed would hit each other's memo. Not computed at `f64`,
+    // whose lane is the first pass (`ProfileLane`): the key there is the
+    // first pass's, as the value is.
     //
     // THE OP RESOLVES IT AGAIN, and that is a considered decline rather
     // than an oversight. Threading this value into `run_op` would tie
@@ -4241,8 +4425,8 @@ where
     // few dozen expression evaluations per profile node, in analysis
     // mode only. If that ever shows up in a profile, the fix is to pass
     // the value through — not to cache it somewhere both readers reach.
-    let lane_program = match (op_env.lane.lift, node, &resolved_program) {
-        (ProfileLift::Guided, crate::node::Node::Profile(program), Some(_)) => {
+    let lane_program = match (node, &profile_pre) {
+        (crate::node::Node::Profile(program), Some(pre)) if op_env.lane.pass_one(pre).is_none() => {
             match program.resolve(env) {
                 Ok(r) => Some(r),
                 Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
@@ -4637,12 +4821,13 @@ mod tag {
         ///
         /// **Why the key owes it.** The nominal's readers are listed
         /// at [`super::wire::LaneEnv::nominal`], and each decides what
-        /// a lane value IS: the frame read is what the pinned lift
-        /// embeds whole into the lane profile's placement, and the
-        /// program resolutions are what the key already holds as a
-        /// stream. A key that fixed only the lane bits would leave the
-        /// frame read's input unfixed, and the memo would serve a
-        /// profile placed on another nominal's plane.
+        /// a lane value IS: the frame read is what a profile's first
+        /// pass is assembled on, and where a frame's refused direction
+        /// refuses the profile, and the program resolutions are what
+        /// the key already holds as a stream. A key that fixed only the
+        /// lane bits would leave the frame read's input unfixed, and
+        /// the memo would serve a profile built over another nominal's
+        /// frame.
         ///
         /// **What the word means per lane.** At f64 under no box, or
         /// under a box whose axes are all zero-width and zero-offset,
