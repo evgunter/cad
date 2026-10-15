@@ -1603,9 +1603,10 @@ sliver band. Its result holds no in-band pair, a pair of result cells
 whose one census number lies in band. A solid's only shell is its outer
 shell and poses no role question; a shell's role among several is read
 off a ray aimed from outside the shell at one of its faces, and off the
-certified sign of its volume where no ray reads. A ray decides each
-edge it passes once, for both faces the edge bounds, and reads the role
-as the sign of its count of crossings; it refuses only on two faces
+certified sign of its volume where no ray reads. A ray that passes
+within the band of an edge meets it, half a crossing for each face the
+edge bounds (Q1), and reads the role as the sign of its count of
+crossings; it refuses only on two faces
 that do not meet whose crossings lie in band of each other, a pair, and
 a ray that meets a corner or a wedge reads nothing. The volume's sign
 is certified by its enclosure alone, never held against the band, so
@@ -1977,11 +1978,12 @@ Cross-milestone commitments; each binds at the layer named.
   value-channel bit-identity contract), and `Sym`.
 - Every topology-determining branch goes through a *named predicate
   function* returning a trilean sign plus margin, generic over `T`. No
-  raw `<` on control-flow paths. An instrument may break a tie inside
-  the band by a fixed rule only where its reading is invariant under
-  the choice (a ray passing within the band of an edge: every nearby
-  ray reads the same role); that owes consistency, one decision serving
-  every reader of it, not a margin.
+  raw `<` on control-flow paths. Nor does an instrument represent a
+  tie-break the band forbids it to make: where its reading would turn
+  on a choice inside the band that its answer cannot depend on, it is
+  posed so that the choice does not arise (a ray within the band of an
+  edge meets the edge, half a crossing for each face the edge bounds;
+  within the band of a vertex it reads nothing).
 - At `T = f64` predicates are total: margins within K·ε escalate (the
   *sliver band* — semantically indeterminate even under exact
   arithmetic). K is a policy dial — refusal rate and f64 noise headroom
