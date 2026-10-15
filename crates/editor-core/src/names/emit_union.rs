@@ -1899,7 +1899,6 @@ impl<T: geom_core::Real> Links<T> {
                 inside: row.class != topo::SideCode::Out,
             });
         }
-        eprintln!("INSTR judged unread={:?}", naming.unread_partners);
         for u in &naming.unread_partners {
             let Some((member, other, at)) = place(u.operand, u.vertex)? else {
                 continue;
@@ -3510,6 +3509,48 @@ mod tests {
                 bnd,
             )
         }
+    }
+
+    /// **A member edge with no classified side at a vertex the
+    /// judgement read no partner of refuses why**
+    /// (`topo::UnreadPartner`), and at any other vertex stays the
+    /// missing-row bug. Constructed on [`CitedGroup`]'s member edge, the
+    /// judgement read as against the member itself: no union in
+    /// editor-core reaches a crossed edge at such a vertex (the coaxial
+    /// stacks list none at their judgement).
+    #[test]
+    fn a_side_unclassed_at_an_unread_partner_refuses_why() {
+        let g = CitedGroup::new();
+        let members = g.members();
+        let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
+        let flush = Flush::of(g.union, &g.body, &members, &Parents::empty(), bnd).unwrap();
+        let [listed, other] = g.along;
+        let links = Links {
+            pairs: Vec::new(),
+            classes: Vec::new(),
+            unread: vec![UnreadAt {
+                member: 0,
+                other: 0,
+                at: vertex_point(&g.body, listed).unwrap(),
+                neighbourhood: topo::UnreadNeighbourhood::Wedge,
+            }],
+        };
+        let RoleSeg::From { of, .. } = &member_edge(g.union, 5).path[0] else {
+            unreachable!("member_edge is one From segment")
+        };
+        let line = (members[0].read, NameRef::new((**of).clone()));
+        let others = BTreeSet::from([members[0].read]);
+        assert!(matches!(
+            flush.sense_against(listed, &line, &others, &links),
+            Err(NamingError::PartnerUnread {
+                vertex,
+                neighbourhood: topo::UnreadNeighbourhood::Wedge,
+            }) if vertex == listed
+        ));
+        assert!(matches!(
+            flush.sense_against(other, &line, &others, &links),
+            Err(NamingError::Emission { what }) if what == UNCLASSIFIED_SIDE
+        ));
     }
 
     /// **A seam-vertex group on one member edge is ranked along that

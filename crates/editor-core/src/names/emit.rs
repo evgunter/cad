@@ -513,8 +513,7 @@ impl crate::spoken::Say for NamingError {
                  so the boolean classed none of its edges and the crossing there has no senses \
                  to name it by",
                 match neighbourhood {
-                    topo::UnreadNeighbourhood::OneFace =>
-                        "inside one smooth face, as a coaxial or full-turn mate leaves it",
+                    topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
                     topo::UnreadNeighbourhood::Wedge =>
                         "between two faces with no bisector to read their wedge by",
                     topo::UnreadNeighbourhood::Corner => "at a corner whose cone it could not read",

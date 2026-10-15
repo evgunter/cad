@@ -529,10 +529,10 @@ pub struct UnreadPartner {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UnreadNeighbourhood {
     /// One face: the partner lies inside a single smooth face of its
-    /// operand, as a coaxial or full-turn mate leaves a seam vertex, so
-    /// there is no edge or corner to read.
+    /// operand, so there is no edge or corner to read.
     OneFace,
-    /// Two faces whose wedge has no bisector to read it by.
+    /// Two faces whose wedge has no bisector to read it by, as a
+    /// full-turn bore's rim leaves the vertex a mate on its seam meets.
     Wedge,
     /// A corner of three or more faces read as a polygon cone with some
     /// edge undecided against every reference.

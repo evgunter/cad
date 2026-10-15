@@ -4529,6 +4529,55 @@ mod tests {
         );
     }
 
+    /// **A crossing at a vertex the boolean read no partner of refuses
+    /// why** (`topo::UnreadPartner`): its edges hold no class, so their
+    /// senses would drop out of the name unseen. A crossing whose keys
+    /// the list does not hold reads its rows as before (here, none).
+    /// Constructed: no editor-core body found reaches a crossing at such
+    /// a vertex (stacked coaxial cylinders list none; the kernel's
+    /// full-turn bore mate, `sweep`'s `full_turn_bore_mate`, is no
+    /// editor-core model).
+    #[test]
+    fn a_crossing_at_an_unread_partner_refuses_why() {
+        let built = unit_cube();
+        let mut corners = built.body.vertices().map(|(v, _)| v);
+        let (listed, partner, other) = (
+            corners.next().unwrap(),
+            corners.next().unwrap(),
+            corners.next().unwrap(),
+        );
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Direct,
+            unread_partners: vec![topo::UnreadPartner {
+                operand: topo::Operand::A,
+                vertex: listed,
+                partner,
+                neighbourhood: topo::UnreadNeighbourhood::OneFace,
+            }],
+            ..topo::BooleanNaming::default()
+        };
+        let table = NameTable::new();
+        let ctx = |read| OperandCtx {
+            node: RecipeNodeId::new(0, 1),
+            read,
+            table: &table,
+            body: &built.body,
+        };
+        let (a, b) = (ctx(crate::names::FOLD_A), ctx(crate::names::FOLD_B));
+        let keys = BTreeSet::from([(topo::Operand::B, partner), (topo::Operand::A, listed)]);
+        assert!(matches!(
+            senses_at(&naming, other, &keys, &a, &b),
+            Err(NamingError::PartnerUnread {
+                vertex,
+                neighbourhood: topo::UnreadNeighbourhood::OneFace,
+            }) if vertex == other
+        ));
+        // The same vertex key read from the other operand is not listed.
+        let keys = BTreeSet::from([(topo::Operand::B, listed)]);
+        assert!(senses_at(&naming, other, &keys, &a, &b).unwrap().is_empty());
+    }
+
     /// **A face a merge absorbed that the body still holds refuses.**
     /// The merge holds part of the parent, so its live face is a piece
     /// of a face held as several, and it borders no recorded discard:
