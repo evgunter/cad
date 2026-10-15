@@ -114,25 +114,15 @@ fn p3b_a_band_scale_major_radius_through_the_revolve_door() {
             eprintln!("[p3b] R = {major:e}: the revolve door refuses");
             continue;
         };
-        // A torus whose minor radius is a few Kε reads no orientation at
-        // rest: both its faces' aims land on their shared boundary (the
-        // inner equator), each crossing there in band, and its volume
-        // over area is in band too; its own door says so. The open class
-        // (`work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
-        let operand = match topo::AtRestBody::validate(rev.body.clone(), tol()) {
-            Ok(operand) => operand,
-            Err(e) => {
-                assert!(
-                    matches!(
-                        e.as_slice(),
-                        [topo::ValidationError::OrientationUndecided { .. }]
-                    ),
-                    "R = {major:e}: an operand at the band refuses only its orientation, got {e:?}"
-                );
-                eprintln!("[p3b] R = {major:e}: refuses at rest — {e:?}");
-                continue;
-            }
-        };
+        // A torus whose minor radius is a few Kε offers no aimed ray that
+        // reads (both its faces' aims land on their shared boundary, the
+        // inner equator, each crossing there in band), and its volume's
+        // certified enclosure reads its sign (D10, Ev's ruling on the class
+        // a body thin in two directions belongs to,
+        // `work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`):
+        // every pose validates at rest.
+        let operand = topo::AtRestBody::validate(rev.body.clone(), tol())
+            .unwrap_or_else(|e| panic!("R = {major:e}: the torus validates at rest, got {e:?}"));
         match topo::shell(&operand, minor * 0.1, tol()) {
             Ok(out) => {
                 let props = topo::mass_properties(&out.body, tol());
