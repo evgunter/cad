@@ -346,10 +346,12 @@ fn builds_along(
     builds_where(label, x, y, pose, along, ray, &[])
 }
 
-/// [`builds_along`], where each op of `reverting` refuses instead, as
-/// reverting `y` overlaps its coincident edges' wedges
-/// (`work/topo/reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier.md`);
-/// the volumes are checked without it.
+/// [`builds_along`], where each op of `reverting` refuses instead:
+/// reverting `y` refuses, its coincident edges' wedges overlapping. It
+/// builds once revert re-pairs the sheets on that line, which
+/// re-baselines these cells
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+/// Only the sums its result enters are checked without it.
 fn builds_where(
     label: &str,
     x: &AtRestBody<f64>,
@@ -361,6 +363,7 @@ fn builds_where(
 ) -> usize {
     let mut held = 0;
     let mut v = [0.0; 6];
+    let mut reverted = [false; 6];
     // Each op's keep over (in x, in y).
     let probes: Vec<_> = samples(x, y, pose)
         .into_iter()
@@ -387,7 +390,10 @@ fn builds_where(
             Err(BooleanError::Revert {
                 source: RevertError::WedgesOverlap { .. },
                 ..
-            }) if reverts => f64::NAN,
+            }) if reverts => {
+                reverted[k] = true;
+                0.0
+            }
             _ if reverts => panic!(
                 "{what}: refuses the revert's overlap, got {:?}",
                 r.map(|_| ())
@@ -409,15 +415,19 @@ fn builds_where(
     let (vx, vy) = (volume(x), volume(y));
     let what = format!("{label}, {}", pose.label);
     let [xy, yx, u, u2, i, i2] = v;
-    for (sum, want, which) in [
-        (u + i, vx + vy, "|x ∪ y| + |x ∩ y|"),
-        (xy + i, vx, "|x − y| + |x ∩ y|"),
-        (yx + i, vy, "|y − x| + |x ∩ y|"),
-        (u2, u, "|y ∪ x|"),
-        (i2, i, "|y ∩ x|"),
+    // Each sum with the results it reads (indices into `v`).
+    for (sum, want, which, reads) in [
+        (u + i, vx + vy, "|x ∪ y| + |x ∩ y|", [2, 4]),
+        (xy + i, vx, "|x − y| + |x ∩ y|", [0, 4]),
+        (yx + i, vy, "|y − x| + |x ∩ y|", [1, 4]),
+        (u2, u, "|y ∪ x|", [3, 2]),
+        (i2, i, "|y ∩ x|", [5, 4]),
     ] {
+        if reads.iter().any(|&k| reverted[k]) {
+            continue;
+        }
         assert!(
-            sum.is_nan() || (sum - want).abs() < 1e-9,
+            (sum - want).abs() < 1e-9,
             "{what}: {which} {sum}, want {want}"
         );
     }
@@ -951,26 +961,65 @@ fn a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once() {
 /// the arches' faces part around the ray, so the edge is on the solid's
 /// (`vtxfac::along_partners`). The pyramid lies outside both arches,
 /// inside the wedge between their far faces, or with a face in each,
-/// at rest (every pose: the row below). Where the pyramid's faces lie in the arches, the
+/// at every pose. Where the pyramid's faces lie in the arches, the
 /// pyramid less the arches refuses as reverting them overlaps their
-/// coincident edges' wedges along the ray ([`builds_where`]).
+/// coincident edges' wedges along the ray ([`builds_where`]). Tier 3′
+/// holds in one result of the first pyramid and two of each other, at
+/// every pose; elsewhere it refuses only as [`three_prime`] allows.
+/// Slow set; the row below is its per-PR pose.
 #[test]
 fn a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op() {
-    along_two_arches_shared_ray(&Pose::rest());
-}
-
-/// [`a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op`]
-/// at every pose. Slow set.
-#[test]
-fn a_touching_vertex_along_two_arches_shared_ray_builds_at_every_pose() {
     for pose in &poses() {
-        along_two_arches_shared_ray(pose);
+        for (shape, held) in ARCH_PYRAMIDS.iter().zip([1, 2, 2]) {
+            assert_eq!(
+                along_two_arches_shared_ray(pose, shape),
+                held,
+                "{}",
+                shape.0
+            );
+        }
     }
 }
 
+/// The per-PR pose of the row above: the pyramid outside both arches,
+/// at rest.
+#[test]
+fn a_touching_vertex_along_two_arches_shared_ray_builds_at_rest() {
+    assert_eq!(
+        along_two_arches_shared_ray(&Pose::rest(), &ARCH_PYRAMIDS[0]),
+        1
+    );
+}
+
+/// A pyramid along the arches' shared ray: a label, its base's two
+/// corners off the ray as bearing, radius and height, and the ops that
+/// refuse as reverting the arches overlaps their wedges
+/// ([`builds_where`]).
+type ArchPyramid = (&'static str, [(f64, f64, f64); 2], &'static [&'static str]);
+
+/// The pyramids along the arches' shared ray.
+const ARCH_PYRAMIDS: [ArchPyramid; 3] = [
+    (
+        "a pyramid along the arches' ray, outside both",
+        [(160.0, 0.4, 0.5), (220.0, 0.4, 0.5)],
+        &[],
+    ),
+    (
+        "a pyramid along the arches' ray, in the wedge between them",
+        [(20.0, 0.2, 0.3), (60.0, 0.2, 0.3)],
+        &["x − y"],
+    ),
+    (
+        "a pyramid along the arches' ray, a face in each",
+        [(10.0, 0.3, 0.45), (70.0, 0.3, 0.45)],
+        &["x − y"],
+    ),
+];
+
 /// The arches' scene ([`a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op`])
-/// at `pose`.
-fn along_two_arches_shared_ray(pose: &Pose) {
+/// at `pose`, against one of [`ARCH_PYRAMIDS`]; how many results held
+/// tier 3′.
+fn along_two_arches_shared_ray(pose: &Pose, &(label, corners, reverting): &ArchPyramid) -> usize {
     let plate = posed_box("the plate", PLATE, pose, t());
     let shared = bearing(40.0, 0.4, 0.5);
     let arches = [
@@ -981,26 +1030,9 @@ fn along_two_arches_shared_ray(pose: &Pose) {
     let line = arches.iter().fold(plate, |body, arch| {
         built("the plate and arches", union(&body, arch, t()))
     });
-    let along = bearing(40.0, 0.6, 0.75);
-    for (label, base, reverting) in [
-        (
-            "a pyramid along the arches' ray, outside both",
-            [along, bearing(160.0, 0.4, 0.5), bearing(220.0, 0.4, 0.5)],
-            &[][..],
-        ),
-        (
-            "a pyramid along the arches' ray, in the wedge between them",
-            [along, bearing(20.0, 0.2, 0.3), bearing(60.0, 0.2, 0.3)],
-            &["x − y"][..],
-        ),
-        (
-            "a pyramid along the arches' ray, a face in each",
-            [along, bearing(10.0, 0.3, 0.45), bearing(70.0, 0.3, 0.45)],
-            &["x − y"][..],
-        ),
-    ] {
-        builds_where(label, &tet(base, pose), &line, pose, false, None, reverting);
-    }
+    let [(b, r, z), (c, s, w)] = corners;
+    let base = [bearing(40.0, 0.6, 0.75), bearing(b, r, z), bearing(c, s, w)];
+    builds_where(label, &tet(base, pose), &line, pose, false, None, reverting)
 }
 
 /// **A vertex that crosses a face it is paired on, or pierces two

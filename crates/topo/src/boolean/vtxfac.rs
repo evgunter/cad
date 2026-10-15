@@ -291,7 +291,8 @@ pub(super) enum TouchUndecided {
     /// where no partner is on that side.
     Beside(Option<VertexKey>),
     /// The edge lies on two or more partners' boundaries, and
-    /// [`along_partners`] refuses.
+    /// [`along_partners`] refuses, or the vertex's own sectors name no
+    /// edge for it, an invariant ([`partners_class`]).
     Along(BooleanError),
 }
 
@@ -329,24 +330,9 @@ pub(super) fn touch_classes<T: Decide>(
             if let Some(p) = side().find(|p| !p.read.as_ref().is_some_and(|r| r.pointed)) {
                 return Err(TouchUndecided::Beside(Some(p.partner)));
             }
-            let on: Vec<_> = side()
-                .filter(|p| {
-                    p.read
-                        .as_ref()
-                        .is_some_and(|r| r.rows.contains(&(he, SideCode::On)))
-                })
-                .collect();
-            let class = if let [_, _, ..] = on.as_slice() {
-                let edge = own.iter().find(|s| s.he == he && s.end_edge()).ok_or(
-                    TouchUndecided::Along(BooleanError::ClassificationInvariant {
-                        what: "a touching vertex's class names no edge of its own sectors",
-                    }),
-                )?;
-                along_partners(edge, &on, band).map_err(TouchUndecided::Along)?
-            } else {
-                layered(own_side, he, side())
-                    .ok_or_else(|| TouchUndecided::Beside(side().next().map(|p| p.partner)))?
-            };
+            let class = partners_class(own, he, side(), band, || layered(own_side, he, side()))
+                .map_err(TouchUndecided::Along)?
+                .ok_or_else(|| TouchUndecided::Beside(side().next().map(|p| p.partner)))?;
             Ok((he, class))
         })
         .collect()
@@ -480,27 +466,43 @@ fn layered_alone<T: Decide>(
         .rows
         .iter()
         .map(|&(he, _)| {
-            let on: Vec<_> = pairs
-                .iter()
-                .filter(|p| {
-                    p.read
-                        .as_ref()
-                        .is_some_and(|r| r.rows.contains(&(he, SideCode::On)))
-                })
-                .collect();
-            let class = if let [_, _, ..] = on.as_slice() {
-                let edge = own
-                    .iter()
-                    .find(|s| s.he == he && s.end_edge())
-                    .ok_or_else(|| invariant("a vertex's row names no edge of its own sectors"))?;
-                along_partners(edge, &on, band)?
-            } else {
+            let class = partners_class(own, he, pairs.iter(), band, || {
                 layered(base, he, pairs.iter())
-                    .ok_or_else(|| invariant("a partner's rows miss an edge of the vertex"))?
-            };
+            })?
+            .ok_or_else(|| invariant("a partner's rows miss an edge of the vertex"))?;
             Ok((he, class))
         })
         .collect()
+}
+
+/// **The class of the vertex's edge `he` among `partners`**: read by
+/// their faces ([`along_partners`]) where it lies on two or more of
+/// their boundaries, else `layer`'s; `Ok(None)` where `layer` leaves it
+/// undecided. Refuses as an invariant where the vertex's own sectors
+/// (`own`) name no edge for `he`.
+fn partners_class<'a, T: Decide + 'a>(
+    own: &[BoolSector<T>],
+    he: HalfEdgeKey,
+    partners: impl Iterator<Item = &'a PairRead<T>>,
+    band: Band,
+    layer: impl FnOnce() -> Option<SideCode>,
+) -> Result<Option<SideCode>, BooleanError> {
+    let on: Vec<_> = partners
+        .filter(|p| {
+            p.read
+                .as_ref()
+                .is_some_and(|r| r.rows.contains(&(he, SideCode::On)))
+        })
+        .collect();
+    if let [_, _, ..] = on.as_slice() {
+        let edge = own.iter().find(|s| s.he == he && s.end_edge()).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "a vertex's row names no edge of its own sectors",
+            },
+        )?;
+        return along_partners(edge, &on, band).map(Some);
+    }
+    Ok(layer())
 }
 
 /// **A direction strictly inside a partner's cone**, as a probe edge

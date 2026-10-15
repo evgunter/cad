@@ -47,7 +47,8 @@ stays, ahead of the faces' reading. `vtxfac::TouchUndecided` carries
 either.
 
 **Public witness** (`a_vertex_read_by_two_sector_passes`,
-`a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op`):
+`a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op`,
+slow set, and its per-PR pose `…_builds_at_rest`):
 the plate united with two pyramids standing on `MEET` that share an
 edge ray, against a pyramid standing there with an edge along that ray,
 outside both arches, in the wedge between them, or with a face in each.
@@ -57,8 +58,10 @@ sound against tier 3, tier 3′ as the file reads it, the naming's
 classes, the material at the probes and inclusion–exclusion, at every
 pose. The other 2, the pyramid less the arches where the pyramid's
 faces lie in them, refuse `Revert(WedgesOverlap)`: reverting the arches
-overlaps their coincident edges' wedges along the ray
-(`work/topo/reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier.md`).
+refuses, their coincident edges' wedges along the ray overlapping. They
+build once revert re-pairs the sheets on that line, which re-baselines
+them (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`,
+which cites this witness).
 The arches alone, without the plate, are classed by `pair_classes` and
 answer the same 18 cells identically on main and here.
 
