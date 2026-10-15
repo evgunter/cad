@@ -1149,3 +1149,10 @@ Signed (CLEAVE orchestrator).
   - Three rounds of review. The row is closed.
   - Open follow-ups: CLEAVE P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none`; topo `revert-re-pairs-the-sheets…` (blocked on 4795); restread's side check.
 - 2026-10-15 — Dispatched P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none` as a gate check. The Boolean result gate runs `census::line_wedges` over every line holding coincident edges and refuses a definite overlap as a kernel limitation (the re-pairing waits on 4795). Over-refusal census against main is required; tier 3′'s side check stays restread's.
+- 2026-10-15 — The rigid-turn P1 is up as PR 5185 (`403960e619`, gate ok).
+  - Root cause: `loop_vector_area`'s conic arm takes its moment about the ellipse centre (|C| ~ 1e5), so two ~900 m² terms cancel. The chord's rounding is multiplied by the lever, under a pad of 0. The transform is cleared.
+  - Fix: triangle(ref, p0, p1) + k(Δ − sin Δ)·axis. Enclosure misses go from 238/812 (1e-9) and 14/348 (1e-12) to 0.
+  - Golden `frozen` counts re-cut.
+  - geom-brep's cone-wall test bound loosened to 4·EPS.
+  - Filed: FLUXTAIL P1 `a-cone-wall-far-from-its-apex-…` (2.6% off, Ok, pad 0).
+  - Full review dispatched; focus on whether the pad alone is sound.
