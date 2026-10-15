@@ -226,7 +226,7 @@ fn an_intersection_circle_on_a_spline_wall_is_refused_at_the_door() {
     );
     let words = error.to_string();
     assert!(
-        words.contains("own image of the carrier is too coarse")
+        words.contains("own image of the carrier misses the carrier's foot path")
             && words.contains("not shown off its surfaces"),
         "the refusal names the image, not the carrier: {words}"
     );

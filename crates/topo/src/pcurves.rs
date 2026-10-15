@@ -6597,9 +6597,10 @@ mod recourse_tests {
             finding.to_string(),
             "the pcurve of half-edge HalfEdgeKey(null) failed certification: pcurve \
              certification: the fitted lane's certificate escalated — whether the fitted carrier \
-             passes limb 2 (control-hull sup-norm bound) is undecided: margin 5e-9 lies inside \
-             the ambiguity band (1e-9, 1e-8). Recourse: loosen the tolerance, as a last resort; \
-             this refusal may indicate a kernel bug worth reporting"
+             passes limb 2 (control-hull sup-norm bound of the carrier against its pcurve's \
+             surface point) is undecided: margin 5e-9 lies inside the ambiguity band (1e-9, \
+             1e-8). Recourse: loosen the tolerance, as a last resort; this refusal may indicate a \
+             kernel bug worth reporting"
         );
     }
 }
