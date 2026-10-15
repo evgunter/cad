@@ -354,6 +354,24 @@ pub enum BooleanDecision {
         /// How many more of the result's readings lie in band.
         others: u32,
     },
+    /// Whether a shell of the result bounds material or a cavity (check
+    /// 10), at the finished-body gate, where no aimed ray read the
+    /// shell's side and none met a pair in band, and the sign of the
+    /// shell's volume lies in band (`V/A`, a mean half-thickness): the
+    /// space the shell bounds is thin wherever a ray was aimed at it. It
+    /// names the shell, whether a ray aimed at it was set aside at a
+    /// sharp corner, and how many more of the result's readings lie in
+    /// band. A volume whose enclosure straddles zero, or reads zero, is
+    /// no reading in band and stays the kernel's.
+    ShellSide {
+        /// The shell, in the refused result: diagnostic only, as
+        /// [`BooleanDecision::ShellRole`]'s faces are.
+        shell: crate::entity::ShellKey,
+        /// Whether a ray aimed at it was set aside at a sharp corner.
+        corner: bool,
+        /// How many more of the result's readings lie in band.
+        others: u32,
+    },
     /// Which side of a solid of the result its material lies on (check
     /// 7), at the finished-body gate, where no aimed ray read the side
     /// and none met a pair in band, and the sign of the solid's volume
@@ -885,19 +903,6 @@ pub(super) const SEAM_WEDGE: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-/// Which side of a solid of the result its material lies on, off its
-/// volume ([`BooleanDecision::SolidSide`]): the margin is `V/A`, a mean
-/// half-thickness. A definite positive one passes; a definite negative
-/// one is a result inside out, the kernel's, which no tolerance makes
-/// pass, so only the positive side offers one.
-const RESULT_SIDE: SizedDecision = SizedDecision {
-    lever: "move the parts so each solid of the result they leave is clearly thicker",
-    size: "volume over area",
-    passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
-    no_size: None,
-};
-
 /// [`crate::props::AIMED_PAIR`] at the split door
 /// ([`BooleanDecision::render_at_split`]): the same decision on the same
 /// margin, in the split's lever, since the split has one operand and a
@@ -908,11 +913,19 @@ const SPLIT_AIMED_PAIR: SizedDecision = SizedDecision {
     ..crate::props::AIMED_PAIR
 };
 
-/// [`RESULT_SIDE`] at the split door ([`BooleanDecision::render_at_split`]),
-/// as [`SPLIT_AIMED_PAIR`] is.
-const SPLIT_RESULT_SIDE: SizedDecision = SizedDecision {
+/// [`crate::props::SHELL_ROLE`] at the split door
+/// ([`BooleanDecision::render_at_split`]), as [`SPLIT_AIMED_PAIR`] is.
+const SPLIT_SHELL_ROLE: SizedDecision = SizedDecision {
+    lever: "move the split plane or the geometry so the space each shell of the pieces bounds is \
+            clearly thicker",
+    ..crate::props::SHELL_ROLE
+};
+
+/// [`crate::props::SOLID_SIDE`] at the split door
+/// ([`BooleanDecision::render_at_split`]), as [`SPLIT_AIMED_PAIR`] is.
+const SPLIT_SOLID_SIDE: SizedDecision = SizedDecision {
     lever: "move the split plane or the geometry so each piece it leaves is clearly thicker",
-    ..RESULT_SIDE
+    ..crate::props::SOLID_SIDE
 };
 
 /// Whether the faces touching along a seam curve apart or share their
@@ -1497,7 +1510,9 @@ impl BooleanDecision {
             Self::EdgeOnFaces => {
                 crate::merge_faces::edge_on_faces_subject!("an edge of the result")
             }
-            Self::ShellRole { .. } => "whether a shell of the result bounds material or a cavity",
+            Self::ShellRole { .. } | Self::ShellSide { .. } => {
+                "whether a shell of the result bounds material or a cavity"
+            }
             Self::SolidSide { .. } => "which side of a solid of the result its material lies on",
             Self::Sphere(question) => question.subject(),
             Self::SelfCheck(check) => check.subject(),
@@ -1695,7 +1710,8 @@ impl BooleanDecision {
             Self::SeamJet => Ending::Sized(SEAM_JET),
             Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
             Self::ShellRole { .. } => Ending::Sized(crate::props::AIMED_PAIR),
-            Self::SolidSide { .. } => Ending::Sized(RESULT_SIDE),
+            Self::ShellSide { .. } => Ending::Sized(crate::props::SHELL_ROLE),
+            Self::SolidSide { .. } => Ending::Sized(crate::props::SOLID_SIDE),
             Self::Sphere(question) => question.ending(),
             // A broken invariant, as the check's definite refusal says.
             Self::SelfCheck(_) => Ending::Unsized(Unsized::Defect),
@@ -1713,13 +1729,14 @@ impl BooleanDecision {
 
     /// [`Self::render`] at the split door ([`crate::SplitFinishError::ResultEscalated`]):
     /// a reading of the result's side ([`Self::ShellRole`],
-    /// [`Self::SolidSide`]) ends in the split's own spelling of its
+    /// [`Self::ShellSide`], [`Self::SolidSide`]) ends in the split's own spelling of its
     /// lever, every other decision as at the Boolean.
     #[must_use]
     pub(crate) fn render_at_split(self, diag: &Indeterminate) -> String {
         let ending = match self {
             Self::ShellRole { .. } => Ending::Sized(SPLIT_AIMED_PAIR),
-            Self::SolidSide { .. } => Ending::Sized(SPLIT_RESULT_SIDE),
+            Self::ShellSide { .. } => Ending::Sized(SPLIT_SHELL_ROLE),
+            Self::SolidSide { .. } => Ending::Sized(SPLIT_SOLID_SIDE),
             _ => self.ending(diag),
         };
         diag.undecided(
@@ -1746,6 +1763,20 @@ impl BooleanDecision {
                 near, far, others, ..
             } => (
                 format!("an aimed ray met faces {near:?} and {far:?} of the result there. "),
+                others,
+            ),
+            Self::ShellSide {
+                corner: false,
+                others,
+                ..
+            } => ("no aimed ray read the shell's side. ".to_owned(), others),
+            Self::ShellSide {
+                corner: true,
+                others,
+                ..
+            } => (
+                "no aimed ray read the shell's side, one of them set aside at a sharp corner. "
+                    .to_owned(),
                 others,
             ),
             Self::SolidSide {
@@ -2064,6 +2095,11 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole {
                     near: crate::entity::FaceKey::default(),
                     far: crate::entity::FaceKey::default(),
+                    others: 0,
+                }],
+                BooleanDecisionKind::ShellSide => vec![BooleanDecision::ShellSide {
+                    shell: crate::entity::ShellKey::default(),
+                    corner: false,
                     others: 0,
                 }],
                 BooleanDecisionKind::SolidSide => vec![BooleanDecision::SolidSide {
@@ -2451,11 +2487,17 @@ pub(in crate::boolean) mod tests {
                     SizedPass::Positive,
                 ),
             ),
+            BooleanDecision::ShellSide { .. } => (
+                "whether a shell of the result bounds material or a cavity",
+                Ending::Sized(
+                    "Recourse: move the geometry so the space the shell bounds is clearly thicker",
+                    SizedPass::NonZero,
+                ),
+            ),
             BooleanDecision::SolidSide { .. } => (
                 "which side of a solid of the result its material lies on",
                 Ending::Sized(
-                    "Recourse: move the parts so each solid of the result they leave is clearly \
-                     thicker",
+                    "Recourse: move the geometry so the solid is clearly thicker",
                     SizedPass::Positive,
                 ),
             ),

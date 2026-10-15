@@ -4110,12 +4110,14 @@ impl fmt::Display for ValidationError {
                             f,
                             "; and the sign of its volume is undecided: {}. {}",
                             diag.payload(),
-                            crate::props::SHELL_ROLE
+                            crate::props::SOLID_SIDE
                                 .recourse(RefusedArm::Undecided(diag), Reading::AtRest)
                         ),
-                        None => f.write_str(
-                            "; and its volume's enclosure straddles zero by its own rounding. \
-                             Recourse: remove the degenerate geometry, or tighten the tolerance",
+                        None => write!(
+                            f,
+                            "; and its volume's enclosure straddles zero by its own rounding. {}",
+                            crate::props::SOLID_SIDE
+                                .recourse(RefusedArm::Straddle, Reading::AtRest)
                         ),
                     }
                 }
@@ -11604,7 +11606,7 @@ mod tests {
                 terminal_sliver: false,
             },
         };
-        let lever = "Recourse: remove the degenerate geometry";
+        let lever = "Recourse: move the geometry so the space the shell bounds is clearly thicker";
         assert!(
             error.to_string().ends_with(&format!(
                 "{lever}; an unreadable margin may indicate a kernel bug worth reporting"

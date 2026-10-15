@@ -5248,6 +5248,11 @@ fn binding(readings: &[InBand]) -> Option<InBand> {
             far,
             others: more,
         },
+        BooleanDecision::ShellSide { shell, corner, .. } => BooleanDecision::ShellSide {
+            shell,
+            corner,
+            others: more,
+        },
         BooleanDecision::SolidSide {
             solid,
             aimed,
@@ -5264,6 +5269,44 @@ fn binding(readings: &[InBand]) -> Option<InBand> {
     Some(InBand {
         decision,
         diag: binding.diag,
+    })
+}
+
+/// **A shell's role read off its volume in band** at the finished-body
+/// gate ([`BooleanDecision::ShellSide`]): the volume escalated, after a
+/// ray set aside at a corner or with no aim at all. A volume that reads
+/// zero or straddles zero, a pair (typed by [`finding_arm`] itself), and
+/// every other refusal are `None`.
+fn shell_side_in_band(error: &crate::props::ShellClassifyError) -> Option<InBand> {
+    use crate::props::ShellClassifyError as E;
+    // Whether the volume's refusal is a reading in band: its escalation.
+    let escalated = |volume: &E| match volume {
+        E::Escalated { source, .. } => Some(*source),
+        E::Band { .. }
+        | E::Props { .. }
+        | E::ZeroVolume { .. }
+        | E::Straddles { .. }
+        | E::RayInBand { .. }
+        | E::Corner { .. }
+        | E::Ray { .. } => None,
+    };
+    let (shell, corner, source) = match error {
+        E::Escalated { shell, .. } => (*shell, false, escalated(error)?),
+        E::Corner { shell, volume, .. } => (*shell, true, escalated(volume)?),
+        E::Band { .. }
+        | E::Props { .. }
+        | E::ZeroVolume { .. }
+        | E::Straddles { .. }
+        | E::RayInBand { .. }
+        | E::Ray { .. } => return None,
+    };
+    Some(InBand {
+        decision: BooleanDecision::ShellSide {
+            shell,
+            corner,
+            others: 0,
+        },
+        diag: source,
     })
 }
 
@@ -5317,11 +5360,15 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
             },
             diag: *diag,
         }),
+        // In band: no aimed ray read a shell's side, and its volume's
+        // sign lies in band — the space it bounds is thin wherever a ray
+        // was aimed at it — whether or not a ray was set aside at a
+        // sharp corner on the way.
+        V::ShellRoleUndecided { error, .. } => shell_side_in_band(error),
         // Undecided otherwise: a volume straddling zero by its own
         // rounding, an aimed ray's walk refusal on a broken face, a
-        // shell's volume refusal (its corner's included), a limit, or a
-        // band that does not form.
-        V::ShellRoleUndecided { .. } | V::OrientationUndecided { .. } => None,
+        // limit, or a band that does not form.
+        V::OrientationUndecided { .. } => None,
         // Undecided at a point margin the gate has not shown conditioned
         // (`work/tally/the-door-gates-other-in-band-findings-are-typed-the-kernels.md`).
         V::DegenerateTorusEscalated { .. }

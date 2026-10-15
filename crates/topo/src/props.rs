@@ -2918,11 +2918,28 @@ pub enum ShellClassifyError {
 /// ray that reads its side ([`shell_role`]): its margin is `V/A`, and it
 /// passes on either definite sign — positive is an outer boundary,
 /// negative a void. A reader over stored geometry ends a refusal of it
-/// itself, at rest ([`ShellClassifyError::recourse`]).
+/// itself, at rest ([`ShellClassifyError::recourse`]). One decision and
+/// one lever, at rest and at a boolean's door alike
+/// (`BooleanDecision::ShellSide`): an in-band `V/A` is a thin space.
 pub const SHELL_ROLE: SizedDecision = SizedDecision {
-    lever: "remove the degenerate geometry",
+    lever: "move the geometry so the space the shell bounds is clearly thicker",
     size: "volume over area",
     passes: SizedPass::NonZero,
+    stored: StoredDefinite::Lever,
+    no_size: None,
+};
+
+/// Which side of a solid's faces its material lies on, read off the
+/// sign of its volume where no aimed ray reads it (check 7): its margin
+/// is `V/A`, and it passes on a definite positive one. A definite
+/// negative one is the solid inside out, which check 7 refuses on its
+/// own (`NegativeVolume`). One decision and one lever, at rest — in band
+/// and for an enclosure straddling zero alike — and at a boolean's door
+/// (`BooleanDecision::SolidSide`).
+pub const SOLID_SIDE: SizedDecision = SizedDecision {
+    lever: "move the geometry so the solid is clearly thicker",
+    size: "volume over area",
+    passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
     no_size: None,
 };

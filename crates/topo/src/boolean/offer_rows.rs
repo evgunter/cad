@@ -456,6 +456,13 @@ cases! {
     // A needle whose volume over area is the margin, and whose aimed rays
     // read nothing.
     needle_whose_volume_lies_in_band: "SolidSide", D, ROLE_SITE, Valued => needle(D);
+    // A needle cavity whose volume over area is the margin, negative as
+    // a void's is, left by `brick ∖ slab ∪ fill` (review R2's probe).
+    needle_cavity_whose_volume_lies_in_band: "ShellSide", -D, Public, Valued =>
+        needle_cavity(D);
+    // An outer shell whose volume over area is the margin.
+    needle_shell_whose_volume_lies_in_band: "ShellSide", D, OUTER_SHELL_SITE, Valued =>
+        needle_shell(D);
     sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
         "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
          normal carries a seam across the escape plane that the crossing layer meets first: no \
@@ -514,6 +521,11 @@ const SEAM_SITE: Door = Door::Site(
 const ROLE_SITE: Door = Door::Site(
     "the side at infinity is read of two faces set directly: no result shell is known whose every \
      aimed ray meets a pair in band",
+);
+const OUTER_SHELL_SITE: Door = Door::Site(
+    "an outer shell's role is read at the result gate only beside a void it holds, which is \
+     thinner still and binds first: no result reaches the positive side, so a needle's one shell \
+     is read by the volume reader directly",
 );
 const GATE_SITE: Door = Door::Site(
     "the maximal-faces gate is asked of the operand directly: a solid whose neighbours are bent \
@@ -1583,6 +1595,52 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
     .map(|_| ())
 }
 
+/// `brick (−1,2)³ ∖ slab`, then `∪` a fill leaving of the slab's cavity
+/// a needle `1 × w × w` whose volume over area, `−w / (4 + 2w)` as a
+/// void's, has magnitude `margin`: no aimed ray reads the cavity's side,
+/// and its volume's sign lies in band at [`DESIGN_EPS`]. The union's
+/// result gate refuses it.
+fn needle_cavity(margin: f64) -> Result<(), BooleanError> {
+    use crate::test_support_fixtures::brick;
+    let tol = Tol::witness();
+    let w = 4.0 * margin / (1.0 - 2.0 * margin);
+    let at_rest = |x, y, z| crate::AtRestBody::validate(brick::<f64>(x, y, z, tol), tol).unwrap();
+    let big = at_rest((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0));
+    let slab = at_rest((0.0, 1.0), (0.5, 0.8), (0.5, 0.5 + w));
+    let fill = at_rest((0.0, 1.0), (0.5 + w, 0.8), (0.5, 0.5 + w));
+    let hollow = super::super::boolean_op_with(
+        super::super::BooleanOp::Subtract,
+        &big,
+        &slab,
+        &super::super::BooleanInputs::default(),
+        super::super::SweepStrategy::Realized,
+        tol,
+    )?
+    .body()
+    .expect("the slab's cavity is inside the brick")
+    .body
+    .clone();
+    public_op(0, &hollow, &fill)
+}
+
+/// A needle `1 × w × w` whose volume over area, `w / (4 + 2w)`, is
+/// `margin`, its one shell's role read off its volume as the result gate
+/// reads a shell that offers no aim that reads, and refused as the gate
+/// refuses it.
+fn needle_shell(margin: f64) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let w = 4.0 * margin / (1.0 - 2.0 * margin);
+    let body = crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, w), (0.0, w), tol);
+    let (solid, record) = body.solids().next().unwrap();
+    let shell = record.shells[0];
+    match crate::props::shell_volume_role(&body, shell, band(), tol, None) {
+        Ok(_) => Ok(()),
+        Err(error) => Err(super::super::ops::finished_body_refusal(vec![
+            crate::ValidationError::ShellRoleUndecided { solid, error },
+        ])),
+    }
+}
+
 /// A unit prism's top split on its diagonal, one half bent about it by
 /// an angle whose sine over the diagonal is `margin`: the operand's
 /// maximal-faces gate.
@@ -2593,9 +2651,16 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
     ("ops.rs", "binding", "BooleanDecision::ShellRole", 2),
+    ("ops.rs", "binding", "BooleanDecision::ShellSide", 2),
     ("ops.rs", "binding", "BooleanDecision::SolidSide", 2),
     ("ops.rs", "finding_arm", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "finding_arm", "BooleanDecision::SolidSide", 1),
+    (
+        "ops.rs",
+        "shell_side_in_band",
+        "BooleanDecision::ShellSide",
+        1,
+    ),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (

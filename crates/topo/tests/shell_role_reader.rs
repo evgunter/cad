@@ -406,3 +406,53 @@ fn a_boolean_leaving_a_needle_escalates_its_side() {
         other => panic!("brick ∩ brick leaving a 2Kε needle escalates its side: {other:?}"),
     }
 }
+
+/// **A needle cavity at the door** (review R2's
+/// `r2_needle_cavity_and_solid_at_the_door`): `brick (−1,2)³ ∖ slab`,
+/// then `∪` a fill that leaves of the slab's cavity a channel `w × w`
+/// across. No face of the channel offers an aim that reads, and the sign
+/// of its volume lies in band: the operands' ill-conditioning, escalated
+/// on the shell's side ([`BooleanDecision::ShellSide`]) with the lever
+/// that thickens it, as a needle solid escalates on its own
+/// ([`BooleanDecision::SolidSide`]). Measured at these widths; a channel
+/// whose volume's enclosure straddles zero stays the kernel's, which is
+/// the needle class's fork
+/// (`work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
+#[test]
+fn a_union_leaving_a_needle_cavity_escalates_its_side() {
+    let tol = Tol::witness();
+    if stood_down(tol) {
+        return;
+    }
+    let e = tol.eps();
+    let widths: &[f64] = if (e - 1e-9).abs() < 1e-12 {
+        &[21.0, 30.0]
+    } else {
+        &[21.0]
+    };
+    let big = brick((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol);
+    for &m in widths {
+        let w = m * e;
+        let what = format!("brick ∖ slab ∪ fill leaving a {m}ε channel at ε {e:e}");
+        let slab = brick((0.0, 1.0), (0.5, 0.8), (0.5, 0.5 + w), tol);
+        let fill = brick((0.0, 1.0), (0.5 + w, 0.8), (0.5, 0.5 + w), tol);
+        let hollow = built(&what, topo::subtract(&big, &slab, tol));
+        match topo::union(&hollow, &fill, tol) {
+            Err(
+                err @ BooleanError::Escalated {
+                    decision: BooleanDecision::ShellSide { .. },
+                    ..
+                },
+            ) => {
+                let text = err.to_string();
+                assert!(
+                    text.contains(
+                        "move the geometry so the space the shell bounds is clearly thicker"
+                    ),
+                    "{what}: the lever thickens the channel: {text}"
+                );
+            }
+            other => panic!("{what}: escalates the cavity's side, got {other:?}"),
+        }
+    }
+}

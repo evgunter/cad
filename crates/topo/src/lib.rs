@@ -652,6 +652,7 @@ pub mod test_support {
             crate::BooleanDecision::Coincidence(which, _) => format!("Coincidence({which:?})"),
             crate::BooleanDecision::ShellRole { .. } => "ShellRole".to_owned(),
             crate::BooleanDecision::SolidSide { .. } => "SolidSide".to_owned(),
+            crate::BooleanDecision::ShellSide { .. } => "ShellSide".to_owned(),
             other => format!("{other:?}"),
         }
     }

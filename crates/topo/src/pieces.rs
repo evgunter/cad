@@ -542,7 +542,7 @@ mod tests {
         );
         assert!(
             tail.ends_with(
-                "). Recourse: remove the degenerate geometry; an unreadable margin may indicate a kernel bug worth reporting"
+                "). Recourse: move the geometry so the space the shell bounds is clearly thicker; an unreadable margin may indicate a kernel bug worth reporting"
             ),
             "{text}"
         );

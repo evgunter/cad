@@ -4827,7 +4827,8 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     use editor_core::{CheckEvidence, CheckFinding, CheckId};
     use geom_core::{Band, Indeterminate, MarginDiag};
     use topo::{ShellClassifyError as S, ShellKey};
-    const LEVER: &str = "Recourse: remove the degenerate geometry";
+    const LEVER: &str =
+        "Recourse: move the geometry so the space the shell bounds is clearly thicker";
     let shell = ShellKey::default();
     // `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
     let band = Band::new(1e-9, 1e-8).expect("a band");
