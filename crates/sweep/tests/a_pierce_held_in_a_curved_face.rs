@@ -35,7 +35,14 @@
 //! Each body that builds is sound: tier 3, tier 3′ on the carried fold,
 //! its material at probes about the point against the members' closed
 //! forms, and its volume against theirs (the lying cylinder's and the
-//! pocket's parts by quadrature, far below the tolerance).
+//! pocket's parts by quadrature, far below the tolerance). Each op also
+//! passes tier 3′ on its operands' carried records, but for what the
+//! census says, typed, it cannot yet decide of two lumps' curved faces,
+//! and the line contact an intersect or subtract of the lying-cylinder
+//! row leaves unrecorded (`a-carried-line-contact-an-op-cuts-is-dropped`);
+//! and its tessellation passes `check_mesh` where one is made, but for
+//! the slab less the twice-pierced pair, which meets a known panic
+//! (`a-rod-less-an-inscribed-square-prism-builds-and-the-tessellator-panics`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
@@ -363,35 +370,57 @@ fn sound(
 }
 
 fn joined(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> AtRestBody<f64> {
+    joined_carried(what, a, b).0
+}
+
+/// [`joined`], with the contact records the union carries for a later
+/// op to read its touches by.
+fn joined_carried(
+    what: &str,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+) -> (AtRestBody<f64>, topo::OperandRecords) {
     match topo::union(a, b, tol()) {
-        Ok(BooleanResult::Body(r)) => r.body,
+        Ok(BooleanResult::Body(r)) => (r.body.clone(), r.contacts.carried()),
         other => panic!("{what}: {other:?}"),
     }
 }
 
-/// A Boolean op.
-type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
-
 /// The material an op makes of its operands' (A's, then B's).
 type Material = fn(bool, bool) -> bool;
 
-const OPS: [(&str, Op, Material); 3] = [
-    ("union", topo::union, |a, b| a || b),
-    ("intersection", topo::intersect, |a, b| a && b),
-    ("subtraction", topo::subtract, |a, b| a && !b),
+const OPS: [(&str, topo::BooleanOp, Material); 3] = [
+    ("union", topo::BooleanOp::Union, |a, b| a || b),
+    ("intersection", topo::BooleanOp::Intersect, |a, b| a && b),
+    ("subtraction", topo::BooleanOp::Subtract, |a, b| a && !b),
 ];
 
-/// An operand in closed form: its body, its material and its volume.
+/// An operand in closed form: its body, the contact records it carries,
+/// its material and its volume.
 struct Closed<'a> {
     body: &'a AtRestBody<f64>,
+    records: topo::OperandRecords,
     holds: &'a dyn Fn([f64; 3]) -> bool,
     volume: f64,
 }
 
-/// **Every op of `held` and `other`, either operand first**: each
-/// builds a body [`sound`] against the two closed forms, `common` their
-/// common part's volume, `read_pct`% of the probes read.
-fn every_op(what: &str, held: &Closed, other: &Closed, common: f64, read_pct: usize) {
+/// **Every op of `held` and `other`, either operand first**, each
+/// operand carrying its records: each builds a body [`sound`] against
+/// the two closed forms, `common` their common part's volume,
+/// `read_pct`% of the probes read. Each passes tier 3′ on the op's
+/// records, but for what the census cannot yet decide and the line
+/// contact an op `drops_line` names leaves unrecorded. Each that `meshes` names for its op and order tessellates to
+/// a mesh `check_mesh` passes, or refuses typed; the others meet a known
+/// tessellator panic.
+fn every_op(
+    what: &str,
+    held: &Closed,
+    other: &Closed,
+    common: f64,
+    read_pct: usize,
+    meshes: &dyn Fn(&str, bool) -> bool,
+    drops_line: &dyn Fn(&str, bool) -> bool,
+) {
     for (name, op, material) in OPS {
         for held_first in [true, false] {
             let what = format!("{name} of {what}, the held operand first: {held_first}");
@@ -400,10 +429,60 @@ fn every_op(what: &str, held: &Closed, other: &Closed, common: f64, read_pct: us
             } else {
                 (other, held)
             };
-            let body = match op(x.body, y.body, tol()) {
-                Ok(BooleanResult::Body(r)) => r.body,
+            let inputs = topo::BooleanInputs {
+                records_a: x.records.clone(),
+                records_b: y.records.clone(),
+                ..topo::BooleanInputs::default()
+            };
+            let r = match topo::boolean_op_with(
+                op,
+                x.body,
+                y.body,
+                &inputs,
+                topo::SweepStrategy::Realized,
+                tol(),
+            ) {
+                Ok(BooleanResult::Body(r)) => r,
                 other => panic!("{what}: {other:?}"),
             };
+            let body = &r.body;
+            // Tier 3′ reads every touch the op made, and the census may
+            // say, typed, that it cannot yet decide whether two lumps'
+            // curved faces touch. An op `drops_line` names leaves the
+            // line contact unrecorded
+            // (`a-carried-line-contact-an-op-cuts-is-dropped`), pinned here
+            // so its fix shows.
+            let findings = topo::validate_pseudomanifold(body, &r.contacts, tol())
+                .err()
+                .unwrap_or_default();
+            let unrecorded = findings
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        topo::ValidationError::UnrecordedContact {
+                            contact: topo::CensusContact::EdgeFaceOverlap { .. },
+                            ..
+                        }
+                    )
+                })
+                .count();
+            assert!(
+                findings.iter().all(|e| {
+                    matches!(e, topo::ValidationError::CensusUndecidable { .. })
+                        || matches!(e, topo::ValidationError::UnrecordedContact { .. })
+                }) && unrecorded == usize::from(drops_line(name, held_first)),
+                "{what}: tier 3′: {findings:?}"
+            );
+            if meshes(name, held_first)
+                && let Ok(mesh) = mesh::tessellate(body, 1e-4, tol())
+            {
+                assert_eq!(
+                    mesh::validate::check_mesh(&mesh),
+                    Ok(()),
+                    "{what}: the mesh"
+                );
+            }
             let volume = match name {
                 "union" => x.volume + y.volume - common,
                 "intersection" => common,
@@ -411,7 +490,7 @@ fn every_op(what: &str, held: &Closed, other: &Closed, common: f64, read_pct: us
             };
             sound(
                 &what,
-                &body,
+                body,
                 &|q| material((x.holds)(q), (y.holds)(q)),
                 volume,
                 read_pct,
@@ -492,21 +571,25 @@ fn a_cylinder_wall_holding_the_pierce_builds_in_every_op_and_order() {
         let (rod, sq) = (rod(), prism(&foot, SQ_Z));
         let in_pair = |q: [f64; 3]| in_rod(q) || in_prism(&foot, SQ_Z, q);
         for (order, a, b) in [("rod ∪ square", &rod, &sq), ("square ∪ rod", &sq, &rod)] {
-            let pair = joined(&format!("turn {turn}: {order}"), a, b);
+            let (pair, records) = joined_carried(&format!("turn {turn}: {order}"), a, b);
             every_op(
                 &format!("turn {turn}: ({order}) and the plate"),
                 &Closed {
                     body: &pair,
+                    records,
                     holds: &in_pair,
                     volume: rod_volume + sq_volume,
                 },
                 &Closed {
                     body: &plate,
+                    records: topo::OperandRecords::default(),
                     holds: &in_plate,
                     volume: 6.0,
                 },
                 common,
                 99,
+                &|_, _| true,
+                &|_, _| false,
             );
         }
         every_order(
@@ -551,21 +634,25 @@ fn a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order(
             ("sector ∪ triangle", &bodies[0], &bodies[1]),
             ("triangle ∪ sector", &bodies[1], &bodies[0]),
         ] {
-            let pair = joined(order, a, b);
+            let (pair, records) = joined_carried(order, a, b);
             every_op(
                 &format!("({order}) and the lying cylinder over {span:?}"),
                 &Closed {
                     body: &pair,
+                    records,
                     holds: &in_prisms,
                     volume: prisms_volume,
                 },
                 &Closed {
                     body: &lying,
+                    records: topo::OperandRecords::default(),
                     holds: &in_cylinder,
                     volume: lying_volume,
                 },
                 common,
                 read_pct,
+                &|_, _| true,
+                &|name, held_first| name == "intersection" || (name == "subtraction" && held_first),
             );
         }
         // Members 0 and 1 are the prisms, 2 the cylinder: over the whole
@@ -677,21 +764,29 @@ fn a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order() {
         let (rod, sq) = (rod(), prism(&foot, SQ_Z));
         let in_pair = |q: [f64; 3]| in_rod(q) || in_prism(&foot, SQ_Z, q);
         for (order, a, b) in [("rod ∪ square", &rod, &sq), ("square ∪ rod", &sq, &rod)] {
-            let pair = joined(&format!("turn {turn}: {order}"), a, b);
+            let (pair, records) = joined_carried(&format!("turn {turn}: {order}"), a, b);
             every_op(
                 &format!("turn {turn}: ({order}) and the slab"),
                 &Closed {
                     body: &pair,
+                    records,
                     holds: &in_pair,
                     volume: rod_volume + sq_volume,
                 },
                 &Closed {
                     body: &slab,
+                    records: topo::OperandRecords::default(),
                     holds: &in_slab,
                     volume: slab_volume,
                 },
                 common,
                 99,
+                // The slab less the pair meets the tessellator panic
+                // `a-rod-less-an-inscribed-square-prism-builds-and-the-tessellator-panics`
+                // holds: a ruling segment the lumps share, both its ends
+                // held pierces.
+                &|name, held_first| !(name == "subtraction" && !held_first),
+                &|_, _| false,
             );
         }
         every_order(
