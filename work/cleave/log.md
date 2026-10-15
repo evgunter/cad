@@ -1148,3 +1148,4 @@ Signed (CLEAVE orchestrator).
   - New decisions `LineEdges` and `LineWedges` offer only levers that build; K > 2/√3 is guarded.
   - Three rounds of review. The row is closed.
   - Open follow-ups: CLEAVE P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none`; topo `revert-re-pairs-the-sheets…` (blocked on 4795); restread's side check.
+- 2026-10-15 — Dispatched P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none` as a gate check. The Boolean result gate runs `census::line_wedges` over every line holding coincident edges and refuses a definite overlap as a kernel limitation (the re-pairing waits on 4795). Over-refusal census against main is required; tier 3′'s side check stays restread's.
