@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-14
 priority: P1
 cost: M
+branch: cleave/rigid-turn-sliver-volume
 ---
 
 
@@ -63,3 +64,39 @@ validates. So this is a wrong answer from a certifying door, not only a
 refusal, and the row is P1. Whether the transform or the volume integration
 is at fault is still unmeasured.
 
+
+## Measured: the arc's vector area, not the transform
+
+(cleave/rigid-turn-sliver-volume) Per face, against a 40-digit oracle,
+on ψ = 1e-5, φ 0, L 0, turned 0.7 about x̂: both cylinder walls and the
+top cap are right to 5e-12 after the turn; the section plane's flux is
+−5.9629668e-3 against −5.9628397e-3, off by 1.27e-7 with pad 0. The
+exact vector area of the turned STORED loop (ellipse centre
+(0, −64421.49, 76484.47), semi-axes 1e5 and 1) is right to 1e-14, so
+`transform_rigid` placed the geometry correctly.
+
+The fault is `geom_brep::props::loop_vector_area`'s conic arm,
+`(C − ref)×(p1 − p0) + a·b·Δt·axis`: the two terms are about 900 and
+cancel to the face's 6e-3, and the chord's rounding at `|C|` = 1e5
+(~1e-11) reaches the sum times `|C − ref|` = 1e5. Unturned, the
+ellipse's centre and its rounding both lie along ẑ, so the cross product
+cancels the rounding; a turn about ẑ keeps that, which is why no ẑ turn
+flipped. The planar closed form carries pad 0, so check 7 read the
+wrong sum as a definite negative.
+
+Coverage on main, every turned side of the probe against the oracle
+(volume ± pad, ε·area and rounding): 238 of 812 enclosures miss at 1e-9
+(worst 2750× the slack, at ψ 1e-4 as well as 1e-5 and 3e-6), 14 of 348
+at 1e-12 (ψ 1e-3), 0 of 348 at 1e-6. With the arc read as the triangle
+`ref, p0, p1` plus its segment `a·b·(Δt − sin Δt)`: 0 misses at all
+three, worst 0.043 of the slack, and the probe's 40 flips are 0.
+
+Sibling fixed on the same branch: `curved::cone_loops` summed each loop
+about the cone's apex, so a partial revolve tapered by 1e-5 (apex 1e5
+away) read 1.5386 m³ for 1.49999 once turned, `Ok` with pad 0; it now
+sums about the loop's own point (miss 1e-11).
+
+Sibling, already filed and not fixed here:
+`work/fluxtail/a-planar-face-sums-its-area-about-a-far-carrier-origin`
+(the same rounding-times-lever shape, with the stored plane origin as
+the lever); this branch adds a public-door witness to it.

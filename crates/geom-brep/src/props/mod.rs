@@ -68,11 +68,13 @@
 //! endpoints on the carrier:
 //!
 //! - line: `(1/2)·(a − ref)×(b − ref)`;
-//! - circular arc (center C, unit axis n̂, radius R, angle t0→t1):
-//!   `(1/2)·[(C − ref)×(p1 − p0) + R²·(t1 − t0)·n̂]`
+//! - circular arc (unit axis n̂, radius R, angle `Δ = t1 − t0`):
+//!   `(1/2)·[(p0 − ref)×(p1 − p0) + R²·(Δ − sin Δ)·n̂]`
 //!
-//! (derived by splitting `p − ref = (C − ref) + (p − C)` and using
-//! `(p−C)×d(p−C) = R²·n̂·dt`). Reversed traversal negates the form.
+//! (the triangle `ref, p0, p1` plus the segment between chord and arc,
+//! from `(p − C)×dp = R²·n̂·dt`; an ellipse's is the same with
+//! `R² → a·b`, and [`loop_vector_area`] says why the lever is `p0`
+//! rather than the centre). Reversed traversal negates the form.
 //!
 //! # Stored-data discipline and the iso-rectangle premise
 //!
@@ -140,6 +142,7 @@ pub use curved::{
     curved_face, curved_face_loops, require_iso_rectangle, require_one_chart_branch,
     sphere_region_material_sign,
 };
+pub(crate) use loop_area::closed_loop_vector_area;
 pub use loop_area::loop_vector_area;
 
 /// One traversed boundary edge of a face loop: a key-free view of

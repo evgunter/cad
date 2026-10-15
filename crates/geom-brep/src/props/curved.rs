@@ -33,7 +33,9 @@ use geom_core::{
 };
 
 use super::closure::{self, ChartLoop, Joint};
-use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
+use super::{
+    FaceContribution, LoopEdge, PropsCheck, PropsError, closed_loop_vector_area, loop_vector_area,
+};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
 
@@ -1909,7 +1911,7 @@ fn cone_loops<T: Decide>(
             ends.push(slant(e.p0()));
             ends.push(slant(e.p1()));
         }
-        let loop_va = loop_vector_area(edges, apex)?;
+        let loop_va = closed_loop_vector_area(edges)?;
         let loop_axial = axis.dot(loop_va);
         axial = axial + loop_axial;
         va = va + loop_va;

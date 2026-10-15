@@ -80,6 +80,8 @@ mod a_plane_holding_a_conic_tangent_at_a_vertex;
 mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
+mod a_rigid_turn_keeps_a_slivers_volume;
 #[path = "a_ring_on_a_cone_face.rs"]
 mod a_ring_on_a_cone_face;
 #[path = "a_ring_on_a_sphere_face.rs"]
@@ -106,6 +108,8 @@ mod a_thin_cap_keeps_its_digits;
 mod a_tube_ending_on_a_ball;
 #[path = "a_vertex_on_a_grazing_plane.rs"]
 mod a_vertex_on_a_grazing_plane;
+#[path = "a_wall_far_from_its_datum.rs"]
+mod a_wall_far_from_its_datum;
 #[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
 mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "an_annular_tube_through_a_plate.rs"]
