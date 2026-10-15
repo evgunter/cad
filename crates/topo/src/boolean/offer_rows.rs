@@ -2225,7 +2225,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Join
         | BooleanErrorKind::VolumeUnmeasured
         | BooleanErrorKind::GraftRecertify
-        | BooleanErrorKind::Pieces => Vec::new(),
+        | BooleanErrorKind::Pieces
+        | BooleanErrorKind::Revert => Vec::new(),
     }
 }
 
@@ -2429,6 +2430,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "carrier_cross.rs",
+        "clustered",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
         "carrier_touch.rs",
         "ball_off_face",
         "BooleanDecision::Containment",
@@ -2522,6 +2529,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PierceOnFace",
         1,
     ),
+    ("mod.rs", "decision_words", "BooleanDecision::LineWedges", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnEdge", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
@@ -2576,6 +2584,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
+    ("ops.rs", "line_edges", "BooleanDecision::LineEdges", 1),
+    (
+        "ops.rs",
+        "reverted_lines_disjoint",
+        "BooleanDecision::LineWedges",
+        1,
+    ),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
     ("ops.rs", "binding", "BooleanDecision::ShellRole", 2),
     ("ops.rs", "finding_arm", "BooleanDecision::ShellRole", 1),
@@ -2675,6 +2690,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::WallRoots",
         1,
     ),
+    ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
     (
         "reduce.rs",
         "split_other_at_point",
@@ -2784,15 +2800,16 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "vtxfac.rs",
-        "faces_holding_pierce",
+        "held_reads",
         "BooleanDecision::PierceCurvature",
         1,
     ),
-    ("vtxfac.rs", "faces_holding_pierce", "Coincide::Sectors", 1),
+    ("vtxfac.rs", "held_reads", "Coincide::Sectors", 1),
+    ("vtxfac.rs", "held_reads", "Coincide::VertexOnFace", 1),
     (
         "vtxfac.rs",
         "faces_holding_pierce",
-        "Coincide::VertexOnFace",
+        "BooleanDecision::VertexOnVertex",
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),

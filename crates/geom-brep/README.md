@@ -715,14 +715,10 @@ only when both move one reading, as a residual and its span sag do. Tier 3 has t
 definitely-tangent edge carries a recorded `ContactMark` (`Tangent` when
 jet-determinate, `SmoothUnderdetermined` when the surfaces
 under-determine the locus, e.g. a G2 sketch join), and the must-carry
-rule fires only on `ContactMark::Tangent`, refusing a declared locus or
-an `OnPair` there `TangentNotIntrinsic`. Read at an ε finer than the
-body was built at — every body a process holds was built at the run's
-ε, so only a re-read at a finer band is — a derived `OnPair` escalates
-instead (`PairTangencyDetermined`, with the sagitta it read; the
-transverse arm's twin is `PairCornerDetermined`): a zero-side reading
-turns definite as ε tightens, and the escalation is the finer band's
-question, not a defect. An edge whose stations read definitely
+rule fires only on `ContactMark::Tangent`, refusing a conventional
+description there (`OnPair`, or a `Chart` that is not a wrap, declared
+or derived) `TangentNotIntrinsic`. Tier 3 reads a body at the ε it was
+built at, the run's. An edge whose stations read definitely
 transverse at one and definitely smooth at its neighbour brackets an
 unsampled in-band point and is refused (`MixedDihedral`, naming the two
 stations); `must_carry_over_edge` answers it `MustCarryVerdict::Mixed`,

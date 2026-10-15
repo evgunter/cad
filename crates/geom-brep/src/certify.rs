@@ -1785,9 +1785,7 @@ impl<T: Real> EdgeCurve<T> {
     }
 
     /// The **authority record** (U2 Q3): whether a modeler DECLARED
-    /// this locus, and with what sketch source. The datum tier 3's
-    /// prefer-intrinsic rules read instead of `MappedCurve`'s
-    /// negative space.
+    /// this locus, and with what sketch source.
     pub fn authority(&self) -> EdgeAuthority<T> {
         self.authority
     }
@@ -4212,13 +4210,10 @@ mod tests {
         ));
     }
 
-    /// **The authority record** (U2 Q3): the datum tier 3's
-    /// prefer-intrinsic rules read instead of `MappedCurve`'s negative
-    /// space. A declared locus answers `true` and carries its source;
-    /// a derived one answers `false` — which is exactly the verdict
-    /// `TransverseNotIntrinsic` needs and the only one it needs.
+    /// **The authority record** (U2 Q3): a declared locus answers
+    /// `true` and carries its source; a derived one answers `false`.
     #[test]
-    fn the_authority_record_replaces_the_negative_space() {
+    fn the_authority_record_says_who_declared_the_locus() {
         let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
         let (_, empty) = table(vec![]);
         let declared = EdgeCurve::certify(line_spec(a, b), a, b, &empty, band())

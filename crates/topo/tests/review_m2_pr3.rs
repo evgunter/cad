@@ -214,18 +214,16 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     assert_eq!(body.surfaces().count(), 5);
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(validate_closed(&body), Ok(()));
-    // At rest the un-upgraded body names all nine chords, once by each
-    // of the two rules they break, and nothing else.
-    //
-    // **Re-expressed at PCURVE P-1b, not renumbered.** Prefer-intrinsic
-    // (D2) was the only at-rest rule a conventional chord broke when
-    // this row was written; U2's transience fence is the second, and
-    // it fires here because the prism is built through the Euler-op
-    // door, which describes chords before any face surface exists. The
-    // helper asserts the bijection — one report per rule per edge, in
-    // arena order, nothing else — rather than swapping 9 for 18.
+    // At rest the un-upgraded body names all nine chords, once each by
+    // the transience fence, and nothing else: the prism is built
+    // through the Euler-op door, which describes chords before any
+    // face surface exists.
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
-    common::assert_every_chord_named_by_both_rules(&body, &errs);
+    common::assert_every_chord_named_by_the_fence(&body, &errs);
+    // Stated conventionally instead, all nine read a corner: the
+    // dihedral classification the scaffolds hide.
+    let (paired, want) = common::every_chord_stated_as_its_pair(&body, Tol::witness());
+    assert_eq!(validate_geometric(&paired, Tol::witness()), Err(want));
     // The prefer-intrinsic upgrade: all nine upgrade via set_edge_curve.
     common::describe_as_intersections(&mut body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
@@ -731,24 +729,18 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
     };
     body.set_edge_curve(edge, spec, Tol::witness()).unwrap();
     // The arc's apex is 0.5 m off the front face's plane (y = 0): tier
-    // 3 reports exactly that face-boundary breach — plus the
-    // prefer-intrinsic report for the same edge (the arc is a
-    // definitely-transverse edge carrying a MappedCurve description,
-    // which the M2 PR 4 enforcement names first in the shared edge
-    // sweep) — and nothing else (the bottom face's plane contains the
-    // whole arc).
+    // 3 reports exactly that face-boundary breach, and nothing else
+    // (the bottom face's plane contains the whole arc).
     let front = t.mefs[1].face;
     assert_eq!(
         validate_geometric(&body, Tol::witness()),
         Err(vec![
             // The spec above describes this arc through the
-            // SCAFFOLDING door on a body already at rest, so U2's
-            // transience fence names it too (PCURVE P-1b). It is the
-            // same one edge, reported by all three at-rest rules it
-            // breaks — the "and nothing else" the row is about is
-            // about OTHER edges and OTHER faces, and still holds.
+            // SCAFFOLDING door on a body already at rest, so the
+            // transience fence names it too: the same one edge — the
+            // "and nothing else" the row is about is about OTHER edges
+            // and OTHER faces.
             ValidationError::ScaffoldAtRest { edge },
-            ValidationError::TransverseNotIntrinsic { edge },
             ValidationError::PlanarBoundaryResidual { face: front, edge },
         ]),
         "the planar-boundary pass must name the bulged-off face"
@@ -815,10 +807,9 @@ fn fixed_aliased_interval_refused_at_public_setter() {
     // The honest half-circle interval attaches through the gate. (Its
     // apex genuinely bulges off the front face's plane, so tier 3's
     // planar-boundary pass — the S3 fix, previous test — reports that
-    // geometric fact, and the M2 PR 4 prefer-intrinsic enforcement
-    // reports the transverse arc's conventional description; what
-    // matters here is that no certification/winding error remains: the
-    // S1 gate's job is the winding.)
+    // geometric fact; what matters here is that no
+    // certification/winding error remains: the S1 gate's job is the
+    // winding.)
     body.set_edge_curve(edge, mk(PI), Tol::witness()).unwrap();
     assert_eq!(
         validate_geometric(&body, Tol::witness()),
@@ -826,12 +817,8 @@ fn fixed_aliased_interval_refused_at_public_setter() {
             // `mk` describes the arc through the SCAFFOLDING door
             // (`EdgeDescriptionSpec::Scaffold`, above) on a body whose
             // faces already have their planes — so the transience
-            // fence names it, and this row is where it came from.
-            // Added at PCURVE P-1b as a THIRD at-rest report on the
-            // one attacked edge, which is what the message below has
-            // always claimed the list is.
+            // fence names it.
             ValidationError::ScaffoldAtRest { edge },
-            ValidationError::TransverseNotIntrinsic { edge },
             ValidationError::PlanarBoundaryResidual {
                 face: t.mefs[1].face,
                 edge,
@@ -914,12 +901,12 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
     // true right angle. The wedge now classifies definitely Transverse
     // through the honest carrier-diameter arm (no vacuous Smooth, no
     // sliver report), and the containment breach is reported by name.
-    // With the M2 PR 4 prefer-intrinsic enforcement, the transverse
-    // classification ALSO names every one of these edges for its
-    // conventional description (all three are definitely-transverse
-    // MappedCurve chords/circles by construction here — the two A–B
-    // chords sit on the z0/y0 corner, the self-loop on its right-angle
-    // wedge), in edge-arena order, before the boundary report.
+    // The prefer-intrinsic rule shows the transverse classification:
+    // each of these edges is restated below as an image in the z0
+    // chart, a conventional form, on a definitely-transverse edge (the
+    // two A–B chords on the z0/y0 corner, the self-loop on its
+    // right-angle wedge), named in edge-arena order before the
+    // boundary report.
     body.set_face_surface(
         circ.face,
         FaceSurface::New {
@@ -928,20 +915,24 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
         },
     )
     .unwrap();
+    // The Euler-op door minted the chords as scaffolds, before any of
+    // these planes existed; each is restated as an image in the z0
+    // chart, so the fence is quiet and the dihedral reads through
+    // prefer-intrinsic.
+    let z0_key = body.get_face(seed.face).unwrap().surface;
+    for edge in [seg.edge, split.edge, circ.edge] {
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap()
+            .clone();
+        body.set_edge_curve(edge, curve.restated_in_chart(z0_key), Tol::witness())
+            .unwrap();
+    }
     assert_eq!(validate_closed(&body), Ok(()));
     assert_eq!(
         validate_geometric(&body, Tol::witness()),
         Err(vec![
-            // All three chords were minted through the Euler-op door
-            // — before any of these planes existed — and this row
-            // deliberately never restates them, because the
-            // conventional description is half of what it is testing.
-            // At rest that breaks U2's transience fence as well as
-            // prefer-intrinsic, once per edge each, in edge-arena
-            // order and ahead of the boundary report (PCURVE P-1b).
-            ValidationError::ScaffoldAtRest { edge: seg.edge },
-            ValidationError::ScaffoldAtRest { edge: split.edge },
-            ValidationError::ScaffoldAtRest { edge: circ.edge },
             ValidationError::TransverseNotIntrinsic { edge: seg.edge },
             ValidationError::TransverseNotIntrinsic { edge: split.edge },
             ValidationError::TransverseNotIntrinsic { edge: circ.edge },
@@ -1120,8 +1111,8 @@ mod interval_lane {
     /// squares, the FULL mini-extrude e2e now runs at `Interval`:
     /// non-dyadic rims, Newell side planes, the seed-cap setter, the
     /// prefer-intrinsic upgrade of all nine edges, and tiers 1–3 clean
-    /// after the upgrade (the M2 PR 4 enforcement names the nine
-    /// pre-upgrade conventional descriptions at rest) — Q1's replay
+    /// after the upgrade (the transience fence names the nine
+    /// pre-upgrade scaffolds at rest) — Q1's replay
     /// lane works for real (non-dyadic) geometry, which is exactly
     /// what PR 4's extrude and PR 5's revolve need.
     #[test]
@@ -1132,11 +1123,13 @@ mod interval_lane {
         assert_eq!(body.faces().count(), 5);
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(validate_closed(&body), Ok(()));
-        // At rest the interval lane names all nine chords, once by each
-        // of the two rules they break, and nothing else — the same
-        // bijection its f64 twin asserts, at the interval scalar.
+        // At rest the interval lane names all nine chords, once each by
+        // the fence, and nothing else — as its f64 twin, at the interval
+        // scalar.
         let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
-        common::assert_every_chord_named_by_both_rules(&body, &errs);
+        common::assert_every_chord_named_by_the_fence(&body, &errs);
+        let (paired, want) = common::every_chord_stated_as_its_pair(&body, Tol::witness());
+        assert_eq!(validate_geometric(&paired, Tol::witness()), Err(want));
         // The prefer-intrinsic upgrade at the interval scalar.
         common::describe_as_intersections(&mut body, geom_core::Tol::witness());
         assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));

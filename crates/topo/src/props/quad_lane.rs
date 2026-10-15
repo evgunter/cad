@@ -1725,7 +1725,7 @@ mod tests {
                 ("a 2 m sliver box 1e-4 wide", sliver_box(1e-4, tol), None),
                 (
                     "a 2 m sliver box 1e-4 wide, inside out",
-                    sliver_box(1e-4, tol).revert(),
+                    sliver_box(1e-4, tol).revert().unwrap(),
                     None,
                 ),
             ];

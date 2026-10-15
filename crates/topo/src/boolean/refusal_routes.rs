@@ -315,6 +315,30 @@ pub enum BooleanDecision {
     /// positive margin, the conventional description on zero). Asked of
     /// the result, after every declaration was spent, so none is read.
     SeamJet,
+    /// Whether two straight edges of the solid ∖ subtracts lie on one
+    /// line along a length (`census::collinear_overlaps`, read of the
+    /// edges whose pieces the result keeps): the turn between them, the
+    /// gap between their lines, and the order and overlap of their ends
+    /// along it. Every definite verdict passes the reading, on sets that
+    /// differ by rung, so the lever alone is named; and it names only the
+    /// move that builds, the edges clearly apart, since two edges clearly
+    /// on one line go on to the result's wedges, which refuse where ∖
+    /// reversed them unjoined ([`crate::RevertError`]).
+    LineEdges,
+    /// Whether the material the result's edges along one line bound
+    /// overlaps there (`census::line_wedges`), asked where ∖ reversed a
+    /// line two edges of the subtracted solid lie on: each edge's face
+    /// sheets and an interior direction, and whether a sheet or interior
+    /// direction of one lies strictly inside another. The faces meeting
+    /// on the line are the operands' faces, which the result carries
+    /// exactly, so the reading is of the input and moving the geometry
+    /// reaches it; its rungs pass on different sets, so the lever alone
+    /// is named. It names only the move that builds, the faces clearly
+    /// parting, since wedges that clearly overlap refuse
+    /// ([`crate::RevertError::WedgesOverlap`]). No fixture is known to
+    /// reach it: every in-band pose tried stops upstream, as it does on
+    /// the code before this reading.
+    LineWedges,
     /// Whether an edge of the result lies on both faces it bounds: its
     /// line chord's residual against one of the two faces' surfaces, at
     /// the attachment gate that certifies its description
@@ -855,6 +879,14 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
     stored: StoredDefinite::Lever,
     no_size: None,
 };
+
+/// [`BooleanDecision::LineEdges`]' lever.
+const LINE_EDGES_LEVER: &str =
+    "move the geometry so the subtracted solid's straight edges clearly stand apart";
+
+/// [`BooleanDecision::LineWedges`]' lever.
+const LINE_WEDGES_LEVER: &str = "move the geometry so the faces meeting along that line clearly \
+                                 part there";
 
 /// Whether the faces at a seam edge cross or touch tangentially
 /// ([`BooleanDecision::SeamWedge`]): the sine of their angle over the
@@ -1458,6 +1490,12 @@ impl BooleanDecision {
                 "whether the two faces touching along a seam edge curve apart there or share \
                  their curvature"
             }
+            Self::LineEdges => {
+                "whether two straight edges of the subtracted solid lie on one line along a length"
+            }
+            Self::LineWedges => {
+                "whether the material that the result's edges along one line bound overlaps there"
+            }
             Self::EdgeOnFaces => {
                 crate::merge_faces::edge_on_faces_subject!("an edge of the result")
             }
@@ -1656,6 +1694,8 @@ impl BooleanDecision {
             Self::PartnerFaces => Ending::Sized(PARTNER_FACES),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
+            Self::LineEdges => Ending::Lever(LINE_EDGES_LEVER),
+            Self::LineWedges => Ending::Lever(LINE_WEDGES_LEVER),
             Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
             Self::ShellRole { .. } => Ending::Sized(crate::props::AIMED_PAIR),
             Self::Sphere(question) => question.ending(),
@@ -2003,6 +2043,8 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::PartnerFaces => vec![BooleanDecision::PartnerFaces],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
+                BooleanDecisionKind::LineEdges => vec![BooleanDecision::LineEdges],
+                BooleanDecisionKind::LineWedges => vec![BooleanDecision::LineWedges],
                 BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces],
                 BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole {
                     near: crate::entity::FaceKey::default(),
@@ -2370,6 +2412,20 @@ pub(in crate::boolean) mod tests {
                     "Recourse: move the geometry so the faces touching along that seam either \
                      clearly curve apart there or clearly share their curvature",
                     SizedPass::NonNegative,
+                ),
+            ),
+            BooleanDecision::LineEdges => (
+                "whether two straight edges of the subtracted solid lie on one line along a length",
+                Ending::Lever(
+                    "Recourse: move the geometry so the subtracted solid's straight edges \
+                     clearly stand apart",
+                ),
+            ),
+            BooleanDecision::LineWedges => (
+                "whether the material that the result's edges along one line bound overlaps there",
+                Ending::Lever(
+                    "Recourse: move the geometry so the faces meeting along that line clearly \
+                     part there",
                 ),
             ),
             BooleanDecision::EdgeOnFaces => (

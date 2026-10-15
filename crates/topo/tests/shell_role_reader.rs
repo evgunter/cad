@@ -207,7 +207,7 @@ fn a_lone_slab_is_outer_and_inside_out_refuses_at_rest() {
             [ShellRole::Outer],
             "{m}ε: a lone slab"
         );
-        let inverted = body.revert();
+        let inverted = body.revert().unwrap();
         let solid = inverted.solids().next().expect("one solid").0;
         assert_eq!(
             AtRestBody::validate(inverted, tol).map(|_| ()),
@@ -237,7 +237,7 @@ fn a_slab_in_the_plane_x_equals_y_reads_its_role() {
             move |x, y, z| Point3::new(0.2 + r * x + r * t * z, 0.2 + r * x - r * t * z, y),
             tol,
         );
-        let inverted = raw.revert();
+        let inverted = raw.revert().unwrap();
         let solid = inverted.solids().next().expect("one solid").0;
         assert_eq!(
             AtRestBody::validate(inverted, tol).map(|_| ()),
@@ -307,7 +307,7 @@ fn turned_needle(w: f64, tol: Tol) -> Body<f64> {
 /// `raw` at rest: it validates, or, inside out, refuses `NegativeVolume`
 /// alone.
 fn reads_its_orientation(what: &str, raw: Body<f64>, inverted: bool, tol: Tol) {
-    let raw = if inverted { raw.revert() } else { raw };
+    let raw = if inverted { raw.revert().unwrap() } else { raw };
     let solid = raw.solids().next().expect("one solid").0;
     match (AtRestBody::validate(raw, tol), inverted) {
         (Ok(_), false) => {}

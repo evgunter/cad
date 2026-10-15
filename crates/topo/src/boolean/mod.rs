@@ -254,6 +254,18 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
             Coincide::Sectors.subject()
         }
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
+        // The census's edge-edge reading, which ∖ takes of the operand it
+        // reverts (`census::collinear_overlaps`).
+        "pm_census_ee_parallel" => "whether two straight edges of one solid are parallel",
+        "pm_census_ee_line_gap" => "whether two straight edges of one solid lie on one line",
+        "pm_census_span_order" => "the order of two points along a straight edge",
+        "pm_census_ee_overlap" => "whether two edges on one line overlap along a length",
+        // The line's wedges ∖ reads on its result (`census::line_wedges`),
+        // tier 3's pinch-corner reading under names of its own.
+        crate::census::LINE_WEDGE_AFTER_LEAVING
+        | crate::census::LINE_WEDGE_BEFORE_ARRIVING
+        | crate::census::LINE_WEDGE_TURN
+        | crate::census::LINE_WEDGE_STRAIGHT => BooleanDecision::LineWedges.subject(),
         "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
@@ -285,7 +297,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "split_edge_param_interior" | "split_conic_crossing_root" | "bool_wall_root_in_span" => {
             CrossingDecision::OnEdge.subject()
         }
-        "split_conic_root_order" => CrossingDecision::Order.subject(),
+        "split_conic_root_order" | "bool_carrier_cross_cluster_spread" => {
+            CrossingDecision::Order.subject()
+        }
         "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
         "bool_carrier_cross_in_span"
         | "bool_carrier_cross_transverse"
@@ -2756,7 +2770,8 @@ pub enum BooleanError {
         /// Whether the holding face's trim placed the point inside it:
         /// `false` where it could not read its trim there; `true` where
         /// it did, in a pose no row reaches: both faces curved, a spline
-        /// pierced face, or a held face with no normal at the point.
+        /// pierced face, a held face with no normal at the point, or two
+        /// pierces of the operand holding one point in the face.
         placed: bool,
     },
     /// A boolean's input ([`BooleanInputs`]) references an entity that
@@ -2843,7 +2858,10 @@ pub enum BooleanError {
     /// face, so a later pass would read an orbit an earlier one wrote
     /// (`vtxfac::pierced_and_paired`, `vtxfac::partner_side`). A partner
     /// along the face where its side is not read is
-    /// [`BooleanError::PartnerAlongFace`].
+    /// [`BooleanError::PartnerAlongFace`]. Neither piece of the other
+    /// solid touches itself there alone, so the operation applied to
+    /// each piece, with the results then combined, meets one read at the
+    /// vertex.
     VertexReadTwice {
         /// The operand whose vertex is read twice.
         operand: Operand,
@@ -3479,6 +3497,20 @@ pub enum BooleanError {
     /// piece, and the result is not handed back under a guessed
     /// grouping.
     Pieces(crate::pieces::PieceSortError),
+    /// ∖ reverts an operand's kept part, two of whose edges lie on one
+    /// line, and the complement pairs the faces meeting there
+    /// differently: the result's edges on that line would bound
+    /// overlapping material ([`crate::census::line_wedges`]), or nothing
+    /// joins the reverted part to re-pair them. The re-pairing is not
+    /// built.
+    Revert {
+        /// The operand reverted.
+        operand: Operand,
+        /// The refusal: two edges, in the operand's own keys where the
+        /// line is read on the operand and in the result's where its
+        /// wedges are read on the result, and where the line runs.
+        source: crate::revert::RevertError,
+    },
 }
 
 /// Which arm of [`BooleanError`] refused — the discriminant alone,
@@ -3661,6 +3693,8 @@ pub enum BooleanErrorKind {
     GraftRecertify,
     /// [`BooleanError::Pieces`].
     Pieces,
+    /// [`BooleanError::Revert`].
+    Revert,
 }
 
 /// Which of the volume backstop's three bodies a refusal is about.
@@ -3871,6 +3905,7 @@ impl BooleanError {
             Self::UnrepresentableResult => BooleanErrorKind::UnrepresentableResult,
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
             Self::Pieces(_) => BooleanErrorKind::Pieces,
+            Self::Revert { .. } => BooleanErrorKind::Revert,
         }
     }
 }
@@ -4413,7 +4448,8 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "a corner of the {} solid lands where the other solid touches itself \
                  ({}), and the Boolean cannot yet classify one corner against both. \
-                 There is no way through this in the kernel yet",
+                 Recourse: apply the operation to each piece of the other solid that \
+                 touches there, then combine the results",
                 operand_word(*operand),
                 match reads[1] {
                     SectorRead::Pierce(_) => "two of its faces meet there",
@@ -4682,6 +4718,13 @@ impl core::fmt::Display for BooleanError {
                 )
             }
             Self::Pieces(e) => write!(f, "the result could not be sorted into solids: {e}"),
+            Self::Revert { operand, source } => {
+                let operand = operand_word(*operand);
+                write!(
+                    f,
+                    "the subtraction reverses the {operand} solid's kept part, and {source}"
+                )
+            }
         }
     }
 }
@@ -5265,7 +5308,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             Operand::A => (&mut a, &b),
             Operand::B => (&mut b, &a),
         };
-        let mut held = Vec::new();
         // Each curved face's box, read once: a pierce point is placed in
         // a curved face only where its box holds the point.
         let mut curved_boxes = std::collections::BTreeMap::new();
@@ -5284,18 +5326,18 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             let point = bvh::Aabb::from_points([p]).unwrap_or_else(bvh::Aabb::poison);
             curved_boxes.get(&face).is_none_or(|b| b.overlaps(&point))
         };
-        for (_, plan) in &minted {
-            if let Some(plan) = plan {
-                held.extend(vtxfac::faces_holding_pierce(
-                    piercing_body,
-                    pierced_body,
-                    &box_holds,
-                    plan,
-                    band,
-                    tol,
-                )?);
-            }
-        }
+        let plans: Vec<_> = minted
+            .iter()
+            .filter_map(|(_, plan)| plan.as_ref())
+            .collect();
+        let held = vtxfac::faces_holding_pierce(
+            piercing_body,
+            pierced_body,
+            &box_holds,
+            &plans,
+            band,
+            tol,
+        )?;
         let held_on: std::collections::BTreeMap<_, _> =
             held.iter().map(|h| (h.plan.contact.vertex, h.on)).collect();
         minted.extend(held.into_iter().map(|h| (vec![h.strut], Some(h.plan))));
@@ -8050,6 +8092,14 @@ mod tests {
                 which: "vol(A ∖ B) ≤ vol(A)",
             },
             BooleanError::UnrepresentableResult,
+            BooleanError::Revert {
+                operand: Operand::B,
+                source: crate::revert::RevertError::CoincidentEdges {
+                    edges: [edge, edge],
+                    from: "(0.0, 1.0, 2.0)".to_owned(),
+                    to: "(3.0, 4.0, 5.0)".to_owned(),
+                },
+            },
         ]
     }
 
@@ -8157,6 +8207,7 @@ mod tests {
                 BooleanErrorKind::UnrepresentableResult => "UnrepresentableResult",
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
                 BooleanErrorKind::Pieces => "Pieces",
+                BooleanErrorKind::Revert => "Revert",
             }
         }
         /// The variant name `Debug` opens with.

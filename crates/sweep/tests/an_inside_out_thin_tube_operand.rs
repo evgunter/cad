@@ -30,7 +30,7 @@ fn tube(r: f64, t: f64) -> Body<f64> {
 fn an_inside_out_thin_tube_refuses_at_rest() {
     let t = 20.0 * tol().eps();
     for r in [0.5, 1.0, 2.0] {
-        let rev = tube(r, t).revert();
+        let rev = tube(r, t).revert().unwrap();
         let solid = rev.solids().next().expect("one solid").0;
         assert_eq!(
             AtRestBody::validate(rev, tol()).map(|_| ()),

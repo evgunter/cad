@@ -515,7 +515,12 @@ BOUNDS_ALLOWLIST=(
   # fallback sites that build a result and hand it to `gate`; and
   # `boolean_door`, the front door's body, split from `boolean_op_with`
   # so the door can time and meter the call around it. 17 + 4 = 21.
-  'crates/topo/src/boolean/ops.rs 21 2026-07-29 (M5 PR 8), the driver amendment'
+  # Two more carry ∖'s reading of its operand's coincident edges to
+  # `census::collinear_overlaps`, the edge-edge pass's tree over the
+  # line edges' boxes: `reverted_lines_disjoint` (the seamed result's
+  # lines) and `no_unjoined_line` (the fallbacks'). Neither reads a
+  # bracket of its own. 21 + 2 = 23.
+  'crates/topo/src/boolean/ops.rs 23 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
@@ -762,7 +767,10 @@ BOUNDS_ALLOWLIST=(
   # `census_traces`, `census_with`) and the backstop's own tree over its
   # reach boxes (`sweep_cross_solid_backstop`) — spatial-index driver
   # code over the C10 tree, under the driver amendment like `separation`.
-  'crates/topo/src/census.rs 6 2026-07-29 (M5 PR 8), the driver amendment'
+  # The seventh is `collinear_overlaps`, the edge-edge pass's candidates
+  # over the same edge boxes, lifted out for ∖'s reading of coincident
+  # edges.
+  'crates/topo/src/census.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/face_boxes.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
