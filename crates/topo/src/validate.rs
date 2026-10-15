@@ -2784,13 +2784,18 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         "its faces are not certainly crossing along it, so they do not fix where it runs";
     // The lead is this window's own.
     let why = match e {
-        // An arc rim's refusal reads as its fitted path's, the one that
-        // carries the measured bound.
-        CertifyError::OnPairArcRim { limb, bound, .. } => {
-            return classify_certify(&CertifyError::PlaneNurbs(P::Limb {
-                limb: *limb,
+        // An arc rim's refusal reads as its exact image's check where
+        // that names a limb, and as its fitted path's otherwise, as its
+        // decision does (`CertifyError::decision`).
+        CertifyError::OnPairArcRim { iso, limb, bound } => {
+            let limb = iso
+                .and_then(geom_brep::PcurveCheck::incidence_limb)
+                .unwrap_or(*limb);
+            classify_certify(&CertifyError::PlaneNurbs(P::Limb {
+                limb,
                 margin: *bound,
-            }));
+            }))
+            .0
         }
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
@@ -2913,9 +2918,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
             | CertifyError::WrapOnNonPeriodic
-            | CertifyError::PlaneNurbs(P::PcurveFit)
-            // Returned as its fitted path's above.
-            | CertifyError::OnPairArcRim { .. } => DEFECT,
+            | CertifyError::PlaneNurbs(P::PcurveFit) => DEFECT,
             CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
@@ -2940,6 +2943,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::NotSecondOrderSeparated { .. }
             | CertifyError::TubeNotSeparated { .. }
             | CertifyError::Escalated { .. }
+            | CertifyError::OnPairArcRim { .. }
             | CertifyError::PlaneNurbs(
                 P::NotTransverse { .. }
                 | P::TransversalityEscalated { .. }
@@ -6837,13 +6841,20 @@ pub(crate) fn tier3_local_checks_marked<
         //
         // Every other carrier class is re-certified the same way at
         // both doors. Re-certification re-derives; it never trusts the
-        // stored certificate.
-        match curve.recertify_via(
+        // stored certificate. It meters the chart image the body stores
+        // where the op metered it (`Body::stated_pair_image`, an
+        // `OnPair` rim's wall image), so rest and op read one image.
+        let stated = match curve.description() {
+            geom_brep::EdgeDescription::OnPair { pair } => body.stated_pair_image(edge_key, *pair),
+            _ => None,
+        };
+        match curve.recertify_via_stated(
             p_start,
             p_end,
             |k| body.surfaces.get(k).cloned(),
             band,
             nurbs_lane,
+            stated.as_ref(),
         ) {
             Ok(_) | Err(geom_brep::CertifyError::NurbsLaneNotSupplied) => {}
             Err(error) => errors.push(ValidationError::EdgeCertification {

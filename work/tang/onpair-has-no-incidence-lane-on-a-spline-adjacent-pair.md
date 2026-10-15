@@ -62,12 +62,13 @@ A door may not state the pair where the lane certifies and the chart elsewhere: 
 
 The lane now certifies a CIRCLE carrier, an arc rim, through its exact `Pcurve::IsoArc` image (`geom_brep::plane_nurbs_incidence`):
 - **The exact image's certificate** is the pcurve mint's own: `PcurveCache::certify`, `MapResidualIsoHull`. Limb 1 is its sampled residual and limb 2 its envelope.
-- **The image** is the one the body stores for the rim where one is stored (topo hands it in through `EdgeCurve::certify_via_stated`). Otherwise it is the first of `geom_brep::arc_rim_candidates` that certifies. That function is now the one derivation of an arc rim's image; `topo::pcurves` uses it too.
-- **Refusal.** Where the exact image refuses, the fitted path decides. Where both refuse, the edge refuses `CertifyError::OnPairArcRim`, carrying both causes.
+- **The image** is the one the body stores for the rim where one is stored, at the op and at rest alike (topo hands it in through `EdgeCurve::certify_via_stated`, and tier 3 through `recertify_via_stated`). Otherwise it is `geom_brep::pick_arc_rim`'s: the one of `arc_rim_candidates` that holds the carrier at the interior probe. That pick is the one selection of an arc rim's image, and `topo::pcurves`' mint calls it too.
+- **Refusal.** An exact image that escalates (at the pick or in its certificate) escalates the edge, as the mint's does: the fitted path never makes it definite. Where the exact image refuses definitely, or no candidate holds, the fitted path decides. Where both refuse, the edge refuses `CertifyError::OnPairArcRim`, carrying both causes, and it reads as the exact image's check where it names one.
 
 **Its limits** (also on the fn's doc):
 - the arc-rim certificate compares the wall's whole boundary row with the circle, so it needs a rim spanning the chart's full `u` domain (a partial rim falls to the fitted path);
-- it reads the row's weight pattern on the `f64` value channel.
+- it reads the row's weight pattern on the `f64` value channel;
+- it does not check that the edge's span lies in the image's arc (`an-iso-arc-certificate-never-checks-the-edge-span-lies-in-its-arc`, older than this lane).
 
 **The doors, measured again with (C)** (both switched to the pair; sweep + topo + step-import, default ε): **34 failures, against 68 without it.**
 - All 37 `HullValueChart` arc-rim refusals are gone.

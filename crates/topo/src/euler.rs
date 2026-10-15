@@ -3932,7 +3932,12 @@ impl<T: Decide> Body<T> {
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
-        let stated = edge.and_then(|edge| self.stated_pair_image(edge, &spec));
+        let stated = match spec.description {
+            geom_brep::EdgeDescriptionSpec::OnPair { pair, .. } => {
+                edge.and_then(|edge| self.stated_pair_image(edge, pair))
+            }
+            _ => None,
+        };
         crate::policy_lane::certify_stated(
             spec,
             p_start,
@@ -3947,19 +3952,17 @@ impl<T: Decide> Body<T> {
         })
     }
 
-    /// The image `edge` already carries on the spline side of an
-    /// `OnPair` spec's pair: the pcurve the mint stored on the half of
+    /// The image `edge` already carries on the spline side of its
+    /// `OnPair` description's `pair`: the pcurve the mint stored on the half of
     /// `edge` bounding a face of that surface, which certification then
-    /// meters as it stands rather than derive another. `None` for any
-    /// other spec, or where nothing is stored.
-    fn stated_pair_image(
+    /// meters as it stands rather than derive another — at the op and
+    /// at rest alike (tier 3's re-certification). `None` where nothing
+    /// is stored.
+    pub(crate) fn stated_pair_image(
         &self,
         edge: EdgeKey,
-        spec: &EdgeCurveSpec<T>,
+        pair: geom_brep::SurfacePair,
     ) -> Option<geom_brep::StatedImage<T>> {
-        let geom_brep::EdgeDescriptionSpec::OnPair { pair, .. } = spec.description else {
-            return None;
-        };
         let edge_data = self.edges.get(edge)?;
         [edge_data.he_plus, edge_data.he_minus]
             .into_iter()

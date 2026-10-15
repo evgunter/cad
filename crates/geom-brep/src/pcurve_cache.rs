@@ -2082,6 +2082,28 @@ impl PcurveCheck {
             | SsiLimb::Tube => None,
         }
     }
+
+    /// The plane × NURBS incidence limb this check of an exact image's
+    /// certificate restates, where `OnPair`'s lane reads its wall side
+    /// through that image ([`crate::plane_nurbs_incidence`]):
+    /// [`Self::of_fitted_limb`] read back. The map residual is
+    /// `|S(P(t)) − C(t)|` at a point, [`SsiLimb::HullValueChart`]'s
+    /// quantity, and the envelope (or one of its terms) bounds it over
+    /// the span, [`SsiLimb::HullSupChart`]'s. `None` for a check that
+    /// restates no limb.
+    #[must_use]
+    pub fn incidence_limb(self) -> Option<SsiLimb> {
+        match self {
+            Self::MapResidual => Some(SsiLimb::HullValueChart),
+            Self::Envelope | Self::EnvelopeTerm(_) => Some(SsiLimb::HullSupChart),
+            Self::ParamSpan
+            | Self::ChartWinding
+            | Self::AzimuthPeriod
+            | Self::TubePeriod
+            | Self::ChartIncidence
+            | Self::Sector => None,
+        }
+    }
 }
 
 /// **Which sup-norm a certificate's envelope bounds.** The pcurve lanes
