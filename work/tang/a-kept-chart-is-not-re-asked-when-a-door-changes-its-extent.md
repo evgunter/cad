@@ -2,10 +2,11 @@
 id: a-kept-chart-is-not-re-asked-when-a-door-changes-its-extent
 kind: issue
 title: Doors re-ask an OnPair over a changed extent or pair but keep a derived Chart, which tier 3 can now refuse
-status: open
+status: dispatched
 opened: 2026-10-15
 priority: P3
 cost: M
+branch: tang/kept-chart-re-asked
 ---
 
 
