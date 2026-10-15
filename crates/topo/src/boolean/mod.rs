@@ -2280,9 +2280,10 @@ pub enum RefusedRow {
 /// with no reader that acts on the difference.
 ///
 /// **The falsifier is a caller that acts on the case by itself**: a
-/// placement driver that nudges a part off a node when it reads
-/// `OnBoundary` but not `NearlyParallel`. Then carry it and delete this
-/// paragraph and the disposition row with it.
+/// placement driver that slides a part along its axis when it reads
+/// `OnBoundary`, which moves the seam or rim off the node, and turns it
+/// when it reads `NearlyParallel`, which no slide mends. Then carry it
+/// and delete this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeWhy {
     /// The node lies on an edge or a vertex of the operand's face: a
