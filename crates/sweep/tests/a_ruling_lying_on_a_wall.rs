@@ -729,17 +729,19 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// reading's `conic_bend` before reaching that frontier. None reads the
 /// rims' crossings away.
 ///
-/// **At a coarse ε every op refuses `CurvedPierceUnsupported` first.** A
-/// seam ruling crosses each rim's plane at `|d̂·n̂| ≈ 0.01`, so it stays
-/// within the band's escalation `e = 10ε` of the plane for `e/0.01`
-/// metres either side. It meets the rim at the ellipse's tip, whose
-/// radius of curvature is `b²/a = 10⁻⁴` m. The meeting reader's basin
-/// meter needs the sine between the two (here one) to clear the turn of
-/// the curvature over that stretch, `2·(a/b²)·2·(e/0.01 + e)`, which
-/// fails once `ε` passes about `2.5·10⁻⁸`: the reading refuses
-/// `Unsettled::Meter` (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`)
-/// and the pierce is unread. At `ε = 10⁻⁹` and `10⁻¹²` the table above
-/// holds.
+/// **At a coarse ε the one-curve poses refuse `CurvedPierceUnsupported`
+/// first.** A seam ruling crosses each rim's plane at `|d̂·n̂| ≈ 0.01`,
+/// so it stays within the band's escalation `e = 10ε` of the plane for
+/// `e/0.01` metres either side. It meets the rim at the ellipse's tip,
+/// whose radius of curvature is `b²/a = 10⁻⁴` m. The meeting reader's
+/// basin meter needs the sine between the two (here one) to clear the
+/// turn of the curvature over that stretch, `2·(a/b²)·2·(e/0.01 + e)`,
+/// which fails once `ε` passes about `2.5·10⁻⁸`: at `k` below one the
+/// reading refuses `Unsettled::Meter`
+/// (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`) and
+/// the pierce is unread. There the three ops with the first rod first
+/// at 80 escalate on the line pose's tilt (`curve_pair_pose_tilt`)
+/// before the sector reading. The rest of the table holds at every ε.
 #[test]
 fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let tol = Tol::witness();
@@ -754,7 +756,7 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
         );
         for (op, res) in six(&a, &b) {
             let label = format!("k = {k}: {op}");
-            if meter_refuses {
+            if meter_refuses && k < 1.0 {
                 assert!(
                     matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
                     "{label}: the basin meter refuses at this ε: {res:?}"
@@ -781,7 +783,12 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                     let Err(BooleanError::Escalated { diag, .. }) = &res else {
                         panic!("{label}: escalates on the sector reading: {res:?}");
                     };
-                    assert_eq!(diag.predicate, Some("conic_bend"), "{label}");
+                    let first = if meter_refuses {
+                        "curve_pair_pose_tilt"
+                    } else {
+                        "conic_bend"
+                    };
+                    assert_eq!(diag.predicate, Some(first), "{label}");
                 } else {
                     assert!(
                         matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
