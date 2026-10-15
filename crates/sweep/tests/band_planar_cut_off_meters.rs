@@ -3,9 +3,9 @@
 //! by a fixture the meter alone refuses:
 //!
 //! - the end face's SLIVER, on either side (arm (c) of the surgery's
-//!   ring carry-through pass): a hole drilled into it refuses whether
-//!   the band's cut takes the sliver away (convex) or its fill covers
-//!   it (concave);
+//!   ring carry-through pass): a hole drilled into it whose ring the
+//!   band crosses refuses whether the band's cut takes the sliver away
+//!   (convex) or its fill covers it (concave);
 //! - a support's STRIP (arm (d)): a spike of the outline whose tip
 //!   reaches into the strip between the sampled screen's points, on
 //!   the outer cycle or on a ring that carries the requested edge (which
@@ -24,6 +24,7 @@ use sweep::blend::{BlendDecision, BlendError, BlendSite, Convexity};
 use sweep::test_support::{block, pocket_die, prism, prism_on, realized, sketch_from_axes};
 use topo::{Body, ContactRecords, EntityId, validate_geometric, validate_pseudomanifold};
 
+use crate::band_one_cycle_members::{assert_taken, cup_faces};
 use crate::band_planar_cut_off::{D, Verb, carve, edge, tol};
 
 /// A round pin of radius `r` along +x from `origin`, `h` long: the
@@ -43,21 +44,23 @@ fn pin(origin: Point3<f64>, r: f64, h: f64) -> Body<f64> {
     )
 }
 
-/// **A hole inside the end face's sliver refuses on either side.** The
-/// convex control drills a blind hole into a box's end face beside the
-/// cut-off's old vertex; the concave row drills the pocketed die's end
-/// wall beside a floor edge's old vertex, where the band's fill would
-/// cover the hole's mouth. Both inputs are tier-3 valid, and each hole
-/// lies inside the sliver triangle of side `d`. The fillet's arc crosses
-/// each hole's ring, which refuses `RingClearance` at the end face as a
-/// measurement. The chamfer's chord does not: each ring lies wholly
-/// inside the triangle it cuts off, but neither hole is a through-feature
-/// between two caps — the convex one is blind, the concave one runs into
-/// the die behind the wall the fill covers — so the reach reads its
-/// wall, which meets the end face's plane, as a bound:
-/// `FaceClearance { bounded: true }`.
+/// **A hole inside the end face's sliver: the fillet's arc crosses it
+/// on either side, and the chamfer takes the convex one and refuses the
+/// concave one.** The convex row drills a blind hole `0.3` deep into a
+/// box's end face beside the cut-off's old vertex; the concave row drills
+/// the pocketed die's end wall beside a floor edge's old vertex, where
+/// the band's fill would cover the hole's mouth. Both inputs are tier-3
+/// valid, and each hole lies inside the sliver triangle of side `d`. The
+/// fillet's arc crosses each hole's ring, which refuses `RingClearance`
+/// at the end face as a measurement. The chamfer's chord does not: each
+/// ring lies wholly inside the triangle it cuts off. The convex hole is a
+/// cup inside the material the band removes, which goes with it at
+/// `ΔV = −(2·d²/2 − π·0.01²·0.3)`; the concave one runs into the die
+/// behind the wall the fill covers, which `S ∪ F` seals and the blend
+/// does not build, so the reach reads its wall, which meets the end
+/// face's plane, as a bound: `FaceClearance { bounded: true }`.
 #[test]
-fn a_hole_in_the_end_face_sliver_refuses_on_either_side() {
+fn a_hole_in_the_end_face_sliver_crosses_the_arc_and_the_chamfer_takes_the_convex_one() {
     let convex = realized(
         topo::boolean::BooleanOp::Subtract,
         &block(2.0, 1.5, 1.0, tol()),
@@ -91,6 +94,12 @@ fn a_hole_in_the_end_face_sliver_refuses_on_either_side() {
         let e = edge(body, a, b);
         for verb in [Verb::Chamfer, Verb::Fillet] {
             match (verb, verb.run(body, &[e])) {
+                (Verb::Chamfer, Ok(_)) if convexity == Convexity::Convex => {
+                    let cups = cup_faces(body, (0.03, 0.97), 0.01, (0.0, 0.3));
+                    assert_eq!(cups.len(), 3, "{what}: the hole's two half-walls and floor");
+                    let dv = -(D * D - core::f64::consts::PI * 0.01 * 0.01 * 0.3);
+                    assert_taken(verb, body, &[e], D, (&cups, 1, 0), (dv, 1.0), what);
+                }
                 (
                     Verb::Chamfer,
                     Err(BlendError::FaceClearance {

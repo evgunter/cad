@@ -1993,6 +1993,23 @@ pub(crate) trait SegRewrite {
     fn read(&mut self, r: VarId) -> Result<VarId, Self::Error> {
         Ok(r)
     }
+
+    /// A name `was` whose rank the rewrite cannot re-read against the
+    /// line it now lies on (`names::canonical::rewritten`): `Ok` carries
+    /// it exactly as the segment rewrite left it, nothing reordered and
+    /// nothing re-ranked.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own, where it will not carry such a name.
+    fn unrankable(
+        &mut self,
+        was: &StableName,
+        why: canonical::Unrankable,
+    ) -> Result<(), Self::Error> {
+        let _ = (was, why);
+        Ok(())
+    }
 }
 
 /// What a rewrite does with a name a segment carries.
@@ -2323,7 +2340,8 @@ impl StableName {
     /// come out swapped — in this name, or in a name it embeds — reverses
     /// the ranks along its line, so the rule is read from the name as it
     /// was and as it is, with the images `w` gives the seam's sides
-    /// (`names::canonical::rewritten`).
+    /// (`names::canonical::rewritten`). A rank that cannot be re-read is
+    /// `w`'s to carry or refuse ([`SegRewrite::unrankable`]).
     ///
     /// A carried name `w` descends into ([`Carry::Descend`]) is
     /// rewritten the same way, and a name nests as deep as its
@@ -2364,9 +2382,16 @@ impl StableName {
         if w.listing.is_some() {
             return Ok(now);
         }
-        canonical::rewritten(self, now, &mut |n| {
+        let formed: Result<_, Stopped<'s, W::Error>> = canonical::rewritten(self, now, &mut |n| {
             Ok(w.carried(n)?.unwrap_or_else(|| n.clone()))
-        })
+        });
+        match formed? {
+            canonical::Rewritten::Canonical(name) => Ok(name),
+            canonical::Rewritten::Carried(name, why) => {
+                w.w.unrankable(self, why).map_err(Stopped::Refused)?;
+                Ok(name)
+            }
+        }
     }
 
     /// **Every authored step this name spells a piece of** — in its own

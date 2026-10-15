@@ -9,10 +9,17 @@
 //! cannot place it on the carrier or off it, definitely past the span.
 //!
 //! **On the carrier** is the point's distance from the carrier's point at
-//! that parameter, decided zero (`curve_pair_span_gap`). The parameter is
-//! the caller's foot of the point; a parameter that is not the point's
-//! foot only reads the point farther off, so it can lose a contact but
-//! never invent one. On a closed carrier (a circle, an ellipse, a spiric
+//! that parameter, decided zero (`curve_pair_span_gap`). **The parameter
+//! must be the point's foot on the carrier**, a polished closest point
+//! ([`super::foot`], or a closed form's own parameter of a point it
+//! placed on the carrier): a parameter that is not the foot reads the
+//! point farther off, so it never invents a contact, but it can decide a
+//! point within the band of the carrier off it, a wrong answer and not a
+//! lost one. An ellipse's `param_near` is not its foot: its point lies up
+//! to `(1 + a/b)·ε` from a point `ε` off the carrier. Every candidate
+//! [`super::meet`] reads holds this: each closed form places its point on
+//! one carrier at that carrier's own parameter and reads it on the other
+//! at its polished foot, and the walk polishes both. On a closed carrier (a circle, an ellipse, a spiric
 //! oval) the parameter is first read on the branch within half a turn of
 //! the span's middle.
 //!
@@ -183,7 +190,8 @@ impl<'a, T: Decide> Span<'a, T> {
     }
 
     /// **Where `q`, read at the carrier's parameter `t`, sits against the
-    /// span** (module docs).
+    /// span** (module docs). `t` is `q`'s foot on the carrier (module
+    /// docs): the caller's contract, which this reading cannot check.
     ///
     /// # Errors
     ///

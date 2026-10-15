@@ -359,13 +359,22 @@ fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T 
     (q - origin).dot(dir) / dir.dot(dir)
 }
 
-/// The carrier's parameter nearest `q`, on a line or a conic; `None` on
-/// a kind with no closed pose.
-fn foot<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> Option<T> {
+/// **The carrier's parameter nearest `q`**, the foot a point is read at:
+/// on a line in closed form, on a conic the angle of `q`'s unit
+/// coordinates polished by Gauss–Newton ([`conic_foot`]), and on a spiric
+/// oval [`Curve3::param_near`]'s angle polished the same way. `None` on a
+/// spline, which has no foot reading here. A point within the band of
+/// the carrier near its foot reads within the band at it; the unpolished
+/// angle of an ellipse does not (`(1 + a/b)·ε` for a point `ε` off).
+pub fn foot<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> Option<T> {
     match *c {
         Curve3::Line { origin, dir } => Some(line_foot((origin, dir), q)),
         Curve3::Circle { .. } | Curve3::Ellipse { .. } => Some(conic_foot(&Conic::of(c)?, q)),
-        Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Spiric { .. } => {
+            let seed = c.param_near(q, T::zero())?;
+            Some(super::polish::foot(|t| c.ders1(t), q, seed, |_| true))
+        }
+        Curve3::Nurbs(_) => None,
     }
 }
 
