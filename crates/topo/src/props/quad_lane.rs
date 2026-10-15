@@ -188,8 +188,8 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
         return about_centre(flux, area);
     }
     let surface = surface.map_scalar(Interval::from_certified);
-    if let Surface::Plane { .. } = surface {
-        return Ok((planar_face_about(&loops, centre)?, true));
+    if let Surface::Plane { normal, .. } = surface {
+        return Ok((planar_face_about(&loops, normal, centre)?, true));
     }
     let moved_loops = loops
         .iter()
@@ -357,28 +357,29 @@ fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Cu
 }
 
 /// A planar face's flux about `centre` and its area, at the interval
-/// scalar: `(anchor − centre)·A⃗`, with `A⃗` the face's vector area summed
-/// about `anchor`, the first point of its loops.
+/// scalar: its plane's signed distance from `centre` times its own
+/// signed area ([`plane_flux`]), with `A⃗` the face's vector area summed
+/// about `anchor`, the first point of its loops, and the distance taken
+/// from `anchor` along the stored plane's `normal`.
 ///
-/// It is the exact flux, about `centre`, of each loop fanned from
-/// `anchor` (a point `x` of the fan has `(x − anchor)` in its tangent
-/// plane, so `x·n` integrates to `anchor·A⃗`). The fans of neighbouring
-/// faces meet on their shared edges, but a loop closes only to the
-/// rounding of its carriers' ends, and a fan from a far anchor reads that
-/// gap at the face's length times its lever
-/// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`);
-/// a shell of line-bounded planes is read off its vertex polygons
-/// instead ([`polygon_face_about`]), which close exactly. A flux taken off the
-/// stored plane instead (`((origin − centre)·n)(n·A⃗)/(n·n)`) is not a
-/// closed surface's: a glued face whose points stand `δ` off its carrier
-/// misses `δ` times its area, which crosses the oracle on a settled
-/// in-band coincidence.
-/// `anchor` is a point of the face, so the width is the body's own size
-/// times `A⃗`'s; the product is as small as `centre` is near the face,
-/// which `rederive` arranges by taking a corner of the body's own loop
-/// points. The carrier's origin is never read.
+/// `(anchor − centre)·A⃗`, the fan's own flux, reads the same value to
+/// first order, but at the width of `A⃗`'s every component times the
+/// lever `|anchor − centre|`, the body's whole length: a long, narrow
+/// face turned off the axes rounds `A⃗`'s components at its length
+/// squared, and that width swamps a thin body's volume
+/// (`work/tally/the-corner-fan-volume-of-an-oblique-needle-cancels-the-bodys-extent-cubed.md`).
+/// Read along the plane's normal, the distance is as small as the face
+/// is near `centre` and the area is the face's own, so the width scales
+/// with the face's own flux. The value is the stored geometry's, read
+/// off its planes and its faces' polygons: where a loop's points stand
+/// off their plane the sum differs from the closed fan's by the in-plane
+/// parts the normal drops, which cancel over a closed shell to the
+/// order of those offsets times the faces' areas. The carrier's origin
+/// is never read, only its normal's direction, and not its sense:
+/// distance and area flip together.
 fn planar_face_about(
     loops: &[Vec<LoopEdge<Interval>>],
+    normal: geom_core::Vec3<Interval>,
     centre: Point3<Interval>,
 ) -> Result<FaceContribution<Interval>, PropsError> {
     let anchor = loops_anchor(loops)?;
@@ -387,23 +388,37 @@ fn planar_face_about(
         va = va + loop_vector_area(edges, anchor)?;
     }
     Ok(FaceContribution {
-        flux: (anchor - centre).dot(va),
+        flux: plane_flux(anchor - centre, va, normal),
         area: va.norm(),
     })
 }
 
+/// **A plane's flux from a point `lever` off it**: the distance along
+/// `normal` times the signed area along it, `(lever·N)(A⃗·N)/(N·N)`,
+/// which needs no unit normal and no square root, and is the same for
+/// either sense of `N`.
+fn plane_flux(
+    lever: geom_core::Vec3<Interval>,
+    va: geom_core::Vec3<Interval>,
+    normal: geom_core::Vec3<Interval>,
+) -> Interval {
+    lever.dot(normal) * va.dot(normal) / normal.dot(normal)
+}
+
 /// A planar face bounded by lines, as the polygons of its vertex points
-/// (`rings`, in traversal order): its flux about `centre` and its area,
-/// at the interval scalar, `(anchor − centre)·A⃗` with `A⃗` the rings
-/// fanned from `anchor`, the first point of the first ring.
+/// (`rings`, in traversal order) on the plane whose normal is `normal`:
+/// its flux about `centre` and its area, at the interval scalar, the
+/// plane's distance from `centre` times the rings' signed area
+/// ([`plane_flux`], as [`planar_face_about`] reads a face), with `A⃗`
+/// the rings fanned from `anchor`, the first point of the first ring.
 ///
 /// Over a shell every face of which is read this way, neighbouring
-/// faces' rings meet at the same points, so the sum is the volume of the
-/// closed polyhedron of the vertex points. A vertex point is a point
+/// faces' rings meet at the same points. A vertex point is a point
 /// interval, so each difference below is one rounding wide, at the
 /// difference's own magnitude.
 pub(super) fn polygon_face_about(
     rings: &[Vec<Point3<Interval>>],
+    normal: geom_core::Vec3<Interval>,
     centre: Point3<Interval>,
 ) -> Result<FaceContribution<Interval>, PropsError> {
     let Some(&anchor) = rings.first().and_then(|ring| ring.first()) else {
@@ -417,7 +432,7 @@ pub(super) fn polygon_face_about(
         }
     }
     Ok(FaceContribution {
-        flux: (anchor - centre).dot(va),
+        flux: plane_flux(anchor - centre, va, normal),
         area: va.norm(),
     })
 }
@@ -1568,9 +1583,35 @@ mod tests {
             a[0].mul(&b[0]).add(&a[1].mul(&b[1])).add(&a[2].mul(&b[2]))
         }
 
-        /// Twice the exact flux of `rings` about `c`, fanned from the
-        /// first point.
-        fn exact_flux2(rings: &[Vec<Point3<f64>>], c: &D3) -> Dyadic {
+        /// An exact fraction of two dyadics, its denominator positive.
+        #[derive(Clone, Debug)]
+        struct Frac {
+            num: Dyadic,
+            den: Dyadic,
+        }
+
+        impl Frac {
+            fn add(&self, o: &Self) -> Self {
+                Self {
+                    num: self.num.mul(&o.den).add(&o.num.mul(&self.den)),
+                    den: self.den.mul(&o.den),
+                }
+            }
+            /// `a ≤ self`.
+            fn above(&self, a: &Dyadic) -> bool {
+                a.mul(&self.den).le(&self.num)
+            }
+            /// `self ≤ a`.
+            fn below(&self, a: &Dyadic) -> bool {
+                self.num.le(&a.mul(&self.den))
+            }
+        }
+
+        /// Twice the exact flux of `rings` about `c` on the plane whose
+        /// normal is `n`: the distance of the first point from `c` along
+        /// `n` times the rings' signed area along it, fanned from that
+        /// point, `((a − c)·n)(2A⃗·n)/(n·n)`.
+        fn exact_flux2(rings: &[Vec<Point3<f64>>], n: &D3, c: &D3) -> Frac {
             let a = d3(rings[0][0]);
             let mut va = [0.0, 0.0, 0.0].map(Dyadic::of);
             for ring in rings {
@@ -1580,13 +1621,16 @@ mod tests {
                     va = [0, 1, 2].map(|j| va[j].add(&k[j]));
                 }
             }
-            dot(&sub(&a, c), &va)
+            Frac {
+                num: dot(&sub(&a, c), n).mul(&dot(&va, n)),
+                den: dot(n, n),
+            }
         }
 
         /// `body`'s faces as `(interval flux, exact doubled flux)` about
         /// its least vertex corner, summed, every face read as its vertex
-        /// polygons.
-        fn sums(body: &Body<f64>) -> (Interval, Dyadic) {
+        /// polygons on its plane.
+        fn sums(body: &Body<f64>) -> (Interval, Frac) {
             let lane = QuadLane::<f64>::certified();
             let points: Vec<_> = body.vertex_points().map(|(_, p)| p).collect();
             let corner = points.iter().fold(points[0], |c, p| {
@@ -1598,14 +1642,25 @@ mod tests {
                 Interval::from_f64(corner.z),
             );
             let mut flux = Interval::zero();
-            let mut exact = Dyadic::of(0.0);
+            let mut exact = Frac {
+                num: Dyadic::of(0.0),
+                den: Dyadic::of(1.0),
+            };
             for (key, _) in body.faces() {
                 let (face, surface) = resolve_face(body, key);
                 let loops = flat_loops(body, face).unwrap();
                 let rings = vertex_rings(body, surface, &loops, lane)
                     .unwrap()
                     .expect("a planar face bounded by lines");
-                let f = super::super::polygon_face_about(&rings, centre).unwrap();
+                let &geom::Surface::Plane { normal, .. } = surface else {
+                    panic!("a planar face");
+                };
+                let lifted = geom_core::Vec3::new(
+                    Interval::from_f64(normal.x),
+                    Interval::from_f64(normal.y),
+                    Interval::from_f64(normal.z),
+                );
+                let f = super::super::polygon_face_about(&rings, lifted, centre).unwrap();
                 flux = flux + f.flux;
                 let rings: Vec<Vec<Point3<f64>>> = rings
                     .iter()
@@ -1615,7 +1670,8 @@ mod tests {
                             .collect()
                     })
                     .collect();
-                exact = exact.add(&exact_flux2(&rings, &d3(corner)));
+                let n = [normal.x, normal.y, normal.z].map(Dyadic::of);
+                exact = exact.add(&exact_flux2(&rings, &n, &d3(corner)));
             }
             (flux, exact)
         }
@@ -1680,15 +1736,15 @@ mod tests {
                 if let Some(volume) = volume {
                     let six = volume.mul(&Dyadic::of(6.0));
                     assert!(
-                        exact.le(&six) && six.le(&exact),
-                        "{name}: the vertex polygons' doubled flux {exact:?} is six times the volume"
+                        exact.above(&six) && exact.below(&six),
+                        "{name}: the planes' doubled flux {exact:?} is six times the volume"
                     );
                 }
                 let two = Dyadic::of(2.0);
                 let lo = Dyadic::of(flux.lo()).mul(&two);
                 let hi = Dyadic::of(flux.hi()).mul(&two);
                 assert!(
-                    flux.is_certified() && lo.le(&exact) && exact.le(&hi),
+                    flux.is_certified() && exact.above(&lo) && exact.below(&hi),
                     "{name}: the enclosure [{:e}, {:e}] holds the exact flux {exact:?}",
                     flux.lo(),
                     flux.hi()
@@ -1759,7 +1815,15 @@ mod tests {
                         .unwrap()
                     {
                         Some(rings) => {
-                            super::super::polygon_face_about(&rings, centre)
+                            let &geom::Surface::Plane { normal, .. } = surface else {
+                                panic!("a polygon face is a plane");
+                            };
+                            let normal = geom_core::Vec3::new(
+                                Interval::from_f64(normal.x),
+                                Interval::from_f64(normal.y),
+                                Interval::from_f64(normal.z),
+                            );
+                            super::super::polygon_face_about(&rings, normal, centre)
                                 .unwrap()
                                 .flux
                         }
