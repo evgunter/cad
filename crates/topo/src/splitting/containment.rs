@@ -1364,7 +1364,7 @@ fn step_ball<T: Decide>(
 }
 
 /// The loop's vertices and its edges on their carriers, a conic's span
-/// read on `rows.conic`.
+/// read on `conic`, the only rows building the loop reads.
 ///
 /// # Errors
 ///
@@ -1375,7 +1375,7 @@ fn step_ball<T: Decide>(
 pub(crate) fn carrier_loop<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
-    rows: BoundaryRows,
+    conic: ConicRows,
     band: Band,
 ) -> Result<CarrierLoop<T>, PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
@@ -1396,7 +1396,7 @@ pub(crate) fn carrier_loop<T: Decide>(
             edges.push(LoopEdge::Chord);
             continue;
         };
-        match ConicArc::of(curve.carrier(), curve.params(), rows.conic, band) {
+        match ConicArc::of(curve.carrier(), curve.params(), conic, band) {
             // A whole-turn scaffold circle is how
             // `EdgeCurveSpec::self_loop_circle_at` certifies a NULL edge:
             // a deliberately arbitrary unit circle, which the conic row
@@ -1724,7 +1724,7 @@ pub(crate) fn point_in_loop_projected<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
-    let lp = carrier_loop(body, r#loop, WALK_ROWS, band)?;
+    let lp = carrier_loop(body, r#loop, WALK_ROWS.conic, band)?;
     if lp.edges.iter().all(|e| matches!(e, LoopEdge::Chord)) {
         return point_in_vertex_polygon(body, r#loop, normal, q, band);
     }
