@@ -761,6 +761,8 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
 /// them the sweep split it at, and which that is follows the operand
 /// order: each order must read the cluster as one point, or neither.
 ///
+/// At the default band:
+///
 /// - `1e-9°`: the cluster reads as one point; ∩ and ∪ build, alike.
 /// - `1e-8°`: two of its candidates lie `1.29e-9` apart, in band, and
 ///   both orders escalate at the crossing (`Crossing(OnEdge)`).
@@ -768,6 +770,9 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
 #[test]
 fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
     let tol = Tol::witness();
+    // Which poses build is the band's: a wider one reads the `1e-8°`
+    // cluster as one point. The orders agree at every band.
+    let default_band = tol.eps() == geom_core::tolerance::DEFAULT_EPS;
     let bore = finished(
         "the bore",
         bored(
@@ -830,11 +835,13 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
                 alike,
                 "{deg}°, {op}: (rod, bore) {rb:?}, (bore, rod) {br:?}"
             );
-            assert_eq!(
-                matches!(rb, Outcome::Built(..)),
-                builds,
-                "{deg}°, {op}: {rb:?}"
-            );
+            if default_band {
+                assert_eq!(
+                    matches!(rb, Outcome::Built(..)),
+                    builds,
+                    "{deg}°, {op}: {rb:?}"
+                );
+            }
         }
     }
 }
