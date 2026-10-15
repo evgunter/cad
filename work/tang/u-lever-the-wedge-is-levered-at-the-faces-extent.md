@@ -2,12 +2,13 @@
 id: u-lever-the-wedge-is-levered-at-the-faces-extent
 kind: unit
 title: U-lever: the wedge is levered at min(the faces' curvature radii, the farther face's extent), one home for check 4, certification and must-carry
-status: dispatched
+status: review
 opened: 2026-10-15
 priority: P1
 cost: M
 branch: tang/u-lever-face-extent
 parent: pinch-carrying-machinery-valence-4
+pr: 5204
 ---
 
 
