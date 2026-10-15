@@ -1114,3 +1114,10 @@ Signed (CLEAVE orchestrator).
 - 2026-10-15 — Dispatched two P1s:
   - `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out`: `mass_properties` returns Ok with a wrong-signed volume. Root-cause transform vs certificate.
   - `a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles`: re-measure after 5058 first.
+- 2026-10-15 — PR 5106 re-review: APPROVE-WITH-FIXES.
+  - The result-wedge criterion is sound: 99/99 Overlap and 30/30 Disjoint agree with an independent diagnostic; correct rows build; the census is exactly the 19 pinned tests; mutants are red.
+  - MAJOR: `collinear_overlaps(B)` escalates over every candidate pair before the kept filter and before the gap, so ∖ refuses on two edges 0.7 apart (an η-skew prism; main builds).
+  - MINOR: the `Undecided` arm is typed `Revert` but renders levers. Type the input's in-band reading as `Escalated` per PR 4335.
+  - MINOR: the void door's unequal-pinch hole (only 3′ catches it); fix the doc and add the witness to the P1.
+  - Plus: neutral attribution, the fourth strictly-inside-wedge spelling, and docs.
+  - Fix pass 2 sent.
