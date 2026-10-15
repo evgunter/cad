@@ -393,13 +393,16 @@ mod crossing_rows {
 
     /// **A swept span crossing a rim at a shallow angle at its own end
     /// crosses nothing inside.** The section of the unit cylinder by
-    /// `z = c + ½·cos(θ − 0.8)`, its top `δ = ½(1 − cos 0.01)` above the
+    /// `z = c + ½·cos(θ − 0.8)`, its top `δ = ½(1 − cos 0.05)` above the
     /// sheet's top rim, crosses the rim at its own parameters `±t_c`,
-    /// `t_c ≈ 0.01`, at about `0.005` rad. A span from `t_c` inward meets
+    /// `t_c ≈ 0.05`, at about `0.025` rad. A span from `t_c` inward meets
     /// the rim at its end, which the endpoint arms place. The run of its
-    /// points within the band of the rim, about `5·10⁻⁸` long, is no
-    /// crossing of its own, so the interior is clear. A span through both
-    /// crossings is crossed at one of them.
+    /// points within the band of the rim, some `10⁻⁸` long at
+    /// `ε = 10⁻⁹`, is no crossing of its own, so the interior is clear. A
+    /// span through both crossings is crossed at one of them. The angle
+    /// holds at `ε = 10⁻⁶` too, where `0.005` rad is the basin meter's
+    /// refusal (the note below), and the row is red without the run
+    /// filter at every ε.
     ///
     /// (A section tangent to the rim reads `Unread`: across planes the
     /// basin meter refuses a crossing angle of zero,
@@ -417,7 +420,7 @@ mod crossing_rows {
             tol,
         );
         let (m, a) = (0.5f64, 0.8f64);
-        let c = 1.0 + m * (1.0 - 0.01f64.cos()) - m;
+        let c = 1.0 + m * (1.0 - 0.05f64.cos()) - m;
         let k = m.hypot(1.0);
         let section = Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, c),
