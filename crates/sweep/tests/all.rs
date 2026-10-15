@@ -1163,6 +1163,8 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_closed_conic_in_the_partners_face.rs"]
+mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
 mod a_cone_with_a_tilted_seam;
 #[path = "join_lever_is_the_joined_edge.rs"]
