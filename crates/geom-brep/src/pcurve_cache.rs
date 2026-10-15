@@ -4761,18 +4761,25 @@ impl<T: Decide> Period<T> {
     /// `k` with `|gap − k·length| < length/2`, as the integer it is. It
     /// is read off the half period of room a branch has, by sign
     /// decisions against the half-period marks (`name`, metered through
-    /// `meter`), read outward from zero, never by rounding the gap. Every
-    /// mark the walk crosses is decided on the side it crosses, so the
-    /// mark it stops on is the first, from zero, that the gap does not
-    /// clear; where that mark decides Zero ([`BranchMiss::OnMark`]) the
-    /// gap is within the band's zero of it in the meter's units, and the
-    /// branches astride it are the gap's own nearest.
+    /// `meter`), read outward from zero, never by rounding the gap. The
+    /// marks either side of zero first; then, on the side the gap lies,
+    /// the marks 1, 2, 4, 8, ... periods out until one is not cleared
+    /// (decided past, away from zero), and a bisection between it and
+    /// the last cleared. A gap that clears a mark clears every mark
+    /// nearer zero (the meter grows with the gap's distance from the
+    /// mark), so the mark the walk stops on is the first, from zero, that
+    /// the gap does not clear; where that mark decides Zero
+    /// ([`BranchMiss::OnMark`]) the gap is within the band's zero of it
+    /// in the meter's units, and the branches astride it are the gap's
+    /// own nearest. Out to two periods the marks asked are the ones a
+    /// step-by-step walk asks, in its order.
     ///
-    /// No cap: each step needs a decided mark, so a finite enclosure
-    /// clears finitely many. A placed image keeps a joint's gap within
-    /// about two periods (C4), so the walk is a handful of decisions on
-    /// valid input. A gap that is not finite, or whose branch is past
-    /// `i32`, decides nothing and stops as undecided.
+    /// No cap: the walk asks O(log k) marks however far out the gap
+    /// lies, and stops only on a mark it does not clear. A placed image
+    /// keeps a joint's gap within about two periods (C4), so on valid
+    /// input it is a handful of decisions. A gap that is not finite, or
+    /// whose branch is past `i32`, decides nothing and stops as
+    /// undecided.
     ///
     /// # Errors
     ///
@@ -4798,48 +4805,75 @@ impl<T: Decide> Period<T> {
             return Err(unnamed());
         }
         let half = T::from_f64(0.5);
-        let mark = |k: i32, side: T| {
-            decide(
-                name,
-                meter(gap - (T::from_f64(f64::from(k)) + side) * self.length),
-                band,
-            )
+        // The mark `i + ½` periods up (`up`), or `i + ½` down, and
+        // whether the gap clears it: decided past it, away from zero.
+        let mark = |i: i32, up: bool| {
+            let at = T::from_f64(f64::from(i)) + half;
+            let at = if up { at } else { T::zero() - at };
+            let sign = decide(name, meter(gap - at * self.length), band);
+            let cleared = matches!(
+                (&sign, up),
+                (Ok(Sign::Positive), true) | (Ok(Sign::Negative), false)
+            );
+            (sign, cleared)
         };
-        let stop = |miss, astride| WalkStop {
-            miss,
-            astride: Some(astride),
+        // The branch across the first mark, from zero, the gap does not
+        // clear: `i` periods out where the gap is decided short of it,
+        // else the stop on it with the branches astride it.
+        let across = |i: i32, up: bool, sign: Result<Sign, Indeterminate>| {
+            let i = i64::from(i);
+            let (k, astride) = if up {
+                (i, [i, i + 1])
+            } else {
+                (-i, [-i - 1, -i])
+            };
+            let named = |k: i64| i32::try_from(k).map_err(|_| unnamed());
+            let astride = Some([named(astride[0])?, named(astride[1])?]);
+            match sign {
+                Ok(Sign::Zero) => Err(WalkStop {
+                    miss: BranchMiss::OnMark,
+                    astride,
+                }),
+                Ok(_) => named(k),
+                Err(cause) => Err(WalkStop {
+                    miss: BranchMiss::Undecided(cause),
+                    astride,
+                }),
+            }
         };
-        let mut k: i32 = 0;
-        // What is already known about the marks either side of `k`: moving
-        // up one period learns the lower mark, moving down the upper.
-        let (mut below, mut above) = (false, false);
-        loop {
-            if !above {
-                match mark(k, half).map_err(|c| stop(BranchMiss::Undecided(c), [k, k + 1]))? {
-                    Sign::Negative => {}
-                    Sign::Zero => return Err(stop(BranchMiss::OnMark, [k, k + 1])),
-                    Sign::Positive => {
-                        k = k.checked_add(1).ok_or_else(unnamed)?;
-                        (below, above) = (true, false);
-                        continue;
-                    }
-                }
+        let up = match mark(0, true) {
+            (_, true) => true,
+            (sign @ (Ok(Sign::Zero) | Err(_)), false) => return across(0, true, sign),
+            (_, false) => match mark(0, false) {
+                (_, true) => false,
+                (sign, false) => return across(0, false, sign),
+            },
+        };
+        // Mark 0 is cleared. Gallop out (marks 1, 2, 4, 8, ...) to the
+        // first the gap does not clear, then bisect between it and the
+        // last it clears: the marks it clears are those nearer zero, so
+        // the mark found is the first uncleared from zero, and the walk
+        // asks O(log k) marks however far out the gap lies.
+        let (mut cleared, mut probe) = (0, 1);
+        let mut stop = loop {
+            let (sign, past) = mark(probe, up);
+            if !past {
+                break (probe, sign);
             }
-            if !below {
-                match mark(k, T::zero() - half)
-                    .map_err(|c| stop(BranchMiss::Undecided(c), [k - 1, k]))?
-                {
-                    Sign::Positive => {}
-                    Sign::Zero => return Err(stop(BranchMiss::OnMark, [k - 1, k])),
-                    Sign::Negative => {
-                        k = k.checked_sub(1).ok_or_else(unnamed)?;
-                        (below, above) = (false, true);
-                        continue;
-                    }
-                }
+            if probe == i32::MAX {
+                return Err(unnamed());
             }
-            return Ok(k);
+            cleared = probe;
+            probe = probe.saturating_mul(2);
+        };
+        while stop.0 - cleared > 1 {
+            let mid = cleared + (stop.0 - cleared) / 2;
+            match mark(mid, up) {
+                (_, true) => cleared = mid,
+                (sign, false) => stop = (mid, sign),
+            }
         }
+        across(stop.0, up, stop.1)
     }
 }
 
@@ -4891,6 +4925,124 @@ mod period_rows {
             }) => {}
             other => panic!("the walk stops on the mark at 40.5 periods: {other:?}"),
         }
+    }
+
+    /// The step-by-step walk the gallop stands for: each mark from zero
+    /// in turn, out to the first the gap does not clear.
+    fn step_walk(gap: f64, asked: &core::cell::RefCell<Vec<f64>>) -> Result<i32, String> {
+        let tau = f64::tau();
+        let mark = |at: f64| {
+            let m = gap - at * tau;
+            asked.borrow_mut().push(m);
+            geom_core::k_stats::decide("t", Margin::of(m), band())
+        };
+        let on = |k: i32, side: f64| f64::from(k) + side;
+        let mut k = 0;
+        let (mut below, mut above) = (false, false);
+        loop {
+            if !above {
+                match mark(on(k, 0.5)) {
+                    Ok(geom_core::Sign::Negative) => {}
+                    Ok(geom_core::Sign::Positive) => {
+                        (k, below, above) = (k + 1, true, false);
+                        continue;
+                    }
+                    other => return Err(format!("{other:?} [{k}, {}]", k + 1)),
+                }
+            }
+            if !below {
+                match mark(on(k, -0.5)) {
+                    Ok(geom_core::Sign::Positive) => {}
+                    Ok(geom_core::Sign::Negative) => {
+                        (k, below, above) = (k - 1, false, true);
+                        continue;
+                    }
+                    other => return Err(format!("{other:?} [{}, {k}]", k - 1)),
+                }
+            }
+            return Ok(k);
+        }
+    }
+
+    /// **The gallop answers as the step-by-step walk does**, on branches,
+    /// on marks and in band, from 40 periods down to 40 up; out to two
+    /// periods it asks the same marks in the same order.
+    #[test]
+    fn the_gallop_answers_as_the_step_walk_does() {
+        let tau = f64::tau();
+        let band = band();
+        let mut gaps = Vec::new();
+        for k in -40..=40 {
+            for frac in [0.0, 0.2, 0.49, -0.3] {
+                gaps.push((f64::from(k) + frac) * tau);
+            }
+            let mark = (f64::from(k) + 0.5) * tau;
+            gaps.extend([
+                mark,
+                mark + 0.5 * band.zero(),
+                mark + 0.5 * (band.zero() + band.escalate()),
+            ]);
+        }
+        for gap in gaps {
+            let (walked, galloped) = (
+                core::cell::RefCell::new(Vec::new()),
+                core::cell::RefCell::new(Vec::new()),
+            );
+            let want = step_walk(gap, &walked);
+            let got = Period::new(tau)
+                .decide(
+                    "t",
+                    gap,
+                    |m| {
+                        galloped.borrow_mut().push(m);
+                        Margin::of(m)
+                    },
+                    band,
+                )
+                .map_err(|stop| {
+                    let [lo, hi] = stop.astride.expect("a finite gap stops on a mark");
+                    let sign = match stop.miss {
+                        BranchMiss::OnMark => "Ok(Zero)".to_owned(),
+                        BranchMiss::Undecided(cause) => format!("{:?}", Err::<(), _>(cause)),
+                    };
+                    format!("{sign} [{lo}, {hi}]")
+                });
+            assert_eq!(got, want, "gap {:.6} periods", gap / tau);
+            if (gap / tau).abs() <= 2.5 {
+                assert_eq!(
+                    *galloped.borrow(),
+                    *walked.borrow(),
+                    "gap {:.6} periods",
+                    gap / tau
+                );
+            }
+        }
+    }
+
+    /// **A far gap costs O(log k) marks**, and a branch past `i32`
+    /// decides nothing: a billion periods out answers in under a hundred
+    /// marks, and three billion stops undecided with no mark named.
+    #[test]
+    fn a_far_gap_costs_log_k_marks() {
+        let tau = f64::tau();
+        let asked = core::cell::Cell::new(0);
+        let meter = |m| {
+            asked.set(asked.get() + 1);
+            Margin::of(m)
+        };
+        let period = Period::new(tau);
+        assert!(matches!(
+            period.decide("t", (1e9 + 0.25) * tau, meter, band()),
+            Ok(1_000_000_000)
+        ));
+        assert!(asked.get() < 100, "{} marks", asked.get());
+        assert!(matches!(
+            period.decide("t", -3e9 * tau, Margin::of, band()),
+            Err(WalkStop {
+                miss: BranchMiss::Undecided(_),
+                astride: None
+            })
+        ));
     }
 
     /// **A gap that names no number decides nothing.** An infinite or
