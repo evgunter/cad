@@ -1,0 +1,121 @@
+//! **A rigid turn keeps a section-ellipse sliver's volume.** The unit
+//! cylinder cut by a plane `ψ` off the wall's tangent plane at azimuth
+//! `φ` leaves, on the plane's far side, a sliver about `tan ψ` deep at
+//! the top, bounded by an arc of an ellipse of semi-major axis
+//! `1/sin ψ` whose centre stands that far from the face. A rigid motion
+//! preserves volume, so every turn of the sliver validates and measures
+//! what the sliver does.
+//!
+//! The arc's vector area is where that distance enters: summed about
+//! the ellipse's centre, its chord's rounding at the centre's magnitude
+//! reaches the face's flux times the same distance, and a turn that
+//! moves the rounding off the centre's direction read these poses
+//! inside out (`NegativeVolume`) or a wrong-signed volume with no pad.
+//! The poses are the probe's
+//! (`crates/sweep/examples/turned_sliver_probe.rs`) that did, at 1e-9
+//! (`ψ` = 1e-5 and 3e-6) and at 1e-12 (`ψ` = 1e-3).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use test_utils::vacuity::Exposure;
+use topo::splitting::split;
+use topo::{AtRestBody, Body};
+
+use crate::common::oracles::volume_slack;
+
+/// The sliver's volume `∫₀¹ S(z·tan ψ) dz` by `ψ`, with `S(h) =
+/// acos(1 − h) − (1 − h)·√(2h − h²)` the unit disc's segment of depth
+/// `h`: integrated at 40 digits (mpmath) for the `f64` values of `ψ`.
+const SLIVER_VOLUME: [(f64, f64); 3] = [
+    (1e-3, 2.384_884_799_981_565_3e-5),
+    (1e-5, 2.385_136_620_610_998e-8),
+    (3e-6, 3.919_182_328_732_877e-9),
+];
+
+fn sliver_volume(psi: f64) -> f64 {
+    SLIVER_VOLUME
+        .iter()
+        .find(|(p, _)| p.to_bits() == psi.to_bits())
+        .map(|&(_, v)| v)
+        .unwrap_or_else(|| panic!("no oracle for ψ = {psi:e}"))
+}
+
+/// `(ψ, φ, L, axis, angle)`: the cutting plane through
+/// `(cos φ, sin φ, 0) + L·t`, `t` the rim's tangent there, and the turn
+/// about `axis` through `(0.3, −0.2, 0.5)`.
+const POSES: [(f64, f64, f64, [f64; 3], f64); 7] = [
+    (1e-5, 0.0, 0.0, [1.0, 0.0, 0.0], 0.7),
+    (1e-5, 0.4, 0.3, [1.0, 2.0, 3.0], 3.0),
+    (1e-5, 2.2, 0.1, [1.0, 0.0, 0.0], 1.3),
+    (3e-6, 0.4, 0.3, [1.0, 2.0, 3.0], -1.1),
+    (3e-6, 2.2, 0.1, [1.0, 0.0, 0.0], -1.1),
+    (1e-3, 0.0, 0.0, [-0.3, 0.7, 0.2], 2.2),
+    (1e-3, 0.4, 0.3, [1.0, 0.0, 0.0], 2.2),
+];
+
+#[test]
+fn a_turned_sliver_validates_and_measures_its_own_volume() {
+    let tol = Tol::witness();
+    let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
+    let cylinder = AtRestBody::validate(sweep::test_support::prism(circle, 1.0, tol), tol).unwrap();
+    let mut seen = Exposure::new("turned slivers");
+    for (psi, phi, l, axis, angle) in POSES {
+        let pose = format!("ψ {psi:e}, φ {phi}, L {l}, about {axis:?} by {angle}");
+        let (c, s) = (phi.cos(), phi.sin());
+        let normal = Vec3::new(c * psi.cos(), s * psi.cos(), psi.sin());
+        let at = Point3::new(c, s, 0.0) + Vec3::new(-s, c, 0.0) * l;
+        let plane = topo::test_support::split_plane(at, normal, tol);
+        // A refused split or an invalid side is not a wrong answer, and
+        // the floor below counts the poses that reach the turn.
+        let Ok(parts) = split(&cylinder, &plane, tol) else {
+            seen.note("split refused");
+            continue;
+        };
+        let Some(sliver) = parts.above.body() else {
+            seen.note("no sliver side");
+            continue;
+        };
+        let Ok(sliver) = AtRestBody::validate(sliver.clone(), tol) else {
+            seen.note("sliver invalid before the turn");
+            continue;
+        };
+        seen.note("turned");
+        let [x, y, z] = axis;
+        let axis = Vec3::new(x, y, z);
+        let turn =
+            Affine3::rotation_about_axis(Point3::new(0.3, -0.2, 0.5), axis / axis.norm(), angle);
+        let turned: Body<f64> =
+            topo::transform_rigid(&sliver, &geom_core::test_support::rigid(&turn, tol), tol)
+                .unwrap();
+        assert_eq!(
+            topo::validate_geometric(&turned, tol),
+            Ok(()),
+            "{pose}: the turned sliver validates"
+        );
+        let truth = sliver_volume(psi);
+        let before = topo::mass_properties(&sliver, tol).unwrap();
+        let after = topo::mass_properties(&turned, tol).unwrap();
+        let (slack_before, slack_after) =
+            (volume_slack(&before, truth), volume_slack(&after, truth));
+        assert!(
+            (after.volume - truth).abs() <= slack_after,
+            "{pose}: the turned sliver's enclosure {:e} ± {:e} misses its volume {truth:e}",
+            after.volume,
+            slack_after
+        );
+        assert!(
+            (after.volume - before.volume).abs() <= slack_after + slack_before,
+            "{pose}: the turn moved the volume from {:e} to {:e}, past both pads ({:e}, {:e})",
+            before.volume,
+            after.volume,
+            slack_before,
+            slack_after
+        );
+    }
+    seen.report();
+    seen.require(
+        "turned",
+        1,
+        "every ε builds a sliver to turn: ψ = 1e-3 is far outside each band",
+    );
+}

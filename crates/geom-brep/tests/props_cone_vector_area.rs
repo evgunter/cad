@@ -677,6 +677,13 @@ fn holes_covering_more_than_the_face_refuse_by_name() {
 /// third of the arc's length would escalate, and its mean width still
 /// clears the band. A rim turns through its stored span, so no decide
 /// reads the arc's length.
+///
+/// The area is held to what the rims' chords carry: each is a difference
+/// of points of magnitude up to 2, placed to half an ulp there, and the
+/// arc's vector area reads it at a lever of the wall's own size, about
+/// a metre, so the reading stands within `4·f64::EPSILON` m²: 4·10⁻⁵ of
+/// this wall, and as a mean displacement over its metre of length four
+/// orders inside the tightest band the matrix runs (`K·ε` = 1e-11 m).
 #[test]
 fn a_wall_one_and_a_half_bands_wide_measures() {
     let du = 1.5 * band().escalate() / ALPHA.sin();
@@ -689,7 +696,7 @@ fn a_wall_one_and_a_half_bands_wide_measures() {
         let (_, got) = measure(&[chart_loop(&verts)], true)
             .unwrap_or_else(|e| panic!("a wall {du:e} rad wide: refused {e:?}"));
         assert!(
-            (got - area).abs() <= 1e-9 * area,
+            (got - area).abs() <= 4.0 * f64::EPSILON,
             "a wall {du:e} rad wide: area {got:e} against {area:e}"
         );
     }
