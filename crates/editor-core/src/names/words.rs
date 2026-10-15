@@ -119,7 +119,7 @@ impl fmt::Display for LeafRole<'_> {
 /// **The name whose role a [`LeafRole`] says**: `name` with every
 /// carrying segment looked through ([`origin`]) and every fragment
 /// qualifier dropped. Its node is the feature the sentence says, the
-/// one that minted the entity ([`super::attribute`]'s answer, where
+/// one that minted the entity ([`super::attribute`](fn@super::attribute)'s answer, where
 /// that walk finds one).
 #[must_use]
 pub fn role_leaf(name: &StableName) -> &StableName {

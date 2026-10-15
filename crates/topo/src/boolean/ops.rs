@@ -2898,7 +2898,7 @@ pub(super) fn seam_class<T: Decide>(
         .map_err(|(reading, diag)| seam_refusal(reading, diag))
 }
 
-/// [`seam_class`]'s reading, unworded: the rung that could not decide
+/// `seam_class`'s reading, unworded: the rung that could not decide
 /// and its diagnostics.
 fn seam_reading<T: Decide>(
     surf1: &geom::Surface<T>,
@@ -2974,14 +2974,14 @@ pub(super) fn seam_must_carry<T: Decide>(
 
 /// Why a seam smooth at its witness has no description: a station
 /// undecided, with the reading that raised it and its diagnostics, or
-/// one that reads a corner ([`seam_must_carry`]).
+/// one that reads a corner (`seam_must_carry`).
 #[derive(Clone, Copy, Debug)]
 pub(super) enum SeamRefusal {
     Undecided(DihedralReading, Indeterminate),
     Mixed(Option<geom_brep::MixedStations>),
 }
 
-/// What a seam smooth at its witness stores ([`seam_must_carry`]).
+/// What a seam smooth at its witness stores (`seam_must_carry`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SeamReading {
     /// The intrinsic tangency: the surfaces determine the locus.
@@ -2990,7 +2990,7 @@ pub(super) enum SeamReading {
     Conventional,
 }
 
-/// [`seam_must_carry`]'s verdict, unworded.
+/// `seam_must_carry`'s verdict, unworded.
 fn must_carry_reading<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
@@ -5499,9 +5499,9 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
 /// The result gate where no at-rest gate ran (a dual's policy answers
 /// [`crate::AtRestOutcome::NotRunAtThisScalar`]): tiers 1 and 2, then
 /// tier 3's transience fence
-/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest))
+/// ([`ValidationError::ScaffoldAtRest`])
 /// and its check 11 in `band`
-/// ([`ValidationError::JoinableVertexAtRest`](crate::ValidationError::JoinableVertexAtRest)),
+/// ([`ValidationError::JoinableVertexAtRest`]),
 /// which read no certification arithmetic and so answer at every
 /// scalar. An edge of the result still described as a scaffold is a
 /// construction that stopped half-way, and a joinable vertex one the

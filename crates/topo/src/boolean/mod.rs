@@ -810,7 +810,7 @@ impl ReductionContacts {
 /// coincidences WITHIN that operand, keyed in its arena. The op remaps
 /// survivors into result keys (the strict drop rule discovered records
 /// take: a record whose entity was consumed drops), each citing the
-/// operand's record it is ([`Backing::Carried`]).
+/// operand's record it is ([`Backing::Carried`](crate::Backing::Carried)).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct OperandRecords {
     /// Coincident vertex pairs within the operand.
@@ -829,7 +829,7 @@ pub struct OperandRecords {
 
 /// A record of the operand's own list carried back in, and its index
 /// in that list: the record the op's result cites for it
-/// ([`Backing::Carried`]).
+/// ([`Backing::Carried`](crate::Backing::Carried)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CarriedRecord<R> {
     /// The record's cells.
@@ -5764,7 +5764,7 @@ struct Touch<T: Real> {
 /// The reduction's null edges as it records them, both operands, in
 /// insertion order, with each operand's copies: every end of a null
 /// edge other than the vertex it was minted at, which the null edge
-/// minted ([`crate::null::mev_null_run`]).
+/// minted ([`mev_null_run`](crate::Body::mev_null_run)).
 struct NullEdges<T: Real> {
     records: Vec<BoolNullEdgeRecord<T>>,
     copies: [crate::lineage::NullEdgeCopies; 2],
@@ -6870,7 +6870,7 @@ fn locus_through_both_faces<T: Decide>(
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
 /// order; an empty loop contributes its lone vertex) — the witness-
-/// extent datum of [`verify_tangent_declaration`].
+/// extent datum of `verify_tangent_declaration`.
 fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
