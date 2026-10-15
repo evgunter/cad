@@ -5502,16 +5502,18 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         classified.push((c, a_sectors, b_sectors, records, raw, sector_read));
     }
     // A vertex's partners are the other operand's: the shape of a
-    // partner's face is read on that body (a face it cannot read is
-    // taken as curved, which keeps `along_partners`' refusal).
+    // partner's face is read on that body.
     let partner_shape = |operand: Operand| {
         let body = match operand {
             Operand::A => &b,
             Operand::B => &a,
         };
-        move |face| match crate::readback::face_carrier_kind(body, face) {
-            Ok(geom::SurfaceKind::Plane) => sectors::FaceShape::Plane,
-            _ => sectors::FaceShape::Curved,
+        move |face| {
+            crate::readback::face_carrier_kind(body, face)
+                .map(sectors::FaceShape::of_kind)
+                .map_err(|_| BooleanError::ClassificationInvariant {
+                    what: "a partner's face has no carrier",
+                })
         }
     };
     let mut read = Vec::with_capacity(touches.len() + paired.len());

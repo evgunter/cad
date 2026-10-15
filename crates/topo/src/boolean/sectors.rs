@@ -169,7 +169,12 @@ pub(super) enum FaceShape {
 impl FaceShape {
     /// The shape of a face on `surface`.
     pub(super) fn of<T: geom_core::Real>(surface: &geom::Surface<T>) -> Self {
-        match surface.kind() {
+        Self::of_kind(surface.kind())
+    }
+
+    /// [`Self::of`], from the surface's kind.
+    pub(super) fn of_kind(kind: geom::SurfaceKind) -> Self {
+        match kind {
             geom::SurfaceKind::Plane => Self::Plane,
             _ => Self::Curved,
         }
@@ -2630,7 +2635,7 @@ mod tests {
                     &[],
                     &[(first, SideCode::Out)],
                     &[pair],
-                    &|_| FaceShape::Plane,
+                    &|_| Ok(FaceShape::Plane),
                     band()
                 ),
                 Err(super::super::vtxfac::TouchUndecided::Beside(Some(p))) if p == partner

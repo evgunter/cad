@@ -161,16 +161,21 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// carried; and an edge of the other operand along the ray, whose
 /// overlap with it the result's record does not carry
 /// (`work/tang/an-edge-along-a-partners-ray-through-a-touch-has-no-record.md`).
-/// Where `glued` names three points of a plane in which one operand's
-/// own pieces touch, glued face to face, their contacts there, likewise
-/// not carried, may refuse too. Returns whether 3′ held.
+/// Where `glued` names the corners, in order round it, of a rectangle in
+/// which one operand's own pieces touch, glued face to face, their own
+/// contacts there may refuse too: coincident corners, and edges
+/// overlapping along a side. Those are the operand's records, which an
+/// op called without them does not carry
+/// (`work/fuse/a-booleans-records-are-complete-only-relative-to-the-records-passed-in.md`);
+/// an edge of the other operand through the rectangle's interior is not
+/// admitted. Returns whether 3′ held.
 fn three_prime(
     what: &str,
     r: &topo::BooleanBody<f64>,
     pose: &Pose,
     along: bool,
     ray: Option<[f64; 3]>,
-    glued: Option<[[f64; 3]; 3]>,
+    glued: Option<[[f64; 3]; 4]>,
 ) -> bool {
     let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
         return true;
@@ -201,27 +206,36 @@ fn three_prime(
         ),
         _ => false,
     };
-    // In the plane through `glued`'s three points, posed, to a micron.
-    let in_glued = |v| {
-        let Some(g) = glued else { return false };
-        let [o, u, w] = g.map(|c| pose.at(c));
-        let n = (u - o).cross(w - o);
-        let q = readback::vertex_point(&r.body, v).unwrap();
-        ((q - o).dot(n) / n.norm()).abs() < 1e-6
+    // The glued rectangle's sides, posed: segment `k` runs from corner
+    // `k` to the next.
+    let sides: Vec<[Point3<f64>; 2]> = glued.map_or_else(Vec::new, |g| {
+        (0..4)
+            .map(|k| [g[k], g[(k + 1) % 4]].map(|c| pose.at(c)))
+            .collect()
+    });
+    let point = |v| readback::vertex_point(&r.body, v).unwrap();
+    // On side `k`, between its corners, to a micron.
+    let on_side = |q: Point3<f64>, k: usize| {
+        let [o, c] = sides[k];
+        let (d, l) = (c - o, q - o);
+        let s = l.dot(d) / d.dot(d);
+        (-1e-9..=1.0 + 1e-9).contains(&s) && (l - d * s).norm() < 1e-6
     };
-    let edge_in_glued = |e| {
+    let corner = |v| sides.iter().any(|&[o, _]| at(point(v)) == at(o));
+    let along_a_side = |e| {
         let edge = r.body.get_edge(e).unwrap();
         let plus = r.body.get_half_edge(edge.he_plus).unwrap();
         let next = r.body.get_half_edge(plus.next).unwrap();
-        in_glued(plus.start) && in_glued(next.start)
+        let ends = [plus.start, next.start].map(point);
+        (0..sides.len()).any(|k| ends.iter().all(|&q| on_side(q, k)))
     };
     for e in &errors {
         let ok = match e {
             ValidationError::UnrecordedContact { contact, .. } => match *contact {
                 CensusContact::VertexVertex { a, b } => {
-                    (at_meet(a) && at_meet(b)) || (in_glued(a) && in_glued(b))
+                    (at_meet(a) && at_meet(b)) || (corner(a) && at(point(a)) == at(point(b)))
                 }
-                CensusContact::EdgeEdgeOverlap { a, b } if edge_in_glued(a) && edge_in_glued(b) => {
+                CensusContact::EdgeEdgeOverlap { a, b } if along_a_side(a) && along_a_side(b) => {
                     true
                 }
                 CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex) || at_far(vertex),
@@ -386,7 +400,7 @@ fn builds_where(
     along: bool,
     ray: Option<[f64; 3]>,
     reverting: &[&str],
-    glued: Option<[[f64; 3]; 3]>,
+    glued: Option<[[f64; 3]; 4]>,
 ) -> usize {
     let mut held = 0;
     let mut v = [0.0; 6];
@@ -1136,9 +1150,14 @@ fn through_glued_faces(pose: &Pose, &(label, along, corners): &GluedPyramid) {
     );
     let [(b, r, z), (c, s, w)] = corners;
     let x = tet([along, bearing(b, r, z), bearing(c, s, w)], pose);
-    // The blocks' own contacts in their glued plane, x = 1.5, which no
-    // record carries here, may refuse 3′ too.
-    let glued = [[1.5, 1.0, 0.5], [1.5, 1.5, 0.5], [1.5, 1.0, 1.0]];
+    // The blocks' own contacts on their glued rectangle, x = 1.5, which
+    // no record carries here, may refuse 3′ too.
+    let glued = [
+        [1.5, 1.0, 0.5],
+        [1.5, 1.5, 0.5],
+        [1.5, 1.5, 1.0],
+        [1.5, 1.0, 1.0],
+    ];
     builds_where(label, &x, &blocks, pose, false, None, &[], Some(glued));
     let meet = at(pose.at(MEET));
     let far = at(pose.at([0, 1, 2].map(|k| MEET[k] + along[k])));

@@ -980,7 +980,7 @@ fn check_partners(
             std::slice::from_ref(&probe),
             &pairs,
             // Every face here is a polygon cone's, a plane.
-            &|_| super::FaceShape::Plane,
+            &|_| Ok(super::FaceShape::Plane),
             band,
         ) {
             Err(BooleanError::VertexReadTwice { .. }) if unread => {

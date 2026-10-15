@@ -284,8 +284,9 @@ fn layered<'a, T: geom_core::Real>(
 
 /// The shape of a partner's face, read on the partners' body: what
 /// [`along_partners`] needs to tell faces glued flush along an edge from
-/// faces that may be tangent there.
-pub(super) type ShapeOf<'s> = &'s dyn Fn(crate::entity::FaceKey) -> super::sectors::FaceShape;
+/// faces that may be tangent there. A face it cannot read refuses.
+pub(super) type ShapeOf<'s> =
+    &'s dyn Fn(crate::entity::FaceKey) -> Result<super::sectors::FaceShape, BooleanError>;
 
 /// Why [`touch_classes`] leaves a touching vertex's edge undecided.
 #[derive(Debug)]
@@ -602,14 +603,16 @@ fn interior<T: Decide>(
 /// them by a sliver whose boundary the edge lies on, so only `On` is
 /// decided there (D4), as the polygon-cone oracle reads any direction
 /// on a face (`sectors::cone_fuzz`). Matched plane faces bounding
-/// material on one side would overlap the partners' materials, which a
-/// solid at rest does not hold: an invariant. A curved face in a meeting
-/// may be tangent to its match rather than glued, which these
-/// first-order readings do not tell apart, and a chord in band of zero
-/// is neither apart nor flush; both refuse with
-/// [`super::BooleanDecision::PartnerFaces`]. Faces flush along the edge
-/// part by the half-planes' chord at the farthest reach of the edge and
-/// the partners' sectors.
+/// material on one side overlap the partners' materials to within the
+/// band, as a lump thinner than the band glued on a face reads; a
+/// curved face in a meeting may be tangent to its match rather than
+/// glued, which these first-order readings do not tell apart; and a
+/// chord in band of zero is neither apart nor flush. Each refuses with
+/// [`super::BooleanDecision::PartnerFaces`]. These flush readings are
+/// reached only where no half-plane is decidedly apart from every other
+/// partner's, which reads `On` first. Faces flush along the edge part by
+/// the half-planes' chord at the farthest reach of the edge and the
+/// partners' sectors.
 pub(super) fn along_partners<T: Decide>(
     edge: &BoolSector<T>,
     on: &[&PairRead<T>],
@@ -627,33 +630,31 @@ pub(super) fn along_partners<T: Decide>(
         .iter()
         .flat_map(|p| p.sectors.iter().map(BoolSector::span))
         .fold(edge.end_reach.length(), |a, b| a.max(b));
-    let (mut refused, mut one_side) = (None, false);
+    let mut refused = None;
     for &(k, t, s) in &planes {
         let mut apart = true;
         for &(_, u, r) in planes.iter().filter(|&&(j, ..)| j != k) {
             let chord = Margin::levered((t - u).norm(), reach);
-            if let Err(diag) =
-                crate::validate::decide_nonzero("bool_partner_half_plane", chord, band)
-            {
-                apart = false;
-                let glued = diag.margin.rejected_sign() == Some(Sign::Zero)
-                    && shape(s.face) == FaceShape::Plane
-                    && shape(r.face) == FaceShape::Plane;
-                if !glued {
-                    refused.get_or_insert(diag);
-                    continue;
-                }
+            let Err(diag) = crate::validate::decide_nonzero("bool_partner_half_plane", chord, band)
+            else {
+                continue;
+            };
+            apart = false;
+            let planar = shape(s.face)? == FaceShape::Plane && shape(r.face)? == FaceShape::Plane;
+            if diag.margin.rejected_sign() == Some(Sign::Zero) && planar {
                 // Each face's normal is square to the one plane both
-                // lie in, so they are opposed or alike.
+                // lie in, so they are opposed (glued) or alike.
                 let sides = Margin::of(s.normal.vec().dot(r.normal.vec()));
                 match crate::validate::decide("bool_partner_glued_side", sides, band) {
-                    Ok(Sign::Negative) => {}
-                    Ok(Sign::Positive | Sign::Zero) => one_side = true,
-                    Err(diag) => {
-                        refused.get_or_insert(diag);
+                    Ok(Sign::Negative) => continue,
+                    Ok(Sign::Positive | Sign::Zero) => {}
+                    Err(sided) => {
+                        refused.get_or_insert(sided);
+                        continue;
                     }
                 }
             }
+            refused.get_or_insert(diag);
         }
         if apart {
             return Ok(SideCode::On);
@@ -664,9 +665,6 @@ pub(super) fn along_partners<T: Decide>(
             decision: super::BooleanDecision::PartnerFaces,
             diag,
         }),
-        None if one_side => Err(invariant(
-            "partners' plane faces flush along an edge bound material on one side",
-        )),
         None if planes.is_empty() => Err(invariant(
             "an edge on two partners' boundaries lies in none of their faces",
         )),
@@ -3093,7 +3091,7 @@ mod tests {
         ];
         let band = Band::linear(Tol::witness()).unwrap();
         for (what, touch, pairs, want) in touches {
-            let got = touch_classes::<f64>(&[], &touch, &pairs, &|_| FaceShape::Plane, band)
+            let got = touch_classes::<f64>(&[], &touch, &pairs, &|_| Ok(FaceShape::Plane), band)
                 .map_err(|u| match u {
                     TouchUndecided::Beside(p) => p,
                     TouchUndecided::Along(e) => panic!("{what}: {e:?}"),
@@ -3134,7 +3132,14 @@ mod tests {
                 Err([px, pw]),
             ),
         ] {
-            let got = pair_classes(Operand::B, own, &[], &pairs, &|_| FaceShape::Plane, band);
+            let got = pair_classes(
+                Operand::B,
+                own,
+                &[],
+                &pairs,
+                &|_| Ok(FaceShape::Plane),
+                band,
+            );
             if let Err(e) = &got {
                 assert!(
                     e.to_string()
@@ -3164,9 +3169,9 @@ mod tests {
     /// on the solid's boundary, `On`. Flush, as plane faces bounding
     /// material on opposite sides, they are glued, coincident only to
     /// within the band, and the edge is `On`, at ε 1e-9 and, both turned
-    /// 3e-7 about x, at ε 1e-12; on one side, they would overlap, an
-    /// invariant; with a curved face they may be tangent, and a chord in
-    /// band of zero is neither apart nor flush: both refuse
+    /// 3e-7 about x, at ε 1e-12. On one side, they overlap to within the
+    /// band; with a curved face they may be tangent; and a chord in band
+    /// of zero is neither apart nor flush: each refuses
     /// [`super::super::BooleanDecision::PartnerFaces`]. Beside a partner on
     /// the edge's side whose cone lies in no half-space, the edge still
     /// names it to refuse on, its faces unread.
@@ -3247,7 +3252,7 @@ mod tests {
             }
         };
         let glued = face(x, 0.0, false);
-        let (plane, curved) = (|_| FaceShape::Plane, |_| FaceShape::Curved);
+        let (plane, curved) = (|_| Ok(FaceShape::Plane), |_| Ok(FaceShape::Curved));
         let classes = |partners: &[PairRead<f64>], shape: ShapeOf<'_>| {
             touch_classes(&own, &touch, partners, shape, band)
         };
@@ -3288,9 +3293,10 @@ mod tests {
         assert!(
             matches!(
                 got,
-                Err(TouchUndecided::Along(
-                    BooleanError::ClassificationInvariant { .. }
-                ))
+                Err(TouchUndecided::Along(BooleanError::Escalated {
+                    decision: super::super::BooleanDecision::PartnerFaces,
+                    ..
+                }))
             ),
             "plane faces flush along it, material on one side: {got:?}"
         );

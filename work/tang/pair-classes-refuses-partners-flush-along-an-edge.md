@@ -24,7 +24,7 @@ the edge, and it refuses `Escalated` with
 Two cases are refused alike there:
 
 - two plane faces glued flush, material on both sides, where the edge
-  is `In`;
+  is `In` (superseded: `On`, see Closed);
 - a plane face and a curved one tangent along the edge, where the
   edge is `On` at second order.
 
@@ -36,9 +36,10 @@ reaches either. The site row `partners_parting_by_the_band`
 
 Read the flush case where every matched half-plane is a plane face's,
 and the material lies on opposite sides of each match: there the
-partners' materials cover the edge's neighbourhood, so it is `In`.
-Same-side matches overlap the materials, which a body at rest does not
-hold; that is an invariant. A curved face in a match keeps the refusal,
+partners' materials cover the edge's neighbourhood, so it is `In`
+(superseded: `On`, see Closed). Same-side matches overlap the
+materials, which a body at rest does not hold; that is an invariant
+(superseded: a typed refusal, see Closed). A curved face in a match keeps the refusal,
 or reads the bend. That needs each matched sector's face shape:
 `BoolSector` carries its `face` key, so the shape is a lookup on the
 body that holds it (`FaceShape::of`), which `pair_classes` does not
@@ -67,9 +68,11 @@ cells build to the same bodies as with `In`.
 the partners' body in `boolean::mod`), and `half_planes` returns each
 half-plane with its sector. Where every half-plane meets another's at a
 decided zero, and every meeting is of two plane faces bounding material
-on opposite sides, the edge is `On`. Plane faces on one side are an
-invariant. A curved face in a meeting keeps the `PartnerFaces`
-refusal, as does a chord in band of zero.
+on opposite sides, the edge is `On`. Plane faces on one side are a
+refusal too, `Escalated(PartnerFaces)`: a lump thinner than the band
+glued on a face can make such a match, so a valid input may reach it
+(review of PR 5207). A curved face in a meeting keeps the
+`PartnerFaces` refusal, as does a chord in band of zero.
 
 **Public witness** (`a_vertex_read_by_two_sector_passes`,
 `an_edge_through_two_blocks_glued_faces_builds_in_every_op`, slow set,
@@ -83,8 +86,7 @@ plane, the naming's classes, the material and inclusion–exclusion) at
 every pose, and the union names the edge through the glued faces `On`.
 
 Unit rows (`vtxfac::tests::a_touching_edge_on_two_partners_boundaries_reads_their_faces`)
-pin the glued `On` at ε 1e-9 and, turned 3e-7, at ε 1e-12; the
-one-side invariant; the curved face's and the in-band chord's
-refusals. No public pose is known for a plane against a tangent
+pin the glued `On` at ε 1e-9 and, turned 3e-7, at ε 1e-12, and the
+one-side, curved-face and in-band-chord refusals. No public pose is known for a plane against a tangent
 curved face along an edge.
 

@@ -1328,10 +1328,12 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
     super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
 }
 
-/// **Corners flush along an edge refuse with the lever alone**: the
-/// decided zero of [`BooleanDecision::PartnerFaces`] refuses with its
-/// decided margin, as the in-band arm does, and offers no tolerance:
-/// no smaller one parts faces that lie on one half-plane.
+/// **Corners flush along an edge, one face curved, refuse with the lever
+/// alone**: a curved face resting tangent on a plane one along the edge
+/// reads flush to first order, and the decided zero of
+/// [`BooleanDecision::PartnerFaces`] refuses with its decided margin, as
+/// the in-band arm does, and offers no tolerance: no smaller one parts
+/// faces that lie on one half-plane.
 #[test]
 fn corners_flush_along_an_edge_refuse_with_the_lever_alone() {
     let err = partners_along_x(0.0).expect_err("flush corners refuse");
@@ -1353,9 +1355,10 @@ fn corners_flush_along_an_edge_refuse_with_the_lever_alone() {
 }
 
 /// An edge along x on the boundaries of two corners of one solid, each
-/// with one face leaving it: one in the plane z = 0, the other's turned
-/// `tilt` about x, so their half-planes part by `tilt` at the unit
-/// reach.
+/// with one face leaving it: one in the plane z = 0 bounding material
+/// above it, the other, read as curved, turned `tilt` about x and
+/// bounding material below it, so their half-planes part by `tilt` at
+/// the unit reach and, at no tilt, the curved face rests on the plane.
 fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
     use super::super::sectors::BoolSector;
     use super::super::vtxfac::PairRead;
@@ -1384,7 +1387,26 @@ fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
         sectors: vec![sector(end)],
     };
     let flat = partner(Vec3::new(0.0, 1.0, 0.0));
-    let turned = partner(Vec3::new(0.0, tilt.cos(), tilt.sin()));
+    // The turned face seen from below: its quarter-plane run the other
+    // way round its normal.
+    let up = Vec3::new(0.0, tilt.cos(), tilt.sin());
+    let turned = PairRead {
+        sectors: vec![BoolSector {
+            start: up,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + up,
+            },
+            end: x,
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + x,
+            },
+            normal: OutwardNormal::from_chart(up.cross(x), true),
+            ..sector(up)
+        }],
+        ..partner(up)
+    };
     let edge = BoolSector {
         start: Vec3::new(0.0, -1.0, 0.0),
         start_reach: Reach::Chord {
@@ -1399,7 +1421,7 @@ fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
         ..sector(Vec3::new(0.0, -1.0, 0.0))
     };
     // A curved face may be tangent where flush, so flush refuses.
-    let curved = |_| super::super::sectors::FaceShape::Curved;
+    let curved = |_| Ok(super::super::sectors::FaceShape::Curved);
     super::super::vtxfac::along_partners(&edge, &[&flat, &turned], &curved, band()).map(|_| ())
 }
 
