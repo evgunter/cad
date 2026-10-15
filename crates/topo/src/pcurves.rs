@@ -2346,6 +2346,14 @@ pub(crate) struct CarriedRows<T: Real> {
     /// point: the identity, the two children being one image — a reset
     /// where that point is on the chart's singular set.
     pub(crate) joint: JointElement,
+    /// Where a child's row was placed again over its own span: the
+    /// element of the joint into the child the parent's incoming joint
+    /// fed (the first child on a plus half, the second on a minus one),
+    /// decided against the half before it.
+    pub(crate) entering: Option<JointElement>,
+    /// Likewise, the element of the joint out of the child whose exit is
+    /// the parent's, into the half after it.
+    pub(crate) leaving: Option<JointElement>,
 }
 
 /// Why [`split_cache`] could not state a restriction, for one parent
@@ -2528,14 +2536,78 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
             _ => image.clone(),
         };
         let (first, second) = (child(t0, t), child(t, t1));
-        // The children meet at the first's point at `t`, so the joint is
-        // decided there as every joint is, which reads whether the split
-        // point is on the chart's singular set.
-        let joint = pin(&second, t, first.eval(t))?;
+        // The children meet at `t`, so the joint is decided there as every
+        // joint is, which reads whether the split point is on the chart's
+        // singular set. It runs the way the half does: from the first
+        // child into the second on a plus half, the other way on a minus
+        // one, the two children being placed apart where their spans
+        // straddle the window's cut.
+        let joint = if is_plus(body, half_edge) {
+            pin(&second, t, first.eval(t))?
+        } else {
+            pin(&first, t, second.eval(t))?
+        };
+        // A child placed again over its own span may sit whole turns from
+        // the parent's image, so the joints the parent's ends made are
+        // decided again against their neighbours' rows, as every joint
+        // is. A neighbour with no row, or one of this edge's own halves
+        // (a strut's tip), keeps its element.
+        let placed_again = matches!(
+            image,
+            Pcurve::Harmonic { .. }
+                | Pcurve::FocalSection(_)
+                | Pcurve::Spiric { .. }
+                | Pcurve::Projected(_)
+        );
+        let neighbour = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
+            if halves.contains(&he) {
+                return None;
+            }
+            let row = body.pcurve(he)?;
+            let (a, b) = row.params();
+            let (entry, exit) = if is_plus(body, he) { (a, b) } else { (b, a) };
+            Some((row.pcurve().clone(), entry, exit))
+        };
+        let record = half_edge_record(body, half_edge);
+        let (entering, leaving) = if placed_again {
+            let plus = is_plus(body, half_edge);
+            let (fed, entry) = if plus { (&first, t0) } else { (&second, t1) };
+            let (out, exit) = if plus { (&second, t1) } else { (&first, t0) };
+            let entering = match neighbour(record.prev) {
+                Some((before, _, before_exit)) => Some(pin(fed, entry, before.eval(before_exit))?),
+                None => None,
+            };
+            let leaving = match neighbour(record.next) {
+                Some((after, after_entry, _)) => Some(
+                    decide_joint(
+                        chart,
+                        &after,
+                        after_entry,
+                        out.eval(exit),
+                        carrier.eval(exit),
+                        period,
+                        band,
+                    )
+                    .map_err(|miss| SplitRowError {
+                        half_edge,
+                        refusal: SplitRefusal::Joint(match miss {
+                            PinMiss::Escalated(cause) => Some(cause),
+                            PinMiss::Discontinuity => None,
+                        }),
+                    })?,
+                ),
+                None => None,
+            };
+            (entering, leaving)
+        } else {
+            (None, None)
+        };
         rows[slot] = Some(CarriedRows {
             parent_half: certify(t0, t, first)?,
             new_half: certify(t, t1, second)?,
             joint,
+            entering,
+            leaving,
         });
     }
     Ok(rows)
@@ -7320,25 +7392,35 @@ pub(crate) mod pole_slit_tests {
     /// it.** A generic cut makes an image on it rare, not impossible: a
     /// half-turn cylinder patch and a half-turn cone patch on charts
     /// turned so the left meridian sits at `u = −1`, the principal
-    /// window's start, within an ulp either way. Rounding names that
-    /// meridian's image `−1` on one side and `τ − 1` on the other (the
-    /// premise, read off the stored rows), and nothing downstream tells
-    /// the two copies apart: each body validates, bounds its faces, and
+    /// window's start, within an ulp either way and `1e-7` either way.
+    /// Within an ulp the placement's mark is in band and its tie-break
+    /// names one copy whichever side the rounding fell (the first
+    /// premise); `1e-7` off it is decided, and names `−1` on one side and
+    /// `τ − 1` on the other (the second, both read off the stored rows).
+    /// Nothing downstream tells the copies apart: each body validates,
+    /// bounds its faces, reads the same polygon modulo a turn, and
     /// overlaps itself with the same answer.
     #[test]
     fn a_meridian_on_the_windows_cut_reads_the_same_either_side_of_it() {
         let band = Band::linear(Tol::witness()).unwrap();
         let tau = core::f64::consts::TAU;
         let turn = -geom_brep::ANGLE_WINDOW_START;
-        let turns = [turn.next_down(), turn, turn.next_up()];
+        let turns = [
+            turn.next_down(),
+            turn,
+            turn.next_up(),
+            turn - 1e-7,
+            turn + 1e-7,
+        ];
         let builds: [(&str, fn(f64) -> Body<f64>); 2] = [
             ("cylinder", |t| cylinder_patch_turned(0.0, t).unwrap()),
             ("cone", |t| cone_patch_turned(t).unwrap()),
         ];
         for (name, build) in builds {
             let bodies: Vec<Body<f64>> = turns.iter().map(|&t| build(t)).collect();
-            let mut copies = Vec::new();
+            let mut copies: Vec<Vec<f64>> = Vec::new();
             for (t, body) in turns.iter().zip(&bodies) {
+                let mut here = Vec::new();
                 assert_eq!(
                     super::validate_pcurves(body, band),
                     vec![],
@@ -7357,15 +7439,26 @@ pub(crate) mod pole_slit_tests {
                     {
                         let off = (p0.x + 1.0).rem_euclid(tau);
                         if pl.x == 0.0 && (off < 1e-6 || tau - off < 1e-6) {
-                            copies.push(p0.x);
+                            here.push(p0.x);
                         }
                     }
                 }
+                assert!(
+                    !here.is_empty(),
+                    "{name}, turned {t}: the meridian is stored"
+                );
+                copies.push(here);
             }
+            let near: Vec<f64> = copies[..3].concat();
             assert!(
-                copies.iter().any(|u| (u + 1.0).abs() < 1e-6)
-                    && copies.iter().any(|u| (u - (tau - 1.0)).abs() < 1e-6),
-                "{name}: the premise, the meridian named on both sides of the cut: {copies:?}"
+                near.iter().all(|u| (u - near[0]).abs() < 1e-12),
+                "{name}: the first premise, one copy within an ulp of the cut: {near:?}"
+            );
+            let all = copies.concat();
+            assert!(
+                all.iter().any(|u| (u + 1.0).abs() < 1e-6)
+                    && all.iter().any(|u| (u - (tau - 1.0)).abs() < 1e-6),
+                "{name}: the second premise, the meridian named on both sides of the cut: {copies:?}"
             );
             let faces: Vec<FaceKey> = bodies[0].faces().map(|(f, _)| f).collect();
             let outcome = |a: usize, b: usize, f: FaceKey| {
@@ -7386,24 +7479,25 @@ pub(crate) mod pole_slit_tests {
                     .unwrap()
                     .clone();
                 let bound = super::chart_boundary(body, f, &s, band).unwrap();
-                let mut c: Vec<(f64, f64)> = bound
+                bound
                     .loops
                     .iter()
                     .flat_map(|l| &l.edges)
                     .map(|e| (e.a().x.rem_euclid(tau), e.a().y))
-                    .collect();
-                c.sort_by(|p, q| p.partial_cmp(q).unwrap());
-                c
+                    .collect::<Vec<(f64, f64)>>()
             };
             for &f in &faces {
                 let first = corners(&bodies[0], f);
-                for a in 1..3 {
+                for a in 1..turns.len() {
                     let other = corners(&bodies[a], f);
                     assert_eq!(first.len(), other.len(), "{name}, {f:?}");
-                    for (p, q) in first.iter().zip(&other) {
-                        let du = (p.0 - q.0).abs();
+                    for p in &first {
+                        let near = |q: &(f64, f64)| {
+                            let du = (p.0 - q.0).abs();
+                            du.min(tau - du) < 1e-6 && (p.1 - q.1).abs() < 1e-6
+                        };
                         assert!(
-                            du.min(tau - du) < 1e-9 && (p.1 - q.1).abs() < 1e-9,
+                            other.iter().any(near),
                             "{name}, {f:?}: turned {} reads {other:?} against {first:?}",
                             turns[a]
                         );
@@ -7416,7 +7510,7 @@ pub(crate) mod pole_slit_tests {
             // reads as such).
             for &f in &faces {
                 let first = outcome(0, 0, f);
-                for a in 1..3 {
+                for a in 1..turns.len() {
                     assert_eq!(
                         outcome(a, a, f),
                         first,

@@ -2,10 +2,12 @@
 id: run-azimuth-images-first-image-takes-its-carriers-branch
 kind: issue
 title: chord_join's window walk takes its first image's branch from the carrier's parameter, so a run whose first carrier is stated whole periods off reads its window that far off; the pin is the placed image (B)
-status: open
+status: closed
 opened: 2026-10-15
 priority: P3
 cost: E
+closed: 2026-10-15
+branch: pcert/azimuth-placement
 ---
 
 
@@ -57,3 +59,23 @@ second review, S8). That is a refusal of a valid body: the corner reads
 parameter. Once B places images over their edges' spans, that row is
 expected to read `PositiveArea` like its twin. B re-reads it and moves
 the pin.
+
+## Closed
+
+By unit B1 (branch `pcert/azimuth-placement`): every derived image is
+placed over its edge's span in the chart's principal window
+(`geom_brep::ANGLE_WINDOW_START`), so `run_azimuth_images`' first image,
+derived over its own edge's span, is placed like every other, and no
+pin of its own is needed. The row this item asked for is back:
+`topo::chord_join::first_image_rows::the_window_walk_reads_a_far_stated_face_in_its_twins_window_from_any_start`.
+The cone seam that a midpoint pin moved sits inside the window
+(`u ≈ 0`, the cut at `−1`), and `refusal_concision`'s cone union reads
+as before.
+
+The `TouchingBoundary` pin on the half-turn patch's second face at 6 and
+10 periods does **not** flip: placement names the image's values in the
+window, but the patch's corner is the image evaluated at the carrier's
+far-stated end parameter, `α + (π − 6τ)` with `α ≈ 6τ`, which still
+rounds 4 ulp off `π`. The body is valid; the refusal is the overlap's
+exact-collinearity reading of a near-flush seat on rounded input, as at
+any near-flush seat. The pin stays and says so.

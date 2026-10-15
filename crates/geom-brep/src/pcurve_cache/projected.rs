@@ -1168,11 +1168,17 @@ pub(crate) fn project<T: Decide>(
     // C4's placement: the deck origin names the image's azimuth, and on
     // a torus its tube angle, in the principal window at the span's
     // midpoint, so where the carrier's parameter starts moves no image.
+    // The turns are decided at a unit lever: the projected image's
+    // channels are angles read piece by piece on the chart's own frame.
     let place = span.map_or_else(|| super::Placement::own(carrier), super::Placement::over);
     let at = image.eval(place.mid());
-    image.u_off = place.rename(at.x);
+    let deck = |angle: T| match place.turns(angle, T::one(), band) {
+        0 => T::zero(),
+        k => super::Period::new(T::tau()).times(-k),
+    };
+    image.u_off = deck(at.x);
     if matches!(image.chart, ProjectedChart::Torus { .. }) {
-        image.v_off = place.rename(at.y);
+        image.v_off = deck(at.y);
     }
     Ok(image)
 }

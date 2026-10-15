@@ -1,6 +1,7 @@
-//! The window walk's first image, pinned: [`super::run_azimuth_images`]
-//! started at every member of a loop whose carriers are stated whole
-//! periods off reads its principal twin's window.
+//! The window walk's first image, placed: [`super::run_azimuth_images`]
+//! derives each image over its own edge's span in the chart's principal
+//! window (C4), so started at every member of a loop whose carriers are
+//! stated whole periods off, it reads its principal twin's window.
 
 use geom_core::{Band, Tol};
 
@@ -42,8 +43,8 @@ fn assert_twins(far: &[(f64, f64)], near: &[(f64, f64)], what: &str) {
 
 /// The cylinder patch 5 and 10 periods below, each face, and the slit
 /// cap 3 and 10 below: from whichever member the walk starts, its first
-/// image is pinned to the chart's principal azimuth, so the window is
-/// the twin's walked from the same member. The half-turn patch reads
+/// image is placed in the chart's principal window over its own span,
+/// so the window is the twin's walked from the same member. The half-turn patch reads
 /// one window from every start; the cap wraps a whole turn, so where
 /// its window sits is the start's own azimuth.
 #[test]

@@ -506,15 +506,26 @@ impl<T: Decide> Body<T> {
         );
         // The joints the splice makes, read before it. Each child pair
         // joins at the split point with the element the restriction
-        // decided; the joint out of the second child is the parent's old
-        // one, the second child's exit being the parent's. A side the
-        // restriction carried nothing for takes no element.
-        let carried = |rows: &Option<crate::pcurves::CarriedRows<T>>, old: HalfEdgeKey| {
-            rows.as_ref()
-                .map_or((None, None), |rows| (Some(rows.joint), self.joint(old)))
-        };
-        let (into_n_plus, into_hp_next) = carried(&rows_plus, hp_next.key());
-        let (into_hm, into_n_minus) = carried(&rows_minus, hm.key());
+        // decided; the joint out of the child whose exit is the parent's
+        // is the parent's old one, unless that child was placed again
+        // over its own span, when the restriction decided it afresh. A
+        // side the restriction carried nothing for takes no element.
+        let carried =
+            |rows: &Option<crate::pcurves::CarriedRows<T>>,
+             placed: fn(&crate::pcurves::CarriedRows<T>) -> Option<crate::joint::JointElement>,
+             old: HalfEdgeKey| {
+                rows.as_ref().map_or((None, None), |rows| {
+                    (Some(rows.joint), placed(rows).or(self.joint(old)))
+                })
+            };
+        let (into_n_plus, into_hp_next) = carried(&rows_plus, |r| r.leaving, hp_next.key());
+        let (into_hm, into_n_minus) = carried(&rows_minus, |r| r.entering, hm.key());
+        // The joints into the fed child on the plus side and out of the
+        // first child on the minus side keep their half-edges, so the
+        // splice does not write them; a re-placed child's are written
+        // after it.
+        let entering_hp = rows_plus.as_ref().and_then(|r| r.entering);
+        let leaving_hm = rows_minus.as_ref().and_then(|r| r.leaving);
         // Splice 1: hp → n⁺ → old next(hp), in hp's loop.
         self.link_half_edges(hp, n_plus, into_n_plus);
         self.link_half_edges(n_plus, hp_next, into_hp_next);
@@ -532,6 +543,12 @@ impl<T: Decide> Body<T> {
         self.link_half_edges(n_minus, hm, into_hm);
         // The splice is done; past it the new halves are ordinary keys.
         let (n_plus, n_minus) = (n_plus.key(), n_minus.key());
+        if let Some(e) = entering_hp {
+            self.joints.insert(hp.key(), e);
+        }
+        if let Some(e) = leaving_hm {
+            self.joints.insert(hm_data.next, e);
+        }
         // The chart rows certified above: the parent halves keep the
         // first child's (they ARE the first child's halves), the new
         // halves take the second child's. Both children lie in their
