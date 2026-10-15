@@ -2975,3 +2975,16 @@ these composite actions are part of the hosted CI this program owns.
   - #5104 sets `CARGO_PROFILE_{DEV,TEST}_LTO=off` in `test` and `cache-prime`. Build −291/−302 s, tests +9–18%, whole geom-brep-seeded job −225 s. No gate row changes.
   - **The two env blocks must stay equal**: rust-cache keys on `CARGO_*` variables.
   - Every other candidate came in under 2 min, worse, already decided, or not cheap.
+
+## 2026-10-15 — a session's subset, chosen for dev velocity
+
+The slate is 47.5/30 and seven rows arrived unpriced in the last two weeks, most of them about dev velocity: reds that cannot be read, and gaps that let a red reach main and then block unrelated PRs. Nightly 61 (run 38687151370) is red in seven jobs. Two of them are CIW's own (`rustdoc (gate, every root)`, red since 2026-10-02; `render lanes / viewer gui montage`), and `PR CI latency (alarm)` reads a median of 32.6 min (p90 52.1) over 256 PR runs. This session takes only:
+
+- `render-gui-sorts-ordinal-digest-node-ids-as-ints` (P1): the montage lane is red every night. Its duplicate `viewer-gui-montage-parses-a-node-key-as-an-int` closes with it.
+- `local-rustdoc-with-the-gate-flags-fails-where-the-hosted-gate-passes`: the hosted rustdoc gate is red, so the row is now that red. The broken links are fixed as a drive-by on their crates.
+- `a-red-test-steps-fail-line-past-the-log-tail-cannot-be-named`: a red that no session can name costs every lane that trips over it.
+- `an-all-tier-diff-with-no-crate-seed-runs-no-slow-row`.
+- `the-ci-slow-set-names-tests-that-no-longer-exist`: a dead entry puts its slow test back on every PR.
+- `a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge`, with `a-sweep-diff-gates-no-eps-row-of-sweep`: the ε-only reds that reach main through the filter.
+
+Everything else waits. The latency alarm itself is `a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar`'s, which is in front of Ev. (CIW orchestrator)
