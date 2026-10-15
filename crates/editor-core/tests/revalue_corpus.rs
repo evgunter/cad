@@ -79,7 +79,9 @@ struct Found {
     drifted: usize,
     /// Decisions whose DAG reached an opaque value.
     opaque: usize,
-    /// Decisions the `p0` build's numeric channel left indeterminate.
+    /// Decisions the `p0` build's numeric channel left indeterminate
+    /// over a real margin: where a session that discharges as it
+    /// decides could prove `Zero` ([`session`]).
     escalated: usize,
     /// Predicates whose re-valued margin is not the `p1` build's.
     laundered: BTreeSet<&'static str>,
@@ -217,11 +219,10 @@ fn tally(
     let mut flipped = None;
     for (k, (a, b)) in p0.iter().zip(p1).take(common).enumerate() {
         found.compared += 1;
-        if a.sign.is_none() {
+        // A NaN margin is a domain violation, which no session
+        // discharges.
+        if a.sign.is_none() && !a.value.is_some_and(f64::is_nan) {
             found.escalated += 1;
-            if std::env::var_os("REVALUE_DETAIL").is_some() {
-                eprintln!("  escalated #{} {}: p0 {:?}", k + 1, a.predicate, a.value);
-            }
         }
         *found.seen.entry(a.predicate).or_default() += 1;
         let (v0, v1) = (a.value.expect("Sym<f64>"), b.value.expect("Sym<f64>"));
