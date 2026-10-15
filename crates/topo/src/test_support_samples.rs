@@ -466,6 +466,15 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,
+        CertifyError::OnPairArcRim {
+            iso: geom_brep::PcurveCertifyError::IsoUnsupported {
+                what: "not a circle carrier",
+            },
+            fitted: PlaneNurbsRefusal::Limb {
+                limb: geom_brep::SsiLimb::HullValueChart,
+                margin: MarginDiag::value(4.6e-4),
+            },
+        },
         CertifyError::IntersectionSameSurface { key },
         CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
