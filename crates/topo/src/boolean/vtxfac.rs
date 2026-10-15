@@ -725,13 +725,36 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // until the lumps have run: a tangent sector's lump reads its whole
     // sector off the two carriers and overwrites the bound's reading,
     // so the bend's refusal stands only for a bound no lump took.
+    // Each sector's datum on the pierced face: its tangent plane, or for
+    // a sector of a wall that crosses the pierced wall as an equal pair,
+    // the bisector plane the pierce lies on ([`super::node::bisector_datum`]).
+    let datum: Vec<Option<OutwardNormal<T>>> = sectors
+        .iter()
+        .map(|s| {
+            super::node::bisectors(
+                (&*piercing_body, piercing, s.face),
+                (pierced_body, contact.face),
+                band,
+            )
+            .and_then(|planes| {
+                super::node::bisector_datum(planes, piercing, p, (pierced_surface, n_pierced), band)
+            })
+        })
+        .collect();
+    // A bound lies on the wall of either sector it bounds.
+    let bound_datum = |k: usize| {
+        [k, (k + 1) % n]
+            .into_iter()
+            .find_map(|j| datum[j])
+            .unwrap_or(n_pierced)
+    };
     let mut entries = Vec::with_capacity(n);
     let mut unread_bends = Vec::new();
-    for s in &sectors {
+    for (k, s) in sectors.iter().enumerate() {
         let (read, on) = match pierce_side_reported(
             s.end,
             s.end_reach,
-            n_pierced,
+            bound_datum(k),
             pierced_shape,
             pierced_lever.within(s.end_reach.length()),
             band,
@@ -1150,7 +1173,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Operand::A => ((s.face, contact.face), (own, pierced)),
             Operand::B => ((contact.face, s.face), (pierced, own)),
         };
-        let dir = pierce_germ_dir(s, n_pierced.vec(), out, band)?;
+        let dir = pierce_germ_dir(s, datum[t].unwrap_or(n_pierced).vec(), out, band)?;
         Ok((
             cells,
             dir,

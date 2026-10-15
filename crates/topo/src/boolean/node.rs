@@ -177,3 +177,52 @@ pub(super) fn bisectors<T: Decide>(
     let unit = |v: geom_core::Vec3<T>| v / v.norm();
     Some([(centre, unit(a1 - a2)), (centre, unit(a1 + a2))])
 }
+
+/// **The pierced wall's datum at a pierce point `p` that lies on one
+/// bisector plane**, for what lies on the piercing wall: that plane's
+/// normal, signed so that it points the way the pierced face's outward
+/// normal does. On the piercing wall the pierced wall's residual is
+/// `±c·d₀·d₁` (`c > 0`, `+` where A pierces), so at `p`, where `dᵢ` is
+/// zero and `dⱼ` is not, it grows along `±sign(dⱼ)·n̂ᵢ`, to first order
+/// in what departs from `p` along the wall. Near a node the two walls'
+/// normals there stand only about the node's distance apart, and this
+/// datum, read against a plane the wall crosses at a definite angle,
+/// stands in for the pierced face's tangent plane.
+///
+/// `None` keeps the tangent plane: `p` on both planes or on neither (a
+/// node, or a pierce the planes did not find), either distance in band,
+/// or the pierced face's outward side undecided against its axis.
+pub(super) fn bisector_datum<T: Decide>(
+    planes: [Bisector<T>; 2],
+    piercing: Operand,
+    p: geom_core::Point3<T>,
+    (pierced, n_pierced): (&geom::Surface<T>, geom_brep::OutwardNormal<T>),
+    band: Band,
+) -> Option<geom_brep::OutwardNormal<T>> {
+    use geom_core::{Margin, Sign};
+    let off = |(centre, normal): Bisector<T>| {
+        crate::validate::decide("bool_vertex_face_side", Margin::of((p - centre).dot(normal)), band)
+    };
+    let (normal, other) = match planes.map(off) {
+        [Ok(Sign::Zero), Ok(other @ (Sign::Positive | Sign::Negative))] => (planes[0].1, other),
+        [Ok(other @ (Sign::Positive | Sign::Negative)), Ok(Sign::Zero)] => (planes[1].1, other),
+        _ => return None,
+    };
+    let &geom::Surface::Cylinder { origin, axis, .. } = pierced else {
+        return None;
+    };
+    // The pierced wall's residual grows radially, away from its axis.
+    let w = p - origin;
+    let radial = w - axis * (w.dot(axis) / axis.norm_squared());
+    let outward = match crate::validate::decide(
+        "bool_vertex_face_side",
+        Margin::of(n_pierced.vec().dot(radial)),
+        band,
+    ) {
+        Ok(Sign::Positive) => true,
+        Ok(Sign::Negative) => false,
+        Ok(Sign::Zero) | Err(_) => return None,
+    };
+    let grows = (other == Sign::Positive) == (piercing == Operand::A);
+    Some(geom_brep::OutwardNormal::from_chart(normal, grows == outward))
+}
