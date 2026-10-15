@@ -2067,12 +2067,19 @@ impl PcurveCheck {
     /// at the SSI door `P` is a witness and the same value over-reads
     /// the carrier's distance from the surface ([`SsiLimb::check`]).
     /// The hull's sup is the envelope over the window. A limb this door
-    /// never decides is `None`.
+    /// never decides is `None`: among them [`SsiLimb::ImageMiss`], the
+    /// SSI door's tell, which this door does not run, since its image
+    /// is the one under judgement and a miss at a break is that image's
+    /// whichever side the carrier lies.
     fn of_fitted_limb(limb: SsiLimb) -> Option<Self> {
         match limb {
-            SsiLimb::HullSup => Some(Self::Envelope),
+            SsiLimb::HullSupChart => Some(Self::Envelope),
             SsiLimb::HullValueChart => Some(Self::MapResidual),
-            SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => None,
+            SsiLimb::OnLocus
+            | SsiLimb::HullSup
+            | SsiLimb::HullValue
+            | SsiLimb::ImageMiss
+            | SsiLimb::Tube => None,
         }
     }
 }
@@ -2790,7 +2797,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     let (lo, hi) = crate::carrier_net::outer_ends((t0, t1));
     if !(d0 <= lo && hi <= d1) {
         return Err(PcurveCertifyError::FittedCertificate {
-            limb: Some(SsiLimb::HullSup),
+            limb: Some(SsiLimb::HullSupChart),
             what: "the image's domain stops short of the edge's interval, so its hull \
                    bound says nothing about the edge's ends",
             magnitude: None,
@@ -9983,7 +9990,7 @@ mod tests {
         };
         for margin in [cause.margin, geom_core::MarginDiag::INVALID] {
             let ssi = crate::ssi::SsiError::CertificateEscalated {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 cause: Indeterminate { margin, ..cause },
             };
             let want = ssi.ending(Reading::AtRest);
@@ -9992,7 +9999,7 @@ mod tests {
                 matches!(
                     pcurve,
                     PcurveCertifyError::FittedEscalated {
-                        decision: SsiDecision::Limb(SsiLimb::HullSup),
+                        decision: SsiDecision::Limb(SsiLimb::HullSupChart),
                         ..
                     }
                 ),

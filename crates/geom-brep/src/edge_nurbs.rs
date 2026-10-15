@@ -158,15 +158,19 @@ pub enum PlaneNurbsRefusal {
     /// defect report.
     CarrierDomain(CarrierDomainRefusal),
     /// A certificate limb exceeded ε, with its number. **The
-    /// declare-and-check refusal**: limb 1 measured the file's carrier
-    /// off its surfaces by this much; limb 2's certified bound on that
-    /// miss is this much, so the certificate cannot show the carrier on
-    /// them.
+    /// declare-and-check refusal**: limb 1 measured the carrier's foot
+    /// distance from a surface; limb 2 bounds the carrier's distance from
+    /// an analytic surface ([`SsiLimb::HullSup`], [`SsiLimb::HullValue`]),
+    /// or reads it through the lane's own image of it on a spline one,
+    /// a bound on the carrier's miss and the image's together
+    /// ([`SsiLimb::HullSupChart`], [`SsiLimb::HullValueChart`]); at a
+    /// break where the carrier's own foot decides Zero, the miss is the
+    /// image's ([`SsiLimb::ImageMiss`]).
     Limb {
         /// Which limb refused.
         limb: SsiLimb,
-        /// What the classifier saw of limb 1's measured miss, or of limb
-        /// 2's bound on it, in metres, for error reporting only
+        /// What the classifier saw of the limb's reading, in metres,
+        /// for error reporting only
         /// ([`MarginDiag`]): it rides
         /// [`PlaneNurbsRefusal::decision`]'s sign-certain arm to the import
         /// door's words on it.
@@ -434,28 +438,55 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::Limb { limb, margin } => match limb {
                 SsiLimb::HullSup => write!(
                     f,
-                    "{} bounds the declared carrier's distance from both surfaces by {margin:e} \
-                     m, past the run tolerance — the certificate cannot show the carrier is on \
-                     them",
+                    "{} bounds the declared carrier's distance from an analytic surface by \
+                     {margin:e} m, past the run tolerance — the certificate cannot show the \
+                     carrier stays on that surface between the schedule's samples",
+                    limb.name()
+                ),
+                SsiLimb::HullSupChart => write!(
+                    f,
+                    "{} bounds the declared carrier's distance from the spline surface, read \
+                     through the certificate's own image of the carrier on it, by {margin:e} \
+                     m, past the run tolerance — limb 1 found the carrier on that surface at \
+                     every schedule sample, and the certificate cannot show it stays on it \
+                     between them",
                     limb.name()
                 ),
                 SsiLimb::HullValueChart => write!(
                     f,
-                    "{} reads {margin:e} m against the run tolerance — the declared carrier \
-                     is off the surface point its description names",
+                    "{} reads {margin:e} m at a break, past the run tolerance: the declared \
+                     carrier against the surface point the certificate's own image of it \
+                     names there, which bounds the carrier's miss and is not the miss — the \
+                     certificate cannot show the carrier is on that surface",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
+                SsiLimb::ImageMiss => write!(
                     f,
-                    "{} measured {margin:e} m against the run tolerance — the declared carrier \
-                     is not on both surfaces",
+                    "{} reads {margin:e} m at a break, past the run tolerance, where the \
+                     declared carrier is on the surface — the certificate's own image of the \
+                     carrier misses the carrier's foot path there, and the carrier is not \
+                     shown off its surfaces",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::HullValue => write!(
+                    f,
+                    "{} measured the declared carrier {margin:e} m from a surface, past the run \
+                     tolerance — the carrier is not on both surfaces",
+                    limb.name()
+                ),
+                // No producer writes a `Limb` of limb 3: the tube refuses
+                // as `TubeStraddles` or `TubeNotOneArc`, or escalates.
+                SsiLimb::Tube => write!(
+                    f,
+                    "{} measured {margin:e} m against the run tolerance — the certificate \
+                     cannot show the carrier is its surfaces' one crossing",
                     limb.name()
                 ),
             },
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
                 "the uniqueness tube's transversality is not certified clear of the zero band \
-                 over {boxes} boxes of the chain — a sliver of the plane/NURBS pair along the \
+                 over {boxes} boxes of the chain — a sliver of the surface pair along the \
                  locus at this tolerance; the certificate's proven clearance from zero is {:e} \
                  m, which is the bound it could prove and not the sliver's own extent",
                 verdict.margin()
@@ -482,7 +513,9 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 f,
                 "limb 2 could not enclose the declared carrier between samples: {r}"
             ),
-            Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
+            Self::Unsupported { what } => {
+                write!(f, "outside the spline Intersection lane: {what}")
+            }
         }
     }
 }

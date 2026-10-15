@@ -1158,6 +1158,26 @@ Flagged, NOT fixed here (dispositions):
   build with it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES`
   does not move.
 
+- **F21** (added by PCERT's limb-2 wording unit, PR 5160)
+  `geom-brep/src/ssi/certify.rs` `nurbs_limbs`, the image-miss tell
+  (`ssi_image_miss_tell`): at the break where limb 2's composite
+  `|S(P(t)) − C(t)|` reads past the band against a spline operand, the
+  carrier's own foot distance from the surface, in metres. It is a
+  length, so `Margin::of` would fit it dimensionally. What keeps it off
+  the logged doors is WHAT it decides:
+  - It states nothing. Limb 2 has already refused at that break.
+  - The tell only names the refusal: `SsiLimb::ImageMiss` where the
+    foot decides Zero, `HullValueChart` otherwise.
+  - Logged, it would put a verdict, or in band an escalation, beside the
+    certificate's own. A reader that lets the first escalation speak
+    for a leaf (`editor_core`'s drive `log_read`) would then charge
+    limb 2's refusal to the tell (executed by PR 5160's review: two
+    escalations on the 2ε-off row).
+
+  **Carried as `k_stats::check_unlogged(.., "F21")`**, the same door as
+  F18 and F20. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does
+  not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

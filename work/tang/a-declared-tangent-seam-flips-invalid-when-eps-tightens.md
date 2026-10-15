@@ -2,10 +2,11 @@
 id: a-declared-tangent-seam-flips-invalid-when-eps-tightens
 kind: issue
 title: A declared conventional edge valid at one ε refuses TransverseNotIntrinsic or TangentNotIntrinsic at a finer one, against D2's "never flip"
-status: open
+status: closed
 opened: 2026-10-14
 priority: P2
 cost: E
+closed: 2026-10-15
 ---
 
 
@@ -92,3 +93,27 @@ framing dissolved. What to build:
   change, all hand-stated fixtures or duplicate reports).
 - No standing door audit; the landing PR sweeps once for a door that
   mints a conventional form the rule would read determinate.
+
+## Closed
+
+Built as Ev's decision says (branch `tang/d2-form-keyed-check4`).
+
+- Tier 3 reads a body at its build ε only. Check 4's finer-ε branch,
+  `PairCornerDetermined`, `PairTangencyDetermined` and
+  `topo::test_support::tier3_at` are gone, and the battery takes no
+  band: `tier3_local_checks(_marked)` derives `Band::linear(tol)`.
+  `geom_brep::classify_dihedral_reported` and the sagitta on
+  `SecondOrderWalk::Determinate` existed only for those findings and
+  went with them.
+- Check 4's demand keys on the form: `OnPair`, or a `Chart` that is
+  not a wrap, refuses `TransverseNotIntrinsic` / `TangentNotIntrinsic`
+  on an edge the rule reads determinate, declared or derived. A
+  `Scaffold` is not a conventional form, so a scaffold at rest draws
+  only `ScaffoldAtRest`.
+- The offset doors store the rule's reading for a declared image in a
+  held neighbour's chart too (`offset_restate::restate`, and
+  `replace_face`'s chart arm, which now checks the neighbour section
+  for every such edge).
+
+The witness above no longer has a finer-ε reading to flip at. The
+rows that moved are listed in the PR body.
