@@ -4804,10 +4804,9 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    ([`ValidationError::SliverDihedral`]; first failing sample
 ///    reported, one error per edge). Implicit-form gradients only —
 ///    chart normals are never sampled. The extent lever arm is the
-///    edge's honest spatial extent (`geom_brep::edge_extent`: the chord
-///    for open edges, the carrier diameter at closure for circle
-///    carriers — so self-loop/full-period edges classify through a
-///    real arm, never vacuously; M2 PR 3 fix pass). The same per-edge
+///    faces' extent (`crate::wedge_reach`: how far the farther face
+///    runs from the edge's middle, never the edge's own length). The
+///    same per-edge
 ///    classifications feed the **prefer-intrinsic enforcement** (D2;
 ///    ratified 2026-07-19, M2 PR 4 fix pass): an edge classifying
 ///    definitely Transverse at every interior sample must carry an
@@ -6953,11 +6952,9 @@ pub(crate) fn tier3_local_checks_marked<
     // Tier 3, checks 4–5 (one edge sweep, samples shared):
     //
     // 4. Dihedral classification at interior samples (edge-arena order;
-    //    first failing sample, one error per edge), metered through the
-    //    edge's honest extent (`geom_brep::edge_extent` — the carrier
-    //    diameter for closed circle carriers, whose chord collapses; M2
-    //    PR 3 fix pass, B2 — self-loop edges no longer classify
-    //    vacuously Smooth). Exempt BY KIND: Nurbs-ADJACENT edges
+    //    first failing sample, one error per edge), levered at the
+    //    faces' extent (`crate::wedge_reach`). Exempt BY KIND:
+    //    Nurbs-ADJACENT edges
     //    (M6-3 flip B — see the in-loop note: implicit-form gradients
     //    are poison on NURBS, and the wall junction's contact class is
     //    fixed by the profile's corner structure, Q8/C11). A wrap edge

@@ -2307,9 +2307,12 @@ impl<T: Real> IntersectionDraft<T> {
     }
 }
 
-/// The honest spatial **extent** of an edge — the lever arm the
-/// dihedral/transversality classification meters angles through
-/// (D4 ¶1), replacing the bare chord (M2 PR 3 fix pass, B2).
+/// The honest spatial **extent** of an edge's own point set — the lever
+/// arm of a reading consumed along the edge (D4 ¶1): a corner's
+/// departure, a section re-derived over the edge, the spline lanes'
+/// transversality and uniqueness tube. Never the wedge between the
+/// edge's two faces, which is levered at the faces' extent
+/// ([`crate::folded_lever_arm`]'s `reach`).
 ///
 /// # Derivation (the lever-arm rationale)
 ///
@@ -2360,9 +2363,7 @@ impl<T: Real> IntersectionDraft<T> {
 ///   rest — and a smaller arm only escalates more (the safe
 ///   direction), never definitely misclassifies.
 ///
-/// Total and comparison-free (`max` is the [`Real`] lattice operation);
-/// used by certification's transversality check and re-used verbatim by
-/// `topo`'s tier-3 dihedral pass (same numbers at rest, D9).
+/// Total and comparison-free (`max` is the [`Real`] lattice operation).
 pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     match *carrier {
         Curve3::Circle { radius, .. } => {
