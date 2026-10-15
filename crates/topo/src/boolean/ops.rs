@@ -345,6 +345,21 @@ pub struct BooleanNaming {
     /// row's vertex and `gone` edge are dead, and its `kept` edge holds
     /// their interiors (maximal edges, `docs/DESIGN.md`'s merge stage).
     pub edge_joins: Vec<super::EdgeJoin>,
+    /// Killed edge → the edge it was split from, for each edge the
+    /// output stage killed that held a `SplitEdge` record: an edge the
+    /// merge of coplanar faces killed, and each `gone` edge of
+    /// [`Self::edge_joins`]. A kill takes its edge's birth record with
+    /// it, so an edge this op split and then merged or joined away leads
+    /// to its parent only through this copy, taken before the kills. The
+    /// Split, which runs no merge, keeps the same copy of its join kills
+    /// alone (`SplitNaming::joined_lineage`).
+    pub killed_lineage: BTreeMap<EdgeKey, EdgeKey>,
+    /// Killed edge → the edge it was split from, for each edge an
+    /// operand's carve of its discarded shells killed that held a
+    /// `SplitEdge` record, A's then B's, in each operand's clone keys as
+    /// [`Self::discards`] (`boolean::discard`'s `carved_lineage`). Only
+    /// the section path carves.
+    pub carved_lineage: [BTreeMap<EdgeKey, EdgeKey>; 2],
 }
 
 impl Default for BooleanNaming {
@@ -378,6 +393,8 @@ impl Default for BooleanNaming {
             null_copies: Default::default(),
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
             edge_joins: Default::default(),
+            killed_lineage: Default::default(),
+            carved_lineage: Default::default(),
         }
     }
 }
@@ -815,7 +832,11 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         discarded[usize::from(row.operand == Operand::B)].insert(row.face);
     }
     let recorded = carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
-    let (merged, edge_joins) = finish_output(
+    let OutputStage {
+        merged,
+        edge_joins,
+        killed_lineage,
+    } = finish_output(
         &mut body,
         &mut desc,
         &declared_pairs,
@@ -868,12 +889,14 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         face_fragments_b,
         reduction_contacts,
         discards: fin.discards,
+        carved_lineage: fin.carved_lineage,
         covered,
         edge_classes,
         chart_cuts: [Vec::new(), Vec::new()],
         null_copies,
         cone_splits,
         edge_joins,
+        killed_lineage,
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,
@@ -2349,6 +2372,17 @@ fn bound_holds<'t, 'b, T: Decide>(
     }
 }
 
+/// What [`finish_output`] made.
+pub(super) struct OutputStage {
+    /// The merge of coplanar faces.
+    pub(super) merged: crate::merge_faces::MergeCoplanarOutcome,
+    /// The joins, in the order made ([`BooleanNaming::edge_joins`]).
+    pub(super) edge_joins: Vec<super::EdgeJoin>,
+    /// The parents of the edges the merge and the join killed
+    /// ([`BooleanNaming::killed_lineage`]).
+    pub(super) killed_lineage: BTreeMap<EdgeKey, EdgeKey>,
+}
+
 /// **The boolean's output stage**, the one every result path takes
 /// (`docs/DESIGN.md`, the merge stage): the merge of coplanar faces
 /// over the `declared` surface pairs (none where one operand is absent
@@ -2370,13 +2404,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     recorded: &BTreeSet<VertexKey>,
     band: Band,
     tol: Tol,
-) -> Result<
-    (
-        crate::merge_faces::MergeCoplanarOutcome,
-        Vec<super::EdgeJoin>,
-    ),
-    BooleanError,
-> {
+) -> Result<OutputStage, BooleanError> {
     #[cfg(feature = "sweep-testing")]
     OUTPUT_STAGE_POINTS.with(|s| {
         if let Some(stages) = s.borrow_mut().as_mut() {
@@ -2390,11 +2418,35 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
             );
         }
     });
+    // One snapshot of the records serves both stages: nothing between
+    // the merge and the join mints an edge.
+    let split_from = super::edge_join::split_records(body);
     let merged = body.merge_coplanar_faces_unjoined(declared, tol)?;
+    let mut killed_lineage = BTreeMap::new();
+    super::edge_join::record_killed_lineage(
+        &mut killed_lineage,
+        &split_from,
+        merged
+            .groups
+            .iter()
+            .flat_map(|g| g.killed_edges.iter().copied()),
+    );
     desc.absorb_merge(&merged)?;
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
-    let edge_joins = join_stage(body, desc, recorded, band, tol)?;
-    Ok((merged, edge_joins))
+    let edge_joins = join_stage(
+        body,
+        desc,
+        recorded,
+        &split_from,
+        &mut killed_lineage,
+        band,
+        tol,
+    )?;
+    Ok(OutputStage {
+        merged,
+        edge_joins,
+        killed_lineage,
+    })
 }
 
 /// One output stage's vertices, each with its point rendered
@@ -5147,46 +5199,72 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     Ok(kept)
 }
 
-/// **How the finished-body gate types what it found** (D10, Booleans):
-/// a result holds no in-band pair or shell, and one that does is the
-/// operands' ill-conditioning, which definite cuts can compose. So where
-/// every finding is born of a margin certified in band, the refusal is
-/// [`BooleanError::Escalated`] on the shell whose certified enclosure
-/// binds the offer (nearest zero: a tolerance deciding it decides every
-/// other), naming how many more lie in band; its recourse is a smaller
-/// tolerance or moved parts. Any other finding is the kernel's own
-/// defect, and the refusal is [`BooleanError::ResultInvalid`] carrying
-/// every finding. Each finding's arm is [`finding_arm`]'s.
-fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
-    let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
-    in_band
-        .and_then(|shells| escalated(&shells))
-        .unwrap_or(BooleanError::ResultInvalid { errors })
+/// **How the at-rest gate's refusal of a door's result is typed** (D10,
+/// Booleans), for the two doors that share it: the Boolean's [`gate`]
+/// and [`crate::splitting::split`]. The other doors that gate at rest
+/// type on their own
+/// (`work/cleave/the-at-rest-result-gate-and-its-typing-live-in-five-homes.md`).
+/// A result holds no in-band pair or shell, and one that does is the
+/// operands' ill-conditioning, which definite cuts can compose.
+#[derive(Debug)]
+pub(crate) enum AtRestRefusal {
+    /// Every finding is born of a margin certified in band: the shell
+    /// whose certified enclosure binds the offer (nearest zero, so a
+    /// tolerance deciding it decides every other), as
+    /// [`BooleanDecision::ShellRole`] naming how many more lie in
+    /// band, with its reading. Its recourse is a smaller tolerance or
+    /// moved geometry.
+    InBand {
+        /// [`BooleanDecision::ShellRole`] on the binding shell.
+        decision: BooleanDecision,
+        /// The binding shell's certified reading.
+        diag: geom_core::Indeterminate,
+    },
+    /// Any other finding: the kernel's own defect or limit, every
+    /// finding carried, each with its own ending.
+    Kernel(Vec<ValidationError>),
 }
 
-/// The refusal for `shells`, the result's in-band shells: on the one
-/// whose enclosure binds the offer, naming how many more there are.
-/// `None` where there are none.
-fn escalated(shells: &[InBandShell]) -> Option<BooleanError> {
-    let binding = shells.iter().copied().reduce(|a, b| {
-        if a.sliver
-            .reading()
-            .margin
-            .binds_before(b.sliver.reading().margin)
-        {
-            a
-        } else {
-            b
-        }
-    })?;
-    Some(BooleanError::Escalated {
-        decision: BooleanDecision::ShellRole {
-            solid: binding.solid,
-            shell: binding.shell,
-            others: shells.len() - 1,
+/// The at-rest gate's findings typed ([`AtRestRefusal`]); each finding's
+/// arm is [`finding_arm`]'s.
+pub(crate) fn at_rest_refusal(errors: Vec<ValidationError>) -> AtRestRefusal {
+    let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
+    let binding = in_band.as_deref().and_then(|shells| {
+        let b = shells.iter().copied().reduce(|a, b| {
+            if a.sliver
+                .reading()
+                .margin
+                .binds_before(b.sliver.reading().margin)
+            {
+                a
+            } else {
+                b
+            }
+        })?;
+        Some((b, shells.len() - 1))
+    });
+    match binding {
+        Some((b, others)) => AtRestRefusal::InBand {
+            decision: BooleanDecision::ShellRole {
+                solid: b.solid,
+                shell: b.shell,
+                others,
+            },
+            diag: *b.sliver.reading(),
         },
-        diag: *binding.sliver.reading(),
-    })
+        None => AtRestRefusal::Kernel(errors),
+    }
+}
+
+/// **How the finished-body gate's refusal reads at the Boolean**: the
+/// shared typing ([`at_rest_refusal`]), an in-band shell
+/// as [`BooleanError::Escalated`] on [`BooleanDecision::ShellRole`] and
+/// the kernel's findings as [`BooleanError::ResultInvalid`].
+fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
+    match at_rest_refusal(errors) {
+        AtRestRefusal::InBand { decision, diag } => BooleanError::Escalated { decision, diag },
+        AtRestRefusal::Kernel(errors) => BooleanError::ResultInvalid { errors },
+    }
 }
 
 /// **Which of Q1's arms one finding of the finished-body gate is**: the
@@ -6823,7 +6901,11 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             ];
             let recorded =
                 carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
-            let (merged, edge_joins) = finish_output(
+            let OutputStage {
+                merged,
+                edge_joins,
+                killed_lineage,
+            } = finish_output(
                 &mut body,
                 &mut desc,
                 &declared_pairs,
@@ -6862,6 +6944,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 edge_classes: red.edge_classes.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
+                killed_lineage,
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -6926,7 +7009,11 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         &desc,
         [&discarded[0], &discarded[1]],
     )?;
-    let (merged, edge_joins) = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
+    let OutputStage {
+        merged,
+        edge_joins,
+        killed_lineage,
+    } = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
     let output = output_substitutions(&merged, &edge_joins)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
@@ -6953,6 +7040,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             edge_classes: red.edge_classes.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
+            killed_lineage: killed_lineage.clone(),
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -6967,6 +7055,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             edge_classes: red.edge_classes.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
+            killed_lineage: killed_lineage.clone(),
             ..BooleanNaming::default()
         },
     };

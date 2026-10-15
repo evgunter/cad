@@ -98,11 +98,19 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
 /// instance row draws the hide toggle: a hidden instance stays IN this
 /// tree (that is the point — the tree is the document, the viewport is
 /// the display), and the checkbox is the display op's chrome.
+///
+/// `hide_refusal` is what `SessionOp::SetInstanceHidden` would refuse
+/// this row's node with
+/// ([`crate::session::DocSession::instance_hidden_refusal`]). The kind
+/// decides whether the toggle is drawn; the op's admission decides
+/// whether it is live, and a refused one carries the op's sentence on
+/// its hover.
 pub(crate) fn feature_row_ui(
     ui: &mut egui::Ui,
     row: &TreeRow,
     selected: bool,
     hidden: bool,
+    hide_refusal: Option<&Refusal>,
     theme: &Theme,
     notation: Notation,
 ) -> RowClicks {
@@ -114,7 +122,15 @@ pub(crate) fn feature_row_ui(
         }
         if row.spoken.kind() == Some("InstantiatePart") {
             let mut shown = !hidden;
-            if ui.checkbox(&mut shown, "shown").changed() {
+            let toggle = ui.add_enabled(
+                hide_refusal.is_none(),
+                egui::Checkbox::new(&mut shown, "shown"),
+            );
+            let toggle = match hide_refusal {
+                Some(refusal) => toggle.on_disabled_hover_text(refusal.to_string()),
+                None => toggle,
+            };
+            if toggle.changed() {
                 clicks.hide = Some(!shown);
             }
         }
@@ -334,7 +350,16 @@ impl ViewerBehavior<'_> {
     /// clicks name.
     pub(crate) fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
         let hidden = self.display.hidden.contains(&row.id);
-        let clicks = feature_row_ui(ui, row, selected, hidden, &self.theme, *self.notation);
+        let refusal = self.session.instance_hidden_refusal(row.id);
+        let clicks = feature_row_ui(
+            ui,
+            row,
+            selected,
+            hidden,
+            refusal.as_ref(),
+            &self.theme,
+            *self.notation,
+        );
         if let Some(to) = clicks.select {
             self.ops.push(SessionOp::Select(Selection::Node(to)));
         }
@@ -886,7 +911,7 @@ mod tests {
 
     /// [`feature_row_drawn`], read in `notation`.
     fn feature_row_drawn_in(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notation) {
-        feature_row_ui(ui, row, false, false, theme, notation);
+        feature_row_ui(ui, row, false, false, None, theme, notation);
     }
 
     /// **A measure with a value paints it on its own row**, in the
@@ -1434,7 +1459,15 @@ mod tests {
         let select = core::cell::Cell::new(None);
         let hide = core::cell::Cell::new(None);
         painted_after_clicking(target, |ui| {
-            let clicks = feature_row_ui(ui, row, false, hidden, &Theme::DEFAULT, Notation::DEFAULT);
+            let clicks = feature_row_ui(
+                ui,
+                row,
+                false,
+                hidden,
+                None,
+                &Theme::DEFAULT,
+                Notation::DEFAULT,
+            );
             select.set(select.get().or(clicks.select));
             hide.set(hide.get().or(clicks.hide));
         });
@@ -1557,7 +1590,15 @@ mod tests {
         let clicked = core::cell::RefCell::new(None);
         let mut selected = None;
         painted_after_clicking(VersionOffer::LABEL, |ui| {
-            let clicks = feature_row_ui(ui, &row, false, false, &Theme::DEFAULT, Notation::DEFAULT);
+            let clicks = feature_row_ui(
+                ui,
+                &row,
+                false,
+                false,
+                None,
+                &Theme::DEFAULT,
+                Notation::DEFAULT,
+            );
             selected = selected.or(clicks.select);
             if let Some(op) = clicks.accept {
                 *clicked.borrow_mut() = Some(op);

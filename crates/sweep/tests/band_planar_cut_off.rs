@@ -17,7 +17,7 @@
 use core::f64::consts::PI;
 
 use geom::{Curve3, Surface};
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol, Vec3};
 use sweep::blend::battery::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};
 use sweep::blend::{BlendError, CornerConfig};
@@ -111,32 +111,38 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
     (arcs, worst)
 }
 
-/// A body's volume and the half-width of its certified enclosure: zero
-/// on a closed-form inventory, the quadrature lane's on a curved face
-/// trimmed by an ellipse (a fillet's band at an oblique end face).
-pub(crate) fn volume_enclosure(body: &Body<f64>) -> (f64, f64) {
+/// A body's volume and the half-width of its certified enclosure, at any
+/// scalar: the enclosure's midpoint, and its half-width plus the
+/// quadrature lane's pad (zero on a closed-form `f64` inventory, the
+/// lane's on a curved face trimmed by an ellipse: a fillet's band at an
+/// oblique end face).
+pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds>(body: &Body<T>) -> (f64, f64) {
     let p = mass_properties(body, tol()).expect("certified props");
-    (p.volume, p.volume_pad)
+    let (lo, hi) = (p.volume.lo(), p.volume.hi());
+    (0.5 * (lo + hi), 0.5 * (hi - lo) + p.volume_pad)
 }
 
-/// The edge of `body` between the two points, either way round.
-pub(crate) fn edge(body: &Body<f64>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
-    let (a, b) = (Point3::new(a[0], a[1], a[2]), Point3::new(b[0], b[1], b[2]));
-    let at = |p: Point3<f64>, q: Point3<f64>| (p - q).norm() < 1e-12;
+/// The edge of `body` between the two points, either way round, at any
+/// scalar (its vertices read at their midpoints), to `1e-12` of the
+/// points' scale.
+pub(crate) fn edge<T: Real + Bounds>(body: &Body<T>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
+    let scale = a.iter().chain(&b).fold(1.0f64, |m, x| m.max(x.abs()));
+    let mid = |x: T| 0.5 * (x.lo() + x.hi());
+    let at = |p: Point3<T>, q: [f64; 3]| {
+        let d = [mid(p.x) - q[0], mid(p.y) - q[1], mid(p.z) - q[2]];
+        d.iter().map(|x| x * x).sum::<f64>().sqrt() < 1e-12 * scale
+    };
+    let point = |v| {
+        *body
+            .get_point(body.get_vertex(v).expect("v").point)
+            .expect("p")
+    };
     query::all_edges(body)
         .into_iter()
         .find(|&e| {
             let he = body.get_edge(e).expect("an edge").he_plus;
-            let s = body.get_half_edge(he).expect("a half").start;
-            let t = body.half_edge_end(he).expect("an end");
-            let (ps, pt) = (
-                *body
-                    .get_point(body.get_vertex(s).expect("v").point)
-                    .expect("p"),
-                *body
-                    .get_point(body.get_vertex(t).expect("v").point)
-                    .expect("p"),
-            );
+            let ps = point(body.get_half_edge(he).expect("a half").start);
+            let pt = point(body.half_edge_end(he).expect("an end"));
             (at(ps, a) && at(pt, b)) || (at(ps, b) && at(pt, a))
         })
         .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))

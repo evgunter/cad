@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-13
 priority: P3
 cost: M
-needs_ev: true
 ---
 
 
@@ -62,3 +61,7 @@ statement, takes a lane that does not rest on the answer, and records
 nothing) or a structural act (it changes the result's cells, records a
 Zero for the lint and refuses in band). That paragraph goes in D3, with
 a sentence in D10.
+
+## The answer
+
+Ev on `[ev]` PR 5113 (2026-10-14/15): decision 1 accepted (windings are structure the row stores and `certify` compares exactly); decision 3 replaced by the D3 principle (a class gate is a lane choice: in band or definite it takes a lane whose certificate does not rest on the class, records nothing, never ends as a defect; where no lane exists yet it refuses lever-only with "not yet", never a tolerance offer); the edge join records its class Zeros (D10). Decision 2 (the torus convention at admission) is split out to `a-torus-faces-convention-is-decided-where-the-face-is-admitted`, waiting on the import-validation conversation.

@@ -898,7 +898,7 @@ envelope carries the miss, and the derivation says "not shown" so no
 consumer reads the form as shown. A lane choice records nothing, never
 ends as a kernel defect at a build, and refuses only where no lane
 certifies without the answer, with the closed form's pose as its lever
-(D4 ¶1). A closed form before the general lane is a stage of the one
+and never a tolerance offer. A closed form before the general lane is a stage of the one
 reading, not a fallback: both state one certificate. A **structural
 act** changes which cells the result has on the answer: a boolean's
 glue, a vertex fusion, an edge join, a split's ON verdict, a section

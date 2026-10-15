@@ -75,3 +75,16 @@ the fix re-baselines their tables.
 
 Related: CLEAVE's `the-section-table-admits-a-curve-on-its-resolution`,
 whose anchored conic still stores a frame.
+
+## Note from CLEAVE's `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body` (PR 5100, 2026-10-14)
+
+With the split gated at rest (PR 5100), this finding stops at the split
+door as `SplitFinishError::ResultNotAtRest`, and the user sees its defect
+ending there. PR 5100's review found it is also the first finding at
+ε = 1e-9, not only at 1e-12. Its poses are the grazing-plane rows of
+`crates/sweep/tests/a_vertex_on_a_grazing_plane.rs`
+(`a_reading_through_a_vanishing_sine_offers_no_lever`): the unit cylinder
+turned φ = 2.2, cut through its seam vertex at ψ = asin(0.1·K·u/ε), with
+the plane's stored origin `L` up to 2.5 m along the rim. The seam-vertex
+family `crates/sweep/tests/split_seam_vanishing_tilt.rs` reaches it at
+φ = 0.9.

@@ -263,3 +263,133 @@ fn a_spiric_arc_with_no_enclosure_has_no_winding() {
         wound((0.9, 0.2), false)
     );
 }
+
+/// **A small loop near the pinch winds decided**: an arc of an oval
+/// cut `1e-14` to `1.3e-9` short of the inner equator, closed by its
+/// chord, decides with its sign wherever its area over its perimeter
+/// clears the band's escalation. That ratio and its sign are a 40-digit
+/// oracle's (the arc's area by Green's form and by parts, which agree
+/// to 25 digits, and its length by quadrature of `|P′|`). The arcs run
+/// along the oval's neck, where `sup|sin t|` over `inf f` read apart
+/// is up to 10⁴ times the arc's speed ([`spiric::spiric_length_bound`]).
+/// On the two loops cut `1e-14` short, that reading puts the margin near
+/// `1.5e-12`, under `ε = 1e-12`'s escalation, against the oracle's
+/// `2.2e-8` and `4.8e-8`: a reading apart fails at every ε.
+#[test]
+fn a_small_loop_near_the_pinch_winds_decided() {
+    /// `((R, r), d, (t₀, t₁), forward, area/perimeter)`.
+    type PinchLoop = ((f64, f64), f64, (f64, f64), bool, f64);
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+    let loops: [PinchLoop; 7] = [
+        ((3.0, 1.0), 2.0 - 1.3e-9, (2.68, 3.1414), false, -1.850e-3),
+        (
+            (2.0, 0.5),
+            -(1.5 - 1e-9),
+            (PI + 1e-3, PI + 0.4),
+            true,
+            5.698e-4,
+        ),
+        ((2.0, 0.5), 1.5 - 1e-12, (PI - 1e-3, PI), true, 2.138e-7),
+        ((3.0, 1.0), -(2.0 - 1e-12), (PI, PI + 2e-3), true, 2.873e-7),
+        (
+            (1.0, 0.6),
+            0.4 - 1e-12,
+            (PI + 1e-6, PI + 4e-3),
+            false,
+            -1.030e-7,
+        ),
+        (
+            (2.0, 0.5),
+            1.5 - 1e-14,
+            (PI - 1e-2, PI - 1e-7),
+            true,
+            2.239e-8,
+        ),
+        (
+            (3.0, 1.0),
+            -(2.0 - 1e-14),
+            (PI, PI + 1e-2),
+            false,
+            -4.799e-8,
+        ),
+    ];
+    let mut read = 0;
+    for ((big_r, r), d, (t0, t1), forward, ratio) in loops {
+        if ratio.abs() <= 2.0 * band.escalate() {
+            continue;
+        }
+        read += 1;
+        let carrier = oval(
+            Point3::origin(),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            (big_r, r),
+            d,
+        );
+        let (ta, tb) = if forward { (t0, t1) } else { (t1, t0) };
+        let wound = Body::<f64>::spiric_winding(
+            &[(carrier.eval(ta), Some(((&carrier, (t0, t1)), forward)))],
+            carrier.eval(tb),
+            None,
+            true,
+            Vec3::unit_x(),
+            band,
+        );
+        let want = if ratio > 0.0 {
+            Sign::Positive
+        } else {
+            Sign::Negative
+        };
+        assert!(
+            matches!(wound, Ok(Ok(Decided { sign, .. })) if sign == want),
+            "({big_r}, {r}) cut at {d}, {t0}..{t1} forward {forward} (area/perimeter \
+             {ratio}): {wound:?}"
+        );
+    }
+    assert!(read > 0, "no loop clears the band at this ε");
+}
+
+/// **A count with no term reads nothing; a finer one decides**: an arc
+/// of the torus `(1, 0.4)` cut through its hole at `0.8`, over its own
+/// arc `|t| < acos(−1/2)` to within `10⁻³` and `10⁻²` of that arc's ends,
+/// closed by its chord. At 16 pieces the end piece's `f` is not certified
+/// positive, so the arc has no term there; at 128 it has one, and the
+/// loop winds with the sign of its area over its perimeter, `+0.229` by a
+/// 40-digit oracle.
+#[test]
+fn a_spiric_with_no_term_at_the_first_count_winds_at_a_finer_one() {
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+    let arc = (-0.5_f64).acos();
+    let (t0, t1) = (-arc * (1.0 - 1e-3), arc * (1.0 - 1e-2));
+    let carrier = oval(
+        Point3::origin(),
+        Vec3::unit_y(),
+        Vec3::unit_x(),
+        (1.0, 0.4),
+        0.8,
+    );
+    let (lifted_carrier, span) = lifted(&carrier, (t0, t1));
+    assert!(
+        spiric_segment_term((&lifted_carrier, span), true, SPIRIC_PIECES[0]).is_none()
+            && spiric_segment_term((&lifted_carrier, span), true, SPIRIC_PIECES[1]).is_some(),
+        "the fixture's premise: no term at the first count, one at the next"
+    );
+    let wound = Body::<f64>::spiric_winding(
+        &[(carrier.eval(t0), Some(((&carrier, (t0, t1)), true)))],
+        carrier.eval(t1),
+        None,
+        true,
+        Vec3::unit_x(),
+        band,
+    );
+    assert!(
+        matches!(
+            wound,
+            Ok(Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            }))
+        ),
+        "{wound:?}"
+    );
+}
