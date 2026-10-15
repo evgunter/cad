@@ -697,19 +697,20 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
     }
 }
 
-/// **Every chord stated as its pair.** `body`'s edges, each restated
-/// as the pair its two faces' surfaces under-determine (a straight
-/// `OnPair`, derived), and the report tier 3 owes such a body when
+/// **Every chord stated as its pair.** A copy of `body` with each edge
+/// restated as the pair its two faces' surfaces under-determine (a
+/// straight `OnPair`, derived), and the report tier 3 owes it when
 /// every chord reads a corner: `TransverseNotIntrinsic` once per edge,
 /// in arena order, and nothing else. The classification an
 /// Euler-op-built body's chords hide while they are still scaffolds.
 pub fn every_chord_stated_as_its_pair<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    body: &mut Body<T>,
+    body: &Body<T>,
     tol: Tol,
-) -> Vec<crate::ValidationError> {
+) -> (Body<T>, Vec<crate::ValidationError>) {
+    let mut body = body.clone();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in &edges {
-        let (s1, s2) = crate::readback::edge_sides(body, *edge_key)
+        let (s1, s2) = crate::readback::edge_sides(&body, *edge_key)
             .unwrap()
             .surfaces();
         let start = body.get_half_edge(edge.he_plus).unwrap().start;
@@ -722,10 +723,11 @@ pub fn every_chord_stated_as_its_pair<T: geom_core::Decide + crate::props::AtRes
         };
         body.set_edge_curve(*edge_key, spec, tol).unwrap();
     }
-    edges
+    let want = edges
         .into_iter()
         .map(|(edge, _)| crate::ValidationError::TransverseNotIntrinsic { edge })
-        .collect()
+        .collect();
+    (body, want)
 }
 
 /// A cube built like [`geometric_cube`] but through an arbitrary point
