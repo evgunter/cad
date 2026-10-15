@@ -995,3 +995,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Answer:** there is no good reason. These are two questions, so D3 calls for two readings.
   - **Proposed in reply:** an on-carrier reading (a one-carrier reading, homed per D3) and a span reading that takes the measured distance as a value. Consumers combine the two. `Past` disappears, and C5 names both readings.
   - **Next:** the split is queued to the lane after c2's fix pass. 5154 still waits on Ev's sign-off of the C5 text.
+- 2026-10-15: on 5154, Ev said: "maybe run it by the designers, but splitting sounds good".
+  - **Designer pair dispatched** at about 03:55Z: one Opus, one Fable, the same problem statement, no candidate solutions.
+  - **Blinding:** byte 191, drawn at dispatch and recorded on `analysis/design-fork/span-carrier-split` (e77d127d). It is odd, so A = Fable and B = Opus.
+  - **Lane:** the split is on hold; the lane carries on with c2's fixes and the c3 items that don't touch `span.rs`.
