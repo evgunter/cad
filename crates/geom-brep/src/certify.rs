@@ -304,17 +304,18 @@ impl core::fmt::Display for CertCheck {
             Self::MappedSource => "the mapped-source residual",
             Self::ChartImage => "the chart-image mint",
             Self::ChartResidual => "the unified conventional residual",
-            Self::PlaneNurbsOnLocus => "the plane × NURBS on-locus residual",
-            Self::PlaneNurbsHull => "the plane × NURBS sup-norm bound",
+            Self::PlaneNurbsOnLocus => "the spline Intersection lane's on-locus residual",
+            Self::PlaneNurbsHull => "the spline Intersection lane's sup-norm bound",
             Self::PlaneNurbsHullValue => {
-                "the carrier's distance from the surface point its pcurve names, at a break"
+                "the carrier against the surface point its pcurve names, at a break: a \
+                 bound on the carrier's distance from the surface"
             }
             Self::AnalyticBreakResidual => {
                 "the carrier's linearized residual against an analytic surface, at a break"
             }
             Self::AnalyticHull => "the carrier's certified distance bound from an analytic surface",
             Self::PlaneNurbsReportedTransversality => {
-                "the plane × NURBS lane's reported minimum crossing angle"
+                "the spline Intersection lane's reported minimum crossing angle"
             }
             Self::PlaneNurbsChartSpeed => "the spline face's chart speed",
             Self::PlaneNurbsChartSpeedBound => "the spline face's chart-speed bound",
@@ -554,11 +555,11 @@ pub enum CertifyError {
     /// The linear band could not be built from the run's tolerance
     /// (absurd ε — see `Band::linear`'s error docs).
     Band(BandError),
-    /// `Intersection` of a PLANE and a described NURBS wall (M7-8):
-    /// the declare-and-check lane refused, carrying its own measured
-    /// bound. The file's carrier was adopted as EVIDENCE and did not
-    /// hold up — this variant is the evidence's verdict, with the
-    /// number.
+    /// `Intersection` with a described spline wall on one side (a
+    /// plane) or both: the declare-and-check lane refused, carrying its
+    /// own measured number. The carrier was adopted as EVIDENCE; a limb
+    /// 2 refusal bounds it through the lane's own image of it on a
+    /// spline wall ([`crate::edge_nurbs::PlaneNurbsRefusal::Limb`]).
     PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal),
     /// `Intersection` of two analytic surfaces over a rung-3
     /// (`Curve3::Nurbs`) carrier: the analytic rung-3 certificate (C2's
@@ -657,7 +658,7 @@ impl core::fmt::Display for CertifyError {
                 write!(f, " definitely exceeds the tolerance band ({claim}, D4 ¶2)")
             }
             Self::PlaneNurbs(refusal) => {
-                write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
+                write!(f, "the spline Intersection lane refused — {refusal}")
             }
             Self::AnalyticRung3(refusal) => write!(
                 f,
