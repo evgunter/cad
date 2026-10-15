@@ -39,7 +39,7 @@
 //! ring), which has no boundary pre-pass: the caller keeps its frontier
 //! door.
 
-use geom_brep::curve_pair::{Contact, Hit, MeetFault, Span, meet};
+use geom_brep::curve_pair::{Contact, Hit, MeetFault, Span, foot, meet};
 use geom_core::{Band, Decide, Point3};
 
 use super::contain::FaceContainment;
@@ -94,7 +94,6 @@ pub(super) fn boundary_crossing<T: Decide>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<BoundaryCrossing<T>, BooleanError> {
-    let mid = geom::mid_param(t0, t1);
     let swept = Span::new(carrier, (t0, t1));
     let face_data = y
         .get_face(face)
@@ -108,13 +107,10 @@ pub(super) fn boundary_crossing<T: Decide>(
             return Ok(BoundaryCrossing::Unread);
         };
         let vertex = y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
-        let Some(t) = carrier.param_near(vertex, mid) else {
+        let Some(read) = vertex_on_span(&swept, vertex, band) else {
             return Ok(BoundaryCrossing::Unread);
         };
-        match swept.contact(vertex, t, band).map_err(escalated)? {
-            Contact::On { t, .. } => crossings.push(t),
-            Contact::Off | Contact::Carrier | Contact::Past | Contact::End => {}
-        }
+        crossings.extend(read.map_err(escalated)?);
         let CurveGeom::Certified(other) = y.edge_curve_linked(ek, edge) else {
             return Ok(BoundaryCrossing::Unread);
         };
@@ -162,6 +158,26 @@ pub(super) fn boundary_crossing<T: Decide>(
     )
 }
 
+/// **Whether the swept span holds a boundary vertex on its interior**:
+/// the vertex read by [`Span::contact`] at its foot on the swept carrier
+/// ([`geom_brep::curve_pair::foot`], a polished closest point), `Some` of
+/// the parameter where it is `On`. `None` where the carrier has no foot
+/// reading (a spline). The foot, not the carrier's
+/// [`geom::Curve3::param_near`]: on an ellipse that is the angle of the
+/// point's unit-coordinate image, whose point lies up to `(1 + a/b)·ε`
+/// from a vertex `ε` off the carrier, which the band would read off it.
+fn vertex_on_span<T: Decide>(
+    swept: &Span<'_, T>,
+    vertex: geom_core::Point3<T>,
+    band: Band,
+) -> Option<Result<Option<T>, geom_core::Indeterminate>> {
+    let t = foot(swept.carrier(), vertex)?;
+    Some(swept.contact(vertex, t, band).map(|c| match c {
+        Contact::On { t, .. } => Some(t),
+        Contact::Off | Contact::Carrier | Contact::Past | Contact::End => None,
+    }))
+}
+
 /// An in-band decision of this module: where a crossing lands along its
 /// edge is undetermined.
 fn escalated(diag: geom_core::Indeterminate) -> BooleanError {
@@ -179,12 +195,45 @@ mod crossing_rows {
     //! wall sheet's rim, which no vertex projects onto. (Coaxial
     //! iso-curves are found by either kind of candidate; this is the row
     //! that needs the meeting reading.)
-    use super::{BoundaryCrossing, boundary_crossing};
+    use super::{BoundaryCrossing, boundary_crossing, vertex_on_span};
     use crate::boolean::Operand;
     use crate::boolean::contain::FaceContainment;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
+    use geom_brep::curve_pair::Span;
     use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **A vertex within the band of a thin ellipse is read on it.** An
+    /// ellipse of semi-axes `a/b` from 100 to 1000, and a vertex half the
+    /// band's zero off it along its in-plane normal at three parameters
+    /// across the span. Read at the ellipse's foot it is `On`; read at the
+    /// angle of its unit-coordinate image (`param_near`) its gap is about
+    /// `(1 + a/b)` times that, which the band decides off. Red on the
+    /// `param_near` reading.
+    #[test]
+    fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let z = band.zero();
+        for ratio in [100.0, 1e3] {
+            let thin = Curve3::Ellipse {
+                center: Point3::new(0.2, -0.1, 0.4),
+                axis: Vec3::unit_z(),
+                semi_u: ratio,
+                semi_v: 1.0,
+                u_ref: Vec3::unit_x(),
+            };
+            let swept = Span::new(&thin, (0.5, 2.5));
+            for t in [0.9, 1.3, 2.1] {
+                let (p, d) = thin.ders1(t);
+                let normal = Vec3::unit_z().cross(d).normalize();
+                let vertex = p + normal * (0.5 * z);
+                let read = vertex_on_span(&swept, vertex, band).expect("an ellipse has a foot");
+                let on = read.unwrap_or_else(|e| panic!("{ratio} at {t}: {e:?}"));
+                let at = on.unwrap_or_else(|| panic!("{ratio} at {t}: read off"));
+                assert!((at - t).abs() < 1e-6, "{ratio} at {t}: {at}");
+            }
+        }
+    }
 
     #[test]
     fn a_tilted_circle_meets_a_rim_no_vertex_projects_onto() {

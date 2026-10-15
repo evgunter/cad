@@ -31,7 +31,7 @@ pub mod pose;
 pub mod span;
 mod walk;
 
-pub use pose::{Candidate, Pose, PoseRefusal, Sense, pose};
+pub use pose::{Candidate, Pose, PoseRefusal, Sense, foot, pose};
 pub use span::{Contact, Hit, Span};
 
 use geom::CurveKind;
