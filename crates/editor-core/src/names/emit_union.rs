@@ -1899,6 +1899,7 @@ impl<T: geom_core::Real> Links<T> {
                 inside: row.class != topo::SideCode::Out,
             });
         }
+        eprintln!("INSTR judged unread={:?}", naming.unread_partners);
         for u in &naming.unread_partners {
             let Some((member, other, at)) = place(u.operand, u.vertex)? else {
                 continue;
