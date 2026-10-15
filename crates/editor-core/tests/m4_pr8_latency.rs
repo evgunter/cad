@@ -84,8 +84,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use editor_core::{
-    CancelToken, ChecksConfig, DocEdit, EvalOptions, FreeVar, ProfileDoc, Subject, VarName, apply,
-    evaluate, product_recorded, run_checks, run_checks_on,
+    CancelToken, ChecksConfig, DocEdit, EvalOptions, FreeValue, ProfileDoc, Subject, VarName,
+    apply, evaluate, product_recorded, run_checks, run_checks_on,
 };
 
 use corpus::{cone, documents, eval, failures};
@@ -449,9 +449,9 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
         .expect("the corpus carries the heat sink");
     let driven = apply(
         &entry.doc,
-        &DocEdit::DeclareVar {
-            name: VarName::from_static("fins"),
-            def: editor_core::VarDecl::Free(FreeVar::Count { value: fins }),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static("fins").into(),
+            value: FreeValue::Count(fins),
         },
         tol,
         &editor_core::RefusingReach,

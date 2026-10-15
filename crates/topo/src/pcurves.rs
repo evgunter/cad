@@ -376,6 +376,7 @@ use geom::Surface;
 use geom_brep::{
     BranchMiss, Pcurve, PcurveCache, PcurveCertifyError, Period, WalkStop, chart_pcurve_over,
 };
+use geom_brep::{first_within, probe_pick};
 use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
@@ -1085,22 +1086,6 @@ impl RowSpace {
     }
 }
 
-/// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans`
-/// spans — an [`Pcurve::IsoArc`]'s sub-arc locator (pure `f64`
-/// structure, which is what keeps the variant `T`-generic).
-fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
-    if spans == 0 {
-        return None;
-    }
-    let mut knots = vec![0.0, 0.0];
-    #[allow(clippy::cast_precision_loss)]
-    for k in 1..spans {
-        knots.push(k as f64 / spans as f64);
-    }
-    knots.extend([1.0, 1.0]);
-    geom_core::spline::KnotVector::clamped(knots, 1).ok()
-}
-
 /// Derives the **exact iso chart image** of `half_edge` on a described
 /// NURBS chart (M6-3; arc rims since M8-3) — the NURBS-chart
 /// counterpart of `geom_brep::chart_pcurve`, driven by the edge's
@@ -1187,43 +1172,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     // (`Pcurve::IsoArc`). An IsoUnsupported refusal says this carrier
     // is not such a rim.
     let arc_rim = || -> Result<Pcurve<T>, PcurveMintError> {
-        let Some(payload) = surface.spline_chart() else {
-            return Err(refuse("an arc cap rim on a non-spline chart"));
-        };
-        let ku = payload.knots_u();
-        let (d0, d1) = ku.domain();
-        let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
-        let breaks = uniform_breaks(spans)
-            .ok_or_else(|| refuse("an arc rim whose chart has no usable sub-arc structure"))?;
-        // **The row and the u DIRECTION are one pick.** A rim the
-        // kernel built runs with the chart's increasing `u`; one it
-        // imported need not (#327: a promoted rim circle's `axis` comes
-        // from the file's own winding, and a cylinder wall's two rims
-        // routinely wind oppositely). A rim against `u` starts at the
-        // `u₁` corner, so neither the start nor a fixed corner can name
-        // its row, and on a FULL-PERIOD rim the two `u` boundaries are
-        // one 3-D point. So the four images — each boundary row, each
-        // direction — are judged together at a quarter of the arc,
-        // where the directions are a half-period apart. A selection,
-        // checked: the full arc-rim certification still follows.
-        let image = |v: T, p0x: T, sign: T| Pcurve::IsoArc {
-            p0: Point2::new(p0x, v),
-            pd: Vec2::new(sign, T::zero()),
-            t0,
-            angle: span,
-            breaks: breaks.clone(),
-        };
-        let candidates = [cv0, cv1].into_iter().flat_map(|v| {
-            [(cu0, cu1 - cu0), (cu1, cu0 - cu1)].map(|(p0x, sign)| image(v, p0x, sign))
-        });
-        match probe_pick(
-            "pcurve_iso_arc_row_direction",
-            &carrier,
-            (t0, span),
-            surface,
-            band,
-            candidates,
-        ) {
+        // The row and the `u` direction are one pick, the incidence
+        // lane's too ([`geom_brep::pick_arc_rim`]); the full arc-rim
+        // certification still follows.
+        match geom_brep::pick_arc_rim(&carrier, (t0, span), surface, band) {
             Ok(Some(cand)) => Ok(cand),
             Err(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
             Ok(None) => Err(refuse(
@@ -1542,62 +1494,6 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
              (the trimmed-NURBS pcurve lane is the cut-loft unit's)",
         )),
     }
-}
-
-/// **The interior probe**: the first candidate chart image that holds
-/// the carrier a quarter of the edge's span in, metered in METRES
-/// against the chart at the image's own point (D4 ¶1). The start point
-/// cannot decide a pick: every candidate the iso arms build passes
-/// through the start's foot or a chart corner, and a quarter span in is
-/// where they separate. A SELECTION, checked: the full certification
-/// follows every derivation.
-///
-/// Escalations are DEFERRED per candidate, so an indeterminate one does
-/// not rob the rest of their turn; the first is answered only when no
-/// candidate holds.
-fn probe_pick<T: AtRestPolicy>(
-    what: &'static str,
-    carrier: &geom::Curve3<T>,
-    (t0, span): (T, T),
-    surface: &Surface<T>,
-    band: Band,
-    candidates: impl IntoIterator<Item = Pcurve<T>>,
-) -> Result<Option<Pcurve<T>>, Indeterminate> {
-    let probe_t = t0 + span * T::from_f64(0.25);
-    let probe = carrier.eval(probe_t);
-    first_within(what, candidates, band, |cand| {
-        let uv = cand.eval(probe_t);
-        Margin::of(probe.distance(surface.eval(uv.x, uv.y)))
-    })
-}
-
-/// **The first candidate whose margin decides Zero**, in order. A
-/// candidate whose margin is in band does not stop the search: its
-/// escalation is deferred, and the first deferred one is answered only
-/// where no candidate decides Zero. `Ok(None)` where every margin is
-/// decided off.
-///
-/// # Errors
-///
-/// The first in-band candidate's [`Indeterminate`], where none decides
-/// Zero.
-fn first_within<C, T: Decide>(
-    name: &'static str,
-    candidates: impl IntoIterator<Item = C>,
-    band: Band,
-    margin: impl Fn(&C) -> Margin<T>,
-) -> Result<Option<C>, Indeterminate> {
-    let mut deferred = None;
-    for cand in candidates {
-        match decide(name, margin(&cand), band) {
-            Ok(Sign::Zero) => return Ok(Some(cand)),
-            Ok(Sign::Positive | Sign::Negative) => {}
-            Err(cause) => {
-                deferred.get_or_insert(cause);
-            }
-        }
-    }
-    deferred.map_or(Ok(None), Err)
 }
 
 /// The **general curve-in-UV image** of a carrier on this face's own

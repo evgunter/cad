@@ -299,3 +299,254 @@ fn an_approx_wall_is_metered_against_its_fit() {
         assert_on_pair(&got.expect("within the band of the fit"), "the coarse fit");
     }
 }
+
+/// The quarter-circle rim at `z = 0` of [`quarter_cylinder_wall`],
+/// radius `r` about `z`, from `x̂` through `angle`.
+fn rim(r: f64, angle: f64) -> (Curve3<f64>, f64) {
+    (
+        Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: r,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+        angle,
+    )
+}
+
+/// The `z = 0` plane, the wall's bottom cap.
+fn cap() -> Surface<f64> {
+    Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, -1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// The quarter rim's own image on the wall: the arc-rim pick's, which
+/// its certificate holds.
+fn quarter_image() -> geom_brep::Pcurve<f64> {
+    let (carrier, angle) = rim(1.0, core::f64::consts::FRAC_PI_2);
+    geom_brep::pick_arc_rim(&carrier, (0.0, angle), &wall(), band())
+        .expect("the pick decides")
+        .expect("one candidate is the rim's row")
+}
+
+/// An `OnPair` of the cap and the wall: its spec, its two ends, the
+/// surfaces, and the wall's key.
+type ArcSpec = (
+    EdgeCurveSpec<f64>,
+    (Point3<f64>, Point3<f64>),
+    SlotMap<SurfaceKey, Surface<f64>>,
+    SurfaceKey,
+);
+
+/// [`ArcSpec`] over `carrier` on `[t0, t1]`.
+fn arc_spec(carrier: Curve3<f64>, (t0, t1): (f64, f64)) -> ArcSpec {
+    let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+    let (s1, s2) = (arena.insert(cap()), arena.insert(wall()));
+    let ends = (carrier.eval(t0), carrier.eval(t1));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::on_pair(SurfacePair::new(s1, s2)),
+        carrier,
+        param_start: t0,
+        param_end: t1,
+    };
+    (spec, ends, arena, s2)
+}
+
+/// Certifies `carrier` over `[0, angle]` as an `OnPair` of the cap and
+/// the wall, the wall's image `stated` where given.
+fn arc_on_pair(
+    (carrier, angle): (Curve3<f64>, f64),
+    stated: Option<geom_brep::Pcurve<f64>>,
+) -> Result<EdgeCurve<f64>, CertifyError> {
+    let (spec, ends, arena, wall_key) = arc_spec(carrier, (0.0, angle));
+    let stated = stated.map(|pcurve| geom_brep::StatedImage {
+        surface: wall_key,
+        pcurve,
+    });
+    EdgeCurve::certify_via_stated(
+        spec,
+        ends.0,
+        ends.1,
+        move |k| arena.get(k).cloned(),
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+        stated.as_ref(),
+    )
+}
+
+/// **An arc rim certifies on its pair through its exact image.** The
+/// fitted image's hull refuses a circle's foot path; the arc-rim
+/// certificate compares the wall's boundary row with the circle in the
+/// row's own spline space. The pick's image certifies, and so does the
+/// same image stated, to the same bound.
+#[test]
+fn an_arc_rim_certifies_on_its_pair_through_its_exact_image() {
+    let quarter = rim(1.0, core::f64::consts::FRAC_PI_2);
+    let derived = arc_on_pair(quarter.clone(), None).expect("the rim lies on both");
+    assert_on_pair(&derived, "the arc rim");
+    let stated = arc_on_pair(quarter, Some(quarter_image())).expect("the stated image certifies");
+    assert_eq!(
+        stated.certificate().max_residual,
+        derived.certificate().max_residual,
+        "the stated image and the pick's are one image"
+    );
+}
+
+/// **Off the wall, both causes.** The rim at radius `1 + off` lies on
+/// the cap and `off` off the wall. No boundary-row image holds it at the
+/// pick's probe (`iso: None`); the on-wall rim's image stated for it
+/// refuses at its map residual, and the refusal reads as that check,
+/// not as the fitted path's bound, which an arc's bent foot path
+/// inflates whether the rim is on the wall or off it.
+#[test]
+fn an_arc_rim_off_its_wall_refuses_with_both_causes() {
+    let off = 1e3 * Tol::witness().get().eps;
+    let carrier = rim(1.0 + off, core::f64::consts::FRAC_PI_2);
+    assert!(
+        matches!(
+            arc_on_pair(carrier.clone(), None),
+            Err(CertifyError::OnPairArcRim { iso: None, .. })
+        ),
+        "no image of the wall's rows holds a rim {off:e} off it"
+    );
+    let refused = arc_on_pair(carrier, Some(quarter_image()));
+    let Err(
+        e @ CertifyError::OnPairArcRim {
+            iso: Some(geom_brep::PcurveCheck::MapResidual),
+            ..
+        },
+    ) = &refused
+    else {
+        panic!("the stated image refuses at its map residual: {refused:?}");
+    };
+    assert!(
+        matches!(
+            e.decision(),
+            Some((
+                geom_brep::CertCheck::PlaneNurbsHullValue,
+                geom_brep::recourse::RefusedArm::SignCertain(None)
+            ))
+        ),
+        "the refusal reads as the exact image's check: {:?}",
+        e.decision()
+    );
+    assert!(
+        e.to_string()
+            .contains("exact image along a boundary row of its wall misses it"),
+        "the refusal names the exact image's check: {e}"
+    );
+}
+
+/// **An escalated pick escalates.** The rim `2ε` off the wall sits in
+/// the band at the pick's probe: the exact image's reading is
+/// undecided, and the fitted path does not make it definite (D4 ¶3) —
+/// the pcurve mint's rule, which the pick is.
+#[test]
+fn an_arc_rim_whose_exact_image_escalates_escalates() {
+    let b = band();
+    let off = 0.5 * (b.zero() + b.escalate());
+    let carrier = rim(1.0 + off, core::f64::consts::FRAC_PI_2);
+    assert!(
+        geom_brep::pick_arc_rim(&carrier.0, (0.0, carrier.1), &wall(), b).is_err(),
+        "the pick escalates at the rim's row"
+    );
+    match arc_on_pair(carrier, None) {
+        Err(CertifyError::Escalated {
+            check: geom_brep::CertCheck::PlaneNurbsHullValue,
+            ..
+        }) => {}
+        other => panic!("an exact image that escalates escalates the rim: {other:?}"),
+    }
+}
+
+/// **A partial rim.** Half the quarter arc lies on the wall, but every
+/// candidate image runs the whole boundary row, so none holds the half
+/// rim at the pick's probe, nor certifies it; the fitted path decides
+/// the rest.
+#[test]
+fn a_partial_arc_rim_does_not_take_the_exact_image() {
+    let half = rim(1.0, core::f64::consts::FRAC_PI_4);
+    assert!(
+        matches!(
+            geom_brep::pick_arc_rim(&half.0, (0.0, half.1), &wall(), band()),
+            Ok(None)
+        ),
+        "no full-row image holds a partial rim at the probe"
+    );
+    assert!(
+        geom_brep::arc_rim_candidates(&quarter_cylinder_wall(), 0.0, half.1)
+            .into_iter()
+            .all(|p| {
+                geom_brep::PcurveCache::certify(p, 0.0, half.1, &half.0, &wall(), band()).is_err()
+            }),
+        "no full-row image certifies a partial rim"
+    );
+    match arc_on_pair(half, None) {
+        Ok(edge) => assert_on_pair(&edge, "the partial rim, by its fitted image"),
+        Err(CertifyError::OnPairArcRim { iso: None, .. }) => {}
+        other => {
+            panic!("a partial rim certifies by its fitted image or refuses both ways: {other:?}")
+        }
+    }
+}
+
+/// **A stated image is certified as it stands, not swapped for the
+/// pick's.** The wall's other row stated as the rim's image refuses,
+/// though the pick's own image holds. The lane does fall back, soundly,
+/// to the fitted path, which refuses an arc here; `iso: Some` tells the
+/// two paths apart: it is the stated image's refusal, where a pick would
+/// have certified.
+#[test]
+fn a_wrong_stated_image_is_not_swapped_for_the_pick() {
+    let quarter = rim(1.0, core::f64::consts::FRAC_PI_2);
+    let wrong = geom_brep::arc_rim_candidates(&quarter_cylinder_wall(), 0.0, quarter.1)
+        .into_iter()
+        .find(|p| {
+            geom_brep::PcurveCache::certify(p.clone(), 0.0, quarter.1, &quarter.0, &wall(), band())
+                .is_err()
+        })
+        .expect("a candidate that is not the rim's row");
+    match arc_on_pair(quarter, Some(wrong)) {
+        Err(CertifyError::OnPairArcRim { iso: Some(_), .. }) => {}
+        other => panic!("a wrong stated image refuses as itself: {other:?}"),
+    }
+}
+
+/// **A split child certifies at rest as it did at the op.** The
+/// `[0, π/4]` half of the quarter rim, with its parent's stored image
+/// stated — whose arc covers it — certifies; the pick's own full-row
+/// image for the child cannot. Re-certification reads the stored image
+/// as the op did (`recertify_via_stated`, tier 3's), so the child the op
+/// admitted is not refused at rest through another image.
+#[test]
+fn a_split_child_recertifies_through_its_parents_stored_image() {
+    let (carrier, _) = rim(1.0, core::f64::consts::FRAC_PI_2);
+    let span = (0.0, core::f64::consts::FRAC_PI_4);
+    let (spec, ends, arena, wall_key) = arc_spec(carrier, span);
+    let stated = geom_brep::StatedImage {
+        surface: wall_key,
+        pcurve: quarter_image(),
+    };
+    let surfaces = |k| arena.get(k).cloned();
+    let lane = || Some(geom_brep::NurbsLane::certified());
+    let child = EdgeCurve::certify_via_stated(
+        spec.clone(),
+        ends.0,
+        ends.1,
+        surfaces,
+        band(),
+        lane(),
+        Some(&stated),
+    )
+    .expect("the child certifies through its parent's image");
+    assert!(
+        EdgeCurve::certify_via(spec, ends.0, ends.1, surfaces, band(), lane()).is_err(),
+        "no image picked for the child alone certifies it"
+    );
+    child
+        .recertify_via_stated(ends.0, ends.1, surfaces, band(), lane(), Some(&stated))
+        .expect("the child re-certifies through the stored image");
+}
