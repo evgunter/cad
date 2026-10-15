@@ -955,7 +955,8 @@ impl core::fmt::Display for SsiError {
                  locus cusps or crosses itself, which is a degenerate operand pair"
             ),
             Self::CertificateLimb { limb, margin } => match limb {
-                SsiLimb::HullSup => write!(
+                // The chart arm's label says it reads through the pcurve.
+                SsiLimb::HullSup | SsiLimb::HullSupChart => write!(
                     f,
                     "ssi: {} bounds the fitted carrier's distance from the locus it claims by \
                      {margin:e} m, past the tolerance",
@@ -963,14 +964,30 @@ impl core::fmt::Display for SsiError {
                 ),
                 SsiLimb::HullValueChart => write!(
                     f,
-                    "ssi: the fitted carrier failed {} at {margin:e} m — the carrier is off \
-                     the surface point its pcurve names",
+                    "ssi: the fitted carrier failed {} at {margin:e} m — the carrier against \
+                     the surface point its pcurve names, which bounds the carrier's miss and is \
+                     not the miss",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
+                SsiLimb::ImageMiss => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {margin:e} m where the carrier is on \
+                     the surface — its pcurve misses the carrier's foot path there",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::HullValue => write!(
                     f,
                     "ssi: the fitted carrier failed {} at {margin:e} m — the cache is not \
                      within tolerance of the locus it claims",
+                    limb.name()
+                ),
+                // No producer writes a `CertificateLimb` of limb 3: the
+                // tube refuses as `TubeStraddles` or `TubeNotOneArc`, or
+                // escalates.
+                SsiLimb::Tube => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {margin:e} m — the certificate cannot \
+                     show the cache is its surfaces' one crossing",
                     limb.name()
                 ),
             },
@@ -3408,7 +3425,7 @@ mod ending_tests {
             },
             samples: 10_221,
             refusal: Box::new(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: MarginDiag::value(last),
             }),
             earlier: vec![
@@ -3419,7 +3436,7 @@ mod ending_tests {
                 },
                 RefusedRound {
                     samples: 7_400,
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: RoundMargin::Over(MarginDiag::value(before)),
                 },
             ],
@@ -3485,7 +3502,7 @@ mod ending_tests {
             },
             samples: 18_299,
             refusal: Box::new(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: MarginDiag::value(1.17e-14),
             }),
             earlier: Vec::new(),
@@ -3510,7 +3527,7 @@ mod ending_tests {
             refusal,
             earlier: vec![RefusedRound {
                 samples: 18_299,
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: RoundMargin::Over(MarginDiag::value(1.3e-14)),
             }],
         };
@@ -3528,13 +3545,13 @@ mod ending_tests {
                 },
                 samples: 348,
                 refusal: Box::new(SsiError::CertificateLimb {
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: MarginDiag::value(2.4e-9),
                 }),
                 earlier: (0..earlier)
                     .map(|_| RefusedRound {
                         samples: 346,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(3.1e-9)),
                     })
                     .collect(),
@@ -3918,12 +3935,12 @@ mod ending_tests {
                     },
                     samples: 348,
                     refusal: Box::new(SsiError::CertificateLimb {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: MarginDiag::value(2.4e-9),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 346,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(3.1e-9)),
                     }],
                 },
@@ -3937,12 +3954,12 @@ mod ending_tests {
                     },
                     samples: 17_375,
                     refusal: Box::new(SsiError::CertificateLimb {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: MarginDiag::value(2.15e-11),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 10_337,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(1.30e-10)),
                     }],
                 },
@@ -3958,13 +3975,13 @@ mod ending_tests {
                     },
                     samples: 14_965,
                     refusal: Box::new(SsiError::CertificateEscalated {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         cause: in_band,
                     }),
                     earlier: (0..4)
                         .map(|k| RefusedRound {
                             samples: 4_245 << k,
-                            limb: SsiLimb::HullSup,
+                            limb: SsiLimb::HullSupChart,
                             margin: RoundMargin::InBand(MarginDiag::value(1.6e-14)),
                         })
                         .collect(),
@@ -4024,7 +4041,7 @@ mod ending_tests {
             (
                 "limb",
                 SsiError::CertificateLimb {
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: MarginDiag::value(3e-9),
                 },
             ),

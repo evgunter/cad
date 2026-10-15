@@ -359,7 +359,6 @@ fn the_fixture_is_not_a_structurally_valid_body() {
             "MixedDihedral".to_string(),
             "PlanarBoundaryResidual".to_string(),
             "ScaffoldAtRest".to_string(),
-            "TransverseNotIntrinsic".to_string(),
         ]
     );
 }

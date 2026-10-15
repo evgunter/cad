@@ -1911,8 +1911,6 @@ fn attribute(
         | ValidationError::NoDihedralArm { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }
-        | ValidationError::PairTangencyDetermined { .. }
-        | ValidationError::PairCornerDetermined { .. }
         // The material-wedge arm's refusal is a finding about an EDGE
         // of this body, not about a contact record: the lamina states
         // that two of its own faces osculate, which no mate names.

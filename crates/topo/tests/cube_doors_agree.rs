@@ -565,7 +565,7 @@ fn every_generic_door_builds_the_prism_its_inputs_name_at_an_interval_scalar() {
 /// different body, and the difference is the one its suites measure:
 /// it stops before `describe_as_intersections`, so every chord is still
 /// at the scaffolding door. Unify it with the box doors and
-/// `assert_every_chord_named_by_both_rules` stops being reachable
+/// `assert_every_chord_named_by_the_fence` stops being reachable
 /// rather than starting to fail, which is why the axis is pinned here
 /// and not left to the suites that ride on it.
 #[test]
