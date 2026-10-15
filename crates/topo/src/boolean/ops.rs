@@ -5208,19 +5208,19 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 /// A result read in band is the operands' ill-conditioning, which
 /// definite cuts can compose: where every finding is a reading in band of
 /// a shell's role (check 10) or a solid's orientation (check 7) — an
-/// aimed ray's pair in band ([`BooleanDecision::ShellRole`]), or, where
-/// no aimed ray read the side, a solid's volume in band
-/// ([`BooleanDecision::SolidSide`]) — the refusal is in band, on the
-/// reading whose margin binds the offer (nearest zero: a tolerance
-/// deciding it decides every other), naming how many more lie in band.
+/// aimed ray's pair in band ([`BooleanDecision::ShellRole`]) — the
+/// refusal is in band, on the reading whose margin binds the offer
+/// (nearest zero: a tolerance deciding it decides every other), naming
+/// how many more lie in band. The volume, read where no ray reads, is
+/// never in band: its sign is certified by its enclosure alone (D10), so
+/// an enclosure holding zero is the kernel's.
 #[derive(Debug)]
 pub(crate) enum AtRestRefusal {
     /// Every finding is a reading in band: the binding one's decision,
     /// counting the others, with its margin. Its recourse is a smaller
     /// tolerance or moved geometry.
     InBand {
-        /// [`BooleanDecision::ShellRole`] or
-        /// [`BooleanDecision::SolidSide`] on the binding reading.
+        /// [`BooleanDecision::ShellRole`] on the binding reading.
         decision: BooleanDecision,
         /// The binding reading's margin.
         diag: geom_core::Indeterminate,
@@ -5279,65 +5279,11 @@ fn binding(readings: &[InBand]) -> Option<InBand> {
             far,
             others: more,
         },
-        BooleanDecision::ShellSide { shell, corner, .. } => BooleanDecision::ShellSide {
-            shell,
-            corner,
-            others: more,
-        },
-        BooleanDecision::SolidSide {
-            solid,
-            aimed,
-            corners,
-            ..
-        } => BooleanDecision::SolidSide {
-            solid,
-            aimed,
-            corners,
-            others: more,
-        },
         other => other,
     };
     Some(InBand {
         decision,
         diag: binding.diag,
-    })
-}
-
-/// **A shell's role read off its volume in band** at the finished-body
-/// gate ([`BooleanDecision::ShellSide`]): the volume escalated, after a
-/// ray set aside at a corner or with no aim at all. A volume that reads
-/// zero or straddles zero, a pair (typed by [`finding_arm`] itself), and
-/// every other refusal are `None`.
-fn shell_side_in_band(error: &crate::props::ShellClassifyError) -> Option<InBand> {
-    use crate::props::ShellClassifyError as E;
-    // Whether the volume's refusal is a reading in band: its escalation.
-    let escalated = |volume: &E| match volume {
-        E::Escalated { source, .. } => Some(*source),
-        E::Band { .. }
-        | E::Props { .. }
-        | E::ZeroVolume { .. }
-        | E::Straddles { .. }
-        | E::RayInBand { .. }
-        | E::Corner { .. }
-        | E::Ray { .. } => None,
-    };
-    let (shell, corner, source) = match error {
-        E::Escalated { shell, .. } => (*shell, false, escalated(error)?),
-        E::Corner { shell, volume, .. } => (*shell, true, escalated(volume)?),
-        E::Band { .. }
-        | E::Props { .. }
-        | E::ZeroVolume { .. }
-        | E::Straddles { .. }
-        | E::RayInBand { .. }
-        | E::Ray { .. } => return None,
-    };
-    Some(InBand {
-        decision: BooleanDecision::ShellSide {
-            shell,
-            corner,
-            others: 0,
-        },
-        diag: source,
     })
 }
 
@@ -5366,40 +5312,11 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
             },
             diag: pair.gap,
         }),
-        // In band: no aimed ray read the solid's side, and its volume's
-        // sign lies in band — the solid is thin wherever a ray was aimed.
-        V::OrientationUndecided {
-            solid,
-            reading:
-                OrientationUnread::Volume {
-                    margin: Some(diag),
-                    aimed,
-                    set_aside,
-                },
-        } => Some(InBand {
-            decision: BooleanDecision::SolidSide {
-                solid: *solid,
-                aimed: u32::try_from(*aimed).unwrap_or(u32::MAX),
-                corners: u32::try_from(
-                    set_aside
-                        .iter()
-                        .filter(|s| matches!(s.why, crate::side_reader::SetAsideWhy::Corner { .. }))
-                        .count(),
-                )
-                .unwrap_or(u32::MAX),
-                others: 0,
-            },
-            diag: *diag,
-        }),
-        // In band: no aimed ray read a shell's side, and its volume's
-        // sign lies in band — the space it bounds is thin wherever a ray
-        // was aimed at it — whether or not a ray was set aside at a
-        // sharp corner on the way.
-        V::ShellRoleUndecided { error, .. } => shell_side_in_band(error),
-        // Undecided otherwise: a volume straddling zero by its own
-        // rounding, an aimed ray's walk refusal on a broken face, a
-        // limit, or a band that does not form.
-        V::OrientationUndecided { .. } => None,
+        // The kernel's otherwise: a volume whose certified enclosure holds
+        // zero (its sign is read off that enclosure alone, D10), an aimed
+        // ray's walk refusal on a broken face, a limit, or a band that
+        // does not form.
+        V::ShellRoleUndecided { .. } | V::OrientationUndecided { .. } => None,
         // Undecided at a point margin the gate has not shown conditioned
         // (`work/tally/the-door-gates-other-in-band-findings-are-typed-the-kernels.md`).
         V::DegenerateTorusEscalated { .. }
@@ -7564,13 +7481,13 @@ mod tests {
 
     /// **The gate's findings take their arm** (D10, Booleans): readings
     /// in band alone — an aimed ray's pair, read for a shell's role or a
-    /// solid's orientation, or a solid's volume in band where no ray read
-    /// its side — are the operands' ill-conditioning, refused `Escalated`
-    /// on the reading whose margin binds the offer (nearest zero, in
-    /// either order) and naming how many more lie in band. A ray set
-    /// aside at a sharp corner is never escalated as a pair. The same
-    /// reading beside a definite finding, a shell's role the volume left
-    /// unread, or a volume straddling zero is the kernel's.
+    /// solid's orientation — are the operands' ill-conditioning, refused
+    /// `Escalated` on the reading whose margin binds the offer (nearest
+    /// zero, in either order) and naming how many more lie in band. A ray
+    /// set aside at a sharp corner is never escalated as a pair. A pair
+    /// beside a definite finding, and a volume whose certified enclosure
+    /// holds zero (a solid's or a shell's, after a corner or not), are the
+    /// kernel's.
     #[test]
     fn the_gate_types_only_readings_in_band_escalated() {
         use crate::ShellClassifyError as S;
@@ -7612,7 +7529,8 @@ mod tests {
             reading: crate::OrientationUnread::Pair(Box::new(pair.clone())),
         };
         // A solid no aimed ray read, one ray set aside at a sharp corner,
-        // and its volume in band (`margin`) or straddling zero (`None`).
+        // and its volume's enclosure holding zero (`margin`, an end
+        // escalated) or straddling it (`None`).
         let corner = |margin: Option<f64>| V::OrientationUndecided {
             solid: SolidKey::default(),
             reading: crate::OrientationUnread::Volume {
@@ -7629,7 +7547,7 @@ mod tests {
                 }],
             },
         };
-        // A shell no aimed ray read, its volume in band.
+        // A shell no aimed ray read, its volume's enclosure holding zero.
         let thin_volume = V::ShellRoleUndecided {
             solid: SolidKey::default(),
             error: S::Escalated {
@@ -7666,50 +7584,18 @@ mod tests {
                 "{what}: the thinner pair binds, the other counted: {refusal:?}"
             );
         }
-        // A volume in band where no ray read is the solid's side in band:
-        // escalated, never as a pair, the corner counted.
+        // A volume where no ray read is never in band: its sign is
+        // certified by its enclosure alone (D10), so an enclosure holding
+        // zero — a solid's after a corner, a shell's — is the kernel's,
+        // beside a pair too.
         for (what, errors) in [
-            ("a corner and a thin volume", vec![corner(Some(2e-9))]),
+            ("a solid's enclosure holding zero", vec![corner(Some(2e-9))]),
+            ("beside a pair", vec![role(&thick), corner(Some(2e-9))]),
             (
-                "beside a thicker pair",
-                vec![role(&thick), corner(Some(2e-9))],
+                "a shell's enclosure holding zero",
+                vec![thin_volume.clone()],
             ),
-        ] {
-            let refusal = super::finished_body_refusal(errors);
-            assert!(
-                matches!(
-                    &refusal,
-                    BooleanError::Escalated {
-                        decision: BooleanDecision::SolidSide { aimed: 1, corners: 1, .. },
-                        diag,
-                    } if *diag == gap(2e-9)
-                ),
-                "{what}: the solid's side in band binds, the corner no pair: {refusal:?}"
-            );
-        }
-        // A shell's volume in band is its side in band: escalated, and a
-        // thinner pair beside it binds.
-        assert!(
-            matches!(
-                super::finished_body_refusal(vec![thin_volume.clone()]),
-                BooleanError::Escalated {
-                    decision: BooleanDecision::ShellSide { shell, corner: false, others: 0 },
-                    diag,
-                } if shell == shells[2] && diag == gap(5e-9)
-            ),
-            "a shell's volume in band: its side, escalated"
-        );
-        assert!(
-            matches!(
-                super::finished_body_refusal(vec![thin_volume, role(&thin)]),
-                BooleanError::Escalated {
-                    decision: BooleanDecision::ShellRole { others: 1, .. },
-                    diag,
-                } if diag == thin.gap
-            ),
-            "the thinner pair binds, the shell's volume counted"
-        );
-        for (what, errors) in [
+            ("beside a thinner pair", vec![thin_volume, role(&thin)]),
             ("a volume straddling zero", vec![straddling_volume.clone()]),
             ("beside one", vec![role(&thin), straddling_volume]),
             ("beside a definite finding", vec![role(&thin), definite]),

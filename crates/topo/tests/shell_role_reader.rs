@@ -259,138 +259,113 @@ fn a_slab_in_the_plane_x_equals_y_reads_its_role() {
 }
 
 // ---------------------------------------------------------------------
-// The open class: a body thin in two directions
-// (`work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
-// Every pair of a needle `w × w` across is `w` apart, definite above
-// `Kε`, yet check 7 reads no side of it: no face is wide enough to offer
-// a point more than `Kε` inside it, or every aimed ray lands within `Kε`
-// of a face's boundary or crosses a sharp corner, and its volume over
-// area, `≈ w/4`, lies in band. These rows pin today's refusal so that a
-// fix to the class shows up here; they are not its answer.
+// A body thin in two directions
+// (`work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`,
+// Ev's ruling on PR 5119). Every pair of a needle `w × w` across is `w`
+// apart, definite above `Kε`; no aimed ray reads it (no face is wide
+// enough to offer a point more than `Kε` inside it, or every ray lands
+// within `Kε` of a face's boundary or crosses a sharp corner), so its
+// volume reads, and the volume's sign is certified by its enclosure
+// alone, never held against the band: a needle validates, and an
+// inside-out one is `NegativeVolume`.
 // ---------------------------------------------------------------------
 
-/// The needle widths, in ε: no face offers an aim at the first; every
-/// face does, and every ray is set aside, at the other two.
-const NEEDLE: [(f64, usize); 3] = [(10.5, 0), (21.0, 6), (30.0, 6)];
+/// The needle widths, in ε.
+const NEEDLE: [f64; 5] = [10.5, 12.0, 15.0, 21.0, 30.0];
 
 fn needle(w: f64, tol: Tol) -> Body<f64> {
     common::brick::<f64>((0.0, 1.0), (0.0, w), (0.0, w), tol)
 }
 
-/// The needle's refusal at rest: check 7 alone, its volume in band with
-/// the sign its orientation gives, `aimed` faces offering an aim, every
-/// one of their rays set aside.
-fn needle_at_rest(m: f64, inverted: bool, tol: Tol) -> Vec<topo::SetAside> {
-    let raw = needle(m * tol.eps(), tol);
-    let raw = if inverted { raw.revert() } else { raw };
-    let solid = raw.solids().next().expect("one solid").0;
-    let what = format!("{}needle {m}ε", if inverted { "inside-out " } else { "" });
-    let errors = AtRestBody::validate(raw, tol)
-        .map(|_| ())
-        .expect_err(&format!("{what}: refuses at rest (the open class)"));
-    let [
-        ValidationError::OrientationUndecided {
-            solid: s,
-            reading:
-                topo::OrientationUnread::Volume {
-                    margin: Some(margin),
-                    aimed,
-                    set_aside,
-                },
-        },
-    ] = errors.as_slice()
-    else {
-        panic!("{what}: refuses its orientation alone, its volume in band: {errors:?}");
+/// The needle `1 × w × w` turned about `(37, −21, 13)` by 0.7 rad and
+/// moved off the origin: every coordinate rounds, and a re-derivation
+/// that fans each face from one corner reads the body's length squared
+/// in every face's vector area.
+fn turned_needle(w: f64, tol: Tol) -> Body<f64> {
+    let (x, y, z) = {
+        let n = (37.0_f64 * 37.0 + 21.0 * 21.0 + 13.0 * 13.0).sqrt();
+        (37.0 / n, -21.0 / n, 13.0 / n)
     };
-    assert_eq!(*s, solid, "{what}");
-    let sign = margin
-        .margin
-        .diagnostic_f64_for_error_text()
-        .value()
-        .expect("a value");
-    assert_eq!(
-        sign < 0.0,
-        inverted,
-        "{what}: the volume's sign is its orientation's"
-    );
-    let want = NEEDLE.iter().find(|n| n.0 == m).expect("a needle row").1;
-    assert_eq!(*aimed, want, "{what}: faces offering an aim");
-    assert_eq!(
-        set_aside.len(),
-        *aimed,
-        "{what}: every ray aimed is set aside"
-    );
-    set_aside.clone()
+    let (s, c) = 0.7_f64.sin_cos();
+    let k = 1.0 - c;
+    let r = [
+        [c + x * x * k, x * y * k - z * s, x * z * k + y * s],
+        [y * x * k + z * s, c + y * y * k, y * z * k - x * s],
+        [z * x * k - y * s, z * y * k + x * s, c + z * z * k],
+    ];
+    let t = [0.3, -0.2, 0.5];
+    topo::test_support::mapped_cube::<f64>(
+        move |a, b, c| {
+            let p = [a, b * w, c * w];
+            let at = |i: usize| r[i][0] * p[0] + r[i][1] * p[1] + r[i][2] * p[2] + t[i];
+            Point3::new(at(0), at(1), at(2))
+        },
+        tol,
+    )
 }
 
-/// **A needle refuses its orientation at rest**, either way out, and no
-/// aimed ray reads it: today's answer to the open class.
+/// `raw` at rest: it validates, or, inside out, refuses `NegativeVolume`
+/// alone.
+fn reads_its_orientation(what: &str, raw: Body<f64>, inverted: bool, tol: Tol) {
+    let raw = if inverted { raw.revert() } else { raw };
+    let solid = raw.solids().next().expect("one solid").0;
+    match (AtRestBody::validate(raw, tol), inverted) {
+        (Ok(_), false) => {}
+        (Err(errors), true) => assert_eq!(
+            errors,
+            [ValidationError::NegativeVolume { solid }],
+            "inside-out {what}: inside out, and nothing else"
+        ),
+        (other, _) => panic!(
+            "{}{what}: reads its orientation: {:?}",
+            if inverted { "inside-out " } else { "" },
+            other.map(|_| ())
+        ),
+    }
+}
+
+/// **A needle reads its orientation at rest**, either way out, along the
+/// axes and turned off them: its volume's certified enclosure decides
+/// its sign.
 #[test]
-fn a_needle_refuses_its_orientation_at_rest() {
+fn a_needle_reads_its_orientation_at_rest() {
     let tol = Tol::witness();
     if stood_down(tol) {
         return;
     }
-    for (m, _) in NEEDLE {
+    for m in NEEDLE {
+        let w = m * tol.eps();
         for inverted in [false, true] {
-            let set_aside = needle_at_rest(m, inverted, tol);
-            if m == 21.0 {
-                // Every ray at 21ε lands within `Kε` of a face's
-                // boundary: the face-boundary half of the class.
-                assert!(
-                    set_aside
-                        .iter()
-                        .all(|s| matches!(s.why, topo::SetAsideWhy::Crossing(_))),
-                    "needle 21ε: each ray's crossing is in band of a boundary: {set_aside:?}"
-                );
-            }
+            reads_its_orientation(&format!("needle {m}ε"), needle(w, tol), inverted, tol);
+            reads_its_orientation(
+                &format!("turned needle {m}ε"),
+                turned_needle(w, tol),
+                inverted,
+                tol,
+            );
         }
     }
 }
 
 /// **A sharp corner is never a pair.** At ε 1e-6 the inside-out needle
-/// 30ε across aims a ray at face 4v1 whose two closest crossings, on
-/// faces 1v1 and 5v1, lie in band of each other; the two faces meet at
-/// vertices 7v1 and 8v1, so the ray is set aside at a corner and the
-/// refusal is the volume's, naming it. It was once refused as their pair.
+/// 30ε across aims a ray at a face whose two closest crossings, on two
+/// faces that meet, lie in band of each other; the ray is set aside at
+/// that corner and reads nothing, and the volume reads the needle inside
+/// out. It was once refused as their pair.
 #[test]
 fn an_inside_out_needles_corner_is_set_aside_not_a_pair() {
     let tol = Tol::witness();
     if stood_down(tol) || (tol.eps() - 1e-6).abs() > 1e-9 {
         return;
     }
-    let set_aside = needle_at_rest(30.0, true, tol);
-    let corners: Vec<String> = set_aside
-        .iter()
-        .filter_map(|s| match &s.why {
-            topo::SetAsideWhy::Corner { near, far, .. } => {
-                Some(format!("{:?} {near:?} {far:?}", s.aimed))
-            }
-            _ => None,
-        })
-        .collect();
-    assert_eq!(
-        corners,
-        ["FaceKey(4v1) FaceKey(1v1) FaceKey(5v1)"],
-        "the ray aimed at 4v1 is set aside at the corner of 1v1 and 5v1"
-    );
-    let raw = needle(30.0 * tol.eps(), tol).revert();
-    let text = AtRestBody::validate(raw, tol)
-        .map(|_| ())
-        .expect_err("refuses")[0]
-        .to_string();
-    assert!(
-        text.contains("sharp corner") && !text.contains("clearly apart"),
-        "the refusal names the corner and offers no lever to part its faces: {text}"
-    );
+    reads_its_orientation("needle 30ε", needle(30.0 * tol.eps(), tol), true, tol);
 }
 
-/// **A boolean whose result is a needle escalates its side.** `brick ∩
-/// brick` leaving a needle `2Kε` across reads no side of it (no face
-/// offers an aim), and its volume lies in band: the operands'
-/// ill-conditioning, escalated on the solid's side.
+/// **A boolean whose result is a needle builds it.** `brick ∩ brick`
+/// leaving a needle `2Kε` across reads no side of it by ray (no face
+/// offers an aim), and its volume's certified enclosure reads it `Out`.
 #[test]
-fn a_boolean_leaving_a_needle_escalates_its_side() {
+fn a_boolean_leaving_a_needle_builds_it() {
     let tol = Tol::witness();
     if stood_down(tol) {
         return;
@@ -398,61 +373,45 @@ fn a_boolean_leaving_a_needle_escalates_its_side() {
     let w = 2.0 * tol.k() * tol.eps();
     let a = brick((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), tol);
     let b = brick((-1.0, 3.0), (1.0 - w, 2.0), (1.0 - w, 2.0), tol);
-    match topo::intersect(&a, &b, tol) {
-        Err(BooleanError::Escalated {
-            decision: BooleanDecision::SolidSide { aimed: 0, .. },
-            ..
-        }) => {}
-        other => panic!("brick ∩ brick leaving a 2Kε needle escalates its side: {other:?}"),
-    }
+    let body = built(
+        "brick ∩ brick leaving a 2Kε needle",
+        topo::intersect(&a, &b, tol),
+    );
+    assert_eq!(shells_per_solid(&body), [1], "one needle");
 }
 
 /// **A needle cavity at the door** (review R2's
 /// `r2_needle_cavity_and_solid_at_the_door`): `brick (−1,2)³ ∖ slab`,
 /// then `∪` a fill that leaves of the slab's cavity a channel `w × w`
-/// across. No face of the channel offers an aim that reads, and the sign
-/// of its volume lies in band: the operands' ill-conditioning, escalated
-/// on the shell's side ([`BooleanDecision::ShellSide`]) with the lever
-/// that thickens it, as a needle solid escalates on its own
-/// ([`BooleanDecision::SolidSide`]). Measured at these widths; a channel
-/// whose volume's enclosure straddles zero stays the kernel's, which is
-/// the needle class's fork
-/// (`work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
+/// across. No face of the channel offers an aim that reads, and its
+/// volume's certified enclosure reads it a cavity: one solid, its
+/// channel a `Void`. Measured at these widths; at 10.5ε to 15ε the union
+/// refuses earlier, at the join's own section loop
+/// (`SectionLoopUndecided`), before any result is read.
 #[test]
-fn a_union_leaving_a_needle_cavity_escalates_its_side() {
+fn a_union_leaving_a_needle_cavity_holds_it_as_a_void() {
     let tol = Tol::witness();
     if stood_down(tol) {
         return;
     }
     let e = tol.eps();
-    let widths: &[f64] = if (e - 1e-9).abs() < 1e-12 {
-        &[21.0, 30.0]
-    } else {
-        &[21.0]
-    };
     let big = brick((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol);
-    for &m in widths {
+    for m in [21.0, 30.0] {
         let w = m * e;
         let what = format!("brick ∖ slab ∪ fill leaving a {m}ε channel at ε {e:e}");
         let slab = brick((0.0, 1.0), (0.5, 0.8), (0.5, 0.5 + w), tol);
         let fill = brick((0.0, 1.0), (0.5 + w, 0.8), (0.5, 0.5 + w), tol);
         let hollow = built(&what, topo::subtract(&big, &slab, tol));
-        match topo::union(&hollow, &fill, tol) {
-            Err(
-                err @ BooleanError::Escalated {
-                    decision: BooleanDecision::ShellSide { .. },
-                    ..
-                },
-            ) => {
-                let text = err.to_string();
-                assert!(
-                    text.contains(
-                        "move the geometry so the space the shell bounds is clearly thicker"
-                    ),
-                    "{what}: the lever thickens the channel: {text}"
-                );
-            }
-            other => panic!("{what}: escalates the cavity's side, got {other:?}"),
-        }
+        let body = built(&what, topo::union(&hollow, &fill, tol));
+        assert_eq!(
+            shells_per_solid(&body),
+            [2],
+            "{what}: one solid, its channel inside"
+        );
+        assert_eq!(
+            roles(&what, &body, tol),
+            [ShellRole::Outer, ShellRole::Void],
+            "{what}: the channel is a cavity"
+        );
     }
 }

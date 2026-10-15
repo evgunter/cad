@@ -800,12 +800,13 @@ pub enum OrientationUnread {
     /// A ray aimed at one of the solid's faces met two of them in band
     /// of each other, and no other aimed ray read the side.
     Pair(Box<crate::boolean::AimedPair>),
-    /// No aimed ray read the side, and the sign of the solid's volume is
-    /// undecided at this tolerance.
+    /// No aimed ray read the side, and the certified enclosure of the
+    /// solid's volume, taken about the solid, holds zero: its sign is
+    /// read off that enclosure alone (D10), so this is the kernel's or
+    /// the file's.
     Volume {
-        /// The volume's escalation where it lies in band (`V/A`, a mean
-        /// half-thickness); `None` where it straddles zero by the solid's
-        /// own rounding.
+        /// The enclosure's reading (`V/A`) where one end escalated;
+        /// `None` where the ends decided zero, or opposite signs.
         margin: Option<Indeterminate>,
         /// How many of its faces offered an aim: a planar face's point
         /// certified inside it, a curved face's chart window's middle.
@@ -4134,19 +4135,18 @@ impl fmt::Display for ValidationError {
                             set_aside,
                         }
                     )?;
+                    // The volume's sign is certified by its enclosure
+                    // alone (D10), so an enclosure holding zero about the
+                    // body is the kernel's or the file's.
                     match margin {
                         Some(diag) => write!(
                             f,
-                            "; and the sign of its volume is undecided: {}. {}",
-                            diag.payload(),
-                            crate::props::SOLID_SIDE
-                                .recourse(RefusedArm::Undecided(diag), Reading::AtRest)
+                            "; and the certified enclosure of its volume holds zero: {}. {DEFECT}",
+                            crate::props::EnclosureWords(diag.margin)
                         ),
                         None => write!(
                             f,
-                            "; and its volume's enclosure straddles zero by its own rounding. {}",
-                            crate::props::SOLID_SIDE
-                                .recourse(RefusedArm::Straddle, Reading::AtRest)
+                            "; and the certified enclosure of its volume holds zero. {DEFECT}"
                         ),
                     }
                 }
@@ -6018,8 +6018,8 @@ fn plus_v_verdict(
 /// hands on.
 ///
 /// **A volume definitely negative refuses whatever the rays read**: it
-/// breaks tier 3's positive-volume invariant on its own, and it is never
-/// the case the rays are for (a volume in band). The two readings take
+/// breaks tier 3's positive-volume invariant on its own (D1 check 7:
+/// definitely inside out by any reading is invalid). The two readings take
 /// the face's side from different places — the rays from its sense, the
 /// volume from its loops, which choose its region on the carrier — so a
 /// body whose loops are wound against its faces' senses reads `Out` by
@@ -11621,39 +11621,41 @@ mod tests {
         );
     }
 
-    /// **A poisoned shell role read at rest keeps its lever and names the
-    /// file** (D4 ¶1 (i)): check 10 ends the shell-role decision itself,
-    /// at rest, where the shell door's own text reads it at a build.
+    /// **A shell's volume whose certified enclosure holds zero is the
+    /// kernel's, and at rest names the file** (D10: the volume's sign is
+    /// read off its enclosure alone; D4 ¶1): check 10 ends the reading
+    /// itself, at rest, where the shell door's own text reads it at a
+    /// build, a poisoned enclosure included.
     #[test]
-    fn a_poisoned_shell_role_at_rest_names_the_file() {
-        let error = crate::props::ShellClassifyError::Escalated {
-            shell: crate::entity::ShellKey::default(),
-            source: Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("chk_shell_volume_sign"),
-                terminal_sliver: false,
-            },
-        };
-        let lever = "Recourse: move the geometry so the space the shell bounds is clearly thicker";
-        assert!(
-            error.to_string().ends_with(&format!(
-                "{lever}; an unreadable margin may indicate a kernel bug worth reporting"
-            )),
-            "the shell door reads at a build: {error}"
-        );
-        let at_rest = ValidationError::ShellRoleUndecided {
-            solid: SolidKey::default(),
-            error,
+    fn a_shell_volume_holding_zero_is_the_kernels_and_at_rest_names_the_file() {
+        for margin in [
+            geom_core::MarginDiag::INVALID,
+            geom_core::MarginDiag::enclosure(-1e-20, 3e-20),
+        ] {
+            let error = crate::props::ShellClassifyError::Escalated {
+                shell: crate::entity::ShellKey::default(),
+                source: Indeterminate {
+                    margin,
+                    band: Band::enclosure_sign(),
+                    predicate: Some("chk_shell_volume_sign"),
+                    terminal_sliver: false,
+                },
+            };
+            assert!(
+                error.to_string().ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                "the shell door reads at a build: {error}"
+            );
+            let at_rest = ValidationError::ShellRoleUndecided {
+                solid: SolidKey::default(),
+                error,
+            }
+            .to_string();
+            assert!(at_rest.ends_with(DEFECT), "{at_rest}");
+            assert!(
+                !at_rest.contains("tolerance"),
+                "no tolerance is offered: {at_rest}"
+            );
         }
-        .to_string();
-        assert!(
-            at_rest.ends_with(&format!(
-                "{lever}; an unreadable margin may indicate a kernel or file defect worth \
-                 reporting"
-            )),
-            "{at_rest}"
-        );
     }
 
     #[test]

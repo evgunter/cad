@@ -931,14 +931,13 @@ impl RoleRead {
 pub(crate) enum Certified {
     /// The role, decided on the exact value.
     Role(ShellRole),
-    /// No role: the sign is in band, or straddles zero by less than the
-    /// body's own rounding — the interval was taken about the body.
+    /// No role: the enclosure holds zero, taken about the body, so its
+    /// width is the body's own rounding.
     Open(RoleUnread),
     /// No role, and the interval was NOT taken about the body (a face
     /// its lane could not measure about the body kept the world-origin
     /// width), so a straddle may be
-    /// that width rather than the body: the sign is unresolved, not in
-    /// band.
+    /// that width rather than the body: the sign is unresolved.
     Unresolved(RoleUnread),
     /// The interval re-derivation refused a face.
     Refused(MassPropsError),
@@ -954,21 +953,25 @@ pub(crate) enum Certified {
 /// corner of the body over the stored geometry ([`rederive`] says which
 /// value, and how it differs from the sums' target by an in-band amount),
 /// at the closed forms' own outward rounding about that corner. An
-/// interval that decides nothing is [`Certified::Open`] where every face
-/// was recentred — the sign is in band, or straddles zero by the body's
-/// own rounding — and [`Certified::Unresolved`] where a face kept its
-/// world-origin width.
+/// interval that decides nothing holds zero: [`Certified::Open`] where
+/// every face was recentred, its width the body's own rounding, and
+/// [`Certified::Unresolved`] where a face kept its world-origin width.
 ///
 /// `interval(tight)` is read in two stages, so a decision costs one read
 /// of each face wherever one suffices. Untight (`false`), a quadrature
 /// face is the walk's own enclosure less `c · A⃗`, no new quadrature; a
 /// role it decides stands, the enclosure being sound. Only where it
 /// leaves the sign open on a face it did not recentre is `interval(true)`
-/// read, which measures those faces again about the corner. The sums are read
-/// first all the same, and when neither decides, theirs is the reading a
-/// refusal reports: it carries the valued margin a caller can act on,
-/// where the interval's carries an enclosure. A walk holding no lane has
-/// no re-derivation, and its sums decide
+/// read, which measures those faces again about the corner.
+///
+/// **The interval's sign alone decides** (D10: the volume's sign is
+/// certified by its enclosure alone, never held against the band): it is
+/// read against [`Band::enclosure_sign`], so an enclosure wholly on one
+/// side of zero is that role however thin the body, and one that holds
+/// zero is no role, its enclosure the reading a refusal reports. The
+/// walk's sums are read first all the same, under the run's band, and
+/// decide only where the walk holds no lane: it then has no
+/// re-derivation, and its sums decide
 /// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 pub(crate) fn certify_role<T: Decide>(
     reading: SignReading<T>,
@@ -983,14 +986,12 @@ pub(crate) fn certify_role<T: Decide>(
             (None, RoleRead::Decided(role)) => Certified::Role(role),
             (None, RoleRead::Unread(unread)) => Certified::Open(unread),
             (Some(Err(source)), _) => Certified::Refused(source),
-            (Some(Ok((exact, recentred))), walk) => {
-                let unread = match (read_role(exact, certified, band), walk) {
-                    (RoleRead::Decided(role), _) => return Certified::Role(role),
-                    (RoleRead::Unread(_), RoleRead::Unread(unread)) => unread,
-                    // The walk's decision is not certified, so it is no role:
-                    // the certified read refuses, its own ends giving the
-                    // words. Where both are unread the walk's ends give them.
-                    (RoleRead::Unread(cert), RoleRead::Decided(_)) => cert,
+            (Some(Ok((exact, recentred))), _) => {
+                // The walk's sums are no certificate either way: the
+                // certified read decides, or refuses in its own words.
+                let unread = match read_role(exact, certified, Band::enclosure_sign()) {
+                    RoleRead::Decided(role) => return Certified::Role(role),
+                    RoleRead::Unread(cert) => cert,
                 };
                 if recentred {
                     Certified::Open(unread)
@@ -2870,9 +2871,9 @@ pub enum ShellClassifyError {
         source: MassPropsError,
     },
     /// The sign read escalated at an end of the shell's volume bracket:
-    /// the `V/A` margin sat inside the ambiguity band, straddled it as an
-    /// enclosure, or could not be read. F6: an undecided orientation is
-    /// never guessed to a side.
+    /// the certified enclosure of `V/A` holds zero (the sign is read off
+    /// it alone, D10), or could not be read. F6: an undecided orientation
+    /// is never guessed to a side.
     Escalated {
         /// The unclassifiable shell.
         shell: ShellKey,
@@ -2928,37 +2929,6 @@ pub enum ShellClassifyError {
     },
 }
 
-/// The shell-role decision read off a shell's volume
-/// (`chk_shell_volume_sign`), where no face of the shell offers an aimed
-/// ray that reads its side ([`shell_role`]): its margin is `V/A`, and it
-/// passes on either definite sign — positive is an outer boundary,
-/// negative a void. A reader over stored geometry ends a refusal of it
-/// itself, at rest ([`ShellClassifyError::recourse`]). One decision and
-/// one lever, at rest and at a boolean's door alike
-/// (`BooleanDecision::ShellSide`): an in-band `V/A` is a thin space.
-pub const SHELL_ROLE: SizedDecision = SizedDecision {
-    lever: "move the geometry so the space the shell bounds is clearly thicker",
-    size: "volume over area",
-    passes: SizedPass::NonZero,
-    stored: StoredDefinite::Lever,
-    no_size: None,
-};
-
-/// Which side of a solid's faces its material lies on, read off the
-/// sign of its volume where no aimed ray reads it (check 7): its margin
-/// is `V/A`, and it passes on a definite positive one. A definite
-/// negative one is the solid inside out, which check 7 refuses on its
-/// own (`NegativeVolume`). One decision and one lever, at rest — in band
-/// and for an enclosure straddling zero alike — and at a boolean's door
-/// (`BooleanDecision::SolidSide`).
-pub const SOLID_SIDE: SizedDecision = SizedDecision {
-    lever: "move the geometry so the solid is clearly thicker",
-    size: "volume over area",
-    passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
-    no_size: None,
-};
-
 /// The side read off a ray aimed at one of a shell's or a solid's faces
 /// (`side_at_infinity_order`): its margin is the gap along the ray
 /// between the two faces it met first, a magnitude, and it passes on a
@@ -2971,6 +2941,32 @@ pub const AIMED_PAIR: SizedDecision = SizedDecision {
     stored: StoredDefinite::Lever,
     no_size: None,
 };
+
+/// **A volume's certified enclosure, in words**: the `V/A` it reads, its
+/// two ends and how wide it is, or that it could not be read. A volume
+/// read off its enclosure alone (D10) refuses only where the enclosure
+/// holds zero, so the ends and the width are what the refusal has to
+/// say, and no band is quoted against them.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct EnclosureWords(pub(crate) geom_core::MarginDiag);
+
+impl fmt::Display for EnclosureWords {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Enclosure { lo, hi } => write!(
+                f,
+                "its volume over area lies in [{lo:e}, {hi:e}], an enclosure {:e} wide",
+                hi - lo
+            ),
+            geom_core::ErrorTextReading::Value(v) => {
+                write!(f, "its volume over area reads {v:e}")
+            }
+            geom_core::ErrorTextReading::Invalid => {
+                f.write_str("its volume could not be read (NaN or a refused enclosure)")
+            }
+        }
+    }
+}
 
 /// What a [`ShellClassifyError`] found, without the shell's key or a
 /// stage label: the one text its `Display` and a document-level finding
@@ -2985,8 +2981,8 @@ impl fmt::Display for ShellClassifyPayload<'_> {
             ShellClassifyError::Props { source, .. } => write!(f, "{source}"),
             ShellClassifyError::Escalated { source, .. } => write!(
                 f,
-                geom_core::undecided!("the sign of a shell's volume", payload),
-                source.payload()
+                "the certified enclosure of a shell's volume holds zero: {}",
+                EnclosureWords(source.margin)
             ),
             ShellClassifyError::ZeroVolume { .. } => f.write_str(
                 "a shell's signed volume, or an end of its certified bracket, is zero at this \
@@ -3021,15 +3017,15 @@ impl ShellClassifyError {
         ShellClassifyPayload(self)
     }
 
-    /// The refused arm of the shell-role decision ([`SHELL_ROLE`]) this
-    /// refusal is; `None` where the refusal is not that decision's. A
-    /// flux refusal ends in its own payload's recourse, and a band
-    /// failure is the run's configuration.
+    /// The refused arm of the shell-role reading this refusal is; `None`
+    /// where the refusal is not that reading's. A flux refusal ends in its
+    /// own payload's recourse, and a band failure is the run's
+    /// configuration.
     ///
-    /// An escalation and a zero are band-decided and end with the value
-    /// the margin gives. A straddle is two definite verdicts on
-    /// opposite sides, which no smaller tolerance reconciles, so it
-    /// ends in the lever alone.
+    /// A pair's gap is band-decided, its arm the gap. The volume's sign is
+    /// read off its certified enclosure alone (D10), so an enclosure
+    /// holding zero, an end at zero and a straddle are each the kernel's,
+    /// which no tolerance reads otherwise ([`Self::recourse`]).
     #[must_use]
     pub fn arm(&self) -> Option<RefusedArm<'_>> {
         match self {
@@ -3042,18 +3038,25 @@ impl ShellClassifyError {
         }
     }
 
-    /// The shell-role decision's one ending for this refusal (D4 ¶1
-    /// (i)) read `at`: the ray's ([`AIMED_PAIR`]) for a pair in band,
-    /// the volume's ([`SHELL_ROLE`]) otherwise, a corner's included (a
-    /// corner is no pair); `None` where the refusal is not that
-    /// decision's.
+    /// The shell-role reading's one ending for this refusal (D4 ¶1 (i))
+    /// read `at`: the ray's ([`AIMED_PAIR`]) for a pair in band; for the
+    /// volume, whose sign is certified by its enclosure alone, the
+    /// kernel's defect ending, a corner's included (a corner is no pair);
+    /// `None` where the refusal is not that reading's.
     #[must_use]
     pub fn recourse(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> Option<String> {
-        let decision = match self {
-            Self::RayInBand { .. } => AIMED_PAIR,
-            _ => SHELL_ROLE,
-        };
-        Some(decision.recourse(self.arm()?, at))
+        let at = at.into();
+        let arm = self.arm()?;
+        Some(match self {
+            Self::RayInBand { .. } => AIMED_PAIR.recourse(arm, at),
+            Self::Corner { volume, .. } => volume.recourse(at)?,
+            Self::Escalated { .. }
+            | Self::ZeroVolume { .. }
+            | Self::Straddles { .. }
+            | Self::Props { .. }
+            | Self::Band { .. }
+            | Self::Ray { .. } => geom_brep::recourse::Unsized::Defect.recourse(arm, at.reading()),
+        })
     }
 
     /// [`ShellClassifyError::recourse`] read at a build, where the shell
@@ -3325,9 +3328,9 @@ pub(crate) enum RoleWalkRefusal {
         /// The last round's two ends.
         last: Box<RoleUnread>,
         /// Whether that round was taken about the body
-        /// ([`Certified::Open`]: in band, or straddling zero by the
-        /// body's own rounding) rather than at a face's world-origin
-        /// width ([`Certified::Unresolved`]).
+        /// ([`Certified::Open`]: an enclosure holding zero at the body's
+        /// own rounding) rather than at a face's world-origin width
+        /// ([`Certified::Unresolved`]).
         about_the_body: bool,
         /// The walk's refusal to measure further, where the schedule
         /// stopped on one rather than running out.

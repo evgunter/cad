@@ -425,8 +425,9 @@ fn aim_turn() -> (f64, f64) {
 /// with it as the limit.
 /// An aimed ray read in band on two faces that do not meet refuses on
 /// its pair ([`SideUnread::InBand`]) without the volume: a pair in band
-/// is the answer, and the volume's margin, a mean half-thickness, would
-/// only judge the selection thin. A ray whose crossings lie in band of
+/// is the answer. The volume's sign is certified by its enclosure alone,
+/// never held against the band (D10), so it reads a thin selection as
+/// surely as a thick one. A ray whose crossings lie in band of
 /// each other on two faces that meet is set aside at a sharp corner
 /// ([`SetAsideWhy::Corner`]): it reads nothing and is never the refusal,
 /// and where the volume does not read either, the volume's refusal is,

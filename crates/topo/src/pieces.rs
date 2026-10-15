@@ -515,10 +515,11 @@ mod tests {
         body
     }
 
-    /// **A role read over a poisoned volume margin ends in its decision's
-    /// own words, never in loosening**: beside two cubes, a third whose
-    /// every plane's origin is NaN, so its `V/A` margin cannot be read.
-    /// No tolerance reads it, so no tolerance is offered.
+    /// **A role read over a poisoned volume is the kernel's, never a
+    /// loosening**: beside two cubes, a third whose every plane's origin
+    /// is NaN, so its volume cannot be read. Its sign is read off its
+    /// certified enclosure alone, which no tolerance reads otherwise, so
+    /// no tolerance is offered.
     #[test]
     fn a_poisoned_role_beside_two_pieces_offers_no_tolerance() {
         let mut body = beside_a_poisoned_cube(true);
@@ -528,23 +529,17 @@ mod tests {
             matches!(err, PieceSortError::RoleUnread { shell, .. } if shell == third),
             "{err:?}"
         );
-        // The band's numbers are the run's ε; the words around them are
-        // the pin.
         let text = err.to_string();
-        let (head, tail) = text
-            .split_once(" against the ambiguity band ")
-            .expect("a band");
         assert_eq!(
-            head,
-            "whether a shell of the body bounds material or a cavity could not be decided, so \
-             the piece it belongs to is unknown: the sign of a shell's volume is undecided: \
-             margin is invalid (NaN or a refused enclosure)"
-        );
-        assert!(
-            tail.ends_with(
-                "). Recourse: move the geometry so the space the shell bounds is clearly thicker; an unreadable margin may indicate a kernel bug worth reporting"
+            text,
+            format!(
+                "whether a shell of the body bounds material or a cavity could not be decided, \
+                 so the piece it belongs to is unknown: the certified enclosure of a shell's \
+                 volume holds zero: its volume could not be read (NaN or a refused enclosure). \
+                 {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
-            "{text}"
+            "the kernel's, with no tolerance offered"
         );
         assert_eq!(body.solids().count(), 1, "nothing moved");
     }

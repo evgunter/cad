@@ -2202,9 +2202,10 @@ mod joined_lineage_rows {
 
 /// **The split types its at-rest refusal as the Boolean does, in its own
 /// lever.** A side refused only on a reading in band — an aimed ray's
-/// pair, or a solid's volume no aimed ray read — is `ResultEscalated` on
-/// it, ending in the split's lever; beside a definite finding it is the
-/// kernel's, `ResultNotAtRest`.
+/// pair — is `ResultEscalated` on it, ending in the split's lever; beside
+/// a definite finding it is the kernel's, `ResultNotAtRest`, and so is a
+/// solid's volume whose certified enclosure holds zero, which is never in
+/// band (D10).
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod at_rest_rows {
@@ -2264,24 +2265,25 @@ mod at_rest_rows {
                 && !msg.contains("move the geometry so the two"),
             "the split's lever, not the Boolean's: {msg}"
         );
-        // A solid no aimed ray read, its volume in band: the split's
-        // spelling of the solid's lever.
-        let thin = ValidationError::OrientationUndecided {
+        // A solid no aimed ray read, its volume's certified enclosure
+        // holding zero: the kernel's.
+        let holding_zero = ValidationError::OrientationUndecided {
             solid: SolidKey::default(),
             reading: OrientationUnread::Volume {
-                margin: Some(read(MarginDiag::value(2.6e-9), "positive_volume")),
+                margin: Some(read(
+                    MarginDiag::enclosure(-1e-20, 3e-20),
+                    "positive_volume_exact",
+                )),
                 aimed: 0,
                 set_aside: Vec::new(),
             },
         };
-        let side = SplitFinishError::not_at_rest(PlaneSide::Above, vec![thin]).to_string();
         assert!(
-            side.contains("which side of a solid of the result its material lies on")
-                && side.contains(
-                    "move the split plane or the geometry so each piece it leaves is clearly \
-                     thicker"
-                ),
-            "a thin solid escalates in the split's lever: {side}"
+            matches!(
+                SplitFinishError::not_at_rest(PlaneSide::Above, vec![holding_zero]),
+                SplitFinishError::ResultNotAtRest { side: PlaneSide::Above, errors } if errors.len() == 1
+            ),
+            "an enclosure holding zero is the kernel's"
         );
         let beside = SplitFinishError::not_at_rest(
             PlaneSide::Above,
