@@ -80,9 +80,12 @@ rows of each test file the diff adds or modifies:
 - a `tests/` suite is its `#[path]` module of the crate's `all` binary,
   read from `tests/all.rs` (`_all_rs_modules`), e.g.
   `(binary_id(sweep::all) & test(/^reach_volume_backstop::/))`;
-- a changed `src/` file that holds `#[cfg(test)]` or `#[test]` is its
-  module of the lib-test binary, e.g.
-  `(binary_id(geom-core) & test(/^tolerance::/))`.
+- a changed `src/` file that defines a test (`#[test]`, `proptest!`) is
+  its module of the lib-test binary, less every child module it mounts
+  from another file, e.g.
+  `(binary_id(topo) & test(/^chord_join::/) & not test(/^chord_join::(chart_ring_rows|…)::/))`;
+- a changed `tests/all.rs` with tests of its own is the `all` binary
+  less every module it mounts.
 
 PR 3611's and PR 4074's sweep files, and PR 4925's
 `geom-core/tests/k_stats_doors.rs`, `tolerance.rs`, `predicate.rs` and
@@ -90,7 +93,9 @@ editor-core tests, each now run at 1e-6 and 1e-12 before merge.
 
 A notice in the filter log names what the file half cannot map: a
 `tests/` helper no `#[path]` line includes, a `#[path]`-mounted `src/`
-file, and a crate root. Their rows run at the extra ε nightly.
+file (any visibility), a crate root, and a `src/bin/` file. Their rows
+run at the extra ε nightly. A notice also names a changed file whose
+rows are in ci's slow set, since this step filters those out.
 
 One part of the 2026-10-13 note is not fixed here: a `src/` edit
 outside the four crates that reds a test the diff leaves untouched.
