@@ -140,3 +140,40 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
     }
     Ok(out)
 }
+
+/// One bisector plane of an equal cylinder pair with meeting axes:
+/// through the axes' meeting point, with a unit normal.
+pub(super) type Bisector<T> = (geom_core::Point3<T>, geom_core::Vec3<T>);
+
+/// **The bisector planes of the pair `wall`, a cylinder wall of `x`,
+/// makes with `face` of `y`**, normal to `â₁ − â₂` first, then
+/// `â₁ + â₂`: on either wall the other's residual is the product of the
+/// two planes' distances (`reduce::factored_crossing`). `None` where the
+/// pair is not an equal cylinder pair with meeting axes
+/// ([`super::join::crossing_cylinder_reading`]), or its reading refuses.
+pub(super) fn bisectors<T: Decide>(
+    (x, x_is, wall): (&Body<T>, Operand, crate::entity::FaceKey),
+    (y, face): (&Body<T>, crate::entity::FaceKey),
+    band: Band,
+) -> Option<[Bisector<T>; 2]> {
+    let is_wall = |b: &Body<T>, f| {
+        b.get_face(f)
+            .and_then(|f| b.get_surface(f.surface))
+            .is_some_and(is_wall)
+    };
+    if !is_wall(x, wall) || !is_wall(y, face) {
+        return None;
+    }
+    let (on_x, on_y) = ((x, wall), (y, face));
+    let section = match x_is {
+        Operand::A => super::join::crossing_cylinder_reading(on_x, on_y, band),
+        Operand::B => super::join::crossing_cylinder_reading(on_y, on_x, band),
+    }
+    .ok()
+    .flatten()?;
+    let [a1, a2] = section.axes;
+    let [n0, n1] = section.nodes;
+    let centre = n0 + (n1 - n0) * T::from_f64(0.5);
+    let unit = |v: geom_core::Vec3<T>| v / v.norm();
+    Some([(centre, unit(a1 - a2)), (centre, unit(a1 + a2))])
+}
