@@ -33,3 +33,33 @@ of that region.
 Build such a fixture (a face cut by a chord inside the region the
 boolean discards, for example where an earlier cut's chord crosses a
 region a later member discards) and pin the pieces' `Borders` sets.
+
+## Tried, no fixture yet (2026-10-14)
+
+The face path's join needs two discards of one parent that share a
+`bounds` key `(record, operand, clone edge)`. That means one operand
+face of one boolean holding two discarded fragments across an operand
+edge that bounded both. An operand is maximal, so an edge has two
+different faces on its sides. That leaves two shapes:
+- a chart cut, where the edge divides one operand face into two of its
+  pieces (`BooleanNaming::chart_cuts`, a sphere's cut-in meridians);
+- two faces in one `Merged` parent across the edge between them.
+
+Tried:
+- **A stepped bar across the plate.** Its left part stands in the plate
+  and its right part sits flush on the top, so the top region inside the
+  bar and the region under its coincident underside meet along the
+  step's edge. The kernel discards them as **one** fragment of the top:
+  one `DiscardRow`, sharing its seams with the bar's underside. Turning
+  the `bounds` join off moved nothing. A boolean does not cut a face
+  along a line that has discarded region on both sides.
+- **A sunk cylinder boss and slots.** The boss wall's two semicircular
+  faces join one parent only where the output stage merges them. A slot
+  over the half-seam line leaves each half as one piece, so nothing
+  under one parent is divided there.
+
+Left to try: a sphere whose discarded region crosses a cut-in meridian
+and divides it, with pieces on both sides of that region. The ball
+fixtures (`emit_ball_cut_by_brick`) refuse at a turned pole in the
+union today. Avoid that by keeping the poles out of the discarded
+region.

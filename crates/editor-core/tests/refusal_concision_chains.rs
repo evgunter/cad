@@ -1737,6 +1737,44 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             ),
             ("Band", J::Band(band_error())),
             ("Euler", J::Euler(euler())),
+            (
+                "SectionEnd(OnPlane)",
+                J::SectionEndEscalated {
+                    face,
+                    reading: topo::SectionEndReading::OnPlane,
+                    diag: diag(),
+                },
+            ),
+            (
+                "SectionEnd(SquareToAxis)",
+                J::SectionEndEscalated {
+                    face,
+                    reading: topo::SectionEndReading::SquareToAxis,
+                    diag: diag(),
+                },
+            ),
+            (
+                "SectionUnresolved",
+                J::SectionUnresolved {
+                    face,
+                    miss: topo::SectionPinMiss::Undecided {
+                        check: geom_brep::CertCheck::EndpointStart,
+                        diag: diag(),
+                        resolution: geom_core::MarginDiag::value(4.6e-9),
+                    },
+                },
+            ),
+            (
+                "SectionUnresolved(Past)",
+                J::SectionUnresolved {
+                    face,
+                    miss: topo::SectionPinMiss::Past {
+                        check: geom_brep::CertCheck::EndpointEnd,
+                        sample: 8,
+                        margin: geom_core::MarginDiag::value(3.5e-10),
+                    },
+                },
+            ),
             // The two section refusals a plane-inclusive pair can reach
             // (the join reads no other): a lane bug, and the conic
             // carrier's own refusal at a near-circular tilt.
@@ -2066,8 +2104,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "span",
             escalated(CertCheck::ParamSpan, in_band),
-            "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
-             length is intended, tighten the tolerance below 5e-10 m",
+            "Recourse: move the geometry so this edge runs forward over a clear length, or, if \
+             this length is intended, tighten the tolerance below 5e-10 m",
         ),
         (
             "invalid",

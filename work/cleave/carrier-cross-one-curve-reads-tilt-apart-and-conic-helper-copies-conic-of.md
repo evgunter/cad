@@ -3,11 +3,11 @@ id: carrier-cross-one-curve-reads-tilt-apart-and-conic-helper-copies-conic-of
 kind: issue
 title: carrier_cross's one-curve margin leans on the tilt row's separate Zero, and its conic helper re-spells Conic::of
 status: closed
-closed: 2026-10-14
 opened: 2026-10-12
 priority: P3
 cost: E
 branch: cleave/carrier-cross-one-curve
+closed: 2026-10-14
 ---
 
 Found by the narrow re-review of PR 4782 (head d88f865dd1, verdict

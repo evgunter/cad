@@ -98,3 +98,21 @@ pair's section crosses itself with no operand edge there (a *node*).
   unequal-radius arm is the skew pair's unbuilt quartic class.
 - Units: U1 the node (bisector lane first), U2 a node on an operand
   edge, the rename alone.
+
+## Built: U1 and the rename (2026-10-14)
+
+- **The rename** (PR 5072): the intersecting unequal-radius pair refuses as the skew pair's class, `GermFrameUnsupported`.
+- **U1, the node**:
+  - **PR 5092, the bisector-plane lane.** A branch datum is decided on each germ at mint. Each ellipse joins against its own bisector plane.
+  - **PR 5111, the node.** Each node inside a face of both walls is minted as a ring in each wall (`topo/src/boolean/node.rs`, `vtxfac::mint_node`), with the runs' sides fixed by the walls' senses.
+  - **What builds:** ∪, ∩ and ∖ for two rods and for two bores, at the closed forms (`sweep/tests/bisector_nodes.rs`). A slanted bore's difference is one solid pinched to itself at both nodes, which D1 admits.
+  - **The retired refusal:** `GermFrameCylinderPinch` is gone. A node not built refuses `NodeUnbuilt { why }`.
+  - **∖'s census touch:** filed on `census-cross-solid-curved-pairs-undecidable-on-shell-results`.
+
+## Remaining
+
+- **U2, a node on an operand edge.** A seam, rim or other edge passes through a node.
+  - It starts at the crossing layer, not at the node.
+  - An edge through a node is tangent to the partner wall there (the walls are tangent at the node), and today it refuses `CurvedPierceUnsupported` before any node is read (`bisector_nodes::a_rim_through_the_nodes_refuses_at_the_crossing_layer`; the Steinmetz pose, both seams on the nodes, in `verbs_germarms2`).
+  - A node on a face boundary that does reach the node pass refuses `NodeUnbuilt(OnBoundary)`.
+- **A rod crossing a bore of its radius.** It refuses `NodeUnbuilt(OppositeSenses)`; the analysis and what building it needs are in `work/tang/node-of-a-rod-crossing-an-equal-bore.md`.

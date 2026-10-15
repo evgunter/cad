@@ -1859,7 +1859,8 @@ pub enum BlendError {
     /// certified none of the three refuses as a bound. The feature goes
     /// with that material, as a feature wholly inside a Boolean's tool
     /// goes with the tool (C8). The carve takes a through-feature
-    /// between a convex straight band's two caps (`blend::consume`); a
+    /// between a straight band's two caps (`blend::consume`): a bore
+    /// under a convex band, a bar under a concave one; a
     /// request whose inside readings are anything else refuses.
     WhollyInside {
         /// The face wholly inside a band's reach, or the cycle of a

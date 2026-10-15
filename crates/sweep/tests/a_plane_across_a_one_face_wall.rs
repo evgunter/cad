@@ -27,9 +27,10 @@
 //! (`work/inside/revolved-tube-wall-refuses-bool-wall-trim-period.md`);
 //! a two-arc wall fails both the same way.
 //!
-//! The one-site loops the join does not build keep
-//! `Join(SingleSiteSectionLoop)`: a circle edge lying in the partner's
-//! face, and a plane tangent to the wall's cap at the wrap edge's end.
+//! The one-site loop the join does not build keeps
+//! `Join(SingleSiteSectionLoop)`: a plane tangent to the wall's cap at
+//! the wrap edge's end. A circle edge lying in the partner's face beside
+//! a transverse loop builds.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -326,15 +327,16 @@ fn every_op_refuses(what: &str, a: Body<f64>, b: Body<f64>, count: usize) {
     }
 }
 
-/// **A circle edge lying in the partner's face keeps the refusal.** A
-/// bored tube whose outer wall turns from the cylinder `ρ = 0.5`
-/// (`y ≤ 0`) to a sphere at the circle `y = 0`, an edge whose one vertex
-/// lies in the box face `y = 0`: a coincidence the arm does not take,
-/// since the circle edge is at its site. The inner wall `ρ = 0.3`
-/// crosses the same face across its seam, which builds, so one loop
-/// refuses. Either side of the face.
+/// **A circle edge lying in the partner's face joins beside a
+/// transverse loop.** A bored tube whose outer wall turns from the
+/// cylinder `ρ = 0.5` (`y ≤ 0`) to a sphere at the circle `y = 0`, an
+/// edge whose one vertex lies in the box face `y = 0`: its section loop
+/// is that closed edge, one site
+/// (`a_closed_conic_in_the_partners_face.rs`). The inner wall `ρ = 0.3`
+/// crosses the same face across its seam. Either side of the face: the
+/// box above holds the dome, the one below the cylinder's piece.
 #[test]
-fn a_circle_edge_in_the_partners_face_refuses() {
+fn a_circle_edge_in_the_partners_face_builds() {
     // The sphere about (0, −0.2) through (0.5, 0) meets the bore ρ = 0.3
     // at y = top.
     let top = (0.29f64 - 0.09).sqrt() - 0.2;
@@ -349,13 +351,17 @@ fn a_circle_edge_in_the_partners_face_refuses() {
         Revolution::Full,
         tol(),
     );
-    for y in [(0.0, 2.0), (-2.0, 0.0)] {
+    // π∫₀^top (0.29 − (y + 0.2)² − 0.09) dy.
+    let dome = PI * (0.2 * top - ((top + 0.2).powi(3) - 0.008) / 3.0);
+    let shank = PI * (0.25 - 0.09) * 0.5;
+    for (y, shared) in [((0.0, 2.0), dome), ((-2.0, 0.0), shank)] {
         let block = brick((-1.5, 1.5), y, (-1.5, 1.5), tol());
-        every_op_refuses(
+        every_op(
             &format!("the in-face circle, box y = {y:?}"),
             tube.clone(),
             block,
-            1,
+            (dome + shank, 18.0, shared),
+            &[],
         );
     }
 }
