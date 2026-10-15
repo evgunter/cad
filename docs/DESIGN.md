@@ -1183,9 +1183,7 @@ held in two places that can disagree, or a derived number stored in
 place of the one written. A form joins a family only because it is how
 someone authors the value, never for the kernel's convenience. Where a
 form's numbers name no value it refuses typed, as `Via` does for three
-collinear points (`ArcViaCollinear`). Moving one pose from another by a
-slide and a spin (FORK-MOVE) is one such form today, and the other ways
-of relating two poses may join it as a family.
+collinear points (`ArcViaCollinear`).
 
 ### D9 (agreed): Determinism policy and engineering charter
 
