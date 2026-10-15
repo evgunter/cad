@@ -2397,7 +2397,7 @@ mod tests {
             assert_straddle(
                 got,
                 &recorded,
-                LoopDecision::ArcSpan,
+                (LoopDecision::ArcSpan, WALK_ROWS.conic.straddle),
                 (gap * speed, gap * 1.0),
                 &format!("a/b {a}, {k}·ε"),
             );
@@ -2427,7 +2427,7 @@ mod tests {
     fn assert_straddle(
         got: ReadEscalation,
         recorded: &geom_core::k_stats::Recorded,
-        decision: LoopDecision,
+        (decision, row): (LoopDecision, &str),
         bounds: (f64, f64),
         label: &str,
     ) {
@@ -2438,7 +2438,7 @@ mod tests {
         else {
             panic!("{label}: expected a straddle, got {got:?}");
         };
-        assert_eq!(diag.predicate, Some("curve_carrier_straddle"), "{label}");
+        assert_eq!(diag.predicate, Some(row), "{label}");
         let geom_core::ErrorTextReading::Enclosure { lo, hi } =
             diag.margin.diagnostic_f64_for_error_text()
         else {
@@ -2549,7 +2549,7 @@ mod tests {
                 assert_straddle(
                     got,
                     &recorded,
-                    LoopDecision::Boundary,
+                    (LoopDecision::Boundary, "curve_carrier_straddle"),
                     major_vertex_bounds(a, b, a + out * eps),
                     &format!("a {a}, {out}ε"),
                 );
@@ -2598,7 +2598,7 @@ mod tests {
         assert_straddle(
             got,
             &recorded,
-            LoopDecision::Boundary,
+            (LoopDecision::Boundary, "curve_carrier_straddle"),
             major_vertex_bounds(a, b, a + 20.0 * eps),
             "stored minor first",
         );

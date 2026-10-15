@@ -3408,7 +3408,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
 /// corners, read at rest. Where an end of the arc lies definitely off
 /// both corners on a body certified at this band, the kernel's two
 /// readings of one end disagree, which no move of the geometry repairs;
-/// otherwise the band alone parted the two passes (`K ≤ 3`), and the arc
+/// otherwise the band alone parted the two passes (`K < 2`), and the arc
 /// end's own lever is the way through.
 fn arc_end_clear_of_corners(
     gaps: &crate::boolean::ArcEndGaps,

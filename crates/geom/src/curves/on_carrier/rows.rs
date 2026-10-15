@@ -86,8 +86,15 @@ fn name(r: Result<OnCarrier, CarrierRefusal>) -> &'static str {
 /// is the case the unit-coordinate angle alone gets wrong.
 #[test]
 fn a_point_is_on_or_off_every_carrier_by_its_distance() {
+    let flipped = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 1.0),
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+        radius: -2.0,
+    };
     for (c, t) in [
         (circle(), 0.7),
+        (flipped, 2.5),
         (ellipse(2.0, 1.0), 0.7),
         (ellipse(1e3, 1.0), 0.9),
         (ellipse(1.0, 1e-2), 2.1),

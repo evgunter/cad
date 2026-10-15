@@ -10,7 +10,8 @@
 //! parameter. Where it is found:
 //!
 //! - a line: in closed form;
-//! - a circle: the angle of the point about the centre, exact;
+//! - a circle: the angle of the point about the centre, exact, the
+//!   radius's sign read into it;
 //! - an ellipse: the angle of the point's unit-coordinate image, then
 //!   Gauss–Newton. The unit-coordinate angle alone is not a foot: its
 //!   point lies up to `(1 + a/b)·d` from a point `d` off the ellipse;
@@ -18,6 +19,9 @@
 //! - a spline: the best of the caller's seed and a few samples on each
 //!   knot span, then Gauss–Newton, held to the domain.
 //!
+//! A closed kind's angle is read on the branch within half a turn of the
+//! seed, relative to the seed's direction or its opposite, so an
+//! enclosure of the point's direction never crosses the angle's own cut.
 //! Each polish step is kept only where it decides the gap smaller, so
 //! the foot's gap is never worse than its seed's. A foot can be a poor
 //! one (a far branch of a spline); it is never a wrong one, because no
@@ -66,8 +70,9 @@ use super::Curve3;
 /// The Gauss–Newton steps a foot is polished by.
 const POLISH_STEPS: usize = 6;
 
-/// The samples a spline's foot search reads on each knot span.
-const SPLINE_SAMPLES: usize = 4;
+/// Where a spline's foot search samples each knot span, as fractions of
+/// it.
+const SPLINE_SAMPLES: [f64; 4] = [0.125, 0.375, 0.625, 0.875];
 
 /// A point's foot on a carrier, made only by [`Curve3::foot`]
 /// (module docs).
@@ -140,11 +145,18 @@ impl<T: Decide> Curve3<T> {
     pub fn foot(&self, q: Point3<T>, near: T) -> Foot<T> {
         let seed = match self {
             Self::Line { origin, dir } => (q - *origin).dot(*dir) / dir.dot(*dir),
-            Self::Circle { .. } => {
-                let Some(t) = self.param_near(q, near) else {
-                    unreachable!("a circle has a parameter of every point")
-                };
-                return self.foot_at(q, t);
+            Self::Circle {
+                center,
+                axis,
+                u_ref,
+                radius,
+            } => {
+                // Scaled by the radius, whose sign turns the angles.
+                let w = (q - *center) * *radius;
+                return self.foot_at(
+                    q,
+                    angle_near(w.dot(*u_ref), w.dot(axis.cross(*u_ref)), near),
+                );
             }
             Self::Ellipse {
                 center,
@@ -154,22 +166,33 @@ impl<T: Decide> Curve3<T> {
                 u_ref,
             } => {
                 let w = q - *center;
-                (w.dot(axis.cross(*u_ref)) / *semi_v).atan2(w.dot(*u_ref) / *semi_u)
+                angle_near(
+                    w.dot(*u_ref) / *semi_u,
+                    w.dot(axis.cross(*u_ref)) / *semi_v,
+                    near,
+                )
             }
-            Self::Spiric { .. } => self.param_near(q, near).unwrap_or(near),
+            Self::Spiric {
+                center,
+                axis,
+                major_radius,
+                ..
+            } => {
+                // The torus's minor angle about the tube's centre circle,
+                // as [`Curve3::param_near`] reads it.
+                let w = q - *center;
+                let h = w.dot(*axis);
+                let rho = (w - *axis * h).norm();
+                angle_near(rho - *major_radius, h, near)
+            }
             Self::Nurbs(n) => {
-                let (lo, hi) = n.domain();
-                let breaks: Vec<f64> = core::iter::once(lo)
-                    .chain(n.knots().interior_knots().map(|(k, _)| k))
-                    .chain(core::iter::once(hi))
-                    .collect();
-                let (lo, hi) = (T::from_f64(lo), T::from_f64(hi));
+                let knots = n.knot_values();
+                let (lo, hi) = knots.domain();
+                let breaks: Vec<T> = knots.runs().map(|(k, _)| k).collect();
                 let mut best = self.foot_at(q, near.max(lo).min(hi));
                 for k in breaks.windows(2) {
-                    for i in 0..SPLINE_SAMPLES {
-                        #[allow(clippy::cast_precision_loss)] // a handful of samples
-                        let s = (i as f64 + 0.5) / SPLINE_SAMPLES as f64;
-                        let f = self.foot_at(q, T::from_f64(k[0] + (k[1] - k[0]) * s));
+                    for s in SPLINE_SAMPLES {
+                        let f = self.foot_at(q, k[0] + (k[1] - k[0]) * T::from_f64(s));
                         if smaller(f.gap, best.gap) {
                             best = f;
                         }
@@ -334,13 +357,10 @@ impl<T: Decide> Curve3<T> {
         {
             return Err(CarrierRefusal::Unbounded);
         }
-        let (lo, top) = n.domain();
+        let (lo, top) = n.knot_values().domain();
         let mut kept: Option<Result<Decided, Indeterminate>> = None;
         bisect(
-            [Piece {
-                a: T::from_f64(lo),
-                b: T::from_f64(top),
-            }],
+            [Piece { a: lo, b: top }],
             |p: Piece<T>| -> Step<Piece<T>, core::convert::Infallible> {
                 let m = crate::mid_param(p.a, p.b);
                 let reach = geom_core::bisect::reach(hi, (p.a, p.b));
@@ -379,6 +399,24 @@ impl<T: Decide> Curve3<T> {
                 band,
             ))),
         }
+    }
+}
+
+/// **The angle of `(x, y)`, on the branch within half a turn of
+/// `near`**: read relative to `near`'s direction, or to its opposite where
+/// the point lies definitely behind it, so the angle's own branch cut is
+/// never crossed and an enclosure of the point's direction stays an
+/// enclosure of one angle.
+fn angle_near<T: Decide>(x: T, y: T, near: T) -> T {
+    let (sin, cos) = near.sin_cos();
+    let (along, across) = (x * cos + y * sin, y * cos - x * sin);
+    let behind = Band::new(f64::from_bits(1), f64::from_bits(2)).is_ok_and(|exact| {
+        decide("curve_foot_branch", Margin::of(along), exact) == Ok(Sign::Negative)
+    });
+    if behind {
+        near + T::pi() + (T::zero() - across).atan2(T::zero() - along)
+    } else {
+        near + across.atan2(along)
     }
 }
 

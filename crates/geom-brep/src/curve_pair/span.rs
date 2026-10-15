@@ -40,7 +40,7 @@
 //! escalation otherwise.
 
 use geom::{CarrierRefusal, Curve3, Foot, OnCarrier};
-use geom_core::k_stats::{decide_reported, straddle};
+use geom_core::k_stats::{decide, decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
 
@@ -148,7 +148,23 @@ impl<'a, T: Decide> Span<'a, T> {
         match self.carrier {
             Curve3::Circle { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
                 let mid = geom::mid_param(self.t0, self.t1);
-                mid + (t - mid).reduce_periodic_centred(T::tau())
+                let d = t - mid;
+                let r = d.reduce_periodic_centred(T::tau());
+                // An enclosure of `t` about the antipode of the middle
+                // would wrap the whole turn: there either branch is as
+                // near, so it is read on the one whose cut lies at the
+                // middle instead.
+                let inside = Band::new(f64::from_bits(1), f64::from_bits(2)).is_ok_and(|exact| {
+                    decide("curve_pair_span_branch", Margin::of(r - T::pi()), exact)
+                        == Ok(Sign::Negative)
+                        && decide("curve_pair_span_branch", Margin::of(r + T::pi()), exact)
+                            == Ok(Sign::Positive)
+                });
+                if inside {
+                    mid + r
+                } else {
+                    mid + (d + T::pi()).reduce_periodic_centred(T::tau()) - T::pi()
+                }
             }
             Curve3::Line { .. } | Curve3::Nurbs(_) => t,
         }
