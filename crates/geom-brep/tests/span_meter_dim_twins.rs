@@ -121,6 +121,7 @@ fn span_meter_sample(
         start,
         end,
         |k| arena.get(k).cloned(),
+        1.0,
         band(),
         Some(NurbsLane::certified()),
     );

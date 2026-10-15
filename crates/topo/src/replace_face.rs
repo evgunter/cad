@@ -2345,6 +2345,12 @@ fn plan_edge<T: Decide>(
             return plan_between_moved(
                 (edge, start, end, sides),
                 curve,
+                crate::wedge_reach(
+                    body,
+                    crate::edge_faces(body, edge),
+                    curve.carrier(),
+                    curve.params(),
+                ),
                 (a, b),
                 band,
                 tol,
@@ -2515,6 +2521,7 @@ fn plan_edge<T: Decide>(
                 (curve, &description, (t0, t1)),
                 (old_key, other_key, new_surface, held),
                 extent,
+                crate::wedge_reach(body, crate::edge_faces(body, edge), &old_carrier, (t0, t1)),
                 band,
                 section_lane,
             );
@@ -2676,6 +2683,7 @@ fn plan_edge<T: Decide>(
                 [(old_key, new_surface), (other, held)],
                 &carrier,
                 (t0, t1),
+                crate::wedge_reach(body, crate::edge_faces(body, edge), &carrier, (t0, t1)),
                 carried_declaration,
                 band,
             )?
@@ -2769,6 +2777,7 @@ fn plan_edge<T: Decide>(
                 [(old_key, new_surface), (c.surface, held)],
                 &carrier,
                 (t0, t1),
+                crate::wedge_reach(body, crate::edge_faces(body, edge), &carrier, (t0, t1)),
                 carried_declaration,
                 band,
             )?
@@ -2824,6 +2833,7 @@ fn edge_side_keys<T: Real>(
 fn plan_between_moved<T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
     curve: &geom_brep::EdgeCurve<T>,
+    reach: T,
     (a, b): (&MovedChart<'_, T>, &MovedChart<'_, T>),
     band: Band,
     tol: Tol,
@@ -2862,6 +2872,7 @@ fn plan_between_moved<T: Decide>(
                     [(a.old_key, &a.new_surface), (b.old_key, &b.new_surface)],
                     &carrier,
                     (t0, t1),
+                    reach,
                     declared,
                     band,
                 )
@@ -2889,6 +2900,7 @@ fn plan_between_moved<T: Decide>(
         (curve, &description, (t0, t1)),
         (a.old_key, b.old_key, &a.new_surface, &b.new_surface),
         extent,
+        reach,
         band,
         section_lane,
     )
@@ -2979,6 +2991,7 @@ fn derive_edge<T: Decide>(
         &Surface<T>,
     ),
     extent: T,
+    reach: T,
     band: Band,
     section_lane: Option<crate::offset_derive::SectionLane<T>>,
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
@@ -3099,6 +3112,7 @@ fn derive_edge<T: Decide>(
             [(old_key, new_surface), (other_key, neighbour)],
             &carrier,
             (t0, t1),
+            reach,
             || Ok(None),
             band,
         )?,
@@ -3687,6 +3701,7 @@ fn plan_reanchors<T: Decide>(
                     [(ka, surface(ka)), (kb, surface(kb))],
                     &carrier,
                     (t0, t1),
+                    crate::wedge_reach(body, crate::edge_faces(body, edge), &carrier, (t0, t1)),
                     || Ok(declared),
                     band,
                 )?

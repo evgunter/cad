@@ -1078,12 +1078,8 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     // setter: loops in canonical order, segments in swept order, the
     // bottom rim before the top (D9 — fixed order). ----
     for (li, (segs, base)) in loops.iter().zip(&bases).enumerate() {
-        let qs = &points[li];
-        let n = segs.len();
-        for j in 0..n {
+        for j in 0..segs.len() {
             let wall = face_surface_key(&body, side_faces[li][j]);
-            let q_from = qs[j];
-            let q_to = qs[(j + 1) % n];
             let bottom_rim = body
                 .get_half_edge(base.hes[j])
                 .unwrap_or_else(|| {
@@ -1098,8 +1094,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 bottom_rim,
                 bottom_surface,
                 wall,
-                q_from,
-                q_to,
                 li,
                 segs[j].chord.canonical_segment,
                 band,
@@ -1110,8 +1104,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 top_rims[li][j],
                 top_surface,
                 wall,
-                q_from + w,
-                q_to + w,
                 li,
                 segs[j].chord.canonical_segment,
                 band,
@@ -1204,7 +1196,8 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     // Join classification: strut j joins the side walls of segments
     // j − 1 and j. Identical surface keys are
     // conventional joins structurally; distinct surfaces classify by
-    // dihedral at the strut midpoint (extent: the strut chord).
+    // dihedral at the strut midpoint, levered at the walls' extent
+    // (`topo::wedge_reach`).
     for (j, strut) in struts.iter().enumerate() {
         let f_prev = faces[(j + n - 1) % n];
         let f_next = faces[j];
@@ -1244,7 +1237,10 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             .cloned()
             .unwrap_or_else(|| unreachable!("surface {k_next:?} is held by live face {f_next:?}"));
         let mid = qs[j] + w * T::from_f64(0.5);
-        match classify_dihedral(&s_prev, &s_next, mid, w_norm, band) {
+        let reach = topo::edge_wedge_reach(body, strut.edge).unwrap_or_else(|| {
+            unreachable!("strut {:?} was minted with a certified line", strut.edge)
+        });
+        match classify_dihedral(&s_prev, &s_next, mid, reach, band) {
             Ok(DihedralClass::Transverse) => {
                 // The prefer-intrinsic upgrade: mint-time Intersection
                 // was impossible (the side surfaces did not exist);
@@ -1291,7 +1287,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         surfaces: [(k_prev, &s_prev), (k_next, &s_next)],
                         carrier: &carrier,
                         interval: (T::zero(), w_norm),
-                        chord: w_norm,
+                        reach,
                         witness: mid,
                     },
                     band,
@@ -1549,21 +1545,15 @@ fn side_surface<T: Decide>(
 /// midpoint to rounding). The certified carrier and parameter interval
 /// are kept verbatim; the re-description goes through `topo`'s
 /// certified `set_edge_curve` door. `classify_dihedral` at the witness
-/// decides, metered through the edge's honest extent
-/// ([`geom_brep::edge_extent`] — the carrier diameter for near-closed
-/// arc rims, whose chord collapses): Transverse upgrades; Smooth
+/// decides, levered at the cap's and wall's extent
+/// ([`topo::wedge_reach`]): Transverse upgrades; Smooth
 /// descends through [`geom_brep::must_carry_over_edge`] (the arm
 /// below); Indeterminate is the typed [`ExtrudeError::SliverRim`].
-#[allow(clippy::too_many_arguments)] // two call sites in one loop; the
-// arguments are the upgrade's fixed context, not a configuration
-// surface.
 fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     cap: SurfaceKey,
     wall: SurfaceKey,
-    q_from: Point3<T>,
-    q_to: Point3<T>,
     loop_index: usize,
     segment_index: usize,
     band: Band,
@@ -1583,14 +1573,14 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     let carrier = curve.carrier().clone();
     let (t0, t1) = curve.params();
     let witness = carrier.mid_point(t0, t1);
-    let extent = geom_brep::edge_extent(&carrier, t0, t1, q_from.distance(q_to));
+    let reach = topo::wedge_reach(body, topo::edge_faces(body, edge), &carrier, (t0, t1));
     let s_cap = body.get_surface(cap).cloned().unwrap_or_else(|| {
         unreachable!("cap surface {cap:?} is held by a live cap face of this driver")
     });
     let s_wall = body.get_surface(wall).cloned().unwrap_or_else(|| {
         unreachable!("wall surface {wall:?} is held by a live wall face of this driver")
     });
-    match classify_dihedral(&s_cap, &s_wall, witness, extent, band) {
+    match classify_dihedral(&s_cap, &s_wall, witness, reach, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
@@ -1610,8 +1600,8 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         // direction gates admit a tilt of `w` off the sketch normal of
         // up to `1/K`; a LINE leg's wall is the plane through the quad
         // swept along `w`, so it leans against the cap's `±n` by that
-        // tilt, and the wedge is metered as `sin θ` over a rim the
-        // profile door floors at `K·ε`. An ARC leg's wall is a cylinder
+        // tilt, and the wedge is metered as `sin θ` over the faces'
+        // extent. An ARC leg's wall is a cylinder
         // whose axis is `±n` on both doors ([`side_surface`];
         // `work/strut/extrude-arc-walls-are-ruled-in-n-not-w.md` would
         // move it), so it is perpendicular to the cap at every rim
@@ -1635,7 +1625,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
                     surfaces: [(cap, &s_cap), (wall, &s_wall)],
                     carrier: &carrier,
                     interval: (t0, t1),
-                    chord: q_from.distance(q_to),
+                    reach,
                     witness,
                 },
                 band,

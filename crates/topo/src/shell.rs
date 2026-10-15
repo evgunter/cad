@@ -3277,6 +3277,7 @@ fn re_anchored<T: Decide>(
         kept.description = body
             .reask_on(
                 pair,
+                crate::edge_faces(body, edge),
                 &kept.carrier,
                 (kept.param_start, kept.param_end),
                 declared,

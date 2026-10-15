@@ -2769,8 +2769,11 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .certified()
             .cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
-        let (witness, extent) = (draft.witness, draft.extent);
-        match seam_reading(surf1, surf2, witness, extent, band)
+        let (carrier, interval) = draft.span();
+        let reach =
+            crate::wedge_reach(body, [sides.plus.face, sides.minus.face], carrier, interval);
+        let witness = draft.witness;
+        match seam_reading(surf1, surf2, witness, reach, band)
             .map_err(|(reading, diag)| DescribeRefusal::undecided(edge, reading, diag))?
         {
             geom_brep::DihedralClass::Transverse => {
@@ -2823,7 +2826,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
                     let (_, [sa, sb]) = geom_brep::SurfacePair::sorted(s1, surf1, s2, surf2);
-                    must_carry_reading(sa, sb, c.carrier(), t0, t1, extent, band).map_err(
+                    must_carry_reading(sa, sb, c.carrier(), t0, t1, reach, band).map_err(
                         |refusal| match refusal {
                             SeamRefusal::Undecided(reading, diag) => {
                                 DescribeRefusal::undecided(edge, reading, diag)
@@ -2884,17 +2887,17 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// **A seam edge of the result, as its re-description reads it**: the
-/// dihedral of its two surfaces at `witness` over `extent`, whose arm
+/// dihedral of its two surfaces at `witness` over `reach`, its faces' extent, whose arm
 /// rung is the seam's own lever and whose reading is the seam's wedge.
 #[cfg(test)]
 pub(super) fn seam_class<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
     witness: Point3<T>,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
-    seam_reading(surf1, surf2, witness, extent, band)
+    seam_reading(surf1, surf2, witness, reach, band)
         .map_err(|(reading, diag)| seam_refusal(reading, diag))
 }
 
@@ -2904,10 +2907,10 @@ fn seam_reading<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
     witness: Point3<T>,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, (DihedralReading, Indeterminate)> {
-    geom_brep::classify_dihedral(surf1, surf2, witness, extent, band)
+    geom_brep::classify_dihedral(surf1, surf2, witness, reach, band)
         .map_err(DihedralReading::of_lever)
 }
 
@@ -2966,10 +2969,10 @@ pub(super) fn seam_must_carry<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<SeamReading, SeamRefusal> {
-    must_carry_reading(surf1, surf2, carrier, t0, t1, extent, band)
+    must_carry_reading(surf1, surf2, carrier, t0, t1, reach, band)
 }
 
 /// Why a seam smooth at its witness has no description: a station
@@ -2997,11 +3000,11 @@ fn must_carry_reading<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<SeamReading, SeamRefusal> {
     use geom_brep::MustCarryVerdict;
-    match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, extent, band) {
+    match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, reach, band) {
         MustCarryVerdict::JetDeterminate => Ok(SeamReading::Intrinsic),
         MustCarryVerdict::UnderDetermined => Ok(SeamReading::Conventional),
         MustCarryVerdict::Transverse => Err(SeamRefusal::Mixed(None)),

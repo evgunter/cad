@@ -71,6 +71,7 @@ fn on_pair(
         ends.0,
         ends.1,
         move |k| arena.get(k).cloned(),
+        1.0,
         band(),
         lane,
     )

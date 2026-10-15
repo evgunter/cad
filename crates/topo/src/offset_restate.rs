@@ -96,7 +96,10 @@ pub(crate) fn restate<T: Real>(
 /// the must-carry rule as it now stands ([`geom_brep::reask_pair`]):
 /// `surfaces` are the pair's two surfaces after the door, each with the
 /// key the edge's description names, and `carrier` over `(t0, t1)` is
-/// the edge after it. `declared` is the edge's declaration as the
+/// the edge after it, its wedge levered at `reach`, its faces' extent as
+/// the body stands before the door moves them ([`crate::wedge_reach`]).
+/// `declared`
+/// is the edge's declaration as the
 /// door transports it, asked only where the rule reads the pair
 /// conventional: an intrinsic reading drops it, so its transport
 /// cannot refuse there.
@@ -112,20 +115,20 @@ pub(crate) fn re_ask_on_pair<T: Decide>(
     surfaces: [(SurfaceKey, &geom::Surface<T>); 2],
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
+    reach: T,
     declared: impl FnOnce() -> Result<Option<MappedCurve<T>>, ReplaceFaceError<T>>,
     band: Band,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    let read =
-        geom_brep::reask_pair(surfaces, carrier, (t0, t1), None, band).map_err(|refusal| {
-            match refusal {
-                geom_brep::PairRefusal::Mixed(stations) => {
-                    ReplaceFaceError::MixedEdge { edge, stations }
-                }
-                geom_brep::PairRefusal::InBand(escalation) => ReplaceFaceError::Escalated {
-                    source: escalation.diag(),
-                },
+    let read = geom_brep::reask_pair(surfaces, carrier, (t0, t1), reach, None, band).map_err(
+        |refusal| match refusal {
+            geom_brep::PairRefusal::Mixed(stations) => {
+                ReplaceFaceError::MixedEdge { edge, stations }
             }
-        })?;
+            geom_brep::PairRefusal::InBand(escalation) => ReplaceFaceError::Escalated {
+                source: escalation.diag(),
+            },
+        },
+    )?;
     Ok(match read {
         EdgeDescriptionSpec::OnPair { pair, .. } => EdgeDescriptionSpec::OnPair {
             pair,

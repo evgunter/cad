@@ -357,23 +357,33 @@ impl<T: Decide> Body<T> {
                 return Err(EulerOpError::DescriptionNotAdjacent { edge: Some(edge) });
             }
             let (p_start, p_end) = self.edge_endpoints(edge);
-            let curve =
-                crate::policy_lane::certify(spec.clone(), p_start, p_end, resolve(sides), band)
-                    .map_err(|refusal| match refusal {
-                        crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                            EulerOpError::NurbsLaneUnsupported {
-                                edge: Some(edge),
-                                scalar,
-                            }
-                        }
-                        crate::policy_lane::ByPolicy::Refused(error) => {
-                            EulerOpError::RechartFalsifies {
-                                door: RechartDoor::SetFaceSurfacesDescribing,
-                                edge,
-                                error,
-                            }
-                        }
-                    })?;
+            let reach = crate::wedge_reach(
+                self,
+                crate::edge_faces(self, edge),
+                &spec.carrier,
+                (spec.param_start, spec.param_end),
+            );
+            let curve = crate::policy_lane::certify(
+                spec.clone(),
+                p_start,
+                p_end,
+                resolve(sides),
+                reach,
+                band,
+            )
+            .map_err(|refusal| match refusal {
+                crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                    EulerOpError::NurbsLaneUnsupported {
+                        edge: Some(edge),
+                        scalar,
+                    }
+                }
+                crate::policy_lane::ByPolicy::Refused(error) => EulerOpError::RechartFalsifies {
+                    door: RechartDoor::SetFaceSurfacesDescribing,
+                    edge,
+                    error,
+                },
+            })?;
             written.push((edge, sides, curve));
         }
 
@@ -894,7 +904,13 @@ impl<T: Decide> Body<T> {
             };
             let (p_start, p_end) = self.edge_endpoints(edge);
             let resolve = |k: SurfaceKey| self.slot_surface(&[], sides.repoint(k)).cloned();
-            let curve = crate::policy_lane::certify(spec, p_start, p_end, resolve, band()?)
+            let reach = crate::wedge_reach(
+                self,
+                crate::edge_faces(self, edge),
+                &spec.carrier,
+                (spec.param_start, spec.param_end),
+            );
+            let curve = crate::policy_lane::certify(spec, p_start, p_end, resolve, reach, band()?)
                 .map_err(|refusal| match refusal {
                     crate::policy_lane::ByPolicy::NoLane { scalar } => {
                         EulerOpError::NurbsLaneUnsupported {
@@ -1235,7 +1251,8 @@ impl<T: Decide> Body<T> {
         let (p_start, p_end) = self.edge_endpoints(edge);
         self.check_description_adjacent(edge, &curve.description)?;
 
-        let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, tol)?;
+        let faces = crate::edge_faces(self, edge);
+        let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, faces, tol)?;
         let rows = self.description_rows(&[(edge, &certified)], |_| Ok(Vec::new()), tol)?;
 
         // ---- Mutation (infallible from here on). ----
@@ -1315,6 +1332,7 @@ impl<T: Decide> Body<T> {
                 let description = self
                     .reask_on(
                         pair,
+                        [sides.plus.face, sides.minus.face],
                         &restated.carrier,
                         (restated.param_start, restated.param_end),
                         Some(mc),
@@ -1344,7 +1362,9 @@ impl<T: Decide> Body<T> {
 
     /// **The must-carry rule asked again over a pair of this body's
     /// surfaces** ([`geom_brep::reask_pair`]), over `carrier` on
-    /// `interval`, `declared` riding an under-determined answer: the one
+    /// `interval` between `faces`, which lever its wedge
+    /// ([`crate::wedge_reach`]), `declared` riding an under-determined
+    /// answer: the one
     /// call shape every door that re-asks a pair on a body goes through
     /// (the offset doors, whose moved surfaces are not yet the body's,
     /// call [`geom_brep::reask_pair`] itself, the same shape).
@@ -1358,6 +1378,7 @@ impl<T: Decide> Body<T> {
     pub(crate) fn reask_on(
         &self,
         pair: geom_brep::SurfacePair,
+        faces: [FaceKey; 2],
         carrier: &geom::Curve3<T>,
         interval: (T, T),
         declared: Option<geom_brep::MappedCurve<T>>,
@@ -1377,6 +1398,7 @@ impl<T: Decide> Body<T> {
             [surface(ka), surface(kb)],
             carrier,
             interval,
+            crate::wedge_reach(self, faces, carrier, interval),
             declared,
             band,
         )

@@ -6828,10 +6828,21 @@ pub(crate) fn tier3_local_checks_marked<
         // Every other carrier class is re-certified the same way at
         // both doors. Re-certification re-derives; it never trusts the
         // stored certificate.
+        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
+            continue;
+        };
+        let (t0, t1) = curve.params();
+        let reach = crate::wedge_reach(
+            body,
+            [sides.plus.face, sides.minus.face],
+            curve.carrier(),
+            (t0, t1),
+        );
         match curve.recertify_via(
             p_start,
             p_end,
             |k| body.surfaces.get(k).cloned(),
+            reach,
             band,
             nurbs_lane,
         ) {
@@ -6841,9 +6852,6 @@ pub(crate) fn tier3_local_checks_marked<
                 error,
             }),
         }
-        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
-            continue;
-        };
         let (fs_plus, fs_minus) = sides.surfaces();
         // **The transience fence** (U2's Q2 as corrected): the
         // scaffolding door is for edges whose surfaces do not exist
@@ -6991,9 +6999,9 @@ pub(crate) fn tier3_local_checks_marked<
         let Some(curve) = body.curves.get(edge.curve).and_then(CurveGeom::certified) else {
             continue;
         };
-        let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
+        if edge_endpoints(body, edge.he_plus).is_none() {
             continue;
-        };
+        }
         let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
             continue;
         };
@@ -7004,9 +7012,10 @@ pub(crate) fn tier3_local_checks_marked<
         else {
             continue;
         };
-        let chord = p_start.distance(p_end);
         let (t0, t1) = curve.params();
-        let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord);
+        // The wedge is levered at the farther face's extent, never the
+        // edge's own (`crate::wedge_reach`).
+        let reach = crate::wedge_reach(body, [f_plus, f_minus], curve.carrier(), (t0, t1));
         // The interior schedule's stations, evaluated once (D9: the same
         // parameters certification used) and shared by checks 4 and 5
         // and check 4's second-order walk.
@@ -7050,7 +7059,7 @@ pub(crate) fn tier3_local_checks_marked<
         let conventional = curve.description().is_conventional();
         if !nurbs_adjacent {
             for &(p, _) in &samples {
-                match geom_brep::classify_dihedral(s_plus, s_minus, p, extent, band) {
+                match geom_brep::classify_dihedral(s_plus, s_minus, p, reach, band) {
                     Ok(class) => readings.push(class == DihedralClass::Transverse),
                     Err(escalation) => {
                         errors.push(dihedral_finding(edge_key, escalation));
@@ -7164,7 +7173,7 @@ pub(crate) fn tier3_local_checks_marked<
                 s_plus,
                 s_minus,
                 samples.iter().copied(),
-                extent,
+                reach,
                 band,
                 &mut stations,
             );
@@ -13444,8 +13453,9 @@ mod tests {
         let e = body.get_edge(edge).unwrap().clone();
         let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
         let spec = geom_brep::EdgeCurveSpec::line_between(s, t);
-        let curve = geom_brep::EdgeCurve::certify(spec, s, t, |_| None, Band::linear(tol).unwrap())
-            .expect("the chord certifies");
+        let curve =
+            geom_brep::EdgeCurve::certify(spec, s, t, |_| None, 1.0, Band::linear(tol).unwrap())
+                .expect("the chord certifies");
         *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
     }
 
@@ -13471,8 +13481,9 @@ mod tests {
         };
         let spec =
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, std::f64::consts::TAU).unwrap();
-        let curve = geom_brep::EdgeCurve::certify(spec, s, t, |_| None, Band::linear(tol).unwrap())
-            .expect("the whole circle certifies against its one end point");
+        let curve =
+            geom_brep::EdgeCurve::certify(spec, s, t, |_| None, 1.0, Band::linear(tol).unwrap())
+                .expect("the whole circle certifies against its one end point");
         *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
     }
 
@@ -14212,9 +14223,15 @@ mod tests {
             param_end: t1,
         };
         let surfaces = |key| body.surfaces.get(key).cloned();
-        let curve =
-            geom_brep::EdgeCurve::certify(spec, start, end, surfaces, Band::linear(tol).unwrap())
-                .expect("the ellipse arc certifies");
+        let curve = geom_brep::EdgeCurve::certify(
+            spec,
+            start,
+            end,
+            surfaces,
+            1.0,
+            Band::linear(tol).unwrap(),
+        )
+        .expect("the ellipse arc certifies");
         *body.curves.get_mut(stored.curve).unwrap() = CurveGeom::Certified(curve);
     }
 
@@ -14672,9 +14689,15 @@ mod tests {
             u_ref,
         };
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1).unwrap();
-        let curve =
-            geom_brep::EdgeCurve::certify(spec, start, end, |_| None, Band::linear(tol).unwrap())
-                .expect("the arc certifies against its own end points");
+        let curve = geom_brep::EdgeCurve::certify(
+            spec,
+            start,
+            end,
+            |_| None,
+            1.0,
+            Band::linear(tol).unwrap(),
+        )
+        .expect("the arc certifies against its own end points");
         *body.curves.get_mut(stored.curve).unwrap() = CurveGeom::Certified(curve);
     }
 

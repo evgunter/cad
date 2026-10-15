@@ -2730,8 +2730,16 @@ impl<T: Decide> Body<T> {
         // gives them.
         let p_old =
             self.resolve_vertex_point(plan.v, link(EntityId::HalfEdge(plan.he1.key()), "start"));
-        let certified =
-            self.certify_edge_spec(None, curve.spec(false, p_old, point), p_old, point, tol)?;
+        let faces =
+            [plan.he1_loop, plan.he2_loop].map(|l| proven(&self.loops, l, EntityId::Loop).face);
+        let certified = self.certify_edge_spec(
+            None,
+            curve.spec(false, p_old, point),
+            p_old,
+            point,
+            faces,
+            tol,
+        )?;
         self.certify_rebased_run(&plan.run, point, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation). ----
         let rows = self.plan_site_rows(
@@ -2972,9 +2980,16 @@ impl<T: Decide> Body<T> {
         // ---- Preconditions. ----
         let (v, _) = self.mev_lone_plan(loop_key)?;
         let p_old = self.resolve_vertex_point(v, link(EntityId::Loop(loop_key), "boundary"));
+        let face = proven(&self.loops, loop_key, EntityId::Loop).face;
         // ---- Geometry gate (still no mutation). ----
-        let certified =
-            self.certify_edge_spec(None, curve.spec(false, p_old, point), p_old, point, tol)?;
+        let certified = self.certify_edge_spec(
+            None,
+            curve.spec(false, p_old, point),
+            p_old,
+            point,
+            [face; 2],
+            tol,
+        )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // the empty loop becomes `he_plus → he_minus`, first `he_plus`.
         let rows = self.plan_site_rows(
@@ -3195,7 +3210,7 @@ impl<T: Decide> Body<T> {
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(u1 == u2, p1, p2);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
-        let certified = self.certify_edge_spec(None, spec, p1, p2, tol)?;
+        let certified = self.certify_edge_spec(None, spec, p1, p2, [face_key; 2], tol)?;
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
@@ -3366,7 +3381,7 @@ impl<T: Decide> Body<T> {
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(true, anchor, anchor);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
-        let certified = self.certify_edge_spec(None, spec, anchor, anchor, tol)?;
+        let certified = self.certify_edge_spec(None, spec, anchor, anchor, [face_key; 2], tol)?;
         let carried = resolved.on_parent_chart;
         self.vouch_move(
             RechartDoor::Mef,
@@ -3910,8 +3925,11 @@ impl<T: Decide> Body<T> {
     /// off the scalar's policy ([`crate::AtRestPolicy::nurbs_lane`]).
     /// `edge` is the existing edge the spec certifies (a re-description,
     /// a split child, a merged member), `None` where the door mints a new
-    /// edge. Pure (no mutation) — ops call it inside their precondition
-    /// phase.
+    /// edge; `faces` are the two faces the edge bounds once the door has
+    /// run, as the body stands before it (the face a minted strut or
+    /// chord lies in, twice), which lever its wedge
+    /// ([`crate::wedge_reach`]). Pure (no mutation) — ops call it inside
+    /// their precondition phase.
     ///
     /// # Errors
     ///
@@ -3924,6 +3942,7 @@ impl<T: Decide> Body<T> {
         spec: EdgeCurveSpec<T>,
         p_start: Point3<T>,
         p_end: Point3<T>,
+        faces: [FaceKey; 2],
         tol: Tol,
     ) -> Result<EdgeCurve<T>, EulerOpError>
     where
@@ -3932,11 +3951,18 @@ impl<T: Decide> Body<T> {
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
+        let reach = crate::wedge_reach(
+            self,
+            faces,
+            &spec.carrier,
+            (spec.param_start, spec.param_end),
+        );
         crate::policy_lane::certify(
             spec,
             p_start,
             p_end,
             |k| self.surfaces.get(k).cloned(),
+            reach,
             band,
         )
         .map_err(|refusal| match refusal {
@@ -4147,8 +4173,15 @@ impl<T: Decide> Body<T> {
             };
             let (p_start, p_end) = self.rebased_endpoints(edge_key, run, p_new);
             let surfaces = |k| self.surfaces.get(k).cloned();
-            let recertify =
-                |start, end| crate::policy_lane::recertify(curve, start, end, surfaces, band);
+            let reach = crate::wedge_reach(
+                self,
+                crate::edge_faces(self, edge_key),
+                curve.carrier(),
+                curve.params(),
+            );
+            let recertify = |start, end| {
+                crate::policy_lane::recertify(curve, start, end, surfaces, reach, band)
+            };
             let error = match recertify(p_start, p_end) {
                 Ok(_) => continue,
                 Err(ByPolicy::NoLane { scalar }) => {

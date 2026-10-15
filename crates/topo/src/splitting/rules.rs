@@ -674,6 +674,42 @@ pub(crate) fn face_reach_round_from<T: Decide>(
     )
 }
 
+/// [`face_reach_from`] for the wedge between an edge's faces
+/// ([`crate::wedge_reach`]), with `edge`, the span of the edge being
+/// metered, folded in as a boundary edge of `face`: at rest it is one
+/// already, and a door minting the edge into `face` reads the face it
+/// is about to bound. A face whose outer loop is a lone vertex (a
+/// construction's first face, mid-op) reads that vertex as a boundary
+/// point rather than refusing, a reach the face's own extent can only
+/// exceed. Total.
+pub(crate) fn face_wedge_reach_from<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    edge: &geom_brep::Reach<T>,
+) -> T {
+    let over_span = matches!(
+        face_surface(body, face),
+        geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. }
+    );
+    let reach = |span: &geom_brep::Reach<T>| {
+        if over_span {
+            span.span_reach_from(at)
+        } else {
+            span.lever_from(at)
+        }
+    };
+    boundary_fold_over(
+        body,
+        face,
+        reach(edge),
+        LoneOuter::Reads,
+        |p| (p - at).norm(),
+        |curve| reach(&span_of(curve)),
+    )
+    .unwrap_or_else(|_| unreachable!("a fold that reads a lone outer vertex never refuses"))
+}
+
 /// **How far a face reaches from `at` either way along `axis`** (unit):
 /// `(below, above)`, the farthest `−(x − at)·axis` and `(x − at)·axis`
 /// over `face`'s boundary, each at least zero: its vertices, and each
@@ -835,15 +871,44 @@ fn boundary_fold<T: Decide>(
     point: impl Fn(Point3<T>) -> T,
     edge: impl Fn(&geom_brep::EdgeCurve<T>) -> T,
 ) -> Result<T, UnboundedFace> {
+    boundary_fold_over(body, face, floor, LoneOuter::Refuses, point, edge)
+}
+
+/// What [`boundary_fold_over`] makes of an outer loop that is a lone
+/// vertex.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LoneOuter {
+    /// An unbounded face has no finite lever arm: refuse.
+    Refuses,
+    /// Read the vertex as the boundary point it is, a reach the face's
+    /// own extent can only exceed.
+    Reads,
+}
+
+/// [`boundary_fold`], with the lone-vertex outer loop read as `lone`
+/// says.
+fn boundary_fold_over<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    floor: T,
+    lone: LoneOuter,
+    point: impl Fn(Point3<T>) -> T,
+    edge: impl Fn(&geom_brep::EdgeCurve<T>) -> T,
+) -> Result<T, UnboundedFace> {
     let face_data = proven(&body.faces, face, EntityId::Face);
     let mut extent = floor;
     let outer = face_data.outer;
     for (loop_key, members) in body.face_boundary_by_loop(face, face_data) {
         for member in members {
             let p = match member {
-                // An unbounded face has no finite lever arm.
-                BoundaryMember::Isolated { vertex: lone, .. } if loop_key == outer => {
-                    return Err(UnboundedFace { face, vertex: lone });
+                BoundaryMember::Isolated {
+                    vertex: lone_vertex,
+                    ..
+                } if loop_key == outer && lone == LoneOuter::Refuses => {
+                    return Err(UnboundedFace {
+                        face,
+                        vertex: lone_vertex,
+                    });
                 }
                 BoundaryMember::Isolated { point, .. } => point,
                 BoundaryMember::Edge {

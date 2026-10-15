@@ -40,28 +40,32 @@ impl ByPolicy {
     }
 }
 
-/// [`EdgeCurve::certify_via`] with `T`'s lane.
+/// [`EdgeCurve::certify_via`] with `T`'s lane, the wedge levered at
+/// `reach` ([`crate::wedge_reach`]).
 pub(crate) fn certify<T: AtRestPolicy>(
     spec: EdgeCurveSpec<T>,
     start: Point3<T>,
     end: Point3<T>,
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    reach: T,
     band: Band,
 ) -> Result<EdgeCurve<T>, ByPolicy> {
-    EdgeCurve::certify_via(spec, start, end, surfaces, band, T::nurbs_lane())
+    EdgeCurve::certify_via(spec, start, end, surfaces, reach, band, T::nurbs_lane())
         .map_err(ByPolicy::of::<T>)
 }
 
-/// [`EdgeCurve::recertify_via`] with `T`'s lane.
+/// [`EdgeCurve::recertify_via`] with `T`'s lane, the wedge levered at
+/// `reach` ([`crate::wedge_reach`]).
 pub(crate) fn recertify<T: AtRestPolicy>(
     curve: &EdgeCurve<T>,
     start: Point3<T>,
     end: Point3<T>,
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    reach: T,
     band: Band,
 ) -> Result<Certificate<T>, ByPolicy> {
     curve
-        .recertify_via(start, end, surfaces, band, T::nurbs_lane())
+        .recertify_via(start, end, surfaces, reach, band, T::nurbs_lane())
         .map_err(ByPolicy::of::<T>)
 }
 

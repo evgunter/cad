@@ -438,6 +438,12 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                             [(pa.old_key, &sa), (pb.old_key, &sb)],
                             &carrier,
                             (t0, t1),
+                            crate::wedge_reach(
+                                body,
+                                crate::edge_faces(body, edge),
+                                &carrier,
+                                (t0, t1),
+                            ),
                             declared,
                             band,
                         )
