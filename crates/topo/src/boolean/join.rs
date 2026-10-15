@@ -636,12 +636,30 @@ impl SolidJoin {
             reordered = self.plan(body, roles, segment)?;
             &reordered
         };
-        let minted = self.joiner.join(body, plan, curve, tol)?;
+        let minted = self.joiner.join(body, plan, curve, tol).map_err(of_join)?;
         if let Some(edge) = segment {
             self.along
                 .extend(minted.into_iter().map(|chord| (edge, chord)));
         }
         Ok(())
+    }
+}
+
+/// The Boolean's refusal for a chord its join refused: a chord's end
+/// whose vertex reads at the zero band's edge of the plane is an edge of
+/// the result on its faces, the Boolean's own decision; every other
+/// refusal is the join's.
+fn of_join(refusal: SplitJoinError) -> BooleanError {
+    match refusal {
+        SplitJoinError::SectionEndEscalated {
+            reading: crate::chord_join::SectionEndReading::OnPlane,
+            diag,
+            ..
+        } => BooleanError::Escalated {
+            decision: BooleanDecision::EdgeOnFaces,
+            diag,
+        },
+        other => other.into(),
     }
 }
 
@@ -7696,6 +7714,60 @@ mod first_pair_rows {
             Some(true),
             "the escalating round is all mutual and straight, so the K gate is what reads it"
         );
+    }
+}
+
+/// **The Boolean's own decision for a join's reading of a section end**
+/// ([`of_join`]): a vertex on the plane at the band's edge is an edge of
+/// the result on its faces; the plane read square, and a carrier that
+/// cannot resolve its end, stay the join's refusal.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod of_join_rows {
+    use super::*;
+    use crate::chord_join::SectionEndReading;
+    use geom_core::{Indeterminate, MarginDiag};
+
+    fn diag() -> Indeterminate {
+        Indeterminate {
+            margin: MarginDiag::value(1.2e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("carrier_endpoint_end"),
+            terminal_sliver: false,
+        }
+    }
+
+    #[test]
+    fn only_an_end_on_the_plane_is_the_booleans_edge_on_faces() {
+        let face = FaceKey::default();
+        let end = |reading| SplitJoinError::SectionEndEscalated {
+            face,
+            reading,
+            diag: diag(),
+        };
+        assert!(matches!(
+            of_join(end(SectionEndReading::OnPlane)),
+            BooleanError::Escalated {
+                decision: BooleanDecision::EdgeOnFaces,
+                diag: d,
+            } if d == diag()
+        ));
+        let joins = |refusal: SplitJoinError| {
+            let kept = format!("{refusal:?}");
+            match of_join(refusal) {
+                BooleanError::Join(j) => format!("{:?}", j.error()) == kept,
+                _ => false,
+            }
+        };
+        assert!(joins(end(SectionEndReading::SquareToAxis)));
+        assert!(joins(SplitJoinError::SectionUnresolved {
+            face,
+            miss: crate::chord_join::SectionPinMiss::Undecided {
+                check: geom_brep::CertCheck::EndpointEnd,
+                diag: diag(),
+                resolution: MarginDiag::value(2e-9),
+            },
+        }));
     }
 }
 
