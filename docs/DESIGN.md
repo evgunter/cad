@@ -803,11 +803,13 @@ edge must carry `Intersection` (`TransverseNotIntrinsic` otherwise); a
 jet-determinate tangency must carry `TangentIntersection`
 (`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
 admits the class); a second-order-underdetermined join keeps its
-conventional form by the predicate itself. The check refuses a declared
-conventional description on a definitely-transverse edge. Escalated
-dihedrals, seam edges and NURBS/`Approx`-adjacent edges are exempt, so
-ε-tightening can escalate but never flip a valid body to invalid. An
-unenforced preference drifts silently — exactly the failure shape this
+conventional form by the predicate itself. The check reads the
+description's form, not who declared the locus: a conventional
+description on an edge the must-carry rule reads determinate is wrong,
+declared or derived. The rule needs two surfaces and a definite
+reading, so a wrap edge (one surface) and an edge whose dihedral is not
+read definitely (in band, or beside a spline face) fall outside it.
+An unenforced preference drifts silently — exactly the failure shape this
 document exists to kill.
 
 **Witness contract.** "Selected by the witness point" is verifiable only
