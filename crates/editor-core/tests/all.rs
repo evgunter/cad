@@ -169,6 +169,8 @@ mod edit_has_minted;
 mod edit_instance_crossing_names;
 #[path = "edit_ladder_rim.rs"]
 mod edit_ladder_rim;
+#[path = "edit_one_cycle_members.rs"]
+mod edit_one_cycle_members;
 #[path = "edit_one_predicate.rs"]
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]
@@ -754,6 +756,8 @@ mod emit_split_duplicate;
 mod emit_split_edge_lineage;
 #[path = "emit_union_borders.rs"]
 mod emit_union_borders;
+#[path = "emit_union_curved_flush.rs"]
+mod emit_union_curved_flush;
 #[path = "emit_union_flush_names.rs"]
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
