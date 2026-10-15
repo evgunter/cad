@@ -288,9 +288,9 @@ impl<'a> Writer<'a> {
         Ok(self.emit(&format!("CARTESIAN_POINT('', ({x}, {y}, {z}))")))
     }
 
-    /// `DIRECTION` from a kernel vector (unit by the conventions of
-    /// every stored normal/axis/dir — emitted as stored, never
-    /// renormalized: renormalization would move bits, D9).
+    /// `DIRECTION` from a kernel vector, emitted as stored. The writer
+    /// translates; it does not repair, so a direction is never
+    /// renormalized here.
     fn direction(&mut self, v: Vec3<f64>, context: &'static str) -> Result<u64, StepExportError> {
         let (x, y, z) = (
             fmt_real(v.x, context)?,
@@ -303,17 +303,15 @@ impl<'a> Writer<'a> {
     /// `AXIS2_PLACEMENT_3D` from a kernel frame `(origin, axis,
     /// ref_dir)` — the shared right-handed placement every elementary
     /// surface and conic carries. Emission order is location, axis,
-    /// ref_direction, placement (the order M4's inline plane arm used,
-    /// preserved so the planar goldens stay byte-identical).
+    /// ref_direction, placement.
     ///
-    /// The three kernel fields go in **verbatim**: every kernel frame
-    /// stores `axis` unit, `ref_dir` unit and ⊥ `axis`, and the derived
-    /// second in-plane direction is `axis × ref_dir` — which is exactly
-    /// ISO 10303-42's `axis2_placement_3d` convention (`z = axis`,
-    /// `x = ref_direction` after the standard's orthogonalization,
-    /// `y = z × x`). No renormalization, no orthogonalization, no
-    /// negation: the placement IS the kernel frame (D9 — any repair
-    /// here would move bits and export a different surface).
+    /// The three kernel fields go in **verbatim**. The derived second
+    /// in-plane direction is `axis × ref_dir`, which is ISO 10303-42's
+    /// `axis2_placement_3d` convention (`z = axis`, `x = ref_direction`
+    /// after the standard's orthogonalization, `y = z × x`), so the
+    /// placement IS the kernel frame. No renormalization, no
+    /// orthogonalization, no negation: the writer translates; it does
+    /// not repair.
     fn axis2_placement(
         &mut self,
         origin: Point3<f64>,

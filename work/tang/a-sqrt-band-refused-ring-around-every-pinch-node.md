@@ -5,7 +5,6 @@ title: A √band refused ring around every pinch node: the pierce vertex reads a
 status: open
 priority: P2
 cost: H
-design: true
 opened: 2026-10-15
 refs: [pinch-carrying-machinery-valence-4, 5192, 5193]
 ---
@@ -91,9 +90,8 @@ At the witness band:
   1e-4 still escalate `PierceCurvature`.
 
 So closing the ring reaches the pierce classification (`vtxfac`,
-`sectors`), containment, and at least one at-rest wedge predicate. The
-last of these is a tier-3 question that the U2 design rules out ("no
-tier-3 change"), which is why this row is a design question.
+`sectors`) and at least one at-rest wedge predicate; the decision
+below settles both.
 
 ## The ring at oblique angles reaches further (PR 5192)
 
@@ -110,9 +108,15 @@ operation:
 pins the two oblique poses at `δ = 5·√band` and `4·√band`. A unit that
 re-levers the pierce's side reading has to close them.
 
-## For the design
+## The decision (Ev, PR 5193)
 
-The design question is the near-node fork now in [ev] PR 5193. The
-`LaminaWedge` result bears on U2's "no tier-3 change" claim, which U2b
-and U2c inherit: a body near a node carries arcs about `2δ` long whose
-dihedral is about `δ`. A designer pair weighs it before anyone builds.
+Approved on PR 5193 (fork-log row 150): the near-node bullet in
+`pinch-carrying-machinery-valence-4.md` ("An edge near a node, not
+through it"). The pierce reads the partner wall through the branch the
+sweep decided; at rest a wedge is levered at the faces' curvature and
+extent, never the edge's chord. Units: U-lever (in progress), then U2p,
+whose acceptance closes this row.
+
+The experiment branch above and its `LaminaWedge` result (arcs about
+`2δ` long with a dihedral about `δ`, refused at rest) are evidence for
+U-lever's acceptance.
