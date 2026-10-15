@@ -408,51 +408,65 @@ fn a_section_ends_own_rounding_is_a_kernel_limitation() {
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
-/// **Where the part sits does not move the reading.** The seam vertex
-/// `ε` off a plane tilted `t` off square (`1e-2` at ε = 1e-12, `1e-3` at
-/// 1e-9), on the unit cylinder moved by `(x0, z0)`: across the miss
-/// (`x0` = 0, 30 m and 1 km at 1e-12, 30 km at 1e-9) and along it, so
-/// the miss runs along the large coordinate (`z0` = 30 m and 1 km at
-/// 1e-12, 1 km at 1e-9). Each refuses as the vertex on the plane, with
-/// its lever, and the lever builds.
+/// The unit cylinder about `z`, its axis at `(x0, 0)` and its base at
+/// `z0`, cut by the plane through `(x0 + 1, 0, z)` with normal `(t, 0, 1)`
+/// at `z` and at the lever's moves of `z`.
+fn moved_cut(
+    (x0, z0): (f64, f64),
+    t: f64,
+    tol: Tol,
+) -> impl Fn(f64) -> Result<topo::SplitResult<f64>, SplitError> {
+    let cyl = finished(
+        sweep::test_support::prism_at(
+            vec![
+                (Point2::new(x0 + 1.0, 0.0), 1.0),
+                (Point2::new(x0 - 1.0, 0.0), 1.0),
+            ],
+            z0,
+            1.0,
+            tol,
+        ),
+        tol,
+    );
+    move |z: f64| {
+        let normal = Vec3::new(t, 0.0, 1.0);
+        let plane = topo::test_support::split_plane(
+            Point3::new(x0 + 1.0, 0.0, z),
+            normal / normal.norm(),
+            tol,
+        );
+        split(&cyl, &plane, tol)
+    }
+}
+
+/// `t` at each ε row of the translation pins, and whether the row runs.
+fn translation_tilt(eps: f64) -> Option<f64> {
+    if (eps - 1e-12).abs() <= 1e-15 {
+        Some(1e-2)
+    } else if (eps - 1e-9).abs() <= 1e-12 {
+        Some(1e-3)
+    } else {
+        println!("SKIPPED at this ε: the rows are ε = 1e-12 and 1e-9");
+        None
+    }
+}
+
+/// **Where the part sits across the miss does not move the reading.**
+/// The seam vertex `ε` off a plane tilted `t` off square (`1e-2` at
+/// ε = 1e-12, `1e-3` at 1e-9), on the unit cylinder moved `x0` across
+/// the miss (0, 30 m and 1 km at 1e-12, 30 km at 1e-9): each refuses as
+/// the vertex on the plane, with its lever, and the lever builds.
 #[test]
 fn a_section_end_reads_the_same_wherever_the_part_sits() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let (at, t): (&[(f64, f64)], f64) = if (eps - 1e-12).abs() <= 1e-15 {
-        (
-            &[(0.0, 0.0), (30.0, 0.0), (1e3, 0.0), (0.0, 30.0), (0.0, 1e3)],
-            1e-2,
-        )
-    } else if (eps - 1e-9).abs() <= 1e-12 {
-        (&[(3e4, 0.0), (0.0, 1e3)], 1e-3)
-    } else {
-        println!("SKIPPED at this ε: the rows are ε = 1e-12 and 1e-9");
+    let Some(t) = translation_tilt(eps) else {
         return;
     };
+    let at: &[f64] = if t == 1e-2 { &[0.0, 30.0, 1e3] } else { &[3e4] };
     let mut wrong = Vec::new();
-    for &(x0, z0) in at {
-        let cyl = finished(
-            sweep::test_support::prism_at(
-                vec![
-                    (Point2::new(x0 + 1.0, 0.0), 1.0),
-                    (Point2::new(x0 - 1.0, 0.0), 1.0),
-                ],
-                z0,
-                1.0,
-                tol,
-            ),
-            tol,
-        );
-        let cut = |d: f64| {
-            let normal = Vec3::new(t, 0.0, 1.0);
-            let plane = topo::test_support::split_plane(
-                Point3::new(x0 + 1.0, 0.0, z0 + d),
-                normal / normal.norm(),
-                tol,
-            );
-            split(&cyl, &plane, tol)
-        };
+    for &x0 in at {
+        let cut = moved_cut((x0, 0.0), t, tol);
         match cut(eps) {
             Err(SplitError::Join(
                 e @ SplitJoinError::SectionEndEscalated {
@@ -460,11 +474,62 @@ fn a_section_end_reads_the_same_wherever_the_part_sits() {
                     ..
                 },
             )) if e.to_string().ends_with(ON_PLANE_LEVER) => {}
-            other => wrong.push(format!("x0 {x0} z0 {z0}: {:?}", other.err())),
+            other => wrong.push(format!("x0 {x0}: {:?}", other.err())),
         }
         for d in [0.0, CLEARLY_OFF * eps, -CLEARLY_OFF * eps] {
             if let Err(e) = cut(d) {
-                wrong.push(format!("x0 {x0} z0 {z0} moved to d{d:e}: {e:?}"));
+                wrong.push(format!("x0 {x0} moved to d{d:e}: {e:?}"));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// **Along the miss, the vertex and the section end read one offset.**
+/// The same pose with the cylinder's base at `z0` (30 m and 1 km at
+/// ε = 1e-12, 1 km at 1e-9), so the miss runs along the large
+/// coordinate. The plane passes the vertex by the two offsets `z0`'s
+/// grid holds either side of ε. The vertex's reading off the plane and
+/// the section end's miss read that one offset, to within far less than
+/// the grid's spacing (`3.6e-15` at 30 m), so no grid point lands
+/// between them: the offset at or under ε builds, and the one over it
+/// refuses as the input's at the vertex, with its lever — never as the
+/// kernel's, and never past the join's pin at a rounding of the part's
+/// extent. The lever's moves build.
+#[test]
+fn along_the_miss_the_vertex_and_its_section_end_read_one_offset() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let Some(t) = translation_tilt(eps) else {
+        return;
+    };
+    let at: &[f64] = if t == 1e-2 { &[30.0, 1e3] } else { &[1e3] };
+    let mut wrong = Vec::new();
+    for &z0 in at {
+        let cut = moved_cut((0.0, z0), t, tol);
+        let near = z0 + eps;
+        let next = f64::from_bits(near.to_bits() + 1);
+        let prev = f64::from_bits(near.to_bits() - 1);
+        let (under, over) = if near - z0 <= eps {
+            (near, next)
+        } else {
+            (prev, near)
+        };
+        if let Err(e) = cut(under) {
+            wrong.push(format!("z0 {z0}, {:e} off: {e:?}", under - z0));
+        }
+        match cut(over) {
+            Err(e @ SplitError::Reduce(topo::SplitReduceError::SliverVertex { .. })) => {
+                let text = e.to_string();
+                if !text.contains("Recourse: move") {
+                    wrong.push(format!("z0 {z0}, {:e} off: no lever: {text}", over - z0));
+                }
+            }
+            other => wrong.push(format!("z0 {z0}, {:e} off: {:?}", over - z0, other.err())),
+        }
+        for d in [0.0, CLEARLY_OFF * eps, -CLEARLY_OFF * eps] {
+            if let Err(e) = cut(z0 + d) {
+                wrong.push(format!("z0 {z0} moved to d{d:e}: {e:?}"));
             }
         }
     }
