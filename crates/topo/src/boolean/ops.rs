@@ -7598,12 +7598,19 @@ mod tests {
                 }],
             },
         };
-        let unread_volume = V::ShellRoleUndecided {
+        // A shell no aimed ray read, its volume in band.
+        let thin_volume = V::ShellRoleUndecided {
             solid: SolidKey::default(),
             error: S::Escalated {
                 shell: shells[2],
                 source: gap(5e-9),
             },
+        };
+        // A shell whose volume's bracket straddles zero: no reading in
+        // band, the needle class's fork.
+        let straddling_volume = V::ShellRoleUndecided {
+            solid: SolidKey::default(),
+            error: S::Straddles { shell: shells[2] },
         };
         let definite = V::NegativeVolume {
             solid: SolidKey::default(),
@@ -7649,9 +7656,31 @@ mod tests {
                 "{what}: the solid's side in band binds, the corner no pair: {refusal:?}"
             );
         }
+        // A shell's volume in band is its side in band: escalated, and a
+        // thinner pair beside it binds.
+        assert!(
+            matches!(
+                super::finished_body_refusal(vec![thin_volume.clone()]),
+                BooleanError::Escalated {
+                    decision: BooleanDecision::ShellSide { shell, corner: false, others: 0 },
+                    diag,
+                } if shell == shells[2] && diag == gap(5e-9)
+            ),
+            "a shell's volume in band: its side, escalated"
+        );
+        assert!(
+            matches!(
+                super::finished_body_refusal(vec![thin_volume, role(&thin)]),
+                BooleanError::Escalated {
+                    decision: BooleanDecision::ShellRole { others: 1, .. },
+                    diag,
+                } if diag == thin.gap
+            ),
+            "the thinner pair binds, the shell's volume counted"
+        );
         for (what, errors) in [
-            ("a volume left unread", vec![unread_volume.clone()]),
-            ("beside one", vec![role(&thin), unread_volume]),
+            ("a volume straddling zero", vec![straddling_volume.clone()]),
+            ("beside one", vec![role(&thin), straddling_volume]),
             ("beside a definite finding", vec![role(&thin), definite]),
             ("a corner and a volume straddling zero", vec![corner(None)]),
             ("nothing", Vec::new()),
