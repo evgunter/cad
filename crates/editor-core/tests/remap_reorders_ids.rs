@@ -1,8 +1,8 @@
 //! **A name re-mapped under an id map that reorders nodes binds the same
 //! entity the re-mapped document names by it.**
 //!
-//! `remap_name` rewrites a name's node ids through a map that need not
-//! keep their order (the split's map follows document order). Every
+//! `remap_name` rewrites a name's node ids through a caller's map, which
+//! need not keep their order as a split's and an inline's do. Every
 //! name-ordered position may then come out reordered — including one
 //! written in a name the re-mapped name EMBEDS: a pair boolean's pieces
 //! of a union's seam are `[From(<union seam>), Ends]`, and reordering

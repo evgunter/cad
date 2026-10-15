@@ -354,6 +354,12 @@ pub struct BooleanNaming {
     /// Split, which runs no merge, keeps the same copy of its join kills
     /// alone (`SplitNaming::joined_lineage`).
     pub killed_lineage: BTreeMap<EdgeKey, EdgeKey>,
+    /// Killed edge → the edge it was split from, for each edge an
+    /// operand's carve of its discarded shells killed that held a
+    /// `SplitEdge` record, A's then B's, in each operand's clone keys as
+    /// [`Self::discards`] (`boolean::discard`'s `carved_lineage`). Only
+    /// the section path carves.
+    pub carved_lineage: [BTreeMap<EdgeKey, EdgeKey>; 2],
 }
 
 impl Default for BooleanNaming {
@@ -388,6 +394,7 @@ impl Default for BooleanNaming {
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
             edge_joins: Default::default(),
             killed_lineage: Default::default(),
+            carved_lineage: Default::default(),
         }
     }
 }
@@ -882,6 +889,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         face_fragments_b,
         reduction_contacts,
         discards: fin.discards,
+        carved_lineage: fin.carved_lineage,
         covered,
         edge_classes,
         chart_cuts: [Vec::new(), Vec::new()],
