@@ -90,6 +90,26 @@ def run(cmd, **kw):
         )
 
 
+NODE_ID = re.compile(r"(0|[1-9][0-9]*):([0-9a-f]{16})")
+
+
+def node_id_order(doc_path, key):
+    """A snapshot node key's sort key: its mint ordinal, then its digest.
+
+    A key is a node id as `crates/editor-core/src/mint.rs` spells it, the
+    ordinal in decimal, a colon, and the digest as 16 lowercase hex digits.
+    Ids order ordinal first, so this is creation order. Any other key is a
+    FAILURE, for the reason [`node_kinds`] gives.
+    """
+    m = NODE_ID.fullmatch(key)
+    if m is None:
+        sys.exit(
+            f"render_gui: {doc_path.name} has node key {key!r}, "
+            f"not an `ordinal:digest` node id"
+        )
+    return int(m.group(1)), int(m.group(2), 16)
+
+
 def node_kinds(doc_path):
     """The node kinds a `.pncad` snapshot holds, in document order.
 
@@ -106,7 +126,7 @@ def node_kinds(doc_path):
     except (ValueError, KeyError) as exc:
         sys.exit(f"render_gui: {doc_path.name} is not a readable snapshot: {exc}")
     out = []
-    for key in sorted(nodes, key=int):
+    for key in sorted(nodes, key=lambda k: node_id_order(doc_path, k)):
         node = nodes[key]
         out.append(next(iter(node)) if isinstance(node, dict) else str(node))
     return out
