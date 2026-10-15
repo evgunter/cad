@@ -2,7 +2,7 @@
 id: a-touching-vertex-refuses-an-edge-on-two-partners-boundaries
 kind: issue
 title: A touching vertex refuses an edge on two partners' boundaries that the partner-faces reading decides
-status: open
+status: dispatched
 opened: 2026-10-12
 priority: P3
 cost: M
