@@ -807,8 +807,11 @@ conventional form by the predicate itself. The check reads the
 description's form, not who declared the locus: a conventional
 description (`OnPair`, or a `Chart` that is not a wrap) on an edge the
 must-carry rule reads determinate is a wrong description, declared or
-derived. Escalated dihedrals, wrap edges and NURBS/`Approx`-adjacent
-edges are exempt. A body is validated at the ε it was built at and only
+derived. A wrap edge has one surface, and its chart image (a
+cylinder's at its angle) is exact in that surface's own coordinates, so
+the rule has nothing to ask of it. An escalated dihedral is already
+refused (`SliverDihedral`), and a NURBS/`Approx`-adjacent edge has no
+implicit form to read its dihedral from, so it is left unjudged. A body is validated at the ε it was built at and only
 there (D4 ¶1); a change of ε replays the recipe (`SetTolerance`), and
 since every door describes its edges by this rule at the run's ε, a
 tighter ε can escalate at a door or turn a conventional form intrinsic,
