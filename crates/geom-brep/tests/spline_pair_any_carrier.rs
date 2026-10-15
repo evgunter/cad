@@ -163,6 +163,34 @@ fn short(scale: f64) -> (f64, f64) {
     (0.7, 0.7 + scale * (eps() / 1e-9).sqrt().min(20.0))
 }
 
+/// How far a refusing carrier itself sits off the wall: its largest
+/// foot distance over `params`, at 257 samples. The refusal's limb-2
+/// break is one of the span's points, so a carrier this close to the
+/// wall everywhere is on it at the break, and the miss limb 2 reads is
+/// the certificate's own image's (`SsiLimb::ImageMiss`).
+fn carrier_foot_sup<T: geom_core::CertifiedBounds + geom_core::SpanLocate>(
+    carrier: &Curve3<T>,
+    (t0, t1): (f64, f64),
+    wall: &NurbsSurface<T>,
+) -> f64 {
+    (0..=256)
+        .map(|i| {
+            let t = t0 + (t1 - t0) * f64::from(i) / 256.0;
+            let foot = wall
+                .project(carrier.eval(T::from_f64(t)))
+                .unwrap_or_else(|e| panic!("the carrier's foot at {t}: {e:?}"));
+            foot.distance.hi()
+        })
+        .fold(0.0, f64::max)
+}
+
+/// The largest foot distance a refusing row's carrier may read over
+/// its span. These carriers are exact on their wall: the 1.3 rad circle
+/// and ellipse read 8.1e-14 m at most (f64; the circle 8.2e-14 m at
+/// `Interval`), and the circle 1.1e-16 m at the refusing break. A
+/// carrier moved a picometre off the wall breaks the rows that read it.
+const ON_THE_WALL: f64 = 1e-12;
+
 /// The verdict a row compares between a closed form and its twin:
 /// certified, or refused at a limb.
 #[derive(Debug, PartialEq)]
@@ -267,6 +295,14 @@ fn a_short_circle_on_a_plane_by_spline_pair_certifies_with_its_twin() {
 #[test]
 fn a_closed_form_carrier_on_a_plane_by_spline_pair_refuses_with_its_twin() {
     let (ellipse, tilted) = ellipse();
+    for (name, carrier) in [("circle", circle(0.5)), ("ellipse", ellipse.clone())] {
+        let foot = carrier_foot_sup(&carrier, (0.1, 1.4), &quarter_cylinder_wall());
+        println!("{name}, 1.3 rad: the carrier's own foot reads {foot:e} m at most");
+        assert!(
+            foot <= ON_THE_WALL,
+            "{name}: the carrier is on the wall: {foot:e} m"
+        );
+    }
     plane_rows_meet_their_twins(vec![
         (
             "circle, 1.3 rad",
@@ -715,6 +751,9 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
         arc.clone(),
         (t0, t1),
     );
+    let foot = carrier_foot_sup(&arc, (t0, t1), &quarter_cylinder_wall());
+    println!("the circle's own foot reads {foot:e} m at most");
+    assert!(foot <= ON_THE_WALL, "the circle is on the wall: {foot:e} m");
     let got = EdgeCurve::certify_via(spec, arc.eval(t0), arc.eval(t1), arena, band(), lane);
     let Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, margin })) = got else {
         panic!("the circle refuses at a limb through the door: {got:?}")
@@ -897,6 +936,24 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
     // The tell's label, not only a refusal, is the scalar's to agree on:
     // the circle is on the wall at the break at both, so both name the
     // image's own miss.
+    let feet = (
+        carrier_foot_sup(&circle(0.5), (0.1, 1.4), &quarter_cylinder_wall()),
+        carrier_foot_sup(
+            &circle(0.5).map_scalar(itv),
+            (0.1, 1.4),
+            &quarter_cylinder_wall().map_scalar(itv),
+        ),
+    );
+    println!(
+        "the circle's own foot, f64 then Interval: {:e}, {:e} m at most",
+        feet.0, feet.1
+    );
+    assert!(
+        feet.0 <= ON_THE_WALL && feet.1 <= ON_THE_WALL,
+        "the circle is on the wall at both scalars: {:e}, {:e} m",
+        feet.0,
+        feet.1
+    );
     let label = |scalar: &str, got: Option<&PlaneNurbsRefusal>| match got {
         Some(PlaneNurbsRefusal::Limb { limb, .. }) => ("limb", *limb),
         Some(PlaneNurbsRefusal::Escalated { limb, .. }) => ("escalated", *limb),

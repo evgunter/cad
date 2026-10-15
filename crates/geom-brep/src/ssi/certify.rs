@@ -324,10 +324,7 @@ impl SsiLimb {
         match self {
             Self::OnLocus => "limb 1 (on-locus residual)",
             Self::HullSup => "limb 2 (control-hull sup-norm bound)",
-            Self::HullSupChart => {
-                "limb 2 (control-hull sup-norm bound of the carrier against its pcurve's \
-                 surface point)"
-            }
+            Self::HullSupChart => "limb 2 (control-hull sup-norm bound through its pcurve)",
             Self::HullValue => "limb 2 (the carrier's residual at a break of its composite)",
             Self::HullValueChart => {
                 "limb 2 (the carrier against its pcurve's surface point at a break of its \

@@ -2820,6 +2820,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     const MISMATCH: &str = "its stored description does not match its geometry";
     const BOUND: &str = bound_reason!("it strays from its faces");
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
+    const STRADDLES: &str =
+        "its faces are not certainly crossing along it, so they do not fix where it runs";
     // The lead is this window's own.
     let why = match e {
         CertifyError::ChartImageUnavailable { .. }
@@ -2857,7 +2859,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::Limb {
             limb: geom_brep::SsiLimb::Tube,
             ..
-        }) => "its faces are not certainly crossing along it, so they do not fix where it runs",
+        }) => STRADDLES,
         CertifyError::PlaneNurbs(P::Limb { limb, .. }) => {
             if limb.check().bounds_a_miss() {
                 BOUND
@@ -2914,9 +2916,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
         | CertifyError::AnalyticRung3(A::Unsupported { .. }) => KIND,
         CertifyError::PlaneNurbs(P::TubeStraddles { .. })
-        | CertifyError::AnalyticRung3(A::TubeStraddles { .. }) => {
-            "its faces are not certainly crossing along it, so they do not fix where it runs"
-        }
+        | CertifyError::AnalyticRung3(A::TubeStraddles { .. }) => STRADDLES,
         CertifyError::PlaneNurbs(P::TubeNotOneArc { .. })
         | CertifyError::AnalyticRung3(A::TubeNotOneArc { .. }) => {
             "its curve is not proved to span one arc of its faces' crossing"

@@ -304,8 +304,8 @@ impl core::fmt::Display for CertCheck {
             Self::MappedSource => "the mapped-source residual",
             Self::ChartImage => "the chart-image mint",
             Self::ChartResidual => "the unified conventional residual",
-            Self::PlaneNurbsOnLocus => "the spline lane's on-locus residual",
-            Self::PlaneNurbsHull => "the spline lane's sup-norm bound",
+            Self::PlaneNurbsOnLocus => "the spline Intersection lane's on-locus residual",
+            Self::PlaneNurbsHull => "the spline Intersection lane's sup-norm bound",
             Self::PlaneNurbsHullValue => {
                 "the carrier against the surface point its pcurve names, at a break: a \
                  bound on the carrier's distance from the surface"
@@ -315,7 +315,7 @@ impl core::fmt::Display for CertCheck {
             }
             Self::AnalyticHull => "the carrier's certified distance bound from an analytic surface",
             Self::PlaneNurbsReportedTransversality => {
-                "the spline lane's reported minimum crossing angle"
+                "the spline Intersection lane's reported minimum crossing angle"
             }
             Self::PlaneNurbsChartSpeed => "the spline face's chart speed",
             Self::PlaneNurbsChartSpeedBound => "the spline face's chart-speed bound",

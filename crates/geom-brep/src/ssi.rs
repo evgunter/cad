@@ -955,16 +955,11 @@ impl core::fmt::Display for SsiError {
                  locus cusps or crosses itself, which is a degenerate operand pair"
             ),
             Self::CertificateLimb { limb, margin } => match limb {
-                SsiLimb::HullSup => write!(
+                // The chart arm's label says it reads through the pcurve.
+                SsiLimb::HullSup | SsiLimb::HullSupChart => write!(
                     f,
                     "ssi: {} bounds the fitted carrier's distance from the locus it claims by \
                      {margin:e} m, past the tolerance",
-                    limb.name()
-                ),
-                SsiLimb::HullSupChart => write!(
-                    f,
-                    "ssi: {} bounds the fitted carrier's distance from the locus it claims, \
-                     through its pcurve, by {margin:e} m, past the tolerance",
                     limb.name()
                 ),
                 SsiLimb::HullValueChart => write!(
@@ -3430,7 +3425,7 @@ mod ending_tests {
             },
             samples: 10_221,
             refusal: Box::new(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: MarginDiag::value(last),
             }),
             earlier: vec![
@@ -3441,7 +3436,7 @@ mod ending_tests {
                 },
                 RefusedRound {
                     samples: 7_400,
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: RoundMargin::Over(MarginDiag::value(before)),
                 },
             ],
@@ -3507,7 +3502,7 @@ mod ending_tests {
             },
             samples: 18_299,
             refusal: Box::new(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: MarginDiag::value(1.17e-14),
             }),
             earlier: Vec::new(),
@@ -3532,7 +3527,7 @@ mod ending_tests {
             refusal,
             earlier: vec![RefusedRound {
                 samples: 18_299,
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: RoundMargin::Over(MarginDiag::value(1.3e-14)),
             }],
         };
@@ -3550,13 +3545,13 @@ mod ending_tests {
                 },
                 samples: 348,
                 refusal: Box::new(SsiError::CertificateLimb {
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: MarginDiag::value(2.4e-9),
                 }),
                 earlier: (0..earlier)
                     .map(|_| RefusedRound {
                         samples: 346,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(3.1e-9)),
                     })
                     .collect(),
@@ -3940,12 +3935,12 @@ mod ending_tests {
                     },
                     samples: 348,
                     refusal: Box::new(SsiError::CertificateLimb {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: MarginDiag::value(2.4e-9),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 346,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(3.1e-9)),
                     }],
                 },
@@ -3959,12 +3954,12 @@ mod ending_tests {
                     },
                     samples: 17_375,
                     refusal: Box::new(SsiError::CertificateLimb {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: MarginDiag::value(2.15e-11),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 10_337,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(1.30e-10)),
                     }],
                 },
@@ -3980,13 +3975,13 @@ mod ending_tests {
                     },
                     samples: 14_965,
                     refusal: Box::new(SsiError::CertificateEscalated {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         cause: in_band,
                     }),
                     earlier: (0..4)
                         .map(|k| RefusedRound {
                             samples: 4_245 << k,
-                            limb: SsiLimb::HullSup,
+                            limb: SsiLimb::HullSupChart,
                             margin: RoundMargin::InBand(MarginDiag::value(1.6e-14)),
                         })
                         .collect(),
@@ -4046,7 +4041,7 @@ mod ending_tests {
             (
                 "limb",
                 SsiError::CertificateLimb {
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: MarginDiag::value(3e-9),
                 },
             ),
