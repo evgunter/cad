@@ -6,6 +6,8 @@ status: open
 opened: 2026-10-11
 needs_ev: true
 refs: [5001, 5011]
+cost: M
+priority: P3
 ---
 
 ## Measured
