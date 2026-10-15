@@ -178,3 +178,39 @@ fn an_end_is_read_by_its_chord_on_a_slow_stretch() {
     let q = carrier.eval(t) + Vec3::unit_z() * (3.0 * ZERO);
     assert_eq!(name(span.contact(q, t, b)), "escalated");
 }
+
+/// **A spline's foot is found by the one foot search** ([`Span::feet`]):
+/// a point of it reads its own parameter, a point a millimetre off it
+/// none, and the walk decides the off point clear of the whole span
+/// ([`Span::may_hold`]).
+#[test]
+fn a_point_on_a_spline_finds_its_foot() {
+    let spline = Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 0.5, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+            ],
+            vec![1.0, 2.0, 1.0],
+        )
+        .unwrap(),
+    ));
+    let span = Span::new(&spline, (0.0, 1.0));
+    let q = spline.eval(0.3);
+    let ts = span.feet(q, band()).unwrap();
+    assert!(
+        !ts.is_empty() && ts.iter().all(|&t| (spline.eval(t) - q).norm() < 1e-12),
+        "{ts:?}"
+    );
+    let off = q + Vec3::unit_z() * 1e-3;
+    assert_eq!(span.feet(off, band()).unwrap(), Vec::<f64>::new());
+    assert_eq!(
+        (
+            span.may_hold(q, band()).ok(),
+            span.may_hold(off, band()).ok()
+        ),
+        (Some(true), Some(false))
+    );
+}

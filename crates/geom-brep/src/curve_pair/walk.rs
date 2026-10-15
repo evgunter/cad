@@ -8,7 +8,7 @@
 //! positive-length overlap holds, are read on both spans at each of their
 //! feet: a foot is the carrier's closed-form parameter where it inverts
 //! (a line, a circle), and otherwise the polished middle of each piece of
-//! the span the point may rest on ([`near_pieces`]).
+//! the span the point may rest on ([`Span::feet`]).
 //!
 //! **The walk** is [`geom_core::bisect`]'s, over pairs of pieces. A piece
 //! reaches at most `ℓ` metres from its middle point, `ℓ` its half-span
@@ -133,9 +133,9 @@ fn step_taken<T: Decide>(moved: T, slack: T) -> bool {
     })
 }
 
-/// Gauss–Newton from `t` toward `r`'s foot of `q` (`step_taken`).
-fn polish_foot<T: Decide>(r: &Read<'_, '_, T>, q: Point3<T>, t: T, slack: T) -> T {
-    super::polish::foot(|t| r.curve().ders1(t), q, t, |m| step_taken(m, slack))
+/// Gauss–Newton from `t` toward `span`'s foot of `q` (`step_taken`).
+fn polish_foot<T: Decide>(span: &Span<'_, T>, q: Point3<T>, t: T, slack: T) -> T {
+    super::polish::foot(|t| span.carrier().ders1(t), q, t, |m| step_taken(m, slack))
 }
 
 /// Whether a piece of reach `reach` is small enough to stop at, decided on
@@ -154,20 +154,22 @@ fn stops<T: Decide>(row: &'static str, reach: T, floor: Option<T>, band: Band) -
     }
 }
 
-/// The pieces of `r`'s span that `q` may rest on: halved until each is
+/// The pieces of `span` that `q` may rest on: halved until each is
 /// decided clear of `q` or its reach stops at the band. Every point of the
-/// span within the band of `q` lies in a kept piece.
+/// span within the band of `q` lies in a kept piece. It reads only the
+/// carrier's greatest speed, so it never refuses for want of a least one.
 fn near_pieces<T: Decide>(
-    r: &Read<'_, '_, T>,
+    span: &Span<'_, T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<Vec<Piece<T>>, geom_core::bisect::Exhausted> {
     let mut out = Vec::new();
+    let hi = span.speeds().1;
     bisect(
-        [Piece::whole(r.span.params())],
+        [Piece::whole(span.params())],
         |p| -> Step<Piece<T>, core::convert::Infallible> {
-            let reach = p.reach(r.hi());
-            let gap = (r.curve().eval(p.mid()) - q).norm();
+            let reach = p.reach(hi);
+            let gap = (span.carrier().eval(p.mid()) - q).norm();
             if surely(
                 "curve_pair_walk_foot_clear",
                 gap - reach,
@@ -186,26 +188,45 @@ fn near_pieces<T: Decide>(
     Ok(out)
 }
 
-/// The parameters of `r`'s carrier where `q` may lie on it within the band
-/// (module docs).
-fn feet<T: Decide>(
-    r: &Read<'_, '_, T>,
-    q: Point3<T>,
-    band: Band,
-) -> Result<Vec<T>, geom_core::bisect::Exhausted> {
-    let (t0, t1) = r.span.params();
-    if let Some(t) = r.curve().param_near(q, geom::mid_param(t0, t1)) {
-        let slack = (r.curve().eval(t) - q).norm();
-        return Ok(vec![polish_foot(r, q, t, slack)]);
+impl<T: Decide> Span<'_, T> {
+    /// **The parameters of the carrier where `q` may lie on the span
+    /// within the band** — the one foot search: the carrier's closed-form
+    /// parameter where it inverts ([`Curve3::param_near`]), else the
+    /// middle of each piece of the span `q` may rest on, each polished
+    /// toward its foot by Gauss–Newton. Every point of the span within the
+    /// band of `q` lies near one of them. A parameter is a candidate to
+    /// read ([`Span::contact`]), never a verdict. A search past
+    /// [`geom_core::bisect::PIECE_BUDGET`] is `Exhausted`.
+    ///
+    /// # Errors
+    /// `Exhausted` past the budget.
+    pub fn feet(&self, q: Point3<T>, band: Band) -> Result<Vec<T>, geom_core::bisect::Exhausted> {
+        let (t0, t1) = self.params();
+        if let Some(t) = self.carrier().param_near(q, geom::mid_param(t0, t1)) {
+            let slack = (self.carrier().eval(t) - q).norm();
+            return Ok(vec![polish_foot(self, q, t, slack)]);
+        }
+        let hi = self.speeds().1;
+        Ok(near_pieces(self, q, band)?
+            .into_iter()
+            .map(|p| {
+                let m = p.mid();
+                let slack = (self.carrier().eval(m) - q).norm() + p.reach(hi);
+                polish_foot(self, q, m, slack)
+            })
+            .collect())
     }
-    Ok(near_pieces(r, q, band)?
-        .into_iter()
-        .map(|p| {
-            let m = p.mid();
-            let slack = (r.curve().eval(m) - q).norm() + p.reach(r.hi());
-            polish_foot(r, q, m, slack)
-        })
-        .collect())
+
+    /// **Whether `q` may rest on the span**: `false` only where the foot
+    /// search's walk ([`Span::feet`]) decides every piece of the span clear
+    /// of `q`, so no point of the span lies within the band of it. An
+    /// abstaining screen: `true` is no verdict.
+    ///
+    /// # Errors
+    /// `Exhausted` past the budget.
+    pub fn may_hold(&self, q: Point3<T>, band: Band) -> Result<bool, geom_core::bisect::Exhausted> {
+        near_pieces(self, q, band).map(|p| !p.is_empty())
+    }
 }
 
 /// What a point read on both spans makes of it.
@@ -326,7 +347,7 @@ pub(super) fn meet<T: Decide>(
         let (o0, o1) = other.span.params();
         let mut ends = Vec::new();
         for q in [other.curve().eval(o0), other.curve().eval(o1)] {
-            let Ok(ts) = feet(r, q, band) else {
+            let Ok(ts) = r.span.feet(q, band) else {
                 return Err(exhausted(found));
             };
             ends.extend(ts);
@@ -339,7 +360,7 @@ pub(super) fn meet<T: Decide>(
         );
     }
     for q in points {
-        let (Ok(ta), Ok(tb)) = (feet(&ra, q, band), feet(&rb, q, band)) else {
+        let (Ok(ta), Ok(tb)) = (ra.span.feet(q, band), rb.span.feet(q, band)) else {
             return Err(exhausted(found));
         };
         take(read_both((a, &ta), (b, &tb), q, band), &mut found);
@@ -364,8 +385,8 @@ pub(super) fn meet<T: Decide>(
                     (ma, mb),
                     |m| step_taken(m, slack),
                 );
-                let t = polish_foot(&rb, ra.curve().eval(s), t, slack);
-                let s = polish_foot(&ra, rb.curve().eval(t), s, slack);
+                let t = polish_foot(rb.span, ra.curve().eval(s), t, slack);
+                let s = polish_foot(ra.span, rb.curve().eval(t), s, slack);
                 let q = ra.curve().eval(s);
                 take(read_both((a, &[s]), (b, &[t]), q, band), &mut found);
                 return Step::Settled;

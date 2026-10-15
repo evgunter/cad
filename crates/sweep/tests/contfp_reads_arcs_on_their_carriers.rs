@@ -280,7 +280,10 @@ fn contfp_reads_each_edge_once() {
             .iter()
             .filter(|v| v.predicate == "curve_pair_span_gap")
             .count();
-        assert_eq!(read, 2, "({x}, {y}): each arc read once, by the pre-pass alone");
+        assert_eq!(
+            read, 2,
+            "({x}, {y}): each arc read once, by the pre-pass alone"
+        );
     }
 }
 
