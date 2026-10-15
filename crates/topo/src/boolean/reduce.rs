@@ -2383,6 +2383,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             Sign::Positive | Sign::Negative => return Err(frontier()),
                         }
                     }
+                    *lies_on = Some(OnCurved::Declared {
+                        interior_clear: inside.clear(),
+                    });
                     return Placement::declared(ends, inside.clear()).ok_or_else(frontier);
                 }
                 // **The circle × sphere, × cylinder, × cone and × torus
@@ -4477,10 +4480,13 @@ enum LyingIn {
 }
 
 /// The rule [`curved_face_arm`] read an edge lying on a curved face
-/// under, which a vertex minted on the edge is read under too.
+/// under, which a vertex minted on the edge is read under too. A vertex
+/// the face's side question puts off the carrier (an arc that only
+/// touches it) is not read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum OnCurved {
-    /// The covered `(Zero, Zero)` arm ([`Placement::declared`]), with
+    /// The covered arms, a line's `(Zero, Zero)` and a circle's zero
+    /// clearance ([`Placement::declared`]), with
     /// whether it certified the edge's interior clear of the face's
     /// boundary, which every piece of the edge inherits.
     Declared { interior_clear: bool },
