@@ -9,6 +9,7 @@ priority: P3
 cost: E
 branch: vnews/one-not-well-typed-sentence
 closed: 2026-09-28
+pr: 5182
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`, at

@@ -8,6 +8,7 @@ priority: P1
 cost: E
 branch: vnews/a-fold-that-has-news
 closed: 2026-09-28
+pr: 5182
 ---
 
 Found by the sweep `is-instance-collapses-absent-and-wrong-kind`

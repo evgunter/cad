@@ -8,6 +8,7 @@ priority: P2
 cost: E
 branch: vnews/the-harness-waits-for-the-landing
 closed: 2026-10-14
+pr: 5182
 ---
 
 Seen by the `preview-error-picks-its-tone-by-hand-in-a-comment` lane

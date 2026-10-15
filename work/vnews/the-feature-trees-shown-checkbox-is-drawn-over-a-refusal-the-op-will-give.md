@@ -9,6 +9,7 @@ cost: E
 refs: [the-mirror-class-is-unswept-outside-the-properties-pane, the-hide-toggle-is-drawn-over-a-refusal-the-op-will-give, the-hide-admission-is-read-through-two-spellings]
 closed: 2026-09-28
 branch: vnews/the-shown-checkbox-reads-its-refusal
+pr: 5182
 ---
 
 

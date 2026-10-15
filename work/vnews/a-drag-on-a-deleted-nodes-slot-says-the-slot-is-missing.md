@@ -2,11 +2,12 @@
 id: a-drag-on-a-deleted-nodes-slot-says-the-slot-is-missing
 kind: issue
 title: A drag on a deleted node's slot is refused as a missing slot, where the pane says the node is deleted
-status: open
+status: parked
 opened: 2026-09-28
 priority: P3
 cost: M
 refs: [three-spellings-say-a-parameter-is-not-declared]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by the sweep in `three-spellings-say-a-parameter-is-not-declared`,

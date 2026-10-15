@@ -8,6 +8,7 @@ priority: P1
 cost: M
 branch: vnews/tool-news-is-a-value
 closed: 2026-09-28
+pr: 5182
 ---
 
 

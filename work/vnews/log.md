@@ -741,3 +741,63 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 - 2026-10-12 — Seam note from ENCL (PR 4811, merged at `abff76bb25`): editor-core's undecided sentences render through `Indeterminate::undecided`. Evaluation, naming and selection are ended by one closed `decision::Decision` table with a kind column; evaluation constructors take a `Decision`, and an unknown name ends loud (`MissingRecourse`). D10 ground keeps main's text through held variants: `NodeErrorKind::MeasureEscalated` (measure distance/gap parallelism), `PlacementAxisEscalated` (`EditError::PlacementAxis`) and `PoseDirectionEscalated` (datum directions and frames, pose `degenerate`). All three classify as Escalated, and pncad-py `tags.rs` and viewer `tree.rs` gained arms. Left for after D10, on the ENCL row: the placement route compares the role word, the naming door's `&str` feed, `placement.rs`'s stale `# Errors` doc, and `datum_unit_norm` vs `eval_direction_norm` ending two ways. (ENCL orchestrator)
+
+## 2026-10-14 — batch 2 (#5182), and VNEWS handed back as ready
+
+Ev asked (2026-10-13) to finish the work already dispatched, then hand
+VNEWS back as `ready` or close it and rehome what remains. It goes
+back as **ready**: what remains is still news-vocabulary work, so it
+stays under this charter for the next orchestrator.
+
+**What landed** in #5182: twelve units. The P1s
+`document-news-has-no-home`, `outstanding-and-progress-…` and
+`folded-moved-…`; the P2s
+`the-whole-app-harness-paints-before-the-evaluation-lands` and
+`ratified-is-asserted-…`; and P3/P4 rows already in flight when Ev
+narrowed the focus to P1/P2. Each unit's account is a comment on
+#5182, and its tier is in the batch table there. `origin/main` (about
+15,700 commits) was merged into the batch once, before the in-flight
+units, so its conflicts were resolved in one place.
+
+**Parked on D10** (`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`,
+the hold of 2026-10-03), because each one meaningfully uses slot
+literals or variables:
+`a-vector-unit-pick-is-one-undo-per-component`,
+`a-drag-on-a-deleted-nodes-slot-says-the-slot-is-missing`,
+`add-parameter-create-owes-the-name-doors-sentence`,
+`the-add-parameter-create-button-drops-a-count-it-cannot-carry`.
+
+**Open and dispatchable** at hand-back, by priority:
+
+- P1 `startup-notices-door-takes-text`
+- P3 `a-gated-button-with-a-reason-is-spelled-five-ways`
+- P3 `a-gated-control-does-not-read-the-held-gesture-refusal`
+- P3 `a-held-pick-is-said-several-ways`
+- P3 `a-refusal-and-a-loss-from-one-fault-say-it-twice`
+- P3 `a-stale-face-says-its-deleted-feature-carries-no-parameters`
+- P3 `a-verdict-drawn-outside-a-tone-has-no-value-to-read`
+- P3 `an-overlay-leg-past-the-display-seam-is-not-badged`
+- P3 `no-test-can-reach-a-pane-function`
+- P3 `one-line-one-subject-loses-a-mixed-frames-expiry`
+- P3 `the-cursor-reads-the-display-view-in-hand-not-the-one-the-picture-was-drawn-under`
+- P3 `the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors`
+- P3 `whether-a-part-is-drawn-under-a-view-is-asked-five-times`
+- P4 `a-properties-test-message-calls-the-probe-refusal-ratified`
+- P4 `a-withdrawn-cause-can-carry-the-list-mark-inside-a-label`
+- P4 `part-census-dir-iff-refusal-is-held-in-prose`
+- P4 `select-all-edges-names-one-reason-for-three-absences`
+- P4 `the-hide-admission-is-read-through-two-spellings`
+
+The one P1, `startup-notices-door-takes-text`, was filed by the
+tool-news unit's sweep: `frame::startup_notices` is the last production
+door that takes text. Start there.
+
+**Notes for the next orchestrator**:
+- The machine-wide build slot is the bottleneck. A lane in a fresh
+  worktree compiles cold and queues for hours. Reuse a worktree that
+  has a warm target, and keep one `CARGO_TARGET_DIR` per worktree.
+- When batching, merge `main` into the batch once, before the
+  in-flight units take it. Then each unit resolves only its own
+  conflicts.
+- Check a batch merge before pushing it: one merge here split a test's
+  closing lines across two hunks.
