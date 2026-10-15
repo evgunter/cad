@@ -377,19 +377,20 @@ fn a_rod_against_a_bore_builds_every_operation() {
     );
     let place =
         geom_core::Affine3::from_parts(r.linear, r.translation + Vec3::new(0.3, -0.45, 0.6));
-    let mut poses: Vec<(String, Body<f64>, Body<f64>, [Point3<f64>; 2], bool)> =
-        [90.0_f64, 60.0, 35.0, 150.0]
-            .into_iter()
-            .map(|deg| {
-                (
-                    format!("{deg}°"),
-                    rod_at(deg),
-                    bore.clone(),
-                    at_origin,
-                    deg == 90.0,
-                )
-            })
-            .collect();
+    /// A pose: its name, the rod, the bored brick, the nodes, and whether it is square.
+    type Pose = (String, Body<f64>, Body<f64>, [Point3<f64>; 2], bool);
+    let mut poses: Vec<Pose> = [90.0_f64, 60.0, 35.0, 150.0]
+        .into_iter()
+        .map(|deg| {
+            (
+                format!("{deg}°"),
+                rod_at(deg),
+                bore.clone(),
+                at_origin,
+                deg == 90.0,
+            )
+        })
+        .collect();
     poses.push((
         "90°, re-posed".to_string(),
         repose(&rod_at(90.0)),
