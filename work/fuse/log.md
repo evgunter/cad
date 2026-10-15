@@ -1023,3 +1023,14 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - copies minted (`carrier_speed`'s private `Conic`, `conic_clearance`, the least band ×13);
     - missed sweep sites (`offset_derive` `nearest` reads `param_near` as a foot).
   - **Next:** all of it goes to the lane. Past is decided only on a certified-nearest foot, and a Foot is tied to its point: this keeps Ev's decision rather than opening a new fork, unless the lane finds Past rarely decidable.
+- 2026-10-15: the container restarted again at about 13:40Z; the stage (c) lane was resumed from its transcript.
+  - **5154 review fixes, done locally:**
+    - Foot tied to its point (`Foot<'c, T>` holds carrier and point);
+    - `Past` only on a nearest foot or on `clear_of` over the span;
+    - negative radius taken as `|radius|`;
+    - `Span::read` is the one composition (`ConicArc::hit` maps it);
+    - `Band::least()`;
+    - `SemiAxes` as one home.
+  - **The two 1e-6 sweep reds** are main's: noted on tint and ssiedge rows.
+  - **Merging main into c** hit main's new TANG row, `bisector_nodes::a_rod_glued_in_its_bore_answers_alike_in_either_order`. At 1e-8° one order builds and the other escalates, because `line_line` levers the tilt by each piece's own span length, which depends on how the sweep split the edge.
+  - **Ruled by the orchestrator: option A.** Lever by the spans' projected overlap and read the offset inside it, so the verdict is split-invariant. This flips the row's `builds=false` at the 1e-8° poses, with the reason stated, and puts a note on TANG's row. It is stage (b)'s own argument, not ratified text.
