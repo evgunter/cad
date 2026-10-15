@@ -686,6 +686,8 @@ mod strut_cover_on_cylinder_pairs;
 mod run_walls_built;
 #[path = "section_ellipse_seam_poses.rs"]
 mod section_ellipse_seam_poses;
+#[path = "section_end_poses.rs"]
+mod section_end_poses;
 #[path = "split_across_a_revolve_seam.rs"]
 mod split_across_a_revolve_seam;
 #[path = "split_along_a_face_plane.rs"]
