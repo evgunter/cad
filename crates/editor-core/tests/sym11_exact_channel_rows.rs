@@ -83,12 +83,17 @@ use crate::m10_9_pins_interval::measured_studies;
 /// The pcurve envelope's orthonormal chart squaring its frame by cross
 /// products (`geom::square_frame`) moves only the frozen counts: bracket
 /// 1975 → 1969, pad 2985 → 2976.
+/// An edge's wedge levered at its faces' extent (`topo::wedge_reach`)
+/// where it was levered at the edge's own chord moves only `frozen`
+/// again, and no decision column: each certified edge's lever now
+/// reads its two faces' boundaries. Plate 729 → 809, annulus 904 →
+/// 1000, link 542 → 582, bracket 1969 → 2630, pad 2976 → 5719.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1048, 654, 729]),
-    ("r1_annulus", [566, 399, 904]),
-    ("r2_link", [356, 259, 542]),
-    ("r2_filleted_bracket", [1453, 1008, 1969]),
-    ("r2_rounded_pad", [1317, 1159, 2976]),
+    ("two_hole_plate", [1048, 654, 809]),
+    ("r1_annulus", [566, 399, 1000]),
+    ("r2_link", [356, 259, 582]),
+    ("r2_filleted_bracket", [1453, 1008, 2630]),
+    ("r2_rounded_pad", [1317, 1159, 5719]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

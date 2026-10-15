@@ -393,18 +393,23 @@ struct Racing {
     certifies: bool,
     /// How many distinct NEEDS its leaves must show — the row's guard
     /// against a column collapsed to one value, as strong as each drive
-    /// supports. The 8-leaf race shows two: since an extrude's depth is
-    /// a size, the chamber's two ends refuse and freeze nothing new
-    /// (`work/props/the-race-rows-leaves-need-two-amounts-where-they-\
-    /// needed-six.md`).
+    /// supports (`work/scalar/the-race-rows-leaves-need-two-amounts-\
+    /// where-they-needed-six.md`). Since an edge's wedge is levered at
+    /// its faces' extent (`topo::wedge_reach`), every leaf's replay
+    /// reads every face's reach, so the slab's refused leaves all need
+    /// one amount whichever door refused them, and a certified leaf
+    /// needs the whole frozen set: two values on a drive that
+    /// certifies, one on the 8-leaf race, which certifies nothing at
+    /// any budget measured (4/2 through 128/24, at ε 1e-6, 1e-9 and
+    /// 1e-12). The guard is carried by the other two arms.
     min_distinct: usize,
 }
 
 /// Three of them, because one document's leaf partition is one shape:
-/// the unit's own race, the second reviewer's (whose twelve leaves
-/// need three distinct amounts), and a wider drive that CERTIFIES — the
-/// only arm in which the `certified()` comparison below is about
-/// anything.
+/// the unit's own race, which certifies nothing, so the `certified()`
+/// comparison below is about an EMPTY list there; the second
+/// reviewer's, whose twelve leaves certify one; and a wider drive that
+/// certifies four.
 const RACING: [Racing; 3] = [
     Racing {
         label: "race",
@@ -412,15 +417,15 @@ const RACING: [Racing; 3] = [
         terms: 8,
         degree: 4,
         certifies: false,
-        min_distinct: 2,
+        min_distinct: 1,
     },
     Racing {
         label: "race (the second reviewer's)",
         leaves: 12,
         terms: 16,
         degree: 6,
-        certifies: false,
-        min_distinct: 3,
+        certifies: true,
+        min_distinct: 2,
     },
     Racing {
         label: "certifying",
@@ -428,7 +433,7 @@ const RACING: [Racing; 3] = [
         terms: 512,
         degree: 32,
         certifies: true,
-        min_distinct: 3,
+        min_distinct: 2,
     },
 ];
 
