@@ -31,11 +31,12 @@ use crate::carrier_speed::speed_hi;
 ///   its two surfaces, and its points hold only to some multiple of `u`
 ///   times the length of those terms. No closed form is derived for
 ///   it. `the_resolution_bounds_each_section_tables_carrier` holds the
-///   whole bound against the exact miss on every kind the tables mint a
-///   conic or a line for, and goes red where a miss passes a quarter of
-///   it; it measures at most an eighth (a 32nd on a cylinder's ellipses,
-///   far centres included), so the 18 roundings left to construction
-///   are at least four times what it needs.
+///   whole allowance (this bound plus the coordinates' `4ε·|p|`) at ten
+///   times the exact miss on every kind the tables mint a conic or a line
+///   for. At 32 the worst miss is `0.080` of it (a sphere's circle; a
+///   cylinder's ellipses, far centres included, `0.023`); at 16 the
+///   sphere's reaches `0.119` and the row reds, so 32 is the smallest
+///   power of two that keeps that tenfold margin, not a derived count.
 const RESOLUTION_ROUNDINGS: f64 = 32.0;
 
 /// **`carrier`'s resolution over `t0 ..= t1`** (metres): the
@@ -49,10 +50,11 @@ const RESOLUTION_ROUNDINGS: f64 = 32.0;
 pub fn resolution<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> Option<T> {
     let speed = speed_hi(carrier)?;
     let tau = t0.abs().max(t1.abs());
-    let reach = match carrier.kind() {
-        CurveKind::Line => tau,
-        CurveKind::Circle | CurveKind::Ellipse => T::from_f64(2.0),
-        CurveKind::Spiric | CurveKind::Nurbs => return None,
+    // `speed_hi` answers a line and the conics alone.
+    let reach = if carrier.kind() == CurveKind::Line {
+        tau
+    } else {
+        T::from_f64(2.0)
     };
     Some(T::from_f64(UNIT_ROUNDOFF) * speed * (T::from_f64(RESOLUTION_ROUNDINGS) * reach + tau))
 }
@@ -163,7 +165,7 @@ mod tests {
     /// resolution plus the coordinates' own rounding at the point's
     /// distance from the origin (`4ε·|p|`, two roundings of each of
     /// three coordinates, which the bound leaves to the band), and the
-    /// worst ratio of miss to that allowance, on a ladder of halvings.
+    /// worst ratio of miss to that allowance.
     fn held(carrier: &Curve3<f64>, t: f64, surfaces: [&Surface<f64>; 2]) -> f64 {
         let p = carrier.eval(t);
         let bound =
@@ -179,11 +181,18 @@ mod tests {
                 within(bound),
                 "{carrier:?} at {t} misses {s:?} past its allowance {bound:e}"
             );
-            let mut f = 1.0;
-            while f > 1.0 / 4096.0 && within(bound * f / 2.0) {
-                f /= 2.0;
+            // The least fraction of the allowance the miss lies within,
+            // bisected to a 2⁻²⁰ of it.
+            let (mut lo, mut hi) = (0.0, 1.0);
+            for _ in 0..20 {
+                let mid = 0.5 * (lo + hi);
+                if within(bound * mid) {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                }
             }
-            worst = worst.max(f);
+            worst = worst.max(hi);
         }
         worst
     }
@@ -238,8 +247,8 @@ mod tests {
     /// and off-axis (centres to `1e6` away), a frustum's ellipses toward
     /// its parabola and its axis-normal circle, a sphere's small and
     /// great circles, a torus's meridian and concentric circles, and the
-    /// rulings of a cylinder and a cone. Each miss must lie within the
-    /// bound; the worst ratio per kind is under a quarter of it.
+    /// rulings of a cylinder and a cone. Each miss must lie under a tenth
+    /// of its allowance, so the constant halved reds the row.
     #[test]
     fn the_resolution_bounds_each_section_tables_carrier() {
         let mut worst = Vec::new();
@@ -364,7 +373,7 @@ mod tests {
 
         println!("worst miss over the bound, per kind: {worst:?}");
         for (kind, ratio) in worst {
-            assert!(ratio <= 0.25, "{kind}: a miss at {ratio} of the bound");
+            assert!(ratio < 0.1, "{kind}: a miss at {ratio} of the bound");
         }
     }
 

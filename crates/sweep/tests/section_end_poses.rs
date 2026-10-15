@@ -409,35 +409,36 @@ fn a_section_ends_own_rounding_is_a_kernel_limitation() {
 }
 
 /// **Where the part sits does not move the reading.** The seam vertex
-/// `ε` off a plane tilted `1e-2` off square, on the unit cylinder moved
-/// `x0` along `x`: at ε = 1e-12, `x0` = 0, 30 m and 1 km, and at
-/// ε = 1e-9, 30 km, each refuses as the vertex on the plane, with its
-/// lever, and the lever builds.
+/// `ε` off a plane tilted `t` off square (`1e-2` at ε = 1e-12, `1e-3` at
+/// 1e-9), on the unit cylinder moved by `(x0, z0)`: across the miss
+/// (`x0` = 0, 30 m and 1 km at 1e-12, 30 km at 1e-9) and along it, so
+/// the miss runs along the large coordinate (`z0` = 30 m and 1 km at
+/// 1e-12, 1 km at 1e-9). Each refuses as the vertex on the plane, with
+/// its lever, and the lever builds.
 #[test]
 fn a_section_end_reads_the_same_wherever_the_part_sits() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let at: &[f64] = if (eps - 1e-12).abs() <= 1e-15 {
-        &[0.0, 30.0, 1e3]
+    let (at, t): (&[(f64, f64)], f64) = if (eps - 1e-12).abs() <= 1e-15 {
+        (
+            &[(0.0, 0.0), (30.0, 0.0), (1e3, 0.0), (0.0, 30.0), (0.0, 1e3)],
+            1e-2,
+        )
     } else if (eps - 1e-9).abs() <= 1e-12 {
-        &[3e4]
+        (&[(3e4, 0.0), (0.0, 1e3)], 1e-3)
     } else {
         println!("SKIPPED at this ε: the rows are ε = 1e-12 and 1e-9");
         return;
     };
-    let t = if (eps - 1e-12).abs() <= 1e-15 {
-        1e-2
-    } else {
-        1e-3
-    };
     let mut wrong = Vec::new();
-    for &x0 in at {
+    for &(x0, z0) in at {
         let cyl = finished(
-            sweep::test_support::prism(
+            sweep::test_support::prism_at(
                 vec![
                     (Point2::new(x0 + 1.0, 0.0), 1.0),
                     (Point2::new(x0 - 1.0, 0.0), 1.0),
                 ],
+                z0,
                 1.0,
                 tol,
             ),
@@ -446,7 +447,7 @@ fn a_section_end_reads_the_same_wherever_the_part_sits() {
         let cut = |d: f64| {
             let normal = Vec3::new(t, 0.0, 1.0);
             let plane = topo::test_support::split_plane(
-                Point3::new(x0 + 1.0, 0.0, d),
+                Point3::new(x0 + 1.0, 0.0, z0 + d),
                 normal / normal.norm(),
                 tol,
             );
@@ -459,11 +460,11 @@ fn a_section_end_reads_the_same_wherever_the_part_sits() {
                     ..
                 },
             )) if e.to_string().ends_with(ON_PLANE_LEVER) => {}
-            other => wrong.push(format!("x0 {x0}: {:?}", other.err())),
+            other => wrong.push(format!("x0 {x0} z0 {z0}: {:?}", other.err())),
         }
         for d in [0.0, CLEARLY_OFF * eps, -CLEARLY_OFF * eps] {
             if let Err(e) = cut(d) {
-                wrong.push(format!("x0 {x0} moved to d{d:e}: {e:?}"));
+                wrong.push(format!("x0 {x0} z0 {z0} moved to d{d:e}: {e:?}"));
             }
         }
     }
