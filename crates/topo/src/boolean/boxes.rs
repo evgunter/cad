@@ -3936,9 +3936,26 @@ pub(crate) mod tests {
         u_ref: Vec3<f64>,
         major: f64,
         minor: f64,
+        us: (f64, f64),
+        vs: (f64, f64),
+    ) -> (Body<f64>, FaceKey) {
+        torus_wall_below(0.0, center, axis, u_ref, major, minor, us, vs)
+    }
+
+    /// [`torus_wall`] with its bottom parallel's carrier parameter run
+    /// `periods` whole periods below the azimuth it covers.
+    #[allow(clippy::too_many_arguments)] // `torus_wall`'s, and the offset
+    pub(crate) fn torus_wall_below(
+        periods: f64,
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        u_ref: Vec3<f64>,
+        major: f64,
+        minor: f64,
         (u0, u1): (f64, f64),
         (v0, v1): (f64, f64),
     ) -> (Body<f64>, FaceKey) {
+        let shift = core::f64::consts::TAU * periods;
         let v_ref = axis.cross(u_ref);
         let e = |u: f64| u_ref * u.cos() + v_ref * u.sin();
         let on =
@@ -3973,8 +3990,8 @@ pub(crate) mod tests {
                         radius,
                         u_ref,
                     },
-                    u0,
-                    u1,
+                    u0 - shift,
+                    u1 - shift,
                 )
             } else {
                 (

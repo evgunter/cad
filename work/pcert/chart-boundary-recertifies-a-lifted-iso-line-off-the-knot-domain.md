@@ -2,10 +2,13 @@
 id: chart-boundary-recertifies-a-lifted-iso-line-off-the-knot-domain
 kind: issue
 title: chart_boundary re-certifies a walked image after lifting it by the loop's deck element; on a net closed in u with a nonzero Deck.u the shifted IsoLine leaves the knot domain and should refuse IsoUnsupported
-status: open
+status: closed
 opened: 2026-10-14
 priority: P3
 cost: E
+closed: 2026-10-15
+branch: pcert/whole-periods-cap
+pr: 5126
 ---
 
 
@@ -31,3 +34,14 @@ Read, not run: whether a body reaches it needs a build (a net closed in
 The `[ev]` PR 5142 answer: a lifted copy is the row together with its
 deck element, never certified again, so `chart_boundary` carries the
 pair. Pin the case with a row first; it goes red today if reachable.
+
+## Closed
+
+By construction, in PR 5126. `chart_boundary` now certifies each walked
+row in the caller's chart before lifting it, and carries the lifted
+copy as the row and its deck element, never certifying it again (C4).
+No row pins the case. Nothing built reaches it: the one candidate
+fixture tried, the lofted closed wall
+(`crates/sweep/tests/one_segment_loop.rs`), passes with the
+certify-after-lift order as well, so its walk sums no nonzero `Deck.u`
+on a net closed in `u`.

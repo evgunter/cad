@@ -149,7 +149,7 @@
 //! row from the same row a whole period over: both certify
 //! identically. Which branch (`α + kτ`) a half-edge takes is the
 //! loop's fact, decided in `topo::pcurves`: at each joint the walk
-//! decides the deck element as an integer ([`whole_periods`]), with
+//! decides the deck element as an integer ([`Period::decide`]), with
 //! half the step to the next orbit point as room (half a period, or a
 //! quarter on a sphere, whose twin sits half a period over), and each
 //! loop winds at most one period per channel. A joint's
@@ -1729,12 +1729,6 @@ pub enum PcurveCertifyError {
     /// one period on a torus chart: more than one turn of a Villarceau
     /// circle.
     TubePeriodExceeded,
-    /// A stored image's whole-period branch sits more than
-    /// [`MAX_BRANCH_PERIODS`] periods from the image re-derived from its
-    /// carrier, or a walked joint's from its predecessor's
-    /// ([`BranchMiss::OutOfReach`]): a branch no producer is known to
-    /// reach, refused by type rather than searched for.
-    BranchOutOfReach,
     /// A certified residual definitely exceeded the tolerance band: the
     /// pcurve does not represent the carrier through the map (D4 ¶2).
     ResidualExceeded {
@@ -1902,12 +1896,6 @@ impl core::fmt::Display for PcurveCertifyError {
                  one full period of the torus — split the edge first (the winding gate, tube \
                  side)"
             ),
-            Self::BranchOutOfReach => write!(
-                f,
-                "pcurve certification: the image's whole-period branch is more than \
-                 {MAX_BRANCH_PERIODS} periods from its carrier's — a winding no producer is \
-                 known to mint, refused rather than searched for"
-            ),
             Self::ResidualExceeded { check, sample } => {
                 let claim = if check.bounds_a_miss() {
                     "the certificate cannot show the pcurve represents the carrier through the map"
@@ -1970,7 +1958,6 @@ impl PcurveCertifyError {
             | Self::CarrierDomain(_)
             | Self::CarrierEnclosure(_)
             | Self::ChartWindingUnsupported
-            | Self::BranchOutOfReach
             | Self::PlaceholderChart
             | Self::Band(_) => return None,
         })
@@ -4704,40 +4691,13 @@ fn incidence<T: Decide>(
     }
 }
 
-/// How far, in whole periods, a branch search runs from where it starts
-/// before it refuses ([`BranchMiss::OutOfReach`]). A caller whose orbit
-/// steps in a fraction of a period (`topo`'s sphere walk, in half
-/// periods) counts the same whole periods through [`whole_step_count`],
-/// so the cap is one distance on every orbit.
-///
-/// **What the cap bounds.** The search steps one period at a time from
-/// its start, two sign decisions a step; uncapped, a gap `n` periods from
-/// the start costs `2n` decisions, and over an unbounded box it would not
-/// terminate. What the cap means depends on the start:
-/// - The loop walk searches from zero and, where that runs out of reach,
-///   again from the gap's own estimate ([`whole_step_count_any`],
-///   [`branch_estimate`]). There the cap bounds the estimate's error, at
-///   most a step on either side of a half-step mark, plus the near-pole
-///   read's offsets where the marks miss (`topo`'s `lever_periods`, at
-///   most one whole period around the read's centre). A carrier stated
-///   any number of periods off the azimuth it covers is then in reach
-///   (`topo`'s `a_carrier_stated_periods_off_its_azimuth_mints`).
-/// - Check 4's fidelity ([`whole_periods`]) and the other callers of
-///   [`whole_period_count`] start at zero, so for them the cap bounds the
-///   branch itself: a stored image more than four periods from its
-///   re-derivation refuses by type. Valid input does not reach that: a
-///   stored image is minted as its own re-derivation, its branch zero,
-///   and the walk's joint elements are stored apart from it.
-///
-/// Four is room, not a derived bound
-/// (`work/pcert/whole-periods-caps-a-branch-at-four-periods.md`).
-pub const MAX_BRANCH_PERIODS: i32 = 4;
-
-/// Why [`whole_periods`] decided no branch.
+/// Why a [`Period`] decided no branch.
 #[derive(Clone, Debug)]
 pub enum BranchMiss {
     /// A half-period mark is undecided: the gap is not resolved to one
-    /// branch at this width (D4 ¶3, escalate-never-guess).
+    /// branch at this width (D4 ¶3, escalate-never-guess). A gap that is
+    /// not a finite number, or whose branch no `i32` names, decides no
+    /// mark either, and reads here with an invalid margin.
     Undecided(Indeterminate),
     /// The gap sits ON a half-period mark (the mark decided Zero): it
     /// is half a period from two branches and is the gap of neither — a
@@ -4745,55 +4705,11 @@ pub enum BranchMiss {
     /// twin as its own orbit point, with half the period, so a twin is
     /// never this).
     OnMark,
-    /// The gap is more than [`MAX_BRANCH_PERIODS`] whole periods out.
-    OutOfReach,
 }
 
-/// **A branch, decided as structure**: the whole number of periods `k`
-/// with `|gap − k·period| < period/2`, returned as the LITERAL `k`. It
-/// is read off the half period of room a branch has, by sign decisions
-/// against the half-period marks (`name`, metered through `meter`),
-/// never by rounding the gap — so a chart image shifted by it carries
-/// `α + k·τ` with `k` a constant rather than an opaque function of the
-/// parameters (C4: "the branch per face is chosen once by the loop
-/// walk"). The loop walk pins each row's branch with it
-/// (`topo::pcurves`), and check 4's fidelity reads a stored image's
-/// branch, and a sphere image's twin, against its re-derivation with
-/// it.
-///
-/// # Errors
-///
-/// [`BranchMiss`]: a mark undecided, the gap on a mark, or the gap out
-/// of reach.
-pub fn whole_periods<T: Decide>(
-    name: &'static str,
-    gap: T,
-    period: T,
-    meter: impl Fn(T) -> Margin<T>,
-    band: Band,
-) -> Result<T, BranchMiss> {
-    whole_period_count(name, gap, period, meter, band).map(|k| T::from_f64(f64::from(k)))
-}
-
-/// [`whole_periods`]' `k` as the integer it is, for a caller that
-/// stores the branch as structure (`topo`'s joint elements).
-///
-/// # Errors
-///
-/// [`whole_periods`]'.
-pub fn whole_period_count<T: Decide>(
-    name: &'static str,
-    gap: T,
-    period: T,
-    meter: impl Fn(T) -> Margin<T>,
-    band: Band,
-) -> Result<i32, BranchMiss> {
-    whole_period_walk(name, gap, period, meter, band).map_err(|stop| stop.miss)
-}
-
-/// Where [`whole_period_walk`] stopped short of a branch: the miss, and
-/// for a mark (undecided, or the gap on it) the two branches `[j, j + 1]`
-/// that mark lies between. A reach miss has none.
+/// Where [`Period::decide`] stopped short of a branch: the miss, and the
+/// two branches `[j, j + 1]` either side of the mark it stopped on (none
+/// for a gap that names no mark at all).
 #[derive(Clone, Debug)]
 pub struct WalkStop {
     /// Why no branch was decided.
@@ -4802,149 +4718,190 @@ pub struct WalkStop {
     pub astride: Option<[i32; 2]>,
 }
 
-/// [`whole_period_count`], reporting where the walk stopped
-/// ([`WalkStop`]). The walk steps one period at a time from `0`, and
-/// every mark it crosses is decided on the side it crosses, so the mark
-/// it stops on is the first, from `0`, that the gap does not clear.
-/// Where that mark decides Zero ([`BranchMiss::OnMark`]) the gap is
-/// within the band's zero of it in the meter's units; the branches
-/// astride it are the orbit points either side of that mark.
+/// **A periodic channel's period**, owned by the chart that has the
+/// channel (C4): τ in azimuth, τ in a sphere's or torus's second angle,
+/// the knot domain's length on a spline net decided closed in that
+/// direction; and a carrier's own parameter period. Every whole-period
+/// question of a channel is asked of its `Period`:
+/// - a joint's deck element, and check 4's branch, decided by the
+///   half-period marks ([`Period::decide`]);
+/// - a deck element's shift, `k` periods as a length ([`Period::times`]);
+/// - a harmonic row's winding, the whole number of periods its image
+///   advances per period of its carrier, stored as the same kind of
+///   integer and read through [`Period::times`] (C4's windings,
+///   structure the row stores and `certify` compares exactly).
 ///
-/// # Errors
-///
-/// [`WalkStop`]: a mark undecided, the gap on a mark (each with the
-/// branches astride it), or the gap out of reach.
-pub fn whole_period_walk<T: Decide>(
-    name: &'static str,
-    gap: T,
-    period: T,
-    meter: impl Fn(T) -> Margin<T>,
-    band: Band,
-) -> Result<i32, WalkStop> {
-    let half = T::from_f64(0.5);
-    let mark = |k: i32, side: T| {
-        decide(
-            name,
-            meter(gap - (T::from_f64(f64::from(k)) + side) * period),
-            band,
-        )
-    };
-    let stop = |miss, astride| WalkStop {
-        miss,
-        astride: Some(astride),
-    };
-    let reach = WalkStop {
-        miss: BranchMiss::OutOfReach,
-        astride: None,
-    };
-    let mut k = 0;
-    // What is already known about the marks either side of `k`: moving
-    // up one period learns the lower mark, moving down the upper.
-    let (mut below, mut above) = (false, false);
-    loop {
-        if !above {
-            match mark(k, half).map_err(|c| stop(BranchMiss::Undecided(c), [k, k + 1]))? {
-                Sign::Negative => {}
-                Sign::Zero => return Err(stop(BranchMiss::OnMark, [k, k + 1])),
-                Sign::Positive => {
-                    k += 1;
-                    (below, above) = (true, false);
-                    if k > MAX_BRANCH_PERIODS {
-                        return Err(reach);
+/// No whole-period integer is read off a value: [`Period::decide`]
+/// decides it through the marks, and every other integer is structure.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Period<T> {
+    length: T,
+}
+
+impl<T: Real> Period<T> {
+    /// The channel's period, one whole turn of it.
+    pub fn new(length: T) -> Self {
+        Self { length }
+    }
+
+    /// The period as a length.
+    pub fn length(self) -> T {
+        self.length
+    }
+
+    /// `k` whole periods, as a length: a deck element's shift, or the
+    /// advance of a winding of `k`.
+    pub fn times(self, k: i32) -> T {
+        T::from_f64(f64::from(k)) * self.length
+    }
+}
+
+impl<T: Decide> Period<T> {
+    /// **A branch, decided as structure**: the whole number of periods
+    /// `k` with `|gap − k·length| < length/2`, as the integer it is. It
+    /// is read off the half period of room a branch has, by sign
+    /// decisions against the half-period marks (`name`, metered through
+    /// `meter`), read outward from zero, never by rounding the gap. Every
+    /// mark the walk crosses is decided on the side it crosses, so the
+    /// mark it stops on is the first, from zero, that the gap does not
+    /// clear; where that mark decides Zero ([`BranchMiss::OnMark`]) the
+    /// gap is within the band's zero of it in the meter's units, and the
+    /// branches astride it are the gap's own nearest.
+    ///
+    /// No cap: each step needs a decided mark, so a finite enclosure
+    /// clears finitely many. A placed image keeps a joint's gap within
+    /// about two periods (C4), so the walk is a handful of decisions on
+    /// valid input. A gap that is not finite, or whose branch is past
+    /// `i32`, decides nothing and stops as undecided.
+    ///
+    /// # Errors
+    ///
+    /// [`WalkStop`]: a mark undecided, or the gap on a mark, each with
+    /// the branches astride it.
+    pub fn decide(
+        self,
+        name: &'static str,
+        gap: T,
+        meter: impl Fn(T) -> Margin<T>,
+        band: Band,
+    ) -> Result<i32, WalkStop> {
+        let unnamed = || WalkStop {
+            miss: BranchMiss::Undecided(Indeterminate {
+                margin: geom_core::MarginDiag::INVALID,
+                band,
+                predicate: Some(name),
+                terminal_sliver: false,
+            }),
+            astride: None,
+        };
+        if !geom_core::is_finite_length(gap) {
+            return Err(unnamed());
+        }
+        let half = T::from_f64(0.5);
+        let mark = |k: i32, side: T| {
+            decide(
+                name,
+                meter(gap - (T::from_f64(f64::from(k)) + side) * self.length),
+                band,
+            )
+        };
+        let stop = |miss, astride| WalkStop {
+            miss,
+            astride: Some(astride),
+        };
+        let mut k: i32 = 0;
+        // What is already known about the marks either side of `k`: moving
+        // up one period learns the lower mark, moving down the upper.
+        let (mut below, mut above) = (false, false);
+        loop {
+            if !above {
+                match mark(k, half).map_err(|c| stop(BranchMiss::Undecided(c), [k, k + 1]))? {
+                    Sign::Negative => {}
+                    Sign::Zero => return Err(stop(BranchMiss::OnMark, [k, k + 1])),
+                    Sign::Positive => {
+                        k = k.checked_add(1).ok_or_else(unnamed)?;
+                        (below, above) = (true, false);
+                        continue;
                     }
-                    continue;
                 }
             }
-        }
-        if !below {
-            match mark(k, T::zero() - half)
-                .map_err(|c| stop(BranchMiss::Undecided(c), [k - 1, k]))?
-            {
-                Sign::Positive => {}
-                Sign::Zero => return Err(stop(BranchMiss::OnMark, [k - 1, k])),
-                Sign::Negative => {
-                    k -= 1;
-                    (below, above) = (false, true);
-                    if k < -MAX_BRANCH_PERIODS {
-                        return Err(reach);
+            if !below {
+                match mark(k, T::zero() - half)
+                    .map_err(|c| stop(BranchMiss::Undecided(c), [k - 1, k]))?
+                {
+                    Sign::Positive => {}
+                    Sign::Zero => return Err(stop(BranchMiss::OnMark, [k - 1, k])),
+                    Sign::Negative => {
+                        k = k.checked_sub(1).ok_or_else(unnamed)?;
+                        (below, above) = (false, true);
+                        continue;
                     }
-                    continue;
                 }
             }
+            return Ok(k);
         }
-        return Ok(k);
     }
 }
 
 #[cfg(test)]
 #[allow(clippy::expect_used)]
-mod branch_search_rows {
+mod period_rows {
     use geom_core::{Band, Interval, Margin, Real, SpanLocate};
 
-    use super::{BranchMiss, MAX_BRANCH_PERIODS, branch_estimate, whole_step_count};
+    use super::{BranchMiss, Period, WalkStop};
 
     fn band() -> Band {
-        Band::new(1e-9, 1e-8).expect("a valid band")
+        Band::new(1e-9, 1e-8).expect("a band")
     }
 
-    /// **The cap counts whole periods whatever the step.** A gap of seven
-    /// half periods, searched in half steps from zero, is three and a
-    /// half whole periods out: inside [`MAX_BRANCH_PERIODS`] whole
-    /// periods, so it decides `7`. The same search counted as if each
-    /// half step were a period (`per = 1`) stops at four steps and
-    /// refuses.
+    /// **The marks are read from zero, however far out.** A gap 25 and a
+    /// fraction periods out decides `25`; seven half periods decide `7`
+    /// on an orbit whose step is half a period.
     #[test]
-    fn the_cap_counts_whole_periods_on_a_half_step_orbit() {
+    fn a_far_gap_decides_its_branch_with_no_cap() {
         let tau = f64::tau();
-        let gap = 7.0 * tau / 2.0;
-        let read = |per| whole_step_count("t", gap, (tau / 2.0, per), 0, Margin::of, band());
-        assert!(matches!(read(2), Ok(7)), "{:?}", read(2));
-        assert!(
-            matches!(read(1), Err(BranchMiss::OutOfReach)),
-            "{:?}",
-            read(1)
-        );
-        const { assert!(MAX_BRANCH_PERIODS < 7 && 7 <= 2 * MAX_BRANCH_PERIODS) };
+        let period = Period::new(tau);
+        assert!(matches!(period.decide("t", 25.3 * tau, Margin::of, band()), Ok(25)));
+        assert!(matches!(period.decide("t", -25.3 * tau, Margin::of, band()), Ok(-25)));
+        let half = Period::new(tau / 2.0);
+        assert!(matches!(half.decide("t", 3.5 * tau, Margin::of, band()), Ok(7)));
     }
 
-    /// **A search started at the gap's estimate reaches any gap.** A gap
-    /// 25 periods and a fraction out decides `25` from its estimate, and
-    /// refuses from zero. A bracket straddling a half-period mark is
-    /// estimated at the step below the mark, so the search decides the
-    /// mark (here, in band) rather than running out of reach.
+    /// **A far gap on a mark names the branches astride it.** A bracket
+    /// straddling the mark 40.5 periods out decides neither branch, and
+    /// the walk stops on that mark with `[40, 41]`.
     #[test]
-    fn a_search_from_the_estimate_reaches_any_gap() {
-        let tau = f64::tau();
-        let gap = 25.3 * tau;
-        let from = branch_estimate(gap, tau).expect("a point gap has an estimate");
-        assert_eq!(from, 25);
-        assert!(matches!(
-            whole_step_count("t", gap, (tau, 1), from, Margin::of, band()),
-            Ok(25)
-        ));
-        assert!(matches!(
-            whole_step_count("t", gap, (tau, 1), 0, Margin::of, band()),
-            Err(BranchMiss::OutOfReach)
-        ));
-        let mark = Interval::from_f64(2.5 * tau);
-        let straddle =
-            (mark - Interval::from_f64(0.01)).enclosure_hull(mark + Interval::from_f64(0.01));
-        assert_eq!(branch_estimate(straddle, Interval::tau()), Some(2));
-        let far = Interval::from_f64(40.5 * tau);
-        let far = (far - Interval::from_f64(1e-10)).enclosure_hull(far + Interval::from_f64(1e-10));
-        assert!(matches!(
-            whole_step_count(
-                "t",
-                far,
-                (Interval::tau(), 1),
-                branch_estimate(far, Interval::tau()).expect("an estimate"),
-                Margin::of,
-                band()
-            ),
-            Err(BranchMiss::OnMark | BranchMiss::Undecided(_))
-        ));
-        let inside = Interval::from_f64(2.4 * tau).enclosure_hull(Interval::from_f64(2.45 * tau));
-        assert_eq!(branch_estimate(inside, Interval::tau()), Some(2));
+    fn a_far_gap_on_a_mark_stops_astride_it() {
+        let mark = Interval::from_f64(40.5 * f64::tau());
+        let gap = (mark - Interval::from_f64(1e-10)).enclosure_hull(mark + Interval::from_f64(1e-10));
+        match Period::new(Interval::tau()).decide("t", gap, Margin::of, band()) {
+            Err(WalkStop {
+                miss: BranchMiss::OnMark | BranchMiss::Undecided(_),
+                astride: Some([40, 41]),
+            }) => {}
+            other => panic!("the walk stops on the mark at 40.5 periods: {other:?}"),
+        }
+    }
+
+    /// **A gap that names no number decides nothing.** An infinite or
+    /// NaN gap stops at once as undecided, with no mark: an infinite
+    /// margin would read every mark definite and the walk would never
+    /// end.
+    #[test]
+    fn a_gap_that_is_not_finite_stops_undecided() {
+        let period = Period::new(f64::tau());
+        for gap in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(
+                matches!(
+                    period.decide("t", gap, Margin::of, band()),
+                    Err(WalkStop {
+                        miss: BranchMiss::Undecided(_),
+                        astride: None
+                    })
+                ),
+                "{gap}"
+            );
+        }
     }
 }
 
@@ -5003,15 +4960,13 @@ fn fidelity<T: Decide>(
     };
     let tau = T::tau();
     let angular_v = matches!(surface, Surface::Sphere { .. } | Surface::Torus { .. });
-    // A channel's branch, decided as the literal it is (`whole_periods`).
+    // A channel's branch, decided by the channel's own period
+    // ([`Period::decide`]), as the literal it is.
     let branch = |name: &'static str, offset: T, arm: SupSpeed<T>| {
-        whole_periods(
-            name,
-            offset,
-            tau,
-            |gap| Margin::levered(gap, arm.get()),
-            band,
-        )
+        Period::new(tau)
+            .decide(name, offset, |gap| Margin::levered(gap, arm.get()), band)
+            .map(|k| T::from_f64(f64::from(k)))
+            .map_err(|stop| stop.miss)
     };
     // The azimuth's branch, and on a sphere whether the stored image is
     // `P_d` or its involution twin `(u + π, π − v)`: both are branches
@@ -5023,7 +4978,6 @@ fn fidelity<T: Decide>(
     // it.
     let (k_u, (q0, qa, qb, ql)) = match branch("pcurve_fidelity_branch", p0.x - q0.x, arm_u) {
         Ok(k) => (Some(k), (q0, qa, qb, ql)),
-        Err(BranchMiss::OutOfReach) => return Err(PcurveCertifyError::BranchOutOfReach),
         Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => match surface {
             Surface::Sphere { .. } => {
                 let flip = |v: Vec2<T>| Vec2::new(v.x, T::zero() - v.y);
@@ -5035,9 +4989,6 @@ fn fidelity<T: Decide>(
                 );
                 match branch("pcurve_fidelity_twin", p0.x - twin.0.x, arm_u) {
                     Ok(k) => (Some(k), twin),
-                    Err(BranchMiss::OutOfReach) => {
-                        return Err(PcurveCertifyError::BranchOutOfReach);
-                    }
                     // Neither name's branch decides: `P_d` is kept
                     // (D9), read raw.
                     Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => (None, (q0, qa, qb, ql)),
@@ -5059,7 +5010,6 @@ fn fidelity<T: Decide>(
     let k_v = if angular_v {
         match branch("pcurve_fidelity_branch", p0.y - q0.y, arm_v) {
             Ok(k) => Some(k),
-            Err(BranchMiss::OutOfReach) => return Err(PcurveCertifyError::BranchOutOfReach),
             Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => None,
         }
     } else {

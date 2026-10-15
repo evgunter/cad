@@ -374,8 +374,7 @@
 
 use geom::Surface;
 use geom_brep::{
-    BranchMiss, Pcurve, PcurveCache, PcurveCertifyError, WalkStop, chart_pcurve_over,
-    whole_period_count, whole_period_walk,
+    BranchMiss, Pcurve, PcurveCache, PcurveCertifyError, Period, WalkStop, chart_pcurve_over,
 };
 use geom_core::Tol;
 use geom_core::k_stats::decide;
@@ -2507,7 +2506,7 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
                     half_edge,
                     refusal: SplitRefusal::Joint(match miss {
                         PinMiss::Escalated(cause) => Some(cause),
-                        PinMiss::Discontinuity | PinMiss::OutOfReach => None,
+                        PinMiss::Discontinuity => None,
                     }),
                 }
             })
@@ -3650,13 +3649,6 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
                 half_edge: cycle[index],
                 cause,
             },
-            WalkFail::Miss {
-                index,
-                miss: PinMiss::OutOfReach,
-            } => PcurveMintError::Certify {
-                half_edge: cycle[index],
-                error: PcurveCertifyError::BranchOutOfReach,
-            },
             WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
         })?;
     out.extend(cycle.iter().zip(carriers).zip(walked).map(
@@ -3761,13 +3753,6 @@ fn walk_runs<T: AtRestPolicy>(
                 half_edge: keys[index],
                 cause,
             }),
-            Err(WalkFail::Miss {
-                index,
-                miss: PinMiss::OutOfReach,
-            }) => refused.push(PcurveMintError::Certify {
-                half_edge: keys[index],
-                error: PcurveCertifyError::BranchOutOfReach,
-            }),
             Err(WalkFail::Item(never)) => match never {},
             Err(WalkFail::NotClosed) => unreachable!("an open run checks no closure"),
         }
@@ -3828,9 +3813,6 @@ pub(crate) enum PinMiss {
     Discontinuity,
     /// A decision escalated.
     Escalated(Indeterminate),
-    /// The gap is more than [`geom_brep::MAX_BRANCH_PERIODS`] whole
-    /// periods from the predecessor's exit.
-    OutOfReach,
 }
 
 /// Why [`walk_cycle`] refused, with the index of the item it refused
@@ -4072,7 +4054,7 @@ impl AzimuthRule {
 /// points with one 3-D image differ by a deck element of the chart: a
 /// whole number of periods per periodic channel and, on a sphere,
 /// possibly the involution `(u, v) ↦ (u + π, π − v)` ([`sphere_twin`]).
-/// This decides which, as integers ([`geom_brep::whole_period_count`]),
+/// This decides which, as integers ([`geom_brep::Period::decide`]),
 /// the azimuth's marks metered at the vertex's own lever
 /// ([`joint_arm`]).
 ///
@@ -4092,10 +4074,8 @@ impl AzimuthRule {
 /// nearest orbit points in the chart metric.
 ///
 /// The integer counts the orbit's steps, so on a sphere it counts half
-/// periods. `geom_brep::MAX_BRANCH_PERIODS` bounds whole periods on
-/// every orbit (`geom_brep::whole_step_count`, with
-/// [`Orbit::per_period`] steps to the period), so on a sphere the marks
-/// read twice as many steps.
+/// periods. The marks are read outward from zero with no cap, however
+/// many steps out the gap lies ([`geom_brep::Period::decide`]).
 ///
 /// **What that room buys, and where it is not enough.** Where it exceeds
 /// the joint bound below (the chart ends `≤ 4ε` apart in metres), the
@@ -4218,14 +4198,14 @@ fn decide_joint<T: Decide>(
     let kv = match polar_arm(surface) {
         Some(polar) => {
             let gap = prev.y - sheet.eval(entry_t).y;
-            geom_brep::whole_step_count_any(
-                "pcurve_loop_branch",
-                gap,
-                (tau, 1),
-                |g| Margin::levered(g, polar),
-                band,
-            )
-            .map_err(PinMiss::from)?
+            Period::new(tau)
+                .decide(
+                    "pcurve_loop_branch",
+                    gap,
+                    |g| Margin::levered(g, polar),
+                    band,
+                )
+                .map_err(|stop| PinMiss::from(stop.miss))?
         }
         None => 0,
     };
@@ -4266,9 +4246,9 @@ fn decide_joint<T: Decide>(
 /// they meet and the turn's joint decision there missed: it escalated
 /// (`Some`, a near-pole offset in band included), or decided a miss
 /// (`None`) — the gap on a mark and decided off every orbit point the
-/// near-pole read tries at the vertex's lever, or periods past the
-/// branch reach. The ends are one point, so neither is
-/// "no turn"; a kill writes no element through any of them.
+/// near-pole read tries at the vertex's lever. The ends are one point,
+/// so neither is "no turn"; a kill writes no element through any of
+/// them.
 ///
 /// # Panics
 ///
@@ -4306,7 +4286,7 @@ pub(crate) fn turn_element<T: Decide>(
     ) {
         Ok(element) => Ok(Some(element)),
         Err(PinMiss::Escalated(cause)) => Err(Some(cause)),
-        Err(PinMiss::Discontinuity | PinMiss::OutOfReach) => Err(None),
+        Err(PinMiss::Discontinuity) => Err(None),
     }
 }
 
@@ -4321,7 +4301,6 @@ impl From<BranchMiss> for PinMiss {
     fn from(miss: BranchMiss) -> Self {
         match miss {
             BranchMiss::Undecided(cause) => Self::Escalated(cause),
-            BranchMiss::OutOfReach => Self::OutOfReach,
             BranchMiss::OnMark => Self::Discontinuity,
         }
     }
@@ -4330,9 +4309,9 @@ impl From<BranchMiss> for PinMiss {
 /// **A joint's orbit**: the step its marks count in, and the offsets
 /// about the image the near-pole read tries first
 /// ([`near_pole_gap_closes`]), in that step; the read then tries the
-/// two branches astride the mark the walk stopped on. The step and the
-/// offsets travel together, so an offset is never read in the other
-/// orbit's step.
+/// two branches astride the mark the walk stopped on. Both are read off
+/// one fact, the steps in a period ([`Orbit::steps`]), so an offset is
+/// never read in the other orbit's step.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Orbit {
     /// No twin: whole periods. The image itself, then the image one
@@ -4345,30 +4324,28 @@ pub(crate) enum Orbit {
 }
 
 impl Orbit {
-    /// The offsets tried, first to last, in [`Orbit::step`]s.
-    pub(crate) fn offsets(self) -> &'static [i32] {
-        match self {
-            Self::Periods => &[0, 1, -1],
-            Self::HalfPeriodsWithTwin => &[0, 1, -1, 2, -2],
-        }
-    }
-
-    /// How many of its steps make a whole period: the cap
-    /// ([`geom_brep::MAX_BRANCH_PERIODS`]) counts whole periods on every
-    /// orbit.
-    pub(crate) const fn per_period(self) -> i32 {
+    /// The steps in one period: 1, or 2 where the twin sits half a
+    /// period over.
+    fn steps(self) -> i32 {
         match self {
             Self::Periods => 1,
             Self::HalfPeriodsWithTwin => 2,
         }
     }
 
-    /// The step of `period` this orbit counts in.
-    pub(crate) fn step<T: Real>(self, period: T) -> T {
-        match self {
-            Self::Periods => period,
-            Self::HalfPeriodsWithTwin => period * T::from_f64(0.5),
-        }
+    /// The offsets tried, first to last, in [`Orbit::step`]s: the image,
+    /// then each step out to one period, either way round.
+    pub(crate) fn offsets(self) -> impl Iterator<Item = i32> + Clone {
+        core::iter::once(0).chain((1..=self.steps()).flat_map(|m| [m, -m]))
+    }
+
+    /// The step of `period` this orbit counts in, as the period its
+    /// marks are read in.
+    pub(crate) fn step<T: Real>(self, period: T) -> Period<T> {
+        Period::new(match self.steps() {
+            1 => period,
+            n => period * T::from_f64(1.0 / f64::from(n)),
+        })
     }
 }
 
@@ -4421,10 +4398,10 @@ fn near_pole_gap_closes<T: Decide>(
     let bracket = astride
         .into_iter()
         .flatten()
-        .filter(|m| !orbit.offsets().contains(m));
-    let tried = orbit.offsets().iter().copied().chain(bracket);
+        .filter(|m| !orbit.offsets().any(|o| o == *m));
+    let tried = orbit.offsets().chain(bracket);
     match first_within("pcurve_loop_pole_gap", tried, band, |&m| {
-        arm.meter(gap - T::from_f64(f64::from(m)) * step)
+        arm.meter(gap - step.times(m))
     }) {
         Ok(Some(m)) => NearRead::Closes(m),
         Ok(None) => NearRead::Off,
@@ -4433,7 +4410,7 @@ fn near_pole_gap_closes<T: Decide>(
 }
 
 /// **A joint's whole orbit steps by the marks, with the near-pole
-/// read**: [`geom_brep::whole_period_count`] of `gap` in `orbit`'s
+/// read**: [`geom_brep::Period::decide`] of `gap` in `orbit`'s
 /// steps of `period`, metered at the vertex's lever `arm`. Where a mark
 /// misses (undecided, or the gap on it), an orbit point whose gap is
 /// decided within ε at that lever is taken ([`near_pole_gap_closes`],
@@ -4483,8 +4460,7 @@ pub(crate) fn lever_periods<T: Decide>(
     orbit: Orbit,
     band: Band,
 ) -> Result<i32, BranchMiss> {
-    let step = orbit.step(period);
-    match whole_period_walk(name, gap, step, |g| arm.meter(g), band) {
+    match orbit.step(period).decide(name, gap, |g| arm.meter(g), band) {
         Ok(k) => Ok(k),
         Err(WalkStop {
             miss: miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark),
@@ -4497,7 +4473,6 @@ pub(crate) fn lever_periods<T: Decide>(
             },
             NearRead::Off => Err(miss),
         },
-        Err(stop) => Err(stop.miss),
     }
 }
 
@@ -4518,7 +4493,9 @@ pub(crate) fn branches_astride<T: Decide>(
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<[i32; 2], BranchMiss> {
-    let j = whole_period_count(name, gap - period * T::from_f64(0.5), period, meter, band)?;
+    let j = Period::new(period)
+        .decide(name, gap - period * T::from_f64(0.5), meter, band)
+        .map_err(|stop| stop.miss)?;
     Ok([j, j + 1])
 }
 
@@ -4847,8 +4824,24 @@ pub fn chart_boundary<T: AtRestPolicy>(
     for (index, lp) in loops.iter().enumerate() {
         let mut walked: Vec<Walked<T>> = Vec::new();
         walk_loop(body, face, *lp, described, band, &mut walked)?;
-        // The chord polygon is drawn on the loop's lift: each image moved
-        // by the elements summed from the loop's first half-edge.
+        // The joint bound the polygon leans on rests on each row's
+        // envelope (check 4), and these rows are fresh derivations in
+        // the CALLER's chart, which no mint certified. So each
+        // closed-form row is certified against that chart here, as the
+        // row it is, before it is lifted; a fitted or general one reads
+        // its stored certificate ([`chart_edge`]).
+        for w in &walked {
+            if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
+                PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
+                    .map_err(|error| PcurveMintError::Certify {
+                        half_edge: w.key,
+                        error,
+                    })?;
+            }
+        }
+        // The chord polygon is drawn on the loop's lift: each row with the
+        // deck element summed from the loop's first half-edge (C4: a lifted
+        // copy is the row and its element, never certified again).
         let elements: Vec<JointElement> = walked
             .iter()
             .map(|w| {
@@ -4919,21 +4912,6 @@ pub fn chart_boundary<T: AtRestPolicy>(
         // the joint bound [`decide_joint`] states of the exit before it.
         if !Winding::of(elements.iter().copied()).is_zero() {
             return Err(PcurveMintError::LoopWraps { face, r#loop: *lp });
-        }
-        // The joint bound the polygon leans on rests on each row's
-        // envelope (check 4), and these rows are fresh derivations in
-        // the CALLER's chart, which no mint certified. So each
-        // closed-form row is certified against that chart here, before
-        // its entry is read as a vertex; a fitted or general one reads
-        // its stored certificate ([`chart_edge`]).
-        for w in &walked {
-            if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
-                PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
-                    .map_err(|error| PcurveMintError::Certify {
-                        half_edge: w.key,
-                        error,
-                    })?;
-            }
         }
         let mut edges = Vec::with_capacity(walked.len());
         for w in &walked {
@@ -5157,10 +5135,6 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                     Err(PinMiss::Escalated(cause)) => findings.push(PcurveMintError::Escalated {
                         half_edge: he,
                         cause,
-                    }),
-                    Err(PinMiss::OutOfReach) => findings.push(PcurveMintError::Certify {
-                        half_edge: he,
-                        error: PcurveCertifyError::BranchOutOfReach,
                     }),
                 }
             }
@@ -6135,7 +6109,6 @@ mod stretch_meter {
             Ok(element) => format!("{element:?}"),
             Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
             Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
-            Err(super::PinMiss::OutOfReach) => "OutOfReach".into(),
         };
         let lift = |u| {
             format!(
@@ -6290,7 +6263,6 @@ mod stretch_meter {
                 Ok(other) => format!("{other:?}"),
                 Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
                 Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
-                Err(super::PinMiss::OutOfReach) => "OutOfReach".into(),
             }
         };
         // `π·lever` as a fraction of the escalate edge, in band: the
@@ -6782,7 +6754,7 @@ mod polar_shift_tests {
 }
 
 #[cfg(test)]
-mod pole_slit_tests {
+pub(crate) mod pole_slit_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use core::f64::consts::{FRAC_PI_2, PI};
@@ -6812,7 +6784,7 @@ mod pole_slit_tests {
     /// [`slit_cap`] with its first rim arc's carrier parameter
     /// `periods` whole periods below the azimuth it covers, or the
     /// minting pass's refusal.
-    fn slit_cap_below(
+    pub(crate) fn slit_cap_below(
         periods: f64,
     ) -> Result<(Body<f64>, FaceKey, Vec<crate::HalfEdgeKey>), super::PcurveMintError> {
         let tol = Tol::witness();
@@ -6930,7 +6902,7 @@ mod pole_slit_tests {
     /// carrier's parameter `periods` whole periods below the azimuth it
     /// covers, a ruling up `u = π`, the top arc back to `u = 0` and a
     /// ruling down. Minted, or the minting pass's refusal.
-    fn cylinder_patch_below(periods: f64) -> Result<Body<f64>, super::PcurveMintError> {
+    pub(crate) fn cylinder_patch_below(periods: f64) -> Result<Body<f64>, super::PcurveMintError> {
         let tol = Tol::witness();
         let p = |u: f64, z: f64| Point3::new(u.cos(), u.sin(), z);
         let mut body = Body::<f64>::new();
@@ -7036,18 +7008,99 @@ mod pole_slit_tests {
             .collect()
     }
 
+    /// **A body stated periods off reads downstream as its principal
+    /// twin.** The rows the walk mints far out reach the readers built
+    /// on them, and each reads what the same body at zero periods reads:
+    /// - `chart_boundary` bounds both faces of the cylinder patch 5, 6
+    ///   and 10 periods below on the twin's polygon;
+    /// - `chart_region_overlap` against the twin finds positive area on
+    ///   either face at 5 periods and on the patch's own face at 10;
+    /// - the slit cap's joint on the pole refuses `chart_boundary` on
+    ///   the same half-edge at 3 and 10 periods as at zero.
+    ///
+    /// The other face 6 periods below refuses `TouchingBoundary`, and
+    /// that refusal is rounding, measured: the carrier's stated end
+    /// `π − 6τ` rounds as it is written, so its seat's corner reads
+    /// `π` plus 4 ulp, the two loops' walls are no longer exactly
+    /// collinear, and the overlap refuses as it does any near-flush
+    /// seat. No branch decision enters it; at 5 periods the end happens
+    /// to round back to `π`.
+    #[test]
+    fn a_body_stated_periods_off_reads_downstream_as_its_principal_twin() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let twin = cylinder_patch_below(0.0).unwrap();
+        let faces: Vec<FaceKey> = twin.faces().map(|(f, _)| f).collect();
+        assert_eq!(faces.len(), 2);
+        let bound = |body: &Body<f64>, f: FaceKey| {
+            let s = body
+                .get_surface(body.get_face(f).unwrap().surface)
+                .unwrap()
+                .clone();
+            super::chart_boundary(body, f, &s, band)
+        };
+        for periods in [5.0, 6.0, 10.0] {
+            let body = cylinder_patch_below(periods).unwrap();
+            for &f in &faces {
+                let corners = |body: &Body<f64>| -> Vec<(f64, f64)> {
+                    let bound = bound(body, f).unwrap();
+                    bound
+                        .loops
+                        .iter()
+                        .flat_map(|l| &l.edges)
+                        .map(|e| (e.a().x, e.a().y))
+                        .collect()
+                };
+                let (far, near) = (corners(&body), corners(&twin));
+                assert_eq!(far.len(), near.len());
+                for (x, y) in far.iter().zip(&near) {
+                    assert!(
+                        (x.0 - y.0).abs() < 1e-12 && (x.1 - y.1).abs() < 1e-12,
+                        "{periods} periods, {f:?}: {far:?} against {near:?}"
+                    );
+                }
+            }
+            let overlaps: Vec<_> = faces
+                .iter()
+                .map(|&f| crate::chart_region_overlap(&body, f, &twin, f, band))
+                .collect();
+            let expected = if periods == 5.0 {
+                [
+                    Ok(crate::ChartOverlap::PositiveArea),
+                    Ok(crate::ChartOverlap::PositiveArea),
+                ]
+            } else {
+                [
+                    Ok(crate::ChartOverlap::PositiveArea),
+                    Err(crate::ChartRegionError::TouchingBoundary),
+                ]
+            };
+            assert_eq!(overlaps, expected, "{periods} periods");
+        }
+        let cap_bound = |periods: f64| {
+            let (body, cap, _) = slit_cap_below(periods).unwrap();
+            bound(&body, cap).map(|_| ())
+        };
+        let principal = cap_bound(0.0);
+        assert!(
+            matches!(
+                principal,
+                Err(super::PcurveMintError::SingularChartJoint { .. })
+            ),
+            "{principal:?}"
+        );
+        for periods in [3.0, 10.0] {
+            assert_eq!(cap_bound(periods), principal, "{periods} periods");
+        }
+    }
+
     /// **A carrier stated whole periods off its azimuth mints.** Nothing
     /// bounds where a circle carrier's parameter runs against the azimuth
-    /// it covers, so the loop walk's joint gap carries that offset. Where
-    /// the walk's branch search from zero runs out of reach, it searches
-    /// again from the gap's own estimate (`geom_brep::whole_step_count_any`)
-    /// and the marks decide from there, so any offset is in reach:
+    /// it covers, so the loop walk's joint gap carries that offset, and
+    /// the walk reads its marks from zero however far out it lies:
     /// - the slit cap with its first rim arc 3 and 10 periods below,
-    ///   which the walk refused `BranchOutOfReach` with its search started
-    ///   at zero (from 2 periods, its cap then counted in the sphere's
-    ///   half steps);
+    ///   counted in the sphere's half steps, 6 and 20 of them;
     /// - a half-turn cylinder patch with its bottom arc 5 and 10 periods
-    ///   below, past four whole periods from zero.
+    ///   below.
     ///
     /// Each mints, re-mints from every anchor where it is the slit cap,
     /// and reads clean. Check 4 reads no offset here: each stored image is
