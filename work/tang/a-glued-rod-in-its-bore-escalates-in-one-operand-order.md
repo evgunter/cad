@@ -2,7 +2,8 @@
 id: a-glued-rod-in-its-bore-escalates-in-one-operand-order
 kind: issue
 title: A rod turned 1e-8° in a bore of its radius builds with the rod as operand A and escalates a carrier crossing's span with the bore as operand A
-status: open
+status: dispatched
+branch: tang/glued-rod-order
 opened: 2026-10-15
 priority: P3
 cost: M
