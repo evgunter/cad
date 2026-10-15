@@ -1099,9 +1099,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 if here(u.member, u.other, u.at)? {
                     return Ok(Some(NamingError::PartnerUnread {
                         vertex: v,
-                        operand: u.operand,
-                        partner: u.partner,
-                        neighbourhood: u.neighbourhood,
+                        unread: u.record,
                     }));
                 }
             }
@@ -1795,15 +1793,13 @@ struct PairClass<T: geom_core::Real> {
 /// read no partner of (`BooleanNaming::unread_partners`), in member
 /// terms: member `member`'s edges at the point `at` have no piece the
 /// judgement against member `other` classified. The judgement's own
-/// record rides along: the vertex's operand in it, the partner it met
+/// `record` rides along: the vertex's operand in it, the partner it met
 /// and why that read nothing.
 struct UnreadAt<T: geom_core::Real> {
     member: usize,
     other: usize,
     at: geom_core::Point3<T>,
-    operand: topo::Operand,
-    partner: topo::VertexKey,
-    neighbourhood: topo::UnreadNeighbourhood,
+    record: topo::UnreadPartner,
 }
 
 impl<T: geom_core::Real> Links<T> {
@@ -1903,9 +1899,7 @@ impl<T: geom_core::Real> Links<T> {
                 member,
                 other,
                 at,
-                operand: u.operand,
-                partner: u.partner,
-                neighbourhood: u.neighbourhood,
+                record: *u,
             });
         }
         Ok(())
@@ -3535,7 +3529,13 @@ mod tests {
         let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
         let flush = Flush::of(g.union, &g.body, &members, &Parents::empty(), bnd).unwrap();
         let [listed, other] = g.along;
-        let partner = g.member_body.vertices().next().unwrap().0;
+        let mut corners = g.member_body.vertices().map(|(k, _)| k);
+        let record = topo::UnreadPartner {
+            operand: topo::Operand::B,
+            vertex: corners.next().unwrap(),
+            partner: corners.next().unwrap(),
+            neighbourhood: topo::UnreadNeighbourhood::NoBisector,
+        };
         let links = Links {
             pairs: Vec::new(),
             classes: Vec::new(),
@@ -3543,9 +3543,7 @@ mod tests {
                 member: 0,
                 other: 1,
                 at: vertex_point(&g.body, listed).unwrap(),
-                operand: topo::Operand::B,
-                partner,
-                neighbourhood: topo::UnreadNeighbourhood::NoBisector,
+                record,
             }],
         };
         let RoleSeg::From { of, .. } = &member_edge(g.union, 5).path[0] else {
@@ -3555,12 +3553,8 @@ mod tests {
         let others = BTreeSet::from([members[1].read]);
         assert!(matches!(
             flush.sense_against(listed, &line, &others, &links),
-            Err(NamingError::PartnerUnread {
-                vertex,
-                operand: topo::Operand::B,
-                partner: met,
-                neighbourhood: topo::UnreadNeighbourhood::NoBisector,
-            }) if vertex == listed && met == partner
+            Err(NamingError::PartnerUnread { vertex, unread })
+                if vertex == listed && unread == record
         ));
         // Judged against a member the name does not cite, the record
         // says nothing of this crossing.

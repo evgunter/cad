@@ -314,14 +314,9 @@ pub enum NamingError {
     PartnerUnread {
         /// The result-body vertex.
         vertex: VertexKey,
-        /// The operand of the boolean whose vertex it is, the one whose
-        /// edges went unclassed.
-        operand: topo::Operand,
-        /// The partner, the other operand's vertex, in that operand's
-        /// clone keys.
-        partner: VertexKey,
-        /// Why the partner read nothing.
-        neighbourhood: topo::UnreadNeighbourhood,
+        /// The boolean's record: the operand vertex whose edges went
+        /// unclassed, the partner it met and why that read nothing.
+        unread: topo::UnreadPartner,
     },
     /// A union's member edge read where ONE edge is needed, where a tie
     /// stands: the member's own table ties the edge's name (or the
@@ -513,9 +508,13 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::PartnerUnread {
                 vertex,
-                operand,
-                partner,
-                neighbourhood,
+                unread:
+                    topo::UnreadPartner {
+                        operand,
+                        partner,
+                        neighbourhood,
+                        ..
+                    },
             } => write!(
                 f,
                 "{UNRULED_FRAMING}: vertex {vertex:?} is operand {operand:?}'s vertex meeting the \
@@ -1796,9 +1795,12 @@ mod display_tests {
             (
                 NamingError::PartnerUnread {
                     vertex: two_vertices().0,
-                    operand: topo::Operand::B,
-                    partner: two_vertices().1,
-                    neighbourhood: topo::UnreadNeighbourhood::OneFace,
+                    unread: topo::UnreadPartner {
+                        operand: topo::Operand::B,
+                        vertex: two_vertices().0,
+                        partner: two_vertices().1,
+                        neighbourhood: topo::UnreadNeighbourhood::OneFace,
+                    },
                 },
                 vec![
                     "inside one smooth face",
