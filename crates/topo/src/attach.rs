@@ -1382,6 +1382,41 @@ impl<T: Decide> Body<T> {
         )
     }
 
+    /// **A chart image `edge` keeps, re-asked the must-carry rule** over
+    /// `carrier` on `interval`, between the surfaces of the edge's two
+    /// faces ([`geom_brep::reask_chart`]): `Some` is the intrinsic
+    /// description the rule now demands, `None` keeps the image. The
+    /// call every door that keeps a chart image over a changed extent
+    /// makes, beside [`Body::reask_on`] for a pair.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::PairRefusal`] on an in-band or mixed verdict.
+    pub(crate) fn reask_chart_on(
+        &self,
+        edge: EdgeKey,
+        carrier: &geom::Curve3<T>,
+        interval: (T, T),
+        band: Band,
+    ) -> Result<Option<EdgeDescriptionSpec<T>>, geom_brep::PairRefusal>
+    where
+        T: Decide,
+    {
+        let sides = crate::readback::edge_sides_of(
+            self,
+            edge,
+            crate::live::proven(&self.edges, edge, EntityId::Edge),
+        );
+        let (ka, kb) = sides.surfaces();
+        let surface = |k: SurfaceKey| {
+            let Some(s) = self.surfaces.get(k) else {
+                unreachable!("{k:?} is the surface of a face this body holds")
+            };
+            (k, s)
+        };
+        geom_brep::reask_chart([surface(ka), surface(kb)], carrier, interval, band)
+    }
+
     /// Every edge described as a wrap edge whose two halves an operation
     /// has left on two faces, re-described where it rests: the same
     /// image in the chart it names, without the wrap flag. A wrap

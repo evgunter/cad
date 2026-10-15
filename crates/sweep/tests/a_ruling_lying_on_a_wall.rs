@@ -699,6 +699,15 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: the moved body is finished: {e:?}"));
             topo::validate_geometric(&moved, tol)
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: tier 3: {e:?}"));
+            // The rim across the kept wall is re-anchored with the move
+            // and asked the rule again over its new extent: the two
+            // walls are one cylinder, which under-determines it at any
+            // length, so it keeps its image.
+            let label = format!("{op}, d = {d}");
+            assert!(
+                across_a_wall(&moved, &label).contains(&CurveKind::Circle),
+                "{label}: the rim still lies across the kept wall as an image"
+            );
             let want = 2.5 * PI + d * (1.0 - d * d).sqrt() + d.asin();
             let m = topo::mass_properties(&moved, tol).unwrap();
             assert!(
