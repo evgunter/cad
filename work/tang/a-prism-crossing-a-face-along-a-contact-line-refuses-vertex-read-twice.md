@@ -89,20 +89,23 @@ one end of the line and not the other.
 ## Closed
 
 The asymmetry came from the sweep, not the double-read check.
-`reduce::sweep_direction`'s line lane split an edge at a proper
-crossing and requeued the pieces from the next face. A face read
-earlier that the edge lies in had read only the edge's ends, so the
-vertex the split minted was never read against it. The other slot mints
-that vertex on the other operand, whose own sweep reads it from the
-first face. The pieces are now read against every face. Every witness
-above refuses `VertexReadTwice` alike in every op, slot and member
-order. The wedge's tool-first union, which refused
-`ClassificationInvariant` on main, builds sound in every order,
-tier 3′ included.
+`reduce::sweep_direction`'s line lane read a fully coplanar edge–face
+pair at the edge's ends only. When a later face split that edge, the
+vertex the split minted was never read against the face the edge lies
+in: the pieces went on from the next face. The other slot mints that
+vertex on the other operand, whose own sweep reads it from the first
+face.
+
+The worklist now carries the faces each edge lies in. A split reads its
+vertex against them, as the ends were read, and the pieces inherit
+them. Every witness above refuses `VertexReadTwice` alike in every op,
+slot and member order. The wedge's tool-first union, which refused
+`ClassificationInvariant` on main, builds sound in every order, tier 3′
+included.
 
 `VertexReadTwice` now names its recourse: apply the operation to the
 pieces of the other solid that touch there, before they are joined.
 `the_recourse_of_a_prism_crossing_a_face_beside_a_resting_corner_builds`
-runs that route for every op, at both tops, and it builds sound.
+runs that route for every op at both tops, and it builds sound.
 Building the shape itself is
 `a-corner-read-as-a-pair-and-a-pierce-is-unbuilt`.
