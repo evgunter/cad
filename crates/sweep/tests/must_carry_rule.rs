@@ -157,7 +157,7 @@ const SMOOTH_STRUTS: usize = 8;
 
 /// A prism whose one smooth strut lies between two walls the farther of
 /// which reaches `free` from its middle: the profile runs along a line
-/// `free/8` long from the origin, tangentially into an arc of radius
+/// `free/3` long from the origin, tangentially into an arc of radius
 /// `MERIDIAN_R`, then up a unit wall, back across and down to the
 /// start, every other vertex a right-angled corner; it is extruded
 /// `h = free/4`, and the arc's chord is the one that puts its far end
@@ -183,7 +183,7 @@ fn tangent_strut_prism(free: f64) -> Body<f64> {
 /// [`tangent_strut_prism`]'s profile, or the profile door's refusal.
 fn tangent_strut_profile(free: f64) -> Result<ValidatedProfile<f64>, ProfileError> {
     let r = MERIDIAN_R;
-    let (h, l) = (free / 4.0, free / 8.0);
+    let (h, l) = (free / 4.0, free / 3.0);
     let chord = (free * free - h * h / 4.0).sqrt();
     let phi = 2.0 * (chord / (2.0 * r)).asin();
     let end = Point2::new(l + r * phi.sin(), r * (1.0 - phi.cos()));
