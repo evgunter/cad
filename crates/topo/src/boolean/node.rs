@@ -171,9 +171,5 @@ pub(super) fn bisectors<T: Decide>(
     }
     .ok()
     .flatten()?;
-    let [a1, a2] = section.axes;
-    let [n0, n1] = section.nodes;
-    let centre = n0 + (n1 - n0) * T::from_f64(0.5);
-    let unit = |v: geom_core::Vec3<T>| v / v.norm();
-    Some([(centre, unit(a1 - a2)), (centre, unit(a1 + a2))])
+    Some(section.planes)
 }

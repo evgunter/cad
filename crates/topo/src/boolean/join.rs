@@ -3707,6 +3707,9 @@ pub(super) struct CrossingSection<T: geom_core::Real> {
     pub(super) margins: [geom_core::MarginDiag; 2],
     pub(super) nodes: [Point3<T>; 2],
     pub(super) axes: [Vec3<T>; 2],
+    /// Each ellipse's plane, its centre (the axes' meeting point) and
+    /// unit normal, the `a1 − a2` plane first.
+    pub(super) planes: [(Point3<T>, Vec3<T>); 2],
 }
 
 /// **The face pair `(face_a, face_b)` as an equal cylinder pair with
@@ -3753,11 +3756,23 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         Err(e) => return Err(refused(e)),
     };
     match geom_brep::cylinder_cylinder_section(sa, sb, &reach, band) {
-        Ok(geom_brep::EqualCylinderSection::TwoEllipses { margins, nodes, .. }) => {
+        Ok(geom_brep::EqualCylinderSection::TwoEllipses {
+            e1,
+            e2,
+            margins,
+            nodes,
+        }) => {
+            let plane = |e: &geom::Curve3<T>| match *e {
+                geom::Curve3::Ellipse { center, axis, .. } => Ok((center, axis)),
+                _ => Err(BooleanError::JoinDesync {
+                    what: "an equal cylinder pair's section ellipse is no ellipse",
+                }),
+            };
             Ok(Some(CrossingSection {
                 margins,
                 nodes,
                 axes: [a1, a2],
+                planes: [plane(&e1)?, plane(&e2)?],
             }))
         }
         Err(

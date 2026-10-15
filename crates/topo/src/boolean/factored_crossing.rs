@@ -102,9 +102,13 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                     (ends[0][i].sign, ends[1][i].sign),
                     (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive)
                 ) {
-                    let d1 = (pu - centre).dot(normal);
-                    let d2 = (pv - centre).dot(normal);
-                    roots[i].push(t0 + (t1 - t0) * (d1 / (d1 - d2)));
+                    // Read off the carrier, not interpolated between the
+                    // ends: the ends' two distances share their rounding,
+                    // which an enclosure would count twice.
+                    let geom::Curve3::Line { origin, dir } = *carrier else {
+                        return Ok(None);
+                    };
+                    roots[i].push((centre - origin).dot(normal) / dir.dot(normal));
                 }
             }
             PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => {}
