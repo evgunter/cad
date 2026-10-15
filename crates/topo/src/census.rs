@@ -1574,10 +1574,10 @@ struct Wedge<T: Real> {
 /// circle share an interior point exactly where one holds an end or a
 /// middle of the other.
 ///
-/// This is the reading tier 3′'s side check owes over every line where
-/// coincident edges lie (restread's
-/// `census-passes-a-face-inside-an-edges-material-wedge`): coincident
-/// edges' material must lie on opposite sides. A face that crosses the
+/// The Boolean's result gate runs it over every line where coincident
+/// edges lie; it is the reading tier 3′'s side check owes there too
+/// (restread's `census-passes-a-face-inside-an-edges-material-wedge`):
+/// coincident edges' material must lie on opposite sides. A face that crosses the
 /// line with no edge of its own there is not read: it holds no sheet
 /// at the line, and finding it is that check's point-in-face question.
 ///
@@ -1599,7 +1599,8 @@ pub(crate) fn line_wedges<T: Decide>(
     let mut wedges = Vec::new();
     for e in line_edges(body) {
         let mut errors = Vec::new();
-        let on = collinear_overlap(&segment, &e, band, &mut errors).is_some();
+        let on = on_line(&segment, &e, band, &mut errors)
+            && collinear_overlap(&segment, &e, band, &mut errors).is_some();
         if let Some(refusal) = escalated(errors) {
             return Err(refusal);
         }
@@ -1627,6 +1628,31 @@ pub(crate) fn line_wedges<T: Decide>(
         }
     }
     Ok(LineWedges::Disjoint)
+}
+
+/// Whether both ends of `e` lie on `segment`'s line
+/// (`pm_census_ee_line_gap`): [`collinear_overlap`] reads one end only,
+/// for a pair already read parallel, and an edge leaving the line at
+/// one of its points is not on it. An end definitely off decides; an
+/// end in band with neither off is pushed.
+fn on_line<T: Decide>(
+    segment: &Span<T>,
+    e: &EdgeGeo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> bool {
+    let mut undecided = Vec::new();
+    let mut on = true;
+    for q in [e.p0, e.p0 + e.dir * e.len] {
+        let gap = Margin::norm3((q - segment.p0).cross(segment.dir));
+        match gap_zero_reading("pm_census_ee_line_gap", gap, band, &mut undecided) {
+            Some(Some(_)) => {}
+            Some(None) => return false,
+            None => on = false,
+        }
+    }
+    errors.extend(undecided);
+    on
 }
 
 /// `e`'s material wedge ([`line_wedges`]), its sheets read at the

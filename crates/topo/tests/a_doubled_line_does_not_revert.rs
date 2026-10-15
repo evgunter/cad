@@ -20,9 +20,9 @@ use common::meeting::{MEET, Pose, at, posed_box, posed_boxes, poses};
 use common::split_plane;
 use geom_core::{Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanResult, ContactRecords, Operand, RevertError, SplitPart,
-    VoidContainment, VoidEvidence, VoidInsertError, insert_void, split, subtract,
-    validate_geometric, validate_pseudomanifold,
+    AtRestBody, Body, BooleanError, BooleanResult, ContactRecords, LineWedgeFault, Operand,
+    RevertError, SplitPart, VoidContainment, VoidEvidence, VoidInsertError, insert_void, split,
+    subtract, validate_geometric, validate_pseudomanifold,
 };
 
 fn t() -> Tol {
@@ -95,9 +95,7 @@ fn slit_body(pose: &Pose) -> Body<f64> {
 /// Asserts `refusal` names the slit: both its edges of `body` run
 /// between the points of `MEET` and [`OPEN`] at `pose`.
 fn names_the_slit(what: &str, body: &Body<f64>, pose: &Pose, refusal: &RevertError) {
-    let RevertError::CoincidentEdges { edges, .. } = refusal else {
-        panic!("{what}: {refusal:?}, not the coincident edges");
-    };
+    let RevertError::CoincidentEdges { edges, .. } = refusal;
     let near = |p: Point3<f64>, q: [f64; 3]| p.distance(pose.at(q)) < 1e-9;
     for &edge in edges {
         let he = body.get_edge(edge).unwrap().he_plus;
@@ -150,8 +148,8 @@ fn the_split_slit_body_is_legal_and_refuses_to_revert() {
 fn subtracting_a_slit_tool_refuses_where_it_keeps_the_slit() {
     for pose in poses() {
         let tool = AtRestBody::validate(slit_body(&pose), t()).unwrap();
-        // The seamed finish reads the result's wedges on the line; the
-        // containment fallback reads the cavity's line, which nothing
+        // The result gate reads the seamed result's wedges on the line;
+        // the containment fallback reads the cavity's line, which nothing
         // joins.
         for (what, slab, seamed) in [
             (
@@ -174,9 +172,9 @@ fn subtracting_a_slit_tool_refuses_where_it_keeps_the_slit() {
             let a = posed_box(&what, slab, &pose, t());
             match (subtract(&a, &tool, t()), seamed) {
                 (
-                    Err(BooleanError::Revert {
-                        operand: Operand::B,
-                        source: RevertError::WedgesOverlap { .. },
+                    Err(BooleanError::LineWedges {
+                        fault: LineWedgeFault::Overlap { .. },
+                        ..
                     }),
                     true,
                 )
@@ -252,11 +250,11 @@ fn a_pinch_of_unequal_bricks_refuses_its_revert_through_subtract() {
         };
         let b = posed_box(what, [(-0.5, 0.5), (-0.5, 0.5), (0.0, 1.0)], &pose, t());
         match subtract(&b, &pinch.body, t()) {
-            Err(BooleanError::Revert {
-                operand: Operand::B,
-                source: RevertError::WedgesOverlap { .. },
+            Err(BooleanError::LineWedges {
+                fault: LineWedgeFault::Overlap { .. },
+                ..
             }) => {}
-            other => panic!("{what}: B − pinch: {other:?}, not the revert's refusal"),
+            other => panic!("{what}: B − pinch: {other:?}, not the overlap's refusal"),
         }
     }
 }

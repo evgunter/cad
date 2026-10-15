@@ -143,7 +143,7 @@ pub(crate) mod zip;
 
 use geom_core::{
     Band, BandError, Bounds, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, MarginDiag,
-    Point3, Real, Sign, Tol,
+    NOT_YET_ENDING, Point3, Real, Sign, Tol,
 };
 
 use crate::body::Body;
@@ -253,13 +253,14 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
             Coincide::Sectors.subject()
         }
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
-        // The census's edge-edge reading, which ∖ takes of the operand it
-        // reverts (`census::collinear_overlaps`).
+        // The census's edge-edge reading, which the result gate takes of
+        // the result and ∖ of an operand part it reverts unjoined
+        // (`census::collinear_overlaps`).
         "pm_census_ee_parallel" => "whether two straight edges of one solid are parallel",
         "pm_census_ee_line_gap" => "whether two straight edges of one solid lie on one line",
         "pm_census_span_order" => "the order of two points along a straight edge",
         "pm_census_ee_overlap" => "whether two edges on one line overlap along a length",
-        // The line's wedges ∖ reads on its result (`census::line_wedges`),
+        // The line's wedges the result gate reads (`census::line_wedges`),
         // tier 3's pinch-corner reading under names of its own.
         crate::census::LINE_WEDGE_AFTER_LEAVING
         | crate::census::LINE_WEDGE_BEFORE_ARRIVING
@@ -3492,18 +3493,47 @@ pub enum BooleanError {
     /// grouping.
     Pieces(crate::pieces::PieceSortError),
     /// ∖ reverts an operand's kept part, two of whose edges lie on one
-    /// line, and the complement pairs the faces meeting there
-    /// differently: the result's edges on that line would bound
-    /// overlapping material ([`crate::census::line_wedges`]), or nothing
-    /// joins the reverted part to re-pair them. The re-pairing is not
-    /// built.
+    /// line, and nothing joins the reverted part afterwards: the
+    /// complement pairs the faces meeting there differently, and the
+    /// re-pairing is not built.
     Revert {
         /// The operand reverted.
         operand: Operand,
-        /// The refusal: two edges, in the operand's own keys where the
-        /// line is read on the operand and in the result's where its
-        /// wedges are read on the result, and where the line runs.
+        /// The refusal: two of the operand's edges, and where the line
+        /// runs.
         source: crate::revert::RevertError,
+    },
+    /// **The result's edges on one line, where two or more lie, bound
+    /// material the result gate cannot admit** ([`crate::census::line_wedges`]):
+    /// each such edge classifies its own wedge (D1's
+    /// coincident-distinct-edges class), so their wedges are disjoint.
+    /// Where four or more sheets meet on a line the material decides
+    /// which pair into edges, and the op's pairing is not that one; the
+    /// re-pairing is not built.
+    LineWedges {
+        /// What the line's reading found.
+        fault: LineWedgeFault,
+        /// Where the line read begins.
+        from: String,
+        /// Where it ends.
+        to: String,
+    },
+}
+
+/// What [`BooleanError::LineWedges`] found on the result's line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LineWedgeFault {
+    /// The two edges' material wedges overlap: the line's material is
+    /// counted twice.
+    Overlap {
+        /// The result's two edges, in arena order.
+        edges: [EdgeKey; 2],
+    },
+    /// A face of this edge has no tangent plane where it meets the line,
+    /// so the material on its side has no reading.
+    NoSheet {
+        /// The result's edge.
+        edge: EdgeKey,
     },
 }
 
@@ -3689,6 +3719,8 @@ pub enum BooleanErrorKind {
     Pieces,
     /// [`BooleanError::Revert`].
     Revert,
+    /// [`BooleanError::LineWedges`].
+    LineWedges,
 }
 
 /// Which of the volume backstop's three bodies a refusal is about.
@@ -3900,6 +3932,7 @@ impl BooleanError {
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
             Self::Pieces(_) => BooleanErrorKind::Pieces,
             Self::Revert { .. } => BooleanErrorKind::Revert,
+            Self::LineWedges { .. } => BooleanErrorKind::LineWedges,
         }
     }
 }
@@ -4715,9 +4748,24 @@ impl core::fmt::Display for BooleanError {
                 let operand = operand_word(*operand);
                 write!(
                     f,
-                    "the subtraction reverses the {operand} solid's kept part, and {source}"
+                    "the subtraction reverses the {operand} solid's kept part, and {source}. \
+                     {NOT_YET_ENDING}"
                 )
             }
+            Self::LineWedges { fault, from, to } => match fault {
+                LineWedgeFault::Overlap { .. } => write!(
+                    f,
+                    "the result's edges on the line from {from} to {to} bound overlapping \
+                     material: the Boolean pairs the faces meeting there as the material does \
+                     not, and the re-pairing it needs is not built. {NOT_YET_ENDING}"
+                ),
+                LineWedgeFault::NoSheet { .. } => write!(
+                    f,
+                    "a face meeting the line from {from} to {to}, where two of the result's edges \
+                     lie, has no tangent plane there, so the material on its side has no \
+                     reading. {NOT_YET_ENDING}"
+                ),
+            },
         }
     }
 }
@@ -8093,6 +8141,18 @@ mod tests {
                     to: "(3.0, 4.0, 5.0)".to_owned(),
                 },
             },
+            BooleanError::LineWedges {
+                fault: LineWedgeFault::Overlap {
+                    edges: [edge, edge],
+                },
+                from: "(0.0, 1.0, 2.0)".to_owned(),
+                to: "(3.0, 4.0, 5.0)".to_owned(),
+            },
+            BooleanError::LineWedges {
+                fault: LineWedgeFault::NoSheet { edge },
+                from: "(0.0, 1.0, 2.0)".to_owned(),
+                to: "(3.0, 4.0, 5.0)".to_owned(),
+            },
         ]
     }
 
@@ -8201,6 +8261,7 @@ mod tests {
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
                 BooleanErrorKind::Pieces => "Pieces",
                 BooleanErrorKind::Revert => "Revert",
+                BooleanErrorKind::LineWedges => "LineWedges",
             }
         }
         /// The variant name `Debug` opens with.

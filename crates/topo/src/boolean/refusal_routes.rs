@@ -316,28 +316,28 @@ pub enum BooleanDecision {
     /// the result, after every declaration was spent, so none is read.
     SeamJet,
     /// Whether two straight edges of the solid ∖ subtracts lie on one
-    /// line along a length (`census::collinear_overlaps`, read of the
-    /// edges whose pieces the result keeps): the turn between them, the
-    /// gap between their lines, and the order and overlap of their ends
-    /// along it. Every definite verdict passes the reading, on sets that
-    /// differ by rung, so the lever alone is named; and it names only the
-    /// move that builds, the edges clearly apart, since two edges clearly
-    /// on one line go on to the result's wedges, which refuse where ∖
-    /// reversed them unjoined ([`crate::RevertError`]).
+    /// line along a length (`census::collinear_overlaps`), read of the
+    /// part ∖ reverts with nothing joined afterwards (the solid whole, or
+    /// a cavity): the turn between them, the gap between their lines,
+    /// and the order and overlap of their ends along it. Every definite
+    /// verdict passes the reading, on sets that differ by rung, so the
+    /// lever alone is named; and it names only the move that builds, the
+    /// edges clearly apart, since two edges clearly on one line refuse
+    /// the reversal ([`crate::RevertError`]).
     LineEdges,
     /// Whether the material the result's edges along one line bound
-    /// overlaps there (`census::line_wedges`), asked where ∖ reversed a
-    /// line two edges of the subtracted solid lie on: each edge's face
-    /// sheets and an interior direction, and whether a sheet or interior
-    /// direction of one lies strictly inside another. The faces meeting
-    /// on the line are the operands' faces, which the result carries
+    /// overlaps there, asked at the result gate of every op on each line
+    /// where two of the result's edges lie: whether two edges lie on one
+    /// line along a length (`census::collinear_overlaps`), then each
+    /// edge's face sheets and an interior direction, and whether a sheet
+    /// or interior direction of one lies strictly inside another
+    /// (`census::line_wedges`). The edges and the faces meeting on the
+    /// line are where the operands' faces meet, which the result carries
     /// exactly, so the reading is of the input and moving the geometry
     /// reaches it; its rungs pass on different sets, so the lever alone
     /// is named. It names only the move that builds, the faces clearly
     /// parting, since wedges that clearly overlap refuse
-    /// ([`crate::RevertError::WedgesOverlap`]). No fixture is known to
-    /// reach it: every in-band pose tried stops upstream, as it does on
-    /// the code before this reading.
+    /// ([`crate::BooleanError::LineWedges`]).
     LineWedges,
     /// Whether an edge of the result lies on both faces it bounds: its
     /// line chord's residual against one of the two faces' surfaces, at

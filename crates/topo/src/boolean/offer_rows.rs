@@ -2448,7 +2448,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::VolumeUnmeasured
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces
-        | BooleanErrorKind::Revert => Vec::new(),
+        | BooleanErrorKind::Revert
+        | BooleanErrorKind::LineWedges => Vec::new(),
     }
 }
 
@@ -2803,7 +2804,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "line_edges", "BooleanDecision::LineEdges", 1),
     (
         "ops.rs",
-        "reverted_lines_disjoint",
+        "coincident_wedges_disjoint",
         "BooleanDecision::LineWedges",
         1,
     ),
