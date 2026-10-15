@@ -264,7 +264,7 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         };
         if eps < 1e-7 {
             let geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                limb: geom_brep::ssi::SsiLimb::ImageMiss,
                 margin,
             }) = error
             else {
@@ -430,9 +430,9 @@ fn vase() -> Body<f64> {
 /// plane's section of one is not exact structure as a row (its skinned
 /// weights differ along the stacking by an ulp), so the door marches
 /// it, and the plane × NURBS certificate refuses the marched rim on its
-/// rational wall, by its limb-2 composite's value at a break, the
-/// carrier read about 4.8e-4 m off the surface point its pcurve names,
-/// as the door re-charts the cap.
+/// rational wall, by its limb-2 composite's value at a break where the
+/// marched carrier's own foot is on the wall: its pcurve misses by
+/// about 4.8e-4 m (`ImageMiss`), as the door re-charts the cap.
 #[test]
 fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_at_its_rims_certificate() {
     let body = vase();
@@ -481,7 +481,7 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_at_its_rims_certifica
                 edge,
                 error:
                     geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                        limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                        limb: geom_brep::ssi::SsiLimb::ImageMiss,
                         margin,
                     }),
                 ..
@@ -1023,7 +1023,7 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
                         error: topo::EulerOpError::RechartFalsifies {
                             error: geom_brep::CertifyError::PlaneNurbs(
                                 geom_brep::PlaneNurbsRefusal::Limb {
-                                    limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                                    limb: geom_brep::ssi::SsiLimb::ImageMiss,
                                     ..
                                 }
                             ),

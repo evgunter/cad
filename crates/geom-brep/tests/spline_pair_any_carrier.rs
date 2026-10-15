@@ -223,7 +223,7 @@ fn plane_rows_meet_their_twins(rows: Vec<PlaneRow>) {
             match v {
                 Verdict::Certified => assert!(b <= eps(), "{name}: the {who} within ε: {b:e}"),
                 Verdict::Refused(limb) => assert!(
-                    matches!(limb, SsiLimb::HullSup | SsiLimb::HullValueChart)
+                    matches!(limb, SsiLimb::HullSup | SsiLimb::ImageMiss)
                         && (eps()..1e-3).contains(&b),
                     "{name}: the {who} refused at limb 2 on a miss past ε: {limb:?}, {b:e}"
                 ),
@@ -587,7 +587,7 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
         panic!("the circle refuses at a limb through the door: {got:?}")
     };
     assert!(
-        matches!(limb, SsiLimb::HullSup | SsiLimb::HullValueChart),
+        matches!(limb, SsiLimb::HullSup | SsiLimb::ImageMiss),
         "limb 2 refuses: {limb:?}"
     );
     assert!(
@@ -761,26 +761,20 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
         one,
         band(),
     );
-    for (scalar, limb) in [
-        ("f64", at_f64.as_ref().err()),
-        ("Interval", at_itv.as_ref().err()),
-    ] {
-        assert!(
-            matches!(
-                limb,
-                Some(
-                    PlaneNurbsRefusal::Limb {
-                        limb: SsiLimb::HullValueChart,
-                        ..
-                    } | PlaneNurbsRefusal::Escalated {
-                        limb: SsiLimb::HullValueChart,
-                        ..
-                    }
-                )
-            ),
-            "the 1.3 rad circle refuses at limb 2's break value at {scalar}: {limb:?}"
-        );
-    }
+    // The tell's label, not only a refusal, is the scalar's to agree on:
+    // the circle is on the wall at the break at both, so both name the
+    // image's own miss.
+    let label = |scalar: &str, got: Option<&PlaneNurbsRefusal>| match got {
+        Some(PlaneNurbsRefusal::Limb { limb, .. }) => ("limb", *limb),
+        Some(PlaneNurbsRefusal::Escalated { limb, .. }) => ("escalated", *limb),
+        other => panic!("the 1.3 rad circle refuses at limb 2 at {scalar}: {other:?}"),
+    };
+    let (f, i) = (
+        label("f64", at_f64.as_ref().err()),
+        label("Interval", at_itv.as_ref().err()),
+    );
+    assert_eq!(f, ("limb", SsiLimb::ImageMiss), "at f64: {at_f64:?}");
+    assert_eq!(i, f, "Interval reaches f64's verdict and label: {at_itv:?}");
 }
 
 /// **A circle's parameter is periodic.** The short arc read at `t + 2π`
