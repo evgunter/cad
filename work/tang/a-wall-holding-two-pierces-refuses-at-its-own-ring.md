@@ -2,7 +2,8 @@
 id: a-wall-holding-two-pierces-refuses-at-its-own-ring
 kind: issue
 title: A cylinder wall a ruling pierces twice refuses HeldPierceUnbuilt at the ring its own first held pierce minted
-status: open
+status: dispatched
+branch: tang/two-held-pierces-one-wall
 opened: 2026-10-15
 priority: P3
 cost: M
