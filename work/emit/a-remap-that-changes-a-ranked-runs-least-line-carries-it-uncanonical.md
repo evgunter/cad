@@ -34,10 +34,54 @@ group of more than one vertex) found none. Two straight edges cross
 once, so a ranked run needs curved edges crossing twice with equal
 senses.
 
+The rank cannot be re-read where the two orders agree: that needs the
+geometry, and a remap does not have it. Until the fix below lands, the
+name is carried and silently stops resolving.
+
+## What settles it
+
+**Split and inline: the maps keep name order.** ASSEMBLY.md's A4
+*Acceptance* requires split-then-evaluate to equal unsplit evaluation
+"at structural and name-resolution identity", and inline-of-split to
+return the document "up to minted ids and order". A reference that
+stops resolving across a split breaks that, and so would refusing a
+split that is valid. The pair owns its maps, so it makes them keep the
+order of every line a run can name. Then no ranked run's least line
+moves, and nothing needs re-ranking.
+
+**The public door: a typed refusal.** `refactor::remap_name` takes a
+caller's own maps, which nothing can steer. Under fail-loud, a rank
+that cannot be re-read is refused, not carried silently.
+`SegRewrite` gets a typed hook for an `Unrankable`. By default it
+carries the name, so `emit_union`'s two citing rewriters keep their
+behaviour. `Remapping` answers the hook with an error beside
+`Unmapped`, and `remap_name` returns it.
+
+## Where the pair's maps lose name order (as of `b41d2fe38f`)
+
+- **Node ids:** kept. `refactor::carry` inserts the carried nodes in
+  document order, which is id order. `gauges_first` moves a gauge ahead
+  of the nodes on it, but a gauge mints no edge.
+- **Step ids:** not kept. `carry` zips the old program's step ids with
+  the new ones in program order, and the insert door mints them in
+  program order. A `SetProgram` keeps an old step's id at any position
+  and mints a new step's id after every older one
+  (`edit::settle_step_ids`), so a program can hold its ids out of
+  order (`a1, c3, b2`), and re-minting then swaps `b` and `c`. Two run
+  lines minted by one node and told apart by their steps can therefore
+  swap. This is a reading of the code; it has not been reproduced end
+  to end.
+- **Read ids (`ReadMap`):** mapped port by port onto the outputs each
+  carried insert mints, so they follow node order.
+
 ## Next
 
-Either re-read the rank where the two orders along the lines agree
-(needs the geometry, which a remap does not have), or refuse the
-rewrite loudly: `SegRewrite` has no channel for an `Unrankable`, so
-`rewritten` would need one. Until then, the name is carried and
-silently stops resolving.
+1. Make the split's and the inline's step map keep id order, so the
+   part's step ids are minted in the order the old ids sort, not the
+   program's. Pin it with a split of a `SetProgram`-reordered profile
+   whose ranked run would otherwise swap lines.
+2. Give `SegRewrite` / `canonical::rewritten` the typed channel, and
+   have `remap_name` refuse with it. Re-pin
+   `refactor::remap_a_ranked_run` as the refusal.
+3. If a reach to (1) turns up a reorder that does not come from step
+   ids, the pair should refuse it loudly rather than carry it.
