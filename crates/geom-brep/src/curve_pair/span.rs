@@ -5,41 +5,53 @@
 //! topology attached: the stretch of the carrier an edge covers.
 //!
 //! **Two readings, one composition.** Whether a point is on a span is two
-//! questions. Whether it lies on the carrier is the carrier's own
-//! reading, [`geom::Curve3::on_carrier`], at the point's foot
-//! ([`geom::Curve3::foot`]): on by the foot's gap, off only by a lower
-//! bound on the distance from the whole carrier. Where the foot sits
-//! against the span's ends is this module's reading, [`Span::place`],
-//! which decides no carrier membership. [`Span::contact`] composes the
-//! two and decides nothing of its own (C5, `crates/geom-brep/README.md`).
+//! questions, each read at the point's foot on the carrier
+//! ([`geom::Curve3::foot`], found here from the point and a seed, so a
+//! foot is never another point's). Whether the point lies on the carrier
+//! is the carrier's own reading ([`geom::Foot::on_carrier`]): on by the
+//! foot's gap, off only by a lower bound on the distance from the whole
+//! carrier. Where the foot sits against the span's ends is this module's
+//! reading, [`Span::place`], which decides no carrier membership.
+//! [`Span::read`] composes the two, once, and decides nothing of its
+//! own; [`Span::contact`] is its answer as a side of a meeting (C5,
+//! `crates/geom-brep/README.md`).
 //!
 //! **The place.** On a closed carrier (a circle, an ellipse, a spiric
 //! oval) the foot's parameter is first read on the branch within half a
 //! turn of the span's middle. Each end is read by the point's raw chord
 //! to the end's own point (`curve_pair_span_end_chord`): zero puts the
 //! point at that end ([`Place::End`]), whatever the foot. Past the band,
-//! the side of the end is the sign of the foot's parameter distance `m`
+//! the side of each end is the sign of the foot's parameter distance `m`
 //! from it, inside the span positive, metered by the carrier's greatest
-//! speed (`curve_pair_span_end_side`). The arc from the foot's point to
-//! the end is at least the chord less the foot's gap `g`, a value, so a
-//! chord past `K·ε` with `g` inside `ε` leaves `|m|·speed` past
-//! `(K − 1)·ε`: definite once that clears the band's gap, and an
-//! escalation where it falls in `(ε, K·ε]`. A side that reads zero beside
-//! a chord past the band escalates as their straddle
-//! (`curve_pair_span_end_straddle`): only a band narrower than twice its
-//! zero, or a foot far from the point, allows it.
+//! speed (`curve_pair_span_end_side`). A side that reads zero beside a
+//! chord past the band escalates as their straddle
+//! (`curve_pair_span_end_straddle`).
+//!
+//! **Past needs a nearest foot.** That the foot lies past the span says
+//! the point lies off it only where the foot is the point's nearest point
+//! of the carrier, which it is on a line and a circle
+//! ([`geom::Foot::is_nearest`]). On an ellipse, a spiric oval or a spline
+//! the foot is a polished stationary point, perhaps a far branch's, so a
+//! `Past` there stands only on a certificate that the point is clear of
+//! the span itself: the piece walk over the span's own parameters
+//! ([`geom::Curve3::clear_of`]). Where the walk keeps a piece near the
+//! point the place escalates (`curve_pair_span_past_straddle`), and where
+//! it cannot run it refuses as the walk does.
 //!
 //! A span whose ends are no vertex — a closed edge whose start is not a
 //! vertex of its own, [`Span::endless`] — has no end to be near: every
 //! foot is inside it.
 //!
-//! **The composition** ([`Span::contact`]): at an end is a [`Hit::End`],
-//! past the span none; inside, the carrier's reading decides, on (a
-//! [`Hit::On`]), off (none) or undecided (an escalation). A place the band
-//! cannot read is none where the carrier reads the point off, and an
-//! escalation otherwise.
+//! **The composition** ([`Span::read`]): at an end is [`Reading::End`];
+//! inside, the carrier's reading decides, on ([`Reading::On`]), off
+//! ([`Reading::Off`]) or undecided (its refusal); past, the point is off
+//! the span, on the carrier ([`Reading::Carrier`]) or not
+//! ([`Reading::Off`], an undecided carrier included, since no answer to it
+//! puts the point on the span). A place the band cannot read is off where
+//! the carrier reads the point off, and a refusal otherwise: the
+//! carrier's where it refused too, else the place's.
 
-use geom::{CarrierRefusal, Curve3, Foot, OnCarrier};
+use geom::{CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
 use geom_core::k_stats::{decide, decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
@@ -91,6 +103,36 @@ pub enum Hit<T> {
     },
     /// Within the band of this end's point.
     End(SpanEnd),
+}
+
+/// What [`Span::read`] makes of a point: the two readings composed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Reading<T> {
+    /// On the carrier and inside the span.
+    On {
+        /// The parameter, on the branch about the span's middle.
+        t: T,
+        /// The on-carrier reading's margin.
+        margin: MarginDiag,
+    },
+    /// Within the band of this end's point.
+    End(SpanEnd),
+    /// On the carrier, past the span and clear of both its ends.
+    Carrier,
+    /// Off the span: off the carrier, or past the span and not read on
+    /// the carrier.
+    Off,
+}
+
+impl<T> Reading<T> {
+    /// The reading as a side of a meeting, or `None` off the span.
+    pub fn hit(self) -> Option<Hit<T>> {
+        match self {
+            Self::On { t, margin } => Some(Hit::On { t, margin }),
+            Self::End(which) => Some(Hit::End(which)),
+            Self::Carrier | Self::Off => None,
+        }
+    }
 }
 
 /// The side of one end a foot lies on.
@@ -154,12 +196,11 @@ impl<'a, T: Decide> Span<'a, T> {
                 // would wrap the whole turn: there either branch is as
                 // near, so it is read on the one whose cut lies at the
                 // middle instead.
-                let inside = Band::new(f64::from_bits(1), f64::from_bits(2)).is_ok_and(|exact| {
-                    decide("curve_pair_span_branch", Margin::of(r - T::pi()), exact)
-                        == Ok(Sign::Negative)
-                        && decide("curve_pair_span_branch", Margin::of(r + T::pi()), exact)
-                            == Ok(Sign::Positive)
-                });
+                let exact = Band::least();
+                let inside = decide("curve_pair_span_branch", Margin::of(r - T::pi()), exact)
+                    == Ok(Sign::Negative)
+                    && decide("curve_pair_span_branch", Margin::of(r + T::pi()), exact)
+                        == Ok(Sign::Positive);
                 if inside {
                     mid + r
                 } else {
@@ -183,20 +224,22 @@ impl<'a, T: Decide> Span<'a, T> {
         ts
     }
 
-    /// **Where `q`'s foot sits against the span's ends** (module docs).
-    /// It decides nothing about whether `q` lies on the carrier.
+    /// **Where `q`'s foot sits against the span's ends** (module docs),
+    /// the foot found from `near`. It decides nothing about whether `q`
+    /// lies on the carrier.
     ///
     /// # Errors
     ///
     /// The band's escalation when a decision the answer rests on falls in
-    /// its gap: the chord to an end, or the side of an end.
-    pub fn place(
-        &self,
-        q: Point3<T>,
-        foot: &Foot<T>,
-        band: Band,
-    ) -> Result<Place<T>, Indeterminate> {
-        let t = self.branch(foot.t());
+    /// its gap (the chord to an end, the side of an end, or a `Past` the
+    /// span walk does not certify), or the walk's own refusal.
+    pub fn place(&self, q: Point3<T>, near: T, band: Band) -> Result<Place<T>, CarrierRefusal> {
+        self.place_at(&self.carrier.foot(q, near), band)
+    }
+
+    /// [`Self::place`] at a foot already found on this span's carrier.
+    fn place_at(&self, foot: &Foot<'_, T>, band: Band) -> Result<Place<T>, CarrierRefusal> {
+        let (q, t) = (foot.point(), self.branch(foot.t()));
         if !self.ended {
             return Ok(Place::Inside { t });
         }
@@ -219,13 +262,30 @@ impl<'a, T: Decide> Span<'a, T> {
             chords.push(read);
         }
         let mut sides = [Side::Clear; 2];
+        let mut past = None;
         for (side, ((_, m, _), read)) in sides.iter_mut().zip(ends.into_iter().zip(chords)) {
-            *side = self.side(m, read?, band)?;
+            let chord = read?;
+            *side = self.side(m, chord, band)?;
+            if *side == Side::Past {
+                past = past.or(Some(chord));
+            }
         }
-        Ok(match sides {
-            [Side::Past, _] | [_, Side::Past] => Place::Past,
-            [Side::Clear, Side::Clear] => Place::Inside { t },
-        })
+        let Some(chord) = past else {
+            return Ok(Place::Inside { t });
+        };
+        if foot.is_nearest() {
+            return Ok(Place::Past);
+        }
+        match self.carrier.clear_of(q, (self.t0, self.t1), band)? {
+            Clearance::Clear => Ok(Place::Past),
+            Clearance::Near(Ok(near)) => Err(CarrierRefusal::Straddle(straddle(
+                "curve_pair_span_past_straddle",
+                near,
+                chord,
+                band,
+            ))),
+            Clearance::Near(Err(diag)) => Err(CarrierRefusal::Escalated(diag)),
+        }
     }
 
     /// The side of one end the foot lies on, `m` its parameter's distance
@@ -244,31 +304,47 @@ impl<'a, T: Decide> Span<'a, T> {
         }
     }
 
-    /// **Whether `q` is on the span**, read at its foot: the composition
-    /// of the carrier's reading ([`geom::Curve3::on_carrier`]) and the
-    /// span's ([`Self::place`]), deciding nothing of its own (module
-    /// docs). `None` where it is not.
+    /// **What `q` is against the span**: the two readings at its foot
+    /// found from `near`, composed (module docs), deciding nothing of its
+    /// own. The place is read first, so a refusal of the carrier's is the
+    /// last on the frame.
     ///
     /// # Errors
     ///
-    /// Whichever reading the answer rests on refused.
+    /// Whichever reading the answer rests on refused (module docs).
+    pub fn read(&self, q: Point3<T>, near: T, band: Band) -> Result<Reading<T>, CarrierRefusal> {
+        let foot = self.carrier.foot(q, near);
+        let place = self.place_at(&foot, band);
+        Ok(match place {
+            Ok(Place::End(which)) => Reading::End(which),
+            Ok(Place::Inside { t }) => match foot.on_carrier(band)? {
+                OnCarrier::On { margin } => Reading::On { t, margin },
+                OnCarrier::Off => Reading::Off,
+            },
+            Ok(Place::Past) => match foot.on_carrier(band) {
+                Ok(OnCarrier::On { .. }) => Reading::Carrier,
+                Ok(OnCarrier::Off) | Err(_) => Reading::Off,
+            },
+            Err(refused) => match foot.on_carrier(band) {
+                Ok(OnCarrier::Off) => Reading::Off,
+                Ok(OnCarrier::On { .. }) => return Err(refused),
+                Err(carrier) => return Err(carrier),
+            },
+        })
+    }
+
+    /// **Whether `q` is on the span**, as a side of a meeting: [`Self::read`]
+    /// as a [`Hit`], `None` off the span.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::read`]'s.
     pub fn contact(
         &self,
         q: Point3<T>,
-        foot: &Foot<T>,
+        near: T,
         band: Band,
     ) -> Result<Option<Hit<T>>, CarrierRefusal> {
-        match self.place(q, foot, band) {
-            Ok(Place::End(which)) => Ok(Some(Hit::End(which))),
-            Ok(Place::Past) => Ok(None),
-            Ok(Place::Inside { t }) => Ok(match self.carrier.on_carrier(q, foot, band)? {
-                OnCarrier::On { margin } => Some(Hit::On { t, margin }),
-                OnCarrier::Off => None,
-            }),
-            Err(diag) => match self.carrier.on_carrier(q, foot, band) {
-                Ok(OnCarrier::Off) => Ok(None),
-                Ok(OnCarrier::On { .. }) | Err(_) => Err(CarrierRefusal::Escalated(diag)),
-            },
-        }
+        self.read(q, near, band).map(Reading::hit)
     }
 }

@@ -321,34 +321,16 @@ fn tangent<T: Decide>(k: &Conic<T>, theta: T) -> Vec3<T> {
     k.u_ref * (T::zero() - k.semi_u * sin) + k.v_ref() * (k.semi_v * cos)
 }
 
-/// The conic's foot of `q` ([`Curve3::foot`], the one foot reading).
-fn conic_foot<T: Decide>(k: &Conic<T>, q: Point3<T>) -> T {
-    Curve3::Ellipse {
-        center: k.center,
-        axis: k.axis,
-        semi_u: k.semi_u,
-        semi_v: k.semi_v,
-        u_ref: k.u_ref,
-    }
-    .foot(q, T::zero())
-    .t()
-}
-
-/// A lower bound on `q`'s distance from the conic: the conic lies in its
-/// plane between the circles of its semi-axes about its centre, so `q`
-/// is at least its height above the plane, and its distance in the plane
-/// outside that ring, apart from it. Exact on a circle.
-fn conic_clearance<T: Decide>(k: &Conic<T>, q: Point3<T>) -> T {
-    let w = q - k.center;
-    let h = w.dot(k.axis);
-    let rho = (w - k.axis * h).norm();
-    let out = (rho - k.speed_hi()).max(k.speed_lo() - rho).max(T::zero());
-    (h.powi(2) + out.powi(2)).sqrt()
-}
-
 /// The line's foot of `q` ([`Curve3::foot`], the one foot reading).
 fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T {
     Curve3::Line { origin, dir }.foot(q, T::zero()).t()
+}
+
+/// A lower bound on `q`'s distance from the carrier
+/// ([`Curve3::clearance`], the one bound), zero where it has none in
+/// closed form.
+fn clearance<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> T {
+    c.clearance(q).unwrap_or_else(T::zero)
 }
 
 /// `q`'s foot on `s`'s carrier ([`Curve3::foot`]), seeded at the span's
@@ -513,7 +495,7 @@ struct Polish<'k, T: geom_core::Real> {
     /// within the band's escalation of the second's plane.
     reach: T,
     /// A lower bound on the start point's distance from the second
-    /// carrier ([`conic_clearance`]).
+    /// carrier ([`Curve3::clearance`]).
     clear: T,
     /// What the basin's sine is levered by.
     lever: T,
@@ -618,9 +600,9 @@ fn line_conic<T: Decide>(
         let polish = Polish {
             a: Side::Line(line),
             b: Side::Conic(&k),
-            start: (line_foot(line, point), conic_foot(&k, point)),
+            start: (line_foot(line, point), foot(b, point)),
             reach: e / den.abs(),
-            clear: conic_clearance(&k, point),
+            clear: clearance(b.carrier(), point),
             lever,
         };
         return Ok(Pose::Generic(polish.closest(band)?.into_iter().collect()));
@@ -709,11 +691,11 @@ fn conic_conic<T: Decide>(
         break;
     }
     let Some(slant) = slant else {
-        return transverse(&ka, &kb, ha, swing_a, noise, lever, band);
+        return transverse((&ka, &kb, b), ha, swing_a, noise, lever, band);
     };
     let oriented = |k: &Conic<T>| k.axis * (k.semi_u * k.semi_v);
     if one_curve(&ka, &kb, band)? {
-        let (foot_a, foot_b) = (|q| conic_foot(&ka, q), |q| conic_foot(&kb, q));
+        let (foot_a, foot_b) = (|q| foot(a, q), |q| foot(b, q));
         return Ok(Pose::Coincident {
             sense: sense(unit(oriented(&ka)).dot(unit(oriented(&kb))), lever, band)?,
             witnesses: witnesses(a, b, &foot_a, &foot_b),
@@ -724,7 +706,7 @@ fn conic_conic<T: Decide>(
         Candidate {
             point,
             ta: theta,
-            tb: conic_foot(&kb, point),
+            tb: foot(b, point),
         }
     };
     match coplanar {
@@ -793,8 +775,7 @@ fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
 /// definite (module docs): its crossings and touch, each polished to the
 /// closest pair.
 fn transverse<T: Decide>(
-    ka: &Conic<T>,
-    kb: &Conic<T>,
+    (ka, kb, b): (&Conic<T>, &Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
     swing: T,
     noise: T,
@@ -807,9 +788,9 @@ fn transverse<T: Decide>(
         Polish {
             a: Side::Conic(ka),
             b: Side::Conic(kb),
-            start: (theta, conic_foot(kb, q)),
+            start: (theta, foot(b, q)),
             reach: ka.speed_hi() * range.band_arc(theta, band),
-            clear: conic_clearance(kb, q),
+            clear: clearance(b.carrier(), q),
             lever,
         }
         .closest(band)

@@ -123,14 +123,12 @@ fn surely<T: Decide>(name: &'static str, margin: T, band: Band, sign: Sign) -> b
 /// straddles it is neither taken nor dropped by a `<`; the band is the
 /// least pair of positive `f64`s, so it reads the sign alone.
 fn step_taken<T: Decide>(moved: T, slack: T) -> bool {
-    Band::new(f64::from_bits(1), f64::from_bits(2)).is_ok_and(|exact| {
-        surely(
-            "curve_pair_walk_polish_step",
-            slack * T::from_f64(16.0) - moved,
-            exact,
-            Sign::Positive,
-        )
-    })
+    surely(
+        "curve_pair_walk_polish_step",
+        slack * T::from_f64(16.0) - moved,
+        Band::least(),
+        Sign::Positive,
+    )
 }
 
 /// Whether a piece of reach `reach` is small enough to stop at, decided on
@@ -222,7 +220,7 @@ fn read_both<T: Decide>(
     let side = |s: &Span<'_, T>, ts: &[T]| {
         let mut held = None;
         for &t in ts {
-            match s.contact(q, &s.carrier().foot(q, t), band) {
+            match s.contact(q, t, band) {
                 Ok(Some(hit)) => return Ok(Some(hit)),
                 Ok(None) => {}
                 Err(refusal) => held = held.or(Some(refusal)),
