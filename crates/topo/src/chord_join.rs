@@ -2866,46 +2866,6 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
     }
 }
 
-/// The midpoint of a parameter span.
-fn mid<T: Real>(t0: T, t1: T) -> T {
-    (t0 + t1) * T::from_f64(0.5)
-}
-
-/// The principal azimuth of `point` in an azimuth chart's frame, with
-/// the point, or `None` for a chart with no azimuth frame. The branch
-/// decision it feeds is levered at the point's distance from the axis,
-/// so a point on the axis (a run edge's midpoint at a cone's apex)
-/// reads no branch and refuses rather than taking `atan2`'s rounding.
-fn principal_azimuth<T: Decide>(
-    surface: &geom::Surface<T>,
-    point: geom_core::Point3<T>,
-    band: Band,
-) -> Option<(T, geom_core::Point3<T>)> {
-    let (origin, axis, u_ref) = match *surface {
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        } => (origin, axis, u_ref),
-        geom::Surface::Sphere {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => (center, axis, u_ref),
-        geom::Surface::Cone {
-            apex, axis, u_ref, ..
-        } => (apex, axis, u_ref),
-        _ => return None,
-    };
-    let w = point - origin;
-    Some((
-        stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band),
-        point,
-    ))
-}
-
 /// The **exact** chart-azimuth extent of a pcurve over `[t₀, t₁]`.
 ///
 /// On a cylinder chart [`geom_brep::chart_pcurve`] produces an azimuth
@@ -3170,21 +3130,7 @@ fn run_azimuth_images<T: Decide>(
         let plus = edge.he_plus == he;
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
         let pcurve = match prev_exit {
-            // The first image's branch, which the run's whole window
-            // follows: pinned to the chart's principal azimuth at the
-            // carrier's own midpoint, so a carrier stated whole periods
-            // off the azimuth it covers reads in its principal twin's
-            // window. Its gap is a whole number of periods give or take
-            // rounding, far from any half-period mark.
-            None => match principal_azimuth(surface, curve.carrier().eval(mid(t0, t1)), band) {
-                Some((az, point)) => {
-                    let k =
-                        nearest_branch(surface, face, point, az - base.eval(mid(t0, t1)).x, band)?;
-                    prev_k = k;
-                    base.shift_branch(T::from_f64(f64::from(k)), tau)
-                }
-                None => base,
-            },
+            None => base,
             Some(prev) => {
                 let raw = base.eval(entry_t).x;
                 // The branch pin. Default: nearest-branch continuity —
@@ -5516,9 +5462,6 @@ mod chart_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod first_image_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows;

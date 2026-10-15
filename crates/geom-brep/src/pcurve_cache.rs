@@ -4792,13 +4792,15 @@ impl<T: Decide> Period<T> {
         meter: impl Fn(T) -> Margin<T>,
         band: Band,
     ) -> Result<i32, WalkStop> {
+        // A gap that names no branch reads as an unreadable margin, and
+        // the funnel records it as it records any.
         let unnamed = || WalkStop {
-            miss: BranchMiss::Undecided(Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some(name),
-                terminal_sliver: false,
-            }),
+            miss: BranchMiss::Undecided(
+                match decide(name, Margin::of(T::from_f64(f64::NAN)), band) {
+                    Err(cause) => cause,
+                    Ok(sign) => unreachable!("an unreadable margin classified {sign:?}"),
+                },
+            ),
             astride: None,
         };
         if !geom_core::is_finite_length(gap) {
@@ -4807,9 +4809,15 @@ impl<T: Decide> Period<T> {
         let half = T::from_f64(0.5);
         // The mark `i + ½` periods up (`up`), or `i + ½` down, and
         // whether the gap clears it: decided past it, away from zero.
+        // Spelled `k + side` with `k` the branch below or above it, as
+        // a step-by-step walk spells it, so the forms a decision builds
+        // are that walk's.
         let mark = |i: i32, up: bool| {
-            let at = T::from_f64(f64::from(i)) + half;
-            let at = if up { at } else { T::zero() - at };
+            let at = if up {
+                T::from_f64(f64::from(i)) + half
+            } else {
+                T::from_f64(f64::from(-i)) + (T::zero() - half)
+            };
             let sign = decide(name, meter(gap - at * self.length), band);
             let cleared = matches!(
                 (&sign, up),
