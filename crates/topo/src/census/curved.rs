@@ -405,14 +405,7 @@ fn interior_reading<T: Decide>(
     let Some(margin) = gap_zero_reading("pm_census_ve_curved_gap", gap, band, errors)? else {
         return Some(None);
     };
-    // A closed edge's conventional vertex has no identity of its own:
-    // its point is the edge's interior too.
-    let start = body
-        .edges
-        .get(r.edge)
-        .and_then(|d| body.half_edges.get(d.he_plus))
-        .map(|h| h.start);
-    if start.is_some_and(|v| crate::boolean::is_conventional_vertex(body, v)) {
+    if on_conventional_vertex(body, r) {
         return Some(Some(margin));
     }
     let (t0, t1) = r.span;
@@ -490,16 +483,21 @@ pub(super) fn curved_interiors_meet<T: Decide>(
 /// edge's interior too.
 fn span<'r, T: Decide>(body: &Body<T>, r: &'r Read<T>) -> Span<'r, T> {
     let span = Span::new(&r.curve, r.span);
-    let start = body
-        .edges
-        .get(r.edge)
-        .and_then(|d| body.half_edges.get(d.he_plus))
-        .map(|h| h.start);
-    if start.is_some_and(|v| crate::boolean::is_conventional_vertex(body, v)) {
+    if on_conventional_vertex(body, r) {
         span.endless()
     } else {
         span
     }
+}
+
+/// Whether `r`'s edge starts at a conventional vertex: a closed edge's
+/// vertex with no identity of its own, so its point is the edge's
+/// interior too.
+fn on_conventional_vertex<T: Decide>(body: &Body<T>, r: &Read<T>) -> bool {
+    body.edges
+        .get(r.edge)
+        .and_then(|d| body.half_edges.get(d.he_plus))
+        .is_some_and(|h| crate::boolean::is_conventional_vertex(body, h.start))
 }
 
 /// [`curved_interiors_meet`] on two edges already read: whether
@@ -745,11 +743,13 @@ mod tests {
     #[test]
     fn a_tangency_and_a_shallow_crossing_are_decided() {
         let o = Point3::new(0.0, 0.0, 0.0);
-        let unit = || read(circle(o, 1.0), (0.3, 2.9));
+        let unit = (0.3, 2.9);
+        let to_top = (0.3, core::f64::consts::FRAC_PI_2);
         let shallow = Vec3::new(0.01_f64.cos(), 0.01_f64.sin(), 0.0);
         let cases = [
             (
                 "a line tangent to a circle",
+                unit,
                 read(
                     line(Point3::new(-1.0, 1.0, 0.0), Vec3::unit_x()),
                     (0.0, 2.3),
@@ -758,11 +758,13 @@ mod tests {
             ),
             (
                 "a circle touching it from outside",
+                unit,
                 read(circle(Point3::new(0.0, 2.0, 0.0), 1.0), (-2.9, -0.3)),
                 Some(true),
             ),
             (
                 "a line crossing it at 0.01 rad",
+                unit,
                 read(
                     line(Point3::new(0.0, 1.0, 0.0) - shallow * 0.2, shallow),
                     (0.0, 0.4),
@@ -771,11 +773,13 @@ mod tests {
             ),
             (
                 "a circle touching it from outside at the end of an arc of it",
+                to_top,
                 read(circle(Point3::new(0.0, 2.0, 0.0), 1.0), (-2.9, -0.3)),
                 Some(true),
             ),
             (
                 "a line 1e-4 off it",
+                unit,
                 read(
                     line(Point3::new(-1.0, 1.0 + 1e-4, 0.0), Vec3::unit_x()),
                     (0.0, 2.3),
@@ -783,12 +787,8 @@ mod tests {
                 Some(false),
             ),
         ];
-        for (what, other, want) in cases {
-            let arc = if what.contains("end of an arc") {
-                read(circle(o, 1.0), (0.3, core::f64::consts::FRAC_PI_2))
-            } else {
-                unit()
-            };
+        for (what, arc, other, want) in cases {
+            let arc = read(circle(o, 1.0), arc);
             assert_eq!(meet(&arc, &other), (want, vec![]), "{what}");
         }
     }

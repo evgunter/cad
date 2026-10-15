@@ -2475,30 +2475,47 @@ fn edge_crossings<T: Decide>(
     band: Band,
 ) -> Result<Vec<(T, CutAt)>, CrossRefusal> {
     use crate::splitting::containment::LoopEdge;
-    let segment = |origin: Point3<T>, to: Point3<T>| geom::Curve3::Line {
-        origin,
-        dir: (to - origin).normalize(),
+    let along = geom::Curve3::Line {
+        origin: e.p0,
+        dir: e.dir,
     };
-    let along = segment(e.p0, e.p0 + e.dir);
     let (a, b) = side.ends;
-    let chord = segment(a, b);
-    let (boundary, at) = match edge {
-        LoopEdge::Chord => (
+    // A chord of no length is null scaffolding, a coincident copy of its
+    // vertex: no crossing of its own, and the vertex cuts read its point.
+    if matches!(edge, LoopEdge::Chord) {
+        match decide("pm_census_ef_cross_chord", Margin::norm3(b - a), band) {
+            Ok(Sign::Zero) => return Ok(Vec::new()),
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Err(cause) => return Err(CrossRefusal::Escalated(vec![cause])),
+        }
+    }
+    let stored = body
+        .get_edge(side.key)
+        .and_then(|edge| body.get_curve_geom(edge.curve))
+        .and_then(CurveGeom::certified);
+    // A straight edge with no certified curve of its own is the segment
+    // between its loop ends.
+    let chord = geom::Curve3::Line {
+        origin: a,
+        dir: (b - a).normalize(),
+    };
+    let (boundary, at) = match (edge, stored) {
+        (LoopEdge::Chord, Some(curve)) => (
+            Span::new(curve.carrier(), curve.params()),
+            CutAt::Crossing(side.key),
+        ),
+        (LoopEdge::Chord, None) => (
             Span::new(&chord, (T::zero(), (b - a).norm())),
             CutAt::Crossing(side.key),
         ),
-        LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. } => {
-            let curve = body
-                .get_edge(side.key)
-                .and_then(|edge| body.get_curve_geom(edge.curve))
-                .and_then(CurveGeom::certified)
-                .ok_or(CrossRefusal::Unsupported(ContainError::LoopUnreadable(
-                    side.r#loop,
-                )))?;
-            (
-                Span::new(curve.carrier(), curve.params()),
-                CutAt::CurvedCrossing,
-            )
+        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. }, Some(curve)) => (
+            Span::new(curve.carrier(), curve.params()),
+            CutAt::CurvedCrossing,
+        ),
+        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. }, None) => {
+            return Err(CrossRefusal::Unsupported(ContainError::LoopUnreadable(
+                side.r#loop,
+            )));
         }
     };
     let met = meet(&Span::new(&along, (T::zero(), e.len)), &boundary, band).map_err(|r| {
@@ -2517,9 +2534,11 @@ fn edge_crossings<T: Decide>(
     if met.shared.is_some() {
         return Ok(Vec::new());
     }
+    // A run's points stand beside a meeting at an end: no cut of their own.
     Ok(met
         .points
         .iter()
+        .filter(|m| !m.run)
         .filter_map(|m| match (m.on_a, m.on_b) {
             (Hit::On { t, .. }, Hit::On { .. }) => Some((t, at)),
             (Hit::On { .. } | Hit::End, Hit::End) | (Hit::End, Hit::On { .. }) => None,
@@ -11369,6 +11388,63 @@ mod tests {
             assert!(errors.is_empty(), "{errors:?}");
             let cuts = cuts.expect("decided");
             assert!(cuts.len() == 1 && close(cuts[0].0, 0.1), "{cuts:?}");
+        }
+
+        /// **A spline boundary edge is read by the walk.** The cap of
+        /// [`a_crossing_is_cut_where_both_ends_lie_definitely_across`],
+        /// its side at `x = 0.3` re-carried as a degree-1 spline along the
+        /// same chord: the shelf edge is cut there as the line was, now a
+        /// curved edge's crossing, and at `x = 0.1`; nothing is pushed.
+        #[test]
+        fn a_spline_boundary_is_cut_where_it_crosses_the_edge() {
+            use geom::{Curve3, NurbsCurve3};
+            use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+            use geom_core::spline::{KnotVector, Knots};
+            let (mut body, face, edge) = lap(&[(0.1, 0.2), (0.3, 0.2), (0.3, 0.42), (0.1, 0.42)]);
+            let side = body
+                .edges()
+                .find_map(|(k, e)| {
+                    let v0 = body.get_half_edge(e.he_plus)?.start;
+                    let v1 = body.half_edge_end(e.he_plus)?;
+                    let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                    let (p0, p1): (Point3<f64>, Point3<f64>) = (p(v0), p(v1));
+                    (p0.x == 0.3 && p1.x == 0.3 && p0.z == 0.5 && p1.z == 0.5)
+                        .then_some((k, e.he_plus, e.he_minus, p0, p1))
+                })
+                .expect("the cap's side at x = 0.3");
+            let (key, plus, minus, q0, q1) = side;
+            let surface = |he| {
+                let f = body.face_of_half_edge(he).unwrap();
+                body.get_face(f).unwrap().surface
+            };
+            let pair = SurfacePair::new(surface(plus), surface(minus));
+            let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let spline = NurbsCurve3::new(Knots::from(knots), vec![q0, q1], vec![1.0; 2])
+                .expect("the chord as a degree-1 spline");
+            let spec = EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair,
+                    witness: q0.lerp(q1, 0.5),
+                },
+                carrier: Curve3::Nurbs(std::sync::Arc::new(spline)),
+                param_start: 0.0,
+                param_end: 1.0,
+            };
+            body.set_edge_curve(key, spec, Tol::witness())
+                .expect("a degree-1 spline along the chord certifies");
+            let (cuts, errors) = crossings(&body, face, edge);
+            assert!(errors.is_empty(), "{errors:?}");
+            let cuts = cuts.expect("decided");
+            assert!(
+                cuts.len() == 2
+                    && cuts
+                        .iter()
+                        .any(|c| (c.0 - 0.3).abs() < 1e-9 && matches!(c.1, CutAt::CurvedCrossing))
+                    && cuts
+                        .iter()
+                        .any(|c| close(c.0, 0.1) && matches!(c.1, CutAt::Crossing(_))),
+                "{cuts:?}"
+            );
         }
 
         /// A conic boundary edge is cut where it crosses the edge: the

@@ -691,6 +691,17 @@ fn a_touch_at_a_spans_end_meets_on_both_interiors_along_its_run() {
         let m = meets((&arc, span), (&other, (-PI, PI))).unwrap();
         assert_eq!(interiors_meet(&m), want, "{what}: {m:?}");
         on_both(what, &m, &arc, &other);
+        if what == "at the end" {
+            // The pose's touch and the arc's end are one meeting, its run
+            // read once, and the run's points say so.
+            let touches = m.points.iter().filter(|p| !p.run).count();
+            assert_eq!(touches, 1, "one touch: {m:?}");
+            assert!(
+                m.points.iter().all(|p| p.run || matches!(p.on_a, Hit::End)),
+                "{m:?}"
+            );
+            assert!(m.points.iter().filter(|p| p.run).count() <= 4, "{m:?}");
+        }
     }
 }
 
@@ -719,4 +730,61 @@ fn a_tangent_whose_crossing_is_rounding_meets_at_the_end() {
             .any(|p| matches!((p.on_a, p.on_b), (Hit::End, Hit::End))),
         "at both ends: {m:?}"
     );
+}
+
+/// **A shallow crossing at a span's end meets inside it** where the run
+/// reaches past the escalation: the unit arc from `0.3` to `π/2`, and a
+/// line leaving its end `(0, 1)` at `φ` above the tangent. They part by
+/// about `φ·s` over an arc `s`, so the arc's interior lies within the
+/// zero band of the line for `z/φ`: `8·10⁻⁸` at `φ = 0.012`, past the
+/// escalation clear of the end. Where the run's reach reads in the band
+/// of the escalation, its candidates are read, not dropped.
+#[test]
+fn a_shallow_crossing_at_a_spans_end_meets_inside_it() {
+    let arc = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    for phi in [0.004_f64, 0.012, 0.016, 0.02] {
+        let edge = line([0.0, 1.0, 0.0], [phi.cos(), phi.sin(), 0.0]);
+        for (m, order) in [
+            (
+                meets((&arc, (0.3, PI / 2.0)), (&edge, (0.0, 1.0))),
+                "arc first",
+            ),
+            (
+                meets((&edge, (0.0, 1.0)), (&arc, (0.3, PI / 2.0))),
+                "line first",
+            ),
+        ] {
+            let m = m.unwrap();
+            assert!(interiors_meet(&m), "φ = {phi}, {order}: {m:?}");
+            on_both(&format!("φ = {phi}"), &m, &arc, &edge);
+        }
+    }
+}
+
+/// **Two crossings only the rounding separates merge into one touch.** A
+/// line `10⁻¹²` inside a circle of radius `10³` crosses it twice, about
+/// `90 µm` apart, but the residual's near extreme, `−10⁻¹²`, is within
+/// its own rounding there: the pose reads one touch, at the extreme's
+/// point, on both carriers within the zero band. A line `10⁻⁶` inside
+/// crosses definitely, twice.
+#[test]
+fn crossings_only_the_rounding_separates_are_one_touch() {
+    let r = 1e3;
+    let c = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], r);
+    for (depth, touch) in [(1e-12, true), (1e-6, false)] {
+        let l = line([-1.0, r - depth, 0.0], [1.0, 0.0, 0.0]);
+        let (sl, sc) = (Span::new(&l, (0.0, 2.0)), Span::new(&c, (0.0, PI)));
+        let got = pose(&sl, &sc, band()).unwrap();
+        if touch {
+            assert!(matches!(got, Pose::Tangent(_)), "{depth:e} inside: {got:?}");
+        } else {
+            assert!(
+                matches!(got, Pose::Generic(ref cs) if cs.len() == 2),
+                "{depth:e} inside: {got:?}"
+            );
+        }
+        let m = meet(&sl, &sc, band()).unwrap();
+        assert!(interiors_meet(&m), "{depth:e} inside: {m:?}");
+        on_both(&format!("{depth:e} inside"), &m, &l, &c);
+    }
 }

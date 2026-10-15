@@ -11,11 +11,12 @@ cost: M
 
 Found by CONTACT-12's review (branch `contact/12-ef-crossing-cuts`).
 
-Two lanes decide whether a straight boundary edge of a face crosses a
+Two lanes decided whether a straight boundary edge of a face crosses a
 census edge lying in the face's plane:
-- `census.rs` `chord_crossing` (the edge-on-face lane's cuts) reads
-  `pm_census_ef_cross_side`, the ends' signed in-plane distances from
-  the edge's line, then `pm_census_ef_cross_span`.
+- `census.rs` `chord_crossing`, the edge-on-face lane's cuts, read
+  `pm_census_ef_cross_side` (the ends' signed in-plane distances from
+  the edge's line) and then `pm_census_ef_cross_span`. Both are retired
+  (below).
 - Pass 5 (`pair_edge_edge` / `crossing_in_both_interiors`) reads
   `pm_census_ee_parallel` (levered), `pm_census_ee_gap` and
   `pm_census_ee_span`.

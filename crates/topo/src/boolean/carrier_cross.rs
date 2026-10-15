@@ -138,7 +138,9 @@ pub(super) fn boundary_crossing<T: Decide>(
         if met.shared.is_some() {
             continue;
         }
-        for m in met.points {
+        // A run's points stand beside a meeting at an end, which is the
+        // endpoint arms' question: no crossing of their own.
+        for m in met.points.iter().filter(|m| !m.run) {
             match m.on_a {
                 Hit::On { t, .. } => crossings.push(t),
                 Hit::End => {}
@@ -338,6 +340,63 @@ mod crossing_rows {
             "0.8·z from the span's start, the meeting is its end: {:?}",
             read(0.04)
         );
+    }
+
+    /// **A swept span crossing a rim at a shallow angle at its own end
+    /// crosses nothing inside.** The section of the unit cylinder by
+    /// `z = c + ½·cos(θ − 0.8)`, its top `δ = ½(1 − cos 0.01)` above the
+    /// sheet's top rim, crosses the rim at its own parameters `±t_c`,
+    /// `t_c ≈ 0.01`, at about `0.005` rad. A span from `t_c` inward meets
+    /// the rim at its end, which the endpoint arms place. The run of its
+    /// points within the band of the rim, about `5·10⁻⁸` long, is no
+    /// crossing of its own, so the interior is clear. A span through both
+    /// crossings is crossed at one of them.
+    ///
+    /// (A section tangent to the rim reads `Unread`: across planes the
+    /// basin meter refuses a crossing angle of zero,
+    /// `work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`.)
+    #[test]
+    fn a_shallow_crossing_at_the_swept_spans_end_crosses_nothing_inside() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = crate::body::Body::<f64>::new();
+        let face = cyl_wall_sheet(
+            &mut body,
+            CylFrame::canonical(1.0),
+            (0.2, 1.4),
+            (0.0, 1.0),
+            tol,
+        );
+        let (m, a) = (0.5f64, 0.8f64);
+        let c = 1.0 + m * (1.0 - 0.01f64.cos()) - m;
+        let k = m.hypot(1.0);
+        let section = Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, c),
+            axis: Vec3::new(-m * a.cos(), -m * a.sin(), 1.0) * (1.0 / k),
+            semi_u: k,
+            semi_v: 1.0,
+            u_ref: Vec3::new(a.cos(), a.sin(), m) * (1.0 / k),
+        };
+        let tc = ((1.0 - c) / m).acos();
+        assert!(
+            (section.eval(tc).z - 1.0).abs() < 1e-12,
+            "t_c is on the top rim"
+        );
+        let read = |span| boundary_crossing(&body, Operand::B, face, &section, span, band).unwrap();
+        for span in [(tc, tc + 0.3), (-tc - 0.3, -tc)] {
+            assert!(
+                matches!(read(span), BoundaryCrossing::Clear),
+                "{span:?}: starts at the crossing: {:?}",
+                read(span)
+            );
+        }
+        match read((-0.3, 0.3)) {
+            BoundaryCrossing::At { t, at, .. } => {
+                assert!((t.abs() - tc).abs() < 1e-6, "at a crossing: {t}");
+                assert!(matches!(at, FaceContainment::OnEdge(_)), "{at:?}");
+            }
+            other => panic!("through both crossings: {other:?}"),
+        }
     }
 
     /// A line along a boundary ruling that a vertex divides: parallel to

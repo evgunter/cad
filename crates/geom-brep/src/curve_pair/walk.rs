@@ -247,6 +247,7 @@ fn read_both<T: Decide>(
             point: q,
             on_a,
             on_b,
+            run: false,
         }),
         (Err(diag), _) | (_, Err(diag)) => Read2::Held(diag),
     }
@@ -311,7 +312,11 @@ pub(super) fn meet<T: Decide>(
         found,
     };
     let mut take = |read: Read2<T>, found: &mut Vec<Meeting<T>>| match read {
-        Read2::Met(m) => found.push(m),
+        Read2::Met(m) => {
+            if !super::repeats(found, m.point, band) {
+                found.push(m);
+            }
+        }
         Read2::Missed => {}
         Read2::Held(diag) => held = held.or(Some(diag)),
     };
