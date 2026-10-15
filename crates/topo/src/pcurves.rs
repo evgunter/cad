@@ -1086,22 +1086,6 @@ impl RowSpace {
     }
 }
 
-/// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans`
-/// spans — an [`Pcurve::IsoArc`]'s sub-arc locator (pure `f64`
-/// structure, which is what keeps the variant `T`-generic).
-fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
-    if spans == 0 {
-        return None;
-    }
-    let mut knots = vec![0.0, 0.0];
-    #[allow(clippy::cast_precision_loss)]
-    for k in 1..spans {
-        knots.push(k as f64 / spans as f64);
-    }
-    knots.extend([1.0, 1.0]);
-    geom_core::spline::KnotVector::clamped(knots, 1).ok()
-}
-
 /// Derives the **exact iso chart image** of `half_edge` on a described
 /// NURBS chart (M6-3; arc rims since M8-3) — the NURBS-chart
 /// counterpart of `geom_brep::chart_pcurve`, driven by the edge's
@@ -1191,10 +1175,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         let Some(payload) = surface.spline_chart() else {
             return Err(refuse("an arc cap rim on a non-spline chart"));
         };
-        let ku = payload.knots_u();
-        let (d0, d1) = ku.domain();
-        let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
-        let breaks = uniform_breaks(spans)
+        let candidates = geom_brep::arc_rim_candidates(payload, t0, span)
             .ok_or_else(|| refuse("an arc rim whose chart has no usable sub-arc structure"))?;
         // **The row and the u DIRECTION are one pick.** A rim the
         // kernel built runs with the chart's increasing `u`; one it
@@ -1207,16 +1188,6 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // direction — are judged together at a quarter of the arc,
         // where the directions are a half-period apart. A selection,
         // checked: the full arc-rim certification still follows.
-        let image = |v: T, p0x: T, sign: T| Pcurve::IsoArc {
-            p0: Point2::new(p0x, v),
-            pd: Vec2::new(sign, T::zero()),
-            t0,
-            angle: span,
-            breaks: breaks.clone(),
-        };
-        let candidates = [cv0, cv1].into_iter().flat_map(|v| {
-            [(cu0, cu1 - cu0), (cu1, cu0 - cu1)].map(|(p0x, sign)| image(v, p0x, sign))
-        });
         match probe_pick(
             "pcurve_iso_arc_row_direction",
             &carrier,

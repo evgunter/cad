@@ -3932,17 +3932,49 @@ impl<T: Decide> Body<T> {
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
-        crate::policy_lane::certify(
+        let stated = edge.and_then(|edge| self.stated_pair_image(edge, &spec));
+        crate::policy_lane::certify_stated(
             spec,
             p_start,
             p_end,
             |k| self.surfaces.get(k).cloned(),
             band,
+            stated.as_ref(),
         )
         .map_err(|refusal| match refusal {
             ByPolicy::NoLane { scalar } => EulerOpError::NurbsLaneUnsupported { edge, scalar },
             ByPolicy::Refused(error) => EulerOpError::Certification { error },
         })
+    }
+
+    /// The image `edge` already carries on the spline side of an
+    /// `OnPair` spec's pair: the pcurve the mint stored on the half of
+    /// `edge` bounding a face of that surface, which certification then
+    /// meters as it stands rather than derive another. `None` for any
+    /// other spec, or where nothing is stored.
+    fn stated_pair_image(
+        &self,
+        edge: EdgeKey,
+        spec: &EdgeCurveSpec<T>,
+    ) -> Option<geom_brep::StatedImage<T>> {
+        let geom_brep::EdgeDescriptionSpec::OnPair { pair, .. } = spec.description else {
+            return None;
+        };
+        let edge_data = self.edges.get(edge)?;
+        [edge_data.he_plus, edge_data.he_minus]
+            .into_iter()
+            .find_map(|he| {
+                let surface = self.faces.get(self.face_of_half_edge(he)?)?.surface;
+                let on_pair = pair.keys().contains(&surface);
+                let spline = self.surfaces.get(surface)?.spline_chart().is_some();
+                (on_pair && spline).then_some((he, surface))
+            })
+            .and_then(|(he, surface)| {
+                Some(geom_brep::StatedImage {
+                    surface,
+                    pcurve: self.pcurve(he)?.pcurve().clone(),
+                })
+            })
     }
 
     /// `edge`'s two endpoint points, `he_plus` forward order (the

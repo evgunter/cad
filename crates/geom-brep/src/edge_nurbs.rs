@@ -73,6 +73,7 @@
 //! one class of margin decides and nothing about the certificate, and
 //! a bound says that without an impl to write.
 
+use crate::pcurve_cache::Pcurve;
 use core::num::NonZeroUsize;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
@@ -698,57 +699,208 @@ pub struct PlaneNurbsIncidence<T: Real> {
     pub hull_sup: T,
 }
 
+/// The arc-rim images a circle carrier may have on `chart`: each of its
+/// two boundary rows, in each `u` direction, as [`Pcurve::IsoArc`] from
+/// the carrier's `t0` through `span`, its sub-arcs one per chart span
+/// pair. The ONE derivation of an arc rim's image, the pcurve mint's
+/// (`topo::pcurves`) and the incidence lane's alike; which candidate
+/// holds the circle is the certification's to say. `None` where the
+/// chart's `u` structure names no sub-arcs.
+#[must_use]
+pub fn arc_rim_candidates<T: Real>(
+    chart: &NurbsSurface<T>,
+    t0: T,
+    span: T,
+) -> Option<Vec<Pcurve<T>>> {
+    let ku = chart.knots_u();
+    let (d0, d1) = ku.domain();
+    let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
+    let breaks = uniform_breaks(spans)?;
+    let ((cu0, cu1), (cv0, cv1)) = (
+        chart.knot_values_u().domain(),
+        chart.knot_values_v().domain(),
+    );
+    let image = |v: T, p0x: T, sign: T| Pcurve::IsoArc {
+        p0: Point2::new(p0x, v),
+        pd: geom_core::Vec2::new(sign, T::zero()),
+        t0,
+        angle: span,
+        breaks: breaks.clone(),
+    };
+    Some(
+        [cv0, cv1]
+            .into_iter()
+            .flat_map(|v| {
+                [(cu0, cu1 - cu0), (cu1, cu0 - cu1)].map(|(p0x, sign)| image(v, p0x, sign))
+            })
+            .collect(),
+    )
+}
+
+/// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans`
+/// spans: an [`Pcurve::IsoArc`]'s sub-arc locator (pure `f64`
+/// structure, which keeps the variant `T`-generic).
+fn uniform_breaks(spans: usize) -> Option<KnotVector> {
+    if spans == 0 {
+        return None;
+    }
+    let mut knots = vec![0.0, 0.0];
+    #[allow(clippy::cast_precision_loss)]
+    for k in 1..spans {
+        knots.push(k as f64 / spans as f64);
+    }
+    knots.extend([1.0, 1.0]);
+    KnotVector::clamped(knots, 1).ok()
+}
+
+/// What [`plane_nurbs_incidence`] refused.
+#[derive(Clone, Debug, PartialEq)]
+pub enum IncidenceRefusal {
+    /// The lane's own refusal, with its measured bound.
+    Lane(PlaneNurbsRefusal),
+    /// An arc rim whose exact image did not certify, and whose fitted
+    /// image did not either: the arc-rim certificate's refusal (of the
+    /// stated image, or of the last candidate), and the fitted path's
+    /// with its measured bound.
+    ArcRim {
+        /// Why the exact image did not certify.
+        iso: crate::pcurve_cache::PcurveCertifyError,
+        /// The fitted path's refusal, with its measured bound.
+        fitted: PlaneNurbsRefusal,
+    },
+}
+
 /// **Incidence alone on a plane × NURBS pair**: [`plane_nurbs_limbs`]'
 /// limbs 1 and 2 and nothing about how the two surfaces meet — no
 /// normal-angle sweep and no uniqueness tube. It is `OnPair`'s
 /// certificate on that pair, which states the carrier lies on both
 /// surfaces and leaves the meeting to tier 3.
 ///
-/// The wall side is metered against the wall's spline chart: a
-/// described NURBS wall itself, or an `Approx` wall's FIT. Incidence on
-/// an `Approx` wall's description is therefore this bound plus the fit's
-/// own recorded distance from it, which the surface carries
+/// The plane side is limbs 1 and 2 against its implicit form. The wall
+/// side is metered against the wall's spline chart (`wall` is a
+/// described NURBS wall, or an `Approx` one whose chart is its FIT):
+///
+/// - **A circle carrier** — an arc rim — first through its exact
+///   [`Pcurve::IsoArc`] image's certificate ([`PcurveCache::certify`],
+///   `MapResidualIsoHull`): limb 1 its sampled residual, limb 2 its
+///   envelope. The image is `stated` where the caller holds one (the
+///   pcurve the mint already stored for this rim), and otherwise the
+///   first of [`arc_rim_candidates`] that certifies. The certificate
+///   compares the wall's boundary row with the circle in the row's own
+///   spline space, so it needs a rim spanning the chart's whole `u`
+///   domain (a partial rim refuses), and it reads the row's weight
+///   pattern on the `f64` value channel.
+/// - **Any other carrier**, and a circle whose exact image does not
+///   certify: the carrier's fitted chart image ([`chart_image`], from the
+///   same fixed schedule of foot points as the full lane's) and limbs 1
+///   and 2 over it.
+///
+/// Incidence on an `Approx` wall's description is this bound plus the
+/// fit's own recorded distance from it, which the surface carries
 /// ([`geom::ApproxSurface`]); nothing here adds the two
 /// (`work/tang/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`).
 ///
-/// The image is [`chart_image`]'s, from the same fixed schedule of foot
-/// points as the full lane's, so the pcurve the mint stores is the one
-/// this certifies.
-///
 /// # Errors
 ///
-/// [`PlaneNurbsRefusal`]: the analytic side not a plane, a placeholder
-/// wall, a foot that will not converge, an image that will not fit, and
-/// either limb's refusal with its measured bound.
+/// [`IncidenceRefusal::Lane`]: the analytic side not a plane, a
+/// placeholder or non-spline wall, a foot that will not converge, an
+/// image that will not fit, and either limb's refusal with its measured
+/// bound. [`IncidenceRefusal::ArcRim`]: a circle carrier whose exact
+/// image and fitted image both refuse, carrying both.
 pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
     plane: &Surface<T>,
-    wall: &NurbsSurface<T>,
+    wall: &Surface<T>,
+    stated: Option<&Pcurve<T>>,
     band: Band,
-) -> Result<PlaneNurbsIncidence<T>, PlaneNurbsRefusal> {
-    plane_lane_door(plane, wall)?;
-    // The chart image alone: the wall's grid and chart speeds are the
-    // tube's, which incidence does not ask.
-    let eval = |t| carrier.eval(t);
-    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
-    let pcurve = chart_image(Schedule::new(&eval, domain, ends), wall, |_, _| Ok(()))?;
+) -> Result<PlaneNurbsIncidence<T>, IncidenceRefusal> {
     use crate::ssi::certify::IncidenceOperand;
-    let (on_locus_max, hull_sup) = crate::ssi::certify::incidence_limbs(
-        carrier,
-        params,
-        &[
-            IncidenceOperand::Analytic(plane),
-            IncidenceOperand::Chart(wall, &pcurve),
-        ],
-        band,
-        &mut crate::ssi::certify::Refused::default(),
-    )
-    .map_err(refusal)?;
-    Ok(PlaneNurbsIncidence {
-        on_locus_max,
-        hull_sup,
-    })
+    let Some(chart) = wall.spline_chart() else {
+        return Err(IncidenceRefusal::Lane(PlaneNurbsRefusal::Unsupported {
+            what: "the wall of this lane is a spline chart",
+        }));
+    };
+    plane_lane_door(plane, chart).map_err(IncidenceRefusal::Lane)?;
+    let (t0, t1) = params;
+    let exact = if matches!(carrier, Curve3::Circle { .. }) {
+        let images = match stated {
+            Some(image) => Some(vec![image.clone()]),
+            None => arc_rim_candidates(chart, t0, t1 - t0),
+        };
+        let mut last = None;
+        let mut held = None;
+        for image in images.unwrap_or_default() {
+            match crate::pcurve_cache::PcurveCache::certify(image, t0, t1, carrier, wall, band) {
+                Ok(cache) => {
+                    held = Some(cache);
+                    break;
+                }
+                Err(e) => last = Some(e),
+            }
+        }
+        match held {
+            Some(cache) => Ok(cache),
+            None => Err(
+                last.unwrap_or(crate::pcurve_cache::PcurveCertifyError::IsoUnsupported {
+                    what: "an arc rim on a chart whose u structure names no sub-arcs",
+                }),
+            ),
+        }
+    } else {
+        Err(crate::pcurve_cache::PcurveCertifyError::IsoUnsupported {
+            what: "not a circle carrier",
+        })
+    };
+    let at = &mut crate::ssi::certify::Refused::default();
+    let fold = |(a, b): (T, T), (c, d): (T, T)| PlaneNurbsIncidence {
+        on_locus_max: a.max(c),
+        hull_sup: b.max(d),
+    };
+    let plane_side = |at: &mut crate::ssi::certify::Refused| {
+        crate::ssi::certify::incidence_limbs(
+            carrier,
+            params,
+            &[IncidenceOperand::Analytic(plane)],
+            band,
+            at,
+        )
+        .map_err(refusal)
+    };
+    match exact {
+        Ok(cache) => {
+            let c = cache.certificate();
+            let p = plane_side(at).map_err(IncidenceRefusal::Lane)?;
+            Ok(fold(p, (c.max_residual, c.envelope)))
+        }
+        Err(iso) => {
+            // The chart image alone: the wall's grid and chart speeds
+            // are the tube's, which incidence does not ask.
+            let fitted = (|| {
+                let eval = |t| carrier.eval(t);
+                let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+                let pcurve = chart_image(Schedule::new(&eval, domain, ends), chart, |_, _| Ok(()))?;
+                crate::ssi::certify::incidence_limbs(
+                    carrier,
+                    params,
+                    &[
+                        IncidenceOperand::Analytic(plane),
+                        IncidenceOperand::Chart(chart, &pcurve),
+                    ],
+                    band,
+                    &mut crate::ssi::certify::Refused::default(),
+                )
+                .map_err(refusal)
+            })();
+            match fitted {
+                Ok(limbs) => Ok(fold(limbs, (T::zero(), T::zero()))),
+                Err(fitted) if matches!(carrier, Curve3::Circle { .. }) => {
+                    Err(IncidenceRefusal::ArcRim { iso, fitted })
+                }
+                Err(fitted) => Err(IncidenceRefusal::Lane(fitted)),
+            }
+        }
+    }
 }
 
 /// **The certified NURBS × NURBS derivation** — [`plane_nurbs_limbs`]

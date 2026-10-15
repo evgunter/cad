@@ -560,6 +560,18 @@ pub enum CertifyError {
     /// hold up — this variant is the evidence's verdict, with the
     /// number.
     PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal),
+    /// `OnPair` of a plane and a spline wall over an ARC rim: the arc
+    /// rim's exact image did not certify against the wall
+    /// ([`crate::plane_nurbs_incidence`]), and neither did the carrier's
+    /// fitted image. Both causes are carried: the exact image's
+    /// certification refusal, and the fitted path's with its measured
+    /// bound.
+    OnPairArcRim {
+        /// Why the exact arc-rim image did not certify.
+        iso: crate::pcurve_cache::PcurveCertifyError,
+        /// The fitted path's refusal, with its measured bound.
+        fitted: crate::edge_nurbs::PlaneNurbsRefusal,
+    },
     /// `Intersection` of two analytic surfaces over a rung-3
     /// (`Curve3::Nurbs`) carrier: the analytic rung-3 certificate (C2's
     /// limbs: the carrier's distance from each operand, and the
@@ -659,6 +671,11 @@ impl core::fmt::Display for CertifyError {
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
             }
+            Self::OnPairArcRim { iso, fitted } => write!(
+                f,
+                "an arc rim's incidence on its spline wall did not certify: its exact \
+                 boundary-row image refused ({iso}), and its fitted image refused — {fitted}"
+            ),
             Self::AnalyticRung3(refusal) => write!(
                 f,
                 "the analytic Intersection's rung-3 certificate refused — {refusal}"
@@ -769,7 +786,12 @@ impl CertifyError {
             Self::ChartImageUnavailable { .. } => {
                 (CertCheck::ChartImage, RefusedArm::SignCertain(None))
             }
-            Self::PlaneNurbs(refusal) => return refusal.decision(),
+            Self::PlaneNurbs(refusal)
+            | Self::OnPairArcRim {
+                fitted: refusal, ..
+            } => {
+                return refusal.decision();
+            }
             Self::AnalyticRung3(refusal) => return refusal.decision(),
             Self::UnresolvedSurface { .. }
             | Self::Unimplemented
@@ -794,7 +816,10 @@ impl CertifyError {
     pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
         let at = at.into();
         match self {
-            Self::PlaneNurbs(refusal) => refusal.ending(at),
+            Self::PlaneNurbs(refusal)
+            | Self::OnPairArcRim {
+                fitted: refusal, ..
+            } => refusal.ending(at),
             Self::AnalyticRung3(refusal) => refusal.ending(at),
             _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
         }
@@ -1470,7 +1495,40 @@ impl<T: Decide> EdgeCurve<T> {
         band: Band,
         nurbs_lane: Option<NurbsLane<T>>,
     ) -> Result<Self, CertifyError> {
-        let (certificate, canonical) = run_checks(&spec, start, end, &surfaces, nurbs_lane, band)?;
+        let (certificate, canonical) =
+            run_checks(&spec, start, end, &surfaces, nurbs_lane, None, band)?;
+        Ok(Self {
+            authority: authority_of(&spec.description),
+            description: canonical,
+            carrier: spec.carrier,
+            param_start: spec.param_start,
+            param_end: spec.param_end,
+            certificate,
+        })
+    }
+
+    /// [`EdgeCurve::certify_via`] with a chart image the caller already
+    /// holds for the edge on one of its surfaces: the pcurve a mint
+    /// stored there. An `OnPair` on a plane × NURBS pair whose wall is
+    /// that surface certifies its wall side through that image as it
+    /// stands, rather than one derived here
+    /// ([`crate::plane_nurbs_incidence`]); any other description ignores
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// As [`EdgeCurve::certify_via`].
+    pub fn certify_via_stated(
+        spec: EdgeCurveSpec<T>,
+        start: Point3<T>,
+        end: Point3<T>,
+        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        band: Band,
+        nurbs_lane: Option<NurbsLane<T>>,
+        stated: Option<&StatedImage<T>>,
+    ) -> Result<Self, CertifyError> {
+        let (certificate, canonical) =
+            run_checks(&spec, start, end, &surfaces, nurbs_lane, stated, band)?;
         Ok(Self {
             authority: authority_of(&spec.description),
             description: canonical,
@@ -1496,7 +1554,7 @@ impl<T: Decide> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Certificate<T>, CertifyError> {
-        run_checks(&self.spec(), start, end, &surfaces, None, band).map(|(cert, _)| cert)
+        run_checks(&self.spec(), start, end, &surfaces, None, None, band).map(|(cert, _)| cert)
     }
 
     /// The shared re-certification body, with the NURBS lane
@@ -1518,8 +1576,19 @@ impl<T: Decide> EdgeCurve<T> {
         band: Band,
         nurbs_lane: Option<NurbsLane<T>>,
     ) -> Result<Certificate<T>, CertifyError> {
-        run_checks(&self.spec(), start, end, &surfaces, nurbs_lane, band).map(|(cert, _)| cert)
+        run_checks(&self.spec(), start, end, &surfaces, nurbs_lane, None, band)
+            .map(|(cert, _)| cert)
     }
+}
+
+/// A chart image a caller holds for an edge on one of its surfaces
+/// ([`EdgeCurve::certify_via_stated`]).
+#[derive(Clone, Debug)]
+pub struct StatedImage<T: Real> {
+    /// The surface the image is in.
+    pub surface: SurfaceKey,
+    /// The image.
+    pub pcurve: crate::pcurve_cache::Pcurve<T>,
 }
 
 /// **The plane × NURBS lane** — the one certification duty this
@@ -1660,11 +1729,12 @@ pub struct NurbsLane<T: Real> {
         &Curve3<T>,
         (T, T),
         &Surface<T>,
-        &geom::NurbsSurface<T>,
+        &Surface<T>,
+        Option<&crate::pcurve_cache::Pcurve<T>>,
         Band,
     ) -> Result<
         crate::edge_nurbs::PlaneNurbsIncidence<T>,
-        crate::edge_nurbs::PlaneNurbsRefusal,
+        crate::edge_nurbs::IncidenceRefusal,
     >,
     /// [`NurbsLane::carrier_foot`]'s Newton at `T`.
     foot: fn(
@@ -1723,11 +1793,12 @@ impl<T: Real> NurbsLane<T> {
         carrier: &Curve3<T>,
         params: (T, T),
         plane: &Surface<T>,
-        wall: &geom::NurbsSurface<T>,
+        wall: &Surface<T>,
+        stated: Option<&crate::pcurve_cache::Pcurve<T>>,
         band: Band,
-    ) -> Result<crate::edge_nurbs::PlaneNurbsIncidence<T>, crate::edge_nurbs::PlaneNurbsRefusal>
+    ) -> Result<crate::edge_nurbs::PlaneNurbsIncidence<T>, crate::edge_nurbs::IncidenceRefusal>
     {
-        (self.incidence)(carrier, params, plane, wall, band)
+        (self.incidence)(carrier, params, plane, wall, stated, band)
     }
 
     /// The lane's limbs for a declared carrier of any kind between two
@@ -2579,6 +2650,7 @@ fn run_checks<T: Decide>(
     end: Point3<T>,
     surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
     lane: Option<NurbsLane<T>>,
+    stated: Option<&StatedImage<T>>,
     band: Band,
 ) -> Result<(Certificate<T>, EdgeDescription<T>), CertifyError> {
     // ---- Check 1: implementedness / description well-formedness. ----
@@ -2660,6 +2732,7 @@ fn run_checks<T: Decide>(
         /// meter at each sample as on [`Resolved::OnPair`].
         OnPairNurbs {
             plane: Surface<T>,
+            wall_key: SurfaceKey,
             wall: Surface<T>,
             declared: Option<crate::mapped::MappedCurve<T>>,
             lane: NurbsLane<T>,
@@ -2789,9 +2862,10 @@ fn run_checks<T: Decide>(
             // it: `resolve` refuses the spline side, which has no
             // implicit form. Two spline charts have no incidence lane
             // yet and refuse there.
-            if let Some((_, plane, wall)) = plane_nurbs_pair(pair, surfaces) {
+            if let Some((plane_key, plane, wall)) = plane_nurbs_pair(pair, surfaces) {
                 Resolved::OnPairNurbs {
                     plane,
+                    wall_key: pair.other(plane_key).ok_or(CertifyError::Unimplemented)?,
                     wall,
                     declared,
                     lane: lane.ok_or(CertifyError::NurbsLaneNotSupplied)?,
@@ -3511,15 +3585,24 @@ fn run_checks<T: Decide>(
     // read (`work/tang/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`,
     // the `Intersection` lane's posture too). ----
     if let Resolved::OnPairNurbs {
-        plane, wall, lane, ..
+        plane,
+        wall,
+        wall_key,
+        lane,
+        ..
     } = &resolved
     {
-        let Some(wall) = wall.spline_chart() else {
-            return Err(CertifyError::Unimplemented);
-        };
+        // The wall's image a caller states (the pcurve the mint stored
+        // for this edge on the wall), certified as it stands.
+        let stated = stated.filter(|s| s.surface == *wall_key).map(|s| &s.pcurve);
         let incidence = lane
-            .incidence(&spec.carrier, (t0, t1), plane, wall, band)
-            .map_err(from_plane_nurbs)?;
+            .incidence(&spec.carrier, (t0, t1), plane, wall, stated, band)
+            .map_err(|e| match e {
+                crate::edge_nurbs::IncidenceRefusal::Lane(e) => from_plane_nurbs(e),
+                crate::edge_nurbs::IncidenceRefusal::ArcRim { iso, fitted } => {
+                    CertifyError::OnPairArcRim { iso, fitted }
+                }
+            })?;
         max_residual = max_residual
             .max(incidence.on_locus_max.abs())
             .max(incidence.hull_sup.abs());
@@ -3785,7 +3868,7 @@ mod wiring_rows {
         }
         if !std::ptr::fn_addr_eq(
             lane.incidence,
-            crate::edge_nurbs::plane_nurbs_incidence::<T> as fn(_, _, _, _, _) -> _,
+            crate::edge_nurbs::plane_nurbs_incidence::<T> as fn(_, _, _, _, _, _) -> _,
         ) {
             return Err("incidence is not `edge_nurbs::plane_nurbs_incidence`");
         }

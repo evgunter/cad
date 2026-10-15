@@ -52,6 +52,20 @@ pub(crate) fn certify<T: AtRestPolicy>(
         .map_err(ByPolicy::of::<T>)
 }
 
+/// [`EdgeCurve::certify_via_stated`] with `T`'s lane: `stated` is a chart
+/// image the body already holds for the edge on one of its surfaces.
+pub(crate) fn certify_stated<T: AtRestPolicy>(
+    spec: EdgeCurveSpec<T>,
+    start: Point3<T>,
+    end: Point3<T>,
+    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    band: Band,
+    stated: Option<&geom_brep::StatedImage<T>>,
+) -> Result<EdgeCurve<T>, ByPolicy> {
+    EdgeCurve::certify_via_stated(spec, start, end, surfaces, band, T::nurbs_lane(), stated)
+        .map_err(ByPolicy::of::<T>)
+}
+
 /// [`EdgeCurve::recertify_via`] with `T`'s lane.
 pub(crate) fn recertify<T: AtRestPolicy>(
     curve: &EdgeCurve<T>,

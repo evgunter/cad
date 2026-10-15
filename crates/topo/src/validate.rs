@@ -2822,6 +2822,11 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
     // The lead is this window's own.
     let why = match e {
+        // An arc rim's refusal reads as its fitted path's, the one that
+        // carries the measured bound.
+        CertifyError::OnPairArcRim { fitted, .. } => {
+            return classify_certify(&CertifyError::PlaneNurbs(*fitted));
+        }
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
@@ -2925,7 +2930,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
             | CertifyError::WrapOnNonPeriodic
-            | CertifyError::PlaneNurbs(P::PcurveFit) => DEFECT,
+            | CertifyError::PlaneNurbs(P::PcurveFit)
+            // Returned as its fitted path's above.
+            | CertifyError::OnPairArcRim { .. } => DEFECT,
             CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported

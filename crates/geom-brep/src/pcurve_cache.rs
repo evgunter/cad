@@ -1530,7 +1530,7 @@ impl Grazer {
 }
 
 /// Typed pcurve-certification failure (D4 ¶3): actionable, closed enum.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 // The variant roster `topo`'s sample-coverage row reads (this
 // crate's `test-support` feature, test builds only).
 #[cfg_attr(
