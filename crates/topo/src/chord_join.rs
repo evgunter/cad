@@ -3276,7 +3276,7 @@ fn run_azimuth_images<T: Decide>(
 /// [`SplitJoinError::Escalated`] where a mark is in band, or the gap
 /// sits on a mark with a branch the near-pole read tries in band;
 /// [`SplitJoinError::SectionInvariant`] where the gap sits on a mark off
-/// every branch that read tries, or past the branch reach, or the chart
+/// every branch that read tries, or the chart
 /// is the placeholder.
 fn nearest_branch<T: Decide>(
     surface: &geom::Surface<T>,
@@ -3300,14 +3300,11 @@ fn nearest_branch<T: Decide>(
     )
     .map_err(|miss| match miss {
         geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
-        geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach => {
-            SplitJoinError::SectionInvariant {
-                face,
-                what: "a run edge's chart entry sits half a period, or past the branch \
-                           reach, from the previous edge's exit — the two images name no \
-                           common branch",
-            }
-        }
+        geom_brep::BranchMiss::OnMark => SplitJoinError::SectionInvariant {
+            face,
+            what: "a run edge's chart entry sits half a period from the previous edge's exit — \
+                   the two images name no common branch",
+        },
     })
 }
 
@@ -3340,7 +3337,7 @@ struct PoleJoint<T: Decide> {
 /// - the walk leaves along the edge it arrived on, so the face wraps the
 ///   pole: the previous branch one whole turn on, `prev_k ± 1`, a
 ///   literal at every scalar;
-/// - two distinct edges: [`geom_brep::whole_period_count`] of
+/// - two distinct edges: [`geom_brep::Period::decide`] of
 ///   `gap ± τ/2`, its marks at whole periods, metered by D4 ¶1's
 ///   parallelism lever ([`pole_lever`]). A mark decided Zero is two
 ///   distinct edges leaving along one direction, an overlap or a cusp,
@@ -3387,22 +3384,17 @@ fn pole_branch<T: Decide>(
     };
     let half = T::tau() * T::from_f64(0.5);
     let shifted = if advancing { gap + half } else { gap - half };
-    geom_brep::whole_period_count(
-        "split_sphere_pole_branch",
-        shifted,
-        T::tau(),
-        |g| Margin::levered(g, lever),
-        band,
-    )
-    .map_err(|miss| match miss {
-        geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
-        geom_brep::BranchMiss::OnMark => SplitJoinError::PoleEdgesCoincide { face },
-        geom_brep::BranchMiss::OutOfReach => SplitJoinError::SectionInvariant {
-            face,
-            what: "a run edge's chart entry at a sphere pole sits past the branch reach from \
-                   the previous edge's exit",
-        },
-    })
+    geom_brep::Period::new(T::tau())
+        .decide(
+            "split_sphere_pole_branch",
+            shifted,
+            |g| Margin::levered(g, lever),
+            band,
+        )
+        .map_err(|stop| match stop.miss {
+            geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
+            geom_brep::BranchMiss::OnMark => SplitJoinError::PoleEdgesCoincide { face },
+        })
 }
 
 /// **The length over which an angle at a sphere pole displaces an
@@ -7552,7 +7544,7 @@ mod nearest_branch_rows {
     #[test]
     fn the_nearest_branch_is_a_literal_over_a_box() {
         let band = Band::linear(Tol::witness()).unwrap();
-        for k in [-1.0, 0.0, 1.0, 2.0] {
+        for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
                     let f = Sym::<Interval>::from_f64;

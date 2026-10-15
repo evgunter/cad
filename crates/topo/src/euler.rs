@@ -1350,9 +1350,8 @@ pub enum EulerOpError {
     /// whether the half's ends meet escalated, or they meet and the
     /// joint decision there missed: a mark or a near-pole offset at the
     /// vertex escalated, or the gap reads on a mark and is decided off
-    /// every orbit point the near-pole read tries at the vertex's lever,
-    /// or the periods lie past the branch reach. Raised in the plan
-    /// phase, so the body is untouched.
+    /// every orbit point the near-pole read tries at the vertex's lever.
+    /// Raised in the plan phase, so the body is untouched.
     KillTurnUndecided {
         /// The killed half-edge whose turn was not decided.
         half_edge: HalfEdgeKey,
@@ -1684,7 +1683,7 @@ impl EulerOpError {
                  ends, or move the geometry",
                 diag.as_ref().map_or_else(
                     || "its ends meet, but at a lever too short to tell one azimuth period from \
-                        the next, or past the branch reach"
+                        the next"
                         .to_owned(),
                     |d| d.payload().to_string()
                 )
