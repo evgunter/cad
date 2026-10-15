@@ -2,7 +2,8 @@
 id: a-lone-unread-partner-leaves-its-vertex-edges-unclassed
 kind: issue
 title: A vertex in one pair whose partner reads nothing publishes no edge class, silently
-status: open
+status: dispatched
+branch: tang/lone-unread-partner
 opened: 2026-10-12
 priority: P3
 cost: E
