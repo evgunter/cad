@@ -96,14 +96,17 @@
 //! `revert` refuses such a body ([`RevertError::CoincidentEdges`]),
 //! naming where the line runs. It reads the line structurally, deciding
 //! nothing: two line edges whose ends lie on the same two point keys
-//! ([`crate::census::shared_segments`]). A pair a decision would read
-//! (a bound on a record, one edge's end on the other's interior) is the
-//! boolean's to read, which holds a band: ∖ reads every collinear
-//! overlap of its operand's kept part ([`crate::census::collinear_overlaps`])
-//! and checks the result's wedges on each ([`crate::census::line_wedges`]).
-//! Two curved edges on one curve are outside both readers, as they are
-//! outside the census's exact sweeps. A single cusp is one edge, so its
-//! revert, the knife slit, is unaffected.
+//! ([`crate::census::shared_segments`]). A pair only a decision would
+//! read (a bound on a record, one edge's end on the other's interior)
+//! passes here, and passes the void door, which reverts its cavity
+//! through this map and decides nothing either. Only ∖ reads such
+//! pairs, holding a band: it reads every collinear overlap of the
+//! edges of its operand that its result keeps
+//! ([`crate::census::collinear_overlaps`]) and checks the result's
+//! wedges on each ([`crate::census::line_wedges`]). Two curved edges
+//! on one curve are outside every reader, as they are outside the
+//! census's exact sweeps. A single cusp is one edge, so its revert, the
+//! knife slit, is unaffected.
 //!
 //! Functional style (the plan's assumption, made concrete): `revert`
 //! takes `&self` and returns a **new body value** — the operand is
@@ -136,7 +139,7 @@
 use std::collections::BTreeSet;
 
 use geom::Surface;
-use geom_core::{Indeterminate, Real};
+use geom_core::Real;
 
 use crate::body::Body;
 use crate::census::CollinearOverlap;
@@ -390,13 +393,19 @@ pub enum RevertError {
         /// Where it ends.
         to: String,
     },
-    /// The band cannot tell whether two line edges lie on one line, or
-    /// how the material wedges on such a line stand.
-    Undecided {
-        /// The two edges, in arena order.
+    /// **The result's edges on one line bound overlapping material**,
+    /// where ∖ reversed a line two edges of the subtracted solid lie on
+    /// ([`crate::census::line_wedges`]): the faces meeting there are
+    /// paired as no material pairs them. Which operand's edges carry the
+    /// overlap is not read.
+    WedgesOverlap {
+        /// Two of the result's edges whose wedges overlap, in arena
+        /// order.
         edges: [EdgeKey; 2],
-        /// The escalated decision.
-        cause: Indeterminate,
+        /// Where the line read begins.
+        from: String,
+        /// Where it ends.
+        to: String,
     },
     /// A face meeting a line where two edges lie has no tangent plane
     /// there, so the material on its side of the line has no reading.
@@ -414,10 +423,10 @@ impl core::fmt::Display for RevertError {
                 "two edges lie on one line from {from} to {to}: the complement pairs the faces \
                  meeting there differently, and that re-pairing is not built"
             ),
-            Self::Undecided { cause, .. } => write!(
+            Self::WedgesOverlap { from, to, .. } => write!(
                 f,
-                "whether two edges lie on one line, and how the material on it stands, is \
-                 undecided at this tolerance: {cause}"
+                "the result's edges on the line from {from} to {to} bound overlapping material: \
+                 the faces meeting there are not paired as the material pairs them"
             ),
             Self::NoSheet { .. } => write!(
                 f,

@@ -73,9 +73,16 @@ Landed: refusals, not the re-pairing.
   (`census::shared_segments`). The void door and ∖'s fallbacks (B
   whole, or a cavity nothing joins) refuse where the operand holds
   such a line; the fallbacks first read every collinear overlap.
-- ∖'s seamed finish reads B's collinear overlaps through the split
-  lineage, and refuses `BooleanError::Revert` only where the result's
-  material wedges on the line overlap (`census::line_wedges`). Where
+- ∖'s seamed finish reads the collinear overlaps among B's edges that
+  the result keeps (through the split lineage), and refuses
+  `BooleanError::Revert` (`RevertError::WedgesOverlap`) only where the
+  result's material wedges on the line overlap (`census::line_wedges`,
+  membership by tier 3's `validate::wedge_holds`). A reading in band
+  escalates as an input reading, `BooleanDecision::LineEdges` or
+  `LineWedges`, with its lever. Two edges whose parallel reading is in
+  band but whose lines stand definitely apart are not read as a
+  near-coincidence: the prism with near-parallel diagonals 0.7 apart
+  builds, as on main (`a_tool_with_near_parallel_edges_standing_apart_builds`). Where
   the other operand's faces meet the line the join can re-pair the
   sheets, and two rows show it does: `a_vertex_crossing_both_sides_of_a_pinch`
   (`cutter ∖ pinch`, one 90° edge) and the staircase's `P − X` (two

@@ -3484,15 +3484,16 @@ pub enum BooleanError {
     Pieces(crate::pieces::PieceSortError),
     /// ∖ reverts an operand's kept part, two of whose edges lie on one
     /// line, and the complement pairs the faces meeting there
-    /// differently: the result would carry the pair with overlapping
-    /// material wedges ([`crate::census::line_wedges`]), or nothing
+    /// differently: the result's edges on that line would bound
+    /// overlapping material ([`crate::census::line_wedges`]), or nothing
     /// joins the reverted part to re-pair them. The re-pairing is not
     /// built.
     Revert {
         /// The operand reverted.
         operand: Operand,
-        /// The refusal: the two coincident edges in the operand's own
-        /// keys, and where their line runs.
+        /// The refusal: two edges, in the operand's own keys where the
+        /// line is read on the operand and in the result's where its
+        /// wedges are read on the result, and where the line runs.
         source: crate::revert::RevertError,
     },
 }
@@ -4711,7 +4712,7 @@ impl core::fmt::Display for BooleanError {
                 let operand = operand_word(*operand);
                 write!(
                     f,
-                    "the {operand} solid's kept part does not revert: {source}"
+                    "the subtraction reverses the {operand} solid's kept part, and {source}"
                 )
             }
         }

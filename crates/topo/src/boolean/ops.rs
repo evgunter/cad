@@ -732,20 +732,30 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::Revert`]: such a line, or one the band cannot read.
+/// [`BooleanError::Revert`]: such a line. [`BooleanError::Escalated`]
+/// ([`BooleanDecision::LineEdges`]): a pair the band cannot read, an
+/// in-band reading of the input.
 fn no_unjoined_line<T: Decide + Bounds>(
     body: &crate::body::Body<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let refused = |source| BooleanError::Revert {
-        operand: Operand::B,
-        source,
-    };
-    let lines = crate::census::collinear_overlaps(body, band)
-        .map_err(|(edges, cause)| refused(crate::RevertError::Undecided { edges, cause }))?;
+    let lines = crate::census::collinear_overlaps(body, |_| true, band).map_err(line_edges)?;
     match lines.first() {
-        Some(line) => Err(refused(line.refusal())),
+        Some(line) => Err(BooleanError::Revert {
+            operand: Operand::B,
+            source: line.refusal(),
+        }),
         None => Ok(()),
+    }
+}
+
+/// An in-band reading of whether two edges of the subtracted solid lie
+/// on one line: a reading of the input, which moving its geometry
+/// reaches.
+fn line_edges((_, diag): ([crate::entity::EdgeKey; 2], Indeterminate)) -> BooleanError {
+    BooleanError::Escalated {
+        decision: BooleanDecision::LineEdges,
+        diag,
     }
 }
 
@@ -760,10 +770,19 @@ fn no_unjoined_line<T: Decide + Bounds>(
 /// pair reaches the result as it was reversed. The result says which
 /// happened.
 ///
+/// Only the edges `kept` names are read, so two edges of B the result
+/// keeps nothing of never escalate it.
+///
 /// # Errors
 ///
-/// [`BooleanError::Revert`]: an overlap, naming B's two edges and where
-/// they run; or a reading that cannot answer.
+/// [`BooleanError::Revert`]: an overlap, naming two of the result's
+/// edges and where B's line runs, with no claim which operand's edges
+/// carry it; or a face with no sheet on the line.
+/// [`BooleanError::Escalated`]: a reading in band, of B's edges
+/// ([`BooleanDecision::LineEdges`]) or of the result's wedges
+/// ([`BooleanDecision::LineWedges`]). The faces meeting on the line are
+/// A's and B's, carried into the result exactly, so both are readings
+/// of the input, and moving the geometry reaches them.
 fn reverted_lines_disjoint<T: Decide + Bounds>(
     result: &crate::body::Body<T>,
     b: &crate::body::Body<T>,
@@ -777,20 +796,23 @@ fn reverted_lines_disjoint<T: Decide + Bounds>(
         operand: Operand::B,
         source,
     };
-    let lines = crate::census::collinear_overlaps(b, band)
-        .map_err(|(edges, cause)| refused(crate::RevertError::Undecided { edges, cause }))?;
-    for line in lines
-        .iter()
-        .filter(|line| line.edges.iter().all(|edge| kept.contains(edge)))
-    {
+    let lines = crate::census::collinear_overlaps(b, |edge| kept.contains(&edge), band)
+        .map_err(line_edges)?;
+    for line in &lines {
         match crate::census::line_wedges(result, line.ends, band) {
             Ok(crate::census::LineWedges::Disjoint) => {}
-            Ok(crate::census::LineWedges::Overlap(_)) => return Err(refused(line.refusal())),
-            Err(crate::census::WedgeRefusal::Undecided(cause)) => {
-                return Err(refused(crate::RevertError::Undecided {
-                    edges: line.edges,
-                    cause,
+            Ok(crate::census::LineWedges::Overlap(edges)) => {
+                return Err(refused(crate::RevertError::WedgesOverlap {
+                    edges,
+                    from: crate::census::witness(line.ends[0]),
+                    to: crate::census::witness(line.ends[1]),
                 }));
+            }
+            Err(crate::census::WedgeRefusal::Undecided(diag)) => {
+                return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::LineWedges,
+                    diag,
+                });
             }
             Err(crate::census::WedgeRefusal::NoSheet(_)) => {
                 return Err(refused(crate::RevertError::NoSheet { edges: line.edges }));

@@ -69,13 +69,16 @@ Each passes tiers 3 and 3′ on `origin/main` `ebf6c05239`, at rest:
   records carried: topo's
   `subtracting-a-glued-tip-reverts-its-edge-on-face-line-into-the-rider-form`.
 
-## The primitive exists (PR 5106)
+## The reading exists (PR 5106)
 
 `census::line_wedges` reads, for one line, the material wedge of every
-line edge on it (its two face sheets, the sector rungs for convexity
-and an interior direction, `geom_brep::enters_material` for membership)
-and answers whether two wedges overlap, refusing typed (D4) where a
-reading is in band. ∖ runs it on the lines its operand's coincident
+line edge on it (its two face sheets, the sector rungs for an interior
+direction, and tier 3's own pinch-corner reading,
+`validate::wedge_holds`, for membership) and answers whether two
+wedges overlap, refusing typed (D4) where a reading is in band. Two
+more spellings of a wedge's membership stand beside it,
+`boolean/recl.rs` `wedge_is_reflex`/`Half` and `splitting/rules.rs`
+`edge_wedge`, each with its own conventions. ∖ runs it on the lines its operand's coincident
 edges name. Run over every line where coincident edges lie, it is this
 row's side check for coincident edges, and it would catch the whole
 class at the gate: CLEAVE's

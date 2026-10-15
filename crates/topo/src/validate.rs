@@ -8187,7 +8187,7 @@ fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
 /// # Errors
 ///
 /// The escalation of a sign the verdict needed.
-fn wedge_holds<T: Decide>(
+pub(crate) fn wedge_holds<T: Decide>(
     n: geom_core::Vec3<T>,
     a: geom_core::Vec3<T>,
     b: geom_core::Vec3<T>,

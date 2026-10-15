@@ -194,8 +194,9 @@ pub enum VoidInsertError {
         /// How many solids the cavity holds.
         cavity_solids: usize,
     },
-    /// The cavity does not revert ([`crate::Body::revert`]): its
-    /// complement pairs the faces meeting on a line of it differently.
+    /// The cavity does not revert ([`crate::Body::revert`]): two of its
+    /// line edges end on the same two point keys, and its complement
+    /// pairs the faces meeting on that line differently.
     Revert(RevertError),
 }
 
@@ -329,8 +330,12 @@ pub fn insert_void<T: Decide>(
 /// cavity's solid count, or a cavity of no solid, as
 /// [`VoidInsertError::SolidCount`]; a destination solid that does not
 /// resolve in `dst` as [`VoidInsertError::StaleSolid`]; the evidence
-/// refusals; a cavity whose revert refuses (two of its edges on one
-/// line, [`crate::Body::revert`]) as [`VoidInsertError::Revert`]. Every
+/// refusals; a cavity whose revert refuses as
+/// [`VoidInsertError::Revert`]: two of its line edges whose ends lie on
+/// the same two point keys ([`crate::Body::revert`], read by structure).
+/// Two edges overlapping on one line any other way (one's end on the
+/// other's interior, ends on distinct keys at one point) are not read,
+/// so the door grafts them as reversed, their wedges complemented. Every
 /// refusal leaves `dst` unchanged.
 ///
 /// # Panics

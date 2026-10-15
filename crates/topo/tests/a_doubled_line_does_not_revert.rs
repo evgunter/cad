@@ -150,25 +150,44 @@ fn the_split_slit_body_is_legal_and_refuses_to_revert() {
 fn subtracting_a_slit_tool_refuses_where_it_keeps_the_slit() {
     for pose in poses() {
         let tool = AtRestBody::validate(slit_body(&pose), t()).unwrap();
-        for (what, slab) in [
+        // The seamed finish reads the result's wedges on the line; the
+        // containment fallback reads the cavity's line, which nothing
+        // joins.
+        for (what, slab, seamed) in [
             (
                 "the slab under the top",
                 [(-1.0, 5.0), (-2.0, 4.0), (0.0, 1.5)],
+                true,
             ),
             (
                 "the slab across the slit",
                 [(-1.0, 3.0), (-2.0, 4.0), (0.0, 1.5)],
+                true,
             ),
-            ("the box round it", [(-1.0, 5.0), (-2.0, 4.0), (0.0, 3.0)]),
+            (
+                "the box round it",
+                [(-1.0, 5.0), (-2.0, 4.0), (0.0, 3.0)],
+                false,
+            ),
         ] {
             let what = format!("{}, {what}", pose.label);
             let a = posed_box(&what, slab, &pose, t());
-            match subtract(&a, &tool, t()) {
-                Err(BooleanError::Revert {
-                    operand: Operand::B,
-                    source: RevertError::CoincidentEdges { .. },
-                }) => {}
-                other => panic!("{what}: {other:?}, not the revert's refusal"),
+            match (subtract(&a, &tool, t()), seamed) {
+                (
+                    Err(BooleanError::Revert {
+                        operand: Operand::B,
+                        source: RevertError::WedgesOverlap { .. },
+                    }),
+                    true,
+                )
+                | (
+                    Err(BooleanError::Revert {
+                        operand: Operand::B,
+                        source: RevertError::CoincidentEdges { .. },
+                    }),
+                    false,
+                ) => {}
+                (other, _) => panic!("{what}: {other:?}, not the revert's refusal"),
             }
         }
         let what = format!("{}, the slab over the slit", pose.label);
@@ -235,9 +254,62 @@ fn a_pinch_of_unequal_bricks_refuses_its_revert_through_subtract() {
         match subtract(&b, &pinch.body, t()) {
             Err(BooleanError::Revert {
                 operand: Operand::B,
-                source: RevertError::CoincidentEdges { .. },
+                source: RevertError::WedgesOverlap { .. },
             }) => {}
             other => panic!("{what}: B − pinch: {other:?}, not the revert's refusal"),
         }
+    }
+}
+
+/// **Two edges of the tool that are nearly parallel and stand apart
+/// are not a near-coincidence.** A prism over the profile `(0, 0)`,
+/// `(2, 2)`, `(2, 3)`, `(0, 1 + η)` has two diagonals about 0.7 apart
+/// whose turn, `η` over the profile, reads in band at `η = 10 ε`; their
+/// boxes overlap. Subtracted from the box `[−1, 3] × [−1, 4] × [0.5, 2]`
+/// at rest it builds at its closed form, `30 − (2 + η) · h` over the height `h`
+/// the box keeps, wherever the diagonals go: kept on the prism's top as
+/// it rises through the box's floor (the seamed finish reads the pair,
+/// and the gap between their lines decides it apart), discarded as it
+/// runs through the box (the kept filter skips them), or kept whole as
+/// a cavity (the containment fallback reads every edge).
+#[test]
+fn a_tool_with_near_parallel_edges_standing_apart_builds() {
+    use topo::test_support::{FaceGeometry, describe_as_intersections, finished, prism_ops};
+    let tol = t();
+    let eta = 10.0 * tol.eps();
+    let profile = [(0.0, 0.0), (2.0, 2.0), (2.0, 3.0), (0.0, 1.0 + eta)];
+    let a = posed_box(
+        "the box",
+        [(-1.0, 3.0), (-1.0, 4.0), (0.5, 2.0)],
+        &Pose::rest(),
+        tol,
+    );
+    for (what, span, h) in [
+        ("rising through the floor", (0.0, 1.0), 0.5),
+        ("through the box", (0.0, 3.0), 1.5),
+        ("inside the box", (1.0, 1.5), 0.5),
+    ] {
+        let mut b = Body::<f64>::new();
+        prism_ops(
+            &mut b,
+            &profile,
+            span,
+            Point3::new,
+            FaceGeometry::Certified,
+            tol,
+        );
+        describe_as_intersections(&mut b, tol);
+        let tool = finished(what, b, tol);
+        let BooleanResult::Body(r) =
+            subtract(&a, &tool, tol).unwrap_or_else(|e| panic!("{what}: {e}"))
+        else {
+            panic!("{what}: empty");
+        };
+        let v = topo::mass_properties(&r.body, tol).unwrap().volume;
+        let closed = 30.0 - (2.0 + eta) * h;
+        assert!(
+            (v - closed).abs() < 1e-9,
+            "{what}: volume {v}, closed form {closed}"
+        );
     }
 }

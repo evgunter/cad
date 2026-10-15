@@ -66,12 +66,19 @@ for radial edges would change what the complement is.
 - `Body::revert` and the void door read structurally, deciding nothing
   (the void door's contract): two line edges on the same two point
   keys (`census::shared_segments`). A pair a record backs, or a partial
-  overlap, reaches their naive map unrefused.
-- ∖ reads every collinear overlap of its operand's kept part
-  (`census::collinear_overlaps`), partial overlaps included, and
-  refuses where the result's wedges on the line overlap
+  overlap, reaches their naive map unrefused. Measured at the void
+  door: `insert_voids(box, [s, s], cavity)`, the cavity the pinch of
+  unequal bricks below, grafts the touch as two 270° edges whose
+  wedges overlap by 180°. Tier 3 passes the result, and only tier 3′
+  refuses it, for want of records, not for the wedges.
+- ∖ reads every collinear overlap among the edges of its operand that
+  its result keeps (`census::collinear_overlaps`), partial overlaps
+  included, and refuses where the result's wedges on the line overlap
   (`census::line_wedges`). The pinch of unequal bricks (heights 1.5 and
-  1.25, a partial overlap) is pinned refused there.
+  1.25, a partial overlap) is pinned refused there. A reading of
+  either in band escalates as an input reading
+  (`BooleanDecision::LineEdges`, `BooleanDecision::LineWedges`), with
+  its lever.
 - Coincident curved edges are outside both readers, as they are
   outside the census's exact sweeps; PR 4622's curved keel slit is the
   known instance, unmeasured. A curve key shared by two edges, which a
