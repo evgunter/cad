@@ -24,7 +24,7 @@ use crate::boolean::solid_contain::{
     FaceGeo, PointInSolidError, RayRows, SolidFaces, face_geo, face_plane, ray_crossings,
     selection_reach, side_before, uncrossable,
 };
-use crate::entity::{FaceKey, LoopBoundary};
+use crate::entity::{EntityId, FaceKey, LoopBoundary};
 use crate::ray_walk::RayFault;
 
 /// An aimed ray's rows ([`side_at_infinity`]).
@@ -139,11 +139,11 @@ impl core::fmt::Display for PairPayload<'_> {
         let p = self.0;
         write!(
             f,
-            "a ray aimed at face {:?} at {} met faces {:?} and {:?} in band of each other: {}",
-            p.aimed,
+            "a ray aimed at {} at {} met {} and {} in band of each other: {}",
+            EntityId::Face(p.aimed),
             p.aim,
-            p.near,
-            p.far,
+            EntityId::Face(p.near),
+            EntityId::Face(p.far),
             p.gap.payload()
         )
     }
@@ -180,20 +180,22 @@ impl core::fmt::Display for UnreadRays<'_> {
             if k > 0 {
                 f.write_str("; ")?;
             }
-            write!(f, "at face {:?}", s.aimed)?;
+            write!(f, "at {}", EntityId::Face(s.aimed))?;
             if let Some(aim) = &s.aim {
                 write!(f, " (aimed at {aim})")?;
             }
             match &s.why {
                 SetAsideWhy::Corner { near, far, gap } => write!(
                     f,
-                    ", faces {near:?} and {far:?}, which meet, crossed in band of each other at a \
-                     sharp corner: {}",
+                    ", {} and {}, which meet, crossed in band of each other at a sharp corner: {}",
+                    EntityId::Face(*near),
+                    EntityId::Face(*far),
                     gap.payload()
                 )?,
                 SetAsideWhy::Crossing(PointInSolidError::Escalated { face, diag }) => write!(
                     f,
-                    ", its crossing of face {face:?} in band of that face's boundary: {}",
+                    ", its crossing of {} in band of that face's boundary: {}",
+                    EntityId::Face(*face),
                     diag.payload()
                 )?,
                 SetAsideWhy::Crossing(e) => write!(f, ", a crossing in band: {}", e.summary())?,
@@ -202,7 +204,8 @@ impl core::fmt::Display for UnreadRays<'_> {
                 }
                 SetAsideWhy::Limit(PointInSolidError::KindUnsupported { face, kind }) => write!(
                     f,
-                    ", face {face:?} is a {} surface, which no ray can cross yet",
+                    ", {} is a {} surface, which no ray can cross yet",
+                    EntityId::Face(*face),
                     crate::boolean::kind_word(*kind)
                 )?,
                 SetAsideWhy::Limit(e) => write!(f, ", {}", e.summary())?,
