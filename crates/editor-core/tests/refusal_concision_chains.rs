@@ -4905,10 +4905,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         (
             "an enclosure across zero",
             escalated(MarginDiag::enclosure(-2e-9, 3e-9)),
-            format!(
-                "{head}{sign}its volume over area lies in [-2e-9, 3e-9], an enclosure 5e-9 wide. \
-                 {LEVER}"
-            ),
+            format!("{head}{sign}its volume over area lies in [-2e-9, 3e-9]. {LEVER}"),
         ),
         (
             "invalid margin",

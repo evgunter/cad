@@ -2943,25 +2943,21 @@ pub const AIMED_PAIR: SizedDecision = SizedDecision {
 };
 
 /// **A volume's certified enclosure, in words**: the `V/A` it reads, its
-/// two ends and how wide it is, or that it could not be read. A volume
-/// read off its enclosure alone (D10) refuses only where the enclosure
-/// holds zero, so the ends and the width are what the refusal has to
-/// say, and no band is quoted against them.
+/// two ends (which give its width), or that it could not be read,
+/// through the reading's own `Display`. A volume read off its enclosure
+/// alone (D10) refuses only where the enclosure holds zero, so the ends
+/// are what the refusal has to say, and no band is quoted against them.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct EnclosureWords(pub(crate) geom_core::MarginDiag);
 
 impl fmt::Display for EnclosureWords {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0.diagnostic_f64_for_error_text() {
-            geom_core::ErrorTextReading::Enclosure { lo, hi } => write!(
-                f,
-                "its volume over area lies in [{lo:e}, {hi:e}], an enclosure {:e} wide",
-                hi - lo
-            ),
-            geom_core::ErrorTextReading::Value(v) => {
-                write!(f, "its volume over area reads {v:e}")
+        match self.0.kind() {
+            geom_core::MarginKind::Enclosure => {
+                write!(f, "its volume over area lies in {:e}", self.0)
             }
-            geom_core::ErrorTextReading::Invalid => {
+            geom_core::MarginKind::Value => write!(f, "its volume over area reads {:e}", self.0),
+            geom_core::MarginKind::Invalid => {
                 f.write_str("its volume could not be read (NaN or a refused enclosure)")
             }
         }
