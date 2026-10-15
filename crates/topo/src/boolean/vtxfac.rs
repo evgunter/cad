@@ -3173,7 +3173,9 @@ mod tests {
     #[test]
     fn a_touching_edge_on_two_partners_boundaries_reads_their_faces() {
         use super::super::sectors::{Reach, WedgeRead};
-        let band = Band::linear(Tol::witness()).unwrap();
+        // The band at ε 1e-9, whatever the run's: the in-band chord below
+        // is sized to it.
+        let band = Band::new(1e-9, 1e-8).unwrap();
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let he = HalfEdgeKey::from(key(1));
         let (w, x) = (VertexKey::from(key(4)), VertexKey::from(key(5)));
